@@ -79,14 +79,15 @@ export function reponsePourVoix(contenu: string): string {
  * DÉLÉGUER UNE DEMANDE DITE à l'assistant — par le FIL (le même que le texte) : la demande y est déposée, le fil la
  * joue, on attend sa réponse (45 s au plus ; au-delà, la voix dit que la réponse arrivera à l'écran).
  */
-export async function deleguerALaVoix(user: CurrentUser, demande: string): Promise<ResultatDelegationVoix> {
+export async function deleguerALaVoix(user: CurrentUser, demande: string, conversation?: string | null): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);
   if (refus) return { pourVoix: `Refus : ${refus.erreur}` };
   const texte = demande.trim();
   if (!texte) return { pourVoix: "Je n'ai pas compris la demande : demande à la personne de la répéter." };
-  const d = await deposerMessage(user.id, `[Conversation vocale] ${texte}`.slice(0, 8_000), []);
+  // Décision 0027 : la voix écrit dans la conversation OUVERTE (sans elle, la conversation courante).
+  const d = await deposerMessage(user.id, `[Conversation vocale] ${texte}`.slice(0, 8_000), [], null, conversation ?? null);
   if (!d.ok) return { pourVoix: d.erreur };
-  void traiterFil(user.id);
+  void traiterFil(user.id, d.conversation);
   const fin = Date.now() + DELAI_DELEGATION_MS;
   for (;;) {
     const [rep, q] = await Promise.all([
@@ -116,6 +117,8 @@ export async function deleguerALaVoix(user: CurrentUser, demande: string): Promi
  */
 export async function journaliserVoix(user: CurrentUser, d: {
   secondes: number; latences: number[]; confirme: boolean; lignes: { qui: "personne" | "assistant"; texte: string }[];
+  /** Décision 0027 : la conversation ouverte, où la transcription s'écrit (sans elle, la conversation courante). */
+  conversation?: string | null;
 }): Promise<void> {
   const borne = (n: unknown, max: number) => (typeof n === "number" && Number.isFinite(n) && n >= 0 ? Math.min(Math.round(n), max) : 0);
   const secondes = borne(d.secondes, 7_200);
@@ -132,7 +135,8 @@ export async function journaliserVoix(user: CurrentUser, d: {
     .slice(0, 400);
   if (lignes.length) {
     const dit = (q: string) => lignes.filter((l) => l.qui === q).map((l) => l.texte.trim()).join("\n").slice(0, 7_900);
-    const fil = await filDe(user.id);
+    const fil = await filDe(user.id, d.conversation ?? null);
+    await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { dernierLe: new Date() } });
     const question = await prisma.assistantIaTour.create({
       data: { filId: fil.id, userId: user.id, role: "user", contenu: `[Conversation vocale — transcription]\n${dit("personne")}`, etat: ETAT.TRAITE },
     });

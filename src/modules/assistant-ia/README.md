@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0026, 0030 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0030 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0030 : formulaires de carte, dépôt de dossier, gros volumes).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0030 : formulaires de carte, dépôt de dossier, gros volumes).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -13,6 +13,7 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 | `partage.ts` | **Porte pure** : familles d'accès, plafonds, filtre de confidentialité, règles de lecture et de dépôt, MRZ |
 | `actions.ts` | clé `assistant-ia-actions` : mémoire, routines, fil, et `confirmerIntentionAssistantIA` (l'exécution d'une carte) |
 | `actions-consommation.ts` | clé `assistant-ia-consommation-actions` : réglages de consommation et d'accès (Super Admin) |
+| `actions-conversations.ts` | clé `assistant-ia-conversations-actions` (décision 0027) : conversations (lister, chercher, créer — privée ou non —, renommer, épingler, archiver, supprimer, ranger), dossiers (consignes, documents), appareils (déconnexion à distance) |
 | `actions-qualite.ts` | clé `assistant-ia-qualite-actions` (J5 + J14, décision 0022) : calendrier du banc programmé, passage maintenant, banc A/B, modèle d'un rôle (sur banc vert seulement) |
 | `actions-atelier.ts` | clé `assistant-ia-atelier-actions` (J3, décision 0017) : l'Atelier — ouvrir, revoir, enregistrer (nouvelle version), comparer, convertir |
 | `actions-travaux.ts` | clé `assistant-ia-travaux-actions` (J8, décision 0023) : demandes reçues (lister, répondre, décliner), priorité d'un travail, travaux de mon équipe (si la console l'autorise, audités) |
@@ -20,14 +21,14 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 | `actions-proactivite.ts` | clé `assistant-ia-proactivite-actions` (J12, décision 0024) : ma veille (veilleurs, réglages, retours), mandats, gestes sous mandat (coque), console |
 | `domaine/` | règles pures (accès, plafonds, confidentialité, lecture, dépôt, mémoire affichée, MRZ, UI générative) |
 | `infra/` | le moteur : fil, tour, outils, opérations, lecture des pièces, voix, mémoire, routines, consommation, modèle ; `testing/` (faux modèle, tests seulement) |
-| `ecrans/` | l'interface de `/assistant` (ex-`components/assistant-beta/`) |
+| `ecrans/` | l'interface de `/assistant` (ex-`components/assistant-beta/`) ; `use-fil`, `use-pieces`, `conversations/` partagés avec `ecrans/app/` — l'app **Adventum IA** (`/ia`, thème `app/theme.css`) |
 
-- **Tables** : `AssistantIaFil`, `AssistantIaTour`, `AssistantMemoryItem`, `AssistantRoutine`, `AssistantRoutineRun`,
+- **Tables** : `AssistantIaFil` (une CONVERSATION — plusieurs par personne depuis la décision 0027), `AssistantIaDossier`, `AssistantIaTour`, `AssistantMemoryItem`, `AssistantRoutine`, `AssistantRoutineRun`,
   `AssistantRoleConfig`, `AssistantIaAcces`, `AssistantIaReglage`, `AssistantIaPlafondAtteint` ; J12 : `AssistantVeille`,
   `AssistantVeilleur`, `AssistantSignal`, `AssistantMandat`, `AssistantMandatGeste` ; J11 : `AssistantIaDepotDossier` ; « Mes notes » : `AssistantIaNote{Page,Version,Corbeille,Proposition}`
   (privées : aucune porte pour un autre compte). Les intentions
   (`AssistantActionIntent`) sont au socle IA (`src/platform/ia/intentions/`), partagées avec Adam.
-- **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12) (`src/lib/scheduled.ts`).
+- **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12), `assistant.conversations-privees` (0027, purge à 30 jours) (`src/lib/scheduled.ts`).
 - **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
   `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
 
@@ -91,6 +92,16 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **Équipe** (`lib/missions/travaux/equipe.ts`, par la porte `service.ts`) : option console `managerVoitEquipe` (défaut non), résumé et étapes seulement,
   chaque consultation à l'audit.
 - **Écrans** : `ecrans/demandes-recues.tsx`, `ecrans/travaux-equipe.tsx`, onglets du panneau « Travaux ».
+
+## Adventum IA (décision 0027)
+
+- **Conversations** — `domaine/conversations.ts` (groupes, titres, privée verrouillée), `infra/conversations/service.ts`
+  (CRUD sous la personne, recherche titres + contenu, titre proposé par le modèle rapide, purge des privées),
+  `infra/conversations/outil.ts` (`chercher_conversations` : la mémoire des conversations passées, jamais une privée).
+- **Dossiers** — `domaine/dossiers.ts`, `infra/conversations/dossiers.ts` (consignes et documents, droits relus à chaque tour).
+- **Écrans** — `ecrans/use-fil.ts`, `ecrans/use-pieces.ts`, `ecrans/conversations/` (une seule implémentation pour l'ERP et
+  l'app) ; `ecrans/app/` (coque, saisie à trois voix, tiroir Notes/Travaux/Documents, réglages, hors ligne et
+  notifications ; la voix en direct est `ecrans/voix-temps-reel.tsx` de J13, sur la conversation ouverte). Mode app : `src/platform/app-mode.ts`.
 
 ## Graphe de l'entreprise (lot J9, décision 0021)
 

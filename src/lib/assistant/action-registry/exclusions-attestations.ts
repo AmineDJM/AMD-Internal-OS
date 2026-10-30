@@ -234,6 +234,17 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-notes-actions:accepterPropositionNote", "assistant-ia-notes-actions:refuserPropositionNote", "assistant-ia-notes-actions:toutAccepterNotes",
     "assistant-ia-notes-actions:annulerPropositionNote",
   ]);
+  X("LES CONVERSATIONS ET DOSSIERS de l'Assistant IA (décision 0027, Adventum IA) — les gestes de la personne sur SES conversations (lister, chercher, créer — privée ou non —, renommer, épingler, archiver, supprimer, ranger) et SES dossiers (consignes, documents de référence qu'elle peut ouvrir), et la déconnexion de SES appareils. Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable, aucun partage : c'est l'écran de l'assistant lui-même, pas une action métier à proposer.", [
+    "assistant-ia-conversations-actions:listerMesConversations", "assistant-ia-conversations-actions:rechercherMesConversations",
+    "assistant-ia-conversations-actions:creerMaConversation", "assistant-ia-conversations-actions:renommerMaConversation",
+    "assistant-ia-conversations-actions:epinglerMaConversation", "assistant-ia-conversations-actions:archiverMaConversation",
+    "assistant-ia-conversations-actions:supprimerMaConversation", "assistant-ia-conversations-actions:reglerMaConversationPrivee",
+    "assistant-ia-conversations-actions:rangerMaConversation", "assistant-ia-conversations-actions:listerMesDossiers",
+    "assistant-ia-conversations-actions:creerMonDossier", "assistant-ia-conversations-actions:modifierMonDossier",
+    "assistant-ia-conversations-actions:supprimerMonDossier", "assistant-ia-conversations-actions:ajouterDocumentsAuDossier",
+    "assistant-ia-conversations-actions:retirerDocumentDuDossier", "assistant-ia-conversations-actions:listerMesAppareils",
+    "assistant-ia-conversations-actions:deconnecterMonAppareil",
+  ]);
   X("LA VEILLE PERSONNELLE de l'Assistant IA (J12, décision 0024) — les gestes de la personne sur SA veille : voir ce que ses veilleurs ont constaté, juger un constat « utile / pas utile », l'écarter, activer un veilleur ou régler son seuil, régler son budget d'interruptions ; et les constats d'une fiche qu'elle ouvre. Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable : ce n'est pas une action métier à proposer.", [
     "assistant-ia-proactivite-actions:lireMaVeille", "assistant-ia-proactivite-actions:jugerConstat", "assistant-ia-proactivite-actions:ecarterConstat",
     "assistant-ia-proactivite-actions:reglerMonVeilleur", "assistant-ia-proactivite-actions:reglerMaVeille", "assistant-ia-proactivite-actions:suggestionsPourDossier",

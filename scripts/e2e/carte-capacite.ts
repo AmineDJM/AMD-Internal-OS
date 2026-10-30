@@ -37,7 +37,12 @@ async function main(): Promise<void> {
   const sortie = await outil.run({ title: TITRE, assignedToId: user.name, dueDate: "2026-11-06", description: "Kakémono, présentoir et échantillons." }, user);
   const p = props[0];
   if (!p) throw new Error(`aucune carte : ${sortie}`);
-  const fil = await prisma.assistantIaFil.upsert({ where: { userId: user.id }, update: {}, create: { userId: user.id } });
+  // Décision 0027 : plusieurs conversations par personne — l'écran ouvre la COURANTE (la plus récente, ni archivée ni
+  // privée) ; la carte du banc y est posée et la conversation remonte en tête.
+  const courante = await prisma.assistantIaFil.findFirst({ where: { userId: user.id, archiveLe: null, prive: false }, orderBy: { dernierLe: "desc" } });
+  const fil = courante
+    ? await prisma.assistantIaFil.update({ where: { id: courante.id }, data: { dernierLe: new Date() } })
+    : await prisma.assistantIaFil.create({ data: { userId: user.id } });
   const question = await prisma.assistantIaTour.create({
     data: { filId: fil.id, userId: user.id, role: "user", contenu: "__e2e__ Crée une tâche : préparer le stand du congrès pour le 6 novembre.", etat: "TRAITE" },
   });

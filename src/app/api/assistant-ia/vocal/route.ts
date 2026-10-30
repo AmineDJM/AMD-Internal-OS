@@ -52,9 +52,11 @@ export async function POST(req: Request) {
   const r = await deposerMessage(
     user.id, String(form.get("texte") ?? ""), Array.isArray(pieces) ? (pieces as { id: string; nom: string }[]) : [],
     { id: depot.id, dureeS: Number.isFinite(dureeS) ? dureeS : null },
+    // Décision 0027 : la conversation où le vocal est envoyé (sans elle, la conversation courante).
+    typeof form.get("conversation") === "string" ? String(form.get("conversation")).slice(0, 64) || null : null,
   );
   if (!r.ok) return NextResponse.json({ error: r.erreur }, { status: 400 });
   // NON ATTENDU, à dessein : la transcription et la réponse se jouent en arrière-plan.
-  void traiterFil(user.id);
-  return NextResponse.json({ ok: true, id: r.tour.id, vocal: depot.id });
+  void traiterFil(user.id, r.conversation);
+  return NextResponse.json({ ok: true, id: r.tour.id, vocal: depot.id, conversation: r.conversation });
 }

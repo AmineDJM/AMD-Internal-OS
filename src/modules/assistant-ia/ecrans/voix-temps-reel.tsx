@@ -29,22 +29,36 @@ const LIBELLE_ETAT: Record<EtatVoix, string> = {
   FERMETURE: "Fin de la conversation…", ERREUR: "Erreur", TERMINE: "Conversation terminée",
 };
 
-export function BoutonVoixTempsReel({ desactive }: { desactive?: boolean }) {
+/**
+ * `conversation` (décision 0027, Adventum IA) : la conversation OUVERTE, où la voix délègue et où la transcription
+ * s'écrit — rendue au moment de parler (une « nouvelle conversation » se crée alors). Absente : la conversation courante.
+ */
+export function BoutonVoixTempsReel({ desactive, conversation, className }: {
+  desactive?: boolean;
+  conversation?: () => Promise<string | null>;
+  className?: string;
+}) {
   const [ouvert, setOuvert] = useState(false);
   return (
     <>
       <button type="button" onClick={() => setOuvert(true)} disabled={desactive} data-testid="voix-temps-reel"
-        aria-label="Conversation vocale avec l'assistant" title="Conversation vocale"
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800">
+        aria-label="Conversation vocale avec l'assistant" title="Conversation vocale (gpt-live-1)"
+        className={className ?? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"}>
         <AudioLines className="h-5 w-5" />
       </button>
       {/* Un PORTAIL : la barre de saisie a un fond flouté, qui ferait du panneau « fixe » un enfant de la barre. */}
-      {ouvert && typeof document !== "undefined" && createPortal(<PanneauVoix onFermer={() => setOuvert(false)} />, document.body)}
+      {ouvert && typeof document !== "undefined" && createPortal(<PanneauVoix onFermer={() => setOuvert(false)} conversation={conversation} />, document.body)}
     </>
   );
 }
 
-function PanneauVoix({ onFermer }: { onFermer: () => void }) {
+function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; conversation?: () => Promise<string | null> }) {
+  // La conversation, résolue au premier geste puis gardée : délégations et transcription vont au même endroit.
+  const cible = useRef<string | null | undefined>(undefined);
+  const conversationOuverte = useCallback(async (): Promise<string | null> => {
+    if (cible.current === undefined) cible.current = conversation ? await conversation().catch(sansBloquer("voix-temps-reel.conversation", null)) : null;
+    return cible.current;
+  }, [conversation]);
   const [etat, setEtat] = useState<EtatVoix>("INACTIF");
   const [detail, setDetail] = useState<string | null>(null);
   const [lignes, setLignes] = useState<Ligne[]>([]);
@@ -56,10 +70,10 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
   const ajouter = (l: Ligne) => setLignes((xs) => [...xs, l].slice(-60));
 
   const deleguer = useCallback(async (demande: string): Promise<ResultatDelegation> => {
-    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande }) });
+    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, conversation: await conversationOuverte() }) });
     if (!r.ok) return { pourVoix: "Le serveur n'a pas répondu : dis-le et propose de réessayer." };
     return (await r.json()) as ResultatDelegation;
-  }, []);
+  }, [conversationOuverte]);
 
   const ouvrir = useCallback(async (sdp: string): Promise<{ sdp: string }> => {
     const r = await fetch("/api/assistant-ia/voix/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sdp }) });
@@ -74,7 +88,7 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
     client.current = null;
     if (!c) return;
     await c.fermer();
-    const corps = JSON.stringify({ secondes: c.secondes, confirme: c.usageConfirme, latences: c.latences, lignes: dites.current });
+    const corps = JSON.stringify({ secondes: c.secondes, confirme: c.usageConfirme, latences: c.latences, lignes: dites.current, conversation: cible.current ?? null });
     dites.current = [];
     // Le journal part même si l'onglet se ferme.
     if (!navigator.sendBeacon?.("/api/assistant-ia/voix/journal", new Blob([corps], { type: "application/json" }))) {
@@ -94,8 +108,9 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
       latence: (ms) => setLatences((xs) => [...xs, ms]),
     });
     client.current = c;
+    await conversationOuverte();
     try { await c.connecter(); } catch { client.current = null; }
-  }, [ouvrir, deleguer]);
+  }, [ouvrir, deleguer, conversationOuverte]);
 
   useEffect(() => () => { void terminer(); }, [terminer]);
 
@@ -127,7 +142,7 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
       </div>
       <div className="flex items-center justify-center gap-3 border-t border-slate-200 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-zinc-800">
         {!actif && etat !== "CONNEXION" ? (
-          <button type="button" onClick={() => void demarrer()} className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-violet-600 text-sm font-medium text-white">
+          <button type="button" onClick={() => void demarrer()} className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--aia-accent,#7c3aed)] text-sm font-medium text-white">
             <Mic className="h-5 w-5" /> Parler à l&apos;assistant
           </button>
         ) : etat === "CONNEXION" ? (

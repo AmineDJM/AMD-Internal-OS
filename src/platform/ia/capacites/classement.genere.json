@@ -1594,6 +1594,153 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-conversations-actions:ajouterDocumentsAuDossier": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:archiverMaConversation": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:creerMaConversation": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:creerMonDossier": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:deconnecterMonAppareil": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:epinglerMaConversation": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:listerMesAppareils": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:listerMesConversations": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:listerMesDossiers": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:modifierMonDossier": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:rangerMaConversation": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:rechercherMesConversations": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:reglerMaConversationPrivee": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:renommerMaConversation": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:retirerDocumentDuDossier": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:supprimerMaConversation": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-conversations-actions:supprimerMonDossier": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": false
+ },
  "assistant-ia-notes-actions:accepterPropositionNote": {
   "risque": "R4",
   "familles": [

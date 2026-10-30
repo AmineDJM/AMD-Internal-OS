@@ -59,6 +59,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "assistant-ia-atelier-actions": "src/modules/assistant-ia/actions-atelier.ts",
   "assistant-ia-travaux-actions": "src/modules/assistant-ia/actions-travaux.ts",
   "assistant-ia-notes-actions": "src/modules/assistant-ia/actions-notes.ts",
+  "assistant-ia-conversations-actions": "src/modules/assistant-ia/actions-conversations.ts",
   "assistant-ia-proactivite-actions": "src/modules/assistant-ia/actions-proactivite.ts",
   "assistant-ia-qualite-actions": "src/modules/assistant-ia/actions-qualite.ts",
   "bibliotheque-actions": "src/modules/bibliotheque/actions.ts",

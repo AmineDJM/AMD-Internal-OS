@@ -14,8 +14,10 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const personne = await getCurrentUserPourEcrire();
   if (!personne) return Response.json({ error: "Non authentifié." }, { status: 401 });
-  let corps: { demande?: unknown };
+  let corps: { demande?: unknown; conversation?: unknown };
   try { corps = (await req.json()) as typeof corps; } catch { return Response.json({ error: "Requête invalide." }, { status: 400 }); }
   const demande = typeof corps.demande === "string" ? corps.demande.slice(0, 4_000) : "";
-  return Response.json(await deleguerALaVoix(personne, demande));
+  // Décision 0027 : la conversation ouverte (un identifiant qui n'est pas à la personne retombe sur la courante).
+  const conversation = typeof corps.conversation === "string" && corps.conversation.length < 64 ? corps.conversation : null;
+  return Response.json(await deleguerALaVoix(personne, demande, conversation));
 }

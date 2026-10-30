@@ -1,0 +1,94 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * ADVENTUM IA — LE THÈME (décision 0027, point 9) : la CHARTE ADVENTUM PHARMA (`docs/charte/adventum-pharma.md`,
+ * reçue de la Direction le 30/10/2026). UN SEUL FICHIER pour toute l'app.
+ *
+ * Bleu Adventum `#2C59A7` (principal), bleu clair `#457AC6`, indigo `#324BA6`, sarcelle `#2B6E82` et cyan `#57C8DD`
+ * (accent voix / états) — PAS de vert. Helvetica Neue. Sombre : bleus éclaircis pour le contraste. Logos et icônes dans
+ * `public/adventum-ia/` (logo-complet.png, logo-marque.png, icônes). Les jetons sont lus par l'app ET par la liste des
+ * conversations de l'ERP (`/assistant`).
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.adventum-ia {
+  /* La marque */
+  --aia-accent: #2c59a7;          /* bleu Adventum (boutons, liens, bulle, sélection) */
+  --aia-accent-fort: #324ba6;     /* indigo : survol, appui */
+  --aia-accent-fg: #ffffff;       /* texte sur l'accent */
+  --aia-accent-doux: #e6eef9;     /* fonds sélectionnés, puces */
+  --aia-degrade: linear-gradient(180deg, #457ac6, #2c59a7);   /* le grand carré du logo */
+  --aia-voix: #2b6e82;            /* sarcelle : voix, états, indicateurs */
+  --aia-voix-doux: #def3f7;
+  --aia-voix-degrade: linear-gradient(90deg, #57c8dd, #2b6e82); /* les petits carrés du logo */
+  /* Les surfaces */
+  --aia-fond: #f5f8fc;            /* derrière tout */
+  --aia-panneau: #ffffff;         /* la conversation, les feuilles */
+  --aia-cote: #edf2f9;            /* la barre des conversations */
+  --aia-survol: #dfe7f2;
+  --aia-bulle: #2c59a7;           /* la bulle de la personne (bleu Adventum) */
+  --aia-bulle-texte: #ffffff;
+  --aia-texte: #0f1b2d;
+  --aia-discret: #5b6b82;
+  --aia-filet: #d5dfec;
+  /* Les états */
+  --aia-prive: #6b4e00;           /* conversation privée (ambre, lisible) */
+  --aia-prive-doux: #fbf1d9;
+  --aia-danger: #b42318;
+  /* La typographie : celle de l'ERP (Inter, auto-hébergée), changeable ici. */
+  --aia-police: "Helvetica Neue", Helvetica, Arial, "Noto Sans Arabic", sans-serif;
+  --aia-rayon: 14px;
+
+  color-scheme: light;
+  background: var(--aia-fond);
+  color: var(--aia-texte);
+  font-family: var(--aia-police);
+}
+
+/* Sombre : suivi du système, sauf choix explicite (`data-theme` posé par l'app, classe `dark` de l'ERP). */
+@media (prefers-color-scheme: dark) {
+  .adventum-ia:not([data-theme="clair"]) {
+    --aia-accent: #7fa6e3;
+    --aia-accent-fort: #a3c0ec;
+    --aia-accent-fg: #071833;
+    --aia-accent-doux: #172a4a;
+    --aia-voix: #57c8dd;
+    --aia-voix-doux: #0f2e36;
+    --aia-bulle-texte: #071833;
+    --aia-fond: #08111f;
+    --aia-panneau: #0d1829;
+    --aia-cote: #0a1424;
+    --aia-survol: #16243a;
+    --aia-bulle: #7fa6e3;
+    --aia-texte: #e6edf7;
+    --aia-discret: #93a3ba;
+    --aia-filet: #1f2f48;
+    --aia-prive: #f0c46a;
+    --aia-prive-doux: #2c230d;
+    --aia-danger: #f4877a;
+    color-scheme: dark;
+  }
+}
+.adventum-ia[data-theme="sombre"], .dark .adventum-ia:not([data-theme="clair"]) {
+  --aia-accent: #7fa6e3;
+  --aia-accent-fort: #a3c0ec;
+  --aia-accent-fg: #071833;
+  --aia-accent-doux: #172a4a;
+  --aia-voix: #57c8dd;
+  --aia-voix-doux: #0f2e36;
+  --aia-bulle-texte: #071833;
+  --aia-fond: #08111f;
+  --aia-panneau: #0d1829;
+  --aia-cote: #0a1424;
+  --aia-survol: #16243a;
+  --aia-bulle: #7fa6e3;
+  --aia-texte: #e6edf7;
+  --aia-discret: #93a3ba;
+  --aia-filet: #1f2f48;
+  --aia-prive: #f0c46a;
+  --aia-prive-doux: #2c230d;
+  --aia-danger: #f4877a;
+  color-scheme: dark;
+}
+
+/* La respiration de la voix en direct — coupée pour qui réduit les animations. */
+@keyframes aia-respire { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.05); } }
+.aia-onde { animation: aia-respire 2.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .aia-onde { animation: none; } }

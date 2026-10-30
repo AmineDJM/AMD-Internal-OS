@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Lock, Mic, SendHorizontal, Trash2 } from "lucide-react";
+import { Lock, Mic, SendHorizontal, Square, Trash2 } from "lucide-react";
 import { duree, DUREE_VOCAL_MAX_S } from "../domaine/lecture/regles";
 import { sansBloquer } from "@/lib/journal";
 
@@ -12,6 +12,8 @@ import { sansBloquer } from "@/lib/journal";
  *   • MAINTENIR le bouton : ça enregistre ; RELÂCHER : le vocal part ; GLISSER VERS LA GAUCHE : il est
  *     annulé (rien n'est envoyé) ; GLISSER VERS LE HAUT : l'enregistrement se VERROUILLE (mains libres).
  *   • UN APPUI BREF : l'enregistrement démarre verrouillé — « Envoyer » ou la corbeille l'arrêtent.
+ *   • RÉÉCOUTER AVANT D'ENVOYER (Adventum IA, décision 0027) : verrouillé, « ■ » arrête sans envoyer — le vocal se
+ *     réécoute, puis part (« Envoyer ») ou se jette (corbeille). Maintenir-relâcher envoie toujours tout de suite.
  *   • Minuterie et onde EN DIRECT (niveau du micro) ; arrêt et envoi d'office à la durée maximale.
  *
  * Ce composant n'envoie rien lui-même : il rend l'enregistrement (`onVocal`) à l'écran, qui le dépose
@@ -25,7 +27,7 @@ export interface EnregistreurVocalProps {
   desactive?: boolean;
 }
 
-type Phase = "repos" | "demarrage" | "maintenu" | "verrouille";
+type Phase = "repos" | "demarrage" | "maintenu" | "verrouille" | "relecture";
 
 const SEUIL_ANNULER_PX = 90;
 const SEUIL_VERROU_PX = 70;
@@ -59,6 +61,10 @@ export function EnregistreurVocal({ onVocal, desactive }: EnregistreurVocalProps
   const audioCtx = useRef<AudioContext | null>(null);
   const anim = useRef<number | null>(null);
   const minuteur = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Arrêté pour être réécouté : l'enregistrement attend ici le geste « Envoyer » ou la corbeille.
+  const aRelire = useRef(false);
+  const [relu, setRelu] = useState<{ blob: Blob; dureeS: number; url: string } | null>(null);
+  useEffect(() => () => { if (relu) URL.revokeObjectURL(relu.url); }, [relu]);
 
   const nettoyer = useCallback(() => {
     if (anim.current) cancelAnimationFrame(anim.current);
@@ -106,10 +112,13 @@ export function EnregistreurVocal({ onVocal, desactive }: EnregistreurVocalProps
         const type = (r.mimeType || mime || "audio/webm").split(";")[0];
         const blob = new Blob(morceaux.current, { type });
         nettoyer();
-        setPhase("repos");
         setSecondes(0);
         // Un vocal de moins d'une demi-seconde est un appui manqué, pas un message.
-        if (!annule.current && dureeS >= 0.5 && blob.size > 0) onVocal(blob, Math.round(dureeS));
+        const valable = !annule.current && dureeS >= 0.5 && blob.size > 0;
+        if (valable && aRelire.current) { aRelire.current = false; setRelu({ blob, dureeS: Math.round(dureeS), url: URL.createObjectURL(blob) }); setPhase("relecture"); return; }
+        aRelire.current = false;
+        setPhase("repos");
+        if (valable) onVocal(blob, Math.round(dureeS));
       };
       rec.current = r;
       r.start(250);
@@ -185,6 +194,12 @@ export function EnregistreurVocal({ onVocal, desactive }: EnregistreurVocalProps
   };
 
   const enCours = phase === "maintenu" || phase === "verrouille";
+  const arreterPourRelire = () => { aRelire.current = true; arreter(true); };
+  const finirRelecture = (envoyer: boolean) => {
+    if (envoyer && relu) onVocal(relu.blob, relu.dureeS);
+    setRelu(null);
+    setPhase("repos");
+  };
 
   return (
     <>
@@ -214,11 +229,31 @@ export function EnregistreurVocal({ onVocal, desactive }: EnregistreurVocalProps
               <span className="hidden min-[380px]:inline">‹ glisser pour annuler · </span>↑ <Lock className="inline h-3 w-3" />
             </span>
           ) : (
-            <button type="button" onClick={() => arreter(true)} aria-label="Envoyer le vocal" title="Envoyer"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-2xs hover:bg-emerald-700">
-              <SendHorizontal className="h-4 w-4" />
-            </button>
+            <>
+              <button type="button" onClick={arreterPourRelire} aria-label="Arrêter pour réécouter" title="Arrêter et réécouter"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                <Square className="h-4 w-4" />
+              </button>
+              <button type="button" onClick={() => arreter(true)} aria-label="Envoyer le vocal" title="Envoyer"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--aia-accent,#1d4ed8)] text-white shadow-2xs hover:opacity-90">
+                <SendHorizontal className="h-4 w-4" />
+              </button>
+            </>
           )}
+        </div>
+      )}
+      {phase === "relecture" && relu && (
+        <div role="group" aria-label="Réécouter le vocal avant de l'envoyer" data-testid="vocal-relecture"
+          className="absolute inset-0 z-30 flex items-center gap-2 rounded-2xl bg-white px-2 dark:bg-zinc-950">
+          <button type="button" onClick={() => finirRelecture(false)} aria-label="Supprimer le vocal" title="Supprimer"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/40">
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <audio src={relu.url} controls preload="metadata" className="h-9 min-w-0 flex-1" aria-label={`Vocal de ${duree(relu.dureeS)}`} />
+          <button type="button" onClick={() => finirRelecture(true)} aria-label="Envoyer le vocal" title="Envoyer"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--aia-accent,#1d4ed8)] text-white shadow-2xs hover:opacity-90">
+            <SendHorizontal className="h-4 w-4" />
+          </button>
         </div>
       )}
       {erreur && !enCours && (
@@ -236,7 +271,7 @@ export function EnregistreurVocal({ onVocal, desactive }: EnregistreurVocalProps
         aria-label="Message vocal — maintenir pour enregistrer, ou appuyer pour démarrer"
         title="Message vocal — maintenir pour enregistrer (glisser à gauche pour annuler), ou appuyer pour démarrer"
         className={`relative z-40 flex h-10 w-10 shrink-0 touch-none select-none items-center justify-center rounded-xl shadow-2xs transition disabled:opacity-30 ${
-          phase === "maintenu" ? "scale-125 bg-red-600 text-white" : phase === "verrouille" ? "hidden" : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-zinc-100 dark:text-zinc-900"
+          phase === "maintenu" ? "scale-125 bg-red-600 text-white" : phase === "verrouille" || phase === "relecture" ? "hidden" : "bg-[var(--aia-accent,#0f172a)] text-[var(--aia-accent-fg,#fff)] hover:opacity-90"
         }`}
         style={phase === "maintenu" ? { transform: `translate(${decalage.x}px, ${decalage.y}px) scale(1.25)` } : undefined}
       >

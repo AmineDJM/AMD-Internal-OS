@@ -25,6 +25,12 @@ export {
 } from "./infra/fil/service";
 export { jouerTour } from "./infra/fil/tour";
 
+// ── Les conversations et les dossiers (décision 0027, Adventum IA) : plusieurs conversations, privées, rangées
+export {
+  conversationDe, listerConversations, purgerConversationsPrivees, rechercherConversations, resumerConversation,
+} from "./infra/conversations/service";
+export { listerDossiers } from "./infra/conversations/dossiers";
+
 // ── Vocaux et pièces citées
 export { deposerAudio, nomDeVocal, synthetiser } from "./infra/lecture/voix";
 export { piecesCitees } from "./infra/operations/pieces";

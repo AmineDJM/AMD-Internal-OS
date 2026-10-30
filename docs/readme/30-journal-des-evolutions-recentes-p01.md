@@ -67,6 +67,20 @@ dossier, ni nom, ni montant d'un dossier. Banc : 12/12 recettes justes sur le co
 (93 %), zéro recette servie avant validation, zéro hors droits. Décision [0028](../assistant/decisions/0028-recettes.md) ;
 migration `20270211090000_recettes`.
 
+
+### ADVENTUM IA : L'APP DE L'ASSISTANT IA — PLUSIEURS CONVERSATIONS, MÉMOIRE COMMUNE, PRIVÉE, DOSSIERS, VOCAUX, SON PROPRE SITE (2026-10-30)
+
+La maquette validée par la Direction devient une app : **`/ia`**, et son propre site **adventum-ia.onrender.com** (service
+Render `adventum-ia`, créé par « Sync », même dépôt et même build, `APP_MODE=adventum-ia`). Le MÊME assistant que l'ERP
+(outils, droits, console, repères, travaux sur le worker). **Plusieurs conversations par personne** (le fil unique devient
+la première — migration additive `20270215160000_adventum_ia_conversations`) : titre proposé par le modèle rapide, renommer,
+épingler, rechercher (titres et contenu), archiver, supprimer, groupées par date ; l'écran `/assistant` de l'ERP a la même
+liste. **Mémoire commune** + recherche dans ses conversations passées (`chercher_conversations`), « Mémoire mise à jour ».
+**Conversation privée** : choisie avant le premier message, verrouillée ensuite, sans mémoire, supprimée à 30 jours.
+**Dossiers** (consignes + documents de référence, droits relus à chaque tour). **Vocaux** : réécoute avant envoi ; file hors
+ligne. Voix en direct `gpt-live-1` : celle de J13, dans la conversation ouverte. Bloc-notes : point d'accroche, en attente du lot Notes. Thème
+« bleu pharma » clair/sombre dans un seul fichier ; PWA iPhone (manifeste, icônes, écran de démarrage, Web Push qui ouvre la
+bonne conversation) ; déconnexion à distance de ses appareils. Décision [0027](../assistant/decisions/0027-adventum-ia.md).
 ### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
 
 L'Assistant IA suit désormais les **relations** de l'entreprise : `explorer_relations` (« qu'est-ce qui dépend de Saidal ? »,

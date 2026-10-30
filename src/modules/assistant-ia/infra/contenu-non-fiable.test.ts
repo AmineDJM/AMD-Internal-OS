@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 import { getAccess } from "@/lib/rbac";
 import { outilsV1 } from "./outils-v1";
+import { outilConversationsPassees } from "./conversations/outil";
 import { REGLES } from "./contexte";
 import {
   CONSIGNE_CONTENU_NON_FIABLE, encadrerNonFiable, neutraliser, NOM_EVOQUANT_UN_TIERS, OUTILS_A_CONTENU_TIERS,
@@ -40,7 +41,8 @@ describe("cliquet : tout outil qui ramène un contenu tiers est classé", () => 
   it("chaque outil de l'Assistant IA dont le nom évoque un document, un message ou le web est encadré ou nommé interne", async () => {
     const access = await getAccess("__banc_contenu_tiers", "SUPER_ADMIN" as never);
     const u = { id: "__banc_contenu_tiers", name: "Banc", email: "b@t.dz", role: "SUPER_ADMIN", secondaryRole: null, access, mustChangePassword: false } as unknown as CurrentUser;
-    const noms = outilsV1(u, [], [], []).map((o) => o.def.name);
+    // Décision 0027 : la mémoire des conversations passées est ajoutée au tour (hors conversation privée).
+    const noms = [...outilsV1(u, [], [], []), outilConversationsPassees(u, null)].map((o) => o.def.name);
     const nonClasses = noms.filter((n) => NOM_EVOQUANT_UN_TIERS.test(n) && !(n in OUTILS_A_CONTENU_TIERS) && !OUTILS_INTERNES_NOMMES.includes(n));
     expect(nonClasses, `Outils non classés (contenu tiers ou interne ?) : ${nonClasses.join(", ")}`).toEqual([]);
     // Et aucune entrée morte : un nom classé qui n'existe plus ne protège rien.

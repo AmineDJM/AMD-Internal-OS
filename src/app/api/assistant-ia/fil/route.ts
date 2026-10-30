@@ -11,13 +11,15 @@ export const dynamic = "force-dynamic";
  * écran passent l'une après l'autre, et une lecture répétée retarderait l'envoi d'un message.
  * Chaque lecture dit aussi que la personne est là (`consulteLe`) : présente, elle n'est pas notifiée.
  */
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getCurrentUser();
   const refus = refusAssistantIA(user);
   if (refus || !user) return refus ?? NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   // En « Vue exacte », on ne marque pas la présence de la personne regardée (ni ne lit son fil).
   if (enVueExacte(user)) return NextResponse.json({ tours: [], enCours: false, vueExacte: true }, SANS_CACHE);
-  const fil = await lireFil(user.id);
+  // Décision 0027 : la conversation lue (`?c=`) ; sans elle, la conversation courante.
+  const conversation = new URL(req.url).searchParams.get("c")?.slice(0, 64) || null;
+  const fil = await lireFil(user.id, 80, conversation);
   // LES PIÈCES RENVOYÉES PAR L'ASSISTANT (décision 0015) : les fichiers du Drive cités par une réponse
   // terminée ou par le résultat d'une action exécutée — droits revérifiés, ouvrables dans l'aperçu.
   const rendues = new Map<string, { id: string; nom: string }[]>();
@@ -37,6 +39,7 @@ export async function GET() {
     vueExacte: false,
     enCours: fil.enCours,
     reponseVocale: fil.reponseVocale,
+    conversation: fil.conversation,
     tours: fil.tours.map((t) => ({
       id: t.id, role: t.role, contenu: t.contenu, etat: t.etat, pieces: t.pieces, blocs: t.blocs, intent: t.intent,
       memoireProposee: t.memoireProposee, outils: t.outils, etapes: t.etapes, createdAt: t.createdAt.toISOString(),

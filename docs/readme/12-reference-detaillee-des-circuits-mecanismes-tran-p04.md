@@ -722,7 +722,25 @@ portes, lexique, cliché `classement.genere.json`) ; module `src/modules/assista
   (`GESTES_DE_FICHE` : jamais `userId`, R4, fiche relue et rejouée à la confirmation) ; portes nommées geste par geste
   (`PORTES_DU_GESTE` : « le propriétaire OU le droit du module ») ; un fichier facultatif n'empêche plus l'appel.
 
+### Adventum IA — conversations multiples, privée, dossiers, app et site propre (décision 0027, 30/10/2026)
 
+Fichiers : `src/modules/assistant-ia/{domaine/conversations.ts,domaine/dossiers.ts,infra/conversations/*,actions-conversations.ts}`,
+`ecrans/{use-fil,use-pieces}.ts`, `ecrans/conversations/`, `ecrans/app/`, `src/app/ia/`, `src/platform/app-mode.ts`,
+`src/auth.config.ts` (middleware), `public/adventum-ia/`, `public/ia-sw.js`, `render.yaml` (`adventum-ia`).
+
+- **Conversation** = un `AssistantIaFil` (plusieurs par personne). Écrire : `envoyerAuFil(texte, pieces, conversation)` ou
+  `/api/assistant-ia/vocal` (champ `conversation`) ; lire : `/api/assistant-ia/fil?c=`. Sans conversation : la courante
+  (plus récente, ni archivée ni privée). Une conversation « nouvelle » n'existe qu'au premier envoi (`creerMaConversation`,
+  privée choisie là). Titre : provisoire au dépôt, proposé par le modèle rapide après la 1re réponse, jamais sur un titre manuel.
+- **Gardes** : porte `porte()` (module `ASSISTANT_IA`, session, pas d'écriture en Vue exacte) ; chaque `where` porte `userId`.
+  Privée : `reglerPrive` refusé dès un tour (et en base : `tours: { none: {} }`) ; ni mémoire (`sansMemoire`), ni
+  `proposer_memoire`, ni `chercher_conversations` ; purge 30 j (`assistant.conversations-privees`).
+- **Dossier** (`AssistantIaDossier`) : consignes + documents ; documents ajoutés seulement s'ils sont ouvrables
+  (`piecesCitees`), revérifiés à chaque tour (`sectionDossierDuTour`), nommés au modèle avec leur identifiant.
+- **Mode app** (`APP_MODE=adventum-ia`) : `/`, `/mon-espace`, `/aujourdhui` → `/ia` ; `/assistant?c=` → `/ia?c=` ; pages
+  permises : `/ia`, `/login`, `/change-password`, `/office-embed` ; API permises : assistant-ia, drive, documents, artifact,
+  push, health, onlyoffice, rh/document, auth ; le reste → `ERP_URL` (page) ou 404 (API).
+- **Appareils** : `listerMesAppareils` / `deconnecterMonAppareil` révoquent SES `UserSession` (honoré à la requête suivante).
 ### Graphe de l'entreprise et faits datés (lot J9, 30/10/2026)
 
 Décision [0021](../assistant/decisions/0021-graphe.md). Module `src/modules/graphe-entreprise/` ; outils au socle

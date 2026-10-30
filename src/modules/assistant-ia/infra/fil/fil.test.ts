@@ -79,11 +79,12 @@ suite("Assistant IA — le fil gardé, joué en arrière-plan", () => {
   it("la personne ailleurs est NOTIFIÉE quand la réponse est prête ; présente, elle ne l'est pas", async () => {
     remplacerModelesPourTests([modeleFactice([reponse("Voici le rapport demandé.")]).modele as never]);
     await deposerMessage(assistante.id, "Prépare un rapport des congrès.", []);
-    await prisma.assistantIaFil.update({ where: { userId: assistante.id }, data: { consulteLe: new Date(Date.now() - 60_000) } });
+    await prisma.assistantIaFil.updateMany({ where: { userId: assistante.id }, data: { consulteLe: new Date(Date.now() - 60_000) } });
     await traiterFil(assistante.id);
     const notes = await prisma.notification.findMany({ where: { userId: assistante.id } });
     expect(notes.map((n) => n.title)).toEqual([expect.stringMatching(/Assistant IA : réponse prête/)]);
-    expect(notes[0].link).toBe("/assistant");
+    // Décision 0027 : la notification ouvre LA conversation (l'app Adventum IA renvoie ce lien vers `/ia`).
+    expect(notes[0].link).toMatch(/^\/assistant\?c=c[a-z0-9]+$/);
 
     remplacerModelesPourTests([modeleFactice([reponse("Encore là.")]).modele as never]);
     await deposerMessage(assistante.id, "Merci.", []); // déposer = être sur l'écran
@@ -94,7 +95,7 @@ suite("Assistant IA — le fil gardé, joué en arrière-plan", () => {
   it("un tour interrompu (redémarrage) est repris par le balayage", async () => {
     const r = await deposerMessage(assistante.id, "Résume mes validations.", []);
     if (!r.ok) throw new Error(r.erreur);
-    const fil = await prisma.assistantIaFil.findUniqueOrThrow({ where: { userId: assistante.id } });
+    const fil = await prisma.assistantIaFil.findUniqueOrThrow({ where: { id: r.conversation } });
     // État laissé par un serveur tombé en plein tour : message EN_COURS, réponse partielle, prise périmée.
     await prisma.assistantIaTour.update({ where: { id: r.tour.id }, data: { etat: ETAT.COURS, createdAt: new Date(Date.now() - 60_000) } });
     await prisma.assistantIaTour.create({ data: { filId: fil.id, userId: assistante.id, role: "assistant", contenu: "Je regarde vos valid", etat: ETAT.COURS, repondA: r.tour.id } });
@@ -109,7 +110,7 @@ suite("Assistant IA — le fil gardé, joué en arrière-plan", () => {
   });
 
   it("« Nouvelle conversation » : rien n'est supprimé, mais le contexte repart de zéro", async () => {
-    expect(await nouvelleConversation(assistante.id)).toEqual({ ok: true });
+    expect(await nouvelleConversation(assistante.id)).toEqual({ ok: true, conversation: expect.any(String) });
     expect((await lireFil(assistante.id)).tours).toHaveLength(0);
     const faux = modeleFactice([reponse("Bonjour.")]);
     remplacerModelesPourTests([faux.modele as never]);
