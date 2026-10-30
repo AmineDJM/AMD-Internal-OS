@@ -3,6 +3,10 @@
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
 [`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0024 ; 0013 : la séparation d'Adam et le socle IA ;
+
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0022 ; 0013 : la séparation d'Adam et le socle IA ;
+
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0024, 0025 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle).
 
 | Porte / dossier | Rôle |
@@ -12,6 +16,7 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
 | `actions.ts` | clé `assistant-ia-actions` : mémoire, routines, fil, et `confirmerIntentionAssistantIA` (l'exécution d'une carte) |
 | `actions-consommation.ts` | clé `assistant-ia-consommation-actions` : réglages de consommation et d'accès (Super Admin) |
 | `actions-conversations.ts` | clé `assistant-ia-conversations-actions` (décision 0027) : conversations (lister, chercher, créer — privée ou non —, renommer, épingler, archiver, supprimer, ranger), dossiers (consignes, documents), appareils (déconnexion à distance) |
+| `actions-qualite.ts` | clé `assistant-ia-qualite-actions` (J5 + J14, décision 0022) : calendrier du banc programmé, passage maintenant, banc A/B, modèle d'un rôle (sur banc vert seulement) |
 | `actions-atelier.ts` | clé `assistant-ia-atelier-actions` (J3, décision 0017) : l'Atelier — ouvrir, revoir, enregistrer (nouvelle version), comparer, convertir |
 | `actions-proactivite.ts` | clé `assistant-ia-proactivite-actions` (J12, décision 0024) : ma veille (veilleurs, réglages, retours), mandats, gestes sous mandat (coque), console |
 | `domaine/` | règles pures (accès, plafonds, confidentialité, lecture, dépôt, mémoire affichée, MRZ, UI générative) |
@@ -47,8 +52,8 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   `infra/conversations/outil.ts` (`chercher_conversations` : la mémoire des conversations passées, jamais une privée).
 - **Dossiers** — `domaine/dossiers.ts`, `infra/conversations/dossiers.ts` (consignes et documents, droits relus à chaque tour).
 - **Écrans** — `ecrans/use-fil.ts`, `ecrans/use-pieces.ts`, `ecrans/conversations/` (une seule implémentation pour l'ERP et
-  l'app) ; `ecrans/app/` (coque, saisie à trois voix, tiroir Notes/Travaux/Documents, réglages, voix en direct — point
-  d'accroche J13 —, hors ligne et notifications). Mode app : `src/platform/app-mode.ts`.
+  l'app) ; `ecrans/app/` (coque, saisie à trois voix, tiroir Notes/Travaux/Documents, réglages, hors ligne et
+  notifications ; la voix en direct est `ecrans/voix-temps-reel.tsx` de J13, sur la conversation ouverte). Mode app : `src/platform/app-mode.ts`.
 
 ## Graphe de l'entreprise (lot J9, décision 0021)
 
@@ -68,3 +73,26 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   (`ecrans/executeur-mandats.tsx`, monté par la coque), reçu pris avant, audit.
 - **Écrans** — `ecrans/veille-panel.tsx` (« Ce que mon assistant surveille »), `ecrans/suggestions-dossier.tsx`
   (`/validations/[id]`, `/sponsoring/[id]`), `ecrans/console-proactivite.tsx` (`/admin/ai/acces`).
+
+## Qualité continue (lots J5 + J14, décision 0022)
+
+- **Banc programmé** — `infra/qualite/banc.ts` (tâche `qualite.banc`, worker seul ; processus `scripts/bench/banc-programme.ts`
+  contre la base d'essai déclarée `BANC_ESSAI_DATABASE_URL`, marqueur `BancBaseEssai`) ; règles pures `domaine/qualite/`
+  (calendrier, régression +30 %, base d'essai, résultat). Tables `AssistantIaBancReglage`, `AssistantIaBancPassage`,
+  `AssistantIaBancScenario`. Écran `/admin/ai/qualite`.
+- **Traces rejouables** — `infra/qualite/traces.ts` (enregistrement du modèle et des outils, `AssistantIaTrace` gzip, 30 j),
+  `infra/qualite/rejeu.ts`, `npm run assistant:rejouer`.
+- **Provenance tierce** — `domaine/provenance-tierce.ts` (pur), `infra/provenance.ts` (sur chaque carte) ; corpus de 240
+  pièges `infra/testing/corpus-pieges.ts`, preuves `infra/qualite/pieges-regles.test.ts`, `pieges.test.ts`.
+- **A/B des modèles** — `infra/qualite/modeles.ts` (`AssistantIaModeleRole` au-dessus de l'environnement ; garde
+  `domaine/qualite/ab-modele.ts` : banc vert pour ce candidat exact, < 14 jours).
+
+## Terrain et voix (lot J13, décision 0025)
+
+- **Terrain** — `domaine/terrain/` (compte rendu dicté, résolution dans l'annuaire, file hors ligne, photos, règles de la
+  voix — pur), `infra/terrain/captation.ts` (vocal / photo → cartes, idempotent), `infra/operations/terrain.ts`
+  (`terrain_*`), `ecrans/terrain/` (écran mobile, file IndexedDB), page `/medical/terrain`, confirmation
+  `confirmerCarteTerrain`. Table `AssistantIaTerrainCapture`.
+- **Voix temps réel (GPT-Live)** — `infra/voix/temps-reel.ts` (session ouverte par le serveur, délégation au même
+  assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune
+  confirmation à la voix ; valeurs sensibles jamais lues ; modèle `gpt-live-1` réglable (Consommation IA).

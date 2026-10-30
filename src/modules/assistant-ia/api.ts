@@ -62,3 +62,18 @@ export { PERSONA_ASSISTANT_IA } from "./infra/travaux";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";
+
+// J14 (décision 0022) : les traces rejouables d'un tour, et leur rejeu sans modèle.
+export { decoderTrace, lireTrace, purgerTraces, type Trace } from "./infra/qualite/traces";
+export { rejouerTrace, type BilanRejeu } from "./infra/qualite/rejeu";
+// J5 (décision 0022) : le banc programmé ; J14 : le modèle de chaque rôle, changé seulement sur un banc vert.
+export {
+  demanderPassage, enregistrerReglageBanc, etatBaseEssai, lireReglageBanc, tacheBancProgramme,
+} from "./infra/qualite/banc";
+export { changerModeleRole, modelesEnService, revenirModeleEnvironnement, type ModeleEnService } from "./infra/qualite/modeles";
+export { tableauQualite } from "./infra/qualite/tableau";
+// ── Le terrain et la voix (J13, décision 0025) : vocaux et photos de délégué → cartes ; voix temps réel
+export {
+  capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION, type IssueCaptation, type VueCaptation,
+} from "./infra/terrain/captation";
+export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";

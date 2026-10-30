@@ -185,6 +185,29 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
   }
 }
 
+/**
+ * LA CONFIRMATION D'UNE CARTE DE TERRAIN (lot J13, décision 0025) — compte rendu pré-rempli, demande d'échantillons,
+ * tournée de demain, photo rattachée. Sa porte est celle du TERRAIN (module Rapports terrain), pas de l'Assistant IA :
+ * un délégué dicte sans avoir la conversation. Elle n'exécute QUE les opérations `terrain_*` que CE compte a préparées
+ * (jamais un payload reçu), sous la même garde que toute carte : réclamation atomique, idempotence, action de l'écran.
+ */
+export async function confirmerCarteTerrain(intentId: string): Promise<ResultatExecution> {
+  try {
+    const user = await requireUser();
+    const { peutCapterTerrain } = await import("@/modules/assistant-ia/api");
+    if (!peutCapterTerrain(user)) return { ok: false, error: "Le terrain s'ouvre avec le module Rapports terrain." };
+    if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
+    const executeur = async (stored: unknown) =>
+      estChargeOperationIA(stored) && stored.op.startsWith("terrain_")
+        ? executerOperationIA(user, stored)
+        : { ok: false, error: "Cette carte ne se confirme pas depuis le terrain : ouvrez l'Assistant IA." };
+    return (await executerIntention(user, intentId, undefined, executeur)) ?? { ok: false, error: "Action introuvable." };
+  } catch (err) {
+    console.error("[assistant-ia] confirmerCarteTerrain", err);
+    return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };
+  }
+}
+
 // ─────────────────────────────── LES TRAVAUX (J2, décision 0016) ───────────────────────────────
 //
 // Les gestes de la personne sur SES travaux longs (panneau « Travaux ») : un identifiant reçu ne donne rien

@@ -18,11 +18,11 @@ import { PanneauDuDossier } from "../conversations/dossier-panneau";
 import { SaisieAdventum } from "./saisie";
 import { Tiroir, type OngletTiroir } from "./tiroir";
 import { appliquerTheme, lireTheme, Reglages, type Theme } from "./reglages";
-import { VoixDirecte } from "./voix-directe";
+import { BoutonVoixTempsReel } from "../voix-temps-reel";
 import { enregistrerServiceWorker, mettreEnFile, viderLaFile, type VocalEnFile } from "./hors-ligne";
 import { texteDemandeModification } from "../../domaine/lecture/depot";
 import { ZoneDepot } from "../zone-depot";
-import { reglerMaConversationPrivee } from "@/modules/assistant-ia/actions-conversations";
+import { creerMaConversation, reglerMaConversationPrivee } from "@/modules/assistant-ia/actions-conversations";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { doSignOut } from "@/lib/actions/auth-actions";
 import { DialoguesProvider } from "@/components/ui/dialogue";
@@ -76,14 +76,12 @@ function Application({ userName }: { userName?: string }) {
   const [tiroir, setTiroir] = useState<OngletTiroir | null>(null);
   const [memoire, setMemoire] = useState(false);
   const [reglages, setReglages] = useState(false);
-  const [voix, setVoix] = useState(false);
   const [travaux, setTravaux] = useState<{ ouvert: boolean; initial: string | null }>({ ouvert: false, initial: null });
   const [atelier, setAtelier] = useState<{ ouvert: boolean; plein: boolean; aOuvrir: { nodeId: string; jeton: number } | null }>({ ouvert: false, plein: false, aOuvrir: null });
   const [apercu, setApercu] = useState<PieceOuvrable | null>(null);
   const [brouillon, setBrouillon] = useState<{ texte: string; jeton: number } | null>(null);
   const [avis, setAvis] = useState<string | null>(null);
   const conversations = useConversations();
-  const fermerVoix = useCallback(() => setVoix(false), []);
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
@@ -109,6 +107,18 @@ function Application({ userName }: { userName?: string }) {
   };
 
   const f = useFil({ conversation, nouvelle, onConversation: surConversation });
+
+  // LA VOIX EN DIRECT (gpt-live-1, lot J13) écrit dans la conversation OUVERTE — une « nouvelle » naît quand on parle.
+  const cible = useRef({ conversation, nouvelle });
+  cible.current = { conversation, nouvelle };
+  const conversationPourLaVoix = useCallback(async (): Promise<string | null> => {
+    const { conversation: c, nouvelle: n } = cible.current;
+    if (!n) return c;
+    const r = await creerMaConversation(n.prive, n.dossierId);
+    if (!r.ok) return null;
+    surConversation({ id: r.conversation, titre: null, prive: n.prive, dossierId: n.dossierId });
+    return r.conversation;
+  }, [surConversation]);
   const p = usePieces(f.setErreur);
   const listee = conversations.conversations.find((c) => c.id === conversation) ?? conversations.archivees?.find((c) => c.id === conversation);
   const ouverte = listee ?? (meta && meta.id === conversation ? { titre: meta.titre ?? "Conversation", prive: meta.prive, dossierId: meta.dossierId } : undefined);
@@ -274,7 +284,10 @@ function Application({ userName }: { userName?: string }) {
             dessus={p.pieces.length ? <PiecesEnAttente pieces={p.pieces} onRetirer={p.retirer} verrou={p.televersement} /> : undefined}
             joindre={<BoutonJoindre onFichiers={(liste) => p.joindre(depuisListe(liste))} desactive={p.televersement} />}
             vocal={f.vueExacte ? undefined : <EnregistreurVocal onVocal={(a, d) => void envoyerVocal(a, d)} desactive={p.televersement} />}
-            onVoixDirecte={f.vueExacte ? undefined : () => setVoix(true)}
+            voix={f.vueExacte ? undefined : (
+              <BoutonVoixTempsReel conversation={conversationPourLaVoix}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--aia-filet)] text-[var(--aia-voix)] hover:bg-[var(--aia-voix-doux)] disabled:opacity-40" />
+            )}
           />
         </div>
 
@@ -316,7 +329,6 @@ function Application({ userName }: { userName?: string }) {
           deconnexion={<form action={doSignOut}><button type="submit" className="text-[14px] text-[var(--aia-danger)] hover:underline">Se déconnecter</button></form>}
         />
       )}
-      {voix && <VoixDirecte conversation={conversation} onFermer={fermerVoix} />}
     </div>
   );
 }

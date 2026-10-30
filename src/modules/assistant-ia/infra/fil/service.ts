@@ -335,6 +335,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     maxEtapes: ETAPES_FOND,
     conversation: tour.filId,
     consigne: CONSIGNE_FOND,
+    // J14 : la trace rejouable, rattachée à la réponse affichée (et au message de la personne).
+    trace: { tourId: reponse.id, messageId: tour.id },
     surTexte: (brut) => { partiel = messagePartiel(brut); publier(); },
     surOutil: (libelle) => { if (!etapes.includes(libelle)) etapes.push(libelle); publier(true); },
   });

@@ -19,6 +19,9 @@ import { retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-inte
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { lirePieces, type DependancesLecture } from "../lecture/pieces";
+import { ProvenanceDuTour } from "../provenance";
+import { avecTrace } from "../qualite/traces";
+import { chargerModelesRoles } from "../qualite/modeles";
 import type { LecturePiece } from "../../domaine/lecture/regles";
 import {
   censurerTexte, CoffretDuTour, CONSIGNE_JETONS, masquerReperesPartiels, sansValeursRevelees,
@@ -74,6 +77,8 @@ export interface DemandeDuTour {
   lecture?: DependancesLecture;
   /** J4 : le résumé roulant des échanges plus anciens que `historique` (le fil le garde). */
   resume?: string | null;
+  /** J14 : la trace rejouable du tour — la réponse (et le message) auxquels elle se rattache. Absente : pas de trace. */
+  trace?: { tourId: string; messageId?: string | null };
   /** Décision 0027 : conversation PRIVÉE — ni mémoire lue, ni mémoire proposée, ni conversations passées. */
   prive?: boolean;
   /** Décision 0027 : la section du DOSSIER de la conversation (consignes, documents encore ouvrables). */
@@ -85,7 +90,8 @@ export const CONSIGNE_PRIVEE = "### CONVERSATION PRIVÉE\nL'utilisateur a ouvert
 
 /** Les appels de modèle du tour — et ceux que ses outils déclenchent — sont imputés à la personne. */
 export function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<ResultatDuTour & { message: string }> {
-  return auNomDe(user.id, () => tourAuNomDe(user, d), d.conversation ?? null);
+  const jouer = () => auNomDe(user.id, () => tourAuNomDe(user, d), d.conversation ?? null);
+  return d.trace ? avecTrace(d.trace, user.id, jouer) : jouer();
 }
 
 /**
@@ -125,6 +131,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   if (!dit && !pieces.length) return { ok: false, error: "Message vide.", message: dit };
 
   // J4 : le modèle du geste — effort de raisonnement bas pour une question, plus haut pour une analyse.
+  await chargerModelesRoles();
   const modeles = modelesEffectifs(roleDuTour({ texte: texteSaisi, pieces: pieces.length }));
   if (modeles.length === 0) return { ok: false, error: IA_NON_CONFIGUREE, message: dit };
   if (pieces.length && (await interrupteurIaCoupe())) return { ok: false, error: REFUS_IA_COUPEE, message: dit };
@@ -154,7 +161,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
     // J2 : « lancer_un_travail » — une demande qui dépasse un tour devient un travail (plan à approuver).
-    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces), outilTravailPour(user)];
+    // J14 : ce que le tour lit d'un tiers, face à ce que la personne a écrit — une carte dit ses valeurs d'origine tierce.
+    const provenance = new ProvenanceDuTour([texteSaisi, ...saisie.historique.filter((h) => h.role === "user").map((h) => h.content)], message);
+    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, provenance), outilTravailPour(user)];
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     outils = d.prive ? outils.filter((o) => o.def.name !== "proposer_memoire") : [...outils, outilConversationsPassees(user, d.conversation ?? null)];

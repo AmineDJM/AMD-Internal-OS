@@ -22,6 +22,7 @@ import { ListeConversations } from "./conversations/liste-conversations";
 import { PanneauDuDossier } from "./conversations/dossier-panneau";
 import "./app/theme.css";
 import { EnregistreurVocal } from "./enregistreur-vocal";
+import { BoutonVoixTempsReel } from "./voix-temps-reel";
 import { AlarmClock, Brain, Briefcase, MessagesSquare, MoreHorizontal, Radar, Sparkles, Volume2, VolumeX, X } from "lucide-react";
 import { listerMesRoutines, listerMesTravaux } from "@/modules/assistant-ia/actions";
 import { confirmerActionBeta, envoyerMessageBeta } from "@/app/(app)/assistant/beta/actions";
@@ -255,7 +256,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               sendBlocked={envoiEnCours}
               brouillon={brouillon}
               above={<PiecesEnAttente pieces={pieces} onRetirer={p.retirer} verrou={televersement} />}
-              vocal={vueExacte ? undefined : <EnregistreurVocal onVocal={(a, d) => void envoyerVocal(a, d)} desactive={envoiEnCours} />}
+              vocal={vueExacte ? undefined : <><BoutonVoixTempsReel /><EnregistreurVocal onVocal={(a, d) => void envoyerVocal(a, d)} desactive={envoiEnCours} /></>}
               leading={
                 <>
                 <BoutonJoindre onFichiers={(liste) => p.joindre(depuisListe(liste))} desactive={f.occupeLocal || televersement} />

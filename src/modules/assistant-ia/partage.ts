@@ -31,6 +31,23 @@ export type { MemoireProposee } from "./domaine/memoire-ui";
 export { estChargeOperationIA } from "./domaine/operations/types";
 export { casse, chiffreDeControle, lireMrz } from "./domaine/operations/mrz";
 
+// ── Qualité continue (J5 + J14, décision 0022) : calendrier du banc, régression, base d'essai, A/B, provenance tierce
+export {
+  calendrierLisible, FREQUENCES, JOURS_SEMAINE, normaliserReglageBanc, PLAFOND_PASSAGE_MAX_USD, prochainCreneau, REGLAGE_BANC_DEFAUT,
+  type Frequence, type ReglageBanc,
+} from "./domaine/qualite/calendrier";
+export { choisirBaseEssai, empreinteBase } from "./domaine/qualite/base-essai";
+export { EFFORTS_MODELE, ROLES_MODELE, VALIDITE_BANC_JOURS, lireCandidat, type Candidat } from "./domaine/qualite/ab-modele";
+export type { Regression } from "./domaine/qualite/regression";
+// ── Le terrain et la voix (J13, décision 0025) : règles pures, navigateur compris
+export {
+  aEnvoyer, apresEnvoi, nouvelElement, phraseFile, relancer, reprendreApresRedemarrage, viderFile,
+  type ElementFile, type IssueEnvoi, type SorteElement, type StockageFile,
+} from "./domaine/terrain/file-hors-ligne";
+export { LIBELLE_LANGUE, LIBELLE_NATURE } from "./domaine/terrain/compte-rendu";
+export { LIBELLE_PHOTO, SORTES_PHOTO, type SortePhoto } from "./domaine/terrain/photo";
+export { CIBLE_LATENCE_VOCALE_MS, mediane } from "./domaine/terrain/voix";
+export type { CarteTerrain, VueCaptation } from "./domaine/terrain/vue";
 // ── Conversations et dossiers (décision 0027, Adventum IA) : groupes par date, titre, privée verrouillée
 export {
   CONSIGNE_TITRE, expireLe, extraitAutour, grouperConversations, groupeDe, nettoyerTitre, ORDRE_GROUPES, PRIVEE_JOURS,

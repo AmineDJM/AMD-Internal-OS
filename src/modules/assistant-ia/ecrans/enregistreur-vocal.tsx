@@ -271,7 +271,7 @@ export function EnregistreurVocal({ onVocal, desactive }: EnregistreurVocalProps
         aria-label="Message vocal — maintenir pour enregistrer, ou appuyer pour démarrer"
         title="Message vocal — maintenir pour enregistrer (glisser à gauche pour annuler), ou appuyer pour démarrer"
         className={`relative z-40 flex h-10 w-10 shrink-0 touch-none select-none items-center justify-center rounded-xl shadow-2xs transition disabled:opacity-30 ${
-          phase === "maintenu" ? "scale-125 bg-red-600 text-white" : phase === "verrouille" || phase === "relecture" ? "hidden" : "bg-slate-900 text-white hover:bg-slate-800 dark:bg-zinc-100 dark:text-zinc-900"
+          phase === "maintenu" ? "scale-125 bg-red-600 text-white" : phase === "verrouille" || phase === "relecture" ? "hidden" : "bg-[var(--aia-accent,#0f172a)] text-[var(--aia-accent-fg,#fff)] hover:opacity-90"
         }`}
         style={phase === "maintenu" ? { transform: `translate(${decalage.x}px, ${decalage.y}px) scale(1.25)` } : undefined}
       >

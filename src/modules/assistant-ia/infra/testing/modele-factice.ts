@@ -13,12 +13,14 @@
 export type TourScenario =
   | { texte: string }
   | { appel: { outil: string; entree: Record<string, unknown> } };
+/** J14 : un tour qui DÉPEND de ce que le modèle a reçu (le faux modèle adversarial lit le prompt, puis obéit). */
+export type EtapeScenario = TourScenario | ((promptRecu: string) => TourScenario);
 
 type Usage = { inputTokens: number; outputTokens: number; totalTokens: number };
 const USAGE: Usage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
 
 /** `usage` : les jetons rendus à CHAQUE appel — un banc de plafond en pose de plus lourds. */
-export function modeleFactice(scenario: TourScenario[], usage: { inputTokens: number; outputTokens: number } = USAGE) {
+export function modeleFactice(scenario: EtapeScenario[], usage: { inputTokens: number; outputTokens: number } = USAGE) {
   const u: Usage = { ...usage, totalTokens: usage.inputTokens + usage.outputTokens };
   let tour = 0;
   const promptsRecus: unknown[] = [];
@@ -27,10 +29,10 @@ export function modeleFactice(scenario: TourScenario[], usage: { inputTokens: nu
   const noter = (options: { tools?: { name?: string }[] }) => outilsRecus.push((options.tools ?? []).map((t) => t.name ?? "").filter(Boolean));
   let compteurAppels = 0;
 
-  const prochain = (): TourScenario => {
-    const t = scenario[Math.min(tour, scenario.length - 1)];
+  const prochain = (prompt: unknown): TourScenario => {
+    const t = scenario[Math.min(tour, scenario.length - 1)]!;
     tour += 1;
-    return t;
+    return typeof t === "function" ? t(JSON.stringify(prompt)) : t;
   };
 
   const contenu = (t: TourScenario) =>
@@ -47,13 +49,13 @@ export function modeleFactice(scenario: TourScenario[], usage: { inputTokens: nu
     async doGenerate(options: { prompt: unknown; tools?: { name?: string }[] }) {
       promptsRecus.push(options.prompt);
       noter(options);
-      const t = prochain();
+      const t = prochain(options.prompt);
       return { content: contenu(t), finishReason: fin(t), usage: u, warnings: [] };
     },
     async doStream(options: { prompt: unknown; tools?: { name?: string }[] }) {
       promptsRecus.push(options.prompt);
       noter(options);
-      const t = prochain();
+      const t = prochain(options.prompt);
       const parts: unknown[] = [{ type: "stream-start", warnings: [] }];
       if ("texte" in t) {
         parts.push({ type: "text-start", id: "t1" }, { type: "text-delta", id: "t1", delta: t.texte }, { type: "text-end", id: "t1" });

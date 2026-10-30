@@ -1,20 +1,20 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { ArrowUp, AudioLines } from "lucide-react";
+import { ArrowUp } from "lucide-react";
 
 /**
  * LA ZONE DE SAISIE D'ADVENTUM IA (décision 0027, point 7) — les trois façons de parler au même endroit :
  * (a) le TEXTE (Entrée envoie sur ordinateur ; sur écran tactile, Entrée va à la ligne et la flèche envoie),
- * (b) la VOIX EN DIRECT (`gpt-live-1`, bouton « ondes »), (c) le MESSAGE VOCAL (le micro, posé par l'écran : maintenir,
+ * (b) la VOIX EN DIRECT (`gpt-live-1`, lot J13 : `BoutonVoixTempsReel`, posé par l'écran), (c) le MESSAGE VOCAL (le micro, posé par l'écran : maintenir,
  * glisser pour annuler, verrouiller, réécouter). Champ en 16 px sur téléphone (iOS zoome en dessous).
  */
-export function SaisieAdventum({ onEnvoyer, dessus, joindre, vocal, onVoixDirecte, envoiBloque, peutEnvoyerVide, brouillon, placeholder }: {
+export function SaisieAdventum({ onEnvoyer, dessus, joindre, vocal, voix, envoiBloque, peutEnvoyerVide, brouillon, placeholder }: {
   onEnvoyer: (texte: string) => Promise<boolean>;
   dessus?: React.ReactNode;
   joindre?: React.ReactNode;
   vocal?: React.ReactNode;
-  onVoixDirecte?: () => void;
+  voix?: React.ReactNode;
   envoiBloque?: boolean;
   peutEnvoyerVide?: boolean;
   brouillon?: { texte: string; jeton: number } | null;
@@ -57,12 +57,7 @@ export function SaisieAdventum({ onEnvoyer, dessus, joindre, vocal, onVoixDirect
       <div className="relative flex items-center gap-1">
         {joindre}
         <span className="flex-1" />
-        {onVoixDirecte && (
-          <button type="button" onClick={onVoixDirecte} aria-label="Conversation vocale en direct" title="Parler en direct (gpt-live-1)"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--aia-filet)] text-[var(--aia-voix)] hover:bg-[var(--aia-voix-doux)]">
-            <AudioLines className="h-4 w-4" />
-          </button>
-        )}
+        {voix}
         {vide && vocal ? vocal : (
           <button type="submit" disabled={vide || envoiBloque} aria-label="Envoyer"
             className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--aia-accent)] text-[var(--aia-accent-fg)] hover:bg-[var(--aia-accent-fort)] disabled:opacity-40">
