@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import type { CurrentUser } from "@/lib/session";
 import { porte } from "./infra/porte-actions";
-import type { Comparaison, VueArtefact, VueContenu } from "@/platform/ia/artifact/view-types";
+import type { VueArtefact, VueContenu } from "@/platform/ia/artifact/view-types";
 import {
-  comparerAtelier, documentSensible, droitsSurDocument, enregistrerAtelier, fermerOnglet, ouvrirDansAtelier, revoirModification,
+  comparerAtelier, documentSensible, type Comparatif, droitsSurDocument, enregistrerAtelier, fermerOnglet, ouvrirDansAtelier, revoirModification,
   toutAccepter, vueAtelier, type Droits,
 } from "@/platform/ia/artifact/atelier/service";
 import { conversionsPossibles, demanderConversion, LIBELLE_VOIE, type DemandeConversion, type VersFormat } from "@/platform/ia/artifact/atelier/conversions";
@@ -129,7 +129,7 @@ export async function enregistrerOnglet(sessionId: string, nouveauNom?: string):
 }
 
 /** COMPARER avant / après — la version d'origine et l'état courant, et ce qui diffère réellement. */
-export async function comparerOnglet(sessionId: string): Promise<{ ok: boolean; erreur?: string; avant?: VueContenu | null; apres?: VueContenu | null; comparaison?: Comparaison | null; versionAvant?: number | null }> {
+export async function comparerOnglet(sessionId: string): Promise<{ ok: boolean; erreur?: string; avant?: VueContenu | null; apres?: VueContenu | null; comparaison?: Comparatif["comparaison"]; versionAvant?: number | null }> {
   const o = await surOnglet(sessionId, false);
   if (!o.ok) return o;
   const r = await comparerAtelier(o.user, o.s);

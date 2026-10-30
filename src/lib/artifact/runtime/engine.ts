@@ -777,6 +777,21 @@ export async function comparerDepuis(
 }
 
 /**
+ * LA VUE D'UNE VERSION DU DRIVE (Atelier, J3) — « avant », pour la comparaison côte à côte. Lue à travers le
+ * port, donc sous les droits de la personne ; `version` absente = celle sur laquelle la session s'est ouverte.
+ */
+export async function vueDeVersion(
+  ctx: ContexteMoteur, sessionId: string, version?: number,
+): Promise<{ version: number; contenu: VueArtefact["contenu"] } | null> {
+  const session = await ctx.magasin.lire(sessionId, ctx.acteur.id);
+  if (!session) return null;
+  const v = version ?? session.baseVersion;
+  const octets = await ctx.ports.documents.lire(ctx.acteur.id, session.nodeId, v);
+  if (!octets) return null;
+  return { version: v, contenu: vueDuModele((await adaptateurPour(session.format).ouvrir(octets)).modele()) };
+}
+
+/**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * « QUE DIT LE TAMPON SUR LA PAGE 4 ? » — LIRE une image que le document PORTE.
  *

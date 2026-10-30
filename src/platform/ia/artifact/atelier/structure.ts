@@ -5,7 +5,7 @@
  * l'encadre comme contenu tiers, §104.10). Module PUR.
  */
 
-import type { VueContenu } from "@/lib/artifact/render/view";
+import type { VueContenu } from "../view-types";
 
 const court = (t: string, n: number) => {
   const s = t.replace(/\s+/g, " ").trim();

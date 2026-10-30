@@ -18,14 +18,11 @@
 
 import type { CurrentUser } from "@/lib/session";
 import type { Cible, CommandeArtefact } from "@/lib/artifact/commands/ir";
-import type { ContexteDecodage, IntentionDirecte } from "@/lib/artifact/commands/nl";
-import { decoder, estAccord } from "@/lib/artifact/commands/nl";
-import type {
-  ContexteMoteur, ResultatEdition, ResultatOuverture, ResultatSauvegarde, SessionPersistee,
-} from "@/lib/artifact/runtime/engine";
+import { decoder, estAccord, type ContexteDecodage, type IntentionDirecte } from "@/lib/artifact/commands/nl";
 import {
   annuler, comparerDepuis, controlerSession, editer, fermer, lireImageDuDocument, ouvrir,
-  retablir, sauvegarder, viser, vueDeSession,
+  retablir, revoir, sauvegarder, viser, vueDeSession, vueDeVersion,
+  type ContexteMoteur, type ResultatEdition, type ResultatOuverture, type ResultatSauvegarde, type SessionPersistee,
 } from "@/lib/artifact/runtime/engine";
 import type { Comparaison } from "@/lib/artifact/versions/diff";
 import type { VueArtefact } from "@/lib/artifact/render/view";
@@ -147,6 +144,15 @@ export async function inspecterDocument(
 }
 
 /** « Qu'est-ce que tu as changé ? » (§52) — constaté entre deux états, jamais raconté de mémoire. */
+/** La personne d'un geste — le type que reçoivent les compositions du socle (l'Atelier compris). */
+export type Personne = CurrentUser;
+
+/** L'Atelier (J3) : accepter / refuser / remettre à revoir une opération ; la vue d'une version du Drive. */
+export const revoirDocument = (user: CurrentUser, sessionId: string, seq: number, decision: "ACCEPTER" | "REFUSER" | "A_REVOIR") =>
+  revoir(contexte(user), sessionId, seq, decision);
+export const vueDeVersionDocument = (user: CurrentUser, sessionId: string, version?: number) =>
+  vueDeVersion(contexte(user), sessionId, version);
+
 export const comparerDocument = (user: CurrentUser, sessionId: string, depuis?: number): Promise<Comparaison> =>
   comparerDepuis(contexte(user), sessionId, depuis);
 

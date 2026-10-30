@@ -289,6 +289,7 @@ class DocxOuvert implements DocumentOuvert {
   private remplacerTexte(c: CommandeArtefact): EffetCommande {
     const cible = normaliserTexte(c.chercher ?? "");
     let n = 0;
+    const touches: string[] = [];
     for (const { noeud, modele } of this.etat.paragraphes) {
       if (!normaliserTexte(modele.text).includes(cible)) continue;
       // On réécrit au niveau du PARAGRAPHE parce qu'un mot cherché est presque toujours coupé
@@ -296,10 +297,12 @@ class DocxOuvert implements DocumentOuvert {
       // par fragment raterait « rémunération » écrit en trois morceaux.
       remplacerTexteParagraphe(noeud, modele.text.replace(new RegExp(echapperRegex(c.chercher ?? ""), "gi"), c.remplacer ?? ""));
       n += 1;
+      touches.push(modele.id);
       if (c.tout !== true) break;
     }
     if (n === 0) return effetEchec(`« ${c.chercher} » ne figure pas dans ce document`);
-    return effetOk(`${n} paragraphe${n > 1 ? "s" : ""} modifié${n > 1 ? "s" : ""}.`, []);
+    // Le résumé dit CE QUI a changé : c'est la ligne que la personne accepte ou refuse dans l'Atelier.
+    return effetOk(`« ${abreger(c.chercher ?? "", 40)} » → « ${abreger(c.remplacer ?? "", 40)} » (${n} paragraphe${n > 1 ? "s" : ""}).`, touches);
   }
 
   private ciblerTable(c: CommandeArtefact) {

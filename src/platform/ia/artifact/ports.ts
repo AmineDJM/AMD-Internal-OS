@@ -78,6 +78,33 @@ async function estLeFichierDeLaPiece(legalDocumentId: string, nodeId: string): P
   return [doc.driveNodeId, f?.docx?.nodeId, f?.pdf?.nodeId].some((id) => id === nodeId);
 }
 
+/**
+ * LES DROITS DE LA PERSONNE SUR UN FICHIER, relus maintenant (Atelier, J3) : voir n'est pas modifier — un document
+ * qu'on peut lire mais pas écrire s'ouvre en lecture seule, et sa modification est refusée AVANT d'être appliquée.
+ */
+export async function droitsSurDocument(userId: string, nodeId: string): Promise<{ voir: boolean; modifier: boolean }> {
+  const u = await personne(userId);
+  if (!u) return { voir: false, modifier: false };
+  const acces = await resolveDriveAccess(u, nodeId);
+  return { voir: canViewDrive(acces), modifier: canEditDrive(acces) };
+}
+
+/**
+ * UN DOCUMENT SENSIBLE (Atelier, J3) — rattaché à un objet métier : une pièce juridique (contrat, pièce émise), un
+ * courrier enregistré, un espace partagé. Rend la raison (affichée sur la carte de confirmation), ou `null`.
+ */
+export async function documentSensible(nodeId: string): Promise<string | null> {
+  const n = await prisma.driveNode.findUnique({
+    where: { id: nodeId },
+    select: { spaceId: true, space: { select: { name: true } }, _count: { select: { legalDocs: true, mailEntries: true } } },
+  });
+  if (!n) return null;
+  if (n._count.legalDocs > 0) return "ce fichier est une pièce juridique enregistrée (contrat, pièce émise)";
+  if (n._count.mailEntries > 0) return "ce fichier est rattaché à un courrier enregistré";
+  if (n.spaceId) return `ce fichier appartient à l'espace partagé « ${n.space?.name ?? "partagé"} »`;
+  return null;
+}
+
 const documents: PortDocuments = {
   async decrire(userId, nodeId) {
     const u = await personne(userId);

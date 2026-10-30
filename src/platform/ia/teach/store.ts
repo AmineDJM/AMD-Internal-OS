@@ -39,8 +39,9 @@ import { composerBlocRegles, lignesPourPlanificateur } from "@/lib/teach/compose
 import { NIVEAUX, niveauDepuisTexte } from "@/lib/meetings/niveau";
 import { sansBloquer } from "@/lib/journal";
 
-export type { Kind, Regle, Scope, Statut } from "@/lib/teach/model";
-export { DOMAINES_SUGGERES, KINDS, LIBELLE_KIND, LIBELLE_SCOPE, LIBELLE_STATUT, SCOPES } from "@/lib/teach/model";
+export {
+  type Kind, type Regle, type Scope, type Statut, DOMAINES_SUGGERES, KINDS, LIBELLE_KIND, LIBELLE_SCOPE, LIBELLE_STATUT, SCOPES,
+} from "@/lib/teach/model";
 
 type Echec = "NOT_FOUND" | "MISSING_PERMISSION" | "MISSING_INPUT" | "CAPABILITY_FAILURE";
 export interface EchecTeach { ok: false; echec: Echec; motif: string; conflits?: RegleVue[]; candidats?: { id: string; nom: string }[] }

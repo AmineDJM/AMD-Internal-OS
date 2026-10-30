@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { idsDriveCites, lireFil, piecesCitees } from "@/modules/assistant-ia/api";
-import { personneDeLAssistant, SANS_CACHE } from "../personne";
+import { getCurrentUser } from "@/lib/session";
+import { enVueExacte, refusAssistantIA, SANS_CACHE } from "../personne";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +12,11 @@ export const dynamic = "force-dynamic";
  * Chaque lecture dit aussi que la personne est là (`consulteLe`) : présente, elle n'est pas notifiée.
  */
 export async function GET() {
-  const p = await personneDeLAssistant();
-  if ("refus" in p) return p.refus;
-  const user = p.user;
+  const user = await getCurrentUser();
+  const refus = refusAssistantIA(user);
+  if (refus || !user) return refus ?? NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   // En « Vue exacte », on ne marque pas la présence de la personne regardée (ni ne lit son fil).
-  if (p.vueExacte) return NextResponse.json({ tours: [], enCours: false, vueExacte: true }, SANS_CACHE);
+  if (enVueExacte(user)) return NextResponse.json({ tours: [], enCours: false, vueExacte: true }, SANS_CACHE);
   const fil = await lireFil(user.id);
   // LES PIÈCES RENVOYÉES PAR L'ASSISTANT (décision 0015) : les fichiers du Drive cités par une réponse
   // terminée ou par le résultat d'une action exécutée — droits revérifiés, ouvrables dans l'aperçu.

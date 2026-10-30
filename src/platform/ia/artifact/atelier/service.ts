@@ -21,19 +21,18 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { prisma } from "@/lib/prisma";
-import type { CurrentUser } from "@/lib/session";
-import { canEditDrive, canViewDrive, resolveDriveAccess } from "@/lib/drive";
-import { getAccess } from "@/lib/rbac";
-import { adaptateurPour } from "@/lib/artifact/adapters/registry";
-import { vueDuModele, type VueArtefact, type VueContenu } from "@/lib/artifact/render/view";
-import type { Comparaison } from "@/lib/artifact/versions/diff";
-import { revoir } from "@/lib/artifact/runtime/engine";
 import {
-  comparerDocument, contexte, editerDocument, fermerDocument, ouvrirDocument, sauvegarderDocument, vueDocument,
+  comparerDocument, contexte, editerDocument, fermerDocument, ouvrirDocument, revoirDocument, sauvegarderDocument,
+  vueDeVersionDocument, vueDocument, type Personne,
 } from "@/platform/ia/artifact/office";
-import { portsArtefact } from "@/platform/ia/artifact/ports";
+import { documentSensible, droitsSurDocument } from "@/platform/ia/artifact/ports";
+import { ongletsDe, rattacherAuxOnglets } from "@/platform/ia/artifact/store";
+import type { VueArtefact, VueContenu } from "@/platform/ia/artifact/view-types";
 import { traduireGeste, type GesteAtelier } from "./gestes";
+
+// Les droits et le repère « sensible » vivent au port (il connaît le Drive) ; l'Atelier les réexpose à ses appelants.
+export { documentSensible, droitsSurDocument };
+type CurrentUser = Personne;
 
 export const PREFIXE_ATELIER = "atelier-";
 const VIVANTS = ["OPENING", "OPEN", "EDITING", "DIRTY", "SAVING", "SAVED"] as const;
@@ -41,31 +40,6 @@ const VIVANTS = ["OPENING", "OPEN", "EDITING", "DIRTY", "SAVING", "SAVED"] as co
 export const PAS_GESTES_MS = 700;
 
 export interface Droits { voir: boolean; modifier: boolean }
-
-/** Ce que la personne peut faire de CE fichier, relu maintenant (un rôle retiré ferme la porte tout de suite). */
-export async function droitsSurDocument(userId: string, nodeId: string): Promise<Droits> {
-  const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, isActive: true } });
-  if (!u?.isActive) return { voir: false, modifier: false };
-  const access = await getAccess(u.id, u.role);
-  const acces = await resolveDriveAccess({ id: u.id, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access }, nodeId);
-  return { voir: canViewDrive(acces), modifier: canEditDrive(acces) };
-}
-
-/**
- * UN DOCUMENT SENSIBLE — rattaché à un objet métier : une pièce juridique (contrat, BC émis), un courrier
- * enregistré, un espace partagé. Rend la raison (affichée sur la carte), ou `null`.
- */
-export async function documentSensible(nodeId: string): Promise<string | null> {
-  const n = await prisma.driveNode.findUnique({
-    where: { id: nodeId },
-    select: { spaceId: true, space: { select: { name: true } }, _count: { select: { legalDocs: true, mailEntries: true } } },
-  });
-  if (!n) return null;
-  if (n._count.legalDocs > 0) return "ce fichier est une pièce juridique enregistrée (contrat, pièce émise)";
-  if (n._count.mailEntries > 0) return "ce fichier est rattaché à un courrier enregistré";
-  if (n.spaceId) return `ce fichier appartient à l'espace partagé « ${n.space?.name ?? "partagé"} »`;
-  return null;
-}
 
 export interface OngletAtelier {
   sessionId: string;
@@ -81,12 +55,7 @@ export interface OngletAtelier {
 
 /** Les onglets ouverts de la personne — ce que l'écran relit pour savoir s'il doit redessiner. */
 export async function ongletsAtelier(userId: string): Promise<OngletAtelier[]> {
-  const lignes = await prisma.artifactSession.findMany({
-    where: { userId, blockId: { startsWith: PREFIXE_ATELIER }, state: { in: [...VIVANTS] } },
-    orderBy: { openedAt: "asc" },
-    take: 12,
-    select: { id: true, nodeId: true, name: true, format: true, revision: true, dirty: true, baseVersion: true, savedVersion: true, state: true },
-  });
+  const lignes = await ongletsDe(userId, PREFIXE_ATELIER);
   return lignes.map((l) => ({
     sessionId: l.id, nodeId: l.nodeId, nom: l.name, format: l.format, revision: l.revision, dirty: l.dirty,
     baseVersion: l.baseVersion, savedVersion: l.savedVersion, etat: l.state,
@@ -109,7 +78,7 @@ export async function ouvrirDansAtelier(user: CurrentUser, cible: { nodeId?: str
   // Une session déjà ouverte ailleurs (le workspace d'Adam) est RÉUTILISÉE (§36) : elle rejoint les onglets.
   if (!r.vue.blockId.startsWith(PREFIXE_ATELIER)) {
     const blockId = `${PREFIXE_ATELIER}${r.vue.blockId}`;
-    await prisma.artifactSession.update({ where: { id: r.vue.sessionId }, data: { blockId } });
+    await rattacherAuxOnglets(r.vue.sessionId, blockId);
     r.vue.blockId = blockId;
   }
   return { ok: true, motif: null, vue: r.vue, droits: await droitsSurDocument(user.id, r.vue.nodeId), candidats: [] };
@@ -183,7 +152,7 @@ export async function appliquerGestes(
 
 /** ACCEPTER / REFUSER / remettre À REVOIR une modification de l'historique. */
 export async function revoirModification(user: CurrentUser, sessionId: string, seq: number, decision: "ACCEPTER" | "REFUSER" | "A_REVOIR") {
-  return revoir(contexte(user), sessionId, seq, decision);
+  return revoirDocument(user, sessionId, seq, decision);
 }
 
 /** Accepter TOUT ce qui n'a pas été revu (refusées comprises : elles restent refusées). */
@@ -193,7 +162,7 @@ export async function toutAccepter(user: CurrentUser, sessionId: string) {
   if (!session) return null;
   const ops = await ctx.magasin.operations(session.id);
   let r = null;
-  for (const o of ops) if (!o.undone && !o.revue) r = await revoir(ctx, sessionId, o.seq, "ACCEPTER");
+  for (const o of ops) if (!o.undone && !o.revue) r = await revoirDocument(user, sessionId, o.seq, "ACCEPTER");
   return r?.vue ?? (await vueDocument(user, sessionId));
 }
 
@@ -227,23 +196,18 @@ export interface Comparatif {
   motif: string | null;
   avant: VueContenu | null;
   apres: VueContenu | null;
-  comparaison: Comparaison | null;
+  comparaison: Awaited<ReturnType<typeof comparerDocument>> | null;
   versionAvant: number | null;
 }
 
 /** COMPARER : la version d'origine et l'état courant, côte à côte, avec ce qui diffère RÉELLEMENT (§52). */
 export async function comparerAtelier(user: CurrentUser, sessionId: string, depuis?: number): Promise<Comparatif> {
   const vide = { avant: null, apres: null, comparaison: null, versionAvant: null };
-  const ctx = contexte(user);
-  const session = await ctx.magasin.lire(sessionId, user.id);
-  if (!session) return { ok: false, motif: "Aucun document ouvert sous cette référence.", ...vide };
-  const version = depuis ?? session.baseVersion;
-  const octets = await portsArtefact.documents.lire(user.id, session.nodeId, version);
-  if (!octets) return { ok: false, motif: `La version ${version} est introuvable ou n'est plus accessible.`, ...vide };
-  const origine = await adaptateurPour(session.format).ouvrir(octets);
+  const avant = await vueDeVersionDocument(user, sessionId, depuis);
+  if (!avant) return { ok: false, motif: "Cette version est introuvable, ou ce document n'est plus accessible.", ...vide };
   const courante = await vueDocument(user, sessionId);
-  const comparaison = await comparerDocument(user, sessionId, version);
-  return { ok: true, motif: null, avant: vueDuModele(origine.modele()), apres: courante?.contenu ?? null, comparaison, versionAvant: version };
+  const comparaison = await comparerDocument(user, sessionId, avant.version);
+  return { ok: true, motif: null, avant: avant.contenu, apres: courante?.contenu ?? null, comparaison, versionAvant: avant.version };
 }
 
 export const fermerOnglet = (user: CurrentUser, sessionId: string) => fermerDocument(user, sessionId);

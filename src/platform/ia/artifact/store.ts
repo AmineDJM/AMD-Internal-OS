@@ -137,3 +137,30 @@ export const magasinSessions: MagasinSessions = {
     });
   },
 };
+
+/**
+ * LES ONGLETS DE L'ATELIER (J3) — les sessions vivantes de la personne dont le `blockId` porte le préfixe de
+ * l'Atelier. Le magasin les connaît : c'est lui qui sait ce qu'est une session « vivante ».
+ */
+export async function ongletsDe(userId: string, prefixe: string) {
+  return prisma.artifactSession.findMany({
+    where: { userId, blockId: { startsWith: prefixe }, state: { in: [...VIVANTS] } },
+    orderBy: { openedAt: "asc" },
+    take: 12,
+    select: { id: true, nodeId: true, name: true, format: true, revision: true, dirty: true, baseVersion: true, savedVersion: true, state: true },
+  });
+}
+
+/** Une session ouverte ailleurs (le workspace d'Adam) rejoint les onglets : même document, même journal (§36). */
+export async function rattacherAuxOnglets(sessionId: string, blockId: string): Promise<void> {
+  await prisma.artifactSession.update({ where: { id: sessionId }, data: { blockId } });
+}
+
+/** L'onglet désigné par son identifiant de session OU de fichier — ce que l'assistant cite. */
+export async function ongletDesigne(userId: string, prefixe: string, ref: string) {
+  return prisma.artifactSession.findFirst({
+    where: { userId, blockId: { startsWith: prefixe }, state: { not: "CLOSED" }, OR: [{ id: ref }, { nodeId: ref }] },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, nodeId: true, name: true, dirty: true, baseVersion: true, savedVersion: true, _count: { select: { operations: { where: { undone: false } } } } },
+  });
+}

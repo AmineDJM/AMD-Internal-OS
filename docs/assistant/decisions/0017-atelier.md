@@ -26,7 +26,7 @@ rejeu (version Drive + journal), annuler reste exact, l'enregistrement reste une
 | `prisma/migrations/20270209100000_atelier` | `ArtifactOperation.touches`, `.revue` ; table `AtelierConversion` (file + **voie**) — additive, idempotente |
 | `src/platform/ia/artifact/atelier/gestes.ts` | **pur** : le vocabulaire des GESTES (`remplacer_texte`, `reecrire_paragraphe`, `inserer_paragraphe`, `supprimer_paragraphe`, `modifier_titre`, `mettre_en_forme`, `inserer_tableau`, `modifier_cellule`, `ajouter_diapo`, `supprimer_diapo`, `dupliquer_diapo`, `deplacer_diapo`, `texte_forme`, `supprimer_pages`, `pivoter_pages`, `filigrane`) → commandes IR **par format** (lit la vue quand il faut trouver où agir : un remplacement dans un PowerPoint vise chaque zone qui porte le texte) ; refus motivé hors format ; `zonesModifiees(avant, après)` — ce qui a changé, **par contenu** (une insertion ne surligne pas tout ce qui suit) |
 | `…/atelier/service.ts` | droits relus (`voir` / `modifier`) ; ouvrir (réutilise une session ouverte, §36) ; **appliquer les gestes un par un** (un pas de 0,7 s : chaque commande = une révision que l'écran voit arriver) ; revue ; enregistrer ; comparer (version d'origine + état courant + différences constatées, §52) ; document **sensible** (pièce juridique, courrier, espace partagé) |
-| `…/atelier/conversions.ts` | Word/PowerPoint/Excel → PDF, tableau Word → Excel, PDF → Word (texte) ; **voies** : WORKER (LibreOffice de l'image, file prise par `atelier.conversions`), EDITEUR (OnlyOffice), LOCAL (LibreOffice du processus), RENDU (`docxToPdf`), MAISON (composition) — **la voie est rendue et affichée** ; le résultat est un **nouveau fichier** (dossier « Atelier »), relu avant dépôt, inscrit à la Bibliothèque par le port |
+| `…/atelier/conversions.ts` + `src/lib/office/conversions-atelier.ts` | la composition (droits et dépôt par le port) au socle, les moteurs et la file en bibliothèque ERP ; Word/PowerPoint/Excel → PDF, tableau Word → Excel, PDF → Word (texte) ; **voies** : WORKER (LibreOffice de l'image, file prise par `atelier.conversions`), EDITEUR (OnlyOffice), LOCAL (LibreOffice du processus), RENDU (`docxToPdf`), MAISON (composition) — **la voie est rendue et affichée** ; le résultat est un **nouveau fichier** (dossier « Atelier »), relu avant dépôt, inscrit à la Bibliothèque par le port |
 | `…/atelier/structure.ts` | **pur** : la structure dite au modèle (¶ rangs, titres, diapositives et zones, cellules) — bornée, encadrée comme contenu tiers |
 | `src/modules/assistant-ia/infra/atelier/outils.ts` | outils `ouvrir_dans_l_atelier`, `modifier_document`, `convertir_document` (famille **Drive & documents**), consigne de l'Atelier ; hors routines et travaux (`ECRITURES_DU_MOTEUR`) |
 | `…/infra/operations/atelier-enregistrer.ts` | opération `enregistrer_document` : la **carte de confirmation** (proposée par le modèle, ou rendue par le bouton sur un document sensible) |
@@ -87,6 +87,19 @@ n'importe quel processus l'écrit. Un SSE demanderait un bus entre processus pou
   par défaut) : le modèle refusait de toucher le contrat **de la personne**, dans **son** Drive. La consigne dit désormais
   qu'une pièce du **dossier RH d'autrui** relève de cette famille, un fichier joint ou du Drive de « Drive & documents » —
   les droits du fichier décident.
+
+### Le socle n'a pas grossi
+
+Le cliquet du socle IA (imports vers l'ERP, `boundary.test.ts`) ne se relève pas : l'Atelier y entre par les fichiers qui
+connaissaient déjà le Drive et la base (droits et repère « sensible » au **port**, onglets au **magasin**, revue et vue d'une
+version à **`office.ts`** / moteur), la traduction par `view-types.ts`, et un seul import neuf (`lib/office/conversions-atelier`).
+Trois imports en double fusionnés au passage : le plafond **baisse**, 180 → 178.
+
+### Un défaut trouvé en route : Tailwind ne lisait pas les modules
+
+`tailwind.config.ts` ne scannait que `src/{app,components,pages}` : une classe employée seulement dans `src/modules/` ou
+`src/platform/` n'était pas générée. Mesuré par l'E2E : `lg:basis-[var(--conversation)]` absente, l'Atelier recevait une largeur
+nulle. Les deux dossiers sont désormais lus (aucun effet sur le bundle JS ; la coque reste sous 175 kB).
 
 ## Ce qui reste
 

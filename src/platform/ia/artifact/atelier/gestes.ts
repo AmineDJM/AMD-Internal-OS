@@ -17,8 +17,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import { commande, type CommandeArtefact, type Cible } from "@/lib/artifact/commands/ir";
-import type { VueContenu } from "@/lib/artifact/render/view";
+import { commande, type Cible, type CommandeArtefact, type VueContenu } from "../view-types";
 
 export const ACTIONS_GESTE = [
   "remplacer_texte", "reecrire_paragraphe", "inserer_paragraphe", "supprimer_paragraphe", "modifier_titre",
@@ -384,7 +383,8 @@ export function zonesModifiees(avant: VueContenu | null, apres: VueContenu): Zon
     // Une diapositive dont SEULES les zones ont changé n'est pas « neuve » : on surligne les zones.
     const ajoutees = diaposNeuves.filter((d) => apres.diapos.length > avant.diapos.length || !d.formes.some((f) => formesNeuves.some((x) => x.id === f.id)));
     z.ids = [...ajoutees.map((d) => d.id), ...formesNeuves.map((f) => f.id)];
-    z.diapo = formesNeuves[0]?.diapo ?? diaposNeuves[0]?.index ?? null;
+    // Où aller : une diapositive AJOUTÉE d'abord (c'est le geste le plus visible), sinon la dernière zone changée.
+    z.diapo = ajoutees.at(-1)?.index ?? formesNeuves.at(-1)?.diapo ?? diaposNeuves[0]?.index ?? null;
   } else if (avant.kind === "XLSX" && apres.kind === "XLSX") {
     for (const fe of apres.feuilles) {
       const ancienne = avant.feuilles.find((x) => x.nom === fe.nom);

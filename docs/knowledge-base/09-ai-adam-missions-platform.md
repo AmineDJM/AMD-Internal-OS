@@ -331,7 +331,7 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   highlighting). `service.ts`: rights re-read (`voir`/`modifier` — edits refused before applying for viewers), gestures applied
   ONE command per revision (0.7 s pace), review via engine `revoir(seq, ACCEPTER|REFUSER|A_REVOIR)` (reject = undone + replay,
   no inverse command), save = new `FileVersion` (port inscribes Bibliothèque), `documentSensible` (legal doc, mail entry,
-  shared space → confirmation card). `conversions.ts`: voies WORKER (LibreOffice in worker image, queue `AtelierConversion`,
+  shared space → confirmation card; both live in `artifact/ports.ts`, tabs queries in `artifact/store.ts`, so the socle ceiling went DOWN 180 → 178). `conversions.ts` (composition) + `src/lib/office/conversions-atelier.ts` (engines + queue): voies WORKER (LibreOffice in worker image, queue `AtelierConversion`,
   task `atelier.conversions`), EDITEUR, LOCAL, RENDU, MAISON — the voie is returned and shown. Engine additions:
   `OperationPersistee.touches/revue`, `MagasinSessions.marquerRevue?`, op `docx.inserer_tableau`. Module tools
   `ouvrir_dans_l_atelier` / `modifier_document` / `convertir_document` (family DRIVE, excluded from routines/travaux) and op

@@ -176,8 +176,20 @@ export function Atelier({ ouvert, travaille, aOuvrir, pleinEcran, onAfficher, on
 
   if (!ouvert) return null;
 
+  // La revue passe par `geste` (try / catch, l'occupation relâchée en `finally`).
+  const revoir = (o: EtatOnglet, seq: number, d: "ACCEPTER" | "REFUSER" | "A_REVOIR") => void geste(async () => {
+    const r = await revoirModificationAtelier(o.vue.sessionId, seq, d);
+    if (r.vue) appliquerVue(r.vue);
+    if (!r.ok) setMessage({ texte: r.erreur ?? "", ton: "alerte" });
+  });
+  const toutAccepterOnglet = (o: EtatOnglet) => void geste(async () => {
+    const r = await toutAccepterAtelier(o.vue.sessionId);
+    if (r.vue) appliquerVue(r.vue);
+  });
+
   const panneau = (o: EtatOnglet, principal: boolean) => (
-    <div key={o.vue.sessionId} className="relative flex min-h-0 min-w-0 flex-1 flex-col" data-testid="atelier-onglet-contenu" data-format={o.vue.format}>
+    // Côte à côte : à partir de la tablette — sur un téléphone, deux documents empilés ne se lisent pas.
+    <div key={o.vue.sessionId} className={`relative min-h-0 min-w-0 flex-1 flex-col ${principal ? "flex" : "hidden md:flex"}`} data-testid="atelier-onglet-contenu" data-format={o.vue.format}>
       <BarreOnglet
         o={o} occupe={occupe} coteACote={coteACote} peutCote={principal && onglets.length > 1}
         onCote={() => setCoteACote((c) => !c)}
@@ -204,14 +216,13 @@ export function Atelier({ ouvert, travaille, aOuvrir, pleinEcran, onAfficher, on
           onNav={(n) => remplacer({ ...o, nav: { ...o.nav, ...n } })} />
       </div>
       <RevueModifications vue={o.vue} occupe={occupe}
-        onRevoir={(seq, d) => void geste(async () => { const r = await revoirModificationAtelier(o.vue.sessionId, seq, d); if (r.vue) appliquerVue(r.vue); if (!r.ok) setMessage({ texte: r.erreur ?? "", ton: "alerte" }); })}
-        onToutAccepter={() => void geste(async () => { const r = await toutAccepterAtelier(o.vue.sessionId); if (r.vue) appliquerVue(r.vue); })} />
+        onRevoir={(seq, d) => revoir(o, seq, d)} onToutAccepter={() => toutAccepterOnglet(o)} />
       {principal && comparaison && <ComparaisonAtelier vue={o.vue} c={comparaison} onFermer={() => setComparaison(null)} />}
     </div>
   );
 
   return (
-    <section aria-label="Atelier — documents" data-testid="atelier" className="atelier relative flex h-full min-h-0 w-full flex-col bg-white/95 dark:bg-zinc-950/95">
+    <section aria-label="Atelier — documents" data-testid="atelier" className="atelier relative flex h-full min-h-0 w-full flex-col bg-white lg:bg-white/95 dark:bg-zinc-950 lg:dark:bg-zinc-950/95">
       <header className="flex items-center gap-1 border-b border-slate-200 px-2 pt-1.5 dark:border-zinc-800">
         <Sparkles className="mx-1 h-4 w-4 shrink-0 text-violet-600" aria-hidden />
         <div role="tablist" aria-label="Documents ouverts" className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
@@ -255,9 +266,13 @@ export function Atelier({ ouvert, travaille, aOuvrir, pleinEcran, onAfficher, on
         <div className="border-t border-slate-200 p-2 dark:border-zinc-800" data-testid="atelier-carte">
           <ActionConfirmationCard intentId={carte.id} kind={carte.kind} title={carte.title} fields={carte.fields} warnings={carte.warnings} libelleBouton={carte.libelleBouton}
             onConfirm={async (id, t) => {
-              const r = await onConfirmIntent(id, t);
-              if (r.ok) { setCarte(null); setMessage({ texte: r.message ?? "Enregistré.", lien: r.link, ton: "ok" }); void relire(); }
-              return r;
+              try {
+                const r = await onConfirmIntent(id, t);
+                if (r.ok) { setCarte(null); setMessage({ texte: r.message ?? "Enregistré.", lien: r.link, ton: "ok" }); void relire(); }
+                return r;
+              } catch {
+                return { ok: false, error: "La connexion a été interrompue. Réessayez." };
+              }
             }} />
         </div>
       )}

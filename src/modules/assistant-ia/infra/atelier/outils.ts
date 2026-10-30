@@ -1,6 +1,6 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { ongletDesigne } from "@/platform/ia/artifact/store";
 import { SCHEMA_GESTE, type GesteAtelier } from "@/platform/ia/artifact/atelier/gestes";
 import { structurePourModele } from "@/platform/ia/artifact/atelier/structure";
 import { appliquerGestes, ouvrirDansAtelier, PREFIXE_ATELIER, vueAtelier, type OuvertureAtelier } from "@/platform/ia/artifact/atelier/service";
@@ -33,10 +33,7 @@ type Resolu = { ok: true; sessionId: string; o: OuvertureAtelier | null } | { ok
 async function resoudre(user: CurrentUser, document: string): Promise<Resolu> {
   const ref = document.trim();
   if (!ref) return { ok: false, sortie: JSON.stringify({ statut: "INCOMPLET", raison: "il faut désigner le document (identifiant Drive ou nom)" }) };
-  const onglet = await prisma.artifactSession.findFirst({
-    where: { userId: user.id, blockId: { startsWith: PREFIXE_ATELIER }, state: { not: "CLOSED" }, OR: [{ id: ref }, { nodeId: ref }] },
-    orderBy: { updatedAt: "desc" }, select: { id: true },
-  });
+  const onglet = await ongletDesigne(user.id, PREFIXE_ATELIER, ref);
   if (onglet) return { ok: true, sessionId: onglet.id, o: null };
   let o = RE_ID.test(ref) ? await ouvrirDansAtelier(user, { nodeId: ref }) : null;
   if (!o || (!o.ok && !o.candidats.length)) o = await ouvrirDansAtelier(user, { nom: ref.replace(/^«\s*|\s*»$/g, "") });

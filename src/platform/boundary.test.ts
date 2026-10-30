@@ -158,8 +158,13 @@ const DEBT_CEILING = 393;
  * `artifact/ports.ts` (`@/modules/bibliotheque/api-inscription`, la porte du module). Sur la base, ce fichier est
  * encore dans le pont, où rien ne se compte ; ici il est au socle, où l'import se voit. Ce n'est pas un couplage
  * de ce lot : c'est le compte honnête d'un import venu avec la base. La porte d'un module est le chemin voulu.
+ *
+ * 180 → 178 (2026-10-30, lot J3 « l'Atelier », décision 0017) : l'Atelier entre au socle SANS import neuf vers l'ERP
+ * hors un seul (`lib/office/conversions-atelier`, les moteurs de conversion) — ses accès au Drive et à la base passent par
+ * le port, le magasin et `office.ts`, qui les avaient déjà ; trois imports en double (`office.ts` → `nl` et `engine`,
+ * `teach/store.ts` → `model`) ont été fusionnés au passage. On baisse.
  */
-const SOCLE_IA_CEILING = 180;
+const SOCLE_IA_CEILING = 178;
 
 describe("frontière Adam ↔ ERP", () => {
   const report = scanBoundary();

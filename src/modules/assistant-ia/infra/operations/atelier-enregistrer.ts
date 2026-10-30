@@ -1,5 +1,5 @@
 import type { CurrentUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { ongletDesigne } from "@/platform/ia/artifact/store";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { documentSensible, droitsSurDocument, enregistrerAtelier, PREFIXE_ATELIER } from "@/platform/ia/artifact/atelier/service";
 import { champs, texte, type ChargeOperationIA, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
@@ -17,13 +17,7 @@ import { champs, texte, type ChargeOperationIA, type OperationIA, type Propositi
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-async function onglet(userId: string, ref: string) {
-  return prisma.artifactSession.findFirst({
-    where: { userId, blockId: { startsWith: PREFIXE_ATELIER }, state: { not: "CLOSED" }, OR: [{ id: ref }, { nodeId: ref }] },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true, nodeId: true, name: true, dirty: true, baseVersion: true, savedVersion: true, _count: { select: { operations: { where: { undone: false } } } } },
-  });
-}
+const onglet = (userId: string, ref: string) => ongletDesigne(userId, PREFIXE_ATELIER, ref);
 
 async function proposer(e: Record<string, unknown>, user: CurrentUser): Promise<PropositionOperation> {
   const ref = texte(e, "document");

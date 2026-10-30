@@ -478,7 +478,7 @@ export function ScenePptx({ vue, contenu, zoom, onDiapo, onForme }: {
       <div className="artifact-diapo-cadre">
         <div className={`artifact-diapo${enSurbrillance.has(diapo.id) ? " artifact-diapo-neuve" : ""}`} data-id={diapo.id} key={diapo.id}
           style={{ width: `${largeur}px`, height: `${contenu.hauteurCm * PX_PAR_CM * echelle}px` }}>
-          {diapo.formes.map((f) => (
+          {diapo.formes.map(placerSansCadre(contenu, diapo.titre, diapo.formes)).map((f) => (
             <div key={f.id}
               className={`artifact-forme${enSurbrillance.has(f.id) ? " artifact-forme-active" : ""}`}
               data-role={f.role} data-id={f.id}
@@ -512,6 +512,27 @@ export function ScenePptx({ vue, contenu, zoom, onDiapo, onForme }: {
       </div>
     </div>
   );
+}
+
+/**
+ * UNE FORME SANS CADRE PROPRE — un espace réservé qui hérite sa position de la DISPOSITION (une diapositive ajoutée
+ * par l'Atelier, un deck qui s'appuie sur ses masques). Le modèle la lit à 0 × 0 : dessinée telle quelle, son texte
+ * disparaissait. On la pose là où une disposition « Titre et contenu » la met — le titre en haut, le corps dessous.
+ */
+function placerSansCadre(contenu: VuePptx, titreDiapo: string, formes: VuePptx["diapos"][number]["formes"]) {
+  // Le haut de la première zone qui a SON cadre : le titre se loge au-dessus, sans la recouvrir.
+  const haut = Math.min(contenu.hauteurCm * 0.24, ...formes.filter((x) => x.largeurCm > 0 && x.hauteurCm > 0).map((x) => x.yCm));
+  return (f: VuePptx["diapos"][number]["formes"][number]) => {
+    if (f.largeurCm > 0 && f.hauteurCm > 0) return f;
+    const titre = Boolean(titreDiapo) && f.texte === titreDiapo;
+    const hTitre = Math.max(1, Math.min(contenu.hauteurCm * 0.15, haut * 0.9));
+    return {
+      ...f,
+      xCm: contenu.largeurCm * 0.06, largeurCm: contenu.largeurCm * 0.88,
+      yCm: titre ? Math.max(0, (haut - hTitre) / 2) : contenu.hauteurCm * 0.24, hauteurCm: titre ? hTitre : contenu.hauteurCm * 0.66,
+      style: titre && !f.style.sizePt ? { ...f.style, sizePt: 28, bold: true } : f.style,
+    };
+  };
 }
 
 // ─────────────────────────── Excel ───────────────────────────
