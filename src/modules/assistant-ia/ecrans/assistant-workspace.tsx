@@ -7,6 +7,7 @@ import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
 import { MemoirePanel } from "./memoire-panel";
 import { RoutinesPanel } from "./routines-panel";
+import { TravauxPanel } from "./travaux-panel";
 import { BoutonJoindre, PiecesEnAttente, type PieceJointe, type PieceOuvrable } from "./pieces-jointes";
 import { ApercuPiece } from "./apercu-piece";
 import { deposeDesFichiers, depuisListe, lireDepot, nommerCollage, televerser } from "./depot-navigateur";
@@ -15,8 +16,8 @@ import {
   type Parcours,
 } from "../domaine/lecture/depot";
 import { EnregistreurVocal } from "./enregistreur-vocal";
-import { AlarmClock, Brain, FolderUp, MoreHorizontal, Volume2, VolumeX } from "lucide-react";
-import { envoyerAuFil, listerMesRoutines, reglerMaReponseVocale, repartirDeZero } from "@/modules/assistant-ia/actions";
+import { AlarmClock, Brain, Briefcase, FolderUp, MoreHorizontal, Volume2, VolumeX } from "lucide-react";
+import { envoyerAuFil, listerMesRoutines, listerMesTravaux, reglerMaReponseVocale, repartirDeZero } from "@/modules/assistant-ia/actions";
 import type { AudioDuTour, LecturePiece, VocalDuTour } from "../domaine/lecture/regles";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
@@ -81,6 +82,20 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const [routineInitiale, setRoutineInitiale] = useState<string | null>(null);
   const [nonLus, setNonLus] = useState(0);
   const majNonLus = useCallback((n: number) => setNonLus(n), []);
+  // J2 : les TRAVAUX — un plan proposé par l'assistant attend son approbation dans ce panneau.
+  const [travauxOuverts, setTravauxOuverts] = useState(false);
+  const [travailInitial, setTravailInitial] = useState<string | null>(null);
+  const [aApprouver, setAApprouver] = useState(0);
+  const majAApprouver = useCallback((n: number) => setAApprouver(n), []);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("travail");
+    if (id) { setTravailInitial(id); setTravauxOuverts(true); }
+    const compter = () => void listerMesTravaux().then((r) => { if (r.ok) setAApprouver(r.aApprouver); }).catch(sansBloquer("assistant-workspace.listerMesTravaux"));
+    compter();
+    // Un plan arrive pendant que la personne écrit (l'assistant l'a proposé au tour d'avant) : le point s'allume.
+    const t = setInterval(compter, 20_000);
+    return () => clearInterval(t);
+  }, []);
 
   // Une notification de routine mène ici (« ?routine=… ») : le panneau s'ouvre sur son dernier passage.
   useEffect(() => {
@@ -457,6 +472,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
                   onBasculer={() => setMenuOuvert((o) => !o)}
                   onMemoire={() => { setMenuOuvert(false); setMemoireOuverte(true); }}
                   onRoutines={() => { setMenuOuvert(false); setRoutinesOuvertes(true); }}
+                  onTravaux={() => { setMenuOuvert(false); setTravauxOuverts(true); }}
+                  aApprouver={aApprouver}
                   nonLus={nonLus}
                   reponseVocale={reponseVocale}
                   onReponseVocale={() => void basculerReponseVocale()}
@@ -483,6 +500,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       <ApercuPiece piece={apercu} onFermer={fermerApercu} onDemanderModification={vueExacte ? undefined : demanderModification} />
       <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
       <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
+      <TravauxPanel ouvert={travauxOuverts} onFermer={() => setTravauxOuverts(false)} travailInitial={travailInitial} onAApprouver={majAApprouver} />
     </div>
   );
 }
@@ -492,8 +510,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
  * téléphone, un seul « ⋯ » qui les déplie : à 375 px, trois boutons de plus ne laissaient que
  * quelques lettres au champ de saisie.
  */
-function Outils({ ouvert, onBasculer, onMemoire, onRoutines, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
-  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; nonLus: number;
+function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, aApprouver, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
+  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; onTravaux: () => void; aApprouver: number; nonLus: number;
   reponseVocale: boolean; onReponseVocale: () => void; vueExacte: boolean;
 }) {
   const bouton = "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800";
@@ -501,11 +519,14 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, nonLus, reponseVoca
   const libelleVoix = reponseVocale ? "Réponses vocales activées — désactiver" : "Réponses vocales désactivées — activer";
   const IconeVoix = reponseVocale ? Volume2 : VolumeX;
   const point = nonLus > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-violet-600" />;
+  const libelleTravaux = aApprouver ? `Mes travaux (${aApprouver} plan${aApprouver > 1 ? "s" : ""} à approuver)` : "Mes travaux";
+  const pointTravaux = aApprouver > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-500" />;
   return (
     <>
       <div className="hidden sm:contents">
         <button type="button" onClick={onMemoire} aria-label="Ma mémoire" title="Ma mémoire" className={bouton}><Brain className="h-4 w-4" /></button>
         <button type="button" onClick={onRoutines} aria-label={libelleRoutines} title="Mes routines" className={bouton}><AlarmClock className="h-4 w-4" />{point}</button>
+        <button type="button" onClick={onTravaux} aria-label={libelleTravaux} title="Mes travaux" className={bouton}><Briefcase className="h-4 w-4" />{pointTravaux}</button>
         {!vueExacte && (
           <button type="button" onClick={onReponseVocale} aria-pressed={reponseVocale} aria-label={libelleVoix} title={libelleVoix}
             className={`${bouton} ${reponseVocale ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : ""}`}>
@@ -515,7 +536,7 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, nonLus, reponseVoca
       </div>
       <div className="relative sm:hidden">
         <button type="button" onClick={onBasculer} aria-expanded={ouvert} aria-label="Plus d'outils" title="Plus d'outils" className={bouton}>
-          <MoreHorizontal className="h-4 w-4" />{point}
+          <MoreHorizontal className="h-4 w-4" />{point || pointTravaux}
         </button>
         {ouvert && (
           <div role="menu" className="absolute bottom-12 left-0 z-40 w-60 rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
@@ -524,6 +545,9 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, nonLus, reponseVoca
             </button>
             <button type="button" role="menuitem" onClick={onRoutines} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
               <AlarmClock className="h-4 w-4" /> {libelleRoutines}
+            </button>
+            <button type="button" role="menuitem" onClick={onTravaux} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+              <Briefcase className="h-4 w-4" /> {libelleTravaux}
             </button>
             {!vueExacte && (
               <button type="button" role="menuitemcheckbox" aria-checked={reponseVocale} onClick={onReponseVocale} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">

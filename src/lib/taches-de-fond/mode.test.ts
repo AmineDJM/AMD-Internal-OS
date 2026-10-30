@@ -88,6 +88,9 @@ describe("le point d'entrée du worker", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
     expect(pkg.scripts.worker).toBe("tsx scripts/worker.ts");
     const render = readFileSync("render.yaml", "utf8");
-    expect(render).toMatch(/startCommand: npm run worker/);
+    // J2 (décision 3 de la Direction) : le worker est une IMAGE DOCKER — son point d'entrée est le même script.
+    expect(render).toMatch(/name: amd-worker\s+runtime: docker/);
+    expect(render).toMatch(/dockerfilePath: \.\/Dockerfile\.worker/);
+    expect(readFileSync("Dockerfile.worker", "utf8")).toMatch(/^CMD \[.*tsx", "scripts\/worker\.ts"\]$/m);
   });
 });

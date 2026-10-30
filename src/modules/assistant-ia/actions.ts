@@ -8,6 +8,7 @@ import {
 } from "@/modules/assistant-ia/api";
 import { performAction, type AssistantActionPayload } from "@/lib/assistant";
 import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
+import type { TravailDetail, TravailVue } from "@/lib/missions/travaux/service";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -158,7 +159,7 @@ export async function reglerMaReponseVocale(active: boolean) {
  *
  * Elle vivait dans le fichier d'actions d'Adam (`assistant-actions:confirmerIntentionAssistantIA`) ;
  * elle est ici depuis la phase B du lot J0 (décision 0013) — seule clé du contrat qui change. La garde
- * d'exécution (confirmation forte, idempotence) est au socle, `platform/ia/intentions/executer-intention.ts`.
+ * d'exécution (confirmation forte, idempotence) est au socle, `platform/ia/intentions/action-intents.ts`.
  */
 export async function confirmerIntentionAssistantIA(intentId: string, confirmTyped?: string): Promise<ResultatExecution> {
   try {
@@ -182,4 +183,56 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
     console.error("[assistant] confirmerIntentionAssistantIA failed", err);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };
   }
+}
+
+// ─────────────────────────────── LES TRAVAUX (J2, décision 0016) ───────────────────────────────
+//
+// Les gestes de la personne sur SES travaux longs (panneau « Travaux ») : un identifiant reçu ne donne rien
+// s'il n'est pas le sien (le service met la personne dans chaque `where`) ; pas d'écriture en « Vue exacte ».
+
+const id = (v: unknown): string | null => (typeof v === "string" && v.length > 0 && v.length < 64 ? v : null);
+// Chargés à l'appel : le moteur des travaux et la persona ne pèsent que sur ces gestes-là.
+const travaux = () => import("@/lib/missions/travaux/service");
+const persona = async () => (await import("@/modules/assistant-ia/api")).PERSONA_ASSISTANT_IA;
+
+export async function listerMesTravaux(): Promise<{ ok: true; travaux: TravailVue[]; aApprouver: number } | { ok: false; erreur: string }> {
+  const p = await porte(false);
+  if (!p.ok) return p;
+  const liste = await (await travaux()).listerTravaux(p.user.id);
+  return { ok: true, travaux: liste, aApprouver: liste.filter((t) => t.etat === "A_APPROUVER").length };
+}
+
+export async function lireMonTravail(travailId: string): Promise<{ ok: true; travail: TravailDetail } | { ok: false; erreur: string }> {
+  const p = await porte(false);
+  if (!p.ok) return p;
+  const t = id(travailId) ? await (await travaux()).lireTravail(travailId, p.user.id) : null;
+  return t ? { ok: true, travail: t } : { ok: false, erreur: "Travail introuvable." };
+}
+
+export async function approuverMonTravail(travailId: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+  return (await travaux()).approuverTravail(travailId, p.user.id, await persona());
+}
+
+export async function pauserMonTravail(travailId: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+  return (await travaux()).pauserTravail(travailId, p.user.id);
+}
+
+export async function reprendreMonTravailIA(travailId: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+  return (await travaux()).reprendreMonTravail(travailId, p.user.id, await persona());
+}
+
+export async function annulerMonTravail(travailId: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+  return (await travaux()).annulerTravail(travailId, p.user.id);
 }

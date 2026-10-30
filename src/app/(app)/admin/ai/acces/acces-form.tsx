@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAction } from "@/components/shared/use-action";
-import { enregistrerAccesAssistantIa } from "@/modules/assistant-ia/actions-consommation";
+import { enregistrerAccesAssistantIa, enregistrerPlafondsTravaux } from "@/modules/assistant-ia/actions-consommation";
 import {
   AIDE_FAMILLE, FAMILLES_IA, FAMILLES_SENSIBLES, LIBELLE_FAMILLE, resoudreAccesIa, type FamilleIa, type ReglageFamilles,
 } from "@/modules/assistant-ia/partage";
@@ -17,6 +17,7 @@ export interface LignePersonne {
   droits: Record<FamilleIa, boolean>;
   reglageRole: ReglageFamilles;
   reglage: ReglageFamilles;
+  plafonds: { travailUsd: number | null; mensuelUsd: number | null };
 }
 
 type Etat = "DEFAUT" | "OUVERTE" | "FERMEE";
@@ -68,6 +69,43 @@ function Enregistrer({ cible, reglage, apres }: { cible: string; reglage: Reglag
   );
 }
 
+/**
+ * LES PLAFONDS DE DÉPENSE DES TRAVAUX (J2) — un travail qui atteint le sien, ou une personne qui atteint son plafond du
+ * mois, DORT : il n'échoue pas et repart seul quand le plafond le permet. `cible` : « global » (défauts) ou une personne.
+ */
+function Plafonds({ cible, travail, mensuel, defauts }: { cible: string; travail: number | null; mensuel: number | null; defauts?: { travailUsd: number; mensuelUsd: number } }) {
+  const { saving, err, run } = useAction();
+  const [ok, setOk] = React.useState(false);
+  const [t, setT] = React.useState(travail === null ? "" : String(travail));
+  const [m, setM] = React.useState(mensuel === null ? "" : String(mensuel));
+  React.useEffect(() => { setT(travail === null ? "" : String(travail)); setM(mensuel === null ? "" : String(mensuel)); setOk(false); }, [cible, travail, mensuel]);
+  const go = () => {
+    const fd = new FormData();
+    fd.set("cible", cible);
+    fd.set("plafondTravailUsd", t);
+    fd.set("plafondMensuelUsd", m);
+    setOk(false);
+    void run(() => enregistrerPlafondsTravaux(fd), () => setOk(true));
+  };
+  const idT = `plafond-travail-${cible}`;
+  const idM = `plafond-mois-${cible}`;
+  return (
+    <div className="flex flex-wrap items-end gap-3">
+      <label htmlFor={idT} className="space-y-1 text-xs text-muted-foreground">
+        <span className="block">Par travail ($)</span>
+        <Input id={idT} inputMode="decimal" value={t} onChange={(e) => setT(e.target.value)} placeholder={defauts ? `défaut : ${defauts.travailUsd}` : ""} className="h-9 w-32" />
+      </label>
+      <label htmlFor={idM} className="space-y-1 text-xs text-muted-foreground">
+        <span className="block">Par mois ($)</span>
+        <Input id={idM} inputMode="decimal" value={m} onChange={(e) => setM(e.target.value)} placeholder={defauts ? `défaut : ${defauts.mensuelUsd}` : ""} className="h-9 w-32" />
+      </label>
+      <Button type="button" size="sm" onClick={go} disabled={saving}>{saving && <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />}Enregistrer</Button>
+      {ok && !err && <span className="text-xs text-success">Enregistré.</span>}
+      {err && <span className="text-xs text-destructive">{err}</span>}
+    </div>
+  );
+}
+
 function Legende() {
   return (
     <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
@@ -114,7 +152,7 @@ function ParRole({ roles }: { roles: LigneRole[] }) {
   );
 }
 
-function ParPersonne({ personnes }: { personnes: LignePersonne[] }) {
+function ParPersonne({ personnes, plafondsGlobaux }: { personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number } }) {
   const [q, setQ] = React.useState("");
   const [choisie, setChoisie] = React.useState<string | null>(null);
   const [reglage, setReglage] = React.useState<ReglageFamilles>({ ouvertes: [], fermees: [] });
@@ -178,6 +216,11 @@ function ParPersonne({ personnes }: { personnes: LignePersonne[] }) {
               })}
             </div>
             <Enregistrer cible={`user:${p.id}`} reglage={reglage} />
+            <div className="space-y-2 rounded-md border px-3 py-3">
+              <p className="text-sm font-medium">Plafonds de dépense de ses travaux</p>
+              <p className="text-xs text-muted-foreground">Vide : le défaut ({plafondsGlobaux.travailUsd} $ par travail, {plafondsGlobaux.mensuelUsd} $ par mois).</p>
+              <Plafonds cible={`user:${p.id}`} travail={p.plafonds.travailUsd} mensuel={p.plafonds.mensuelUsd} defauts={plafondsGlobaux} />
+            </div>
           </div>
         ) : (
           <p className="self-center text-sm text-muted-foreground">Choisissez une personne pour voir ce que l&apos;assistant peut faire pour elle, et le régler.</p>
@@ -187,10 +230,23 @@ function ParPersonne({ personnes }: { personnes: LignePersonne[] }) {
   );
 }
 
-export function AccesAssistantIaForm({ roles, personnes }: { roles: LigneRole[]; personnes: LignePersonne[] }) {
+export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux }: {
+  roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number };
+}) {
   return (
     <div className="space-y-5">
-      <ParPersonne personnes={personnes} />
+      <Card>
+        <CardHeader><CardTitle className="text-base">Travaux longs — plafonds de dépense par défaut</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Un travail confié à l&apos;assistant tourne en arrière-plan jusqu&apos;à son livrable. Atteint, son plafond — ou celui de la
+            personne sur le mois — le met en <strong>sommeil</strong> : rien n&apos;est perdu, il reprend seul quand le plafond le permet.
+            Chaque personne peut avoir les siens (ci-dessous).
+          </p>
+          <Plafonds cible="global" travail={plafondsGlobaux.travailUsd} mensuel={plafondsGlobaux.mensuelUsd} />
+        </CardContent>
+      </Card>
+      <ParPersonne personnes={personnes} plafondsGlobaux={plafondsGlobaux} />
       <ParRole roles={roles} />
     </div>
   );

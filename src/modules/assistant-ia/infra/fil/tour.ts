@@ -3,6 +3,7 @@ import { compileContext } from "../contexte";
 import { accesAssistantIa, getRoleConfig, resoudreConsignesRole, Revelateur } from "../role-config";
 import { consigneFamilles, type AccesIa } from "../../domaine/acces-regles";
 import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
+import { consigneTravaux, outilTravailPour } from "../travaux";
 import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "../modele";
 import { modelesEffectifs } from "../generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "../repondre";
@@ -131,7 +132,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     instructions = (await compileContext({ user, consignesRole: resoudreConsignesRole(config) })).systemPrompt;
     if (d.consigne) instructions = `${instructions}\n\n${d.consigne}`;
     instructions = `${instructions}\n\n${CONSIGNE_JETONS}`;
-    for (const c of [consigneFamilles(acces), consigneGestesFermes(user)]) if (c) instructions = `${instructions}\n\n${c}`;
+    for (const c of [consigneFamilles(acces), consigneGestesFermes(user), consigneTravaux(texteSaisi)]) if (c) instructions = `${instructions}\n\n${c}`;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
     console.error("[assistant] contexte indisponible", e);
@@ -143,7 +144,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const memoires: MemoireProposee[] = [];
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les repères.
   const coffret = new CoffretDuTour();
-  const outils = outilsV1(user, propositions, sorties, memoires, coffret, acces);
+  // J2 : « lancer_un_travail » — une demande qui dépasse un tour devient un travail (plan à approuver).
+  const outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces), outilTravailPour(user)];
   const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
   try {
     const r = await repondreAvecSecours({

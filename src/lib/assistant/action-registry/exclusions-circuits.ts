@@ -10,7 +10,7 @@ export function classerExclusionsCircuits(): void {
     + "tour, étapes d'un tour, et les décisions de Direction (filtre de la saisie, retrait des cartes caduques, expiration). "
     + "Une IA ne règle JAMAIS ses propres plafonds ni ses propres garde-fous : c'est le geste du Super Admin, sur l'écran "
     + "`/admin/ai/consommation`, en regardant la consommation réelle — ni ses propres ACCÈS (décision 0012, `/admin/ai/acces`).", [
-    "assistant-ia-consommation-actions:enregistrerReglagesAssistantIa", "assistant-ia-consommation-actions:enregistrerAccesAssistantIa",
+    "assistant-ia-consommation-actions:enregistrerReglagesAssistantIa", "assistant-ia-consommation-actions:enregistrerAccesAssistantIa", "assistant-ia-consommation-actions:enregistrerPlafondsTravaux",
   ]);
   X("SEGMENTATION STUDIO (Direction, 06/10) : stratégie, classement des produits, règles VERSIONNÉES publiées après l'aperçu "
     + "de leur impact, import d'un classeur relu ligne à ligne, potentiel terrain, statut, dérogations MOTIVÉES. Chaque geste "

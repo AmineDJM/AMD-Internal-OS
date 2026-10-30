@@ -365,6 +365,7 @@
       "@/app/(app)/assistant/realtime-voice/socle": ["./src/components/chief/realtime-voice/socle"],
       "@/lib/assistant/confirm": ["./src/platform/ia/intentions/confirm"],
       "@/lib/agent/acces-regles": ["./src/modules/assistant-ia/domaine/acces-regles"],
+      "@/lib/agent/travaux": ["./src/modules/assistant-ia/infra/travaux"],
       "@/lib/agent/role-config": ["./src/modules/assistant-ia/infra/role-config"],
       "@/lib/agent/outils-v1": ["./src/modules/assistant-ia/infra/outils-v1"],
       "@/lib/agent/contenu-non-fiable": ["./src/modules/assistant-ia/domaine/contenu-non-fiable"],

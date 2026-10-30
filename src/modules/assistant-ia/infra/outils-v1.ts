@@ -88,6 +88,11 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
 };
 const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire"]);
 
+/** Les familles qu'un GESTE exige (J2 : un travail rejuge chaque geste contre la console avant d'agir). */
+export const famillesDuGeste = (nom: string): FamilleIa[] => famillesDe(nom, !SANS_FAMILLE_ECRITURE.has(nom));
+/** Les familles qu'une LECTURE exige (J2 : le plan d'un travail n'offre que les lectures ouvertes à la personne). */
+export const famillesDeLaLecture = (nom: string): FamilleIa[] => famillesDe(nom, false);
+
 /** L'accès par défaut (sans réglage lu) : droits applicatifs, familles sensibles fermées. Un tour passe toujours le réglage relu. */
 export const accesParDefaut = (user: CurrentUser): AccesIa =>
   resoudreAccesIa({ superAdmin: user.role === "SUPER_ADMIN", droits: droitsApplicatifsIa(user) });

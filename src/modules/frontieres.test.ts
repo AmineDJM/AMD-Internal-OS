@@ -506,6 +506,14 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/rh/infra/requetes/hr.ts → src/lib/queries/visibilite-listes",
   ],
   "assistant-ia": [
+    // LE MOTEUR DES TRAVAUX (J2, décision 0016) — façade `lib/missions/` généralisée : l'Assistant IA y joue sa persona, ses
+    // gestes de panneau et ses règles d'affichage. Venus avec J2 (sur la base, ces fichiers étaient dans `src/lib/`, non
+    // comptés). Cible : la porte du moteur des travaux (`src/platform/ia/travaux/` en porte un premier contrat sans import).
+    "src/modules/assistant-ia/actions.ts → src/lib/missions/travaux/service",
+    "src/modules/assistant-ia/ecrans/travaux-panel.tsx → src/lib/missions/travaux/regles",
+    "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/persona",
+    "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/plan",
+    "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/service",
     // LE CATALOGUE D'ADAM (outils-v1, performAction) : résidu nommé de la frontière Adam / Assistant IA (décision 0013). Cible = le socle IA, selon l'arbitrage de la phase B.
     "src/modules/assistant-ia/actions.ts → src/lib/assistant",
     "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant",

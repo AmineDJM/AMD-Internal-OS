@@ -205,12 +205,20 @@ export async function accesAssistantIa(user: CurrentUser): Promise<AccesIa> {
  */
 export async function chargerConsoleAccesIa(): Promise<{
   parRole: Map<UserRole, ReglageFamilles>;
-  personnes: { id: string; nom: string; email: string; role: UserRole; droits: Record<FamilleIa, boolean>; reglageRole: ReglageFamilles; reglage: ReglageFamilles }[];
+  personnes: {
+    id: string; nom: string; email: string; role: UserRole; droits: Record<FamilleIa, boolean>; reglageRole: ReglageFamilles; reglage: ReglageFamilles;
+    /** J2 : les plafonds de dépense propres à la personne (`null` = le défaut). */
+    plafonds: { travailUsd: number | null; mensuelUsd: number | null };
+  }[];
+  /** J2 : les plafonds par défaut des travaux. */
+  plafondsGlobaux: { travailUsd: number; mensuelUsd: number };
 }> {
-  const [reglages, comptes] = await Promise.all([
+  const [reglages, comptes, global] = await Promise.all([
     prisma.assistantIaAcces.findMany(),
     prisma.user.findMany({ where: { isActive: true, role: { not: "SUPER_ADMIN" } }, select: { id: true, name: true, email: true, role: true }, orderBy: { name: "asc" } }),
+    prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { plafondTravailUsd: true, plafondMensuelUsd: true } }),
   ]);
+  const plafondsPersonne = new Map(reglages.filter((r) => r.userId).map((r) => [r.userId!, { travailUsd: r.plafondTravailUsd, mensuelUsd: r.plafondMensuelUsd }]));
   const vide: ReglageFamilles = { ouvertes: [], fermees: [] };
   const parRole = new Map(reglages.filter((r) => r.role && !r.userId).map((r) => [r.role!, normaliserReglageFamilles(r.ouvertes, r.fermees)]));
   const parPersonne = new Map(reglages.filter((r) => r.userId).map((r) => [r.userId!, normaliserReglageFamilles(r.ouvertes, r.fermees)]));
@@ -220,9 +228,10 @@ export async function chargerConsoleAccesIa(): Promise<{
     return {
       id: c.id, nom: c.name, email: c.email, role: c.role, droits: droitsApplicatifsIa(session),
       reglageRole: parRole.get(c.role) ?? vide, reglage: parPersonne.get(c.id) ?? vide,
+      plafonds: plafondsPersonne.get(c.id) ?? { travailUsd: null, mensuelUsd: null },
     };
   }));
-  return { parRole, personnes };
+  return { parRole, personnes, plafondsGlobaux: { travailUsd: global?.plafondTravailUsd ?? 20, mensuelUsd: global?.plafondMensuelUsd ?? 50 } };
 }
 
 /**

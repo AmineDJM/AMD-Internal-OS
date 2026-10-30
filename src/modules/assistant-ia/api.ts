@@ -47,3 +47,6 @@ export { auNomDe, lireReglagesAssistantIa, tarifPose } from "./infra/consommatio
 export { consommationAssistantIa, type Agregat } from "./infra/consommation-stats";
 export { modeleOpenAi } from "./infra/modele";
 export { outilsV1 } from "./infra/outils-v1";
+
+// ── Les travaux longs (J2, décision 0016) : la persona que le moteur des travaux joue pour l'Assistant IA
+export { PERSONA_ASSISTANT_IA } from "./infra/travaux";

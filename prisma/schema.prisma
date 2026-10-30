@@ -9425,6 +9425,9 @@ model AssistantIaAcces {
   role        UserRole? @unique
   ouvertes    String[]  @default([])
   fermees     String[]  @default([])
+  /// J2 : plafonds propres à ce rôle ou à cette personne (NULL = le défaut global, `AssistantIaReglage`).
+  plafondTravailUsd Float?
+  plafondMensuelUsd Float?
   updatedById String?
   updatedAt   DateTime  @default(now()) @updatedAt
 }
@@ -9443,6 +9446,10 @@ model AssistantIaReglage {
   retirerCartesCaduques  Boolean  @default(true)
   /// IA-ASSISTANT-07 : une carte non confirmée expire après ce délai (heures).
   expirationCartesHeures Int      @default(24)
+  /// J2 (décision 0016) : plafond de dépense d'UN travail, en dollars. Atteint : le travail dort (BUDGET_HOLD).
+  plafondTravailUsd      Float    @default(20)
+  /// J2 : plafond de dépense IA d'une personne sur le mois (heure d'Alger), en dollars.
+  plafondMensuelUsd      Float    @default(50)
   updatedAt              DateTime @default(now()) @updatedAt
   updatedById            String?
 }
@@ -14317,6 +14324,23 @@ model Mission {
   replanRefus  String?
   replanBloque Boolean @default(false)
 
+  /// ─── LES TRAVAUX (J2, décision 0016) — `kind = "TRAVAIL"` : le même moteur, pour n'importe quel collaborateur ───
+  /// La personne AU NOM DE QUI le travail tourne (ses droits sont relus à chaque étape). NULL = mission d'Adam.
+  principalId      String?
+  /// La persona qui conduit : ADAM | ASSISTANT_IA. NULL = mission d'Adam d'avant J2.
+  persona          String?
+  /// Le plafond de dépense de CE travail, en dollars (20 $ par défaut, console). Atteint : le travail DORT (BUDGET_HOLD).
+  plafondUsd       Float?
+  /// LE CARNET DE TRAVAIL : objectif, plan, notes, trouvailles, livrables — ce que chaque étape relit, à la place de l'historique.
+  carnet           Json?
+  /// Les gestes (écritures) approuvés UNE fois avec le plan — bornés aux familles ouvertes dans la console, relues à chaque geste.
+  gestesAutorises  Json?
+  planApprouveLe   DateTime?
+  planApprouvePar  String?
+  /// Le dernier « point quotidien » envoyé pour un travail de plus d'un jour.
+  pointQuotidienLe DateTime?
+  ecrituresTravail TravailEcriture[]
+
   artifacts    MissionArtifact[]
   participants MissionParticipant[]
   events       MissionEvent[]
@@ -14336,6 +14360,25 @@ model Mission {
   @@index([kind, status])
   @@index([parentMissionId])
   @@index([status, replanBloque])
+  @@index([principalId, kind, status])
+}
+
+/// LE REÇU D'UN GESTE ÉCRIT PAR UN TRAVAIL (J2) — réclamé AVANT d'agir (`cle` unique), clos APRÈS.
+/// RECLAME | FAIT | ECHEC. Un reçu FAIT retrouvé à la reprise rend le résultat sans refaire le geste ;
+/// un reçu RECLAME jamais clos (processus tué pendant le geste) n'est JAMAIS rejoué : l'étape échoue et le dit.
+model TravailEcriture {
+  id        String   @id @default(cuid())
+  cle       String   @unique
+  missionId String
+  mission   Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  stepKey   String
+  geste     String
+  statut    String   @default("RECLAME")
+  resultat  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([missionId])
 }
 
 /// ═══════════════════════════════════════════════════════════════════════════════════════════

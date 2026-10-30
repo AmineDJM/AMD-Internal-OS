@@ -39,10 +39,10 @@ export const ATTEINTS_PAR_LES_TESTS_SEULS: Readonly<Record<string, string>> = {
 };
 
 export const PLAFONDS = {
-  /** jscpd : nombre de clones dans `src/` (hors tests). Avant le lot : 1 506. Mesuré au lot J0 (30/10) : 1 438. */
-  clones: 1438,
-  /** jscpd : lignes dupliquées dans `src/` (hors tests). Avant le lot : 13 719. Mesuré au lot J0 (30/10, phase B) : 12 969. */
-  lignesDupliquees: 12969,
+  /** jscpd : nombre de clones dans `src/` (hors tests). Avant le lot : 1 506. Ramené au lot J2 (30/10) : coque commune des panneaux de l'Assistant IA ; 1 437 à la fusion J0 + J2. */
+  clones: 1437,
+  /** jscpd : lignes dupliquées dans `src/` (hors tests). Avant le lot : 13 719. Mesuré à la fusion J0 + J2 (30/10) : 12 959. */
+  lignesDupliquees: 12959,
 } as const;
 
 const RACINE = process.cwd();

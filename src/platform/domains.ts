@@ -193,9 +193,9 @@ const SOCLE = [
    */
   "src/lib/actions/contrat/",
   // Les règles pures de l'Assistant IA (décisions 0011, 0012, 0015 : lecture des pièces, plafonds, contenu non
-  // fiable, mémoire affichée, texte partiel, familles d'accès, dépôt) étaient déclarées ici par chemin exact :
-  // elles vivent dans `src/modules/assistant-ia/domaine/` depuis la phase B du lot J0, où `frontieres.test.ts`
-  // tient leur pureté.
+  // fiable, mémoire affichée, texte partiel, familles d'accès, dépôt, et le markdown déclaré au lot J2) étaient
+  // déclarées ici par chemin exact : elles vivent dans `src/modules/assistant-ia/domaine/` depuis la phase B du
+  // lot J0, où `frontieres.test.ts` tient leur pureté.
   /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions

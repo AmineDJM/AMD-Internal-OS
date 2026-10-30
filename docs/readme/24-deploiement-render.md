@@ -50,15 +50,24 @@ par défaut **dans le processus web**. Le même passage peut tourner dans un **s
 **Activation sur Render — procédure exacte**
 
 1. **Créer le service.** Le bloc `amd-worker` est déclaré dans [`render.yaml`](../../render.yaml) depuis le 28/10/2026
-   (en attente : `TACHES_DE_FOND=web`) : *Blueprint → Sync* — ou créer à la main **New + → Background Worker** sur ce dépôt et cette branche, runtime Node,
-   *Build Command* `npm install && npx prisma generate`, *Start Command* `npm run worker`, plan payant (pas d'offre
-   gratuite pour un worker). Le build du worker ne compile pas Next et **ne migre pas** : seul le build du web migre,
-   après son lint/typecheck/build (P0) ; le worker démarré **attend** que la base porte les migrations de son commit.
+   (en attente : `TACHES_DE_FOND=web`) — **en image Docker depuis J2** (décision 3 de la Direction, 29/10/2026) :
+   [`Dockerfile.worker`](../../Dockerfile.worker) à la racine (Node 22, `npm ci`, `prisma generate`, **LibreOffice
+   headless**, **ffmpeg**, **Tesseract fra/ara/eng**, utilisateur non root, `tini` pour relayer SIGTERM). *Blueprint → Sync*
+   — ou à la main **New + → Background Worker** sur ce dépôt et cette branche, **Runtime : Docker**, *Dockerfile Path*
+   `./Dockerfile.worker`, *Docker Context* `.`, aucune commande (l'image démarre seule : `tsx scripts/worker.ts`), plan
+   payant (pas d'offre gratuite pour un worker). Le worker ne compile pas Next et **ne migre pas** : seul le build du web
+   migre, après son lint/typecheck/build (P0) ; le worker démarré **attend** que la base porte les migrations de son commit.
+   Un service déjà créé en runtime Node se **convertit** : *Settings → Runtime → Docker* (ou le recréer depuis le Blueprint).
 2. **Variables du worker** — les MÊMES que le web : `DATABASE_URL` (base `amd-postgres`), **`AUTH_SECRET` identique**
    (clé maître du coffre et des secrets de connexion — une autre valeur rendrait tout illisible), **`APP_URL`** = URL
    publique du web (Render ne donne `RENDER_EXTERNAL_URL` qu'aux services web ; les liens des notifications en
-   dépendent), `NODE_VERSION=22`, `S3_*`, `VAPID_*`, `ADVENTUM_*`, clés des fournisseurs d'IA, Google/Microsoft, mail.
-   Le plus sûr : un **Environment Group** attaché aux deux services. Et **`TACHES_DE_FOND=les-deux`**.
+   dépendent), `S3_*`, `VAPID_*`, `ADVENTUM_*`, clés des fournisseurs d'IA (**`OPENAI_API_KEY`** : les travaux longs de
+   l'Assistant IA appellent le modèle depuis le worker), Google/Microsoft, mail. (`NODE_VERSION` est sans effet en Docker.)
+   Le plus sûr : un **Environment Group** attaché aux deux services — *Dashboard → Env Groups → New Environment Group*
+   (« amd-commun »), y **déplacer** depuis le web toutes les variables posées à la main (pas celles du Blueprint qui
+   pointent la base), puis *web → Environment → Link Environment Group* et *amd-worker → Environment → Link Environment
+   Group*. À recopier au minimum : `AUTH_SECRET` (identique !), `APP_URL`, `OPENAI_API_KEY`, `S3_*`, `VAPID_*`,
+   `ADVENTUM_*`, les identifiants Google/Microsoft et SMTP. Et **`TACHES_DE_FOND=les-deux`** sur le worker.
    Contrôle : *Shell* du worker → `npm run adam:doctor`.
 3. **Passer le web en `les-deux`** : *web → Environment* → `TACHES_DE_FOND=les-deux` (redémarrage automatique). Les deux
    battent ; le bail départage tâche par tâche.
@@ -66,6 +75,12 @@ par défaut **dans le processus web**. Le même passage peut tourner dans un **s
    tâches ont l'exécutant « worker ». Journal du worker : `worker.demarrage`, puis `passage.fin` chaque minute.
 5. **Basculer** : `TACHES_DE_FOND=worker` sur le **web** (il ne bat plus, ni par minuterie ni par le polling de la
    messagerie), puis `TACHES_DE_FOND=worker` sur le worker. Après 5 min, `executeursRecents` = `["worker"]`.
+
+**Les travaux longs (J2) pendant la bascule.** La tâche `travaux.balayage` conduit les travaux de l'Assistant IA. Sous
+`les-deux`, le **web s'abstient** dès que le worker a pris une tâche dans les 5 dernières minutes (« ignorée : le worker
+conduit les travaux » au Diagnostic) : un travail long ne tourne jamais dans le processus qui sert les pages quand le
+worker est là. Sous `web` (aujourd'hui), le web les conduit par passages bornés (45 s) — un travail survit à chaque
+redéploiement : il reprend à sa dernière étape (reçus en base). Débrayage : `TRAVAUX_SWEEP=off`.
 
 **Retour arrière** : `TACHES_DE_FOND=web` sur le web — il rebat dès son redémarrage ; puis suspendre le worker (ou lui
 poser `web` : il démarre et attend sans rien exécuter, sans boucle de redémarrage). Aucune ligne de code, aucun

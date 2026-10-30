@@ -110,7 +110,7 @@ comparaison de la valeur ressaisie (`confirm.ts`) sont au socle, dans `platform/
 le moteur en `infra/` (fil, tour, outils, opérations, lecture, voix, mémoire, routines, consommation, modèle, `testing/`),
 l'interface de `/assistant` en `ecrans/` (ex-`components/assistant-beta/`), les deux fichiers d'actions en portes
 (`actions.ts`, `actions-consommation.ts`, clés inchangées). Portes `api.ts` / `partage.ts` ; carte : `assistant-ia → ad-pro,
-coffre`, `bibliotheque → assistant-ia` (le filtre de confidentialité) ; dette héritée vers `src/lib/` : 63 imports, nommés
+coffre`, `bibliotheque → assistant-ia` (le filtre de confidentialité) ; dette héritée vers `src/lib/` : 63 imports à la phase B, 68 avec J2 (moteur des travaux), nommés
 dans `frontieres.test.ts`. Une adresse de réexpédition par fichier déplacé (`tsconfig.json`).
 
 **Frontière après la phase B** : Adam → Assistant IA **0** ; socle → l'un ou l'autre **0** ; Assistant IA → Adam **4**, tous

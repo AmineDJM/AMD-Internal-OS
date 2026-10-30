@@ -31,7 +31,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels`, `finances`, `bibliotheque` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
 | `finances` | métier | `api.ts`, `partage.ts`, `actions-{centre,demandes,depenses,relances,sieges,soldes,tresorerie}.ts` | `referentiels`, `coffre` | tout métier qui émet un ordre de dépense (Ad & Pro, RH, Legal, Regulatory, moyens généraux…), pages `/finances`, `/centre-de-paiement`, `/validations/paiements` | **migré** (V4) — ex-`lib/{finance,finances,payments}/`, fusionnés |
 | `bibliotheque` | métier (transverse) | `api-inscription.ts` (inscrire — porte étroite), `api.ts` (chercher, ouvrir, file), `partage.ts`, `actions.ts`, `ecrans/` | — | ≈ 45 points d'entrée (inscription), `rh`, `scheduled.ts` (tâches `bibliotheque.*`), page `/bibliotheque` | **neuf** (J1, 29/10) — dette : les règles d'ouverture et les lecteurs existants (`DETTE_HERITEE`) |
-| `assistant-ia` | métier | `api.ts`, `partage.ts`, `actions.ts` (clé `assistant-ia-actions`), `actions-consommation.ts` (clé `assistant-ia-consommation-actions`), `ecrans/` | `ad-pro`, `coffre` | page `/assistant`, routes `/api/assistant-ia/*`, consoles `/admin/ai/{acces,consommation}`, `bibliotheque` (confidentialité), enrichissement (MRZ), `runScheduledJobs` | **migré** (J0, phase B) — dette : 63 imports vers `src/lib/` dont 4 vers Adam (catalogue, §7) |
+| `assistant-ia` | métier | `api.ts`, `partage.ts`, `actions.ts` (clé `assistant-ia-actions`), `actions-consommation.ts` (clé `assistant-ia-consommation-actions`), `ecrans/` | `ad-pro`, `coffre` | page `/assistant`, routes `/api/assistant-ia/*`, consoles `/admin/ai/{acces,consommation}`, `bibliotheque` (confidentialité), enrichissement (MRZ), `runScheduledJobs` | **migré** (J0, phase B) — dette : 68 imports vers `src/lib/` dont 4 vers Adam (catalogue, §7) et 5 vers le moteur des travaux (J2) |
 
 ```
             ┌──────────────── socle métier (lu par tous, ne lit que le socle) ────────────────┐
@@ -44,6 +44,11 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
                      (ils consomment les portes ; aucun module ne les importe en retour,
                       sauf la « dette héritée » nommée dans frontieres.test.ts)
 ```
+
+**Hors modules, au moteur des missions — les travaux (J2, 30/10/2026)** : `src/lib/missions/travaux/` généralise le Mission
+Runtime à tous (façade `missions/`, pas un module métier) ; il ne connaît les assistants que par un PORT (`persona.ts`). La part
+partagée par les assistants (l'outil `lancer_un_travail`) vit au socle IA `src/platform/ia/travaux/` sans aucun import ; la persona
+de l'Assistant IA est `src/lib/agent/travaux.ts`. Décision 0016.
 
 **Prochains candidats** (ordre du rapport 08, §3.5) : `produits` et `annuaires` (ils effacent la dette héritée de
 `consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `promo` (le stock et le dossier de matériel promotionnel, reste du pôle Ad & Pro) après (`rh`, `finances` et `ad-pro` migrés au lot V4) ; Adam en dernier.

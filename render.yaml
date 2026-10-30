@@ -156,17 +156,23 @@ services:
   # donne RENDER_EXTERNAL_URL qu'aux services web, et les liens des notifications en dépendent.
   # Contrôle : Shell du worker → `npm run adam:doctor`.
   #
+  #
+  # IMAGE DOCKER (J2, décision 3 de la Direction, 29/10/2026) : `Dockerfile.worker` à la racine — Node 22,
+  # `npm ci`, `prisma generate`, plus LibreOffice headless (conversions fidèles), ffmpeg (vidéo) et Tesseract
+  # fra/ara/eng (OCR), utilisateur non root. Les travaux longs (`travaux.balayage`) y tournent ; tant que
+  # TACHES_DE_FOND=web, le web les fait encore tourner (procédure de bascule : docs/readme/24-deploiement-render.md).
   - type: worker
     name: amd-worker
-    runtime: node
+    runtime: docker
     plan: starter
     # Même dépôt, même installation, même client Prisma — mais NI compilation Next (le worker ne
     # sert aucune page : `tsx` exécute le code source) NI migration : seul le build du web migre,
     # APRÈS son lint, son typecheck et sa compilation (refonte P0). Le worker démarré attend que la
     # base porte les migrations de son commit (`src/lib/taches-de-fond/migrations.ts`) avant son
     # premier passage — il ne fait jamais tourner un code plus récent que le schéma.
-    buildCommand: npm ci && npx prisma generate
-    startCommand: npm run worker
+    # L'image construit et démarre seule (`CMD` du Dockerfile : `tsx scripts/worker.ts`, sous `tini`).
+    dockerfilePath: ./Dockerfile.worker
+    dockerContext: .
     envVars:
       # EN ATTENTE au démarrage (`web`) : le worker existe et attend ; le web bat comme avant. On bascule en
       # `les-deux` APRÈS avoir recopié sur ce service les clés posées à la main sur le web (IA, Google/Microsoft,
@@ -184,8 +190,11 @@ services:
           envVarKey: AUTH_SECRET
       - key: APP_URL
         sync: false # l'URL publique du web, ex. https://amd-internal-os-k3uc.onrender.com
-      - key: NODE_VERSION
-        value: "22"
+      # (Node 22 vient de l'image Docker : NODE_VERSION n'a plus d'effet ici.)
+      # LES CLÉS D'IA : un travail confié à l'Assistant IA appelle le modèle depuis le worker. Posée à la main sur le
+      # web (hors Blueprint) : la recopier ici, ou mieux, la mettre dans l'Environment Group partagé (procédure).
+      - key: OPENAI_API_KEY
+        sync: false
       - key: S3_ENDPOINT
         fromService: { type: web, name: amd-internal-os, envVarKey: S3_ENDPOINT }
       - key: S3_BUCKET

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { MissionStatus } from "@prisma/client";
 import { lireReponse } from "@/lib/missions/runtime/reponse";
 import { journaliser } from "@/lib/missions/runtime/store";
 import { Attente, FaitObserve, correspond, decomposer, echue, etatAttente, lireAttente, lireProgres } from "@/lib/missions/events/match";
@@ -197,14 +198,15 @@ function apercuExpediteur(fait: FaitObserve): string | null {
  * la découvre après n'importe quel redémarrage. L'écriture est conditionnée à `WAITING` :
  * deux battements concurrents (ou un battement rejoué) ne règlent l'attente qu'UNE fois.
  */
-export async function reveillerAttentesTemporelles(maintenant = new Date()): Promise<Reveil[]> {
+export async function reveillerAttentesTemporelles(
+  maintenant = new Date(),
+  /** BANC SEULEMENT (J2) : borne le réveil à ces missions — la suite partage une base, et une horloge simulée en avance réveillerait les attentes des voisins. */
+  seulement?: readonly string[],
+): Promise<Reveil[]> {
   try {
+    const vivante = { status: { notIn: ["COMPLETED", "CANCELLED"] as MissionStatus[] } };
     const enAttente = await prisma.missionStep.findMany({
-      where: {
-        status: "WAITING",
-        nodeType: "WAIT_EVENT",
-        mission: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
-      },
+      where: { status: "WAITING", nodeType: "WAIT_EVENT", mission: seulement ? { ...vivante, id: { in: [...seulement] } } : vivante },
       select: { id: true, missionId: true, key: true, title: true, waitFor: true, result: true },
     });
 

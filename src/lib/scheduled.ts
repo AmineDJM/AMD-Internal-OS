@@ -324,6 +324,18 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // prochain contrôle) ; seul un changement de signature parle. Même débrayage que les missions.
   { cle: "missions.surveillances", executer: () => balayerSurveillances() },
 
+  // LES TRAVAUX (J2, décision 0016) — le Mission Runtime pour TOUS : les travaux longs que chaque personne a confiés
+  // à l'Assistant IA (plan approuvé une fois), sous ses droits relus à chaque étape, plafonds de dépense compris.
+  // Pendant la bascule (`TACHES_DE_FOND=les-deux`), le web s'ABSTIENT dès que le worker bat : un travail long ne
+  // tourne jamais dans le processus qui sert les pages quand le worker est là. Débrayage : TRAVAUX_SWEEP=off.
+  { cle: "travaux.balayage", bailMs: 180_000, executer: async () => {
+    if (process.env.TRAVAUX_SWEEP === "off") return ignoree("TRAVAUX_SWEEP=off");
+    const { balayerTravaux } = await import("@/lib/missions/travaux/balayage");
+    const { PERSONA_ASSISTANT_IA } = await import("@/modules/assistant-ia/api");
+    const r = await balayerTravaux({ personas: { ASSISTANT_IA: PERSONA_ASSISTANT_IA }, mode: lireModeTachesDeFond(), executeur: executeurDuProcessus() });
+    if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
+  } },
+
   // LE VIEILLISSEMENT DE LA MÉMOIRE — le seul des deux mouvements de la mémoire épisodique
   // qui n'ait pas de conversation pour le déclencher.
   //

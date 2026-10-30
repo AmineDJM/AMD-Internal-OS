@@ -1,0 +1,14 @@
+# Ce que l'image du worker n'emporte pas (lu par BuildKit pour `Dockerfile.worker` seulement).
+node_modules
+.next
+.git
+graphify-out
+audit
+e2e
+e2e-live
+streamlit_app
+docs
+**/*.test.ts
+**/*.test.tsx
+.env
+.env.*
