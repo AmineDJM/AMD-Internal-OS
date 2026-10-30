@@ -1,0 +1,19 @@
+{
+  "name": "Adventum IA",
+  "short_name": "Adventum IA",
+  "description": "L'assistant d'Adventum Pharma — le même que dans l'ERP, avec vos droits.",
+  "id": "/ia",
+  "start_url": "/ia",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "fr",
+  "background_color": "#f5f8fc",
+  "theme_color": "#0b4fa8",
+  "icons": [
+    { "src": "/adventum-ia/icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/adventum-ia/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/adventum-ia/icone-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/adventum-ia/logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

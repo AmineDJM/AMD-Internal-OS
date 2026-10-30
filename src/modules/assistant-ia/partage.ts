@@ -30,3 +30,12 @@ export type { MemoireProposee } from "./domaine/memoire-ui";
 // ── Opérations : la charge d'une carte de l'Assistant IA ; la bande MRZ (lue aussi par l'enrichissement)
 export { estChargeOperationIA } from "./domaine/operations/types";
 export { casse, chiffreDeControle, lireMrz } from "./domaine/operations/mrz";
+
+// ── Conversations et dossiers (décision 0027, Adventum IA) : groupes par date, titre, privée verrouillée
+export {
+  CONSIGNE_TITRE, expireLe, extraitAutour, grouperConversations, groupeDe, nettoyerTitre, ORDRE_GROUPES, PRIVEE_JOURS,
+  refusChangerPrive, termeDeRecherche, TITRE_DEFAUT, titreProvisoire, type ConversationResumee, type GroupeConversation,
+} from "./domaine/conversations";
+export {
+  CONSIGNES_DOSSIER_MAX, DOCUMENTS_DOSSIER_MAX, NOM_DOSSIER_MAX, type DocumentDuDossier, type DossierVue,
+} from "./domaine/dossiers";

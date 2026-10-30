@@ -48,6 +48,8 @@ export interface OptionsContexte {
   question?: string;
   /** J4 : la partie VARIABLE du tour (mémoire assemblée, résumé de la conversation…), posée APRÈS le préfixe stable. */
   sectionsDuTour?: readonly string[];
+  /** Décision 0027 : une conversation PRIVÉE ne lit pas la mémoire de la personne. */
+  sansMemoire?: boolean;
 }
 
 export interface MessageHistorique {
@@ -157,6 +159,7 @@ export async function compileContext({
   consignesGenerales = [],
   consignesPersonne = [],
   question,
+  sansMemoire = false,
 }: OptionsContexte): Promise<ContexteCompile> {
   let censureGlobale = false;
 
@@ -170,7 +173,7 @@ export async function compileContext({
     .map((m) => MODULE_LABELS[m] ?? m);
 
   const [memoireFaits, { messages, aCensure: censureMessages }] = await Promise.all([
-    chargerMemoireUtilisateur(user.id),
+    sansMemoire ? Promise.resolve([] as Awaited<ReturnType<typeof chargerMemoireUtilisateur>>) : chargerMemoireUtilisateur(user.id),
     chargerMessagesConversation(user.id, threadId, maxMessagesHistorique),
   ]);
   if (censureMessages) censureGlobale = true;

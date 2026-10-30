@@ -996,10 +996,26 @@ model AdProPorteDg {
 /// après message (`src/lib/agent/fil/service.ts`) : quitter l'écran n'interrompt rien, la réponse est
 /// notifiée. Distinct d'`AssistantThread` (le fil d'Adam, le Chief of Staff).
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// UNE CONVERSATION DE L'ASSISTANT IA (décision 0027, Adventum IA) — plusieurs par personne depuis le 30/10/2026 :
+/// l'ancien « fil unique » (userId unique) est devenu la PREMIÈRE conversation de chacun, sans rien perdre.
 model AssistantIaFil {
   id           String            @id @default(cuid())
-  userId       String            @unique
+  userId       String
   user         User              @relation("AssistantIaFil", fields: [userId], references: [id], onDelete: Cascade)
+  /// Le titre affiché dans la liste ; `titreSource` : « provisoire » (premier message), « auto » (modèle rapide), « manuel ».
+  titre        String?
+  titreSource  String?
+  /// Épinglée (en tête de liste) / archivée (hors de la liste, retrouvable) : des dates, nulles sinon.
+  epingleLe    DateTime?
+  archiveLe    DateTime?
+  /// CONVERSATION PRIVÉE : choisie à la création seulement (verrouillée dès le premier message) ; elle ne lit ni
+  /// n'écrit la mémoire ; supprimée automatiquement 30 jours après sa création (`assistant.conversations-privees`).
+  prive        Boolean           @default(false)
+  /// Le dossier (« projet ») qui la range : ses consignes et ses documents servent à chaque tour.
+  dossierId    String?
+  dossier      AssistantIaDossier? @relation(fields: [dossierId], references: [id], onDelete: SetNull)
+  /// Le dernier message : tri et regroupement par date (Aujourd'hui / 7 derniers jours / Plus ancien).
+  dernierLe    DateTime          @default(now())
   /// Dernière lecture du fil par l'écran : au-delà de 6 s, une réponse prête se NOTIFIE.
   consulteLe   DateTime?
   /// « Nouvelle conversation » : les tours plus anciens restent en base mais ne font plus le contexte.
@@ -1016,6 +1032,26 @@ model AssistantIaFil {
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   tours        AssistantIaTour[]
+
+  @@index([userId, dernierLe])
+  @@index([prive, createdAt])
+}
+
+/// UN DOSSIER DE CONVERSATIONS (décision 0027 — comme les « Projets » de ChatGPT) : un nom, des CONSIGNES propres et
+/// des DOCUMENTS de référence (fichiers du Drive / de la Bibliothèque, `[{ id, nom }]`) que l'assistant utilise dans
+/// toutes les conversations du dossier. Les droits sur chaque document sont RELUS à chaque tour.
+model AssistantIaDossier {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation("AssistantIaDossiers", fields: [userId], references: [id], onDelete: Cascade)
+  nom           String
+  consignes     String           @default("") @db.Text
+  documents     Json?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  conversations AssistantIaFil[]
+
+  @@index([userId])
 }
 
 /// UN TOUR DU FIL — un message de la personne (EN_ATTENTE → EN_COURS → TRAITE | ECHEC) ou une réponse
@@ -1541,7 +1577,8 @@ model User {
   scheduledWorkflows         ScheduledWorkflow[]             @relation("ScheduledWorkflowOwner")
   assistantMemoryItems       AssistantMemoryItem[]           @relation("AssistantMemoryItems")
   assistantRoutines          AssistantRoutine[]              @relation("AssistantRoutines")
-  assistantIaFil             AssistantIaFil?                 @relation("AssistantIaFil")
+  assistantIaFil             AssistantIaFil[]                @relation("AssistantIaFil")
+  assistantIaDossiers        AssistantIaDossier[]            @relation("AssistantIaDossiers")
   executiveDecisions         ExecutiveDecision[]             @relation("ExecutiveDecisions")
   executiveObjectives        ExecutiveObjective[]            @relation("ExecutiveObjectives")
   executiveCommitments       ExecutiveCommitment[]           @relation("ExecutiveCommitments")

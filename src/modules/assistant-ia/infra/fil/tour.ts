@@ -10,6 +10,7 @@ import { historiqueDansEnveloppe } from "../../domaine/assembleur";
 import { sectionResume } from "../../domaine/fil/resume";
 import { roleDuTour } from "@/platform/ia/modeles-roles";
 import { CONSIGNE_ATELIER } from "../atelier/outils";
+import { outilConversationsPassees } from "../conversations/outil";
 import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "../modele";
 import { modelesEffectifs } from "../generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "../repondre";
@@ -73,7 +74,14 @@ export interface DemandeDuTour {
   lecture?: DependancesLecture;
   /** J4 : le résumé roulant des échanges plus anciens que `historique` (le fil le garde). */
   resume?: string | null;
+  /** Décision 0027 : conversation PRIVÉE — ni mémoire lue, ni mémoire proposée, ni conversations passées. */
+  prive?: boolean;
+  /** Décision 0027 : la section du DOSSIER de la conversation (consignes, documents encore ouvrables). */
+  sectionDossier?: string | null;
 }
+
+/** Ce qu'une conversation privée dit au modèle (dans la partie variable : le préfixe stable ne bouge pas). */
+export const CONSIGNE_PRIVEE = "### CONVERSATION PRIVÉE\nL'utilisateur a ouvert une conversation privée : tu n'as pas sa mémoire, tu ne proposes RIEN à retenir et tu ne cherches pas dans ses autres conversations. Elle sera supprimée dans 30 jours.";
 
 /** Les appels de modèle du tour — et ceux que ses outils déclenchent — sont imputés à la personne. */
 export function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<ResultatDuTour & { message: string }> {
@@ -147,6 +155,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     config = await getRoleConfig(user.role);
     // J2 : « lancer_un_travail » — une demande qui dépasse un tour devient un travail (plan à approuver).
     outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces), outilTravailPour(user)];
+    // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
+    // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
+    outils = d.prive ? outils.filter((o) => o.def.name !== "proposer_memoire") : [...outils, outilConversationsPassees(user, d.conversation ?? null)];
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
     selection = selectionDuTour(outils, user, message, config, precedente);
@@ -158,8 +169,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       user, consignesRole: resoudreConsignesRole(config),
       consignesGenerales: sauf([CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, d.consigne]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user)]),
-      outilsActifs: selection.initiaux, question: texteSaisi,
-      sectionsDuTour: sauf([consigneTravaux(texteSaisi), sectionResume(d.resume)]),
+      outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true,
+      sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, sectionResume(d.resume)]),
     })).systemPrompt;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
@@ -196,7 +207,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       message,
       content: await revelateur.texte(ui.message || "Je n'ai pas de réponse à afficher."),
       blocs: await revelateur.objet(ui.blocs),
-      memoireProposee: memoires[0] ?? null,
+      memoireProposee: d.prive ? null : memoires[0] ?? null,
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
       intent: p ? {

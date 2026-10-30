@@ -111,6 +111,8 @@ const MOTS_CLES: Record<string, string> = {
   programmer_routine: "chaque tous les matins dimanche lundi semaine mois heure programme routine regulierement",
   gerer_routine: "pause reprends supprime routine execute",
   proposer_memoire: "retiens souviens memoire rappelle toi",
+  // Décision 0027 — la mémoire des conversations passées (« comme on avait dit pour le congrès d'Oran »).
+  chercher_conversations: "conversation precedente passee avait dit discute evoque parle derniere fois semaine derniere comme on avait convenu",
   lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese",
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",

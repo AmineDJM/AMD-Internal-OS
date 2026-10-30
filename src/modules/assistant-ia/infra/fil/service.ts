@@ -12,10 +12,18 @@ import { PIECES_PAR_ENVOI_MAX } from "../../domaine/lecture/depot";
 import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
 import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
+import { conversationCourante, conversationDe, marquerActivite, proposerTitre } from "../conversations/service";
+import { sectionDossierDuTour } from "../conversations/dossiers";
+import { titreProvisoire } from "../../domaine/conversations";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE FIL DE L'ASSISTANT IA — une conversation par personne, GARDÉE, jouée EN ARRIÈRE-PLAN.
+ * LE FIL DE L'ASSISTANT IA — chaque conversation GARDÉE, jouée EN ARRIÈRE-PLAN.
+ *
+ * Décision 0027 (Adventum IA, 30/10/2026) : PLUSIEURS conversations par personne. Chaque geste nomme sa
+ * conversation (`conversation`) ; sans nom (anciens écrans, anciens liens), c'est la conversation courante — la
+ * plus récente, ni archivée ni privée (`conversationCourante`). Une conversation privée ne lit ni n'écrit la
+ * mémoire ; une conversation rangée dans un dossier en reçoit les consignes et les documents.
  *
  * Direction, 27/10 : « je ne veux pas qu'à chaque fois que je sors de l'assistant ça efface tout » ;
  * « je lui donne des choses à faire, je vais faire autre chose et ça me notifie quand c'est fait » ;
@@ -71,8 +79,13 @@ export const CONSIGNE_FOND = [
   "Si la personne a envoyé plusieurs messages d'affilée, réponds à CE message en tenant compte des précédents.",
 ].join("\n");
 
-export async function filDe(userId: string) {
-  return prisma.assistantIaFil.upsert({ where: { userId }, update: {}, create: { userId } });
+/** La conversation nommée (si elle est à la personne), sinon la conversation courante. */
+export async function filDe(userId: string, conversation?: string | null) {
+  if (conversation) {
+    const f = await conversationDe(userId, conversation);
+    if (f) return f;
+  }
+  return conversationCourante(userId);
 }
 
 export type PieceDuTour = { id: string; nom: string };
@@ -83,15 +96,16 @@ export type PieceDuTour = { id: string; nom: string };
  * sa durée — la transcription viendra quand le fil jouera le message.
  */
 export async function deposerMessage(
-  userId: string, texte: string, pieces: PieceDuTour[], vocal?: { id: string; dureeS: number | null } | null,
-): Promise<{ ok: true; tour: AssistantIaTour } | { ok: false; erreur: string }> {
+  userId: string, texte: string, pieces: PieceDuTour[], vocal?: { id: string; dureeS: number | null } | null, conversation?: string | null,
+): Promise<{ ok: true; tour: AssistantIaTour; conversation: string } | { ok: false; erreur: string }> {
   const t = (texte ?? "").trim().slice(0, 8000);
   const p = pieces.filter((x) => x && typeof x.id === "string").slice(0, PIECES_PAR_ENVOI_MAX).map((x) => ({ id: x.id, nom: String(x.nom ?? "").slice(0, 200) }));
   const v: VocalDuTour | null = vocal && typeof vocal.id === "string" && vocal.id
     ? { id: vocal.id, dureeS: Number.isFinite(vocal.dureeS) ? Math.max(0, Math.round(vocal.dureeS as number)) : null, etat: "TRANSCRIPTION" }
     : null;
   if (!t && !p.length && !v) return { ok: false, erreur: "Message vide." };
-  const fil = await filDe(userId);
+  if (conversation && !(await conversationDe(userId, conversation))) return { ok: false, erreur: "Conversation introuvable." };
+  const fil = await filDe(userId, conversation);
   const enFile = await prisma.assistantIaTour.count({ where: { filId: fil.id, role: "user", etat: { in: [ETAT.ATTENTE, ETAT.COURS] } } });
   if (enFile >= MAX_EN_FILE) return { ok: false, erreur: `${MAX_EN_FILE} messages attendent déjà leur réponse — laissez l'assistant avancer.` };
   const tour = await prisma.assistantIaTour.create({
@@ -101,8 +115,9 @@ export async function deposerMessage(
       ...(v ? { vocal: v as unknown as Prisma.InputJsonValue } : {}),
     },
   });
-  await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { consulteLe: new Date() } });
-  return { ok: true, tour };
+  // La conversation remonte en tête de liste ; son premier message lui donne un titre provisoire.
+  await marquerActivite(fil.id, titreProvisoire(t || (p.length ? `Pièces : ${p.map((x) => x.nom).join(", ")}` : ""), !!v));
+  return { ok: true, tour, conversation: fil.id };
 }
 
 /**
@@ -123,9 +138,10 @@ export function ordonner<T extends { id: string; role: string; repondA: string |
   return out;
 }
 
-/** LIRE le fil (depuis la dernière « nouvelle conversation ») — et dire que la personne est là. */
-export async function lireFil(userId: string, limite = 80) {
-  const fil = await prisma.assistantIaFil.upsert({ where: { userId }, update: { consulteLe: new Date() }, create: { userId, consulteLe: new Date() } });
+/** LIRE une conversation (depuis sa dernière « nouvelle conversation ») — et dire que la personne est là. */
+export async function lireFil(userId: string, limite = 80, conversation?: string | null) {
+  const trouve = await filDe(userId, conversation);
+  const fil = await prisma.assistantIaFil.update({ where: { id: trouve.id }, data: { consulteLe: new Date() } });
   const tours = ordonner(await prisma.assistantIaTour.findMany({
     where: { filId: fil.id, createdAt: { gte: fil.depuisLe } },
     orderBy: { createdAt: "desc" },
@@ -145,21 +161,27 @@ export async function lireFil(userId: string, limite = 80) {
     }),
     enCours: tours.some((t) => t.etat === ETAT.ATTENTE || t.etat === ETAT.COURS),
     reponseVocale: fil.reponseVocale,
+    conversation: { id: fil.id, titre: fil.titre, prive: fil.prive, dossierId: fil.dossierId },
   };
 }
 
 /** L'option « réponse vocale » de la personne : chaque réponse est aussi dite à voix haute. */
 export async function reglerReponseVocale(userId: string, active: boolean): Promise<void> {
-  await prisma.assistantIaFil.upsert({ where: { userId }, update: { reponseVocale: active }, create: { userId, reponseVocale: active } });
+  // Un réglage de la PERSONNE : toutes ses conversations (une nouvelle le reprend de la plus récente).
+  await conversationCourante(userId);
+  await prisma.assistantIaFil.updateMany({ where: { userId }, data: { reponseVocale: active } });
 }
 
-/** NOUVELLE CONVERSATION : le fil repart de zéro pour le modèle ; rien n'est supprimé en base. */
-export async function nouvelleConversation(userId: string): Promise<{ ok: true } | { ok: false; erreur: string }> {
-  const fil = await filDe(userId);
-  const enCours = await prisma.assistantIaTour.count({ where: { filId: fil.id, etat: { in: [ETAT.ATTENTE, ETAT.COURS] } } });
-  if (enCours) return { ok: false, erreur: "L'assistant travaille encore : attendez sa réponse avant de repartir de zéro." };
-  await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { depuisLe: new Date(), resume: null, resumeJusquA: null, resumeLe: null } });
-  return { ok: true };
+/**
+ * NOUVELLE CONVERSATION : une conversation neuve, qui devient la courante — l'ancienne reste dans la liste, rien
+ * n'est supprimé (décision 0027 ; avant, le fil unique repartait de zéro par `depuisLe`).
+ */
+export async function nouvelleConversation(userId: string, opts: { prive?: boolean; dossierId?: string | null } = {}): Promise<{ ok: true; conversation: string } | { ok: false; erreur: string }> {
+  const courante = await conversationCourante(userId);
+  const f = await prisma.assistantIaFil.create({
+    data: { userId, prive: opts.prive === true, dossierId: opts.dossierId ?? null, reponseVocale: courante.reponseVocale },
+  });
+  return { ok: true, conversation: f.id };
 }
 
 const prochain = (filId: string) => prisma.assistantIaTour.findFirst({
@@ -171,9 +193,17 @@ const prochain = (filId: string) => prisma.assistantIaTour.findFirst({
  * JOUER LE FIL — prend le fil (une seule prise à la fois), joue les messages en attente dans
  * l'ordre, relâche. Un message déposé pendant qu'on relâchait est repris. Ne lève jamais.
  */
-export async function traiterFil(userId: string): Promise<void> {
+export async function traiterFil(userId: string, conversation?: string | null): Promise<void> {
+  // Sans conversation nommée : chacune de celles qui ont un message en attente (anciens appelants, balayage).
+  if (!conversation) {
+    const fils = await prisma.assistantIaFil.findMany({
+      where: { userId, tours: { some: { role: "user", etat: ETAT.ATTENTE } } }, select: { id: true },
+    }).catch(() => []);
+    await Promise.all(fils.map((f) => traiterFil(userId, f.id)));
+    return;
+  }
   try {
-    const fil = await prisma.assistantIaFil.findUnique({ where: { userId }, select: { id: true } });
+    const fil = await prisma.assistantIaFil.findFirst({ where: { id: conversation, userId }, select: { id: true } });
     if (!fil) return;
     for (let reprise = 0; reprise < 3; reprise++) {
       const pris = await prisma.assistantIaFil.updateMany({
@@ -295,6 +325,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
 
   const r = await jouerTour(user, {
     texte: texteDit,
+    prive: fil.prive,
+    sectionDossier: await sectionDossierDuTour(user, fil.dossierId),
     vocal: !tour.contenu.trim() && vocal?.etat === "TRANSCRIT",
     surLecture: async (lectures) => {
       await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { lecture: lectures as unknown as Prisma.InputJsonValue } }).catch(sansBloquer("fil-service.surLecture.assistantIaTour"));
@@ -345,9 +377,13 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
       // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
       body: sansValeursRevelees(r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
-      link: "/assistant",
+      // LA BONNE CONVERSATION (décision 0027) : l'ERP l'ouvre sur `/assistant`, l'app Adventum IA renvoie ce lien vers `/ia`.
+      link: `/assistant?c=${tour.filId}`,
     }).catch(sansBloquer("fil-service.jouerTourDuFil.notifyUser"));
   }
+
+  // LE TITRE PROPOSÉ (décision 0027) : après la première réponse, par le modèle rapide — jamais avant le premier mot.
+  if (r.ok && fil.titreSource !== "manuel" && fil.titreSource !== "auto") await proposerTitre(tour.filId);
 
   // LE RÉSUMÉ ROULANT (J4) : après la réponse, jamais avant — il ne retarde aucun premier mot.
   if (r.ok) await compacterFil(tour.filId);
@@ -377,7 +413,7 @@ export async function reprendreLesFils(now = new Date(), parPassage = 5, attendr
     });
     await prisma.assistantIaTour.updateMany({ where: { filId: f.id, role: "user", etat: ETAT.COURS }, data: { etat: ETAT.ATTENTE } });
     await prisma.assistantIaFil.update({ where: { id: f.id }, data: { traitementLe: null } });
-    relances.push(traiterFil(f.userId));
+    relances.push(traiterFil(f.userId, f.id));
   }
   // Le battement n'attend pas les tours (ils peuvent durer des minutes) ; un test, si.
   if (attendre) await Promise.all(relances);

@@ -114,19 +114,23 @@ export async function executerMaRoutine(id: string) {
 // (`/api/assistant-ia/fil`), et elle est notifiée si la personne est partie. En « Vue exacte », rien
 // n'est écrit dans le fil de la personne regardée : l'écran garde l'ancien tour, joué dans la requête.
 
-/** `pieces` : la liste JSON `[{ id, nom }]` des pièces déjà déposées dans le Drive (revérifiées au tour). */
-export async function envoyerAuFil(texte: string, pieces?: string) {
+/**
+ * `pieces` : la liste JSON `[{ id, nom }]` des pièces déjà déposées dans le Drive (revérifiées au tour).
+ * `conversation` (décision 0027) : la conversation où écrire — sans elle, la conversation courante.
+ */
+export async function envoyerAuFil(texte: string, pieces?: string, conversation?: string) {
   const user = await requireUser();
   if (!peutUtiliserAssistantIA(user)) return { ok: false as const, erreur: REFUS_ASSISTANT_IA };
   if (user.impersonatedBy || user.visualise) return { ok: false as const, erreur: "Indisponible en « Vue exacte ».", vueExacte: true };
   const { deposerMessage, traiterFil } = await import("@/modules/assistant-ia/api");
   let liste: unknown = [];
   try { liste = JSON.parse(typeof pieces === "string" && pieces ? pieces : "[]"); } catch { liste = []; }
-  const r = await deposerMessage(user.id, typeof texte === "string" ? texte : "", Array.isArray(liste) ? (liste as PieceDuTour[]) : []);
+  const c = typeof conversation === "string" && conversation.length < 64 ? conversation : null;
+  const r = await deposerMessage(user.id, typeof texte === "string" ? texte : "", Array.isArray(liste) ? (liste as PieceDuTour[]) : [], null, c);
   if (!r.ok) return { ok: false as const, erreur: r.erreur };
   // NON ATTENDU, à dessein : le tour peut durer des minutes ; la requête rend la main tout de suite.
-  void traiterFil(user.id);
-  return { ok: true as const, id: r.tour.id };
+  void traiterFil(user.id, r.conversation);
+  return { ok: true as const, id: r.tour.id, conversation: r.conversation };
 }
 
 export async function repartirDeZero() {

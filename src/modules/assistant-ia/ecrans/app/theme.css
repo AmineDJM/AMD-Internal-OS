@@ -1,0 +1,81 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * ADVENTUM IA — LE THÈME (décision 0027, point 9). UN SEUL FICHIER À REMPLACER quand la Direction fournira la charte.
+ *
+ * « Bleu pharma » : un bleu profond et franc, type laboratoire — PAS de vert. Thèmes clair et sombre. Le logo et les
+ * icônes vivent dans `public/adventum-ia/` (logo.svg, icônes PNG, écrans de démarrage) : les remplacer à l'identique
+ * de nom suffit. Les jetons ci-dessous sont lus par l'app ET par la liste des conversations de l'ERP (`/assistant`).
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.adventum-ia {
+  /* La marque */
+  --aia-accent: #0b4fa8;          /* bleu pharma (boutons, liens, sélection) */
+  --aia-accent-fort: #083c82;     /* survol, appui */
+  --aia-accent-fg: #ffffff;       /* texte sur l'accent */
+  --aia-accent-doux: #e3edfa;     /* fonds sélectionnés, puces */
+  /* Les surfaces */
+  --aia-fond: #f5f8fc;            /* derrière tout */
+  --aia-panneau: #ffffff;         /* la conversation, les feuilles */
+  --aia-cote: #edf2f9;            /* la barre des conversations */
+  --aia-survol: #dfe7f2;
+  --aia-bulle: #e8eef7;           /* la bulle de la personne */
+  --aia-texte: #0f1b2d;
+  --aia-discret: #5b6b82;
+  --aia-filet: #d5dfec;
+  /* Les états */
+  --aia-prive: #6b4e00;           /* conversation privée (ambre, lisible) */
+  --aia-prive-doux: #fbf1d9;
+  --aia-danger: #b42318;
+  /* La typographie : celle de l'ERP (Inter, auto-hébergée), changeable ici. */
+  --aia-police: var(--font-inter), "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --aia-rayon: 14px;
+
+  color-scheme: light;
+  background: var(--aia-fond);
+  color: var(--aia-texte);
+  font-family: var(--aia-police);
+}
+
+/* Sombre : suivi du système, sauf choix explicite (`data-theme` posé par l'app, classe `dark` de l'ERP). */
+@media (prefers-color-scheme: dark) {
+  .adventum-ia:not([data-theme="clair"]) {
+    --aia-accent: #5b9bf0;
+    --aia-accent-fort: #7fb2f5;
+    --aia-accent-fg: #06142b;
+    --aia-accent-doux: #13284a;
+    --aia-fond: #08111f;
+    --aia-panneau: #0d1829;
+    --aia-cote: #0a1424;
+    --aia-survol: #16243a;
+    --aia-bulle: #172840;
+    --aia-texte: #e6edf7;
+    --aia-discret: #93a3ba;
+    --aia-filet: #1f2f48;
+    --aia-prive: #f0c46a;
+    --aia-prive-doux: #2c230d;
+    --aia-danger: #f4877a;
+    color-scheme: dark;
+  }
+}
+.adventum-ia[data-theme="sombre"], .dark .adventum-ia:not([data-theme="clair"]) {
+  --aia-accent: #5b9bf0;
+  --aia-accent-fort: #7fb2f5;
+  --aia-accent-fg: #06142b;
+  --aia-accent-doux: #13284a;
+  --aia-fond: #08111f;
+  --aia-panneau: #0d1829;
+  --aia-cote: #0a1424;
+  --aia-survol: #16243a;
+  --aia-bulle: #172840;
+  --aia-texte: #e6edf7;
+  --aia-discret: #93a3ba;
+  --aia-filet: #1f2f48;
+  --aia-prive: #f0c46a;
+  --aia-prive-doux: #2c230d;
+  --aia-danger: #f4877a;
+  color-scheme: dark;
+}
+
+/* La respiration de la voix en direct — coupée pour qui réduit les animations. */
+@keyframes aia-respire { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.05); } }
+.aia-onde { animation: aia-respire 2.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .aia-onde { animation: none; } }

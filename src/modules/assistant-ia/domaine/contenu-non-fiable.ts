@@ -40,6 +40,8 @@ export const OUTILS_A_CONTENU_TIERS: Readonly<Record<string, string>> = {
   documents_rh: "document du dossier RH",
   // J4 : la Bibliothèque — extraits et textes de pièces déposées par n'importe qui.
   chercher_documents: "extraits de documents de la Bibliothèque",
+  // Décision 0027 : un extrait d'une conversation passée peut citer un document ou un message reçu.
+  chercher_conversations: "extraits de conversations passées",
   ouvrir_documents: "documents de la Bibliothèque",
   ouvrir_dans_l_atelier: "document ouvert dans l'Atelier",
   modifier_document: "document modifié dans l'Atelier",

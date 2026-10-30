@@ -59,9 +59,31 @@ export interface ChatMessageListProps {
   onConfirmIntent: (intentId: string, confirmTyped?: string) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
   /** Ouvre une pièce (envoyée ou renvoyée) dans l'aperçu latéral. */
   onOuvrirPiece?: (p: PieceOuvrable) => void;
+  /**
+   * L'apparence : « erp » (verre de `/assistant`) ou « app » (Adventum IA, décision 0027 : une conversation façon
+   * ChatGPT, aux couleurs du thème `app/theme.css`). Le contenu, les cartes et les règles sont les mêmes.
+   */
+  apparence?: "erp" | "app";
 }
 
-export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece }: ChatMessageListProps) {
+/** Les classes qui changent d'une apparence à l'autre — rien d'autre ne change. */
+const STYLES = {
+  erp: {
+    bulle: "bg-slate-900 text-white shadow-xs dark:bg-zinc-100 dark:text-zinc-900",
+    avatar: "AB",
+    reponse: "w-full rounded-2xl rounded-tl-md border border-slate-200/90 bg-white/95 px-3.5 py-3 text-[15px] leading-relaxed text-slate-800 shadow-2xs backdrop-blur-2xl sm:px-4 sm:text-[14px] dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-100",
+    fil: "flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 scrollbar-thin sm:px-4 sm:py-6",
+  },
+  app: {
+    bulle: "bg-[var(--aia-bulle)] text-[var(--aia-texte)]",
+    avatar: "A",
+    reponse: "w-full px-0.5 py-1 text-[15px] leading-relaxed text-[var(--aia-texte)]",
+    fil: "mx-auto w-full max-w-3xl flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 scrollbar-thin sm:px-6",
+  },
+} as const;
+
+export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece, apparence = "erp" }: ChatMessageListProps) {
+  const st = STYLES[apparence];
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -69,7 +91,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
   }, [messages, isLoading]);
 
   return (
-    <div className="flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 scrollbar-thin sm:px-4 sm:py-6">
+    <div className={st.fil} data-testid="fil">
       {messages.length === 0 && (
         <div className="my-auto flex flex-col items-center justify-center text-center py-16">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -91,8 +113,8 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
             <div key={m.id} className="flex items-start justify-end gap-3">
               <div className="flex max-w-[85%] flex-col items-end gap-1.5 sm:max-w-[75%]">
                 {m.vocal && (
-                  <div className="flex max-w-full flex-col gap-1.5 rounded-2xl rounded-tr-md bg-slate-900 px-3 py-2.5 text-white shadow-xs dark:bg-zinc-100 dark:text-zinc-900">
-                    <BulleVocale id={m.vocal.id} local={m.vocal.local ?? null} dureeS={m.vocal.dureeS} sombre libelle="votre message vocal" />
+                  <div className={`flex max-w-full flex-col gap-1.5 rounded-2xl rounded-tr-md px-3 py-2.5 ${st.bulle}`} data-testid="bulle-vocale">
+                    <BulleVocale id={m.vocal.id} local={m.vocal.local ?? null} dureeS={m.vocal.dureeS} sombre={apparence === "erp"} libelle="votre message vocal" />
                     {m.vocal.etat === "TRANSCRIT" && m.vocal.transcription && (
                       <p className="whitespace-pre-wrap border-t border-white/15 pt-1.5 text-[13px] leading-snug text-white/85 [overflow-wrap:anywhere] dark:border-zinc-900/15 dark:text-zinc-700">
                         {m.vocal.transcription}
@@ -111,7 +133,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                   </div>
                 )}
                 {m.content && (
-                  <div className="whitespace-pre-wrap rounded-2xl rounded-tr-md bg-slate-900 px-3.5 py-2.5 text-[15px] leading-relaxed text-white shadow-xs [overflow-wrap:anywhere] sm:text-[14px] dark:bg-zinc-100 dark:text-zinc-900">
+                  <div className={`whitespace-pre-wrap rounded-2xl rounded-tr-md px-3.5 py-2.5 text-[15px] leading-relaxed [overflow-wrap:anywhere] sm:text-[14px] ${st.bulle}`}>
                     {m.content}
                   </div>
                 )}
@@ -122,29 +144,28 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                   </span>
                 )}
               </div>
-              <div className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-2xs sm:flex dark:bg-zinc-100 dark:text-zinc-900">
-                <User className="h-3.5 w-3.5" />
-              </div>
+              {apparence === "erp" && (
+                <div className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-2xs sm:flex dark:bg-zinc-100 dark:text-zinc-900">
+                  <User className="h-3.5 w-3.5" />
+                </div>
+              )}
             </div>
           );
         }
         return (
           <div key={m.id} className="flex items-start gap-3">
             {/* Sur téléphone, pas d'avatar : la réponse prend toute la largeur. */}
-            <div className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs sm:flex dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300">
-              AB
+            <div className={`hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-semibold shadow-2xs sm:flex ${apparence === "app" ? "bg-[var(--aia-accent)] text-[var(--aia-accent-fg)]" : "border border-slate-200 bg-white text-slate-700 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"}`}>
+              {st.avatar}
             </div>
-            <div className="flex min-w-0 flex-1 flex-col items-start gap-2 sm:max-w-[85%]">
+            <div className={`flex min-w-0 flex-1 flex-col items-start gap-2 ${apparence === "app" ? "" : "sm:max-w-[85%]"}`}>
               {m.outilsAppeles && m.outilsAppeles.length > 0 && (
                 <div className="flex max-w-full items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-slate-600 shadow-2xs dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
                   <Wrench className="h-2.5 w-2.5 shrink-0 text-slate-500" />
                   <span className="truncate">{m.outilsAppeles.join(" · ")}</span>
                 </div>
               )}
-              <div
-                data-glass="true"
-                className="w-full rounded-2xl rounded-tl-md border border-slate-200/90 bg-white/95 px-3.5 py-3 text-[15px] leading-relaxed text-slate-800 shadow-2xs backdrop-blur-2xl sm:px-4 sm:text-[14px] dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-100"
-              >
+              <div data-glass={apparence === "erp" ? "true" : undefined} data-testid="reponse" className={st.reponse}>
                 {m.etat === "redaction" && (
                   <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-zinc-400">
                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -201,7 +222,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
       {isLoading && (
         <div className="flex items-start gap-3">
           <div className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 shadow-2xs sm:flex dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300">
-            AB
+            {st.avatar}
           </div>
           <div
             data-glass="true"

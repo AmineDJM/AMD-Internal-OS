@@ -108,6 +108,10 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
   (order changed 2026-10-27, refonte P0 — `docs/architecture/refonte-p0-outillage.md` §2: lint, tsc and
   `next build` run **before** any DB write; `next build` was measured to need no DB). Migrations are
   still applied **during the build**, before the new code serves traffic; a failing migration fails the deploy.
+- **Second web service `adventum-ia`** (decision 0027, starter plan): same repo and build **without** `migrate deploy` /
+  `db:bootstrap`, `APP_MODE=adventum-ia`, `TACHES_DE_FOND=worker`, `AUTH_URL`/`APP_URL` = `https://adventum-ia.onrender.com`,
+  `ERP_URL`, `DATABASE_URL` from the same database, `AUTH_SECRET`/S3/VAPID/`MAX_*`/`OPENAI_API_KEY` via `fromService`.
+  Routing rule is pure (`src/platform/app-mode.ts`, tested) and applied first in `authorized()` (`src/auth.config.ts`).
 - `startCommand: npx next start -p $PORT` (`render.yaml:53`) [V]. Full repo + `node_modules` on
   disk, which is why file tracing (`.nft.json`) is disabled (`next.config.mjs:104`) [V].
 - Env in the Blueprint (`render.yaml:54-111`) [V]: `DATABASE_URL` from DB, `AUTH_SECRET`
@@ -496,6 +500,13 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 `install`→`skipWaiting`, `activate`→`clients.claim`, `push`→`showNotification`, `notificationclick`
 → focus/open URL). No `fetch` handler, so no offline cache [V]. Registered from
 `src/components/layout/push-register.tsx:25,45`.
+
+**Adventum IA (decision 0027, 2026-10-30)** — a second PWA served by the same build: `public/adventum-ia/manifest.webmanifest`
+(`start_url`/`id` `/ia`, theme `#0b4fa8`, PNG icons + maskable, `apple-touch-icon`, iPhone startup images; metadata in
+`src/app/ia/layout.tsx`) and `public/ia-sw.js` (scope `/ia`: Web Push with the same VAPID keys, `notificationclick` maps
+`/assistant?c=` → `/ia?c=`, **fetch handler**: cache-first for `/_next/static/` and `/adventum-ia/`, network-first for `/ia`
+navigations with the last page as offline fallback). Offline voice notes are queued in IndexedDB
+(`ecrans/app/hors-ligne.ts`). `/adventum-ia/*` and `/ia-sw.js` are public in `auth.config.ts` (a manifest is fetched without cookies).
 
 ### 4.12 CI
 

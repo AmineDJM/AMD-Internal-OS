@@ -127,6 +127,69 @@ services:
         sync: false
 
   # ───────────────────────────────────────────────────────────────────────────────────────────
+  # ADVENTUM IA — L'APP DE L'ASSISTANT IA, SUR SON PROPRE SITE (décision 0027, 30/10/2026).
+  #
+  # Créé par le simple « Sync » du Blueprint : adresse https://adventum-ia.onrender.com (ou le nom libre le plus proche
+  # que Render attribue — le reporter alors dans AUTH_URL / APP_URL ci-dessous). MÊME dépôt, MÊME build que l'ERP ; la
+  # variable APP_MODE=adventum-ia fait le reste (middleware, `src/platform/app-mode.ts`) : la racine ouvre l'app, une page de
+  # l'ERP renvoie vers l'ERP (ERP_URL), une API de l'ERP est refusée. MÊME base, MÊMES comptes (AUTH_SECRET partagé),
+  # mêmes droits. Il NE MIGRE PAS (seul le web ERP migre, après son lint et sa compilation) et ne bat pas les tâches de
+  # fond (TACHES_DE_FOND=worker : le web ou le worker les tiennent). Procédure : docs/readme/24-deploiement-render.md.
+  - type: web
+    name: adventum-ia
+    runtime: node
+    plan: starter
+    healthCheckPath: /api/health
+    buildCommand: npm ci && npx prisma generate && npm run build:render
+    startCommand: npx next start -p $PORT
+    envVars:
+      - key: APP_MODE
+        value: adventum-ia
+      - key: AUTH_URL
+        value: https://adventum-ia.onrender.com
+      - key: APP_URL
+        value: https://adventum-ia.onrender.com
+      # L'ERP, vers lequel une page de l'ERP ouverte sur l'app est renvoyée (sans elle : 404).
+      - key: ERP_URL
+        value: https://amd-internal-os-k3uc.onrender.com
+      - key: TACHES_DE_FOND
+        value: worker
+      - key: DATABASE_URL
+        fromDatabase:
+          name: amd-postgres
+          property: connectionString
+      - key: AUTH_SECRET
+        fromService: { type: web, name: amd-internal-os, envVarKey: AUTH_SECRET }
+      - key: AUTH_TRUST_HOST
+        value: "true"
+      - key: NODE_VERSION
+        value: "22"
+      - key: OPENAI_API_KEY
+        fromService: { type: web, name: amd-internal-os, envVarKey: OPENAI_API_KEY }
+      - key: MAX_UPLOAD_MB
+        fromService: { type: web, name: amd-internal-os, envVarKey: MAX_UPLOAD_MB }
+      - key: MAX_DRIVE_UPLOAD_MB
+        fromService: { type: web, name: amd-internal-os, envVarKey: MAX_DRIVE_UPLOAD_MB }
+      - key: MAX_DB_UPLOAD_MB
+        fromService: { type: web, name: amd-internal-os, envVarKey: MAX_DB_UPLOAD_MB }
+      - key: S3_ENDPOINT
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_ENDPOINT }
+      - key: S3_BUCKET
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_BUCKET }
+      - key: S3_ACCESS_KEY_ID
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_ACCESS_KEY_ID }
+      - key: S3_SECRET_ACCESS_KEY
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_SECRET_ACCESS_KEY }
+      - key: S3_REGION
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_REGION }
+      - key: VAPID_PUBLIC_KEY
+        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PUBLIC_KEY }
+      - key: VAPID_PRIVATE_KEY
+        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PRIVATE_KEY }
+      - key: VAPID_SUBJECT
+        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_SUBJECT }
+
+  # ───────────────────────────────────────────────────────────────────────────────────────────
   # WORKER DES TÂCHES DE FOND (refonte V2-F) — ACTIVÉ (28/10/2026), EN ATTENTE jusqu'à la bascule.
   #
   # Même dépôt, même build, autre point d'entrée : `npm run worker` exécute la table des tâches de

@@ -212,6 +212,17 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-atelier-actions:toutAccepterAtelier", "assistant-ia-atelier-actions:annulerDansAtelier", "assistant-ia-atelier-actions:enregistrerOnglet",
     "assistant-ia-atelier-actions:comparerOnglet", "assistant-ia-atelier-actions:convertirDansAtelier", "assistant-ia-atelier-actions:fermerOngletAtelier",
   ]);
+  X("LES CONVERSATIONS ET DOSSIERS de l'Assistant IA (décision 0027, Adventum IA) — les gestes de la personne sur SES conversations (lister, chercher, créer — privée ou non —, renommer, épingler, archiver, supprimer, ranger) et SES dossiers (consignes, documents de référence qu'elle peut ouvrir), et la déconnexion de SES appareils. Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable, aucun partage : c'est l'écran de l'assistant lui-même, pas une action métier à proposer.", [
+    "assistant-ia-conversations-actions:listerMesConversations", "assistant-ia-conversations-actions:rechercherMesConversations",
+    "assistant-ia-conversations-actions:creerMaConversation", "assistant-ia-conversations-actions:renommerMaConversation",
+    "assistant-ia-conversations-actions:epinglerMaConversation", "assistant-ia-conversations-actions:archiverMaConversation",
+    "assistant-ia-conversations-actions:supprimerMaConversation", "assistant-ia-conversations-actions:reglerMaConversationPrivee",
+    "assistant-ia-conversations-actions:rangerMaConversation", "assistant-ia-conversations-actions:listerMesDossiers",
+    "assistant-ia-conversations-actions:creerMonDossier", "assistant-ia-conversations-actions:modifierMonDossier",
+    "assistant-ia-conversations-actions:supprimerMonDossier", "assistant-ia-conversations-actions:ajouterDocumentsAuDossier",
+    "assistant-ia-conversations-actions:retirerDocumentDuDossier", "assistant-ia-conversations-actions:listerMesAppareils",
+    "assistant-ia-conversations-actions:deconnecterMonAppareil",
+  ]);
   X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
     "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",
     "budget-scope-actions:rememberBudgetEnvelope", "supplier-actions:updateSupplierView",

@@ -1,4 +1,5 @@
 import type { NextAuthConfig } from "next-auth";
+import { decisionMode, pageApresConnexion } from "@/platform/app-mode";
 
 /**
  * Edge-safe base config shared between the middleware (edge runtime) and the
@@ -16,6 +17,15 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isOnLogin = nextUrl.pathname.startsWith("/login");
+
+      // ADVENTUM IA (décision 0027) : sur le service `adventum-ia` (APP_MODE), la racine ouvre l'app et toute route de
+      // l'ERP est renvoyée vers l'ERP (ERP_URL) ou refusée. Sans APP_MODE : l'ERP, inchangé.
+      const mode = decisionMode(process.env.APP_MODE, nextUrl.pathname, nextUrl.search, process.env.ERP_URL);
+      if (mode.type === "refuser") return new Response("Introuvable.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+      if (mode.type === "rediriger") return Response.redirect(new URL(mode.vers, nextUrl));
+      // Le manifeste, les icônes et le service worker de l'app sont PUBLICS : le navigateur les lit sans cookie
+      // (manifeste d'une app installée) — derrière la connexion, il recevait la page /login.
+      if (nextUrl.pathname.startsWith("/adventum-ia/") || nextUrl.pathname === "/ia-sw.js") return true;
 
       // Le portail fournisseur est EXTERNE : il a sa propre authentification
       // (cookie de session SupplierUser, vérifié au niveau page via requireSupplier).
@@ -50,7 +60,7 @@ export const authConfig = {
 
       if (isOnLogin) {
         if (isLoggedIn) {
-          return Response.redirect(new URL("/mon-espace", nextUrl));
+          return Response.redirect(new URL(pageApresConnexion(process.env.APP_MODE), nextUrl));
         }
         return true; // allow the login page for anonymous users
       }

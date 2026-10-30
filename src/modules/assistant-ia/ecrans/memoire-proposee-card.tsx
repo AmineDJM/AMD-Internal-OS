@@ -28,7 +28,8 @@ export function MemoireProposeeCard({ memoire }: { memoire: MemoireProposee }) {
         <Brain className="mt-0.5 h-4 w-4 shrink-0 text-violet-600 dark:text-violet-400" />
         <div className="min-w-0 flex-1">
           <p className="font-medium text-slate-900 dark:text-zinc-100">
-            {etat === "retenue" ? "Retenu dans votre mémoire" : "Retenir dans votre mémoire ?"}
+            {/* Décision 0027 : la mémoire est commune à toutes les conversations — le fil le DIT quand elle change. */}
+            {etat === "retenue" ? <span role="status">Mémoire mise à jour</span> : "Retenir dans votre mémoire ?"}
           </p>
           <p className="mt-0.5 text-slate-700 [overflow-wrap:anywhere] dark:text-zinc-300">« {memoire.contenu} »</p>
           {erreur && <p className="mt-1 text-red-700 dark:text-red-400">{erreur}</p>}

@@ -1,5 +1,17 @@
 ## ☁️ Déploiement — Render
 
+### Adventum IA — le site de l'assistant (décision 0027, 30/10/2026)
+
+**Render → Blueprint → Sync** crée le service web `adventum-ia` (offre Starter) : même dépôt, même build que l'ERP (sans
+`migrate deploy` ni bootstrap — seul le web ERP migre), `APP_MODE=adventum-ia`. Adresse : `https://adventum-ia.onrender.com`
+(si Render attribue un autre nom, le reporter dans `AUTH_URL` et `APP_URL` du service). Variables : même base
+(`fromDatabase`) ; `AUTH_SECRET`, S3, VAPID, `MAX_*` et `OPENAI_API_KEY` par `fromService` depuis `amd-internal-os` (si
+`OPENAI_API_KEY`, posée à la main sur le web, n'est pas résolue au Sync, la poser à la main sur `adventum-ia`) ; `ERP_URL`
+(l'adresse de l'ERP, où sont renvoyées ses pages) ; `TACHES_DE_FOND=worker` (l'app ne bat pas les tâches de fond).
+Contrôle : `https://adventum-ia.onrender.com/` mène à `/ia` après connexion (mêmes comptes) ; `/finances` renvoie vers l'ERP ;
+`/api/health` répond `ok`. Sur iPhone : Safari → Partager → « Sur l'écran d'accueil » → « Adventum IA » ; Réglages → activer
+les notifications. Logo et charte : remplacer `public/adventum-ia/*` (mêmes noms) et `src/modules/assistant-ia/ecrans/app/theme.css`.
+
 Un **Blueprint** [`render.yaml`](render.yaml) provisionne **l'app Next.js + une base PostgreSQL managée**,
 applique les migrations et crée le Super Admin (aucune donnée de démo).
 

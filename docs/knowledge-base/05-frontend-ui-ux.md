@@ -363,3 +363,11 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 - **List + create**: `src/app/(app)/sponsoring/page.tsx` + `sponsoring-table.tsx` (RSC guard/query/map, `PageHeader`, `CreateRecordButton`, `ModuleTabs`, `DataTable` + `StatusBadge` + formatters).
 - **Detail + actions**: `src/app/(app)/support/[id]/page.tsx` + `panel.tsx` (`notFound` on no access, `Card`s, `StatusBadge`, `BackLink`, `DocumentList`, `useAction` with inline `Err`).
 - **Decision panel**: `src/components/workflow/workflow-panel.tsx` (`useRafraichir`, `BoutonDecisif` for approve/reject/return/skip, mandatory note, mobile-sized touch targets `h-11 sm:h-8`).
+
+**Adventum IA (decision 0027, 2026-10-30)** — the Assistant IA as its own ChatGPT-style app at `/ia`
+(`src/modules/assistant-ia/ecrans/app/adventum-ia-app.tsx`): conversation list left (shared with `/assistant`:
+`ecrans/conversations/liste-conversations.tsx`), thread centre (`ChatMessageList apparence="app"`), drawer right (Notes /
+Travaux / Documents), full-screen list and drawer below `lg`, safe-area insets, 16 px input on phones. Its **only theme file**
+is `ecrans/app/theme.css`: `--aia-*` tokens under `.adventum-ia`, "bleu pharma" `#0b4fa8`, light/dark/system (`data-theme`
++ the `dark` class so shared components follow), no green. Logo/icons in `public/adventum-ia/`. State logic shared with the
+ERP screen through hooks (`ecrans/use-fil.ts`, `ecrans/use-pieces.ts`) — one implementation.

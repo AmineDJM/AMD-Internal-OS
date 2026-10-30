@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### ADVENTUM IA : L'APP DE L'ASSISTANT IA — PLUSIEURS CONVERSATIONS, MÉMOIRE COMMUNE, PRIVÉE, DOSSIERS, VOCAUX, SON PROPRE SITE (2026-10-30)
+
+La maquette validée par la Direction devient une app : **`/ia`**, et son propre site **adventum-ia.onrender.com** (service
+Render `adventum-ia`, créé par « Sync », même dépôt et même build, `APP_MODE=adventum-ia`). Le MÊME assistant que l'ERP
+(outils, droits, console, repères, travaux sur le worker). **Plusieurs conversations par personne** (le fil unique devient
+la première — migration additive `20270210100000_adventum_ia_conversations`) : titre proposé par le modèle rapide, renommer,
+épingler, rechercher (titres et contenu), archiver, supprimer, groupées par date ; l'écran `/assistant` de l'ERP a la même
+liste. **Mémoire commune** + recherche dans ses conversations passées (`chercher_conversations`), « Mémoire mise à jour ».
+**Conversation privée** : choisie avant le premier message, verrouillée ensuite, sans mémoire, supprimée à 30 jours.
+**Dossiers** (consignes + documents de référence, droits relus à chaque tour). **Vocaux** : réécoute avant envoi ; file hors
+ligne. Voix en direct (`gpt-live-1`) et bloc-notes : écrans et points d'accroche, en attente des lots J13 et Notes. Thème
+« bleu pharma » clair/sombre dans un seul fichier ; PWA iPhone (manifeste, icônes, écran de démarrage, Web Push qui ouvre la
+bonne conversation) ; déconnexion à distance de ses appareils. Décision [0027](../assistant/decisions/0027-adventum-ia.md).
+
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 
 « Afficher un ou plusieurs documents et surtout les modifier, en live, avec un côté magique. » L'Assistant IA ouvre les

@@ -64,10 +64,12 @@ suite("résumé roulant du fil (J4)", () => {
     expect((await prisma.assistantIaFil.findUniqueOrThrow({ where: { id: filId } })).resume).toBe(fil.resume);
   });
 
-  it("« nouvelle conversation » efface le résumé", async () => {
+  it("« nouvelle conversation » (décision 0027) : une conversation neuve, sans résumé — l'ancienne GARDE le sien pour être reprise", async () => {
     const { nouvelleConversation } = await import("./service");
-    expect(await nouvelleConversation(userId)).toEqual({ ok: true });
-    const fil = await prisma.assistantIaFil.findUniqueOrThrow({ where: { id: filId } });
-    expect([fil.resume, fil.resumeJusquA, fil.resumeLe]).toEqual([null, null, null]);
-  });
+    const r = await nouvelleConversation(userId);
+    if (!r.ok) throw new Error(r.erreur);
+    const neuve = await prisma.assistantIaFil.findUniqueOrThrow({ where: { id: r.conversation } });
+    expect([neuve.resume, neuve.resumeJusquA, neuve.resumeLe]).toEqual([null, null, null]);
+    expect((await prisma.assistantIaFil.findUniqueOrThrow({ where: { id: filId } })).resume).toContain("REG-2026-901");
+  }, 60_000);
 });

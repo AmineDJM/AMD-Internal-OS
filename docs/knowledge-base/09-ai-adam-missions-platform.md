@@ -137,6 +137,13 @@ pipeline internals, Live Office (§104).
 
 ## 2. Summary
 
+- **Assistant IA conversations (decision 0027, 2026-10-30)**: `AssistantIaFil` is now one *conversation* (many per person; the
+  old single thread became the first one by additive migration). Private conversations skip personal memory
+  (`compileContext({ sansMemoire })`), `proposer_memoire` and `chercher_conversations`, lock after the first message and are
+  purged after 30 days; folders (`AssistantIaDossier`) inject their instructions and still-openable documents into the variable
+  part of the prompt each turn. Conversation titles come from the **fast** model role after the first answer. App `/ia` and
+  Render service `adventum-ia` (`APP_MODE`). Realtime voice (`gpt-live-1`) is a hook point awaiting lot J13.
+
 - One **gateway** (`src/lib/models/gateway.ts`) is the intended single door to LLM providers; it resolves a **role**
   (`realtime | orchestrator | worker | bulk`) to a provider+model, validates the request shape, throttles, and records
   usage/cost. **Default provider is OpenAI** (`gpt-5.6-terra` / `gpt-5.6-luna`, `gpt-realtime-2.1`), with
