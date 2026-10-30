@@ -1,5 +1,7 @@
 "use client";
 
+import { attendu } from "@/lib/journal";
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * ADVENTUM IA HORS LIGNE — LE MINIMUM (décision 0027, point 11) — et les notifications de l'appareil.
@@ -70,7 +72,7 @@ export const notificationsPossibles = (): boolean =>
 /** Le service worker de l'app : notifications et coquille hors ligne. Silencieux en cas d'échec. */
 export function enregistrerServiceWorker(): void {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("/ia-sw.js", { scope: "/ia" }).catch(() => undefined);
+  navigator.serviceWorker.register("/ia-sw.js", { scope: "/ia" }).catch(attendu("service worker facultatif : sans lui, ni notification ni hors-ligne"));
 }
 
 /** Demande la permission (geste de la personne) et abonne CET appareil. Rend la phrase à afficher. */
@@ -78,7 +80,7 @@ export async function activerNotifications(): Promise<string> {
   if (!notificationsPossibles()) return "Cet appareil ne reçoit pas de notifications. Sur iPhone : ajoutez d'abord l'app à l'écran d'accueil (Partager › Sur l'écran d'accueil).";
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return "Notifications refusées : autorisez-les dans les réglages de l'appareil.";
-  const cle = await fetch("/api/push/key", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { enabled?: boolean; publicKey?: string } | null;
+  const cle = await fetch("/api/push/key", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(attendu("clé VAPID illisible : dit plus bas", null)) as { enabled?: boolean; publicKey?: string } | null;
   if (!cle?.enabled || !cle.publicKey) return "Les notifications ne sont pas configurées sur le serveur (clés VAPID).";
   const reg = await navigator.serviceWorker.register("/ia-sw.js", { scope: "/ia" });
   await navigator.serviceWorker.ready;

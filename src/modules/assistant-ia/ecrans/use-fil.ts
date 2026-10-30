@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage } from "./chat-message-list";
 import type { AudioDuTour, LecturePiece, VocalDuTour } from "../domaine/lecture/regles";
 import { envoyerAuFil, reglerMaReponseVocale } from "@/modules/assistant-ia/actions";
@@ -108,8 +108,13 @@ export function useFil({ conversation, nouvelle, onConversation, tourLocal }: Ci
     }
   }, [conversation, nouvelle, onConversation]);
 
-  // Changer de conversation : on n'affiche jamais l'ancienne sous le titre de la nouvelle.
-  useEffect(() => { setFil([]); setTravaille(false); setErreur(null); }, [conversation, nouvelle]);
+  // Changer de conversation : on n'affiche jamais l'ancienne sous le titre de la nouvelle — sauf quand la « nouvelle »
+  // vient de NAÎTRE au premier envoi : son message provisoire reste affiché jusqu'à la lecture du serveur.
+  const vientDeNaitre = useRef(false);
+  useEffect(() => {
+    if (vientDeNaitre.current) { vientDeNaitre.current = false; return; }
+    setFil([]); setTravaille(false); setErreur(null);
+  }, [conversation, nouvelle]);
 
   useEffect(() => {
     let arret = false;
@@ -137,6 +142,7 @@ export function useFil({ conversation, nouvelle, onConversation, tourLocal }: Ci
     if (!nouvelle) return conversation;
     const r = await creerMaConversation(nouvelle.prive, nouvelle.dossierId);
     if (!r.ok) return { erreur: r.erreur };
+    vientDeNaitre.current = true;
     onConversation?.({ id: r.conversation, titre: null, prive: nouvelle.prive, dossierId: nouvelle.dossierId });
     return r.conversation;
   };

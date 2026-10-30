@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { Mic, MicOff } from "lucide-react";
+import { attendu } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -25,7 +26,7 @@ export function VoixDirecte({ conversation, onFermer }: { conversation: string |
         const r = await fetch("/api/assistant-ia/voix-directe", {
           method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conversation }),
         });
-        const j = (await r.json().catch(() => ({}))) as { error?: string };
+        const j = (await r.json().catch(attendu("corps vide : l'état HTTP suffit", {}))) as { error?: string };
         if (annule) return;
         if (!r.ok) { setEtat("indisponible"); setMessage(j.error ?? "La conversation vocale en direct est indisponible."); return; }
         // La session temps réel du lot J13 se branche ici (WebRTC vers gpt-live-1, transcription dans le fil).

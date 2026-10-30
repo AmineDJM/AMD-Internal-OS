@@ -12,7 +12,7 @@ import { PIECES_PAR_ENVOI_MAX } from "../../domaine/lecture/depot";
 import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
 import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
-import { conversationCourante, conversationDe, marquerActivite, proposerTitre } from "../conversations/service";
+import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
 import { sectionDossierDuTour } from "../conversations/dossiers";
 import { titreProvisoire } from "../../domaine/conversations";
 
@@ -177,11 +177,8 @@ export async function reglerReponseVocale(userId: string, active: boolean): Prom
  * n'est supprimé (décision 0027 ; avant, le fil unique repartait de zéro par `depuisLe`).
  */
 export async function nouvelleConversation(userId: string, opts: { prive?: boolean; dossierId?: string | null } = {}): Promise<{ ok: true; conversation: string } | { ok: false; erreur: string }> {
-  const courante = await conversationCourante(userId);
-  const f = await prisma.assistantIaFil.create({
-    data: { userId, prive: opts.prive === true, dossierId: opts.dossierId ?? null, reponseVocale: courante.reponseVocale },
-  });
-  return { ok: true, conversation: f.id };
+  const r = await creerConversation(userId, opts);
+  return r.ok ? { ok: true, conversation: r.conversation.id } : r;
 }
 
 const prochain = (filId: string) => prisma.assistantIaTour.findFirst({
@@ -198,7 +195,7 @@ export async function traiterFil(userId: string, conversation?: string | null): 
   if (!conversation) {
     const fils = await prisma.assistantIaFil.findMany({
       where: { userId, tours: { some: { role: "user", etat: ETAT.ATTENTE } } }, select: { id: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("fil-service.traiterFil.conversations", [] as { id: string }[]));
     await Promise.all(fils.map((f) => traiterFil(userId, f.id)));
     return;
   }

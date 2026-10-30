@@ -40,8 +40,9 @@ export async function rechercherMesConversations(terme: string): Promise<{ ok: t
 export async function creerMaConversation(prive?: boolean, dossierId?: string | null) {
   const p = await porte(true);
   if (!p.ok) return p;
-  const { nouvelleConversation } = await import("./api");
-  return nouvelleConversation(p.user.id, { prive: prive === true, dossierId: id(dossierId) });
+  // Le service des conversations seulement : la porte `api` tirerait tout le moteur (et le catalogue d'Adam) pour un `create`.
+  const r = await (await conversations()).creerConversation(p.user.id, { prive: prive === true, dossierId: id(dossierId) });
+  return r.ok ? { ok: true as const, conversation: r.conversation.id } : r;
 }
 
 export async function renommerMaConversation(conversationId: string, titre: string) {

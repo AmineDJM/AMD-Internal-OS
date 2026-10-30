@@ -56,7 +56,7 @@ export function useConversations() {
   /** Un geste sur une conversation : appliqué, puis la liste relue ; un refus est dit. */
   const geste = useCallback(async (f: () => Promise<{ ok: boolean; erreur?: string } | { ok: false; erreur: string }>) => {
     setErreur(null);
-    const r = await f().catch(() => ({ ok: false as const, erreur: "Le geste n'a pas abouti. Réessayez." }));
+    const r = await f().catch(sansBloquer("use-conversations.geste", { ok: false as const, erreur: "Le geste n'a pas abouti. Réessayez." }));
     if (!r.ok) setErreur("erreur" in r && r.erreur ? r.erreur : "Le geste n'a pas abouti.");
     await relire();
     if (archivees) { const a = await listerMesConversations(true).catch(sansBloquer("use-conversations.archivees", null)); if (a?.ok) setArchivees(a.conversations); }

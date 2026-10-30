@@ -10,6 +10,7 @@ import { televerser } from "../depot-navigateur";
 import { useConfirmer } from "@/components/ui/dialogue";
 import { useEchap } from "../use-echap";
 import type { EtatConversations } from "./use-conversations";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -54,7 +55,7 @@ export function DossierPanneau({ dossier, onFermer, onChange, onNouvelleConversa
   const creer = async (e: React.FormEvent) => {
     e.preventDefault();
     setOccupe(true);
-    const r = await creerMonDossier(nom).catch(() => null);
+    const r = await creerMonDossier(nom).catch(sansBloquer("dossier-panneau.creer", null));
     setOccupe(false);
     if (r?.ok) await onChange(r.dossier.id);
     else setAvis(r && !r.ok ? r.erreur : "Le dossier n'a pas été créé.");

@@ -77,7 +77,7 @@ export function Reglages({ theme, onTheme, reponseVocale, onReponseVocale, onFer
         <section className="flex flex-col gap-2">
           <h3 className="text-[13px] font-semibold">Notifications</h3>
           <p className="text-[13px] text-[var(--aia-discret)]">Une réponse prête, un travail terminé, une validation qui vous attend : l&apos;app vous prévient et s&apos;ouvre sur la bonne conversation.</p>
-          <button type="button" onClick={async () => setAvis(await activerNotifications().catch(() => "L'activation a échoué. Réessayez."))}
+          <button type="button" onClick={async () => setAvis(await activerNotifications().catch(sansBloquer("reglages.activerNotifications", "L'activation a échoué. Réessayez.")))}
             className="inline-flex items-center gap-2 self-start rounded-lg bg-[var(--aia-accent)] px-3 py-2 text-[13.5px] font-medium text-[var(--aia-accent-fg)] hover:bg-[var(--aia-accent-fort)]">
             <Bell className="h-4 w-4" aria-hidden /> Activer sur cet appareil
           </button>

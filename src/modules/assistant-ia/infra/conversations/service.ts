@@ -67,7 +67,9 @@ export async function creerConversation(userId: string, opts: { prive?: boolean;
     if (!d) return { ok: false, erreur: "Dossier introuvable." };
     dossierId = d.id;
   }
-  const f = await prisma.assistantIaFil.create({ data: { userId, prive: opts.prive === true, dossierId } });
+  // L'option « réponse vocale » est un réglage de la personne : la nouvelle conversation la reprend.
+  const courante = await prisma.assistantIaFil.findFirst({ where: { userId }, orderBy: { dernierLe: "desc" }, select: { reponseVocale: true } });
+  const f = await prisma.assistantIaFil.create({ data: { userId, prive: opts.prive === true, dossierId, reponseVocale: courante?.reponseVocale ?? false } });
   return { ok: true, conversation: resumerConversation(f) };
 }
 
