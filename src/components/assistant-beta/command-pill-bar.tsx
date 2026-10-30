@@ -4,7 +4,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { ArrowUp, RotateCcw } from "lucide-react";
 
 export interface CommandPillBarProps {
-  onSendMessage: (message: string) => void;
+  /** Rend `false` (ou une promesse de `false`) quand rien n'est parti : le texte revient dans le champ. */
+  onSendMessage: (message: string) => void | boolean | Promise<boolean | void>;
   onReset?: () => void;
   isLoading: boolean;
   /** Les suggestions ne s'affichent que sur une conversation vide : ensuite, elles gênent. */
@@ -22,6 +23,8 @@ export interface CommandPillBarProps {
    * dans une messagerie. Il se pose par-dessus la barre pendant l'enregistrement (minuterie, onde).
    */
   vocal?: React.ReactNode;
+  /** Un texte posé dans le champ par l'écran (« Demander une modification ») — `jeton` change à chaque pose. */
+  brouillon?: { texte: string; jeton: number } | null;
 }
 
 /**
@@ -39,9 +42,17 @@ const SUGGESTIONS = [
   "Prépare une tâche pour demain",
 ];
 
-export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggestions = false, leading, above, canSendEmpty = false, sendBlocked = false, vocal }: CommandPillBarProps) {
+export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggestions = false, leading, above, canSendEmpty = false, sendBlocked = false, vocal, brouillon }: CommandPillBarProps) {
   const [input, setInput] = useState("");
   const zone = useRef<HTMLTextAreaElement>(null);
+
+  // Le brouillon posé par l'écran : le champ le prend, le focus y va, le curseur à la fin.
+  useEffect(() => {
+    if (!brouillon) return;
+    setInput(brouillon.texte);
+    const el = zone.current;
+    if (el) setTimeout(() => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }, 0);
+  }, [brouillon]);
 
   // Le champ grandit avec le texte, puis défile au-delà de six lignes.
   useEffect(() => {
@@ -54,8 +65,12 @@ export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggesti
   const envoyer = () => {
     const texte = input.trim();
     if (isLoading || sendBlocked || (!texte && !canSendEmpty)) return;
-    onSendMessage(texte);
+    const r = onSendMessage(texte);
     setInput("");
+    // Rien n'est parti (un téléversement a échoué) : le texte revient, si le champ est resté vide.
+    const rendre = (ok: boolean | void) => { if (ok === false) setInput((cur) => (cur ? cur : texte)); };
+    if (r instanceof Promise) void r.then(rendre, () => rendre(false));
+    else rendre(r);
   };
 
   const surTouche = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

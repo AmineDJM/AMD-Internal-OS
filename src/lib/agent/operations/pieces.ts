@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { canViewDrive, resolveDriveAccess } from "@/lib/drive";
 import { driveNodeToFile, resolveDriveFile } from "@/lib/assistant/ops/impl-wave8-files";
+import { PIECES_PAR_ENVOI_MAX } from "@/lib/agent/lecture/depot";
 
 /**
  * LES PIÈCES JOINTES D'UNE OPÉRATION — un fichier du Drive de la personne, ou un fichier glissé
@@ -74,12 +75,23 @@ export const idsDe = (json: string | null | undefined): string[] => {
  */
 export async function piecesDuMessage(user: CurrentUser, brutes: unknown): Promise<PieceResolue[]> {
   if (!Array.isArray(brutes)) return [];
+  return piecesVisibles(user, brutes.map((b) => (b && typeof b === "object" ? (b as { id?: unknown }).id : null)));
+}
+
+/** Les identifiants Drive (10 au plus) que la personne VOIT, sans doublon ; le reste est écarté en silence. */
+async function piecesVisibles(user: CurrentUser, ids: unknown[]): Promise<PieceResolue[]> {
   const out: PieceResolue[] = [];
-  for (const b of brutes.slice(0, 10)) {
-    const id = b && typeof b === "object" ? (b as { id?: unknown }).id : null;
+  for (const id of ids.slice(0, PIECES_PAR_ENVOI_MAX)) {
     if (typeof id !== "string" || !RE_ID.test(id)) continue;
     const p = await resoudrePiece(user, id);
     if (!("erreur" in p) && !out.some((x) => x.id === p.id)) out.push(p);
   }
   return out;
 }
+
+/**
+ * LES PIÈCES QUE L'ASSISTANT A RENVOYÉES (décision 0015) — les fichiers du Drive cités par un lien
+ * `/drive/<id>` (document créé, traduction…), revérifiés sous les droits de la personne : l'écran les
+ * montre comme des pièces ouvrables. Un fichier retiré ou invisible n'apparaît pas.
+ */
+export const piecesCitees = (user: CurrentUser, ids: string[]): Promise<PieceResolue[]> => piecesVisibles(user, ids);

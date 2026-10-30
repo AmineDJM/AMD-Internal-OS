@@ -162,6 +162,8 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
 - `DocumentPreview` (`src/components/documents/document-preview.tsx`, client): clickable name → in-app viewer (`ApercuUniversel`, `ZipViewer`) with toolbar (print, edit in Office if extension in `OFFICE_EDIT`, rename/delete via `document-actions`, download via `BoutonTelecharger`), `srcOverride` to read bytes from non-`Document` routes (payslips) [V].
 - OnlyOffice: `office-editor.tsx` loads the Document Server `api.js` with `next/script`, instantiates `new window.DocsAPI.DocEditor("onlyoffice-editor", config)` (`:73-75`), shows an explicit error if the script fails (`:185`); `editeur-en-ligne.tsx` does the same with its own loader and timeout (`:33-41,112-114`); `src/app/office-embed/[id]/page.tsx` is a shell-less embed [V].
 
+- Assistant IA (`src/components/assistant-beta/apercu-piece.tsx`, decision 0015): a side panel that renders `ApercuUniversel` **without** an edit target (read-only viewers), loaded with `next/dynamic` on first open so `/assistant` does not pay for the Office viewers; download via `/api/drive/<id>/raw?dl=1`, "Ouvrir dans le Drive", Escape closes and restores focus [V].
+
 ### 4.11 Real-time UX — polling + Web Audio
 
 | Signal | Mechanism | Interval | Ref |
@@ -255,6 +257,10 @@ Most screen-specific client code is **co-located with its route** under `src/app
 ### 6.3 New-notification signal
 
 Server code creates a `Notification` row → within ≤ 20 s `NotificationChime` polls `/api/notifications/poll` (RBAC: `getCurrentUser`, `Cache-Control: private, no-store`) → `unread` increased → Web Audio chime + desktop `Notification` (if tab unfocused and permission granted) → click opens `/notifications`. In parallel `NotificationPopup` (15 s) shows admin-broadcast popups; Web Push reaches closed tabs via `sw.js` [V].
+
+### 6.4 Drop files/folders into the Assistant IA (decision 0015)
+
+`window` drag listeners in `assistant-workspace.tsx` show the drop zone only when `dataTransfer.types` contains `Files` → on drop, `depot-navigateur.ts:lireDepot` takes the `webkitGetAsEntry()` entries **during** the event and hands them to the pure walker `lib/agent/lecture/depot.ts:parcourirDepot` (relative paths, system files skipped, depth/entry caps) → `planifierDepot` accepts/refuses (10 per message, 40 MB, empty, duplicate) and every refusal is announced in an `aria-live` line → chips (`pieces-jointes.tsx:PiecesEnAttente`, keyboard: Space selects, Delete removes, arrows move). **No upload before send**: `preparerPieces` uploads each file with `XMLHttpRequest` progress to `/api/drive/upload`, stops on the first failure (the text returns to the field — `CommandPillBar.onSendMessage` may return `false`), then `envoyerAuFil` carries the Drive ids. Assistant-returned files come from the `piecesRendues` field of `/api/assistant-ia/fil` (`/drive/<id>` links re-checked by `piecesCitees`) [V].
 
 ## 7. Coupling & blast radius
 
