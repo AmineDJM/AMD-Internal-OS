@@ -52,6 +52,15 @@ Aucun historique de réception n'entre dans la consigne ; la pièce reçue, elle
    attente : « À quoi la rattacher ? ».
 6. **Notification** (cloche + téléphone, `notifierConversation`) ; accusé WhatsApp (« Bien reçu ») ; journal complet.
 
+## 3 bis. Le port du canal entrant
+
+Aucune réception WhatsApp n'existait dans le dépôt (ni route, ni `IngestedEvent`, ni `/api/events/inbound/generic` qui
+transporte des médias — et cette entrée-là nourrit le registre d'Adam, que le module n'importe pas). La réception est donc
+derrière un **port** au socle (`platform/ia/canaux/port.ts`, `MessageEntrant` : identifiant, expéditeur, texte, pièces à
+charger) avec deux adaptateurs : **Meta** (`/api/canaux/whatsapp`) et **relais** (`/api/canaux/relais`, JSON signé
+`CANAUX_RELAIS_SECRET`, pièces en base64 ou URL HTTPS publique) pour Make, n8n ou Twilio si c'est par eux que le WhatsApp
+de la Direction arrive aujourd'hui. Le module (`recevoirMessage`) ne connaît que le message.
+
 ## 4. Sécurité
 
 - **Aucune action sans carte** : la réception n'écrit que dans le Drive de la personne et la conversation ; le rangement

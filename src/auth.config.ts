@@ -60,7 +60,7 @@ export const authConfig = {
 
       // K6 (décision 0036) : LES WEBHOOKS DES PIÈCES ENVOYÉES À L'ASSISTANT — Meta (WhatsApp) et le fournisseur de courrier
       // n'ont pas de session. Chacune vérifie ELLE-MÊME sa signature (et refuse tout sans secret) avant de lire le corps.
-      if (nextUrl.pathname === "/api/canaux/whatsapp" || nextUrl.pathname === "/api/mail/inbound") return true;
+      if (nextUrl.pathname === "/api/canaux/whatsapp" || nextUrl.pathname === "/api/canaux/relais" || nextUrl.pathname === "/api/mail/inbound") return true;
 
       if (isOnLogin) {
         if (isLoggedIn) {

@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import { GET as verifierWebhook, POST as webhookWhatsApp } from "@/app/api/canaux/whatsapp/route";
 import { POST as webhookMail } from "@/app/api/mail/inbound/route";
+import { POST as webhookRelais } from "@/app/api/canaux/relais/route";
 import { signerCommeMeta } from "@/platform/ia/canaux/whatsapp";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { outilAttendrePieces, sectionAttentesDuTour } from "@/modules/assistant-ia/api";
@@ -110,7 +111,7 @@ suite("K6 — pièces reçues par WhatsApp et par mail, dans le contexte de la c
     Object.assign(process.env, {
       WHATSAPP_APP_SECRET: SECRET, WHATSAPP_VERIFY_TOKEN: "jeton-abonnement-banc", WHATSAPP_TOKEN: "jeton-meta-banc",
       WHATSAPP_BASE_URL: "https://graph.banc.test/v21.0", WHATSAPP_PHONE_ID: "106540352242922",
-      MAIL_WEBHOOK_SECRET: SECRET_MAIL, MAIL_PROVIDER: "postmark", ASSISTANT_IA_MAIL: "assistant@adventum-banc.dz",
+      MAIL_WEBHOOK_SECRET: SECRET_MAIL, CANAUX_RELAIS_SECRET: "secret-relais-banc", MAIL_PROVIDER: "postmark", ASSISTANT_IA_MAIL: "assistant@adventum-banc.dz",
     });
     vi.stubGlobal("fetch", espion);
     const u = await prisma.user.create({ data: { name: `${TAG}Dirigeant`, email: `${TAG}dg@banc.dz`, passwordHash: "x", role: "SUPER_ADMIN", phone: "0555 98 76 54" } });
@@ -294,5 +295,21 @@ suite("K6 — pièces reçues par WhatsApp et par mail, dans le contexte de la c
     expect(j?.expediteur).toBe("q•••@ailleurs.dz");
     // Non signé : refusé avant toute lecture.
     expect((await webhookMail(new Request("http://banc.test/api/mail/inbound", { method: "POST", body: inconnu }))).status).toBe(401);
+  });
+
+  // ─────────────────────────────── Le relais (Make, n8n, Twilio) ───────────────────────────────
+  it("RELAIS : un WhatsApp relayé (JSON signé) suit la même réception ; non signé, refusé ; une adresse interne n'est jamais lue", async () => {
+    const corps = JSON.stringify({ id: `${TAG}relais-1`, de: "+213 555 98 76 54", texte: "via Make", pieces: [{ nom: "Relayee.pdf", mime: "application/pdf", base64: PDF.toString("base64") }] });
+    const signe = (b: string) => createHmac("sha256", "secret-relais-banc").update(b, "utf8").digest("hex");
+    const poster = (b: string, sig: string | null) => webhookRelais(new Request("http://banc.test/api/canaux/relais", { method: "POST", body: b, headers: sig ? { "x-relais-signature": sig } : {} }));
+    expect((await poster(corps, null)).status).toBe(401);
+    const r = await (await poster(corps, signe(corps))).json();
+    expect(r.issues).toEqual(["RECUE"]);
+    expect(r.reponses[0]).toEqual({ a: "213555987654", texte: "Bien reçu — la pièce est dans votre conversation avec l'Assistant IA." });
+    expect(await (await poster(corps, signe(corps))).json()).toMatchObject({ issues: ["DOUBLON"], reponses: [] });
+    const interne = JSON.stringify({ id: `${TAG}relais-2`, de: "213555987654", pieces: [{ nom: "x.pdf", url: "https://127.0.0.1/secret" }] });
+    expect((await (await poster(interne, signe(interne))).json()).issues).toEqual(["REFUS_TAILLE"]);
+    const j = await prisma.assistantIaReception.findUnique({ where: { canal_idExterne: { canal: "WHATSAPP", idExterne: `relais:${TAG}relais-2` } } });
+    expect(j?.raison).toContain("HTTPS public seulement");
   });
 });

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { recevoirPieces, type FichierRecu } from "@/modules/assistant-ia/api";
-import {
-  configWhatsApp, envoyerTexteWhatsApp, lireNotificationWhatsApp, nomDuMedia, signatureWhatsAppValide, telechargerMediaWhatsApp, verifierAbonnement,
-} from "@/platform/ia/canaux/whatsapp";
+import { recevoirMessage } from "@/modules/assistant-ia/api";
+import { configWhatsApp, envoyerTexteWhatsApp, signatureWhatsAppValide, verifierAbonnement } from "@/platform/ia/canaux/whatsapp";
+import { messagesDepuisMeta } from "@/platform/ia/canaux/port";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,9 +14,10 @@ export const runtime = "nodejs";
  *   • GET : l'abonnement — le défi n'est rendu que si `hub.verify_token` est `WHATSAPP_VERIFY_TOKEN` ;
  *   • POST : la signature `X-Hub-Signature-256` du corps BRUT (secret `WHATSAPP_APP_SECRET`) est vérifiée AVANT toute
  *     lecture ; sans secret, tout est refusé (503) — pas de mode « ouvert par défaut ».
- * Chaque message : la personne reconnue par son numéro (inconnue → refus poli, rien n'est stocké), le média téléchargé
- * (deux appels, jeton), puis la réception du module (idempotence par `wamid`, Drive, conversation, carte, journal).
- * Meta réessaie tant qu'on ne répond pas 200 : une erreur interne répond quand même 200, elle est au journal.
+ * L'adaptateur Meta du PORT de canal entrant (`platform/ia/canaux/port.ts`) rend des messages ; la réception du module
+ * reconnaît la personne par son numéro (inconnue → refus poli, rien n'est stocké, le média n'est pas téléchargé), puis
+ * idempotence par `wamid`, Drive, conversation, carte, journal. Une erreur interne répond quand même 200 (elle est au
+ * journal) : Meta ne réessaie pas en boucle.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -38,16 +38,8 @@ export async function POST(req: Request) {
 
   const cfg = configWhatsApp();
   const issues: string[] = [];
-  for (const m of lireNotificationWhatsApp(charge).slice(0, 20)) {
-    // Le média n'est téléchargé qu'une fois l'expéditeur reconnu (chargement différé) : un inconnu ne coûte rien.
-    const charger = async (): Promise<FichierRecu[]> => {
-      if (!m.media) return [];
-      const nom = nomDuMedia(m);
-      if (!cfg) return [{ nom, mime: m.media.mime, octets: null, taille: null, raison: "WhatsApp n'est pas configuré pour télécharger les médias (WHATSAPP_TOKEN)" }];
-      const t = await telechargerMediaWhatsApp(cfg, m.media.id, 25 * 1024 * 1024);
-      return [t.ok ? { nom, mime: t.mime ?? m.media.mime, octets: t.octets, taille: t.octets.length } : { nom, mime: m.media.mime, octets: null, taille: null, raison: t.raison }];
-    };
-    const r = await recevoirPieces({ canal: "WHATSAPP", idExterne: m.id, expediteur: m.de, texte: m.texte, fichiers: charger });
+  for (const m of messagesDepuisMeta(charge, cfg).slice(0, 20)) {
+    const r = await recevoirMessage(m);
     issues.push(r.issue);
     if (r.reponse && r.issue !== "DOUBLON") await envoyerTexteWhatsApp(cfg, m.de, r.reponse);
   }

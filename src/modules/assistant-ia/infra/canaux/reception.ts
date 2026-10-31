@@ -6,6 +6,7 @@ import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { sansBloquer } from "@/lib/journal";
 import type { CurrentUser } from "@/lib/session";
 import { proprietaire } from "@/platform/ia/proprietaire";
+import type { MessageEntrant } from "@/platform/ia/canaux/port";
 import {
   ACCUSE_WHATSAPP, attentePourCanal, canauxAttendus, categorieProposee, cleTelephone, DESCRIPTION_MAX, dureeAttenteHeures, expirationAttente,
   LIBELLE_CANAL, masquerExpediteur, messageDeReception, pieceConfidentielle, REFUS_INCONNU_WHATSAPP, refusPieceRecue,
@@ -308,4 +309,22 @@ async function deposerEtAnnoncer(user: CurrentUser, e: EntreeReception & { fichi
     issue: "RECUE", reponse: ACCUSE_WHATSAPP, userId: user.id, conversation: fil.id, tourId: reponse.id,
     ...(intent?.id ? { intentId: intent.id as string } : {}),
   };
+}
+
+/**
+ * UN MESSAGE DU PORT DE CANAL ENTRANT (Meta, relais) → la réception. Les pièces ne sont chargées qu'une fois l'expéditeur
+ * reconnu (`recevoirPieces` appelle le chargement après ses portes).
+ */
+export function recevoirMessage(m: MessageEntrant): Promise<ResultatReception> {
+  return recevoirPieces({
+    canal: m.canal, idExterne: m.id, expediteur: m.de, texte: m.texte,
+    fichiers: async () => {
+      const out: FichierRecu[] = [];
+      for (const p of m.pieces) {
+        const c = await p.charger();
+        out.push(c.ok ? { nom: p.nom, mime: c.mime ?? p.mime, octets: c.octets, taille: c.octets.length } : { nom: p.nom, mime: p.mime, octets: null, taille: null, raison: c.raison });
+      }
+      return out;
+    },
+  });
 }

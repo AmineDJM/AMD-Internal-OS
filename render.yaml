@@ -151,6 +151,9 @@ services:
         sync: false
       - key: WHATSAPP_BASE_URL
         sync: false
+      # Relais (Make, n8n, Twilio) : POST /api/canaux/relais signé HMAC-SHA256 avec ce secret — si le WhatsApp passe par eux.
+      - key: CANAUX_RELAIS_SECRET
+        sync: false
       # Mail : l'adresse (ou les adresses, séparées par des virgules) de l'assistant, reçue par /api/mail/inbound (signée).
       - key: ASSISTANT_IA_MAIL
         sync: false
