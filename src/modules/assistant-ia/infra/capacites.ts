@@ -26,6 +26,7 @@ import { ecartAvecLaCarte, lireVueSimulation, vueDeCarte, vueNonSimulable, type 
 import type { ResultatOperation } from "../domaine/operations/types";
 import { REFUS_ARRET_URGENCE, REFUS_SECONDE_CARTE, type PropositionCarte } from "./operations";
 import { auNomDe } from "./consommation";
+import { FICHES_EXPORTS } from "./exports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -59,10 +60,13 @@ const CONTRAT_IA = new Map(CONTRATS_IA.map((c) => [c.id, c]));
 
 let registre: Registre | null = null;
 
-/** LE REGISTRE DES ACTIONS ET DE L'ATELIER (une fois par processus) ; les outils du module s'y ajoutent à la demande. */
+/**
+ * LE REGISTRE DES ACTIONS, DES EXPORTS D'ÉCRAN (K7, décision 0037) ET DE L'ATELIER (une fois par processus) ; les autres
+ * outils du module s'y ajoutent à la demande.
+ */
 export function registreDesCapacites(outils: readonly OutilDecrit[] = []): Registre {
   if (!outils.length && registre) return registre;
-  const r = deriverRegistre(CONTRATS_IA, { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS }, outils);
+  const r = deriverRegistre(CONTRATS_IA, { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS }, [...FICHES_EXPORTS, ...outils]);
   if (!outils.length) registre = r;
   return r;
 }

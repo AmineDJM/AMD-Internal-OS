@@ -26,6 +26,7 @@ import { avecProvenance, type ProvenanceDuTour } from "./provenance";
 import { lecturesMetier, lecturesQuotidien, lecturesRh, lecturesSituation, situationRhSansMasse } from "./lectures";
 import { lecturesErp } from "./lectures-erp";
 import { outilsCapacites } from "./capacites";
+import { FAMILLES_EXPORTS, outilsExports } from "./exports";
 import { censurerTexte, jetonnerSortie, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 import { FAMILLES_IA, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
 import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
@@ -68,6 +69,8 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   preparer_bon_de_commande: ["AD_PRO", "ECRITURES"], preparer_bc_depuis_devis: ["AD_PRO", "ECRITURES"], preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
   // J3 — l'Atelier : ouvrir, modifier en place (rien n'est enregistré sans la personne), convertir.
   ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],
+  // K7 (décision 0037) — les exports de l'ERP : déposés dans le Drive de la personne, et la famille de leur domaine.
+  ...FAMILLES_EXPORTS,
 };
 // « Mes notes » (décision 0026) : le bloc-notes de la personne, chaque geste proposé puis accepté par elle — comme la mémoire.
 const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire", ...OUTILS_NOTES_ECRITURE]);
@@ -267,6 +270,8 @@ export function outilsV1(
     ...outilsGraphe(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
     // J10 — les recettes : seulement la version VALIDÉE ; une famille FERMÉE retire les recettes de ses processus.
     outilRecettePour(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
+    // K7 — les exports des écrans (la conversation seulement, comme les capacités : ni routine ni travail).
+    ...(options.capacites ? outilsExports(user) : []),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a

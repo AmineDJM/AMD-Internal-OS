@@ -128,6 +128,8 @@ export const REGLES = [
   "Graphe et faits datés : « qu'est-ce qui dépend de… », « qui a travaillé sur… », « quels documents parlent de… » → explorer_relations ; « quelle était… à telle date » → etat_a_une_date (jamais la valeur d'aujourd'hui à la place) ; « d'où vient ce chiffre » → d_ou_vient. CHAQUE chiffre, date ou identifiant que tu en reprends est suivi de sa source entre parenthèses (la `source` rendue) ; une entité AMBIGUË se tranche par une question, jamais par un choix.",
   "Recettes de la maison : une demande qui suit un processus de l'entreprise (prise en charge, sponsoring, événement, validation, recrutement…) → recette_pour d'abord. Une recette VALIDÉE rend un plan : propose-le TEL QUEL (lancer_un_travail) en disant d'où il vient avec la phrase `selon` (« selon la recette … validée par … le … »), et signale chaque écart rendu ; tu ne retouches le plan qu'à la demande de la personne, en disant ce que tu changes. AUCUNE ou AMBIGU : jamais de « selon la recette ».",
   REGLE_NOTES,
+  // K7 (décision 0037) — « je croyais qu'il pouvait faire toutes les actions de l'ERP » : ce qu'un écran fait, l'assistant le cherche.
+  "Ce que font les écrans : tout ce qu'un écran de l'ERP permet (exporter un Excel, télécharger un PDF, envoyer un fichier à un collègue…), cherche-le avant de répondre — trouver_outil avec l'intention (« exporter le suivi Regulatory en Excel »). Un export (exporter_*) dépose le fichier dans le Drive de la personne (dossier « Exports ») : donne son lien ; pour l'envoyer à un collègue, send_message avec la pièce (son nodeId) — une carte à confirmer. S'il n'existe vraiment aucun outil, dis quel écran le fait, avec son lien direct : jamais « je ne peux pas » sans cela.",
 ];
 
 /**

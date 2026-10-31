@@ -335,7 +335,7 @@ describe("les écrans et la conversation interrogent la règle de l'annuaire", (
   });
 
   it("l'export applique la même porte ET l'exclusion des annuaires nommés fermés", () => {
-    const src = lire("src/app/api/medical/annuaire/export/route.ts");
+    const src = lire("src/lib/exports/annuaire.ts"); // K7 : la route appelle `exporterAnnuaire`
     expect(src).toMatch(/peutAnnuaire\(user, cle, "VIEW"\)/);
     // L'exclusion passe par la clause PARTAGÉE avec la recherche globale (§118.177) : l'export
     // l'appelle avec l'ouverture « entière » qu'il a lue, et la clause porte l'exclusion — les deux

@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029, 0030 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029, 0030, 0037 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0037 : exports de l'ERP, envoi d'un fichier, gestes d'écran).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -174,3 +174,18 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **L'IA propose, la personne accepte** : `infra/notes/outils.ts` (`lire_notes` + 7 gestes) n'écrit qu'une
   `AssistantIaNoteProposition` ; `accepter` applique (version d'avant gardée, inverse posé), `annuler` rejoue l'inverse.
   Mêmes outils pour la voix (`outilsNotes`, `canal: "voix"`, par `api.ts`).
+
+## Exports de l'ERP et gestes d'écran (lot K7, décision 0037)
+
+- **Une fonction par export** (`(personne, options) → { octets, nomDeFichier, mime }` ou un refus avec son statut), dans la façade
+  `lib/exports/` (L2), atteinte par la porte du socle `platform/ia/exports.ts` ; la route d'écran ET l'assistant l'appellent (même portée, mêmes droits, même audit). Catalogue pur
+  `lib/exports/catalogue.ts` (14 fiches : outil, route, libellé, écran, filtres, mots), producteurs `lib/exports/producteurs.ts`.
+- **Outils `exporter_*`** — `infra/exports.ts` : offerts à qui a le bouton, familles Drive + domaine ; le fichier est déposé
+  au Drive de la personne (« Exports ») et rendu par deux liens (`/drive/<id>` → bloc fichier, `/api/drive/<id>/raw?dl=1`).
+  Fiches au registre des capacités (`registreDesCapacites`, R0) et mots à la sélection (`MOTS_EXPORTS`). Conversation seulement.
+- **Envoyer à un collègue** — `send_message` accepte des `pieces` (nodeId ou nom) : carte à confirmer ; la messagerie
+  (`sendMessage`, `driveRefs`) rejuge que l'expéditeur voit la pièce et l'ouvre au destinataire en lecture.
+- **Consigne** — règle 14 (`contexte.ts`) : chercher (`trouver_outil`) avant « je ne peux pas » ; sans outil, `trouver_outil`
+  rend les écrans qui portent le geste (`ecransPour`) et leur lien.
+- **Inventaire et cliquet** — `gestes-ecran.test.ts` : les 132 routes de `src/app/api` classées (couvert / exposé / hors, avec
+  raison) ; une route nouvelle non classée fait échouer `npm test`. Preuves : `exports.test.ts`, `scripts/bench/k7-exports.ts`.

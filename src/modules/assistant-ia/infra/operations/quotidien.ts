@@ -312,21 +312,25 @@ export const MESSAGE_DIRECT: OperationIA = {
   module: "MESSAGING",
   libelle: "Message préparé",
   description:
-    "PRÉPARE un message interne à UN collègue (messagerie de l'ERP), désigné par son nom ou sa fonction. Rien ne part avant la confirmation. "
+    "PRÉPARE un message interne à UN collègue (messagerie de l'ERP), désigné par son nom ou sa fonction, avec des PIÈCES JOINTES du Drive "
+    + "facultatives (un export que tu viens de produire, un document de la personne : son nodeId ou son nom). Rien ne part avant la confirmation. "
     + "Pour répondre dans une conversation existante : preparer_reponse_message.",
   schema: {
     type: "object",
     properties: {
       recipientName: { type: "string", description: "Le nom (ou la fonction) du destinataire." },
       body: { type: "string", description: "Le texte du message." },
+      pieces: { type: "array", items: { type: "string" }, description: "Pièces jointes : identifiants (nodeId) ou noms de fichiers du Drive de la personne — facultatif." },
     },
-    required: ["recipientName", "body"],
+    required: ["recipientName"],
   },
   ouverte: (u) => userCan(u, "MESSAGING", "CREATE"),
 
   async proposer(e, user: CurrentUser): Promise<PropositionOperation> {
     const qui = texte(e, "recipientName");
-    const corps = texte(e, "body");
+    const refs = liste(e, "pieces");
+    // Un fichier sans mot se joint tel quel ; sans fichier, le message a besoin d'un texte.
+    const corps = texte(e, "body") || (refs.length ? "Voici le fichier." : "");
     const manque = [!qui ? "à qui (le nom du collègue)" : null, !corps ? "le texte du message" : null].filter((x): x is string => x !== null);
     if (manque.length) return { manque };
     const gens = (await findPeople(qui, 6)).filter((p) => p.id !== user.id);
@@ -334,9 +338,18 @@ export const MESSAGE_DIRECT: OperationIA = {
     const exact = gens.find((p) => p.name.toLowerCase() === qui.toLowerCase());
     if (!exact && gens.length > 1) return { manque: [`lequel : ${gens.map((p) => `${p.name}${p.title ? ` (${p.title})` : ""}`).join(" ; ")}`] };
     const dest = exact ?? gens[0]!;
+    // LES PIÈCES (K7, décision 0037) : seulement ce que la personne VOIT dans le Drive — la messagerie le rejuge à l'envoi
+    // (`driveRefs` : un fichier qu'elle ne voit plus est écarté) et n'ouvre au destinataire que ce fichier, en lecture.
+    const pieces = refs.length ? await resoudrePieces(user, refs.slice(0, 10)) : [];
+    if ("erreur" in pieces) return { erreur: pieces.erreur };
     return {
-      carte: { title: `Message à ${dest.name}`, fields: champs([["Destinataire", dest.name], ["Fonction", dest.title], ["Message", corps]]), warnings: [], libelleBouton: "Envoyer" },
-      args: { userId: dest.id, body: corps },
+      carte: {
+        title: `Message à ${dest.name}`,
+        fields: champs([["Destinataire", dest.name], ["Fonction", dest.title], ["Message", corps], ["Pièce(s) jointe(s)", pieces.length ? pieces.map((p) => p.nom).join(", ") : null]]),
+        warnings: pieces.length ? [`${dest.name} pourra ouvrir ${pieces.length > 1 ? "ces fichiers" : "ce fichier"} (lecture seule), par la messagerie.`] : [],
+        libelleBouton: "Envoyer",
+      },
+      args: { userId: dest.id, body: corps, driveRefs: pieces.length ? JSON.stringify(pieces.map((p) => p.id)) : null },
     };
   },
 
@@ -349,7 +362,12 @@ export const MESSAGE_DIRECT: OperationIA = {
     const fd = new FormData();
     fd.set("conversationId", id);
     fd.set("body", a.body ?? "");
+    if (a.driveRefs) fd.set("driveRefs", a.driveRefs);
     const r = await sendMessage(fd);
-    return r.ok ? { ok: true, message: "Message envoyé.", link: `/messages?c=${id}` } : { ok: false, error: r.error ?? "Envoi refusé." };
+    if (!r.ok) return { ok: false, error: r.error ?? "Envoi refusé." };
+    // Une pièce écartée à l'envoi (retirée, ou plus visible entre la carte et le clic) se DIT : le message est parti sans elle.
+    const jointes = r.message?.attachments?.length ?? 0;
+    const attendues = idsDe(a.driveRefs).length;
+    return { ok: true, message: jointes < attendues ? `Message envoyé — ${attendues - jointes} pièce(s) n'ont pas pu être jointes (plus accessibles).` : attendues ? "Message envoyé avec la pièce jointe." : "Message envoyé.", link: `/messages?c=${id}` };
   },
 };

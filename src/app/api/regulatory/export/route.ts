@@ -1,126 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
-import { prisma } from "@/lib/prisma";
-import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
-import { recordAudit } from "@/lib/audit";
-import { effectiveStage } from "@/lib/regulatory/manufacturing-stage";
-import { dossierReceived } from "@/lib/regulatory/dossier-received";
-import { buildRegulatoryWorkbook, regulatoryExportFilename, type RegulatoryExportRow } from "@/lib/regulatory/export";
-import { contentDisposition } from "@/lib/http/content-disposition";
+import { exporterSuiviRegulatory } from "@/lib/exports/regulatory";
+import { reponseExport } from "@/lib/exports/reponse";
+import { refusExport } from "@/lib/exports/types";
 
 /**
- * EXPORT EXCEL DES DOSSIERS REGULATORY.
- *
- * En POST, et non en simple lien : l'écran envoie la liste des dossiers **actuellement
- * affichés**, filtres compris. Exporter autre chose que ce qu'on a sous les yeux est la
- * meilleure façon de faire circuler un classeur dont personne ne sait ce qu'il contient.
- *
- * La PORTÉE reste maîtresse : les identifiants reçus sont recroisés avec la clause de l'écran
- * (`regulatoryVisibleWhere` : portée par ligne, verrou, entité, GAMME). Un identifiant deviné ne
- * sort donc rien — et un dossier VERROUILLÉ reste invisible, ici comme ailleurs. La version
- * d'avant recomposait la portée sans la gamme : l'export « complet » sortait les dossiers d'une
- * gamme que l'écran ne montrait pas (§118.178).
+ * EXPORT EXCEL DES DOSSIERS REGULATORY — en POST : l'écran envoie la liste des dossiers **actuellement affichés**.
+ * Toute la logique (portée, droits, audit) est dans `exporterSuiviRegulatory`, partagée avec l'Assistant IA (K7).
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUserPourEcrire();
-  if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  // Le suivi des dossiers OU le pipeline (Direction, 08/10) : chacun exporte ce que SON écran montre — la clause
-  // ci-dessous ne rend que les dossiers ouverts à qui a le suivi, que les verrouillés à qui a le pipeline.
-  if (!userCan(user, "REGULATORY", "VIEW") && !userCan(user, "REGULATORY_PIPELINE", "VIEW")) {
-    return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
-  }
-
+  if (!user) return reponseExport(refusExport(401, "Non authentifié."));
   // Liste facultative : sans elle, on exporte tout ce que la personne a le droit de voir.
   let ids: string[] | null = null;
   try {
-    const body: unknown = await req.json();
-    const raw = (body as { ids?: unknown })?.ids;
+    const raw = ((await req.json()) as { ids?: unknown })?.ids;
     if (Array.isArray(raw)) ids = raw.filter((x): x is string => typeof x === "string");
   } catch {
     /* corps absent ou illisible → export complet dans la portée */
   }
-
-  const products = await prisma.regulatoryProduct.findMany({
-    where: {
-      AND: [
-        await regulatoryVisibleWhere(user),
-        ...(ids && ids.length > 0 ? [{ id: { in: ids } }] : []),
-      ],
-    },
-    orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
-    include: {
-      responsible: { select: { name: true } },
-      assistant: { select: { name: true } },
-      supplier: { select: { name: true } },
-      company: { select: { name: true, shortName: true } },
-      variations: { select: { toStatus: true, status: true, decisionDate: true, createdAt: true } },
-      steps: { select: { status: true } },
-    },
-  });
-
-  // « DOSSIER REÇU » — le FAIT, pas une déclaration : une archive CTD a-t-elle été téléversée ?
-  // Une seule requête pour tout le classeur ; la lire dossier par dossier ferait autant d'allers
-  // en base que de lignes exportées.
-  const withArchive = await prisma.regulatoryDossier.findMany({
-    where: {
-      productId: { in: products.map((p) => p.id) },
-      versions: { some: { originalZipBlobId: { not: null } } },
-    },
-    select: { productId: true },
-  });
-  const recus = new Set(withArchive.map((d) => d.productId).filter((v): v is string => Boolean(v)));
-
-  const rows: RegulatoryExportRow[] = products.map((p) => {
-    const stage = effectiveStage(p.manufacturingStatus, p.variations);
-    const done = p.steps.filter((s) => s.status === "DONE").length;
-    return {
-      reference: p.reference,
-      dci: p.dci,
-      molecules: Array.isArray(p.molecules) ? (p.molecules as string[]) : null,
-      brandName: p.brandName,
-      dosage: p.dosage,
-      dosageUnit: p.dosageUnit,
-      pharmaceuticalForm: p.pharmaceuticalForm,
-      packaging: p.packaging,
-      therapeuticClass: p.therapeuticClass,
-      category: p.category,
-      channel: p.channel,
-      supplier: p.supplier?.name ?? null,
-      partnerLab: p.partnerLab,
-      countryOfOrigin: p.countryOfOrigin,
-      manufacturingStatus: stage.status,
-      manufacturingSource: stage.source,
-      status: p.status,
-      priority: p.priority,
-      responsible: p.responsible?.name ?? null,
-      assistant: p.assistant?.name ?? null,
-      company: p.company?.shortName || p.company?.name || null,
-      targetSubmissionDate: p.targetSubmissionDate?.toISOString() ?? null,
-      targetDate: p.targetDate?.toISOString() ?? null,
-      stepsDone: done,
-      stepsTotal: p.steps.length,
-      deHolder: p.deHolder,
-      manufacturer: p.manufacturer,
-      manufacturingVariation: p.manufacturingVariation,
-      comments: p.comments,
-      createdAt: p.createdAt.toISOString(),
-      updatedAt: p.updatedAt.toISOString(),
-      dossierReceived: dossierReceived({ hasArchive: recus.has(p.id) }),
-    };
-  });
-
-  const buffer = await buildRegulatoryWorkbook(rows);
-  await recordAudit({
-    actorId: user.id, action: "EXPORT", module: "Regulatory",
-    summary: `Export Excel de ${rows.length} dossier(s) réglementaire(s)`,
-  });
-
-  return new NextResponse(buffer as unknown as BodyInit, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": contentDisposition(regulatoryExportFilename()),
-      "Cache-Control": "no-store",
-    },
-  });
+  return reponseExport(await exporterSuiviRegulatory(user, { ids }));
 }

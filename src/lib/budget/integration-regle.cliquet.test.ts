@@ -103,7 +103,7 @@ describe("la règle d'intégration — aucun lecteur de budget ne l'ignore", () 
   it("les exports lisent la vue d'ensemble, jamais la base", () => {
     const exp = tous.find((f) => f.chemin === "src/lib/budget-export.ts")!.source;
     expect(exp).not.toMatch(/@\/lib\/prisma/);
-    for (const route of ["src/app/api/budgets/export/route.ts", "src/app/api/budgets/marketing/export/route.ts"]) {
+    for (const route of ["src/lib/exports/budget.ts"]) {
       const r = tous.find((f) => f.chemin === route)!.source;
       expect(r, route).toMatch(/getBudgetOverview/);
       expect(r, route).not.toMatch(/financeTransaction\.|budgetExpenseLine\./);
