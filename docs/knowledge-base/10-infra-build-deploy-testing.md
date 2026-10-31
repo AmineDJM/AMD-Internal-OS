@@ -110,7 +110,7 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
   `next build` run **before** any DB write; `next build` was measured to need no DB). Migrations are
   still applied **during the build**, before the new code serves traffic; a failing migration fails the deploy.
 - **Second web service `adventum-ia`** (decision 0027, starter plan): same repo and build **without** `migrate deploy` /
-  `db:bootstrap`, `APP_MODE=adventum-ia`, `TACHES_DE_FOND=worker`, `AUTH_URL`/`APP_URL` = `https://adventum-ia.onrender.com`,
+  `db:bootstrap`, `APP_MODE=adventum-ia`, `TACHES_DE_FOND=worker`, `AUTH_URL`/`APP_URL` = `https://adventum-ia-k3uc.onrender.com`,
   `ERP_URL`, `DATABASE_URL` from the same database, `AUTH_SECRET`/S3/VAPID/`MAX_*`/`OPENAI_API_KEY` via `fromService`.
   Routing rule is pure (`src/platform/app-mode.ts`, tested) and applied first in `authorized()` (`src/auth.config.ts`).
 - `startCommand: npx next start -p $PORT` (`render.yaml:53`) [V]. Full repo + `node_modules` on

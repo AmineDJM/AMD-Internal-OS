@@ -140,7 +140,7 @@ services:
   # ───────────────────────────────────────────────────────────────────────────────────────────
   # ADVENTUM IA — L'APP DE L'ASSISTANT IA, SUR SON PROPRE SITE (décision 0027, 30/10/2026).
   #
-  # Créé par le simple « Sync » du Blueprint : adresse https://adventum-ia.onrender.com (ou le nom libre le plus proche
+  # Créé par le simple « Sync » du Blueprint : adresse https://adventum-ia-k3uc.onrender.com (Render suffixe les noms du Blueprint, comme le web ; le nom libre le plus proche
   # que Render attribue — le reporter alors dans AUTH_URL / APP_URL ci-dessous). MÊME dépôt, MÊME build que l'ERP ; la
   # variable APP_MODE=adventum-ia fait le reste (middleware, `src/platform/app-mode.ts`) : la racine ouvre l'app, une page de
   # l'ERP renvoie vers l'ERP (ERP_URL), une API de l'ERP est refusée. MÊME base, MÊMES comptes (AUTH_SECRET partagé),
@@ -157,9 +157,9 @@ services:
       - key: APP_MODE
         value: adventum-ia
       - key: AUTH_URL
-        value: https://adventum-ia.onrender.com
+        value: https://adventum-ia-k3uc.onrender.com
       - key: APP_URL
-        value: https://adventum-ia.onrender.com
+        value: https://adventum-ia-k3uc.onrender.com
       # L'ERP, vers lequel une page de l'ERP ouverte sur l'app est renvoyée (sans elle : 404).
       - key: ERP_URL
         value: https://amd-internal-os-k3uc.onrender.com
@@ -184,21 +184,21 @@ services:
       - key: MAX_DB_UPLOAD_MB
         fromService: { type: web, name: amd-internal-os, envVarKey: MAX_DB_UPLOAD_MB }
       - key: S3_ENDPOINT
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_ENDPOINT }
+        sync: false
       - key: S3_BUCKET
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_BUCKET }
+        sync: false
       - key: S3_ACCESS_KEY_ID
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_ACCESS_KEY_ID }
+        sync: false
       - key: S3_SECRET_ACCESS_KEY
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_SECRET_ACCESS_KEY }
+        sync: false
       - key: S3_REGION
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_REGION }
+        sync: false
       - key: VAPID_PUBLIC_KEY
-        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PUBLIC_KEY }
+        sync: false
       - key: VAPID_PRIVATE_KEY
-        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PRIVATE_KEY }
+        sync: false
       - key: VAPID_SUBJECT
-        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_SUBJECT }
+        sync: false
 
   # ───────────────────────────────────────────────────────────────────────────────────────────
   # LE WORKER (refonte V2-F ; image Docker J2 ; « CLIQUEZ SYNC, C'EST TOUT » : décision 0019, 30/10/2026).
@@ -219,8 +219,10 @@ services:
   # Retour arrière : suspendre le service (le web, en `les-deux`, reprend tout seul les tâches) — aucun code.
   #
   # LES VARIABLES (recensées dans le code du worker, `src/lib/taches-de-fond/controle.ts`) : chacune vient du web par
-  # `fromService` — la MÊME valeur, sans recopie. Ne sont reliées que des clés que le web PORTE (déclarées dans son bloc
-  # ci-dessus) : Render ne documente pas le sort d'un `fromService` vers une clé absente, et un Sync en échec serait
+  # `fromService` — la MÊME valeur, sans recopie — pour les SEULES clés que le web porte à coup sûr (AUTH_SECRET,
+  # OPENAI_API_KEY, limites d'upload). MESURÉ au Sync du 31/10/2026 : un `fromService` vers une clé absente du web
+  # (« environment variable not found: "VAPID_SUBJECT" ») fait échouer TOUT le Sync. Les facultatives (S3, VAPID,
+  # ADVENTUM_*) sont donc en `sync: false` : à recopier depuis le web si elles y sont posées. Un Sync en échec serait
   # pire qu'une clé manquante. Les autres (Google, Microsoft, Mistral, courriel) : le contrôle au démarrage les dit
   # absentes, en clair ; les ajouter ici le jour où elles sont posées sur le web (une ligne chacune, même forme).
   # APP_URL est littérale : Render ne donne RENDER_EXTERNAL_URL qu'aux services web.
@@ -255,24 +257,24 @@ services:
       - key: MAX_DB_UPLOAD_MB
         value: "100"
       - key: S3_ENDPOINT
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_ENDPOINT }
+        sync: false
       - key: S3_BUCKET
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_BUCKET }
+        sync: false
       - key: S3_ACCESS_KEY_ID
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_ACCESS_KEY_ID }
+        sync: false
       - key: S3_SECRET_ACCESS_KEY
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_SECRET_ACCESS_KEY }
+        sync: false
       - key: S3_REGION
-        fromService: { type: web, name: amd-internal-os, envVarKey: S3_REGION }
+        sync: false
       - key: VAPID_PUBLIC_KEY
-        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PUBLIC_KEY }
+        sync: false
       - key: VAPID_PRIVATE_KEY
-        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PRIVATE_KEY }
+        sync: false
       - key: VAPID_SUBJECT
-        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_SUBJECT }
+        sync: false
       - key: ADVENTUM_BASE_URL
-        fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_BASE_URL }
+        sync: false
       - key: ADVENTUM_API_KEY
-        fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_API_KEY }
+        sync: false
       - key: ADVENTUM_WEBHOOK_SECRET
-        fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_WEBHOOK_SECRET }
+        sync: false
