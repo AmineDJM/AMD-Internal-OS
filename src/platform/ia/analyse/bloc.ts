@@ -195,6 +195,9 @@ function graphique(lignes: readonly Ligne[], d: DemandeGraphique | null, questio
   if (spec.y.length > 1) {
     const principale = spec.y.find((y) => formats[y] === "dzd") ?? spec.y[0];
     spec = { ...spec, y: spec.y.filter((y) => formats[y] === formats[principale]) };
+    // Un COMPTE (`n`, `count_…`, `nb`) n'est pas une mesure à côté d'un montant, même quand le modèle les formate pareil.
+    const mesures = spec.y.filter((y) => !RE_ENTIER.test(plier(y)));
+    if (mesures.length && mesures.length < spec.y.length) spec = { ...spec, y: mesures };
   }
   const type = FORME_PROTOCOLE[forme];
   const c = construireViz({ type, x: spec.x, y: spec.y, serie: spec.serie ?? null }, lignes);

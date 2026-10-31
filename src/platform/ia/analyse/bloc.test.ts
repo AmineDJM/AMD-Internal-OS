@@ -75,6 +75,8 @@ describe("composerAnalyse — des lignes calculées au bloc", () => {
     const lignes = [{ periode: "2026-01", valeur: 1_650_500.5, n: 3 }, { periode: "2026-02", valeur: 1_199_499.5, n: 2 }, { periode: "2026-03", valeur: 900_000, n: 1 }];
     const a = composerAnalyse({ titre: "CA", source: "s", sources: [], lignes, moteur: "t", formats: { valeur: "dzd" }, graphiques: [{ type: "courbe", x: "periode", y: ["valeur", "n"] }] });
     expect(a.bloc.graphiques[0].donnees.series?.map((x) => x.label)).toEqual(["valeur"]);
+    const memeFormat = composerAnalyse({ titre: "CA", source: "s", sources: [], lignes, moteur: "t", formats: { valeur: "entier", n: "entier" }, graphiques: [{ type: "courbe", x: "periode", y: ["valeur", "n"] }] });
+    expect(memeFormat.bloc.graphiques[0].donnees.series?.map((x) => x.label)).toEqual(["valeur"]);
   });
 
   it("un horodatage SQL se lit en mois sur l'axe d'une série mensuelle", () => {

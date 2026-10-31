@@ -1,0 +1,123 @@
+{
+  "iphone13": {
+    "connexionEtReponseMs": 19181,
+    "avant": {
+      "scrollWidth": 390,
+      "largeur": 390,
+      "body": 390
+    },
+    "tableau": {
+      "scrollWidth": 322,
+      "clientWidth": 322,
+      "scrollLeft": 0
+    },
+    "cibles": [
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44
+    ],
+    "policeChamp": "17px",
+    "telechargements": {
+      "Excel": {
+        "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/iphone13-export.xlsx",
+        "octets": 8936,
+        "nomPropose": "Allocations par poste Marketing 2026 K1BANC.xlsx"
+      },
+      "CSV": {
+        "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/iphone13-export.csv",
+        "octets": 117,
+        "nomPropose": "Allocations par poste Marketing 2026 K1BANC.csv"
+      },
+      "PNG": {
+        "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/iphone13-graphique.png",
+        "octets": 36080,
+        "nomPropose": "Montant alloue par poste.png"
+      }
+    },
+    "depot": "Enregistré dans votre Drive (dossier « Analyses ») : Allocations par poste — Marketing 2026 K1BANC (2026-10-31 18h22).xlsx — ouvrir",
+    "apres": {
+      "scrollWidth": 390,
+      "largeur": 390,
+      "body": 390
+    },
+    "sombre": {
+      "scrollWidth": 390,
+      "largeur": 390,
+      "body": 390
+    },
+    "erreursConsole": []
+  },
+  "bureau": {
+    "connexionEtReponseMs": 28193,
+    "avant": {
+      "scrollWidth": 1280,
+      "largeur": 1280,
+      "body": 1280
+    },
+    "tableau": {
+      "scrollWidth": 640,
+      "clientWidth": 640,
+      "scrollLeft": 0
+    },
+    "cibles": [
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44,
+      44
+    ],
+    "policeChamp": "16px",
+    "telechargements": {
+      "Excel": {
+        "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/bureau-export.xlsx",
+        "octets": 9302,
+        "nomPropose": "Chiffre d affaires mensuel et croissance en 2026.xlsx"
+      },
+      "SVG": {
+        "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/bureau-graphique.svg",
+        "octets": 24065,
+        "nomPropose": "Chiffre d affaires mensuel et croissance en 2026.svg"
+      },
+      "Données (Excel)": {
+        "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/bureau-graphique-donnees.xlsx",
+        "octets": 8257,
+        "nomPropose": "Chiffre d affaires mensuel et croissance en 2026 donnees.xlsx"
+      }
+    },
+    "depot": "Enregistré dans votre Drive (dossier « Analyses ») : Chiffre d'affaires mensuel et croissance en 2026 (2026-10-31 18h23).xlsx — ouvrir",
+    "apres": {
+      "scrollWidth": 1280,
+      "largeur": 1280,
+      "body": 1280
+    },
+    "sombre": {
+      "scrollWidth": 1280,
+      "largeur": 1280,
+      "body": 1280
+    },
+    "erreursConsole": []
+  },
+  "visuel": {
+    "largeur": {
+      "scrollWidth": 390,
+      "largeur": 390,
+      "body": 390
+    },
+    "erreursConsole": []
+  }
+}
