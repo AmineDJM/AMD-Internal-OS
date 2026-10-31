@@ -5,6 +5,7 @@ import { peutOuvrirDocumentRh } from "@/lib/entity-access/ouverture-pieces";
 import { entitePermisePourFiche } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
+import { journal } from "@/lib/journal";
 import { accesAssistantIa } from "@/modules/assistant-ia/api";
 import { familleExplicite } from "@/modules/assistant-ia/partage";
 
@@ -34,7 +35,19 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     && (await entitePermisePourFiche(user.id, doc.employee.companyId));
   if (!(await peutOuvrirDocumentRh(user, doc)) && !(await ouvertParDirection())) return new NextResponse(null, { status: 403 });
 
-  const bytes = await getBlob(doc.blobId);
+  // Un service qui n'a pas la même clé de chiffrement ou le même stockage objet que l'ERP (site Adventum IA, worker)
+  // ne peut pas relire le fichier : le dire en clair plutôt qu'une erreur 500 (31/10/2026).
+  let bytes: Buffer | null;
+  try {
+    bytes = await getBlob(doc.blobId);
+  } catch (e) {
+    journal.erreur("rh.document-illisible", { documentId: params.id }, e);
+    return new NextResponse(
+      "Ce document n'a pas pu être lu sur ce service : sa configuration du stockage des fichiers diffère de celle de l'ERP "
+      + "(clé de chiffrement ou stockage objet). Ouvrez-le depuis l'ERP, et signalez-le à l'administrateur.",
+      { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+    );
+  }
   if (!bytes) return new NextResponse(null, { status: 404 });
   return servirPiece(req, { octets: bytes, nom: doc.name, mime: doc.mime }, { disposition: "en-ligne", bacASable: false });
 }
