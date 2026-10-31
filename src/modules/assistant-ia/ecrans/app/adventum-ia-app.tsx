@@ -7,6 +7,8 @@ import { BoutonJoindre, PiecesEnAttente, type PieceOuvrable } from "../pieces-jo
 import { EnregistreurVocal } from "../enregistreur-vocal";
 import { MemoirePanel } from "../memoire-panel";
 import { TravauxPanel } from "../travaux-panel";
+import { TableauMissions } from "../missions/tableau-missions";
+import { IndicateurMissions } from "../missions/carte-sous-missions";
 import { ApercuPiece } from "../apercu-piece";
 import { Atelier } from "../atelier/atelier";
 import { depuisListe } from "../depot-navigateur";
@@ -78,6 +80,9 @@ function Application({ userName }: { userName?: string }) {
   const [memoire, setMemoire] = useState(false);
   const [reglages, setReglages] = useState(false);
   const [travaux, setTravaux] = useState<{ ouvert: boolean; initial: string | null }>({ ouvert: false, initial: null });
+  // K3 (décision 0033) : le tableau de bord des missions, en temps réel — ouvert sur une mission ou non.
+  const [missions, setMissions] = useState<{ ouvert: boolean; initial: string | null }>({ ouvert: false, initial: null });
+  const suivreMissions = useCallback((id?: string) => setMissions({ ouvert: true, initial: id ?? null }), []);
   const [atelier, setAtelier] = useState<{ ouvert: boolean; plein: boolean; aOuvrir: { nodeId: string; jeton: number } | null }>({ ouvert: false, plein: false, aOuvrir: null });
   const [apercu, setApercu] = useState<PieceOuvrable | null>(null);
   const [brouillon, setBrouillon] = useState<{ texte: string; jeton: number } | null>(null);
@@ -89,7 +94,7 @@ function Application({ userName }: { userName?: string }) {
     const c = q.get("c");
     if (c) { setConversation(c); setNouvelle(null); }
     const t = q.get("travail");
-    if (t) setTravaux({ ouvert: true, initial: t });
+    if (t) setMissions({ ouvert: true, initial: t });
     enregistrerServiceWorker();
   }, []);
 
@@ -256,6 +261,7 @@ function Application({ userName }: { userName?: string }) {
           <h1 className="min-w-0 flex-1 truncate text-[15px] font-semibold" data-testid="titre-conversation">{titre}</h1>
           {dossier && <span className="hidden truncate rounded-full bg-[var(--aia-accent-doux)] px-2.5 py-0.5 text-[12px] text-[var(--aia-accent)] sm:inline">{dossier.nom}</span>}
           {prive && <span className="shrink-0 rounded-full bg-[var(--aia-prive-doux)] px-2.5 py-0.5 text-[12px] text-[var(--aia-prive)]" data-testid="badge-prive">Conversation privée</span>}
+          {!f.vueExacte && <IndicateurMissions onOuvrir={() => suivreMissions()} />}
           <button
             type="button" onClick={() => void basculerPrive()} aria-pressed={prive} disabled={commencee} data-testid="bouton-prive"
             aria-label={commencee ? "Conversation commencée : son caractère privé ne change plus" : "Conversation privée"}
@@ -271,7 +277,7 @@ function Application({ userName }: { userName?: string }) {
         </header>
 
         {commencee || f.vueExacte ? (
-          <ChatMessageList apparence="app" messages={f.vueExacte ? f.locaux : f.fil} isLoading={f.attente} onConfirmIntent={confirmer} onOuvrirPiece={setApercu} />
+          <ChatMessageList apparence="app" messages={f.vueExacte ? f.locaux : f.fil} isLoading={f.attente} onConfirmIntent={confirmer} onOuvrirPiece={setApercu} onSuivreMissions={suivreMissions} />
         ) : (
           <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-4 py-6 text-center" data-testid="accueil">
             {/* eslint-disable-next-line @next/next/no-img-element -- le logo provisoire, remplaçable tel quel */}
@@ -316,7 +322,8 @@ function Application({ userName }: { userName?: string }) {
           <div className="flex h-full w-full flex-col pt-[env(safe-area-inset-top)] lg:pt-0">
             <Tiroir
               onglet={tiroir} onOnglet={setTiroir} onFermer={() => setTiroir(null)}
-              onOuvrirTravaux={(id) => setTravaux({ ouvert: true, initial: id ?? null })}
+              onOuvrirTravaux={(id) => { setTiroir(null); suivreMissions(id); }}
+              onOuvrirDemandes={() => setTravaux({ ouvert: true, initial: null })}
               documents={documents} onOuvrirPiece={setApercu}
               onAtelier={() => setAtelier((a) => ({ ...a, ouvert: true }))}
               onDemander={(texte) => { setTiroir(null); setBrouillon({ texte, jeton: Date.now() }); }}
@@ -337,6 +344,8 @@ function Application({ userName }: { userName?: string }) {
       <ApercuPiece piece={apercu} onFermer={() => setApercu(null)} onDemanderModification={f.vueExacte ? undefined : demanderModification} onOuvrirAtelier={f.vueExacte ? undefined : ouvrirDansAtelier} />
       <MemoirePanel ouvert={memoire} onFermer={() => setMemoire(false)} />
       <TravauxPanel ouvert={travaux.ouvert} onFermer={() => setTravaux({ ouvert: false, initial: null })} travailInitial={travaux.initial} />
+      <TableauMissions ouvert={missions.ouvert} missionInitiale={missions.initial} onFermer={() => setMissions({ ouvert: false, initial: null })}
+        onOuvrirLivrable={(piece) => setApercu(piece)} onOuvrirConversation={ouvrir} />
       <PanneauDuDossier panneau={panneauDossier} etat={conversations} onPanneau={setPanneauDossier} onDossierOuvert={setDossierOuvert} onNouvelleConversation={nouvelleConversation} />
       {reglages && (
         <Reglages

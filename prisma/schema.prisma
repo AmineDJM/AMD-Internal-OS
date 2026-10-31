@@ -1087,6 +1087,10 @@ model AssistantIaTour {
   audio           Json?
   /// « Mes notes » (décision 0026) : les identifiants des modifications de notes PROPOSÉES pendant ce tour (la carte).
   notesProposees  Json?
+  /// K3 (décision 0033) : les SOUS-MISSIONS lancées pendant ce tour (identifiants de travaux) — la carte qui se met à jour.
+  travaux         Json?
+  /// K3 : un tour de SYNTHÈSE dit la fin des sous-missions de ce tour-là (unique : une seule synthèse par tour).
+  syntheseDe      String?        @unique
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -9479,8 +9483,19 @@ model AssistantIaAcces {
   /// J2 : plafonds propres à ce rôle ou à cette personne (NULL = le défaut global, `AssistantIaReglage`).
   plafondTravailUsd Float?
   plafondMensuelUsd Float?
+  /// K3 (décision 0033) : un plan SANS GESTE (lecture, analyse, livrable) démarre sans clic. NULL = le défaut
+  /// (oui pour le Super Admin, non sinon) ; la préférence de la personne (`AssistantIaPreference`) prime.
+  travauxDOffice    Boolean?
   updatedById       String?
   updatedAt         DateTime  @default(now()) @updatedAt
+}
+
+/// K3 (décision 0033) : les préférences PERSONNELLES de l'Assistant IA, réglées par la personne elle-même (Réglages de
+/// l'app, panneau de l'ERP). NULL = le défaut de la console (`AssistantIaAcces`).
+model AssistantIaPreference {
+  userId         String   @id
+  travauxDOffice Boolean?
+  updatedAt      DateTime @default(now()) @updatedAt
 }
 
 model AssistantIaReglage {

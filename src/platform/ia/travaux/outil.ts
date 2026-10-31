@@ -19,7 +19,7 @@ export interface OutilTravail {
 }
 
 export type OuvertureTravail =
-  | { ok: true; travailId: string; etapes: number; gestes: string[]; plafondUsd: number }
+  | { ok: true; travailId: string; etapes: number; gestes: string[]; plafondUsd: number; demarre?: boolean; remplace?: string | null }
   | { ok: false; fautes: string[] };
 
 export const NOM_OUTIL_TRAVAIL = "lancer_un_travail";
@@ -83,7 +83,8 @@ export const CONSIGNE_TRAVAUX = [
   "TRAVAUX LONGS : quand une demande dépasse un tour — beaucoup de lectures, un gros volume à analyser (« toutes les demandes de l'année »), une attente (« quand le BC sera signé », « si pas de réponse sous 21 jours, relance »), ou plusieurs heures de travail —, ne la fais pas dans la conversation : appelle `lancer_un_travail` avec un PLAN.",
   "Le plan : des étapes LECTURE (tes outils de lecture), LOTS (découper une liste), ANALYSE (avec `pourChaque` sur les lots, puis une synthèse), GESTE (une écriture, autorisée une fois avec le plan), ATTENTE (événement métier avec échéance, relance et escalade, ou minuterie), DEMANDE (demander à un collègue une information ou une pièce, avec une échéance : le travail attend sa réponse), et au moins un LIVRABLE à la fin (un document Word, PDF ou Excel déposé dans son Drive).",
   "DEMANDE : jamais une discussion — une question précise, les pièces attendues, une échéance. N'y mets rien que la personne sollicitée ne doive voir : elle voit la question et les pièces partagées, pas le reste du travail.",
-  "Rien ne démarre avant que la personne approuve le plan dans le panneau « Travaux » : dis-le-lui, en une phrase, avec le nombre d'étapes et les gestes qu'elle autorisera. Ne prétends jamais que le travail est fait.",
+  "SOUS-MISSIONS (K3) : une demande qui se découpe en parties INDÉPENDANTES (ex. lire un dossier, analyser des chiffres, rédiger une note) se lance en PLUSIEURS sous-missions — un appel de `lancer_un_travail` par partie, dans le même tour : elles tournent en parallèle, en arrière-plan, et la conversation continue. Pour CORRIGER un plan que tu viens de proposer, rappelle l'outil avec `remplace` = son travailId (sinon c'est une sous-mission DE PLUS). `parent` = le travailId d'une mission existante dont celle-ci est une sous-mission.",
+  "Un plan qui comporte un geste, une demande ou une attente attend que la personne l'approuve (carte dans la conversation, tableau « Missions ») : dis-le-lui, en une phrase, avec le nombre d'étapes et les gestes qu'elle autorisera. Un plan SANS geste peut démarrer d'office (le résultat de l'outil le dit : DEMARRE). Ne prétends jamais que le travail est fait : le résultat reviendra dans la conversation à la fin.",
 ].join("\n");
 
 /** UNE DEMANDE QUI DÉPASSE UN TOUR, vue à ses mots — un indice ajouté à la consigne, jamais une décision : le modèle choisit. */
@@ -112,6 +113,8 @@ export function outilLancerUnTravail(principalId: string, ouvrir: (plan: unknown
           titre: { type: "string" },
           objectif: { type: "string", description: "Ce qu'on cherche à obtenir, en une ou deux phrases." },
           priorite: { type: "string", enum: ["HAUTE", "NORMALE", "BASSE"], description: "Parmi les travaux de la personne (défaut NORMALE)." },
+          remplace: { type: "string", description: "Pour CORRIGER un plan proposé dans ce tour : son travailId (il est remplacé). Absent : une sous-mission de plus." },
+          parent: { type: "string", description: "Le travailId d'une mission existante dont celle-ci est une SOUS-MISSION (facultatif)." },
           etapes: { type: "array", items: ETAPE },
         },
         required: ["titre", "objectif", "etapes"],
@@ -125,9 +128,15 @@ export function outilLancerUnTravail(principalId: string, ouvrir: (plan: unknown
       if (!r.ok) {
         return JSON.stringify({ statut: "PLAN_REFUSE", fautes: r.fautes.slice(0, 12), consigne: "Corrige le plan et rappelle l'outil ; n'invente pas d'outil ni de geste." });
       }
+      if (r.demarre) {
+        return JSON.stringify({
+          statut: "DEMARRE", travailId: r.travailId, etapes: r.etapes, plafondUsd: r.plafondUsd, ...(r.remplace ? { remplace: r.remplace } : {}),
+          consigne: "Plan sans geste démarré d'office, en arrière-plan : dis-le en une phrase (la personne suit ses étapes dans le tableau « Missions », la synthèse reviendra dans la conversation). Ne donne aucun résultat maintenant — tu ne l'as pas encore.",
+        });
+      }
       return JSON.stringify({
-        statut: "EN_ATTENTE_D_APPROBATION", travailId: r.travailId, etapes: r.etapes, gestes: r.gestes, plafondUsd: r.plafondUsd,
-        consigne: "Rien n'a démarré : dis à la personne que le plan l'attend dans le panneau « Travaux » (bouton « Approuver le plan »), avec le nombre d'étapes, les gestes qu'elle autorisera et le plafond. Ne dis jamais que c'est fait. Le plan est proposé : ne rappelle pas l'outil pour le reformuler (un nouvel appel REMPLACE ce plan).",
+        statut: "EN_ATTENTE_D_APPROBATION", travailId: r.travailId, etapes: r.etapes, gestes: r.gestes, plafondUsd: r.plafondUsd, ...(r.remplace ? { remplace: r.remplace } : {}),
+        consigne: "Rien n'a démarré : dis à la personne que le plan l'attend (carte « Approuver » dans la conversation ou tableau « Missions »), avec le nombre d'étapes, les gestes qu'elle autorisera et le plafond. Ne dis jamais que c'est fait. Pour corriger CE plan : `remplace` = ce travailId ; un appel sans `remplace` lance une sous-mission DE PLUS.",
       });
     },
   };

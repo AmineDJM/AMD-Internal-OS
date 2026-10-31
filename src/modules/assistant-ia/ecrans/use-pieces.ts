@@ -23,13 +23,23 @@ export function usePieces(onErreur: (e: string) => void) {
   const [televersement, setTeleversement] = useState(false);
   const [avisDepot, setAvisDepot] = useState<string | null>(null);
   const [survol, setSurvol] = useState(false);
-  // J11 : un DOSSIER de plus de 10 fichiers devient UNE puce, le mode « dépôt de dossier » (décision 0030).
+  // J11 + K3 : au-delà de 6 pièces (dossier OU fichiers isolés), UNE puce — le mode « dépôt » (décisions 0030, 0033).
   const depot = useDepotDossier(setAvisDepot);
   const proposerDossier = useRef(depot.proposer);
   proposerDossier.current = depot.proposer;
 
   const joindre = useCallback((parcours: Parcours<File>) => {
-    if (proposerDossier.current(parcours, piecesRef.current.length)) return;
+    // K3 (décision 0033) : au-delà de 6 pièces, le DÉPÔT D'OFFICE — les puces locales du message le rejoignent.
+    const locales = piecesRef.current.filter((p) => p.fichier && !p.id);
+    const deja = locales.map((p) => ({ chemin: p.nom, fichier: p.fichier! }));
+    if (proposerDossier.current(parcours, deja, piecesRef.current.length - locales.length)) {
+      if (locales.length) {
+        for (const p of locales) if (p.miniature) URL.revokeObjectURL(p.miniature);
+        piecesRef.current = piecesRef.current.filter((p) => !locales.includes(p));
+        setPieces(piecesRef.current);
+      }
+      return;
+    }
     const dejaLa = piecesRef.current.map((p) => ({ chemin: p.nom, taille: p.taille ?? 0 }));
     const { acceptes, refus } = planifierDepot(dejaLa, parcours.trouves.map((t) => ({ ...t, taille: t.fichier.size })));
     const neuves: PieceJointe[] = acceptes.map((a) => ({

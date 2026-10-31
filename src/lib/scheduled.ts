@@ -230,6 +230,8 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   { cle: "assistant.veilleurs", executer: async () => (await import("@/modules/assistant-ia/api")).executerVeilles() },
   // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
   { cle: "assistant.fils", executer: async () => (await import("@/modules/assistant-ia/api")).reprendreLesFils() },
+  // K3 (décision 0033) — LES SOUS-MISSIONS : une synthèse manquée (processus tué, annulation) s'écrit dans la conversation.
+  { cle: "assistant.sous-missions", executer: async () => { await (await import("@/modules/assistant-ia/api")).balayerSousMissions(); } },
   // LES CONVERSATIONS PRIVÉES (décision 0027) : supprimées 30 jours après leur création, tours compris.
   { cle: "assistant.conversations-privees", executer: async () => (await import("@/modules/assistant-ia/api")).purgerConversationsPrivees() },
   // LES INTENTIONS EN PLAN (IA-ASSISTANT-07) : une action interrompue par un redémarrage passe en échec DIT

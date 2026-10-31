@@ -58,6 +58,8 @@ export type ResultatDuTour =
     ok: true; content: string; blocs: WorkspaceBlock[]; memoireProposee: MemoireProposee | null; outilsAppeles: string[]; intent: IntentionDuTour | null;
     /** « Mes notes » (décision 0026) : les modifications de notes PROPOSÉES pendant le tour — la carte de la conversation. */
     notesProposees: string[];
+    /** K3 (décision 0033) : les sous-missions lancées pendant ce tour (la carte qui se met à jour). */
+    travaux: string[];
   }
   | { ok: false; error: string };
 
@@ -161,6 +163,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const sorties: string[] = [];
   const memoires: MemoireProposee[] = [];
   const notesProposees: string[] = [];
+  const travauxLances: string[] = [];
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les repères.
   const coffret = new CoffretDuTour();
   let outils;
@@ -172,7 +175,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // J6 : avec les CAPACITÉS de l'ERP (registre dérivé du contrat) — enregistrées toutes, seules les actives partent.
     // J14 : ce que le tour lit d'un tiers, face à ce que la personne a écrit — une carte dit ses valeurs d'origine tierce.
     const provenance = new ProvenanceDuTour([texteSaisi, ...saisie.historique.filter((h) => h.role === "user").map((h) => h.content)], message);
-    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, { capacites: true, provenance, notesProposees }), outilTravailPour(user)];
+    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, { capacites: true, provenance, notesProposees }), outilTravailPour(user, travauxLances)];
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     outils = d.prive ? outils.filter((o) => o.def.name !== "proposer_memoire") : [...outils, outilConversationsPassees(user, d.conversation ?? null)];
@@ -227,6 +230,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       blocs: await revelateur.objet(ui.blocs),
       memoireProposee: d.prive ? null : memoires[0] ?? null,
       notesProposees: [...notesProposees],
+      travaux: [...travauxLances],
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
       intent: p ? {

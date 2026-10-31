@@ -62,7 +62,7 @@ export async function enregistrerAccesAssistantIa(formData: FormData): Promise<A
     return [part(n.ouvertes, "ouvertes"), part(n.fermees, "fermées")].filter(Boolean).join(" ; ") || "défaut";
   };
   // Vidé ET sans plafond propre (J2) : la ligne disparaît ; avec un plafond propre, seules ses familles reviennent au défaut.
-  if (!r.ouvertes.length && !r.fermees.length && avant?.plafondTravailUsd == null && avant?.plafondMensuelUsd == null) await prisma.assistantIaAcces.deleteMany({ where: ou });
+  if (!r.ouvertes.length && !r.fermees.length && avant?.plafondTravailUsd == null && avant?.plafondMensuelUsd == null && avant?.travauxDOffice == null) await prisma.assistantIaAcces.deleteMany({ where: ou });
   else {
     const data = { ouvertes: r.ouvertes, fermees: r.fermees, updatedById: admin.id };
     await prisma.assistantIaAcces.upsert({ where: ou as never, create: { ...ou, ...data }, update: data });
@@ -133,6 +133,30 @@ export async function enregistrerPlafondsTravaux(formData: FormData): Promise<Ac
       summary: `Plafonds des travaux de ${c.nom} : ${dire(travail, mensuel)}`,
     });
   }
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+/**
+ * K3 (décision 0033) — « DÉMARRER D'OFFICE LES TRAVAUX SANS GESTE » pour un rôle ou une personne : un plan de lecture,
+ * d'analyse et de livrable part sans clic (tout geste reste approuvé). « oui », « non », ou vide (le défaut : non ; le
+ * Super Admin, oui). La préférence de la personne prime. Super Admin seul ; chaque changement à l'audit.
+ */
+export async function enregistrerTravauxDOffice(formData: FormData): Promise<ActionResult> {
+  const brut = String(formData.get("valeur") ?? "");
+  const valeur = brut === "oui" ? true : brut === "non" ? false : null;
+  const admin = await requireUser();
+  const c = userCan(admin, "ADMIN", "UPDATE") && admin.role === "SUPER_ADMIN" ? await lireCible(String(formData.get("cible") ?? "")) : { error: "Réservé au Super Admin." };
+  if ("error" in c) return { ok: false, error: c.error };
+  const avant = await prisma.assistantIaAcces.findUnique({ where: c.ou as never });
+  if (avant) await prisma.assistantIaAcces.update({ where: { id: avant.id }, data: { travauxDOffice: valeur, updatedById: admin.id } });
+  else if (valeur !== null) await prisma.assistantIaAcces.create({ data: { ...c.ou, travauxDOffice: valeur, updatedById: admin.id } });
+  const dire = (v: boolean | null | undefined) => (v === true ? "oui" : v === false ? "non" : "défaut");
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Travaux — démarrage d'office",
+    oldValue: dire(avant?.travauxDOffice), newValue: dire(valeur),
+    summary: `Démarrage d'office des travaux sans geste — ${c.nom} : ${dire(avant?.travauxDOffice)} → ${dire(valeur)}`,
+  });
   revalidatePath("/admin/ai/acces");
   return { ok: true };
 }

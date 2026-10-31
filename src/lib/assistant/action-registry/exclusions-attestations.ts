@@ -221,6 +221,10 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-travaux-actions:reglerPrioriteMonTravail", "assistant-ia-travaux-actions:equipeVisiblePourMoi",
     "assistant-ia-travaux-actions:listerTravauxDeMonEquipe", "assistant-ia-travaux-actions:lireTravailDeMonEquipe",
   ]);
+  X("SOUS-MISSIONS (K3, décision 0033) — le tableau de bord des missions de la personne (relu quand le flux temps réel coupe), annuler UNE de ses missions avec ses sous-missions, et SA préférence « démarrer d'office les travaux sans geste ». Identité prise de la session, jamais d'un paramètre ; un plan avec un geste reste approuvé à la main : ce n'est pas une action métier à proposer.", [
+    "assistant-ia-travaux-actions:lireMonTableauDeMissions", "assistant-ia-travaux-actions:annulerMaMission",
+    "assistant-ia-travaux-actions:lireMaPreferenceDOffice", "assistant-ia-travaux-actions:reglerMaPreferenceDOffice",
+  ]);
   X("L'ATELIER de l'Assistant IA (J3, décision 0017) — les gestes de la personne sur SES onglets de documents (ouvrir, relire, accepter / refuser une modification, annuler, comparer, convertir, enregistrer une NOUVELLE version, fermer). Identité prise de la session, droits du Drive relus à chaque geste ; un document rattaché à un objet métier s'enregistre par une carte de confirmation : ce n'est pas une action métier à proposer.", [
     "assistant-ia-atelier-actions:ouvrirDansLAtelier", "assistant-ia-atelier-actions:relireOnglet", "assistant-ia-atelier-actions:revoirModificationAtelier",
     "assistant-ia-atelier-actions:toutAccepterAtelier", "assistant-ia-atelier-actions:annulerDansAtelier", "assistant-ia-atelier-actions:enregistrerOnglet",

@@ -1594,6 +1594,16 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:enregistrerTravauxDOffice": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
  "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe": {
   "risque": "R1",
   "familles": [
@@ -2076,6 +2086,15 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-travaux-actions:annulerMaMission": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-travaux-actions:declinerMaDemande": {
   "risque": "R1",
   "familles": [
@@ -2092,6 +2111,20 @@
   ],
   "simulable": "inconnu",
   "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:lireMaPreferenceDOffice": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:lireMonTableauDeMissions": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
   "appelable": false
  },
  "assistant-ia-travaux-actions:lireTravailDeMonEquipe": {
@@ -2112,6 +2145,15 @@
   "risque": "R0",
   "familles": [],
   "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:reglerMaPreferenceDOffice": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
   "annulation": "aucune",
   "appelable": false
  },

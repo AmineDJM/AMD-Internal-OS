@@ -7,7 +7,7 @@ import { useLimitesEnvoi } from "@/components/layout/use-limites-envoi";
 import { envoiArborescenceDrive } from "@/components/drive/envoi-drive";
 import { sansBloquer } from "@/lib/journal";
 import {
-  BORNES_DOSSIER_DEFAUT, dossierDe, lotFini, modeDuDepot, phraseLot, planifierDossier, raisonBorneFichiers, restantsAEnvoyer,
+  BORNES_DOSSIER_DEFAUT, contientUnDossier, dossierDe, libelleDepotDOffice, lotFini, modeDuDepot, phraseLot, planifierDossier, raisonBorneFichiers, restantsAEnvoyer,
   type EtatLot,
 } from "../domaine/lecture/depot-dossier";
 import { phraseRefus, tailleLisible, type FichierTrouve, type Parcours } from "../domaine/lecture/depot";
@@ -32,6 +32,8 @@ export interface DossierEnAttente {
   nom: string;
   fichiers: FichierTrouve<File>[];
   octets: number;
+  /** K3 : des fichiers ISOLÉS (pas un dossier) — rangés sous un dossier daté, lus pareil. */
+  vrac: boolean;
 }
 
 interface OuvertureLot {
@@ -56,24 +58,36 @@ const racineUnique = (chemins: string[]) => chemins.length > 0 && chemins.every(
 
 /** Le dépôt de dossier de la conversation : la puce en attente, l'envoi, la cible des pièces d'un petit dossier. */
 export function useDepotDossier(onAvis: (avis: string | null) => void) {
-  const [dossier, setDossier] = useState<DossierEnAttente | null>(null);
+  const [dossier, setDossierEtat] = useState<DossierEnAttente | null>(null);
+  const dossierRef = useRef<DossierEnAttente | null>(null);
+  const setDossier = useCallback((d: DossierEnAttente | null) => { dossierRef.current = d; setDossierEtat(d); }, []);
   const [relance, setRelance] = useState(0);
   const { enqueue } = useBackgroundUpload();
   const limites = useLimitesEnvoi();
 
-  /** Le dépôt est-il un DOSSIER au-delà de 10 pièces ? Alors il devient la puce du mode « dépôt de dossier ». */
-  const proposer = useCallback((parcours: Parcours<File>, dejaLa: number): boolean => {
-    if (modeDuDepot(parcours.trouves, dejaLa) !== "dossier") return false;
-    const { acceptes, refus, octets } = planifierDossier(parcours.trouves.map((t) => ({ ...t, taille: t.fichier.size })));
+  /**
+   * K3 (décision 0033) — LE DÉPÔT D'OFFICE : au-delà de 6 pièces (fichiers isolés OU dossier, en comptant les puces déjà
+   * là), le dépôt devient UNE puce « 14 fichiers : tout lire en arrière-plan ». `deja` : les puces locales du message
+   * (pas encore envoyées) — elles rejoignent le dépôt ; `autres` : les pièces déjà dans le Drive, comptées seulement.
+   * Un dépôt déjà proposé s'agrandit des nouveaux fichiers.
+   */
+  const proposer = useCallback((parcours: Parcours<File>, deja: FichierTrouve<File>[] = [], autres = 0): boolean => {
+    const enCours = dossierRef.current;
+    if (!enCours && modeDuDepot(parcours.trouves, deja.length + autres) !== "dossier") return false;
+    const tous = [...(enCours?.fichiers ?? []), ...deja, ...parcours.trouves];
+    const { acceptes, refus, octets } = planifierDossier(tous.map((t) => ({ ...t, taille: t.fichier.size })));
     if (!acceptes.length) { onAvis(phraseRefus(refus, parcours.ignores, parcours.tronque)); return true; }
     const premiers = new Set(acceptes.map((a) => a.chemin.split("/")[0]));
-    setDossier({ nom: premiers.size === 1 ? [...premiers][0]! : `${premiers.size} dossiers`, fichiers: acceptes, octets });
+    const vrac = !contientUnDossier(acceptes);
+    const d = { nom: vrac ? `${acceptes.length} fichiers` : premiers.size === 1 ? [...premiers][0]! : `${premiers.size} dossiers`, fichiers: acceptes, octets, vrac };
+    dossierRef.current = d;
+    setDossier(d);
     const tronque = parcours.tronque ? raisonBorneFichiers(BORNES_DOSSIER_DEFAUT) : null;
     onAvis([phraseRefus(refus, parcours.ignores, false), tronque].filter(Boolean).join(" ") || null);
     return true;
-  }, [onAvis]);
+  }, [onAvis, setDossier]);
 
-  const retirer = useCallback(() => { setDossier(null); onAvis("Dossier retiré : rien n'a été envoyé."); }, [onAvis]);
+  const retirer = useCallback(() => { setDossier(null); onAvis("Dépôt retiré : rien n'a été envoyé."); }, [onAvis, setDossier]);
 
   /**
    * À L'ENVOI : ouvre le lot, confie les fichiers au gestionnaire d'envois (chacun dans son dossier), et rend la ligne
@@ -101,8 +115,11 @@ export function useDepotDossier(onAvis: (avis: string | null) => void) {
     setRelance((n) => n + 1);
     const refusServeur = r.refus.length ? phraseRefus(r.refus) : null;
     onAvis([r.repris ? `Reprise du dossier « ${r.nom} » : ${tous.length - restants.length} fichier(s) déjà dans votre Drive, ${restants.length} à envoyer.` : null, refusServeur].filter(Boolean).join(" ") || null);
-    return `Dossier déposé : « ${r.nom} » — ${tous.length} fichier${tous.length > 1 ? "s" : ""}, recréé dans mon Drive (/drive/${r.racineId}).`;
-  }, [dossier, enqueue, limites, onAvis]);
+    const n = `${tous.length} fichier${tous.length > 1 ? "s" : ""}`;
+    return dossier.vrac
+      ? `Dossier déposé : « ${r.nom} » — ${n} joints en dépôt (au-delà de 6 pièces, tout est lu en arrière-plan), rangés dans mon Drive (/drive/${r.racineId}).`
+      : `Dossier déposé : « ${r.nom} » — ${n}, recréé dans mon Drive (/drive/${r.racineId}).`;
+  }, [dossier, enqueue, limites, onAvis, setDossier]);
 
   /**
    * UN PETIT DOSSIER (≤ 10 pièces, en puces) : ses fichiers rejoignent aussi leur arborescence recréée. Rend, pour chaque
@@ -130,12 +147,12 @@ export function PuceDossier({ dossier, onRetirer, verrou }: { dossier: DossierEn
     <div className="mb-2 flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50/80 px-3 py-2 text-sm text-sky-950 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100" data-testid="puce-dossier">
       <FolderUp aria-hidden className="h-4 w-4 shrink-0" />
       <div className="min-w-0 flex-1">
-        <p className="truncate font-medium">Dossier « {dossier.nom} »</p>
+        <p className="font-medium leading-snug" data-testid="libelle-depot">{libelleDepotDOffice({ nom: dossier.nom, fichiers: dossier.fichiers.length, vrac: dossier.vrac })}</p>
         <p className="text-xs text-sky-800/80 dark:text-sky-200/80">
-          {dossier.fichiers.length.toLocaleString("fr-FR")} fichiers · {tailleLisible(dossier.octets)} — recréé dans votre Drive à l&apos;envoi, puis lu par la Bibliothèque
+          {tailleLisible(dossier.octets)} — rangé{dossier.fichiers.length > 1 ? "s" : ""} dans votre Drive à l&apos;envoi, lu{dossier.fichiers.length > 1 ? "s" : ""} en entier par la Bibliothèque ; l&apos;assistant les interroge ensuite
         </p>
       </div>
-      <button type="button" onClick={onRetirer} disabled={verrou} aria-label={`Retirer le dossier ${dossier.nom}`}
+      <button type="button" onClick={onRetirer} disabled={verrou} aria-label={`Retirer le dépôt ${dossier.nom}`}
         className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-sky-800 hover:bg-sky-100 focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-50 dark:text-sky-200 dark:hover:bg-sky-900">
         <X className="h-4 w-4" />
       </button>

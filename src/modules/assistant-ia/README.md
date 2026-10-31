@@ -4,7 +4,7 @@ Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super 
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
 [`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029, 0030 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -31,6 +31,21 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12), `assistant.conversations-privees` (0027, purge à 30 jours) (`src/lib/scheduled.ts`).
 - **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
   `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
+
+## Sous-missions, tableau de bord en temps réel, dépôt d'office (lot K3, décision 0033)
+
+- **Sous-missions** — `infra/sous-missions.ts` : l'outil du tour (`outilSousMissionsPour`, par `outilTravailPour` de `infra/travaux.ts`) —
+  une sous-mission de plus par appel, `remplace` / même titre = reformulation, `parent` ; démarrage d'office d'un plan sans geste
+  (`travauxDOfficePour` : préférence `AssistantIaPreference` > console `AssistantIaAcces.travauxDOffice` > Super Admin) ; la
+  synthèse dans la conversation (`conclureSousMissions` → `fil/service.ts deposerSynthese`, unique par tour, notifiée ;
+  rattrapage `balayerSousMissions`, tâche `assistant.sous-missions`) ; `tableauDesMissions` (missions + conversation d'origine).
+  Règles pures `domaine/sous-missions.ts` (clé de titre, réglage, synthèse, libellés, avancement).
+- **Temps réel** — route SSE `app/api/assistant-ia/missions/flux` ; écrans `ecrans/missions/` : `use-missions.ts` (une connexion par
+  onglet, repli en sondage 3 s), `tableau-missions.tsx` (plein écran sur téléphone, tiroir sur ordinateur), `carte-sous-missions.tsx`
+  (la carte du fil, l'indicateur d'en-tête), `reglage-d-office.tsx`. Actions `actions-travaux.ts` : `lireMonTableauDeMissions`,
+  `annulerMaMission`, `lireMaPreferenceDOffice`, `reglerMaPreferenceDOffice` ; console : `enregistrerTravauxDOffice`.
+- **Dépôt d'office** — `domaine/lecture/depot-dossier.ts` (`modeDuDepot` au-delà de 6 pièces, `libelleDepotDOffice`),
+  `ecrans/depot-dossier.tsx`, `ecrans/use-pieces.ts`. Bancs : `infra/sous-missions.test.ts`, `scripts/bench/k3-missions-ux.ts`.
 
 ## Formulaires de carte et dépôt de dossier (lot J11, décision 0030)
 

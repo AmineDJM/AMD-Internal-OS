@@ -1,5 +1,15 @@
 ## 🧾 Journal des évolutions récentes
 
+### LOT K3 : SOUS-MISSIONS EN ARRIÈRE-PLAN, TABLEAU DE BORD EN TEMPS RÉEL, DÉPÔT D'OFFICE (2026-10-31)
+
+Décision [0033](../assistant/decisions/0033-sous-missions.md). Un message peut lancer PLUSIEURS sous-missions (`lancer_un_travail` :
+`remplace` pour reformuler, `parent` pour ranger) qui tournent en parallèle sur le worker pendant que la conversation continue ;
+un plan sans geste démarre d'office (Super Admin par défaut, réglable par personne et à la console). Sous la réponse, une carte
+suit chaque sous-mission en temps réel ; à la fin, la synthèse s'écrit dans la conversation et la personne est notifiée.
+Tableau de bord « Missions » (app Adventum IA et Assistant de l'ERP) en Server-Sent Events, avec repli en sondage court ;
+indicateur « 3 missions en cours » dans l'en-tête. Au-delà de 6 pièces, le dépôt est proposé d'office (« 14 fichiers : tout
+lire en arrière-plan »). Migration `20270216120000_sous_missions`.
+
 ### JARVIS INTÉGRÉ : LE TEST RÉEL UNIQUE DE FIN, ET LES DEUX DÉFAUTS QU'IL A TROUVÉS (2026-10-31)
 
 Tous les lots Jarvis (J0 → J14, conversions, « Mes notes », app Adventum IA) sont sur `claude/hopeful-goodall-phd0nb`.

@@ -6,6 +6,7 @@ import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
 import { NotesProposeesCard } from "./notes-proposees-card";
+import { CarteSousMissions } from "./missions/carte-sous-missions";
 import { PiecesDuMessage, PiecesRendues, type PieceOuvrable } from "./pieces-jointes";
 import { BulleVocale } from "./bulle-vocale";
 import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../domaine/lecture/regles";
@@ -37,6 +38,10 @@ export interface ChatMessage {
   /** « Mes notes » (décision 0026) : les modifications de notes PROPOSÉES par ce tour, dans leur état présent. */
   notesProposees?: PropositionNote[] | null;
   outilsAppeles?: string[];
+  /** K3 (décision 0033) : les sous-missions lancées par cette réponse — la carte qui se met à jour en temps réel. */
+  travaux?: string[] | null;
+  /** K3 : cette réponse est la SYNTHÈSE des sous-missions d'une réponse précédente (pas de nouvelle carte). */
+  synthese?: boolean;
   /**
    * Le fil gardé (27/10) : « attente » = message en file (répondu après les précédents) ;
    * « redaction » = réponse qui s'écrit sous les yeux ; « echec » = tour qui n'a pas abouti.
@@ -71,6 +76,8 @@ export interface ChatMessageListProps {
   onOuvrirPiece?: (p: PieceOuvrable) => void;
   /** Ouvre le panneau « Mes notes » (la carte des notes y renvoie). */
   onOuvrirNotes?: () => void;
+  /** K3 : ouvre le tableau de bord des missions (sur une mission). */
+  onSuivreMissions?: (travailId?: string) => void;
   /**
    * L'apparence : « erp » (verre de `/assistant`) ou « app » (Adventum IA, décision 0027 : une conversation façon
    * ChatGPT, aux couleurs du thème `app/theme.css`). Le contenu, les cartes et les règles sont les mêmes.
@@ -94,7 +101,7 @@ const STYLES = {
   },
 } as const;
 
-export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece, onOuvrirNotes, apparence = "erp" }: ChatMessageListProps) {
+export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece, onOuvrirNotes, onSuivreMissions, apparence = "erp" }: ChatMessageListProps) {
   const st = STYLES[apparence];
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -209,6 +216,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                     <MemoireProposeeCard memoire={m.memoireProposee} />
                   </div>
                 )}
+                {m.travaux && m.travaux.length > 0 && !m.synthese && <CarteSousMissions ids={m.travaux} onSuivre={onSuivreMissions} />}
                 {m.notesProposees && m.notesProposees.length > 0 && (
                   <div className="mt-3">
                     <NotesProposeesCard propositions={m.notesProposees} onOuvrirNotes={onOuvrirNotes} />

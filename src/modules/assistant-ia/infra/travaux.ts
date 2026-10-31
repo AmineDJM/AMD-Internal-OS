@@ -13,11 +13,12 @@ import { genererTexte } from "./generer";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import { PLAFOND_MENSUEL_DEFAUT_USD, PLAFOND_TRAVAIL_DEFAUT_USD } from "@/lib/missions/travaux/plan";
 import type { PersonaTravaux, PieceTravail, PlafondsTravail, PortPiecesTravail } from "@/lib/missions/travaux/persona";
-import { annulerTravail, proposerTravail, responsableDe } from "@/lib/missions/travaux/service";
+import { responsableDe } from "@/lib/missions/travaux/service";
 import { recordAudit } from "@/lib/audit";
 import { executerHorsRequete, journaliserGeste } from "@/platform/ia/hors-requete";
 import { droitsSurDocument } from "@/platform/ia/artifact/ports";
-import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, outilLancerUnTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
+import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, type OutilTravail } from "@/platform/ia/travaux/outil";
+import { conclureSousMissions, outilSousMissionsPour } from "./sous-missions";
 import { deposerLivrableTravail } from "./travaux-livrables";
 
 // J8 (décision 0023) : la porte du moteur des travaux pour le reste du module — délégation, équipe, priorité.
@@ -26,6 +27,12 @@ export {
   type DemandeRecue, type EtapeVue, type TravailDEquipe,
 } from "@/lib/missions/travaux/service";
 export type { DocumentLivrable } from "@/lib/missions/travaux/persona";
+// K3 (décision 0033) : la porte du moteur des travaux pour les SOUS-MISSIONS (`sous-missions.ts`) — une seule entrée.
+export {
+  annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
+  type MissionTableau,
+} from "@/lib/missions/travaux/service";
+export type { PersonaTravaux } from "@/lib/missions/travaux/persona";
 export type { FormatLivrable } from "@/lib/missions/travaux/plan";
 
 /**
@@ -229,24 +236,18 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
   pieces: PIECES_TRAVAUX,
   responsable: (userId) => responsableDe(userId),
   deposerLivrable: (principalId, d) => deposerLivrableTravail(principalId, d),
+  // K3 : la synthèse des sous-missions revient dans la conversation qui les a lancées.
+  surFin: async (travailId) => { await conclureSousMissions(travailId); },
 };
 
-/** L'outil « lancer_un_travail » du tour — le socle le décrit, le moteur des travaux l'exécute pour CETTE personne. */
-export function outilTravailPour(user: CurrentUser): OutilTravail {
-  // UN TOUR, UN PLAN (banc réel du 31/10/2026) : le modèle rappelait l'outil pour « corriger » un plan déjà accepté —
-  // cinq plans en attente d'approbation dans le panneau pour une seule demande. L'outil est construit à chaque tour
-  // (`fil/tour.ts`) : le plan qu'il a proposé ici est REMPLACÉ par le suivant, tant que la personne ne l'a pas approuvé.
-  let proposeCeTour: string | null = null;
-  return outilLancerUnTravail(user.id, async (plan) => {
-    const r = await proposerTravail(user.id, PERSONA_ASSISTANT_IA, plan, { origine: "assistant-ia:conversation" });
-    if (!r.ok) return r;
-    const remplace = proposeCeTour;
-    proposeCeTour = r.travailId;
-    if (remplace && (await prisma.mission.count({ where: { id: remplace, principalId: user.id, status: "AWAITING_APPROVAL" } }))) {
-      await annulerTravail(remplace, user.id);
-    }
-    return { ok: true, travailId: r.travailId, etapes: r.plan.etapes.length, gestes: r.gestes.map((g) => g.libelle), plafondUsd: r.plafondUsd };
-  }, "LECTURE : le nom exact d'un de tes outils de lecture ; GESTE : le nom exact d'un de tes outils « preparer_… » / de relance / de rendez-vous.");
+/**
+ * L'outil « lancer_un_travail » du tour — le socle le décrit, le moteur des travaux l'exécute pour CETTE personne.
+ * K3 (décision 0033) : plusieurs SOUS-MISSIONS par tour (`sous-missions.ts`) ; `lances` reçoit leurs identifiants.
+ * « UN TOUR, UN PLAN » (banc réel du 31/10/2026) tient pour la REFORMULATION : `remplace`, ou un titre déjà proposé
+ * dans ce tour, remplace le plan au lieu d'en ajouter un.
+ */
+export function outilTravailPour(user: CurrentUser, lances: string[] = []): OutilTravail {
+  return outilSousMissionsPour(user, PERSONA_ASSISTANT_IA, lances);
 }
 
 /** La consigne des travaux, renforcée d'un indice quand la demande a la forme d'un travail long. */

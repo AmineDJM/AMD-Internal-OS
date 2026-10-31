@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { ReglageDOffice } from "../missions/reglage-d-office";
 import { Bell, LogOut, Monitor, Moon, Smartphone, Sun, Volume2, X } from "lucide-react";
 import { deconnecterMonAppareil, listerMesAppareils, type AppareilConnecte } from "@/modules/assistant-ia/actions-conversations";
 import { activerNotifications } from "./hors-ligne";
@@ -72,6 +73,11 @@ export function Reglages({ theme, onTheme, reponseVocale, onReponseVocale, onFer
             <span className="flex-1">Lire aussi chaque réponse à voix haute</span>
             <input type="checkbox" checked={reponseVocale} onChange={onReponseVocale} className="h-4 w-4 accent-[var(--aia-accent)]" />
           </label>
+        </section>
+
+        <section className="flex flex-col gap-2">
+          <h3 className="text-[13px] font-semibold">Missions en arrière-plan</h3>
+          <ReglageDOffice />
         </section>
 
         <section className="flex flex-col gap-2">

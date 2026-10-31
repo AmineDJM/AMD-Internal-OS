@@ -44,6 +44,9 @@ export async function GET(req: Request) {
       id: t.id, role: t.role, contenu: t.contenu, etat: t.etat, pieces: t.pieces, blocs: t.blocs, intent: t.intent,
       memoireProposee: t.memoireProposee, outils: t.outils, etapes: t.etapes, createdAt: t.createdAt.toISOString(),
       vocal: t.vocal, lecture: t.lecture, audio: t.audio, piecesRendues: rendues.get(t.id) ?? null, notesProposees: notesDu(t.notesProposees),
+      // K3 (décision 0033) : les sous-missions du tour (la carte les lit en temps réel par le flux du tableau de bord).
+      travaux: Array.isArray(t.travaux) ? (t.travaux as unknown[]).filter((x): x is string => typeof x === "string") : null,
+      synthese: !!t.syntheseDe,
     })),
   }, SANS_CACHE);
 }

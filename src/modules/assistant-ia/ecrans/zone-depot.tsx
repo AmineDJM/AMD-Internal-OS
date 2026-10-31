@@ -2,7 +2,8 @@
 
 import React from "react";
 import { FolderUp } from "lucide-react";
-import { OCTETS_MAX_DEPOT, PIECES_PAR_ENVOI_MAX } from "../domaine/lecture/depot";
+import { OCTETS_MAX_DEPOT } from "../domaine/lecture/depot";
+import { PIECES_LUES_MAX } from "../domaine/lecture/regles";
 
 /** LA ZONE DE DÉPÔT (décision 0015) — affichée dès que des FICHIERS survolent la conversation, dans l'ERP comme dans l'app. */
 export function ZoneDepot({ apparence = "erp" }: { apparence?: "erp" | "app" }) {
@@ -14,7 +15,7 @@ export function ZoneDepot({ apparence = "erp" }: { apparence?: "erp" | "app" }) 
       <FolderUp className="h-8 w-8" aria-hidden />
       <p className="text-base font-semibold">Déposez vos fichiers ou dossiers</p>
       <p className="max-w-sm px-4 text-xs opacity-80">
-        {PIECES_PAR_ENVOI_MAX} pièces au plus par message, {Math.round(OCTETS_MAX_DEPOT / 1048576)} Mo chacune. Rien n&apos;est envoyé avant que vous appuyiez sur Entrée.
+        Jusqu&apos;à {PIECES_LUES_MAX} pièces lues dans le message ({Math.round(OCTETS_MAX_DEPOT / 1048576)} Mo chacune) ; au-delà, tout est lu en arrière-plan. Rien n&apos;est envoyé avant que vous appuyiez sur Entrée.
       </p>
     </div>
   );

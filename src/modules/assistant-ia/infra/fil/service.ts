@@ -1,4 +1,4 @@
-import type { AssistantIaTour, Prisma } from "@prisma/client";
+import { Prisma, type AssistantIaTour } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { proprietaire } from "@/platform/ia/proprietaire";
@@ -352,6 +352,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       ...(r.intent ? { intent: r.intent as unknown as Prisma.InputJsonValue } : {}),
       ...(r.memoireProposee ? { memoireProposee: r.memoireProposee as unknown as Prisma.InputJsonValue } : {}),
       ...(r.notesProposees.length ? { notesProposees: r.notesProposees as unknown as Prisma.InputJsonValue } : {}),
+      ...(r.travaux.length ? { travaux: r.travaux as unknown as Prisma.InputJsonValue } : {}),
       outils: r.outilsAppeles,
     }, ETAT.TRAITE);
   } else {
@@ -390,6 +391,27 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
 
   // LE RÉSUMÉ ROULANT (J4) : après la réponse, jamais avant — il ne retarde aucun premier mot.
   if (r.ok) await compacterFil(tour.filId);
+}
+
+/**
+ * K3 (décision 0033) — LA SYNTHÈSE DES SOUS-MISSIONS, écrite dans la conversation comme une réponse de l'assistant
+ * (unique par tour d'origine : `syntheseDe`), la conversation remontée en tête, la personne notifiée. `false` : une
+ * synthèse de ce tour existait déjà (un autre passage l'a écrite).
+ */
+export async function deposerSynthese(d: { syntheseDe: string; filId: string; userId: string; contenu: string; travaux: string[]; titre: string; corps: string }): Promise<boolean> {
+  try {
+    await prisma.assistantIaTour.create({
+      data: { filId: d.filId, userId: d.userId, role: "assistant", etat: ETAT.TERMINE, contenu: d.contenu, syntheseDe: d.syntheseDe, travaux: d.travaux as unknown as Prisma.InputJsonValue },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false;
+    throw e;
+  }
+  await prisma.assistantIaFil.update({ where: { id: d.filId }, data: { dernierLe: new Date() } }).catch(sansBloquer("fil-service.deposerSynthese.dernierLe"));
+  // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
+  await notifyUser({ userId: d.userId, type: "GENERIC", title: d.titre.slice(0, 200), body: sansValeursRevelees(d.corps).trim().slice(0, 280), link: `/assistant?c=${d.filId}` })
+    .catch(sansBloquer("fil-service.deposerSynthese.notifyUser"));
+  return true;
 }
 
 /**

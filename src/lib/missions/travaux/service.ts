@@ -9,7 +9,8 @@ import { annulerDemandesDuTravail, demandesDuTravail, type DemandeEnvoyee } from
 import type { PersonaTravaux } from "@/lib/missions/travaux/persona";
 import { carnetInitial, lireCarnet, type Carnet } from "@/lib/missions/travaux/carnet";
 import { lireGestesAutorises, reprendreTravail } from "@/lib/missions/travaux/conduite";
-import { etatTravail, motifPlafond, phraseAttente, type EtatTravail } from "@/lib/missions/travaux/regles";
+import { etatTravail, motifPlafond, phraseAttente, planSansGeste, type EtatTravail } from "@/lib/missions/travaux/regles";
+import { signalerReveil } from "@/lib/missions/travaux/signaux";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -34,12 +35,15 @@ const ou = (travailId: string, principalId: string): Prisma.MissionWhereInput =>
  * faux rend ses fautes (le modèle corrige). Rien ne s'exécute : le travail attend son approbation.
  */
 export async function proposerTravail(
-  principalId: string, persona: PersonaTravaux, brut: unknown, opts: { origine?: string | null } = {},
+  principalId: string, persona: PersonaTravaux, brut: unknown, opts: { origine?: string | null; parentId?: string | null } = {},
 ): Promise<{ ok: true; travailId: string; plan: PlanTravail; gestes: GesteAutorise[]; plafondUsd: number } | { ok: false; fautes: string[] }> {
   const refus = await persona.refusTravail(principalId);
   if (refus) return { ok: false, fautes: [refus] };
   const lu = lirePlan(brut, await persona.catalogue(principalId));
   if (!lu.ok) return lu;
+  // K3 (décision 0033) : une SOUS-MISSION se range sous un travail parent — le sien seulement, jamais celui d'un autre.
+  const parent = opts.parentId ? await prisma.mission.findFirst({ where: ou(opts.parentId, principalId), select: { id: true } }) : null;
+  if (opts.parentId && !parent) return { ok: false, fautes: [`Travail parent introuvable (« ${opts.parentId} ») : lancez une mission indépendante, ou donnez l'identifiant d'un de vos travaux.`] };
   const fautes = await resoudreDemandes(lu.plan, principalId, persona);
   if (fautes.length) return { ok: false, fautes };
   const plafondUsd = (await persona.plafonds(principalId)).travailUsd || PLAFOND_TRAVAIL_DEFAUT_USD;
@@ -51,6 +55,7 @@ export async function proposerTravail(
       carnet: carnetInitial(lu.plan) as unknown as Prisma.InputJsonValue,
       gestesAutorises: lu.gestes as unknown as Prisma.InputJsonValue,
       context: opts.origine ?? null,
+      parentMissionId: parent?.id ?? null,
     },
     select: { id: true },
   });
@@ -94,7 +99,7 @@ async function resoudreDemandes(plan: PlanTravail, principalId: string, persona:
  * étapes du moteur, échéances posées à partir de MAINTENANT.
  */
 export async function approuverTravail(travailId: string, principalId: string, persona: PersonaTravaux, clock: Clock = systemClock): Promise<ResultatTravail> {
-  const m = await prisma.mission.findFirst({ where: ou(travailId, principalId), select: { id: true, status: true, title: true, carnet: true, gestesAutorises: true, persona: true } });
+  const m = await prisma.mission.findFirst({ where: ou(travailId, principalId), select: { id: true, status: true, title: true, carnet: true, gestesAutorises: true, persona: true, parentMissionId: true } });
   if (!m) return { ok: false, erreur: "Travail introuvable — ou il ne vous appartient pas." };
   if (m.status !== "AWAITING_APPROVAL") return { ok: false, erreur: "Ce plan a déjà été approuvé ou arrêté." };
   if (m.persona !== persona.persona) return { ok: false, erreur: "Ce travail n'appartient pas à cet assistant." };
@@ -111,13 +116,32 @@ export async function approuverTravail(travailId: string, principalId: string, p
   const maintenant = clock.now();
   await materialiser(compilerTravail(relu.plan, maintenant), {
     kind: "TRAVAIL", missionId: travailId, ownerId: principalId, title: relu.plan.titre, goalRaw: relu.plan.objectif, maxConcurrency: 3,
+    parentMissionId: m.parentMissionId, // K3 : une sous-mission garde son parent
   });
   await rendreBail(travailId);
   await prisma.mission.update({ where: { id: travailId }, data: { planApprouveLe: maintenant, planApprouvePar: principalId, startedAt: maintenant } });
   await transitionner(travailId, "READY", "plan approuvé par la personne");
   await journaliser(travailId, "TRAVAIL_APPROUVE", `Plan approuvé — ${relu.plan.etapes.length} étapes, gestes autorisés : ${lireGestesAutorises(m.gestesAutorises).map((g) => g.libelle).join(", ") || "aucun"}.`,
     { gestes: lireGestesAutorises(m.gestesAutorises).map((g) => g.nom) }, principalId);
+  // K3 : le réveil rapide — la première étape part en quelques secondes, pas au prochain battement d'une minute.
+  await signalerReveil([travailId], maintenant);
   return { ok: true, travailId, message: "Plan approuvé : le travail démarre en arrière-plan. Vous serez notifié à la fin." };
+}
+
+/**
+ * K3 (décision 0033) — DÉMARRER D'OFFICE un plan SANS GESTE (lecture, analyse, livrable) : l'approbation est donnée
+ * au nom de la personne qui l'a réglé ainsi, dite au journal (« démarré d'office ») ; un geste, une demande ou une
+ * attente dans le plan, et rien ne démarre seul. Le réveil rapide est signalé : la première étape part en secondes.
+ */
+export async function demarrerDOffice(travailId: string, principalId: string, persona: PersonaTravaux, clock: Clock = systemClock): Promise<ResultatTravail> {
+  const m = await prisma.mission.findFirst({ where: ou(travailId, principalId), select: { carnet: true, gestesAutorises: true, status: true } });
+  if (!m || m.status !== "AWAITING_APPROVAL") return { ok: false, erreur: "Ce plan n'attend pas d'approbation." };
+  const plan = lireCarnet(m.carnet).plan;
+  if (!plan || !planSansGeste(plan, lireGestesAutorises(m.gestesAutorises))) return { ok: false, erreur: "Ce plan comporte un geste, une demande ou une attente : il s'approuve à la main." };
+  const r = await approuverTravail(travailId, principalId, persona, clock);
+  if (!r.ok) return r;
+  await journaliser(travailId, "TRAVAIL_DOFFICE", "Démarré d'office : plan sans geste (lecture, analyse, livrable), selon le réglage de la personne.", {}, principalId);
+  return { ok: true, travailId, message: "Démarré d'office (plan sans geste) : il tourne en arrière-plan." };
 }
 
 /** La main de la personne sur SON travail — la machine à états du moteur décide du reste (`runtime/control.ts`). */
@@ -156,6 +180,15 @@ export async function annulerTravail(travailId: string, principalId: string): Pr
   const r = await parLaMain(travailId, principalId, () => annuler(travailId, principalId, "à la demande de la personne", "TRAVAIL"));
   if (r.ok) await annulerDemandesDuTravail(travailId);
   return r;
+}
+
+/** K3 : les sous-missions encore vivantes d'un travail (les siennes seulement) — annulées avec lui. */
+export async function enfantsVivants(travailId: string, principalId: string): Promise<string[]> {
+  const xs = await prisma.mission.findMany({
+    where: { parentMissionId: travailId, kind: "TRAVAIL", principalId, ownerId: principalId, status: { notIn: ["COMPLETED", "CANCELLED", "FAILED"] } },
+    select: { id: true },
+  });
+  return xs.map((x) => x.id);
 }
 
 /** LA PRIORITÉ (J8) — parmi les travaux de la personne ; le battement sert les hautes d'abord, chacun à son tour. */
@@ -302,3 +335,7 @@ export {
   declinerDemande, lireDemandeRecue, listerDemandesRecues, repondreDemande, type DemandeRecue,
 } from "@/lib/missions/travaux/delegation";
 export { equipeVisible, lireTravailEquipe, listerTravauxEquipe, responsableDe, type TravailDEquipe } from "@/lib/missions/travaux/equipe";
+// K3 (décision 0033) : le tableau de bord en temps réel, et ce que les sous-missions relisent du carnet et du plan.
+export { lireCarnet } from "@/lib/missions/travaux/carnet";
+export { planSansGeste } from "@/lib/missions/travaux/regles";
+export { signatureTableau, tableauDesTravaux, type EtapeTableau, type EtatEtapeTableau, type MissionTableau } from "@/lib/missions/travaux/tableau";
