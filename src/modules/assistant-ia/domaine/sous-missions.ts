@@ -20,7 +20,12 @@ export function reglageDOffice(r: { preference: boolean | null; personne: boolea
 }
 
 /** Un statut du moteur où la sous-mission ne bougera plus sans la personne : la synthèse peut s'écrire. */
-export const statutFini = (status: string): boolean => ["COMPLETED", "CANCELLED", "FAILED", "PARTIAL", "BLOCKED"].includes(status);
+/**
+ * Un statut FINAL : la synthèse peut s'écrire. Une mission BLOQUÉE ou terminée EN PARTIE n'en est pas un — elle se reprend
+ * (bouton « Reprendre » de la carte et du tableau) ; la personne en est prévenue par la conduite (banc réel du 31/10 : une
+ * erreur 502 passagère du fournisseur sur la rédaction du rapport écrivait une synthèse vide, que la reprise ne refaisait pas).
+ */
+export const statutFini = (status: string): boolean => ["COMPLETED", "CANCELLED", "FAILED"].includes(status);
 
 export interface IssueSousMission {
   titre: string;
@@ -28,6 +33,10 @@ export interface IssueSousMission {
   coutUsd: number;
   extrait: string;
   document: { nom: string; lien: string } | null;
+  /** D'autres documents du même livrable (le Word d'un rapport livré en PDF). */
+  autres?: { nom: string; lien: string }[];
+  /** § 7 : le livrable s'affiche EN ENTIER (Markdown gardé) — le rapport d'une recherche approfondie. */
+  complet?: boolean;
   dureeMs: number | null;
 }
 
@@ -69,10 +78,11 @@ export function phraseSynthese(issues: readonly IssueSousMission[], enBref: stri
     : `**La mission « ${issues[0]?.titre ?? ""} » est ${ISSUE[issues[0]?.statut ?? ""] ?? "finie"}** — coût ${usd(cout)}.`;
   const blocs = issues.map((i, n) => {
     const lignes = [`${issues.length > 1 ? `**${n + 1}. ${i.titre}** — ${ISSUE[i.statut] ?? i.statut.toLowerCase()}` : ""}${i.dureeMs != null && issues.length > 1 ? ` (${duree(i.dureeMs)})` : ""}`];
-    if (i.extrait) lignes.push(i.extrait);
+    if (i.extrait) lignes.push(i.complet ? `---\n\n${i.extrait}\n\n---` : i.extrait);
     // Le lien de TÉLÉCHARGEMENT (`/api/drive/…/raw`) : servi par l'ERP comme par l'app (où `/drive/…` n'existe pas) ; la
     // pièce s'affiche aussi en puce ouvrable sous la réponse (les identifiants du Drive cités).
-    if (i.document) lignes.push(`Livrable : [${i.document.nom}](${lienTelechargement(i.document.lien)})`);
+    const docs = [i.document, ...(i.autres ?? [])].filter((d): d is { nom: string; lien: string } => !!d);
+    if (docs.length) lignes.push(`${docs.length > 1 ? "Documents" : "Livrable"} : ${docs.map((d) => `[${d.nom}](${lienTelechargement(d.lien)})`).join(" · ")}`);
     return lignes.filter(Boolean).join("\n\n");
   });
   return [tete, enBref ? `En bref : ${enBref}` : null, ...blocs].filter(Boolean).join("\n\n");

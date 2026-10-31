@@ -41,6 +41,19 @@ téléchargement ; **`send_message` joint une pièce** (carte à confirmer ; la 
 La consigne ne dit plus « je ne peux pas » sans avoir cherché, ni sans nommer l'écran. **Inventaire** des 136 routes
 (`modules/assistant-ia/gestes-ecran.test.ts`) : une route nouvelle non classée fait échouer `npm test`. Banc réel
 (`scripts/bench/k7-exports.ts`, `amd_bench`) : le scénario de la Direction de bout en bout en 11 s, 0,023 $.
+
+### LOT K3 : SOUS-MISSIONS EN ARRIÈRE-PLAN, TABLEAU DE BORD EN TEMPS RÉEL, DÉPÔT D'OFFICE (2026-10-31)
+
+Décision [0033](../assistant/decisions/0033-sous-missions.md). Un message peut lancer PLUSIEURS sous-missions (`lancer_un_travail` :
+`remplace` pour reformuler, `parent` pour ranger) qui tournent en parallèle sur le worker pendant que la conversation continue ;
+un plan sans geste démarre d'office (Super Admin par défaut, réglable par personne et à la console). Sous la réponse, une carte
+suit chaque sous-mission en temps réel ; à la fin, la synthèse s'écrit dans la conversation et la personne est notifiée.
+Tableau de bord « Missions » (app Adventum IA et Assistant de l'ERP) en Server-Sent Events, avec repli en sondage court ;
+indicateur « 3 missions en cours » dans l'en-tête. Au-delà de 6 pièces, le dépôt est proposé d'office (« 14 fichiers : tout
+lire en arrière-plan »). **Recherche approfondie** (`recherche_approfondie`) : plusieurs recherches web en parallèle, puis un
+rapport complet (sommaire, chiffres datés, sources numérotées) affiché dans la conversation et déposé au Drive en Word et PDF.
+Migration `20270216120000_sous_missions`.
+
 ### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
 
 Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.

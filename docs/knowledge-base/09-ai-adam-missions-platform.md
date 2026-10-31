@@ -424,7 +424,10 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   (unique `syntheseDe`, notification), fallback task `assistant.sous-missions`. **Dashboard** `travaux/tableau.ts`
   (`tableauDesTravaux`, cheap `signatureTableau` aggregate) streamed by SSE `app/api/assistant-ia/missions/flux` (1 s signature
   poll server-side, 15 s heartbeat, close at 4 min 30, client fallback 3 s poll) → `ecrans/missions/*` (shared by `/ia` and
-  `/assistant`). **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
+  `/assistant`). **Deep research** `recherche_approfondie` (`domaine/recherche-approfondie.ts`): code-built plan, one `web_research`
+  LECTURE per angle (no deps → parallel), then LIVRABLE `pdf` (docx + converted pdf); mission `context` =
+  `assistant-ia:recherche-approfondie` makes the synthesis show the full report; livrables read up to 64k chars of upstream output.
+  **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
   files too.
 
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
