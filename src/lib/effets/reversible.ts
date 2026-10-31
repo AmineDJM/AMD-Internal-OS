@@ -20,11 +20,20 @@ import { journaliserGeste } from "./journal";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+/** La personne de la requête — `null` sans session (tâche de fond) ou quand la session ne la fournit pas (banc). */
+async function personneConnectee() {
+  try {
+    return await getCurrentUser();
+  } catch {
+    return null;
+  }
+}
+
 export interface Annulable { gesteId: string; libelle: string }
 
 export async function actionReversible<T>(capaciteId: string, libelle: string, corps: () => Promise<T>): Promise<T> {
   if (etatDuGeste()?.capture || etatDuGeste()?.mode === "SIMULATION") return corps();
-  const user = await getCurrentUser().catch(() => null);
+  const user = await personneConnectee();
   if (!user) return corps();
   const { resultat, gesteId } = await journaliserGeste(user, { origine: "ecran", capaciteId, libelle }, corps);
   if (gesteId && resultat && typeof resultat === "object" && !Array.isArray(resultat) && (resultat as { ok?: unknown }).ok !== false) {

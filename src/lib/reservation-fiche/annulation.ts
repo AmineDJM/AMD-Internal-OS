@@ -45,6 +45,3 @@ export const indexBibliotheque: Metier = async ({ geste, appliquer }): Promise<R
   });
   return { details, traites };
 };
-
-/** Le geste inverse des fiches de voyage : l'index de la bibliothèque (le numéro de pièce consommé est dit par le socle). */
-export const annulerGesteDeFiche: Metier = indexBibliotheque;
