@@ -255,7 +255,7 @@ export default async function MailEntryPage(props: { params: Promise<{ id: strin
             emptyHint="Aucun lien. Reliez ce pli aux affaires qu'il concerne (marché, contrat, bon de commande, facture, dossier) — elles l'afficheront dans leur fiche."
           />
 
-          {/* K10b (décision 0035) : les gestes faits sur ce pli, chacun annulable (et rétablissable). */}
+          {/* K10b (décision 0038) : les gestes faits sur ce pli, chacun annulable (et rétablissable). */}
           <HistoriqueAnnulable modele="MailEntry" id={entry.id} />
 
           <Card>

@@ -219,7 +219,7 @@ export async function chargerConsoleAccesIa(): Promise<{
   managerVoitEquipe: boolean;
   /** J7 : durée de garde du journal des effets, en jours (défaut 180). */
   retentionEffetsJours: number;
-  /** K10b (décision 0035) : la fenêtre d'annulation des envois, en secondes (défaut 120). */
+  /** K10b (décision 0038) : la fenêtre d'annulation des envois, en secondes (défaut 120). */
   fenetreAnnulationSecondes: number;
   /** K3 (décision 0033) : « démarrer d'office les travaux sans geste », par rôle (`null` = le défaut : non). */
   dOfficeParRole: Map<UserRole, boolean | null>;

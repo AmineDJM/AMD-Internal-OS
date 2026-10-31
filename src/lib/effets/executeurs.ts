@@ -2,7 +2,7 @@ import type { ExecuteurEffetSortant, PlanCompensation } from "./fenetre";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES EXÉCUTEURS DES EFFETS SORTANTS (K10b, décision 0035) — ce que le worker appelle quand la fenêtre est passée,
+ * LES EXÉCUTEURS DES EFFETS SORTANTS (K10b, décision 0038) — ce que le worker appelle quand la fenêtre est passée,
  * et la COMPENSATION de chacun après son départ.
  *
  * Une ligne par type, chargée à la demande (aucun transport n'est tiré tant qu'on n'exécute pas). Un exécuteur qui

@@ -1,7 +1,7 @@
 # `src/lib/effets/` — simulation, journal des effets, annulation, fenêtre d'annulation
 
 Décisions : [0029](../../../docs/assistant/decisions/0029-simulation-annulation.md) (J7 : simulation, journal, annulation
-honnête) et [0035](../../../docs/assistant/decisions/0035-reversibilite-communications.md) (K10b : fenêtre d'annulation des
+honnête) et [0038](../../../docs/assistant/decisions/0038-reversibilite-communications.md) (K10b : fenêtre d'annulation des
 effets sortants, geste d'écran réversible, rétablissement).
 
 | Fichier | Rôle |

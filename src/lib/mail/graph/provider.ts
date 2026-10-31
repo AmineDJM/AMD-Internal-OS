@@ -246,7 +246,7 @@ export class MicrosoftGraphMailProvider implements MailProvider {
     // Microsoft, et l'envoi qui suit est irréversible. On refuse AVANT la création du brouillon.
     // LE PORT DE SIMULATION (J7) : un geste simulé note le courriel et ne crée même pas le brouillon.
     if (noterEffetExterne({ acte: "COURRIEL", cible: input.to.map((a) => a.address).join(", ") || "(sans destinataire)", apercu: `« ${input.subject ?? ""} »`, origine: "mail/graph:send" })) return;
-    // LA FENÊTRE D'ANNULATION (K10b, décision 0035) : sous un geste réversible, ni brouillon ni envoi avant la fenêtre.
+    // LA FENÊTRE D'ANNULATION (K10b, décision 0038) : sous un geste réversible, ni brouillon ni envoi avant la fenêtre.
     if (await differerSiFenetre({ type: "courriel.graph", acte: "COURRIEL", cible: input.to.map((a) => a.address).join(", ") || "(sans destinataire)", apercu: `« ${input.subject ?? ""} »`, charge: { address: this.mailboxAddress, input } })) return;
     exigerSortieAutorisee("COURRIEL", input.to.map((a) => a.address).join(", ") || "(sans destinataire)", {
       apercu: `« ${input.subject ?? ""} »`,

@@ -6,6 +6,7 @@ import {
   type Verbosity,
   MODEL_ROLES,
 } from "./contract";
+import { PRIX_RECHERCHE_WEB, tarifDuModele } from "./tarifs";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -82,27 +83,15 @@ export const DEFAULT_REASONING: Record<ModelRole, ReasoningEffort> = {
  * n'est pas la même chose que gratuit — voir l'en-tête.
  */
 /**
- * TARIFS PUBLICS OPENAI, en dollars par million de jetons — relevés le 2026-09-05 sur la grille
- * en vigueur depuis la baisse du 2026-08-21 (Sol 4 / 20, Terra 2 / 12, Luna 0,20 / 1,20 ;
- * lecture de cache à 10 % du tarif d'entrée). Le temps réel est tarifé au TEXTE ici (4 / 24,
- * cache 0,40) : l'audio (32 / 64) n'est pas compté par cette passerelle, qui ne le transporte
- * pas — un coût vocal complet se lit dans les journaux de session, jamais ici.
- *
- * Ce ne sont pas des estimations : ce sont des prix affichés, datés, et toute variable
- * `ADAM_PRICE_*` les remplace sans redéploiement le jour où la grille change.
+ * LES TARIFS VIENNENT DE LA GRILLE DATÉE (`tarifs.ts`, lot K8) — un seul endroit pour tous les
+ * fournisseurs, vérifié contre la documentation publique ; toute variable `ADAM_PRICE_*` les
+ * remplace sans redéploiement le jour où la grille change. Le temps réel est tarifé ici au TEXTE :
+ * l'audio est ventilé et facturé par le journal (`response.done.usage`), pas par cette passerelle.
  */
-const KNOWN_PRICES: Record<string, { in: number; out: number; cachedIn: number }> = {
-  "gpt-5.6-sol": { in: 4, out: 20, cachedIn: 0.4 },
-  "gpt-5.6-terra": { in: 2, out: 12, cachedIn: 0.2 },
-  "gpt-5.6-luna": { in: 0.2, out: 1.2, cachedIn: 0.02 },
-  "gpt-realtime-2.1": { in: 4, out: 24, cachedIn: 0.4 },
-};
-
-/** La fiche tarifaire d'un modèle, un suffixe de date (`gpt-5.6-terra-2026-03-01`) compris. */
 function knownPriceOf(model: string): { in: number; out: number; cachedIn: number } | null {
-  if (KNOWN_PRICES[model]) return KNOWN_PRICES[model];
-  const base = Object.keys(KNOWN_PRICES).find((k) => model.startsWith(`${k}-`));
-  return base ? KNOWN_PRICES[base] : null;
+  const t = tarifDuModele(model);
+  if (!t?.entree || !t.sortie) return null;
+  return { in: Number(t.entree), out: Number(t.sortie), cachedIn: Number(t.entreeCache ?? t.entree) };
 }
 
 /** Le repli Anthropic, rôle par rôle — l'ancien cerveau, gardé pour pouvoir revenir. */
@@ -195,5 +184,5 @@ export function roleConfigured(role: ModelRole): boolean {
  * total partiel comme un total.
  */
 export function webSearchPricePerCall(): number {
-  return num("ADAM_PRICE_WEB_SEARCH_CALL") ?? 0.01;
+  return num("ADAM_PRICE_WEB_SEARCH_CALL") ?? Number(PRIX_RECHERCHE_WEB);
 }

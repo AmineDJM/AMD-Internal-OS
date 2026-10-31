@@ -1,5 +1,20 @@
 ## 🧾 Journal des évolutions récentes
 
+### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
+
+Lot K8 — `docs/assistant/decisions/0035-consommation.md`. **Écran « Consommation »** dans les Réglages d'Adventum IA (et
+le même composant dans Administration › IA) : jetons et dollars d'aujourd'hui, 7 jours, mois en cours, mois précédent et
+d'une période choisie, ventilés par type de jeton (entrée, cache, sortie dont raisonnement, audio, image, recherches web,
+durée, pages), par modèle, par usage, par conversation et **appel par appel** (export CSV / Excel), graphique jour par
+jour ; le Super Admin voit **toute l'entreprise** (par personne, Adam et le worker compris) et les plafonds en cours.
+**Grille tarifaire datée** par modèle (`src/lib/models/tarifs.ts`, relevée le 31/10 sur la documentation OpenAI, Gemini,
+Anthropic), coût calculé en entiers au micro-dollar, « tarif inconnu » jamais affiché 0 $. **Audit d'exhaustivité** :
+plongements, OCR Mistral, transcriptions, Luna (moitié des appels), API Batch n'écrivaient aucune ligne `ModelCallLog` —
+bouchés ; voix temps réel ventilée texte/audio ; GPT-Live facturé à la durée ; appels perdus avant le branchement du
+puits rattrapés (`instrumentation.ts`). **Erreur de tarif corrigée** : `gpt-6.1-terra` était facturé au prix de
+`gpt-5.6-terra` (≈ ×2,45). **Rapprochement** avec l'API Costs d'OpenAI si `OPENAI_ADMIN_KEY` est posée (sinon dit « non
+configuré »). Migration additive `20270217100000_consommation_precise` (11 colonnes sur `ModelCallLog`).
+
 ### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
 
 Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.

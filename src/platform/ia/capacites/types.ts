@@ -69,7 +69,7 @@ export interface PortsRegistre<C extends ContratLu = ContratLu> {
   classerGeste: (nature: NatureGesteLue) => VerdictLu;
   /** Les modules RBAC et leur libellé (`MODULE_LABELS`) — pour lire la porte d'une action qui ne la nomme pas. */
   modules: Readonly<Record<string, string>>;
-  /** K10 (décision 0035) : l'annulation DÉCLARÉE d'une action que l'ERP a rendue réversible (`lib/effets/declarations.ts`). */
+  /** K10 (décision 0038) : l'annulation DÉCLARÉE d'une action que l'ERP a rendue réversible (`lib/effets/declarations.ts`). */
   annulationDeclaree?: (c: C) => { annulation: Annulation; raison: string } | null;
 }
 

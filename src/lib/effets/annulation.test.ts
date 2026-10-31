@@ -177,7 +177,7 @@ suite("l'annulation honnête, sur 50 cas réels (J7)", () => {
       const i = await parModele(g, r);
       expect(i.Meeting).toEqual(["ANNULE"]);
       expect(i.MeetingParticipant?.every((x) => x === "ANNULE")).toBe(true);
-      // K10b (décision 0035) : la poussée d'invitation attendait sa FENÊTRE D'ANNULATION — elle ne part pas : annulée.
+      // K10b (décision 0038) : la poussée d'invitation attendait sa FENÊTRE D'ANNULATION — elle ne part pas : annulée.
       expect(i.NOTIFICATION_PUSH ?? []).toEqual((i.NOTIFICATION_PUSH ?? []).map(() => "ANNULE"));
       expect(await prisma.effetSortantDiffere.count({ where: { gesteId: g, statut: { not: "ANNULE" } } })).toBe(0);
       expect(await prisma.meeting.count({ where: { title: `${TAG} réunion` } })).toBe(0);

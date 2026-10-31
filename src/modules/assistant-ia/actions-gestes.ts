@@ -46,7 +46,7 @@ export async function annulerGestesAssistant(gesteIds: string[]): Promise<{ ok: 
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
-// LA BARRE « ANNULER » DE L'ERP (K10b, décision 0035) — pour TOUT le monde, pas seulement l'Assistant IA : le geste
+// LA BARRE « ANNULER » DE L'ERP (K10b, décision 0038) — pour TOUT le monde, pas seulement l'Assistant IA : le geste
 // d'écran réversible qu'on vient de faire (« Annuler »), l'envoi qui attend sa fenêtre (« Annuler l'envoi »), et le
 // rétablissement d'une annulation. Identité prise de la session, jamais d'un paramètre ; en « Vue exacte », lecture seule.
 // ═══════════════════════════════════════════════════════════════════════════════════════════

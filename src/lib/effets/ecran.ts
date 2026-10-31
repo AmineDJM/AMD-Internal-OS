@@ -5,7 +5,7 @@ import { etatDuGeste } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE GESTE D'ÉCRAN RÉVERSIBLE (K10b, décision 0035) — « toute action peut être réversible », d'un bouton.
+ * LE GESTE D'ÉCRAN RÉVERSIBLE (K10b, décision 0038) — « toute action peut être réversible », d'un bouton.
  *
  * `gesteReversible(user, { capaciteId, libelle }, geste)` exécute le corps d'une action de l'ERP SOUS LE JOURNAL DES
  * EFFETS (J7) : chaque écriture garde sa ligne avant / après, chaque effet sortant attend sa FENÊTRE D'ANNULATION

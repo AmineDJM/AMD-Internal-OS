@@ -17,7 +17,7 @@ import {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA FENÊTRE D'ANNULATION DES EFFETS SORTANTS (K10b, décision 0035) — contre la base locale, aucun `vi.mock`.
+ * LA FENÊTRE D'ANNULATION DES EFFETS SORTANTS (K10b, décision 0038) — contre la base locale, aucun `vi.mock`.
  *
  * Un courriel envoyé sous un geste réversible n'est PAS parti : il attend sa fenêtre. Annulé dedans, rien ne sort
  * (`fetch` espionné : zéro appel). La fenêtre passée, le worker l'exécute une seule fois ; annulé ensuite, il est

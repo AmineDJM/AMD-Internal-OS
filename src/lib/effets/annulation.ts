@@ -317,7 +317,7 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
 }
 
 /**
- * UN EFFET SORTANT DIFFÉRÉ (K10b, décision 0035) — la fenêtre d'annulation tranche : pas encore parti, il est annulé
+ * UN EFFET SORTANT DIFFÉRÉ (K10b, décision 0038) — la fenêtre d'annulation tranche : pas encore parti, il est annulé
  * et RIEN ne sort ; parti, sa compensation (rectificatif différé, lui-même annulable) — jamais « effacé ».
  */
 async function issueSortant(e: EffetLu, ctx: Contexte): Promise<DetailEffet | null> {

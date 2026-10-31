@@ -6,7 +6,7 @@ import { etatDuGeste, type EffetExterneCapture } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA FENÊTRE D'ANNULATION DES EFFETS SORTANTS (K10b, décision 0035) — « Annuler l'envoi », façon messagerie.
+ * LA FENÊTRE D'ANNULATION DES EFFETS SORTANTS (K10b, décision 0038) — « Annuler l'envoi », façon messagerie.
  *
  * Un effet SORTANT (courriel SMTP, Microsoft Graph ou API, notification poussée, publication, diffusion d'offre, appel
  * d'API externe, ordre transmis) ne part pas au moment du geste : il entre dans la file `EffetSortantDiffere` avec une

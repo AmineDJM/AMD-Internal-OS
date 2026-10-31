@@ -303,7 +303,7 @@ function ValeursSensibles({ initial }: { initial: ModeValeursSensibles }) {
   );
 }
 
-/** J7 (décision 0029) — combien de jours un geste reste annulable ; K10b (0035) — la fenêtre d'annulation des envois. */
+/** J7 (décision 0029) — combien de jours un geste reste annulable ; K10b (0038) — la fenêtre d'annulation des envois. */
 function RetentionEffets({ initial, fenetre }: { initial: number; fenetre: number }) {
   const { saving, err, run } = useAction();
   const [jours, setJours] = React.useState(String(initial));

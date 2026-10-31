@@ -16,7 +16,7 @@ import { createMailFolder, updateMailFolder, moveMailEntries } from "@/lib/actio
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * K10b — CHAQUE ACTION DÉCLARÉE RÉVERSIBLE EST EXÉCUTÉE PUIS ANNULÉE CONTRE LA BASE (décision 0035), aucun `vi.mock`.
+ * K10b — CHAQUE ACTION DÉCLARÉE RÉVERSIBLE EST EXÉCUTÉE PUIS ANNULÉE CONTRE LA BASE (décision 0038), aucun `vi.mock`.
  *
  * `cycle` joue l'action de l'ÉCRAN (la vraie fonction, sous la personne, hors requête), retrouve son geste au journal,
  * l'ANNULE et vérifie que l'état relu est celui d'avant, puis le RÉTABLIT (état d'après), le RÉ-ANNULE, et compte
@@ -147,7 +147,7 @@ const RESTANTES_K10B: readonly string[] = [
 const CLASSEMENT = CLASSEMENT_JSON as Record<string, LigneCliche>;
 let moi: CurrentUser;
 
-suite("K10b — exécuter puis annuler, action par action (décision 0035)", () => {
+suite("K10b — exécuter puis annuler, action par action (décision 0038)", () => {
   beforeAll(async () => { moi = await personneDeTest(TAG); });
   afterAll(async () => {
     await nettoyer([moi.id]);

@@ -9,7 +9,7 @@ import { memeValeur } from "./valeurs";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * RÉTABLIR — UNE ANNULATION EST ELLE-MÊME ANNULABLE (K10b, décision 0035).
+ * RÉTABLIR — UNE ANNULATION EST ELLE-MÊME ANNULABLE (K10b, décision 0038).
  *
  * `retablirGeste(gesteId, user)` relit le compte rendu de l'annulation et refait, du plus ANCIEN au plus récent, ce
  * qu'elle avait défait — sous la même règle que l'annulation : on ne réécrit une valeur que si la ligne est encore

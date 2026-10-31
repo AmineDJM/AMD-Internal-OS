@@ -166,7 +166,7 @@ export async function lireDocumentParPaliers(
             if (!png) { e.vision = { lisibilite: "mauvaise", caracteres: 0 }; continue; }
             const t0 = Date.now();
             const res = await callLuna<LecturePage>({ system: SYSTEME_VISION, user: consigneVision(n, r.fiche.nom, textes.get(n) || null, question), images: [{ buffer: png, mime: "image/png" }], jsonSchema: VISION_SCHEMA as unknown as { name: string; schema: Record<string, unknown> }, maxOutputTokens: 3_000, temperature: 0 }).catch(sansBloquer("lecture.lireDocumentParPaliers.callLuna", null));
-            if (res) { recordModelCall({ role: "bulk", model: lunaModel(), provider: "openai", inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, cachedInputTokens: res.usage.cachedInputTokens, costUsd: res.usage.costUsd, ms: Date.now() - t0, attempts: 1 }); coutUsd += res.usage.costUsd; }
+            if (res) coutUsd += res.usage.costUsd; // journalisé par `callLuna` (lot K8)
             const lu = res?.ok && res.data && typeof res.data.texte === "string" ? res.data : null;
             const texte = lu ? [lu.texte.trim(), lu.chiffres.length ? `Chiffres lus : ${lu.chiffres.map((c) => `${c.libelle} = ${c.valeur}`).join(" ; ")}` : ""].filter(Boolean).join("\n") : "";
             e.vision = { lisibilite: lu ? lu.lisibilite : "mauvaise", caracteres: texte.length };

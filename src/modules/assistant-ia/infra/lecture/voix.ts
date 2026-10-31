@@ -116,7 +116,10 @@ export async function synthetiser(
     const octets = Buffer.from(await res.arrayBuffer());
     if (!octets.length) return { ok: false, raison: "Synthèse vocale vide." };
     const dureeS = Math.max(1, Math.round(octets.length / OCTETS_PAR_SECONDE));
-    inscrire({ provider: "openai-audio", model: modele, entree: jetonsTexte(texte), sortie: jetonsAudio(dureeS), ms: Date.now() - t0 });
+    // `/audio/speech` ne rend AUCUN usage (réponse binaire) : jetons ESTIMÉS (texte ÷ 4, 10 par seconde d'audio), marqués
+    // comme tels au journal et à l'écran (audit K8, E2). La sortie est de l'AUDIO (tarif audio de la grille).
+    const sortie = jetonsAudio(dureeS);
+    inscrire({ provider: "openai-audio", model: modele, entree: jetonsTexte(texte), sortie, audioSortie: sortie, estime: true, ms: Date.now() - t0 });
     return { ok: true, valeur: { octets, mime: "audio/mpeg", dureeS, modele } };
   });
 }

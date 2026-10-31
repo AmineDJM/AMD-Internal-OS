@@ -169,7 +169,7 @@ export async function sendSmartEmail(input: SendEmailInput): Promise<SendEmailRe
   if (noterEffetExterne({ acte: "COURRIEL", cible: (input.to ?? []).join(", ") || "(sans destinataire)", apercu: `« ${input.subject ?? ""} »`, origine: "mail-smart:sendSmartEmail" })) {
     return { ok: true, providerId: "simulation" };
   }
-  // LA FENÊTRE D'ANNULATION (K10b, décision 0035) : sous un geste réversible, le courriel attend sa fenêtre.
+  // LA FENÊTRE D'ANNULATION (K10b, décision 0038) : sous un geste réversible, le courriel attend sa fenêtre.
   const differe = await differerSiFenetre({ type: "courriel.api", acte: "COURRIEL", cible: (input.to ?? []).join(", ") || "(sans destinataire)", apercu: `« ${input.subject ?? ""} »`, charge: input });
   if (differe) return { ok: true, providerId: `differe:${differe.id}` };
   if (!sortieAutorisee("COURRIEL", (input.to ?? []).join(", ") || "(sans destinataire)", {
