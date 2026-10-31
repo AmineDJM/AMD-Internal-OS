@@ -71,6 +71,12 @@ describe("composerAnalyse — des lignes calculées au bloc", () => {
     expect(a.bloc.totaux?.[3]).toBeNull();
   });
 
+  it("une seule unité par axe, même quand le modèle demande deux mesures (CA en DZD et nombre de ventes)", () => {
+    const lignes = [{ periode: "2026-01", valeur: 1_650_500.5, n: 3 }, { periode: "2026-02", valeur: 1_199_499.5, n: 2 }, { periode: "2026-03", valeur: 900_000, n: 1 }];
+    const a = composerAnalyse({ titre: "CA", source: "s", sources: [], lignes, moteur: "t", formats: { valeur: "dzd" }, graphiques: [{ type: "courbe", x: "periode", y: ["valeur", "n"] }] });
+    expect(a.bloc.graphiques[0].donnees.series?.map((x) => x.label)).toEqual(["valeur"]);
+  });
+
   it("formatDe : un taux est un pourcentage, un texte reste un texte, une date ISO une date", () => {
     expect(formatDe("taux_consommation", [12.5, 40])).toBe("pourcent");
     expect(formatDe("statut", ["PAYE", "EN_ATTENTE"])).toBe("texte");

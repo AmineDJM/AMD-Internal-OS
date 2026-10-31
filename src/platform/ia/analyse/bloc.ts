@@ -191,7 +191,8 @@ function graphique(lignes: readonly Ligne[], d: DemandeGraphique | null, questio
   if (!forme) return null;
   // UNE SEULE UNITÉ PAR AXE : le CA (DZD) et le nombre de ventes (entier) ou un taux (%) sur le même axe écrasent l'une
   // des séries (mesuré au banc : « valeur » et « n » sur une même courbe). La mesure principale est la première en DZD.
-  if (!d?.y?.length && spec.y.length > 1) {
+  // Vrai aussi pour une forme DEMANDÉE : mesuré sur serveur réel, le modèle demandait `y: [valeur, n]` (CA et nombre de ventes).
+  if (spec.y.length > 1) {
     const principale = spec.y.find((y) => formats[y] === "dzd") ?? spec.y[0];
     spec = { ...spec, y: spec.y.filter((y) => formats[y] === formats[principale]) };
   }
