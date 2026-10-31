@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Image from "next/image";
 import { LoginForm } from "./login-form";
 import { MODE_ADVENTUM_IA } from "@/platform/app-mode";
@@ -8,6 +8,12 @@ import { METADONNEES_ADVENTUM_IA } from "@/app/ia/metadonnees";
 export const dynamic = "force-dynamic";
 
 const modeApp = () => process.env.APP_MODE === MODE_ADVENTUM_IA;
+
+export function generateViewport(): Viewport {
+  return modeApp()
+    ? { width: "device-width", initialScale: 1, maximumScale: 1, userScalable: false, viewportFit: "cover", interactiveWidget: "resizes-content", themeColor: "#2c59a7" }
+    : { width: "device-width", initialScale: 1, viewportFit: "cover" };
+}
 
 export function generateMetadata(): Metadata {
   return modeApp() ? { ...METADONNEES_ADVENTUM_IA, title: "Connexion — Adventum IA" } : { title: "Connexion — AMD Internal OS" };

@@ -10,6 +10,14 @@ export const metadata: Metadata = METADONNEES_ADVENTUM_IA;
 
 /** La barre d'état et le cadre aux couleurs de l'app (le reste du viewport — `viewport-fit=cover` — vient de la racine). */
 export const viewport: Viewport = {
+  // UNE APP, PAS UNE PAGE (Direction, 31/10/2026 : « pas un truc que je peux tirer vers la droite, vers la gauche ») :
+  // ni zoom au pincement ni au double-tap ; le clavier REDIMENSIONNE l'écran (la saisie reste visible, rien ne glisse).
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  interactiveWidget: "resizes-content",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#2c59a7" },
     { media: "(prefers-color-scheme: dark)", color: "#08111f" },

@@ -92,3 +92,35 @@
 @keyframes aia-respire { 0%, 100% { transform: scale(.92); } 50% { transform: scale(1.05); } }
 .aia-onde { animation: aia-respire 2.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .aia-onde { animation: none; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+ * UNE APP, PAS UNE PAGE (Direction, 31/10/2026) — seulement quand la COQUE de l'app est à l'écran (`.aia-coque`) :
+ * la page ne glisse ni ne rebondit (pas d'élastique iOS, pas de « tirer pour rafraîchir »), rien ne déborde à droite,
+ * le double-tap ne zoome pas, et seuls les panneaux qui ont un contenu à faire défiler défilent — sans entraîner la page.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════ */
+html:has(.aia-coque),
+html:has(.aia-coque) body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+.aia-coque {
+  overflow-x: hidden;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.aia-coque * {
+  overscroll-behavior: contain;
+}
+/* iOS zoome sur un champ dont le texte fait moins de 16 px : jamais dans l'app, sur téléphone. */
+@media (max-width: 1023px) {
+  /* `html:has(…)` : aussi les fenêtres ouvertes HORS de la coque (aperçu, notes, réglages en portail). */
+  html:has(.aia-coque) input,
+  html:has(.aia-coque) textarea,
+  html:has(.aia-coque) select {
+    font-size: max(16px, 1em);
+  }
+}
+

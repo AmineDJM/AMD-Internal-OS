@@ -218,7 +218,7 @@ function Application({ userName }: { userName?: string }) {
   const bouton = "flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] hover:bg-[var(--aia-survol)]";
 
   return (
-    <div ref={racine} data-testid="adventum-ia" className="adventum-ia fixed inset-0 flex overflow-hidden pt-[env(safe-area-inset-top)]">
+    <div ref={racine} data-testid="adventum-ia" className="adventum-ia aia-coque fixed inset-0 flex overflow-hidden pt-[env(safe-area-inset-top)]">
       {/* ── LA LISTE DES CONVERSATIONS ─────────────────────────────────────────────── */}
       <div className={`${listeOuverte ? "fixed inset-0 z-40 flex" : "hidden"} lg:static lg:z-auto lg:flex lg:w-[260px] lg:shrink-0 lg:border-r lg:border-[var(--aia-filet)]`}>
         {listeOuverte && <button type="button" aria-label="Fermer la liste" onClick={() => setListeOuverte(false)} className="absolute inset-0 bg-slate-950/40 lg:hidden" />}
