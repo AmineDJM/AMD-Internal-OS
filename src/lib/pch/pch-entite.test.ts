@@ -163,7 +163,7 @@ suite("PCH — un marché ne sort pas de sa société", () => {
     const porte = fiche.indexOf('canAccessEntity(user, "PCH_TENDER", params.id, "VIEW")');
     expect(porte).toBeGreaterThan(0);
     expect(porte).toBeLessThan(fiche.indexOf("getPchTenderDetail(params.id)"));
-    const route = readFileSync("src/app/api/pch/export/route.ts", "utf8");
+    const route = readFileSync("src/lib/exports/appel-d-offres.ts", "utf8");
     const porteExport = route.indexOf('canAccessEntity(user, "PCH_TENDER", id, "VIEW")');
     expect(porteExport).toBeGreaterThan(0);
     expect(porteExport).toBeLessThan(route.indexOf("prisma.pchTender.findUnique"));

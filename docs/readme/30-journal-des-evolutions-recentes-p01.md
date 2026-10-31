@@ -29,6 +29,18 @@ mots, propose les cases facultatives, récapitule et demande « Tu confirmes ? �
 serveur juge son « oui » sur sa propre transcription (et le montant prononcé pour une action renforcée), puis la même garde
 que le bouton exécute ; « confirmée à l'oral » est à l'audit avec la transcription.
 
+### K7 : L'ASSISTANT FAIT CE QUE FONT LES ÉCRANS — EXPORTS DE L'ERP, ENVOI D'UN FICHIER À UN COLLÈGUE (2026-10-31)
+
+Lot K7 — `docs/assistant/decisions/0037-exports-et-gestes-d-ecran.md`. Constat de la Direction : « Envoie à Amine
+Djouamai l'Excel du suivi Regulatory » → « je ne peux pas ». Les exports étaient des ROUTES, invisibles pour l'assistant.
+**Chaque export** (14 : suivi Regulatory, budgets, pilotage, appel d'offres PCH, segmentation, demande de stocks,
+inscrits, étude de marché et sa présentation, coaching, annuaire, PDF du plan de tournée) est une fonction de la façade
+`src/lib/exports/`, appelée par la route de l'écran ET par l'outil `exporter_*` de l'assistant (même portée, mêmes
+droits, même audit). Le fichier va au Drive de la personne (« Exports ») et revient en bloc fichier + lien de
+téléchargement ; **`send_message` joint une pièce** (carte à confirmer ; la messagerie rejuge le droit de partager).
+La consigne ne dit plus « je ne peux pas » sans avoir cherché, ni sans nommer l'écran. **Inventaire** des 136 routes
+(`modules/assistant-ia/gestes-ecran.test.ts`) : une route nouvelle non classée fait échouer `npm test`. Banc réel
+(`scripts/bench/k7-exports.ts`, `amd_bench`) : le scénario de la Direction de bout en bout en 11 s, 0,023 $.
 ### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
 
 Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.
