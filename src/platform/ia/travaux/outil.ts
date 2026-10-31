@@ -24,6 +24,10 @@ export type OuvertureTravail =
 
 export const NOM_OUTIL_TRAVAIL = "lancer_un_travail";
 
+// LES OBJETS DU PLAN DÉCLARENT LEURS PROPRIÉTÉS (banc réel du 31/10/2026) : un objet sans `properties` ne laissait au
+// modèle que `{}` — six plans de suite refusés (« lots exige { etape, chemin } »), le modèle n'ayant aucune clé à écrire.
+const DELAI = { type: "object", properties: { jours: { type: "number" }, minutes: { type: "number" } } };
+
 const ETAPE = {
   type: "object",
   properties: {
@@ -34,12 +38,43 @@ const ETAPE = {
     apres: { type: "array", items: { type: "string" }, description: "Clés des étapes PRÉCÉDENTES à attendre." },
     entree: { type: "object", description: "Arguments ; « {{cle.chemin}} » lit la sortie d'une étape amont." },
     consigne: { type: "string", description: "ANALYSE / LIVRABLE : ce qu'il faut en tirer." },
-    lots: { type: "object", description: "LOTS : { etape, chemin, taille } — la liste à découper (taille 5 à 100)." },
-    pourChaque: { type: "object", description: "ANALYSE : { etape } — une analyse par lot rendu par cette étape LOTS." },
-    attente: { type: "object", description: "ATTENTE : { evenement, entite « TYPE:id », champs { statut: \"SIGNE\" }, jours, relance { jours }, escalade { jours, a: PRINCIPAL|RESPONSABLE } } ou une minuterie { jours | minutes } — délais comptés de l'APPROBATION du plan." },
-    demande: { type: "object", description: "DEMANDE (demander à une personne) : { a (nom exact ou e-mail), question, pieces [ce qu'on attend d'elle], partager [identifiants Drive à lui montrer], jours (échéance), relance { jours }, escalade { jours }, abandon { jours } } — délais comptés du DÉPÔT de la demande. Elle ne voit que la question et les pièces partagées." },
+    lots: {
+      type: "object", description: "LOTS : { etape, chemin, taille } — la liste à découper (taille 5 à 100).",
+      properties: {
+        etape: { type: "string", description: "Clé de l'étape amont qui rend la liste." },
+        chemin: { type: "string", description: "Où est la liste dans sa sortie (ex. « demandes »)." },
+        taille: { type: "number", description: "Éléments par lot (5 à 100)." },
+      },
+      required: ["etape", "chemin"],
+    },
+    pourChaque: {
+      type: "object", description: "ANALYSE : { etape } — une analyse par lot rendu par cette étape LOTS.",
+      properties: { etape: { type: "string", description: "Clé de l'étape LOTS." } },
+      required: ["etape"],
+    },
+    attente: {
+      type: "object", description: "ATTENTE : { evenement, entite « TYPE:id », champs { statut: \"SIGNE\" }, jours, relance { jours }, escalade { jours, a: PRINCIPAL|RESPONSABLE } } ou une minuterie { jours | minutes } — délais comptés de l'APPROBATION du plan.",
+      properties: {
+        evenement: { type: "string" }, entite: { type: "string", description: "« TYPE:id »." },
+        champs: { type: "object", properties: { statut: { type: "string" } } },
+        jours: { type: "number" }, minutes: { type: "number" }, relance: DELAI,
+        escalade: { type: "object", properties: { jours: { type: "number" }, minutes: { type: "number" }, a: { type: "string", enum: ["PRINCIPAL", "RESPONSABLE"] } } },
+      },
+    },
+    demande: {
+      type: "object", description: "DEMANDE (demander à une personne) : { a (nom exact ou e-mail), question, pieces [ce qu'on attend d'elle], partager [identifiants Drive à lui montrer], jours (échéance), relance { jours }, escalade { jours }, abandon { jours } } — délais comptés du DÉPÔT de la demande. Elle ne voit que la question et les pièces partagées.",
+      properties: {
+        a: { type: "string" }, question: { type: "string" },
+        pieces: { type: "array", items: { type: "string" } }, partager: { type: "array", items: { type: "string" } },
+        jours: { type: "number" }, minutes: { type: "number" }, relance: DELAI, escalade: DELAI, abandon: DELAI,
+      },
+    },
     format: { type: "string", enum: ["docx", "pdf", "xlsx", "md"], description: "LIVRABLE : le document déposé au Drive de la personne (défaut docx ; xlsx pour des tableaux ; md = au carnet seulement)." },
-    si: { type: "object", description: "{ etape, issue: EVENT|TIMEOUT|DONE|FAILED|SKIPPED } — ne part que si l'étape s'est terminée ainsi (relance : TIMEOUT)." },
+    si: {
+      type: "object", description: "{ etape, issue: EVENT|TIMEOUT|DONE|FAILED|SKIPPED } — ne part que si l'étape s'est terminée ainsi (relance : TIMEOUT).",
+      properties: { etape: { type: "string" }, issue: { type: "string", enum: ["EVENT", "TIMEOUT", "DONE", "FAILED", "SKIPPED"] } },
+      required: ["etape", "issue"],
+    },
   },
   required: ["cle", "titre", "type"],
 };
@@ -92,7 +127,7 @@ export function outilLancerUnTravail(principalId: string, ouvrir: (plan: unknown
       }
       return JSON.stringify({
         statut: "EN_ATTENTE_D_APPROBATION", travailId: r.travailId, etapes: r.etapes, gestes: r.gestes, plafondUsd: r.plafondUsd,
-        consigne: "Rien n'a démarré : dis à la personne que le plan l'attend dans le panneau « Travaux » (bouton « Approuver le plan »), avec le nombre d'étapes, les gestes qu'elle autorisera et le plafond. Ne dis jamais que c'est fait.",
+        consigne: "Rien n'a démarré : dis à la personne que le plan l'attend dans le panneau « Travaux » (bouton « Approuver le plan »), avec le nombre d'étapes, les gestes qu'elle autorisera et le plafond. Ne dis jamais que c'est fait. Le plan est proposé : ne rappelle pas l'outil pour le reformuler (un nouvel appel REMPLACE ce plan).",
       });
     },
   };

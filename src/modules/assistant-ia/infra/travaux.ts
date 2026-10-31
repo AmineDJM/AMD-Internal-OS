@@ -13,7 +13,7 @@ import { genererTexte } from "./generer";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import { PLAFOND_MENSUEL_DEFAUT_USD, PLAFOND_TRAVAIL_DEFAUT_USD } from "@/lib/missions/travaux/plan";
 import type { PersonaTravaux, PieceTravail, PlafondsTravail, PortPiecesTravail } from "@/lib/missions/travaux/persona";
-import { proposerTravail, responsableDe } from "@/lib/missions/travaux/service";
+import { annulerTravail, proposerTravail, responsableDe } from "@/lib/missions/travaux/service";
 import { recordAudit } from "@/lib/audit";
 import { executerHorsRequete, journaliserGeste } from "@/platform/ia/hors-requete";
 import { droitsSurDocument } from "@/platform/ia/artifact/ports";
@@ -233,9 +233,19 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
 
 /** L'outil « lancer_un_travail » du tour — le socle le décrit, le moteur des travaux l'exécute pour CETTE personne. */
 export function outilTravailPour(user: CurrentUser): OutilTravail {
+  // UN TOUR, UN PLAN (banc réel du 31/10/2026) : le modèle rappelait l'outil pour « corriger » un plan déjà accepté —
+  // cinq plans en attente d'approbation dans le panneau pour une seule demande. L'outil est construit à chaque tour
+  // (`fil/tour.ts`) : le plan qu'il a proposé ici est REMPLACÉ par le suivant, tant que la personne ne l'a pas approuvé.
+  let proposeCeTour: string | null = null;
   return outilLancerUnTravail(user.id, async (plan) => {
     const r = await proposerTravail(user.id, PERSONA_ASSISTANT_IA, plan, { origine: "assistant-ia:conversation" });
-    return r.ok ? { ok: true, travailId: r.travailId, etapes: r.plan.etapes.length, gestes: r.gestes.map((g) => g.libelle), plafondUsd: r.plafondUsd } : r;
+    if (!r.ok) return r;
+    const remplace = proposeCeTour;
+    proposeCeTour = r.travailId;
+    if (remplace && (await prisma.mission.count({ where: { id: remplace, principalId: user.id, status: "AWAITING_APPROVAL" } }))) {
+      await annulerTravail(remplace, user.id);
+    }
+    return { ok: true, travailId: r.travailId, etapes: r.plan.etapes.length, gestes: r.gestes.map((g) => g.libelle), plafondUsd: r.plafondUsd };
   }, "LECTURE : le nom exact d'un de tes outils de lecture ; GESTE : le nom exact d'un de tes outils « preparer_… » / de relance / de rendez-vous.");
 }
 

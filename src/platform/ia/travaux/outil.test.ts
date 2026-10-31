@@ -31,4 +31,15 @@ describe("l'outil « lancer_un_travail » (socle IA, J2)", () => {
       expect(fs.readFileSync(`src/platform/ia/travaux/${f}`, "utf8"), f).not.toMatch(/^\s*import\s/m);
     }
   });
+
+  it("chaque objet d'une étape DÉCLARE ses propriétés — sans elles, le modèle ne pouvait écrire que « {} » (banc réel du 31/10/2026)", () => {
+    const outil = outilLancerUnTravail("p", async () => ({ ok: false, fautes: [] }));
+    const etape = (outil.def.input_schema as { properties: { etapes: { items: { properties: Record<string, { type?: string; properties?: object }> } } } })
+      .properties.etapes.items.properties;
+    // `entree` reste libre : ses clés sont les arguments de l'outil de lecture choisi.
+    const muets = Object.entries(etape).filter(([cle, s]) => s.type === "object" && !s.properties && cle !== "entree").map(([cle]) => cle);
+    expect(muets).toEqual([]);
+    expect(Object.keys((etape.lots as { properties: object }).properties)).toEqual(expect.arrayContaining(["etape", "chemin"]));
+  });
 });
+
