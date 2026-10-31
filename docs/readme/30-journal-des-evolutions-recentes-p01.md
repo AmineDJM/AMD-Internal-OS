@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### L'ARGENT RÉVERSIBLE — « Annuler » sur toute action d'argent (K10a, 2026-10-31)
+
+« Toute action qui a été faite peut être réversible » (Direction). Les 62 actions d'argent classées « sans annulation »
+(finance, trésorerie, paiements, caisse, paie, factures, budgets, fournisseurs) — et 45 autres des mêmes fichiers — se
+défont désormais d'un geste : le journal des effets J7 s'ouvre aux actions faites à l'écran (`annulable`), un bandeau
+« Annuler » apparaît deux minutes après l'action (puis l'historique `/assistant/gestes`), et le compte rendu dit effet par
+effet ce qui est défait, compensé ou impossible. **Rien ne s'efface dans le livre** : une écriture réalisée est
+contre-passée (montant opposé, datée, liée), un paiement parti laisse une écriture « à récupérer », l'ordre redevient
+dû ; l'annulation se rétablit. Migration `20270217100000_k10a_compensation_ecritures`. Décision
+[0035](../assistant/decisions/0035-argent-reversible.md).
+
 ### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
 
 Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.
