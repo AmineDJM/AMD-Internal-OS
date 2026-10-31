@@ -51,5 +51,9 @@ describe("mode d'application — Adventum IA", () => {
     const src = fs.readFileSync("src/middleware.ts", "utf8");
     expect(src).toMatch(/process\.env\.APP_MODE !== MODE_ADVENTUM_IA\) return NextResponse\.next\(\)/);
   });
+
+  it("l'app /ia porte le gestionnaire d'envois — le dépôt de dossier (J11) en dépend ; sans lui, plantage au premier rendu", () => {
+    expect(fs.readFileSync("src/app/ia/page.tsx", "utf8")).toMatch(/<BackgroundUploadProvider>\s*<AdventumIaApp/);
+  });
 });
 

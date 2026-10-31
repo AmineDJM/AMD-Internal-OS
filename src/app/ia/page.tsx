@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { AdventumIaApp } from "@/modules/assistant-ia/ecrans/app/adventum-ia-app";
+import { BackgroundUploadProvider } from "@/components/layout/background-upload";
 
 export const dynamic = "force-dynamic";
 
@@ -27,5 +28,11 @@ export default async function AdventumIaPage() {
       </main>
     );
   }
-  return <AdventumIaApp userName={user.name} />;
+  // Le gestionnaire d'envois de l'ERP (`(app)/layout.tsx`) : le dépôt de dossier (J11) y téléverse en arrière-plan.
+  // Sans lui, l'app plantait au premier rendu (« useBackgroundUpload doit être utilisé dans <BackgroundUploadProvider> »).
+  return (
+    <BackgroundUploadProvider>
+      <AdventumIaApp userName={user.name} />
+    </BackgroundUploadProvider>
+  );
 }
