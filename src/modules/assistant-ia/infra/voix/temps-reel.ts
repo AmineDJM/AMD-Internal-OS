@@ -30,7 +30,9 @@ import { deposerMessage, ETAT, filDe, traiterFil } from "../fil/service";
 
 export const VOIX_ASSISTANT = (process.env.ASSISTANT_IA_VOICE || "marin").trim();
 /** Le temps qu'on attend la réponse de l'assistant délégué (un tour d'outils peut prendre 20 à 40 s). */
-export const DELAI_DELEGATION_MS = 45_000;
+// 31/10/2026 : 70 s — une question d'actualité (recherche web rapide, plusieurs sources) dépasse 45 s ; la voix dit
+// « je regarde » pendant ce temps plutôt que de renvoyer à l'écran.
+export const DELAI_DELEGATION_MS = 70_000;
 
 export type OuvertureVoix = SessionLiveOuverte | { ok: false; erreur: string; statut: number };
 
@@ -83,7 +85,7 @@ export function reponsePourVoix(contenu: string): string {
 
 /**
  * DÉLÉGUER UNE DEMANDE DITE à l'assistant — par le FIL (le même que le texte) : la demande y est déposée, le fil la
- * joue, on attend sa réponse (45 s au plus ; au-delà, la voix dit que la réponse arrivera à l'écran).
+ * joue, on attend sa réponse (70 s au plus ; au-delà, la voix dit que la réponse arrivera à l'écran).
  */
 export async function deleguerALaVoix(user: CurrentUser, demande: string, conversation?: string | null): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);

@@ -65,6 +65,7 @@ export const WEB_RESEARCH_TOOLS: PowerTool[] = [
         properties: {
           query: { type: "string", description: "La question à instruire sur le web, formulée précisément." },
           contexte: { type: "string", description: "Contexte connu (produit, pays, période) pour orienter la recherche." },
+          rapide: { type: "boolean", description: "true pour une réponse courte en ~20 s (conversation VOCALE, question simple) ; par défaut, recherche complète." },
         },
         required: ["query"],
       },
@@ -89,12 +90,14 @@ export const WEB_RESEARCH_TOOLS: PowerTool[] = [
 
       // 31/10/2026 (Direction : « des recherches aussi bonnes que ChatGPT ») : réflexion MOYENNE (plusieurs recherches,
       // sources croisées) et une synthèse COMPLÈTE — l'ancien plafond de 1 400 jetons rendait une page courte.
+      // La VOIX attend 45 s au plus (`deleguerALaVoix`) : le mode rapide garde l'ancien réglage, court.
+      const rapide = input.rapide === true;
       const reply = await callModel("worker", [{ role: "user", content: prompt }], {
         webSearch: true,
-        reasoning: "medium",
-        verbosity: "high",
-        maxOutputTokens: 4_500,
-        timeoutMs: 180_000,
+        reasoning: rapide ? "low" : "medium",
+        verbosity: rapide ? "medium" : "high",
+        maxOutputTokens: rapide ? 1_400 : 4_500,
+        timeoutMs: rapide ? 60_000 : 180_000,
       });
 
       if (!reply.configured) return "La recherche web est indisponible : clé du fournisseur non configurée.";
