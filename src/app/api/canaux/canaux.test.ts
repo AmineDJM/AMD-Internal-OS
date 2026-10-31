@@ -186,7 +186,7 @@ suite("K6 — pièces reçues par WhatsApp et par mail, dans le contexte de la c
     const pieces = q.pieces as { id: string; nom: string }[];
     expect(pieces[0]!.nom).toBe("Lettre Dr Mansouri.pdf");
     const rep = tours.find((t) => t.repondA === q.id)!;
-    expect(rep.contenu).toContain("J'ai reçu lettre de demande du Dr Mansouri par WhatsApp");
+    expect(rep.contenu).toContain("J'ai reçu par WhatsApp la pièce attendue — lettre de demande du Dr Mansouri");
     expect(rep.contenu).toContain(`Je l'ajoute à ${spoRef}`);
     const intent = rep.intent as { id: string; title: string; status: string };
     expect(intent.status).toBe("PROPOSED");

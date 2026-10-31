@@ -86,7 +86,7 @@ describe("K6 — l'attente de pièces (règles pures)", () => {
 
   it("ce que l'assistant dit : la pièce, la question, et chaque refus", () => {
     const avec = messageDeReception({ canal: "WHATSAPP", noms: ["Lettre.pdf"], description: "lettre du Dr Mansouri", cibleLibelle: "SP-7", carte: true, confidentiel: false, refusees: [] });
-    expect(avec).toContain("J'ai reçu lettre du Dr Mansouri par WhatsApp");
+    expect(avec).toContain("J'ai reçu par WhatsApp la pièce attendue — lettre du Dr Mansouri (« Lettre.pdf »)");
     expect(avec).toContain("Je l'ajoute à SP-7 ?");
     const sans = messageDeReception({ canal: "MAIL", noms: ["x.pdf"], carte: false, confidentiel: true, refusees: ["« y.exe » (format refusé)"] });
     expect(sans).toContain("À quoi la rattacher ?");

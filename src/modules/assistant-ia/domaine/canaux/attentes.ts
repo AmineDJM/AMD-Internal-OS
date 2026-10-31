@@ -163,7 +163,9 @@ export function messageDeReception(d: {
   const quoi = d.description?.trim() ? d.description.trim() : d.noms.length > 1 ? `${d.noms.length} pièces` : `« ${d.noms[0] ?? "la pièce"} »`;
   const lignes: string[] = [];
   if (d.noms.length) {
-    lignes.push(`J'ai reçu ${quoi} par ${canal}${d.description && d.noms.length ? ` (« ${d.noms.join(" », « ")} »)` : ""} ; elle est dans votre Drive (dossier « Assistant IA — pièces reçues »).`);
+    lignes.push(d.description?.trim()
+      ? `J'ai reçu par ${canal} la pièce attendue — ${quoi} (« ${d.noms.join(" », « ")} ») ; elle est dans votre Drive (dossier « Assistant IA — pièces reçues »).`
+      : `J'ai reçu ${quoi} par ${canal} ; elle est dans votre Drive (dossier « Assistant IA — pièces reçues »).`);
     if (d.carte && d.cibleLibelle) lignes.push(`Je l'ajoute à ${d.cibleLibelle} ? Confirmez la carte ci-dessous.`);
     else if (d.description) lignes.push("Où dois-je la ranger dans l'ERP ? Donnez-moi la fiche (référence ou nom).");
     else lignes.push("À quoi la rattacher ?");
