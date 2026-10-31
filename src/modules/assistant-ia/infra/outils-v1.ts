@@ -130,7 +130,8 @@ const filtre = (
     const sortie = coffret && revelerAuModele ? await revelerAuModele(jetonnee) : jetonnee;
     journal?.push(sortie);
     // K1 (décision 0031) : ce qu'une LECTURE a rendu (déjà jetonné) devient un jeu que `analyser_donnees` peut calculer.
-    if (analyse && !(OUTILS_ANALYSE as readonly string[]).includes(outil.def.name)) analyse.jeux.noter(outil.def.name, sortie);
+    // Le JEU garde la sortie jetonnée (même en mode « en clair ») : l'analyse masque ses colonnes confidentielles elle-même.
+    if (analyse && !(OUTILS_ANALYSE as readonly string[]).includes(outil.def.name)) analyse.jeux.noter(outil.def.name, jetonnee);
     const pourModele = sortiePourModele(outil.def.name, sortie);
     // J14 : ce que le tour a lu d'un tiers (encadré) ou de l'ERP — la carte dira ce qui vient d'un tiers.
     provenance?.noter(pourModele);
