@@ -412,6 +412,20 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   deterministic name. **Robustness** `robustesse.test.ts`: real child processes (`scripts/bench/travail-processus.ts`)
   SIGKILLed 10× over a 3-week fake-clock travail, plus web + worker processes racing on one travail.
 
+- **Sous-missions K3 (31/10/2026)** [V] decision `docs/assistant/decisions/0033-sous-missions.md`. `lancer_un_travail` gains
+  `remplace` (replace a plan of THIS turn; same normalised title also replaces) and `parent` (`Mission.parentMissionId`, own
+  travaux only, kept through `approuverTravail`). Several travaux per turn are kept and stored on the turn
+  (`AssistantIaTour.travaux`). `balayage.ts` / `reveil.ts` conduct travaux concurrently (`enParallele`, `TRAVAUX_EN_PARALLELE`
+  default 4), each under its own lease; approval signals the fast wake. **Auto-start** `demarrerDOffice` for plans whose steps
+  are all LECTURE/LOTS/ANALYSE/LIVRABLE with no geste (`regles.planSansGeste`): preference `AssistantIaPreference` > console
+  `AssistantIaAcces.travauxDOffice` > SUPER_ADMIN default; journal `TRAVAIL_DOFFICE`. **Synthesis** `persona.surFin` (called by
+  `conduite.ts` on completion) → `assistant-ia/infra/sous-missions.ts conclureSousMissions` → `fil/service.deposerSynthese`
+  (unique `syntheseDe`, notification), fallback task `assistant.sous-missions`. **Dashboard** `travaux/tableau.ts`
+  (`tableauDesTravaux`, cheap `signatureTableau` aggregate) streamed by SSE `app/api/assistant-ia/missions/flux` (1 s signature
+  poll server-side, 15 s heartbeat, close at 4 min 30, client fallback 3 s poll) → `ecrans/missions/*` (shared by `/ia` and
+  `/assistant`). **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
+  files too.
+
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
   `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
   (reads the view to locate targets, e.g. every PPTX shape holding a text) and computes `zonesModifiees` (content-based diff for

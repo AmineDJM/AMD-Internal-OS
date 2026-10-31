@@ -70,3 +70,14 @@ export function motifPlafond(p: {
   if (p.jourAtteint) return "plafond de jetons du jour atteint — le travail reprendra demain";
   return null;
 }
+
+/** K3 (décision 0033) : les types d'étape qui ne TOUCHENT rien — lire, découper, analyser, déposer un livrable chez soi. */
+export const TYPES_SANS_GESTE: readonly string[] = ["LECTURE", "LOTS", "ANALYSE", "LIVRABLE"];
+
+/**
+ * UN PLAN SANS GESTE — aucune écriture métier, aucune demande à un collègue, aucune attente : il peut démarrer sans
+ * clic si la personne l'a réglé. Tout le reste (geste, demande, attente) reste approuvé à la main.
+ */
+export function planSansGeste(plan: { etapes: readonly { type: string }[] }, gestes: readonly unknown[]): boolean {
+  return gestes.length === 0 && plan.etapes.length > 0 && plan.etapes.every((e) => TYPES_SANS_GESTE.includes(e.type));
+}

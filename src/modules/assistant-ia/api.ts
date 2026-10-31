@@ -70,6 +70,11 @@ export {
   declinerDemande, equipeVisible, lireTravailEquipe, listerDemandesRecues, listerTravauxEquipe, PIECES_TRAVAUX, reglerPrioriteTravail, repondreDemande,
   type DemandeRecue, type EtapeVue, type TravailDEquipe,
 } from "./infra/travaux";
+// ── K3 (décision 0033) : sous-missions en arrière-plan, synthèse dans la conversation, tableau de bord en temps réel
+export {
+  annulerMissionEtSousMissions, balayerSousMissions, conclureSousMissions, lirePreferenceDOffice, reglerPreferenceDOffice, signatureTableau, tableauDesMissions, travauxDOfficePour,
+  type MissionDuTableau, type TableauDesMissions,
+} from "./infra/sous-missions";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";
