@@ -241,9 +241,20 @@ export function composerAnalyse(d: DemandeAnalyse): { bloc: BlocAnalyseForme; re
     ? colonnes.map((c, j) => (additive(c) && j > 0 ? matrice.reduce((acc, r) => acc + (typeof r[j] === "number" ? (r[j] as number) : 0), 0) : null))
     : null;
 
+  // LES DATES SE LISENT EN DATES sur l'axe : un horodatage SQL (« 2026-01-01T00:00:00.000Z ») devient « 2026-01-01 », et
+  // « 2026-01 » quand toutes tombent le 1er du mois (une série mensuelle) — mesuré sur serveur réel : « 2026-01-01T… ».
+  const colonnesDates = colonnes.filter((c) => c.format === "date").map((c) => c.cle);
+  const pourGraphique = colonnesDates.length ? lignes.map((l) => {
+    const o: Ligne = { ...l };
+    for (const k of colonnesDates) { const dt = versDate(l[k]); if (dt) o[k] = dt.toISOString().slice(0, 10); }
+    return o;
+  }) : lignes;
+  for (const k of colonnesDates) {
+    if (pourGraphique.every((l) => typeof l[k] !== "string" || /-01$/.test(l[k] as string))) for (const l of pourGraphique) if (typeof l[k] === "string") l[k] = (l[k] as string).slice(0, 7);
+  }
   const demandes = (d.graphiques?.length ? d.graphiques : [null]).slice(0, ANALYSE_GRAPHIQUES_MAX);
   const graphiques = lignes.length >= 2
-    ? demandes.map((g) => graphique(lignes, g, d.question ?? "", d.titre, formats)).filter((g): g is GraphiqueAnalyse => g !== null)
+    ? demandes.map((g) => graphique(pourGraphique, g, d.question ?? "", d.titre, formats)).filter((g): g is GraphiqueAnalyse => g !== null)
     : [];
 
   const resultats = Object.entries(d.pipeline?.resultats ?? {}).flatMap(([k, v]) => grandeurDuResultat(k, v));

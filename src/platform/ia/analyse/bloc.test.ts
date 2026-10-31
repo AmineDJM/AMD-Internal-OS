@@ -77,6 +77,13 @@ describe("composerAnalyse — des lignes calculées au bloc", () => {
     expect(a.bloc.graphiques[0].donnees.series?.map((x) => x.label)).toEqual(["valeur"]);
   });
 
+  it("un horodatage SQL se lit en mois sur l'axe d'une série mensuelle", () => {
+    const lignes = [{ mois: "2026-01-01T00:00:00.000Z", ca: 10 }, { mois: "2026-02-01T00:00:00.000Z", ca: 20 }, { mois: "2026-03-01T00:00:00.000Z", ca: 15 }];
+    const a = composerAnalyse({ titre: "CA", source: "s", sources: [], lignes, moteur: "t" });
+    expect(a.bloc.graphiques[0].donnees.categories).toEqual(["2026-01", "2026-02", "2026-03"]);
+    expect(a.bloc.lignes[0][0]).toBe("2026-01-01");
+  });
+
   it("formatDe : un taux est un pourcentage, un texte reste un texte, une date ISO une date", () => {
     expect(formatDe("taux_consommation", [12.5, 40])).toBe("pourcent");
     expect(formatDe("statut", ["PAYE", "EN_ATTENTE"])).toBe("texte");
