@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { decisionMode, MODE_ADVENTUM_IA, pageApresConnexion } from "./app-mode";
 
@@ -41,4 +42,14 @@ describe("mode d'application — Adventum IA", () => {
     expect(pageApresConnexion(MODE_ADVENTUM_IA)).toBe("/ia");
     expect(pageApresConnexion(undefined)).toBe("/mon-espace");
   });
+
+  it("le middleware est LÀ OÙ NEXT LE LIT — `src/middleware.ts` (l'App Router vit dans `src/app`) — et ne s'applique qu'au mode app", () => {
+    // 31/10/2026 : il était à la racine du dépôt — jamais compilé, le site Adventum IA servait l'ERP entier.
+    expect(fs.existsSync("src/app")).toBe(true);
+    expect(fs.existsSync("src/middleware.ts")).toBe(true);
+    expect(fs.existsSync("middleware.ts")).toBe(false);
+    const src = fs.readFileSync("src/middleware.ts", "utf8");
+    expect(src).toMatch(/process\.env\.APP_MODE !== MODE_ADVENTUM_IA\) return NextResponse\.next\(\)/);
+  });
 });
+

@@ -1,11 +1,41 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import { LoginForm } from "./login-form";
+import { MODE_ADVENTUM_IA } from "@/platform/app-mode";
+import { METADONNEES_ADVENTUM_IA } from "@/app/ia/metadonnees";
 
-export const metadata: Metadata = {
-  title: "Connexion — AMD Internal OS",
-};
+// Le même build sert l'ERP et Adventum IA : la page lit son mode au moment de la requête.
+export const dynamic = "force-dynamic";
+
+const modeApp = () => process.env.APP_MODE === MODE_ADVENTUM_IA;
+
+export function generateMetadata(): Metadata {
+  return modeApp() ? { ...METADONNEES_ADVENTUM_IA, title: "Connexion — Adventum IA" } : { title: "Connexion — AMD Internal OS" };
+}
+
+/**
+ * ADVENTUM IA (`APP_MODE=adventum-ia`) — la connexion porte le nom, le logo et le bleu de l'app (charte Adventum) :
+ * mêmes comptes que l'ERP, mais la personne sait où elle entre. L'ERP garde sa page, inchangée.
+ */
+function ConnexionAdventumIa() {
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center bg-[#f5f8fc] px-6 dark:bg-[#08111f]">
+      <div className="w-full max-w-sm space-y-8">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <Image src="/adventum-ia/logo-marque.png" alt="" width={64} height={64} priority />
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-[#2c59a7] dark:text-[#7fa6e3]">Adventum IA</h1>
+            <p className="text-sm text-muted-foreground">L&apos;assistant d&apos;Adventum Pharma — connectez-vous avec votre compte habituel.</p>
+          </div>
+        </div>
+        <LoginForm />
+      </div>
+    </div>
+  );
+}
 
 export default function LoginPage() {
+  if (modeApp()) return <ConnexionAdventumIa />;
   return (
     <div className="flex min-h-screen">
       {/* Brand panel */}

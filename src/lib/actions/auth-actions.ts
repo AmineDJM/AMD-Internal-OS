@@ -8,6 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { effacerVueExacte } from "@/lib/vue-exacte";
 import { checkLockout, clearAttempts, cleChangementMotDePasse, recordFailure } from "@/lib/login-throttle";
 import { sansBloquer } from "@/lib/journal";
+import { pageApresConnexion } from "@/platform/app-mode";
 
 /** Server action used by the login form. Returns an error string on failure. */
 export async function authenticate(
@@ -22,7 +23,8 @@ export async function authenticate(
     await signIn("credentials", {
       email: String(formData.get("email") ?? ""),
       password: String(formData.get("password") ?? ""),
-      redirectTo: "/mon-espace",
+      // Adventum IA (`APP_MODE`) : la connexion mène à l'app, l'adresse le dit (le middleware y renvoyait déjà).
+      redirectTo: pageApresConnexion(process.env.APP_MODE),
     });
   } catch (error) {
     // signIn throws a NEXT_REDIRECT on success — let it propagate.
