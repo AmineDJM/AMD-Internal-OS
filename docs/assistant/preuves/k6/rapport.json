@@ -1,0 +1,97 @@
+{
+  "resultats": [
+    {
+      "ecran": "iphone13",
+      "attenteOuverteParLeModele": true,
+      "attenteOuverte": true,
+      "attente": "lettre de demande du Dr Mansouri",
+      "cible": "SP-K6-001 — Service de cardiologie — CHU Mustapha",
+      "webhook": {
+        "statut": 200,
+        "corps": {
+          "ok": true,
+          "issues": [
+            "RECUE"
+          ]
+        }
+      },
+      "rangeeDansLaDemande": true,
+      "erreursConsole": []
+    },
+    {
+      "ecran": "bureau",
+      "attenteOuverteParLeModele": true,
+      "attenteOuverte": true,
+      "attente": "lettre de demande du Dr Mansouri",
+      "cible": "SP-K6-001 — Service de cardiologie — CHU Mustapha",
+      "webhook": {
+        "statut": 200,
+        "corps": {
+          "ok": true,
+          "issues": [
+            "RECUE"
+          ]
+        }
+      },
+      "rangeeDansLaDemande": true,
+      "erreursConsole": []
+    }
+  ],
+  "inconnu": {
+    "statut": 200,
+    "corps": {
+      "ok": true,
+      "issues": [
+        "REFUS_INCONNU"
+      ]
+    }
+  },
+  "courrier": {
+    "statut": 200,
+    "corps": {
+      "ok": true,
+      "assistant": "RECUE"
+    }
+  },
+  "reponsesWhatsApp": [
+    "Bien reçu — la pièce est dans votre conversation avec l'Assistant IA.",
+    "Bien reçu — la pièce est dans votre conversation avec l'Assistant IA.",
+    "Bonjour, ce numéro n'est pas reconnu par l'assistant d'Adventum Pharma : rien n'a été enregistré. Si vous êtes collaborateur, faites ajouter ce numéro à votre fiche dans l'ERP."
+  ],
+  "journal": [
+    {
+      "canal": "WHATSAPP",
+      "issue": "RECUE",
+      "expediteur": "+213•••••2287",
+      "nom": "Lettre Dr Mansouri iphone13.pdf"
+    },
+    {
+      "canal": "WHATSAPP",
+      "issue": "RECUE",
+      "expediteur": "+213•••••2287",
+      "nom": "Lettre Dr Mansouri bureau.pdf"
+    },
+    {
+      "canal": "WHATSAPP",
+      "issue": "REFUS_INCONNU",
+      "expediteur": "+213•••••0111",
+      "nom": null
+    },
+    {
+      "canal": "MAIL",
+      "issue": "RECUE",
+      "expediteur": "s•••@adventum-bench.dz",
+      "nom": "Programme du congrès.pdf"
+    }
+  ],
+  "modele": {
+    "appels": 6,
+    "jetonsEntree": 26295,
+    "jetonsSortie": 397,
+    "coutUsd": 0.0344,
+    "modeles": [
+      "gpt-6.1-terra",
+      "gpt-6-luna"
+    ]
+  }
+}

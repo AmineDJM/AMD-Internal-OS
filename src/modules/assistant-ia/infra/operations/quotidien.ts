@@ -10,7 +10,7 @@ import type { CurrentUser } from "@/lib/session";
 import { champs, liste, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";
 import { replier } from "./annuaire-medical";
-import { trouverDemande } from "./demandes-visibles";
+import { demandeParId, estNatureDemande, trouverDemande } from "./demandes-visibles";
 import { dateIso } from "./adpro-prise-en-charge";
 
 /**
@@ -99,6 +99,8 @@ const CATEGORIES = Object.entries(DOCUMENT_CATEGORY) as [string, string][];
 async function ficheOuDemande(user: CurrentUser, type: string, id: string, demande: string, nature: string) {
   if (!type && !id) return trouverDemande(user, demande, nature);
   const t = type.trim().toUpperCase();
+  // K6 : une demande Ad & Pro désignée par son identifiant (attente de pièces) — son libellé et son lien, si elle est visible.
+  if (estNatureDemande(t) && id.trim()) return (await demandeParId(user, t, id)) ?? { manque: "une demande que vous pouvez voir (celle-ci ne vous est pas accessible)" };
   const libelle = ENTITY_TYPE_LABELS[t as keyof typeof ENTITY_TYPE_LABELS];
   if (!libelle) return { manque: `le type de la fiche (« ${type || "?"} » inconnu)` };
   if (!id.trim()) return { manque: "l'identifiant de la fiche" };
@@ -122,6 +124,7 @@ export const DEPOT_PIECE: OperationIA = {
       categorie: { type: "string", description: "Catégorie (ex. Lettre de demande, Facture, Devis, Autre)." },
       typeFiche: { type: "string", description: "Hors Ad & Pro : le type de la fiche (TASK, DOSSIER, MAIL_ENTRY, EMPLOYEE…)." },
       idFiche: { type: "string", description: "Hors Ad & Pro : l'identifiant de la fiche (lu par une recherche)." },
+      confidentiel: { type: "string", description: "« oui » pour une pièce sensible (RH, identité, banque, paie) : rangée en confidentiel." },
     },
   },
   ouverte: (u) => Boolean(u.id),
@@ -137,13 +140,15 @@ export const DEPOT_PIECE: OperationIA = {
     if ("erreur" in pieces) return { erreur: pieces.erreur };
     const k = replier(texte(e, "categorie"));
     const cat = (k && CATEGORIES.find(([, l]) => replier(l).includes(k))?.[0]) || "OTHER";
+    // K6 : une pièce sensible (RH, identité, banque, paie) se range en CONFIDENTIEL — jamais l'inverse sur demande du modèle.
+    const confidentiel = /^(oui|true|1|confidentiel)/i.test(texte(e, "confidentiel"));
     return {
       carte: {
         title: `Déposer ${pieces.length > 1 ? `${pieces.length} pièces` : "une pièce"} — ${d.libelle}`,
-        fields: champs([["Demande", d.libelle], ["Pièce(s)", pieces.map((p) => p.nom).join(", ")], ["Catégorie", DOCUMENT_CATEGORY[cat] ?? "Autre"]]),
+        fields: champs([["Demande", d.libelle], ["Pièce(s)", pieces.map((p) => p.nom).join(", ")], ["Catégorie", DOCUMENT_CATEGORY[cat] ?? "Autre"], ["Confidentialité", confidentiel ? "Confidentiel" : null]]),
         warnings: ["Le contenu est copié dans la bibliothèque de la demande (le fichier du Drive reste intact) ; votre droit de déposer y est revérifié."],
       },
-      args: { entityType: d.nature, entityId: d.id, category: cat, pieces: JSON.stringify(pieces.map((p) => p.id)), lien: d.lien },
+      args: { entityType: d.nature, entityId: d.id, category: cat, pieces: JSON.stringify(pieces.map((p) => p.id)), lien: d.lien, ...(confidentiel ? { confidentiality: "CONFIDENTIAL" } : {}) },
     };
   },
 
@@ -156,6 +161,7 @@ export const DEPOT_PIECE: OperationIA = {
       fd.set("entityType", a.entityType ?? "");
       fd.set("entityId", a.entityId ?? "");
       fd.set("category", a.category ?? "OTHER");
+      if (a.confidentiality === "CONFIDENTIAL") fd.set("confidentiality", "CONFIDENTIAL");
       fd.set("file", f);
       const r = await uploadDocument(undefined, fd);
       if (!r.ok) return { ok: false, error: `${deposes ? `${deposes} pièce(s) déposée(s), puis ` : ""}« ${f.name} » refusée : ${r.error ?? "dépôt refusé"}.` };

@@ -64,6 +64,9 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
     "un événement en France, en Algérie ou ailleurs), DÉLÈGUE aussi : l'assistant cherche sur le web et rend des sources datées.",
     "Ne dis JAMAIS que tu ne peux pas vérifier l'actualité, que tu n'as pas accès à Internet ou au temps réel : délègue, dis",
     "« je regarde », puis donne la réponse en citant d'où elle vient (le nom du média ou du site, sans adresse web).",
+    // K6 (décision 0036) : « attends, je vais t'envoyer la lettre par WhatsApp » — l'assistant doit s'y attendre.
+    "Si la personne annonce qu'elle va envoyer une pièce (par WhatsApp ou par mail), ou si une pièce manque, DÉLÈGUE-le en nommant la",
+    "pièce et la demande visée : l'assistant l'attendra et la rangera par une carte à son arrivée.",
     consigneFamilles(acces), consigneGestesFermes(user),
   ].filter(Boolean).join("\n");
   const modele = modeleVoix(reglages.modeleVoix);

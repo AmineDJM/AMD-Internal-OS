@@ -87,6 +87,48 @@ export async function demandesVisibles(user: CurrentUser, q: string, natures: Na
   return out.slice(0, limite * 2);
 }
 
+/** K6 : la personne VOIT-elle cette fiche de l'ERP ? (le droit de la fiche, celui de l'écran). */
+export const ficheVisible = (user: CurrentUser, type: string, id: string): Promise<boolean> =>
+  canAccessEntity(user, type as Parameters<typeof canAccessEntity>[1], id, "VIEW");
+
+const NATURES = new Set<string>(["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "PROMO_MATERIAL", "AD_PRO_OTHER"]);
+export const estNatureDemande = (t: string): t is NatureDemande => NATURES.has(t);
+
+/**
+ * K6 (décision 0036) : UNE demande désignée par sa nature et son IDENTIFIANT (l'attente de pièces la garde ainsi) — si la
+ * personne la voit encore (même portée que la recherche), avec son libellé et son lien ; `null` sinon.
+ */
+export async function demandeParId(user: CurrentUser, nature: NatureDemande, id: string): Promise<DemandeVisible | null> {
+  if (!id.trim()) return null;
+  const parId = { id: id.trim() };
+  switch (nature) {
+    case "SPONSORING": {
+      const s = await prisma.sponsoringRequest.findFirst({ where: { AND: [scopeSponsoring(user), parId] }, select: { id: true, reference: true, institution: true } });
+      return s ? { nature, id: s.id, libelle: `${s.reference} — ${s.institution}`, lien: `/sponsoring/${s.id}` } : null;
+    }
+    case "CONGRESS_NATIONAL": {
+      const c = await prisma.congressNational.findFirst({ where: { AND: [scopeCongressNational(user), parId] }, select: { id: true, name: true } });
+      return c ? { nature, id: c.id, libelle: c.name, lien: `/congress-national/${c.id}` } : null;
+    }
+    case "CONGRESS_INTERNATIONAL": {
+      const c = await prisma.congressInternational.findFirst({ where: { AND: [scopeCongressIntl(user), parId] }, select: { id: true, name: true } });
+      return c ? { nature, id: c.id, libelle: c.name, lien: `/congress-international/${c.id}` } : null;
+    }
+    case "PROMO_MATERIAL": {
+      const p = await prisma.promoMaterial.findFirst({ where: { AND: [scopePromoMaterial(user), parId] }, select: { id: true, reference: true, title: true } });
+      return p ? { nature, id: p.id, libelle: `${p.reference} — ${p.title}`, lien: `/promo-material/${p.id}` } : null;
+    }
+    case "EVENT": {
+      const e = await prisma.event.findUnique({ where: parId, select: { id: true, name: true } });
+      return e && (await canAccessEntity(user, "EVENT", e.id, "VIEW")) ? { nature, id: e.id, libelle: e.name, lien: `/events/${e.id}` } : null;
+    }
+    case "AD_PRO_OTHER": {
+      const a = await prisma.adProOtherRequest.findUnique({ where: parId, select: { id: true, reference: true, title: true } });
+      return a && (await canAccessEntity(user, "AD_PRO_OTHER", a.id, "VIEW")) ? { nature, id: a.id, libelle: `${a.reference} — ${a.title}`, lien: `/ad-pro/autres/${a.id}` } : null;
+    }
+  }
+}
+
 /** UNE demande, ou ce qu'il faut demander : jamais un choix silencieux, jamais un nom invisible. */
 export async function trouverDemande(user: CurrentUser, q: string, nature: string): Promise<DemandeVisible | { manque: string }> {
   if (!q.trim()) return { manque: "la demande visée (sa référence ou son nom)" };

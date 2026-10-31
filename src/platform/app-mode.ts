@@ -23,6 +23,8 @@ const PERMIS = [
   "/ia", "/login", "/change-password", "/adventum-ia/", "/ia-sw.js", "/_next/", "/favicon.ico", "/office-embed",
   "/api/assistant-ia/", "/api/auth/", "/api/drive/", "/api/documents/", "/api/artifact/", "/api/push/", "/api/health",
   "/api/onlyoffice/", "/api/rh/document/",
+  // K6 (décision 0036) : les webhooks des pièces envoyées à l'assistant (WhatsApp, mail) — publics, signés, vérifiés par la route.
+  "/api/canaux/", "/api/mail/inbound",
   // Les limites d'envoi que la saisie de l'app lit au chargement (`use-limites-envoi.ts`, dépôt de dossier J11) — refusées,
   // elles faisaient deux 404 en console (constaté par K1 et K2).
   "/api/uploads/limites",
