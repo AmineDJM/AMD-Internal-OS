@@ -273,6 +273,7 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
     "src/lib/actions/regulatory-actions.ts": ["checkDciDuplicate"],
     "src/modules/ad-pro/actions-medecins.ts": ["chercherMedecinsAnnuaire"],
     "src/lib/actions/assistant-actions.ts": ["listAssistantFiles", "myAssistantThreads", "myAssistantThread", "refreshMyBrief"],
+    "src/modules/assistant-ia/actions-consommation.ts": ["lireConsommationIa"], // K8 : « ma consommation » est celle de la personne visualisée
   };
   // Lectures VOLONTAIREMENT au nom du Super Admin réel : aperçus d'une écriture qui suivra en son nom, lectures
   // OCR qui préparent une saisie, outils réservés au Super Admin.

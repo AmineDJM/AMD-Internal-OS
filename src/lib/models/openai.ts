@@ -59,6 +59,7 @@ interface OaResponse {
     prompt_tokens?: number;
     completion_tokens?: number;
     prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
   };
 }
 
@@ -328,6 +329,7 @@ export async function callOpenAi(
             inputTokens,
             outputTokens,
             cachedInputTokens: data.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+            reasoningTokens: data.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
             costUsd: costOf(binding, inputTokens, outputTokens, data.usage?.prompt_tokens_details?.cached_tokens ?? 0),
             ms: Date.now() - started,
             attempts: attempt,
@@ -452,6 +454,7 @@ export async function streamOpenAi(
   let inputTokens = 0;
   let outputTokens = 0;
   let cachedInputTokens = 0;
+  let reasoningTokens = 0;
 
   try {
     const res = await fetch(urlOpenAI("/chat/completions"), {
@@ -500,6 +503,7 @@ export async function streamOpenAi(
             inputTokens = evt.usage.prompt_tokens ?? inputTokens;
             outputTokens = evt.usage.completion_tokens ?? outputTokens;
             cachedInputTokens = evt.usage.prompt_tokens_details?.cached_tokens ?? cachedInputTokens;
+            reasoningTokens = evt.usage.completion_tokens_details?.reasoning_tokens ?? reasoningTokens;
           }
         } catch {
           /* fragment SSE illisible — on continue, le flux reste exploitable */
@@ -520,6 +524,7 @@ export async function streamOpenAi(
         inputTokens,
         outputTokens,
         cachedInputTokens,
+        reasoningTokens,
         costUsd: costOf(binding, inputTokens, outputTokens, cachedInputTokens),
         ms: Date.now() - started,
         attempts: 1,

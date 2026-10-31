@@ -28,6 +28,10 @@ import { MIMES_MEDIA, extensionDe } from "./formats";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "../ai-settings";
 import { attendu } from "@/lib/journal";
 import { cleOpenAI, urlOpenAI } from "../models/openai-acces";
+import { recordProviderCall } from "../models/telemetry";
+import { usageTranscription } from "../models/tarifs";
+
+export type UsageStt = ReturnType<typeof usageTranscription>;
 
 export interface OptionsStt {
   /** `fr` par défaut ; `auto` laisse le moteur détecter. */
@@ -37,10 +41,12 @@ export interface OptionsStt {
   env?: Record<string, string | undefined>;
   /** Un indice de vocabulaire (noms des participants, produits) — améliore la reconnaissance, n'invente rien. */
   indice?: string | null;
+  /** Journaliser l'appel (`ModelCallLog`) ici — `false` quand l'appelant le compte lui-même (le budget de l'Assistant IA). */
+  journaliser?: boolean;
 }
 
 export type ResultatStt =
-  | { ok: true; texte: string; langue: string | null; dureeS: number | null; segments: Segment[]; modele: string; ms: number; horodate: boolean }
+  | { ok: true; texte: string; langue: string | null; dureeS: number | null; segments: Segment[]; modele: string; ms: number; horodate: boolean; usage?: UsageStt }
   | { ok: false; configured: boolean; erreur: string; limite?: "RESSOURCE" };
 
 /** Les modèles qui ne rendent pas `verbose_json` (`gpt-4o-*-transcribe`, `gpt-transcribe`) : un seul segment, sans horodatage — dit dans `horodate: false`. */
@@ -77,12 +83,17 @@ export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: 
       const res = await f(urlOpenAI("/audio/transcriptions", env), { method: "POST", headers: { authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(DELAI_STT_MS) });
       if (res.ok) {
         const data = (await res.json()) as { text?: string; language?: string; duration?: number; segments?: unknown };
+        // L'usage RENDU par l'API (jetons audio/texte pour `gpt-*-transcribe`, durée pour Whisper) — audit K8, G3/E1.
+        const usage = usageTranscription(data);
+        if (opts.journaliser !== false) {
+          recordProviderCall({ role: "stt", provider: "openai", model: modele, cachedInputTokens: 0, ...usage, ms: Date.now() - t0, attempts: tentative });
+        }
         const fournis = horodate ? normaliserSegments(data.segments) : [];
         const texte = (data.text ?? "").trim();
         const dureeS = typeof data.duration === "number" && Number.isFinite(data.duration) ? Math.round(data.duration) : null;
         // Sans segments du moteur, un seul segment porte le texte — et `horodate: false` le DIT.
         const segments = fournis.length ? fournis : texte ? [{ debut: 0, fin: dureeS ?? 0, texte, locuteur: null }] : [];
-        return { ok: true, texte, langue: typeof data.language === "string" ? data.language : null, dureeS, segments, modele, ms: Date.now() - t0, horodate: fournis.length > 0 };
+        return { ok: true, texte, langue: typeof data.language === "string" ? data.language : null, dureeS, segments, modele, ms: Date.now() - t0, horodate: fournis.length > 0, usage };
       }
       const corps = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       if (res.status === 429) {

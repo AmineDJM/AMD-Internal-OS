@@ -16,6 +16,7 @@ import { formatNumber, formatDateTime } from "@/lib/utils";
 import { AiSettingsForm } from "./ai-settings-form";
 import { depenseOcrVisionDuMois, etatVisuelsPourAdministration, lireReglageOcrVision } from "@/modules/assistant-ia/api";
 import { ReglagesVisuelsForm } from "@/modules/assistant-ia/ecrans/reglages-visuels";
+import { TableauConsommation } from "@/modules/assistant-ia/ecrans/consommation/tableau-consommation";
 import { AiHealthCheckButton } from "./health-check-button";
 import { adamHealth, type HealthLevel } from "@/lib/google/health";
 import { statistiquesCout, fmtUsd } from "@/platform/in-process/telemetry/usage-stats";
@@ -157,6 +158,12 @@ export default async function AiControlCenterPage() {
           </p>
         </div>
       </div>
+
+      {/* K8 (décision 0035) : la consommation précise — le MÊME tableau que les Réglages d'Adventum IA. */}
+      <Card id="consommation">
+        <CardHeader><CardTitle>Consommation IA — jetons et dollars, appel par appel</CardTitle></CardHeader>
+        <CardContent><TableauConsommation superAdmin={user.role === "SUPER_ADMIN"} perimetreInitial="entreprise" /></CardContent>
+      </Card>
 
       {/* État des clés / configuration (lecture seule, posées sur Render). */}
       <Card>

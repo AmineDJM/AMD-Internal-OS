@@ -54,15 +54,15 @@ function prenom(nom?: string): string {
   return (nom ?? "").trim().split(/\s+/)[0] ?? "";
 }
 
-export function AdventumIaApp({ userName }: { userName?: string }) {
+export function AdventumIaApp({ userName, superAdmin = false }: { userName?: string; superAdmin?: boolean }) {
   return (
     <DialoguesProvider>
-      <Application userName={userName} />
+      <Application userName={userName} superAdmin={superAdmin} />
     </DialoguesProvider>
   );
 }
 
-function Application({ userName }: { userName?: string }) {
+function Application({ userName, superAdmin }: { userName?: string; superAdmin: boolean }) {
   const racine = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<Theme>("systeme");
   useEffect(() => { const t = lireTheme(); setTheme(t); appliquerTheme(t, racine.current); }, []);
@@ -341,7 +341,7 @@ function Application({ userName }: { userName?: string }) {
       {reglages && (
         <Reglages
           theme={theme} onTheme={changerTheme} reponseVocale={f.reponseVocale} onReponseVocale={() => void f.basculerReponseVocale()}
-          onFermer={() => setReglages(false)}
+          onFermer={() => setReglages(false)} superAdmin={superAdmin}
           deconnexion={<form action={doSignOut}><button type="submit" className="text-[14px] text-[var(--aia-danger)] hover:underline">Se déconnecter</button></form>}
         />
       )}

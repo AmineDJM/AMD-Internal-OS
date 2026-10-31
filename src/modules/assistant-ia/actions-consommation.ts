@@ -2,13 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
+import { enLecture } from "@/lib/vue-lecture";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdBool, type ActionResult } from "@/lib/actions/types";
 import { UserRole } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/labels";
-import { LIBELLE_FAMILLE, normaliserReglageFamilles, normaliserReglages, normaliserReglagesVisuels, type FamilleIa } from "@/modules/assistant-ia/api";
+import { LIBELLE_FAMILLE, lireConsommation, normaliserReglageFamilles, normaliserReglages, normaliserReglagesVisuels, type FamilleIa } from "@/modules/assistant-ia/api";
+import type { VueConsommation } from "@/modules/assistant-ia/partage";
 
 /**
  * LES BORNES DE L'ASSISTANT IA — enregistrées par le Super Admin (Administration › Consommation IA,
@@ -212,4 +214,22 @@ export async function enregistrerReglagesVisuels(formData: FormData): Promise<Ac
   });
   revalidatePath("/admin/ai");
   return { ok: true };
+}
+
+/**
+ * LA CONSOMMATION IA (lot K8, décision 0035) — jetons et dollars, appel par appel, lus dans le journal.
+ * « moi » : la personne connectée, et elle seule (la garde est dans la requête). « entreprise » : toute
+ * l'entreprise, par personne, avec les plafonds et le rapprochement — Super Admin seul.
+ */
+export async function lireConsommationIa(p: { perimetre: "moi" | "entreprise"; du?: string | null; au?: string | null; personne?: string | null }): Promise<
+  { ok: true; vue: VueConsommation } | { ok: false; erreur: string }
+> {
+  // Une LECTURE d'écran : en Vue exacte, c'est la consommation de la personne visualisée qui s'affiche.
+  const user = await enLecture(requireUser);
+  const r = await lireConsommation({
+    perimetre: p.perimetre === "entreprise" ? "entreprise" : "moi", userId: user.id, estSuperAdmin: user.role === "SUPER_ADMIN",
+    du: typeof p.du === "string" ? p.du : null, au: typeof p.au === "string" ? p.au : null,
+    personne: typeof p.personne === "string" ? p.personne : null,
+  });
+  return "refus" in r ? { ok: false, erreur: r.refus } : { ok: true, vue: r };
 }

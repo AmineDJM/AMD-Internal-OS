@@ -118,8 +118,9 @@ export function CallProvider({ enabled, children }: { enabled: boolean; children
   }, []);
 
   const logEvent = React.useCallback((event: string, extra: Record<string, unknown> = {}) => {
+    // `keepalive` : la fin de session (et sa consommation payée) part même quand l'onglet se ferme (audit K8, E4).
     void fetch("/api/assistant/voice/log", {
-      method: "POST", headers: { "content-type": "application/json" },
+      method: "POST", headers: { "content-type": "application/json" }, keepalive: true,
       body: JSON.stringify({ event, ...extra }),
     }).catch(sansBloquer("call-provider.CallProvider.fetch"));
   }, []);

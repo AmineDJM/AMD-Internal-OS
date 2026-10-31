@@ -21,6 +21,8 @@ import "../src/lib/async-local-storage-global";
 import { declarerProcessusWorker } from "../src/lib/taches-de-fond/mode";
 import { journalConsole, messageErreur } from "../src/lib/taches-de-fond/journal";
 import { demarrerWorker } from "../src/lib/taches-de-fond/worker";
+// Le puits d'usage IA branché dès le démarrage (audit K8, E10) : aucun appel payé du worker ne se perd.
+import "../src/platform/ia/telemetry/usage-sink";
 
 /** Render laisse 30 s entre SIGTERM et SIGKILL : on sort avant, en le disant. */
 const GRACE_MS = 25_000;

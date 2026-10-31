@@ -41,6 +41,7 @@ import { mentionsUnsupportedTemperature, providerErrorMessage } from "./models/e
 import { aiFeatureEnabled, interrupteurIaCoupe, REFUS_IA_COUPEE, type AiFeature } from "./ai-settings";
 import { attendu } from "@/lib/journal";
 import { cleOpenAI, urlOpenAI } from "./models/openai-acces";
+import { recordProviderCall } from "./models/telemetry";
 
 // Tarifs officiels (30 juillet 2026), en dollars par MILLION de jetons.
 const PRICE_INPUT_PER_M = 0.2;
@@ -182,10 +183,27 @@ interface ChatResponse {
     prompt_tokens?: number;
     completion_tokens?: number;
     prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
   };
 }
 
 /** Lit l'usage renvoyé par l'API et en déduit le coût. */
+/**
+ * CHAQUE APPEL PAYÉ DE LUNA VA AU JOURNAL (audit K8, trous G5/G6) — ici, au point de passage unique,
+ * plutôt que chez chaque appelant (quatre le faisaient à la main, six l'oubliaient). Usage RÉEL quand
+ * l'API le rend ; sinon estimé (caractères ÷ 4) et marqué comme tel.
+ */
+function journaliserLuna(model: string, raw: ChatResponse["usage"], fallbackIn: number, fallbackOut: number, ms: number, attempt: number): void {
+  recordProviderCall({
+    role: "bulk", provider: "openai", model,
+    inputTokens: raw?.prompt_tokens ?? fallbackIn, outputTokens: raw?.completion_tokens ?? fallbackOut,
+    cachedInputTokens: raw?.prompt_tokens_details?.cached_tokens ?? 0,
+    reasoningTokens: raw?.completion_tokens_details?.reasoning_tokens ?? 0,
+    estimated: raw?.prompt_tokens == null || raw?.completion_tokens == null,
+    ms, attempts: attempt,
+  });
+}
+
 export function readUsage(raw: ChatResponse["usage"], fallbackIn: number, fallbackOut: number, batch = false): LunaUsage {
   const inputTokens = raw?.prompt_tokens ?? fallbackIn;
   const outputTokens = raw?.completion_tokens ?? fallbackOut;
@@ -217,6 +235,7 @@ export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaR
 
   const body = buildLunaBody(input);
   const approxIn = estimateTokens(`${input.system ?? ""}${input.user}`) + (input.images?.length ?? 0) * 800;
+  const debutAppel = Date.now();
 
   // Jusqu'à 3 tentatives sur surcharge / limite de débit / réseau.
   let lastError = "Appel à l'IA impossible (réseau).";
@@ -235,6 +254,7 @@ export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaR
         const data = (await res.json()) as ChatResponse;
         const choice = data.choices?.[0];
         const text = choice?.message?.content ?? "";
+        journaliserLuna(String(body.model), data.usage, approxIn, estimateTokens(text), Date.now() - debutAppel, attempt);
 
         // RÉPONSE VIDE — le piège des modèles de RAISONNEMENT : max_completion_tokens couvre AUSSI
         // la réflexion interne. Un budget calibré pour la seule réponse est englouti par le
@@ -476,6 +496,7 @@ export async function lunaEmbed(texts: string[], dims: number = EMBED_DIMS): Pro
   if (!lunaConfigured() || texts.length === 0) return null;
   // Vectoriser, c'est ENVOYER les textes : sous l'interrupteur, `null` — l'appelant reste en lexical pur.
   if (await interrupteurIaCoupe()) return null;
+  const debut = Date.now();
   try {
     const res = await fetch(urlOpenAI("/embeddings"), {
       method: "POST",
@@ -483,7 +504,14 @@ export async function lunaEmbed(texts: string[], dims: number = EMBED_DIMS): Pro
       body: JSON.stringify({ model: lunaEmbedModel(), input: texts.map((t) => t.slice(0, 6000)), dimensions: dims }),
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as { data?: { index: number; embedding: number[] }[] };
+    const json = (await res.json()) as { data?: { index: number; embedding: number[] }[]; usage?: { prompt_tokens?: number } };
+    // Les plongements se paient au jeton d'entrée (audit K8, trou G1) : la ligne du journal, avec l'usage RENDU.
+    const enEntree = json.usage?.prompt_tokens;
+    recordProviderCall({
+      role: "bulk", provider: "openai", model: lunaEmbedModel(),
+      inputTokens: enEntree ?? texts.reduce((s, t) => s + estimateTokens(t.slice(0, 6000)), 0), outputTokens: 0, cachedInputTokens: 0,
+      estimated: enEntree == null, ms: Date.now() - debut,
+    });
     if (!Array.isArray(json.data) || json.data.length !== texts.length) return null;
     const out: number[][] = new Array(texts.length);
     for (const d of json.data) out[d.index] = d.embedding;
