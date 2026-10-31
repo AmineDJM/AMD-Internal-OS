@@ -39,7 +39,7 @@ const lignesDe = (v: unknown): Ligne[] => (Array.isArray(v) ? v.filter((x): x is
  * trou là où le compilateur avait dit oui.
  */
 export const KINDS_RENDUS = new Set<string>([
-  "agenda", "alerte", "artifact", "comparison", "dashboard", "directory", "document",
+  "agenda", "alerte", "analyse", "artifact", "comparison", "dashboard", "directory", "document",
   "dossier", "email", "entity360", "mail", "mission", "people", "planification",
   "progress", "queue", "record", "story", "table", "timeline", "viz",
 ]);
