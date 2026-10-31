@@ -94,7 +94,25 @@ export function lireReponseModele(texte: string): ReponseLue {
       /* candidat suivant */
     }
   }
-  return { message: brut, composants: [] };
+  return { message: messageRepare(brut), composants: [] };
+}
+
+/**
+ * UN CONTRAT MAL FORMÉ NE S'AFFICHE JAMAIS BRUT (Direction, 31/10/2026 : une réponse finissait par
+ * `","components":[]}`). Le modèle laisse parfois un guillemet non échappé dans `message`, ou écrit du texte avant
+ * l'objet : aucun candidat ne se lit en JSON. On garde alors le texte du message — entre `"message": "` et la
+ * dernière `", "components":` — décodé, et l'on retire toute queue de contrat restée collée à un texte simple.
+ */
+export function messageRepare(brut: string): string {
+  const queue = /"\s*,\s*"components"\s*:\s*\[[\s\S]*$/;
+  const ouverture = /\{?\s*"message"\s*:\s*"/.exec(brut);
+  const debut = ouverture ? ouverture.index + ouverture[0].length : 0;
+  const reste = brut.slice(debut);
+  const fin = reste.search(queue);
+  let texte = fin >= 0 ? reste.slice(0, fin) : ouverture ? reste.replace(/"\s*\}\s*$/, "") : reste;
+  if (ouverture) texte = texte.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  const avant = ouverture ? brut.slice(0, ouverture.index).trim() : "";
+  return [avant, texte.trim()].filter(Boolean).join("\n\n");
 }
 
 // ─────────────────────────────── LE GARDE-FOU DES DONNÉES ───────────────────────────────

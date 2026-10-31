@@ -244,6 +244,11 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   } catch (e) {
     if (e instanceof IaCoupee || e instanceof PlafondIaAtteint) return { ok: false, error: e.message, message };
     console.error("[assistant] aucun modèle n'a répondu", e);
+    // Le fournisseur REFUSE faute de crédit (31/10/2026 : « insufficient_quota ») : le dire, sinon la personne réessaie
+    // en vain — « réessayez » ne peut rien contre un compte à recharger.
+    if (/insufficient_quota|credit_balance_exhausted|no credits remaining|exceeded your current quota/i.test(String((e as Error)?.message ?? e))) {
+      return { ok: false, error: "L'assistant est indisponible : le crédit du compte OpenAI est épuisé. L'administrateur doit le recharger (platform.openai.com › Billing).", message };
+    }
     return { ok: false, error: "L'assistant n'a pas pu répondre. Réessayez dans un instant.", message };
   }
 }
