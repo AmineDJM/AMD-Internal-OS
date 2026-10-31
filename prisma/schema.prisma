@@ -9515,6 +9515,9 @@ model AssistantIaReglage {
   /// J13 (décision 0025) : le modèle de la voix temps réel, réglé par le Super Admin sans redéploiement. Nul = la variable
   /// `ASSISTANT_IA_VOICE_MODEL`, sinon `gpt-live-1` (décision de Direction du 30/10 : pas de modèle de secours).
   modeleVoix             String?
+  /// Décision 0034 (Direction, 31/10/2026) : « EN_CLAIR » (défaut) — les valeurs sensibles vont au modèle pour qui a le
+  /// droit de les voir ; « MASQUEES » — repères ⟦Sn⟧ (décision 0012). Les droits ne changent pas d'un mode à l'autre.
+  valeursSensibles       String   @default("EN_CLAIR")
   /// J2 (décision 0016) : plafond de dépense d'UN travail, en dollars. Atteint : le travail dort (BUDGET_HOLD).
   plafondTravailUsd      Float    @default(20)
   /// J2 : plafond de dépense IA d'une personne sur le mois (heure d'Alger), en dollars.

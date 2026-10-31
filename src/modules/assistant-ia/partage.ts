@@ -15,7 +15,10 @@ export {
 } from "./domaine/acces-regles";
 
 // ── Consommation : les plafonds par tour, par personne, par jour (console `/admin/ai/consommation`)
-export { BORNES, normaliserReglages, REGLAGES_PAR_DEFAUT, type ReglagesAssistantIa } from "./domaine/consommation-regles";
+export {
+  BORNES, LIBELLE_VALEURS_SENSIBLES, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglages, REGLAGES_PAR_DEFAUT,
+  type ModeValeursSensibles, type ReglagesAssistantIa,
+} from "./domaine/consommation-regles";
 // ── Consommation précise (K8, décision 0035) : la vue de l'écran, ses périodes, ses libellés, l'export
 export {
   additionner, COLONNES_EXPORT, intervallesResumes, jetonsDe, jourAlger, LIBELLE_RESUME, ligneExport, periodeChoisie, usageDe, versCsv,

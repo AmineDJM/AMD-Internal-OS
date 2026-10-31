@@ -34,7 +34,26 @@ export interface ReglagesAssistantIa {
   expirationCartesHeures: number;
   /** J13 (décision 0025) : le modèle de la voix temps réel ; vide = la variable d'environnement, sinon `gpt-live-1`. */
   modeleVoix: string;
+  /** Décision 0034 (Direction, 31/10/2026) : les valeurs sensibles vont au modèle EN CLAIR pour qui a le droit de les voir, ou en repères. */
+  valeursSensibles: ModeValeursSensibles;
 }
+
+/**
+ * LES VALEURS SENSIBLES ET LE MODÈLE (décision 0034) — salaire, net, coût employeur, IBAN / RIB / CCP, n° de pièce
+ * d'identité. Les DROITS ne changent pas d'un mode à l'autre (RBAC, familles de la console, politique du coffre) :
+ * seul change ce que le MODÈLE reçoit de ce que la personne a le droit de voir.
+ *   • EN_CLAIR (défaut, Direction 31/10/2026 : « l'assistant IA peut les lire à haute voix ; ils peuvent être envoyés
+ *     à l'IA ») — l'outil rend la valeur au modèle, qui l'écrit ; la voix la prononce.
+ *   • MASQUEES — le comportement de la décision 0012 : repères ⟦Sn⟧, la valeur ne part jamais au modèle.
+ */
+export type ModeValeursSensibles = "EN_CLAIR" | "MASQUEES";
+export const MODES_VALEURS_SENSIBLES: readonly ModeValeursSensibles[] = ["EN_CLAIR", "MASQUEES"];
+export const LIBELLE_VALEURS_SENSIBLES: Record<ModeValeursSensibles, string> = {
+  EN_CLAIR: "En clair, pour qui a le droit de les voir",
+  MASQUEES: "Masquées (repères ⟦Sn⟧)",
+};
+export const modeValeursSensibles = (v: unknown): ModeValeursSensibles =>
+  (MODES_VALEURS_SENSIBLES as readonly unknown[]).includes(v) ? (v as ModeValeursSensibles) : "EN_CLAIR";
 
 export const REGLAGES_PAR_DEFAUT: ReglagesAssistantIa = {
   plafondJetonsJour: 600_000,
@@ -44,6 +63,7 @@ export const REGLAGES_PAR_DEFAUT: ReglagesAssistantIa = {
   retirerCartesCaduques: true,
   expirationCartesHeures: 24,
   modeleVoix: "",
+  valeursSensibles: "EN_CLAIR",
 };
 
 /** Un nom de modèle tel que l'API les écrit (« gpt-live-1 ») — tout autre texte est ignoré, jamais transmis. */
@@ -79,6 +99,7 @@ export function normaliserReglages(r: Partial<Record<keyof ReglagesAssistantIa, 
     censurerSaisie: b(r?.censurerSaisie, REGLAGES_PAR_DEFAUT.censurerSaisie),
     retirerCartesCaduques: b(r?.retirerCartesCaduques, REGLAGES_PAR_DEFAUT.retirerCartesCaduques),
     modeleVoix: nomDeModeleValide(r?.modeleVoix),
+    valeursSensibles: modeValeursSensibles(r?.valeursSensibles),
   };
 }
 

@@ -15,6 +15,28 @@ puits rattrapés (`instrumentation.ts`). **Erreur de tarif corrigée** : `gpt-6.
 `gpt-5.6-terra` (≈ ×2,45). **Rapprochement** avec l'API Costs d'OpenAI si `OPENAI_ADMIN_KEY` est posée (sinon dit « non
 configuré »). Migration additive `20270217100000_consommation_precise` (11 colonnes sur `ModelCallLog`).
 
+### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
+
+Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.
+La carte à formulaire (J11) se RÉSUME désormais dans la conversation — quatre champs au plus, puces « À compléter » pour
+les champs obligatoires manquants (un toucher ouvre le formulaire sur ce champ), une ligne de simulation, « N points à
+savoir avant de signer ». Le formulaire, la simulation, les avertissements et la ressaisie s'ouvrent dans un panneau rendu
+en portail (`PanneauLateral`, `pleinEcranMobile`) : à droite sur ordinateur, plein écran sur téléphone, Échap ferme. Les
+avertissements ne se répètent plus (`domaine/ui/carte-action.ts:avertissementsUniques`), « Simulation sans résultat » ne
+s'affiche plus quand ce sont des champs obligatoires qui manquent, les zones de texte grandissent avec leur contenu.
+Même composant dans l'Assistant IA de l'ERP, l'app Adventum IA, la voix, l'Atelier et le terrain. Vérifié sur serveur réel
+en mode app (iPhone 13 et bureau) : 0 erreur, aucun débordement.
+
+### K4 : LES VALEURS SENSIBLES EN CLAIR POUR QUI A LE DROIT — ET RIEN DE CONSERVÉ CHEZ OPENAI (2026-10-31)
+
+Lot K4 — `docs/assistant/decisions/0034-valeurs-sensibles.md`. Direction : « l'assistant IA peut les lire à haute voix ; ils
+peuvent être envoyés à l'IA, mais […] dis à OpenAI de ne pas s'entraîner sur mes données ». Nouveau réglage
+**Administration › Assistant IA — accès › Valeurs sensibles** : *en clair pour qui a le droit de les voir* (défaut) ou
+*masquées (repères ⟦Sn⟧)*, à l'audit. Aucun droit ne change (une assistante de direction sans droit RH reste refusée) ; en
+clair, l'assistant écrit et la voix prononce le salaire que la personne a le droit de voir, chaque transmission journalisée.
+`store: false` sur tous les appels de l'Assistant IA (les données de l'API ne servent déjà pas à l'entraînement ; la
+« Zero Data Retention » se demande à OpenAI). Passage réel : salaire lu en texte et par la délégation vocale, ≈ 0,024 $.
+
 ### K2 : L'ASSISTANT IA GÉNÈRE DES IMAGES ET DES VIDÉOS DE DONNÉES — DANS LA RÉPONSE, AU DRIVE, TÉLÉCHARGEABLES (2026-10-31)
 
 Lot K2 — `docs/assistant/decisions/0032-visuels.md`. Quatre outils dans l'Assistant IA de l'ERP et l'app Adventum IA :

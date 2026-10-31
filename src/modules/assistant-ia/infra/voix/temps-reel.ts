@@ -6,8 +6,8 @@ import { ouvrirSessionLive, type SessionLiveOuverte } from "@/platform/ia/voix/s
 import { accesAssistantIa } from "../role-config";
 import { consigneFamilles } from "../../domaine/acces-regles";
 import { consigneGestesFermes } from "../outils-v1";
-import { MASQUE_CONFIDENTIEL, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
-import { CONSIGNES_VOIX, DIT_A_L_ECRAN, pourLaVoix } from "../../domaine/terrain/voix";
+import { MASQUE_CONFIDENTIEL, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
+import { consignesVoix, DIT_A_L_ECRAN, NON_OUVERTE, pourLaVoix } from "../../domaine/terrain/voix";
 import { appelVoix, auNomDe, budgetDeLAppel, fermerBudget, jetonsAudio, lireReglagesAssistantIa } from "../consommation";
 import { cleFournisseurVoix } from "../modele";
 import { deposerMessage, ETAT, filDe, traiterFil } from "../fil/service";
@@ -21,8 +21,9 @@ import { deposerMessage, ETAT, filDe, traiterFil } from "../fil/service";
  *     navigateur est échangée ICI contre la réponse (`/v1/live/sessions`) — aucun secret ne sort du serveur.
  *   • DÉLÉGUER : GPT-Live tient la conversation ; dès qu'il faut l'ERP, il délègue. La demande dite part dans LE MÊME
  *     FIL que le texte (`deposerMessage` → `traiterFil`) : c'est le MÊME assistant — mêmes outils, mêmes droits, mêmes
- *     familles, mêmes repères, mêmes cartes. Sa réponse revient à la voix SANS valeur sensible (« affichée à l'écran »),
- *     l'écran la reçoit révélée à qui a le droit ; une écriture reste une CARTE, confirmée à l'écran seulement.
+ *     familles, mêmes repères, mêmes cartes. Sa réponse revient à la voix selon le mode de la console (décision 0034) : EN
+ *     CLAIR, avec les valeurs que la personne a le droit de voir (prononcées) ; MASQUÉES, sans (« affichée à l'écran »).
+ *     Une écriture reste une CARTE, confirmée à l'écran seulement.
  *   • JOURNALISER : la durée vocale facturée au nom de la personne, les latences, et la transcription de la conversation
  *     dans le fil.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -53,7 +54,7 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
   const [acces, reglages] = await Promise.all([accesAssistantIa(user), lireReglagesAssistantIa()]);
   const instructions = [
     `Tu es la voix de l'Assistant IA d'Adventum Pharma (laboratoire pharmaceutique algérien). Tu parles avec ${user.name}.`,
-    CONSIGNES_VOIX,
+    consignesVoix(reglages.valeursSensibles === "EN_CLAIR"),
     "Pour TOUT ce qui touche l'entreprise (personnes, dossiers, demandes, chiffres, documents, comptes rendus, agenda), DÉLÈGUE :",
     "l'assistant de l'entreprise répond avec les droits de la personne. N'invente jamais une donnée de l'entreprise.",
     // Direction, 31/10/2026 : « Je ne peux pas vérifier l'actualité en temps réel » n'existe pas — l'assistant cherche sur le web.
@@ -78,8 +79,12 @@ export interface ResultatDelegationVoix {
 
 const NETTOYER_MD = (t: string) => t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`#>|]+/g, " ").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
 
-/** Ce que la voix peut dire d'une réponse écrite : sans valeur sensible, sans Markdown, borné (500 jetons). */
-export function reponsePourVoix(contenu: string): string {
+/**
+ * Ce que la voix peut dire d'une réponse écrite : sans Markdown, borné (500 jetons). Masquées (décision 0012) : sans valeur
+ * sensible. EN CLAIR (décision 0034) : avec celles que l'assistant a rendues à la personne — elle avait le droit de les voir.
+ */
+export function reponsePourVoix(contenu: string, enClair = false): string {
+  if (enClair) return pourLaVoix(NETTOYER_MD(retirerBornes(contenu)).split(MASQUE_CONFIDENTIEL).join(NON_OUVERTE), 1_600);
   return pourLaVoix(NETTOYER_MD(sansValeursRevelees(contenu)).split(MASQUE_CONFIDENTIEL).join(DIT_A_L_ECRAN), 1_600);
 }
 
@@ -96,6 +101,7 @@ export async function deleguerALaVoix(user: CurrentUser, demande: string, conver
   const d = await deposerMessage(user.id, `[Conversation vocale] ${texte}`.slice(0, 8_000), [], null, conversation ?? null);
   if (!d.ok) return { pourVoix: d.erreur };
   void traiterFil(user.id, d.conversation);
+  const enClair = (await lireReglagesAssistantIa()).valeursSensibles === "EN_CLAIR";
   const fin = Date.now() + DELAI_DELEGATION_MS;
   for (;;) {
     const [rep, q] = await Promise.all([
@@ -106,8 +112,8 @@ export async function deleguerALaVoix(user: CurrentUser, demande: string, conver
       const intent = rep.intent as (Record<string, unknown> & { id?: string }) | null;
       return {
         pourVoix: intent?.id
-          ? `${reponsePourVoix(rep.contenu)} — Une carte est affichée à l'écran : seule la personne la confirme, sur l'écran. Ne dis pas que c'est fait.`.slice(0, 1_800)
-          : reponsePourVoix(rep.contenu),
+          ? `${reponsePourVoix(rep.contenu, enClair)} — Une carte est affichée à l'écran : seule la personne la confirme, sur l'écran. Ne dis pas que c'est fait.`.slice(0, 1_800)
+          : reponsePourVoix(rep.contenu, enClair),
         ...(intent?.id ? { carte: { ...intent, intentId: intent.id } } : {}),
         ecran: rep.contenu,
       };
