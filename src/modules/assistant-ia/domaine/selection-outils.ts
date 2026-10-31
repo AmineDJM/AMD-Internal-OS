@@ -81,7 +81,7 @@ const MOTS_CLES: Record<string, string> = {
   lire_formulaire_pdf: "formulaire pdf champs remplir",
   lire_dossier_depose: "dossier depose classe classer fichiers module ctd pieces manquent manquantes section dossier glisse lecture",
   mes_routines: "mes routines programmees briefing",
-  web_research: "web internet actualite marche externe prix public congres etranger concurrent",
+  web_research: "web internet actualite actualites nouvelles infos news monde france algerie passe manifestation manifestations greve meteo politique evenement aujourd hui marche externe prix public congres etranger concurrent",
   send_message: "envoie message ecris dis previens collegue",
   preparer_sponsoring: "sponsoring sponsoriser medecin congres demande",
   preparer_prise_en_charge: "prise en charge congres national international medecin inscription",

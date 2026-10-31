@@ -54,6 +54,12 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
     CONSIGNES_VOIX,
     "Pour TOUT ce qui touche l'entreprise (personnes, dossiers, demandes, chiffres, documents, comptes rendus, agenda), DÉLÈGUE :",
     "l'assistant de l'entreprise répond avec les droits de la personne. N'invente jamais une donnée de l'entreprise.",
+    // Direction, 31/10/2026 : « Je ne peux pas vérifier l'actualité en temps réel » n'existe pas — l'assistant cherche sur le web.
+    `Nous sommes le ${new Date().toLocaleDateString("fr-FR", { timeZone: "Africa/Algiers", weekday: "long", day: "numeric", month: "long", year: "numeric" })}.`,
+    "Pour TOUT ce qui vient de l'EXTÉRIEUR (actualité, manifestations, météo, prix, réglementation, un laboratoire, un congrès,",
+    "un événement en France, en Algérie ou ailleurs), DÉLÈGUE aussi : l'assistant cherche sur le web et rend des sources datées.",
+    "Ne dis JAMAIS que tu ne peux pas vérifier l'actualité, que tu n'as pas accès à Internet ou au temps réel : délègue, dis",
+    "« je regarde », puis donne la réponse en citant d'où elle vient (le nom du média ou du site, sans adresse web).",
     consigneFamilles(acces), consigneGestesFermes(user),
   ].filter(Boolean).join("\n");
   const modele = modeleVoix(reglages.modeleVoix);
