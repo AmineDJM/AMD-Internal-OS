@@ -7,14 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAction } from "@/components/shared/use-action";
 import {
-  enregistrerAccesAssistantIa, enregistrerPlafondsTravaux, enregistrerRetentionEffets, enregistrerValeursSensibles, enregistrerVisibiliteEquipe,
+  enregistrerAccesAssistantIa, enregistrerPlafondsTravaux, enregistrerRetentionEffets, enregistrerTravauxDOffice, enregistrerValeursSensibles,
+  enregistrerVisibiliteEquipe,
 } from "@/modules/assistant-ia/actions-consommation";
 import {
   AIDE_FAMILLE, FAMILLES_IA, FAMILLES_SENSIBLES, LIBELLE_FAMILLE, LIBELLE_VALEURS_SENSIBLES, MODES_VALEURS_SENSIBLES, resoudreAccesIa,
   type FamilleIa, type ModeValeursSensibles, type ReglageFamilles,
 } from "@/modules/assistant-ia/partage";
 
-export interface LigneRole { role: string; libelle: string; reglage: ReglageFamilles }
+export interface LigneRole { role: string; libelle: string; reglage: ReglageFamilles; dOffice?: boolean | null }
 export interface LignePersonne {
   id: string; nom: string; email: string; role: string;
   droits: Record<FamilleIa, boolean>;
@@ -326,6 +327,38 @@ function RetentionEffets({ initial }: { initial: number }) {
   );
 }
 
+/** K3 (décision 0033) : « démarrer d'office les travaux sans geste », par rôle — défaut, oui, non. */
+function DOfficeParRole({ roles }: { roles: LigneRole[] }) {
+  const { saving, err, run } = useAction();
+  const [ok, setOk] = React.useState<string | null>(null);
+  const [valeurs, setValeurs] = React.useState<Record<string, string>>(() => Object.fromEntries(roles.map((r) => [r.role, r.dOffice === true ? "oui" : r.dOffice === false ? "non" : ""])));
+  const changer = (role: string, v: string) => {
+    setValeurs((x) => ({ ...x, [role]: v }));
+    const fd = new FormData();
+    fd.set("cible", `role:${role}`);
+    fd.set("valeur", v);
+    setOk(null);
+    void run(() => enregistrerTravauxDOffice(fd), () => setOk(role));
+  };
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {roles.map((r) => (
+        <label key={r.role} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+          <span className="min-w-0 truncate">{r.libelle}</span>
+          <select value={valeurs[r.role] ?? ""} disabled={saving} onChange={(e) => changer(r.role, e.target.value)} aria-label={`Démarrage d'office — ${r.libelle}`}
+            className="h-9 rounded-md border bg-background px-2 text-sm">
+            <option value="">Défaut (non)</option>
+            <option value="oui">Oui</option>
+            <option value="non">Non</option>
+          </select>
+          {ok === r.role && !err && <span className="sr-only">Enregistré.</span>}
+        </label>
+      ))}
+      {err && <p className="text-xs text-destructive">{err}</p>}
+    </div>
+  );
+}
+
 export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours, valeursSensibles }: {
   roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number }; managerVoitEquipe: boolean; retentionEffetsJours: number;
   valeursSensibles: ModeValeursSensibles;
@@ -352,6 +385,17 @@ export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, manage
             Chaque personne peut avoir les siens (ci-dessous).
           </p>
           <Plafonds cible="global" travail={plafondsGlobaux.travailUsd} mensuel={plafondsGlobaux.mensuelUsd} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Sous-missions — démarrer d&apos;office les travaux sans geste</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Un plan qui ne fait que lire, analyser et déposer un livrable dans le Drive de la personne peut démarrer sans clic : la
+            conversation continue pendant qu&apos;il tourne. Tout plan avec un geste, une demande à un collègue ou une attente reste
+            approuvé à la main. Défaut : oui pour le Super Admin, non pour les autres ; chacun peut changer le sien dans ses réglages.
+          </p>
+          <DOfficeParRole roles={roles} />
         </CardContent>
       </Card>
       <Card>

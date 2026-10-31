@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { recordAudit } from "@/lib/audit";
+import { sansBloquer } from "@/lib/journal";
 import { estChargeCapacite } from "../../domaine/capacites";
 import { estChargeOperationIA } from "../../domaine/operations/types";
 import {
@@ -120,7 +121,7 @@ export async function traiterParoleSurCarte(user: CurrentUser, c: CarteOraleLue,
 /** LA CONFIRMATION ORALE — la garde du bouton, puis le journal « confirmé à l'oral » avec la transcription. */
 async function confirmerALOral(user: CurrentUser, c: CarteOraleLue, transcription: string): Promise<IssueOrale> {
   const r = await confirmerCarte(user, c.id, c.carte.elementCle ?? undefined);
-  await ajouterEvenement(c.id, { status: "VOIX", etape: r.ok ? "CONFIRMEE" : "ECHEC", transcription: transcription.slice(0, 500) }).catch(() => undefined);
+  await ajouterEvenement(c.id, { status: "VOIX", etape: r.ok ? "CONFIRMEE" : "ECHEC", transcription: transcription.slice(0, 500) }).catch(sansBloquer("carte-orale.confirmation.journal"));
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Assistant IA",
     summary: `Carte « ${c.carte.titre} » confirmée à l'oral${r.ok ? "" : " — non exécutée"} · transcription : « ${transcription.slice(0, 300)} »`,

@@ -71,6 +71,11 @@ export {
   declinerDemande, equipeVisible, lireTravailEquipe, listerDemandesRecues, listerTravauxEquipe, PIECES_TRAVAUX, reglerPrioriteTravail, repondreDemande,
   type DemandeRecue, type EtapeVue, type TravailDEquipe,
 } from "./infra/travaux";
+// ── K3 (décision 0033) : sous-missions en arrière-plan, synthèse dans la conversation, tableau de bord en temps réel
+export {
+  annulerMissionEtSousMissions, balayerSousMissions, conclureSousMissions, lirePreferenceDOffice, reglerPreferenceDOffice, signatureTableau, tableauDesMissions, travauxDOfficePour,
+  type MissionDuTableau, type TableauDesMissions,
+} from "./infra/sous-missions";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";
@@ -95,3 +100,5 @@ export {
 export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";
 // ── Les visuels (lot K2, décision 0032) : images, vidéos, vidéos de données — la tâche de fond, la carte, le média
 export { etatVisuel, etatVisuelsPourAdministration, fichierDuVisuel, traiterVisuelsEnFile } from "./infra/visuels/service";
+// ── L'analyse de données (K1, décision 0031) : le classeur Excel d'une analyse — export d'un clic, dépôt au Drive sur geste
+export { classeurDAnalyse, type ClasseurDemande } from "./infra/analyse/classeur";

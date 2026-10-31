@@ -8,9 +8,9 @@ import { outilTravailPour, PERSONA_ASSISTANT_IA } from "./travaux";
 
 /**
  * UN TOUR, UN PLAN (banc réel du 31/10/2026) — le modèle rappelait `lancer_un_travail` pour « corriger » un plan déjà
- * accepté : cinq plans attendaient l'approbation pour une seule demande. Le plan suivant du MÊME tour remplace le
- * précédent tant qu'il n'est pas approuvé ; un tour suivant (un nouvel outil) ne touche à rien ; un plan approuvé
- * n'est jamais annulé.
+ * accepté : cinq plans attendaient l'approbation pour une seule demande. K3 (décision 0033) : la REFORMULATION
+ * (`remplace`, ou le même titre dans le même tour) remplace le plan ; un tour suivant (un nouvel outil) ne touche à
+ * rien ; un plan approuvé d'un tour précédent n'est jamais annulé. Lancer une AUTRE sous-mission : `sous-missions.test.ts`.
  */
 
 let dbOk = false;
@@ -35,9 +35,12 @@ suite("un tour, un plan — le plan suivant du même tour remplace le précéden
     const u = await prisma.user.create({ data: { name: `${TAG}Directrice`, email: `${TAG}d@t.dz`, passwordHash: "x", role: "SUPER_ADMIN" } });
     moi = { id: u.id, name: u.name, email: u.email, role: "SUPER_ADMIN" } as CurrentUser;
     lecture = (await PERSONA_ASSISTANT_IA.catalogue(moi.id)).lectures[0]?.nom ?? "";
+    // Le Super Admin démarre d'office les plans sans geste (K3) : ici, on veut voir les plans ATTENDRE.
+    await prisma.assistantIaPreference.create({ data: { userId: moi.id, travauxDOffice: false } });
   });
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { principalId: moi.id } }).catch(() => undefined);
+    await prisma.assistantIaPreference.deleteMany({ where: { userId: moi.id } }).catch(() => undefined);
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
@@ -45,12 +48,22 @@ suite("un tour, un plan — le plan suivant du même tour remplace le précéden
     expect(lecture).not.toBe("");
   });
 
-  it("deux propositions dans le même tour : une seule attend l'approbation, la dernière", async () => {
+  it("reformuler dans le même tour (`remplace`) : une seule attend l'approbation, la dernière", async () => {
     const outil = outilTravailPour(moi);
-    for (const t of ["Premier jet", "Plan corrigé"]) {
-      expect(JSON.parse(await outil.run(plan(t), moi)).statut).toBe("EN_ATTENTE_D_APPROBATION");
-    }
+    const premier = JSON.parse(await outil.run(plan("Premier jet"), moi)) as { statut: string; travailId: string };
+    expect(premier.statut).toBe("EN_ATTENTE_D_APPROBATION");
+    const second = JSON.parse(await outil.run({ ...plan("Plan corrigé"), remplace: premier.travailId }, moi)) as { statut: string; remplace: string };
+    expect(second.statut).toBe("EN_ATTENTE_D_APPROBATION");
+    expect(second.remplace).toBe(premier.travailId);
     expect((await enAttente()).map((m) => m.title)).toEqual(["Plan corrigé"]);
+  });
+
+  it("le même titre rappelé dans le même tour, sans `remplace` : c'est une reformulation — remplacée aussi", async () => {
+    const outil = outilTravailPour(moi);
+    await outil.run(plan("Synthèse des achats"), moi);
+    await outil.run(plan("Synthèse des achats !"), moi);
+    expect((await enAttente()).filter((m) => m.title.startsWith("Synthèse des achats"))).toHaveLength(1);
+    await prisma.mission.updateMany({ where: { principalId: moi.id, title: { startsWith: "Synthèse des achats" } }, data: { status: "CANCELLED" } });
   });
 
   it("un tour suivant ne retire pas le plan du tour d'avant ; un plan approuvé n'est jamais annulé", async () => {

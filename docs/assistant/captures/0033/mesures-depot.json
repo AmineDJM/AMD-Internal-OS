@@ -1,0 +1,30 @@
+{
+  "libelleDepot": "20 fichiers : tout lire en arrière-plan",
+  "largeur:iphone-depot": {
+    "sw": 390,
+    "w": 390
+  },
+  "depot": {
+    "id": "cmvwp5ifb005rf4xuqtcpgvj4",
+    "nom": "Dépôt du 31-10-2026 17h50",
+    "racineId": "cmvwp5if8005qf4xukwx5eqrl",
+    "statut": "TERMINE",
+    "annonces": 20,
+    "televerses": 20,
+    "lus": 20,
+    "ignores": 0,
+    "echoues": 0,
+    "enFile": 0,
+    "createdAt": "2026-10-31T17:50:27.720Z",
+    "dureeS": 4
+  },
+  "coutReel": {
+    "appels": 0,
+    "usd": 0,
+    "jetonsEntree": null,
+    "jetonsSortie": null
+  },
+  "erreursConsole": [
+    "[390] Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

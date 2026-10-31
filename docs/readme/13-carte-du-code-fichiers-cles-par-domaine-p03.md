@@ -96,7 +96,7 @@ l'ERP, et la racine de composition du runtime (`boundary-scan.ts` l'exempte, par
 | `e2e.test.ts` `memory.test.ts` `commitments.test.ts` `relance.test.ts` `situation.test.ts` `attention.test.ts` `launch-resilience.test.ts` `autonomous-dedup.test.ts` `message-wake.test.ts` `branche-conditionnelle.test.ts` `watch.test.ts` `evenement-anterieur.test.ts` | Les bancs de bout en bout, depuis les vrais points d'entrée |
 | `crash-matrix.test.ts` `permission-matrix.test.ts` `donnees-modifiees.test.ts` | Les MATRICES et le CHAOS : le crash à chaque frontière d'étape (5/5 reprises, 0 doublon) ; permissions × capacités × confirmation sur le vrai catalogue de tous les rôles ; la cible qui disparaît en cours de mission (rien ne part, la mission ne conclut pas, le dirigeant est prévenu une fois) |
 
-### Le bac à sable d'exécution (`src/lib/sandbox/`) — domaine (mandat 4 §25)
+### Le bac à sable d'exécution (`src/platform/ia/analyse/` + `src/lib/sandbox/sql.ts`) — mandat 4 §25, déménagé au socle IA par K1 (décision 0031)
 
 Adam CALCULE, il n'affirme pas. Quatre briques, une frontière : rien ici n'écrit. Le SQL est en
 lecture seule et borné à une liste blanche relue dans le PLAN d'exécution ; le JavaScript tourne

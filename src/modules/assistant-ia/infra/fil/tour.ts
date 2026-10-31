@@ -22,6 +22,9 @@ import type { VueSimulation } from "../../domaine/simulation";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { lirePieces, type DependancesLecture } from "../lecture/pieces";
 import { ProvenanceDuTour } from "../provenance";
+import { JeuxDuTour } from "../analyse/outils";
+import { noteChiffresNonSources } from "../../domaine/analyse/chiffres";
+import { outilsDAnalyseVoulus } from "../../domaine/analyse/intention";
 import { avecTrace } from "../qualite/traces";
 import { chargerModelesRoles } from "../qualite/modeles";
 import type { LecturePiece } from "../../domaine/lecture/regles";
@@ -59,6 +62,8 @@ export type ResultatDuTour =
     ok: true; content: string; blocs: WorkspaceBlock[]; memoireProposee: MemoireProposee | null; outilsAppeles: string[]; intent: IntentionDuTour | null;
     /** « Mes notes » (décision 0026) : les modifications de notes PROPOSÉES pendant le tour — la carte de la conversation. */
     notesProposees: string[];
+    /** K3 (décision 0033) : les sous-missions lancées pendant ce tour (la carte qui se met à jour). */
+    travaux: string[];
   }
   | { ok: false; error: string };
 
@@ -178,6 +183,10 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const notesProposees: string[] = [];
   // K2 (décision 0032) : les images et vidéos générées pendant le tour — des blocs de la réponse, construits par le serveur.
   const visuels: WorkspaceBlock[] = [];
+  // K1 (décision 0031) : les jeux de données que le tour a lus, et les analyses CALCULÉES par le code (posées sous la réponse).
+  const blocsCalcules: WorkspaceBlock[] = [];
+  const analyse = { jeux: new JeuxDuTour(), blocs: blocsCalcules, pieces: pieces.map((p) => ({ id: p.id, nom: p.nom })), question: texteSaisi };
+  const travauxLances: string[] = [];
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les
   // repères — sauf en mode « en clair » (décision 0034), où celles que la personne a le droit de voir lui sont rendues.
   const coffret = new CoffretDuTour();
@@ -194,14 +203,14 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // J14 : ce que le tour lit d'un tiers, face à ce que la personne a écrit — une carte dit ses valeurs d'origine tierce.
     const provenance = new ProvenanceDuTour([texteSaisi, ...saisie.historique.filter((h) => h.role === "user").map((h) => h.content)], message);
     outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, {
-      capacites: true, provenance, notesProposees, visuels, ...(auModele ? { revelerAuModele: (s: string) => auModele.enClair(s) } : {}),
-    }), outilTravailPour(user)];
+      capacites: true, provenance, notesProposees, visuels, analyse, ...(auModele ? { revelerAuModele: (s: string) => auModele.enClair(s) } : {}),
+    }), outilTravailPour(user, travauxLances, "fin-du-tour")];
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     outils = d.prive ? outils.filter((o) => o.def.name !== "proposer_memoire") : [...outils, outilConversationsPassees(user, d.conversation ?? null)];
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
-    selection = selectionDuTour(outils, user, message, config, precedente);
+    selection = selectionDuTour(outils, user, message, config, precedente, outilsDAnalyseVoulus(texteSaisi, analyse.pieces));
     outils.push(selection.outil);
     // LE PRÉFIXE STABLE (J4) : identité, règles, présentation, consignes générales, puis la personne ; la partie
     // variable du tour (indice de travail long, résumé de la conversation, heure) ferme la consigne.
@@ -239,6 +248,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // R5 : le modèle a choisi ses composants ; seuls ceux que les outils du tour prouvent restent.
     const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
     if (ui.retires.length) console.warn("[assistant] composants retirés", ui.retires);
+    // K1 : après une analyse, un chiffre du MESSAGE que rien ne prouve est dit sous la réponse (et compté par le banc).
+    const note = blocsCalcules.length ? noteChiffresNonSources(ui.message, [...sorties, message]) : null;
+    if (note) console.warn("[assistant] chiffres non sourcés", note.chiffres);
     const p = propositions[0];
     // LA RÉVÉLATION, AVANT D'AFFICHER ET DE STOCKER : chaque repère devient la valeur pour qui a le droit de
     // la voir (politique du coffre, journal), « [confidentiel] » sinon.
@@ -246,10 +258,11 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     return {
       ok: true,
       message,
-      content: await revelateur.texte(ui.message || "Je n'ai pas de réponse à afficher."),
-      blocs: [...visuels, ...(await revelateur.objet(ui.blocs))],
+      content: await revelateur.texte([ui.message || "Je n'ai pas de réponse à afficher.", note?.texte].filter(Boolean).join("\n\n")),
+      blocs: [...visuels, ...(await revelateur.objet([...ui.blocs, ...blocsCalcules]))],
       memoireProposee: d.prive ? null : memoires[0] ?? null,
       notesProposees: [...notesProposees],
+      travaux: [...travauxLances],
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
       intent: p ? {
@@ -265,6 +278,11 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   } catch (e) {
     if (e instanceof IaCoupee || e instanceof PlafondIaAtteint) return { ok: false, error: e.message, message };
     console.error("[assistant] aucun modèle n'a répondu", e);
+    // Le fournisseur REFUSE faute de crédit (31/10/2026 : « insufficient_quota ») : le dire, sinon la personne réessaie
+    // en vain — « réessayez » ne peut rien contre un compte à recharger.
+    if (/insufficient_quota|credit_balance_exhausted|no credits remaining|exceeded your current quota/i.test(String((e as Error)?.message ?? e))) {
+      return { ok: false, error: "L'assistant est indisponible : le crédit du compte OpenAI est épuisé. L'administrateur doit le recharger (platform.openai.com › Billing).", message };
+    }
     return { ok: false, error: "L'assistant n'a pas pu répondre. Réessayez dans un instant.", message };
   }
 }

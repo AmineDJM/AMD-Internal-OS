@@ -11,6 +11,7 @@ import { signalerUneFois } from "@/lib/missions/travaux/signaux";
 import { listerTravaux } from "@/lib/missions/travaux/service";
 import { MOTIF_BUDGET } from "@/lib/missions/travaux/regles";
 import { traiterJalons, type BilanJalons } from "@/lib/missions/travaux/jalons";
+import { enParallele } from "@/lib/missions/runtime/engine/ordonnancement";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -34,6 +35,12 @@ import { traiterJalons, type BilanJalons } from "@/lib/missions/travaux/jalons";
  * de l'une n'affament pas l'unique travail de l'autre.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+
+/** K3 (décision 0033) : combien de travaux un passage conduit À LA FOIS — borne opérationnelle, réglable. */
+export function travauxEnParallele(env: Readonly<Record<string, string | undefined>> = process.env): number {
+  const n = Number(env.TRAVAUX_EN_PARALLELE);
+  return Number.isFinite(n) && n >= 1 ? Math.min(Math.floor(n), 12) : 4;
+}
 
 export const TRAVAUX_PAR_PASSAGE = 6;
 const POINT_QUOTIDIEN_MS = 24 * 3600_000;
@@ -114,16 +121,18 @@ export async function balayerTravaux(o: {
   const candidats = o.seulement
     ? await prisma.mission.findMany({ where: { id: { in: [...o.seulement] }, kind: "TRAVAIL" }, select: { id: true, persona: true } })
     : await travauxAFaireAvancer();
-  for (const t of candidats) {
+  // K3 (décision 0033) : les SOUS-MISSIONS d'une personne avancent ENSEMBLE — plusieurs travaux conduits en parallèle,
+  // sous une concurrence bornée (`TRAVAUX_EN_PARALLELE`) ; chaque conduite garde le bail de SON travail.
+  await enParallele(candidats, travauxEnParallele(), async (t) => {
     const persona = t.persona ? o.personas[t.persona as PersonaTravail] : undefined;
-    if (!persona) continue; // une persona non branchée ici (Adam, tant qu'il garde son propre moteur) ne conduit rien
+    if (!persona) return; // une persona non branchée ici (Adam, tant qu'il garde son propre moteur) ne conduit rien
     out.examines += 1;
     try {
       out.conduits.push(await conduireTravail(t.id, { persona, clock, ...(opts.interrupteur ? { interrupteur: opts.interrupteur } : {}), ...(o.sondes ? { sondes: o.sondes } : {}) }));
     } catch (e) {
       console.error("[travaux] conduite", t.id, e);
     }
-  }
+  });
   if (!o.seulement) out.points = await pointsQuotidiens(clock.now()).catch(sansBloquer("travaux.balayer.points", 0));
   return out;
 }

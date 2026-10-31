@@ -249,6 +249,8 @@ suite("Recettes (J10) — banc sur base réelle, corpus semé, faux modèle", ()
   beforeAll(async () => {
     await nettoyerRecettes();
     superAdmin = await acteur("SUPER_ADMIN");
+    // K3 (décision 0033) : le Super Admin démarre d'office les plans sans geste — ici, la personne simulée APPROUVE.
+    await prisma.assistantIaPreference.upsert({ where: { userId: superAdmin.id }, create: { userId: superAdmin.id, travauxDOffice: false }, update: { travauxDOffice: false } });
     const d0 = new Date("2031-01-05T08:00:00Z");
     const montantsNat = [300_000, 500_000, 800_000, 950_000, 1_500_000, 2_000_000, 3_000_000, 1_100_000];
     await semerAdPro("CONGRESS_NATIONAL", montantsNat, (i) => ["PROGRAMME_CONGRES", "INVITATION", ...(i < 3 ? ["DEVIS"] : [])], d0);
@@ -281,6 +283,7 @@ suite("Recettes (J10) — banc sur base réelle, corpus semé, faux modèle", ()
 
   afterAll(async () => {
     if (!dbOk) return;
+    await prisma.assistantIaPreference.deleteMany({ where: { userId: superAdmin?.id } }).catch(() => undefined);
     await nettoyerRecettes();
     await prisma.recetteResponsable.deleteMany({ where: { processus: { in: processusDesignes } } });
     await prisma.recetteUsage.deleteMany({ where: { userId: { in: utilisateurs.map((u) => u.id) } } });

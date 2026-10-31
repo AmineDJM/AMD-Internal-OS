@@ -10,9 +10,10 @@
  * Pur : ni rendu, ni réseau.
  */
 
-import { decrire, type Ligne } from "@/lib/sandbox/analyse";
+import { decrire, type Ligne } from "@/platform/ia/analyse/analyse";
 
-export type TypeGraphique = "courbe" | "barres" | "barres_empilees" | "secteurs" | "nuage" | "histogramme" | "tableau" | "cascade";
+/** K1 (décision 0031) : `aires` et `heatmap` rejoignent les formes jugées — une aire ment comme une barre si son axe ne part pas de zéro. */
+export type TypeGraphique = "courbe" | "barres" | "barres_empilees" | "secteurs" | "nuage" | "histogramme" | "tableau" | "cascade" | "aires" | "heatmap";
 
 export interface SpecGraphique {
   type: TypeGraphique;
@@ -83,6 +84,8 @@ export function verifierGraphique(spec: SpecGraphique, lignes: readonly Ligne[] 
   const profil = decrire(lignes);
   const cat = spec.x ? profil.colonnes.find((c) => c.nom === spec.x) : null;
   if ((spec.type === "barres" || spec.type === "barres_empilees" || spec.type === "histogramme" || spec.type === "cascade") && !spec.axeYdepartZero) a.push({ code: "axe_tronque", gravite: "TROMPEUR", message: "Des barres dont l'axe ne part pas de zéro exagèrent les écarts : la hauteur ne vaut plus la valeur." });
+  if (spec.type === "aires" && !spec.axeYdepartZero) a.push({ code: "aire_tronquee", gravite: "TROMPEUR", message: "Une aire dont l'axe ne part pas de zéro exagère les écarts : la surface ne vaut plus la valeur." });
+  if (spec.type === "aires" && spec.x && lignes.length && !lignes.every((l) => PERIODE_RE.test(String(l[spec.x!] ?? ""))) && profil.colonnes.find((x) => x.nom === spec.x)?.type !== "date") a.push({ code: "aire_sans_temps", gravite: "TROMPEUR", message: "Une aire relie des catégories qui ne se suivent pas dans le temps : la surface suggère une continuité qui n'existe pas." });
   if (spec.type === "secteurs") {
     if ((cat?.distincts ?? lignes.length) > 6) a.push({ code: "secteurs_trop_de_parts", gravite: "TROMPEUR", message: `${cat?.distincts ?? lignes.length} parts dans un camembert : illisible — préférer des barres triées.` });
     const y = spec.y[0];

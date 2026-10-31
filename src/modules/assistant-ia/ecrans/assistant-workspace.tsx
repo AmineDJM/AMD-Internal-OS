@@ -10,6 +10,8 @@ import { MemoirePanel } from "./memoire-panel";
 import { RoutinesPanel } from "./routines-panel";
 import { listerMesDemandesRecues } from "../actions-travaux";
 import { TravauxPanel } from "./travaux-panel";
+import { TableauMissions } from "./missions/tableau-missions";
+import { IndicateurMissions } from "./missions/carte-sous-missions";
 import { VeillePanel } from "./veille-panel";
 import { BoutonJoindre, PiecesEnAttente, type PieceOuvrable } from "./pieces-jointes";
 import { ApercuPiece } from "./apercu-piece";
@@ -67,6 +69,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const majNonLus = useCallback((n: number) => setNonLus(n), []);
   // J2 : les TRAVAUX — un plan proposé par l'assistant attend son approbation dans ce panneau.
   const [travauxOuverts, setTravauxOuverts] = useState(false);
+  // K3 (décision 0033) : le tableau de bord des missions, en temps réel.
+  const [missions, setMissions] = useState<{ ouvert: boolean; initial: string | null }>({ ouvert: false, initial: null });
   const [travailInitial, setTravailInitial] = useState<string | null>(null);
   const [aApprouver, setAApprouver] = useState(0);
   const majAApprouver = useCallback((n: number) => setAApprouver(n), []);
@@ -76,7 +80,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const majDemandesOuvertes = useCallback((n: number) => setDemandesOuvertes(n), []);
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("travail");
-    if (id) { setTravailInitial(id); setTravauxOuverts(true); }
+    if (id) setMissions({ ouvert: true, initial: id });
     const demande = new URLSearchParams(window.location.search).get("demande");
     if (demande) { setDemandeInitiale(demande); setTravauxOuverts(true); }
     const compter = () => {
@@ -280,6 +284,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
                   {nouvelle.prive ? "Privée ✓" : "Rendre privée"}
                 </button>
               )}
+              {!vueExacte && <IndicateurMissions onOuvrir={() => setMissions({ ouvert: true, initial: null })} />}
               <button
                 ref={boutonNotes} type="button" onClick={() => setNotesOuvertes((o) => !o)} aria-pressed={notesOuvertes} data-testid="bouton-notes"
                 aria-label={pointNotes ? `Mes notes (${pointNotes} modification${pointNotes > 1 ? "s" : ""} proposée${pointNotes > 1 ? "s" : ""})` : "Mes notes"}
@@ -297,6 +302,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
             onConfirmIntent={handleConfirmIntent}
             onOuvrirPiece={setApercu}
             onOuvrirNotes={() => setNotesOuvertes(true)}
+            onSuivreMissions={(id) => setMissions({ ouvert: true, initial: id ?? null })}
           />
 
           {/* Barre de saisie — au-dessus de la barre système du téléphone (zone sûre). */}
@@ -374,6 +380,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
       <PanneauDuDossier panneau={panneauDossier} etat={conversations} onPanneau={setPanneauDossier} onDossierOuvert={setDossierOuvert} onNouvelleConversation={nouvelleConversation} />
       <VeillePanel ouvert={veilleOuverte} onFermer={() => setVeilleOuverte(false)} />
+      <TableauMissions ouvert={missions.ouvert} missionInitiale={missions.initial} onFermer={() => setMissions({ ouvert: false, initial: null })}
+        onOuvrirLivrable={(piece) => setApercu(piece)} onOuvrirConversation={ouvrirConversation} />
       <TravauxPanel
         ouvert={travauxOuverts} onFermer={() => setTravauxOuverts(false)} travailInitial={travailInitial} onAApprouver={majAApprouver}
         demandeInitiale={demandeInitiale} onDemandesOuvertes={majDemandesOuvertes}

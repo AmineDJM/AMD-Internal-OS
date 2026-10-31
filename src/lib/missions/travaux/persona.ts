@@ -85,4 +85,9 @@ export interface PersonaTravaux {
   deposerLivrable(principalId: string, d: {
     travailId: string; cle: string; titre: string; contenu: string; format: FormatLivrable; reprise: boolean;
   }): Promise<{ ok: true; document: DocumentLivrable } | { ok: false; erreur: string }>;
+  /**
+   * K3 (décision 0033) : le travail vient de FINIR (terminé, en partie, bloqué) — la persona en rend compte là où il
+   * est né (la conversation qui l'a lancé). Facultatif ; ne doit jamais lever (une erreur n'arrête pas la conduite).
+   */
+  surFin?(travailId: string, principalId: string): Promise<void>;
 }

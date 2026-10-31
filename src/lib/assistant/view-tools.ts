@@ -34,7 +34,7 @@ const strOuNull = (input: Json, key: string): string | null => str(input, key) |
 /** Ce que le conseiller du bac recommande, traduit dans les formes du protocole. */
 const VERS_VIZ: Record<TypeGraphique, VizType | "tableau"> = {
   courbe: "courbe", barres: "barres", barres_empilees: "barres_empilees", secteurs: "secteurs",
-  nuage: "nuage", histogramme: "histogramme", cascade: "cascade", tableau: "tableau",
+  nuage: "nuage", histogramme: "histogramme", cascade: "cascade", tableau: "tableau", aires: "aires", heatmap: "heatmap",
 };
 /** Les formes que le vérificateur du bac sait juger (les autres ont leurs contrôles locaux). */
 const VERS_SPEC: Partial<Record<VizType, TypeGraphique>> = {

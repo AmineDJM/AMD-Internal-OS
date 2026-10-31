@@ -112,8 +112,9 @@ export const phrasePagesVision = (nom: string, lues: number, total: number) =>
 export const phraseImagesMessage = (nom: string) =>
   `« ${nom} » n'a pas été regardée : ${IMAGES_PAR_MESSAGE} images au plus sont lues par message. Renvoyez-la dans un message à part.`;
 
+/** K3 (décision 0033) : jamais une pièce « nommée non lue » sans proposition — le dépôt lit tout en arrière-plan. */
 export const phrasePiecesMax = (nom: string) =>
-  `« ${nom} » est jointe mais n'a pas été lue : ${PIECES_LUES_MAX} pièces au plus sont lues par message.`;
+  `« ${nom} » est jointe mais n'a pas été lue dans ce message (${PIECES_LUES_MAX} pièces au plus par message) — pour TOUT lire, déposez les pièces ensemble : au-delà de ${PIECES_LUES_MAX}, l'envoi propose « tout lire en arrière-plan », et l'assistant les interroge ensuite.`;
 
 export const REFUS_COFFRE =
   "Pièce du coffre (pièce d'identité, bulletin de paie, RIB) : elle ne part jamais au modèle. Ses champs se saisissent dans l'ERP sans être lus par l'IA.";
