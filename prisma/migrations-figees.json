@@ -498,5 +498,11 @@
   "20270210100000_qualite_continue",
   "20270210110000_terrain_voix",
   "20270211090000_recettes",
-  "20270214100000_travaux_delegation"
+  "20270214100000_travaux_delegation",
+  "20270215120000_controle_worker",
+  "20270215130000_ocr_vision",
+  "20270215140000_assistant_ia_depot_dossier",
+  "20270215150000_assistant_ia_notes",
+  "20270215160000_adventum_ia_conversations",
+  "20270215170000_journal_des_effets"
 ]

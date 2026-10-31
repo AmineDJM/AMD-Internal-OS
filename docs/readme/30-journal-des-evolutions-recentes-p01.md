@@ -1,5 +1,25 @@
 ## 🧾 Journal des évolutions récentes
 
+### JARVIS INTÉGRÉ : LE TEST RÉEL UNIQUE DE FIN, ET LES DEUX DÉFAUTS QU'IL A TROUVÉS (2026-10-31)
+
+Tous les lots Jarvis (J0 → J14, conversions, « Mes notes », app Adventum IA) sont sur `claude/hopeful-goodall-phd0nb`.
+Un seul passage réel (API OpenAI, base de banc locale `amd_bench`, ≈ 1,4 $) :
+
+- **Banc programmé** (J5) : 24/30 — Atelier PowerPoint et Word conformes ; Bibliothèque 2 000 pièces, p95 64 ms, rappel@10
+  100 %, 0 hors droits ; un travail long jusqu'au livrable. Jarvis 20/26 : les six écarts lus un à un ne sont pas des
+  défauts (précision demandée sur l'entité, motif exact absent d'une réponse juste, notes `.txt` hors de l'Atelier).
+- **Simulation (J7)** : carte avec effets, rien en base avant confirmation, annulation 2/2 — 0,013 $.
+- **Conversions** : 20/20 avec les modèles tesseract « best » ET l'OCR vision ; **sans l'OCR vision, les quatre scans
+  arabes échouent** (1,3 → 58 %) — il est coupé par défaut : **Administration › IA** pour l'activer (plafond mensuel).
+- **Voix** : `gpt-live-1` ouvre la session par `ouvrirSessionLive` (réponse SDP reçue).
+
+Deux défauts corrigés (`platform/ia/travaux/outil.ts`, `infra/travaux.ts`) : les objets d'une étape (`lots`,
+`pourChaque`, `attente`, `demande`, `si`) déclarent leurs propriétés — le modèle ne pouvait écrire que `{}` et chaque
+plan par lots était refusé ; et **un tour, un plan** : un nouvel appel à `lancer_un_travail` dans le même tour remplace
+le plan encore en attente (cinq plans pour une seule demande au banc). Tests : `outil.test.ts`,
+`travaux-un-plan-par-tour.test.ts`. Le banc des recettes sème son circuit par le moteur (`getDefinition`) — sa copie
+simplifiée devenait, en CI, le circuit des tests Ad & Pro voisins.
+
 ### J11 : LA CARTE SE CORRIGE AVANT DE SE SIGNER — ET UN DOSSIER DE 300 FICHIERS SE DÉPOSE, SE LIT ET SE CLASSE (2026-10-30)
 
 Lot J11 — `docs/assistant/decisions/0030-formulaires-dossiers.md`. **La carte de confirmation de toute action de l'ERP**
