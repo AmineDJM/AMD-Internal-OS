@@ -205,5 +205,5 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   (`sendMessage`, `driveRefs`) rejuge que l'expéditeur voit la pièce et l'ouvre au destinataire en lecture.
 - **Consigne** — règle 14 (`contexte.ts`) : chercher (`trouver_outil`) avant « je ne peux pas » ; sans outil, `trouver_outil`
   rend les écrans qui portent le geste (`ecransPour`) et leur lien.
-- **Inventaire et cliquet** — `gestes-ecran.test.ts` : les 132 routes de `src/app/api` classées (couvert / exposé / hors, avec
+- **Inventaire et cliquet** — `gestes-ecran.test.ts` : les 134 routes de `src/app/api` classées (couvert / exposé / hors, avec
   raison) ; une route nouvelle non classée fait échouer `npm test`. Preuves : `exports.test.ts`, `scripts/bench/k7-exports.ts`.

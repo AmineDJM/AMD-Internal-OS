@@ -165,6 +165,9 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   "/api/assistant-ia/fil": { methodes: "GET", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/terrain": { methodes: "GET,POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/vocal": { methodes: "POST", classe: "HORS", raison: PROPRE },
+  // K2 (décision 0032) : l'état et le fichier d'un visuel généré PAR l'assistant — sa propre plomberie.
+  "/api/assistant-ia/visuels/[id]": { methodes: "GET", classe: "HORS", raison: PROPRE },
+  "/api/assistant-ia/visuels/[id]/media": { methodes: "GET", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/delegation": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/journal": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/session": { methodes: "POST", classe: "HORS", raison: PROPRE },
@@ -214,7 +217,7 @@ const decision = readFileSync(join(RACINE, "docs/assistant/decisions/0037-export
 describe("K7 — l'inventaire des gestes d'écran hors actions", () => {
   it("chaque route de src/app/api est classée, avec ses méthodes exactes (une route nouvelle se classe ici)", () => {
     const nonClassees = [...reelles.keys()].filter((r) => !INVENTAIRE_GESTES_ECRAN[r]);
-    expect(nonClassees, "classer ces routes dans modules/assistant-ia/domaine/gestes-ecran.ts (et la décision 0037)").toEqual([]);
+    expect(nonClassees, "classer ces routes dans INVENTAIRE_GESTES_ECRAN (ce fichier) et dans la décision 0037").toEqual([]);
     const disparues = Object.keys(INVENTAIRE_GESTES_ECRAN).filter((r) => !reelles.has(r));
     expect(disparues, "routes supprimées : les retirer de l'inventaire").toEqual([]);
     const methodes = [...reelles].filter(([r, m]) => INVENTAIRE_GESTES_ECRAN[r]!.methodes !== m).map(([r, m]) => `${r} : ${m}`);

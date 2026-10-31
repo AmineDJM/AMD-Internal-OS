@@ -9,7 +9,7 @@ inscrits, étude de marché et sa présentation, coaching, annuaire, PDF du plan
 `src/lib/exports/`, appelée par la route de l'écran ET par l'outil `exporter_*` de l'assistant (même portée, mêmes
 droits, même audit). Le fichier va au Drive de la personne (« Exports ») et revient en bloc fichier + lien de
 téléchargement ; **`send_message` joint une pièce** (carte à confirmer ; la messagerie rejuge le droit de partager).
-La consigne ne dit plus « je ne peux pas » sans avoir cherché, ni sans nommer l'écran. **Inventaire** des 132 routes
+La consigne ne dit plus « je ne peux pas » sans avoir cherché, ni sans nommer l'écran. **Inventaire** des 134 routes
 (`modules/assistant-ia/gestes-ecran.test.ts`) : une route nouvelle non classée fait échouer `npm test`. Banc réel
 (`scripts/bench/k7-exports.ts`, `amd_bench`) : le scénario de la Direction de bout en bout en 11 s, 0,023 $.
 ### K2 : L'ASSISTANT IA GÉNÈRE DES IMAGES ET DES VIDÉOS DE DONNÉES — DANS LA RÉPONSE, AU DRIVE, TÉLÉCHARGEABLES (2026-10-31)
