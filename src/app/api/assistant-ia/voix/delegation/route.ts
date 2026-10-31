@@ -3,8 +3,8 @@ import { deleguerALaVoix } from "@/modules/assistant-ia/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// L'assistant délégué peut enchaîner des lectures : la voix attend sa réponse jusqu'à 45 s.
-export const maxDuration = 60;
+// L'assistant délégué peut enchaîner des lectures et une recherche web : la voix attend sa réponse jusqu'à 70 s.
+export const maxDuration = 90;
 
 /**
  * UNE DÉLÉGATION DE LA VOIX (lot J13, décision 0025) — la demande dite part dans le fil de la personne, traitée par
