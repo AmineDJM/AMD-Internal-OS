@@ -1,4 +1,4 @@
-import type { AssistantIaTour, Prisma } from "@prisma/client";
+import { Prisma, type AssistantIaTour } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { proprietaire } from "@/platform/ia/proprietaire";
@@ -6,11 +6,12 @@ import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { jouerTour } from "./tour";
 import { messagePartiel } from "../../domaine/fil/partiel";
 import { sansBloquer } from "@/lib/journal";
-import { auNomDe } from "../consommation";
+import { auNomDe, lireReglagesAssistantIa } from "../consommation";
 import { resumeLecture, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../../domaine/lecture/regles";
 import { PIECES_PAR_ENVOI_MAX } from "../../domaine/lecture/depot";
 import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
-import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
+import { demarrerLesSousMissions } from "../travaux";
+import { horsEcranSansValeur, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
 import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
 import { sectionDossierDuTour } from "../conversations/dossiers";
@@ -346,24 +347,31 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
   await enVol;
 
   if (r.ok) {
+    // K3 (décision 0033) : les sous-missions sans geste du tour démarrent d'office (réglage relu) AVANT que la réponse
+    // s'affiche — la carte ne montre jamais, le temps d'un battement, un « Approuver » qui n'a plus lieu d'être.
+    if (r.travaux.length) await demarrerLesSousMissions(user, r.travaux).catch(sansBloquer("fil-service.demarrerLesSousMissions"));
     await finir({
       etat: ETAT.TERMINE, contenu: r.content, etapes,
       blocs: r.blocs as unknown as Prisma.InputJsonValue,
       ...(r.intent ? { intent: r.intent as unknown as Prisma.InputJsonValue } : {}),
       ...(r.memoireProposee ? { memoireProposee: r.memoireProposee as unknown as Prisma.InputJsonValue } : {}),
       ...(r.notesProposees.length ? { notesProposees: r.notesProposees as unknown as Prisma.InputJsonValue } : {}),
+      ...(r.travaux.length ? { travaux: r.travaux as unknown as Prisma.InputJsonValue } : {}),
       outils: r.outilsAppeles,
     }, ETAT.TRAITE);
   } else {
     await finir({ etat: ETAT.ECHEC, contenu: r.error, erreur: r.error.slice(0, 300), etapes }, ETAT.ECHEC);
   }
 
+  // Décision 0034 : en mode « en clair », la voix prononce ce que la personne a le droit de voir ; la notification, jamais.
+  const enClair = (await lireReglagesAssistantIa()).valeursSensibles === "EN_CLAIR";
   // LA RÉPONSE VOCALE (option de la personne) : après le texte, qui s'affiche sans l'attendre.
   if (r.ok && fil.reponseVocale) {
     let audio: AudioDuTour | null;
     try {
-      // La voix est synthétisée par un modèle : une valeur révélée n'y part pas (décision 0012).
-      audio = await auNomDe(userId, () => repondreAVoixHaute(user, sansValeursRevelees(r.content)), tour.filId);
+      // La voix est synthétisée par un modèle : en repères, une valeur révélée n'y part pas (décision 0012) ; en clair
+      // (décision 0034), elle est prononcée — la personne avait le droit de la voir.
+      audio = await auNomDe(userId, () => repondreAVoixHaute(user, enClair ? retirerBornes(r.content) : sansValeursRevelees(r.content)), tour.filId);
     } catch (e) {
       console.error("[assistant-fil] réponse vocale", e);
       audio = { id: "", dureeS: null, erreur: "La réponse vocale n'a pas pu être préparée." };
@@ -379,7 +387,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       userId, type: "GENERIC",
       title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
       // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
-      body: sansValeursRevelees(r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
+      body: (enClair ? horsEcranSansValeur : sansValeursRevelees)(r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
       // LA BONNE CONVERSATION (décision 0027) : l'ERP l'ouvre sur `/assistant`, l'app Adventum IA renvoie ce lien vers `/ia`.
       link: `/assistant?c=${tour.filId}`,
     }).catch(sansBloquer("fil-service.jouerTourDuFil.notifyUser"));
@@ -390,6 +398,27 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
 
   // LE RÉSUMÉ ROULANT (J4) : après la réponse, jamais avant — il ne retarde aucun premier mot.
   if (r.ok) await compacterFil(tour.filId);
+}
+
+/**
+ * K3 (décision 0033) — LA SYNTHÈSE DES SOUS-MISSIONS, écrite dans la conversation comme une réponse de l'assistant
+ * (unique par tour d'origine : `syntheseDe`), la conversation remontée en tête, la personne notifiée. `false` : une
+ * synthèse de ce tour existait déjà (un autre passage l'a écrite).
+ */
+export async function deposerSynthese(d: { syntheseDe: string; filId: string; userId: string; contenu: string; travaux: string[]; titre: string; corps: string }): Promise<boolean> {
+  try {
+    await prisma.assistantIaTour.create({
+      data: { filId: d.filId, userId: d.userId, role: "assistant", etat: ETAT.TERMINE, contenu: d.contenu, syntheseDe: d.syntheseDe, travaux: d.travaux as unknown as Prisma.InputJsonValue },
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false;
+    throw e;
+  }
+  await prisma.assistantIaFil.update({ where: { id: d.filId }, data: { dernierLe: new Date() } }).catch(sansBloquer("fil-service.deposerSynthese.dernierLe"));
+  // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
+  await notifyUser({ userId: d.userId, type: "GENERIC", title: d.titre.slice(0, 200), body: sansValeursRevelees(d.corps).trim().slice(0, 280), link: `/assistant?c=${d.filId}` })
+    .catch(sansBloquer("fil-service.deposerSynthese.notifyUser"));
+  return true;
 }
 
 /**

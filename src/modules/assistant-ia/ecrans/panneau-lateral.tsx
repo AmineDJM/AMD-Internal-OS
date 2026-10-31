@@ -6,8 +6,9 @@ import { ArrowLeft, X } from "lucide-react";
 /**
  * LE PANNEAU LATÉRAL DE L'ASSISTANT IA — la coque commune des panneaux « Routines » et « Travaux » : voile, feuille
  * (en bas sur téléphone, à droite ailleurs), en-tête avec retour éventuel et fermeture, Échap qui ferme, pied facultatif.
+ * `pleinEcranMobile` : sur téléphone, la feuille prend tout l'écran (formulaire d'une carte d'action — point 3).
  */
-export function PanneauLateral({ etiquette, titre, icone, onRetour, libelleRetour, onFermer, largeur = "sm:w-[460px]", pied, children }: {
+export function PanneauLateral({ etiquette, titre, icone, onRetour, libelleRetour, onFermer, largeur = "sm:w-[460px]", pleinEcranMobile = false, pied, children }: {
   etiquette: string;
   titre: string;
   icone: React.ReactNode;
@@ -16,6 +17,7 @@ export function PanneauLateral({ etiquette, titre, icone, onRetour, libelleRetou
   libelleRetour?: string;
   onFermer: () => void;
   largeur?: string;
+  pleinEcranMobile?: boolean;
   pied?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -28,8 +30,8 @@ export function PanneauLateral({ etiquette, titre, icone, onRetour, libelleRetou
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-stretch sm:justify-end" role="dialog" aria-modal="true" aria-label={etiquette}>
       <button type="button" aria-label="Fermer" onClick={onFermer} className="absolute inset-0 bg-slate-950/40 backdrop-blur-[1px]" />
-      <div className={`relative flex max-h-[85dvh] w-full flex-col rounded-t-2xl bg-white shadow-2xl sm:max-h-none ${largeur} sm:rounded-none dark:bg-zinc-950`}>
-        <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />
+      <div className={`relative flex w-full flex-col bg-white shadow-2xl sm:max-h-none ${pleinEcranMobile ? "h-[100dvh] pt-[env(safe-area-inset-top)] sm:h-auto sm:pt-0" : "max-h-[85dvh] rounded-t-2xl"} ${largeur} sm:rounded-none dark:bg-zinc-950`}>
+        {!pleinEcranMobile && <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-slate-300 sm:hidden" />}
         <header className="flex items-center gap-2 border-b border-slate-200 px-4 py-3 dark:border-zinc-800">
           {onRetour ? (
             <button type="button" onClick={onRetour} aria-label={libelleRetour ?? "Retour"} className={boutonIcone}><ArrowLeft className="h-4 w-4" /></button>

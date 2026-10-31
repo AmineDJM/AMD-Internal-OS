@@ -8,7 +8,10 @@ import { recordAudit } from "@/lib/audit";
 import { fdBool, type ActionResult } from "@/lib/actions/types";
 import { UserRole } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/labels";
-import { LIBELLE_FAMILLE, normaliserReglageFamilles, normaliserReglages, normaliserReglagesVisuels, type FamilleIa } from "@/modules/assistant-ia/api";
+import {
+  LIBELLE_FAMILLE, LIBELLE_VALEURS_SENSIBLES, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglageFamilles, normaliserReglages,
+  normaliserReglagesVisuels, type FamilleIa,
+} from "@/modules/assistant-ia/api";
 
 /**
  * LES BORNES DE L'ASSISTANT IA — enregistrées par le Super Admin (Administration › Consommation IA,
@@ -31,7 +34,10 @@ export async function enregistrerReglagesAssistantIa(formData: FormData): Promis
     retirerCartesCaduques: fdBool(formData, "retirerCartesCaduques"),
     modeleVoix: formData.get("modeleVoix"),
   });
-  const data = { ...r, modeleVoix: r.modeleVoix || null, updatedById: admin.id };
+  // Le mode des valeurs sensibles (décision 0034) a son propre réglage, dans la console d'accès : ce formulaire n'y touche pas.
+  const { valeursSensibles: _horsFormulaire, ...bornes } = r;
+  void _horsFormulaire;
+  const data = { ...bornes, modeleVoix: r.modeleVoix || null, updatedById: admin.id };
   await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
   await recordAudit({
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA",
@@ -62,7 +68,7 @@ export async function enregistrerAccesAssistantIa(formData: FormData): Promise<A
     return [part(n.ouvertes, "ouvertes"), part(n.fermees, "fermées")].filter(Boolean).join(" ; ") || "défaut";
   };
   // Vidé ET sans plafond propre (J2) : la ligne disparaît ; avec un plafond propre, seules ses familles reviennent au défaut.
-  if (!r.ouvertes.length && !r.fermees.length && avant?.plafondTravailUsd == null && avant?.plafondMensuelUsd == null) await prisma.assistantIaAcces.deleteMany({ where: ou });
+  if (!r.ouvertes.length && !r.fermees.length && avant?.plafondTravailUsd == null && avant?.plafondMensuelUsd == null && avant?.travauxDOffice == null) await prisma.assistantIaAcces.deleteMany({ where: ou });
   else {
     const data = { ouvertes: r.ouvertes, fermees: r.fermees, updatedById: admin.id };
     await prisma.assistantIaAcces.upsert({ where: ou as never, create: { ...ou, ...data }, update: data });
@@ -138,6 +144,30 @@ export async function enregistrerPlafondsTravaux(formData: FormData): Promise<Ac
 }
 
 /**
+ * K3 (décision 0033) — « DÉMARRER D'OFFICE LES TRAVAUX SANS GESTE » pour un rôle ou une personne : un plan de lecture,
+ * d'analyse et de livrable part sans clic (tout geste reste approuvé). « oui », « non », ou vide (le défaut : non ; le
+ * Super Admin, oui). La préférence de la personne prime. Super Admin seul ; chaque changement à l'audit.
+ */
+export async function enregistrerTravauxDOffice(formData: FormData): Promise<ActionResult> {
+  const brut = String(formData.get("valeur") ?? "");
+  const valeur = brut === "oui" ? true : brut === "non" ? false : null;
+  const admin = await requireUser();
+  const c = userCan(admin, "ADMIN", "UPDATE") && admin.role === "SUPER_ADMIN" ? await lireCible(String(formData.get("cible") ?? "")) : { error: "Réservé au Super Admin." };
+  if ("error" in c) return { ok: false, error: c.error };
+  const avant = await prisma.assistantIaAcces.findUnique({ where: c.ou as never });
+  if (avant) await prisma.assistantIaAcces.update({ where: { id: avant.id }, data: { travauxDOffice: valeur, updatedById: admin.id } });
+  else if (valeur !== null) await prisma.assistantIaAcces.create({ data: { ...c.ou, travauxDOffice: valeur, updatedById: admin.id } });
+  const dire = (v: boolean | null | undefined) => (v === true ? "oui" : v === false ? "non" : "défaut");
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Travaux — démarrage d'office",
+    oldValue: dire(avant?.travauxDOffice), newValue: dire(valeur),
+    summary: `Démarrage d'office des travaux sans geste — ${c.nom} : ${dire(avant?.travauxDOffice)} → ${dire(valeur)}`,
+  });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+/**
  * J8 (décision 0023) — UN RESPONSABLE VOIT-IL LES TRAVAUX DE SON ÉQUIPE ? Super Admin seul ; défaut : non. Le
  * changement est à l'audit, comme chaque consultation qu'il rend possible (`infra/travaux-equipe.ts`).
  */
@@ -153,6 +183,30 @@ export async function enregistrerVisibiliteEquipe(formData: FormData): Promise<A
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Travaux — un responsable voit ceux de son équipe",
     oldValue: dire(avant?.managerVoitEquipe), newValue: dire(voit),
     summary: `Les responsables ${voit ? "voient désormais" : "ne voient plus"} les travaux de leur équipe (résumé et étapes, chaque consultation à l'audit)`,
+  });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+/**
+ * DÉCISION 0034 (Direction, 31/10/2026) — LES VALEURS SENSIBLES ET LE MODÈLE : « en clair pour qui a le droit de les voir »
+ * (défaut) ou « masquées (repères ⟦Sn⟧) ». Super Admin seul ; chaque changement à l'audit (avant → après). Les DROITS ne
+ * bougent pas : une personne ne reçoit toujours que ce que le RBAC et la console lui ouvrent.
+ */
+export async function enregistrerValeursSensibles(formData: FormData): Promise<ActionResult> {
+  const admin = await requireUser();
+  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  const brut = String(formData.get("valeursSensibles") ?? "");
+  if (!(MODES_VALEURS_SENSIBLES as readonly string[]).includes(brut)) return { ok: false, error: "Choix inconnu : « en clair » ou « masquées »." };
+  const mode = modeValeursSensibles(brut);
+  const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { valeursSensibles: true } });
+  const data = { valeursSensibles: mode, updatedById: admin.id };
+  await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
+  const ancien = LIBELLE_VALEURS_SENSIBLES[modeValeursSensibles(avant?.valeursSensibles)];
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Assistant IA — valeurs sensibles",
+    oldValue: ancien, newValue: LIBELLE_VALEURS_SENSIBLES[mode],
+    summary: `Assistant IA — valeurs sensibles (salaires, IBAN / RIB, pièces d'identité) : ${ancien} → ${LIBELLE_VALEURS_SENSIBLES[mode]}`,
   });
   revalidatePath("/admin/ai/acces");
   return { ok: true };

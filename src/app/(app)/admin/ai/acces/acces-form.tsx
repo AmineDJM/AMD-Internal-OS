@@ -6,12 +6,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAction } from "@/components/shared/use-action";
-import { enregistrerAccesAssistantIa, enregistrerPlafondsTravaux, enregistrerRetentionEffets, enregistrerVisibiliteEquipe } from "@/modules/assistant-ia/actions-consommation";
 import {
-  AIDE_FAMILLE, FAMILLES_IA, FAMILLES_SENSIBLES, LIBELLE_FAMILLE, resoudreAccesIa, type FamilleIa, type ReglageFamilles,
+  enregistrerAccesAssistantIa, enregistrerPlafondsTravaux, enregistrerRetentionEffets, enregistrerTravauxDOffice, enregistrerValeursSensibles,
+  enregistrerVisibiliteEquipe,
+} from "@/modules/assistant-ia/actions-consommation";
+import {
+  AIDE_FAMILLE, FAMILLES_IA, FAMILLES_SENSIBLES, LIBELLE_FAMILLE, LIBELLE_VALEURS_SENSIBLES, MODES_VALEURS_SENSIBLES, resoudreAccesIa,
+  type FamilleIa, type ModeValeursSensibles, type ReglageFamilles,
 } from "@/modules/assistant-ia/partage";
 
-export interface LigneRole { role: string; libelle: string; reglage: ReglageFamilles }
+export interface LigneRole { role: string; libelle: string; reglage: ReglageFamilles; dOffice?: boolean | null }
 export interface LignePersonne {
   id: string; nom: string; email: string; role: string;
   droits: Record<FamilleIa, boolean>;
@@ -266,6 +270,39 @@ function VisibiliteEquipe({ initial }: { initial: boolean }) {
   );
 }
 
+/** Ce que chaque mode fait, dit à la Direction sous le choix. */
+const AIDE_VALEURS_SENSIBLES: Record<ModeValeursSensibles, string> = {
+  EN_CLAIR: "L'assistant reçoit, écrit et prononce à voix haute les valeurs que la personne a le droit de voir. Chaque valeur transmise est journalisée.",
+  MASQUEES: "L'assistant ne voit que des repères ⟦S1⟧ ; le serveur montre la valeur à l'écran à qui a le droit, et la voix ne la prononce jamais.",
+};
+
+/** Décision 0034 — les valeurs sensibles et le modèle : en clair (défaut, Direction 31/10/2026) ou masquées. */
+function ValeursSensibles({ initial }: { initial: ModeValeursSensibles }) {
+  const { saving, err, run } = useAction();
+  const [mode, setMode] = React.useState(initial);
+  const [ok, setOk] = React.useState(false);
+  const choisir = (m: ModeValeursSensibles) => {
+    if (m === mode) return;
+    const fd = new FormData();
+    fd.set("valeursSensibles", m);
+    setOk(false);
+    void run(() => enregistrerValeursSensibles(fd), () => { setMode(m); setOk(true); });
+  };
+  return (
+    <div className="space-y-2">
+      <div role="radiogroup" aria-label="Valeurs sensibles" className="flex flex-col gap-2">
+        {MODES_VALEURS_SENSIBLES.map((m) => (
+          <label key={m} className="flex items-start gap-2 text-sm">
+            <input type="radio" name="valeursSensibles" checked={mode === m} disabled={saving} onChange={() => choisir(m)} className="mt-0.5 h-4 w-4" />
+            <span><strong>{LIBELLE_VALEURS_SENSIBLES[m]}</strong>{m === "EN_CLAIR" ? " — défaut" : ""}<br /><span className="text-muted-foreground">{AIDE_VALEURS_SENSIBLES[m]}</span></span>
+          </label>
+        ))}
+      </div>
+      <EtatEnregistrement saving={saving} ok={ok} err={err} />
+    </div>
+  );
+}
+
 /** J7 (décision 0029) — combien de jours un geste de l'assistant reste annulable (journal des effets). */
 function RetentionEffets({ initial }: { initial: number }) {
   const { saving, err, run } = useAction();
@@ -290,11 +327,55 @@ function RetentionEffets({ initial }: { initial: number }) {
   );
 }
 
-export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours }: {
+/** K3 (décision 0033) : « démarrer d'office les travaux sans geste », par rôle — défaut, oui, non. */
+function DOfficeParRole({ roles }: { roles: LigneRole[] }) {
+  const { saving, err, run } = useAction();
+  const [ok, setOk] = React.useState<string | null>(null);
+  const [valeurs, setValeurs] = React.useState<Record<string, string>>(() => Object.fromEntries(roles.map((r) => [r.role, r.dOffice === true ? "oui" : r.dOffice === false ? "non" : ""])));
+  const changer = (role: string, v: string) => {
+    setValeurs((x) => ({ ...x, [role]: v }));
+    const fd = new FormData();
+    fd.set("cible", `role:${role}`);
+    fd.set("valeur", v);
+    setOk(null);
+    void run(() => enregistrerTravauxDOffice(fd), () => setOk(role));
+  };
+  return (
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {roles.map((r) => (
+        <label key={r.role} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
+          <span className="min-w-0 truncate">{r.libelle}</span>
+          <select value={valeurs[r.role] ?? ""} disabled={saving} onChange={(e) => changer(r.role, e.target.value)} aria-label={`Démarrage d'office — ${r.libelle}`}
+            className="h-9 rounded-md border bg-background px-2 text-sm">
+            <option value="">Défaut (non)</option>
+            <option value="oui">Oui</option>
+            <option value="non">Non</option>
+          </select>
+          {ok === r.role && !err && <span className="sr-only">Enregistré.</span>}
+        </label>
+      ))}
+      {err && <p className="text-xs text-destructive">{err}</p>}
+    </div>
+  );
+}
+
+export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours, valeursSensibles }: {
   roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number }; managerVoitEquipe: boolean; retentionEffetsJours: number;
+  valeursSensibles: ModeValeursSensibles;
 }) {
   return (
     <div className="space-y-5">
+      <Card>
+        <CardHeader><CardTitle className="text-base">Valeurs sensibles — salaires, IBAN / RIB, pièces d&apos;identité</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Ce réglage ne change <strong>aucun droit</strong> : chacun ne reçoit que ce que son rôle et cette console lui ouvrent. Il décide
+            seulement si l&apos;assistant voit en clair ce que la personne a le droit de voir. Les échanges de l&apos;Assistant IA ne sont pas
+            conservés chez OpenAI (<code>store: false</code>), et les données de l&apos;API ne servent pas à entraîner ses modèles.
+          </p>
+          <ValeursSensibles initial={valeursSensibles} />
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader><CardTitle className="text-base">Travaux longs — plafonds de dépense par défaut</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -304,6 +385,17 @@ export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, manage
             Chaque personne peut avoir les siens (ci-dessous).
           </p>
           <Plafonds cible="global" travail={plafondsGlobaux.travailUsd} mensuel={plafondsGlobaux.mensuelUsd} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Sous-missions — démarrer d&apos;office les travaux sans geste</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Un plan qui ne fait que lire, analyser et déposer un livrable dans le Drive de la personne peut démarrer sans clic : la
+            conversation continue pendant qu&apos;il tourne. Tout plan avec un geste, une demande à un collègue ou une attente reste
+            approuvé à la main. Défaut : oui pour le Super Admin, non pour les autres ; chacun peut changer le sien dans ses réglages.
+          </p>
+          <DOfficeParRole roles={roles} />
         </CardContent>
       </Card>
       <Card>

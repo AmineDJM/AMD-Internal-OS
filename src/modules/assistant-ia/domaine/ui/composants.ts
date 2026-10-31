@@ -1,5 +1,6 @@
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
-import { readVizBlock } from "@/platform/ia/workspace/viz-block";
+import { chartEnBloc, CONSIGNE_CHART, lireChart } from "./graphique";
+import { CHOIX_DU_VISUEL, COMPOSANTS_VISUELS, CONSIGNE_VISUELS, visuelEnBloc, type ComposantVisuel } from "./visuels";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -23,7 +24,7 @@ import { readVizBlock } from "@/platform/ia/workspace/viz-block";
  */
 
 /** Les composants que l'interface dessine — la liste montrée au modèle, et rien d'autre. */
-export const COMPOSANTS_PRIS_EN_CHARGE = ["text", "card", "list", "table", "chart", "alert", "steps"] as const;
+export const COMPOSANTS_PRIS_EN_CHARGE = ["text", "card", "list", "table", "chart", "alert", "steps", ...COMPOSANTS_VISUELS] as const;
 export type TypeComposant = (typeof COMPOSANTS_PRIS_EN_CHARGE)[number];
 
 /** Ce que le modèle lit : la forme de chaque composant, en une ligne. */
@@ -31,14 +32,16 @@ export const CONSIGNE_COMPOSANTS = [
   "FORMAT DE SORTIE — réponds TOUJOURS par un seul objet JSON valide, sans texte autour :",
   '{"message": "…", "components": [ … ]}',
   "- message : la réponse elle-même, en Markdown sobre (gras pour les repères, listes, petits tableaux). La première phrase répond.",
-  "- components : facultatif ([] le plus souvent). Un composant seulement s'il apporte quelque chose. Ce qu'un composant montre, le message ne le répète PAS : il dit l'essentiel en une ou deux phrases et laisse le composant porter le détail.",
+  "- components : un composant dès qu'un VISUEL aide à lire (règles ci-dessous) ; [] pour une question simple. Ce qu'un composant montre, le message ne le répète PAS : il dit l'essentiel en une ou deux phrases et laisse le composant porter le détail.",
   "Composants disponibles (aucun autre) :",
   '- {"type":"card","title":"…","content":"…","fields":[{"label":"…","value":"…"}]} — une fiche (un dossier, une personne, un produit).',
   '- {"type":"table","title":"…","columns":["…"],"rows":[["…"]]} — des lignes LUES par tes outils dans ce tour, recopiées telles quelles.',
-  '- {"type":"chart","title":"…","chartType":"barres|courbe|secteurs","labels":["…"],"series":[{"name":"…","values":[1]}]} — seulement des nombres rendus par tes outils.',
+  CONSIGNE_CHART,
   '- {"type":"alert","level":"info|attention|critique","title":"…","content":"…"} — un point qui demande une action ou une vigilance.',
   '- {"type":"steps","title":"…","steps":[{"label":"…","detail":"…"}]} — un circuit ou une procédure, étape par étape : PRIVILÉGIE-LE pour expliquer un processus. Un circuit de validation se LIT d\'abord (read_workflow) ; jamais de mémoire.',
   '- {"type":"list","title":"…","items":["…"]} — une liste à retenir.',
+  CONSIGNE_VISUELS,
+  CHOIX_DU_VISUEL,
   "Un chiffre ou une ligne qui ne vient pas de tes outils est retiré par l'application : n'en invente aucun.",
 ].join("\n");
 
@@ -94,7 +97,25 @@ export function lireReponseModele(texte: string): ReponseLue {
       /* candidat suivant */
     }
   }
-  return { message: brut, composants: [] };
+  return { message: messageRepare(brut), composants: [] };
+}
+
+/**
+ * UN CONTRAT MAL FORMÉ NE S'AFFICHE JAMAIS BRUT (Direction, 31/10/2026 : une réponse finissait par
+ * `","components":[]}`). Le modèle laisse parfois un guillemet non échappé dans `message`, ou écrit du texte avant
+ * l'objet : aucun candidat ne se lit en JSON. On garde alors le texte du message — entre `"message": "` et la
+ * dernière `", "components":` — décodé, et l'on retire toute queue de contrat restée collée à un texte simple.
+ */
+export function messageRepare(brut: string): string {
+  const queue = /"\s*,\s*"components"\s*:\s*\[[\s\S]*$/;
+  const ouverture = /\{?\s*"message"\s*:\s*"/.exec(brut);
+  const debut = ouverture ? ouverture.index + ouverture[0].length : 0;
+  const reste = brut.slice(debut);
+  const fin = reste.search(queue);
+  let texte = fin >= 0 ? reste.slice(0, fin) : ouverture ? reste.replace(/"\s*\}\s*$/, "") : reste;
+  if (ouverture) texte = texte.replace(/\\n/g, "\n").replace(/\\t/g, "\t").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  const avant = ouverture ? brut.slice(0, ouverture.index).trim() : "";
+  return [avant, texte.trim()].filter(Boolean).join("\n\n");
 }
 
 // ─────────────────────────────── LE GARDE-FOU DES DONNÉES ───────────────────────────────
@@ -249,16 +270,20 @@ export function composantsEnBlocs(lu: ReponseLue, sources: SourcesTour): Resulta
         });
         break;
       }
-      case "chart": {
+      case "kpi": case "gauge": case "timeline": {
+        // K1 (ajout de la Direction) : indicateurs, jauges, chronologie — `visuels.ts`.
         if (!corpus.outils) { retirer(type, "sans-outil"); break; }
-        const libelles = tab(c.labels).map((x) => str(x, 40)).filter(Boolean).slice(0, 24);
-        const series = tab(c.series).map((s) => (s && typeof s === "object" ? s as Record<string, unknown> : null)).filter(Boolean) as Record<string, unknown>[];
-        const valeurs = series.flatMap((s) => tab(s.values ?? s.valeurs)).filter((v): v is number => typeof v === "number");
-        if (!libelles.length || !valeurs.length) { retirer(type, "vide"); break; }
-        if (!valeurs.every((v) => corpus.nombreConnu(v))) { retirer(type, "chiffre-non-source"); break; }
-        const forme = str(c.chartType, 20);
-        const vizType = forme === "courbe" || forme === "line" ? "courbe" : forme === "secteurs" || forme === "pie" ? "secteurs" : "barres";
-        const b = readVizBlock({ type: vizType, donnees: { categories: libelles, series: series.map((s) => ({ label: str(s.name ?? s.label, 40), valeurs: tab(s.values ?? s.valeurs) })) } }, titre || "Graphique");
+        const b = visuelEnBloc(type as ComposantVisuel, c, titre, (t) => corpus.chiffresProuves(t), (n) => corpus.nombreConnu(n));
+        if (typeof b === "string") retirer(type, b); else blocs.push(b);
+        break;
+      }
+      case "chart": {
+        // K1 (décision 0031) : onze formes, choix automatique, garde anti-graphique trompeur — `graphique.ts`.
+        if (!corpus.outils) { retirer(type, "sans-outil"); break; }
+        const lu = lireChart(c);
+        if (!lu.valeurs.length) { retirer(type, "vide"); break; }
+        if (!lu.valeurs.every((v) => corpus.nombreConnu(v))) { retirer(type, "chiffre-non-source"); break; }
+        const b = chartEnBloc(c, lu, titre || "Graphique");
         if (b) blocs.push(b); else retirer(type, "vide");
         break;
       }

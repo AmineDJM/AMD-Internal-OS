@@ -169,7 +169,7 @@ export function phraseRefus(refus: Refus[], ignores = 0, tronque = false, max = 
  */
 export function phraseLecturePartielle(nombre: number): string | null {
   if (nombre <= PIECES_LUES_MAX) return null;
-  return `${nombre} pièces : les ${PIECES_LUES_MAX} premières seront lues par l'assistant ; les ${nombre - PIECES_LUES_MAX} autres seront jointes et rangées dans votre Drive, sans être lues.`;
+  return `${nombre} pièces : les ${PIECES_LUES_MAX} premières seront lues dans ce message ; pour tout lire, retirez-les et déposez-les ensemble (« tout lire en arrière-plan »).`;
 }
 
 /** Une pièce dont le NOM annonce le coffre (passeport, RIB, paie) : jointe, jamais lue — dit sur la puce. */

@@ -4,7 +4,8 @@ import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import type { PersonaTravail } from "@/lib/missions/travaux/plan";
 import type { PersonaTravaux } from "@/lib/missions/travaux/persona";
 import { conduireTravail, type BilanConduite } from "@/lib/missions/travaux/conduite";
-import { webDoitSAbstenir } from "@/lib/missions/travaux/balayage";
+import { travauxEnParallele, webDoitSAbstenir } from "@/lib/missions/travaux/balayage";
+import { enParallele } from "@/lib/missions/runtime/engine/ordonnancement";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -40,23 +41,25 @@ export async function reveillerTravauxSignales(o: {
   const out: BilanReveils = { pris: 0, conduits: [], abstenu: false };
   if (await webDoitSAbstenir(o.mode ?? "web", o.executeur ?? "web", clock.now())) return { ...out, abstenu: true };
   const signales = await prisma.mission.findMany({
-    where: { kind: "TRAVAIL", reveilDemandeLe: { not: null }, ...(o.seulement ? { id: { in: [...o.seulement] } } : {}) },
+    // K3 : un travail fini ou annulé entre le signal et le réveil ne se conduit plus (son signal est simplement ignoré).
+    where: { kind: "TRAVAIL", reveilDemandeLe: { not: null }, status: { notIn: ["COMPLETED", "CANCELLED", "FAILED"] }, ...(o.seulement ? { id: { in: [...o.seulement] } } : {}) },
     select: { id: true, persona: true, reveilDemandeLe: true },
     orderBy: [{ priority: "desc" }, { reveilDemandeLe: "asc" }],
     take: PAR_PASSAGE,
   });
-  for (const t of signales) {
+  // K3 : les réveils signalés se conduisent en parallèle (même borne que le battement).
+  await enParallele(signales, travauxEnParallele(), async (t) => {
     // EFFACER AVANT DE CONDUIRE, à sa valeur : un second signal arrivé entre-temps reste posé.
     const pris = await prisma.mission.updateMany({ where: { id: t.id, reveilDemandeLe: t.reveilDemandeLe }, data: { reveilDemandeLe: null } });
-    if (pris.count !== 1) continue;
+    if (pris.count !== 1) return;
     const persona = t.persona ? o.personas[t.persona as PersonaTravail] : undefined;
-    if (!persona) continue;
+    if (!persona) return;
     out.pris += 1;
     try {
       out.conduits.push(await conduireTravail(t.id, { persona, clock, ...(opts.interrupteur ? { interrupteur: opts.interrupteur } : {}) }));
     } catch (e) {
       console.error("[travaux] réveil", t.id, e);
     }
-  }
+  });
   return out;
 }

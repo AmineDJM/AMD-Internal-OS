@@ -107,7 +107,7 @@ describe("les limites d'un envoi", () => {
 
   it("au-delà de 6 pièces, l'écran dit d'avance que les suivantes sont jointes et rangées sans être lues", () => {
     expect(phraseLecturePartielle(6)).toBeNull();
-    expect(phraseLecturePartielle(9)).toBe("9 pièces : les 6 premières seront lues par l'assistant ; les 3 autres seront jointes et rangées dans votre Drive, sans être lues.");
+    expect(phraseLecturePartielle(9)).toBe("9 pièces : les 6 premières seront lues dans ce message ; pour tout lire, retirez-les et déposez-les ensemble (« tout lire en arrière-plan »).");
   });
 
   it("une pièce dont le nom annonce le coffre est signalée sur sa puce", () => {

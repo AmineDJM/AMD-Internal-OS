@@ -11,7 +11,8 @@
  * en file). La décision 0015 (rien ne part avant Entrée) tient toujours : le lot ne s'ouvre qu'à l'envoi.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import { estFichierSysteme, PIECES_PAR_ENVOI_MAX, type Refus } from "./depot";
+import { estFichierSysteme, type Refus } from "./depot";
+import { PIECES_LUES_MAX } from "./regles";
 
 /** Les bornes du mode « dépôt de dossier » — réglables (`ASSISTANT_DEPOT_DOSSIER_FICHIERS`, `…_MO`). */
 export interface BornesDossier {
@@ -44,11 +45,18 @@ export interface FichierDeDossier {
 export const contientUnDossier = (fichiers: readonly { chemin: string }[]): boolean => fichiers.some((f) => f.chemin.includes("/"));
 
 /**
- * LE MODE d'un dépôt : « message » (les puces jointes au message, ≤ 10) ou « dossier » (le mode « dépôt de dossier »,
- * au-delà de 10 pièces quand un dossier est déposé). Des fichiers en vrac au-delà de 10 restent refusés un à un.
+ * LE MODE d'un dépôt : « message » (les puces jointes au message, toutes LUES) ou « dossier » (le mode « dépôt », lu en
+ * entier en arrière-plan par la Bibliothèque). K3 (décision 0033) : AU-DELÀ DE `PIECES_LUES_MAX` (6) pièces — fichiers
+ * isolés OU dossier —, le dépôt est proposé d'office : plus de pièces « nommées non lues », plus de refus à 10.
  */
 export function modeDuDepot(fichiers: readonly { chemin: string }[], dejaLa = 0): "message" | "dossier" {
-  return contientUnDossier(fichiers) && fichiers.length + dejaLa > PIECES_PAR_ENVOI_MAX ? "dossier" : "message";
+  return fichiers.length + dejaLa > PIECES_LUES_MAX ? "dossier" : "message";
+}
+
+/** La puce du dépôt d'office : « 14 fichiers : tout lire en arrière-plan » (ou « Dossier « X » — … »). */
+export function libelleDepotDOffice(d: { nom: string; fichiers: number; vrac: boolean }): string {
+  const n = `${d.fichiers.toLocaleString("fr-FR")} fichier${d.fichiers > 1 ? "s" : ""}`;
+  return d.vrac ? `${n} : tout lire en arrière-plan` : `Dossier « ${d.nom} » — ${n} : tout lire en arrière-plan`;
 }
 
 export const raisonBorneFichiers = (b: BornesDossier) =>

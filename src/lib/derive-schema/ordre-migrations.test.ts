@@ -32,6 +32,9 @@ const MIGRATIONS_FIGEES: string[] = JSON.parse(readFileSync("prisma/migrations-f
 
 /** Ajoutées après des migrations de nom plus grand — mesuré le 28/10/2026 (intégrations des branches `refonte/*`). */
 const ECARTS_CONNUS = new Set([
+  // K2 et K3 (31/10/2026) : lots parallèles ; K2 (`…110000_assistant_ia_visuels`) a été poussé et peut être déployé
+  // avant que K3 (`…120000_sous_missions`, écrite plus tôt sur sa branche) ne soit intégré. Tables distinctes : aucun ordre requis.
+  "20270216110000_assistant_ia_visuels",
   "20270131110000_materiel_promo_budget",
   "20270131130000_adpro_circuit_prevalidation",
   // Son nom réel depuis la fusion du 27/10 (e15445fd) — l'entrée ci-dessus portait l'ancien ; déployée, elle ne se renomme pas.

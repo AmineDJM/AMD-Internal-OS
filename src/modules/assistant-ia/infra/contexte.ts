@@ -51,6 +51,8 @@ export interface OptionsContexte {
   sectionsDuTour?: readonly string[];
   /** Décision 0027 : une conversation PRIVÉE ne lit pas la mémoire de la personne. */
   sansMemoire?: boolean;
+  /** Décision 0034 : les valeurs sensibles arrivent en clair (règle 2 réécrite) — absent : en repères (décision 0012). */
+  valeursEnClair?: boolean;
 }
 
 export interface MessageHistorique {
@@ -128,9 +130,18 @@ export const REGLES = [
   "Graphe et faits datés : « qu'est-ce qui dépend de… », « qui a travaillé sur… », « quels documents parlent de… » → explorer_relations ; « quelle était… à telle date » → etat_a_une_date (jamais la valeur d'aujourd'hui à la place) ; « d'où vient ce chiffre » → d_ou_vient. CHAQUE chiffre, date ou identifiant que tu en reprends est suivi de sa source entre parenthèses (la `source` rendue) ; une entité AMBIGUË se tranche par une question, jamais par un choix.",
   "Recettes de la maison : une demande qui suit un processus de l'entreprise (prise en charge, sponsoring, événement, validation, recrutement…) → recette_pour d'abord. Une recette VALIDÉE rend un plan : propose-le TEL QUEL (lancer_un_travail) en disant d'où il vient avec la phrase `selon` (« selon la recette … validée par … le … »), et signale chaque écart rendu ; tu ne retouches le plan qu'à la demande de la personne, en disant ce que tu changes. AUCUNE ou AMBIGU : jamais de « selon la recette ».",
   REGLE_NOTES,
+  // K1 (décision 0031) — l'analyse de données : le code calcule, l'assistant cite.
+  "Analyse de données : un chiffre qui demande un calcul (total, somme, moyenne, part, évolution, classement, comparaison, écart) se CALCULE, jamais de tête ; et dès que la réponse porte PLUSIEURS chiffres (un détail par poste, client, mois, état, département…), appelle analyser_donnees sur la lecture même si elle donne déjà un total — c'est ce qui affiche le tableau, le graphique et le calcul vérifiable. Lis d'abord (la lecture qui donne les lignes : read_budget, demandes…, ou lire_tableur pour un Excel/CSV joint ou du Drive), puis analyser_donnees avec source = le nom de cette lecture ou du jeu de la feuille, et les étapes (regrouper, serie, croissance…) ; calculer_code pour un calcul sur mesure ; requete_sql seulement si tu l'as (vue globale). Cite les chiffres EXACTEMENT comme l'outil les rend (déjà formatés : « 12 345 678 DZD », « 12,5 % ») — aucune somme, aucun pourcentage, aucun arrondi de ton fait. Le tableau, le graphique, « Comment c'est calculé » et l'export Excel s'affichent seuls sous ta réponse : ne les recopie pas et ne fais pas de composant table ni chart pour eux.",
   // K7 (décision 0037) — « je croyais qu'il pouvait faire toutes les actions de l'ERP » : ce qu'un écran fait, l'assistant le cherche.
   "Ce que font les écrans : tout ce qu'un écran de l'ERP permet (exporter un Excel, télécharger un PDF, envoyer un fichier à un collègue…), cherche-le avant de répondre — trouver_outil avec l'intention (« exporter le suivi Regulatory en Excel »). Un export (exporter_*) dépose le fichier dans le Drive de la personne (dossier « Exports ») : donne son lien ; pour l'envoyer à un collègue, send_message avec la pièce (son nodeId) — une carte à confirmer. S'il n'existe vraiment aucun outil, dis quel écran le fait, avec son lien direct : jamais « je ne peux pas » sans cela.",
 ];
+
+/**
+ * LA RÈGLE 2 EN MODE « EN CLAIR » (décision 0034, Direction 31/10/2026) — elle remplace celle des repères : les DROITS
+ * sont les mêmes, seul le masquage vis-à-vis du modèle tombe pour ce que la personne a le droit de voir.
+ */
+export const REGLE_CONFIDENTIALITE_EN_CLAIR = "Confidentialité : une rémunération, une coordonnée bancaire (RIB, IBAN, CCP) ou un numéro de pièce d'identité que tes outils te rendent EN CLAIR est une valeur que la personne a le droit de voir — donne-la-lui quand elle la demande, à l'écrit comme à voix haute ; une valeur rendue « [confidentiel] » ne lui est pas ouverte. Tes outils appliquent les droits de la personne : ne refuse jamais une demande de toi-même, appelle l'outil et rapporte son refus s'il en fait un. Un refus se formule par le DROIT qui manque (son rôle, une famille fermée par la Direction), jamais par « les outils disponibles ».";
+const RANG_CONFIDENTIALITE = 1;
 
 /**
  * LES RÈGLES D'UNE FAMILLE D'OUTILS (J4) — dites seulement quand l'un de ces outils est offert : un « bonjour » n'a
@@ -145,12 +156,14 @@ const REGLE_SI_OUTIL: Record<number, (nom: string) => boolean> = {
   11: (n) => n === "explorer_relations" || n === "etat_a_une_date" || n === "d_ou_vient",
   12: (n) => n === "recette_pour",
   13: (n) => /^(lire_notes|ajouter_note|modifier_note|cocher_note|deplacer_note|supprimer_note|creer_page|renommer_page)$/.test(n),
+  14: (n) => /^(lire_tableur|analyser_donnees|calculer_code|requete_sql)$/.test(n),
 };
 
 /** Les règles à dire pour ces outils : toutes les règles générales, et celles des familles offertes. */
-export function reglesPour(outils?: readonly string[]): string[] {
-  if (!outils) return REGLES;
-  return REGLES.filter((_, i) => !REGLE_SI_OUTIL[i] || outils.some(REGLE_SI_OUTIL[i]));
+export function reglesPour(outils?: readonly string[], enClair = false): string[] {
+  const regles = enClair ? REGLES.map((r, i) => (i === RANG_CONFIDENTIALITE ? REGLE_CONFIDENTIALITE_EN_CLAIR : r)) : REGLES;
+  if (!outils) return regles;
+  return regles.filter((_, i) => !REGLE_SI_OUTIL[i] || outils.some(REGLE_SI_OUTIL[i]));
 }
 
 /** Les règles qu'ajoutent des outils TROUVÉS en cours de tour (rendues par `trouver_outil`). */
@@ -170,6 +183,7 @@ export async function compileContext({
   consignesPersonne = [],
   question,
   sansMemoire = false,
+  valeursEnClair = false,
 }: OptionsContexte): Promise<ContexteCompile> {
   let censureGlobale = false;
 
@@ -193,7 +207,7 @@ export async function compileContext({
   // minute, la ferme : placée en tête, elle invalidait le cache de tout ce qui la suivait.
   const sections: string[] = [
     "Tu es l'assistant interne d'Adventum Pharma, un laboratoire pharmaceutique algérien. Tu réponds en français, avec rigueur et clarté, en t'appuyant uniquement sur les données de l'entreprise que te donnent tes outils.",
-    `### RÈGLES FONDAMENTALES\n${reglesPour(outilsActifs).map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
+    `### RÈGLES FONDAMENTALES\n${reglesPour(outilsActifs, valeursEnClair).map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
     `### PRÉSENTATION (UI générative)\n${CONSIGNE_COMPOSANTS}`,
     ...consignesGenerales.filter(Boolean),
     `### INTERLOCUTEUR\nNom : ${user.name}\nRôle : ${roleLabel}${user.secondaryRole ? ` (rôle secondaire : ${ROLE_LABELS[user.secondaryRole] ?? user.secondaryRole})` : ""}`,

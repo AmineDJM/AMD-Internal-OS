@@ -7,15 +7,15 @@
  */
 
 export { executerSqlLectureSeule, verifierForme, TABLES_AUTORISEES, LIMITE_LIGNES, type ResultatSql } from "@/lib/sandbox/sql";
-export { executerJs, verifierCodeJs, JS_DELAI_MS, type ResultatJs } from "@/lib/sandbox/js";
-export { executerPython, sonderPython, verifierCodePython, PY_DELAI_MS, type ResultatPython, type DisponibilitePython } from "@/lib/sandbox/python";
+export { executerJs, verifierCodeJs, JS_DELAI_MS, type ResultatJs } from "@/platform/ia/analyse/js";
+export { executerPython, sonderPython, verifierCodePython, PY_DELAI_MS, type ResultatPython, type DisponibilitePython } from "@/platform/ia/analyse/python";
 export {
   OPERATIONS, decrire, regrouper, croiser, filtrer, trier, serie, moyenneMobile, croissance, cumul, tendance, rang, anomalies, cohortes, scenario, mediane, percentile,
   type Ligne, type Mesure, type Filtre, type Pas, type Agregat, type Operateur, type Ignore, type Colonne,
-} from "@/lib/sandbox/analyse";
-export { recommanderGraphique, verifierGraphique, type SpecGraphique, type Alerte, type TypeGraphique } from "@/lib/sandbox/viz";
-export { appliquerEtapes, mesureDe, filtreDe, OPS_PIPELINE, MODE_EMPLOI_PIPELINE, ETAPES_MAX, type ResultatPipeline, type JournalEtape } from "@/lib/sandbox/pipeline";
-export { passerLaPorte, inspecter, tester, valider, type Attente, type SchemaSortie, type RapportPorte } from "@/lib/sandbox/porte";
+} from "@/platform/ia/analyse/analyse";
+export { recommanderGraphique, verifierGraphique, type SpecGraphique, type Alerte, type TypeGraphique } from "@/platform/ia/analyse/viz";
+export { appliquerEtapes, mesureDe, filtreDe, OPS_PIPELINE, MODE_EMPLOI_PIPELINE, ETAPES_MAX, type ResultatPipeline, type JournalEtape } from "@/platform/ia/analyse/pipeline";
+export { passerLaPorte, inspecter, tester, valider, type Attente, type SchemaSortie, type RapportPorte } from "@/platform/ia/analyse/porte";
 
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
@@ -26,12 +26,13 @@ import { hasGlobalView, type SessionUser } from "@/lib/rbac";
 
 /** La VUE GLOBALE (direction, Super Admin) — le garde de `sql_query`, exposé ici pour que l'outil n'importe pas le RBAC. */
 export const aVueGlobale = (user: SessionUser): boolean => hasGlobalView(user);
-import type { Ligne } from "@/lib/sandbox/analyse";
+import type { Ligne } from "@/platform/ia/analyse/analyse";
+// K1 (décision 0031) : la lecture des tableurs vit au socle — l'Assistant IA et Adam lisent un fichier de la même façon.
+import { cellule, entetesDe, lireCsv, versLignes, LIGNES_TABLEUR_MAX } from "@/platform/ia/analyse/tableur";
 import type { ResultatSql } from "@/lib/sandbox/sql";
 import { sansBloquer } from "@/lib/journal";
 
-export const LIGNES_DRIVE_MAX = 50_000;
-const COLONNES_MAX = 60;
+export const LIGNES_DRIVE_MAX = LIGNES_TABLEUR_MAX;
 
 export interface LignesDrive {
   ok: true; nodeId: string; nom: string; feuille: string | null;
@@ -40,79 +41,6 @@ export interface LignesDrive {
 export interface RefusDrive { ok: false; erreur: string; candidats?: { id: string; nom: string }[] }
 
 const extDe = (nom: string): string => (nom.split(".").pop() ?? "").toLowerCase();
-
-/** Une cellule ExcelJS TYPÉE : un nombre reste un nombre, une date devient un ISO, une formule rend son résultat. */
-function cellule(v: unknown): unknown {
-  if (v === null || v === undefined) return null;
-  if (typeof v === "number" || typeof v === "boolean") return v;
-  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
-  if (typeof v === "object") {
-    const o = v as { result?: unknown; text?: unknown; richText?: { text?: string }[]; hyperlink?: string; error?: unknown };
-    if (Array.isArray(o.richText)) return o.richText.map((r) => r.text ?? "").join("");
-    if (o.result !== undefined) return cellule(o.result);
-    if (typeof o.text === "string") return o.text;
-    if (typeof o.hyperlink === "string") return o.hyperlink;
-    if (o.error !== undefined) return null;
-    return null;
-  }
-  const s = String(v).trim();
-  return s === "" ? null : s;
-}
-
-function entetesDe(brutes: unknown[]): string[] {
-  const vus = new Map<string, number>();
-  return brutes.slice(0, COLONNES_MAX).map((h, i) => {
-    let nom = (cellule(h) ?? "").toString().trim() || `colonne_${i + 1}`;
-    const n = vus.get(nom) ?? 0;
-    vus.set(nom, n + 1);
-    if (n > 0) nom = `${nom}_${n + 1}`;
-    return nom;
-  });
-}
-
-function detecterSeparateur(ligne: string): string {
-  const compte = (c: string) => (ligne.match(new RegExp(c === "\t" ? "\t" : `\\${c}`, "g")) ?? []).length;
-  const candidats: [string, number][] = [[";", compte(";")], [",", compte(",")], ["\t", compte("\t")], ["|", compte("|")]];
-  return candidats.sort((a, b) => b[1] - a[1])[0][1] > 0 ? candidats.sort((a, b) => b[1] - a[1])[0][0] : ";";
-}
-
-/** Un CSV lu pour de vrai : guillemets, séparateur détecté, BOM retiré. */
-export function lireCsv(texte: string, max = LIGNES_DRIVE_MAX): { entetes: string[]; lignes: unknown[][]; total: number } {
-  const t = texte.replace(/^﻿/, "");
-  const premiere = t.split(/\r?\n/, 1)[0] ?? "";
-  const sep = detecterSeparateur(premiere);
-  const lignes: unknown[][] = [];
-  let ligne: string[] = []; let champ = ""; let guillemets = false; let total = 0;
-  const pousser = () => {
-    ligne.push(champ); champ = "";
-    if (ligne.some((c) => c.trim() !== "")) { total += 1; if (lignes.length <= max) lignes.push(ligne.map((c) => (c.trim() === "" ? null : c))); }
-    ligne = [];
-  };
-  for (let i = 0; i < t.length; i++) {
-    const c = t[i];
-    if (guillemets) {
-      if (c === '"') { if (t[i + 1] === '"') { champ += '"'; i++; } else guillemets = false; }
-      else champ += c;
-    } else if (c === '"') guillemets = true;
-    else if (c === sep) { ligne.push(champ); champ = ""; }
-    else if (c === "\n") pousser();
-    else if (c !== "\r") champ += c;
-  }
-  if (champ !== "" || ligne.length) pousser();
-  const entetes = entetesDe(lignes[0] ?? []);
-  return { entetes, lignes: lignes.slice(1), total: Math.max(0, total - 1) };
-}
-
-function versLignes(entetes: string[], brutes: unknown[][], max: number): { lignes: Ligne[]; tronque: boolean } {
-  const lignes: Ligne[] = [];
-  for (const b of brutes) {
-    if (lignes.length >= max) return { lignes, tronque: true };
-    const o: Ligne = {};
-    entetes.forEach((h, i) => { o[h] = b[i] === undefined ? null : b[i]; });
-    lignes.push(o);
-  }
-  return { lignes, tronque: false };
-}
 
 /**
  * LIRE UN FICHIER DU DRIVE EN LIGNES — sous le droit de la personne. `ref` est un identifiant de

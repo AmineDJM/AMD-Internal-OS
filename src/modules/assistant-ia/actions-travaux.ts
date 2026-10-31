@@ -1,7 +1,7 @@
 "use server";
 
 import { porte } from "./infra/porte-actions";
-import type { DemandeRecue, EtapeVue, TravailDEquipe } from "@/modules/assistant-ia/api";
+import type { DemandeRecue, EtapeVue, TableauDesMissions, TravailDEquipe } from "@/modules/assistant-ia/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -71,4 +71,36 @@ export async function lireTravailDeMonEquipe(travailId: string): Promise<{ ok: t
   if (!id(travailId)) return { ok: false, erreur: "Travail introuvable." };
   const r = await (await api()).lireTravailEquipe(p.user.id, travailId);
   return r.ok ? { ok: true, travail: r.valeur } : { ok: false, erreur: r.erreur };
+}
+
+// ─────────────────────────── K3 (décision 0033) : les sous-missions et leur tableau de bord ───────────────────────────
+
+/** LE TABLEAU DE BORD, lu une fois — le REPLI du flux temps réel (`/api/assistant-ia/missions/flux`) quand il coupe. */
+export async function lireMonTableauDeMissions(): Promise<{ ok: true; tableau: TableauDesMissions } | { ok: false; erreur: string }> {
+  const p = await porte(false);
+  if (!p.ok) return p;
+  return { ok: true, tableau: await (await api()).tableauDesMissions(p.user.id) };
+}
+
+/** ANNULER UNE MISSION — et ses sous-missions vivantes ; la synthèse suit si c'était la dernière d'un groupe. */
+export async function annulerMaMission(travailId: string): Promise<{ ok: true; message: string } | { ok: false; erreur: string }> {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false, erreur: "Mission introuvable." };
+  return (await api()).annulerMissionEtSousMissions(travailId, p.user.id);
+}
+
+/** « Démarrer d'office les travaux sans geste » : la préférence de la personne (null = le défaut de la console). */
+export async function lireMaPreferenceDOffice(): Promise<{ ok: true; preference: boolean | null; effectif: boolean } | { ok: false; erreur: string }> {
+  const p = await porte(false);
+  if (!p.ok) return p;
+  return { ok: true, ...(await (await api()).lirePreferenceDOffice(p.user)) };
+}
+
+export async function reglerMaPreferenceDOffice(valeur: boolean | null): Promise<{ ok: true; effectif: boolean } | { ok: false; erreur: string }> {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  const m = await api();
+  await m.reglerPreferenceDOffice(p.user.id, typeof valeur === "boolean" ? valeur : null);
+  return { ok: true, effectif: await m.travauxDOfficePour(p.user) };
 }

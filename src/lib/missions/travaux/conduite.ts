@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 import { avancer, type EngineDeps, type StepContext, type StepOutcome } from "@/lib/missions/runtime/engine";
 import { compter, journaliser, type EtatEtape, type EtatMission } from "@/lib/missions/runtime/store";
 import { rendreBail } from "@/lib/missions/runtime/bail";
@@ -289,6 +290,8 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
       if (!fin) return { niveau: "JOURNAL", canaux: [], supprime: true };
       const faites = s.bilan ? ` — ${s.bilan.faites}/${s.bilan.total} étapes` : "";
       await signalerUneFois(travailId, principalId, `fin:${s.kind}`, `Travail ${fin} : « ${m!.title} »`, `${s.raison ?? ""}${faites}`.trim());
+      // K3 : la persona en rend compte dans la conversation qui l'a lancé (synthèse des sous-missions).
+      await persona.surFin?.(travailId, principalId).catch(sansBloquer("travaux.conduite.surFin"));
       return { niveau: "INFO", canaux: ["notification"], supprime: false };
     },
   };

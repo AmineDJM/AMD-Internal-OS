@@ -9,11 +9,14 @@ const f = (chemin: string, taille = 10) => ({ chemin, taille });
 const dossier300 = Array.from({ length: 300 }, (_, i) => f(`Dossier CTD/Module ${1 + (i % 5)}/piece-${String(i).padStart(3, "0")}.pdf`, 1000 + i));
 
 describe("le dépôt de dossier — les règles (J11)", () => {
-  it("au-delà de 10 pièces, un DOSSIER passe en mode « dépôt de dossier » ; des fichiers en vrac, non", () => {
+  it("au-delà de 6 pièces (K3), un dossier OU des fichiers en vrac passent en mode « dépôt » — tout est lu en arrière-plan", () => {
     expect(modeDuDepot(dossier300)).toBe("dossier");
-    expect(modeDuDepot(dossier300.slice(0, 10))).toBe("message");
-    expect(modeDuDepot(dossier300.slice(0, 8), 3)).toBe("dossier");
-    expect(modeDuDepot(Array.from({ length: 30 }, (_, i) => f(`vrac-${i}.pdf`)))).toBe("message");
+    // K3 (décision 0033) : au-delà de 6 pièces — dossier OU fichiers isolés —, le dépôt est proposé d'office.
+    expect(modeDuDepot(dossier300.slice(0, 6))).toBe("message");
+    expect(modeDuDepot(dossier300.slice(0, 7))).toBe("dossier");
+    expect(modeDuDepot(dossier300.slice(0, 4), 3)).toBe("dossier");
+    expect(modeDuDepot(Array.from({ length: 30 }, (_, i) => f(`vrac-${i}.pdf`)))).toBe("dossier");
+    expect(modeDuDepot(Array.from({ length: 6 }, (_, i) => f(`vrac-${i}.pdf`)))).toBe("message");
   });
 
   it("les bornes : 1 000 fichiers et 2 Go par défaut, réglables par variable ; chaque refus nomme le fichier", () => {

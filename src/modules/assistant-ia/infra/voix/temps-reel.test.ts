@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "../generer";
+import { remplacerReglagesPourTests } from "../consommation";
 import { modeleFactice } from "../testing/modele-factice";
 import { effacerJournalDe } from "../testing/journal";
 import { BORNE_REVELEE } from "../../domaine/filtre-confidentialite";
@@ -81,7 +82,14 @@ suite("Assistant IA — voix GPT-Live", () => {
     expect(corps!.session.delegation.type).toBe("client");
     expect(corps!.session.tools).toBeUndefined();
     expect(corps!.transport).toEqual({ type: "webrtc", sdp: "v=0 offre" });
-    expect(String(corps!.session.instructions)).toContain("Une valeur confidentielle n'est JAMAIS prononcée");
+    // Décision 0034 : par défaut (en clair), la voix DIT la valeur que l'assistant lui rend ; en mode « masquées », jamais.
+    expect(String(corps!.session.instructions)).toContain("DIS-LA quand elle la demande");
+    expect(String(corps!.session.instructions)).not.toContain("JAMAIS prononcée");
+    remplacerReglagesPourTests({ valeursSensibles: "MASQUEES" });
+    try {
+      await ouvrirVoixAssistant(kam, "v=0 offre", { fetchImpl: f });
+      expect(String(corps!.session.instructions)).toContain("Une valeur confidentielle n'est JAMAIS prononcée");
+    } finally { remplacerReglagesPourTests(null); }
     expect(await ouvrirVoixAssistant(sansAssistant, "v=0", { fetchImpl: f })).toMatchObject({ ok: false, statut: 403 });
     // Pas de modèle de secours : le fournisseur refuse, l'écran le dit.
     const refus = await ouvrirVoixAssistant(kam, "v=0", { fetchImpl: (async () => new Response("non", { status: 404 })) as typeof fetch });
