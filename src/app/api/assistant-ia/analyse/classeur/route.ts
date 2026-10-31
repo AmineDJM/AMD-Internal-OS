@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUserPourEcrire } from "@/lib/session";
 import { contentDisposition } from "@/lib/http/content-disposition";
 import { classeurDAnalyse } from "@/modules/assistant-ia/api";
 import { enVueExacte, refusAssistantIA, SANS_CACHE } from "../../personne";
@@ -15,7 +15,8 @@ const CORPS_MAX = 2_000_000;
  * déposé dans le Drive de la personne. Rien n'est lu de la base : la route met en forme ce que la personne voit déjà.
  */
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
+  // Une route POST écrit (le dépôt au Drive) : l'identité est celle du geste, jamais la personne visualisée (§118.184).
+  const user = await getCurrentUserPourEcrire();
   const refus = refusAssistantIA(user);
   if (refus || !user) return refus ?? refusAssistantIA(null)!;
   const texte = await req.text();
