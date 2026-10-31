@@ -10,7 +10,7 @@ Tableau de bord « Missions » (app Adventum IA et Assistant de l'ERP) en Server
 indicateur « 3 missions en cours » dans l'en-tête. Au-delà de 6 pièces, le dépôt est proposé d'office (« 14 fichiers : tout
 lire en arrière-plan »). **Recherche approfondie** (`recherche_approfondie`) : plusieurs recherches web en parallèle, puis un
 rapport complet (sommaire, chiffres datés, sources numérotées) affiché dans la conversation et déposé au Drive en Word et PDF.
-Migration `20270216120000_sous_missions`.
+Migration `20270216120100_sous_missions`.
 
 ### K2 : L'ASSISTANT IA GÉNÈRE DES IMAGES ET DES VIDÉOS DE DONNÉES — DANS LA RÉPONSE, AU DRIVE, TÉLÉCHARGEABLES (2026-10-31)
 

@@ -19,7 +19,7 @@ dossier de J11 ([0030](0030-formulaires-dossiers.md)).
 > `carte-sous-missions.tsx`, `reglage-d-office.tsx`), `ecrans/app/{adventum-ia-app,tiroir,reglages}.tsx`,
 > `ecrans/assistant-workspace.tsx`, `ecrans/{depot-dossier.tsx,use-pieces.ts}` ; route SSE
 > `src/app/api/assistant-ia/missions/flux/route.ts` ; console `/admin/ai/acces`. Migration additive
-> `20270216120000_sous_missions`. Tâche de fond `assistant.sous-missions`. Bancs : `infra/sous-missions.test.ts`,
+> `20270216120100_sous_missions`. Tâche de fond `assistant.sous-missions`. Bancs : `infra/sous-missions.test.ts`,
 > `infra/travaux-un-plan-par-tour.test.ts`, `domaine/lecture/depot-dossier.test.ts`, `scripts/bench/k3-missions-ux.ts`.
 
 ## 1. Plusieurs sous-missions par tour — reformuler ≠ lancer une autre
@@ -126,11 +126,13 @@ worker à côté (`TACHES_DE_FOND=les-deux`), vrai modèle par le mandataire, Ch
 | Synthèse | écrite dans la conversation (3/3 terminées, « en bref » du modèle rapide, livrables téléchargeables) + notification |
 | Dépôt d'office | « 20 fichiers : tout lire en arrière-plan » ; 20 téléversés, 20 lus par la Bibliothèque, 0 échec, en 4 s |
 | Largeur | `scrollWidth` = largeur partout (1280, 390) ; cibles ≥ 44 px sur téléphone |
+| Recherche approfondie (réelle) | 5 sous-recherches web lancées ensemble (19:05:28), 2 min 29 à 3 min 18 chacune ; rapport de 20 981 caractères, 10 sections, 21 sources numérotées ; Word ET PDF au Drive ; rapport affiché en entier dans la conversation (captures 30b à 33) |
+| Coût de la recherche approfondie | 2,04 $ pour les recherches web (≈ 0,35 à 0,56 $ par sous-recherche, modèle du rôle worker) + 0,07 $ de rédaction ; la reprise : 0,07 $ |
 | Coût réel du passage | 10 appels de modèle, 0,083 $ (le premier passage complet : 15 appels, 0,133 $) |
 
 Le premier passage réel a trouvé deux défauts, corrigés : le modèle rappelait `lancer_un_travail` sur plusieurs étapes du même
 tour (9 plans pour 3 — d'où le démarrage d'office en FIN de tour et la consigne « ne relance pas »), et l'app refusait
-`/api/uploads/limites` (404 à chaque page, ajouté aux API de l'app). Reste une erreur de console connue hors du lot :
+`/api/uploads/limites` (404 à chaque page, ajouté aux API de l'app). La recherche approfondie a trouvé deux défauts de plus, corrigés : la rédaction d'un long rapport (> 45 s) était coupée en 502 par le mandataire (rédaction en flux), et une mission « en partie » écrivait sa synthèse trop tôt (elle se reprend désormais). Reste une erreur de console connue hors du lot :
 `/favicon.ico` répond 404 en mode app.
 
 ## 7. La recherche approfondie — la vitrine des sous-missions

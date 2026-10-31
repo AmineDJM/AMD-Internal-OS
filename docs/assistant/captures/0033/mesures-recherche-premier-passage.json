@@ -1,0 +1,8 @@
+{
+  "note": "Premier passage réel de la recherche approfondie (31/10/2026, 19:05) : 5 sous-recherches web démarrées ensemble à 19:05:28, terminées entre 19:07:57 et 19:08:46 ; le rapport a échoué en 502 (requête non diffusée coupée par le mandataire au-delà de ~45 s) — corrigé par la rédaction en flux, puis la mission a été reprise par le bouton « Reprendre » du tableau (mesures-recherche-reprise.json). Les captures « en mouvement » de ce passage ont été perdues (dossier de banc vidé avant la reprise).",
+  "rechercheTourS": 10,
+  "rechercheOrigine": "assistant-ia:recherche-approfondie",
+  "sousRecherches": 5,
+  "rechercheEtapesSimultaneesMax": 5,
+  "coutReel": { "appels": 7, "usd": 2.037175, "jetonsEntree": 449524, "jetonsSortie": 49406, "dont": "4 recherches web gpt-5.6-terra (rôle worker) à 0,35–0,56 $ chacune ; la 5e a échoué côté réseau" }
+}
