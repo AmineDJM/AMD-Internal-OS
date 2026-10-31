@@ -99,3 +99,5 @@ export {
 export { sectionAttentesDuTour } from "./infra/canaux/section";
 export { outilAttendrePieces, OUTIL_ATTENDRE_PIECES } from "./infra/canaux/outil";
 export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";
+// ── Les visuels (lot K2, décision 0032) : images, vidéos, vidéos de données — la tâche de fond, la carte, le média
+export { etatVisuel, etatVisuelsPourAdministration, fichierDuVisuel, traiterVisuelsEnFile } from "./infra/visuels/service";

@@ -105,6 +105,8 @@ const KIND_WEIGHT: Record<WorkspaceBlockKind, number> = {
   // l'obligerait à faire défiler la conversation entre deux retouches de son contrat.
   artifact: 72,
   document: 55,   // une pièce à relire avant de valider
+  // K2 (décision 0032) : un visuel généré est la RÉPONSE demandée — comme une pièce montrée, pas une décision.
+  visuel: 54,
   progress: 45,   // des jauges : un constat, pas une décision
   // LES REPRÉSENTATIONS (§35) : un tableau de bord est une RÉPONSE composée — devant les jauges
   // qu'il contient souvent ; une figure seule passe juste devant le tableau qu'elle accompagne.

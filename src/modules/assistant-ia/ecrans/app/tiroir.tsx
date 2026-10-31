@@ -1,17 +1,27 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { BookOpen, FileText, NotebookPen, Sparkles, X } from "lucide-react";
+import dynamic from "next/dynamic";
+import { BookOpen, FileText, Sparkles, X } from "lucide-react";
 import { listerMesTravaux } from "@/modules/assistant-ia/actions";
 import type { PieceOuvrable } from "../pieces-jointes";
 import { sansBloquer } from "@/lib/journal";
+
+/**
+ * « MES NOTES » (décision 0026) — le même bloc-notes que dans l'ERP, chargé au premier affichage de l'onglet. L'app
+ * affichait encore un point d'accroche « bientôt disponible », posé avant l'arrivée du lot Notes (31/10/2026).
+ */
+const PanneauNotes = dynamic(() => import("../notes/panneau-notes"), {
+  ssr: false,
+  loading: () => <p className="p-4 text-[13px] text-[var(--aia-discret)]">Ouverture de vos notes…</p>,
+});
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LE TIROIR D'ADVENTUM IA — Notes, Travaux, Documents (décision 0027, point 8), à droite sur ordinateur, plein écran
  * sur téléphone. Rien n'y est réécrit : chaque onglet ouvre le travail des autres lots par les portes du module.
  *
- *   • Notes — le bloc-notes « Mes notes » du lot Notes (`jarvis/notes`) : POINT D'ACCROCHE (`PanneauNotes`), le seul
+ *   • Notes — le bloc-notes « Mes notes » (décision 0026, `ecrans/notes/panneau-notes.tsx`), le même que dans l'ERP ; le seul
  *     composant à remplacer quand le lot sera sur la base.
  *   • Travaux — les travaux longs (J2) : la liste, l'état, l'ouverture du panneau complet (approuver, suivre).
  *   • Documents — les pièces de la conversation et du dossier, ouvrables dans l'aperçu ou l'Atelier (J3) ; la
@@ -20,8 +30,10 @@ import { sansBloquer } from "@/lib/journal";
  */
 export type OngletTiroir = "notes" | "travaux" | "documents";
 
-export function Tiroir({ onglet, onOnglet, onFermer, onOuvrirTravaux, documents, onOuvrirPiece, onAtelier, onDemander }: {
+export function Tiroir({ onglet, onOnglet, onFermer, onOuvrirTravaux, documents, onOuvrirPiece, onAtelier, onDemander, travaille = false }: {
   onglet: OngletTiroir;
+  /** L'assistant travaille : les notes se relisent plus souvent (une proposition peut arriver). */
+  travaille?: boolean;
   onOnglet: (o: OngletTiroir) => void;
   onFermer: () => void;
   onOuvrirTravaux: (travailId?: string) => void;
@@ -43,27 +55,11 @@ export function Tiroir({ onglet, onOnglet, onFermer, onOuvrirTravaux, documents,
         <button type="button" onClick={onFermer} aria-label="Fermer le panneau" className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-[var(--aia-survol)]"><X className="h-4 w-4" /></button>
       </div>
       <div role="tabpanel" className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3.5 py-3 text-[14px]">
-        {onglet === "notes" && <PanneauNotes />}
+        {onglet === "notes" && <PanneauNotes onFermer={onFermer} travaille={travaille} />}
         {onglet === "travaux" && <OngletTravaux onOuvrir={onOuvrirTravaux} />}
         {onglet === "documents" && <OngletDocuments documents={documents} onOuvrirPiece={onOuvrirPiece} onAtelier={onAtelier} onDemander={onDemander} />}
       </div>
     </aside>
-  );
-}
-
-/**
- * LE POINT D'ACCROCHE DES NOTES — le lot Notes (`jarvis/notes` : bloc-notes « Mes notes », pages, outils de
- * l'assistant) n'est pas encore sur la base. À son arrivée, ce composant rend son panneau par la porte du module.
- */
-export function PanneauNotes() {
-  return (
-    <div className="flex flex-col gap-2" data-testid="panneau-notes">
-      <div className="flex items-center gap-2 font-semibold"><NotebookPen className="h-4 w-4 text-[var(--aia-accent)]" aria-hidden /> Mes notes</div>
-      <p className="text-[13px] text-[var(--aia-discret)]">
-        Le bloc-notes « Mes notes » (pages que vous créez et nommez, cases à cocher, ajouts proposés par l&apos;assistant) s&apos;affichera ici, le même que dans l&apos;ERP.
-      </p>
-      <p className="rounded-lg bg-[var(--aia-accent-doux)] px-3 py-2 text-[12.5px] text-[var(--aia-accent)]">Bientôt disponible : il arrive avec le lot Notes.</p>
-    </div>
   );
 }
 

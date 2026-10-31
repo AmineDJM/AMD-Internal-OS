@@ -315,7 +315,7 @@ function Application({ userName }: { userName?: string }) {
         <div className="fixed inset-0 z-40 flex lg:static lg:z-auto lg:w-[320px] lg:shrink-0">
           <div className="flex h-full w-full flex-col pt-[env(safe-area-inset-top)] lg:pt-0">
             <Tiroir
-              onglet={tiroir} onOnglet={setTiroir} onFermer={() => setTiroir(null)}
+              onglet={tiroir} onOnglet={setTiroir} onFermer={() => setTiroir(null)} travaille={f.travaille || f.envoi}
               onOuvrirTravaux={(id) => setTravaux({ ouvert: true, initial: id ?? null })}
               documents={documents} onOuvrirPiece={setApercu}
               onAtelier={() => setAtelier((a) => ({ ...a, ouvert: true }))}

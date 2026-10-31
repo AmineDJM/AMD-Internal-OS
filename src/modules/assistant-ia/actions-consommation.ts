@@ -8,7 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { fdBool, type ActionResult } from "@/lib/actions/types";
 import { UserRole } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/labels";
-import { LIBELLE_FAMILLE, normaliserReglageFamilles, normaliserReglages, type FamilleIa } from "@/modules/assistant-ia/api";
+import { LIBELLE_FAMILLE, normaliserReglageFamilles, normaliserReglages, normaliserReglagesVisuels, type FamilleIa } from "@/modules/assistant-ia/api";
 
 /**
  * LES BORNES DE L'ASSISTANT IA — enregistrées par le Super Admin (Administration › Consommation IA,
@@ -176,5 +176,40 @@ export async function enregistrerRetentionEffets(formData: FormData): Promise<Ac
     summary: `Les gestes de l'assistant restent annulables ${jours} jours (journal des effets)`,
   });
   revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+/**
+ * K2 (décision 0032) — LES VISUELS GÉNÉRÉS : interrupteurs (images, vidéos du modèle, vidéos de données), plafonds de dépense
+ * du mois civil (dollars), modèles et durée max d'une vidéo. Super Admin seul ; ramenés dans les bornes
+ * (`normaliserReglagesVisuels`) ; chaque changement à l'audit, avec l'avant et l'après.
+ */
+export async function enregistrerReglagesVisuels(formData: FormData): Promise<ActionResult> {
+  const admin = await requireUser();
+  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  const r = normaliserReglagesVisuels({
+    visuelsImagesActives: fdBool(formData, "imagesActives"),
+    visuelsImagesPlafondUsd: formData.get("imagesPlafondUsd"),
+    visuelsModeleImage: formData.get("modeleImage"),
+    visuelsVideosActives: fdBool(formData, "videosActives"),
+    visuelsVideosPlafondUsd: formData.get("videosPlafondUsd"),
+    visuelsModeleVideo: formData.get("modeleVideo"),
+    visuelsVideoSecondesMax: formData.get("videoSecondesMax"),
+    visuelsDonneesActives: fdBool(formData, "donneesActives"),
+  });
+  const avant = normaliserReglagesVisuels(await prisma.assistantIaReglage.findUnique({ where: { id: "global" } }) as unknown as Record<string, unknown> | null);
+  const data = {
+    visuelsImagesActives: r.imagesActives, visuelsImagesPlafondUsd: r.imagesPlafondUsd, visuelsModeleImage: r.modeleImage,
+    visuelsVideosActives: r.videosActives, visuelsVideosPlafondUsd: r.videosPlafondUsd, visuelsModeleVideo: r.modeleVideo,
+    visuelsVideoSecondesMax: r.videoSecondesMax, visuelsDonneesActives: r.donneesActives, updatedById: admin.id,
+  };
+  await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
+  const dire = (x: typeof r) => `images ${x.imagesActives ? "actives" : "coupées"} (${x.modeleImage}, ${x.imagesPlafondUsd} $/mois) ; `
+    + `vidéos ${x.videosActives ? "actives" : "coupées"} (${x.modeleVideo}, ${x.videoSecondesMax} s max, ${x.videosPlafondUsd} $/mois) ; vidéos de données ${x.donneesActives ? "actives" : "coupées"}`;
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Assistant IA — visuels générés",
+    oldValue: dire(avant), newValue: dire(r), summary: `Visuels générés de l'Assistant IA : ${dire(r)}`,
+  });
+  revalidatePath("/admin/ai");
   return { ok: true };
 }
