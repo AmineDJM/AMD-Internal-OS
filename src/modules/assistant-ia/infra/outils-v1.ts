@@ -27,7 +27,7 @@ import { sortiePourModele } from "../domaine/contenu-non-fiable";
 import { avecProvenance, type ProvenanceDuTour } from "./provenance";
 import { lecturesMetier, lecturesQuotidien, lecturesRh, lecturesSituation, situationRhSansMasse } from "./lectures";
 import { lecturesErp } from "./lectures-erp";
-import { outilsCapacites } from "./capacites";
+import { outilCorrigerCarte, outilsCapacites } from "./capacites";
 import { censurerTexte, jetonnerSortie, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 import { FAMILLES_IA, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
 import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
@@ -321,7 +321,9 @@ export function outilsV1(
   });
   // « Mes notes » (décision 0026) : lire SES notes, et PROPOSER des modifications qu'elle accepte ou refuse.
   const notes = outilsNotes(user, { coffret, acces, proposees: options.notesProposees });
-  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret, provenance, options.revelerAuModele));
+  // Décision 0035 : la carte en attente se COMPLÈTE ou se CORRIGE par la parole, par la porte du formulaire (conversation seulement).
+  const correction = options.capacites ? [outilCorrigerCarte(user, acces)] : [];
+  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].concat(correction).map((o) => filtre(aSoi(o), journal, coffret, provenance, options.revelerAuModele));
 }
 
 /**

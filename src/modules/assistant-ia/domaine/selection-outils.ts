@@ -57,6 +57,7 @@ const MOTS_CLES: Record<string, string> = {
   regulatory_workload: "charge dossiers combien gere porte qui assigne portefeuille personne regulatory",
   regulatory_portfolio: "portefeuille partenaire laboratoire produits statuts regulatory kwality",
   list_my_tasks: "mes taches todo a faire rappels en cours retard",
+  corriger_carte: "carte en attente corrige corriger complete completer precise preciser ajoute ajouter change changer mets plutot budget montant date description",
   search_products: "produit dci marque catalogue regulatory recherche medicament molecule",
   read_workflow: "circuit validation etapes qui valide sponsoring congres evenement ad pro processus",
   list_my_requests: "mes demandes administratives deplacement courrier signature achat",

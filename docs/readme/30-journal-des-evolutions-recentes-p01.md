@@ -9,6 +9,10 @@ peuvent être envoyés à l'IA, mais […] dis à OpenAI de ne pas s'entraîner 
 clair, l'assistant écrit et la voix prononce le salaire que la personne a le droit de voir, chaque transmission journalisée.
 `store: false` sur tous les appels de l'Assistant IA (les données de l'API ne servent déjà pas à l'entraînement ; la
 « Zero Data Retention » se demande à OpenAI). Passage réel : salaire lu en texte et par la délégation vocale, ≈ 0,024 $.
+**Extension (décision 0035) — la voix est orale** : en appel vocal, l'assistant dit la valeur, résume une demande avec ses
+mots, propose les cases facultatives, récapitule et demande « Tu confirmes ? ». La personne **confirme à l'oral** : le
+serveur juge son « oui » sur sa propre transcription (et le montant prononcé pour une action renforcée), puis la même garde
+que le bouton exécute ; « confirmée à l'oral » est à l'audit avec la transcription.
 ### K2 : L'ASSISTANT IA GÉNÈRE DES IMAGES ET DES VIDÉOS DE DONNÉES — DANS LA RÉPONSE, AU DRIVE, TÉLÉCHARGEABLES (2026-10-31)
 
 Lot K2 — `docs/assistant/decisions/0032-visuels.md`. Quatre outils dans l'Assistant IA de l'ERP et l'app Adventum IA :

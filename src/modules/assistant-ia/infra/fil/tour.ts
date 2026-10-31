@@ -16,6 +16,7 @@ import { modelesEffectifs } from "../generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "../repondre";
 import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "../consommation";
 import { retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
+import { carteOraleEnAttente } from "../voix/carte-orale";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import type { VueSimulation } from "../../domaine/simulation";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
@@ -160,7 +161,12 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   // — option prudente par défaut, réglage `retirerCartesCaduques`) : le remède qu'Adam applique depuis
   // le défaut mesuré en banc (« non, finalement Amel, lundi » → la carte « Raihana, vendredi » restait
   // cliquable). Une carte retirée se redemande ; une mauvaise action exécutée ne se reprend pas.
-  if (reglages.retirerCartesCaduques) await retirerCaduquesAvantLeTour(user.id, texteSaisi);
+  // Décision 0035 : à l'oral, la carte en cours de conversation (complétée, corrigée) n'est pas caduque — et l'en-tête de
+  // la délégation (qui la nomme) ne compte pas comme « en reparler ».
+  if (reglages.retirerCartesCaduques) {
+    const orale = texteSaisi.startsWith("[Conversation vocale") ? await carteOraleEnAttente(user) : null;
+    await retirerCaduquesAvantLeTour(user.id, texteSaisi.replace(/^\[Conversation vocale[^\]]*\]\s*/, ""), orale ? [orale.id] : []);
+  }
 
   let instructions: string;
   let config;
