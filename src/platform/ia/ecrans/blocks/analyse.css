@@ -8,12 +8,15 @@
    ═══════════════════════════════════════════════════════════════════════════════════════════ */
 
 .ia-analyse {
+  /* UNE SEULE SOURCE DE COULEURS : les jetons de l'espace de travail (`--chief-*`), que la carte, la figure et ce bloc
+     lisent tous — l'app les redéfinit en sombre ci-dessous. Mesuré sur serveur réel : mêler `--aia-*` (sombre) et la carte
+     (`--chief-surface`, restée claire) donnait du texte clair sur fond blanc. */
   --ia-accent: var(--aia-accent, hsl(var(--chief-accent, 218 58% 41%)));
-  --ia-fond: var(--aia-panneau, hsl(var(--chief-surface, 0 0% 100%)));
-  --ia-fond-creux: var(--aia-fond, hsl(var(--chief-surface-sunken, 220 30% 96.5%)));
-  --ia-texte: var(--aia-texte, hsl(var(--chief-text, 220 40% 13%)));
-  --ia-discret: var(--aia-discret, hsl(var(--chief-text-secondary, 220 12% 42%)));
-  --ia-filet: var(--aia-filet, hsl(var(--chief-border, 218 22% 89%)));
+  --ia-fond: hsl(var(--chief-surface, 0 0% 100%));
+  --ia-fond-creux: hsl(var(--chief-surface-sunken, 220 30% 96.5%));
+  --ia-texte: hsl(var(--chief-text, 220 40% 13%));
+  --ia-discret: hsl(var(--chief-text-secondary, 220 12% 42%));
+  --ia-filet: hsl(var(--chief-border, 218 22% 89%));
   --ia-danger: var(--aia-danger, hsl(var(--chief-danger, 0 65% 45%)));
   display: flex;
   flex-direction: column;
@@ -23,10 +26,19 @@
   color: var(--ia-texte);
 }
 
-/* Dans l'app, les graphiques prennent le bleu Adventum (#2C59A7, clair : #7FA6E3) — `viz-figure` lit `--chief-accent`. */
-.adventum-ia .ia-analyse { --chief-accent: 218 58% 41%; }
-@media (prefers-color-scheme: dark) { .adventum-ia:not([data-theme="clair"]) .ia-analyse { --chief-accent: 216 63% 69%; } }
-.adventum-ia[data-theme="sombre"] .ia-analyse, .dark .adventum-ia:not([data-theme="clair"]) .ia-analyse { --chief-accent: 216 63% 69%; }
+/* DANS L'APP : la carte d'analyse entière suit la charte — bleu Adventum (#2C59A7, sombre #7FA6E3) pour les graphiques,
+   et en sombre les surfaces, textes et filets de `ecrans/app/theme.css` (#0D1829, #E6EDF7, #93A3BA, #1F2F48). */
+.adventum-ia .chief-block:has(.ia-analyse) { --chief-accent: 218 58% 41%; }
+@media (prefers-color-scheme: dark) {
+  .adventum-ia:not([data-theme="clair"]) .chief-block:has(.ia-analyse) {
+    --chief-accent: 216 63% 69%; --chief-surface: 216 52% 11%; --chief-surface-sunken: 218 59% 8%; --chief-text: 214 52% 94%;
+    --chief-text-secondary: 215 20% 65%; --chief-text-tertiary: 215 16% 55%; --chief-border: 216 40% 20%; --chief-border-subtle: 216 40% 17%;
+  }
+}
+.adventum-ia[data-theme="sombre"] .chief-block:has(.ia-analyse), .dark .adventum-ia:not([data-theme="clair"]) .chief-block:has(.ia-analyse) {
+  --chief-accent: 216 63% 69%; --chief-surface: 216 52% 11%; --chief-surface-sunken: 218 59% 8%; --chief-text: 214 52% 94%;
+  --chief-text-secondary: 215 20% 65%; --chief-text-tertiary: 215 16% 55%; --chief-border: 216 40% 20%; --chief-border-subtle: 216 40% 17%;
+}
 
 .ia-analyse-outils { display: flex; flex-wrap: wrap; gap: 8px; }
 .ia-analyse-recherche { flex: 1 1 160px; min-width: 0; }

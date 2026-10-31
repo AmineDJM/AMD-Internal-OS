@@ -1,6 +1,6 @@
 {
   "iphone13": {
-    "connexionEtReponseMs": 19181,
+    "connexionEtReponseMs": 18221,
     "avant": {
       "scrollWidth": 390,
       "largeur": 390,
@@ -28,7 +28,7 @@
     "telechargements": {
       "Excel": {
         "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/iphone13-export.xlsx",
-        "octets": 8936,
+        "octets": 8937,
         "nomPropose": "Allocations par poste Marketing 2026 K1BANC.xlsx"
       },
       "CSV": {
@@ -42,7 +42,7 @@
         "nomPropose": "Montant alloue par poste.png"
       }
     },
-    "depot": "Enregistré dans votre Drive (dossier « Analyses ») : Allocations par poste — Marketing 2026 K1BANC (2026-10-31 18h22).xlsx — ouvrir",
+    "depot": "Enregistré dans votre Drive (dossier « Analyses ») : Allocations par poste — Marketing 2026 K1BANC (2026-10-31 18h37).xlsx — ouvrir",
     "apres": {
       "scrollWidth": 390,
       "largeur": 390,
@@ -56,7 +56,7 @@
     "erreursConsole": []
   },
   "bureau": {
-    "connexionEtReponseMs": 28193,
+    "connexionEtReponseMs": 22190,
     "avant": {
       "scrollWidth": 1280,
       "largeur": 1280,
@@ -85,21 +85,21 @@
     "telechargements": {
       "Excel": {
         "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/bureau-export.xlsx",
-        "octets": 9302,
-        "nomPropose": "Chiffre d affaires mensuel et croissance en 2026.xlsx"
+        "octets": 9273,
+        "nomPropose": "Evolution mensuelle des ventes 2026.xlsx"
       },
       "SVG": {
         "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/bureau-graphique.svg",
-        "octets": 24065,
-        "nomPropose": "Chiffre d affaires mensuel et croissance en 2026.svg"
+        "octets": 16139,
+        "nomPropose": "Evolution mensuelle des ventes 2026.svg"
       },
       "Données (Excel)": {
         "fichier": "/home/user/AMD-Internal-OS/bench-out/k1-captures/bureau-graphique-donnees.xlsx",
-        "octets": 8257,
-        "nomPropose": "Chiffre d affaires mensuel et croissance en 2026 donnees.xlsx"
+        "octets": 8094,
+        "nomPropose": "Evolution mensuelle des ventes 2026 donnees.xlsx"
       }
     },
-    "depot": "Enregistré dans votre Drive (dossier « Analyses ») : Chiffre d'affaires mensuel et croissance en 2026 (2026-10-31 18h23).xlsx — ouvrir",
+    "depot": "Enregistré dans votre Drive (dossier « Analyses ») : Évolution mensuelle des ventes 2026 (2026-10-31 18h38).xlsx — ouvrir",
     "apres": {
       "scrollWidth": 1280,
       "largeur": 1280,
