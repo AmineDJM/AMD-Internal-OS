@@ -12,6 +12,18 @@ téléchargement ; **`send_message` joint une pièce** (carte à confirmer ; la 
 La consigne ne dit plus « je ne peux pas » sans avoir cherché, ni sans nommer l'écran. **Inventaire** des 132 routes
 (`modules/assistant-ia/gestes-ecran.test.ts`) : une route nouvelle non classée fait échouer `npm test`. Banc réel
 (`scripts/bench/k7-exports.ts`, `amd_bench`) : le scénario de la Direction de bout en bout en 11 s, 0,023 $.
+### K2 : L'ASSISTANT IA GÉNÈRE DES IMAGES ET DES VIDÉOS DE DONNÉES — DANS LA RÉPONSE, AU DRIVE, TÉLÉCHARGEABLES (2026-10-31)
+
+Lot K2 — `docs/assistant/decisions/0032-visuels.md`. Quatre outils dans l'Assistant IA de l'ERP et l'app Adventum IA :
+**générer une image** (`gpt-image-2.5-sunburst`, charte Adventum et logo officiel sur demande), **modifier une image**
+(pièce jointe ou Drive), **vidéo de données** (graphique animé de 8 s, sous-titré en français, chiffres EXIGÉS dans les
+données lues par les outils — jamais ceux du modèle ; rendu sharp + ffmpeg, sur le worker en production), **vidéo
+générée** (pipeline en arrière-plan prêt, mais **Sora est arrêté chez le fournisseur depuis le 24/09/2026** : l'outil le
+vérifie et refuse sans rien facturer). Chaque visuel s'affiche dans la réponse (plein écran au toucher, lecteur natif
+iPhone), va au Drive (« Visuels de l'assistant ») et se télécharge ; une vidéo affiche une carte « en cours » qui se met à
+jour, la conversation continue, une notification part à la fin. **Gouvernance** : Administration › IA (interrupteurs,
+plafonds mensuels, modèles, durée max), coût réel journalisé, famille « Images & vidéos générées » de la console des accès,
+fermée par défaut. Coût mesuré : **0,0135 $ l'image** (medium 1024²) ; une vidéo de données ne coûte aucun appel de modèle.
 
 ### JARVIS INTÉGRÉ : LE TEST RÉEL UNIQUE DE FIN, ET LES DEUX DÉFAUTS QU'IL A TROUVÉS (2026-10-31)
 

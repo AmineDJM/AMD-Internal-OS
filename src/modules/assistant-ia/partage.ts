@@ -61,3 +61,8 @@ export {
 export {
   CONSIGNES_DOSSIER_MAX, DOCUMENTS_DOSSIER_MAX, NOM_DOSSIER_MAX, type DocumentDuDossier, type DossierVue,
 } from "./domaine/dossiers";
+// ── Les visuels (lot K2, décision 0032) : réglages du Super Admin, modèles, durées
+export {
+  DUREES_VIDEO, MODELE_IMAGE_DEFAUT, MODELE_VIDEO_DEFAUT, MODELES_IMAGE, MODELES_VIDEO, normaliserReglagesVisuels, REGLAGES_VISUELS_DEFAUT,
+  type ReglagesVisuels, type VueVisuel,
+} from "./domaine/visuels/regles";

@@ -161,6 +161,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const sorties: string[] = [];
   const memoires: MemoireProposee[] = [];
   const notesProposees: string[] = [];
+  // K2 (décision 0032) : les images et vidéos générées pendant le tour — des blocs de la réponse, construits par le serveur.
+  const visuels: WorkspaceBlock[] = [];
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les repères.
   const coffret = new CoffretDuTour();
   let outils;
@@ -172,7 +174,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // J6 : avec les CAPACITÉS de l'ERP (registre dérivé du contrat) — enregistrées toutes, seules les actives partent.
     // J14 : ce que le tour lit d'un tiers, face à ce que la personne a écrit — une carte dit ses valeurs d'origine tierce.
     const provenance = new ProvenanceDuTour([texteSaisi, ...saisie.historique.filter((h) => h.role === "user").map((h) => h.content)], message);
-    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, { capacites: true, provenance, notesProposees }), outilTravailPour(user)];
+    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, { capacites: true, provenance, notesProposees, visuels }), outilTravailPour(user)];
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     outils = d.prive ? outils.filter((o) => o.def.name !== "proposer_memoire") : [...outils, outilConversationsPassees(user, d.conversation ?? null)];
@@ -224,7 +226,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       ok: true,
       message,
       content: await revelateur.texte(ui.message || "Je n'ai pas de réponse à afficher."),
-      blocs: await revelateur.objet(ui.blocs),
+      blocs: [...visuels, ...(await revelateur.objet(ui.blocs))],
       memoireProposee: d.prive ? null : memoires[0] ?? null,
       notesProposees: [...notesProposees],
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».

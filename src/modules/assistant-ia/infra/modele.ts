@@ -8,7 +8,7 @@
  * de répondre avec un autre fournisseur. La clé n'est lue qu'ici, jamais écrite dans le code.
  */
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
-import { cleOpenAI } from "@/lib/models/openai-acces";
+import { cleOpenAI, urlOpenAI } from "@/lib/models/openai-acces";
 import { MODELE_STANDARD_DEFAUT, modelePourRole, type EffortRaisonnement, type RoleModele } from "@/platform/ia/modeles-roles";
 import { surchargesCourantes } from "./qualite/modeles";
 
@@ -74,3 +74,5 @@ export function optionsFournisseur(m: unknown, cleCache?: string): { openai: Rec
 
 /** J13 : la clé du fournisseur pour la voix temps réel (le secret éphémère se crée côté serveur, la clé ne sort pas). */
 export const cleFournisseurVoix = (env: NodeJS.ProcessEnv = process.env): string => cleOpenAI(env);
+/** K2 (décision 0032) : l'adresse d'un point de l'API OpenAI (images, vidéos) — la même racine que le reste. */
+export const urlFournisseur = (chemin: `/${string}`): string => urlOpenAI(chemin);

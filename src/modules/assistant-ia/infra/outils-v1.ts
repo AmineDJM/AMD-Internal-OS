@@ -13,6 +13,8 @@ import { lecturesDocuments } from "./operations/documents-lus";
 import { lectureBudget } from "./operations/budget";
 import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
 import { OUTILS_NOTES_ECRITURE, outilsNotes } from "./notes/outils";
+import { OUTILS_VISUELS, outilsVisuels } from "./visuels/outils";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
 import { lectureDossierDepose } from "./lecture-dossier";
@@ -71,6 +73,8 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],
   // K7 (décision 0037) — les exports de l'ERP : déposés dans le Drive de la personne, et la famille de leur domaine.
   ...FAMILLES_EXPORTS,
+  // K2 (décision 0032) — les visuels générés : famille propre, fermée par défaut (payante) ; l'image source passe les droits du Drive.
+  generer_image: ["VISUELS"], modifier_image: ["VISUELS"], generer_video: ["VISUELS"], video_de_donnees: ["VISUELS"],
 };
 // « Mes notes » (décision 0026) : le bloc-notes de la personne, chaque geste proposé puis accepté par elle — comme la mémoire.
 const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire", ...OUTILS_NOTES_ECRITURE]);
@@ -102,7 +106,8 @@ const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTo
 // L'Atelier (J3) n'a rien à faire dans une routine ou un travail : il ouvre des onglets sous les yeux de la personne.
 // Les CAPACITÉS (J6) ne sont pas même construites hors de la conversation (`outilsV1(…, { capacites: true })`).
 // Les notes (décision 0026) non plus : une proposition attend le geste de la personne, qui n'est pas là.
-export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE]);
+// K2 : une génération d'image ou de vidéo est PAYANTE et se demande — ni routine ni travail ne la lance.
+export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE, ...OUTILS_VISUELS]);
 
 /**
  * LA SORTIE D'UN OUTIL, AVANT LE MODÈLE : jetonnée (confidentialité), CONSIGNÉE (le garde-fou de l'UI
@@ -245,6 +250,8 @@ export interface OptionsCatalogue {
   provenance?: ProvenanceDuTour;
   /** « Mes notes » (décision 0026) : les propositions de notes du tour, pour la carte. */
   notesProposees?: string[];
+  /** K2 (décision 0032) : les visuels générés pendant le tour (blocs de la réponse). Absent : les outils des visuels ne sont pas offerts. */
+  visuels?: WorkspaceBlock[];
 }
 
 export function outilsV1(
@@ -272,6 +279,8 @@ export function outilsV1(
     outilRecettePour(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
     // K7 — les exports des écrans (la conversation seulement, comme les capacités : ni routine ni travail).
     ...(options.capacites ? outilsExports(user) : []),
+    // K2 — les visuels : seulement dans la conversation (la réponse les affiche) ; la provenance des chiffres = ce journal.
+    ...(options.visuels ? outilsVisuels(user, { visuels: options.visuels, journal }) : []),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a

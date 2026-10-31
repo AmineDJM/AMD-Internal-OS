@@ -111,9 +111,9 @@ html:has(.aia-coque) body {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
-.aia-coque * {
-  overscroll-behavior: contain;
-}
+/* PAS de `overscroll-behavior` sur chaque élément (Direction, 31/10/2026) : un champ ou une liste qui défile gardait le
+   geste pour lui — impossible de faire défiler la conversation au-dessus d'une carte de demande. La page, elle, reste
+   figée (règle ci-dessus) : le défilement d'un élément arrivé au bout passe à la conversation, jamais à la page. */
 /* iOS zoome sur un champ dont le texte fait moins de 16 px : jamais dans l'app, sur téléphone. */
 @media (max-width: 1023px) {
   /* `html:has(…)` : aussi les fenêtres ouvertes HORS de la coque (aperçu, notes, réglages en portail). */

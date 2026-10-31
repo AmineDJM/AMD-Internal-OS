@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
-import { User, Loader2, Wrench, Clock, Mic, AlertTriangle } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { User, Loader2, Wrench, Clock, Mic, AlertTriangle, ArrowDown } from "lucide-react";
 import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
@@ -96,14 +96,39 @@ const STYLES = {
 
 export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece, onOuvrirNotes, apparence = "erp" }: ChatMessageListProps) {
   const st = STYLES[apparence];
-  const bottomRef = useRef<HTMLDivElement>(null);
-
+  // LE FIL SUIT LA RÉPONSE… SEULEMENT SI LA PERSONNE EST EN BAS (Direction, 31/10/2026 : « quand je suis en haut, au
+  // bout de quelques secondes ça redescend »). Le fil se relit toutes les 0,9 à 15 s : chaque relecture ramenait en bas,
+  // même sans rien de neuf. On ne réagit qu'à un VRAI changement (un message de plus, un texte qui s'écrit, un état) ;
+  // remontée, la personne reste où elle lit, et « Nouveaux messages » la ramène d'un toucher. Son propre envoi, lui,
+  // ramène toujours en bas.
+  const filRef = useRef<HTMLDivElement>(null);
+  const enBas = useRef(true);
+  const [nouveaux, setNouveaux] = useState(false);
+  const dernier = messages[messages.length - 1];
+  const signature = `${messages.length}|${dernier?.id ?? ""}|${dernier?.content?.length ?? 0}|${dernier?.etat ?? ""}|${isLoading ? 1 : 0}`;
+  const precedente = useRef<{ signature: string; longueur: number } | null>(null);
+  const auBas = useCallback((comportement: ScrollBehavior) => {
+    const f = filRef.current;
+    if (f) f.scrollTo({ top: f.scrollHeight, behavior: comportement });
+  }, []);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isLoading]);
+    const avant = precedente.current;
+    if (avant?.signature === signature) return;
+    precedente.current = { signature, longueur: messages.length };
+    // Premier affichage, ou conversation changée (le fil a raccourci) : en bas, sans animation.
+    if (!avant || messages.length < avant.longueur) { enBas.current = true; setNouveaux(false); auBas("auto"); return; }
+    if (enBas.current || dernier?.role === "user") { setNouveaux(false); auBas("smooth"); }
+    else setNouveaux(true);
+  }, [signature, messages.length, dernier?.role, auBas]);
+  const surDefilement = () => {
+    const f = filRef.current;
+    if (!f) return;
+    enBas.current = f.scrollHeight - f.scrollTop - f.clientHeight < 120;
+    if (enBas.current) setNouveaux(false);
+  };
 
   return (
-    <div className={st.fil} data-testid="fil">
+    <div ref={filRef} onScroll={surDefilement} className={st.fil} data-testid="fil">
       {messages.length === 0 && (
         <div className="my-auto flex flex-col items-center justify-center text-center py-16">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-xs dark:border-zinc-800 dark:bg-zinc-900">
@@ -256,7 +281,16 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
         </div>
       )}
 
-      <div ref={bottomRef} />
+      {nouveaux && (
+        <div className="pointer-events-none sticky bottom-2 flex justify-center">
+          <button
+            type="button" onClick={() => { setNouveaux(false); auBas("smooth"); }} data-testid="nouveaux-messages"
+            className="pointer-events-auto flex min-h-11 items-center gap-1.5 rounded-full bg-[#2c59a7] px-4 text-[14px] font-medium text-white shadow-lg hover:bg-[#324ba6]"
+          >
+            <ArrowDown className="h-4 w-4" /> Nouveaux messages
+          </button>
+        </div>
+      )}
     </div>
   );
 }

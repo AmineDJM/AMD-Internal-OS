@@ -27,6 +27,7 @@ export const LIBELLE_FAMILLE: Record<FamilleIa, string> = {
   REGLEMENTAIRE: "Réglementaire",
   AD_PRO: "Ad & Pro",
   ECRITURES: "Écritures métier",
+  VISUELS: "Images & vidéos générées",
 };
 
 export const AIDE_FAMILLE: Record<FamilleIa, string> = {
@@ -38,6 +39,7 @@ export const AIDE_FAMILLE: Record<FamilleIa, string> = {
   REGLEMENTAIRE: "Portefeuille, charge, dossiers réglementaires — et leur création ou modification (avec les écritures).",
   AD_PRO: "Circuits et demandes Ad & Pro, bons de commande.",
   ECRITURES: "Préparer des cartes à confirmer (dossier, tâche, demande RH…). Sans elle, l'assistant ne fait que lire.",
+  VISUELS: "Générer ou modifier une image, une vidéo (modèle vidéo) ou une vidéo de données (graphique animé des chiffres lus). Payant : sous les plafonds mensuels réglés en Administration › IA. Fermée par défaut : la Direction l'ouvre par rôle ou par personne.",
 };
 
 /** Fermées par défaut pour qui n'est pas Super Admin, quels que soient ses droits applicatifs. */

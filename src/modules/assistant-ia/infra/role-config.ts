@@ -183,6 +183,8 @@ export function droitsApplicatifsIa(user: CurrentUser): Record<FamilleIa, boolea
     REGLEMENTAIRE: voit("REGULATORY", "REGULATORY_PIPELINE"),
     AD_PRO: voit("SPONSORING", "AD_PRO_CENTRE", "EVENTS", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "PROMO_MATERIAL", "AD_PRO_OTHER"),
     ECRITURES: true,
+    // K2 (décision 0032) : aucun écran ne l'ouvre — payante, elle reste fermée tant que la Direction ne l'ouvre pas.
+    VISUELS: false,
   };
 }
 
