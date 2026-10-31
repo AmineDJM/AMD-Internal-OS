@@ -125,7 +125,9 @@ suite("K10c — fiches de voyage : exécuter, annuler, rétablir", () => {
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteBillet } })).reservationDossierId).toBe(sujet);
     expect(await prisma.notification.count({ where: { userId: { in: [A1.id, A2.id] } } })).toBeGreaterThan(notesAvant);
     const c = await annuler(g, DEM);
-    expect(c.complet, c.resume).toBe(true);
+    // Tout est défait dans l'ERP ; seules les notifications poussées, déjà parties, restent dites « impossibles ».
+    expect(c.baseDefaite, c.resume).toBe(true);
+    expect(c.details.filter((x) => x.issue === "IMPOSSIBLE").every((x) => x.externe)).toBe(true);
     expect(await prisma.demandeReservation.count({ where: { voyageurId: voyageur2 } })).toBe(0);
     expect(await prisma.dossier.count({ where: { id: sujet } })).toBe(0);
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteBillet } })).reservationDossierId).toBeNull();

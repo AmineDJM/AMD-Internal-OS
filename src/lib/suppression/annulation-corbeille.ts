@@ -1,9 +1,8 @@
-import { Prisma } from "@prisma/client";
 import { prisma, prismaBrut } from "@/lib/prisma";
 import { infoModele } from "@/lib/effets/modeles";
 import { memeValeur, serialiserLigne } from "@/lib/effets/valeurs";
 import { isDeletableKind } from "@/lib/admin-delete-registry";
-import type { DetailEffet } from "@/lib/effets/annulation";
+import { deserialiser, type DetailEffet } from "@/lib/effets/annulation";
 import type { PolitiqueAnnulation, ResultatMetier } from "@/lib/effets/politiques";
 import { restaurerLotDeLaCorbeille } from "./coeur";
 
@@ -48,19 +47,6 @@ export const restaurerDepuisLaCorbeille: NonNullable<PolitiqueAnnulation["metier
   return { details, traites };
 };
 
-/** Une valeur du journal, rendue au type de son champ (dates, décimaux) ; `undefined` : elle ne s'écrit pas. */
-function valeurDuJournal(type: string | undefined, v: unknown): unknown {
-  if (v && typeof v === "object" && !Array.isArray(v)) {
-    const o = v as Record<string, unknown>;
-    if ("$date" in o) return o.$date === null ? null : new Date(String(o.$date));
-    if ("$decimal" in o) return new Prisma.Decimal(String(o.$decimal));
-    if ("$bigint" in o) return BigInt(String(o.$bigint));
-    if ("$octets" in o) return undefined;
-  }
-  if (type === "Json" && v === null) return Prisma.DbNull;
-  return v;
-}
-
 async function reprendreLAvant(modele: string, id: string, avant: unknown): Promise<void> {
   const info = infoModele(modele);
   const a = avant && typeof avant === "object" ? (avant as Record<string, unknown>) : null;
@@ -71,7 +57,7 @@ async function reprendreLAvant(modele: string, id: string, avant: unknown): Prom
   const data: Record<string, unknown> = {};
   for (const [c, v] of Object.entries(a)) {
     if (info.auto.has(c) || !info.types.has(c) || memeValeur(actuelle[c] ?? null, v ?? null)) continue;
-    const x = valeurDuJournal(info.types.get(c)?.type, v);
+    const x = deserialiser(info, c, v ?? null);
     if (x !== undefined) data[c] = x;
   }
   if (Object.keys(data).length) await d.update({ where: { [info.cle]: id }, data });

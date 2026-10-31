@@ -1,7 +1,6 @@
 import { prisma, prismaBrut } from "@/lib/prisma";
 import type { DetailEffet } from "@/lib/effets/annulation";
 import type { PolitiqueAnnulation, ResultatMetier } from "@/lib/effets/politiques";
-import { numerosConsommes } from "@/lib/references/annulation-numeros";
 
 type Metier = NonNullable<PolitiqueAnnulation["metier"]>;
 
@@ -47,8 +46,5 @@ export const indexBibliotheque: Metier = async ({ geste, appliquer }): Promise<R
   return { details, traites };
 };
 
-/** Les gestes inverses des fiches de voyage : le numéro de pièce consommé (dit), l'index de la bibliothèque (défait). */
-export const annulerGesteDeFiche: Metier = async (a) => {
-  const parts = [await numerosConsommes(a), await indexBibliotheque(a)];
-  return { details: parts.flatMap((p) => p.details), traites: new Set(parts.flatMap((p) => [...p.traites])) };
-};
+/** Le geste inverse des fiches de voyage : l'index de la bibliothèque (le numéro de pièce consommé est dit par le socle). */
+export const annulerGesteDeFiche: Metier = indexBibliotheque;

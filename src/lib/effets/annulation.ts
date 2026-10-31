@@ -52,6 +52,8 @@ export interface DetailEffet {
   pourquoi: string;
   /** Ce qu'on peut faire à la place, quand c'est impossible. */
   aLaPlace?: string | null;
+  /** Un effet SORTI de l'ERP (courriel, poussée, appel) — dit tel quel, il ne bloque pas un « tout ou rien » (K10c). */
+  externe?: boolean;
   /** Défait EN PARTIE seulement (des champs changés depuis laissés tels quels) — bloque un « tout ou rien » (K10c). */
   partiel?: boolean;
 }
@@ -64,6 +66,8 @@ export interface CompteRenduAnnulation {
   /** VRAI seulement si tout ce qui pouvait l'être est défait ou compensé (et rien n'est impossible). */
   complet: boolean;
   resume: string;
+  /** VRAI quand tout ce qui est DANS l'ERP est défait ou compensé — seuls des effets déjà sortis restent (K10c). */
+  baseDefaite?: boolean;
   /** Le geste qui porte l'annulation elle-même (K10c) — ce que « rétablir » défait. */
   gesteAnnulationId?: string | null;
 }
@@ -93,7 +97,7 @@ const delegue = (c: Client, info: InfoModele) => c[info.delegue] as Delegue;
 const ligne = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 
 /** Une valeur sérialisée, rendue au type de son champ pour l'écrire. `undefined` : elle ne se restaure pas. */
-function deserialiser(info: InfoModele, champ: string, v: unknown): unknown {
+export function deserialiser(info: InfoModele, champ: string, v: unknown): unknown {
   const t = info.types.get(champ);
   if (!t) return undefined;
   const un = (x: unknown): unknown => {
@@ -194,7 +198,7 @@ function issueExterne(e: EffetLu): DetailEffet {
     ?? (e.acte === "ECRITURE_EXTERNE" ? "la publication est partie sur le site Adventum : elle ne se reprend pas d'ici" : "l'appel est parti vers un service extérieur : rien ici ne peut le reprendre");
   const aLaPlace = v?.compensation
     ?? (e.acte === "ECRITURE_EXTERNE" ? "retirer ou corriger la publication depuis l'écran du site" : "prévenir le destinataire de l'appel par son canal habituel");
-  return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi, aLaPlace };
+  return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi, aLaPlace, externe: true };
 }
 
 interface Contexte {
@@ -360,6 +364,11 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
     const d = await issueEffetDiffere(e.enregistrementId, { appliquer: ctx.appliquer, parNom: ctx.parNom, libelle: ctx.libelle });
     return { effetId: e.id, quoi: e.apercu ?? "un envoi différé", ...d };
   }
+  // UN NUMÉRO DE PIÈCE CONSOMMÉ ne se rend pas (`lib/refs.ts` : « un trou dans la série vaut mieux qu'une référence
+  // reprise ») : le compteur avancé par SQL est dit, il ne bloque pas l'annulation (K10c).
+  if (e.operation === "SQL" && e.modele === "SerieReference") {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi: "un numéro de référence attribué", pourquoi: "un numéro attribué ne se rend jamais : la série garde un trou, jamais une référence reprise" };
+  }
   if (e.operation === "SQL" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "compteur de références des octets d'une pièce : la purge des fichiers orphelins s'en charge" };
   }
@@ -396,6 +405,8 @@ function conclure(gesteId: string, libelle: string, details: DetailEffet[], deja
   const compte: Record<IssueEffet, number> = { ANNULE: 0, COMPENSE: 0, IMPOSSIBLE: 0, SANS_OBJET: 0 };
   for (const d of details) compte[d.issue]++;
   const complet = compte.IMPOSSIBLE === 0;
+  const sortis = details.filter((d) => d.issue === "IMPOSSIBLE" && d.externe).length;
+  const baseDefaite = compte.IMPOSSIBLE === sortis;
   const parts = [
     compte.ANNULE ? `${compte.ANNULE} annulé(s)` : "",
     compte.COMPENSE ? `${compte.COMPENSE} compensé(s)` : "",
@@ -405,8 +416,10 @@ function conclure(gesteId: string, libelle: string, details: DetailEffet[], deja
   const verbe = deja ? "Prévu" : "Fait";
   const resume = details.length === 0
     ? "Ce geste n'a rien laissé à défaire."
-    : `${verbe} : ${parts.join(", ")} sur ${details.length} effet(s).${complet ? "" : " Ce n'est PAS une annulation complète : chaque effet dit pourquoi."}`;
-  return { gesteId, libelle, details, compte, complet, resume };
+    : `${verbe} : ${parts.join(", ")} sur ${details.length} effet(s).${complet ? ""
+      : baseDefaite ? ` Ce n'est PAS une annulation complète : tout est défait dans l'ERP, mais ${sortis} effet(s) déjà sorti(s) (notification poussée, envoi) ne se reprennent pas — chacun dit quoi faire à la place.`
+        : " Ce n'est PAS une annulation complète : chaque effet dit pourquoi."}`;
+  return { gesteId, libelle, details, compte, complet, baseDefaite, resume };
 }
 
 async function charger(gesteId: string, user: CurrentUser) {
@@ -499,7 +512,7 @@ export interface RefusAnnulation { refus: string; bloquants?: DetailEffet[] }
  */
 function bloquantsDe(g: { effets: EffetLu[] }, plan: CompteRenduAnnulation): DetailEffet[] {
   const externes = new Set(g.effets.filter((e) => e.type === "EXTERNE").map((e) => e.id));
-  return plan.details.filter((d) => (d.issue === "IMPOSSIBLE" || d.partiel) && !externes.has(d.effetId));
+  return plan.details.filter((d) => (d.issue === "IMPOSSIBLE" || d.partiel) && !d.externe && !externes.has(d.effetId));
 }
 
 /** Hors du journal d'un geste parent : l'annulation ouvre le SIEN (sinon ses écritures iraient au geste qui la contient). */

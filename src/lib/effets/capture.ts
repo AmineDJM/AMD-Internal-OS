@@ -214,7 +214,11 @@ async function capturer(
               const avant = serialiserLigne(l, garder);
               const apres = serialiserLigne(parId.get(id) ?? null, garder);
               const champs = champsChanges(avant, apres);
-              if (champs.length) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs });
+              // DANS une transaction interactive, en réel, la relecture (hors transaction, avant le commit) voit encore
+              // l'avant : la ligne est notée avec les champs écrits, `finaliserCapture` relit l'état final (K10c).
+              const enTransaction = etat.mode === "REEL" && !champs.length && (r?.count ?? 0) > 0;
+              const ecrits = Object.keys((a.data as object) ?? {}).sort();
+              if (champs.length || enTransaction) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs: champs.length ? champs : ecrits });
             }
             return r;
           }
