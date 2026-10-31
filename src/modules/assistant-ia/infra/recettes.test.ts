@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, MODULES, userCan, type Module } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { PowerTool } from "@/platform/ia/outil";
-import { defaultDefinition } from "@/lib/workflow/defaults";
+import { getDefinition } from "@/lib/workflow/engine";
 import { WORKFLOW_CATEGORIES } from "@/lib/workflow/types";
 import { approuverTravail } from "@/lib/missions/travaux/service";
 import { lirePlan } from "@/lib/missions/travaux/plan";
@@ -49,7 +49,6 @@ const parRole = new Map<string, CurrentUser>();
 const semes = { instances: [] as string[], validations: [] as string[], recrutements: [] as string[], missions: [] as string[], pieces: [] as string[], formes: [] as string[], entites: [] as string[], montants: [] as number[] };
 const montantsDe = new Map<string, number[]>();
 const attendu = new Map<string, { cles: string[]; validateurs: Record<string, string[]>; pieces: string[]; mediane: number; occurrences: number; seuil?: { etape: string; montant: number; source: string }; piege?: string }>();
-const definitionsCreees: string[] = [];
 const processusDesignes: string[] = [];
 
 async function compte(nom: string, role: string): Promise<CurrentUser> {
@@ -76,19 +75,15 @@ async function pieces(entite: string, natures: string[]) {
   }
 }
 
+/**
+ * Le circuit de la catégorie, semé par le MOTEUR lui-même s'il manque (`getDefinition`) — jamais une copie simplifiée :
+ * la base est partagée par les fichiers de test qui tournent en parallèle, et un circuit semé ici (sans seuils ni
+ * configuration d'étape) devenait LE circuit des tests Ad & Pro voisins ; il ne se supprimait plus ensuite (des
+ * instances l'utilisaient). Le circuit par défaut reste en place : c'est celui que l'application sèmerait.
+ */
 async function definitionDe(categorie: string) {
-  const existante = await prisma.workflowDefinition.findUnique({ where: { category: categorie }, select: { id: true, steps: { orderBy: { position: "asc" }, select: { slug: true, title: true, actorRoles: true, autoSkipMaxAmount: true } } } });
-  if (existante && existante.steps.length) return existante;
-  const d = defaultDefinition(categorie as never);
-  const creee = await prisma.workflowDefinition.create({
-    data: {
-      category: categorie, name: d.name,
-      steps: { create: d.steps.map((s, i) => ({ position: i + 1, slug: s.slug, title: s.title, actorRoles: (s.actorRoles ?? []) as string[] })) },
-    },
-    select: { id: true, steps: { orderBy: { position: "asc" }, select: { slug: true, title: true, actorRoles: true, autoSkipMaxAmount: true } } },
-  });
-  definitionsCreees.push(creee.id);
-  return creee;
+  const def = await getDefinition(categorie as never);
+  return { id: def.id, steps: [...def.steps].sort((a, b) => a.position - b.position).map((st) => ({ slug: st.slug, title: st.title, actorRoles: st.actorRoles, autoSkipMaxAmount: st.autoSkipMaxAmount })) };
 }
 
 const ENTITE_WF: Record<string, string> = { SPONSORING: "SPONSORING", CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL", CONGRESS_NATIONAL: "CONGRESS_NATIONAL", EVENTS: "EVENT", OTHER: "AD_PRO_OTHER" };
@@ -295,7 +290,6 @@ suite("Recettes (J10) — banc sur base réelle, corpus semé, faux modèle", ()
     await prisma.recruitmentRequest.deleteMany({ where: { id: { in: semes.recrutements } } });
     await prisma.piece.deleteMany({ where: { id: { in: semes.pieces } } });
     await prisma.missionPlanPattern.deleteMany({ where: { id: { in: semes.formes } } });
-    await prisma.workflowDefinition.deleteMany({ where: { id: { in: definitionsCreees } } });
     await effacerJournalDe(utilisateurs.map((u) => u.id));
     await prisma.auditLog.deleteMany({ where: { actorId: { in: utilisateurs.map((u) => u.id) } } });
     await prisma.user.deleteMany({ where: { id: { in: utilisateurs.map((u) => u.id) } } });
