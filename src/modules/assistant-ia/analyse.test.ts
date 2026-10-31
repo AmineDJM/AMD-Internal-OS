@@ -119,3 +119,19 @@ describe("les outils d'analyse, de bout en bout (sans modèle ni base)", () => {
     }
   });
 });
+
+describe("les visuels de l'UI générative — kpi, jauge, chronologie (ajout de la Direction)", () => {
+  const sorties = [JSON.stringify({ reste: "4 442 306,05 DZD", engage: "511 000 DZD", disponible: "3 931 306,05 DZD", depot: "2026-10-12", visa: "2026-10-20" })];
+  const lire = (c: Record<string, unknown>) => composantsEnBlocs({ message: "ok", composants: [c] }, { sorties, question: "il reste combien ?" });
+  it("un montant d'enveloppe : indicateurs et jauge, chiffres des outils", () => {
+    expect(lire({ type: "kpi", title: "Budget", items: [{ label: "Disponible", value: "3 931 306,05 DZD" }] }).blocs[0]).toMatchObject({ kind: "viz", type: "cartes" });
+    expect(lire({ type: "gauge", title: "Budget", gauges: [{ label: "Engagé", value: 511000, total: 4442306.05, unit: "DZD" }] }).blocs[0]).toMatchObject({ kind: "progress" });
+  });
+  it("un chiffre inventé retire le visuel", () => {
+    expect(lire({ type: "kpi", title: "x", items: [{ label: "Disponible", value: "5 000 000 DZD" }] }).retires[0]).toMatchObject({ raison: "chiffre-non-source" });
+    expect(lire({ type: "gauge", title: "x", gauges: [{ label: "Engagé", value: 600000, total: 4442306.05 }] }).retires[0]).toMatchObject({ raison: "chiffre-non-source" });
+  });
+  it("une chronologie datée — ses dates viennent des outils", () => {
+    expect(lire({ type: "timeline", title: "Dossier", events: [{ date: "2026-10-12", label: "Dépôt" }, { date: "2026-10-20", label: "Visa" }] }).blocs[0]).toMatchObject({ kind: "timeline" });
+  });
+});

@@ -1,5 +1,6 @@
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import { chartEnBloc, CONSIGNE_CHART, lireChart } from "./graphique";
+import { CHOIX_DU_VISUEL, COMPOSANTS_VISUELS, CONSIGNE_VISUELS, visuelEnBloc, type ComposantVisuel } from "./visuels";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -23,7 +24,7 @@ import { chartEnBloc, CONSIGNE_CHART, lireChart } from "./graphique";
  */
 
 /** Les composants que l'interface dessine — la liste montrée au modèle, et rien d'autre. */
-export const COMPOSANTS_PRIS_EN_CHARGE = ["text", "card", "list", "table", "chart", "alert", "steps"] as const;
+export const COMPOSANTS_PRIS_EN_CHARGE = ["text", "card", "list", "table", "chart", "alert", "steps", ...COMPOSANTS_VISUELS] as const;
 export type TypeComposant = (typeof COMPOSANTS_PRIS_EN_CHARGE)[number];
 
 /** Ce que le modèle lit : la forme de chaque composant, en une ligne. */
@@ -31,7 +32,7 @@ export const CONSIGNE_COMPOSANTS = [
   "FORMAT DE SORTIE — réponds TOUJOURS par un seul objet JSON valide, sans texte autour :",
   '{"message": "…", "components": [ … ]}',
   "- message : la réponse elle-même, en Markdown sobre (gras pour les repères, listes, petits tableaux). La première phrase répond.",
-  "- components : facultatif ([] le plus souvent). Un composant seulement s'il apporte quelque chose. Ce qu'un composant montre, le message ne le répète PAS : il dit l'essentiel en une ou deux phrases et laisse le composant porter le détail.",
+  "- components : un composant dès qu'un VISUEL aide à lire (règles ci-dessous) ; [] pour une question simple. Ce qu'un composant montre, le message ne le répète PAS : il dit l'essentiel en une ou deux phrases et laisse le composant porter le détail.",
   "Composants disponibles (aucun autre) :",
   '- {"type":"card","title":"…","content":"…","fields":[{"label":"…","value":"…"}]} — une fiche (un dossier, une personne, un produit).',
   '- {"type":"table","title":"…","columns":["…"],"rows":[["…"]]} — des lignes LUES par tes outils dans ce tour, recopiées telles quelles.',
@@ -39,6 +40,8 @@ export const CONSIGNE_COMPOSANTS = [
   '- {"type":"alert","level":"info|attention|critique","title":"…","content":"…"} — un point qui demande une action ou une vigilance.',
   '- {"type":"steps","title":"…","steps":[{"label":"…","detail":"…"}]} — un circuit ou une procédure, étape par étape : PRIVILÉGIE-LE pour expliquer un processus. Un circuit de validation se LIT d\'abord (read_workflow) ; jamais de mémoire.',
   '- {"type":"list","title":"…","items":["…"]} — une liste à retenir.',
+  CONSIGNE_VISUELS,
+  CHOIX_DU_VISUEL,
   "Un chiffre ou une ligne qui ne vient pas de tes outils est retiré par l'application : n'en invente aucun.",
 ].join("\n");
 
@@ -247,6 +250,13 @@ export function composantsEnBlocs(lu: ReponseLue, sources: SourcesTour): Resulta
           columns: colonnes.map((label, j) => ({ key: `c${j}`, label, numeric: numerique[j] })),
           rows: lignes.map((r) => ({ cells: Object.fromEntries(colonnes.map((_, j) => [`c${j}`, r[j] ?? ""])) })),
         });
+        break;
+      }
+      case "kpi": case "gauge": case "timeline": {
+        // K1 (ajout de la Direction) : indicateurs, jauges, chronologie — `visuels.ts`.
+        if (!corpus.outils) { retirer(type, "sans-outil"); break; }
+        const b = visuelEnBloc(type as ComposantVisuel, c, titre, (t) => corpus.chiffresProuves(t), (n) => corpus.nombreConnu(n));
+        if (typeof b === "string") retirer(type, b); else blocs.push(b);
         break;
       }
       case "chart": {

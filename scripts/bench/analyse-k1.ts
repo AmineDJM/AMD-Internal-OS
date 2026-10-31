@@ -128,6 +128,40 @@ const CAS: Cas[] = [
     attendus: async () => (await sql<{ c: unknown }>(`SELECT COUNT(*) c FROM "Task" GROUP BY status`)).map((x) => n(x.c)).filter((c) => c > 2) },
 ];
 
+// ───────────────────── LE BANC DES VISUELS (ajout de la Direction, 31/10) : `… analyse-k1.ts visuels` ─────────────────────
+// « Qu'il utilise plus de graphiques, de visuels » : 10 demandes qui s'y prêtent (≥ 8 avec le BON visuel) et 3 questions
+// simples (0 visuel). Le bon visuel = l'une des formes attendues, et rien que des blocs dont les chiffres sont prouvés.
+interface CasVisuel { id: string; texte: string; formes: string[] }
+const VISUELS: CasVisuel[] = [
+  { id: "v1", texte: `Il reste combien au budget Marketing 2026 ${TAG} ?`, formes: ["progress", "viz:cartes", "analyse"] },
+  { id: "v2", texte: `Où en est l'enveloppe Médical 2026 ${TAG} ?`, formes: ["progress", "viz:cartes", "analyse"] },
+  { id: "v3", texte: `Compare les montants des enveloppes budgétaires ${TAG}.`, formes: ["analyse", "viz", "table"] },
+  { id: "v4", texte: "Liste les demandes Ad & Pro « autres » en attente de décision.", formes: ["table", "analyse"] },
+  { id: "v5", texte: "Quelles sont les tâches de l'entreprise en cours ou à faire ?", formes: ["table", "analyse"] },
+  { id: "v6", texte: "Explique-moi le circuit de validation d'une demande de sponsoring.", formes: ["timeline"] },
+  { id: "v7", texte: "Quel est le chiffre d'affaires des ventes par client ?", formes: ["analyse", "viz"] },
+  { id: "v8", texte: "Quel est l'effectif par département ?", formes: ["analyse", "viz", "table"] },
+  { id: "v9", texte: "Qui est Amel Haddad ?", formes: ["record", "people", "directory"] },
+  { id: "v10", texte: "Comment ont évolué les ventes mois par mois en 2026 ?", formes: ["analyse", "viz"] },
+  { id: "s1", texte: "Bonjour, ça va ?", formes: [] },
+  { id: "s2", texte: "Merci beaucoup pour ton aide !", formes: [] },
+  { id: "s3", texte: "Que veut dire DCI ?", formes: [] },
+];
+const formeDe = (b: WorkspaceBlock): string => (b.kind === "viz" && b.type === "cartes" ? "viz:cartes" : b.kind);
+
+async function bancVisuels(user: CurrentUser): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (const c of VISUELS) {
+    const t0 = Date.now();
+    const r = await jouerTour(user, { texte: c.texte, pieces: [], historique: [], delaiMs: 150_000 });
+    const formes = r.ok ? r.blocs.map(formeDe) : [];
+    const juste = c.formes.length ? formes.some((f) => c.formes.includes(f) || (f === "viz:cartes" && c.formes.includes("viz"))) : formes.length === 0;
+    out.push({ id: c.id, demande: c.texte, ok: r.ok, ms: Date.now() - t0, formes, attendues: c.formes, juste, reponse: r.ok ? r.content.slice(0, 300) : r.error });
+    console.info(`${c.id} ${juste ? "JUSTE" : "ÉCART"} · ${formes.join(", ") || "aucun visuel"} · ${Date.now() - t0} ms`);
+  }
+  return out;
+}
+
 /** Les nombres d'un bloc d'analyse : cellules et totaux. */
 const nombresDuBloc = (b: Bloc): number[] => [...b.lignes.flat(), ...(b.totaux ?? [])].filter((v): v is number => typeof v === "number");
 
@@ -137,11 +171,13 @@ async function main(): Promise<void> {
   if (!u) throw new Error("Super Admin du banc absent : BENCH_SEED_ALLOW=1 npm run adam:bench:seed");
   const access = await getAccess(u.id, u.role);
   const user = { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
-  const choisis = process.argv.slice(2).map(Number).filter(Boolean);
+  const visuels = process.argv.includes("visuels");
+  const choisis = visuels ? [-1] : process.argv.slice(2).map(Number).filter(Boolean);
   const { pieceId } = await semer(user);
   const debut = new Date();
   const resultats: Record<string, unknown>[] = [];
   try {
+    if (visuels) resultats.push(...(await bancVisuels(user)));
     for (const cas of CAS.filter((c) => !choisis.length || choisis.includes(c.id))) {
       const cout = await prisma.modelCallLog.aggregate({ where: { userId: u.id, at: { gte: debut } }, _sum: { costUsd: true } });
       if (Number(cout._sum.costUsd ?? 0) > PLAFOND_USD) { console.warn(`Plafond de ${PLAFOND_USD} $ atteint : arrêt.`); break; }
@@ -167,13 +203,14 @@ async function main(): Promise<void> {
     const appels = await prisma.modelCallLog.findMany({ where: { userId: u.id, at: { gte: debut } }, select: { inputTokens: true, outputTokens: true, costUsd: true, model: true } });
     const bilan = {
       date: new Date().toISOString(), cas: resultats.length, justes: resultats.filter((x) => x.juste).length,
+      ...(visuels ? { visuelsJustes: resultats.filter((x) => String(x.id).startsWith("v") && x.juste).length, simplesSansVisuel: resultats.filter((x) => String(x.id).startsWith("s") && x.juste).length } : {}),
       chiffresInventes: resultats.filter((x) => x.chiffresInventes).length,
       appelsModele: appels.length, jetonsEntree: somme(appels.map((a) => a.inputTokens ?? 0)), jetonsSortie: somme(appels.map((a) => a.outputTokens ?? 0)),
       coutUsd: arrondi(somme(appels.map((a) => Number(a.costUsd ?? 0))), 4), modeles: [...new Set(appels.map((a) => a.model))],
       msMedian: [...resultats.map((x) => x.ms as number)].sort((a, b) => a - b)[Math.floor(resultats.length / 2)] ?? 0,
     };
     fs.mkdirSync(path.dirname(SORTIE), { recursive: true });
-    fs.writeFileSync(SORTIE, `${JSON.stringify({ bilan, resultats }, null, 2)}\n`);
+    fs.writeFileSync(visuels ? SORTIE.replace(".json", "-visuels.json") : SORTIE, `${JSON.stringify({ bilan, resultats }, null, 2)}\n`);
     console.info(JSON.stringify(bilan, null, 2));
     if (!process.env.K1_GARDER) await nettoyer();
   }
