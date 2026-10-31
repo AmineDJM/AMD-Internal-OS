@@ -26,7 +26,7 @@ import { PanneauDuDossier } from "./conversations/dossier-panneau";
 import "./app/theme.css";
 import { EnregistreurVocal } from "./enregistreur-vocal";
 import { BoutonVoixTempsReel } from "./voix-temps-reel";
-import { AlarmClock, Brain, Briefcase, MessagesSquare, MoreHorizontal, NotebookPen, Radar, Sparkles, Volume2, VolumeX, X } from "lucide-react";
+import { AlarmClock, Brain, Briefcase, MessagesSquare, History, MoreHorizontal, NotebookPen, Radar, Sparkles, Volume2, VolumeX, X } from "lucide-react";
 import { listerMesRoutines, listerMesTravaux } from "@/modules/assistant-ia/actions";
 import { confirmerActionBeta, envoyerMessageBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
@@ -410,6 +410,7 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille
         <button type="button" onClick={onRoutines} aria-label={libelleRoutines} title="Mes routines" className={bouton}><AlarmClock className="h-4 w-4" />{point}</button>
         <button type="button" onClick={onTravaux} aria-label={libelleTravaux} title="Mes travaux" className={bouton}><Briefcase className="h-4 w-4" />{pointTravaux}</button>
         <button type="button" onClick={onVeille} aria-label="Ce que mon assistant surveille" title="Ce que mon assistant surveille" className={bouton}><Radar className="h-4 w-4" /></button>
+        <a href="/assistant/gestes" aria-label="Ce que l'assistant a fait" title="Ce que l'assistant a fait" className={bouton}><History className="h-4 w-4" /></a>
         {!vueExacte && <button type="button" onClick={onAtelier} aria-pressed={atelierOuvert} aria-label="Atelier — documents" title="Atelier — documents" className={`${bouton} ${atelierOuvert ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300" : ""}`}><Sparkles className="h-4 w-4" /></button>}
         {!vueExacte && (
           <button type="button" onClick={onReponseVocale} aria-pressed={reponseVocale} aria-label={libelleVoix} title={libelleVoix}
@@ -436,6 +437,9 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille
             <button type="button" role="menuitem" onClick={onVeille} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
               <Radar className="h-4 w-4" /> Ce que mon assistant surveille
             </button>
+            <a role="menuitem" href="/assistant/gestes" className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+              <History className="h-4 w-4" /> Ce que l&apos;assistant a fait
+            </a>
             {!vueExacte && (
               <button type="button" role="menuitem" onClick={onAtelier} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
                 <Sparkles className="h-4 w-4" /> Atelier — documents

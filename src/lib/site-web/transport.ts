@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 import { exigerSortieAutorisee } from "@/lib/sortie/garde";
+import { noterEffetExterne } from "@/lib/effets/magasin";
 import { adresseDuSite, hoteLocal } from "./config";
 import { configurationEnVigueur } from "./cles";
 import { attendu } from "@/lib/journal";
@@ -98,6 +99,11 @@ export async function envoyerAuSite(r: RequeteSite): Promise<ReponseSite> {
   // L'ADRESSE seule d'abord — pas la clé : c'est elle qui dit si la requête QUITTE la machine.
   const adresse = adresseDuSite();
   if (!adresse.ok) return { statut: null, texte: null, erreur: adresse.raison, ms: 0, retryAfterS: null, location: null };
+
+  // LE PORT DE SIMULATION (J7) : un geste simulé note la requête au site et ne l'envoie pas (réponse « acceptée »).
+  if (r.methode !== "GET" && noterEffetExterne({ acte: "ECRITURE_EXTERNE", cible: `site-adventum ${r.methode} ${r.chemin}`, origine: "site-web" })) {
+    return { statut: 202, texte: null, erreur: null, ms: 0, retryAfterS: null, location: null };
+  }
 
   // LA PORTE, avant la moindre lecture de la clé.
   if (!hoteLocal(adresse.base)) {

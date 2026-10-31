@@ -10,6 +10,7 @@ import { PiecesDuMessage, PiecesRendues, type PieceOuvrable } from "./pieces-joi
 import { BulleVocale } from "./bulle-vocale";
 import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../domaine/lecture/regles";
 import type { MemoireProposee } from "../domaine/memoire-ui";
+import type { VueSimulation } from "../domaine/simulation";
 import type { FormulaireCarte } from "@/platform/ia/capacites/formulaire";
 import type { PropositionNote } from "../domaine/notes/gestes";
 import { WorkspaceBlocks } from "@/platform/ia/ecrans/blocks";
@@ -51,6 +52,8 @@ export interface ChatMessage {
     confirmText?: string;
     /** Le libellé du bouton quand « Confirmer » ne dit pas le geste. */
     libelleBouton?: string;
+    /** J7 : le diff réel de la simulation — ou « non simulable », dit. */
+    simulation?: VueSimulation;
     /** J11 : le formulaire généré depuis le contrat de la capacité (corriger avant de signer). */
     formulaire?: FormulaireCarte;
     status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
@@ -222,6 +225,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                       warnings={m.intent.warnings}
                       confirmText={m.intent.confirmText}
                       libelleBouton={m.intent.libelleBouton}
+                      simulation={m.intent.simulation}
                       formulaire={m.intent.formulaire}
                       initialStatus={m.intent.status}
                       resultLink={m.intent.resultLink}

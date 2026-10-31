@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { estUnBancDeMesure } from "@/lib/sortie/garde";
+import { etatDuGeste } from "@/lib/effets/magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -191,11 +192,52 @@ const globalForPrisma = globalThis as unknown as {
 
 const datasourceUrl = pooledDatasourceUrl();
 
-export const prisma =
+/** Le client de BASE — sans extension. La capture y lit ses lignes « avant » d'un geste réel (`effets/capture.ts`). */
+export const prismaBrut: PrismaClient =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     ...(datasourceUrl ? { datasourceUrl } : {}),
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prismaBrut;
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE CLIENT DU GESTE (J7, décision 0029) — `prisma` est le client de base, SAUF pendant un geste d'agent.
+ *
+ * Toute l'application écrit par `prisma` (`import { prisma } from "@/lib/prisma"`). Pour SIMULER une action de
+ * l'écran — celle-là même que le bouton appelle — dans une transaction annulée, et pour JOURNALISER la valeur avant
+ * de chaque écriture d'un geste réel, il fallait que ses requêtes passent par un autre client sans qu'une ligne de
+ * l'action change. D'où ce relais : il lit le magasin du geste (`effets/magasin.ts`) et y prend le client posé par
+ * `effets/simulation.ts` (la transaction) ou `effets/journal.ts` (le client qui capture). Hors geste, il rend le
+ * client de base, tel quel.
+ *
+ * Dans une transaction interactive, `$transaction` n'existe pas : le relais la rend « en place » — une fonction
+ * reçoit la transaction du geste, un tableau de requêtes s'exécute dans l'ordre. L'action ne voit pas la différence,
+ * et rien n'échappe à l'annulation finale.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+function clientDuGeste(): Record<string | symbol, unknown> | null {
+  const c = etatDuGeste()?.client;
+  return c && typeof c === "object" ? (c as Record<string | symbol, unknown>) : null;
+}
+
+async function transactionEnPlace(tx: Record<string | symbol, unknown>, arg: unknown): Promise<unknown> {
+  if (typeof arg === "function") return (arg as (t: unknown) => unknown)(tx);
+  const out: unknown[] = [];
+  for (const requete of (arg as unknown[]) ?? []) out.push(await requete);
+  return out;
+}
+
+export const prisma: PrismaClient = new Proxy(prismaBrut, {
+  get(cible, prop) {
+    const geste = clientDuGeste();
+    const source = (geste && prop in geste ? geste : cible) as Record<string | symbol, unknown>;
+    if (geste && prop === "$transaction" && typeof geste.$transaction !== "function") {
+      return (arg: unknown) => transactionEnPlace(geste, arg);
+    }
+    const v = source[prop];
+    return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(source) : v;
+  },
+});

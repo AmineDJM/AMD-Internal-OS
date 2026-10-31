@@ -103,6 +103,20 @@ d'ajouter, modifier, cocher, déplacer, supprimer une ligne ou de créer / renom
 n'est écrit avant l'acceptation** (décision de la Direction). Un montant de paie noté reste en repère vers le modèle.
 Décision [0026](../assistant/decisions/0026-notes.md) ; migration `20270215150000_assistant_ia_notes`.
 
+### J7 : SIMULATION, JOURNAL DES EFFETS, ANNULATION HONNÊTE (2026-10-30)
+
+Lot J7 — `docs/assistant/decisions/0029-simulation-annulation.md` ; migration additive `20270215170000_journal_des_effets`.
+- **La carte montre ce qui sera écrit** : une capacité R1–R4 simulable est jouée pour de vrai dans une transaction
+  annulée, et la carte dit « 3 champs modifiés sur la demande X, 1 notification à Karim, 1 pièce déposée » — courriel,
+  poussée, stockage, site et webhooks neutralisés (0 effet sorti, un test par port). 92,5 % des capacités R1–R2 se simulent.
+- **Rien ne s'exécute qui ne ressemble plus à la carte** : la simulation est rejouée à la confirmation, son empreinte
+  comparée ; un écart, et la carte se remontre avec le nouveau diff.
+- **Journal des effets** : chaque geste de l'assistant (carte, étape de travail, mandat) garde la valeur AVANT de ce qu'il
+  touche (durée de garde réglable à la console).
+- **« Ce que l'assistant a fait »** (`/assistant/gestes`) : « Annuler » défait ce qui est encore tel que l'assistant l'a
+  laissé, compense ce qui se compense, dit ce qui est impossible et pourquoi — jamais d'écrasement du travail d'un autre
+  (50 cas réels justes, 0 écrasement).
+
 ### J8 : LES TRAVAUX POUR TOUS, SUITE — DÉLÉGATION, ATTENTES MÉTIER, ÉQUIPE, LIVRABLES AU DRIVE (2026-10-30)
 
 Lot J8 — `docs/assistant/decisions/0023-delegation.md` ; migration additive `20270214100000_travaux_delegation`.

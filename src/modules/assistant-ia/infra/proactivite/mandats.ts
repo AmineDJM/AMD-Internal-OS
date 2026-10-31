@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { CurrentUser } from "@/lib/session";
 import { accesAssistantIa } from "../role-config";
-import { executerOperationIA, OPERATIONS_IA } from "../operations";
+import { executerOperationJournalisee, OPERATIONS_IA } from "../operations";
 import { lireConsoleProactivite } from "./reglages";
 import { debutDuJourAlger } from "../../domaine/proactivite/budget";
 import { CAPACITE, CAPACITES_MANDAT, validerDemandeMandat, verifierGeste, type CapaciteMandat } from "../../domaine/proactivite/mandats";
@@ -171,7 +171,7 @@ export async function executerGestesSousMandat(user: CurrentUser, now = new Date
         const o = OPERATIONS_IA.find((x) => x.nom === c.operation)!;
         const prop = await o.proposer(p.entree, user);
         const r = "carte" in prop
-          ? await executerOperationIA(user, { kind: "assistant_ia_op", op: o.nom, args: prop.args })
+          ? await executerOperationJournalisee(user, { kind: "assistant_ia_op", op: o.nom, args: prop.args }, { origine: "mandat", cle: `${m.id}|${s.id}`, libelle: `${prop.carte.title} (sous mandat)` })
           : { ok: false, error: "manque" in prop ? `il manque : ${prop.manque.join(", ")}` : prop.erreur };
         const fait = r.ok;
         const resume = fait ? `${"carte" in prop ? prop.carte.title : c.libelle} (${s.titre})` : `${s.titre} — échec : ${r.error ?? "refusé"}`;

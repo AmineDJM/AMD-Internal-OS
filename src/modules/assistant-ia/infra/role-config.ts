@@ -214,11 +214,13 @@ export async function chargerConsoleAccesIa(): Promise<{
   plafondsGlobaux: { travailUsd: number; mensuelUsd: number };
   /** J8 : un responsable voit-il les travaux de son équipe ? (défaut : non) */
   managerVoitEquipe: boolean;
+  /** J7 : durée de garde du journal des effets, en jours (défaut 180). */
+  retentionEffetsJours: number;
 }> {
   const [reglages, comptes, global] = await Promise.all([
     prisma.assistantIaAcces.findMany(),
     prisma.user.findMany({ where: { isActive: true, role: { not: "SUPER_ADMIN" } }, select: { id: true, name: true, email: true, role: true }, orderBy: { name: "asc" } }),
-    prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { plafondTravailUsd: true, plafondMensuelUsd: true, managerVoitEquipe: true } }),
+    prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { plafondTravailUsd: true, plafondMensuelUsd: true, managerVoitEquipe: true, retentionEffetsJours: true } }),
   ]);
   const plafondsPersonne = new Map(reglages.filter((r) => r.userId).map((r) => [r.userId!, { travailUsd: r.plafondTravailUsd, mensuelUsd: r.plafondMensuelUsd }]));
   const vide: ReglageFamilles = { ouvertes: [], fermees: [] };
@@ -236,6 +238,7 @@ export async function chargerConsoleAccesIa(): Promise<{
   return {
     parRole, personnes, plafondsGlobaux: { travailUsd: global?.plafondTravailUsd ?? 20, mensuelUsd: global?.plafondMensuelUsd ?? 50 },
     managerVoitEquipe: global?.managerVoitEquipe === true,
+    retentionEffetsJours: global?.retentionEffetsJours ?? 180,
   };
 }
 

@@ -108,16 +108,28 @@ export const CHAMP_BINAIRE = /^(file|files|fichier|fichiers|attachment|attachmen
 /** Le fichier qui EST l'objet du geste (déposer, lire, importer) — sans lui, l'action n'a pas de sens : elle se fait à l'écran. */
 export const CHAMP_BINAIRE_PRINCIPAL = /^(file|fichier|scan|attachment|bcFile|logo|image|photo|pieceIdentite|cv)$/;
 
-/** Ce que J7 pourra simuler dans une transaction annulée. */
+/**
+ * LES ACTIONS QUI ÉCRIVENT HORS DE LA BASE ET HORS DES PORTS — la boîte aux lettres IMAP (drapeaux, déplacements,
+ * dépôt dans « Envoyés ») : ni la transaction ni un port de sortie ne la couvrent. Elles restent « non simulables ».
+ */
+const HORS_PORTS = /^(mail-actions|mail-folder-actions)$/;
+
+/**
+ * CE QUE J7 SIMULE (décision 0029) — l'action jouée dans une transaction annulée, ses effets externes neutralisés par
+ * les ports qui lisent le contexte du geste : courriel (SMTP, Graph, API), notification poussée, stockage objet, site
+ * Adventum, et tout `fetch` qui écrit vers l'extérieur. « oui » exige que ce qu'elle touche soit LU (ses modèles
+ * écrits) : une action qui délègue son écriture sans qu'on la voie reste « inconnu » — non prouvée, la carte le dit.
+ */
 export function simulableDe(c: ContratLu, risque: Risque): { simulable: Simulable; raison: string } {
   if (risque === "R0") return { simulable: "oui", raison: "lecture : rien à annuler" };
-  if (risque === "R3") return { simulable: "non", raison: "l'effet sort de la base (courrier, site, fournisseur)" };
-  if (c.champs.some((ch) => CHAMP_BINAIRE.test(ch.nom)) || c.modelesEcrits.some((m) => /^(storedFile|driveNode)$/.test(m))) {
-    return { simulable: "non", raison: "un fichier est écrit dans le stockage, hors de la transaction" };
-  }
+  if (HORS_PORTS.test(c.fichier)) return { simulable: "non", raison: "elle écrit dans la boîte aux lettres (IMAP), hors de la base et des ports de sortie" };
   if (c.ecrit && c.modelesEcrits.length === 0) return { simulable: "inconnu", raison: "elle délègue son écriture : ce qu'elle touche n'a pas été lu" };
   if (!c.ecrit) return { simulable: "inconnu", raison: "aucune écriture lue, et pas une lecture : l'effet est ailleurs" };
-  if (c.modelesEcrits.includes("notification")) return { simulable: "inconnu", raison: "la notification part aussi en push, hors de la transaction — J7 doit l'intercepter" };
+  if (risque === "R3") return { simulable: "oui", raison: "ses écritures sont en base ; ce qui sortirait (courrier, site, fournisseur) passe par un port, neutralisé en simulation" };
+  if (c.champs.some((ch) => CHAMP_BINAIRE.test(ch.nom)) || c.modelesEcrits.some((m) => /^(storedFile|driveNode|fileBlob)$/.test(m))) {
+    return { simulable: "oui", raison: "le fichier va au stockage par un port, neutralisé en simulation ; ses lignes sont en base" };
+  }
+  if (c.modelesEcrits.includes("notification")) return { simulable: "oui", raison: "la notification est en base ; sa poussée passe par un port, neutralisé en simulation" };
   return { simulable: "oui", raison: "toutes ses écritures sont en base" };
 }
 

@@ -15,7 +15,7 @@ import { PLAFOND_MENSUEL_DEFAUT_USD, PLAFOND_TRAVAIL_DEFAUT_USD } from "@/lib/mi
 import type { PersonaTravaux, PieceTravail, PlafondsTravail, PortPiecesTravail } from "@/lib/missions/travaux/persona";
 import { proposerTravail, responsableDe } from "@/lib/missions/travaux/service";
 import { recordAudit } from "@/lib/audit";
-import { executerHorsRequete } from "@/platform/ia/hors-requete";
+import { executerHorsRequete, journaliserGeste } from "@/platform/ia/hors-requete";
 import { droitsSurDocument } from "@/platform/ia/artifact/ports";
 import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, outilLancerUnTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
 import { deposerLivrableTravail } from "./travaux-livrables";
@@ -182,7 +182,7 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
     return o.ouverte(vueDeLAssistant(p.user, p.acces)) ? null : `Votre rôle n'a pas le droit de « ${o.libelle.replace(/ préparée?$/, "")} » dans l'application.`;
   },
 
-  async ecrire(principalId, geste, entree) {
+  async ecrire(principalId, geste, entree, contexte) {
     const p = await personne(principalId);
     if (!p) return { ok: false, erreur: "La personne n'a plus accès à l'Assistant IA." };
     const o = GESTES_TRAVAIL.find((x) => x.nom === geste);
@@ -195,7 +195,11 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
     if (!estChargeOperationIA(charge)) return { ok: false, erreur: "Geste illisible." };
     // HORS REQUÊTE (le worker) : l'action de l'écran trouve la personne du geste et un store pour ses invalidations
     // (`contexte-geste.ts`) — sans quoi `requireUser` redirigeait et `revalidatePath` levait APRÈS l'écriture.
-    const { resultat: r } = await executerHorsRequete(p.user, "travail", () => executerOperationIA(p.user, charge));
+    // J7 : sous le JOURNAL DES EFFETS — chaque écriture du geste garde sa valeur avant (annulable, travail et étape nommés).
+    const { resultat: { resultat: r } } = await journaliserGeste(p.user, {
+      origine: "travail", capaciteId: `operation:${o.nom}`, libelle: prop.carte.title,
+      travailId: contexte?.travailId ?? null, etape: contexte?.etape ?? null, cleIdempotence: contexte?.cle ?? null,
+    }, () => executerHorsRequete(p.user, { origine: "travail", travailId: contexte?.travailId, etape: contexte?.etape, cleIdempotence: contexte?.cle }, () => executerOperationIA(p.user, charge)), { horsRequete: true });
     return r.ok ? { ok: true, resultat: { titre: prop.carte.title }, message: r.message, lien: r.link } : { ok: false, erreur: r.error ?? "Le geste n'a pas pu être exécuté." };
   },
 

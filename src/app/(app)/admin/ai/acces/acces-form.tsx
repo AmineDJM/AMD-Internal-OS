@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAction } from "@/components/shared/use-action";
-import { enregistrerAccesAssistantIa, enregistrerPlafondsTravaux, enregistrerVisibiliteEquipe } from "@/modules/assistant-ia/actions-consommation";
+import { enregistrerAccesAssistantIa, enregistrerPlafondsTravaux, enregistrerRetentionEffets, enregistrerVisibiliteEquipe } from "@/modules/assistant-ia/actions-consommation";
 import {
   AIDE_FAMILLE, FAMILLES_IA, FAMILLES_SENSIBLES, LIBELLE_FAMILLE, resoudreAccesIa, type FamilleIa, type ReglageFamilles,
 } from "@/modules/assistant-ia/partage";
@@ -230,6 +230,17 @@ function ParPersonne({ personnes, plafondsGlobaux }: { personnes: LignePersonne[
   );
 }
 
+/** L'état d'un réglage qui s'enregistre : en cours, enregistré, ou l'erreur dite. */
+function EtatEnregistrement({ saving, ok, err }: { saving: boolean; ok: boolean; err: string | null }) {
+  return (
+    <>
+      {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      {ok && !err && <span className="text-xs text-success">Enregistré.</span>}
+      {err && <span className="text-xs text-destructive">{err}</span>}
+    </>
+  );
+}
+
 /**
  * J8 (décision 0023) — UN RESPONSABLE VOIT-IL LES TRAVAUX DE SON ÉQUIPE ? Défaut : non. Oui : en lecture seule, le
  * résumé et les étapes (jamais le carnet), et chaque consultation est enregistrée à l'audit.
@@ -250,15 +261,37 @@ function VisibiliteEquipe({ initial }: { initial: boolean }) {
         <input type="checkbox" checked={voit} disabled={saving} onChange={(e) => basculer(e.target.checked)} className="h-4 w-4" />
         Un responsable voit les travaux de son équipe
       </label>
-      {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-      {ok && !err && <span className="text-xs text-success">Enregistré.</span>}
-      {err && <span className="text-xs text-destructive">{err}</span>}
+      <EtatEnregistrement saving={saving} ok={ok} err={err} />
     </div>
   );
 }
 
-export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe }: {
-  roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number }; managerVoitEquipe: boolean;
+/** J7 (décision 0029) — combien de jours un geste de l'assistant reste annulable (journal des effets). */
+function RetentionEffets({ initial }: { initial: number }) {
+  const { saving, err, run } = useAction();
+  const [jours, setJours] = React.useState(String(initial));
+  const [ok, setOk] = React.useState(false);
+  const enregistrer = () => {
+    const fd = new FormData();
+    fd.set("retentionEffetsJours", jours);
+    setOk(false);
+    void run(() => enregistrerRetentionEffets(fd), () => setOk(true));
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="inline-flex items-center gap-2 text-sm">
+        Garder le journal
+        <input type="number" min={7} max={1095} value={jours} onChange={(e) => setJours(e.target.value)} className="h-10 w-24 rounded-md border px-2 text-base sm:text-sm" />
+        jours
+      </label>
+      <button type="button" onClick={enregistrer} disabled={saving} className="h-10 rounded-md border px-3 text-sm">Enregistrer</button>
+      <EtatEnregistrement saving={saving} ok={ok} err={err} />
+    </div>
+  );
+}
+
+export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours }: {
+  roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number }; managerVoitEquipe: boolean; retentionEffetsJours: number;
 }) {
   return (
     <div className="space-y-5">
@@ -282,6 +315,17 @@ export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, manage
             est enregistrée à l&apos;audit.
           </p>
           <VisibiliteEquipe initial={managerVoitEquipe} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Journal des effets — annuler un geste de l&apos;assistant</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Chaque geste de l&apos;assistant (carte confirmée, étape d&apos;un travail, geste sous mandat) garde la valeur d&apos;avant de ce qu&apos;il
+            a écrit : la personne peut l&apos;annuler depuis « Ce que l&apos;assistant a fait ». Au-delà de cette durée, le journal est purgé
+            et le geste ne s&apos;annule plus.
+          </p>
+          <RetentionEffets initial={retentionEffetsJours} />
         </CardContent>
       </Card>
       <ParPersonne personnes={personnes} plafondsGlobaux={plafondsGlobaux} />

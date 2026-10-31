@@ -22,6 +22,7 @@ tenue par `frontieres.test.ts` et ESLint.
 | `artifact/` | la fabrique de documents (`factory`), les artefacts Live Office (ports, store, rendu) ; `artifact/atelier/` (J3) : gestes → commandes par format, onglets, revue, conversions |
 | `teach/store.ts` | les règles enseignées (dont les standards documentaires que lit la fabrique) |
 | `proprietaire.ts` | le propriétaire d'un travail (relu en base, droits compris) |
+| `hors-requete.ts` | J8 : un geste métier hors requête (`lib/contexte-geste.ts`) ; J7 (décision 0029) : la simulation transactionnelle (`simulerEnDiff`), le journal des effets (`journaliserGeste`), l'annulation honnête (`annulerGeste`, `planDAnnulation`, `gestesDeLAssistant`) — un seul import vers l'ERP, `lib/effets/` derrière |
 | `telemetry/usage-sink.ts` | le puits d'usage des modèles — branché par chaque module qui appelle un modèle |
 | `workspace/`, `ecrans/` | le protocole des blocs de l'espace de travail et leurs composants d'écran |
 

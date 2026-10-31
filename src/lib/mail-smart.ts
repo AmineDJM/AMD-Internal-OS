@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { sortieAutorisee } from "@/lib/sortie/garde";
+import { noterEffetExterne } from "@/lib/effets/magasin";
 
 /**
  * COURRIER « SMART » — l'e-mail sans SMTP.
@@ -163,6 +164,10 @@ export async function sendSmartEmail(input: SendEmailInput): Promise<SendEmailRe
   // lever : elle enregistre la tentative — le banc garde la preuve de ce qui serait parti —
   // et rend un refus STRUCTURÉ, que l'appelant journalise comme n'importe quel échec.
   // ═══════════════════════════════════════════════════════════════════════════════════════
+  // LE PORT DE SIMULATION (J7) : un geste simulé note le courriel et ne l'envoie pas.
+  if (noterEffetExterne({ acte: "COURRIEL", cible: (input.to ?? []).join(", ") || "(sans destinataire)", apercu: `« ${input.subject ?? ""} »`, origine: "mail-smart:sendSmartEmail" })) {
+    return { ok: true, providerId: "simulation" };
+  }
   if (!sortieAutorisee("COURRIEL", (input.to ?? []).join(", ") || "(sans destinataire)", {
     apercu: `« ${input.subject ?? ""} »`,
     origine: "mail-smart:sendSmartEmail",

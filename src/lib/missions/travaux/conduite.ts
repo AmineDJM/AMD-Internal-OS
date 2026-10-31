@@ -206,7 +206,7 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
     }
     let r: Awaited<ReturnType<PersonaTravaux["ecrire"]>>;
     try {
-      r = await persona.ecrire(principalId, nomGeste, entree);
+      r = await persona.ecrire(principalId, nomGeste, entree, { travailId, etape: stepKey, cle });
     } catch (e) {
       r = { ok: false, erreur: e instanceof Error ? e.message : String(e) };
     }

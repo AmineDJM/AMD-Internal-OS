@@ -9510,6 +9510,8 @@ model AssistantIaReglage {
   interruptionsMaxJour   Int      @default(5)
   /// J12 : coupe toute la proactivité (veilleurs, point du matin, gestes sous mandat) — les écrans restent lisibles.
   proactiviteCoupee      Boolean  @default(false)
+  /// J7 (décision 0029) : durée de garde du journal des effets (gestes de l'assistant et valeurs AVANT), en jours.
+  retentionEffetsJours   Int      @default(180)
   updatedAt              DateTime @default(now()) @updatedAt
   updatedById            String?
 }
@@ -18512,6 +18514,67 @@ model AssistantIaTerrainCapture {
 
   @@unique([userId, cle])
   @@index([userId, createdAt])
+}
+
+/// J7 (décision 0029) — LE JOURNAL DES EFFETS : un geste d'agent (carte confirmée, étape d'un travail, geste sous mandat)
+/// et ce qu'il a RÉELLEMENT écrit, avec la valeur AVANT de chaque champ touché. C'est la matière de l'annulation
+/// (`lib/effets/annulation.ts`). Gardé `retentionEffetsJours` (console de l'Assistant IA), puis purgé.
+model AssistantGesteJournal {
+  id               String           @id @default(cuid())
+  /// La personne au nom de qui le geste s'est exécuté.
+  principalId      String
+  /// carte | travail | mandat
+  origine          String
+  /// L'action de l'ERP (`fichier:fonction`) ou l'opération de l'Assistant IA.
+  capaciteId       String?
+  libelle          String
+  travailId        String?
+  etape            String?
+  cleIdempotence   String?
+  /// FAIT | ECHEC
+  resultat         String
+  message          String?
+  /// L'empreinte de ce qui s'est réellement écrit ; celle que la carte avait montrée ; vrai quand elles diffèrent.
+  empreinte        String?
+  empreinteSimulee String?
+  ecart            Boolean          @default(false)
+  creeLe           DateTime         @default(now())
+  /// L'annulation : quand, par qui, et le compte rendu geste par geste (annulé / compensé / impossible + pourquoi).
+  annuleLe         DateTime?
+  annuleParId      String?
+  annulation       Json?
+  effets           AssistantEffet[]
+
+  @@index([principalId, creeLe(sort: Desc)])
+  @@index([creeLe])
+  @@index([cleIdempotence])
+}
+
+/// J7 — UN EFFET d'un geste : une écriture en base (modèle, ligne, AVANT / APRÈS, champs) ou un effet externe (courriel,
+/// notification poussée, stockage, site, appel réseau) — ce dernier ne se reprend pas, l'annulation le dit.
+model AssistantEffet {
+  id               String                @id @default(cuid())
+  gesteId          String
+  geste            AssistantGesteJournal @relation(fields: [gesteId], references: [id], onDelete: Cascade)
+  ordre            Int
+  /// ECRITURE | EXTERNE
+  type             String
+  modele           String?
+  /// CREATE | UPDATE | DELETE | SQL
+  operation        String?
+  enregistrementId String?
+  avant            Json?
+  apres            Json?
+  champs           String[]              @default([])
+  cascade          Int?
+  nombre           Int?
+  imbriquee        Boolean               @default(false)
+  acte             String?
+  cible            String?
+  apercu           String?
+
+  @@index([gesteId, ordre])
+  @@index([modele, enregistrementId])
 }
 
 /// ═══════════════════════════════════════════════════════════════════════════════════════════

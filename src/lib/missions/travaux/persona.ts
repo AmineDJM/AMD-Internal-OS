@@ -69,7 +69,8 @@ export interface PersonaTravaux {
   lire(principalId: string, outil: string, entree: Record<string, unknown>): Promise<IssueLecture>;
   /** Le droit au geste, RELU juste avant d'agir (famille ouverte dans la console, droit d'écran). `null` = permis. */
   refusGeste(principalId: string, geste: string): Promise<string | null>;
-  ecrire(principalId: string, geste: string, entree: Record<string, unknown>): Promise<IssueGeste>;
+  /** `contexte` (J7) : le travail, l'étape et la clé du geste — ils entrent au journal des effets. */
+  ecrire(principalId: string, geste: string, entree: Record<string, unknown>, contexte?: { travailId: string; etape: string; cle: string }): Promise<IssueGeste>;
   raisonner(principalId: string, d: { consigne: string; texte: string; travailId: string }): Promise<IssueRaisonnement>;
   plafonds(principalId: string): Promise<PlafondsTravail>;
   /** J8 : les pièces du Drive (délégation) — droits relus à chaque appel. */

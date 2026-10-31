@@ -116,9 +116,13 @@ describe("le niveau de risque se lit sur les faits du contrat", () => {
     expect(de("directive-actions:publishDirective").risque).toBe("R3");
   });
 
-  it("une lecture est simulable et sans annulation ; un effet externe ne se simule pas", () => {
+  it("une lecture est simulable et sans annulation ; un effet hors base et hors ports ne se simule pas (J7)", () => {
     expect(de("regulatory-actions:checkDciDuplicate")).toMatchObject({ simulable: "oui", annulation: "aucune" });
-    expect(de("microsoft-mail-actions:saveDraft").simulable).toBe("non");
+    // La boîte IMAP s'écrit hors de la base et hors des ports : non. Un brouillon Graph sans écriture lue : non prouvé.
+    expect(de("mail-folder-actions:moveMailEntries").simulable).toBe("non");
+    expect(de("microsoft-mail-actions:saveDraft").simulable).toBe("inconnu");
+    // Une notification (sa poussée passe par un port) et une écriture en base : simulables.
+    expect(de("task-actions:createTask").simulable).toBe("oui");
     expect(de("task-actions:updateTaskStatus").annulation).toBe("retour");
     expect(de("task-actions:deleteTask").annulation).toBe("compensation");
   });
@@ -165,5 +169,17 @@ describe("la fiche est lisible et appelable", () => {
   it("un outil de l'Assistant IA y entre avec son nom et son risque (lecture R0, geste R1/R2)", () => {
     expect(ficheDeLOutil({ nom: "lire_paie", libelle: "Paie consultée", description: "…", ecriture: false, familles: ["SALAIRES"] })).toMatchObject({ risque: "R0", familles: ["SALAIRES"], outil: "lire_paie" });
     expect(ficheDeLOutil({ nom: "preparer_relance", libelle: "Relance", description: "…", ecriture: true, familles: [] })).toMatchObject({ risque: "R2", familles: ["ECRITURES"] });
+  });
+});
+
+describe("J7 (décision 0029) — la simulation couvre l'essentiel des écritures internes", () => {
+  it("≥ 80 % des capacités R1–R2 sont simulables (mesure sur le classement) ; les autres le disent", () => {
+    const cliche = JSON.parse(fs.readFileSync(CHEMIN_CLICHE, "utf8")) as Record<string, LigneCliche>;
+    const internes = Object.values(cliche).filter((l) => l.risque === "R1" || l.risque === "R2");
+    const simulables = internes.filter((l) => l.simulable === "oui").length;
+    const part = simulables / internes.length;
+    console.info(`[J7] capacités R1–R2 simulables : ${simulables}/${internes.length} (${(part * 100).toFixed(1)} %)`);
+    expect(internes.length).toBeGreaterThan(500);
+    expect(part).toBeGreaterThanOrEqual(0.8);
   });
 });

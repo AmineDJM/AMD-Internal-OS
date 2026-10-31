@@ -249,6 +249,9 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-proactivite-actions:lireMaVeille", "assistant-ia-proactivite-actions:jugerConstat", "assistant-ia-proactivite-actions:ecarterConstat",
     "assistant-ia-proactivite-actions:reglerMonVeilleur", "assistant-ia-proactivite-actions:reglerMaVeille", "assistant-ia-proactivite-actions:suggestionsPourDossier",
   ]);
+  X("« CE QUE L'ASSISTANT A FAIT » (J7, décision 0029) — l'historique des gestes de l'assistant au nom de la personne, l'aperçu et l'ANNULATION honnête d'un geste ou d'un lot. Identité prise de la session, seule la personne au nom de qui l'assistant a agi (ou le Super Admin) défait : un assistant qui annulerait ses propres gestes déciderait à la place de la personne — jamais proposé.", [
+    "assistant-ia-gestes-actions:listerGestesAssistant", "assistant-ia-gestes-actions:apercevoirAnnulation", "assistant-ia-gestes-actions:annulerGestesAssistant",
+  ]);
   X("LES MANDATS de l'Assistant IA (J12, décision 0024) — une approbation que SEULE la personne accorde ou révoque à l'écran, et le geste de la coque qui fait, dans SA requête, les gestes qu'elle a confiés (bornés, journalisés). Un assistant qui s'accorderait un mandat se donnerait un droit : jamais proposé par un assistant.", [
     "assistant-ia-proactivite-actions:accorderMonMandat", "assistant-ia-proactivite-actions:revoquerMonMandat", "assistant-ia-proactivite-actions:executerMesGestesSousMandat",
   ]);

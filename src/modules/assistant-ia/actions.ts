@@ -4,7 +4,7 @@ import { porte } from "./infra/porte-actions";
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import {
-  ajouterMemoire, effacerMemoire, estChargeOperationIA, executerOperationIA, listerMemoire, modifierMemoire, toutEffacerMemoire,
+  ajouterMemoire, effacerMemoire, estChargeOperationIA, executerOperationJournalisee, listerMemoire, modifierMemoire, toutEffacerMemoire,
   type ElementMemoire, type PieceDuTour,
 } from "@/modules/assistant-ia/api";
 import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
@@ -182,9 +182,10 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
         const refus = await verifierReperesAvantExecution(user, reperes, (stored as { title?: string }).title ?? "carte de l'Assistant IA");
         if (refus) return { ok: false, error: refus };
       }
-      if (estChargeOperationIA(stored)) return executerOperationIA(user, stored);
+      // J7 : chaque geste confirmé va au JOURNAL DES EFFETS (valeur avant de chaque champ) — il devient annulable.
       const { accesAssistantIa, estChargeCapacite, executerCapacite } = await import("@/modules/assistant-ia/api");
-      if (estChargeCapacite(stored)) return executerCapacite(user, stored, await accesAssistantIa(user));
+      if (estChargeOperationIA(stored)) return executerOperationJournalisee(user, stored, { origine: "carte", cle: intentId });
+      if (estChargeCapacite(stored)) return executerCapacite(user, stored, await accesAssistantIa(user), intentId);
       return { ok: false, error: "Cette carte a été préparée avant une mise à jour de l'assistant : redemandez-la, puis confirmez la nouvelle carte. Rien n'a été exécuté." };
     };
     return (await executerIntention(user, intentId, confirmTyped, executeur)) ?? { ok: false, error: "Action introuvable." };
@@ -221,7 +222,7 @@ export async function confirmerCarteTerrain(intentId: string): Promise<ResultatE
     if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
     const executeur = async (stored: unknown) =>
       estChargeOperationIA(stored) && stored.op.startsWith("terrain_")
-        ? executerOperationIA(user, stored)
+        ? executerOperationJournalisee(user, stored, { origine: "carte", cle: intentId })
         : { ok: false, error: "Cette carte ne se confirme pas depuis le terrain : ouvrez l'Assistant IA." };
     return (await executerIntention(user, intentId, undefined, executeur)) ?? { ok: false, error: "Action introuvable." };
   } catch (err) {

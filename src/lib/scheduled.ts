@@ -380,6 +380,7 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   } },
   // J14 : les traces rejouables des tours, gardées ASSISTANT_IA_TRACES_JOURS jours (30 par défaut).
   { cle: "assistant.traces", executer: async () => (await import("@/modules/assistant-ia/api")).purgerTraces() },
+  { cle: "assistant.effets", executer: async () => (await import("@/lib/contexte-geste")).purgerJournalDesEffets() },
 
   // L'ATELIER (J3, décision 0017) : les conversions confiées au worker (LibreOffice de son image). Ailleurs, rien.
   { cle: "atelier.conversions", bailMs: 300_000, executer: async () => {

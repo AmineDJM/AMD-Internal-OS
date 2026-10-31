@@ -62,6 +62,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "assistant-ia-conversations-actions": "src/modules/assistant-ia/actions-conversations.ts",
   "assistant-ia-proactivite-actions": "src/modules/assistant-ia/actions-proactivite.ts",
   "assistant-ia-qualite-actions": "src/modules/assistant-ia/actions-qualite.ts",
+  "assistant-ia-gestes-actions": "src/modules/assistant-ia/actions-gestes.ts",
   "bibliotheque-actions": "src/modules/bibliotheque/actions.ts",
   "recettes-actions": "src/modules/recettes/actions.ts",
   "coffre-actions": "src/modules/coffre/actions.ts",

@@ -106,6 +106,7 @@ describe("Adam, l'Assistant IA et leur socle — la frontière (décision 0013)"
       expect(tous.some((f) => f.startsWith(p)), p).toBe(true);
     }
     // L'écran d'Adam est sorti de `/assistant` : ce dossier ne porte plus que l'Assistant IA.
-    expect(fichiers("src/app/(app)/assistant").filter((f) => !f.startsWith("src/app/(app)/assistant/beta/") && f !== "src/app/(app)/assistant/page.tsx")).toEqual([]);
+    // J7 (décision 0029) : « Ce que l'assistant a fait » (`/assistant/gestes`) est un écran de l'Assistant IA.
+    expect(fichiers("src/app/(app)/assistant").filter((f) => !f.startsWith("src/app/(app)/assistant/beta/") && !f.startsWith("src/app/(app)/assistant/gestes/") && f !== "src/app/(app)/assistant/page.tsx")).toEqual([]);
   });
 });

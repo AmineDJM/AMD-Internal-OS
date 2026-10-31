@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { prisma } from "./prisma";
 import { sortieAutorisee } from "@/lib/sortie/garde";
+import { noterEffetExterne } from "@/lib/effets/magasin";
 import { endpointPushAutorise } from "@/lib/notifications/endpoint-push";
 import { sansBloquer } from "@/lib/journal";
 
@@ -95,6 +96,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   // Une notification poussée est « au mieux » : elle ne doit pas faire tomber une mission. On
   // prend donc la variante qui NE LÈVE PAS — mais qui enregistre quand même la tentative, pour
   // que le banc puisse dire ce qu'Adam aurait notifié.
+  // LE PORT DE SIMULATION (J7) : un geste simulé note la notification et ne la pousse pas.
+  if (noterEffetExterne({ acte: "NOTIFICATION_PUSH", cible: userId, apercu: payload.title, origine: "push:sendPushToUser" })) return;
   if (!sortieAutorisee("NOTIFICATION_PUSH", userId, { apercu: payload.title, origine: "push:sendPushToUser" })) return;
   if (!(await ensureVapid())) return;
   try {
