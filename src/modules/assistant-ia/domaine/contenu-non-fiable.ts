@@ -35,6 +35,8 @@ export const OUTILS_A_CONTENU_TIERS: Readonly<Record<string, string>> = {
   lire_devis_facture: "pièce commerciale déposée",
   comparer_versions: "documents déposés",
   lire_formulaire_pdf: "formulaire PDF déposé",
+  // J11 : les noms et chemins d'un dossier déposé sont écrits par qui l'a constitué.
+  lire_dossier_depose: "noms de fichiers d'un dossier déposé",
   web_research: "pages web",
   mes_conversations: "messages reçus",
   documents_rh: "document du dossier RH",

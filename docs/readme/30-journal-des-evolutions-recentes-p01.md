@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### J11 : LA CARTE SE CORRIGE AVANT DE SE SIGNER — ET UN DOSSIER DE 300 FICHIERS SE DÉPOSE, SE LIT ET SE CLASSE (2026-10-30)
+
+Lot J11 — `docs/assistant/decisions/0030-formulaires-dossiers.md`. **La carte de confirmation de toute action de l'ERP**
+(R1 → R4) est désormais un **formulaire généré depuis le contrat** de l'action : chaque champ selon son type (liste de choix,
+date, nombre, case, texte long), les **références** vers d'autres fiches choisies dans un sélecteur qui ne propose que ce
+que la personne voit, les valeurs proposées par l'assistant pré-remplies et surlignées. La personne **corrige, puis signe** :
+la correction repasse par les mêmes contrôles que la proposition (schéma du registre, familles, droits), et une carte
+renforcée se ressaisit sur la valeur corrigée. Banc : les 1 157 capacités R1–R4, **0 écart de schéma**.
+**Un dossier glissé dans l'Assistant IA recrée son arborescence** dans le Drive de la personne (dossier nommé,
+sous-dossiers, une pièce de la Bibliothèque par fichier) ; au-delà de 10 fichiers, il passe en **mode « dépôt de dossier »**
+(une puce, jusqu'à 1 000 fichiers et 2 Go — bornes réglables), téléversé en arrière-plan par le gestionnaire d'envois
+(envoi direct par morceaux, **reprise** : redéposer ne renvoie que ce qui manque), suivi sous la conversation (fichiers, lus,
+échoués, en file). La Bibliothèque **vide sa file dans un budget** (deux lecteurs) : **300 fichiers** (PDF, Word, images,
+scans) **lus en ≈ 2 min** sur le banc local. L'assistant **classe le dossier par module CTD** et nomme les **pièces
+manquantes** à partir de ce que la Bibliothèque a déjà lu — sans relire les fichiers (`lire_dossier_depose`). Migration
+additive `20270215140000_assistant_ia_depot_dossier`.
+
 ### J6 : L'ASSISTANT IA PEUT AGIR PARTOUT DANS L'ERP — LE REGISTRE DES CAPACITÉS (2026-10-30)
 
 Lot J6 — `docs/assistant/decisions/0020-capacites.md`. Chaque action serveur de l'ERP (1 206, lues sur leur source) devient une
@@ -11,6 +28,19 @@ directement, une écriture par la carte de confirmation, renforcée (ressaisie) 
 et les effets externes. Il **n'emprunte plus rien à Adam** : la frontière Assistant IA → Adam est à zéro — **sans rien perdre** :
 les 123 gestes qu'Adam lui prêtait ont chacun leur équivalent (inventaire généré et rejoué par un test) ; changer l'échéance,
 la priorité ou le responsable d'une tâche est désormais une action d'écran (`modifierTache`).
+
+### J10 : LES RECETTES — « COMMENT ON FAIT ÇA CHEZ NOUS ? », TIRÉ DES DOSSIERS RÉELS, VALIDÉ PAR LE RESPONSABLE (2026-10-30)
+
+Une **recette** décrit un circuit réel : étapes dans l'ordre, qui valide, pièces habituelles, seuils (« la DG signe au-delà
+d'environ 1,2 M DZD (observé) »), durée médiane, pièges (renvois répétés, étape la plus lente). Elle est **proposée** par
+l'extraction (tâche quotidienne `recettes.extraction`, jamais sous le seuil d'occurrences : 5 dossiers clos acceptés par défaut),
+puis **validée, corrigée (nouvelle version), rejetée ou retirée** par le responsable du processus que la Direction désigne dans
+l'écran `/recettes`. L'Assistant IA ne sert que la version validée (`recette_pour`) : il propose le plan tiré de la recette en
+disant « selon la recette … validée par X le … », et signale les écarts (seuil franchi, délai court, plan retouché). Statistiques :
+utilisations et taux de plans acceptés sans retouche. Une recette ne se montre qu'à qui voit l'écran du circuit ; elle ne porte ni
+dossier, ni nom, ni montant d'un dossier. Banc : 12/12 recettes justes sur le corpus semé, 13/14 plans acceptés sans retouche
+(93 %), zéro recette servie avant validation, zéro hors droits. Décision [0028](../assistant/decisions/0028-recettes.md) ;
+migration `20270211090000_recettes`.
 
 ### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
 
@@ -26,7 +56,7 @@ semé, 239/239 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résu
 
 ### J7 : SIMULATION, JOURNAL DES EFFETS, ANNULATION HONNÊTE (2026-10-30)
 
-Lot J7 — `docs/assistant/decisions/0029-simulation-annulation.md` ; migration additive `20270215100000_journal_des_effets`.
+Lot J7 — `docs/assistant/decisions/0029-simulation-annulation.md` ; migration additive `20270215150000_journal_des_effets`.
 - **La carte montre ce qui sera écrit** : une capacité R1–R4 simulable est jouée pour de vrai dans une transaction
   annulée, et la carte dit « 3 champs modifiés sur la demande X, 1 notification à Karim, 1 pièce déposée » — courriel,
   poussée, stockage, site et webhooks neutralisés (0 effet sorti, un test par port). 92,5 % des capacités R1–R2 se simulent.

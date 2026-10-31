@@ -14,10 +14,12 @@ import { lectureBudget } from "./operations/budget";
 import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
+import { lectureDossierDepose } from "./lecture-dossier";
 import { lectureDemandesRecues } from "./operations/delegation";
 import { rechercheWeb } from "./recherche-web";
 import { outilsConnaissance } from "@/platform/ia/lectures/connaissance";
 import { outilsGraphe } from "@/platform/ia/lectures/graphe";
+import { outilRecettePour } from "./recettes";
 import { sortiePourModele } from "../domaine/contenu-non-fiable";
 import { avecProvenance, type ProvenanceDuTour } from "./provenance";
 import { lecturesMetier, lecturesQuotidien, lecturesRh, lecturesSituation, situationRhSansMasse } from "./lectures";
@@ -54,6 +56,8 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   search_everything: ["DRIVE"],
   // J4 : la Bibliothèque — « Drive & documents » ; ses propres droits (l'écran qui sert chaque pièce) jugent en plus.
   chercher_documents: ["DRIVE"], ouvrir_documents: ["DRIVE"],
+  // J11 — un dossier déposé : il vit dans le Drive de la personne, ses fiches dans la Bibliothèque.
+  lire_dossier_depose: ["DRIVE"],
   read_budget: ["BUDGETS"], finance_totals: ["BUDGETS"],
   demandes_adpro: ["AD_PRO"], etat_dossier_reglementaire: ["REGLEMENTAIRE"],
   regulatory_portfolio: ["REGLEMENTAIRE"], regulatory_workload: ["REGLEMENTAIRE"], regulatory_knowledge: ["REGLEMENTAIRE"],
@@ -253,9 +257,11 @@ export function outilsV1(
 
   const lectures = [
     ...lecturesPower, ...propres, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
-    lectureFormulaire(user), lectureRoutines(user), lectureDemandesRecues(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
+    lectureFormulaire(user), lectureRoutines(user), lectureDossierDepose(user), lectureDemandesRecues(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
     // J9 — le graphe : une famille FERMÉE retire ses types du parcours (dossiers, demandes, documents), sans fermer l'outil.
     ...outilsGraphe(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
+    // J10 — les recettes : seulement la version VALIDÉE ; une famille FERMÉE retire les recettes de ses processus.
+    outilRecettePour(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a

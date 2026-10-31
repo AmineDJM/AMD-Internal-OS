@@ -10,6 +10,7 @@ import { BulleVocale } from "./bulle-vocale";
 import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../domaine/lecture/regles";
 import type { MemoireProposee } from "../domaine/memoire-ui";
 import type { VueSimulation } from "../domaine/simulation";
+import type { FormulaireCarte } from "@/platform/ia/capacites/formulaire";
 import { WorkspaceBlocks } from "@/platform/ia/ecrans/blocks";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
@@ -49,6 +50,8 @@ export interface ChatMessage {
     libelleBouton?: string;
     /** J7 : le diff réel de la simulation — ou « non simulable », dit. */
     simulation?: VueSimulation;
+    /** J11 : le formulaire généré depuis le contrat de la capacité (corriger avant de signer). */
+    formulaire?: FormulaireCarte;
     status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
     resultLink?: string;
     resultMessage?: string;
@@ -59,7 +62,7 @@ export interface ChatMessage {
 export interface ChatMessageListProps {
   messages: ChatMessage[];
   isLoading: boolean;
-  onConfirmIntent: (intentId: string, confirmTyped?: string) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
+  onConfirmIntent: (intentId: string, confirmTyped?: string, corrections?: Record<string, unknown>) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
   /** Ouvre une pièce (envoyée ou renvoyée) dans l'aperçu latéral. */
   onOuvrirPiece?: (p: PieceOuvrable) => void;
 }
@@ -188,6 +191,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                       confirmText={m.intent.confirmText}
                       libelleBouton={m.intent.libelleBouton}
                       simulation={m.intent.simulation}
+                      formulaire={m.intent.formulaire}
                       initialStatus={m.intent.status}
                       resultLink={m.intent.resultLink}
                       resultMessage={m.intent.resultMessage}

@@ -2,10 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0025 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0025, 0029, 0030 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux, attentes avancées, équipe, livrables au Drive ; 0024 : la proactivité ;
-0025 : terrain et voix ; 0029 : simulation, journal des effets, annulation).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -23,11 +22,27 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux, atte
 
 - **Tables** : `AssistantIaFil`, `AssistantIaTour`, `AssistantMemoryItem`, `AssistantRoutine`, `AssistantRoutineRun`,
   `AssistantRoleConfig`, `AssistantIaAcces`, `AssistantIaReglage`, `AssistantIaPlafondAtteint` ; J12 : `AssistantVeille`,
-  `AssistantVeilleur`, `AssistantSignal`, `AssistantMandat`, `AssistantMandatGeste`. Les intentions
+  `AssistantVeilleur`, `AssistantSignal`, `AssistantMandat`, `AssistantMandatGeste` ; J11 : `AssistantIaDepotDossier`. Les intentions
   (`AssistantActionIntent`) sont au socle IA (`src/platform/ia/intentions/`), partagées avec Adam.
 - **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12) (`src/lib/scheduled.ts`).
 - **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
   `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
+
+## Formulaires de carte et dépôt de dossier (lot J11, décision 0030)
+
+- **La carte d'une capacité R1–R4 est un formulaire généré depuis le contrat** — `platform/ia/capacites/formulaire.ts` (pur :
+  widget par type, proposition pré-remplie, `verifierFormulaire` = `zodDe` du registre), `ecrans/formulaire-carte.tsx`
+  (champs, sélecteur de référence au clavier), `ecrans/action-confirmation-card.tsx` (« Proposé » / « Corrigé », signer) ;
+  serveur : `infra/capacites.ts` — `carteDe`, `corrigerCarteCapacite` (la correction repasse par les portes de la
+  proposition et réécrit la carte), `chercherReferenceDeCarte` (fiches visibles seulement) ; `actions.ts` —
+  `confirmerIntentionAssistantIA(intentId, ressaisie, corrections)`, `chercherReferenceCarteAssistantIA`. Bancs :
+  `formulaires.test.ts` (1 157 capacités, 0 écart), `formulaire-carte.test.ts`.
+- **Dépôt de dossier** — règles pures `domaine/lecture/depot-dossier.ts` (mode, bornes réglables, racine, empreinte, reprise,
+  état) ; serveur `infra/depot-dossier.ts` (lot, arborescence par port, reprise, état par la Bibliothèque), route
+  `app/api/assistant-ia/depot-dossier` ; écran `ecrans/depot-dossier.tsx` (puce, envoi par le gestionnaire d'envois,
+  `SuiviDepots`). Banc : `depot-dossier.test.ts`, `npm run bench:dossier` (300 fichiers).
+- **Répondre sur le dossier** — `infra/lecture-dossier.ts` (`lire_dossier_depose`) et `domaine/ctd.ts` (classement CTD,
+  pièces manquantes), sur les fiches de la Bibliothèque (`fichesDeDossier`), sans relire les fichiers.
 
 ## Vitesse et mémoire (lot J4, décision 0018)
 
@@ -130,3 +145,9 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux, atte
 - **Voix temps réel (GPT-Live)** — `infra/voix/temps-reel.ts` (session ouverte par le serveur, délégation au même
   assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune
   confirmation à la voix ; valeurs sensibles jamais lues ; modèle `gpt-live-1` réglable (Consommation IA).
+
+## Recettes de la maison (lot J10, décision 0028)
+
+- `recette_pour` (`infra/recettes.ts`, module `recettes`) : la version VALIDÉE d'une recette ou rien ; plan de travail tiré de la
+  recette, phrase « selon la recette … validée par … le … », écarts. Fiche de la sélection (`MOTS_CLES`), règle 13 de la consigne
+  (`contexte.ts`). Une famille FERMÉE retire les processus qu'elle couvre. Banc : `infra/recettes.test.ts` (faux modèle).

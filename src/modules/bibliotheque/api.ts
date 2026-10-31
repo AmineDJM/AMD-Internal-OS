@@ -21,8 +21,8 @@ export * from "./api-inscription";
 
 // ── Chercher, ouvrir (sous les droits de la personne) ─────────────────────────────────────────
 export {
-  chercherDocuments, ouvrirDocuments, piecesOuvrables,
-  type DocumentOuvert, type OptionsRecherche, type RechercheDocuments, type Refus, type ResultatDocument,
+  chercherDocuments, fichesDeDossier, ouvrirDocuments, piecesOuvrables,
+  type DocumentOuvert, type FicheDeDossier, type OptionsRecherche, type RechercheDocuments, type Refus, type ResultatDocument,
 } from "./infra/recherche";
 export { faitsConfirmesPourModele, faitsVisibles, type FaitRendu } from "./infra/faits";
 

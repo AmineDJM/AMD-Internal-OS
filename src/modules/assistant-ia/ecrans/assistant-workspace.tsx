@@ -14,6 +14,7 @@ import { BoutonJoindre, PiecesEnAttente, type PieceJointe, type PieceOuvrable } 
 import { ApercuPiece } from "./apercu-piece";
 import { Atelier } from "./atelier/atelier";
 import { deposeDesFichiers, depuisListe, lireDepot, nommerCollage, televerser } from "./depot-navigateur";
+import { PuceDossier, SuiviDepots, useDepotDossier } from "./depot-dossier";
 import {
   avertissementPiece, miniaturePossible, OCTETS_MAX_DEPOT, phraseRefus, PIECES_PAR_ENVOI_MAX, planifierDepot, retirerPieces, texteDemandeModification,
   type Parcours,
@@ -210,7 +211,12 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
    * téléversé avant l'envoi. Les bornes (nombre, taille, doublons) et les fichiers système écartés
    * sont dits en clair.
    */
+  const depot = useDepotDossier(setAvisDepot);
+  const proposerDossier = useRef(depot.proposer);
+  proposerDossier.current = depot.proposer;
   const joindre = useCallback((parcours: Parcours<File>) => {
+    // J11 : un DOSSIER de plus de 10 fichiers devient UNE puce, le mode « dépôt de dossier » (décision 0030).
+    if (proposerDossier.current(parcours, piecesRef.current.length)) return;
     const dejaLa = piecesRef.current.map((p) => ({ chemin: p.nom, taille: p.taille ?? 0 }));
     const { acceptes, refus } = planifierDepot(dejaLa, parcours.trouves.map((t) => ({ ...t, taille: t.fichier.size })));
     const neuves: PieceJointe[] = acceptes.map((a) => ({
@@ -247,10 +253,18 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const preparerPieces = async (): Promise<{ id: string; nom: string }[] | null> => {
     setTeleversement(true);
     try {
+      // J11 : les pièces venues d'un dossier rejoignent son arborescence recréée dans le Drive.
+      let cibles: Record<string, string> = {};
+      try {
+        cibles = await depot.ciblesDesPieces(piecesRef.current.filter((p) => !p.id && p.fichier).map((p) => ({ chemin: p.nom, taille: p.taille ?? 0 })));
+      } catch (e) {
+        setErreur(`${e instanceof Error ? e.message : "Le dossier n'a pas pu être recréé dans votre Drive."} Le message n'est pas parti.`);
+        return null;
+      }
       for (const p of [...piecesRef.current]) {
         if (p.id || !p.fichier) continue;
         majPiece(p.cle, { etat: "envoi", progression: 0, erreur: undefined });
-        const r = await televerser(p.fichier, (part) => majPiece(p.cle, { progression: part }));
+        const r = await televerser(p.fichier, (part) => majPiece(p.cle, { progression: part }), cibles[p.nom]);
         if ("erreur" in r) {
           majPiece(p.cle, { etat: "erreur", erreur: r.erreur });
           setErreur(`« ${p.nom} » n'a pas pu être joint : ${r.erreur} Le message n'est pas parti — retirez la pièce ou réessayez.`);
@@ -360,9 +374,16 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   };
 
   /** ENVOYER ne bloque jamais : le message rejoint la file, l'assistant le traite après les précédents. */
-  const handleSendMessage = async (text: string): Promise<boolean> => {
-    if (!text.trim() && !piecesRef.current.length) return false;
+  const handleSendMessage = async (saisi: string): Promise<boolean> => {
+    if (!saisi.trim() && !piecesRef.current.length && !depot.dossier) return false;
     setErreur(null);
+    // J11 : le dépôt de dossier s'ouvre À L'ENVOI ; le message porte la ligne qui le désigne, la lecture suit.
+    let ligne: string | null = null;
+    try { ligne = await depot.envoyer(); } catch (e) {
+      setErreur(`${e instanceof Error ? e.message : "Le dossier n'a pas pu être ouvert."} Le message n'est pas parti.`);
+      return false;
+    }
+    const text = [saisi.trim(), ligne].filter(Boolean).join("\n\n");
     const pretes = await preparerPieces();
     if (!pretes) return false;
     if (vueExacte) { await envoyerLocal(text, pretes); return true; }
@@ -437,8 +458,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     if (!r || !r.ok) { setReponseVocale(!voulu); setErreur(r && !r.ok ? r.erreur : "Réglage non enregistré. Réessayez."); }
   };
 
-  const handleConfirmIntent = async (intentId: string, confirmTyped?: string) => {
-    return confirmerActionBeta(intentId, confirmTyped);
+  const handleConfirmIntent = async (intentId: string, confirmTyped?: string, corrections?: Record<string, unknown>) => {
+    return confirmerActionBeta(intentId, confirmTyped, corrections);
   };
 
   const handleReset = async () => {
@@ -499,6 +520,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
 
           {/* Barre de saisie — au-dessus de la barre système du téléphone (zone sûre). */}
           <div className="px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 sm:p-4 sm:pt-0">
+            {!vueExacte && <SuiviDepots relance={depot.relance} />}
             {erreur && <p role="alert" className="mb-1 px-2 text-xs text-red-600 dark:text-red-400">{erreur}</p>}
             <p aria-live="polite" className={avisDepot ? "mb-1 px-2 text-xs text-amber-700 dark:text-amber-400" : "sr-only"} data-testid="avis-depot">{avisDepot}</p>
             <CommandPillBar
@@ -507,10 +529,13 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               // On peut écrire pendant que l'assistant travaille : le message rejoint la file.
               isLoading={vueExacte && localEnCours}
               showSuggestions={messages.length <= 1 && !pieces.length}
-              canSendEmpty={pieces.length > 0}
+              canSendEmpty={pieces.length > 0 || !!depot.dossier}
               sendBlocked={envoiEnCours}
               brouillon={brouillon}
-              above={<PiecesEnAttente pieces={pieces} onRetirer={retirer} verrou={televersement} />}
+              above={<>
+                {depot.dossier && <PuceDossier dossier={depot.dossier} onRetirer={depot.retirer} verrou={televersement} />}
+                <PiecesEnAttente pieces={pieces} onRetirer={retirer} verrou={televersement} />
+              </>}
               vocal={vueExacte ? undefined : <><BoutonVoixTempsReel /><EnregistreurVocal onVocal={(a, d) => void envoyerVocal(a, d)} desactive={envoiEnCours} /></>}
               leading={
                 <>

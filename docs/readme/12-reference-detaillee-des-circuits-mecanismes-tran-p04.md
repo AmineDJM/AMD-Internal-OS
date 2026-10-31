@@ -764,3 +764,23 @@ Décision [0025](../assistant/decisions/0025-terrain-voix.md). Code : `src/modul
   **aucune confirmation à la voix** — une écriture est une carte, exécutée par son bouton. Modèle réglable par le Super
   Admin (Consommation IA) ou `ASSISTANT_IA_VOICE_MODEL`. Latence mesurée sur la ligne de temps de la session (cible p50
   ≤ 1,5 s, première mesure réelle à relever en production).
+
+### Recettes — la mémoire procédurale (lot J10, 30/10/2026)
+
+Décision [0028](../assistant/decisions/0028-recettes.md). Module `src/modules/recettes/` ; page `/recettes` ; outil
+`src/modules/assistant-ia/infra/recettes.ts` ; tâche `recettes.extraction`.
+
+- **Sources** (`infra/sources.ts`, 24 mois) : circuits Ad & Pro (`WorkflowStepEvent` + définition : rôles, `autoSkipMaxAmount`),
+  validations par module (`ValidationStep`), recrutement (`RecruitmentApproval`), travaux J2 réussis (forme du plan), formes
+  d'Adam `VALIDATED` ; pièces `PieceLien` → `Piece.nature` ; acteurs par RÔLE, jamais par nom.
+- **Extraction** (`domaine/extraction.ts`) : rien sous le seuil (5 dossiers clos acceptés, plancher 3, réglable par processus) ;
+  étapes par rang moyen, validateurs, pièces ≥ 50 %, seuil réglé ou observé (palier rond strictement entre les deux groupes,
+  `seuilRond`), médiane et p90, pièges répétés sur ≥ 2 dossiers (chiffres masqués). Idempotente (signature de structure).
+- **Vie** (`domaine/etats.ts`) : PROPOSEE → VALIDEE → REMPLACEE / RETIREE, ou REJETEE (motif). Seul le responsable désigné
+  (`RecetteResponsable` : rôle ou personne, par processus ; désigné par Super Admin / Direction) tranche, et seulement un
+  circuit dont il voit l'écran. Corriger = une version de plus.
+- **Assistant** : `recette_pour(intention, plan?)` → `AUCUNE` | `AMBIGU` (question) | `RECETTE` (fiche, phrase « selon la
+  recette … validée par … le … », plan J2 : ANALYSE → LIVRABLE → ATTENTE médiane → LIVRABLE, écarts). Version VALIDÉE
+  seulement ; famille fermée → processus retirés. `RecetteUsage` ; acceptation lue au travail lancé (même plan approuvé).
+- **Droits** : `voitLeCircuit` (module de l'écran du circuit ; formes d'Adam : Super Admin) — écran et assistant.
+

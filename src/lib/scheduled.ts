@@ -214,7 +214,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // Chargées à l'appel (les lecteurs ne pèsent que s'ils servent). Débrayage : BIBLIOTHEQUE_INGESTION=off.
   { cle: "bibliotheque.ingestion", executer: async () => {
     if (bibliothequeDebrayee()) return ignoree("BIBLIOTHEQUE_INGESTION=off");
-    await (await import("@/modules/bibliotheque/api")).traiterFile({ max: 10 });
+    // J11 (décision 0030) : la file se VIDE dans un budget (un dossier de 300 fichiers déposé d'un coup), sous le bail
+    // de la tâche (2 min) et avant le battement suivant (1 min) ; deux lecteurs en même temps par défaut.
+    await (await import("@/modules/bibliotheque/api")).traiterFile({ max: 10, ...budgetBibliotheque() });
   } },
   { cle: "bibliotheque.rattrapage", executer: async () => {
     if (bibliothequeDebrayee()) return ignoree("BIBLIOTHEQUE_INGESTION=off");
@@ -231,6 +233,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // LES INTENTIONS EN PLAN (IA-ASSISTANT-07) : une action interrompue par un redémarrage passe en échec DIT
   // (jamais rejouée) ; une carte jamais confirmée expire (délai réglé par le Super Admin, 24 h par défaut).
   { cle: "assistant.intentions", executer: async () => (await import("@/platform/ia/intentions/action-intents")).balayerIntentions() },
+  // LES RECETTES (J10, décision 0028) : une fois par jour, les circuits réels relus — des PROPOSITIONS seulement (jamais sous le
+  // seuil d'occurrences) ; le responsable du processus valide. Idempotent : une façon de faire inchangée ne propose rien.
+  { cle: "recettes.extraction", executer: async () => (await import("@/modules/recettes/api")).proposerLesRecettesSiDu() },
   // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
   // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
   { cle: "finance.caisse-avance", executer: runPettyCashRechargeReminders },
@@ -405,6 +410,16 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // tiers depuis un battement serait une communication sortante que personne n'a relue.
   { cle: "missions.engagements", executer: () => relancerEngagements() },
 ];
+
+/** Le budget d'un passage de la Bibliothèque : `BIBLIOTHEQUE_BUDGET_S` (défaut 45 s), `BIBLIOTHEQUE_PARALLELE` (défaut 2). */
+function budgetBibliotheque(): { budgetMs: number; parallele: number } {
+  const s = Number(process.env.BIBLIOTHEQUE_BUDGET_S);
+  const p = Number(process.env.BIBLIOTHEQUE_PARALLELE);
+  return {
+    budgetMs: (Number.isFinite(s) && s > 0 ? Math.min(s, 100) : 45) * 1000,
+    parallele: Number.isFinite(p) && p > 0 ? Math.min(6, Math.floor(p)) : 2,
+  };
+}
 
 function bibliothequeDebrayee(): boolean {
   return (process.env.BIBLIOTHEQUE_INGESTION ?? "").trim().toLowerCase() === "off";

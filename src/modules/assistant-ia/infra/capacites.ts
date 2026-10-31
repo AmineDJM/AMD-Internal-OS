@@ -10,11 +10,12 @@ import { contratVuParLAssistantIa, interdictionDeLAssistantIa, validerEntree } f
 import { prisma } from "@/lib/prisma";
 import { executerAction } from "@/lib/actions/executer";
 import { classerGeste } from "@/lib/annulation/reversibilite";
-import { resoudreEntrees } from "@/lib/cibles/resoudre-entrees";
-import { avecPersonnes, deriverRegistre, libelleChamp, schemaDe, type Registre } from "@/platform/ia/capacites/registre";
+import { candidatsDuChamp, resoudreEntrees } from "@/lib/cibles/resoudre-entrees";
+import { avecPersonnes, deriverRegistre, libelleChamp, schemaDe, zodDe, type Registre } from "@/platform/ia/capacites/registre";
+import { formulaireDe, type FormulaireCarte } from "@/platform/ia/capacites/formulaire";
 import { CHAMP_SALAIRE } from "@/platform/ia/capacites/classement";
 import type { Capacite, OutilDecrit } from "@/platform/ia/capacites/types";
-import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
+import { intentSummary, persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { journaliserGeste, simulerEnDiff } from "@/platform/ia/hors-requete";
 import { familleOuverte, refusFamille, type AccesIa } from "../domaine/acces-regles";
 import {
@@ -121,6 +122,26 @@ const definitionDe = (cap: Capacite): PowerTool["def"] => {
   return d;
 };
 
+/**
+ * CE QUE LA CARTE MONTRE d'une entrée préparée : les champs lus (le résumé), le niveau, la ressaisie, et le FORMULAIRE
+ * généré depuis le contrat (J11, décision 0030) — la proposition pré-remplie, les références nommées.
+ */
+function carteDe(cap: Capacite, entree: Record<string, unknown>, affichage: ReadonlyMap<string, string>) {
+  const contrat = CONTRAT_IA.get(cap.id)!;
+  const fields = contrat.champs.filter((c) => entree[c.nom] !== undefined)
+    .map((c) => ({ label: libelleChamp(c.nom), value: affichage.get(c.nom) ?? valeurAffichee(entree[c.nom]) }));
+  const level = niveauDeCarte(cap.risque);
+  const confirmText = level === "CRITICAL" ? texteARessaisir(cap.libelle, entree) : undefined;
+  // Une référence résolue par son nom garde ce nom à l'écran (l'identifiant seul ne dit rien à la personne).
+  const etiquettes: Record<string, string> = {};
+  for (const [champ, titre] of affichage) {
+    const v = entree[champ];
+    if (typeof v === "string") etiquettes[v] = titre;
+  }
+  const formulaire: FormulaireCarte = formulaireDe(cap.id, cap.champs, entree, etiquettes);
+  return { fields, level, confirmText, formulaire };
+}
+
 /** UN OUTIL PAR CAPACITÉ — son nom, son schéma tiré du contrat, sa porte, sa famille, son chemin (lecture ou carte). */
 function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCarte[], acces: AccesIa): PowerTool {
   return {
@@ -150,11 +171,7 @@ function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCart
       const salaire = refusFamilleDe(cap, acces, p.entree);
       if (salaire) return json({ statut: "REFUS", raison: salaire });
       if (propositions.length > 0) return REFUS_SECONDE_CARTE;
-      const contrat = CONTRAT_IA.get(cap.id)!;
-      const fields = contrat.champs.filter((c) => p.entree[c.nom] !== undefined)
-        .map((c) => ({ label: libelleChamp(c.nom), value: p.affichage.get(c.nom) ?? valeurAffichee(p.entree[c.nom]) }));
-      const level = niveauDeCarte(cap.risque);
-      const confirmText = level === "CRITICAL" ? texteARessaisir(cap.libelle, p.entree) : undefined;
+      const { fields, level, confirmText, formulaire } = carteDe(cap, p.entree, p.affichage);
       const warnings = [
         `${cap.raisonRisque.charAt(0).toUpperCase()}${cap.raisonRisque.slice(1)}.`,
         cap.annulation === "aucune" ? "Ce geste ne se défait pas." : `Annulation : ${cap.raisonAnnulation}.`,
@@ -168,7 +185,7 @@ function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCart
         ...(level ? { level } : {}), ...(confirmText ? { confirmText } : {}), payload: charge,
       }], "text");
       if (!intentId) return json({ statut: "ECHEC", raison: "La proposition n'a pas pu être enregistrée." });
-      propositions.push({ intentId, proposition: { kind: KIND_CAPACITE, title: cap.libelle, fields, warnings, simulation, ...(level ? { level } : {}), ...(confirmText ? { confirmText } : {}), payload: charge } });
+      propositions.push({ intentId, proposition: { kind: KIND_CAPACITE, title: cap.libelle, fields, warnings, simulation, formulaire, ...(level ? { level } : {}), ...(confirmText ? { confirmText } : {}), payload: charge } });
       return json({
         statut: "EN_ATTENTE_DE_CONFIRMATION",
         titre: cap.libelle,
@@ -269,6 +286,80 @@ export async function executerCapacite(user: CurrentUser, charge: unknown, acces
   }, () => auNomDe(user.id, () => executerAction(user, cap.id, entree, "assistant-ia")));
   if (!r.ok) return { ok: false, error: r.message };
   return { ok: true, message: `${cap.libelle} : fait.${ecart ? " Attention : l'écriture réelle diffère de la simulation montrée (le monde a changé entre-temps) — voyez « Ce que l'assistant a fait »." : ""}` };
+}
+
+// ─────────────────────────────── LE FORMULAIRE DE LA CARTE (J11, décision 0030) ───────────────────────────────
+
+/** La carte encore à signer de CETTE personne, et la capacité qu'elle porte — sinon la raison. */
+async function carteASigner(user: CurrentUser, intentId: string) {
+  if (typeof intentId !== "string" || !intentId || intentId.length > 64) return { refus: "Carte introuvable." } as const;
+  const i = await prisma.assistantActionIntent.findFirst({
+    where: { id: intentId, userId: user.id }, select: { id: true, status: true, payload: true, events: true },
+  });
+  if (!i) return { refus: "Carte introuvable." } as const;
+  if (i.status !== "PROPOSED") return { refus: "Cette carte n'est plus à signer : elle a déjà été traitée." } as const;
+  if (!estChargeCapacite(i.payload)) return { refus: "Cette carte ne se corrige pas : confirmez-la ou redemandez-la." } as const;
+  const cap = registreDesCapacites().parId.get(i.payload.id);
+  if (!cap || !cap.appelable || cap.risque === "R0") return { refus: cap?.refus ?? "Cette action n'est plus appelable par l'assistant." } as const;
+  if (!porteOuverte(user, cap)) return { refus: "Vous n'avez plus accès à l'écran de ce geste." } as const;
+  return { intent: i, charge: i.payload, cap } as const;
+}
+
+/**
+ * LA CORRECTION de la personne, avant sa signature : l'entrée saisie dans le formulaire REMPLACE la proposition de
+ * l'assistant. Elle repasse par les MÊMES portes que la proposition — champs du contrat seuls, schéma zod du registre,
+ * noms résolus sous la portée de la personne, contrat validé, familles de la console — puis la carte est réécrite
+ * (charge, résumé, ressaisie recalculée : un montant corrigé se ressaisit corrigé). L'exécution reste celle de toute
+ * carte : `executerIntention`, juste après, dans la même requête.
+ */
+export async function corrigerCarteCapacite(
+  user: CurrentUser, intentId: string, saisie: unknown, acces: AccesIa,
+): Promise<{ ok: true; confirmText: string | null } | { ok: false; error: string }> {
+  const c = await carteASigner(user, intentId);
+  if ("refus" in c) return { ok: false, error: c.refus ?? "Carte introuvable." };
+  if (!saisie || typeof saisie !== "object" || Array.isArray(saisie)) return { ok: false, error: "Formulaire illisible." };
+  const connus = new Set(c.cap.champs.map((ch) => ch.nom));
+  const brute = Object.fromEntries(Object.entries(saisie as Record<string, unknown>).filter(([k, v]) => connus.has(k) && v !== undefined && v !== null && v !== ""));
+  const z = zodDe(c.cap).safeParse(brute);
+  if (!z.success) {
+    const champs = [...new Set(z.error.issues.map((i) => libelleChamp(String(i.path[0] ?? ""))))].filter(Boolean);
+    return { ok: false, error: `Formulaire incomplet ou invalide${champs.length ? ` : ${champs.join(", ")}` : ""}. Rien n'a été exécuté.` };
+  }
+  const famille = refusFamilleDe(c.cap, acces, brute);
+  if (famille) return { ok: false, error: famille };
+  const p = await preparer(user, c.cap, brute);
+  if ("refus" in p) return { ok: false, error: `${p.refus} Rien n'a été exécuté.` };
+  if ("incomplet" in p) return { ok: false, error: `${(p.incomplet ?? []).join(" ; ")}. Rien n'a été exécuté.` };
+  const { fields, confirmText } = carteDe(c.cap, p.entree, p.affichage);
+  const charge: ChargeCapacite = { kind: KIND_CAPACITE, id: c.cap.id, entree: p.entree };
+  const corriges = Object.keys({ ...c.charge.entree, ...p.entree }).filter((k) => JSON.stringify(c.charge.entree[k] ?? null) !== JSON.stringify(p.entree[k] ?? null));
+  const events = [...(Array.isArray(c.intent.events) ? c.intent.events : []), { status: "CORRECTED", at: new Date().toISOString(), champs: corriges }];
+  // La réécriture n'a lieu QUE si la carte est toujours à signer (une seconde fenêtre l'a peut-être confirmée).
+  const n = await prisma.assistantActionIntent.updateMany({
+    where: { id: c.intent.id, userId: user.id, status: "PROPOSED" },
+    data: {
+      payload: charge as object, events: events as object[],
+      summary: intentSummary({ kind: KIND_CAPACITE, module: c.cap.modules[0] ?? "ASSISTANT_IA", title: c.cap.libelle, fields, payload: charge }),
+      ...(confirmText ? { confirmText } : {}),
+    },
+  });
+  if (n.count !== 1) return { ok: false, error: "Cette carte n'est plus à signer : elle a déjà été traitée." };
+  return { ok: true, confirmText: confirmText ?? null };
+}
+
+/**
+ * LE SÉLECTEUR D'UNE RÉFÉRENCE du formulaire : seulement pour un champ de CETTE carte, seulement des fiches que la
+ * personne voit (l'annuaire pour une personne, la portée de l'écran pour le reste — `candidatsDuChamp`).
+ */
+export async function chercherReferenceDeCarte(
+  user: CurrentUser, intentId: string, champ: string, texte: string,
+): Promise<{ ok: true; options: { id: string; titre: string; sousTitre: string | null }[] } | { ok: false; error: string }> {
+  const c = await carteASigner(user, intentId);
+  if ("refus" in c) return { ok: false, error: c.refus ?? "Carte introuvable." };
+  const ch = c.cap.champs.find((x) => x.nom === champ);
+  if (!ch?.modele) return { ok: false, error: "Ce champ ne désigne pas une fiche." };
+  const options = await candidatsDuChamp(user, ch.modele, String(texte ?? ""));
+  return { ok: true, options: options.slice(0, 8) };
 }
 
 export { estChargeCapacite };

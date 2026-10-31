@@ -218,6 +218,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
         ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
         ...(p.proposition.libelleBouton ? { libelleBouton: p.proposition.libelleBouton } : {}),
         ...(p.proposition.simulation ? { simulation: p.proposition.simulation } : {}),
+        ...(p.proposition.formulaire ? { formulaire: p.proposition.formulaire } : {}),
         status: "PROPOSED",
       } : null,
     };

@@ -134,12 +134,20 @@ export async function traiterFile(opts: {
   deps?: Partial<DependancesIngestion>;
   /** Seulement ces pièces (Super Admin « relire maintenant », bancs) ; sinon les plus anciennes dues. */
   seulement?: readonly string[];
+  /**
+   * J11 (décision 0030) — VIDER LA FILE dans un budget de temps : tant qu'il reste des fiches dues et du budget, un lot
+   * de plus est pris. Sans budget, un seul lot (le comportement d'avant). Un dossier de 300 fichiers se lit ainsi en
+   * quelques passages de la tâche de fond, pas en trente.
+   */
+  budgetMs?: number;
+  /** Fiches lues EN MÊME TEMPS (défaut 1) — bornée à 6 : un OCR tient de la mémoire. */
+  parallele?: number;
 } = {}): Promise<BilanIngestion> {
   const deps: DependancesIngestion = { ...DEPENDANCES_REELLES, ...opts.deps };
   const bilan: BilanIngestion = { prises: 0, faites: 0, ignorees: 0, echecs: 0, passages: 0, vectorises: 0 };
-  const fiches = await prendre(Math.max(1, opts.max ?? 10), opts.seulement ?? null);
-  bilan.prises = fiches.length;
-  for (const f of fiches) {
+  const debut = Date.now();
+  const parallele = Math.max(1, Math.min(6, Math.floor(opts.parallele ?? 1)));
+  const lireUne = async (f: BibliothequeFiche) => {
     try {
       const issue = await ingerer(f, deps);
       if (issue.statut === "IGNOREE") bilan.ignorees += 1;
@@ -155,8 +163,18 @@ export async function traiterFile(opts: {
         data: { statut, prochainEssaiLe: prochainEssai(f.tentatives), verrouilleLe: null, derniereErreur: messageErreur(err) },
       }).catch((e) => console.error("[bibliotheque] fiche en échec non écrite", e));
     }
+  };
+  for (;;) {
+    const fiches = await prendre(Math.max(1, opts.max ?? 10), opts.seulement ?? null);
+    bilan.prises += fiches.length;
+    // `parallele` lecteurs se partagent le lot : chacun prend la fiche suivante dès qu'il a fini la sienne.
+    let curseur = 0;
+    await Promise.all(Array.from({ length: Math.min(parallele, fiches.length) }, async () => {
+      while (curseur < fiches.length) await lireUne(fiches[curseur++]!);
+    }));
+    bilan.vectorises += await vectoriserEnRetard({ max: 200, embed: deps.embed, seulement: opts.seulement });
+    if (!opts.budgetMs || !fiches.length || Date.now() - debut >= opts.budgetMs) break;
   }
-  bilan.vectorises = await vectoriserEnRetard({ max: 200, embed: deps.embed, seulement: opts.seulement });
   return bilan;
 }
 

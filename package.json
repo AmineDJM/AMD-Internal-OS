@@ -66,9 +66,11 @@
     "bench:horizon": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/horizon-long.ts",
     "bench:live": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx --",
     "bench:bibliotheque": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/bibliotheque.ts",
+    "bench:dossier": "DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/dossier-300.ts",
     "bench:smoke": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/smoke-fournisseur.ts",
     "sonde:conversation": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/sonde-conversation.ts",
-    "bench:site-web": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/site-web-liaison.ts"
+    "bench:site-web": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/site-web-liaison.ts",
+    "migrations:figer": "tsx scripts/figer-migrations.ts"
   },
   "prisma": {
     "seed": "tsx prisma/bootstrap.ts"

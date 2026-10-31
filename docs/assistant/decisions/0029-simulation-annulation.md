@@ -4,7 +4,7 @@ Architecture validée : <https://claude.ai/artifact/34ig3QRV5X7LtanjyuX7U7>, lot
 internes simulables ; aucun effet externe en simulation ; annulation juste sur 50 cas ». Suit [0020](0020-capacites.md)
 (registre des capacités : risque, `simulable`, annulation) et [0023](0023-delegation.md) (contexte de geste hors requête).
 
-Migration additive et idempotente `20270215100000_journal_des_effets` : tables `AssistantGesteJournal` et `AssistantEffet`,
+Migration additive et idempotente `20270215150000_journal_des_effets` : tables `AssistantGesteJournal` et `AssistantEffet`,
 colonne `AssistantIaReglage.retentionEffetsJours` (défaut 180).
 
 > Code : `src/lib/effets/` (`magasin.ts`, `geste.ts`, `capture.ts`, `client.ts`, `simulation.ts`, `diff.ts`, `valeurs.ts`,

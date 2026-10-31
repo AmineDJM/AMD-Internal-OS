@@ -503,7 +503,7 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 - **Guards**: `graphe-entreprise/graphe.test.ts` (real DB: resolution ≥ 95 %, 100 % sourced figures, p95 < 300 ms on 50,000
   edges, no out-of-rights result per role); AI base ceiling `SOCLE_IA_CEILING` stays 177 (+1 module door, −1 enum import).
 
-## 8ter. Agent gesture context, simulation, effects journal, undo (lot J7, 2026-10-30)
+## 8quater. Agent gesture context, simulation, effects journal, undo (lot J7, 2026-10-30)
 
 - **Where**: `src/lib/effets/` (socle in `platform/domains.ts`), façade `lib/contexte-geste.ts`, IA door
   `platform/ia/hors-requete.ts`. Decision `docs/assistant/decisions/0029-simulation-annulation.md`.
@@ -517,7 +517,7 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 - **Output ports**: every module that calls the output guard (`sortie/garde.ts`) must call `noterEffetExterne` first
   (mail SMTP/Graph/API, push, site, object storage) — enforced by `effets/ports.test.ts`; `effets/reseau.ts` wraps `fetch`
   (simulation: non-GET to a non-local host neutralised with a 202).
-- **Journal**: `AssistantGesteJournal` + `AssistantEffet` (migration `20270215100000_journal_des_effets`), written for confirmed
+- **Journal**: `AssistantGesteJournal` + `AssistantEffet` (migration `20270215150000_journal_des_effets`), written for confirmed
   cards, work steps (`PersonaTravaux.ecrire(…, contexte)`), mandated gestures; purge job `assistant.effets` (`lib/scheduled.ts`),
   retention `AssistantIaReglage.retentionEffetsJours`.
 - **Undo** (`effets/annulation.ts`): per effect ANNULE / COMPENSE / IMPOSSIBLE / SANS_OBJET with reason; field undo goes
@@ -525,6 +525,24 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
   the row (`FOR UPDATE`), re-reads, writes only if unchanged. Screen `/assistant/gestes`.
 - **Guards**: `effets/{simulation,ports,annulation}.test.ts` (50 real cases, 0 overwrite), `assistant-ia/infra/capacites-simulation.test.ts`,
   `platform/ia/capacites/registre.test.ts` (≥ 80 % of R1–R2 simulable).
+
+## 8ter. Recipes — procedural memory (lot J10, 2026-10-30)
+
+> Added with J10 (decision `docs/assistant/decisions/0028-recettes.md`). Verified against the code of `jarvis/j10-recettes`.
+
+- **Where**: module `src/modules/recettes/` (doors `api.ts`, `partage.ts`, `actions.ts` key `recettes-actions`; reads Prisma only —
+  no `src/lib/` debt). Read by `assistant-ia` (`infra/recettes.ts`: tool `recette_pour`). Screen `/recettes`. Job `recettes.extraction`.
+- **Tables**: `RecetteResponsable` (process → role/user, occurrence threshold), `Recette` (one per circuit key `WF:<category>`,
+  `VAL:<module>`, `REC`, `TRAVAIL:<shape hash>`, `FORME:<signature>`), `RecetteVersion` (never rewritten once validated),
+  `RecetteUsage` (plan served; acceptance read from the `Mission` TRAVAIL launched within 2 h — same plan signature + approved).
+- **Invariants**: nothing proposed below the threshold; only the VALIDATED version is served; only the designated process owner who
+  can see the circuit's screen decides; content carries roles, frequencies, durations and rounded thresholds — never a case id,
+  a person's name or a case amount (`seuilRond`, `motifMontrable`).
+- **Blast radius**: changing `WorkflowStep.actorRoles`/`autoSkipMaxAmount`, the validation/recruitment journals, `Mission.carnet.plan`
+  shape (J2 `lirePlan`), or RBAC module VIEW rights changes what recipes say or who sees them. A new workflow category needs a
+  line in `domaine/processus.ts`.
+- **Guards**: `assistant-ia/infra/recettes.test.ts` (real DB, seeded corpus dated 2031, fake model: ≥ 10 correct recipes, ≥ 70 %
+  plans accepted unchanged, nothing served before validation, rights per role); `recettes/domaine/domaine.test.ts`.
 
 ## 9. Docs versus code discrepancies
 

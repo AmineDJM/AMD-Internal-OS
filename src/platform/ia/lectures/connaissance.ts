@@ -1,5 +1,5 @@
 import type { PowerTool, UtilisateurOutil as CurrentUser } from "@/platform/ia/outil";
-import { chercherDocuments, extraitAPlat, faitsConfirmesPourModele, ouvrirDocuments } from "@/modules/bibliotheque/api";
+import { chercherDocuments, extraitAPlat, faitsConfirmesPourModele, fichesDeDossier, ouvrirDocuments, type FicheDeDossier } from "@/modules/bibliotheque/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -109,3 +109,13 @@ function faits(user: CurrentUser): PowerTool {
 export function outilsConnaissance(user: CurrentUser): PowerTool[] {
   return [chercher(user), ouvrir(user), faits(user)];
 }
+
+/**
+ * LES FICHES D'UN DOSSIER DÉPOSÉ, pour un modèle (J11, décision 0030) — ce que la Bibliothèque sait déjà de chaque pièce
+ * (titre, nature, état, début du texte lu), sous les droits de la personne et la politique « pour modèle » (coffre et
+ * confidentiel : le titre seul). L'Assistant IA y classe un dossier sans relire les fichiers un à un.
+ */
+export function fichesDeDossierPourModele(user: CurrentUser, pieceIds: readonly string[]): Promise<FicheDeDossier[]> {
+  return fichesDeDossier(user as Parameters<typeof fichesDeDossier>[0], pieceIds, { pourModele: true });
+}
+export type { FicheDeDossier };
