@@ -2,15 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import { ReglageDOffice } from "../missions/reglage-d-office";
-import { Bell, LogOut, Monitor, Moon, Smartphone, Sun, Volume2, X } from "lucide-react";
+import { ArrowLeft, Bell, Gauge, LogOut, Monitor, Moon, Smartphone, Sun, Volume2, X } from "lucide-react";
 import { deconnecterMonAppareil, listerMesAppareils, type AppareilConnecte } from "@/modules/assistant-ia/actions-conversations";
 import { activerNotifications } from "./hors-ligne";
 import { sansBloquer } from "@/lib/journal";
 import { useEchap } from "../use-echap";
+import { TableauConsommation } from "../consommation/tableau-consommation";
 
 /**
  * LES RÉGLAGES D'ADVENTUM IA — thème (clair, sombre, comme l'appareil), réponses vocales, notifications de CET
- * appareil, appareils connectés (déconnexion à distance : un téléphone perdu se déconnecte d'ici), se déconnecter.
+ * appareil, appareils connectés (déconnexion à distance : un téléphone perdu se déconnecte d'ici), se déconnecter — et la
+ * CONSOMMATION (lot K8, décision 0035) : ses jetons et ses dollars au micro-dollar ; toute l'entreprise pour le Super Admin.
  */
 export type Theme = "systeme" | "clair" | "sombre";
 const CLE_THEME = "adventum-ia:theme";
@@ -30,7 +32,7 @@ export function appliquerTheme(t: Theme, racine: HTMLElement | null): void {
   document.documentElement.classList.toggle("dark", !!sombre);
 }
 
-export function Reglages({ theme, onTheme, reponseVocale, onReponseVocale, onFermer, deconnexion }: {
+export function Reglages({ theme, onTheme, reponseVocale, onReponseVocale, onFermer, deconnexion, superAdmin = false }: {
   theme: Theme;
   onTheme: (t: Theme) => void;
   reponseVocale: boolean;
@@ -38,12 +40,15 @@ export function Reglages({ theme, onTheme, reponseVocale, onReponseVocale, onFer
   onFermer: () => void;
   /** Le formulaire de déconnexion (action d'authentification de l'ERP, posée par la page). */
   deconnexion: React.ReactNode;
+  /** Le Super Admin voit aussi la consommation de toute l'entreprise. */
+  superAdmin?: boolean;
 }) {
+  const [vue, setVue] = useState<"reglages" | "consommation">("reglages");
   const [appareils, setAppareils] = useState<AppareilConnecte[] | null>(null);
   const [avis, setAvis] = useState<string | null>(null);
   const relire = () => void listerMesAppareils().then((r) => setAppareils(r.ok ? r.appareils : [])).catch(sansBloquer("reglages.appareils"));
   useEffect(relire, []);
-  useEchap(onFermer);
+  useEchap(() => (vue === "consommation" ? setVue("reglages") : onFermer()));
 
   const choix = (t: Theme, libelle: string, Icone: typeof Sun) => (
     <button type="button" aria-pressed={theme === t} onClick={() => onTheme(t)}
@@ -55,6 +60,16 @@ export function Reglages({ theme, onTheme, reponseVocale, onReponseVocale, onFer
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4" role="dialog" aria-modal="true" aria-label="Réglages">
       <button type="button" aria-label="Fermer" onClick={onFermer} className="absolute inset-0" />
+      {vue === "consommation" ? (
+        <div className="relative flex max-h-[92dvh] w-full max-w-[760px] min-w-0 flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-2xl bg-[var(--aia-panneau)] p-4 text-[var(--aia-texte)] shadow-2xl sm:p-5">
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setVue("reglages")} aria-label="Retour aux réglages" className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[var(--aia-survol)]"><ArrowLeft className="h-4 w-4" /></button>
+            <h2 className="flex-1 text-[19px] font-semibold">Consommation</h2>
+            <button type="button" onClick={onFermer} aria-label="Fermer" className="flex h-9 w-9 items-center justify-center rounded-lg hover:bg-[var(--aia-survol)]"><X className="h-4 w-4" /></button>
+          </div>
+          <TableauConsommation superAdmin={superAdmin} />
+        </div>
+      ) : (
       <div className="relative flex max-h-[90dvh] w-full max-w-[520px] flex-col gap-4 overflow-y-auto rounded-2xl bg-[var(--aia-panneau)] p-5 text-[var(--aia-texte)] shadow-2xl">
         <div className="flex items-center">
           <h2 className="flex-1 text-[19px] font-semibold">Réglages</h2>
@@ -107,11 +122,21 @@ export function Reglages({ theme, onTheme, reponseVocale, onReponseVocale, onFer
           ))}
         </section>
 
+        <section className="flex flex-col gap-2" aria-label="Consommation">
+          <h3 className="text-[13px] font-semibold">Consommation</h3>
+          <p className="text-[12.5px] text-[var(--aia-discret)]">Vos jetons et leur coût en dollars, au micro-dollar près : par jour, par modèle, par usage, par conversation, appel par appel.{superAdmin ? " Et celle de toute l'entreprise." : ""}</p>
+          <button type="button" onClick={() => setVue("consommation")}
+            className="inline-flex items-center gap-2 self-start rounded-lg border border-[var(--aia-filet)] px-3 py-2 text-[13.5px] hover:bg-[var(--aia-survol)]">
+            <Gauge className="h-4 w-4" aria-hidden /> Voir la consommation
+          </button>
+        </section>
+
         <section className="flex items-center gap-2 border-t border-[var(--aia-filet)] pt-3">
           <LogOut className="h-4 w-4 text-[var(--aia-discret)]" aria-hidden />
           {deconnexion}
         </section>
       </div>
+      )}
     </div>
   );
 }

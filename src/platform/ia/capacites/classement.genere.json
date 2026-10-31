@@ -1634,6 +1634,15 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:lireConsommationIa": {
+  "risque": "R0",
+  "familles": [
+   "BUDGETS"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
  "assistant-ia-conversations-actions:ajouterDocumentsAuDossier": {
   "risque": "R1",
   "familles": [
@@ -5014,7 +5023,7 @@
   "appelable": true
  },
  "finance-actions:requestTreasuryUpdate": {
-  "risque": "R1",
+  "risque": "R2",
   "familles": [
    "BUDGETS",
    "ECRITURES"
@@ -5097,6 +5106,40 @@
   "simulable": "oui",
   "annulation": "retour",
   "appelable": false
+ },
+ "gestes-reversibles-actions:annulerMonGeste": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "gestes-reversibles-actions:apercevoirAnnulationDeMonGeste": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "gestes-reversibles-actions:listerMesGestesAnnulables": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": true
+ },
+ "gestes-reversibles-actions:retablirMonGeste": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
  },
  "hr-actions:analyzeEmployeeContract": {
   "risque": "R1",

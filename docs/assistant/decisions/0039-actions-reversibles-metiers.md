@@ -7,7 +7,7 @@ le sont pas : tu dois modifier l'ERP pour qu'elles le soient. Toute action qui a
 effets sortants, suppressions), **K10c (le reste — ce document)**. Suit [0029](0029-simulation-annulation.md) (J7 : journal
 des effets, annulation honnête) et [0020](0020-capacites.md) (registre, classement).
 
-Migration additive et idempotente `20270217100000_effets_reversibles` : table `EffetSortantDiffere`, colonne
+Migration additive et idempotente `20270217120000_effets_reversibles` : table `EffetSortantDiffere`, colonne
 `AssistantIaReglage.fenetreAnnulationSec` (défaut 120).
 
 > Code : `src/lib/effets/reversible.ts` (`actionReversible`), `politiques.ts` (tout ou rien, rectificatif, gestes inverses

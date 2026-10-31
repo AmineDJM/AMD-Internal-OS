@@ -32,7 +32,7 @@ export default async function AdventumIaPage() {
   // Sans lui, l'app plantait au premier rendu (« useBackgroundUpload doit être utilisé dans <BackgroundUploadProvider> »).
   return (
     <BackgroundUploadProvider>
-      <AdventumIaApp userName={user.name} />
+      <AdventumIaApp userName={user.name} superAdmin={user.role === "SUPER_ADMIN"} />
     </BackgroundUploadProvider>
   );
 }

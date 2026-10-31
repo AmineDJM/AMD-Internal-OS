@@ -510,6 +510,8 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // gestes de panneau et ses règles d'affichage. Venus avec J2 (sur la base, ces fichiers étaient dans `src/lib/`, non
     // comptés). Cible : la porte du moteur des travaux (`src/platform/ia/travaux/` en porte un premier contrat sans import).
     "src/modules/assistant-ia/actions.ts → src/lib/missions/travaux/service",
+    // K8 (décision 0035) : `lireConsommationIa` est une lecture d'écran — `enLecture` (Vue exacte), comme Ad & Pro.
+    "src/modules/assistant-ia/actions-consommation.ts → src/lib/vue-lecture",
     "src/modules/assistant-ia/ecrans/travaux-panel.tsx → src/lib/missions/travaux/regles",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/persona",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/plan",

@@ -102,9 +102,18 @@ export interface TranscriptionAudio {
 export async function transcrireMedia(octets: Buffer, nom: string, opts: Pick<OptionsStt, "fetchImpl" | "env" | "langue" | "modele" | "indice"> = {}): Promise<IssueVoix<TranscriptionAudio>> {
   return appelVoix("transcription", async (inscrire) => {
     const t0 = Date.now();
-    const r = await transcrireAvecSegments(octets, nom, { langue: opts.langue ?? "auto", fetchImpl: opts.fetchImpl, env: opts.env, modele: opts.modele, indice: opts.indice });
+    const r = await transcrireAvecSegments(octets, nom, { langue: opts.langue ?? "auto", fetchImpl: opts.fetchImpl, env: opts.env, modele: opts.modele, indice: opts.indice, journaliser: false });
     if (!r.ok) return { ok: false, raison: r.erreur };
-    inscrire({ provider: "openai-audio", model: r.modele, entree: jetonsAudio(r.dureeS), sortie: jetonsTexte(r.texte), ms: Date.now() - t0 });
+    // K8 : l'usage RENDU par l'API (jetons, ou durée). Sans jetons, l'équivalent de durée nourrit le PLAFOND
+    // (10 par seconde) mais ne se facture pas : seule la durée se facture (`equivalents`).
+    const u = r.usage ?? { inputTokens: 0, outputTokens: 0, audioInputTokens: 0, durationMs: 0, equivalents: true };
+    const parJetons = u.inputTokens + u.outputTokens > 0;
+    inscrire({
+      provider: "openai-audio", model: r.modele, ms: Date.now() - t0,
+      entree: parJetons ? u.inputTokens : jetonsAudio(u.durationMs ? u.durationMs / 1000 : r.dureeS),
+      sortie: parJetons ? u.outputTokens : jetonsTexte(r.texte),
+      audioEntree: parJetons ? u.audioInputTokens : 0, dureeMs: u.durationMs, equivalents: !parJetons,
+    });
     return { ok: true, valeur: { texte: r.texte, dureeS: r.dureeS, langue: r.langue, modele: r.modele } };
   });
 }

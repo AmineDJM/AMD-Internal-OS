@@ -58,6 +58,8 @@ import { sanitizeForModel } from "./ai-text";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "./ai-settings";
 import { attendu } from "@/lib/journal";
 import { cleOpenAI, urlOpenAI } from "./models/openai-acces";
+import { recordProviderCall } from "./models/telemetry";
+import { usageTranscription } from "./models/tarifs";
 export { sanitizeForModel };
 
 export interface AiTextResult {
@@ -349,6 +351,8 @@ export async function transcribeAudio(buffer: Buffer, filename: string, mime: st
       });
       if (res.ok) {
         const data = (await res.json()) as { text?: string };
+        // Une transcription est un appel payé (audit K8, trou G4) : au journal, avec l'usage RENDU par l'API.
+        recordProviderCall({ role: "stt", provider: "openai", model, cachedInputTokens: 0, ...usageTranscription(data), attempts: attempt });
         return { ok: true, configured: true, text: (data.text ?? "").trim() };
       }
       const body = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));

@@ -136,7 +136,7 @@ async function lireImageOuScan(name: string, ext: string, buffer: Buffer): Promi
         user: `Image « ${name} ». ${ocrTexte ? `L'OCR a lu (confiance ${confiance ?? "?"} %) : « ${ocrTexte.slice(0, 1_200)} ». Corrige et complète depuis l'image.` : "L'OCR n'a rien lu d'exploitable."}`,
         images: [{ buffer, mime }], jsonSchema: VISION_SCHEMA as unknown as { name: string; schema: Record<string, unknown> }, maxOutputTokens: 2_500, temperature: 0,
       });
-      recordModelCall({ role: "bulk", model: lunaModel(), provider: "openai", inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, cachedInputTokens: res.usage.cachedInputTokens, costUsd: res.usage.costUsd, ms: Date.now() - tv, attempts: 1 });
+      // L'appel est journalisé par `callLuna` lui-même (lot K8).
       if (res.ok && res.data && typeof res.data.texte === "string") vision = res.data;
       else visionErreur = res.error?.slice(0, 120) ?? "réponse vide";
     } catch (e) {

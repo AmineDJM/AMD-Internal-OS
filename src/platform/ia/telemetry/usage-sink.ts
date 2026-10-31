@@ -20,17 +20,19 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { prisma } from "@/lib/prisma";
-import { setModelCallSink, type TurnTrace } from "@/lib/models/telemetry";
+import { imputationCourante, setModelCallSink, type TurnTrace } from "@/lib/models/telemetry";
 import type { ModelUsage } from "@/lib/models/contract";
 import { ROLE_VOIX } from "@/lib/models/registry";
+import { coutJournal, type ColonnesK8 } from "./cout-journal";
 
 type Ligne = {
   turnId: string | null; route: string | null; feature: string | null;
   userId: string | null; threadId: string | null; missionId: string | null;
   role: string; provider: string; model: string;
   inputTokens: number; outputTokens: number; cachedInputTokens: number; reasoningTokens: number; webSearchCalls: number;
-  costUsd: number | null; ms: number; attempts: number; incompleteReason: string | null;
-};
+  costUsd: string | number | null; ms: number; attempts: number; incompleteReason: string | null;
+  priceGrid: string | null;
+} & ColonnesK8;
 
 const DELAI_MS = 1_500;
 const LOT_MAX = 40;
@@ -43,23 +45,27 @@ let installe = false;
 export const compteurs = { recues: 0, ecrites: 0, echecs: 0 };
 
 function ligneDe(u: ModelUsage, t: TurnTrace | undefined): Ligne {
+  const { costUsd, priceGrid, colonnes } = coutJournal(u);
+  const imp = imputationCourante();
   return {
     turnId: t?.turnId ?? null,
     route: t?.route ?? null,
-    feature: t?.context.feature ?? null,
-    userId: t?.context.userId ?? null,
-    threadId: t?.context.threadId ?? null,
-    missionId: t?.context.missionId ?? null,
+    feature: t?.context.feature ?? imp?.feature ?? null,
+    userId: t?.context.userId ?? imp?.userId ?? null,
+    threadId: t?.context.threadId ?? imp?.threadId ?? null,
+    missionId: t?.context.missionId ?? imp?.missionId ?? null,
     role: u.role,
     provider: u.provider,
     model: u.model,
-    inputTokens: u.inputTokens,
-    outputTokens: u.outputTokens,
-    cachedInputTokens: u.cachedInputTokens ?? 0,
-    reasoningTokens: u.reasoningTokens ?? 0,
+    inputTokens: Math.max(0, Math.round(u.inputTokens)),
+    outputTokens: Math.max(0, Math.round(u.outputTokens)),
+    cachedInputTokens: Math.max(0, Math.round(u.cachedInputTokens ?? 0)),
+    reasoningTokens: Math.max(0, Math.round(u.reasoningTokens ?? 0)),
     webSearchCalls: u.webSearchCalls ?? 0,
-    costUsd: u.costUsd ?? null,
-    ms: u.ms ?? 0,
+    costUsd,
+    priceGrid,
+    ...colonnes,
+    ms: Math.max(0, Math.round(u.ms ?? 0)),
     attempts: u.attempts ?? 1,
     incompleteReason: u.incompleteReason ?? null,
   };
@@ -88,7 +94,7 @@ export async function viderTampon(): Promise<number> {
 
 function recevoir(u: ModelUsage, t: TurnTrace | undefined): void {
   // Un appel qui n'a rien consommé (refus local, erreur avant réseau) ne vaut pas une ligne.
-  if (u.inputTokens === 0 && u.outputTokens === 0 && (u.attempts ?? 0) === 0) return;
+  if (u.inputTokens === 0 && u.outputTokens === 0 && !u.durationMs && !u.pages && (u.attempts ?? 0) === 0) return;
   compteurs.recues += 1;
   tampon.push(ligneDe(u, t));
   if (tampon.length >= LOT_MAX) { void viderTampon(); return; }
@@ -107,17 +113,21 @@ function recevoir(u: ModelUsage, t: TurnTrace | undefined): void {
 export function journaliserSessionVocale(e: {
   userId: string; model: string; inputTokens: number; outputTokens: number; cachedInputTokens: number;
   costUsd: number | null; ms: number; responses: number;
+  /** K8 : les PARTS audio rendues par `response.done.usage` (`input_token_details.audio_tokens`…). */
+  audioInputTokens?: number; cachedAudioInputTokens?: number; audioOutputTokens?: number;
+  imageInputTokens?: number; cachedImageInputTokens?: number;
 }): void {
   if (e.responses <= 0) return;
   compteurs.recues += 1;
-  tampon.push({
-    turnId: null, route: "voice-direct", feature: "voice_realtime",
-    userId: e.userId, threadId: null, missionId: null,
+  const u: ModelUsage = {
     role: ROLE_VOIX, provider: "openai", model: e.model,
     inputTokens: e.inputTokens, outputTokens: e.outputTokens, cachedInputTokens: e.cachedInputTokens,
-    reasoningTokens: 0, webSearchCalls: 0,
-    costUsd: e.costUsd, ms: e.ms, attempts: e.responses, incompleteReason: null,
-  });
+    costUsd: e.costUsd, ms: e.ms, attempts: e.responses,
+    audioInputTokens: e.audioInputTokens, cachedAudioInputTokens: e.cachedAudioInputTokens, audioOutputTokens: e.audioOutputTokens,
+    imageInputTokens: e.imageInputTokens, cachedImageInputTokens: e.cachedImageInputTokens,
+  };
+  const l = ligneDe(u, undefined);
+  tampon.push({ ...l, route: "voice-direct", feature: "voice_realtime", userId: e.userId });
   if (tampon.length >= LOT_MAX) { void viderTampon(); return; }
   if (!minuteur) {
     minuteur = setTimeout(() => { minuteur = null; void viderTampon(); }, DELAI_MS);
