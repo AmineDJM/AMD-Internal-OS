@@ -112,3 +112,19 @@ describe("composantsEnBlocs — un composant n'est dessiné que si ses données 
     expect(r.blocs).toHaveLength(1);
   });
 });
+
+describe("un contrat mal formé ne s'affiche jamais brut (Direction, 31/10/2026)", () => {
+  it("guillemet non échappé dans le message : le texte est gardé, la queue du contrat disparaît", () => {
+    const brut = '{"message":"Parlez-vous de "synthese dossiers reglementaires" ou d\'un autre fichier ?","components":[]}';
+    const r = lireReponseModele(brut);
+    expect(r.message).toBe('Parlez-vous de "synthese dossiers reglementaires" ou d\'un autre fichier ?');
+    expect(r.message).not.toContain("components");
+  });
+  it("texte simple suivi d'une queue de contrat : la queue est retirée", () => {
+    const r = lireReponseModele('J\'ai trouvé plusieurs fichiers.\n\nLequel voulez-vous ?","components":[]}');
+    expect(r.message).toBe("J'ai trouvé plusieurs fichiers.\n\nLequel voulez-vous ?");
+  });
+  it("un texte simple, sans contrat, reste intact", () => {
+    expect(lireReponseModele("Bonjour, comment puis-je vous aider ?").message).toBe("Bonjour, comment puis-je vous aider ?");
+  });
+});
