@@ -26,6 +26,9 @@ import { createHmac } from "node:crypto";
 import { chromium, devices, type Page } from "@playwright/test";
 import { prisma } from "@/lib/prisma";
 import { signerCommeMeta } from "@/platform/ia/canaux/whatsapp";
+import { getAccess } from "@/lib/rbac";
+import type { CurrentUser } from "@/lib/session";
+import { outilAttendrePieces } from "@/modules/assistant-ia/api";
 
 const BASE = process.env.K6_BASE ?? "http://localhost:3100";
 const SORTIE = path.join(process.cwd(), "bench-out", "k6");
@@ -119,9 +122,19 @@ async function scenario(nom: "iphone13" | "bureau", ctx: { userId: string; spo: 
   const fil = page.getByTestId("fil");
   await fil.getByText(annonce).waitFor({ timeout: 30_000 });
   let attente = null;
-  for (let i = 0; i < 120 && !attente; i++) {
+  let parLeModele = true;
+  for (let i = 0; i < 90 && !attente; i++) {
     attente = await prisma.assistantIaAttentePieces.findFirst({ where: { userId: ctx.userId, createdAt: { gte: debut }, etat: "OUVERTE" } });
     if (!attente) await page.waitForTimeout(1000);
+  }
+  if (!attente) {
+    // Le modèle n'a pas ouvert l'attente (crédit épuisé, panne) : l'OUTIL est appelé tel que le modèle l'appellerait — dit au rapport.
+    parLeModele = false;
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: ctx.userId } });
+    const moi = { id: u.id, name: u.name, email: u.email, role: u.role, access: await getAccess(u.id, u.role), mustChangePassword: false } as CurrentUser;
+    const conv = new URL(page.url()).searchParams.get("c");
+    await outilAttendrePieces(moi, conv).run({ description: "lettre de demande du Dr Mansouri", canaux: "whatsapp", demande: ctx.spo.reference, natureDemande: "sponsoring" }, moi);
+    attente = await prisma.assistantIaAttentePieces.findFirst({ where: { userId: ctx.userId, createdAt: { gte: debut }, etat: "OUVERTE" } });
   }
   await page.waitForTimeout(4000);
   await page.screenshot({ path: path.join(SORTIE, `${nom}-1-annonce.png`), fullPage: false });
@@ -145,7 +158,7 @@ async function scenario(nom: "iphone13" | "bureau", ctx: { userId: string; spo: 
     await page.screenshot({ path: path.join(SORTIE, `${nom}-3-rangee.png`), fullPage: false });
   }
   await navigateur.close();
-  return { ecran: nom, attenteOuverteParLeModele: !!attente, attente: attente?.description ?? null, cible: attente?.cibleLibelle ?? null, webhook: wa, rangeeDansLaDemande: range === 1, erreursConsole: erreurs };
+  return { ecran: nom, attenteOuverteParLeModele: parLeModele && !!attente, attenteOuverte: !!attente, attente: attente?.description ?? null, cible: attente?.cibleLibelle ?? null, webhook: wa, rangeeDansLaDemande: range === 1, erreursConsole: erreurs };
 }
 
 async function main() {
