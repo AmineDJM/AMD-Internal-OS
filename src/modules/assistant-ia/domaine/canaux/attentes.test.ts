@@ -51,6 +51,10 @@ describe("K6 — l'attente de pièces (règles pures)", () => {
     expect(s).toContain("attendue par WhatsApp");
     // Une attente : moins de ~60 jetons (≈ 4 caractères par jeton).
     expect(sectionAttentes([attente()], T0)!.length).toBeLessThan(260);
+    // Reçue : dite « déjà reçue », et une nouvelle annonce rouvre une attente (banc réel du 31/10 : le modèle refusait).
+    const recue = sectionAttentes([attente({ etat: "RECUE", recueLe: new Date(T0.getTime() - 60_000) })], T0)!;
+    expect(recue).toMatch(/déjà reçue à .*rangement proposé/);
+    expect(recue).toContain("annoncée de nouveau (autre ou renvoyée) : attendre_pieces");
   });
 
   it("le numéro : ses neuf derniers chiffres, quelle que soit l'écriture", () => {

@@ -83,13 +83,13 @@ export function sectionAttentes(attentes: AttenteVue[], maintenant: Date): strin
   const lignes = ouvertes.map((a) => {
     const canaux = a.canaux.length ? a.canaux.map((c) => LIBELLE_CANAL[c as CanalEntrant] ?? c).join(" ou ") : "WhatsApp ou mail";
     const pour = a.cibleLibelle ? ` → ${court(a.cibleLibelle, 60)}` : "";
-    const etat = a.etat === "RECUE" ? "reçue" : `attendue par ${canaux}, jusqu'à ${heureAlger(a.expireLe)}`;
+    const etat = a.etat === "RECUE" && a.recueLe ? `déjà reçue à ${heureAlger(a.recueLe)}, rangement proposé` : `attendue par ${canaux}, jusqu'à ${heureAlger(a.expireLe)}`;
     return `- ${court(a.description, 90)}${pour} (${etat})`;
   });
   return [
     "### PIÈCES ATTENDUES",
     ...lignes,
-    "Une pièce reçue arrive dans la conversation avec sa carte de rangement : ne redemande pas une pièce déjà reçue.",
+    "Une pièce reçue arrive ici avec sa carte. Toute pièce annoncée de nouveau (autre ou renvoyée) : attendre_pieces.",
   ].join("\n");
 }
 

@@ -104,12 +104,13 @@ async function login(page: Page) {
 }
 
 async function scenario(nom: "iphone13" | "bureau", ctx: { userId: string; spo: { id: string; reference: string } }) {
-  const navigateur = await chromium.launch();
+  const navigateur = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium" });
   const contexte = await navigateur.newContext(nom === "iphone13" ? { ...devices["iPhone 13"] } : { viewport: { width: 1440, height: 900 } });
   const page = await contexte.newPage();
   const erreurs: string[] = [];
   page.on("console", (m) => { if (m.type() === "error") erreurs.push(m.text()); });
   page.on("pageerror", (e) => erreurs.push(String(e)));
+  page.on("response", (r) => { if (r.status() >= 400) erreurs.push(`${r.status()} ${new URL(r.url()).pathname}`); });
   const debut = new Date();
   await login(page);
   await page.goto(`${BASE}/ia`);
