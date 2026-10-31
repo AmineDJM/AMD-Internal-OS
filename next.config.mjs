@@ -101,6 +101,11 @@ const nextConfig = {
     // Super Admin (AppSetting → validateUpload). Les très gros fichiers passent par le Drive
     // (routes en flux, jusqu'à la limite Drive configurée).
     serverActions: { bodySizeLimit: "256mb" },
+    // ADVENTUM IA (`APP_MODE=adventum-ia`, instance Starter de 512 Mo) : Next 15 PRÉCHARGE au démarrage le code serveur
+    // de TOUTES les routes — 319 Mo de bundles, 747 Mo de RSS avant la première requête, mort à la limite de tas par
+    // défaut (~250 Mo) au premier contrôle de santé (Render, 31/10/2026). L'app ne sert qu'une poignée de routes : elles
+    // se chargent à la demande. L'ERP garde le préchargement (premières requêtes rapides, instance de 2 Go).
+    preloadEntriesOnStart: process.env.APP_MODE !== "adventum-ia",
   },
   // Libs Node serveur uniquement (jamais bundlées côté client) : auth, mail (IMAP/SMTP),
   // extraction/OCR (tesseract.js/mupdf/sharp = WASM/natif, à ne pas bundler).

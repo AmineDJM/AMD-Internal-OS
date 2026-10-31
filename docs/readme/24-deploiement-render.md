@@ -2,7 +2,7 @@
 
 ### Adventum IA — le site de l'assistant (décision 0027, 30/10/2026)
 
-**Render → Blueprint → Sync** crée le service web `adventum-ia` (offre Starter) : même dépôt, même build que l'ERP (sans
+**Render → Blueprint → Sync** crée le service web `adventum-ia` (offre Standard, 2 Go — en Starter il manquait de mémoire) : même dépôt, même build que l'ERP (sans
 `migrate deploy` ni bootstrap — seul le web ERP migre), `APP_MODE=adventum-ia`. Adresse : `https://adventum-ia-k3uc.onrender.com`
 (si Render attribue un autre nom, le reporter dans `AUTH_URL` et `APP_URL` du service). Variables : même base
 (`fromDatabase`) ; `AUTH_SECRET`, `MAX_*` et `OPENAI_API_KEY` par `fromService` depuis `amd-internal-os` ; S3, VAPID et

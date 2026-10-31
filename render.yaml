@@ -149,7 +149,9 @@ services:
   - type: web
     name: adventum-ia
     runtime: node
-    plan: starter
+    # STANDARD (1 CPU, 2 Go), choix de la Direction du 31/10/2026 : en Starter (512 Mo) le serveur mourait au premier
+    # contrôle de santé — l'assistant charge l'essentiel de l'ERP (ses ~1 280 actions) ; mesuré ≈ 600 Mo de RSS.
+    plan: standard
     healthCheckPath: /api/health
     buildCommand: npm ci && npx prisma generate && npm run build:render
     startCommand: npx next start -p $PORT
@@ -229,7 +231,9 @@ services:
   - type: worker
     name: amd-worker
     runtime: docker
-    plan: starter
+    # STANDARD (1 CPU, 2 Go), choix de la Direction du 31/10/2026 : en Starter (512 Mo) le worker mourait au bout de
+    # ~75 s (tas à ~256 Mo) ; mesuré stable à ≈ 520 Mo de RSS sur 3 minutes, toutes tâches de fond actives.
+    plan: standard
     # Ni compilation Next (le worker ne sert aucune page) NI migration : seul le build du web migre, APRÈS son lint, son
     # typecheck et sa compilation (refonte P0). L'image démarre seule (`CMD` du Dockerfile : `tsx scripts/worker.ts`).
     dockerfilePath: ./Dockerfile.worker
