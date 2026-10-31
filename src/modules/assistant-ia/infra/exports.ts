@@ -12,7 +12,7 @@ import { CATALOGUE_EXPORTS, DOSSIER_EXPORTS, exportOuvert, nomDeFichierSur, prod
  * Un outil par fiche du catalogue (`lib/exports/catalogue.ts`) : il appelle LA fonction d'export que le bouton de
  * l'écran appelle aussi (même portée, mêmes droits, même audit), DÉPOSE le fichier dans le Drive personnel de la
  * personne (dossier « Exports », inscrit à la Bibliothèque par le port du Live Office) et rend au modèle le lien qui
- * l'ouvre (`/drive/<id>` : l'écran en fait un bloc fichier) et celui qui le télécharge.
+ * le télécharge (`/api/drive/<id>/raw?dl=1` : l'écran en fait aussi un bloc fichier ouvrable).
  *
  * Rien ne part chez personne : envoyer le fichier à un collègue est un AUTRE geste, une carte à confirmer
  * (`send_message` avec la pièce). L'outil n'est offert qu'à qui a le bouton (`exportOuvert`) ; la famille de la console
@@ -68,12 +68,14 @@ function outilExport(user: CurrentUser, f: FicheExport): PowerTool {
       } catch (e) {
         return json({ statut: "ERREUR", raison: `Le fichier a été produit mais n'a pas pu être déposé dans votre Drive : ${(e as Error).message}`, ecran: f.ecran });
       }
-      const ouvrir = `/drive/${nodeId}`;
+      // UN SEUL LIEN, celui du téléchargement : permis dans l'app Adventum IA comme dans l'ERP, et l'écran en tire le BLOC
+      // FICHIER ouvrable (`idsDriveCites` reconnaît `/api/drive/<id>/…`). Le lien de page `/drive/<id>` est une page de
+      // l'ERP : dans l'app, elle n'existe pas (mesuré : 404 au préchargement).
       const telecharger = `/api/drive/${nodeId}/raw?dl=1`;
       return json({
         statut: "FAIT",
-        fichier: { nom, nodeId, format: f.format, contenu: r.fichier.resume, dossier: `Drive › ${DOSSIER_EXPORTS}`, ouvrir, telecharger, octets: r.fichier.octets.byteLength },
-        consigne: `Réponds en une ou deux phrases : ce que contient le fichier, le lien [${nom}](${ouvrir}) (l'écran l'affiche comme une pièce) et le lien [Télécharger](${telecharger}). `
+        fichier: { nom, nodeId, format: f.format, contenu: r.fichier.resume, dossier: `Drive › ${DOSSIER_EXPORTS}`, telecharger, octets: r.fichier.octets.byteLength },
+        consigne: `Réponds en une ou deux phrases : ce que contient le fichier et le lien [Télécharger ${nom}](${telecharger}) — l'écran affiche aussi le fichier comme une pièce ouvrable ; il est rangé dans le Drive (dossier « ${DOSSIER_EXPORTS} »). `
           + `Pour l'envoyer à un collègue : send_message avec pieces: ["${nodeId}"] (une carte à confirmer).`,
       });
     },

@@ -21,7 +21,7 @@ async function main(): Promise<void> {
   const f = modeleFactice([
     { appel: { outil: "exporter_suivi_regulatory", entree: {} } },
     (p) => ({ appel: { outil: "send_message", entree: { recipientName: "Amel Haddad", body: "Voici le suivi Regulatory.", pieces: [nodeId(p)] } } }),
-    (p) => ({ texte: JSON.stringify({ message: `Le suivi Regulatory est prêt : [ouvrir le fichier](/drive/${nodeId(p)}) · [Télécharger](/api/drive/${nodeId(p)}/raw?dl=1). Le message à Amel Haddad attend votre confirmation.`, components: [] }) }),
+    (p) => ({ texte: JSON.stringify({ message: `Le suivi Regulatory est prêt : [Télécharger](/api/drive/${nodeId(p)}/raw?dl=1). Le message à Amel Haddad attend votre confirmation.`, components: [] }) }),
   ]);
   remplacerModelesPourTests([f.modele as never]);
   const d = await deposerMessage(u.id, message, []);

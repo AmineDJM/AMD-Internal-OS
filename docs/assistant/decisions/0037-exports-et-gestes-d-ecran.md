@@ -79,8 +79,11 @@ format, filtres, mots d'une demande. Quatorze exports :
 - **Familles de la console** : `DRIVE` (le fichier y est déposé) et celle du domaine (`REGLEMENTAIRE`, `BUDGETS`,
   `AD_PRO`) ; fermée, l'outil refuse en nommant la famille, comme les autres.
 - **Le fichier** est déposé dans le **Drive personnel** de la personne, dossier « Exports » (port du Live Office :
-  inscrit à la Bibliothèque), et l'outil rend `ouvrir` (`/drive/<id>` — la réponse le cite, l'écran en fait un **bloc
-  fichier** ouvrable, décision 0015) et `telecharger` (`/api/drive/<id>/raw?dl=1`).
+  inscrit à la Bibliothèque), et l'outil rend UN lien, celui du téléchargement (`/api/drive/<id>/raw?dl=1`) : permis dans
+  l'app Adventum IA comme dans l'ERP, rendu en `<a download>`, et l'écran en tire le **bloc fichier** ouvrable
+  (`idsDriveCites`, décision 0015). Le lien de page `/drive/<id>` n'est pas donné : c'est une page de l'ERP, que l'app
+  n'a pas (mesuré au parcours Playwright : 404 au préchargement). Les liens internes cités par le modèle ne se
+  préchargent plus (`markdown-message.tsx`, `prefetch={false}`) : un lien à moitié écrit pendant le flux l'était aussi.
 - **Au registre des capacités** : une fiche `outil:exporter_*` par export (R0 — rien n'est écrit chez un autre ; le
   dépôt est dans le Drive de la personne elle-même), et à la **sélection d'outils** par ses mots (`MOTS_EXPORTS`).
 - **Conversation seulement** (comme les capacités) : ni routine ni travail ne déposent de fichier.

@@ -42,7 +42,7 @@ async function compte(nom: string, role: CurrentUser["role"]): Promise<CurrentUs
 
 const lancer = async (u: CurrentUser, outil: string, entree: Record<string, unknown>) => {
   const o = outilsExports(u).find((t) => t.def.name === outil)!;
-  return JSON.parse(await o.run(entree, u)) as Record<string, unknown> & { fichier?: { nodeId: string; nom: string; ouvrir: string; telecharger: string; contenu: string } };
+  return JSON.parse(await o.run(entree, u)) as Record<string, unknown> & { fichier?: { nodeId: string; nom: string; telecharger: string; contenu: string } };
 };
 
 suite("K7 — exporter depuis l'assistant, puis envoyer à un collègue", () => {
@@ -68,12 +68,13 @@ suite("K7 — exporter depuis l'assistant, puis envoyer à un collègue", () => 
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
   });
 
-  it("l'outil produit le classeur de la route, le dépose au Drive « Exports » et rend les deux liens", async () => {
+  it("l'outil produit le classeur de la route, le dépose au Drive « Exports » et rend le lien de téléchargement", async () => {
     const r = await lancer(direction, "exporter_suivi_regulatory", { recherche: TAG });
     expect(r.statut).toBe("FAIT");
     const f = r.fichier!;
     expect(f.contenu).toBe("2 dossier(s) réglementaire(s)");
-    expect(f.ouvrir).toBe(`/drive/${f.nodeId}`);
+    expect(f).not.toHaveProperty("ouvrir"); // la page `/drive/<id>` n'existe pas dans l'app Adventum IA
+    expect(String(r.consigne)).toContain(`(/api/drive/${f.nodeId}/raw?dl=1)`);
     expect(f.telecharger).toBe(`/api/drive/${f.nodeId}/raw?dl=1`);
     const node = await prisma.driveNode.findUniqueOrThrow({ where: { id: f.nodeId }, select: { ownerId: true, name: true, parent: { select: { name: true } }, versions: { select: { blobId: true } } } });
     expect(node.ownerId).toBe(direction.id);
