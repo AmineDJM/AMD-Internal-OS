@@ -25,6 +25,7 @@ import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { readReceipt, saveReceiptLines, finaliserNatures } from "@/lib/general-means/expense-lines";
 import { allowedGeneralMeansCategoryIds, keepAllowedCategory } from "@/lib/general-means/budget-targets";
 import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 const PATH = "/moyens-generaux";
 
@@ -99,7 +100,7 @@ async function prevenirQuiTranche(input: { type: "VALIDATION_REQUIRED" | "GENERI
  * toujours dans le tiroir. On ne peut pas répondre à « qu'a-t-on remis, et quand ? » avec une
  * somme qui s'incrémente : la question a besoin des lignes.
  */
-export async function allotPettyCash(formData: FormData): Promise<ActionResult> {
+export async function allotPettyCash(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Remettre une caisse d'avance", async () => {
   const user = await requireUser();
   if (!canAllot(user)) return { ok: false, error: "Remettre une caisse d'avance est réservé à l'administration." };
 
@@ -170,7 +171,7 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
   return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD envoyée au centre de paiement (${ordre.reference}) : elle s'ajoutera au fond dès que le centre l'autorise.` };
-}
+}); }
 
 /**
  * CONFIRMER LA RÉCEPTION — par la détentrice, et par elle seule.
@@ -178,7 +179,7 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
  * Tant qu'elle n'a pas confirmé, le solde disponible reste à zéro : afficher un fonds qu'on
  * n'a pas encore en main conduit à engager des dépenses qu'on ne peut pas payer.
  */
-export async function confirmPettyCashReceipt(formData: FormData): Promise<ActionResult> {
+export async function confirmPettyCashReceipt(formData: FormData): Promise<ActionResult> { return annulable("retour", "Confirmer la réception d'une caisse", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Caisse non précisée." };
@@ -215,7 +216,7 @@ export async function confirmPettyCashReceipt(formData: FormData): Promise<Actio
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * SOLDER LA CAISSE — le fond ENTIER, jamais une remise isolée.
@@ -225,7 +226,7 @@ export async function confirmPettyCashReceipt(formData: FormData): Promise<Actio
  * imputées sur les autres — un solde qui s'effondre sans qu'une seule dépense n'ait été faite.
  * Il n'y a qu'une caisse : on la solde d'un bloc.
  */
-export async function closePettyCash(formData: FormData): Promise<ActionResult> {
+export async function closePettyCash(formData: FormData): Promise<ActionResult> { return annulable("retour", "Clôturer une caisse d'avance", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Caisse non précisée." };
@@ -265,7 +266,7 @@ export async function closePettyCash(formData: FormData): Promise<ActionResult> 
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * DÉPENSER SUR LA CAISSE — avec justificatif scanné, sans exception.
@@ -274,7 +275,7 @@ export async function closePettyCash(formData: FormData): Promise<ActionResult> 
  * argent vu de deux endroits (ce qu'on avait le droit de dépenser, ce qu'on avait en main).
  * L'écrire deux fois séparément, c'était garantir deux totaux différents.
  */
-export async function spendFromPettyCash(formData: FormData): Promise<ActionResult> {
+export async function spendFromPettyCash(formData: FormData): Promise<ActionResult> { return annulable("retour", "Dépenser sur une caisse d'avance", async () => {
   const user = await requireUser();
   const cashId = fdStr(formData, "cashId");
   if (!cashId) return { ok: false, error: "Caisse non précisée." };
@@ -391,7 +392,7 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   revalidatePath(PATH);
   revalidatePath("/budgets/departements");
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * DEMANDER UNE RALLONGE — par la détentrice, quand le fond s'épuise.
@@ -400,7 +401,7 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
  * pouvoir être ACCORDÉE, REFUSÉE, ou accordée à un AUTRE MONTANT. Une simple notification ne
  * laissait rien à trancher et ne gardait aucune trace de ce qui avait été décidé.
  */
-export async function requestPettyCashTopUp(formData: FormData): Promise<ActionResult> {
+export async function requestPettyCashTopUp(formData: FormData): Promise<ActionResult> { return annulable("retour", "Demander une rallonge de caisse", async () => {
   const user = await requireUser();
   const cashId = fdStr(formData, "cashId");
   if (!cashId) return { ok: false, error: "Caisse non précisée." };
@@ -442,14 +443,14 @@ export async function requestPettyCashTopUp(formData: FormData): Promise<ActionR
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * RETIRER SA DEMANDE DE RALLONGE (décision de la Direction, 04/10) — tant que les RH ne l'ont pas
  * tranchée. Elle se clôt (`CANCELLED`) par une écriture conditionnelle : une décision croisée
  * l'emporte, et deux clics ne retirent qu'une fois. Ceux qui tranchent sont prévenus.
  */
-export async function annulerRallongeCaisse(formData: FormData): Promise<ActionResult> {
+export async function annulerRallongeCaisse(formData: FormData): Promise<ActionResult> { return annulable("retour", "Annuler une rallonge de caisse", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Demande introuvable." };
@@ -476,7 +477,7 @@ export async function annulerRallongeCaisse(formData: FormData): Promise<ActionR
   });
   revalidatePath(PATH);
   return { ok: true, message: "Demande de rallonge retirée." };
-}
+}); }
 
 /**
  * TRANCHER LA RALLONGE — les ressources humaines, au montant QU'ELLES écrivent.
@@ -485,7 +486,7 @@ export async function annulerRallongeCaisse(formData: FormData): Promise<ActionR
  * ajustent. Le montant retenu est donc celui qu'elles saisissent, et il s'AJOUTE au fonds du
  * mois — ouvrir une seconde caisse rendrait le solde indécidable.
  */
-export async function decidePettyCashTopUp(formData: FormData): Promise<ActionResult> {
+export async function decidePettyCashTopUp(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Décider d'une rallonge de caisse", async () => {
   const user = await requireUser();
   if (!canAllot(user)) return { ok: false, error: "Trancher une rallonge est réservé aux ressources humaines." };
   const id = fdStr(formData, "id");
@@ -574,7 +575,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
   return { ok: true, message: reference ? `Rallonge accordée et envoyée au centre de paiement (${reference}) : elle s'ajoutera à la caisse dès que le centre l'autorise.` : undefined };
-}
+}); }
 
 /**
  * RÉGLER LE MONTANT MENSUEL — par les ressources humaines.
@@ -584,7 +585,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
  * est borné à 28 : le 31 n'existe pas tous les mois, et une date fantôme ne déclencherait jamais
  * le rappel.
  */
-export async function setPettyCashPlan(formData: FormData): Promise<ActionResult> {
+export async function setPettyCashPlan(formData: FormData): Promise<ActionResult> { return annulable("retour", "Régler le plan d'une caisse", async () => {
   const user = await requireUser();
   if (!canAllot(user)) return { ok: false, error: "Régler la caisse mensuelle est réservé aux ressources humaines." };
   const departmentId = fdStr(formData, "departmentId");
@@ -621,7 +622,7 @@ export async function setPettyCashPlan(formData: FormData): Promise<ActionResult
   }
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * RAPPEL AUX RH, 48 H AVANT LE RECHARGEMENT — appelé par le planificateur.
@@ -631,7 +632,7 @@ export async function setPettyCashPlan(formData: FormData): Promise<ActionResult
  * planificateur — qui repasse toutes les minutes — enverrait la même alerte des centaines de
  * fois. La règle elle-même est une fonction pure, testée : voir `shouldRemindRecharge`.
  */
-export async function runPettyCashRechargeReminders(now = new Date()): Promise<number> {
+export async function runPettyCashRechargeReminders(now = new Date()): Promise<number> { return annulable("retour", "Rappels de recharge des caisses", async () => {
   const { shouldRemindRecharge } = await import("@/lib/petty-cash");
   const plans = await prisma.pettyCashPlan
     .findMany({ where: { isActive: true }, include: { department: { select: { name: true } } } })
@@ -653,11 +654,11 @@ export async function runPettyCashRechargeReminders(now = new Date()): Promise<n
     sent += 1;
   }
   return sent;
-}
+}); }
 
 /** La prochaine échéance de rechargement d'un département — pour l'afficher à l'écran. */
-export async function nextRechargeFor(departmentId: string, now = new Date()): Promise<Date | null> {
+export async function nextRechargeFor(departmentId: string, now = new Date()): Promise<Date | null> { return annulable("retour", "Prochaine recharge d'une caisse", async () => {
   const plan = await prisma.pettyCashPlan.findUnique({ where: { departmentId }, select: { rechargeDay: true, isActive: true } });
   if (!plan || !plan.isActive) return null;
   return nextRechargeDate(plan.rechargeDay, now);
-}
+}); }

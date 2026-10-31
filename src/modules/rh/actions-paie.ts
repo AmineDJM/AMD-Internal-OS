@@ -20,6 +20,7 @@ import { docxToPdf, isConvertibleWord, pdfFileName } from "@/lib/payslip/to-pdf"
 import { MIME_DOCX } from "@/lib/artifact/adapters/docx/adapter";
 import { sansBloquer } from "@/lib/journal";
 import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
+import { annulable } from "@/lib/effets/ecran";
 
 const PATH = "/rh/paie";
 /** Marge avant de notifier l'employé (en cas d'erreur de saisie, les RH peuvent annuler). */
@@ -100,7 +101,7 @@ async function deposerFicheDePaie(
  * fiche de paie (déposée dans le dossier RH de l'employé, période YYYY-MM).
  * L'employé est notifié 24 h PLUS TARD (marge d'erreur), via les tâches planifiées.
  */
-export async function markSalaryPaid(formData: FormData): Promise<ActionResult> {
+export async function markSalaryPaid(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Marquer un salaire payé", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const employeeId = fdStr(formData, "employeeId");
@@ -160,14 +161,14 @@ export async function markSalaryPaid(formData: FormData): Promise<ActionResult> 
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * Annule un « Payé » (erreur de saisie) tant que la ligne n'a pas été transférée
  * dans le budget : supprime la fiche déposée et la notification différée si elle
  * n'est pas encore partie.
  */
-export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult> {
+export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult> { return annulable("retour", "Annuler le marquage « payé » d'un salaire", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const id = fdStr(formData, "id");
@@ -211,7 +212,7 @@ export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * ENVOYER LA PAIE D'UNE ENTITÉ AU CENTRE DE PAIEMENT — un bouton par entité (§118.176).
@@ -242,7 +243,7 @@ export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult
  * deux. Les envois d'une même entité et d'un même mois passent UN PAR UN (`enSerie`), et chacun
  * relit, dans son tour, ce qui est déjà en cours.
  */
-export async function envoyerPaieAuCentre(formData: FormData): Promise<ActionResult> {
+export async function envoyerPaieAuCentre(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Envoyer la paie au centre de paiement", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const companyId = fdStr(formData, "companyId");
@@ -358,7 +359,7 @@ export async function envoyerPaieAuCentre(formData: FormData): Promise<ActionRes
         : `La paie ${deMois(libelleMois)} de ${nomEntite} est envoyée au centre de paiement (${ordre.reference}). Elle sera virée une fois autorisée ; les salariés seront prévenus au virement.`,
     };
   });
-}
+}); }
 
 /** Au-delà, le lot se fait en plusieurs fois — limite opérationnelle, pas d'architecture. */
 const RATTACHEMENT_MAX = 200;
@@ -467,7 +468,7 @@ export async function rattacherSalariesAEntite(formData: FormData): Promise<Acti
  * l'employé, et l'ancienne est libérée. Empiler deux bulletins pour le même mois dans le
  * dossier d'un salarié, c'est lui laisser deviner lequel fait foi.
  */
-export async function updatePayrollEntry(formData: FormData): Promise<ActionResult> {
+export async function updatePayrollEntry(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Modifier une ligne de paie", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const id = fdStr(formData, "id");
@@ -554,4 +555,4 @@ export async function updatePayrollEntry(formData: FormData): Promise<ActionResu
     };
   }
   return { ok: true, message: impact.syncBudget ? "Ligne et écriture budgétaire corrigées." : "Ligne corrigée." };
-}
+}); }

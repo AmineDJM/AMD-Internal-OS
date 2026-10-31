@@ -9,6 +9,7 @@ import { recordAudit } from "@/lib/audit";
 import { fdStr, fdNum, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
 import { poleDe } from "@/lib/budget/domaines";
 import { supprimerSousGarde } from "@/lib/budget/suppression-garde";
+import { annulable } from "@/lib/effets/ecran";
 
 const NOT_ALLOWED: ActionResult = { ok: false, error: "Gestion des enveloppes réservée au Super Admin (ou à un délégué)." };
 
@@ -202,7 +203,7 @@ export async function deleteBudgetCategory(formData: FormData): Promise<ActionRe
 }
 
 /** Attribue (ou retire) une dépense à une catégorie budgétaire. */
-export async function attributeTransaction(formData: FormData): Promise<ActionResult> {
+export async function attributeTransaction(formData: FormData): Promise<ActionResult> { return annulable("retour", "Attribuer une écriture à une enveloppe", async () => {
   const user = await requireUser();
   const transactionId = fdStr(formData, "transactionId");
   if (!transactionId) return { ok: false, error: "Transaction manquante." };
@@ -229,14 +230,14 @@ export async function attributeTransaction(formData: FormData): Promise<ActionRe
   revalidatePath("/budget-regulatory");
   revalidatePath("/budget-operations");
   return { ok: true };
-}
+}); }
 
 /**
  * CETTE DÉPENSE CONCERNE UNE AUTRE SOCIÉTÉ (Direction, 06/10) — la déplacer. L'écriture change de société, et l'ordre de
  * dépense qu'elle a payé la suit ; elle quitte la liste « à imputer » de l'enveloppe de son ancienne société. Les deux
  * sociétés, l'ancienne et la nouvelle, doivent être de celles que la personne engage.
  */
-export async function changerSocieteEcriture(formData: FormData): Promise<ActionResult> {
+export async function changerSocieteEcriture(formData: FormData): Promise<ActionResult> { return annulable("retour", "Changer l'entité d'une écriture", async () => {
   const user = await requireUser();
   if (!(hasGlobalView(user.role) || userCan(user, "BUDGETS", "UPDATE") || userCan(user, "FINANCES", "UPDATE"))) return { ok: false, error: "Réservé à la Direction, aux Budgets et aux Finances." };
   const transactionId = fdStr(formData, "transactionId");
@@ -260,7 +261,7 @@ export async function changerSocieteEcriture(formData: FormData): Promise<Action
   });
   revalidatePath("/budgets");
   return { ok: true, message: `Dépense ${tx.reference} rattachée à ${societe.name}.` };
-}
+}); }
 
 /** Accès en imputation à une (sous-)catégorie : renvoie la catégorie si autorisée, sinon un message. */
 async function resolveExpenseCategory(user: Awaited<ReturnType<typeof requireUser>>, budgetCategoryId: string) {

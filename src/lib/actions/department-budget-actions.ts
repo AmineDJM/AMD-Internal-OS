@@ -23,6 +23,7 @@ import { openRemittances } from "@/lib/queries/general-means";
 import { resolveSource, sourceOf, sourceChange } from "@/lib/general-means/payment-source";
 import { toNumber } from "@/lib/utils";
 import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 const PATH = "/budgets/departements";
 
@@ -358,7 +359,7 @@ export async function decideDepartmentBudgetRequest(formData: FormData): Promise
  * porte donc son justificatif (facture, bon de paiement) : sans pièce, une ligne de dépense
  * n'est qu'une affirmation.
  */
-export async function addDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function addDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("retour", "Ajouter une dépense de département", async () => {
   const user = await requireUser();
   const departmentId = fdStr(formData, "departmentId");
   const rawKind = fdStr(formData, "kind");
@@ -473,7 +474,7 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * LA CAISSE D'AVANCE D'UN DÉPARTEMENT, telle qu'il faut la lire pour y imputer une dépense.
@@ -540,7 +541,7 @@ const AMEND_INCLUDE = {
  * la dépense en cours de correction, sans quoi son propre montant compterait deux fois et une
  * simple correction de libellé serait refusée faute d'argent.
  */
-export async function updateDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function updateDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("retour", "Modifier une dépense de département", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dépense introuvable." };
@@ -644,7 +645,7 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id };
-}
+}); }
 
 /**
  * SUPPRIMER UNE DÉPENSE IMPUTÉE — avec ses lignes et ses pièces.
@@ -657,7 +658,7 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
  * Les justificatifs partent avec elle : un scan de facture orphelin, rattaché à une dépense qui
  * n'existe plus, n'est plus consultable nulle part et occupe le stockage indéfiniment.
  */
-export async function deleteDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function deleteDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("retour", "Supprimer une dépense de département", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dépense introuvable." };
@@ -687,4 +688,4 @@ export async function deleteDepartmentExpense(formData: FormData): Promise<Actio
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id };
-}
+}); }

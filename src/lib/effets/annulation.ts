@@ -7,6 +7,8 @@ import { composer, type Changement, type EtatActuel } from "@/lib/annulation/pla
 import { classerGeste, natureDe as natureDuJournal, type NatureGeste } from "@/lib/annulation/reversibilite";
 import { construireDiff, natureDe } from "./diff";
 import type { Capture, EcritureCapturee, EffetExterneCapture } from "./magasin";
+import { defaireEcritureTresorerie, gesteDePaiement, MODELES_ARGENT } from "./argent";
+import { inscrireAnnulation } from "./journal";
 import { infoModele, type InfoModele } from "./modeles";
 import { cleDeValeur, memeValeur, serialiserLigne, valeurLisible } from "./valeurs";
 
@@ -58,6 +60,8 @@ export interface CompteRenduAnnulation {
   /** VRAI seulement si tout ce qui pouvait l'être est défait ou compensé (et rien n'est impossible). */
   complet: boolean;
   resume: string;
+  /** L'annulation est elle-même un geste journalisé (K10a) : l'annuler, c'est RÉTABLIR. `null` : rien n'a été écrit. */
+  retablirGesteId?: string | null;
 }
 
 type Delegue = {
@@ -184,10 +188,17 @@ interface Contexte {
   crees: Set<string>;
   appliquer: boolean;
   nomDe: (id: string | null | undefined) => Promise<string | null>;
+  /** Le geste a passé un modèle d'argent à « payé » (K10a, `argent.ts`) : son statut se remet, l'argent se compense. */
+  paiement: boolean;
+  acteurId: string;
+  /** Ce que l'annulation ÉCRIT, noté comme une capture : l'annulation entre au journal, et se défait (rétablir). */
+  notes: EcritureCapturee[];
 }
 
+const LIGNE_SCALAIRE = (info: InfoModele, r: unknown) => serialiserLigne(r as Record<string, unknown> | null, new Set(info.scalaires));
+
 /** Les champs MODIFIÉS d'une ligne : l'invariant de `plan.ts`, puis l'écriture verrouillée. */
-async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte): Promise<DetailEffet> {
+async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte, argentCompense = false): Promise<DetailEffet> {
   const quoi = phraseEcriture(e);
   const id = e.enregistrementId!;
   const avant = ligne(e.avant) ?? {};
@@ -196,7 +207,8 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte):
   if (!champs.length) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "seuls des horodatages avaient changé" };
   const actuelle = await lireActuelle(ctx.c, info, id);
   if (!actuelle) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${natureDe(e.modele!)} n'existe plus : il n'y a plus rien à remettre`, aLaPlace: null };
-  const resume = (c: string) => `${e.modele}.${c} → ${valeurLisible(apres[c])}`;
+  // Un statut « payé » dont l'argent est compensé (K10a) se juge comme un champ : la valeur n'entre pas dans la phrase.
+  const resume = (c: string) => (argentCompense ? `${e.modele}.${c} (paiement défait, argent compensé)` : `${e.modele}.${c} → ${valeurLisible(apres[c])}`);
   const changements: Changement[] = champs.map((c) => ({
     id: `${e.id}:${c}`, auteurId: null, auteurNom: ctx.agent, parAdam: true, quand: ctx.creeLe, action: "UPDATE",
     module: e.modele!, entite: e.modele, entiteId: id, champ: c, avant: cleDeValeur(avant[c] ?? null), apres: cleDeValeur(apres[c] ?? null), resume: resume(c),
@@ -221,7 +233,10 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte):
         const v = deserialiser(info, c, avant[c] ?? null);
         if (v !== undefined) data[c] = v;
       }
-      if (Object.keys(data).length) await delegue(t, info).update({ where: { [info.cle!]: id }, data });
+      if (Object.keys(data).length) {
+        const apresAnnulation = await delegue(t, info).update({ where: { [info.cle!]: id }, data });
+        ctx.notes.push({ modele: e.modele!, operation: "UPDATE", id, avant: relue, apres: LIGNE_SCALAIRE(info, apresAnnulation), champs: Object.keys(data) });
+      }
       return Object.keys(data);
     }) as Promise<string[]>);
     for (const c of aRemettre.filter((x) => !ecrits.includes(x))) refuses.push(`« ${c} » a changé au moment même de l'annulation : laissé tel quel`);
@@ -257,7 +272,10 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
     if (ctx.appliquer) {
       const fait = await ecrireVerrouille(info, id,
         (relue) => !!relue && !Object.keys(apres).some((c) => !info.auto.has(c) && info.types.has(c) && !memeValeur(relue[c] ?? null, apres[c] ?? null)),
-        (t) => delegue(t, info).delete({ where: { [info.cle!]: id } }));
+        async (t) => {
+          await delegue(t, info).delete({ where: { [info.cle!]: id } });
+          ctx.notes.push({ modele: e.modele!, operation: "DELETE", id, avant: actuelle, apres: null, champs: [] });
+        });
       if (!fait) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "elle a changé au moment même de l'annulation (ou une ligne y tient encore) : laissée telle quelle", aLaPlace: verdict.compensation };
     }
     const lue = e.modele === "Notification" ? " avant d'avoir été lue" : "";
@@ -273,7 +291,10 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
     if (ctx.appliquer) {
       const fait = await ecrireVerrouille(info, id,
         (relue) => !!relue && memeValeur(relue[a.champ] ?? null, apres[a.champ] ?? null),
-        (t) => delegue(t, info).update({ where: { [info.cle!]: id }, data: { [a.champ]: a.valeur } }));
+        async (t) => {
+          const apresAnnulation = await delegue(t, info).update({ where: { [info.cle!]: id }, data: { [a.champ]: a.valeur } });
+          ctx.notes.push({ modele: e.modele!, operation: "UPDATE", id, avant: actuelle, apres: LIGNE_SCALAIRE(info, apresAnnulation), champs: [a.champ] });
+        });
       if (!fait) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${raison} ; et son statut a changé au moment même de l'annulation`, aLaPlace: verdict.compensation };
     }
     return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: `${raison} — la retirer effacerait ce travail : passée à ${a.valeur}, la trace reste, l'effet cesse` };
@@ -301,7 +322,9 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
   if (manquants.length) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "la ligne portait des octets, que le journal ne recopie pas", aLaPlace: verdict.compensation };
   if (ctx.appliquer) {
     try {
-      await delegue(prismaBrut as unknown as Client, info).create({ data });
+      const recreee = await delegue(prismaBrut as unknown as Client, info).create({ data });
+      const ligneRecreee = LIGNE_SCALAIRE(info, recreee);
+      ctx.notes.push({ modele: e.modele!, operation: "CREATE", id, avant: null, apres: ligneRecreee, champs: Object.keys(ligneRecreee ?? {}).sort() });
     } catch (err) {
       const code = (err as { code?: string }).code;
       const pourquoi = code === "P2003" ? "un élément auquel elle était rattachée a disparu depuis"
@@ -316,6 +339,10 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
 async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
   if (e.type === "EXTERNE") return issueExterne(e);
   const quoi = phraseEcriture(e);
+  // Un numéro de SÉRIE consommé (FIN-2026-009) ne se rend pas : la numérotation garde un trou, c'est sa règle (K10a).
+  if (e.operation === "SQL" && e.modele === "SerieReference") {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "un numéro de série consommé ne se rend pas : la numérotation garde un trou, c'est la règle d'une série" };
+  }
   if (e.operation === "SQL" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "compteur de références des octets d'une pièce : la purge des fichiers orphelins s'en charge" };
   }
@@ -327,21 +354,32 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
   // UN CHANGEMENT DE STATUT QUI VAUT PAIEMENT, DÉPÔT OU SIGNATURE ne se « remet » pas : la table de réversibilité tranche.
   if (e.operation === "UPDATE") {
     const apres = ligne(e.apres) ?? {};
+    let argentCompense = false;
     for (const c of e.champs) {
       const nature = natureDuJournal({ action: "UPDATE", module: e.modele, resume: `${c} ${valeurLisible(apres[c])}`, champ: c });
       const v = classerGeste(nature);
-      if (nature !== "CHAMP_MODIFIE" && v.reversibilite !== "REVERSIBLE") {
+      // K10a : le statut « payé » d'un modèle d'argent se remet quand le geste est un paiement — l'argent, lui, est
+      // compensé par l'écriture « à récupérer » (`argent.ts`), jamais effacé.
+      const argent = nature === "PAIEMENT_EXECUTE" && ctx.paiement && MODELES_ARGENT.has(e.modele ?? "");
+      argentCompense ||= argent;
+      if (nature !== "CHAMP_MODIFIE" && v.reversibilite !== "REVERSIBLE" && !argent) {
         return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: v.raison, aLaPlace: v.compensation ?? v.delegueA };
       }
     }
-    return defaireModification(e, info, ctx);
+    return defaireModification(e, info, ctx, argentCompense);
   }
   // LES OCTETS D'UNE PIÈCE (blob, tranches) : comptés par références, retirés par la purge des orphelins dès que plus
   // rien n'y renvoie — les supprimer ici casserait une autre pièce qui partagerait les mêmes octets (dédoublonnage).
   if (e.operation === "CREATE" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "octets d'une pièce, partagés par empreinte : la purge des fichiers orphelins les retire dès que plus rien n'y renvoie" };
   }
-  if (e.operation === "CREATE") return defaireCreation(e, info, ctx);
+  if (e.operation === "CREATE") {
+    const argent = await defaireEcritureTresorerie(e, {
+      effetId: e.id, quoi, appliquer: ctx.appliquer, paiement: ctx.paiement, acteurId: ctx.acteurId,
+      lire: (i, x) => lireActuelle(ctx.c, i, x), ecrireVerrouille, noter: (n) => ctx.notes.push(n),
+    });
+    return argent ?? defaireCreation(e, info, ctx);
+  }
   return defaireSuppression(e, info, ctx);
 }
 
@@ -378,10 +416,13 @@ const nomsEnCache = () => {
   };
 };
 
-async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean): Promise<CompteRenduAnnulation> {
+async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean, acteurId: string, notes: EcritureCapturee[] = []): Promise<CompteRenduAnnulation> {
   // Les lignes créées par ce geste et RETIRÉES (ou à retirer) : elles ne comptent pas comme rattachement de leur parent.
   const retirees = new Set<string>();
-  const ctx: Contexte = { c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache() };
+  const ctx: Contexte = {
+    c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache(),
+    paiement: gesteDePaiement(g.effets), acteurId, notes,
+  };
   const details: DetailEffet[] = [];
   // DU PLUS RÉCENT AU PLUS ANCIEN (`plan.ts`) : l'enfant créé après son parent est défait avant lui. Le SQL brut, lui,
   // se juge en DERNIER : il suit ce qu'est devenue la ligne dont sa table dépend.
@@ -410,7 +451,7 @@ export async function planDAnnulation(gesteId: string, user: CurrentUser): Promi
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
   if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")}.` };
-  return derouler(r.g, false);
+  return derouler(r.g, false, user.id);
 }
 
 /** ANNULER un geste de l'assistant — détail par effet, jamais un « annulé » de façade. */
@@ -420,7 +461,10 @@ export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<
   // LA RÉCLAMATION ATOMIQUE : une seule annulation par geste, même en deux onglets.
   const prise = await prismaBrut.assistantGesteJournal.updateMany({ where: { id: gesteId, annuleLe: null }, data: { annuleLe: new Date(), annuleParId: user.id } });
   if (prise.count !== 1) return { refus: "Ce geste a déjà été annulé (ou l'est en ce moment même, depuis un autre écran)." };
-  const compte = await derouler(r.g, true);
+  const notes: EcritureCapturee[] = [];
+  const compte = await derouler(r.g, true, user.id, notes);
+  // L'ANNULATION EST UN GESTE (K10a) : ce qu'elle a écrit entre au journal — l'annuler, c'est rétablir.
+  compte.retablirGesteId = await inscrireAnnulation(user.id, r.g, notes);
   await prismaBrut.assistantGesteJournal.update({ where: { id: gesteId }, data: { annulation: compte as unknown as Prisma.InputJsonValue } });
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: gesteId,

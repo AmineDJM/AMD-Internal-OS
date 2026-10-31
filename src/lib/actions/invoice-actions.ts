@@ -16,6 +16,7 @@ import { syncInvoiceSettlement } from "@/modules/finances/api";
 import { refusMaillonAmont } from "@/lib/legal/chaine";
 import { refusPieceARanger, rangerPiece } from "@/lib/legal/adoption";
 import type { CurrentUser } from "@/lib/session";
+import { annulable } from "@/lib/effets/ecran";
 
 /**
  * LES FACTURES — DES DOCUMENTS LÉGAUX DE NATURE « FACTURE », et rien d'autre.
@@ -72,7 +73,7 @@ function readFields(formData: FormData) {
 export async function createInvoice(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<ActionResult> { return annulable("compensation", "Enregistrer une facture", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "CREATE")) return { ok: false, error: "Non autorisé." };
 
@@ -151,7 +152,7 @@ export async function createInvoice(
   return fichiers || rangement || avertissement
     ? { ok: true, id: created.id, message: ["Facture créée.", fichiers, rangement, avertissement].filter(Boolean).join(" "), ...(avertissement ? { avertissement } : {}) }
     : { ok: true, id: created.id };
-}
+}); }
 
 /** La pièce visée existe-t-elle, et est-elle bien une facture ? */
 async function laFacture(id: string) {
@@ -163,7 +164,7 @@ async function laFacture(id: string) {
   return doc && doc.kind === "INVOICE" ? doc : null;
 }
 
-export async function updateInvoice(formData: FormData): Promise<ActionResult> {
+export async function updateInvoice(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Modifier une facture", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");
@@ -202,7 +203,7 @@ export async function updateInvoice(formData: FormData): Promise<ActionResult> {
   revalidatePath(`/legal/${doc.id}`);
   revalidatePath("/finances");
   return { ok: true };
-}
+}); }
 
 /**
  * RATTACHER une facture EXISTANTE à un bon de commande PCH (ou l'en détacher) — le geste
@@ -240,7 +241,7 @@ export async function setInvoiceOrder(formData: FormData): Promise<ActionResult>
 }
 
 /** Marquer réglée / à régler depuis la ligne du tableau — le geste le plus fréquent. */
-export async function setInvoicePaid(input: { id: string; paidDate: string | null }): Promise<ActionResult> {
+export async function setInvoicePaid(input: { id: string; paidDate: string | null }): Promise<ActionResult> { return annulable("compensation", "Marquer une facture payée", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(input.id);
@@ -271,7 +272,7 @@ export async function setInvoicePaid(input: { id: string; paidDate: string | nul
   revalidatePath(`/legal/${doc.id}`);
   revalidatePath("/finances");
   return { ok: true };
-}
+}); }
 
 export async function deleteInvoice(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();

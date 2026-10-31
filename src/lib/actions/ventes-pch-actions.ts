@@ -10,6 +10,7 @@ import {
   enregistrerDirectionRegionale, type Apercu,
 } from "@/lib/ventes-pch/service";
 import { lireChoixPeriode, type ChoixPeriode } from "@/lib/ventes-pch/calculs";
+import { annulable } from "@/lib/effets/ecran";
 
 /**
  * VENTES PCH — les gestes : voir l'aperçu d'un ou plusieurs fichiers (rien n'est écrit), les appliquer, rattacher un
@@ -126,7 +127,7 @@ export async function rattacherPosteVentesPch(formData: FormData): Promise<Actio
 }
 
 /** Un fournisseur PCH « à nous » pour un produit — ses réceptions FO deviennent notre sell-in (ou cessent de l'être). */
-export async function reglerFournisseurVentesPch(formData: FormData): Promise<ActionResult> {
+export async function reglerFournisseurVentesPch(formData: FormData): Promise<ActionResult> { return annulable("retour", "Régler un fournisseur des ventes PCH", async () => {
   const { user, refus } = await exiger("UPDATE");
   if (refus) return { ok: false, error: refus };
   const productId = fdStr(formData, "productId");
@@ -138,7 +139,7 @@ export async function reglerFournisseurVentesPch(formData: FormData): Promise<Ac
   await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE, entityId: productId, field: "fournisseur", newValue: `${fournisseur} : ${actif ? "nous" : "pas nous"}`, summary: `Fournisseur PCH « ${fournisseur} » ${actif ? "compté" : "retiré"} comme le nôtre.` });
   revalidatePath(CHEMIN, "layout");
   return { ok: true };
-}
+}); }
 
 /** Le libellé et les wilayas d'une direction régionale de la PCH. */
 export async function enregistrerDrVentesPch(formData: FormData): Promise<ActionResult> {

@@ -17,6 +17,7 @@ import { toNumber } from "@/lib/utils";
 import { compteDeLEcriture, comptesTresorerie, resoudreCompte } from "@/modules/finances/api";
 import { relierALaPersonne } from "@/modules/referentiels/api";
 import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 const IN_CATEGORIES = ["RECETTE", "CCA", "PRET"];
 
@@ -31,7 +32,7 @@ async function nextRef(prefix: string): Promise<string> {
 export async function createTransaction(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<ActionResult> { return annulable("compensation", "Saisir une écriture de trésorerie", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
 
@@ -81,7 +82,7 @@ export async function createTransaction(
   });
   revalidatePath("/finances");
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * L'ÉCRITURE D'UN RÈGLEMENT NE SE RÉÉCRIT PAS (audit argent 2026-10-27, ARGENT-05).
@@ -99,7 +100,7 @@ async function reglementPorte(id: string): Promise<string | null> {
 const refusReglement = (reference: string, geste: string) =>
   `Cette écriture est le règlement de l'ordre ${reference} : ${geste} ferait mentir la trésorerie et le budget, l'ordre restant payé. Passez une écriture de correction (contre-passation) à la place.`;
 
-export async function updateTransactionStatus(formData: FormData): Promise<ActionResult> {
+export async function updateTransactionStatus(formData: FormData): Promise<ActionResult> { return annulable("retour", "Changer le statut d'une écriture", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   const status = fdStr(formData, "status") as FinanceStatus;
@@ -116,14 +117,14 @@ export async function updateTransactionStatus(formData: FormData): Promise<Actio
   });
   revalidatePath("/finances");
   return { ok: true };
-}
+}); }
 
 /**
  * Modifie une écriture du livre comptable (tous champs sauf la référence, qui reste stable).
  * Réservé à qui peut mettre à jour les Finances. La consommation budgétaire et la trésorerie
  * se recalculent automatiquement à partir des champs mis à jour.
  */
-export async function updateTransaction(formData: FormData): Promise<ActionResult> {
+export async function updateTransaction(formData: FormData): Promise<ActionResult> { return annulable("retour", "Modifier une écriture de trésorerie", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   const label = fdStr(formData, "label");
@@ -169,10 +170,10 @@ export async function updateTransaction(formData: FormData): Promise<ActionResul
   });
   revalidatePath("/finances");
   return { ok: true };
-}
+}); }
 
 /** Supprime définitivement une écriture du livre comptable (trésorerie recalculée). */
-export async function deleteTransaction(formData: FormData): Promise<ActionResult> {
+export async function deleteTransaction(formData: FormData): Promise<ActionResult> { return annulable("retour", "Supprimer une écriture de trésorerie", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
@@ -191,7 +192,7 @@ export async function deleteTransaction(formData: FormData): Promise<ActionResul
   });
   revalidatePath("/finances");
   return { ok: true };
-}
+}); }
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -304,7 +305,7 @@ function bilanImport(importes: number, ecartees: LigneEcartee[]): string {
 export async function importTransactions(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ResultatImport> {
+): Promise<ResultatImport> { return annulable("compensation", "Importer des écritures de trésorerie", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
   const csv = fdStr(formData, "csv");
@@ -362,7 +363,7 @@ export async function importTransactions(
   });
   revalidatePath("/finances");
   return { ok: true, message: bilanImport(n, ecartees), ecartees: k };
-}
+}); }
 
 // ── Comptes de trésorerie ANCRÉS (§118.176) ──
 
@@ -406,7 +407,7 @@ async function retirerLesAutresPrincipaux(tx: Prisma.TransactionClient, companyI
 export async function setTreasuryOpeningBalance(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<ActionResult> { return annulable("retour", "Fixer le solde d'ouverture d'un compte", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const name = (fdStr(formData, "name") ?? "").trim();
@@ -447,14 +448,14 @@ export async function setTreasuryOpeningBalance(
     ok: true, id: compte.id,
     message: `Compte « ${name} » ouvert : ${openingBalance.toLocaleString("fr-FR")} DZD au ${jour}.${retires.length ? ` ${retires.join(", ")} n'est plus le compte principal.` : ""}`,
   };
-}
+}); }
 
 /**
  * MODIFIER UN COMPTE — libellé, banque, RIB, entité, compte principal, notes. JAMAIS l'ancrage :
  * il se corrige à part, avec un motif (`corrigerAncrageTresorerie`). Seules les clés PRÉSENTES
  * s'écrivent : un formulaire qui ne porte pas le RIB ne l'efface pas (§118.152c).
  */
-export async function modifierCompteTresorerie(formData: FormData): Promise<ActionResult> {
+export async function modifierCompteTresorerie(formData: FormData): Promise<ActionResult> { return annulable("retour", "Modifier un compte de trésorerie", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
@@ -499,14 +500,14 @@ export async function modifierCompteTresorerie(formData: FormData): Promise<Acti
   });
   revalidatePath("/finances");
   return { ok: true, id, message: `Compte modifié.${retires.length ? ` ${retires.join(", ")} n'est plus le compte principal.` : ""}` };
-}
+}); }
 
 /**
  * CORRIGER L'ANCRAGE — le solde du relevé ou sa date. Un MOTIF est exigé, et l'audit garde l'ancien
  * et le nouveau : c'est le point de départ de tous les soldes affichés, il ne change pas sans
  * qu'on puisse dire pourquoi ni d'où l'on venait.
  */
-export async function corrigerAncrageTresorerie(formData: FormData): Promise<ActionResult> {
+export async function corrigerAncrageTresorerie(formData: FormData): Promise<ActionResult> { return annulable("retour", "Corriger l'ancrage d'un compte de trésorerie", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
@@ -531,14 +532,14 @@ export async function corrigerAncrageTresorerie(formData: FormData): Promise<Act
   });
   revalidatePath("/finances", "layout");
   return { ok: true, id, message: `Ancrage corrigé : ${openingBalance!.toLocaleString("fr-FR")} DZD au ${jour(openingDate!)}.` };
-}
+}); }
 
 /**
  * SUPPRIMER UN COMPTE — refusé tant que des écritures le NOMMENT : le supprimer laisserait ces
  * paiements sans compte, et l'ancien geste avalait l'erreur et répondait « fait » (un faux succès
  * parfait, la clé étrangère refusant la suppression en silence).
  */
-export async function deleteTreasuryAccount(formData: FormData): Promise<ActionResult> {
+export async function deleteTreasuryAccount(formData: FormData): Promise<ActionResult> { return annulable("retour", "Supprimer un compte de trésorerie", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
@@ -553,7 +554,7 @@ export async function deleteTreasuryAccount(formData: FormData): Promise<ActionR
   await recordAudit({ actorId: user.id, action: "DELETE", module: "Finances", summary: `Compte de trésorerie « ${compte.name} » supprimé (ancrage ${toNumber(compte.openingBalance).toLocaleString("fr-FR")} DZD)` });
   revalidatePath("/finances");
   return { ok: true };
-}
+}); }
 
 // ── Payroll ──
 
@@ -586,7 +587,7 @@ export async function createEmployee(
 export async function createPayroll(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<ActionResult> { return annulable("retour", "Créer une paie", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
   const employeeId = fdStr(formData, "employeeId");
@@ -609,7 +610,7 @@ export async function createPayroll(
   }
   revalidatePath("/finances");
   return { ok: true };
-}
+}); }
 
 /**
  * « RÉGLER LA PAIE » D'UN BULLETIN N'EXISTE PLUS ICI (§118.176). Cette action marquait un bulletin
@@ -632,7 +633,7 @@ export async function createPayroll(
 export async function createQuickIncome(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<ActionResult> { return annulable("compensation", "Saisir un encaissement", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
 
@@ -672,7 +673,7 @@ export async function createQuickIncome(
   });
   revalidatePath("/finances");
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * LE SUPER ADMIN DEMANDE une mise à jour du solde de trésorerie. Les Finances le mettent à jour

@@ -28,7 +28,8 @@ import { installerPortReseau } from "./reseau";
  */
 
 export interface MetaGesteAgent {
-  origine: Extract<OrigineGeste, "carte" | "travail" | "mandat"> | "carte" | "travail" | "mandat";
+  /** `ecran` : une action d'argent faite depuis l'ERP (K10a) ; `annulation` : l'annulation d'un geste, qui se défait (rétablir). */
+  origine: Extract<OrigineGeste, "carte" | "travail" | "mandat"> | "carte" | "travail" | "mandat" | "ecran" | "annulation";
   capaciteId?: string | null;
   libelle: string;
   travailId?: string | null;
@@ -59,7 +60,7 @@ export async function journaliserGeste<T extends Resultat>(
   user: CurrentUser,
   meta: MetaGesteAgent,
   geste: () => Promise<T>,
-  opts: { horsRequete?: boolean } = {},
+  opts: { horsRequete?: boolean; seulementSiEcrit?: boolean } = {},
 ): Promise<{ resultat: T; gesteId: string | null; ecart: boolean }> {
   const parent = etatDuGeste();
   // Déjà sous un geste capturé (ou une simulation) : ses écritures vont au geste qui le contient.
@@ -82,7 +83,8 @@ export async function journaliserGeste<T extends Resultat>(
   const issue = leve ? { ok: false, message: leve instanceof Error ? leve.message : String(leve) } : lireIssue(resultat);
   // Le CALME (une promesse « au mieux » finit d'écrire) et l'état FINAL des lignes touchées, avant d'inscrire.
   await finaliserCapture(capture, prismaBrut as unknown as Record<string, unknown>);
-  const gesteId = await inscrire(user.id, meta, capture, issue, { debut, fin: Date.now() });
+  // Un geste d'ÉCRAN qui n'a rien écrit (formulaire refusé) n'a rien à défaire : il n'encombre pas le journal.
+  const gesteId = opts.seulementSiEcrit && !capture.ecritures.length ? null : await inscrire(user.id, meta, capture, issue, { debut, fin: Date.now() });
   // Ce qui s'écrirait encore sous ce geste (au-delà du calme) va au journal, à la suite : rien ne lui échappe.
   if (gesteId) {
     let ordre = capture.ecritures.length + capture.effets.length;
@@ -142,4 +144,16 @@ export async function purgerJournalDesEffets(maintenant = new Date()): Promise<n
   const jours = Math.max(7, reglage?.retentionEffetsJours ?? RETENTION_EFFETS_JOURS);
   const r = await prismaBrut.assistantGesteJournal.deleteMany({ where: { creeLe: { lt: new Date(maintenant.getTime() - jours * 86_400_000) } } });
   return r.count;
+}
+
+/**
+ * L'ANNULATION D'UN GESTE, JOURNALISÉE COMME UN GESTE (K10a, décision 0035) — ce qu'elle a écrit (valeurs remises,
+ * lignes retirées ou recréées, contre-passations) entre au journal sous la personne qui annule. Annuler ce geste-là,
+ * c'est RÉTABLIR : la même mécanique, dans l'autre sens. `null` si l'annulation n'a rien écrit.
+ */
+export async function inscrireAnnulation(principalId: string, g: { id: string; libelle: string }, ecritures: EcritureCapturee[]): Promise<string | null> {
+  if (!ecritures.length) return null;
+  const r = await inscrire(principalId, { origine: "annulation", libelle: `Annulation — ${g.libelle}`, capaciteId: `annulation:${g.id}` },
+    { ecritures, effets: [] }, { ok: true, message: null }, { debut: Date.now(), fin: Date.now() });
+  return r?.id ?? null;
 }

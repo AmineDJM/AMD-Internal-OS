@@ -8,6 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { refusAdministration } from "@/lib/admin/garde-comptes";
+import { annulable } from "@/lib/effets/ecran";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -57,7 +58,7 @@ function canSeat(user: { role: string; access: Parameters<typeof userCan>[0]["ac
  * Le MOTIF est obligatoire. Ce n'est pas de la paperasse : un siège dont on ne sait ni qui l'a
  * accordé ni pourquoi est un siège que personne n'ose retirer — on ne sait pas ce qu'on déferait.
  */
-export async function grantPaymentCentreSeat(formData: FormData): Promise<ActionResult> {
+export async function grantPaymentCentreSeat(formData: FormData): Promise<ActionResult> { return annulable("retour", "Accorder un siège au centre de paiement", async () => {
   try {
     const admin = await requireUser();
     if (!canSeat(admin)) return { ok: false, error: "Réservé au Super Admin." };
@@ -113,7 +114,7 @@ export async function grantPaymentCentreSeat(formData: FormData): Promise<Action
     console.error("[centre] grantPaymentCentreSeat failed", err);
     return { ok: false, error: "La désignation n'a pas pu être enregistrée." };
   }
-}
+}); }
 
 /**
  * RETIRER un siège nommé.
@@ -122,7 +123,7 @@ export async function grantPaymentCentreSeat(formData: FormData): Promise<Action
  * justification pour revenir à la normale décourage exactement le geste qu'on veut voir posé sans
  * hésiter. L'audit garde qui l'a retiré et quand.
  */
-export async function revokePaymentCentreSeat(formData: FormData): Promise<ActionResult> {
+export async function revokePaymentCentreSeat(formData: FormData): Promise<ActionResult> { return annulable("retour", "Retirer un siège du centre de paiement", async () => {
   try {
     const admin = await requireUser();
     if (!canSeat(admin)) return { ok: false, error: "Réservé au Super Admin." };
@@ -155,4 +156,4 @@ export async function revokePaymentCentreSeat(formData: FormData): Promise<Actio
     console.error("[centre] revokePaymentCentreSeat failed", err);
     return { ok: false, error: "Le retrait n'a pas pu être enregistré." };
   }
-}
+}); }

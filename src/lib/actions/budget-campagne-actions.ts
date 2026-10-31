@@ -25,6 +25,7 @@ import { calculerPrefill } from "@/lib/budget-campagne/prefill";
 import { ouvrirEnveloppeDeLaProposition } from "@/lib/budget-campagne/enveloppes";
 import { brouillonJustification, resumerVersions } from "@/lib/budget-campagne-luna";
 import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -241,7 +242,7 @@ export async function ajouterPoleCampagne(formData: FormData): Promise<ActionRes
 }
 
 /** Règle un pôle : son domaine d'enveloppe, et son cadrage (privé — pour qui le voit). */
-export async function reglerPoleCampagne(formData: FormData): Promise<ActionResult> {
+export async function reglerPoleCampagne(formData: FormData): Promise<ActionResult> { return annulable("retour", "Régler le pôle d'une campagne budgétaire", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };
@@ -254,7 +255,7 @@ export async function reglerPoleCampagne(formData: FormData): Promise<ActionResu
   await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT, entityType: "BUDGET", entityId: proposalId, summary: `Pôle « ${ctx.p.poleLabel} » réglé` });
   revalider();
   return { ok: true };
-}
+}); }
 
 /** Retire un pôle qui n'a encore rien soumis. */
 export async function retirerPoleCampagne(formData: FormData): Promise<ActionResult> {

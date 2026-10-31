@@ -29,6 +29,8 @@ export interface ContratLu {
   modelesEcrits: readonly string[];
   audit: boolean;
   illisible: string | null;
+  /** Déclarée réversible par son enrobage (`annulable`, K10a) — prime sur la nature lue. */
+  annulable?: "retour" | "compensation" | null;
 }
 
 /**

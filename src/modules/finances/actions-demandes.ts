@@ -37,6 +37,7 @@ import {
   alertFinance, CorrectionRefusee, isFinance, isRequester, nextRef, refusDuMontant, revalidate, syncStatus, trace,
   ttcDesFacturesEnVigueur,
 } from "./infra/demandes";
+import { annulable } from "@/lib/effets/ecran";
 
 const PATH = "/validations/paiements";
 
@@ -78,7 +79,7 @@ const checked = (formData: FormData, name: string): boolean => {
  * « voici la facture, le montant TTC inclut la livraison » appelle une réponse sur CETTE pièce,
  * pas un message général qu'il faudra rattacher de tête.
  */
-export async function createPaymentRequest(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
+export async function createPaymentRequest(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> { return annulable("compensation", "Créer une demande de paiement", async () => {
   try {
     const user = await requireUser();
     if (!userCan(user, "VALIDATIONS", "CREATE")) return { ok: false, error: "Non autorisé." };
@@ -261,7 +262,7 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
     console.error("[payment] createPaymentRequest failed", err);
     return { ok: false, error: "La demande n'a pas pu être créée. Réessayez dans un instant." };
   }
-}
+}); }
 
 // ───────────────────────── Pièces ─────────────────────────
 
@@ -271,7 +272,7 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
  * Le remplacement ne supprime pas l'originale : c'est elle qui explique pourquoi il y a eu un
  * second tour. Elle passe simplement derrière sa remplaçante dans la liste.
  */
-export async function addPaymentPiece(formData: FormData): Promise<ActionResult> {
+export async function addPaymentPiece(formData: FormData): Promise<ActionResult> { return annulable("retour", "Ajouter une pièce à une demande de paiement", async () => {
   try {
     const user = await requireUser();
     const requestId = fdStr(formData, "requestId");
@@ -364,7 +365,7 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
     console.error("[payment] addPaymentPiece failed", err);
     return { ok: false, error: "La pièce n'a pas pu être ajoutée." };
   }
-}
+}); }
 
 /**
  * CE QUE LE DEMANDEUR PEUT ENCORE PRÉCISER APRÈS COUP — la déclaration du moyen de paiement et
@@ -379,7 +380,7 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
  * demandeur la coche — les Finances ne peuvent pas attester à sa place de ce qu'elles n'ont pas
  * fourni.
  */
-export async function updatePaymentRequestDetails(formData: FormData): Promise<ActionResult> {
+export async function updatePaymentRequestDetails(formData: FormData): Promise<ActionResult> { return annulable("retour", "Modifier une demande de paiement", async () => {
   try {
     const user = await requireUser();
     const id = fdStr(formData, "id");
@@ -410,7 +411,7 @@ export async function updatePaymentRequestDetails(formData: FormData): Promise<A
     console.error("[payment] updatePaymentRequestDetails failed", err);
     return { ok: false, error: "Les précisions n'ont pas pu être enregistrées." };
   }
-}
+}); }
 
 /**
  * CORRIGER SA DEMANDE — l'objet, le bénéficiaire, le montant, le contexte, l'échéance ; et, tant
@@ -429,7 +430,7 @@ export async function updatePaymentRequestDetails(formData: FormData): Promise<A
  * Après transmission, ce qui a changé se DIT (`note`) — les Finances et le centre relisent un dossier
  * qu'ils ont déjà vu, et doivent savoir quoi regarder.
  */
-export async function corrigerDemandePaiement(formData: FormData): Promise<ActionResult> {
+export async function corrigerDemandePaiement(formData: FormData): Promise<ActionResult> { return annulable("retour", "Corriger une demande de paiement", async () => {
   try {
     const user = await requireUser();
     const id = fdStr(formData, "id");
@@ -574,10 +575,10 @@ export async function corrigerDemandePaiement(formData: FormData): Promise<Actio
     console.error("[payment] corrigerDemandePaiement failed", err);
     return { ok: false, error: "La correction n'a pas pu être enregistrée." };
   }
-}
+}); }
 
 /** Le demandeur précise ou corrige le commentaire d'une de ses pièces. */
-export async function commentPaymentPiece(formData: FormData): Promise<ActionResult> {
+export async function commentPaymentPiece(formData: FormData): Promise<ActionResult> { return annulable("retour", "Commenter une pièce de paiement", async () => {
   try {
     const user = await requireUser();
     const pieceId = fdStr(formData, "pieceId");
@@ -596,10 +597,10 @@ export async function commentPaymentPiece(formData: FormData): Promise<ActionRes
     console.error("[payment] commentPaymentPiece failed", err);
     return { ok: false, error: "Le commentaire n'a pas pu être enregistré." };
   }
-}
+}); }
 
 /** Les Finances se prononcent sur UNE pièce — accepter, faire revoir, refuser. */
-export async function reviewPaymentPiece(formData: FormData): Promise<ActionResult> {
+export async function reviewPaymentPiece(formData: FormData): Promise<ActionResult> { return annulable("retour", "Examiner une pièce de paiement", async () => {
   try {
     const user = await requireUser();
     if (!isFinance(user)) return { ok: false, error: "L'examen des pièces revient aux Finances." };
@@ -652,7 +653,7 @@ export async function reviewPaymentPiece(formData: FormData): Promise<ActionResu
     console.error("[payment] reviewPaymentPiece failed", err);
     return { ok: false, error: "Le verdict n'a pas pu être enregistré." };
   }
-}
+}); }
 
 // ───────────────────────── Circuit du dossier ─────────────────────────
 
@@ -681,7 +682,7 @@ export async function addPaymentComment(formData: FormData): Promise<ActionResul
 }
 
 /** Le demandeur (re)transmet son dossier aux Finances. */
-export async function submitPaymentRequest(formData: FormData): Promise<ActionResult> {
+export async function submitPaymentRequest(formData: FormData): Promise<ActionResult> { return annulable("retour", "Soumettre une demande de paiement", async () => {
   try {
     const user = await requireUser();
     const id = fdStr(formData, "id");
@@ -747,7 +748,7 @@ export async function submitPaymentRequest(formData: FormData): Promise<ActionRe
     console.error("[payment] submitPaymentRequest failed", err);
     return { ok: false, error: "La transmission a échoué." };
   }
-}
+}); }
 
 /**
  * La décision des Finances : instruire, mettre en attente, reprendre, renvoyer, payer, refuser.
@@ -755,7 +756,7 @@ export async function submitPaymentRequest(formData: FormData): Promise<ActionRe
  * Un seul point d'entrée pour tous ces gestes, parce qu'ils partagent la même garde et la même
  * trace. Ce qui les distingue est dans la table de transitions, pas ici.
  */
-export async function decidePaymentRequest(formData: FormData): Promise<ActionResult> {
+export async function decidePaymentRequest(formData: FormData): Promise<ActionResult> { return annulable("retour", "Décider d'une demande de paiement", async () => {
   try {
     const user = await requireUser();
     if (!isFinance(user)) return { ok: false, error: "La décision revient aux Finances." };
@@ -855,7 +856,7 @@ export async function decidePaymentRequest(formData: FormData): Promise<ActionRe
     console.error("[payment] decidePaymentRequest failed", err);
     return { ok: false, error: "La décision n'a pas pu être enregistrée." };
   }
-}
+}); }
 
 /**
  * RELANCER, OU SIGNALER UNE URGENCE DE PAIEMENT — deux gestes qui ne disent pas la même chose, décrits
@@ -865,7 +866,7 @@ export async function decidePaymentRequest(formData: FormData): Promise<ActionRe
  * Le délai se lit sur le FIL du dossier : il porte déjà chaque relance, et une colonne « dernière
  * relance » dirait la même chose une seconde fois (§118-5).
  */
-export async function nudgePaymentRequest(formData: FormData): Promise<ActionResult> {
+export async function nudgePaymentRequest(formData: FormData): Promise<ActionResult> { return annulable("retour", "Relancer une demande de paiement", async () => {
   try {
     const user = await requireUser();
     const id = fdStr(formData, "id");
@@ -917,14 +918,14 @@ export async function nudgePaymentRequest(formData: FormData): Promise<ActionRes
     console.error("[payment] nudgePaymentRequest failed", err);
     return { ok: false, error: "La relance n'a pas pu être envoyée." };
   }
-}
+}); }
 
 /**
  * Le demandeur retire son dossier — y compris APPROUVÉ, tant que l'ordre n'est pas réglé (décision
  * de la Direction du 04/10 : on annule sa demande tant que l'autre ne l'a pas exécutée ; pour un
  * paiement, l'exécution est le règlement). La règle est `refusDeRetrait`, lue aussi par la fiche.
  */
-export async function cancelPaymentRequest(formData: FormData): Promise<ActionResult> {
+export async function cancelPaymentRequest(formData: FormData): Promise<ActionResult> { return annulable("retour", "Retirer une demande de paiement", async () => {
   try {
     const user = await requireUser();
     const id = fdStr(formData, "id");
@@ -966,7 +967,7 @@ export async function cancelPaymentRequest(formData: FormData): Promise<ActionRe
     console.error("[payment] cancelPaymentRequest failed", err);
     return { ok: false, error: "L'opération a échoué." };
   }
-}
+}); }
 
 /**
  * SUPPRIMER DÉFINITIVEMENT SA DEMANDE — retirée ou restée brouillon (Direction, 19/10/2026).
