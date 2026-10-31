@@ -94,6 +94,9 @@ describe.skipIf(!base)("contre la vraie base : ma consommation, et celle de l'en
     expect(tout.plafonds).not.toBeNull();
     expect(tout.rapprochement?.configure).toBe(!!process.env.OPENAI_ADMIN_KEY);
     expect(tout.parModele.find((m) => m.cle.endsWith("/lot"))?.coutUsd).toBe("0.700000");
+    // Un poste qui mêle un appel au tarif inconnu le dit (le montant est celui des appels connus).
+    expect(tout.postes.find((p) => p.poste === "texteEntree")?.partiel).toBe(true);
+    expect(va.postes.every((p) => !p.partiel)).toBe(true);
   });
 });
 

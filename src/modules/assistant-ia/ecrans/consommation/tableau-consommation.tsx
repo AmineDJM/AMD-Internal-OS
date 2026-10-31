@@ -32,12 +32,12 @@ const C = {
 const nf = (v: number) => v.toLocaleString("fr-FR").replace(/ | /g, " ");
 const duree = (ms: number) => (ms >= 60_000 ? `${nf(Math.round(ms / 600) / 100)} min` : `${nf(Math.round(ms / 100) / 10)} s`);
 
-function Montant({ usd, sansTarif = 0, fort = false }: { usd: string | null; sansTarif?: number; fort?: boolean }) {
+function Montant({ usd, sansTarif = 0, fort = false, partiel = false }: { usd: string | null; sansTarif?: number; fort?: boolean; partiel?: boolean }) {
   return (
     <span className="inline-flex flex-col items-end leading-tight">
       <span className={`tabular-nums ${fort ? "text-[15px] font-semibold" : ""}`} title="Coût exact, au micro-dollar">{dollarsExacts(usd)}</span>
       <span className={`text-[11px] ${C.discret}`}>
-        {usd == null ? "" : dollarsArrondis(usd)}{sansTarif > 0 ? ` · + ${sansTarif} appel(s) au tarif inconnu` : ""}
+        {usd == null ? "" : dollarsArrondis(usd)}{sansTarif > 0 ? ` · + ${sansTarif} appel(s) au tarif inconnu` : ""}{partiel ? " · + une part au tarif inconnu" : ""}
       </span>
     </span>
   );
@@ -209,6 +209,7 @@ export function TableauConsommation({ superAdmin, perimetreInitial = "moi" }: { 
                 <span className={`text-[11.5px] ${C.discret}`}>{r.libelle}</span>
                 <span className="text-[14px] font-semibold tabular-nums">{dollarsExacts(r.totaux.sansTarif === r.totaux.appels && r.totaux.appels ? null : r.totaux.coutUsd)}</span>
                 <span className={`text-[11px] ${C.discret}`}>{nf(jetonsDe(r.totaux))} jetons · {nf(r.totaux.appels)} appels</span>
+                {r.totaux.sansTarif > 0 && r.totaux.sansTarif < r.totaux.appels && <span className={`text-[11px] ${C.discret}`}>+ {nf(r.totaux.sansTarif)} au tarif inconnu</span>}
               </button>
             ))}
           </div>
@@ -249,7 +250,7 @@ export function TableauConsommation({ superAdmin, perimetreInitial = "moi" }: { 
                   <p className="text-[13px]">{p.libelle}</p>
                   <p className={`text-[11.5px] ${C.discret}`}>{p.unite === "ms" ? duree(p.quantite) : `${nf(p.quantite)} ${p.unite}`}</p>
                 </div>
-                <Montant usd={p.coutUsd} />
+                <Montant usd={p.coutUsd} partiel={p.partiel} />
               </div>
             ))}
             <p className={`text-[11px] ${C.discret}`}>

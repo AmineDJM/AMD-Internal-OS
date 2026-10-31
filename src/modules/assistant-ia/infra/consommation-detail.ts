@@ -199,7 +199,7 @@ function postesDe(rows: (Brut & { model: string; batch: boolean })[]): PosteCout
   };
   return POSTES.filter((p) => acc.has(p)).map((p) => {
     const a = acc.get(p)!;
-    return { poste: p, libelle: LIBELLE_POSTE[p], quantite: a.quantite, unite: unite[p], coutUsd: a.inconnu && !a.montants.length ? null : additionner(a.montants) };
+    return { poste: p, libelle: LIBELLE_POSTE[p], quantite: a.quantite, unite: unite[p], coutUsd: a.inconnu && !a.montants.length ? null : additionner(a.montants), partiel: a.inconnu && a.montants.length > 0 };
   });
 }
 

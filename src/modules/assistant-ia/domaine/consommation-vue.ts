@@ -56,7 +56,11 @@ export interface AppelDetaille {
   grille: string | null;
 }
 
-export interface PosteCout { poste: string; libelle: string; quantite: number; unite: string; coutUsd: string | null }
+export interface PosteCout {
+  poste: string; libelle: string; quantite: number; unite: string; coutUsd: string | null;
+  /** Une partie de la quantité vient d'appels au tarif inconnu : le montant est celui des appels connus. */
+  partiel: boolean;
+}
 
 export interface Rapprochement {
   configure: boolean;

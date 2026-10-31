@@ -108,6 +108,8 @@ toute l'organisation.
 
 ## 6. Vérifié
 
+Captures sur serveur réel (iPhone 13, bureau, ERP) : `docs/assistant/captures/0035/`.
+
 Tests : `src/lib/models/tarifs.test.ts` (chaque type de jeton calculé à la main, arrondis, inconnu ≠ 0),
 `src/modules/assistant-ia/consommation-precise.test.ts` (RBAC contre la vraie base, exhaustivité, rapprochement, périodes,
 CSV), `usage-sink.test.ts` (coût recalculé à la grille). Le crédit OpenAI étant épuisé (31/10 ~19:15 UTC), aucun appel
