@@ -11,7 +11,9 @@ pas copiés ; Adam les réexporte ; le SQL reste dans `lib/sandbox/sql.ts`, une 
 (classeur vérifié : en-tête figé, filtre, formats DZD et %, totaux en `=SUM()`, feuille « Méthode ») et dépôt au Drive sur
 le geste de la personne ; chaque graphique s'exporte en PNG, SVG et données. Colonnes confidentielles masquées avant le
 calcul ; un chiffre du message que rien ne prouve est dit. Banc réel `scripts/bench/analyse-k1.ts` (16 demandes, chiffres
-recalculés indépendamment en SQL/TS) : voir la décision.
+recalculés indépendamment en SQL/TS) : 15/16 justes, 0 chiffre inventé, 0,50 $. **Plus de visuels** (Direction) :
+indicateurs, jauges, chronologie et la règle du choix du visuel — 9/10 demandes avec le bon visuel, 0 sur les questions
+simples. Preuve sur serveur réel en mode app (iPhone 13 et bureau) : 0 erreur console, aucun débordement.
 
 ### JARVIS INTÉGRÉ : LE TEST RÉEL UNIQUE DE FIN, ET LES DEUX DÉFAUTS QU'IL A TROUVÉS (2026-10-31)
 

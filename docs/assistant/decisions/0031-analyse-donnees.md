@@ -86,6 +86,14 @@ virgule décimale) et Excel. iPhone : le tableau défile **dans sa boîte** (`ov
 colonne et en-tête figés ; cibles de 44 px ; champ à 16 px. Charte Adventum (`--aia-*`, clair et sombre) dans l'app, jetons
 de l'espace de travail ailleurs.
 
+## 5 bis. Plus de visuels dans l'UI générative (ajout de la Direction, 31/10)
+
+« Qu'il utilise plus de graphiques, de visuels. » Trois composants du modèle (`domaine/ui/visuels.ts`, une ligne
+d'enregistrement dans `composants.ts`) dessinés par des blocs existants : `kpi` (indicateurs → `viz` `cartes`), `gauge`
+(jauge consommé / engagé / disponible → `progress`), `timeline` (chronologie datée). La consigne dit QUAND : enveloppe →
+indicateurs + jauge ; comparaison ou série → graphique ; liste → tableau ; circuit → étapes ; personne / dossier → fiche ;
+question simple → aucun. Mêmes preuves de chiffres que les autres composants (un chiffre non lu retire le visuel).
+
 ## 6. Graphiques
 
 - Le bloc `analyse` et le composant `chart` du modèle (`domaine/ui/graphique.ts`, une ligne d'enregistrement dans
@@ -105,7 +113,20 @@ de l'espace de travail ailleurs.
   (colonnes confidentielles, chiffres non sourcés, jeux, `chart` étendu, outils de bout en bout, SQL fermé sans vue globale).
 - **Banc réel** (`scripts/bench/analyse-k1.ts`, amd_bench, Super Admin) : 16 demandes (ventes ×6, budgets ×2, Ad & Pro ×2,
   RH ×1, Excel joint ×3, projection ×1, pilotage ×1) ; chaque chiffre attendu recalculé **indépendamment** (SQL brut sur la
-  base, TypeScript sur les lignes semées). Résultats : voir `docs/readme` (journal K1) et le rapport du lot.
+  base, TypeScript sur les lignes semées). **Passage final : 15/16 justes, 0 chiffre inventé, 66 appels, 514 k jetons
+  d'entrée, 0,50 $, médiane 7,6 s.** L'écart (cas 4, « part de chaque client ») n'est pas un chiffre faux : le modèle a
+  demandé la période au lieu de calculer (il avait calculé juste aux passages précédents). Les passages de mise au point
+  ont trouvé et fait corriger : des schémas d'objets sans propriétés (le modèle envoyait `etapes: [{}]`), des outils hors
+  du budget de la présélection (le modèle additionnait de tête), 12 colonnes montrées sur 30 d'un `SELECT *` (« pas de
+  statut de paiement »), un code qui rendait des montants formatés en texte.
+- **Banc des visuels** (`… analyse-k1.ts visuels`, ajout de la Direction) : 9/10 demandes avec le bon visuel (enveloppe →
+  indicateurs + jauge, comparaison → graphique, liste → tableau, circuit → étapes, personne → fiche), 3/3 questions simples
+  sans visuel, 0,28 $.
+- **Serveur réel** (`build:render` propre en mode app, `next start`, amd_bench, Playwright iPhone 13 + bureau 1280 px) :
+  analyse de bout en bout, tableau qui défile dans sa boîte, totaux, « Comment c'est calculé », exports Excel (formule
+  `SUM(B2:B5)` = 9 175 500, volets figés, filtre, format DZD) / CSV / PNG / SVG / données, dépôt au Drive, clair et
+  sombre ; `scrollWidth` = largeur (390 / 1280), cibles 44 px, champ ≥ 16 px, **0 erreur console** (après deux correctifs
+  trouvés là : l'app refusait `/api/uploads/limites`, et `/favicon.ico` manquait).
 
 ## 8. Ce qui n'est pas fait / à décider
 
