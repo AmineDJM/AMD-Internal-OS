@@ -1594,6 +1594,16 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:enregistrerValeursSensibles": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
  "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe": {
   "risque": "R1",
   "familles": [

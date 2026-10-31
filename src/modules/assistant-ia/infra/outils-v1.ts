@@ -107,14 +107,18 @@ export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELI
  * contenu écrit par un tiers (`contenu-non-fiable.ts` — un document ne donne pas d'ordres). Le journal
  * du tour garde la sortie censurée SANS cadre : c'est elle que l'UI générative confronte aux faits.
  */
-const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null, provenance?: ProvenanceDuTour): PowerTool => ({
+const filtre = (
+  outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null, provenance?: ProvenanceDuTour, revelerAuModele?: (sortie: string) => Promise<string>,
+): PowerTool => ({
   ...outil,
   run: async (entree, user) => {
     // Avec un coffret (la conversation) : les valeurs sensibles deviennent des REPÈRES (décision 0012) ;
     // sans (une routine) : censurées comme avant.
     const avant = coffret?.taille ?? 0;
-    const sortie = jetonnerSortie(await outil.run(entree, user), coffret);
+    const jetonnee = jetonnerSortie(await outil.run(entree, user), coffret);
     coffret?.nommer(avant, outil.def.name);
+    // Décision 0034, mode « en clair » : la valeur que la personne a le droit de voir part au modèle (jugée, journalisée).
+    const sortie = coffret && revelerAuModele ? await revelerAuModele(jetonnee) : jetonnee;
     journal?.push(sortie);
     const pourModele = sortiePourModele(outil.def.name, sortie);
     // J14 : ce que le tour a lu d'un tiers (encadré) ou de l'ERP — la carte dira ce qui vient d'un tiers.
@@ -242,6 +246,11 @@ export interface OptionsCatalogue {
   provenance?: ProvenanceDuTour;
   /** « Mes notes » (décision 0026) : les propositions de notes du tour, pour la carte. */
   notesProposees?: string[];
+  /**
+   * Décision 0034, mode « en clair » : la sortie jetonnée d'un outil, repères remplacés par les valeurs que la personne a
+   * le droit de voir (`Revelateur.enClair`). Absent : le modèle ne reçoit que des repères (décision 0012).
+   */
+  revelerAuModele?: (sortie: string) => Promise<string>;
 }
 
 export function outilsV1(
@@ -303,7 +312,7 @@ export function outilsV1(
   });
   // « Mes notes » (décision 0026) : lire SES notes, et PROPOSER des modifications qu'elle accepte ou refuse.
   const notes = outilsNotes(user, { coffret, acces, proposees: options.notesProposees });
-  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret, provenance));
+  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret, provenance, options.revelerAuModele));
 }
 
 /**

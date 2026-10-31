@@ -15,7 +15,10 @@ export {
 } from "./domaine/acces-regles";
 
 // ── Consommation : les plafonds par tour, par personne, par jour (console `/admin/ai/consommation`)
-export { BORNES, normaliserReglages, REGLAGES_PAR_DEFAUT, type ReglagesAssistantIa } from "./domaine/consommation-regles";
+export {
+  BORNES, LIBELLE_VALEURS_SENSIBLES, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglages, REGLAGES_PAR_DEFAUT,
+  type ModeValeursSensibles, type ReglagesAssistantIa,
+} from "./domaine/consommation-regles";
 
 // ── Confidentialité : ce qui ne part jamais au modèle (rémunération, banque, pièce d'identité)
 export { censurerObjet, censurerTexte } from "./domaine/filtre-confidentialite";

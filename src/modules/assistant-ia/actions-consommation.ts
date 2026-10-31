@@ -8,7 +8,9 @@ import { recordAudit } from "@/lib/audit";
 import { fdBool, type ActionResult } from "@/lib/actions/types";
 import { UserRole } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/labels";
-import { LIBELLE_FAMILLE, normaliserReglageFamilles, normaliserReglages, type FamilleIa } from "@/modules/assistant-ia/api";
+import {
+  LIBELLE_FAMILLE, LIBELLE_VALEURS_SENSIBLES, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglageFamilles, normaliserReglages, type FamilleIa,
+} from "@/modules/assistant-ia/api";
 
 /**
  * LES BORNES DE L'ASSISTANT IA — enregistrées par le Super Admin (Administration › Consommation IA,
@@ -31,7 +33,10 @@ export async function enregistrerReglagesAssistantIa(formData: FormData): Promis
     retirerCartesCaduques: fdBool(formData, "retirerCartesCaduques"),
     modeleVoix: formData.get("modeleVoix"),
   });
-  const data = { ...r, modeleVoix: r.modeleVoix || null, updatedById: admin.id };
+  // Le mode des valeurs sensibles (décision 0034) a son propre réglage, dans la console d'accès : ce formulaire n'y touche pas.
+  const { valeursSensibles: _horsFormulaire, ...bornes } = r;
+  void _horsFormulaire;
+  const data = { ...bornes, modeleVoix: r.modeleVoix || null, updatedById: admin.id };
   await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
   await recordAudit({
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA",
@@ -153,6 +158,30 @@ export async function enregistrerVisibiliteEquipe(formData: FormData): Promise<A
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Travaux — un responsable voit ceux de son équipe",
     oldValue: dire(avant?.managerVoitEquipe), newValue: dire(voit),
     summary: `Les responsables ${voit ? "voient désormais" : "ne voient plus"} les travaux de leur équipe (résumé et étapes, chaque consultation à l'audit)`,
+  });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+/**
+ * DÉCISION 0034 (Direction, 31/10/2026) — LES VALEURS SENSIBLES ET LE MODÈLE : « en clair pour qui a le droit de les voir »
+ * (défaut) ou « masquées (repères ⟦Sn⟧) ». Super Admin seul ; chaque changement à l'audit (avant → après). Les DROITS ne
+ * bougent pas : une personne ne reçoit toujours que ce que le RBAC et la console lui ouvrent.
+ */
+export async function enregistrerValeursSensibles(formData: FormData): Promise<ActionResult> {
+  const admin = await requireUser();
+  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  const brut = String(formData.get("valeursSensibles") ?? "");
+  if (!(MODES_VALEURS_SENSIBLES as readonly string[]).includes(brut)) return { ok: false, error: "Choix inconnu : « en clair » ou « masquées »." };
+  const mode = modeValeursSensibles(brut);
+  const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { valeursSensibles: true } });
+  const data = { valeursSensibles: mode, updatedById: admin.id };
+  await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
+  const ancien = LIBELLE_VALEURS_SENSIBLES[modeValeursSensibles(avant?.valeursSensibles)];
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Assistant IA — valeurs sensibles",
+    oldValue: ancien, newValue: LIBELLE_VALEURS_SENSIBLES[mode],
+    summary: `Assistant IA — valeurs sensibles (salaires, IBAN / RIB, pièces d'identité) : ${ancien} → ${LIBELLE_VALEURS_SENSIBLES[mode]}`,
   });
   revalidatePath("/admin/ai/acces");
   return { ok: true };

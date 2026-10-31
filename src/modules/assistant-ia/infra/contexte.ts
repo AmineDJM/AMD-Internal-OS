@@ -51,6 +51,8 @@ export interface OptionsContexte {
   sectionsDuTour?: readonly string[];
   /** Décision 0027 : une conversation PRIVÉE ne lit pas la mémoire de la personne. */
   sansMemoire?: boolean;
+  /** Décision 0034 : les valeurs sensibles arrivent en clair (règle 2 réécrite) — absent : en repères (décision 0012). */
+  valeursEnClair?: boolean;
 }
 
 export interface MessageHistorique {
@@ -131,6 +133,13 @@ export const REGLES = [
 ];
 
 /**
+ * LA RÈGLE 2 EN MODE « EN CLAIR » (décision 0034, Direction 31/10/2026) — elle remplace celle des repères : les DROITS
+ * sont les mêmes, seul le masquage vis-à-vis du modèle tombe pour ce que la personne a le droit de voir.
+ */
+export const REGLE_CONFIDENTIALITE_EN_CLAIR = "Confidentialité : une rémunération, une coordonnée bancaire (RIB, IBAN, CCP) ou un numéro de pièce d'identité que tes outils te rendent EN CLAIR est une valeur que la personne a le droit de voir — donne-la-lui quand elle la demande, à l'écrit comme à voix haute ; une valeur rendue « [confidentiel] » ne lui est pas ouverte. Tes outils appliquent les droits de la personne : ne refuse jamais une demande de toi-même, appelle l'outil et rapporte son refus s'il en fait un. Un refus se formule par le DROIT qui manque (son rôle, une famille fermée par la Direction), jamais par « les outils disponibles ».";
+const RANG_CONFIDENTIALITE = 1;
+
+/**
  * LES RÈGLES D'UNE FAMILLE D'OUTILS (J4) — dites seulement quand l'un de ces outils est offert : un « bonjour » n'a
  * pas à relire le mode d'emploi des formulaires PDF. Clé = rang dans `REGLES` ; valeur = l'outil qui la rend utile.
  */
@@ -146,9 +155,10 @@ const REGLE_SI_OUTIL: Record<number, (nom: string) => boolean> = {
 };
 
 /** Les règles à dire pour ces outils : toutes les règles générales, et celles des familles offertes. */
-export function reglesPour(outils?: readonly string[]): string[] {
-  if (!outils) return REGLES;
-  return REGLES.filter((_, i) => !REGLE_SI_OUTIL[i] || outils.some(REGLE_SI_OUTIL[i]));
+export function reglesPour(outils?: readonly string[], enClair = false): string[] {
+  const regles = enClair ? REGLES.map((r, i) => (i === RANG_CONFIDENTIALITE ? REGLE_CONFIDENTIALITE_EN_CLAIR : r)) : REGLES;
+  if (!outils) return regles;
+  return regles.filter((_, i) => !REGLE_SI_OUTIL[i] || outils.some(REGLE_SI_OUTIL[i]));
 }
 
 /** Les règles qu'ajoutent des outils TROUVÉS en cours de tour (rendues par `trouver_outil`). */
@@ -168,6 +178,7 @@ export async function compileContext({
   consignesPersonne = [],
   question,
   sansMemoire = false,
+  valeursEnClair = false,
 }: OptionsContexte): Promise<ContexteCompile> {
   let censureGlobale = false;
 
@@ -191,7 +202,7 @@ export async function compileContext({
   // minute, la ferme : placée en tête, elle invalidait le cache de tout ce qui la suivait.
   const sections: string[] = [
     "Tu es l'assistant interne d'Adventum Pharma, un laboratoire pharmaceutique algérien. Tu réponds en français, avec rigueur et clarté, en t'appuyant uniquement sur les données de l'entreprise que te donnent tes outils.",
-    `### RÈGLES FONDAMENTALES\n${reglesPour(outilsActifs).map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
+    `### RÈGLES FONDAMENTALES\n${reglesPour(outilsActifs, valeursEnClair).map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
     `### PRÉSENTATION (UI générative)\n${CONSIGNE_COMPOSANTS}`,
     ...consignesGenerales.filter(Boolean),
     `### INTERLOCUTEUR\nNom : ${user.name}\nRôle : ${roleLabel}${user.secondaryRole ? ` (rôle secondaire : ${ROLE_LABELS[user.secondaryRole] ?? user.secondaryRole})` : ""}`,

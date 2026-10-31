@@ -66,10 +66,18 @@ export function pourMastra<T>(m: T): T | { id: `openai/${string}`; apiKey: strin
 /**
  * LES OPTIONS DU FOURNISSEUR d'un appel (J4) : l'effort de raisonnement du rôle, et la clé de cache du préfixe — les
  * appels d'une même personne partagent le même début de consigne, le fournisseur les route vers le même cache.
+ *
+ * AUCUNE CONSERVATION CHEZ OPENAI (décision 0034, Direction 31/10/2026 : « dis à OpenAI de ne pas s'entraîner sur mes
+ * données ») — `store: false` sur TOUS les appels de l'Assistant IA (conversation, fil, résumé, titres, vision, travaux,
+ * veille : tous passent par ici). Rien n'en dépend : l'assistant n'enchaîne aucune réponse par `previous_response_id` —
+ * l'historique est renvoyé à chaque tour. Mesuré dans le SDK (Mastra 1.79, adaptateur OpenAI Responses) : avec
+ * `store: false`, les étapes d'outils d'un tour sont renvoyées EN ENTIER au lieu de références (`item_reference`), et
+ * le raisonnement d'un modèle qui raisonne est demandé chiffré (`include: reasoning.encrypted_content`) — le tour à
+ * plusieurs étapes continue sans rien laisser chez OpenAI.
  */
-export function optionsFournisseur(m: unknown, cleCache?: string): { openai: Record<string, string> } | undefined {
+export function optionsFournisseur(m: unknown, cleCache?: string): { openai: Record<string, string | boolean> } | undefined {
   if (!estOpenAi(m)) return undefined;
-  return { openai: { ...(m.effort ? { reasoningEffort: m.effort } : {}), ...(cleCache ? { promptCacheKey: cleCache } : {}) } };
+  return { openai: { store: false, ...(m.effort ? { reasoningEffort: m.effort } : {}), ...(cleCache ? { promptCacheKey: cleCache } : {}) } };
 }
 
 /** J13 : la clé du fournisseur pour la voix temps réel (le secret éphémère se crée côté serveur, la clé ne sort pas). */

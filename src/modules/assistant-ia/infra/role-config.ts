@@ -11,6 +11,7 @@ import { borner, MASQUE_CONFIDENTIEL, remplacerReperes, reperesDe, type CoffretD
 import {
   familleExplicite, familleOuverte, LIBELLE_FAMILLE, normaliserReglageFamilles, resoudreAccesIa, type AccesIa, type FamilleIa, type ReglageFamilles,
 } from "../domaine/acces-regles";
+import { modeValeursSensibles, type ModeValeursSensibles } from "../domaine/consommation-regles";
 
 /**
  * CONFIGURATION DE L'ASSISTANT PAR RÔLE — Jalon 4 (Décisions Q4 & Q12).
@@ -216,11 +217,13 @@ export async function chargerConsoleAccesIa(): Promise<{
   managerVoitEquipe: boolean;
   /** J7 : durée de garde du journal des effets, en jours (défaut 180). */
   retentionEffetsJours: number;
+  /** Décision 0034 : les valeurs sensibles vont au modèle en clair (défaut) ou en repères. */
+  valeursSensibles: ModeValeursSensibles;
 }> {
   const [reglages, comptes, global] = await Promise.all([
     prisma.assistantIaAcces.findMany(),
     prisma.user.findMany({ where: { isActive: true, role: { not: "SUPER_ADMIN" } }, select: { id: true, name: true, email: true, role: true }, orderBy: { name: "asc" } }),
-    prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { plafondTravailUsd: true, plafondMensuelUsd: true, managerVoitEquipe: true, retentionEffetsJours: true } }),
+    prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { plafondTravailUsd: true, plafondMensuelUsd: true, managerVoitEquipe: true, retentionEffetsJours: true, valeursSensibles: true } }),
   ]);
   const plafondsPersonne = new Map(reglages.filter((r) => r.userId).map((r) => [r.userId!, { travailUsd: r.plafondTravailUsd, mensuelUsd: r.plafondMensuelUsd }]));
   const vide: ReglageFamilles = { ouvertes: [], fermees: [] };
@@ -239,6 +242,7 @@ export async function chargerConsoleAccesIa(): Promise<{
     parRole, personnes, plafondsGlobaux: { travailUsd: global?.plafondTravailUsd ?? 20, mensuelUsd: global?.plafondMensuelUsd ?? 50 },
     managerVoitEquipe: global?.managerVoitEquipe === true,
     retentionEffetsJours: global?.retentionEffetsJours ?? 180,
+    valeursSensibles: modeValeursSensibles(global?.valeursSensibles),
   };
 }
 
@@ -284,6 +288,8 @@ export function vueDeLAssistant(user: CurrentUser, acces: AccesIa): CurrentUser 
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 export const GESTE_ASSISTANT = "Assistant IA — réponse à la personne";
+/** Décision 0034 : la valeur part au modèle, en clair, parce que la personne a le droit de la voir — le journal le dit. */
+export const GESTE_MODELE_EN_CLAIR = "Assistant IA — valeur transmise au modèle (mode en clair)";
 
 export async function peutVoirLaValeur(e: EntreeJeton, user: CurrentUser, acces: AccesIa, geste = GESTE_ASSISTANT): Promise<boolean> {
   const soi = !!e.titulaireUserId && e.titulaireUserId === user.id;
@@ -347,6 +353,34 @@ export class Revelateur {
     if (!reperes.length) return texte;
     const ok = new Map(await Promise.all(reperes.map(async (n) => [n, await this.autorise(n)] as const)));
     return remplacerReperes(texte, (n) => (ok.get(n) ? borner(this.coffret.entree(n)!.valeur) : MASQUE_CONFIDENTIEL));
+  }
+
+  /**
+   * MODE « EN CLAIR » (décision 0034) — la SORTIE D'UN OUTIL, avant le modèle : chaque repère devient la valeur (sans
+   * bornes) si la personne a le droit de la voir — même juge, même journal que l'affichage —, « [confidentiel] » sinon.
+   * Un JSON reste un JSON (la valeur est remplacée dans ses chaînes, pas dans le texte brut).
+   */
+  async enClair(sortie: string): Promise<string> {
+    if (!reperesDe(sortie).length) return sortie;
+    const remplacer = async (texte: string): Promise<string> => {
+      const reperes = reperesDe(texte);
+      if (!reperes.length) return texte;
+      const ok = new Map(await Promise.all(reperes.map(async (n) => [n, await this.autorise(n)] as const)));
+      return remplacerReperes(texte, (n) => (ok.get(n) ? this.coffret.entree(n)!.valeur : MASQUE_CONFIDENTIEL));
+    };
+    let objet: unknown;
+    try { objet = JSON.parse(sortie); } catch { return remplacer(sortie); }
+    const visiter = async (v: unknown): Promise<unknown> => {
+      if (typeof v === "string") return remplacer(v);
+      if (Array.isArray(v)) return Promise.all(v.map(visiter));
+      if (v && typeof v === "object") {
+        const out: Record<string, unknown> = {};
+        for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = await visiter(x);
+        return out;
+      }
+      return v;
+    };
+    return JSON.stringify(await visiter(objet));
   }
 
   /** Un objet (les blocs de l'UI générative) : chaque chaîne révélée de même. */
