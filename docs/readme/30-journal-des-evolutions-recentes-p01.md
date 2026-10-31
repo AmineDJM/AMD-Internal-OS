@@ -13,6 +13,19 @@ clair, l'assistant écrit et la voix prononce le salaire que la personne a le dr
 mots, propose les cases facultatives, récapitule et demande « Tu confirmes ? ». La personne **confirme à l'oral** : le
 serveur juge son « oui » sur sa propre transcription (et le montant prononcé pour une action renforcée), puis la même garde
 que le bouton exécute ; « confirmée à l'oral » est à l'audit avec la transcription.
+
+### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
+
+Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.
+La carte à formulaire (J11) se RÉSUME désormais dans la conversation — quatre champs au plus, puces « À compléter » pour
+les champs obligatoires manquants (un toucher ouvre le formulaire sur ce champ), une ligne de simulation, « N points à
+savoir avant de signer ». Le formulaire, la simulation, les avertissements et la ressaisie s'ouvrent dans un panneau rendu
+en portail (`PanneauLateral`, `pleinEcranMobile`) : à droite sur ordinateur, plein écran sur téléphone, Échap ferme. Les
+avertissements ne se répètent plus (`domaine/ui/carte-action.ts:avertissementsUniques`), « Simulation sans résultat » ne
+s'affiche plus quand ce sont des champs obligatoires qui manquent, les zones de texte grandissent avec leur contenu.
+Même composant dans l'Assistant IA de l'ERP, l'app Adventum IA, la voix, l'Atelier et le terrain. Vérifié sur serveur réel
+en mode app (iPhone 13 et bureau) : 0 erreur, aucun débordement.
+
 ### K2 : L'ASSISTANT IA GÉNÈRE DES IMAGES ET DES VIDÉOS DE DONNÉES — DANS LA RÉPONSE, AU DRIVE, TÉLÉCHARGEABLES (2026-10-31)
 
 Lot K2 — `docs/assistant/decisions/0032-visuels.md`. Quatre outils dans l'Assistant IA de l'ERP et l'app Adventum IA :
