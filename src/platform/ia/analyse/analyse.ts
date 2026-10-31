@@ -104,7 +104,8 @@ export function regrouper(lignes: readonly Ligne[], par: readonly string[], mesu
   const groupes = new Map<string, Ligne[]>();
   for (const l of lignes) {
     const k = par.map((c) => String(l[c] ?? "")).join(SEPARATEUR);
-    groupes.set(k, [...(groupes.get(k) ?? []), l]);
+    const g = groupes.get(k);
+    if (g) g.push(l); else groupes.set(k, [l]);
   }
   const ignores = new Map<string, number>();
   const out: Ligne[] = [];
@@ -124,7 +125,7 @@ export function regrouper(lignes: readonly Ligne[], par: readonly string[], mesu
 export function croiser(lignes: readonly Ligne[], ligne: string, colonne: string, mesure: Mesure): { lignes: Ligne[]; colonnes: string[] } {
   const colonnes = [...new Set(lignes.map((l) => String(l[colonne] ?? "")))].sort();
   const parLigne = new Map<string, Ligne[]>();
-  for (const l of lignes) { const k = String(l[ligne] ?? ""); parLigne.set(k, [...(parLigne.get(k) ?? []), l]); }
+  for (const l of lignes) { const k = String(l[ligne] ?? ""); const g = parLigne.get(k); if (g) g.push(l); else parLigne.set(k, [l]); }
   const out: Ligne[] = [];
   for (const [k, g] of parLigne) {
     const r: Ligne = { [ligne]: k };
@@ -279,7 +280,8 @@ export function cohortes(lignes: readonly Ligne[], colonneEntite: string, colonn
     if (!d || !e) continue;
     const p = periode(d, pas);
     if (!premiere.has(e) || p < premiere.get(e)!) premiere.set(e, p);
-    presence.set(e, new Set([...(presence.get(e) ?? []), p]));
+    const vu = presence.get(e);
+    if (vu) vu.add(p); else presence.set(e, new Set([p]));
   }
   const periodes = [...new Set([...presence.values()].flatMap((s) => [...s]))].sort();
   const parCohorte = new Map<string, string[]>();

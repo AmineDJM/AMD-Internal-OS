@@ -46,6 +46,7 @@ const jetonsDe = (d: PowerTool["def"]): number => {
 
 export function selectionDuTour(
   outils: readonly PowerTool[], user: CurrentUser, demande: string, config?: { allowedTools?: string[] } | null, precedente = "",
+  prioritaires: readonly string[] = [],
 ): SelectionDuTour {
   const fiches = fichesOffertes(outils, user, config);
   const disponibles = new Set([OUTIL_TROUVER, ...fiches.map((f) => f.nom)]);
@@ -53,7 +54,7 @@ export function selectionDuTour(
   const parNom = new Map(fiches.map((f) => [f.nom, f]));
   const defs = new Map(outils.map((o) => [o.def.name, o.def]));
   const poids = (nom: string) => { const d = defs.get(nom); return d ? jetonsDe(d) : 0; };
-  const initiaux = preselectionner(demande, fiches, undefined, precedente, poids).filter((n) => disponibles.has(n));
+  const initiaux = preselectionner(demande, fiches, undefined, precedente, poids, prioritaires).filter((n) => disponibles.has(n));
   const actifs = new Set<string>([OUTIL_TROUVER, ...initiaux]);
   const trouves: string[] = [];
 

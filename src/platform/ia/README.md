@@ -24,7 +24,8 @@ tenue par `frontieres.test.ts` et ESLint.
 | `proprietaire.ts` | le propriétaire d'un travail (relu en base, droits compris) |
 | `hors-requete.ts` | J8 : un geste métier hors requête (`lib/contexte-geste.ts`) ; J7 (décision 0029) : la simulation transactionnelle (`simulerEnDiff`), le journal des effets (`journaliserGeste`), l'annulation honnête (`annulerGeste`, `planDAnnulation`, `gestesDeLAssistant`) — un seul import vers l'ERP, `lib/effets/` derrière |
 | `telemetry/usage-sink.ts` | le puits d'usage des modèles — branché par chaque module qui appelle un modèle |
-| `workspace/`, `ecrans/` | le protocole des blocs de l'espace de travail et leurs composants d'écran |
+| `analyse/` | K1 (décision 0031) : le moteur d'analyse DÉMÉNAGÉ du bac à sable d'Adam (`analyse`, `pipeline`, `viz`, `porte`, `js`, `python`) ; `bloc.ts` (des lignes calculées au bloc `analyse`), `journal.ts` (les formules lisibles), `affichage.ts` (pur, navigateur compris), `tableur.ts` (XLSX/CSV typés), `drive.ts`, `classeur.ts` (l'Excel vérifié), `lecture.ts`, `sql.ts` (la seule porte vers le SQL de l'ERP) |
+| `workspace/`, `ecrans/` | le protocole des blocs de l'espace de travail et leurs composants d'écran ; `workspace/analyse.ts` + `ecrans/blocks/analyse.tsx` : le bloc d'analyse (K1) |
 
 Il connaît l'ERP, comme le pont `in-process/` : ses imports vers l'ERP sont plafonnés à part (`boundary.test.ts`,
 `SOCLE_IA_CEILING`). Un besoin neuf passe par un port, pas par un relèvement. Un test qui exerce le socle **à travers**

@@ -28,7 +28,7 @@ import { join } from "node:path";
  * `gravite:`. Un troisième émetteur ajouté demain doit importer ce type — c'est le seul
  * vocabulaire des signaux — donc il entre sans que personne ait pensé à lui. Mesuré : la règle
  * rend exactement les deux émetteurs réels ; la variante « tout littéral code+gravite »,
- * essayée d'abord, ramassait `src/lib/sandbox/viz.ts`, qui n'a aucun rapport.
+ * essayée d'abord, ramassait `src/platform/ia/analyse/viz.ts`, qui n'a aucun rapport.
  */
 
 /** Un fichier émetteur : il parle le vocabulaire canonique ET écrit des signaux. */
@@ -103,7 +103,7 @@ describe("le geste déclaré, sur TOUT le parc de signaux", () => {
     // sans l'avoir exercé est une dette, pas une documentation (§118.116).
     //
     // La narrowness se garde donc par une assertion, dans le sens où un faux positif la fait
-    // TOMBER : mesuré, `src/lib/sandbox/viz.ts` porte des littéraux `code:`+`gravite:` sans le
+    // TOMBER : mesuré, `src/platform/ia/analyse/viz.ts` porte des littéraux `code:`+`gravite:` sans le
     // moindre rapport avec les signaux métier et ne déclare aucun `Signal[]`. Ce que coûterait
     // son entrée n'est pas théorique : ses sites gonfleraient le plancher ci-dessus, qui serait
     // alors satisfait tout en ayant perdu de VRAIS signaux — un contrôle qui ne peut plus
