@@ -25,7 +25,7 @@ import { describe, expect, it } from "vitest";
  */
 
 const SRC = path.join(process.cwd(), "src");
-const NODE_ONLY = /^(node:)?(fs|fs\/promises|zlib|child_process|worker_threads|net|tls|dns|http|https|os|cluster|readline)$/;
+const NODE_ONLY = /^(node:)?(fs|fs\/promises|zlib|child_process|worker_threads|net|tls|dns|http|https|os|cluster|readline|async_hooks)$/;
 /**
  * LES PAQUETS QUI N'EXISTENT QUE CÔTÉ NODE — la seconde façon d'atteindre `net`/`tls`.
  *

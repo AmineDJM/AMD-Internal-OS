@@ -131,6 +131,13 @@ par un port) et effet externe R3 (par un port) compris. La raison est sur la fic
 | Annulations qui écrasent une valeur changée depuis par un autre | **0** (propriété éprouvée sur 14 cas, comptée) | 0 |
 | Carte : diff réel, écart refusé, exécution journalisée sans écart (`infra/capacites-simulation.test.ts`) | vert | — |
 
+**Essai réel** (un tour, `gpt-6.1-terra`, base locale `amd_bench`, `scripts/bench/simulation-essai.ts`) : « Crée une tâche pour
+Karim … : préparer le stand du congrès, échéance le 6 novembre 2026. » → carte `Créer tâche` (attribué à, échéance, titre)
+avec le diff simulé « tâche « Préparer le stand du congrès » créé(e), notification à Karim « Demande de tâche » » ; 0 tâche
+avant confirmation ; confirmation (simulation rejouée, même empreinte) → « Créer tâche : fait. », geste journalisé ;
+« Annuler » → « Fait : 2 annulé(s) sur 2 effet(s) », 0 tâche restante. 2 appels, 10 246 jetons d'entrée, 7,2 s,
+**0,013 $** (plafond 0,50 $).
+
 Règle d'architecture ajoutée : tout module qui appelle la garde de sortie appelle **aussi** le port de simulation, et
 avant elle (`effets/ports.test.ts`).
 

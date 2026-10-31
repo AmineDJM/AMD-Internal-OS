@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+import type { AsyncLocalStorage } from "node:async_hooks";
 import type { CurrentUser } from "@/lib/session";
 
 /**
@@ -73,15 +73,34 @@ export interface EtatGeste {
   client: unknown;
 }
 
-const g = globalThis as { __amdMagasinGeste?: AsyncLocalStorage<EtatGeste> };
+type ConstructeurAls = typeof AsyncLocalStorage;
+
+/**
+ * LE CONSTRUCTEUR, SANS IMPORT STATIQUE D'UN MODULE NODE : `prisma.ts` lit ce magasin, et des écrans client importent
+ * (de loin) `prisma.ts` — un `import "node:async_hooks"` ici casse la compilation du navigateur (« Unhandled scheme »).
+ * Côté serveur, Node le fournit (`process.getBuiltinModule`, ou le global posé par Next) ; côté navigateur, il n'y a ni
+ * geste ni magasin.
+ */
+function constructeur(): ConstructeurAls | null {
+  const g = globalThis as { AsyncLocalStorage?: ConstructeurAls; process?: { getBuiltinModule?: (n: string) => unknown } };
+  if (typeof g.AsyncLocalStorage === "function") return g.AsyncLocalStorage;
+  const m = g.process?.getBuiltinModule?.("node:async_hooks") as { AsyncLocalStorage?: ConstructeurAls } | undefined;
+  return m?.AsyncLocalStorage ?? null;
+}
+
+const g = globalThis as { __amdMagasinGeste?: AsyncLocalStorage<EtatGeste> | null };
 // UN SEUL magasin par processus, même si deux copies du module sont chargées (Next sépare parfois les couches).
-const magasin: AsyncLocalStorage<EtatGeste> = (g.__amdMagasinGeste ??= new AsyncLocalStorage<EtatGeste>());
+const magasin: AsyncLocalStorage<EtatGeste> | null = (g.__amdMagasinGeste ??= (() => {
+  const C = constructeur();
+  return C ? new C<EtatGeste>() : null;
+})());
 
 export function etatDuGeste(): EtatGeste | null {
-  return magasin.getStore() ?? null;
+  return magasin?.getStore() ?? null;
 }
 
 export function sousGeste<T>(etat: EtatGeste, fn: () => T): T {
+  if (!magasin) throw new Error("Un geste d'agent s'exécute côté serveur seulement (contexte asynchrone indisponible).");
   return magasin.run(etat, fn);
 }
 
