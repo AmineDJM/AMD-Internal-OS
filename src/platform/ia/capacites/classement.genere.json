@@ -1584,6 +1584,16 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:enregistrerReglagesVisuels": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
  "assistant-ia-consommation-actions:enregistrerRetentionEffets": {
   "risque": "R1",
   "familles": [

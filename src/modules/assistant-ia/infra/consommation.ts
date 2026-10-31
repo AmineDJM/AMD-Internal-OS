@@ -46,7 +46,7 @@ import {
 export const FEATURE_ASSISTANT_IA = "assistant_ia" as const;
 
 /** D'où part l'appel — la colonne `role` du journal : ce que « par usage » distingue à l'écran. */
-export type OrigineAppel = "conversation" | "fil" | "routine" | "redaction" | "transcription" | "vision" | "synthese" | "ocr";
+export type OrigineAppel = "conversation" | "fil" | "routine" | "redaction" | "transcription" | "vision" | "synthese" | "ocr" | "image" | "video";
 
 export class PlafondIaAtteint extends Error {
   constructor(message: string) { super(message); this.name = "PlafondIaAtteint"; }
@@ -141,6 +141,49 @@ export async function jetonsDuJour(userId: string, now: Date = new Date()): Prom
  * LE SUPER ADMIN EST PRÉVENU — une fois par personne et par jour. La clé unique (`userId`, `jour`) fait
  * le tri : deux tours qui franchissent le plafond ensemble n'écrivent qu'une ligne, un seul avis part.
  */
+// ─────────────────────────────── Les VISUELS (lot K2, décision 0032) ───────────────────────────────
+
+/** L'interrupteur GÉNÉRAL de l'IA, relu avant chaque génération d'image ou de vidéo : coupé, la phrase du refus. */
+export async function refusSiIaCoupee(): Promise<string | null> {
+  return (await interrupteurIaCoupe()) ? REFUS_IA_COUPEE : null;
+}
+
+/**
+ * UNE GÉNÉRATION D'IMAGE OU DE VIDÉO, AU JOURNAL — une ligne d'appel (`ModelCallLog`, rôle « image » ou « video ») et une
+ * ligne d'usage (`AiUsageLog`, route du même nom) au COÛT RÉEL : c'est la somme du mois de ces lignes qui se compare au
+ * plafond du Super Admin. Best-effort : le journal ne fait jamais échouer une génération déjà payée.
+ */
+export async function journaliserVisuel(v: {
+  userId: string; conversation: string | null; route: "image" | "video"; provider: string; model: string; ok: boolean;
+  ms: number; costUsd: number | null; entree: number; sortie: number; erreur?: string | null;
+}): Promise<void> {
+  if (v.ok) {
+    await prisma.modelCallLog.create({
+      data: {
+        route: v.route, role: v.route, feature: FEATURE_ASSISTANT_IA, userId: v.userId, threadId: v.conversation,
+        provider: v.provider, model: v.model, inputTokens: v.entree, outputTokens: v.sortie, costUsd: v.costUsd, ms: Math.round(v.ms),
+      },
+    }).catch(sansBloquer("assistant-ia.journaliserVisuel.appel"));
+  }
+  await logAiUsage({
+    feature: FEATURE_ASSISTANT_IA, provider: v.provider, model: v.model, userId: v.userId, ok: v.ok, latencyMs: Math.round(v.ms),
+    errorCode: v.ok ? null : (v.erreur ?? "erreur").slice(0, 120), route: v.route, threadId: v.conversation, llmCalls: 1,
+    inputTokens: v.entree, outputTokens: v.sortie, costUsd: v.ok ? v.costUsd : 0,
+  });
+}
+
+/** La dépense du mois civil en cours (UTC) d'une route de visuels, en dollars — toutes personnes confondues. */
+export async function depenseVisuelsDuMois(route: "image" | "video", maintenant = new Date()): Promise<number> {
+  const debut = new Date(Date.UTC(maintenant.getUTCFullYear(), maintenant.getUTCMonth(), 1));
+  const r = await prisma.aiUsageLog.aggregate({ where: { feature: FEATURE_ASSISTANT_IA, route, createdAt: { gte: debut } }, _sum: { costUsd: true } });
+  return Number(r._sum.costUsd ?? 0);
+}
+
+/** K2 (décision 0032) : un avis à UNE personne (cloche + téléphone) — sa vidéo est prête, ou n'a pas abouti. */
+export async function avertirPersonne(userId: string, avis: { title: string; body: string; link: string }): Promise<void> {
+  await notifyUser({ userId, type: "GENERIC", ...avis }).catch(sansBloquer("assistant-ia.avertirPersonne.notifyUser"));
+}
+
 /** J5 (décision 0022) : un avis aux Super Admins actifs (cloche + téléphone) — la régression d'un banc, par exemple. */
 export async function avertirSuperAdmins(avis: { title: string; body: string; link: string }): Promise<number> {
   const admins = await prisma.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true } });

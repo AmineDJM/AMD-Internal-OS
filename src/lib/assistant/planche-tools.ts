@@ -41,7 +41,7 @@ const lignesDe = (v: unknown): Ligne[] => (Array.isArray(v) ? v.filter((x): x is
 export const KINDS_RENDUS = new Set<string>([
   "agenda", "alerte", "artifact", "comparison", "dashboard", "directory", "document",
   "dossier", "email", "entity360", "mail", "mission", "people", "planification",
-  "progress", "queue", "record", "story", "table", "timeline", "viz",
+  "progress", "queue", "record", "story", "table", "timeline", "viz", "visuel",
 ]);
 
 export const PLANCHE_TOOLS: PowerTool[] = [

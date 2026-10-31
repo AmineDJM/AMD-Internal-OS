@@ -13,6 +13,7 @@ export function classerExclusionsCircuits(): void {
     "assistant-ia-consommation-actions:enregistrerReglagesAssistantIa", "assistant-ia-consommation-actions:enregistrerAccesAssistantIa", "assistant-ia-consommation-actions:enregistrerPlafondsTravaux",
     "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe", "assistant-ia-consommation-actions:enregistrerRetentionEffets",
     "assistant-ia-consommation-actions:enregistrerTravauxDOffice",
+    "assistant-ia-consommation-actions:enregistrerReglagesVisuels",
   ]);
   X("LA QUALITÉ CONTINUE DE L'ASSISTANT IA (J5 + J14, décision 0022) : le calendrier du banc programmé, un passage ou un "
     + "banc A/B demandé, et le modèle de chaque rôle — changé SEULEMENT sur un banc vert. Une IA ne choisit JAMAIS son propre "
