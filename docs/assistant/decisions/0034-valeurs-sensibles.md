@@ -86,8 +86,10 @@ veille, rédaction, traduction. La recherche web passe par la passerelle (rôle 
 y pose déjà `store: false` (`buildResponsesBody` : `store` = chaînage) ; aucun changement global, Adam garde son
 chaînage (`previous_response_id` → `store: true`) — le banc le tient des deux côtés. La transcription et la synthèse vocale
 (`/v1/audio/*`) n'ont pas de paramètre `store`. La voix temps réel (`/v1/live/sessions`, `gpt-live-1`) : **non posé** —
-aucun paramètre de conservation n'y est vérifié ; l'ajouter sans preuve risquerait un refus de la session. Les images de
-K2 : aucun appel de génération d'images n'existe dans le module à ce jour.
+aucun paramètre de conservation n'y est vérifié ; l'ajouter sans preuve risquerait un refus de la session. Les visuels de
+K2 (décision [0032](0032-visuels.md), `infra/visuels/fournisseurs.ts`) : `/images/generations`, `/images/edits` et `/videos`
+n'ont **pas** de paramètre `store` ; rien à poser — leur consigne passe déjà son propre filtre (`filtrerConsigne`). Le
+secours Gemini des images (Google) n'est pas couvert par ce paramètre d'OpenAI.
 
 **Mesuré** : l'Assistant IA n'enchaîne aucune réponse (`previous_response_id` absent du module : l'historique est renvoyé
 à chaque tour). Le SDK (Mastra 1.79, adaptateur OpenAI Responses) renvoyait jusqu'ici les étapes d'un tour à outils par

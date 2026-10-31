@@ -127,6 +127,11 @@ const MOTS_CLES: Record<string, string> = {
   terrain_demande_materiel: "echantillons echantillon boites materiel promotionnel brochures magasin demande stock delegue",
   terrain_tournee_demain: "tournee demain revoir repasser plan de tournee visite prevue ajoute medecin",
   terrain_piece_visite: "photo rattache joins piece compte rendu visite ordonnance presentoir carte de visite",
+  // K2 (décision 0032) — les visuels générés : images, vidéos, vidéos de données.
+  generer_image: "image genere dessine illustration visuel affiche photo picto pictogramme logo banniere couverture slide fond ecran cree fais moi une image dessin poster flyer",
+  modifier_image: "modifie retouche image photo change fond retire efface recadre stylise couleurs charte ajoute texte sur image photo jointe",
+  generer_video: "video clip film anime animation courte sequence scene genere fais une video",
+  video_de_donnees: "video animee graphique anime donnees chiffres barres courbe classement evolution budget ventes partage reseaux presentation mp4 anime les chiffres",
   // « Mes notes » (décision 0026) — le bloc-notes privé : offert seulement quand la demande en parle.
   lire_notes: "notes note bloc liste reste faire semaine page pages relis lis mes notes todo cases cochees noter",
   ajouter_note: "ajoute note notes noter liste bloc ligne puce case inscris rajoute semaine page ma page dans",

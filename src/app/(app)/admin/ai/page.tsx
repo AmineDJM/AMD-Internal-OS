@@ -14,7 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber, formatDateTime } from "@/lib/utils";
 import { AiSettingsForm } from "./ai-settings-form";
-import { depenseOcrVisionDuMois, lireReglageOcrVision } from "@/modules/assistant-ia/api";
+import { depenseOcrVisionDuMois, etatVisuelsPourAdministration, lireReglageOcrVision } from "@/modules/assistant-ia/api";
+import { ReglagesVisuelsForm } from "@/modules/assistant-ia/ecrans/reglages-visuels";
 import { AiHealthCheckButton } from "./health-check-button";
 import { adamHealth, type HealthLevel } from "@/lib/google/health";
 import { statistiquesCout, fmtUsd } from "@/platform/in-process/telemetry/usage-stats";
@@ -57,7 +58,9 @@ const libelleFonction = (f: string): string => (FEATURE_LABEL as Record<string, 
 export default async function AiControlCenterPage() {
   const user = await requireModule("ADMIN", "UPDATE");
   const settings = await getAiSettings();
-  const [ocrVision, depenseOcr] = await Promise.all([lireReglageOcrVision(), depenseOcrVisionDuMois().catch(sansBloquer("admin-ia.depense-ocr", 0))]);
+  const [ocrVision, depenseOcr, visuels] = await Promise.all([
+    lireReglageOcrVision(), depenseOcrVisionDuMois().catch(sansBloquer("admin-ia.depense-ocr", 0)), etatVisuelsPourAdministration(),
+  ]);
 
   const since30 = new Date(Date.now() - 30 * 86400000);
   const since7 = new Date(Date.now() - 7 * 86400000);
@@ -274,6 +277,14 @@ export default async function AiControlCenterPage() {
         <CardHeader><CardTitle>Activation par fonction</CardTitle></CardHeader>
         <CardContent>
           <AiSettingsForm initial={settings} ocrVision={{ plafondUsd: ocrVision.plafondUsd, depenseMois: depenseOcr }} />
+        </CardContent>
+      </Card>
+
+      {/* K2 (décision 0032) : images, vidéos et vidéos de données de l'Assistant IA — interrupteurs, plafonds du mois, modèles. */}
+      <Card>
+        <CardHeader><CardTitle>Images et vidéos générées</CardTitle></CardHeader>
+        <CardContent>
+          <ReglagesVisuelsForm initial={visuels.reglages} depenseImagesUsd={visuels.depenseImagesUsd} depenseVideosUsd={visuels.depenseVideosUsd} videoIndisponible={visuels.videoIndisponible} />
         </CardContent>
       </Card>
 

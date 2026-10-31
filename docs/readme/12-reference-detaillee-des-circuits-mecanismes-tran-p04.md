@@ -819,3 +819,21 @@ Décision [0028](../assistant/decisions/0028-recettes.md). Module `src/modules/r
   seulement ; famille fermée → processus retirés. `RecetteUsage` ; acceptation lue au travail lancé (même plan approuvé).
 - **Droits** : `voitLeCircuit` (module de l'écran du circuit ; formes d'Adam : Super Admin) — écran et assistant.
 
+
+### Assistant IA — images, vidéos et vidéos de données (lot K2, 31/10/2026)
+
+Décision `docs/assistant/decisions/0032-visuels.md`.
+
+- **Circuit d'une image** : outil `generer_image` / `modifier_image` → famille de console `VISUELS` (fermée par défaut,
+  Super Admin toujours) → `service.ts:genererImage` : interrupteur « Images » (Administration › IA) → interrupteur général
+  de l'IA → `filtrerConsigne` (aucune donnée confidentielle) → plafond du mois (somme `AiUsageLog` route `image`) →
+  OpenAI `gpt-image-2.5-sunburst` (secours `gemini-3-pro-image` seulement si OpenAI échoue ou refuse, dit) → coût réel au
+  journal → Drive personnel « Visuels de l'assistant » (Bibliothèque) → `AssistantIaVisuel` PRÊT → bloc `visuel` dans la
+  réponse (plein écran, Télécharger, Drive).
+- **Circuit d'une vidéo de données** : `video_de_donnees` → chaque valeur doit figurer dans les sorties d'outils du tour
+  (sinon refus nommant la valeur) → `AssistantIaVisuel` EN FILE → rendu immédiat si ffmpeg est là, sinon par le worker
+  (tâche `assistant.visuels`) → MP4 H.264 au Drive → carte mise à jour (relit `/api/assistant-ia/visuels/[id]`) → notification.
+- **Vidéo générée** : `generer_video` vérifie d'abord la fiche du modèle (`/v1/models/{id}`) — Sora arrêté le 24/09/2026 :
+  refus sans rien lancer ni facturer. Interrupteur coupé par défaut.
+- **Média** : `/api/assistant-ia/visuels/[id]/media` — propriétaire seule, droits du Drive relus, requêtes partielles (206,
+  indispensables au lecteur de l'iPhone), `?dl=1` à l'audit.

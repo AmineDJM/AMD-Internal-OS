@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029, 0030, 0034 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029, 0030, 0032, 0034 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false`).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0032 : images, vidéos et vidéos de données générées ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false`).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -43,6 +43,23 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   recherche web, pièces jointes (leur propre garde).
 - **`store: false`** sur tous les appels Mastra du module (`optionsFournisseur`) ; la recherche web (passerelle, sans
   chaînage) l'a déjà. Banc : `valeurs-sensibles.test.ts`.
+## Images, vidéos et vidéos de données (lot K2, décision 0032)
+
+- **Outils** (`infra/visuels/outils.ts`, conversation seulement, famille de console `VISUELS` fermée par défaut) :
+  `generer_image`, `modifier_image` (pièce jointe ou Drive, droits relus), `generer_video` (arrière-plan),
+  `video_de_donnees` (chiffres EXIGÉS dans les sorties d'outils du tour). Le résultat entre dans la réponse par un bloc
+  `visuel` (`fil/tour.ts` → `visuels`), rendu par `platform/ia/ecrans/blocks/visuel.tsx` (plein écran, lecteur natif, carte
+  « en cours » qui relit `app/api/assistant-ia/visuels/[id]`).
+- **Moteur** (`infra/visuels/service.ts`) : portes avant toute dépense — interrupteur de la nature, interrupteur général,
+  `filtrerConsigne` (`domaine/visuels/regles.ts`), plafond du mois (`consommation.ts:depenseVisuelsDuMois`) ; fichier au
+  Drive (« Visuels de l'assistant », port `portsArtefact.documents.creerFichier`) ; table `AssistantIaVisuel` ; coût réel
+  (`journaliserVisuel`). Fournisseurs : `infra/visuels/fournisseurs.ts` (gpt-image-2.5-sunburst ; gemini-3-pro-image en
+  secours seulement ; `/videos` après `etatModeleVideo` — Sora arrêté le 24/09/2026).
+- **Vidéo de données** : `domaine/visuels/video-donnees.ts` (pur : vérification, sous-titres calculés, SVG à l'instant t),
+  `infra/visuels/rendu-donnees.ts` (sharp + ffmpeg, H.264 yuv420p faststart) ; tâche `assistant.visuels`
+  (`traiterVisuelsEnFile` : rendu là où ffmpeg est, suivi des vidéos du modèle, échecs dits, avis à la fin).
+- **Console** : `ecrans/reglages-visuels.tsx` (Administration › IA), action `enregistrerReglagesVisuels`
+  (`actions-consommation.ts`). Tests : `domaine/visuels/visuels.test.ts`.
 
 ## Formulaires de carte et dépôt de dossier (lot J11, décision 0030)
 
