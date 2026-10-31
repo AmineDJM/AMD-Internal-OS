@@ -23,6 +23,8 @@ const PERMIS = [
   "/ia", "/login", "/change-password", "/adventum-ia/", "/ia-sw.js", "/_next/", "/favicon.ico", "/office-embed",
   "/api/assistant-ia/", "/api/auth/", "/api/drive/", "/api/documents/", "/api/artifact/", "/api/push/", "/api/health",
   "/api/onlyoffice/", "/api/rh/document/",
+  // K1 : les limites d'envoi que la saisie de l'app lit au chargement (`use-limites-envoi.ts`) — refusées, elles faisaient deux 404 en console.
+  "/api/uploads/limites",
 ];
 
 /** Les pages d'atterrissage de l'ERP (après connexion) : dans l'app, c'est l'app. */

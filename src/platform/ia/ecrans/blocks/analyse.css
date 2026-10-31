@@ -23,6 +23,11 @@
   color: var(--ia-texte);
 }
 
+/* Dans l'app, les graphiques prennent le bleu Adventum (#2C59A7, clair : #7FA6E3) — `viz-figure` lit `--chief-accent`. */
+.adventum-ia .ia-analyse { --chief-accent: 218 58% 41%; }
+@media (prefers-color-scheme: dark) { .adventum-ia:not([data-theme="clair"]) .ia-analyse { --chief-accent: 216 63% 69%; } }
+.adventum-ia[data-theme="sombre"] .ia-analyse, .dark .adventum-ia:not([data-theme="clair"]) .ia-analyse { --chief-accent: 216 63% 69%; }
+
 .ia-analyse-outils { display: flex; flex-wrap: wrap; gap: 8px; }
 .ia-analyse-recherche { flex: 1 1 160px; min-width: 0; }
 .ia-analyse-recherche input,
@@ -107,3 +112,6 @@
   .ia-analyse-calcul-liste > div { grid-template-columns: 1fr; gap: 2px; }
   .ia-analyse-geste { flex: 1 1 auto; }
 }
+
+/* Le « Données (n × m) » de la figure est aussi une cible tactile : 44 px dans une analyse. */
+.ia-analyse .chief-viz details > summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; }
