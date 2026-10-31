@@ -11,7 +11,7 @@ import { deposerSynthese } from "./fil/service";
 import { outilLancerUnTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
 import { genererTexte } from "./generer";
 import { auNomDe } from "./consommation";
-import { cleDeTitre, phraseSynthese, reglageDOffice, statutFini, type IssueSousMission } from "../domaine/sous-missions";
+import { cleDeTitre, extraitDuLivrable, phraseSynthese, reglageDOffice, statutFini, type IssueSousMission } from "../domaine/sous-missions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -53,7 +53,7 @@ export async function reglerPreferenceDOffice(userId: string, valeur: boolean | 
  * L'OUTIL « lancer_un_travail » DU TOUR — `lances` reçoit les travaux lancés (la carte du tour). Construit à chaque tour
  * (`fil/tour.ts`) : la mémoire « ce tour » est la fermeture.
  */
-export function outilSousMissionsPour(user: CurrentUser, persona: PersonaTravaux, lances: string[] = []): OutilTravail {
+export function outilSousMissionsPour(user: CurrentUser, persona: PersonaTravaux, lances: string[] = [], demarrage: "immediat" | "fin-du-tour" = "immediat"): OutilTravail {
   const duTour: { id: string; cle: string }[] = [];
   return outilLancerUnTravail(user.id, async (plan) => {
     const e = plan && typeof plan === "object" ? (plan as Record<string, unknown>) : {};
@@ -72,12 +72,25 @@ export function outilSousMissionsPour(user: CurrentUser, persona: PersonaTravaux
     }
     duTour.push({ id: r.travailId, cle });
     lances.push(r.travailId);
+    // D'OFFICE — à la FIN DU TOUR dans la conversation (banc réel du 31/10 : le modèle qui reformule faisait tourner pour
+    // rien des plans aussitôt remplacés) : le plan reste en attente le temps du tour, `demarrerSousMissionsDuTour` le lance.
     let demarre = false;
     if (planSansGeste(r.plan, r.gestes) && (await travauxDOfficePour(user))) {
-      demarre = (await demarrerDOffice(r.travailId, user.id, persona)).ok;
+      demarre = demarrage === "fin-du-tour" ? true : (await demarrerDOffice(r.travailId, user.id, persona)).ok;
     }
     return { ok: true, travailId: r.travailId, etapes: r.plan.etapes.length, gestes: r.gestes.map((g) => g.libelle), plafondUsd: r.plafondUsd, demarre, remplace: cible?.id ?? null };
   }, "LECTURE : le nom exact d'un de tes outils de lecture ; GESTE : le nom exact d'un de tes outils « preparer_… » / de relance / de rendez-vous.");
+}
+
+/**
+ * LA FIN DU TOUR : les sous-missions du tour encore en attente, SANS GESTE, démarrent d'office (réglage relu) ; les autres
+ * attendent l'accord de la personne (la carte du fil). Rend le nombre démarré.
+ */
+export async function demarrerSousMissionsDuTour(user: Pick<CurrentUser, "id" | "role">, ids: readonly string[], persona: PersonaTravaux): Promise<number> {
+  if (!ids.length || !(await travauxDOfficePour(user))) return 0;
+  let n = 0;
+  for (const id of ids) if ((await demarrerDOffice(id, user.id, persona).catch(sansBloquer("sous-missions.demarrer", { ok: false as const, erreur: "" }))).ok) n += 1;
+  return n;
 }
 
 // ─────────────────────────────── Le retour dans la conversation ───────────────────────────────
@@ -113,7 +126,7 @@ async function conclureTour(tour: { id: string; filId: string; userId: string; t
     const livrable = c.livrables[c.livrables.length - 1];
     return {
       titre: m.title, statut: m.status, coutUsd: m.costUsd,
-      extrait: censurerTexte((livrable?.contenu ?? c.trouvailles.slice(-3).map((t) => t.texte).join(" ")).replace(/\s+/g, " ").trim()).texte.slice(0, 700),
+      extrait: censurerTexte(extraitDuLivrable(livrable?.contenu ?? c.trouvailles.slice(-3).map((t) => t.texte).join("\n"))).texte,
       document: livrable?.document ? { nom: livrable.document.nom, lien: livrable.document.lien } : null,
       dureeMs: m.startedAt ? m.updatedAt.getTime() - m.startedAt.getTime() : null,
     };

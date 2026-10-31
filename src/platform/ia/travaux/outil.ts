@@ -131,12 +131,12 @@ export function outilLancerUnTravail(principalId: string, ouvrir: (plan: unknown
       if (r.demarre) {
         return JSON.stringify({
           statut: "DEMARRE", travailId: r.travailId, etapes: r.etapes, plafondUsd: r.plafondUsd, ...(r.remplace ? { remplace: r.remplace } : {}),
-          consigne: "Plan sans geste démarré d'office, en arrière-plan : dis-le en une phrase (la personne suit ses étapes dans le tableau « Missions », la synthèse reviendra dans la conversation). Ne donne aucun résultat maintenant — tu ne l'as pas encore.",
+          consigne: "Plan sans geste : il démarre d'office, en arrière-plan, dès la fin de ta réponse. Cette sous-mission EST lancée : ne rappelle pas l'outil pour elle (un nouvel appel au même titre la remplace et recommence tout). Dis-le en une phrase (la personne suit ses étapes dans le tableau « Missions », la synthèse reviendra dans la conversation). Ne donne aucun résultat maintenant — tu ne l'as pas encore.",
         });
       }
       return JSON.stringify({
         statut: "EN_ATTENTE_D_APPROBATION", travailId: r.travailId, etapes: r.etapes, gestes: r.gestes, plafondUsd: r.plafondUsd, ...(r.remplace ? { remplace: r.remplace } : {}),
-        consigne: "Rien n'a démarré : dis à la personne que le plan l'attend (carte « Approuver » dans la conversation ou tableau « Missions »), avec le nombre d'étapes, les gestes qu'elle autorisera et le plafond. Ne dis jamais que c'est fait. Pour corriger CE plan : `remplace` = ce travailId ; un appel sans `remplace` lance une sous-mission DE PLUS.",
+        consigne: "Rien n'a démarré : dis à la personne que le plan l'attend (carte « Approuver » dans la conversation ou tableau « Missions »), avec le nombre d'étapes, les gestes qu'elle autorisera et le plafond. Ne dis jamais que c'est fait. Ne rappelle pas l'outil pour ce plan, sauf pour le CORRIGER : `remplace` = ce travailId ; un appel sans `remplace` lance une sous-mission DE PLUS.",
       });
     },
   };

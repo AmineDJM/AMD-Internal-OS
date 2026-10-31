@@ -45,6 +45,20 @@ export function duree(ms: number | null | undefined): string {
   return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
 }
 
+/** `/drive/<id>` → `/api/drive/<id>/raw` (le reste tel quel). */
+export const lienTelechargement = (lien: string): string => lien.replace(/^\/drive\/([^/?#]+)$/, "/api/drive/$1/raw");
+
+/**
+ * L'EXTRAIT d'un livrable pour la synthèse : le TEXTE de ses premiers paragraphes, sans titres, tableaux ni marques
+ * Markdown (un livrable aplati sur une ligne commençait par « # » et s'affichait tout en titre).
+ */
+export function extraitDuLivrable(md: string, max = 700): string {
+  const lignes = md.split(/\r?\n/).map((l) => l.trim())
+    .filter((l) => l && !/^#{1,6}\s/.test(l) && !l.startsWith("|") && !/^[-*_]{3,}$/.test(l));
+  const texte = lignes.join(" ").replace(/\*\*|__|`/g, "").replace(/^\s*[-*]\s+/g, "").replace(/\s+/g, " ").trim();
+  return texte.length > max ? `${texte.slice(0, max - 1).replace(/\s+\S*$/, "")}…` : texte;
+}
+
 /** LA RÉPONSE DE SYNTHÈSE écrite dans la conversation — un en-tête, un « en bref » éventuel, puis chaque sous-mission. */
 export function phraseSynthese(issues: readonly IssueSousMission[], enBref: string | null): string {
   const faites = issues.filter((i) => i.statut === "COMPLETED").length;
@@ -54,8 +68,10 @@ export function phraseSynthese(issues: readonly IssueSousMission[], enBref: stri
     : `**La mission « ${issues[0]?.titre ?? ""} » est ${ISSUE[issues[0]?.statut ?? ""] ?? "finie"}** — coût ${usd(cout)}.`;
   const blocs = issues.map((i, n) => {
     const lignes = [`${issues.length > 1 ? `**${n + 1}. ${i.titre}** — ${ISSUE[i.statut] ?? i.statut.toLowerCase()}` : ""}${i.dureeMs != null && issues.length > 1 ? ` (${duree(i.dureeMs)})` : ""}`];
-    if (i.extrait) lignes.push(i.extrait.length >= 700 ? `${i.extrait.slice(0, 697)}…` : i.extrait);
-    if (i.document) lignes.push(`Livrable : [${i.document.nom}](${i.document.lien})`);
+    if (i.extrait) lignes.push(i.extrait);
+    // Le lien de TÉLÉCHARGEMENT (`/api/drive/…/raw`) : servi par l'ERP comme par l'app (où `/drive/…` n'existe pas) ; la
+    // pièce s'affiche aussi en puce ouvrable sous la réponse (les identifiants du Drive cités).
+    if (i.document) lignes.push(`Livrable : [${i.document.nom}](${lienTelechargement(i.document.lien)})`);
     return lignes.filter(Boolean).join("\n\n");
   });
   return [tete, enBref ? `En bref : ${enBref}` : null, ...blocs].filter(Boolean).join("\n\n");

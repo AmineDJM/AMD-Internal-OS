@@ -101,7 +101,8 @@ async function resoudreDemandes(plan: PlanTravail, principalId: string, persona:
 export async function approuverTravail(travailId: string, principalId: string, persona: PersonaTravaux, clock: Clock = systemClock): Promise<ResultatTravail> {
   const m = await prisma.mission.findFirst({ where: ou(travailId, principalId), select: { id: true, status: true, title: true, carnet: true, gestesAutorises: true, persona: true, parentMissionId: true } });
   if (!m) return { ok: false, erreur: "Travail introuvable — ou il ne vous appartient pas." };
-  if (m.status !== "AWAITING_APPROVAL") return { ok: false, erreur: "Ce plan a déjà été approuvé ou arrêté." };
+  // K3 : un plan DÉJÀ lancé (d'office, ou par un autre écran) — le second « Approuver » n'est pas une erreur.
+  if (m.status !== "AWAITING_APPROVAL") return m.status === "CANCELLED" ? { ok: false, erreur: "Ce plan a été arrêté : demandez-en un nouveau." } : { ok: true, travailId, message: "Ce plan est déjà lancé." };
   if (m.persona !== persona.persona) return { ok: false, erreur: "Ce travail n'appartient pas à cet assistant." };
   const refus = await persona.refusTravail(principalId);
   if (refus) return { ok: false, erreur: refus };

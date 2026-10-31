@@ -41,7 +41,8 @@ export async function reveillerTravauxSignales(o: {
   const out: BilanReveils = { pris: 0, conduits: [], abstenu: false };
   if (await webDoitSAbstenir(o.mode ?? "web", o.executeur ?? "web", clock.now())) return { ...out, abstenu: true };
   const signales = await prisma.mission.findMany({
-    where: { kind: "TRAVAIL", reveilDemandeLe: { not: null }, ...(o.seulement ? { id: { in: [...o.seulement] } } : {}) },
+    // K3 : un travail fini ou annulé entre le signal et le réveil ne se conduit plus (son signal est simplement ignoré).
+    where: { kind: "TRAVAIL", reveilDemandeLe: { not: null }, status: { notIn: ["COMPLETED", "CANCELLED", "FAILED"] }, ...(o.seulement ? { id: { in: [...o.seulement] } } : {}) },
     select: { id: true, persona: true, reveilDemandeLe: true },
     orderBy: [{ priority: "desc" }, { reveilDemandeLe: "asc" }],
     take: PAR_PASSAGE,

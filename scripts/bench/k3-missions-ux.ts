@@ -40,6 +40,7 @@ async function connexion(b: Browser, opts: Parameters<Browser["newContext"]>[0])
   const p = await ctx.newPage();
   p.on("console", (m) => { if (m.type() === "error") erreurs.push(`[${opts?.viewport?.width ?? "?"}] ${m.text().slice(0, 300)}`); });
   p.on("pageerror", (e) => erreurs.push(`[pageerror] ${e.message.slice(0, 300)}`));
+  p.on("response", (r) => { if (r.status() >= 400) erreurs.push(`[${r.status()}] ${r.url().replace(BASE, "")}`); });
   await p.goto("/login");
   await p.fill("input[name=email]", EMAIL);
   await p.fill("input[name=password]", MDP);
@@ -60,108 +61,128 @@ async function envoyer(p: Page, texte: string) {
   await p.click("button[aria-label=Envoyer]");
 }
 
-/** L'observateur posé dans la page : chaque changement d'état d'une étape, à l'instant où l'écran le montre. */
-const OBSERVER = () => {
-  const w = window as unknown as { __k3: { m: string; e: string; etat: string; t: number }[] };
-  w.__k3 = [];
-  const vus = new Map<string, string>();
+/** L'observateur posé dans la page : chaque changement d'état d'une étape, à l'instant où l'écran le montre (une chaîne :
+ *  le code transpilé d'une fonction ne passerait pas tel quel dans la page). */
+const OBSERVER = `(() => {
+  window.__k3 = [];
+  const vus = new Map();
   const lire = () => {
-    document.querySelectorAll<HTMLElement>("[data-testid=mission]").forEach((m) => {
-      m.querySelectorAll<HTMLElement>("[data-etape]").forEach((e) => {
-        const cle = `${m.dataset.mission}|${e.dataset.etape}`;
-        if (vus.get(cle) !== e.dataset.etat) { vus.set(cle, e.dataset.etat ?? ""); w.__k3.push({ m: m.dataset.mission ?? "", e: e.dataset.etape ?? "", etat: e.dataset.etat ?? "", t: Date.now() }); }
+    document.querySelectorAll("[data-testid=mission]").forEach((m) => {
+      m.querySelectorAll("[data-etape]").forEach((e) => {
+        const cle = m.dataset.mission + "|" + e.dataset.etape;
+        if (vus.get(cle) !== e.dataset.etat) { vus.set(cle, e.dataset.etat || ""); window.__k3.push({ m: m.dataset.mission || "", e: e.dataset.etape || "", etat: e.dataset.etat || "", t: Date.now() }); }
       });
     });
   };
   new MutationObserver(lire).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-etat"] });
   lire();
-};
+})()`;
 
-async function bureau(b: Browser, debut: Date) {
+const FINIS = ["COMPLETED", "CANCELLED", "FAILED", "PARTIAL", "BLOCKED"];
+const lireTransitions = (p: Page) => p.evaluate("window.__k3 ? window.__k3.splice(0) : []") as Promise<{ m: string; e: string; etat: string; t: number }[]>;
+
+async function bureau(b: Browser) {
   const p = await connexion(b, { viewport: { width: 1280, height: 820 } });
+  const moi = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL }, select: { id: true } });
   await largeurOk(p, "bureau-accueil");
   // ── 1. Le message qui lance trois sous-missions ─────────────────────────────────────────────
   await envoyer(p, MESSAGE);
   const t0 = Date.now();
-  await p.waitForSelector("[data-testid=carte-sous-missions]", { timeout: 240_000 });
+  await p.waitForSelector("[data-testid=carte-sous-missions] [data-testid=sous-mission]", { timeout: 240_000 });
   mesures.tourLancementS = Math.round((Date.now() - t0) / 1000);
-  await p.waitForTimeout(1500);
-  await capture(p, "01-bureau-carte-sous-missions");
   const ids = await p.$$eval("[data-testid=sous-mission]", (xs) => xs.map((x) => (x as HTMLElement).dataset.mission ?? ""));
   mesures.sousMissions = ids.length;
-  // Celles qui attendent un accord (si le démarrage d'office est coupé) : « Tout approuver ».
   const tout = p.getByRole("button", { name: /Tout approuver|Approuver et lancer/ });
   if (await tout.count()) await tout.first().click();
 
-  // ── 2. Le tableau de bord, en temps réel ─────────────────────────────────────────────────────
+  // ── 2. La discussion continue AUSSITÔT, pendant que les sous-missions tournent ─────────────────
+  const tours = () => prisma.assistantIaTour.count({ where: { userId: moi.id, role: "assistant", etat: "TERMINE", syntheseDe: null } });
+  const avant = await tours();
+  const t1 = new Date();
+  await envoyer(p, SECOND);
+  await capture(p, "01-bureau-carte-sous-missions-et-second-message");
+  const limiteReponse = Date.now() + 180_000;
+  while ((await tours()) <= avant && Date.now() < limiteReponse) await p.waitForTimeout(500);
+  const t2 = new Date();
+  mesures.reponsePendantMissionsS = Math.round((t2.getTime() - t1.getTime()) / 100) / 10;
+  // Ce que les sous-missions ont fait PENDANT que la réponse s'écrivait (base, horodatages du moteur).
+  mesures.etapesFaitesPendantLaReponse = await prisma.missionStep.count({ where: { missionId: { in: ids }, OR: [{ startedAt: { gte: t1, lte: t2 } }, { completedAt: { gte: t1, lte: t2 } }] } });
+  await p.waitForTimeout(1200);
+  await capture(p, "02-bureau-discussion-continue");
+
+  // ── 3. Le tableau de bord, en temps réel ─────────────────────────────────────────────────────
   await p.click("[data-testid=indicateur-missions]");
   await p.waitForSelector("[data-testid=tableau-missions] [data-testid=mode-flux][data-mode=direct]", { timeout: 30_000 });
   for (const id of ids) await p.click(`[data-testid=mission][data-mission="${id}"] > button`).catch(() => undefined);
-  await p.evaluate(OBSERVER);
-  await capture(p, "02-bureau-tableau-en-mouvement-a");
-
-  // ── 3. La discussion continue PENDANT que les sous-missions tournent ───────────────────────────
-  await p.click("[data-testid=tableau-missions] button[aria-label=Fermer]");
-  const avant = await p.$$eval("[data-testid=adventum-ia] main .prose, [data-testid=adventum-ia] main article", (x) => x.length).catch(() => 0);
-  const t1 = Date.now();
-  await envoyer(p, SECOND);
-  await p.waitForFunction((n) => document.querySelectorAll("[data-testid=adventum-ia] main .prose, [data-testid=adventum-ia] main article").length > n + 0, avant, { timeout: 180_000 }).catch(() => undefined);
-  await p.waitForFunction(() => !document.querySelector("[data-testid=adventum-ia] [aria-busy=true]"), undefined, { timeout: 120_000 }).catch(() => undefined);
-  mesures.reponsePendantMissionsS = Math.round((Date.now() - t1) / 1000);
-  const vivantesPendant = await prisma.mission.count({ where: { id: { in: ids }, status: { in: ["READY", "RUNNING", "WAITING_EVENT", "WAITING_INPUT", "WAITING_DEPENDENCY", "RETRYING"] } } });
-  mesures.missionsVivantesPendantLaReponse = vivantesPendant;
-  await capture(p, "03-bureau-discussion-continue");
-
-  await p.click("[data-testid=indicateur-missions]");
-  await p.waitForTimeout(800);
-  for (const id of ids) {
-    const ouverte = await p.$(`[data-testid=mission][data-mission="${id}"] [data-testid=etape]`);
-    if (!ouverte) await p.click(`[data-testid=mission][data-mission="${id}"] > button`).catch(() => undefined);
-  }
-  await p.evaluate(OBSERVER);
-  await capture(p, "04-bureau-tableau-en-mouvement-b");
-
-  // ── 4. Jusqu'à la fin (10 min au plus), captures en route ──────────────────────────────────────
+  await capture(p, "03-bureau-tableau-en-mouvement");
   const limite = Date.now() + 10 * 60_000;
-  let n = 0;
-  const finis = ["COMPLETED", "CANCELLED", "FAILED", "PARTIAL", "BLOCKED"];
-  const transitions: { m: string; e: string; etat: string; t: number }[] = [];
   while (Date.now() < limite) {
-    await p.waitForTimeout(5_000);
-    transitions.push(...(await p.evaluate(() => { const w = window as unknown as { __k3: { m: string; e: string; etat: string; t: number }[] }; const x = w.__k3.splice(0); return x; })));
-    if (n < 3 && (n + 1) * 25_000 < Date.now() - t1) { await capture(p, `05-bureau-tableau-en-mouvement-${String.fromCharCode(99 + n)}`); n++; }
     const ms = await prisma.mission.findMany({ where: { id: { in: ids } }, select: { status: true } });
-    if (ms.length && ms.every((m) => finis.includes(m.status))) break;
+    if (ms.length && ms.every((m) => FINIS.includes(m.status))) break;
+    await p.waitForTimeout(2_000);
   }
   await p.waitForTimeout(2_000);
-  transitions.push(...(await p.evaluate(() => (window as unknown as { __k3: { m: string; e: string; etat: string; t: number }[] }).__k3.splice(0))));
-  await capture(p, "06-bureau-tableau-fin");
+  const onglet = p.getByRole("tab", { name: /Terminées/ });
+  await onglet.click();
+  for (const id of ids) await p.click(`[data-testid=mission][data-mission="${id}"] > button`).catch(() => undefined);
+  await capture(p, "04-bureau-tableau-termine");
 
-  // LA LATENCE D'AFFICHAGE : écran − base, pour chaque étape vue passer « en cours » ou « faite ».
-  const etapes = await prisma.missionStep.findMany({ where: { missionId: { in: ids } }, select: { missionId: true, key: true, startedAt: true, completedAt: true, updatedAt: true, status: true } });
-  const lat: number[] = [];
-  for (const tr of transitions) {
-    const s = etapes.find((x) => x.missionId === tr.m && x.key === tr.e);
-    const ref = tr.etat === "EN_COURS" ? s?.startedAt : tr.etat === "FAITE" ? (s?.completedAt ?? s?.updatedAt) : null;
-    if (ref) lat.push(tr.t - ref.getTime());
+  // EN PARALLÈLE ? Les fenêtres d'exécution des étapes de missions DIFFÉRENTES se chevauchent-elles ?
+  const etapes = await prisma.missionStep.findMany({ where: { missionId: { in: ids }, startedAt: { not: null } }, select: { missionId: true, startedAt: true, completedAt: true, updatedAt: true } });
+  let chevauchements = 0;
+  for (const a of etapes) for (const c of etapes) {
+    if (a.missionId >= c.missionId) continue;
+    const fa = (a.completedAt ?? a.updatedAt).getTime(); const fc = (c.completedAt ?? c.updatedAt).getTime();
+    if (a.startedAt!.getTime() < fc && c.startedAt!.getTime() < fa) chevauchements++;
   }
-  lat.sort((a, b) => a - b);
-  const q = (x: number) => lat[Math.min(lat.length - 1, Math.floor(x * lat.length))];
-  mesures.latenceAffichageMs = { n: lat.length, mediane: q(0.5), p95: q(0.95), max: lat[lat.length - 1] };
+  mesures.parallele = { pairesDEtapesSimultanees: chevauchements };
 
-  // ── 5. La synthèse dans la conversation ─────────────────────────────────────────────────────
+  // ── 4. La synthèse dans la conversation ─────────────────────────────────────────────────────
   await p.click("[data-testid=tableau-missions] button[aria-label=Fermer]").catch(() => undefined);
   const synthese = await p.waitForFunction(() => /sous-missions sont finies|mission « .* » est/i.test(document.querySelector("[data-testid=adventum-ia] main")?.textContent ?? ""), undefined, { timeout: 120_000 }).then(() => true).catch(() => false);
   mesures.syntheseDansLaConversation = synthese;
+  await p.mouse.move(700, 400);
+  await p.mouse.wheel(0, -900);
+  await p.waitForTimeout(500);
+  await capture(p, "05-bureau-synthese-haut");
   await p.mouse.wheel(0, 4000);
-  await capture(p, "07-bureau-synthese");
+  await p.waitForTimeout(500);
+  await capture(p, "06-bureau-synthese-bas");
   const statuts = await prisma.mission.findMany({ where: { id: { in: ids } }, select: { title: true, status: true, costUsd: true, startedAt: true, updatedAt: true } });
   mesures.missions = statuts.map((m) => ({ titre: m.title, statut: m.status, coutUsd: m.costUsd, dureeS: m.startedAt ? Math.round((m.updatedAt.getTime() - m.startedAt.getTime()) / 1000) : null }));
-  // Elles ont tourné ENSEMBLE : chevauchement des fenêtres d'exécution.
-  const fen = statuts.filter((m) => m.startedAt).map((m) => [m.startedAt!.getTime(), m.updatedAt.getTime()] as const);
-  mesures.parallele = fen.length > 1 && Math.max(...fen.map((f) => f[0])) < Math.min(...fen.map((f) => f[1]));
-  void debut;
   await largeurOk(p, "bureau-fin");
+
+  // ── 5. LA LATENCE D'AFFICHAGE, mesurée sur une SONDE : une mission de 6 étapes dont le banc change l'état en base
+  //       toutes les 1,5 s (hors moteur : ni bail, ni modèle) ; l'écran note l'instant où il montre chaque changement.
+  const sonde = await prisma.mission.create({
+    data: {
+      kind: "TRAVAIL", ownerId: moi.id, principalId: moi.id, persona: "ASSISTANT_IA", title: "Sonde de latence du tableau", objective: "Mesurer la latence d'affichage.",
+      status: "RUNNING", startedAt: new Date(), planVersion: 1,
+      steps: { create: Array.from({ length: 6 }, (_, k) => ({ key: `s${k + 1}`, title: `Étape sonde ${k + 1}`, nodeType: "CAPABILITY", status: "PENDING" })) },
+    },
+    select: { id: true },
+  });
+  await p.click("[data-testid=indicateur-missions]");
+  await p.getByRole("tab", { name: /En cours/ }).click();
+  await p.waitForSelector(`[data-testid=mission][data-mission="${sonde.id}"]`, { timeout: 20_000 });
+  await p.click(`[data-testid=mission][data-mission="${sonde.id}"] > button`);
+  await p.evaluate(OBSERVER);
+  const ecrits: { e: string; etat: string; t: number }[] = [];
+  for (let k = 1; k <= 6; k++) {
+    for (const [statut, etat] of [["RUNNING", "EN_COURS"], ["DONE", "FAITE"]] as const) {
+      await p.waitForTimeout(1_500);
+      const t = new Date();
+      await prisma.missionStep.update({ where: { missionId_key: { missionId: sonde.id, key: `s${k}` } }, data: { status: statut, ...(statut === "RUNNING" ? { startedAt: t } : { completedAt: t }) } });
+      ecrits.push({ e: `s${k}`, etat, t: t.getTime() });
+      if (k === 3 && statut === "RUNNING") { await p.waitForTimeout(600); await capture(p, "07-bureau-tableau-sonde-en-mouvement"); }
+    }
+  }
+  await p.waitForTimeout(3_000);
+  const vus = (await lireTransitions(p)).filter((x) => x.m === sonde.id);
+  const lat = ecrits.map((w) => { const v = vus.find((x) => x.e === w.e && x.etat === w.etat); return v ? v.t - w.t : null; }).filter((x): x is number => x !== null).sort((a, c) => a - c);
+  const q = (x: number) => lat[Math.min(lat.length - 1, Math.floor(x * lat.length))];
+  mesures.latenceAffichageMs = { changements: ecrits.length, vus: lat.length, mediane: q(0.5), p95: q(0.95), max: lat[lat.length - 1] };
+  await prisma.mission.delete({ where: { id: sonde.id } });
   await p.context().close();
 }
 
@@ -224,7 +245,7 @@ async function main() {
   const b = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
   const etapes = (process.env.ETAPES ?? "bureau,iphone,depot").split(",");
   try {
-    if (etapes.includes("bureau")) await bureau(b, debut);
+    if (etapes.includes("bureau")) await bureau(b);
     if (etapes.includes("iphone")) { await iphone(b, false); await iphone(b, true); }
     if (etapes.includes("depot")) await depotDOffice(b);
   } finally {

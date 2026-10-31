@@ -3,9 +3,9 @@ import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
-import { outilTravailPour, PERSONA_ASSISTANT_IA } from "./travaux";
+import { demarrerLesSousMissions, outilTravailPour, PERSONA_ASSISTANT_IA } from "./travaux";
 import { conclureSousMissions, tableauDesMissions, travauxDOfficePour } from "./sous-missions";
-import { cleDeTitre, phraseIndicateur, phraseSynthese, reglageDOffice } from "../domaine/sous-missions";
+import { cleDeTitre, extraitDuLivrable, phraseIndicateur, phraseSynthese, reglageDOffice } from "../domaine/sous-missions";
 import { planSansGeste } from "@/lib/missions/travaux/regles";
 import { travauxEnParallele } from "@/lib/missions/travaux/balayage";
 
@@ -62,7 +62,8 @@ describe("les règles pures des sous-missions", () => {
     ], "Tout est lu.");
     expect(t).toContain("1/2 terminée");
     expect(t).toContain("En bref : Tout est lu.");
-    expect(t).toContain("[Lecture.docx](/drive/cabcdefghijklmnopqrstuv)");
+    expect(t).toContain("[Lecture.docx](/api/drive/cabcdefghijklmnopqrstuv/raw)");
+    expect(extraitDuLivrable("# Titre\n\n## Partie\nDouze **pièces** lues.\n| a | b |\n|---|---|\nDeux manquent.")).toBe("Douze pièces lues. Deux manquent.");
     expect(t).toContain("**2. Analyse** — en échec");
   });
   it("les travaux d'un passage avancent ENSEMBLE, sous une borne réglable", () => {
@@ -100,6 +101,20 @@ suite("les sous-missions — plusieurs par tour, d'office, conclues dans la conv
     expect(ms.every((m) => m.status === "READY" && m.planApprouveLe && m.reveilDemandeLe)).toBe(true);
     const journal = await prisma.missionEvent.count({ where: { missionId: { in: lances }, kind: "TRAVAIL_DOFFICE" } });
     expect(journal).toBe(3);
+  });
+
+  it("dans la CONVERSATION, le démarrage d'office attend la FIN du tour : une reformulation est annulée avant d'avoir coûté", async () => {
+    const lances: string[] = [];
+    const outil = outilTravailPour(chef, lances, "fin-du-tour");
+    const a = JSON.parse(await outil.run(plan("Revue des contrats"), chef)) as { statut: string; travailId: string };
+    expect(a.statut).toBe("DEMARRE");
+    expect((await prisma.mission.findUnique({ where: { id: a.travailId }, select: { status: true } }))?.status).toBe("AWAITING_APPROVAL");
+    const b = JSON.parse(await outil.run(plan("Revue des contrats."), chef)) as { travailId: string; remplace: string };
+    expect(b.remplace).toBe(a.travailId);
+    expect(await demarrerLesSousMissions(chef, lances)).toBe(1);
+    const ms = await prisma.mission.findMany({ where: { id: { in: [a.travailId, b.travailId] } }, select: { id: true, status: true, planApprouveLe: true } });
+    expect(ms.find((m) => m.id === a.travailId)?.planApprouveLe).toBeNull();
+    expect(ms.find((m) => m.id === b.travailId)?.status).toBe("READY");
   });
 
   it("la personne a réglé « non » : le plan sans geste ATTEND son accord", async () => {

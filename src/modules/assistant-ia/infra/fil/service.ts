@@ -10,6 +10,7 @@ import { auNomDe } from "../consommation";
 import { resumeLecture, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../../domaine/lecture/regles";
 import { PIECES_PAR_ENVOI_MAX } from "../../domaine/lecture/depot";
 import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
+import { demarrerLesSousMissions } from "../travaux";
 import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
 import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
@@ -346,6 +347,9 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
   await enVol;
 
   if (r.ok) {
+    // K3 (décision 0033) : les sous-missions sans geste du tour démarrent d'office (réglage relu) AVANT que la réponse
+    // s'affiche — la carte ne montre jamais, le temps d'un battement, un « Approuver » qui n'a plus lieu d'être.
+    if (r.travaux.length) await demarrerLesSousMissions(user, r.travaux).catch(sansBloquer("fil-service.demarrerLesSousMissions"));
     await finir({
       etat: ETAT.TERMINE, contenu: r.content, etapes,
       blocs: r.blocs as unknown as Prisma.InputJsonValue,

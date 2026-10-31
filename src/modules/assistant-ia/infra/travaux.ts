@@ -18,7 +18,7 @@ import { recordAudit } from "@/lib/audit";
 import { executerHorsRequete, journaliserGeste } from "@/platform/ia/hors-requete";
 import { droitsSurDocument } from "@/platform/ia/artifact/ports";
 import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, type OutilTravail } from "@/platform/ia/travaux/outil";
-import { conclureSousMissions, outilSousMissionsPour } from "./sous-missions";
+import { conclureSousMissions, demarrerSousMissionsDuTour, outilSousMissionsPour } from "./sous-missions";
 import { deposerLivrableTravail } from "./travaux-livrables";
 
 // J8 (décision 0023) : la porte du moteur des travaux pour le reste du module — délégation, équipe, priorité.
@@ -246,9 +246,12 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
  * « UN TOUR, UN PLAN » (banc réel du 31/10/2026) tient pour la REFORMULATION : `remplace`, ou un titre déjà proposé
  * dans ce tour, remplace le plan au lieu d'en ajouter un.
  */
-export function outilTravailPour(user: CurrentUser, lances: string[] = []): OutilTravail {
-  return outilSousMissionsPour(user, PERSONA_ASSISTANT_IA, lances);
+export function outilTravailPour(user: CurrentUser, lances: string[] = [], demarrage: "immediat" | "fin-du-tour" = "immediat"): OutilTravail {
+  return outilSousMissionsPour(user, PERSONA_ASSISTANT_IA, lances, demarrage);
 }
+
+/** La fin d'un tour de la conversation : ses sous-missions sans geste démarrent d'office (réglage de la personne). */
+export const demarrerLesSousMissions = (user: CurrentUser, ids: readonly string[]) => demarrerSousMissionsDuTour(user, ids, PERSONA_ASSISTANT_IA);
 
 /** La consigne des travaux, renforcée d'un indice quand la demande a la forme d'un travail long. */
 export const consigneTravaux = (texte: string): string => (demandeLongue(texte) ? `${CONSIGNE_TRAVAUX}\n${INDICE_DEMANDE_LONGUE}` : CONSIGNE_TRAVAUX);

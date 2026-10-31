@@ -304,7 +304,7 @@ function DOfficeParRole({ roles }: { roles: LigneRole[] }) {
     void run(() => enregistrerTravauxDOffice(fd), () => setOk(role));
   };
   return (
-    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
       {roles.map((r) => (
         <label key={r.role} className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm">
           <span className="min-w-0 truncate">{r.libelle}</span>

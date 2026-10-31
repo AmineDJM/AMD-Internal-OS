@@ -62,7 +62,10 @@ conduisent jamais le même travail), et à l'intérieur d'un travail la concurre
 
 Un plan dont toutes les étapes sont LECTURE, LOTS, ANALYSE ou LIVRABLE (le livrable est déposé dans le Drive de la personne
 elle-même), et qui n'autorise aucun geste, peut démarrer sans clic : l'approbation est donnée au nom de la personne, dite au
-journal (« Démarré d'office », `TRAVAIL_DOFFICE`), et l'outil répond `DEMARRE`. Un GESTE, une DEMANDE à un collègue ou une
+journal (« Démarré d'office », `TRAVAIL_DOFFICE`), et l'outil répond `DEMARRE`. Dans la conversation, ce démarrage a lieu **à la
+fin du tour** (`demarrerLesSousMissions`, après l'écriture de la réponse) : le premier banc réel a montré le modèle rappeler
+l'outil sur plusieurs étapes d'un même tour — un plan démarré aussitôt puis remplacé avait déjà coûté ; en attente le temps du
+tour, il est annulé avant d'avoir rien dépensé. Un GESTE, une DEMANDE à un collègue ou une
 ATTENTE dans le plan : toujours approuvé à la main.
 
 **Le réglage** (décision proposée, à confirmer par la Direction) : **OUI pour le Super Admin, NON pour les autres** — la
