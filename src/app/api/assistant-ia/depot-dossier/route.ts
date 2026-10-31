@@ -37,7 +37,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await getCurrentUser();
+  // Une lecture : elle voit comme la personne (vue exacte comprise) — la file est alors rendue vide.
+  const user = req.method === "GET" ? await getCurrentUser() : await getCurrentUserPourEcrire();
   const refus = refusAssistantIA(user);
   if (refus || !user) return refus ?? NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (enVueExacte(user)) return NextResponse.json({ lots: [] }, SANS_CACHE);

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useId, useRef, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
+import { sansBloquer } from "@/lib/journal";
 import type { ChampFormulaire, FormulaireCarte, Saisie, Saisies } from "@/platform/ia/capacites/formulaire";
 
 /**
@@ -141,7 +142,8 @@ function SelecteurReference({ champ, id, decrit, invalide, classe, valeurs, mult
     setCharge(true);
     const t = setTimeout(() => {
       onChercher(champ.nom, q).then((o) => { if (vivant) { setOptions(o); setActif(o.length ? 0 : -1); setOuvert(true); } })
-        .catch(() => { if (vivant) setOptions([]); })
+        // Recherche échouée : journalisée, la liste se vide (la personne peut retaper).
+        .catch((e: unknown) => { sansBloquer("formulaire-carte.chercherReference")(e); if (vivant) setOptions([]); })
         .finally(() => { if (vivant) setCharge(false); });
     }, 250);
     return () => { vivant = false; clearTimeout(t); };

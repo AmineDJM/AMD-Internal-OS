@@ -1,9 +1,5 @@
 "use server";
 
-// EN TÊTE, À DESSEIN : le catalogue d'Adam a un cycle d'imports (`assistant.ts` ↔ `assistant/ops`) qui ne tient que si
-// `@/lib/assistant` est évalué AVANT `ops`. Hors de la coque de l'ERP (l'app Adventum IA, `/ia`), cette porte est le premier
-// chargement : `api` en tête atteignait `ops` d'abord (« Cannot access 'DOMAIN_TOOL_DEFS' before initialization »).
-import { performAction, type AssistantActionPayload } from "@/lib/assistant";
 import { porte } from "./infra/porte-actions";
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
