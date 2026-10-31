@@ -31,7 +31,7 @@ export const LIBELLE_FAMILLE: Record<FamilleIa, string> = {
 };
 
 export const AIDE_FAMILLE: Record<FamilleIa, string> = {
-  SALAIRES: "Salaire de base, brut, net, coût employeur, masse salariale. Les montants ne partent jamais au modèle : ils s'affichent à la personne.",
+  SALAIRES: "Salaire de base, brut, net, coût employeur, masse salariale. Ouverte, l'assistant les donne à la personne (au modèle en clair ou en repères : réglage « Valeurs sensibles »).",
   BUDGETS: "Enveloppes, consommé, restant, agrégats financiers.",
   CONTRATS_RH: "Contrats, avenants, attestations et autres pièces du dossier RH d'autrui : lien de téléchargement et lecture.",
   FICHES: "Fiche RH d'un collaborateur (poste, contrat, congés) et situation RH.",

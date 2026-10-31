@@ -403,6 +403,24 @@ export function sansValeursRevelees(texte: string): string {
   return (texte ?? "").replace(RE_REVELEE, MASQUE_CONFIDENTIEL).replace(RE_JETON, MASQUE_CONFIDENTIEL);
 }
 
+/**
+ * MODE « EN CLAIR » (décision 0034) : une valeur révélée garde sa valeur, sans ses bornes — pour la voix et
+ * l'historique d'une personne qui a le droit de la voir. Un repère resté brut redevient « [confidentiel] ».
+ */
+export function retirerBornes(texte: string): string {
+  return (texte ?? "").replace(RE_REVELEE, (m) => m.slice(1, -1)).replace(RE_JETON, MASQUE_CONFIDENTIEL);
+}
+
+/**
+ * CE QUI SORT DE L'ÉCRAN EN MODE « EN CLAIR » (décision 0034) — une notification (cloche, téléphone, services de push) :
+ * le modèle a pu écrire la valeur en clair, sans borne ; on retire donc aussi les motifs sensibles et tout montant.
+ * L'aperçu d'une notification n'a pas besoin d'un salaire ; la conversation, elle, le montre.
+ */
+export function horsEcranSansValeur(texte: string): string {
+  const t = censurerTexte(sansValeursRevelees(texte)).texte.split(MOTIF_REMPLACEMENT).join(MASQUE_CONFIDENTIEL);
+  return t.replace(RE_MONTANT_CHIFFRES, MASQUE_CONFIDENTIEL).replace(RE_MONTANT_LETTRES, MASQUE_CONFIDENTIEL);
+}
+
 /** Le texte qui s'écrit EN FLUX : un repère n'est pas encore jugé — il s'affiche « ••• » jusqu'à la fin du tour. */
 export function masquerReperesPartiels(texte: string): string {
   return (texte ?? "").replace(RE_JETON, "•••").replace(/⟦S?\d*$/, "");
@@ -414,4 +432,15 @@ export const CONSIGNE_JETONS = [
   "Recopie le repère TEL QUEL, à l'endroit exact où la valeur doit paraître (« Le salaire de base d'Assia est de ⟦S1⟧. ») : le serveur l'affichera à la personne si elle a le droit de la voir, et « [confidentiel] » sinon.",
   "Ne dis jamais que tu ne peux pas communiquer une valeur que tes outils t'ont rendue en repère ; ne la devine pas, ne calcule rien avec un repère, n'en invente aucun.",
   "Pour TRANSMETTRE une valeur (« envoie son salaire à Karim », « mets-le dans la tâche »), écris le repère tel quel dans l'entrée de l'outil d'écriture : le serveur y met la vraie valeur sur la carte, si la personne a le droit de la voir, et la rejuge à la confirmation. Ne dis jamais à la personne de la recopier elle-même.",
+].join("\n");
+
+/**
+ * LA CONSIGNE DU MODE « EN CLAIR » (décision 0034, Direction 31/10/2026 : « même pour les chiffres sensibles, l'assistant
+ * IA peut les lire à haute voix ; ils peuvent être envoyés à l'IA ») — à la place de `CONSIGNE_JETONS`. Les outils rendent
+ * au modèle les valeurs que la personne a le droit de voir ; les autres restent « [confidentiel] ».
+ */
+export const CONSIGNE_EN_CLAIR = [
+  "DONNÉES CONFIDENTIELLES (salaires, nets, coût employeur, IBAN / RIB, n° de pièce d'identité) : tes outils te rendent EN CLAIR celles que la personne a le droit de voir — donne-les-lui telles quelles quand elle les demande, à l'écrit comme à voix haute.",
+  "Une valeur rendue « [confidentiel] » n'est pas ouverte à la personne : dis-le simplement, ne la devine pas, n'en invente aucune.",
+  "Ne recopie une donnée confidentielle que là où la personne l'a demandée : pas dans un titre, une mémoire ou une note qu'elle n'a pas demandés. Une écriture qui la transmet reste une carte que la personne confirme.",
 ].join("\n");

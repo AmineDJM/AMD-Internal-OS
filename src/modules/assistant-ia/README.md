@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0031 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0034 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false`).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -32,6 +32,17 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
   `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
 
+## Valeurs sensibles et conservation chez OpenAI (lot K4, décision 0034)
+
+- **Réglage de la console** (`/admin/ai/acces`, Super Admin, audité) : « Valeurs sensibles » = **en clair pour qui a le droit
+  de les voir** (défaut, Direction 31/10/2026) | **masquées** (repères ⟦Sn⟧, décision 0012). `AssistantIaReglage.valeursSensibles`.
+- **Les droits ne changent pas** : la sortie d'un outil est jetonnée, puis, en clair, chaque repère est jugé par le même
+  juge que l'écran (`Revelateur.enClair`, journalisé) — valeur ou « [confidentiel] ». Consigne `CONSIGNE_EN_CLAIR`, règle 2
+  `REGLE_CONFIDENTIALITE_EN_CLAIR`, voix `consignesVoix(enClair)` / `reponsePourVoix(contenu, enClair)` (prononcée).
+- Restent masqués dans les deux modes : notification, résumé roulant, mémoire, titres, routines et travaux, question de la
+  recherche web, pièces jointes (leur propre garde).
+- **`store: false`** sur tous les appels Mastra du module (`optionsFournisseur`) ; la recherche web (passerelle, sans
+  chaînage) l'a déjà. Banc : `valeurs-sensibles.test.ts`.
 ## Images, vidéos et vidéos de données (lot K2, décision 0032)
 
 - **Outils** (`infra/visuels/outils.ts`, conversation seulement, famille de console `VISUELS` fermée par défaut) :
