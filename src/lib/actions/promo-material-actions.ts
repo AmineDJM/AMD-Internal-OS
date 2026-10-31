@@ -35,6 +35,7 @@ import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { deleteFileByKey } from "@/lib/storage";
 import { sansBloquer } from "@/lib/journal";
+import { actionReversible } from "@/lib/effets/reversible";
 
 const PATH = "/promo-material";
 
@@ -587,53 +588,55 @@ export async function confirmBcSent(formData: FormData): Promise<ActionResult> {
 // ───────────────────────── 7. Information médicale : bordereau de paiement ─────────────────────────
 
 export async function initiatePayment(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Identifiant manquant." };
-  // UN BORDEREAU À LA FOIS (vague « restes »). Ce geste CRÉE un ordre de dépense, puis écrivait la
-  // marche sans condition : deux clics faisaient deux ordres au centre de paiement, et le second
-  // écrasait le premier dans le dossier — un ordre payable qu'aucun dossier ne désignait plus. Dans le
-  // processus, la file le sérialise et le second relit le dossier ; entre deux processus, l'écriture
-  // exige la marche ET l'absence d'ordre lues, et le perdant annule l'ordre qu'il vient de préparer
-  // (la porte unique, §118.185) : personne ne l'a encore autorisé.
-  return enSerie(`promo-bordereau:${id}`, async (): Promise<ActionResult> => {
-    const pm = await load(id);
-    if (!pm) return { ok: false, error: "Dossier introuvable." };
-    const nouveau = refusNouveauCircuit(pm);
-    if (nouveau) return { ok: false, error: nouveau };
-    if (!isMedicalInfo(user)) return { ok: false, error: "Réservé à l'information médicale." };
-    if (pm.status === "PAYMENT_INITIATED" && pm.paymentOrderId) {
-      return { ok: false, error: "Le bordereau de paiement de ce dossier est déjà initié : son ordre attend le centre de paiement." };
-    }
-    // RATTRAPAGE : un bordereau initié SANS ordre (montant alors inconnu) se réinitie — sans quoi le
-    // dossier resterait bloqué, puisque « Paiement effectué » exige désormais un ordre réglé.
-    const rattrapage = pm.status === "PAYMENT_INITIATED" && !pm.paymentOrderId;
-    if (pm.status !== "BC_SENT" && !rattrapage) return { ok: false, error: "Le bon de commande doit d'abord être transmis à l'agence." };
+  return actionReversible("promo-material-actions:initiatePayment", "Lancement du paiement d'un matériel promo", async () => {
+    const user = await requireUser();
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Identifiant manquant." };
+    // UN BORDEREAU À LA FOIS (vague « restes »). Ce geste CRÉE un ordre de dépense, puis écrivait la
+    // marche sans condition : deux clics faisaient deux ordres au centre de paiement, et le second
+    // écrasait le premier dans le dossier — un ordre payable qu'aucun dossier ne désignait plus. Dans le
+    // processus, la file le sérialise et le second relit le dossier ; entre deux processus, l'écriture
+    // exige la marche ET l'absence d'ordre lues, et le perdant annule l'ordre qu'il vient de préparer
+    // (la porte unique, §118.185) : personne ne l'a encore autorisé.
+    return enSerie(`promo-bordereau:${id}`, async (): Promise<ActionResult> => {
+      const pm = await load(id);
+      if (!pm) return { ok: false, error: "Dossier introuvable." };
+      const nouveau = refusNouveauCircuit(pm);
+      if (nouveau) return { ok: false, error: nouveau };
+      if (!isMedicalInfo(user)) return { ok: false, error: "Réservé à l'information médicale." };
+      if (pm.status === "PAYMENT_INITIATED" && pm.paymentOrderId) {
+        return { ok: false, error: "Le bordereau de paiement de ce dossier est déjà initié : son ordre attend le centre de paiement." };
+      }
+      // RATTRAPAGE : un bordereau initié SANS ordre (montant alors inconnu) se réinitie — sans quoi le
+      // dossier resterait bloqué, puisque « Paiement effectué » exige désormais un ordre réglé.
+      const rattrapage = pm.status === "PAYMENT_INITIATED" && !pm.paymentOrderId;
+      if (pm.status !== "BC_SENT" && !rattrapage) return { ok: false, error: "Le bon de commande doit d'abord être transmis à l'agence." };
 
-    // UN BORDEREAU SANS MONTANT NE PASSE PAS PAR LE CENTRE (§118.148) : il ne créait aucun ordre, et
-    // le paiement se déclarait ensuite « effectué » sans que le centre de paiement ait rien vu.
-    const amount = fdNum(formData, "amount") ?? Number(pm.chosenAmount ?? pm.amount ?? 0);
-    if (!(amount > 0)) {
-      return { ok: false, error: "Renseignez le montant du bordereau : un paiement passe par le centre de paiement, qui autorise un montant." };
-    }
-    const order = await createExpenseOrder({
-      label: `Matériel promotionnel — ${pm.title}${pm.chosenAgency ? ` (${pm.chosenAgency})` : ""}`,
-      amount, category: "FOURNISSEUR", beneficiary: pm.chosenAgency, sourceType: "PROMO_MATERIAL", sourceId: pm.id, requestedById: user.id,
-      budgetCategoryId: pm.budgetCategoryId,
-    });
+      // UN BORDEREAU SANS MONTANT NE PASSE PAS PAR LE CENTRE (§118.148) : il ne créait aucun ordre, et
+      // le paiement se déclarait ensuite « effectué » sans que le centre de paiement ait rien vu.
+      const amount = fdNum(formData, "amount") ?? Number(pm.chosenAmount ?? pm.amount ?? 0);
+      if (!(amount > 0)) {
+        return { ok: false, error: "Renseignez le montant du bordereau : un paiement passe par le centre de paiement, qui autorise un montant." };
+      }
+      const order = await createExpenseOrder({
+        label: `Matériel promotionnel — ${pm.title}${pm.chosenAgency ? ` (${pm.chosenAgency})` : ""}`,
+        amount, category: "FOURNISSEUR", beneficiary: pm.chosenAgency, sourceType: "PROMO_MATERIAL", sourceId: pm.id, requestedById: user.id,
+        budgetCategoryId: pm.budgetCategoryId,
+      });
 
-    const ecrite = await prisma.promoMaterial.updateMany({
-      where: { ...surLaMarcheLue(pm), paymentOrderId: null },
-      data: { status: "PAYMENT_INITIATED", paymentInitiatedAt: new Date(), paymentOrderId: order.id, updatedById: user.id },
+      const ecrite = await prisma.promoMaterial.updateMany({
+        where: { ...surLaMarcheLue(pm), paymentOrderId: null },
+        data: { status: "PAYMENT_INITIATED", paymentInitiatedAt: new Date(), paymentOrderId: order.id, updatedById: user.id },
+      });
+      if (ecrite.count === 0) {
+        const a = await annulerOrdreNonRegle(order.id, { acteurId: user.id, motif: `dossier ${pm.reference} : un autre bordereau a été initié au même moment` });
+        return { ok: false, error: `${ETAT_CHANGE} L'ordre ${order.reference} préparé à l'instant ${a.ok && a.annule ? "est annulé" : "n'a pas pu être annulé : signalez-le au centre de paiement"}.` };
+      }
+      await notifyGroup(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], pm, "Matériel promotionnel — bordereau de paiement au centre de paiement");
+      await audit(user, id, "UPDATE", `Bordereau de paiement initié (ordre ${order.reference}, en attente du centre de paiement)`);
+      revalidate(id);
+      return { ok: true };
     });
-    if (ecrite.count === 0) {
-      const a = await annulerOrdreNonRegle(order.id, { acteurId: user.id, motif: `dossier ${pm.reference} : un autre bordereau a été initié au même moment` });
-      return { ok: false, error: `${ETAT_CHANGE} L'ordre ${order.reference} préparé à l'instant ${a.ok && a.annule ? "est annulé" : "n'a pas pu être annulé : signalez-le au centre de paiement"}.` };
-    }
-    await notifyGroup(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], pm, "Matériel promotionnel — bordereau de paiement au centre de paiement");
-    await audit(user, id, "UPDATE", `Bordereau de paiement initié (ordre ${order.reference}, en attente du centre de paiement)`);
-    revalidate(id);
-    return { ok: true };
   });
 }
 
@@ -800,71 +803,73 @@ export async function recordInvoice(formData: FormData): Promise<ActionResult> {
 }
 
 export async function settle(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Identifiant manquant." };
-  // UN RÈGLEMENT À LA FOIS (vague « restes ») — pour la raison de `initiatePayment` : le premier temps
-  // CRÉE un ordre, et deux clics en faisaient deux, le second écrasant le premier dans le dossier. La
-  // file sérialise et le second relit (il trouve l'ordre, donc le second temps) ; entre deux processus,
-  // l'écriture exige l'absence d'ordre lue, et le perdant annule le sien.
-  return enSerie(`promo-reglement:${id}`, async (): Promise<ActionResult> => {
-    const pm = await load(id);
-    if (!pm) return { ok: false, error: "Dossier introuvable." };
-    const nouveau = refusNouveauCircuit(pm);
-    if (nouveau) return { ok: false, error: nouveau };
-    if (!isFinance(user)) return { ok: false, error: "Réservé aux finances." };
-    if (pm.status !== "INVOICED") return { ok: false, error: "Aucune facture à régler." };
+  return actionReversible("promo-material-actions:settle", "Règlement d'un matériel promo", async () => {
+    const user = await requireUser();
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Identifiant manquant." };
+    // UN RÈGLEMENT À LA FOIS (vague « restes ») — pour la raison de `initiatePayment` : le premier temps
+    // CRÉE un ordre, et deux clics en faisaient deux, le second écrasant le premier dans le dossier. La
+    // file sérialise et le second relit (il trouve l'ordre, donc le second temps) ; entre deux processus,
+    // l'écriture exige l'absence d'ordre lue, et le perdant annule le sien.
+    return enSerie(`promo-reglement:${id}`, async (): Promise<ActionResult> => {
+      const pm = await load(id);
+      if (!pm) return { ok: false, error: "Dossier introuvable." };
+      const nouveau = refusNouveauCircuit(pm);
+      if (nouveau) return { ok: false, error: nouveau };
+      if (!isFinance(user)) return { ok: false, error: "Réservé aux finances." };
+      if (pm.status !== "INVOICED") return { ok: false, error: "Aucune facture à régler." };
 
-    // DEUX TEMPS, PARCE QUE CE SONT DEUX FAITS (§118.148). Ce geste créait l'ordre de dépense ET,
-    // dans le même clic, déclarait le dossier « réglé et clôturé » — un ordre que le centre de
-    // paiement pouvait encore refuser, sur un dossier que plus personne ne rouvrirait.
-    //   1. sans ordre de règlement : on le CRÉE, il part au centre, le dossier reste « facturé » ;
-    //   2. avec un ordre : le dossier se clôt une fois cet ordre RÉGLÉ, et pas avant.
-    if (!pm.settlementOrderId) {
-      const amount = fdNum(formData, "amount") ?? Number(pm.chosenAmount ?? pm.amount ?? 0);
-      if (!(amount > 0)) {
-        return { ok: false, error: "Renseignez le montant à régler : un paiement passe par le centre de paiement, qui autorise un montant." };
-      }
-      const order = await createExpenseOrder({
-        label: `Règlement matériel promotionnel — ${pm.title}${pm.chosenAgency ? ` (${pm.chosenAgency})` : ""}`,
-        amount, category: "FOURNISSEUR", beneficiary: pm.chosenAgency, sourceType: "PROMO_MATERIAL", sourceId: pm.id, requestedById: user.id,
-        budgetCategoryId: pm.budgetCategoryId,
-      });
-      const lie = await prisma.promoMaterial.updateMany({
-        where: { ...surLaMarcheLue(pm), settlementOrderId: null },
-        data: { settlementOrderId: order.id, updatedById: user.id },
-      });
-      if (lie.count === 0) {
-        const a = await annulerOrdreNonRegle(order.id, { acteurId: user.id, motif: `dossier ${pm.reference} : un autre règlement a été envoyé au même moment` });
-        return { ok: false, error: `${ETAT_CHANGE} L'ordre ${order.reference} préparé à l'instant ${a.ok && a.annule ? "est annulé" : "n'a pas pu être annulé : signalez-le au centre de paiement"}.` };
-      }
-      await audit(user, id, "UPDATE", `Règlement final envoyé au centre de paiement (ordre ${order.reference})`);
-      revalidate(id);
-      return { ok: true, message: `Ordre ${order.reference} créé — il attend le centre de paiement. Le dossier se clôturera une fois l'ordre réglé.` };
-    }
-
-    const nonRegle = await ordreNonRegle(pm.settlementOrderId);
-    if (nonRegle) return { ok: false, error: nonRegle };
-
-    // LA CLÔTURE ET LA FIN DE LA DEMANDE AU SECRÉTARIAT, ENSEMBLE : la demande ne passe « terminée »
-    // que si elle se traite encore — une demande annulée ne repasse pas « terminée » (la condition de
-    // `fermerDemandeAuSecretariat`), et la date de fin part avec la fin.
-    const clos = await prisma.$transaction(async (tx) => {
-      const r = await tx.promoMaterial.updateMany({ where: surLaMarcheLue(pm), data: { status: "SETTLED", updatedById: user.id } });
-      if (r.count === 0) return false;
-      if (pm.adminRequestId) {
-        await tx.administrativeRequest.updateMany({
-          where: { id: pm.adminRequestId, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } },
-          data: { status: "DONE", completedAt: new Date() },
+      // DEUX TEMPS, PARCE QUE CE SONT DEUX FAITS (§118.148). Ce geste créait l'ordre de dépense ET,
+      // dans le même clic, déclarait le dossier « réglé et clôturé » — un ordre que le centre de
+      // paiement pouvait encore refuser, sur un dossier que plus personne ne rouvrirait.
+      //   1. sans ordre de règlement : on le CRÉE, il part au centre, le dossier reste « facturé » ;
+      //   2. avec un ordre : le dossier se clôt une fois cet ordre RÉGLÉ, et pas avant.
+      if (!pm.settlementOrderId) {
+        const amount = fdNum(formData, "amount") ?? Number(pm.chosenAmount ?? pm.amount ?? 0);
+        if (!(amount > 0)) {
+          return { ok: false, error: "Renseignez le montant à régler : un paiement passe par le centre de paiement, qui autorise un montant." };
+        }
+        const order = await createExpenseOrder({
+          label: `Règlement matériel promotionnel — ${pm.title}${pm.chosenAgency ? ` (${pm.chosenAgency})` : ""}`,
+          amount, category: "FOURNISSEUR", beneficiary: pm.chosenAgency, sourceType: "PROMO_MATERIAL", sourceId: pm.id, requestedById: user.id,
+          budgetCategoryId: pm.budgetCategoryId,
         });
+        const lie = await prisma.promoMaterial.updateMany({
+          where: { ...surLaMarcheLue(pm), settlementOrderId: null },
+          data: { settlementOrderId: order.id, updatedById: user.id },
+        });
+        if (lie.count === 0) {
+          const a = await annulerOrdreNonRegle(order.id, { acteurId: user.id, motif: `dossier ${pm.reference} : un autre règlement a été envoyé au même moment` });
+          return { ok: false, error: `${ETAT_CHANGE} L'ordre ${order.reference} préparé à l'instant ${a.ok && a.annule ? "est annulé" : "n'a pas pu être annulé : signalez-le au centre de paiement"}.` };
+        }
+        await audit(user, id, "UPDATE", `Règlement final envoyé au centre de paiement (ordre ${order.reference})`);
+        revalidate(id);
+        return { ok: true, message: `Ordre ${order.reference} créé — il attend le centre de paiement. Le dossier se clôturera une fois l'ordre réglé.` };
       }
-      return true;
+
+      const nonRegle = await ordreNonRegle(pm.settlementOrderId);
+      if (nonRegle) return { ok: false, error: nonRegle };
+
+      // LA CLÔTURE ET LA FIN DE LA DEMANDE AU SECRÉTARIAT, ENSEMBLE : la demande ne passe « terminée »
+      // que si elle se traite encore — une demande annulée ne repasse pas « terminée » (la condition de
+      // `fermerDemandeAuSecretariat`), et la date de fin part avec la fin.
+      const clos = await prisma.$transaction(async (tx) => {
+        const r = await tx.promoMaterial.updateMany({ where: surLaMarcheLue(pm), data: { status: "SETTLED", updatedById: user.id } });
+        if (r.count === 0) return false;
+        if (pm.adminRequestId) {
+          await tx.administrativeRequest.updateMany({
+            where: { id: pm.adminRequestId, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } },
+            data: { status: "DONE", completedAt: new Date() },
+          });
+        }
+        return true;
+      });
+      if (!clos) return { ok: false, error: ETAT_CHANGE };
+      await notifyRequester(pm, "Matériel promotionnel — dossier réglé et clôturé");
+      await audit(user, id, "VALIDATE", "Règlement final constaté — dossier clôturé");
+      revalidate(id);
+      return { ok: true };
     });
-    if (!clos) return { ok: false, error: ETAT_CHANGE };
-    await notifyRequester(pm, "Matériel promotionnel — dossier réglé et clôturé");
-    await audit(user, id, "VALIDATE", "Règlement final constaté — dossier clôturé");
-    revalidate(id);
-    return { ok: true };
   });
 }
 
@@ -911,85 +916,87 @@ async function bcsActifsDuDossier(id: string): Promise<number> {
 }
 
 export async function cancelPromoMaterial(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Identifiant manquant." };
-  const pm = await load(id);
-  if (!pm) return { ok: false, error: "Dossier introuvable." };
-  if (!(isMarketing(user, pm) || isAssistant(user) || isDirection(user))) return { ok: false, error: "Non autorisé." };
-  if (pm.status === "SETTLED" || pm.status === "CANCELLED" || pm.circuitState === "COMPLETED") return { ok: false, error: "Dossier déjà clôturé." };
-  // UNE ANNULATION EST DÉFINITIVE ET DIT POURQUOI (audit 360°, R17/R18) : sans motif, le dossier affichait
-  // « Refusé » sans qu'on sache ni qui ni pourquoi — le demandeur croyait à un refus de la Direction.
-  // Lu ici, EXIGÉ plus bas, APRÈS les refus structurels : on ne demande pas pourquoi annuler ce qui ne
-  // s'annule pas (§118.18).
-  const motifSaisi = fdStr(formData, "motif");
+  return actionReversible("promo-material-actions:cancelPromoMaterial", "Annulation d'un dossier de matériel promo", async () => {
+    const user = await requireUser();
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Identifiant manquant." };
+    const pm = await load(id);
+    if (!pm) return { ok: false, error: "Dossier introuvable." };
+    if (!(isMarketing(user, pm) || isAssistant(user) || isDirection(user))) return { ok: false, error: "Non autorisé." };
+    if (pm.status === "SETTLED" || pm.status === "CANCELLED" || pm.circuitState === "COMPLETED") return { ok: false, error: "Dossier déjà clôturé." };
+    // UNE ANNULATION EST DÉFINITIVE ET DIT POURQUOI (audit 360°, R17/R18) : sans motif, le dossier affichait
+    // « Refusé » sans qu'on sache ni qui ni pourquoi — le demandeur croyait à un refus de la Direction.
+    // Lu ici, EXIGÉ plus bas, APRÈS les refus structurels : on ne demande pas pourquoi annuler ce qui ne
+    // s'annule pas (§118.18).
+    const motifSaisi = fdStr(formData, "motif");
 
-  // UN DOSSIER EN EXÉCUTION S'ANNULE DANS LA FILE DE SES BONS DE COMMANDE (vague « restes »). Le compte
-  // des BC se lisait HORS de la file de `genererBonsDeCommandePromo` : un BC naissait entre le compte et
-  // l'annulation, et le dossier partait annulé avec une commande vivante. Le compte ET l'écriture se font
-  // dans la MÊME file, que la génération relit à son tour — l'une passe, l'autre refuse, jamais les deux.
-  // La file n'a d'objet que là où une génération peut courir : ailleurs, deux annulations simultanées se
-  // départagent en base, sur l'écriture conditionnelle.
-  const enExecution = pm.circuitVersion === 2 && pm.circuitState === "IN_EXECUTION";
-  const dansLaFile = <T>(fn: () => Promise<T>): Promise<T> => (enExecution ? enSerie(`promo-bc:${id}`, fn) : fn());
-  const issue = await dansLaFile(async (): Promise<{ ok: true; motif: string } | { ok: false; error: string }> => {
-    // UN BC GÉNÉRÉ ENGAGE LA SOCIÉTÉ (§118.152) : annuler le dossier en le laissant vivant laisserait
-    // une commande sans dossier. On le dit, avec le geste qui le permet.
-    if (pm.circuitVersion === 2) {
-      const bcs = await bcsActifsDuDossier(id);
-      if (bcs > 0) return { ok: false, error: `${bcs} bon${bcs > 1 ? "s" : ""} de commande ${bcs > 1 ? "ont été générés" : "a été généré"} pour ce dossier : supprimez-${bcs > 1 ? "les" : "le"} d'abord depuis la carte « Exécution », sans quoi une commande resterait engagée sur un dossier annulé.` };
-    }
-    if (!motifSaisi) return { ok: false, error: "Dites pourquoi ce dossier est annulé : l'annulation est définitive." };
-    // L'ANNULATION ARRÊTE AUSSI LE CIRCUIT. Sans cette ligne, un dossier annulé restait sur son étape
-    // de circuit — la fiche l'affichait en attente d'un validateur, et ce validateur pouvait encore
-    // le faire avancer. L'état terminal du circuit est le seul que toutes ses actions refusent.
-    // CONDITIONNELLE sur l'état LU : deux annulations à la même seconde n'écrivent pas deux motifs au fil ni
-    // deux notifications, et un dossier que le circuit vient de clore ne se rouvre pas en « annulé ».
-    const ecrite = await prisma.promoMaterial.updateMany({
-      where: { id, status: pm.status, circuitState: pm.circuitState },
-      data: { status: "CANCELLED", ...(pm.circuitState ? { circuitState: "REFUSED" } : {}), updatedById: user.id },
+    // UN DOSSIER EN EXÉCUTION S'ANNULE DANS LA FILE DE SES BONS DE COMMANDE (vague « restes »). Le compte
+    // des BC se lisait HORS de la file de `genererBonsDeCommandePromo` : un BC naissait entre le compte et
+    // l'annulation, et le dossier partait annulé avec une commande vivante. Le compte ET l'écriture se font
+    // dans la MÊME file, que la génération relit à son tour — l'une passe, l'autre refuse, jamais les deux.
+    // La file n'a d'objet que là où une génération peut courir : ailleurs, deux annulations simultanées se
+    // départagent en base, sur l'écriture conditionnelle.
+    const enExecution = pm.circuitVersion === 2 && pm.circuitState === "IN_EXECUTION";
+    const dansLaFile = <T>(fn: () => Promise<T>): Promise<T> => (enExecution ? enSerie(`promo-bc:${id}`, fn) : fn());
+    const issue = await dansLaFile(async (): Promise<{ ok: true; motif: string } | { ok: false; error: string }> => {
+      // UN BC GÉNÉRÉ ENGAGE LA SOCIÉTÉ (§118.152) : annuler le dossier en le laissant vivant laisserait
+      // une commande sans dossier. On le dit, avec le geste qui le permet.
+      if (pm.circuitVersion === 2) {
+        const bcs = await bcsActifsDuDossier(id);
+        if (bcs > 0) return { ok: false, error: `${bcs} bon${bcs > 1 ? "s" : ""} de commande ${bcs > 1 ? "ont été générés" : "a été généré"} pour ce dossier : supprimez-${bcs > 1 ? "les" : "le"} d'abord depuis la carte « Exécution », sans quoi une commande resterait engagée sur un dossier annulé.` };
+      }
+      if (!motifSaisi) return { ok: false, error: "Dites pourquoi ce dossier est annulé : l'annulation est définitive." };
+      // L'ANNULATION ARRÊTE AUSSI LE CIRCUIT. Sans cette ligne, un dossier annulé restait sur son étape
+      // de circuit — la fiche l'affichait en attente d'un validateur, et ce validateur pouvait encore
+      // le faire avancer. L'état terminal du circuit est le seul que toutes ses actions refusent.
+      // CONDITIONNELLE sur l'état LU : deux annulations à la même seconde n'écrivent pas deux motifs au fil ni
+      // deux notifications, et un dossier que le circuit vient de clore ne se rouvre pas en « annulé ».
+      const ecrite = await prisma.promoMaterial.updateMany({
+        where: { id, status: pm.status, circuitState: pm.circuitState },
+        data: { status: "CANCELLED", ...(pm.circuitState ? { circuitState: "REFUSED" } : {}), updatedById: user.id },
+      });
+      if (ecrite.count === 0) return { ok: false, error: ETAT_CHANGE };
+      return { ok: true, motif: motifSaisi };
     });
-    if (ecrite.count === 0) return { ok: false, error: ETAT_CHANGE };
-    return { ok: true, motif: motifSaisi };
-  });
-  if (!issue.ok) return issue;
-  const { motif } = issue;
+    if (!issue.ok) return issue;
+    const { motif } = issue;
 
-  // CE QUI DÉPEND DU DOSSIER PART AVEC LUI — APRÈS son écriture, jamais avant : un dossier qui n'a pas
-  // été annulé garde tout. Sa demande au secrétariat (et toute autre demande encore ouverte sur lui)
-  // passe par l'annulation COMMUNE (`annulerDemandeSecretariat`) : un simple changement de statut
-  // laissait ses approbations EN ATTENTE — approuver l'une émettait un paiement pour un dossier annulé —,
-  // ses validations et son paiement non réglé. Une demande dont le paiement est déjà réglé reste
-  // ouverte : elle se termine, comme au retrait d'un poste Ad & Pro, et la phrase le dit.
-  const demandes = await prisma.administrativeRequest.findMany({
-    where: {
-      deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] },
-      OR: [...(pm.adminRequestId ? [{ id: pm.adminRequestId }] : []), { linkedEntityType: "PROMO_MATERIAL" as const, linkedEntityId: id }],
-    },
-    select: { id: true },
-  });
-  const suites: string[] = [];
-  for (const d of demandes) {
-    const a = await annulerDemandeSecretariat(d.id, { acteurId: user.id, motif, cause: "avec son dossier de matériel promotionnel" });
-    if (!a.ok) { suites.push(`La demande au secrétariat reste ouverte. ${a.error}`); continue; }
-    if (a.annulee) {
-      suites.push(`La demande au secrétariat ${a.reference} est annulée avec lui${a.ordresAnnules.length ? ` (paiement annulé : ${a.ordresAnnules.join(", ")})` : ""}, l'assistante prévenue.`);
+    // CE QUI DÉPEND DU DOSSIER PART AVEC LUI — APRÈS son écriture, jamais avant : un dossier qui n'a pas
+    // été annulé garde tout. Sa demande au secrétariat (et toute autre demande encore ouverte sur lui)
+    // passe par l'annulation COMMUNE (`annulerDemandeSecretariat`) : un simple changement de statut
+    // laissait ses approbations EN ATTENTE — approuver l'une émettait un paiement pour un dossier annulé —,
+    // ses validations et son paiement non réglé. Une demande dont le paiement est déjà réglé reste
+    // ouverte : elle se termine, comme au retrait d'un poste Ad & Pro, et la phrase le dit.
+    const demandes = await prisma.administrativeRequest.findMany({
+      where: {
+        deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] },
+        OR: [...(pm.adminRequestId ? [{ id: pm.adminRequestId }] : []), { linkedEntityType: "PROMO_MATERIAL" as const, linkedEntityId: id }],
+      },
+      select: { id: true },
+    });
+    const suites: string[] = [];
+    for (const d of demandes) {
+      const a = await annulerDemandeSecretariat(d.id, { acteurId: user.id, motif, cause: "avec son dossier de matériel promotionnel" });
+      if (!a.ok) { suites.push(`La demande au secrétariat reste ouverte. ${a.error}`); continue; }
+      if (a.annulee) {
+        suites.push(`La demande au secrétariat ${a.reference} est annulée avec lui${a.ordresAnnules.length ? ` (paiement annulé : ${a.ordresAnnules.join(", ")})` : ""}, l'assistante prévenue.`);
+      }
+      if (a.reserve) suites.push(a.reserve);
     }
-    if (a.reserve) suites.push(a.reserve);
-  }
-  // SES PROPRES ORDRES NON RÉGLÉS (ancien parcours : bordereau, règlement final) — par la porte unique :
-  // un ordre qui attendait le centre aurait payé l'agence d'un dossier annulé. Un ordre réglé reste
-  // réglé, et la phrase le dit.
-  for (const ordreId of [pm.paymentOrderId, pm.settlementOrderId]) {
-    const a = await annulerOrdreNonRegle(ordreId, { acteurId: user.id, motif: `dossier ${pm.reference} annulé — ${motif}` });
-    if (!a.ok) suites.push(a.error);
-    else if (a.annule && a.reference) suites.push(`L'ordre ${a.reference}, qui attendait le centre de paiement, est annulé.`);
-  }
-  if (demandes.length) revalidatePath("/demandes");
+    // SES PROPRES ORDRES NON RÉGLÉS (ancien parcours : bordereau, règlement final) — par la porte unique :
+    // un ordre qui attendait le centre aurait payé l'agence d'un dossier annulé. Un ordre réglé reste
+    // réglé, et la phrase le dit.
+    for (const ordreId of [pm.paymentOrderId, pm.settlementOrderId]) {
+      const a = await annulerOrdreNonRegle(ordreId, { acteurId: user.id, motif: `dossier ${pm.reference} annulé — ${motif}` });
+      if (!a.ok) suites.push(a.error);
+      else if (a.annule && a.reference) suites.push(`L'ordre ${a.reference}, qui attendait le centre de paiement, est annulé.`);
+    }
+    if (demandes.length) revalidatePath("/demandes");
 
-  await ecrireAuFil({ entityType: "PROMO_MATERIAL", entityId: id, authorId: user.id, body: `Dossier annulé — ${motif}` });
-  if (pm.requesterId && pm.requesterId !== user.id) await notifyRequester(pm, `Dossier annulé : ${motif.slice(0, 120)}`);
-  await audit(user, id, "UPDATE", `Dossier annulé — ${motif.slice(0, 200)}`);
-  revalidate(id);
-  return { ok: true, message: ["Dossier annulé.", ...suites].join(" ") };
+    await ecrireAuFil({ entityType: "PROMO_MATERIAL", entityId: id, authorId: user.id, body: `Dossier annulé — ${motif}` });
+    if (pm.requesterId && pm.requesterId !== user.id) await notifyRequester(pm, `Dossier annulé : ${motif.slice(0, 120)}`);
+    await audit(user, id, "UPDATE", `Dossier annulé — ${motif.slice(0, 200)}`);
+    revalidate(id);
+    return { ok: true, message: ["Dossier annulé.", ...suites].join(" ") };
+  });
 }

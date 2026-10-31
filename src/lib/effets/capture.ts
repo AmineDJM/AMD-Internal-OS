@@ -37,6 +37,7 @@ const ECRITURES = new Set(["create", "update", "upsert", "delete", "createMany",
 const SQL_BRUT = new Set(["$executeRaw", "$executeRawUnsafe"]);
 const SQL_LECTURE = new Set(["$queryRaw", "$queryRawUnsafe"]);
 /** Une requête « de lecture » qui ÉCRIT (`UPDATE … RETURNING` par `$queryRaw`) : notée comme du SQL brut. */
+const SQL_LECTURE_SEULE = /^\s*select\b/i;
 const SQL_ECRIT = /^\s*(with\b[\s\S]*\b)?(insert|update|delete|merge)\b/i;
 const texteSql = (args: unknown): string => {
   if (typeof args === "string") return args;
@@ -140,6 +141,8 @@ async function capturer(
 ): Promise<unknown> {
         if (!model) {
           if (!SQL_BRUT.has(operation) && !(SQL_LECTURE.has(operation) && SQL_ECRIT.test(texteSql(args)))) return query(args);
+          // Un VERROU (`SELECT … FOR UPDATE`, `pg_advisory_xact_lock`) passé par `$executeRaw` n'écrit rien (K10c).
+          if (SQL_LECTURE_SEULE.test(texteSql(args))) return query(args);
           const r = await query(args);
           // La table, quand le texte la nomme (« UPDATE "FileBlob" … ») : les octets d'une pièce ne se lisent pas comme une écriture métier.
           const table = /\b(?:update|into|from)\s+"?([A-Za-z_]\w*)"?/i.exec(texteSql(args))?.[1] ?? "SQL";

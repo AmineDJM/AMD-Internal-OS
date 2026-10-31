@@ -3,10 +3,14 @@ import { attendu, sansBloquer } from "@/lib/journal";
 import type { CurrentUser } from "@/lib/session";
 import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { notifyUser } from "@/lib/notify";
 import { composer, type Changement, type EtatActuel } from "@/lib/annulation/plan";
 import { classerGeste, natureDe as natureDuJournal, type NatureGeste } from "@/lib/annulation/reversibilite";
 import { construireDiff, natureDe } from "./diff";
-import type { Capture, EcritureCapturee, EffetExterneCapture } from "./magasin";
+import { etatDuGeste, sousGeste, type Capture, type EcritureCapturee, type EffetExterneCapture } from "./magasin";
+import { issueEffetDiffere, nouvelleFenetre } from "./fenetre";
+import { journaliserGeste } from "./journal";
+import { politiqueDe, type PolitiqueAnnulation } from "./politiques";
 import { infoModele, type InfoModele } from "./modeles";
 import { cleDeValeur, memeValeur, serialiserLigne, valeurLisible } from "./valeurs";
 
@@ -48,6 +52,8 @@ export interface DetailEffet {
   pourquoi: string;
   /** Ce qu'on peut faire à la place, quand c'est impossible. */
   aLaPlace?: string | null;
+  /** Défait EN PARTIE seulement (des champs changés depuis laissés tels quels) — bloque un « tout ou rien » (K10c). */
+  partiel?: boolean;
 }
 
 export interface CompteRenduAnnulation {
@@ -58,6 +64,8 @@ export interface CompteRenduAnnulation {
   /** VRAI seulement si tout ce qui pouvait l'être est défait ou compensé (et rien n'est impossible). */
   complet: boolean;
   resume: string;
+  /** Le geste qui porte l'annulation elle-même (K10c) — ce que « rétablir » défait. */
+  gesteAnnulationId?: string | null;
 }
 
 type Delegue = {
@@ -69,7 +77,13 @@ type Delegue = {
 };
 type Client = Record<string, unknown>;
 
-interface EffetLu {
+/**
+ * LE CLIENT QUI ÉCRIT L'ANNULATION (K10c) — celui du geste en cours : l'annulation s'exécute sous SON propre journal
+ * (`annulerGeste`), ses écritures y entrent comme celles de n'importe quel geste, et « rétablir » les défait.
+ */
+const ecrivain = (): typeof prismaBrut => (etatDuGeste()?.client as typeof prismaBrut | null | undefined) ?? prismaBrut;
+
+export interface EffetLu {
   id: string; ordre: number; type: string; modele: string | null; operation: string | null; enregistrementId: string | null;
   avant: unknown; apres: unknown; champs: string[]; cascade: number | null; nombre: number | null; imbriquee: boolean;
   acte: string | null; cible: string | null; apercu: string | null;
@@ -112,7 +126,7 @@ async function lireActuelle(c: Client, info: InfoModele, id: string): Promise<Re
 async function ecrireVerrouille(
   info: InfoModele, id: string, verifier: (relue: Record<string, unknown> | null) => boolean, ecrire: (t: Client) => Promise<unknown>,
 ): Promise<boolean> {
-  return (prismaBrut.$transaction(async (tx) => {
+  return (ecrivain().$transaction(async (tx) => {
     const t = tx as unknown as Client;
     await verrouiller(t, info, id);
     if (!verifier(await lireActuelle(t, info, id))) return false;
@@ -184,6 +198,11 @@ interface Contexte {
   crees: Set<string>;
   appliquer: boolean;
   nomDe: (id: string | null | undefined) => Promise<string | null>;
+  /** La politique de l'action annulée (K10c) — `null` : l'annulation J7 telle quelle. */
+  politique: PolitiqueAnnulation | null;
+  libelle: string;
+  /** Qui annule — le rectificatif le nomme. */
+  parNom: string;
 }
 
 /** Les champs MODIFIÉS d'une ligne : l'invariant de `plan.ts`, puis l'écriture verrouillée. */
@@ -211,7 +230,7 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte):
   });
   let ecrits: string[] = [];
   if (aRemettre.length && ctx.appliquer) {
-    ecrits = await (prismaBrut.$transaction(async (tx) => {
+    ecrits = await (ecrivain().$transaction(async (tx) => {
       const t = tx as unknown as Client;
       await verrouiller(t, info, id);
       const relue = await lireActuelle(t, info, id);
@@ -236,6 +255,7 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte):
     effetId: e.id, issue: "ANNULE", quoi,
     pourquoi: refuses.length ? `${remis.join(", ")} ; mais ${refuses.join(" ; ")} — laissé(s) tel(s) quel(s)` : remis.join(", "),
     aLaPlace: refuses.length ? "reprendre à la main les champs laissés, en connaissance du changement" : null,
+    ...(refuses.length ? { partiel: true } : {}),
   };
 }
 
@@ -251,6 +271,17 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
   const verdict = classerGeste("ENREGISTREMENT_CREE");
   if (e.modele === "Notification" && actuelle.isRead === true) {
     const qui = await ctx.nomDe(String(actuelle.userId ?? ""));
+    // K10c : une notification lue ne se reprend pas — un RECTIFICATIF au même destinataire la compense, et le dit.
+    if (ctx.politique?.rectifierLues) {
+      if (ctx.appliquer) {
+        await notifyUser({
+          userId: String(actuelle.userId), type: "GENERIC", title: `Rectificatif : « ${String(actuelle.title ?? "")} »`.slice(0, 200),
+          body: `${ctx.parNom} a annulé « ${ctx.libelle} » : cette notification n'est plus d'actualité.`.slice(0, 1000),
+          link: typeof actuelle.link === "string" ? actuelle.link : undefined,
+        });
+      }
+      return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: `${qui ?? "son destinataire"} l'avait déjà lue : elle n'est pas effacée de sa mémoire — un rectificatif lui est envoyé` };
+    }
     return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${qui ?? "son destinataire"} l'a déjà lue : la retirer ne reprendrait pas l'information`, aLaPlace: "lui envoyer un mot de rectification" };
   }
   if (!touches.length && !lies.n) {
@@ -301,7 +332,7 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
   if (manquants.length) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "la ligne portait des octets, que le journal ne recopie pas", aLaPlace: verdict.compensation };
   if (ctx.appliquer) {
     try {
-      await delegue(prismaBrut as unknown as Client, info).create({ data });
+      await delegue(ecrivain() as unknown as Client, info).create({ data });
     } catch (err) {
       const code = (err as { code?: string }).code;
       const pourquoi = code === "P2003" ? "un élément auquel elle était rattachée a disparu depuis"
@@ -316,6 +347,11 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
 async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
   if (e.type === "EXTERNE") return issueExterne(e);
   const quoi = phraseEcriture(e);
+  // LA FENÊTRE D'ANNULATION (K10c) : un effet sortant différé se retire s'il attend, se compense s'il est parti.
+  if (e.modele === "EffetSortantDiffere" && e.enregistrementId && e.operation === "CREATE") {
+    const d = await issueEffetDiffere(e.enregistrementId, { appliquer: ctx.appliquer, parNom: ctx.parNom, libelle: ctx.libelle });
+    return { effetId: e.id, quoi: e.apercu ?? "un envoi différé", ...d };
+  }
   if (e.operation === "SQL" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "compteur de références des octets d'une pièce : la purge des fichiers orphelins s'en charge" };
   }
@@ -342,7 +378,10 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "octets d'une pièce, partagés par empreinte : la purge des fichiers orphelins les retire dès que plus rien n'y renvoie" };
   }
   if (e.operation === "CREATE") return defaireCreation(e, info, ctx);
-  return defaireSuppression(e, info, ctx);
+  const d = await defaireSuppression(e, info, ctx);
+  // Rétablir un envoi retiré dans sa fenêtre : il repart pour une fenêtre NEUVE, jamais sur-le-champ.
+  if (e.modele === "EffetSortantDiffere" && d.issue === "ANNULE" && ctx.appliquer) await nouvelleFenetre(e.enregistrementId!);
+  return d;
 }
 
 function conclure(gesteId: string, libelle: string, details: DetailEffet[], deja: boolean): CompteRenduAnnulation {
@@ -378,11 +417,27 @@ const nomsEnCache = () => {
   };
 };
 
-async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean): Promise<CompteRenduAnnulation> {
+async function derouler(
+  g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean,
+  opts: { politique?: PolitiqueAnnulation | null; user?: CurrentUser } = {},
+): Promise<CompteRenduAnnulation> {
   // Les lignes créées par ce geste et RETIRÉES (ou à retirer) : elles ne comptent pas comme rattachement de leur parent.
   const retirees = new Set<string>();
-  const ctx: Contexte = { c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache() };
+  const politique = opts.politique ?? null;
+  const ctx: Contexte = {
+    c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache(),
+    politique, libelle: g.libelle, parNom: opts.user?.name ?? "Quelqu'un",
+  };
   const details: DetailEffet[] = [];
+  // LE GESTE INVERSE MÉTIER (K10c) d'abord — la corbeille restaurée, par exemple : les effets qu'il prend en charge
+  // ne repassent pas par l'annulation ligne à ligne.
+  const traites = new Set<string>();
+  if (politique?.metier && opts.user) {
+    const m = await politique.metier({ geste: g, appliquer, user: opts.user });
+    details.push(...m.details);
+    for (const id of m.traites) traites.add(id);
+  }
+  g = { ...g, effets: g.effets.filter((e) => !traites.has(e.id)) };
   // DU PLUS RÉCENT AU PLUS ANCIEN (`plan.ts`) : l'enfant créé après son parent est défait avant lui. Le SQL brut, lui,
   // se juge en DERNIER : il suit ce qu'est devenue la ligne dont sa table dépend.
   const sql = g.effets.filter((e) => e.type === "ECRITURE" && e.operation === "SQL");
@@ -410,21 +465,84 @@ export async function planDAnnulation(gesteId: string, user: CurrentUser): Promi
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
   if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")}.` };
-  return derouler(r.g, false);
+  return derouler(r.g, false, { politique: await politiqueDe(r.g.capaciteId), user });
+}
+
+/** Un refus d'annulation : la phrase, et — quand des effets bloquent — leur liste, chacun avec sa raison. */
+export interface RefusAnnulation { refus: string; bloquants?: DetailEffet[] }
+
+/**
+ * LA CASCADE, TOUT OU RIEN (K10c) : une action métier dont un effet ne peut pas être défait (un BC payé depuis, une
+ * valeur changée par quelqu'un) ne s'annule PAS à moitié — rien n'est écrit, la liste dit pourquoi. Les effets
+ * sortis (poussée, appel externe) ne bloquent pas : ils sont dits tels quels, avec ce qu'on peut faire à la place.
+ */
+function bloquantsDe(g: { effets: EffetLu[] }, plan: CompteRenduAnnulation): DetailEffet[] {
+  const externes = new Set(g.effets.filter((e) => e.type === "EXTERNE").map((e) => e.id));
+  return plan.details.filter((d) => (d.issue === "IMPOSSIBLE" || d.partiel) && !externes.has(d.effetId));
+}
+
+/** Hors du journal d'un geste parent : l'annulation ouvre le SIEN (sinon ses écritures iraient au geste qui la contient). */
+function horsGesteParent<T>(fn: () => Promise<T>): Promise<T> {
+  const parent = etatDuGeste();
+  return parent ? sousGeste({ ...parent, capture: null, client: null }, fn) : fn();
 }
 
 /** ANNULER un geste de l'assistant — détail par effet, jamais un « annulé » de façade. */
-export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | { refus: string }> {
+export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | RefusAnnulation> {
+  // Une SIMULATION n'annule rien : elle montre le plan (aucune réclamation, aucune écriture hors de sa transaction).
+  if (etatDuGeste()?.mode === "SIMULATION") return planDAnnulation(gesteId, user);
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
+  if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")}.` };
+  const politique = await politiqueDe(r.g.capaciteId);
+  if (politique?.toutOuRien) {
+    const bloquants = bloquantsDe(r.g, await derouler(r.g, false, { politique, user }));
+    if (bloquants.length) {
+      return {
+        refus: `Rien n'a été annulé : ${bloquants.length} effet(s) ne peuvent pas être défaits sans laisser l'ERP dans un état incohérent — ${bloquants.map((b) => `${b.quoi} : ${b.pourquoi}`).join(" ; ")}`.slice(0, 1500),
+        bloquants,
+      };
+    }
+  }
   // LA RÉCLAMATION ATOMIQUE : une seule annulation par geste, même en deux onglets.
   const prise = await prismaBrut.assistantGesteJournal.updateMany({ where: { id: gesteId, annuleLe: null }, data: { annuleLe: new Date(), annuleParId: user.id } });
   if (prise.count !== 1) return { refus: "Ce geste a déjà été annulé (ou l'est en ce moment même, depuis un autre écran)." };
-  const compte = await derouler(r.g, true);
-  await prismaBrut.assistantGesteJournal.update({ where: { id: gesteId }, data: { annulation: compte as unknown as Prisma.InputJsonValue } });
+  // L'ANNULATION SOUS SON PROPRE JOURNAL (K10c) : ce qu'elle écrit est au journal des effets — « rétablir » le défait.
+  const { resultat: compte, gesteId: gesteAnnulationId } = await horsGesteParent(() => journaliserGeste(
+    user, { origine: "annulation", capaciteId: `annulation:${gesteId}`, libelle: `Annulation — ${r.g.libelle}`.slice(0, 300) },
+    () => derouler(r.g, true, { politique, user }),
+  ));
+  const garde: CompteRenduAnnulation = { ...compte, gesteAnnulationId };
+  await prismaBrut.assistantGesteJournal.update({ where: { id: gesteId }, data: { annulation: garde as unknown as Prisma.InputJsonValue } });
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: gesteId,
     summary: `Annulation d'un geste de l'assistant (« ${r.g.libelle} ») — ${compte.resume}`.slice(0, 500),
+  });
+  return garde;
+}
+
+/**
+ * RÉTABLIR (K10c) — une annulation est elle-même un geste journalisé : la défaire remet ce qu'elle avait retiré
+ * (mêmes règles : verrou, relecture, rien d'écrasé ; une notification retirée revient si elle n'avait pas été lue).
+ * Le geste d'origine redevient annulable.
+ */
+export async function retablirGeste(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | RefusAnnulation> {
+  if (etatDuGeste()?.mode === "SIMULATION") return { refus: "Une simulation ne rétablit rien." };
+  const r = await charger(gesteId, user);
+  if ("refus" in r) return { refus: r.refus! };
+  const a = r.g.annulation as unknown as CompteRenduAnnulation | null;
+  if (!r.g.annuleLe || !a) return { refus: "Ce geste n'a pas été annulé : il n'y a rien à rétablir." };
+  if (!a.gesteAnnulationId) return { refus: "Cette annulation n'a pas été journalisée (antérieure aux actions réversibles) : elle ne se rétablit pas d'ici." };
+  const compte = await annulerGeste(a.gesteAnnulationId, user);
+  if ("refus" in compte) return compte;
+  const libere = await prismaBrut.assistantGesteJournal.updateMany({
+    where: { id: gesteId, annuleLe: r.g.annuleLe },
+    data: { annuleLe: null, annuleParId: null, annulation: { ...a, retabliLe: new Date().toISOString(), retablissement: compte } as unknown as Prisma.InputJsonValue },
+  });
+  if (libere.count !== 1) return { refus: "Le geste a changé pendant le rétablissement : rechargez l'écran." };
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: gesteId,
+    summary: `Rétablissement d'un geste annulé (« ${r.g.libelle} ») — ${compte.resume}`.slice(0, 500),
   });
   return compte;
 }

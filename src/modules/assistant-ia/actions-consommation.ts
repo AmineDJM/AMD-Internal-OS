@@ -221,14 +221,25 @@ export async function enregistrerRetentionEffets(formData: FormData): Promise<Ac
   if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
   const jours = Number(String(formData.get("retentionEffetsJours") ?? "").trim());
   if (!Number.isInteger(jours) || jours < 7 || jours > 1095) return { ok: false, error: "Une durée en jours, entre 7 et 1 095 (trois ans)." };
-  const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { retentionEffetsJours: true } });
-  const data = { retentionEffetsJours: jours, updatedById: admin.id };
+  // K10c : la FENÊTRE D'ANNULATION d'un effet sortant (secondes) — absente du formulaire : inchangée.
+  const brut = formData.get("fenetreAnnulationSec");
+  const fenetre = brut === null ? null : Number(String(brut).trim());
+  if (fenetre !== null && (!Number.isInteger(fenetre) || fenetre < 0 || fenetre > 900)) return { ok: false, error: "Une fenêtre d'annulation en secondes, entre 0 (immédiat) et 900 (quinze minutes)." };
+  const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { retentionEffetsJours: true, fenetreAnnulationSec: true } });
+  const data = { retentionEffetsJours: jours, ...(fenetre !== null ? { fenetreAnnulationSec: fenetre } : {}), updatedById: admin.id };
   await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
   await recordAudit({
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Journal des effets — durée de garde",
     oldValue: `${avant?.retentionEffetsJours ?? 180} jours`, newValue: `${jours} jours`,
     summary: `Les gestes de l'assistant restent annulables ${jours} jours (journal des effets)`,
   });
+  if (fenetre !== null && fenetre !== (avant?.fenetreAnnulationSec ?? 120)) {
+    await recordAudit({
+      actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Fenêtre d'annulation des envois",
+      oldValue: `${avant?.fenetreAnnulationSec ?? 120} s`, newValue: `${fenetre} s`,
+      summary: fenetre ? `Les envois (diffusions…) attendent ${fenetre} s avant de partir : annulés d'ici là, rien ne part` : "Les envois partent sans fenêtre d'annulation (compensés après coup)",
+    });
+  }
   revalidatePath("/admin/ai/acces");
   return { ok: true };
 }

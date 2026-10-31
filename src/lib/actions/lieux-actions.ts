@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { ActionResult } from "@/lib/actions/types";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * L'INTERRUPTEUR DE LA DOUBLE ÉCRITURE DES LIEUX (refonte V2-D) — `AppSetting.lieuxDoubleEcriture`.
@@ -15,19 +16,21 @@ import type { ActionResult } from "@/lib/actions/types";
  * Super Admin seul, journalisé.
  */
 export async function reglerDoubleEcritureLieux(actif: boolean): Promise<ActionResult> {
-  const user = await requireUser();
-  if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
-  const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { lieuxDoubleEcriture: true } });
-  await prisma.appSetting.upsert({
-    where: { id: "global" },
-    create: { id: "global", lieuxDoubleEcriture: actif },
-    update: { lieuxDoubleEcriture: actif },
+  return actionReversible("lieux-actions:reglerDoubleEcritureLieux", "Réglage de la double écriture des lieux", async () => {
+    const user = await requireUser();
+    if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+    const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { lieuxDoubleEcriture: true } });
+    await prisma.appSetting.upsert({
+      where: { id: "global" },
+      create: { id: "global", lieuxDoubleEcriture: actif },
+      update: { lieuxDoubleEcriture: actif },
+    });
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Refonte des données", field: "lieuxDoubleEcriture",
+      oldValue: String(avant?.lieuxDoubleEcriture ?? true), newValue: String(actif),
+      summary: `Double écriture des lieux ${actif ? "allumée" : "éteinte"}`,
+    });
+    revalidatePath("/admin/refonte-donnees");
+    return { ok: true, message: actif ? "Double écriture des lieux allumée." : "Double écriture des lieux éteinte." };
   });
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Refonte des données", field: "lieuxDoubleEcriture",
-    oldValue: String(avant?.lieuxDoubleEcriture ?? true), newValue: String(actif),
-    summary: `Double écriture des lieux ${actif ? "allumée" : "éteinte"}`,
-  });
-  revalidatePath("/admin/refonte-donnees");
-  return { ok: true, message: actif ? "Double écriture des lieux allumée." : "Double écriture des lieux éteinte." };
 }

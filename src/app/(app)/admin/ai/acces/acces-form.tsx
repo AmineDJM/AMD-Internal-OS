@@ -304,13 +304,15 @@ function ValeursSensibles({ initial }: { initial: ModeValeursSensibles }) {
 }
 
 /** J7 (décision 0029) — combien de jours un geste de l'assistant reste annulable (journal des effets). */
-function RetentionEffets({ initial }: { initial: number }) {
+function RetentionEffets({ initial, fenetreInitiale }: { initial: number; fenetreInitiale: number }) {
   const { saving, err, run } = useAction();
   const [jours, setJours] = React.useState(String(initial));
+  const [fenetre, setFenetre] = React.useState(String(fenetreInitiale));
   const [ok, setOk] = React.useState(false);
   const enregistrer = () => {
     const fd = new FormData();
     fd.set("retentionEffetsJours", jours);
+    fd.set("fenetreAnnulationSec", fenetre);
     setOk(false);
     void run(() => enregistrerRetentionEffets(fd), () => setOk(true));
   };
@@ -320,6 +322,11 @@ function RetentionEffets({ initial }: { initial: number }) {
         Garder le journal
         <input type="number" min={7} max={1095} value={jours} onChange={(e) => setJours(e.target.value)} className="h-10 w-24 rounded-md border px-2 text-base sm:text-sm" />
         jours
+      </label>
+      <label className="inline-flex items-center gap-2 text-sm">
+        Fenêtre d&apos;annulation des envois
+        <input type="number" min={0} max={900} value={fenetre} onChange={(e) => setFenetre(e.target.value)} className="h-10 w-24 rounded-md border px-2 text-base sm:text-sm" />
+        secondes
       </label>
       <button type="button" onClick={enregistrer} disabled={saving} className="h-10 rounded-md border px-3 text-sm">Enregistrer</button>
       <EtatEnregistrement saving={saving} ok={ok} err={err} />
@@ -359,8 +366,8 @@ function DOfficeParRole({ roles }: { roles: LigneRole[] }) {
   );
 }
 
-export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours, valeursSensibles }: {
-  roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number }; managerVoitEquipe: boolean; retentionEffetsJours: number;
+export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours, fenetreAnnulationSec, valeursSensibles }: {
+  roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number }; managerVoitEquipe: boolean; retentionEffetsJours: number; fenetreAnnulationSec: number;
   valeursSensibles: ModeValeursSensibles;
 }) {
   return (
@@ -415,9 +422,11 @@ export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, manage
           <p className="text-sm text-muted-foreground">
             Chaque geste de l&apos;assistant (carte confirmée, étape d&apos;un travail, geste sous mandat) garde la valeur d&apos;avant de ce qu&apos;il
             a écrit : la personne peut l&apos;annuler depuis « Ce que l&apos;assistant a fait ». Au-delà de cette durée, le journal est purgé
-            et le geste ne s&apos;annule plus.
+            et le geste ne s&apos;annule plus. Les actions métier réversibles (décisions, réglages, réservations…) y entrent aussi : leur
+            écran montre « Annuler ». Un envoi (diffusion de notifications) attend la fenêtre d&apos;annulation avant de partir : annulé
+            d&apos;ici là, rien ne part (défaut 120 s ; 0 = immédiat, compensé après coup).
           </p>
-          <RetentionEffets initial={retentionEffetsJours} />
+          <RetentionEffets initial={retentionEffetsJours} fenetreInitiale={fenetreAnnulationSec} />
         </CardContent>
       </Card>
       <ParPersonne personnes={personnes} plafondsGlobaux={plafondsGlobaux} />

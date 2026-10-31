@@ -28,7 +28,8 @@ import { installerPortReseau } from "./reseau";
  */
 
 export interface MetaGesteAgent {
-  origine: Extract<OrigineGeste, "carte" | "travail" | "mandat"> | "carte" | "travail" | "mandat";
+  /** « ecran » : une action métier réversible cliquée à l'écran ; « annulation » : une annulation (K10c). */
+  origine: Extract<OrigineGeste, "carte" | "travail" | "mandat"> | "carte" | "travail" | "mandat" | "ecran" | "annulation";
   capaciteId?: string | null;
   libelle: string;
   travailId?: string | null;
