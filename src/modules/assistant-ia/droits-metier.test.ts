@@ -24,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { remplacerModelesPourTests } from "./infra/generer";
+import { remplacerReglagesPourTests } from "./infra/consommation";
 import { modeleFactice } from "./infra/testing/modele-factice";
 import { effacerJournalDe } from "./infra/testing/journal";
 import { filtrerSaisie, jouerTour, Revelateur } from "./infra/fil/tour";
@@ -141,6 +142,9 @@ suite("contre la base, au faux modèle", () => {
   };
 
   beforeAll(async () => {
+    // Ce banc est celui de la décision 0012 — le mode « masquées » (décision 0034 : le mode « en clair » a le sien,
+    // `valeurs-sensibles.test.ts`). Le réglage s'injecte : la ligne globale reste à ses voisins.
+    remplacerReglagesPourTests({ valeursSensibles: "MASQUEES" });
     superAdmin = await session("SUPER_ADMIN", "Direction");
     kam = await session("MEDICAL_DELEGATE", "Kamel");
     assia = await session("MEDICAL_DELEGATE", "Assia");
@@ -166,6 +170,7 @@ suite("contre la base, au faux modèle", () => {
   });
   afterEach(() => { remplacerModelesPourTests(null); });
   afterAll(async () => {
+    remplacerReglagesPourTests(null);
     const ids = [superAdmin, kam, assia, karim, assistante, autreAssistante, lecteur, voisin].filter(Boolean).map((u) => u.id);
     await prisma.accesDonneeSensible.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.message.deleteMany({ where: { senderId: { in: ids } } }).catch(() => {});

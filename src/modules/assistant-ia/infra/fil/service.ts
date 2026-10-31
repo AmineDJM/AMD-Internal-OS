@@ -6,12 +6,12 @@ import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { jouerTour } from "./tour";
 import { messagePartiel } from "../../domaine/fil/partiel";
 import { sansBloquer } from "@/lib/journal";
-import { auNomDe } from "../consommation";
+import { auNomDe, lireReglagesAssistantIa } from "../consommation";
 import { resumeLecture, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../../domaine/lecture/regles";
 import { PIECES_PAR_ENVOI_MAX } from "../../domaine/lecture/depot";
 import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
 import { demarrerLesSousMissions } from "../travaux";
-import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
+import { horsEcranSansValeur, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
 import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
 import { sectionDossierDuTour } from "../conversations/dossiers";
@@ -366,12 +366,15 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     await finir({ etat: ETAT.ECHEC, contenu: r.error, erreur: r.error.slice(0, 300), etapes }, ETAT.ECHEC);
   }
 
+  // Décision 0034 : en mode « en clair », la voix prononce ce que la personne a le droit de voir ; la notification, jamais.
+  const enClair = (await lireReglagesAssistantIa()).valeursSensibles === "EN_CLAIR";
   // LA RÉPONSE VOCALE (option de la personne) : après le texte, qui s'affiche sans l'attendre.
   if (r.ok && fil.reponseVocale) {
     let audio: AudioDuTour | null;
     try {
-      // La voix est synthétisée par un modèle : une valeur révélée n'y part pas (décision 0012).
-      audio = await auNomDe(userId, () => repondreAVoixHaute(user, sansValeursRevelees(r.content)), tour.filId);
+      // La voix est synthétisée par un modèle : en repères, une valeur révélée n'y part pas (décision 0012) ; en clair
+      // (décision 0034), elle est prononcée — la personne avait le droit de la voir.
+      audio = await auNomDe(userId, () => repondreAVoixHaute(user, enClair ? retirerBornes(r.content) : sansValeursRevelees(r.content)), tour.filId);
     } catch (e) {
       console.error("[assistant-fil] réponse vocale", e);
       audio = { id: "", dureeS: null, erreur: "La réponse vocale n'a pas pu être préparée." };
@@ -383,11 +386,14 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
   const vu = await prisma.assistantIaFil.findUnique({ where: { id: tour.filId }, select: { consulteLe: true } });
   if (!vu?.consulteLe || Date.now() - vu.consulteLe.getTime() > ABSENT_APRES_MS) {
     const sujet = texteDit.replace(/\s+/g, " ").trim().slice(0, 60) || (vocal ? "message vocal" : "pièces jointes");
-    await notifierConversation(
-      userId, tour.filId,
-      r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
-      r.ok ? r.content : r.error,
-    );
+    await notifyUser({
+      userId, type: "GENERIC",
+      title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
+      // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
+      body: (enClair ? horsEcranSansValeur : sansValeursRevelees)(r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
+      // LA BONNE CONVERSATION (décision 0027) : l'ERP l'ouvre sur `/assistant`, l'app Adventum IA renvoie ce lien vers `/ia`.
+      link: `/assistant?c=${tour.filId}`,
+    }).catch(sansBloquer("fil-service.jouerTourDuFil.notifyUser"));
   }
 
   // LE TITRE PROPOSÉ (décision 0027) : après la première réponse, par le modèle rapide — jamais avant le premier mot.
