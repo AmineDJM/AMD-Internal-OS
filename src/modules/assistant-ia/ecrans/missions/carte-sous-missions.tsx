@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { CheckCircle2, ChevronRight, Loader2, Rocket } from "lucide-react";
 import { avancement, LIBELLE_MISSION, missionVivante, usd } from "../../domaine/sous-missions";
 import { useMissions } from "./use-missions";
@@ -15,9 +15,13 @@ import { BarreAvancement, useGestesMission } from "./tableau-missions";
 export function CarteSousMissions({ ids, onSuivre }: { ids: string[]; onSuivre?: (id?: string) => void }) {
   const { tableau, relire } = useMissions(ids.length > 0);
   const gestes = useGestesMission(relire);
+  // L'ÉTAT FRAIS d'abord : le flux peut encore porter, une seconde, l'état « à approuver » d'un plan que la fin du tour
+  // vient de démarrer d'office — « Approuver » ne s'affiche qu'après une relecture faite APRÈS l'apparition de la carte.
+  const [frais, setFrais] = useState(false);
+  useEffect(() => { void relire().finally(() => setFrais(true)); }, [relire]);
   const missions = ids.map((id) => tableau?.missions.find((m) => m.id === id)).filter((m): m is NonNullable<typeof m> => !!m);
   if (!ids.length) return null;
-  const aApprouver = missions.filter((m) => m.etat === "A_APPROUVER");
+  const aApprouver = frais ? missions.filter((m) => m.etat === "A_APPROUVER") : [];
   const vivantes = missions.filter((m) => missionVivante(m.etat)).length;
   const toutApprouver = async () => { for (const m of aApprouver) await gestes.approuver(m.id); };
   // `adventum-ia contents` : les jetons du thème, aussi dans l'ERP (où la conversation ne les porte pas).
@@ -49,7 +53,7 @@ export function CarteSousMissions({ ids, onSuivre }: { ids: string[]; onSuivre?:
               </button>
               <BarreAvancement part={part} vivante={missionVivante(m.etat)} libelle={`Avancement de ${m.titre}`} />
               <p className="truncate text-[12px] text-[var(--aia-discret)]" data-testid="etape-courante">
-                {m.attente ?? (enCours ? `En cours : ${enCours.titre}` : m.etat === "A_APPROUVER" ? `${m.etapes.length} étapes — attend votre accord` : `${m.avancement.faites}/${m.avancement.total} étapes · ${usd(m.coutUsd)}`)}
+                {m.attente ?? (enCours ? `En cours : ${enCours.titre}` : m.etat === "A_APPROUVER" ? (frais ? `${m.etapes.length} étapes — attend votre accord` : "Préparation…") : `${m.avancement.faites}/${m.avancement.total} étapes · ${usd(m.coutUsd)}`)}
               </p>
               {m.etat === "A_APPROUVER" && aApprouver.length === 1 && (
                 <button type="button" disabled={!!gestes.occupe} onClick={() => void gestes.approuver(m.id)}

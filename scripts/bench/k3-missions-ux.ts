@@ -92,8 +92,11 @@ async function bureau(b: Browser) {
   mesures.tourLancementS = Math.round((Date.now() - t0) / 1000);
   const ids = await p.$$eval("[data-testid=sous-mission]", (xs) => xs.map((x) => (x as HTMLElement).dataset.mission ?? ""));
   mesures.sousMissions = ids.length;
+  // Celles qui attendent un accord (démarrage d'office coupé) : « Tout approuver » — sinon rien à faire.
+  await p.waitForTimeout(1_500);
   const tout = p.getByRole("button", { name: /Tout approuver|Approuver et lancer/ });
-  if (await tout.count()) await tout.first().click();
+  if (await tout.count()) await tout.first().click({ timeout: 5_000 }).catch(() => undefined);
+  mesures.boutonApprouverVisible = await tout.count();
 
   // ── 2. La discussion continue AUSSITÔT, pendant que les sous-missions tournent ─────────────────
   const tours = () => prisma.assistantIaTour.count({ where: { userId: moi.id, role: "assistant", etat: "TERMINE", syntheseDe: null } });
@@ -208,10 +211,12 @@ async function iphone(b: Browser, sombre: boolean) {
 }
 
 async function depotDOffice(b: Browser) {
-  const dossier = path.join(SORTIE, "depot-20");
+  // Des noms PROPRES À CE PASSAGE : la même liste redéposée serait une REPRISE du lot d'avant (rien à relire).
+  const passage = Date.now().toString(36);
+  const dossier = path.join(SORTIE, `depot-20-${passage}`);
   fs.mkdirSync(dossier, { recursive: true });
   const fichiers = Array.from({ length: 20 }, (_, i) => {
-    const f = path.join(dossier, `piece-${String(i + 1).padStart(2, "0")}.txt`);
+    const f = path.join(dossier, `piece-${String(i + 1).padStart(2, "0")}-${passage}.txt`);
     fs.writeFileSync(f, `Pièce ${i + 1} du dépôt K3.\nProduit : Paracétamol ${100 + i} mg.\nObjet : variation de type IB n° ${i + 1}, déposée le ${i + 1} octobre 2026.\n`);
     return f;
   });
@@ -222,16 +227,17 @@ async function depotDOffice(b: Browser) {
   await largeurOk(p, "iphone-depot");
   await capture(p, "20-iphone-depot-d-office-puce");
   const t0 = Date.now();
+  const depuis = new Date().toISOString();
   await envoyer(p, "Lis tout ce dépôt et dis-moi quelles variations il contient.");
   // Le lot : 20 fichiers lus en entier par la Bibliothèque (8 min au plus).
   let lot: { annonces: number; lus: number; echoues: number } | null = null;
   while (Date.now() - t0 < 8 * 60_000) {
     await p.waitForTimeout(4_000);
-    lot = await p.evaluate(async () => {
+    lot = await p.evaluate(async (d) => {
       const r = await fetch("/api/assistant-ia/depot-dossier", { cache: "no-store" });
       const b2 = (await r.json()) as { lots: { annonces: number; lus: number; echoues: number; createdAt: string }[] };
-      return b2.lots.sort((a, c) => c.createdAt.localeCompare(a.createdAt))[0] ?? null;
-    });
+      return b2.lots.filter((l) => l.createdAt >= d).sort((a, c) => c.createdAt.localeCompare(a.createdAt))[0] ?? null;
+    }, depuis);
     if (lot && lot.annonces === 20 && lot.lus + lot.echoues >= 20) break;
   }
   mesures.depot = { ...lot, dureeS: Math.round((Date.now() - t0) / 1000) };

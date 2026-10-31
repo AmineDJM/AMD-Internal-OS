@@ -1,0 +1,73 @@
+{
+  "largeur:bureau-accueil": {
+    "sw": 1280,
+    "w": 1280
+  },
+  "tourLancementS": 21,
+  "sousMissions": 3,
+  "boutonApprouverVisible": 0,
+  "reponsePendantMissionsS": 3.2,
+  "etapesFaitesPendantLaReponse": 0,
+  "parallele": {
+    "pairesDEtapesSimultanees": 6
+  },
+  "syntheseDansLaConversation": true,
+  "missions": [
+    {
+      "titre": "Tâches en cours",
+      "statut": "COMPLETED",
+      "coutUsd": 0.001134,
+      "dureeS": 3
+    },
+    {
+      "titre": "Analyse Ad & Pro 2026",
+      "statut": "COMPLETED",
+      "coutUsd": 0.010956,
+      "dureeS": 7
+    },
+    {
+      "titre": "Note sur les dossiers réglementaires",
+      "statut": "COMPLETED",
+      "coutUsd": 0.002676,
+      "dureeS": 4
+    }
+  ],
+  "largeur:bureau-fin": {
+    "sw": 1280,
+    "w": 1280
+  },
+  "latenceAffichageMs": {
+    "changements": 12,
+    "vus": 12,
+    "mediane": 404,
+    "p95": 896,
+    "max": 896
+  },
+  "largeur:iphone-clair-accueil": {
+    "sw": 390,
+    "w": 390
+  },
+  "largeur:iphone-clair-tableau": {
+    "sw": 390,
+    "w": 390
+  },
+  "largeur:iphone-sombre-accueil": {
+    "sw": 390,
+    "w": 390
+  },
+  "largeur:iphone-sombre-tableau": {
+    "sw": 390,
+    "w": 390
+  },
+  "coutReel": {
+    "appels": 10,
+    "usd": 0.082772,
+    "jetonsEntree": 33389,
+    "jetonsSortie": 2552
+  },
+  "erreursConsole": [
+    "[1280] Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "[390] Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "note": "Le dépôt d'office est mesuré à part (mesures-depot.json) : dans ce passage, les mêmes 20 fichiers déjà déposés ont été reconnus comme une REPRISE du lot précédent."
+}

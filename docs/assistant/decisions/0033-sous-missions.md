@@ -111,7 +111,29 @@ Les droits de l'assistant restent ceux de la personne (chaque lecture et chaque 
 jamais fait sans l'approbation du plan qui le porte ; le filtre de confidentialité s'applique à la synthèse comme au reste ;
 les plafonds de dépense (travail, mois, jour) endorment un travail sans le tuer.
 
-## 6. Décisions à confirmer par la Direction
+## 6. Preuves sur serveur réel (31/10/2026)
+
+Build propre en mode app (`APP_MODE=adventum-ia RENDER=1 npm run build:render`), `next start` sur la base de banc `amd_bench`,
+worker à côté (`TACHES_DE_FOND=les-deux`), vrai modèle par le mandataire, Chromium piloté par `scripts/bench/k3-missions-ux.ts`
+(bureau 1280 px, iPhone 13 clair et sombre). Captures et mesures : [`docs/assistant/captures/0033/`](../captures/0033/).
+
+| Mesure | Résultat |
+|---|---|
+| Un message → sous-missions | 3 sous-missions (lecture, analyse, livrable), démarrées d'office à la fin du tour (21 s de tour) ; aucun bouton « Approuver » fantôme |
+| Conversation pendant ce temps | second message répondu en 3,2 s pendant que les missions tournaient (« 2 missions en cours » à l'écran) |
+| Parallélisme | 6 paires d'étapes de missions différentes exécutées en même temps ; 3 à 7 s par mission |
+| Latence d'affichage d'un changement d'étape (sonde : 12 changements écrits en base) | 12/12 vus ; médiane 404 ms, p95 896 ms (premier passage : 337 / 832 ms) |
+| Synthèse | écrite dans la conversation (3/3 terminées, « en bref » du modèle rapide, livrables téléchargeables) + notification |
+| Dépôt d'office | « 20 fichiers : tout lire en arrière-plan » ; 20 téléversés, 20 lus par la Bibliothèque, 0 échec, en 4 s |
+| Largeur | `scrollWidth` = largeur partout (1280, 390) ; cibles ≥ 44 px sur téléphone |
+| Coût réel du passage | 10 appels de modèle, 0,083 $ (le premier passage complet : 15 appels, 0,133 $) |
+
+Le premier passage réel a trouvé deux défauts, corrigés : le modèle rappelait `lancer_un_travail` sur plusieurs étapes du même
+tour (9 plans pour 3 — d'où le démarrage d'office en FIN de tour et la consigne « ne relance pas »), et l'app refusait
+`/api/uploads/limites` (404 à chaque page, ajouté aux API de l'app). Reste une erreur de console connue hors du lot :
+`/favicon.ico` répond 404 en mode app.
+
+## 7. Décisions à confirmer par la Direction
 
 1. Le défaut du démarrage d'office : OUI pour le Super Admin, NON pour les autres (réglable par rôle et par personne).
 2. La borne de parallélisme `TRAVAUX_EN_PARALLELE` = 4 par processus (worker).

@@ -33,7 +33,8 @@ export interface IssueSousMission {
 
 const ISSUE: Record<string, string> = { COMPLETED: "terminée", CANCELLED: "annulée", FAILED: "en échec", PARTIAL: "terminée en partie", BLOCKED: "bloquée" };
 
-export const usd = (n: number): string => `${n.toFixed(2).replace(".", ",")} $`;
+/** « 0,03 $ » — et « < 0,01 $ » pour un coût réel mais minuscule (jamais un « 0,00 $ » qui ferait croire à la gratuité). */
+export const usd = (n: number): string => (n > 0 && n < 0.005 ? "< 0,01 $" : `${n.toFixed(2).replace(".", ",")} $`);
 
 /** « 3 min 20 s », « 45 s », « 1 h 05 » — une durée dite. */
 export function duree(ms: number | null | undefined): string {
