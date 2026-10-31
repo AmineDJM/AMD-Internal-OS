@@ -8,7 +8,9 @@ un plan sans geste démarre d'office (Super Admin par défaut, réglable par per
 suit chaque sous-mission en temps réel ; à la fin, la synthèse s'écrit dans la conversation et la personne est notifiée.
 Tableau de bord « Missions » (app Adventum IA et Assistant de l'ERP) en Server-Sent Events, avec repli en sondage court ;
 indicateur « 3 missions en cours » dans l'en-tête. Au-delà de 6 pièces, le dépôt est proposé d'office (« 14 fichiers : tout
-lire en arrière-plan »). Migration `20270216120000_sous_missions`.
+lire en arrière-plan »). **Recherche approfondie** (`recherche_approfondie`) : plusieurs recherches web en parallèle, puis un
+rapport complet (sommaire, chiffres datés, sources numérotées) affiché dans la conversation et déposé au Drive en Word et PDF.
+Migration `20270216120000_sous_missions`.
 
 ### JARVIS INTÉGRÉ : LE TEST RÉEL UNIQUE DE FIN, ET LES DEUX DÉFAUTS QU'IL A TROUVÉS (2026-10-31)
 

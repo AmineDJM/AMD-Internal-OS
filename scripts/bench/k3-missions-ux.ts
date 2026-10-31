@@ -245,6 +245,87 @@ async function depotDOffice(b: Browser) {
   await p.context().close();
 }
 
+/** § 7 — LA RECHERCHE APPROFONDIE, réelle : un message d'étude → sous-recherches web en parallèle → rapport complet. */
+async function recherche(b: Browser) {
+  const p = await connexion(b, { viewport: { width: 1280, height: 820 } });
+  const moi = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL }, select: { id: true } });
+  const t0 = Date.now();
+  await envoyer(p, "Fais-moi une recherche approfondie : le marché des biosimilaires de l'insuline en Algérie et au Maghreb — taille et croissance du marché, acteurs et produits disponibles, prix et remboursement, cadre réglementaire. Je veux un rapport complet et sourcé.");
+  await p.waitForSelector("[data-testid=carte-sous-missions] [data-testid=sous-mission]", { timeout: 240_000 });
+  mesures.rechercheTourS = Math.round((Date.now() - t0) / 1000);
+  const [id] = await p.$$eval("[data-testid=sous-mission]", (xs) => xs.map((x) => (x as HTMLElement).dataset.mission ?? ""));
+  const m0 = await prisma.mission.findUniqueOrThrow({ where: { id }, select: { context: true, steps: { select: { key: true, capability: true } } } });
+  mesures.rechercheOrigine = m0.context;
+  mesures.sousRecherches = m0.steps.filter((x) => x.capability?.endsWith("web_research")).length;
+  await p.click("[data-testid=indicateur-missions]");
+  await p.waitForSelector(`[data-testid=mission][data-mission="${id}"]`, { timeout: 30_000 });
+  await p.click(`[data-testid=mission][data-mission="${id}"] > button`);
+  await suivreRecherche(p, id!, t0, moi.id);
+}
+
+/** Suit une recherche jusqu'à sa fin (captures du tableau, rapport) — et la REPREND par le tableau si elle se bloque. */
+async function suivreRecherche(p: Page, id: string, t0: number, moiId: string) {
+  let n = 0;
+  const limite = Date.now() + 15 * 60_000;
+  let enCoursMax = 0;
+  let reprises = 0;
+  while (Date.now() < limite) {
+    await p.waitForTimeout(4_000);
+    const enCours = await p.$$eval(`[data-testid=mission][data-mission="${id}"] [data-etat=EN_COURS]`, (x) => x.length).catch(() => 0);
+    enCoursMax = Math.max(enCoursMax, enCours);
+    if (n < 2 && enCours >= 2) { await capture(p, `30-recherche-tableau-sous-recherches-paralleles-${n + 1}`); n++; }
+    const m = await prisma.mission.findUnique({ where: { id }, select: { status: true } });
+    if (m && (m.status === "PARTIAL" || m.status === "BLOCKED") && reprises < 2) {
+      // Comme la personne : « Reprendre » sur la mission bloquée, au tableau de bord.
+      await capture(p, "30b-recherche-bloquee-avant-reprise");
+      await p.click(`[data-testid=mission][data-mission="${id}"] button:has-text("Reprendre")`, { timeout: 15_000 }).catch(() => undefined);
+      reprises++;
+      continue;
+    }
+    if (m && FINIS.includes(m.status) && m.status !== "PARTIAL" && m.status !== "BLOCKED") break;
+  }
+  mesures.rechercheReprises = reprises;
+  mesures.rechercheEtapesSimultaneesMax = enCoursMax;
+  await p.waitForTimeout(2_500);
+  await capture(p, "31-recherche-tableau-fin");
+  const fin = await prisma.mission.findUniqueOrThrow({ where: { id }, select: { status: true, costUsd: true, startedAt: true, updatedAt: true, carnet: true } });
+  const livrable = ((fin.carnet as { livrables?: { contenu: string; document?: { nom: string; format: string } }[] }).livrables ?? []).at(-1);
+  const docs = await prisma.driveNode.findMany({ where: { ownerId: moiId, name: { contains: "Rapport de recherche" }, createdAt: { gte: new Date(t0) } }, select: { name: true } });
+  mesures.recherche = {
+    statut: fin.status, dureeS: fin.startedAt ? Math.round((fin.updatedAt.getTime() - fin.startedAt.getTime()) / 1000) : null,
+    caracteres: livrable?.contenu.length ?? 0, sourcesNumerotees: (livrable?.contenu.match(/^\s*\[\d+\]/gm) ?? []).length,
+    sections: (livrable?.contenu.match(/^## /gm) ?? []).length, documents: docs.map((d) => d.name),
+  };
+  await p.click("[data-testid=tableau-missions] button[aria-label=Fermer]").catch(() => undefined);
+  mesures.rechercheRapportDansLaConversation = await p.waitForFunction(() => /Sources/.test(document.querySelector("[data-testid=adventum-ia] main")?.textContent ?? ""), undefined, { timeout: 120_000 }).then(() => true).catch(() => false);
+  await p.waitForTimeout(1_000);
+  await capture(p, "32-recherche-rapport-dans-la-conversation-fin");
+  await p.mouse.move(700, 400);
+  for (let k = 0; k < 12; k++) await p.mouse.wheel(0, -700);
+  await p.waitForTimeout(400);
+  await capture(p, "33-recherche-rapport-debut");
+  await largeurOk(p, "recherche");
+  await p.context().close();
+}
+
+/** Reprendre la DERNIÈRE recherche approfondie restée bloquée (passage précédent), par le tableau de bord. */
+async function repriseRecherche(b: Browser) {
+  const p = await connexion(b, { viewport: { width: 1280, height: 820 } });
+  const moi = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL }, select: { id: true } });
+  const m = await prisma.mission.findFirstOrThrow({ where: { principalId: moi.id, context: "assistant-ia:recherche-approfondie" }, orderBy: { createdAt: "desc" }, select: { id: true, createdAt: true, steps: { select: { capability: true } } } });
+  mesures.sousRecherches = m.steps.filter((x) => x.capability?.endsWith("web_research")).length;
+  const tour = await prisma.assistantIaTour.findFirst({ where: { userId: moi.id, travaux: { array_contains: [m.id] }, syntheseDe: null }, select: { filId: true } });
+  if (tour) await p.goto(`/ia?c=${tour.filId}`);
+  await p.waitForSelector("[data-testid=indicateur-missions]");
+  await p.click("[data-testid=indicateur-missions]");
+  await p.waitForSelector("[data-testid=tableau-missions] [data-testid=mode-flux][data-mode=direct]", { timeout: 30_000 });
+  // Finie, elle est sous « Terminées ».
+  if (!(await p.$(`[data-testid=mission][data-mission="${m.id}"]`))) await p.getByRole("tab", { name: /Terminées/ }).click();
+  await p.waitForSelector(`[data-testid=mission][data-mission="${m.id}"]`, { timeout: 30_000 });
+  await p.click(`[data-testid=mission][data-mission="${m.id}"] > button`);
+  await suivreRecherche(p, m.id, m.createdAt.getTime(), moi.id);
+}
+
 async function main() {
   if (!estUneBaseDeBancOuDEssai(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
   const debut = new Date();
@@ -254,11 +335,15 @@ async function main() {
     if (etapes.includes("bureau")) await bureau(b);
     if (etapes.includes("iphone")) { await iphone(b, false); await iphone(b, true); }
     if (etapes.includes("depot")) await depotDOffice(b);
+    if (etapes.includes("recherche")) await recherche(b);
+    if (etapes.includes("reprise")) await repriseRecherche(b);
   } finally {
     await b.close();
   }
   const u = await prisma.user.findUnique({ where: { email: EMAIL }, select: { id: true } });
-  const conso = await prisma.modelCallLog.aggregate({ where: { userId: u?.id, at: { gte: debut } }, _sum: { costUsd: true, inputTokens: true, outputTokens: true }, _count: true });
+  // Tous les appels du passage (la recherche web du rôle worker peut être journalisée sans personne) — base de banc seule.
+  const conso = await prisma.modelCallLog.aggregate({ where: { at: { gte: debut } }, _sum: { costUsd: true, inputTokens: true, outputTokens: true }, _count: true });
+  void u;
   mesures.coutReel = { appels: conso._count, usd: Number(conso._sum.costUsd ?? 0), jetonsEntree: conso._sum.inputTokens, jetonsSortie: conso._sum.outputTokens };
   mesures.erreursConsole = erreurs;
   fs.writeFileSync(path.join(SORTIE, "mesures.json"), JSON.stringify(mesures, null, 2));

@@ -3,7 +3,7 @@ import { compileContext } from "../contexte";
 import { accesAssistantIa, getRoleConfig, resoudreConsignesRole, Revelateur } from "../role-config";
 import { consigneFamilles, type AccesIa } from "../../domaine/acces-regles";
 import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
-import { consigneTravaux, outilTravailPour } from "../travaux";
+import { consigneTravaux, outilsSousMissionsDuTour } from "../travaux";
 import { selectionDuTour, type SelectionDuTour } from "../selection";
 import { CONSIGNE_SELECTION, OUTIL_TROUVER } from "../../domaine/selection-outils";
 import { historiqueDansEnveloppe } from "../../domaine/assembleur";
@@ -175,7 +175,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // J6 : avec les CAPACITÉS de l'ERP (registre dérivé du contrat) — enregistrées toutes, seules les actives partent.
     // J14 : ce que le tour lit d'un tiers, face à ce que la personne a écrit — une carte dit ses valeurs d'origine tierce.
     const provenance = new ProvenanceDuTour([texteSaisi, ...saisie.historique.filter((h) => h.role === "user").map((h) => h.content)], message);
-    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, { capacites: true, provenance, notesProposees }), outilTravailPour(user, travauxLances, "fin-du-tour")];
+    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, { capacites: true, provenance, notesProposees }), ...outilsSousMissionsDuTour(user, travauxLances, "fin-du-tour")];
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     outils = d.prive ? outils.filter((o) => o.def.name !== "proposer_memoire") : [...outils, outilConversationsPassees(user, d.conversation ?? null)];

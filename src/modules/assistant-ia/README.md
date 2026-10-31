@@ -44,6 +44,8 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   onglet, repli en sondage 3 s), `tableau-missions.tsx` (plein écran sur téléphone, tiroir sur ordinateur), `carte-sous-missions.tsx`
   (la carte du fil, l'indicateur d'en-tête), `reglage-d-office.tsx`. Actions `actions-travaux.ts` : `lireMonTableauDeMissions`,
   `annulerMaMission`, `lireMaPreferenceDOffice`, `reglerMaPreferenceDOffice` ; console : `enregistrerTravauxDOffice`.
+- **Recherche approfondie** (§ 7) — outil `recherche_approfondie` (`infra/sous-missions.ts`, plan pur `domaine/recherche-approfondie.ts`) :
+  une `web_research` par angle en parallèle, puis un rapport complet sourcé (Word + PDF au Drive), affiché en entier dans la conversation.
 - **Dépôt d'office** — `domaine/lecture/depot-dossier.ts` (`modeDuDepot` au-delà de 6 pièces, `libelleDepotDOffice`),
   `ecrans/depot-dossier.tsx`, `ecrans/use-pieces.ts`. Bancs : `infra/sous-missions.test.ts`, `scripts/bench/k3-missions-ux.ts`.
 

@@ -133,7 +133,34 @@ tour (9 plans pour 3 — d'où le démarrage d'office en FIN de tour et la consi
 `/api/uploads/limites` (404 à chaque page, ajouté aux API de l'app). Reste une erreur de console connue hors du lot :
 `/favicon.ico` répond 404 en mode app.
 
-## 7. Décisions à confirmer par la Direction
+## 7. La recherche approfondie — la vitrine des sous-missions
+
+Ajout de la Direction en cours de lot (« des recherches web aussi puissantes que ChatGPT »). Outil `recherche_approfondie`
+(`infra/sous-missions.ts`, règles pures `domaine/recherche-approfondie.ts`), offert à chaque tour à côté de `lancer_un_travail`
+et sur la MÊME mémoire du tour (reformulation remplacée, carte, démarrage d'office) :
+
+- **Le plan** est construit par le code, pas par le modèle : `sujet` + 2 à 6 `angles` distincts (trois angles par défaut sinon)
+  → une étape LECTURE `web_research` par angle, SANS dépendance (elles partent ensemble sous la concurrence du travail), puis un
+  LIVRABLE `pdf` après toutes : le Word est déposé au Drive (« Travaux »), puis converti en PDF par l'Atelier — les deux restent.
+- **Le rapport** (`CONSIGNE_RAPPORT`) : titre, date, sommaire, synthèse en puces, une section par angle, limites, et `## Sources`
+  numérotées une fois (« [n] Titre — URL »), chaque chiffre daté et appelé par sa source ; aucune URL hors des sorties des
+  sous-recherches. Le livrable lit jusqu'à 64 000 caractères de ses sorties amont (24 000 pour les autres étapes) ; la
+  rédaction a 4 minutes.
+- **Le retour** : la mission porte l'origine `assistant-ia:recherche-approfondie` ; sa synthèse dans la conversation est le
+  RAPPORT EN ENTIER (40 000 caractères au plus, filtre de confidentialité), suivi des liens PDF et Word.
+- **Le suivi** : chaque sous-recherche est une étape du tableau « Missions » (en file → en cours → faite), en temps réel.
+- **Le modèle** de la recherche web reste celui du rôle `worker` (`src/platform/ia/web-research.ts`, réflexion moyenne, 4 500
+  jetons) ; aucun nouveau modèle n'est ajouté. Le coût des recherches web est journalisé par l'appel de modèle du rôle worker,
+  pas au coût de la mission (qui compte les étapes de rédaction) : le banc dit le coût réel total.
+- **La rédaction en flux** : un livrable long (le rapport) s'écrit en plus de 45 s ; une requête au modèle NON diffusée était
+  coupée en 502 par un mandataire au banc réel. `genererTexte(…, { flux: true })` lit la réponse en flux pour toutes les
+  rédactions des travaux (`persona.raisonner`), 4 minutes au plus.
+- **Bloquée, elle se reprend** : une mission bloquée ou terminée en partie n'écrit plus de synthèse (`statutFini` : terminée,
+  annulée, échec) ; « Reprendre » (carte, tableau) la relance, et la synthèse s'écrit à sa vraie fin.
+- **Consigne** (`consigneTravaux`) : veille, étude de marché, réglementation étrangère, concurrence → `recherche_approfondie`
+  avec 3 à 5 angles ; une simple question d'actualité reste `web_research`.
+
+## 8. Décisions à confirmer par la Direction
 
 1. Le défaut du démarrage d'office : OUI pour le Super Admin, NON pour les autres (réglable par rôle et par personne).
 2. La borne de parallélisme `TRAVAUX_EN_PARALLELE` = 4 par processus (worker).

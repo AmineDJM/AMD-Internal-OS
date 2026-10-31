@@ -627,6 +627,8 @@ route SSE `app/api/assistant-ia/missions/flux`.
   annuler (avec les sous-missions). Indicateur « 3 missions en cours » dans l'en-tête.
 - **Dépôt d'office** : au-delà de 6 pièces (fichiers isolés ou dossier), une puce « 14 fichiers : tout lire en arrière-plan »
   — lu en entier par la Bibliothèque, interrogé par `lire_dossier_depose` ; plus de refus à 10 ni de pièce « nommée non lue ».
+- **Recherche approfondie** (`recherche_approfondie`) : plan construit par le code — une `web_research` par angle (2 à 6, en
+  parallèle), puis un LIVRABLE `pdf` (Word + PDF au Drive) ; la synthèse affiche le rapport en entier (sources numérotées).
 
 ### Simulation, journal des effets, annulation (lot J7, 30/10/2026)
 
