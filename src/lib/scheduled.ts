@@ -232,6 +232,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   { cle: "assistant.fils", executer: async () => (await import("@/modules/assistant-ia/api")).reprendreLesFils() },
   // LES CONVERSATIONS PRIVÉES (décision 0027) : supprimées 30 jours après leur création, tours compris.
   { cle: "assistant.conversations-privees", executer: async () => (await import("@/modules/assistant-ia/api")).purgerConversationsPrivees() },
+  // K2 (décision 0032) — LES VISUELS : vidéos du modèle suivies (dépôt au Drive, avis), vidéos de données rendues là où ffmpeg
+  // est (le worker ; pas le web Render), rendus interrompus et files abandonnées dits en échec. Chargé à l'appel.
+  { cle: "assistant.visuels", bailMs: 300_000, executer: async () => { await (await import("@/modules/assistant-ia/api")).traiterVisuelsEnFile(); } },
   // LES INTENTIONS EN PLAN (IA-ASSISTANT-07) : une action interrompue par un redémarrage passe en échec DIT
   // (jamais rejouée) ; une carte jamais confirmée expire (délai réglé par le Super Admin, 24 h par défaut).
   { cle: "assistant.intentions", executer: async () => (await import("@/platform/ia/intentions/action-intents")).balayerIntentions() },

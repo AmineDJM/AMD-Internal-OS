@@ -92,3 +92,5 @@ export {
   capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION, type IssueCaptation, type VueCaptation,
 } from "./infra/terrain/captation";
 export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";
+// ── Les visuels (lot K2, décision 0032) : images, vidéos, vidéos de données — la tâche de fond, la carte, le média
+export { etatVisuel, etatVisuelsPourAdministration, fichierDuVisuel, traiterVisuelsEnFile } from "./infra/visuels/service";

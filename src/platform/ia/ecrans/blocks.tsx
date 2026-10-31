@@ -16,6 +16,7 @@ import { Entity360Block } from "./blocks/entity360";
 import { AlerteBlock, ComparisonBlock, MissionBlock } from "./blocks/decision";
 import { ArtifactBlock } from "./blocks/artifact";
 import { VizBlock } from "./blocks/viz";
+import { VisuelBlock } from "./blocks/visuel";
 
 export { WorkspaceAskProvider };
 
@@ -933,6 +934,7 @@ const RENDERERS: { [K in WorkspaceBlock["kind"]]: (p: { b: Extract<WorkspaceBloc
   artifact: ArtifactBlock,
   viz: VizBlock,
   dashboard: DashboardBlock,
+  visuel: VisuelBlock,
 };
 
 /**

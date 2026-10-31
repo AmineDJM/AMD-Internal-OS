@@ -720,6 +720,26 @@ type WorkspaceBlockShape =
       source?: string | null;
       actions?: WorkspaceAction[];
     }
+  /**
+   * UN VISUEL GÉNÉRÉ (lot K2, décision 0032) — une image, une vidéo (modèle vidéo, en arrière-plan) ou une vidéo de
+   * données (graphique animé rendu par le serveur). `src` et `telecharger` sont des ROUTES de l'ERP qui revérifient la
+   * personne ; tant que le visuel n'est pas prêt, la carte relit `etatHref` et se met à jour (« Vidéo en cours »).
+   */
+  | {
+      kind: "visuel";
+      title: string;
+      nature: "image" | "video" | "video-donnees";
+      visuelId: string;
+      etat: "en-file" | "en-cours" | "pret" | "echec";
+      etatHref: string;
+      src?: string | null;
+      telecharger?: string | null;
+      drive?: string | null;
+      detail?: string | null;
+      erreur?: string | null;
+      progression?: number | null;
+      actions?: WorkspaceAction[];
+    }
   /** UN MINI-TABLEAU DE BORD : des tuiles (représentations, jauges, tableaux, fiches) sur une grille — composé à la volée, jamais un écran dédié. */
   | {
       kind: "dashboard";

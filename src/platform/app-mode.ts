@@ -23,6 +23,8 @@ const PERMIS = [
   "/ia", "/login", "/change-password", "/adventum-ia/", "/ia-sw.js", "/_next/", "/favicon.ico", "/office-embed",
   "/api/assistant-ia/", "/api/auth/", "/api/drive/", "/api/documents/", "/api/artifact/", "/api/push/", "/api/health",
   "/api/onlyoffice/", "/api/rh/document/",
+  // Le gestionnaire d'envois du dépôt de dossier (J11) lit ses bornes ici au montage de l'app : sans elle, deux 404 en console.
+  "/api/uploads/limites",
 ];
 
 /** Les pages d'atterrissage de l'ERP (après connexion) : dans l'app, c'est l'app. */

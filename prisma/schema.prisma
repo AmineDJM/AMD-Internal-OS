@@ -9512,6 +9512,18 @@ model AssistantIaReglage {
   proactiviteCoupee      Boolean  @default(false)
   /// J7 (décision 0029) : durée de garde du journal des effets (gestes de l'assistant et valeurs AVANT), en jours.
   retentionEffetsJours   Int      @default(180)
+  /// K2 (décision 0032) : la génération d'IMAGES (gpt-image) — interrupteur et plafond de dépense du mois civil, en dollars.
+  visuelsImagesActives   Boolean  @default(true)
+  visuelsImagesPlafondUsd Float   @default(20)
+  /// K2 : le modèle d'image (nul = le meilleur mesuré, `gpt-image-2.5-sunburst`).
+  visuelsModeleImage     String?
+  /// K2 : la génération de VIDÉOS par un modèle (Sora) — COUPÉE par défaut, plafond mensuel, modèle, durée max (secondes).
+  visuelsVideosActives   Boolean  @default(false)
+  visuelsVideosPlafondUsd Float   @default(30)
+  visuelsModeleVideo     String?
+  visuelsVideoSecondesMax Int     @default(8)
+  /// K2 : les VIDÉOS DE DONNÉES (graphique animé rendu par le serveur, ffmpeg) — aucun coût de modèle.
+  visuelsDonneesActives  Boolean  @default(true)
   updatedAt              DateTime @default(now()) @updatedAt
   updatedById            String?
 }
@@ -18650,4 +18662,41 @@ model RecetteUsage {
 
   @@index([recetteId, createdAt])
   @@index([userId, createdAt])
+}
+
+/// K2 (décision 0032) — UN VISUEL GÉNÉRÉ par l'Assistant IA : image (gpt-image), vidéo (modèle vidéo, en arrière-plan) ou
+/// vidéo de DONNÉES (graphique animé rendu par le serveur, chiffres lus par les outils du tour). Le fichier vit au Drive
+/// de la personne (`driveNodeId`) ; cette ligne porte l'état (la carte « Vidéo en cours » la relit), le coût réel et
+/// l'erreur dite. Privée : seule la personne la lit (`userId`).
+model AssistantIaVisuel {
+  id               String    @id @default(cuid())
+  userId           String
+  conversationId   String?
+  /// IMAGE | VIDEO | VIDEO_DONNEES
+  nature           String
+  /// EN_FILE | EN_COURS | PRET | ECHEC
+  statut           String    @default("EN_FILE")
+  titre            String
+  /// La consigne PASSÉE AU FILTRE (jamais une valeur confidentielle) ; pour une vidéo de données, vide.
+  consigne         String    @default("")
+  /// La spécification d'une vidéo de données (série, libellés, source) ou les options d'une génération.
+  spec             Json?
+  fournisseur      String?
+  modele           String?
+  /// L'identifiant du travail chez le fournisseur (vidéo) — la reprise le relit après un redémarrage.
+  travailExterne   String?
+  progression      Int       @default(0)
+  driveNodeId      String?
+  mime             String?
+  octets           Int?
+  secondes         Float?
+  coutUsd          Float?
+  erreur           String?
+  notifie          Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  termineLe        DateTime?
+
+  @@index([userId, createdAt])
+  @@index([statut, createdAt])
 }
