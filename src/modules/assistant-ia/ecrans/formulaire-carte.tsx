@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
 import { sansBloquer } from "@/lib/journal";
 import type { ChampFormulaire, FormulaireCarte, Saisie, Saisies } from "@/platform/ia/capacites/formulaire";
@@ -81,7 +81,7 @@ export function FormulaireCarteCapacite({ formulaire, saisies, erreurs, corriges
                 <span className="text-zinc-700 dark:text-zinc-300">{v === true ? "Oui" : "Non"}</span>
               </label>
             ) : c.widget === "zone" ? (
-              <textarea {...commun} rows={3} value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={zone} />
+              <ZoneAuto {...commun} value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={zone} />
             ) : c.widget === "choix" ? (
               <select {...commun} value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={ligne}>
                 <option value="">{c.obligatoire ? "— Choisir —" : "— Aucun —"}</option>
@@ -102,7 +102,7 @@ export function FormulaireCarteCapacite({ formulaire, saisies, erreurs, corriges
                 })}
               </div>
             ) : c.widget === "etiquettes" ? (
-              <textarea {...commun} rows={3} value={Array.isArray(v) ? v.join("\n") : ""} onChange={(e) => onChange(c.nom, e.target.value.split("\n"))} className={zone} />
+              <ZoneAuto {...commun} value={Array.isArray(v) ? v.join("\n") : ""} onChange={(e) => onChange(c.nom, e.target.value.split("\n"))} className={zone} />
             ) : c.widget === "reference" || c.widget === "references" ? (
               <SelecteurReference champ={c} id={id} decrit={decrit} invalide={!!erreur} classe={bordure(proposee, corrige, !!erreur)}
                 valeurs={Array.isArray(v) ? v : v ? [String(v)] : []} multiple={c.widget === "references"}
@@ -119,6 +119,21 @@ export function FormulaireCarteCapacite({ formulaire, saisies, erreurs, corriges
       })}
     </fieldset>
   );
+}
+
+/**
+ * UNE ZONE DE TEXTE QUI GRANDIT avec son contenu (point 3) : tout le texte proposé se lit sans ascenseur interne —
+ * jusqu'à 60 % de l'écran, au-delà elle défile.
+ */
+function ZoneAuto({ value, ...reste }: React.TextareaHTMLAttributes<HTMLTextAreaElement> & { value: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [value]);
+  return <textarea ref={ref} rows={2} value={value} {...reste} style={{ maxHeight: "60dvh", overflowY: "auto", resize: "none" }} />;
 }
 
 /** Le sélecteur d'une référence : combobox au clavier, options rendues par le serveur sous les droits de la personne. */
