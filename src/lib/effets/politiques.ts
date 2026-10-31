@@ -4,7 +4,7 @@ import type { DetailEffet, EffetLu } from "./annulation";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA POLITIQUE D'ANNULATION D'UNE ACTION MÉTIER (K10c, décision 0036).
+ * LA POLITIQUE D'ANNULATION D'UNE ACTION MÉTIER (K10c, décision 0039).
  *
  * L'annulation J7 (`annulation.ts`) rend une issue PAR EFFET — juste pour un geste d'assistant qu'on relit effet par
  * effet. Une action métier rendue réversible demande plus :
@@ -30,6 +30,12 @@ export interface PolitiqueAnnulation {
 /** Les gestes inverses métier — importés tard : l'annulation ne tire pas l'ERP entier. */
 const METIERS: Readonly<Record<string, () => Promise<NonNullable<PolitiqueAnnulation["metier"]>>>> = {
   "ad-pro-item-actions:deleteAdProItem": async () => (await import("@/lib/suppression/annulation-corbeille")).restaurerDepuisLaCorbeille,
+  "ad-pro-item-actions:demanderPaiementPoste": async () => (await import("@/lib/references/annulation-numeros")).numerosConsommes,
+  "legal-actions:sendLegalInvoiceToSettlement": async () => (await import("@/lib/references/annulation-numeros")).numerosConsommes,
+  "reservation-fiche-actions:envoyerFiche": async () => (await import("@/lib/reservation-fiche/annulation")).annulerGesteDeFiche,
+  "reservation-fiche-actions:envoyerFichesPretes": async () => (await import("@/lib/reservation-fiche/annulation")).annulerGesteDeFiche,
+  "reservation-fiche-actions:joindreDevisAgence": async () => (await import("@/lib/reservation-fiche/annulation")).annulerGesteDeFiche,
+  "reservation-fiche-actions:deposerBillet": async () => (await import("@/lib/reservation-fiche/annulation")).annulerGesteDeFiche,
 };
 
 export async function politiqueDe(capaciteId: string | null | undefined): Promise<PolitiqueAnnulation | null> {

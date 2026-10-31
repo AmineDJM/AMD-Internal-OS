@@ -7,6 +7,7 @@ import { useRafraichir } from "./use-rafraichir";
 import { useConfirmer } from "@/components/ui/dialogue";
 import type { DemandeConfirmation } from "@/components/ui/dialogue-regle";
 import { useRetours } from "@/components/ui/retours-porteur";
+import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 /**
  * Quand l'action refuse sans dire pourquoi : on dit au moins qu'elle a REFUSÉ (donc rien n'est parti),
@@ -93,7 +94,8 @@ export function useAction(options: OptionsAction = {}) {
         fini = true;
         if (!vivant.current) return r.ok;
         setSaving(false);
-        if (r.ok) { onOk?.(); rafraichir(); if (geste.succes) retours.succes(geste.succes); return true; }
+        // Une action réversible (K10c) rend `annulable` : le bandeau « Annuler » s'affiche.
+        if (r.ok) { onOk?.(); rafraichir(); if (geste.succes) retours.succes(geste.succes); signalerAnnulable(r); return true; }
         setErr(r.error ?? REFUS_SANS_MOTIF);
         return false;
       } catch (e) {
@@ -154,6 +156,7 @@ export function useKeyedAction(options: OptionsAction = {}) {
         if (!r.ok) { setError(r.error ?? REFUS_SANS_MOTIF); return false; }
         rafraichir();
         if (geste.succes) retours.succes(geste.succes);
+        signalerAnnulable(r);
         return true;
       } catch (e) {
         fini = true;

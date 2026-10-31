@@ -66,6 +66,7 @@ import { articlesDemandesDuDossier, optionsDesArticlesDemandes } from "@/lib/que
 import { etatReception, lignesAReceptionner, natureDeReception, peutReceptionner, resteAFacturer } from "@/lib/promo-material/achats";
 import { libelleArticleStock } from "@/lib/promo/stock";
 import { BackLink } from "@/components/shared/back-link";
+import { GestesAnnulables } from "@/components/gestes/annuler-geste";
 import { BudgetPromoCard } from "./budget-promo";
 import { peutImputerMaterielPromo } from "@/lib/promo-material/budget";
 import { getBudgetCategoryOptions } from "@/lib/queries/budget";
@@ -520,6 +521,9 @@ export default async function PromoMaterialDetailPage(props: { params: Promise<{
           manques={canTranscribe ? manquesDeRetranscription(devis) : []}
           chantiersOuverts={PROMO_TRACKS.filter((t) => !tracksDone.includes(t))}
         />
+
+        {/* K10c : mes gestes réversibles sur ce dossier (imputation, annulation, paiement, règlement) — « Annuler ». */}
+        <GestesAnnulables ids={[pm.id]} />
 
         {(libelleBudget || peutImputer) && (
           <BudgetPromoCard promoMaterialId={pm.id} actuelle={libelleBudget} peutImputer={peutImputer}

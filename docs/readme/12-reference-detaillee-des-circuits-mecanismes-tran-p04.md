@@ -643,6 +643,24 @@ porte IA `platform/ia/hors-requete.ts`), `lib/prisma.ts` (le client du geste), p
   verrouillée (`FOR UPDATE`), relue, jamais par-dessus une valeur changée depuis ; la personne (ou le Super Admin) seule ;
   à l'audit ; un lot rend son détail geste par geste.
 
+### Actions métier réversibles (lot K10c, 31/10/2026)
+
+Décision [0039](../assistant/decisions/0039-actions-reversibles-metiers.md). Code : `src/lib/effets/{reversible,politiques,fenetre}.ts`,
+`annulation.ts` (étendue), gestes inverses `lib/suppression/annulation-corbeille.ts`, `lib/references/annulation-numeros.ts`,
+`lib/reservation-fiche/annulation.ts`, diffusion différée `lib/notifications/diffusion-differee.ts`, registre
+`platform/ia/capacites/annulations-declarees.ts`, écran `lib/actions/gestes-reversibles-actions.ts` + `components/gestes/`.
+- **43 actions** (Ad & Pro, congrès, avances RH, juridique, promo, réservations, validations, réglages de l'Assistant IA,
+  diffusion) enveloppent leur corps par `actionReversible(id, libellé, …)` : au clic, le geste entre au journal des effets
+  (origine « ecran ») et le résultat porte `annulable` → bandeau « Annuler » (`use-action.ts` → `primitives-ui.tsx`).
+- **Annuler** = `annulerGeste` (J7) + politique : **tout ou rien** (un ordre payé depuis, une valeur changée par un autre ⇒
+  rien n'est écrit, liste des bloquants), **rectificatif** à qui avait lu une notification, gestes inverses métier
+  (corbeille, numéro jamais rendu, clé d'index de la bibliothèque). **Rétablir** = annuler le geste de l'annulation.
+- **Fenêtre d'annulation** (`EffetSortantDiffere`, `AssistantIaReglage.fenetreAnnulationSec`, 120 s, console
+  `/admin/ai/acces`) : `sendBroadcast` attend sa fenêtre — annulé dedans, rien ne part ; après, non lues retirées +
+  rectificatif, la poussée dite partie. Tâche `effets.sortants`.
+- Garde : `effets/reversibles-metiers.test.ts` (cliquet : 0 action « aucune » du périmètre), bancs
+  `effets/reversibles-{reglages,circuits,adpro-juridique,promo,reservations}.test.ts` (exécuter puis annuler, base réelle).
+
 ### Travaux, suite — délégation, attentes avancées, équipe, livrables au Drive (lot J8, 30/10/2026)
 
 Décision [0023](../assistant/decisions/0023-delegation.md). Code : `src/lib/missions/travaux/` (`delegation.ts`, `jalons.ts`,

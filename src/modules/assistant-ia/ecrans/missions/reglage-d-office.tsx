@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { Rocket } from "lucide-react";
 import { lireMaPreferenceDOffice, reglerMaPreferenceDOffice } from "@/modules/assistant-ia/actions-travaux";
 import { sansBloquer } from "@/lib/journal";
+import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 /**
  * « DÉMARRER D'OFFICE LES TRAVAUX SANS GESTE » (K3, décision 0033) — le réglage de la personne : un plan qui ne fait que
@@ -19,6 +20,7 @@ export function ReglageDOffice({ compact = false }: { compact?: boolean }) {
   const changer = async (v: boolean) => {
     setEtat({ ...etat, preference: v, effectif: v });
     const r = await reglerMaPreferenceDOffice(v).catch(sansBloquer("reglage-d-office.regler", { ok: false as const, erreur: "Le réglage n'a pas été enregistré." }));
+    signalerAnnulable(r);
     setAvis(r.ok ? (v ? "Les plans sans geste démarreront d'office." : "Chaque plan attendra votre accord.") : r.erreur);
   };
   return (

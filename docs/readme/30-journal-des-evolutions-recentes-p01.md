@@ -1,5 +1,17 @@
 ## 🧾 Journal des évolutions récentes
 
+### K10c : LES ACTIONS MÉTIER RÉVERSIBLES (2026-10-31)
+
+Demande de la Direction : « toute action qui a été faite peut être réversible ». Lot K10c —
+`docs/assistant/decisions/0039-actions-reversibles-metiers.md` ; migration additive `20270217100000_effets_reversibles`.
+Les 43 actions écrivantes encore classées « aucune » hors argent et communications (décisions de validation, décision
+finale d'un congrès, avances RH, pièces juridiques, matériel promo, fiches de voyage, réglages de l'Assistant IA, diffusion
+de notifications…) entrent au journal des effets au clic de l'écran et s'annulent d'un geste — bouton « Annuler » après
+l'action, historique de la fiche, ou l'Assistant IA. Une décision annulée rouvre l'étape (l'ordre né de l'accord est retiré,
+refus avec la liste s'il a été payé) ; une notification lue reçoit un rectificatif ; un poste supprimé revient de la
+corbeille ; une diffusion attend sa fenêtre d'annulation (120 s, réglable par le Super Admin) — annulée dedans, rien ne
+part. Une annulation se rétablit. Cliquet : plus aucune action « aucune » dans le périmètre.
+
 ### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
 
 Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.

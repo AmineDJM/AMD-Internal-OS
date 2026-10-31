@@ -7,6 +7,7 @@ import { AlertCircle, Loader2, Send } from "lucide-react";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { sendLegalInvoiceToSettlement } from "@/lib/actions/legal-actions";
 import { formatCurrency } from "@/lib/utils";
+import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 /**
  * ENVOYER LA FACTURE AU RÈGLEMENT — un clic, une confirmation, et le circuit fait le reste :
@@ -34,6 +35,7 @@ export function SendToSettlementButton({ id, amount, renvoi = false }: { id: str
     f.set("id", id);
     try {
       const r = await sendLegalInvoiceToSettlement(f);
+      signalerAnnulable(r);
       if (r.ok) rafraichir(); else setErr(r.error ?? "L'envoi a échoué.");
     } catch {
       setErr(actionFailureMessage("THROWN"));

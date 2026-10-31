@@ -30,6 +30,7 @@ import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { doSignOut } from "@/lib/actions/auth-actions";
 import { DialoguesProvider } from "@/components/ui/dialogue";
 import "./theme.css";
+import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -139,6 +140,7 @@ function Application({ userName }: { userName?: string }) {
     if (nouvelle) { setNouvelle({ ...nouvelle, prive: !nouvelle.prive }); return; }
     if (!conversation || commencee) return;
     const r = await reglerMaConversationPrivee(conversation, !prive);
+    signalerAnnulable(r);
     if (!r.ok) f.setErreur(r.erreur);
     await conversations.relire();
   };

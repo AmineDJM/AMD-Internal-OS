@@ -1,4 +1,7 @@
+import { Prisma } from "@prisma/client";
 import { prisma, prismaBrut } from "@/lib/prisma";
+import { infoModele } from "@/lib/effets/modeles";
+import { memeValeur, serialiserLigne } from "@/lib/effets/valeurs";
 import { isDeletableKind } from "@/lib/admin-delete-registry";
 import type { DetailEffet } from "@/lib/effets/annulation";
 import type { PolitiqueAnnulation, ResultatMetier } from "@/lib/effets/politiques";
@@ -32,7 +35,44 @@ export const restaurerDepuisLaCorbeille: NonNullable<PolitiqueAnnulation["metier
     restaure = true;
     details.push({ effetId: e.id, issue: "ANNULE", quoi, pourquoi: "revenu(e) de la corbeille avec ses éléments liés, mêmes identifiants : les liens tiennent de nouveau" });
   }
-  // Les lignes du lot, retirées par la mise en corbeille : revenues avec elle.
-  if (restaure) for (const e of geste.effets) if (e.type === "ECRITURE" && e.operation === "DELETE") traites.add(e.id);
+  // Les lignes du lot, retirées par la mise en corbeille : revenues avec elle. L'instantané de la corbeille les a
+  // prises TELLES QU'À LA SUPPRESSION : ce que le même geste leur avait changé juste avant (le poste détaché de son
+  // ordre, l'étape remise) est repris sur la valeur d'AVANT le geste, que le journal porte.
+  if (restaure) {
+    for (const e of geste.effets) {
+      if (e.type !== "ECRITURE" || e.operation !== "DELETE") continue;
+      traites.add(e.id);
+      if (appliquer && e.modele && e.enregistrementId) await reprendreLAvant(e.modele, e.enregistrementId, e.avant);
+    }
+  }
   return { details, traites };
 };
+
+/** Une valeur du journal, rendue au type de son champ (dates, décimaux) ; `undefined` : elle ne s'écrit pas. */
+function valeurDuJournal(type: string | undefined, v: unknown): unknown {
+  if (v && typeof v === "object" && !Array.isArray(v)) {
+    const o = v as Record<string, unknown>;
+    if ("$date" in o) return o.$date === null ? null : new Date(String(o.$date));
+    if ("$decimal" in o) return new Prisma.Decimal(String(o.$decimal));
+    if ("$bigint" in o) return BigInt(String(o.$bigint));
+    if ("$octets" in o) return undefined;
+  }
+  if (type === "Json" && v === null) return Prisma.DbNull;
+  return v;
+}
+
+async function reprendreLAvant(modele: string, id: string, avant: unknown): Promise<void> {
+  const info = infoModele(modele);
+  const a = avant && typeof avant === "object" ? (avant as Record<string, unknown>) : null;
+  if (!info?.cle || !a) return;
+  const d = (prisma as unknown as Record<string, { findUnique: (x: unknown) => Promise<Record<string, unknown> | null>; update: (x: unknown) => Promise<unknown> }>)[info.delegue];
+  const actuelle = serialiserLigne(await d.findUnique({ where: { [info.cle]: id } }), new Set(info.scalaires));
+  if (!actuelle) return;
+  const data: Record<string, unknown> = {};
+  for (const [c, v] of Object.entries(a)) {
+    if (info.auto.has(c) || !info.types.has(c) || memeValeur(actuelle[c] ?? null, v ?? null)) continue;
+    const x = valeurDuJournal(info.types.get(c)?.type, v);
+    if (x !== undefined) data[c] = x;
+  }
+  if (Object.keys(data).length) await d.update({ where: { [info.cle]: id }, data });
+}

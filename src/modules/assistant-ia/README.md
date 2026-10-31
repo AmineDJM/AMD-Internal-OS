@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0034 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0034, 0039 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false`).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0039 : actions métier réversibles, rétablir, fenêtre d'annulation).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -155,6 +155,17 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **Écran** « Ce que l'assistant a fait » : `/assistant/gestes` (`ecrans/gestes-assistant.tsx`, `actions-gestes.ts` :
   lister, aperçu, annuler un geste ou un lot — annulé / compensé / impossible / sans objet + pourquoi).
 - **Preuves** : `lib/effets/{simulation,ports,annulation}.test.ts` (50 cas réels), `infra/capacites-simulation.test.ts`.
+
+## Actions métier réversibles (lot K10c, décision 0039)
+
+- Les réglages de ce module (`reglerMaReponseVocale`, `reglerMaConversationPrivee`, `reglerMaVeille`, `reglerMonVeilleur`,
+  `reglerConsoleProactivite`, `reglerMaPreferenceDOffice`, `reglerPrioriteMonTravail`) enveloppent leur corps par
+  `actionReversible` (`lib/effets/reversible.ts`) : au clic, ils entrent au journal des effets ; « Annuler » remet la valeur
+  d'avant (rien d'écrasé si quelqu'un l'a changée depuis), « Rétablir » la nouvelle.
+- « Ce que l'assistant a fait » liste aussi ces gestes d'écran ; l'annulation d'une action métier y suit la politique
+  tout-ou-rien (`lib/effets/politiques.ts`). La console `/admin/ai/acces` règle la **fenêtre d'annulation** des envois.
+- L'assistant peut proposer `gestes-reversibles-actions:annulerMonGeste` / `retablirMonGeste` (carte ou « vas-y ») : la
+  personne décide ; en simulation, l'annulation rend son plan sans rien écrire.
 
 ## Travaux, suite (lot J8, décision 0023)
 

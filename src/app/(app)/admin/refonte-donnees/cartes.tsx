@@ -7,6 +7,7 @@ import { apercuReprise, executerReprise } from "@/modules/referentiels/actions-r
 import { reglerDoubleEcritureOrganisations } from "@/modules/referentiels/actions-organisations";
 import type { BilanReprise } from "@/modules/referentiels/partage";
 import { Button } from "@/components/ui/button";
+import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 /**
  * LES GESTES DE L'ÉCRAN « REFONTE DES DONNÉES » — aperçu à blanc, un lot, ou tous les lots à la suite (le
@@ -115,6 +116,7 @@ export function InterrupteurDoubleEcriture({ ouvert }: { ouvert: boolean }) {
     fd.set("actif", ouvert ? "0" : "1");
     try {
       const r = await reglerDoubleEcritureOrganisations(fd);
+      signalerAnnulable(r);
       setMessage(r.ok ? null : r.error ?? "Refusé.");
       if (r.ok) rafraichir();
     } catch {

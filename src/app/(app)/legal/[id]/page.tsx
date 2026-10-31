@@ -44,6 +44,7 @@ import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement, refusFactureDeP
 import { siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
 import { sitsOnValidationCentre } from "@/lib/validations/centre";
 import { BonDeCommandeGate } from "./bc-gate";
+import { GestesAnnulables } from "@/components/gestes/annuler-geste";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { peutSignerBC } from "@/lib/queries/bons-de-commande";
 import { fichiersEmis, lienFichierEmis } from "@/lib/legal/fichiers-emis";
@@ -394,6 +395,9 @@ export default async function LegalDocumentPage(
           ouvertParDefaut={searchParams?.emis === "1"}
         />
       )}
+
+      {/* K10c : mes gestes réversibles sur cette pièce (créée, modifiée, annulée, envoyée au règlement) — « Annuler ». */}
+      <GestesAnnulables ids={[doc.id]} />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

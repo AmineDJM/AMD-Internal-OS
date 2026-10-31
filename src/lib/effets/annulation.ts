@@ -140,15 +140,21 @@ async function verrouiller(tx: Client, info: InfoModele, id: string): Promise<vo
   await t.$executeRawUnsafe(`SELECT 1 FROM "${info.table.replace(/"/g, "")}" WHERE "${(info.cleColonne ?? "id").replace(/"/g, "")}" = $1 FOR UPDATE`, id);
 }
 
-/** Les lignes qui POINTENT vers celle-ci (hors celles créées par le même geste, défaites avant elle). */
-async function rattaches(c: Client, info: InfoModele, id: string, ignorer: ReadonlySet<string>): Promise<{ n: number; quoi: string[] }> {
+/**
+ * Les lignes qui POINTENT vers celle-ci — hors celles créées par le même geste (défaites avant elle), et hors celles
+ * dont le MÊME geste a posé le lien (`relies` : « Modele.champ » → identifiants) : l'annulation remet leur champ avant
+ * de juger la ligne (du plus récent au plus ancien) ; le plan à blanc, qui n'écrit rien, doit le savoir (K10c).
+ */
+async function rattaches(
+  c: Client, info: InfoModele, id: string, ignorer: ReadonlySet<string>, relies: ReadonlyMap<string, ReadonlySet<string>> = new Map(),
+): Promise<{ n: number; quoi: string[] }> {
   let n = 0;
   const quoi: string[] = [];
   for (const e of info.enfants) {
     const d = c[e.delegue] as Delegue | undefined;
     const enfant = infoModele(e.modele);
     if (!d || !enfant?.cle) continue;
-    const exclus = [...ignorer];
+    const exclus = [...ignorer, ...(relies.get(`${e.modele}.${e.champ}`) ?? [])];
     const k = await d.count({ where: { [e.champ]: id, ...(exclus.length ? { NOT: { [enfant.cle]: { in: exclus } } } : {}) } }).catch(sansBloquer("effets.annulation.rattaches", 0));
     if (k) { n += k; quoi.push(`${k} ${natureDe(e.modele)}`); }
   }
@@ -203,6 +209,8 @@ interface Contexte {
   libelle: string;
   /** Qui annule — le rectificatif le nomme. */
   parNom: string;
+  /** Les liens posés par le geste lui-même (« Modele.champ » → lignes) : l'annulation les remet d'abord. */
+  relies: ReadonlyMap<string, ReadonlySet<string>>;
 }
 
 /** Les champs MODIFIÉS d'une ligne : l'invariant de `plan.ts`, puis l'écriture verrouillée. */
@@ -267,7 +275,7 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
   const actuelle = await lireActuelle(ctx.c, info, id);
   if (!actuelle) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "elle a déjà été retirée par ailleurs" };
   const touches = Object.keys(apres).filter((c) => !info.auto.has(c) && info.types.has(c) && !memeValeur(actuelle[c] ?? null, apres[c] ?? null));
-  const lies = await rattaches(ctx.c, info, id, ctx.crees);
+  const lies = await rattaches(ctx.c, info, id, ctx.crees, ctx.relies);
   const verdict = classerGeste("ENREGISTREMENT_CREE");
   if (e.modele === "Notification" && actuelle.isRead === true) {
     const qui = await ctx.nomDe(String(actuelle.userId ?? ""));
@@ -417,6 +425,19 @@ const nomsEnCache = () => {
   };
 };
 
+/** Les champs qu'une MODIFICATION du geste a changés, par « Modele.champ » — ceux que l'annulation remettra. */
+function liensDuGeste(effets: readonly EffetLu[]): Map<string, Set<string>> {
+  const m = new Map<string, Set<string>>();
+  for (const e of effets) {
+    if (e.type !== "ECRITURE" || e.operation !== "UPDATE" || !e.modele || !e.enregistrementId) continue;
+    for (const c of e.champs) {
+      const k = `${e.modele}.${c}`;
+      (m.get(k) ?? m.set(k, new Set()).get(k)!).add(e.enregistrementId);
+    }
+  }
+  return m;
+}
+
 async function derouler(
   g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean,
   opts: { politique?: PolitiqueAnnulation | null; user?: CurrentUser } = {},
@@ -426,7 +447,7 @@ async function derouler(
   const politique = opts.politique ?? null;
   const ctx: Contexte = {
     c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache(),
-    politique, libelle: g.libelle, parNom: opts.user?.name ?? "Quelqu'un",
+    politique, libelle: g.libelle, parNom: opts.user?.name ?? "Quelqu'un", relies: liensDuGeste(g.effets),
   };
   const details: DetailEffet[] = [];
   // LE GESTE INVERSE MÉTIER (K10c) d'abord — la corbeille restaurée, par exemple : les effets qu'il prend en charge
