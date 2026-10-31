@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import type { CustomFieldType, EntityType } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -63,28 +64,30 @@ export async function deleteCustomFieldDef(formData: FormData): Promise<ActionRe
 /** Save custom field values on a record (merged into its `custom` JSON). */
 export async function saveCustomValues(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const entityType = fdStr(formData, "entityType") as EntityType | null;
-  const entityId = fdStr(formData, "entityId");
-  const path = fdStr(formData, "path");
-  if (!entityType || !entityId) return { ok: false, error: "Entité manquante." };
-  if (!(await canAccessEntity(user, entityType, entityId, "UPDATE"))) {
-    return { ok: false, error: "Modification non autorisée." };
-  }
+  return gesteReversible(user, { capaciteId: "custom-field-actions:saveCustomValues", libelle: "Champs personnalisés enregistrés" }, async () => {
+    const entityType = fdStr(formData, "entityType") as EntityType | null;
+    const entityId = fdStr(formData, "entityId");
+    const path = fdStr(formData, "path");
+    if (!entityType || !entityId) return { ok: false, error: "Entité manquante." };
+    if (!(await canAccessEntity(user, entityType, entityId, "UPDATE"))) {
+      return { ok: false, error: "Modification non autorisée." };
+    }
 
-  const defs = await getFieldDefs(entityType);
-  const current = await readCustomValues(entityType, entityId);
-  const next = { ...current };
-  for (const def of defs) {
-    const lu = await valeurDuChamp(user, def, formData.get(`cf_${def.key}`));
-    if ("erreur" in lu) return { ok: false, error: lu.erreur };
-    next[def.key] = lu.valeur;
-  }
-  const manquants = refusObligatoires(defs, next);
-  if (manquants) return { ok: false, error: manquants };
-  await writeCustomValues(entityType, entityId, next);
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Champs personnalisés", entityType, entityId, summary: "Mise à jour des champs personnalisés" });
-  if (path) revalidatePath(path);
-  return { ok: true };
+    const defs = await getFieldDefs(entityType);
+    const current = await readCustomValues(entityType, entityId);
+    const next = { ...current };
+    for (const def of defs) {
+      const lu = await valeurDuChamp(user, def, formData.get(`cf_${def.key}`));
+      if ("erreur" in lu) return { ok: false, error: lu.erreur };
+      next[def.key] = lu.valeur;
+    }
+    const manquants = refusObligatoires(defs, next);
+    if (manquants) return { ok: false, error: manquants };
+    await writeCustomValues(entityType, entityId, next);
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Champs personnalisés", entityType, entityId, summary: "Mise à jour des champs personnalisés" });
+    if (path) revalidatePath(path);
+    return { ok: true };
+  });
 }
 
 type Definition = Awaited<ReturnType<typeof getFieldDefs>>[number];
@@ -127,27 +130,29 @@ function refusObligatoires(defs: Definition[], next: Record<string, unknown>): s
  */
 export async function modifierChampPersonnalise(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const entityType = fdStr(formData, "entityType") as EntityType | null;
-  const entityId = fdStr(formData, "entityId");
-  const champ = fdStr(formData, "field");
-  if (!entityType || !entityId || !champ) return { ok: false, error: "Entité ou champ manquant." };
-  if (!(await canAccessEntity(user, entityType, entityId, "UPDATE"))) {
-    return { ok: false, error: "Modification non autorisée." };
-  }
-  const defs = await getFieldDefs(entityType);
-  const def = defs.find((d) => d.key === champ || slug(d.label) === slug(champ));
-  if (!def) {
-    return { ok: false, error: `Aucun champ « ${champ} » sur cette fiche${defs.length ? ` — champs : ${defs.map((d) => d.label).join(", ")}` : ""}.` };
-  }
-  const lu = await valeurDuChamp(user, def, formData.get("value"));
-  if ("erreur" in lu) return { ok: false, error: lu.erreur };
-  const next = { ...(await readCustomValues(entityType, entityId)), [def.key]: lu.valeur };
-  const manquants = refusObligatoires(defs, next);
-  if (manquants) return { ok: false, error: manquants };
-  await writeCustomValues(entityType, entityId, next);
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Champs personnalisés", entityType, entityId,
-    field: def.key, summary: `Champ personnalisé « ${def.label} » mis à jour`,
+  return gesteReversible(user, { capaciteId: "custom-field-actions:modifierChampPersonnalise", libelle: "Champ personnalisé modifié" }, async () => {
+    const entityType = fdStr(formData, "entityType") as EntityType | null;
+    const entityId = fdStr(formData, "entityId");
+    const champ = fdStr(formData, "field");
+    if (!entityType || !entityId || !champ) return { ok: false, error: "Entité ou champ manquant." };
+    if (!(await canAccessEntity(user, entityType, entityId, "UPDATE"))) {
+      return { ok: false, error: "Modification non autorisée." };
+    }
+    const defs = await getFieldDefs(entityType);
+    const def = defs.find((d) => d.key === champ || slug(d.label) === slug(champ));
+    if (!def) {
+      return { ok: false, error: `Aucun champ « ${champ} » sur cette fiche${defs.length ? ` — champs : ${defs.map((d) => d.label).join(", ")}` : ""}.` };
+    }
+    const lu = await valeurDuChamp(user, def, formData.get("value"));
+    if ("erreur" in lu) return { ok: false, error: lu.erreur };
+    const next = { ...(await readCustomValues(entityType, entityId)), [def.key]: lu.valeur };
+    const manquants = refusObligatoires(defs, next);
+    if (manquants) return { ok: false, error: manquants };
+    await writeCustomValues(entityType, entityId, next);
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Champs personnalisés", entityType, entityId,
+      field: def.key, summary: `Champ personnalisé « ${def.label} » mis à jour`,
+    });
+    return { ok: true, message: `« ${def.label} » mis à jour.` };
   });
-  return { ok: true, message: `« ${def.label} » mis à jour.` };
 }

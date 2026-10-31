@@ -10298,7 +10298,7 @@ model ModelCallLog {
   ms                Int      @default(0)
   attempts          Int      @default(1)
   incompleteReason  String?
-  /// ── LOT K8 (décision 0038) : la ventilation exacte. Ce sont des PARTS des totaux ci-dessus
+  /// ── LOT K8 (décision 0035) : la ventilation exacte. Ce sont des PARTS des totaux ci-dessus
   /// (`inputTokens` = texte + audio + image ; `cachedInputTokens` = tout le cache lu) — le texte est ce qui reste.
   audioInputTokens       Int     @default(0)
   cachedAudioInputTokens Int     @default(0)

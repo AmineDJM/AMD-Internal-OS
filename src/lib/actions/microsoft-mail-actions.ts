@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -14,6 +15,8 @@ import { MicrosoftGraphMailProvider } from "@/lib/mail/graph/provider";
 import { MailError, describeDiagnostic, type MailDraftInput, type MailProvider } from "@/lib/mail/provider";
 import { parseAddressList } from "@/lib/mail/reply";
 import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
+import { noterEffetFait } from "@/lib/effets/fenetre";
+import { enregistrerExecuteurGraph, enregistrerInversesGraph } from "@/lib/mail/executeur-sortant";
 
 /**
  * LA SEULE PORTE entre les écrans et la messagerie.
@@ -58,6 +61,9 @@ async function withProvider<T>(run: (p: MailProvider, ctx: { userId: string; con
   if (!conn) throw new MailError("unauthorized", "Aucune boîte Microsoft connectée.");
 
   const provider = new MicrosoftGraphMailProvider(conn.accessToken, conn.address);
+  // K10b (décision 0038) : l'envoi différé et les gestes inverses de la boîte (lu, déplacé, brouillon) — prêts ici.
+  enregistrerExecuteurGraph();
+  enregistrerInversesGraph();
   return run(provider, { userId: user.id, connectionId: conn.id, address: conn.address });
 }
 
@@ -111,65 +117,82 @@ function logSend(
 }
 
 export async function sendMessage(fd: FormData): Promise<MailActionResult> {
-  try {
-    const input = draftFromForm(fd);
-    const recipients = input.to.length + (input.cc?.length ?? 0) + (input.bcc?.length ?? 0);
-    if (recipients === 0) {
-      return { ok: false, error: "Indiquez au moins un destinataire." };
-    }
-    return await withProvider(async (p, ctx) => {
-      try {
-        await p.send(input);
-      } catch (e) {
-        logSend(ctx, recipients, "refusé", e instanceof MailError ? e : undefined);
-        throw e;
+  return gesteReversible(await requireUser(), { capaciteId: "microsoft-mail-actions:sendMessage", libelle: "Message Microsoft envoyé" }, async () => {
+    try {
+      const input = draftFromForm(fd);
+      const recipients = input.to.length + (input.cc?.length ?? 0) + (input.bcc?.length ?? 0);
+      if (recipients === 0) {
+        return { ok: false, error: "Indiquez au moins un destinataire." };
       }
-      logSend(ctx, recipients, "accepté");
-      await recordAudit({
-        actorId: ctx.userId, action: "CREATE", module: "Messagerie",
-        // L'objet n'est PAS journalisé : un journal d'audit se relit à plusieurs, un objet de mail
-        // peut être confidentiel. On trace le geste et le nombre de destinataires.
-        summary: `Message envoyé à ${recipients} destinataire·s`,
+      return await withProvider(async (p, ctx) => {
+        try {
+          await p.send(input);
+        } catch (e) {
+          logSend(ctx, recipients, "refusé", e instanceof MailError ? e : undefined);
+          throw e;
+        }
+        logSend(ctx, recipients, "accepté");
+        await recordAudit({
+          actorId: ctx.userId, action: "CREATE", module: "Messagerie",
+          // L'objet n'est PAS journalisé : un journal d'audit se relit à plusieurs, un objet de mail
+          // peut être confidentiel. On trace le geste et le nombre de destinataires.
+          summary: `Message envoyé à ${recipients} destinataire·s`,
+        });
+        revalidatePath("/messagerie");
+        return { ok: true };
       });
-      revalidatePath("/messagerie");
-      return { ok: true };
-    });
-  } catch (e) { return fail(e); }
+    } catch (e) { return fail(e); }
+  });
 }
 
 export async function saveDraft(fd: FormData): Promise<MailActionResult & { id?: string }> {
-  try {
-    const input = draftFromForm(fd);
-    const existing = String(fd.get("draftId") ?? "");
-    return await withProvider(async (p) => {
-      if (existing) {
-        await p.updateDraft(existing, input);
-        return { ok: true, id: existing };
-      }
-      const { id } = await p.createDraft(input);
-      return { ok: true, id };
-    });
-  } catch (e) { return fail(e); }
+  return gesteReversible(await requireUser(), { capaciteId: "microsoft-mail-actions:saveDraft", libelle: "Brouillon Microsoft enregistré" }, async () => {
+    try {
+      const input = draftFromForm(fd);
+      const existing = String(fd.get("draftId") ?? "");
+      return await withProvider(async (p, ctx) => {
+        if (existing) {
+          const avant = await p.getMessage(existing);
+          await p.updateDraft(existing, input);
+          await noterEffetFait({ type: "inverse.graph.brouillon", acte: "ECRITURE_EXTERNE", cible: `brouillon Microsoft (${ctx.address})`, apercu: `« ${input.subject} »`,
+            charge: { address: ctx.address, draftId: existing, cree: false, apres: input, avant: { to: avant.to, cc: avant.cc, bcc: avant.bcc, subject: avant.subject, bodyHtml: avant.bodyHtml } } });
+          return { ok: true, id: existing };
+        }
+        const { id } = await p.createDraft(input);
+        await noterEffetFait({ type: "inverse.graph.brouillon", acte: "ECRITURE_EXTERNE", cible: `brouillon Microsoft (${ctx.address})`, apercu: `« ${input.subject} »`,
+          charge: { address: ctx.address, draftId: id, cree: true, apres: input, avant: null } });
+        return { ok: true, id };
+      });
+    } catch (e) { return fail(e); }
+  });
 }
 
 export async function setMessageRead(messageId: string, read: boolean): Promise<MailActionResult> {
-  try {
-    return await withProvider(async (p) => {
-      await p.setRead(messageId, read);
-      revalidatePath("/messagerie");
-      return { ok: true };
-    });
-  } catch (e) { return fail(e); }
+  return gesteReversible(await requireUser(), { capaciteId: "microsoft-mail-actions:setMessageRead", libelle: "Message Microsoft marqué lu ou non lu" }, async () => {
+    try {
+      return await withProvider(async (p, ctx) => {
+        const avant = (await p.getMessage(messageId)).isRead;
+        await p.setRead(messageId, read);
+        if (avant !== read) await noterEffetFait({ type: "inverse.graph.lu", acte: "ECRITURE_EXTERNE", cible: `message Microsoft (${ctx.address})`, apercu: read ? "marqué lu" : "marqué non lu", charge: { address: ctx.address, messageId, lu: read, avant } });
+        revalidatePath("/messagerie");
+        return { ok: true };
+      });
+    } catch (e) { return fail(e); }
+  });
 }
 
 export async function moveMessage(messageId: string, folderId: string): Promise<MailActionResult & { id?: string }> {
-  try {
-    return await withProvider(async (p) => {
-      const moved = await p.move(messageId, folderId);
-      revalidatePath("/messagerie");
-      return { ok: true, id: moved.id };
-    });
-  } catch (e) { return fail(e); }
+  return gesteReversible(await requireUser(), { capaciteId: "microsoft-mail-actions:moveMessage", libelle: "Message Microsoft déplacé" }, async () => {
+    try {
+      return await withProvider(async (p, ctx) => {
+        const depuisDossier = (await p.getMessage(messageId)).folderId;
+        const moved = await p.move(messageId, folderId);
+        await noterEffetFait({ type: "inverse.graph.deplace", acte: "ECRITURE_EXTERNE", cible: `message Microsoft (${ctx.address})`, apercu: "déplacé", charge: { address: ctx.address, messageId: moved.id, versDossier: folderId, depuisDossier } });
+        revalidatePath("/messagerie");
+        return { ok: true, id: moved.id };
+      });
+    } catch (e) { return fail(e); }
+  });
 }
 
 export async function deleteMessage(messageId: string): Promise<MailActionResult> {
@@ -188,13 +211,15 @@ export async function deleteMessage(messageId: string): Promise<MailActionResult
 
 export async function disconnectMicrosoftMail(): Promise<MailActionResult> {
   const user = await requireUser();
-  await dropConnection(user.id);
-  await recordAudit({
-    actorId: user.id, action: "DELETE", module: "Messagerie",
-    summary: "Boîte Microsoft déconnectée (jetons effacés)",
+  return gesteReversible(user, { capaciteId: "microsoft-mail-actions:disconnectMicrosoftMail", libelle: "Boîte Microsoft déconnectée" }, async () => {
+    await dropConnection(user.id);
+    await recordAudit({
+      actorId: user.id, action: "DELETE", module: "Messagerie",
+      summary: "Boîte Microsoft déconnectée (jetons effacés)",
+    });
+    revalidatePath("/messagerie");
+    return { ok: true };
   });
-  revalidatePath("/messagerie");
-  return { ok: true };
 }
 
 export async function saveMailSignature(html: string): Promise<MailActionResult> {
@@ -216,89 +241,93 @@ export async function saveMailSignature(html: string): Promise<MailActionResult>
  * les pièces jointes d'une boîte.
  */
 export async function saveAttachmentToDrive(fd: FormData): Promise<MailActionResult & { nodeId?: string }> {
-  try {
-    const messageId = String(fd.get("messageId") ?? "");
-    const attachmentId = String(fd.get("attachmentId") ?? "");
-    const parentId = String(fd.get("parentId") ?? "") || null;
-    const spaceId = String(fd.get("spaceId") ?? "") || null;
-    const entityType = String(fd.get("entityType") ?? "") || null;
-    const entityId = String(fd.get("entityId") ?? "") || null;
-    if (!messageId || !attachmentId) return { ok: false, error: "Pièce jointe introuvable." };
+  return gesteReversible(await requireUser(), { capaciteId: "microsoft-mail-actions:saveAttachmentToDrive", libelle: "Pièce jointe enregistrée dans le Drive" }, async () => {
+    try {
+      const messageId = String(fd.get("messageId") ?? "");
+      const attachmentId = String(fd.get("attachmentId") ?? "");
+      const parentId = String(fd.get("parentId") ?? "") || null;
+      const spaceId = String(fd.get("spaceId") ?? "") || null;
+      const entityType = String(fd.get("entityType") ?? "") || null;
+      const entityId = String(fd.get("entityId") ?? "") || null;
+      if (!messageId || !attachmentId) return { ok: false, error: "Pièce jointe introuvable." };
 
-    return await withProvider(async (p, ctx) => {
-      // Droit d'écriture sur la destination — la même règle que partout dans le Drive.
-      if (parentId && (await resolveDriveAccess(await requireUser(), parentId)) !== "EDIT") {
-        return { ok: false, error: "Dossier de destination non autorisé." };
-      }
+      return await withProvider(async (p, ctx) => {
+        // Droit d'écriture sur la destination — la même règle que partout dans le Drive.
+        if (parentId && (await resolveDriveAccess(await requireUser(), parentId)) !== "EDIT") {
+          return { ok: false, error: "Dossier de destination non autorisé." };
+        }
 
-      const [att, msg] = await Promise.all([p.getAttachment(messageId, attachmentId), p.getMessage(messageId)]);
+        const [att, msg] = await Promise.all([p.getAttachment(messageId, attachmentId), p.getMessage(messageId)]);
 
-      const settings = await getAppSettings();
-      const invalid = validateDriveUpload(att.name, att.content.length, settings.maxDriveUploadMb);
-      if (invalid) return { ok: false, error: invalid };
+        const settings = await getAppSettings();
+        const invalid = validateDriveUpload(att.name, att.content.length, settings.maxDriveUploadMb);
+        if (invalid) return { ok: false, error: invalid };
 
-      const { blobId, size, sha256 } = await putBlob(att.content);
-      const effSpaceId = await effectiveSpaceId(parentId, spaceId);
-      const node = await prisma.driveNode.create({
-        data: {
-          name: att.name, type: "FILE", parentId, spaceId: effSpaceId,
-          ownerId: ctx.userId, createdById: ctx.userId,
-          mimeType: att.contentType, size, category: "Pièce jointe e-mail",
-          versions: { create: { blobId, version: 1, size, mimeType: att.contentType, createdById: ctx.userId } },
-        },
-        select: { id: true },
+        const { blobId, size, sha256 } = await putBlob(att.content);
+        const effSpaceId = await effectiveSpaceId(parentId, spaceId);
+        const node = await prisma.driveNode.create({
+          data: {
+            name: att.name, type: "FILE", parentId, spaceId: effSpaceId,
+            ownerId: ctx.userId, createdById: ctx.userId,
+            mimeType: att.contentType, size, category: "Pièce jointe e-mail",
+            versions: { create: { blobId, version: 1, size, mimeType: att.contentType, createdById: ctx.userId } },
+          },
+          select: { id: true },
+        });
+
+        // La PROVENANCE, conservée : un fichier sans origine devient anonyme au bout d'un mois.
+        await prisma.mailLink.create({
+          data: {
+            connectionId: ctx.connectionId, messageId, attachmentId,
+            senderAddress: msg.from?.address ?? null,
+            sentAt: msg.receivedAt ? new Date(msg.receivedAt) : null,
+            subject: msg.subject.slice(0, 500),
+            entityType, entityId, driveNodeId: node.id, createdById: ctx.userId,
+          },
+        });
+        // La pièce jointe entre à la bibliothèque (J1), sous la clé de son nœud du Drive. Ne lève jamais.
+        await inscrireFichierDrive({
+          nodeId: node.id, blobId, sha256, nom: att.name, mime: att.contentType, taille: size, deposeParId: ctx.userId, source: "EMAIL",
+        });
+
+        await recordAudit({
+          actorId: ctx.userId, action: "CREATE", module: "Drive", entityType: "DRIVE_NODE", entityId: node.id,
+          summary: `Pièce jointe « ${att.name} » enregistrée depuis un e-mail`,
+        });
+        revalidatePath("/drive");
+        return { ok: true, nodeId: node.id };
       });
-
-      // La PROVENANCE, conservée : un fichier sans origine devient anonyme au bout d'un mois.
-      await prisma.mailLink.create({
-        data: {
-          connectionId: ctx.connectionId, messageId, attachmentId,
-          senderAddress: msg.from?.address ?? null,
-          sentAt: msg.receivedAt ? new Date(msg.receivedAt) : null,
-          subject: msg.subject.slice(0, 500),
-          entityType, entityId, driveNodeId: node.id, createdById: ctx.userId,
-        },
-      });
-      // La pièce jointe entre à la bibliothèque (J1), sous la clé de son nœud du Drive. Ne lève jamais.
-      await inscrireFichierDrive({
-        nodeId: node.id, blobId, sha256, nom: att.name, mime: att.contentType, taille: size, deposeParId: ctx.userId, source: "EMAIL",
-      });
-
-      await recordAudit({
-        actorId: ctx.userId, action: "CREATE", module: "Drive", entityType: "DRIVE_NODE", entityId: node.id,
-        summary: `Pièce jointe « ${att.name} » enregistrée depuis un e-mail`,
-      });
-      revalidatePath("/drive");
-      return { ok: true, nodeId: node.id };
-    });
-  } catch (e) { return fail(e); }
+    } catch (e) { return fail(e); }
+  });
 }
 
 /** Associe un message à un objet métier — sans copier quoi que ce soit. */
 export async function linkMessageToEntity(fd: FormData): Promise<MailActionResult> {
-  try {
-    const messageId = String(fd.get("messageId") ?? "");
-    const entityType = String(fd.get("entityType") ?? "");
-    const entityId = String(fd.get("entityId") ?? "");
-    if (!messageId || !entityType || !entityId) return { ok: false, error: "Association incomplète." };
+  return gesteReversible(await requireUser(), { capaciteId: "microsoft-mail-actions:linkMessageToEntity", libelle: "Courriel associé à un objet" }, async () => {
+    try {
+      const messageId = String(fd.get("messageId") ?? "");
+      const entityType = String(fd.get("entityType") ?? "");
+      const entityId = String(fd.get("entityId") ?? "");
+      if (!messageId || !entityType || !entityId) return { ok: false, error: "Association incomplète." };
 
-    return await withProvider(async (p, ctx) => {
-      const msg = await p.getMessage(messageId);
-      await prisma.mailLink.create({
-        data: {
-          connectionId: ctx.connectionId, messageId,
-          senderAddress: msg.from?.address ?? null,
-          sentAt: msg.receivedAt ? new Date(msg.receivedAt) : null,
-          subject: msg.subject.slice(0, 500),
-          entityType, entityId, createdById: ctx.userId,
-        },
+      return await withProvider(async (p, ctx) => {
+        const msg = await p.getMessage(messageId);
+        await prisma.mailLink.create({
+          data: {
+            connectionId: ctx.connectionId, messageId,
+            senderAddress: msg.from?.address ?? null,
+            sentAt: msg.receivedAt ? new Date(msg.receivedAt) : null,
+            subject: msg.subject.slice(0, 500),
+            entityType, entityId, createdById: ctx.userId,
+          },
+        });
+        await recordAudit({
+          actorId: ctx.userId, action: "UPDATE", module: "Messagerie",
+          entityType: entityType as never, entityId,
+          summary: "E-mail associé à cet objet",
+        });
+        return { ok: true };
       });
-      await recordAudit({
-        actorId: ctx.userId, action: "UPDATE", module: "Messagerie",
-        entityType: entityType as never, entityId,
-        summary: "E-mail associé à cet objet",
-      });
-      return { ok: true };
-    });
-  } catch (e) { return fail(e); }
+    } catch (e) { return fail(e); }
+  });
 }

@@ -10,6 +10,17 @@ import { configurationEnVigueur, presenterCleEnAttente } from "./cles";
 import { envoyerAuSite, type ReponseSite, type TransportSite } from "./transport";
 import { ECRAN_LIAISON } from "./ecran";
 import { sansBloquer } from "@/lib/journal";
+import { etatDuGeste } from "@/lib/effets/magasin";
+import { delaiFenetre } from "@/lib/effets/fenetre";
+
+/**
+ * LA FENÊTRE D'ANNULATION (K10b, décision 0038) : sous un geste réversible, un envoi au site attend le délai réglé par le
+ * Super Admin avant d'être pris par la file — annulé d'ici là, le site n'a rien reçu. Hors geste : tout de suite.
+ */
+async function echeanceDeLEnvoi(maintenant: Date): Promise<Date> {
+  const e = etatDuGeste();
+  return e?.mode === "REEL" && e.fenetre ? new Date(maintenant.getTime() + (await delaiFenetre()) * 1000) : maintenant;
+}
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -119,33 +130,37 @@ export async function mettreEnFile(m: MiseEnFile): Promise<ResultatMiseEnFile> {
   }
 
   const maintenant = new Date();
+  const echeance = await echeanceDeLEnvoi(maintenant);
   const ligne = await prisma.sitePublication.upsert({
     where: { kind_externalId: { kind: m.nature, externalId: m.externalId } },
     create: {
       kind: m.nature, externalId: m.externalId, label: m.libelle.slice(0, 300), operation: m.operation,
-      body, bodyHash, version: 1, state: "PENDING", attempts: 0, nextAttemptAt: maintenant,
+      body, bodyHash, version: 1, state: "PENDING", attempts: 0, nextAttemptAt: echeance,
       requestedById: m.demandeParId ?? null,
     },
     update: {
       label: m.libelle.slice(0, 300), operation: m.operation, body, bodyHash,
-      version: { increment: 1 }, state: "PENDING", attempts: 0, nextAttemptAt: maintenant,
+      version: { increment: 1 }, state: "PENDING", attempts: 0, nextAttemptAt: echeance,
       lastError: null, alertedAt: null,
       ...(m.demandeParId !== undefined ? { requestedById: m.demandeParId } : {}),
     },
     select: { id: true },
   });
-  reveillerFile(0);
-  return { enFile: true, raison: m.operation === "DELETE" ? "Suppression en file." : "Envoi en file.", publicationId: ligne.id };
+  reveillerFile(echeance.getTime() - maintenant.getTime());
+  const differe = echeance > maintenant ? ` Il part dans ${Math.round((echeance.getTime() - maintenant.getTime()) / 1000)} s — annulable d'ici là.` : "";
+  return { enFile: true, raison: (m.operation === "DELETE" ? "Suppression en file." : "Envoi en file.") + differe, publicationId: ligne.id };
 }
 
 /** RELANCE explicite d'un contenu en échec : même version, compteur remis à zéro. */
 export async function relancerPublication(publicationId: string, parId: string | null): Promise<{ ok: boolean; message: string }> {
+  const maintenant = new Date();
+  const echeance = await echeanceDeLEnvoi(maintenant);
   const r = await prisma.sitePublication.updateMany({
     where: { id: publicationId, state: { in: ["FAILED", "PENDING"] } },
-    data: { state: "PENDING", attempts: 0, nextAttemptAt: new Date(), alertedAt: null, lastError: null, ...(parId ? { requestedById: parId } : {}) },
+    data: { state: "PENDING", attempts: 0, nextAttemptAt: echeance, alertedAt: null, lastError: null, ...(parId ? { requestedById: parId } : {}) },
   });
   if (r.count === 0) return { ok: false, message: "Rien à relancer : ce contenu est déjà à jour sur le site." };
-  reveillerFile(0);
+  reveillerFile(echeance.getTime() - maintenant.getTime());
   return { ok: true, message: "Relancé : l'envoi repart maintenant." };
 }
 

@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -100,43 +101,47 @@ async function contenuDuPost(id: string): Promise<ContenuPostLinkedIn | null> {
 
 /** PRÉPARER LE POST LINKEDIN — un clic : Luna rédige selon l'entité (ou le post de secours), le texte est gardé. */
 export async function preparerPostLinkedIn(formData: FormData): Promise<ActionResult> {
-  const p = await porteDiffusion(fdStr(formData, "id"));
-  if (!p.ok) return p;
-  const existant = await prisma.recruitmentChannelPost.findUnique({
-    where: { requestId_channel: { requestId: p.req.id, channel: "LINKEDIN" } }, select: { status: true },
+  return gesteReversible(await requireUser(), { capaciteId: "recrutement-diffusion-actions:preparerPostLinkedIn", libelle: "Post LinkedIn préparé" }, async () => {
+    const p = await porteDiffusion(fdStr(formData, "id"));
+    if (!p.ok) return p;
+    const existant = await prisma.recruitmentChannelPost.findUnique({
+      where: { requestId_channel: { requestId: p.req.id, channel: "LINKEDIN" } }, select: { status: true },
+    });
+    if (existant?.status === "PUBLIE") return { ok: false, error: "Le post est déjà marqué publié : modifiez son texte plutôt que d'en préparer un autre." };
+    const contenu = await contenuDuPost(p.req.id);
+    if (!contenu) return { ok: false, error: "Demande introuvable." };
+    const { texte, parLuna } = await redigerPostLinkedIn(contenu);
+    await prisma.recruitmentChannelPost.upsert({
+      where: { requestId_channel: { requestId: p.req.id, channel: "LINKEDIN" } },
+      create: { requestId: p.req.id, channel: "LINKEDIN", status: "PREPARE", content: texte },
+      update: { status: "PREPARE", content: texte, error: null },
+    });
+    await recordAudit({
+      actorId: p.user.id, action: "UPDATE", module: AUDIT_MODULE, entityType: "RECRUITMENT_REQUEST", entityId: p.req.id,
+      summary: `${p.req.reference} — post LinkedIn préparé${parLuna ? " par Luna" : " (modèle sans IA)"}`,
+    });
+    revalider(p.req.id);
+    return { ok: true, message: parLuna ? "Post préparé par Luna — relisez-le, puis publiez-le sur LinkedIn." : "Post préparé (modèle sans IA) — relisez-le, puis publiez-le sur LinkedIn." };
   });
-  if (existant?.status === "PUBLIE") return { ok: false, error: "Le post est déjà marqué publié : modifiez son texte plutôt que d'en préparer un autre." };
-  const contenu = await contenuDuPost(p.req.id);
-  if (!contenu) return { ok: false, error: "Demande introuvable." };
-  const { texte, parLuna } = await redigerPostLinkedIn(contenu);
-  await prisma.recruitmentChannelPost.upsert({
-    where: { requestId_channel: { requestId: p.req.id, channel: "LINKEDIN" } },
-    create: { requestId: p.req.id, channel: "LINKEDIN", status: "PREPARE", content: texte },
-    update: { status: "PREPARE", content: texte, error: null },
-  });
-  await recordAudit({
-    actorId: p.user.id, action: "UPDATE", module: AUDIT_MODULE, entityType: "RECRUITMENT_REQUEST", entityId: p.req.id,
-    summary: `${p.req.reference} — post LinkedIn préparé${parLuna ? " par Luna" : " (modèle sans IA)"}`,
-  });
-  revalider(p.req.id);
-  return { ok: true, message: parLuna ? "Post préparé par Luna — relisez-le, puis publiez-le sur LinkedIn." : "Post préparé (modèle sans IA) — relisez-le, puis publiez-le sur LinkedIn." };
 }
 
 /** MODIFIER LE TEXTE d'un canal manuel (le post LinkedIn, la note « Autre ») — sans changer son état. */
 export async function enregistrerTexteCanal(formData: FormData): Promise<ActionResult> {
-  const p = await porteDiffusion(fdStr(formData, "id"));
-  if (!p.ok) return p;
-  const canal = fdStr(formData, "canal");
-  if (!estCanal(canal) || !CANAUX_MANUELS.includes(canal)) return { ok: false, error: "Canal inconnu (attendu : LinkedIn ou Autre)." };
-  const texte = fdStr(formData, "texte");
-  if (!texte) return { ok: false, error: "Le texte est vide." };
-  await prisma.recruitmentChannelPost.upsert({
-    where: { requestId_channel: { requestId: p.req.id, channel: canal } },
-    create: { requestId: p.req.id, channel: canal, status: "PREPARE", content: texte },
-    update: { content: texte },
+  return gesteReversible(await requireUser(), { capaciteId: "recrutement-diffusion-actions:enregistrerTexteCanal", libelle: "Texte du canal enregistré" }, async () => {
+    const p = await porteDiffusion(fdStr(formData, "id"));
+    if (!p.ok) return p;
+    const canal = fdStr(formData, "canal");
+    if (!estCanal(canal) || !CANAUX_MANUELS.includes(canal)) return { ok: false, error: "Canal inconnu (attendu : LinkedIn ou Autre)." };
+    const texte = fdStr(formData, "texte");
+    if (!texte) return { ok: false, error: "Le texte est vide." };
+    await prisma.recruitmentChannelPost.upsert({
+      where: { requestId_channel: { requestId: p.req.id, channel: canal } },
+      create: { requestId: p.req.id, channel: canal, status: "PREPARE", content: texte },
+      update: { content: texte },
+    });
+    revalider(p.req.id);
+    return { ok: true, message: "Texte enregistré." };
   });
-  revalider(p.req.id);
-  return { ok: true, message: "Texte enregistré." };
 }
 
 /**
@@ -144,45 +149,49 @@ export async function enregistrerTexteCanal(formData: FormData): Promise<ActionR
  * LinkedIn ; pour « Autre », une adresse OU une note est exigée : sinon on ne saurait pas où l'offre a paru.
  */
 export async function marquerCanalPublie(formData: FormData): Promise<ActionResult> {
-  const p = await porteDiffusion(fdStr(formData, "id"));
-  if (!p.ok) return p;
-  const canal = fdStr(formData, "canal");
-  if (!estCanal(canal) || !CANAUX_MANUELS.includes(canal)) return { ok: false, error: "Canal inconnu (attendu : LinkedIn ou Autre)." };
-  const url = fdStr(formData, "url");
-  const texte = fdStr(formData, "texte");
-  if (url && !/^https?:\/\//i.test(url)) return { ok: false, error: "L'adresse doit commencer par https://." };
-  if (canal === "AUTRE" && !url && !texte) return { ok: false, error: "Dites où l'offre a paru : une adresse, ou une note (« Job board X », « Groupe Y »)." };
-  const maintenant = new Date();
-  await prisma.recruitmentChannelPost.upsert({
-    where: { requestId_channel: { requestId: p.req.id, channel: canal } },
-    create: { requestId: p.req.id, channel: canal, status: "PUBLIE", url, content: texte, publishedAt: maintenant, publishedById: p.user.id },
-    update: { status: "PUBLIE", url, ...(texte ? { content: texte } : {}), publishedAt: maintenant, publishedById: p.user.id, error: null },
+  return gesteReversible(await requireUser(), { capaciteId: "recrutement-diffusion-actions:marquerCanalPublie", libelle: "Offre marquée publiée" }, async () => {
+    const p = await porteDiffusion(fdStr(formData, "id"));
+    if (!p.ok) return p;
+    const canal = fdStr(formData, "canal");
+    if (!estCanal(canal) || !CANAUX_MANUELS.includes(canal)) return { ok: false, error: "Canal inconnu (attendu : LinkedIn ou Autre)." };
+    const url = fdStr(formData, "url");
+    const texte = fdStr(formData, "texte");
+    if (url && !/^https?:\/\//i.test(url)) return { ok: false, error: "L'adresse doit commencer par https://." };
+    if (canal === "AUTRE" && !url && !texte) return { ok: false, error: "Dites où l'offre a paru : une adresse, ou une note (« Job board X », « Groupe Y »)." };
+    const maintenant = new Date();
+    await prisma.recruitmentChannelPost.upsert({
+      where: { requestId_channel: { requestId: p.req.id, channel: canal } },
+      create: { requestId: p.req.id, channel: canal, status: "PUBLIE", url, content: texte, publishedAt: maintenant, publishedById: p.user.id },
+      update: { status: "PUBLIE", url, ...(texte ? { content: texte } : {}), publishedAt: maintenant, publishedById: p.user.id, error: null },
+    });
+    await recordAudit({
+      actorId: p.user.id, action: "UPDATE", module: AUDIT_MODULE, entityType: "RECRUITMENT_REQUEST", entityId: p.req.id,
+      summary: `${p.req.reference} — offre marquée publiée sur ${CANAL_LABEL[canal]}${url ? ` (${url})` : ""}`,
+    });
+    revalider(p.req.id);
+    return { ok: true, message: `Marquée publiée sur ${CANAL_LABEL[canal]}.` };
   });
-  await recordAudit({
-    actorId: p.user.id, action: "UPDATE", module: AUDIT_MODULE, entityType: "RECRUITMENT_REQUEST", entityId: p.req.id,
-    summary: `${p.req.reference} — offre marquée publiée sur ${CANAL_LABEL[canal]}${url ? ` (${url})` : ""}`,
-  });
-  revalider(p.req.id);
-  return { ok: true, message: `Marquée publiée sur ${CANAL_LABEL[canal]}.` };
 }
 
 /** RETIRER — l'offre n'est plus diffusée sur ce canal (la personne l'a retirée elle-même). */
 export async function retirerCanal(formData: FormData): Promise<ActionResult> {
-  const p = await porteDiffusion(fdStr(formData, "id"));
-  if (!p.ok) return p;
-  const canal = fdStr(formData, "canal");
-  if (!estCanal(canal) || canal === "SITE_WEB") return { ok: false, error: "Canal inconnu (le site se retire par son offre)." };
-  const ecrit = await prisma.recruitmentChannelPost.updateMany({
-    where: { requestId: p.req.id, channel: canal },
-    data: { status: "RETIRE" },
+  return gesteReversible(await requireUser(), { capaciteId: "recrutement-diffusion-actions:retirerCanal", libelle: "Offre retirée du canal" }, async () => {
+    const p = await porteDiffusion(fdStr(formData, "id"));
+    if (!p.ok) return p;
+    const canal = fdStr(formData, "canal");
+    if (!estCanal(canal) || canal === "SITE_WEB") return { ok: false, error: "Canal inconnu (le site se retire par son offre)." };
+    const ecrit = await prisma.recruitmentChannelPost.updateMany({
+      where: { requestId: p.req.id, channel: canal },
+      data: { status: "RETIRE" },
+    });
+    if (ecrit.count === 0) return { ok: false, error: "Rien à retirer sur ce canal." };
+    await recordAudit({
+      actorId: p.user.id, action: "UPDATE", module: AUDIT_MODULE, entityType: "RECRUITMENT_REQUEST", entityId: p.req.id,
+      summary: `${p.req.reference} — offre retirée de ${CANAL_LABEL[canal]}`,
+    });
+    revalider(p.req.id);
+    return { ok: true, message: `Retirée de ${CANAL_LABEL[canal]}.` };
   });
-  if (ecrit.count === 0) return { ok: false, error: "Rien à retirer sur ce canal." };
-  await recordAudit({
-    actorId: p.user.id, action: "UPDATE", module: AUDIT_MODULE, entityType: "RECRUITMENT_REQUEST", entityId: p.req.id,
-    summary: `${p.req.reference} — offre retirée de ${CANAL_LABEL[canal]}`,
-  });
-  revalider(p.req.id);
-  return { ok: true, message: `Retirée de ${CANAL_LABEL[canal]}.` };
 }
 
 // ───────────────────────────── Le site (l'offre existante) ─────────────────────────────
@@ -192,59 +201,63 @@ export async function retirerCanal(formData: FormData): Promise<ActionResult> {
  * qu'elle est enregistrée : mêmes refus (contrat du site), même file, même audit. Rien n'est réécrit au passage.
  */
 export async function publierOffreSiteDuRecrutement(formData: FormData): Promise<ActionResult> {
-  const p = await porteDiffusion(fdStr(formData, "id"));
-  if (!p.ok) return p;
-  const intention = fdStr(formData, "intention");
-  if (intention !== "publier" && intention !== "retirer") return { ok: false, error: "Geste illisible (attendu : publier ou retirer)." };
-  const o = await prisma.jobPosting.findUnique({
-    where: { recruitmentRequestId: p.req.id },
-    select: { id: true, title: true, department: true, location: true, contractLabel: true, experience: true, summary: true, mission: true, profile: true, offer: true },
+  return gesteReversible(await requireUser(), { capaciteId: "recrutement-diffusion-actions:publierOffreSiteDuRecrutement", libelle: "Offre publiée ou retirée du site" }, async () => {
+    const p = await porteDiffusion(fdStr(formData, "id"));
+    if (!p.ok) return p;
+    const intention = fdStr(formData, "intention");
+    if (intention !== "publier" && intention !== "retirer") return { ok: false, error: "Geste illisible (attendu : publier ou retirer)." };
+    const o = await prisma.jobPosting.findUnique({
+      where: { recruitmentRequestId: p.req.id },
+      select: { id: true, title: true, department: true, location: true, contractLabel: true, experience: true, summary: true, mission: true, profile: true, offer: true },
+    });
+    if (!o) return { ok: false, error: "Aucune offre n'est encore préparée pour cette demande : préparez-la d'abord." };
+    const f = new FormData();
+    f.set("id", o.id);
+    f.set("intention", intention);
+    f.set("title", o.title);
+    for (const [cle, valeur] of [
+      ["department", o.department], ["location", o.location], ["contractLabel", o.contractLabel], ["experience", o.experience],
+      ["summary", o.summary], ["mission", o.mission.join("\n")], ["profile", o.profile.join("\n")], ["offer", o.offer.join("\n")],
+    ] as const) {
+      if (valeur) f.set(cle, valeur);
+    }
+    const r = await enregistrerOffre(f);
+    revalider(p.req.id);
+    return r;
   });
-  if (!o) return { ok: false, error: "Aucune offre n'est encore préparée pour cette demande : préparez-la d'abord." };
-  const f = new FormData();
-  f.set("id", o.id);
-  f.set("intention", intention);
-  f.set("title", o.title);
-  for (const [cle, valeur] of [
-    ["department", o.department], ["location", o.location], ["contractLabel", o.contractLabel], ["experience", o.experience],
-    ["summary", o.summary], ["mission", o.mission.join("\n")], ["profile", o.profile.join("\n")], ["offer", o.offer.join("\n")],
-  ] as const) {
-    if (valeur) f.set(cle, valeur);
-  }
-  const r = await enregistrerOffre(f);
-  revalider(p.req.id);
-  return r;
 }
 
 // ───────────────────────────── Emploitic ─────────────────────────────
 
 /** ENVOYER À EMPLOITIC — par le point d'extension ; tant que la clé manque, le refus le dit. */
 export async function envoyerOffreEmploitic(formData: FormData): Promise<ActionResult> {
-  const p = await porteDiffusion(fdStr(formData, "id"));
-  if (!p.ok) return p;
-  const contenu = await contenuDuPost(p.req.id);
-  if (!contenu) return { ok: false, error: "Demande introuvable." };
-  const envoi = await envoyerAEmploitic({ titre: contenu.poste, texte: [contenu.resume, ...contenu.missions].filter(Boolean).join("\n"), lien: contenu.lien });
-  if (!envoi.ok) {
-    if (envoi.nonConfigure) return { ok: false, error: envoi.error };
+  return gesteReversible(await requireUser(), { capaciteId: "recrutement-diffusion-actions:envoyerOffreEmploitic", libelle: "Offre envoyée à Emploitic" }, async () => {
+    const p = await porteDiffusion(fdStr(formData, "id"));
+    if (!p.ok) return p;
+    const contenu = await contenuDuPost(p.req.id);
+    if (!contenu) return { ok: false, error: "Demande introuvable." };
+    const envoi = await envoyerAEmploitic({ titre: contenu.poste, texte: [contenu.resume, ...contenu.missions].filter(Boolean).join("\n"), lien: contenu.lien });
+    if (!envoi.ok) {
+      if (envoi.nonConfigure) return { ok: false, error: envoi.error };
+      await prisma.recruitmentChannelPost.upsert({
+        where: { requestId_channel: { requestId: p.req.id, channel: "EMPLOITIC" } },
+        create: { requestId: p.req.id, channel: "EMPLOITIC", status: "ECHEC", error: envoi.error },
+        update: { status: "ECHEC", error: envoi.error },
+      });
+      revalider(p.req.id);
+      return { ok: false, error: envoi.error };
+    }
+    const maintenant = new Date();
     await prisma.recruitmentChannelPost.upsert({
       where: { requestId_channel: { requestId: p.req.id, channel: "EMPLOITIC" } },
-      create: { requestId: p.req.id, channel: "EMPLOITIC", status: "ECHEC", error: envoi.error },
-      update: { status: "ECHEC", error: envoi.error },
+      create: { requestId: p.req.id, channel: "EMPLOITIC", status: "PUBLIE", url: envoi.url, publishedAt: maintenant, publishedById: p.user.id },
+      update: { status: "PUBLIE", url: envoi.url, error: null, publishedAt: maintenant, publishedById: p.user.id },
+    });
+    await recordAudit({
+      actorId: p.user.id, action: "UPDATE", module: AUDIT_MODULE, entityType: "RECRUITMENT_REQUEST", entityId: p.req.id,
+      summary: `${p.req.reference} — offre envoyée à Emploitic`,
     });
     revalider(p.req.id);
-    return { ok: false, error: envoi.error };
-  }
-  const maintenant = new Date();
-  await prisma.recruitmentChannelPost.upsert({
-    where: { requestId_channel: { requestId: p.req.id, channel: "EMPLOITIC" } },
-    create: { requestId: p.req.id, channel: "EMPLOITIC", status: "PUBLIE", url: envoi.url, publishedAt: maintenant, publishedById: p.user.id },
-    update: { status: "PUBLIE", url: envoi.url, error: null, publishedAt: maintenant, publishedById: p.user.id },
+    return { ok: true, message: "Offre envoyée à Emploitic." };
   });
-  await recordAudit({
-    actorId: p.user.id, action: "UPDATE", module: AUDIT_MODULE, entityType: "RECRUITMENT_REQUEST", entityId: p.req.id,
-    summary: `${p.req.reference} — offre envoyée à Emploitic`,
-  });
-  revalider(p.req.id);
-  return { ok: true, message: "Offre envoyée à Emploitic." };
 }

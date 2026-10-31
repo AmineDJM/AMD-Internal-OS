@@ -3,7 +3,7 @@ import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { CurrentUser } from "@/lib/session";
 import { delegue, deserialiser, ecrireVerrouille, ligne, lireActuelle, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
-import { annulerEffetSortant, retablirEffetSortant } from "./fenetre";
+import { annulerEffetSortant, rejouerEffetFait, retablirEffetSortant } from "./fenetre";
 import { infoModele, type InfoModele } from "./modeles";
 import { memeValeur } from "./valeurs";
 
@@ -43,8 +43,13 @@ async function refaire(e: EffetLu, d: DetailEffet, user: CurrentUser): Promise<D
       const r = await retablirEffetSortant(e.effetSortantId, user);
       return r.ok ? OK(d, r.message) : RIEN(d, r.message);
     }
-    // Compensé : le rectificatif, s'il attend encore sa fenêtre, est retenu ; parti, il ne se reprend pas.
-    const l = await prismaBrut.effetSortantDiffere.findUnique({ where: { id: e.effetSortantId }, select: { compensation: true } });
+    // Compensé : un geste externe défait (lu, déplacé…) est rejoué ; un rectificatif encore en fenêtre est retenu ;
+    // parti, il ne se reprend pas.
+    const l = await prismaBrut.effetSortantDiffere.findUnique({ where: { id: e.effetSortantId }, select: { compensation: true, type: true } });
+    if (l?.type.startsWith("inverse.")) {
+      const r = await rejouerEffetFait(e.effetSortantId, user);
+      return r.ok ? OK(d, r.message) : NON(d, r.message);
+    }
     const rect = /\[([a-z0-9]+)\]$/.exec(l?.compensation ?? "")?.[1];
     if (!rect) return NON(d, "le courriel d'origine est parti et sa compensation aussi : ni l'un ni l'autre ne se reprend");
     const r = await annulerEffetSortant(rect, user, { compenser: false });

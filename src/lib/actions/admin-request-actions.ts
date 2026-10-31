@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { refusDuRetraitValidation, validateursSollicites } from "@/lib/validations/retrait";
 import { revalidatePath } from "next/cache";
 import { FinanceCategory } from "@prisma/client";
@@ -284,110 +285,112 @@ export async function requestApproval(formData: FormData): Promise<ActionResult>
 
 export async function decideApproval(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const approvalId = fdStr(formData, "approvalId");
-  const decision = fdStr(formData, "decision") as AdminApprovalStatus | null;
-  // UNE DÉCISION ILLISIBLE N'EST PAS UNE DÉCISION (lot E5) : « PENDING », une faute de frappe, un champ perdu en
-  // route sont refusés ici — jamais envoyés tels quels à la base, qui les rejetait en erreur brute.
-  if (!approvalId || !decision || !estDecisionDApprobation(decision)) return { ok: false, error: "Décision invalide." };
-  const approval = await approbationATrancher(approvalId);
-  if (!approval) return { ok: false, error: "Validation introuvable." };
-  // UNE DEMANDE ANNULÉE OU EFFACÉE NE S'APPROUVE PLUS (§118.187) — l'approbation d'un montant émet un
-  // ordre de dépense : sans cette garde, une validation restée en file payait une demande retirée.
-  if (approval.request.deletedAt || approval.request.status === "CANCELLED") return { ok: false, error: VALIDATION_SANS_OBJET };
-  // LE VALIDATEUR NOMMÉ, SON INTÉRIMAIRE (§118.185 — audit 360°, I18) OU LE SOMMET — jamais sur sa propre
-  // demande : remplacer son directeur ne donne pas le droit de s'approuver un achat. Le droit « Valider » du
-  // module ne suffit plus (audit du 14/10/2026) : l'assistante tranchait l'achat adressé au N+1 d'un autre.
-  const parDroit = approval.validatorId === user.id || isTopManagement(user);
-  const parInterim = !parDroit && approval.validatorId !== null && approval.request.requesterId !== user.id
-    && (await actsForUser(user.id, approval.validatorId));
-  if (!peutTrancherApprobation({ estValidateur: approval.validatorId === user.id, parInterim, sommet: isTopManagement(user) })) {
-    return { ok: false, error: refusAutreValidateur(approval.validator?.name) };
-  }
-  // … ET PERSONNE D'AUTRE NE S'AUTO-VALIDE (lot E5) : le droit « Valider » du module n'en dispense pas — une
-  // assistante de direction ou un Directeur des opérations validait son propre achat. Le sommet garde la main,
-  // comme dans les circuits de congé et de formation (`approval-chain.ts`).
-  if (interditSurSaPropreDemande({ estDemandeur: approval.request.requesterId === user.id, sommet: isTopManagement(user) })) {
-    return { ok: false, error: refusSaPropreDemande(approval.validatorId === user.id, approval.validator?.name) };
-  }
-  if (approval.status !== "PENDING") return { ok: false, error: "Cette validation a déjà été tranchée — rechargez la page." };
-
-  // L'ÉTAT D'ABORD, LE MOTIF ENSUITE (§118.18 — audit des managers, M15). Refuser ou demander une modification
-  // renvoie la balle au demandeur : sans motif, il ne sait ni pourquoi, ni quoi corriger — les boutons partaient
-  // d'un clic, sans un mot. La règle vit dans `secretariat/decision-approbation.ts`, lue aussi par les boutons ;
-  // elle est ICI parce qu'une requête forgée ignore un écran.
-  const note = fdStr(formData, "comment");
-  const sansMotif = refusSansMotif(decision, note);
-  if (sansMotif) return { ok: false, error: sansMotif };
-
-  // UNE SEULE ÉCRITURE, SOUS CONDITION DE TOUT CE QUI A ÉTÉ LU (lot E5) : l'approbation encore en attente ET sa
-  // demande encore vivante, au même instant. Une décision prise entre la lecture et le clic ne se prend pas une
-  // seconde fois (elle ferait partir un second ordre de dépense) ; une demande annulée entre-temps ne s'approuve pas.
-  // QUI A TRANCHÉ (M14) : la décision porte son auteur — le validateur nommé, son intérimaire, l'assistante ou la
-  // Direction. Sa parole va dans `decisionNote`, plus dans `comment` : celui-ci est la parole du demandeur
-  // (l'estimation du catalogue, la note de l'assistante), que la décision écrasait, ou qu'elle laissait se lire
-  // comme l'avis du directeur quand elle n'avait rien à dire.
-  const pris = await prisma.adminApproval.updateMany({
-    where: { id: approvalId, status: "PENDING", request: { deletedAt: null, status: { not: "CANCELLED" } } },
-    data: { status: decision, decisionNote: note, decidedById: user.id, decidedAt: new Date() },
-  });
-  if (pris.count === 0) return { ok: false, error: await refusApresLaPrise(approvalId) };
-
-  const req = approval.request;
-  let reqStatus: AdminRequestStatus = "IN_PROGRESS";
-  let ordre: { id: string } | null = null;
-  if (decision === "APPROVED") {
-    const amt = approval.amount ? Number(approval.amount) : 0;
-    if (amt > 0) {
-      ordre = await createExpenseOrder(ordreDeLApprobation(req, amt, user.id));
-      reqStatus = "AWAITING_PAYMENT";
+  return gesteReversible(user, { capaciteId: "admin-request-actions:decideApproval", libelle: "Décision sur une validation de demande" }, async () => {
+    const approvalId = fdStr(formData, "approvalId");
+    const decision = fdStr(formData, "decision") as AdminApprovalStatus | null;
+    // UNE DÉCISION ILLISIBLE N'EST PAS UNE DÉCISION (lot E5) : « PENDING », une faute de frappe, un champ perdu en
+    // route sont refusés ici — jamais envoyés tels quels à la base, qui les rejetait en erreur brute.
+    if (!approvalId || !decision || !estDecisionDApprobation(decision)) return { ok: false, error: "Décision invalide." };
+    const approval = await approbationATrancher(approvalId);
+    if (!approval) return { ok: false, error: "Validation introuvable." };
+    // UNE DEMANDE ANNULÉE OU EFFACÉE NE S'APPROUVE PLUS (§118.187) — l'approbation d'un montant émet un
+    // ordre de dépense : sans cette garde, une validation restée en file payait une demande retirée.
+    if (approval.request.deletedAt || approval.request.status === "CANCELLED") return { ok: false, error: VALIDATION_SANS_OBJET };
+    // LE VALIDATEUR NOMMÉ, SON INTÉRIMAIRE (§118.185 — audit 360°, I18) OU LE SOMMET — jamais sur sa propre
+    // demande : remplacer son directeur ne donne pas le droit de s'approuver un achat. Le droit « Valider » du
+    // module ne suffit plus (audit du 14/10/2026) : l'assistante tranchait l'achat adressé au N+1 d'un autre.
+    const parDroit = approval.validatorId === user.id || isTopManagement(user);
+    const parInterim = !parDroit && approval.validatorId !== null && approval.request.requesterId !== user.id
+      && (await actsForUser(user.id, approval.validatorId));
+    if (!peutTrancherApprobation({ estValidateur: approval.validatorId === user.id, parInterim, sommet: isTopManagement(user) })) {
+      return { ok: false, error: refusAutreValidateur(approval.validator?.name) };
     }
-  } else if (decision === "REJECTED") {
-    reqStatus = "BLOCKED";
-  }
-  // Jamais une demande TERMINÉE (§118.187) : une approbation tranchée après la fin ne la ressuscite pas
-  // — la même règle que la validation (`decideValidation`). L'ordre de dépense, lui, part : le montant
-  // a bien été autorisé.
-  const suivie = await prisma.administrativeRequest.updateMany({ where: { id: req.id, ...OUVERTE }, data: { status: reqStatus } });
-  // UNE ANNULATION ARRIVÉE PENDANT LA DÉCISION (lot E5 — R2). La prise ci-dessus a lu une demande vivante ; une
-  // annulation passée APRÈS elle, mais avant la naissance de l'ordre, ne pouvait pas voir cet ordre — il serait
-  // resté payable pour une demande retirée. On relit la demande : annulée, l'ordre émis est annulé par la porte
-  // unique (conditionnelle : un ordre déjà réglé n'est jamais défait), et la décision le DIT.
-  if (suivie.count === 0 && ordre) {
-    const maintenant = await prisma.administrativeRequest.findUnique({ where: { id: req.id }, select: { status: true, deletedAt: true } });
-    if (!maintenant || maintenant.deletedAt || maintenant.status === "CANCELLED") {
-      const retrait = await annulerOrdreNonRegle(ordre.id, { acteurId: user.id, motif: `demande ${req.reference} annulée pendant la décision` });
-      return { ok: false, error: refusOrdreAnnulePendantLaDecision(retrait) };
+    // … ET PERSONNE D'AUTRE NE S'AUTO-VALIDE (lot E5) : le droit « Valider » du module n'en dispense pas — une
+    // assistante de direction ou un Directeur des opérations validait son propre achat. Le sommet garde la main,
+    // comme dans les circuits de congé et de formation (`approval-chain.ts`).
+    if (interditSurSaPropreDemande({ estDemandeur: approval.request.requesterId === user.id, sommet: isTopManagement(user) })) {
+      return { ok: false, error: refusSaPropreDemande(approval.validatorId === user.id, approval.validator?.name) };
     }
-  }
+    if (approval.status !== "PENDING") return { ok: false, error: "Cette validation a déjà été tranchée — rechargez la page." };
 
-  // CE QUE LE DEMANDEUR LIT : la décision par son nom, et le motif — ce qu'il doit corriger, ou comprendre.
-  // Une seule notification quand le demandeur est aussi le responsable de la demande.
-  for (const uid of new Set([req.assignedToId, req.requesterId])) {
-    if (uid && uid !== user.id) await notifyUser({ userId: uid, type: "GENERIC", title: LIBELLE_DECISION[decision], body: `${req.reference}${note ? ` — ${note}` : ""}`, link: `/demandes/${req.id}` });
-  }
-  // UNE DEMANDE VALIDÉE SANS RESPONSABLE REVIENT AU SECRÉTARIAT (audit 360°, I10) : le N+1 disait
-  // oui, et personne au bureau ne l'apprenait — l'achat attendait qu'on tombe dessus.
-  if (decision === "APPROVED" && !req.assignedToId) await renvoyerAuSecretariat(req);
-  await recordAudit({
-    actorId: user.id,
-    action: decision === "APPROVED" ? "VALIDATE" : decision === "REJECTED" ? "REFUSE" : "UPDATE",
-    module: "Demandes administratives", entityType: "ADMIN_REQUEST", entityId: req.id,
-    // Le journal DIT qu'une décision a été prise au titre d'un intérim — la mention de `decideValidation` : sans
-    // elle, on relirait « Untel a validé » sans comprendre pourquoi ce n'est pas le validateur désigné.
-    summary: `${LIBELLE_DECISION[decision]}${note ? ` — ${note}` : ""}${parInterim ? ` (par l'intérimaire de ${approval.validator?.name ?? "la personne désignée"})` : ""}`,
+    // L'ÉTAT D'ABORD, LE MOTIF ENSUITE (§118.18 — audit des managers, M15). Refuser ou demander une modification
+    // renvoie la balle au demandeur : sans motif, il ne sait ni pourquoi, ni quoi corriger — les boutons partaient
+    // d'un clic, sans un mot. La règle vit dans `secretariat/decision-approbation.ts`, lue aussi par les boutons ;
+    // elle est ICI parce qu'une requête forgée ignore un écran.
+    const note = fdStr(formData, "comment");
+    const sansMotif = refusSansMotif(decision, note);
+    if (sansMotif) return { ok: false, error: sansMotif };
+
+    // UNE SEULE ÉCRITURE, SOUS CONDITION DE TOUT CE QUI A ÉTÉ LU (lot E5) : l'approbation encore en attente ET sa
+    // demande encore vivante, au même instant. Une décision prise entre la lecture et le clic ne se prend pas une
+    // seconde fois (elle ferait partir un second ordre de dépense) ; une demande annulée entre-temps ne s'approuve pas.
+    // QUI A TRANCHÉ (M14) : la décision porte son auteur — le validateur nommé, son intérimaire, l'assistante ou la
+    // Direction. Sa parole va dans `decisionNote`, plus dans `comment` : celui-ci est la parole du demandeur
+    // (l'estimation du catalogue, la note de l'assistante), que la décision écrasait, ou qu'elle laissait se lire
+    // comme l'avis du directeur quand elle n'avait rien à dire.
+    const pris = await prisma.adminApproval.updateMany({
+      where: { id: approvalId, status: "PENDING", request: { deletedAt: null, status: { not: "CANCELLED" } } },
+      data: { status: decision, decisionNote: note, decidedById: user.id, decidedAt: new Date() },
+    });
+    if (pris.count === 0) return { ok: false, error: await refusApresLaPrise(approvalId) };
+
+    const req = approval.request;
+    let reqStatus: AdminRequestStatus = "IN_PROGRESS";
+    let ordre: { id: string } | null = null;
+    if (decision === "APPROVED") {
+      const amt = approval.amount ? Number(approval.amount) : 0;
+      if (amt > 0) {
+        ordre = await createExpenseOrder(ordreDeLApprobation(req, amt, user.id));
+        reqStatus = "AWAITING_PAYMENT";
+      }
+    } else if (decision === "REJECTED") {
+      reqStatus = "BLOCKED";
+    }
+    // Jamais une demande TERMINÉE (§118.187) : une approbation tranchée après la fin ne la ressuscite pas
+    // — la même règle que la validation (`decideValidation`). L'ordre de dépense, lui, part : le montant
+    // a bien été autorisé.
+    const suivie = await prisma.administrativeRequest.updateMany({ where: { id: req.id, ...OUVERTE }, data: { status: reqStatus } });
+    // UNE ANNULATION ARRIVÉE PENDANT LA DÉCISION (lot E5 — R2). La prise ci-dessus a lu une demande vivante ; une
+    // annulation passée APRÈS elle, mais avant la naissance de l'ordre, ne pouvait pas voir cet ordre — il serait
+    // resté payable pour une demande retirée. On relit la demande : annulée, l'ordre émis est annulé par la porte
+    // unique (conditionnelle : un ordre déjà réglé n'est jamais défait), et la décision le DIT.
+    if (suivie.count === 0 && ordre) {
+      const maintenant = await prisma.administrativeRequest.findUnique({ where: { id: req.id }, select: { status: true, deletedAt: true } });
+      if (!maintenant || maintenant.deletedAt || maintenant.status === "CANCELLED") {
+        const retrait = await annulerOrdreNonRegle(ordre.id, { acteurId: user.id, motif: `demande ${req.reference} annulée pendant la décision` });
+        return { ok: false, error: refusOrdreAnnulePendantLaDecision(retrait) };
+      }
+    }
+
+    // CE QUE LE DEMANDEUR LIT : la décision par son nom, et le motif — ce qu'il doit corriger, ou comprendre.
+    // Une seule notification quand le demandeur est aussi le responsable de la demande.
+    for (const uid of new Set([req.assignedToId, req.requesterId])) {
+      if (uid && uid !== user.id) await notifyUser({ userId: uid, type: "GENERIC", title: LIBELLE_DECISION[decision], body: `${req.reference}${note ? ` — ${note}` : ""}`, link: `/demandes/${req.id}` });
+    }
+    // UNE DEMANDE VALIDÉE SANS RESPONSABLE REVIENT AU SECRÉTARIAT (audit 360°, I10) : le N+1 disait
+    // oui, et personne au bureau ne l'apprenait — l'achat attendait qu'on tombe dessus.
+    if (decision === "APPROVED" && !req.assignedToId) await renvoyerAuSecretariat(req);
+    await recordAudit({
+      actorId: user.id,
+      action: decision === "APPROVED" ? "VALIDATE" : decision === "REJECTED" ? "REFUSE" : "UPDATE",
+      module: "Demandes administratives", entityType: "ADMIN_REQUEST", entityId: req.id,
+      // Le journal DIT qu'une décision a été prise au titre d'un intérim — la mention de `decideValidation` : sans
+      // elle, on relirait « Untel a validé » sans comprendre pourquoi ce n'est pas le validateur désigné.
+      summary: `${LIBELLE_DECISION[decision]}${note ? ` — ${note}` : ""}${parInterim ? ` (par l'intérimaire de ${approval.validator?.name ?? "la personne désignée"})` : ""}`,
+    });
+    // LE JOURNAL DES ACHATS suit la décision, pas seulement le dépôt : « qui a dit oui » est la
+    // moitié de la question qu'on lui pose. Il ignore de lui-même les demandes d'une autre nature.
+    await journaliserDemandeAchat({
+      requestId: req.id,
+      event: decision === "APPROVED" ? "APPROVED" : decision === "REJECTED" ? "REJECTED" : "CHANGES_REQUESTED",
+      actorId: user.id,
+      note,
+    });
+    revalidatePath(`/demandes/${req.id}`);
+    revalidatePath("/demandes/approvals");
+    revalidatePath("/finances/paiements-a-faire");
+    return { ok: true };
   });
-  // LE JOURNAL DES ACHATS suit la décision, pas seulement le dépôt : « qui a dit oui » est la
-  // moitié de la question qu'on lui pose. Il ignore de lui-même les demandes d'une autre nature.
-  await journaliserDemandeAchat({
-    requestId: req.id,
-    event: decision === "APPROVED" ? "APPROVED" : decision === "REJECTED" ? "REJECTED" : "CHANGES_REQUESTED",
-    actorId: user.id,
-    note,
-  });
-  revalidatePath(`/demandes/${req.id}`);
-  revalidatePath("/demandes/approvals");
-  revalidatePath("/finances/paiements-a-faire");
-  return { ok: true };
 }
 
 // ─────────────────────────────── Missions chauffeur ───────────────────────────────
@@ -836,67 +839,69 @@ export async function requestInternalValidation(formData: FormData): Promise<Act
  */
 export async function finishRequest(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Demande introuvable." };
-  const req = await prisma.administrativeRequest.findUnique({
-    where: { id },
-    select: { assignedToId: true, requesterId: true, type: true, reference: true, title: true, linkedEntityType: true, linkedEntityId: true, status: true },
+  return gesteReversible(user, { capaciteId: "admin-request-actions:finishRequest", libelle: "Demande terminée" }, async () => {
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Demande introuvable." };
+    const req = await prisma.administrativeRequest.findUnique({
+      where: { id },
+      select: { assignedToId: true, requesterId: true, type: true, reference: true, title: true, linkedEntityType: true, linkedEntityId: true, status: true },
+    });
+    if (!req) return { ok: false, error: "Demande introuvable." };
+    if (!isManager(user, req.assignedToId)) return DENIED;
+    const close = refusDemandeClose(req.status);
+    if (close) return { ok: false, error: close };
+    // LA DERNIÈRE DÉCISION DU VALIDATEUR FAIT FOI (audit du 14/10/2026) : un achat refusé ne se termine pas (il
+    // s'imputait au budget), un achat renvoyé pour modification ne s'achète pas avant d'être revalidé.
+    const refusAvantFin = await refusAvantLaFin(id, req);
+    if (refusAvantFin) return { ok: false, error: refusAvantFin };
+
+    // LA FACTURE DANS LA MÊME FENÊTRE (refonte du bureau, 10/2026) : « Terminer » demande la facture et l'imputation
+    // ensemble. Jointe ici, elle est rangée parmi les pièces de la demande (catégorie « Facture ») AVANT la règle
+    // ci-dessous, qui la trouve donc là où elle la cherche déjà.
+    const factureJointe = formData.getAll("facture").find((v): v is File => v instanceof File && v.size > 0) ?? null;
+    if (factureJointe) {
+      const refusFacture = await joindreFactureALaDemande(user, id, factureJointe);
+      if (refusFacture) return { ok: false, error: refusFacture.error, ...(refusFacture.factureConnue ? { factureConnue: refusFacture.factureConnue } : {}) };
+    }
+
+    // LA FACTURE SE LIT LÀ OÙ L'ÉCRAN LA RANGE (lot E5). La règle ne regardait que les fichiers « Facture » de la
+    // demande ; la même fiche propose « Pièces liées → Facture » (« elle restera liée à cette demande »), qui la
+    // range AU REGISTRE avec son PDF — une demande dont la facture était parfaitement rangée là ne se terminait
+    // jamais : « uploadez d'abord la facture » à qui l'avait jointe. Une seule règle, celle des ordres
+    // (`finance/facture-ordre.ts`) : une facture annulée, ou sans son fichier, ne compte pas.
+    if (req.type === "PURCHASE" && !(await ficheAFacture({ entityType: "ADMIN_REQUEST", entityId: id }))) {
+      return { ok: false, error: REFUS_SANS_FACTURE };
+    }
+
+    // L'EXCEPTION D'AD & PRO se lit par la même fonction que la page (`dejaPorteParSaFiche`) : l'imputation qu'elle
+    // dispense, l'écran la masque aussi (§118.150).
+    const fromAdPro = dejaPorteParSaFiche(req.linkedEntityType);
+    const fin = await lireLImputation(formData, { id, req, fromAdPro });
+    if ("fini" in fin) return fin.fini;
+    const { imputation } = fin;
+
+    // LA DEMANDE EST PRISE AVANT L'IMPUTATION, sous condition (§118.187) : annulée entre la lecture et
+    // l'écriture, elle ne repasse pas « terminée », et aucun budget n'est débité pour elle.
+    const prise = await prisma.administrativeRequest.updateMany({ where: { id, ...OUVERTE }, data: { status: "DONE", completedAt: new Date() } });
+    if (prise.count === 0) return { ok: false, error: DEMANDE_CHANGEE };
+
+    if (imputation) {
+      const { dept, amount } = imputation;
+      await prisma.departmentBudgetExpense.create({ data: imputationDeLaDemande(id, req, dept, amount, fdStr(formData, "budgetNote"), user.id) });
+      await tracerLImputation(id, dept, amount, user.id);
+    }
+
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, field: "status", newValue: "DONE", summary: "Fin du traitement" });
+    if (req.requesterId && req.requesterId !== user.id) {
+      await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande traitée", body: `${req.reference} — ${req.title}`, link: `/demandes/${id}` }).catch(sansBloquer("admin-request-actions.finishRequest.notifyUser"));
+    }
+    // L'ARCHIVE DANS LE DRIVE (« Dossier traité ») — elle n'était faite que par le menu libre, c'est-à-dire
+    // par le seul chemin qui contournait les gardes de cette fin (§118.191, audit R12). Une fois, jamais
+    // bloquante : la demande est terminée même si l'archive échoue.
+    await archiveAdminRequestIfDone(id, user.id).catch((e) => console.error("[admin-request] archive non faite", e));
+    rafraichirLaDemande(id);
+    return { ok: true };
   });
-  if (!req) return { ok: false, error: "Demande introuvable." };
-  if (!isManager(user, req.assignedToId)) return DENIED;
-  const close = refusDemandeClose(req.status);
-  if (close) return { ok: false, error: close };
-  // LA DERNIÈRE DÉCISION DU VALIDATEUR FAIT FOI (audit du 14/10/2026) : un achat refusé ne se termine pas (il
-  // s'imputait au budget), un achat renvoyé pour modification ne s'achète pas avant d'être revalidé.
-  const refusAvantFin = await refusAvantLaFin(id, req);
-  if (refusAvantFin) return { ok: false, error: refusAvantFin };
-
-  // LA FACTURE DANS LA MÊME FENÊTRE (refonte du bureau, 10/2026) : « Terminer » demande la facture et l'imputation
-  // ensemble. Jointe ici, elle est rangée parmi les pièces de la demande (catégorie « Facture ») AVANT la règle
-  // ci-dessous, qui la trouve donc là où elle la cherche déjà.
-  const factureJointe = formData.getAll("facture").find((v): v is File => v instanceof File && v.size > 0) ?? null;
-  if (factureJointe) {
-    const refusFacture = await joindreFactureALaDemande(user, id, factureJointe);
-    if (refusFacture) return { ok: false, error: refusFacture.error, ...(refusFacture.factureConnue ? { factureConnue: refusFacture.factureConnue } : {}) };
-  }
-
-  // LA FACTURE SE LIT LÀ OÙ L'ÉCRAN LA RANGE (lot E5). La règle ne regardait que les fichiers « Facture » de la
-  // demande ; la même fiche propose « Pièces liées → Facture » (« elle restera liée à cette demande »), qui la
-  // range AU REGISTRE avec son PDF — une demande dont la facture était parfaitement rangée là ne se terminait
-  // jamais : « uploadez d'abord la facture » à qui l'avait jointe. Une seule règle, celle des ordres
-  // (`finance/facture-ordre.ts`) : une facture annulée, ou sans son fichier, ne compte pas.
-  if (req.type === "PURCHASE" && !(await ficheAFacture({ entityType: "ADMIN_REQUEST", entityId: id }))) {
-    return { ok: false, error: REFUS_SANS_FACTURE };
-  }
-
-  // L'EXCEPTION D'AD & PRO se lit par la même fonction que la page (`dejaPorteParSaFiche`) : l'imputation qu'elle
-  // dispense, l'écran la masque aussi (§118.150).
-  const fromAdPro = dejaPorteParSaFiche(req.linkedEntityType);
-  const fin = await lireLImputation(formData, { id, req, fromAdPro });
-  if ("fini" in fin) return fin.fini;
-  const { imputation } = fin;
-
-  // LA DEMANDE EST PRISE AVANT L'IMPUTATION, sous condition (§118.187) : annulée entre la lecture et
-  // l'écriture, elle ne repasse pas « terminée », et aucun budget n'est débité pour elle.
-  const prise = await prisma.administrativeRequest.updateMany({ where: { id, ...OUVERTE }, data: { status: "DONE", completedAt: new Date() } });
-  if (prise.count === 0) return { ok: false, error: DEMANDE_CHANGEE };
-
-  if (imputation) {
-    const { dept, amount } = imputation;
-    await prisma.departmentBudgetExpense.create({ data: imputationDeLaDemande(id, req, dept, amount, fdStr(formData, "budgetNote"), user.id) });
-    await tracerLImputation(id, dept, amount, user.id);
-  }
-
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, field: "status", newValue: "DONE", summary: "Fin du traitement" });
-  if (req.requesterId && req.requesterId !== user.id) {
-    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande traitée", body: `${req.reference} — ${req.title}`, link: `/demandes/${id}` }).catch(sansBloquer("admin-request-actions.finishRequest.notifyUser"));
-  }
-  // L'ARCHIVE DANS LE DRIVE (« Dossier traité ») — elle n'était faite que par le menu libre, c'est-à-dire
-  // par le seul chemin qui contournait les gardes de cette fin (§118.191, audit R12). Une fois, jamais
-  // bloquante : la demande est terminée même si l'archive échoue.
-  await archiveAdminRequestIfDone(id, user.id).catch((e) => console.error("[admin-request] archive non faite", e));
-  rafraichirLaDemande(id);
-  return { ok: true };
 }
 
 /**

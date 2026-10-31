@@ -56,9 +56,12 @@ export const EXECUTEURS: Readonly<Record<string, () => Promise<ExecuteurEffetSor
     const { sendSmartEmail } = await import("@/lib/mail-smart");
     type Charge = { to: string[]; cc?: string[]; subject: string; text: string; html?: string; replyTo?: string };
     return {
-      executer: async (charge) => {
+      executer: async (charge, ligne) => {
         const r = await sendSmartEmail(charge as Charge);
         if (!r.ok) throw new Error(r.error ?? "refus du fournisseur");
+        // Le journal des courriels (`OutboundEmail`) le disait « en file » : il le dit parti, avec l'identifiant du fournisseur.
+        const { prismaBrut } = await import("@/lib/prisma");
+        await prismaBrut.outboundEmail.updateMany({ where: { providerId: `differe:${ligne.id}` }, data: { status: "SENT", providerId: r.providerId ?? null, sentAt: new Date() } });
       },
       compensation: async (charge, _l, motif): Promise<PlanCompensation> => {
         const c = charge as Charge;
