@@ -30,7 +30,9 @@ import { deposerMessage, ETAT, filDe, traiterFil } from "../fil/service";
 
 export const VOIX_ASSISTANT = (process.env.ASSISTANT_IA_VOICE || "marin").trim();
 /** Le temps qu'on attend la réponse de l'assistant délégué (un tour d'outils peut prendre 20 à 40 s). */
-export const DELAI_DELEGATION_MS = 45_000;
+// 31/10/2026 : 70 s — une question d'actualité (recherche web rapide, plusieurs sources) dépasse 45 s ; la voix dit
+// « je regarde » pendant ce temps plutôt que de renvoyer à l'écran.
+export const DELAI_DELEGATION_MS = 70_000;
 
 export type OuvertureVoix = SessionLiveOuverte | { ok: false; erreur: string; statut: number };
 
@@ -54,6 +56,12 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
     CONSIGNES_VOIX,
     "Pour TOUT ce qui touche l'entreprise (personnes, dossiers, demandes, chiffres, documents, comptes rendus, agenda), DÉLÈGUE :",
     "l'assistant de l'entreprise répond avec les droits de la personne. N'invente jamais une donnée de l'entreprise.",
+    // Direction, 31/10/2026 : « Je ne peux pas vérifier l'actualité en temps réel » n'existe pas — l'assistant cherche sur le web.
+    `Nous sommes le ${new Date().toLocaleDateString("fr-FR", { timeZone: "Africa/Algiers", weekday: "long", day: "numeric", month: "long", year: "numeric" })}.`,
+    "Pour TOUT ce qui vient de l'EXTÉRIEUR (actualité, manifestations, météo, prix, réglementation, un laboratoire, un congrès,",
+    "un événement en France, en Algérie ou ailleurs), DÉLÈGUE aussi : l'assistant cherche sur le web et rend des sources datées.",
+    "Ne dis JAMAIS que tu ne peux pas vérifier l'actualité, que tu n'as pas accès à Internet ou au temps réel : délègue, dis",
+    "« je regarde », puis donne la réponse en citant d'où elle vient (le nom du média ou du site, sans adresse web).",
     consigneFamilles(acces), consigneGestesFermes(user),
   ].filter(Boolean).join("\n");
   const modele = modeleVoix(reglages.modeleVoix);
@@ -77,7 +85,7 @@ export function reponsePourVoix(contenu: string): string {
 
 /**
  * DÉLÉGUER UNE DEMANDE DITE à l'assistant — par le FIL (le même que le texte) : la demande y est déposée, le fil la
- * joue, on attend sa réponse (45 s au plus ; au-delà, la voix dit que la réponse arrivera à l'écran).
+ * joue, on attend sa réponse (70 s au plus ; au-delà, la voix dit que la réponse arrivera à l'écran).
  */
 export async function deleguerALaVoix(user: CurrentUser, demande: string, conversation?: string | null): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);

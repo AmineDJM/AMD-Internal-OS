@@ -10,7 +10,7 @@ import { classer, OUTIL_TROUVER, PRESELECTION_MAX, SOCLE_OUTILS, TROUVES_MAX } f
 /**
  * LES OUTILS CHOISIS À LA DEMANDE (J4, décision 0018) — sur les VRAIS catalogues (Super Admin, assistante de direction).
  *
- *   • le corpus de référence : 81 demandes (60 de J4, 5 de l’Atelier J3, 6 du graphe J9, 3 des recettes J10, 7 de « Mes notes »), l'outil juste dans les 8 premiers (`trouver_outil`) ;
+ *   • le corpus de référence : 82 demandes (60 de J4, 5 de l’Atelier J3, 6 du graphe J9, 3 des recettes J10, 7 de « Mes notes », 1 d'actualité), l'outil juste dans les 8 premiers (`trouver_outil`) ;
  *   • jamais un outil hors droits : ni présélectionné, ni trouvé, quelle que soit la demande ;
  *   • la présélection reste petite (socle + 6) et son ordre est stable.
  */
@@ -31,7 +31,7 @@ async function compte(nom: string, role: "SUPER_ADMIN" | "DIRECTION_ASSISTANT"):
 // J6 : le catalogue de la CONVERSATION — ses outils et les capacités de l'ERP que la porte de l'écran ouvre.
 const catalogue = (u: CurrentUser) => [...outilsV1(u, [], [], [], null, undefined, { capacites: true }), outilTravailPour(u)];
 
-/** 81 demandes de référence — et les outils qui y répondent (l'un d'eux doit être dans les 8 premiers). */
+/** 82 demandes de référence — et les outils qui y répondent (l'un d'eux doit être dans les 8 premiers). */
 export const CORPUS: [string, string[]][] = [
   ["Qui est Assia ? Donne-moi son poste et son manager.", ["directory_lookup", "lire_fiche_rh"]],
   // « Mes notes » (décision 0026) : le bloc-notes privé.
@@ -103,6 +103,8 @@ export const CORPUS: [string, string[]][] = [
   ["Quelles routines ai-je programmées ?", ["mes_routines"]],
   ["Retiens que ma société est Pharmagène.", ["proposer_memoire"]],
   ["Quelle est l'actualité du marché de l'hépatite C en Europe ?", ["web_research"]],
+  // Direction, 31/10/2026 (conversation vocale) : l'actualité ordinaire passe par le web, jamais « je ne peux pas vérifier ».
+  ["Qu'est-ce qu'il se passe dans le monde, en France ? Est-ce qu'aujourd'hui il y a des manifestations ?", ["web_research"]],
   ["Où en sont mes demandes en attente de validation ? Relance le validateur.", ["mes_demandes_en_attente", "preparer_relance"]],
   ["Dépose ce justificatif sur ma demande DA-2026-31.", ["preparer_depot_piece"]],
   ["Crée une demande administrative : réservation d'une salle à l'hôtel Sheraton d'Oran.", ["admin-request__createRequest"]],
@@ -129,13 +131,13 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  it("le corpus a 81 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
-    expect(CORPUS).toHaveLength(81);
+  it("le corpus a 82 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
+    expect(CORPUS).toHaveLength(82);
     const noms = new Set(fichesOffertes(catalogue(sa), sa).map((f) => f.nom));
     for (const [, attendus] of CORPUS) for (const a of attendus) expect(noms, a).toContain(a);
   });
 
-  it("l'outil juste est dans les 8 premiers, pour les 81 demandes (Super Admin)", () => {
+  it("l'outil juste est dans les 8 premiers, pour les 82 demandes (Super Admin)", () => {
     const fiches = fichesOffertes(catalogue(sa), sa);
     const rates = CORPUS.filter(([d, attendus]) => !classer(d, fiches, TROUVES_MAX).some((c) => attendus.includes(c.nom)))
       .map(([d, a]) => `${d} → ${a.join("|")} ; rendu : ${classer(d, fiches, TROUVES_MAX).map((c) => c.nom).join(", ")}`);
@@ -152,7 +154,7 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
     expect(rates).toEqual([]);
   });
 
-  it("jamais un outil hors droits : ni présélectionné, ni trouvé (assistante de direction, les 81 demandes)", async () => {
+  it("jamais un outil hors droits : ni présélectionné, ni trouvé (assistante de direction, les 82 demandes)", async () => {
     const outils = catalogue(ad);
     const permis = new Set(fichesOffertes(outils, ad).map((f) => f.nom));
     const horsDroits = fichesOffertes(catalogue(sa), sa).map((f) => f.nom).filter((n) => !permis.has(n));

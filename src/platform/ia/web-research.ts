@@ -65,6 +65,7 @@ export const WEB_RESEARCH_TOOLS: PowerTool[] = [
         properties: {
           query: { type: "string", description: "La question à instruire sur le web, formulée précisément." },
           contexte: { type: "string", description: "Contexte connu (produit, pays, période) pour orienter la recherche." },
+          rapide: { type: "boolean", description: "true pour une réponse courte en ~20 s (conversation VOCALE, question simple) ; par défaut, recherche complète." },
         },
         required: ["query"],
       },
@@ -82,15 +83,21 @@ export const WEB_RESEARCH_TOOLS: PowerTool[] = [
         `Nous sommes le ${dateAlger()}. Cherche sur le web et réponds en français, de façon factuelle et datée.\n`
         + `QUESTION : ${query}\n`
         + (contexte ? `CONTEXTE CONNU : ${contexte}\n` : "")
-        + "Règles : appuie chaque affirmation importante sur une source ; si les sources se contredisent, dis-le ; "
-        + "si l'information est introuvable ou trop ancienne pour être fiable, dis-le plutôt que d'extrapoler.";
+        + "Règles : fais autant de recherches qu'il faut et croise les sources ; appuie chaque affirmation importante sur une "
+        + "source ; si les sources se contredisent, dis-le ; si l'information est introuvable ou trop ancienne pour être "
+        + "fiable, dis-le plutôt que d'extrapoler. Rends une réponse COMPLÈTE et UTILE : l'essentiel d'abord, puis le détail "
+        + "(chiffres, dates, acteurs), et ce qu'il faut en retenir.";
 
+      // 31/10/2026 (Direction : « des recherches aussi bonnes que ChatGPT ») : réflexion MOYENNE (plusieurs recherches,
+      // sources croisées) et une synthèse COMPLÈTE — l'ancien plafond de 1 400 jetons rendait une page courte.
+      // La VOIX attend 45 s au plus (`deleguerALaVoix`) : le mode rapide garde l'ancien réglage, court.
+      const rapide = input.rapide === true;
       const reply = await callModel("worker", [{ role: "user", content: prompt }], {
         webSearch: true,
-        reasoning: "low",
-        verbosity: "medium",
-        maxOutputTokens: 1_400,
-        timeoutMs: 120_000,
+        reasoning: rapide ? "low" : "medium",
+        verbosity: rapide ? "medium" : "high",
+        maxOutputTokens: rapide ? 1_400 : 4_500,
+        timeoutMs: rapide ? 60_000 : 180_000,
       });
 
       if (!reply.configured) return "La recherche web est indisponible : clé du fournisseur non configurée.";

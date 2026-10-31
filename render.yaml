@@ -156,6 +156,13 @@ services:
     buildCommand: npm ci && npx prisma generate && npm run build:render
     startCommand: npx next start -p $PORT
     envVars:
+      # LA CLÉ DES FICHIERS (31/10/2026) : le Drive, les contrats et pièces sont CHIFFRÉS avec DRIVE_ENCRYPTION_KEY, à défaut
+      # NEXTAUTH_SECRET, à défaut AUTH_SECRET (`src/lib/drive-storage.ts`). Si le web porte l'une des deux premières, la
+      # recopier ICI À L'IDENTIQUE — sinon tout fichier ouvert depuis ce service est illisible (« HTTP ERROR 500 »).
+      - key: DRIVE_ENCRYPTION_KEY
+        sync: false
+      - key: NEXTAUTH_SECRET
+        sync: false
       - key: APP_MODE
         value: adventum-ia
       - key: AUTH_URL
@@ -239,6 +246,13 @@ services:
     dockerfilePath: ./Dockerfile.worker
     dockerContext: .
     envVars:
+      # LA CLÉ DES FICHIERS (31/10/2026) : le Drive, les contrats et pièces sont CHIFFRÉS avec DRIVE_ENCRYPTION_KEY, à défaut
+      # NEXTAUTH_SECRET, à défaut AUTH_SECRET (`src/lib/drive-storage.ts`). Si le web porte l'une des deux premières, la
+      # recopier ICI À L'IDENTIQUE — sinon tout fichier ouvert depuis ce service est illisible (« HTTP ERROR 500 »).
+      - key: DRIVE_ENCRYPTION_KEY
+        sync: false
+      - key: NEXTAUTH_SECRET
+        sync: false
       - key: TACHES_DE_FOND
         value: les-deux
       - key: APP_URL
