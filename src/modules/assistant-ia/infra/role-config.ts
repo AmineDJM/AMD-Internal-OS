@@ -219,10 +219,10 @@ export async function chargerConsoleAccesIa(): Promise<{
   managerVoitEquipe: boolean;
   /** J7 : durée de garde du journal des effets, en jours (défaut 180). */
   retentionEffetsJours: number;
-  /** K3 (décision 0033) : « démarrer d'office les travaux sans geste », par rôle (`null` = le défaut : non). */
-  dOfficeParRole: Map<UserRole, boolean | null>;
   /** Décision 0034 : les valeurs sensibles vont au modèle en clair (défaut) ou en repères. */
   valeursSensibles: ModeValeursSensibles;
+  /** K3 (décision 0033) : « démarrer d'office les travaux sans geste », par rôle (`null` = le défaut : non). */
+  dOfficeParRole: Map<UserRole, boolean | null>;
 }> {
   const [reglages, comptes, global] = await Promise.all([
     prisma.assistantIaAcces.findMany(),
@@ -246,8 +246,8 @@ export async function chargerConsoleAccesIa(): Promise<{
     parRole, personnes, plafondsGlobaux: { travailUsd: global?.plafondTravailUsd ?? 20, mensuelUsd: global?.plafondMensuelUsd ?? 50 },
     managerVoitEquipe: global?.managerVoitEquipe === true,
     retentionEffetsJours: global?.retentionEffetsJours ?? 180,
-    dOfficeParRole: new Map(reglages.filter((r) => r.role && !r.userId).map((r) => [r.role!, r.travauxDOffice])),
     valeursSensibles: modeValeursSensibles(global?.valeursSensibles),
+    dOfficeParRole: new Map(reglages.filter((r) => r.role && !r.userId).map((r) => [r.role!, r.travauxDOffice])),
   };
 }
 

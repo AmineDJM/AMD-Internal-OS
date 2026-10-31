@@ -169,7 +169,7 @@ const FENETRE_PERIMEES_MS = 2 * 60 * 60 * 1000;
  * devenus sans objet. Sans eux, le serveur refusait un geste que l'interface proposait encore.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export async function retirerCaduquesAvantLeTour(userId: string, message: string): Promise<string[]> {
+export async function retirerCaduquesAvantLeTour(userId: string, message: string, garder: readonly string[] = []): Promise<string[]> {
   if (retraitDesPerimeesDesactive()) return [];
   const texte = (message ?? "").trim();
   if (texte.length < 3) return [];
@@ -181,7 +181,8 @@ export async function retirerCaduquesAvantLeTour(userId: string, message: string
       take: 20,
     });
     if (enAttente.length === 0) return [];
-    const morts = caduquesParMessage(enAttente, texte);
+    // `garder` (décision 0035) : la carte dont la personne PARLE à l'oral (elle la complète) n'est pas caduque.
+    const morts = caduquesParMessage(enAttente.filter((i) => !garder.includes(i.id)), texte);
     for (const id of morts) {
       const avant = await prisma.assistantActionIntent.findUnique({ where: { id }, select: { events: true } });
       await prisma.assistantActionIntent.updateMany({

@@ -68,7 +68,8 @@ describe("outils V1", () => {
     const avec = outilsV1(auteur, [], [], [], null, undefined, { capacites: true }).map((o) => o.def.name);
     const capacites = capacitesOffertes(auteur).map((c) => c.outil);
     expect(capacites.length).toBeGreaterThan(900);
-    expect([...avec].sort()).toEqual([...sans, ...capacites].sort());
+    // Décision 0035 : avec les capacités vient `corriger_carte` (la carte en attente se corrige par la porte du formulaire).
+    expect([...avec].sort()).toEqual([...sans, ...capacites, "corriger_carte"].sort());
     expect(new Set(avec).size).toBe(avec.length);
     expect(avec).toEqual(expect.arrayContaining(["task__createTask", "regulatory__createRegulatoryProduct", "admin-request__createRequest", "hr__requestLeave"]));
   });

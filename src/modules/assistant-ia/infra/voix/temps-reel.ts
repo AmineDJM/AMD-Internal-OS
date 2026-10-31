@@ -11,6 +11,7 @@ import { consignesVoix, DIT_A_L_ECRAN, NON_OUVERTE, pourLaVoix } from "../../dom
 import { appelVoix, auNomDe, budgetDeLAppel, fermerBudget, jetonsAudio, lireReglagesAssistantIa } from "../consommation";
 import { cleFournisseurVoix } from "../modele";
 import { deposerMessage, ETAT, filDe, traiterFil } from "../fil/service";
+import { carteOraleEnAttente, direLaCarte, ouvrirCarteOrale, traiterParoleSurCarte } from "./carte-orale";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -91,17 +92,31 @@ export function reponsePourVoix(contenu: string, enClair = false): string {
 /**
  * DÉLÉGUER UNE DEMANDE DITE à l'assistant — par le FIL (le même que le texte) : la demande y est déposée, le fil la
  * joue, on attend sa réponse (70 s au plus ; au-delà, la voix dit que la réponse arrivera à l'écran).
+ *
+ * UNE CARTE DEVIENT UNE CONVERSATION (décision 0038) : une carte rendue ici est une carte ORALE — la voix la résume, propose
+ * les cases facultatives, la récapitule et demande « tu confirmes ? ». `parole` = ce que la PERSONNE a dit (sa
+ * transcription, depuis la délégation précédente) : un « oui » explicite à la question, l'élément clé dit pour une carte
+ * renforcée, et la carte s'exécute par la garde du bouton (`carte-orale.ts`) — sans appel de modèle.
  */
-export async function deleguerALaVoix(user: CurrentUser, demande: string, conversation?: string | null): Promise<ResultatDelegationVoix> {
+export async function deleguerALaVoix(user: CurrentUser, demande: string, conversation?: string | null, parole?: string | null): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);
   if (refus) return { pourVoix: `Refus : ${refus.erreur}` };
   const texte = demande.trim();
   if (!texte) return { pourVoix: "Je n'ai pas compris la demande : demande à la personne de la répéter." };
+  const enClair = (await lireReglagesAssistantIa()).valeursSensibles === "EN_CLAIR";
+  // LA CARTE ORALE EN ATTENTE : la parole de la personne la confirme, la refuse, ou passe au récit — sans modèle.
+  const avant = await carteOraleEnAttente(user);
+  if (avant) {
+    const issue = await traiterParoleSurCarte(user, avant, parole ?? "");
+    if (issue.suite === "repondu") return { pourVoix: issue.pourVoix.slice(0, 1_800) };
+  }
   // Décision 0027 : la voix écrit dans la conversation OUVERTE (sans elle, la conversation courante).
-  const d = await deposerMessage(user.id, `[Conversation vocale] ${texte}`.slice(0, 8_000), [], null, conversation ?? null);
+  const entete = avant
+    ? `[Conversation vocale — carte en attente « ${avant.carte.titre} » : la personne la complète ou la corrige (corriger_carte, ou l'outil preparer_* rappelé avec toutes les valeurs) ; rien ne s'exécute]`
+    : "[Conversation vocale]";
+  const d = await deposerMessage(user.id, `${entete} ${texte}`.slice(0, 8_000), [], null, conversation ?? null);
   if (!d.ok) return { pourVoix: d.erreur };
   void traiterFil(user.id, d.conversation);
-  const enClair = (await lireReglagesAssistantIa()).valeursSensibles === "EN_CLAIR";
   const fin = Date.now() + DELAI_DELEGATION_MS;
   for (;;) {
     const [rep, q] = await Promise.all([
@@ -109,11 +124,14 @@ export async function deleguerALaVoix(user: CurrentUser, demande: string, conver
       prisma.assistantIaTour.findUnique({ where: { id: d.tour.id }, select: { etat: true, erreur: true } }),
     ]);
     if (rep && rep.etat === ETAT.TERMINE) {
-      const intent = rep.intent as (Record<string, unknown> & { id?: string }) | null;
+      const intent = rep.intent as (Record<string, unknown> & { id?: string; fields?: { label: string; value: string }[] }) | null;
+      const dit = reponsePourVoix(rep.contenu, enClair);
+      // Une carte NÉE de cette délégation devient orale ; elle hérite des facultatifs déjà proposés pour la précédente.
+      if (intent?.id && intent.id !== avant?.id) await ouvrirCarteOrale(intent.id, Array.isArray(intent.fields) ? intent.fields : [], avant?.facultatifsProposes === true, avant?.id ?? null);
+      const carte = await carteOraleEnAttente(user);
+      const suite = carte && (carte.id === intent?.id || carte.id === avant?.id) ? ` — ${await direLaCarte(carte)}` : "";
       return {
-        pourVoix: intent?.id
-          ? `${reponsePourVoix(rep.contenu, enClair)} — Une carte est affichée à l'écran : seule la personne la confirme, sur l'écran. Ne dis pas que c'est fait.`.slice(0, 1_800)
-          : reponsePourVoix(rep.contenu, enClair),
+        pourVoix: `${dit}${suite}`.slice(0, 1_800),
         ...(intent?.id ? { carte: { ...intent, intentId: intent.id } } : {}),
         ecran: rep.contenu,
       };

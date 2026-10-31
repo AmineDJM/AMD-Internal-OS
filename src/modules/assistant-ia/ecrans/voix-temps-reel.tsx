@@ -14,9 +14,9 @@ import { attendu, sansBloquer } from "@/lib/journal";
  * LA CONVERSATION VOCALE DE L'ASSISTANT IA (lot J13, décision 0025) — GPT-Live tient la conversation, l'assistant du fil
  * (mêmes outils, droits et repères que le texte) fait le travail délégué.
  *
- * Ce que l'écran garde, parce qu'une parole ne se reprend pas : les CARTES (une écriture préparée à la voix ne
- * s'exécute que par son bouton, ressaisie comprise pour une carte critique), les VALEURS CONFIDENTIELLES (montrées
- * ici à qui a le droit, jamais lues), et la ligne de ce qui a été dit. La latence (fin de parole → premier son) est
+ * Décision 0035 : l'expérience est ORALE — une carte se résume, se complète et se confirme à la voix (le serveur juge le
+ * oui sur la transcription de la personne) ; l'écran la montre aussi, confirmable au bouton. Les valeurs suivent le
+ * réglage de la décision 0034. L'écran garde la ligne de ce qui a été dit. La latence (fin de parole → premier son) est
  * affichée et journalisée : la cible est 1,5 s au p50.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -69,8 +69,8 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
 
   const ajouter = (l: Ligne) => setLignes((xs) => [...xs, l].slice(-60));
 
-  const deleguer = useCallback(async (demande: string): Promise<ResultatDelegation> => {
-    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, conversation: await conversationOuverte() }) });
+  const deleguer = useCallback(async (demande: string, _id: string, parole: string): Promise<ResultatDelegation> => {
+    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, parole, conversation: await conversationOuverte() }) });
     if (!r.ok) return { pourVoix: "Le serveur n'a pas répondu : dis-le et propose de réessayer." };
     return (await r.json()) as ResultatDelegation;
   }, [conversationOuverte]);
@@ -127,7 +127,8 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3 text-sm">
         <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 dark:bg-zinc-900 dark:text-zinc-400">
-          L&apos;assistant a vos outils et vos droits. Une action qu&apos;il prépare s&apos;affiche ici en carte : elle ne s&apos;exécute que par son bouton, jamais à la voix. Une valeur confidentielle n&apos;est jamais lue : elle s&apos;affiche ici si vous avez le droit de la voir.
+          L&apos;assistant a vos outils et vos droits. Une action qu&apos;il prépare vous est résumée à voix haute : complétez-la en parlant, puis
+          confirmez par « oui, je confirme » (en prononçant le montant pour une action renforcée) — ou par le bouton de la carte affichée ici.
         </p>
         {lignes.map((l, i) => l.qui === "carte" ? (
           <ActionConfirmationCard key={i} intentId={l.carte.intentId} kind={l.carte.kind} title={l.carte.title} fields={l.carte.fields} warnings={l.carte.warnings}

@@ -192,3 +192,18 @@ export async function preparerCarte(
     },
   };
 }
+
+/**
+ * LES CASES FACULTATIVES ENCORE VIDES d'une carte d'opération (décision 0035, la voix les propose) : les arguments que
+ * la proposition a laissés vides (une carte n'existe que si les obligatoires sont là), nommés par le schéma de l'outil.
+ */
+export function facultatifsDOperation(charge: unknown): string[] {
+  if (!estChargeOperationIA(charge)) return [];
+  const props = ((PAR_NOM.get(charge.op)?.schema as { properties?: Record<string, { description?: string }> } | undefined)?.properties) ?? {};
+  return Object.entries(charge.args)
+    .filter(([k, v]) => k in props && (v === null || v === "" || v === "[]"))
+    .map(([k]) => {
+      const d = (props[k]?.description ?? "").split(/[:(./]/)[0]!.trim();
+      return d && d.length <= 40 ? d : k;
+    });
+}

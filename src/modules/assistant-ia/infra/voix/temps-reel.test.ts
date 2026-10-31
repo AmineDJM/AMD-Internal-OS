@@ -107,14 +107,15 @@ suite("Assistant IA — voix GPT-Live", () => {
     expect(tours.at(-1)?.role).toBe("assistant");
   });
 
-  it("une écriture : une CARTE pour l'écran, la voix n'entend que « carte à l'écran », rien n'est créé", async () => {
+  it("une écriture : une CARTE pour l'écran ET une conversation pour la voix, rien n'est créé avant le oui", async () => {
     remplacerModelesPourTests([modeleFactice([
       { appel: { outil: "terrain_compte_rendu", entree: { medecin: "Dr Inconnu", synthese: "Visite du Dr Inconnu : intéressé par Cardiovex." } } },
       reponse("J'ai préparé le compte rendu : la carte est affichée."),
     ]).modele as never]);
     const r = await deleguerALaVoix(kam, "prépare le compte rendu de ma visite chez le docteur Inconnu, intéressé par Cardiovex");
     expect(r.carte?.intentId).toBeTruthy();
-    expect(r.pourVoix).toContain("seule la personne la confirme");
+    // Décision 0038 : la carte devient une conversation — résumée, puis confirmée (à l'oral ou au bouton) ; rien n'est fait avant.
+    expect(r.pourVoix).toMatch(/Ne demande PAS encore de confirmer|Tu confirmes \?/);
     expect(await prisma.fieldReport.count({ where: { delegateId: kam.id } })).toBe(0);
   });
 
