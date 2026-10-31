@@ -168,6 +168,9 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   // K2 (décision 0032) : l'état et le fichier d'un visuel généré PAR l'assistant — sa propre plomberie.
   "/api/assistant-ia/visuels/[id]": { methodes: "GET", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/visuels/[id]/media": { methodes: "GET", classe: "HORS", raison: PROPRE },
+  // K1 (décision 0031) : le classeur d'une analyse de l'assistant ; K3 (décision 0033) : le flux du tableau des missions.
+  "/api/assistant-ia/analyse/classeur": { methodes: "POST", classe: "HORS", raison: PROPRE },
+  "/api/assistant-ia/missions/flux": { methodes: "GET", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/delegation": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/journal": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/session": { methodes: "POST", classe: "HORS", raison: PROPRE },

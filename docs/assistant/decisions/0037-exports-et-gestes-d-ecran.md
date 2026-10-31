@@ -110,7 +110,7 @@ le clic est écartée, et le résultat le dit (« n pièce(s) n'ont pas pu être
 
 ## 6. L'inventaire des gestes d'écran hors actions
 
-Toutes les routes de `src/app/api` (134, dont les deux des visuels de K2) sont classées dans `modules/assistant-ia/gestes-ecran.test.ts`. **Le
+Toutes les routes de `src/app/api` (136, dont celles de K1, K2 et K3 arrivées par fusion) sont classées dans `modules/assistant-ia/gestes-ecran.test.ts`. **Le
 cliquet** (`gestes-ecran.test.ts`) relit le dossier : une route nouvelle, ou une méthode nouvelle sur une route, qui
 n'y est pas classée fait échouer `npm test` ; la présente décision doit aussi la nommer (le test le vérifie). Les
 exposés sont exactement le catalogue (et chaque fiche du catalogue pointe sa route) ; un COUVERT nomme un outil qui
@@ -158,7 +158,7 @@ séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lance
 | `/api/field-reports/[id]/transcribe` | POST | `terrain_compte_rendu` |
 | `/api/field-reports/[id]/upload` | POST | `terrain_piece_visite` |
 
-### Volontairement hors de l’assistant (109)
+### Volontairement hors de l’assistant (111)
 
 | Route | Méthodes | Raison |
 |---|---|---|
@@ -247,6 +247,8 @@ séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lance
 | `/api/assistant-ia/vocal` | POST | plomberie de l'Assistant IA lui-même |
 | `/api/assistant-ia/visuels/[id]` | GET | plomberie de l'Assistant IA lui-même |
 | `/api/assistant-ia/visuels/[id]/media` | GET | plomberie de l'Assistant IA lui-même |
+| `/api/assistant-ia/analyse/classeur` | POST | plomberie de l'Assistant IA lui-même |
+| `/api/assistant-ia/missions/flux` | GET | plomberie de l'Assistant IA lui-même |
 | `/api/assistant-ia/voix/delegation` | POST | plomberie de l'Assistant IA lui-même |
 | `/api/assistant-ia/voix/journal` | POST | plomberie de l'Assistant IA lui-même |
 | `/api/assistant-ia/voix/session` | POST | plomberie de l'Assistant IA lui-même |
