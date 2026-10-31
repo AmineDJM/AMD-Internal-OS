@@ -347,7 +347,7 @@ episodic memory aging in the scheduler (`vieillirMemoire`).
 mints an ephemeral OpenAI Realtime secret; the browser talks WebRTC to OpenAI; tool calls come back to `/api/assistant/voice/tool`, which
 reuses `executeReadTool` / `buildProposal` (same RBAC + interception); usage posted to `/voice/log` → `journaliserSessionVocale`.
 
-**Sandbox** [V] `lib/sandbox/js.ts`: model-written JS runs in a `worker_threads` Worker with `vm.runInContext`, `codeGeneration` disabled
+**Sandbox** [V] `platform/ia/analyse/js.ts` (moved from `lib/sandbox/` by K1, decision 0031): model-written JS runs in a `worker_threads` Worker with `vm.runInContext`, `codeGeneration` disabled
 and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation relies on the worker + empty context.
 
 ### 4.4 Mission Runtime
@@ -570,6 +570,15 @@ later `what_changed` tool reads it as a hint and re-reads canonical data.
 - **Folder lot**: table `AssistantIaDepotDossier` (migration `20270215140000_assistant_ia_depot_dossier`); `infra/depot-dossier.ts` (`ouvrirLotDossier` with a **port** `creerArborescence` supplied by the app route — the module adds no `lib/drive` debt; resume by list fingerprint; `etatDesLots` = recursive CTE under the root + LATERAL join on `BibliothequeFiche.cles @> ['DRIVE_NODE:<id>']`). Pure rules `domaine/lecture/depot-dossier.ts` (bounds `ASSISTANT_DEPOT_DOSSIER_FICHIERS/_MO`, default 1 000 / 2 GB).
 - **Ingestion throughput**: `bibliotheque/infra/ingestion.ts:traiterFile({ budgetMs, parallele })` drains batch after batch within a budget with N concurrent readers; `scheduled.ts` passes `BIBLIOTHEQUE_BUDGET_S` (45) / `BIBLIOTHEQUE_PARALLELE` (2). Without budget: one batch (previous behaviour). Bench `npm run bench:dossier` (300 unique files, fake embedder).
 - **Answering on the folder**: tool `lire_dossier_depose` (`infra/lecture-dossier.ts`, family DRIVE, third-party framed) reads the lot's files and their fiches in ONE batch (`bibliotheque:fichesDeDossier` via socle `connaissance.ts:fichesDeDossierPourModele` — same rights as `ouvrirDocuments`, vault/confidential without text) and classifies by CTD rules (`domaine/ctd.ts`: section number in path wins, else FR/EN keywords, S vs P tie-break, unclassified is said) + expected-but-missing sections of a generic dossier. No file re-read, no per-file model call.
+
+### 6.6 Data analysis of the Assistant IA (K1, decision 0031)
+
+- **Engine at the socle**: `platform/ia/analyse/` (moved, not copied, from `lib/sandbox/`: `analyse`, `pipeline`, `viz`, `porte`, `js`, `python`; Adam's bridge re-exports them). Only `lib/sandbox/sql.ts` stays (Prisma) — reached by the socle through ONE port `analyse/sql.ts` (+1 toward `SOCLE_IA_CEILING`, compensated by merging a duplicate import in `teach/store.ts`). Shared table reading `analyse/tableur.ts` (Adam's `lireLignesDrive` uses it).
+- **Flow**: `fil/tour.ts` creates `JeuxDuTour` + `blocsCalcules` → `outilsV1(…, { analyse })` → every lecture output (already tokenised by `jetonnerSortie`) is noted as a dataset in `filtre()` → `analyser_donnees` / `calculer_code` / `requete_sql` / `lire_tableur` (`infra/analyse/outils.ts`) mask confidential headers (`domaine/analyse/confidentialite.ts`), compute, and push a `kind: "analyse"` block (`analyse/bloc.ts:composerAnalyse`) → appended after the model's components, revealed by `Revelateur.objet`. The model gets the pre-formatted preview only (`affichage.ts:enClair`). `noteChiffresNonSources` flags message numbers absent from tool outputs.
+- **Selection**: `domaine/analyse/intention.ts:outilsDAnalyseVoulus` → `selectionDuTour(…, prioritaires)` → `preselectionner(…, prioritaires)` (put first, still under `BUDGET_JETONS_FIXES`).
+- **Excel**: `analyse/classeur.ts` → `artifact/sheets.ts:construireClasseurOctets` / `construireClasseurDrive` (verified builder; `SpecFeuille.filtre` added in `lib/artifact/sheets/build.ts`). Route `POST /api/assistant-ia/analyse/classeur` (download, or `depot: true` = Drive on the person's click; refused in "Vue exacte"); input re-read by `analyse/lecture.ts`.
+- **Screen**: `ecrans/blocks/analyse.tsx` (sort, filters, totals, CSV/Excel, charts via `VizFigure`, PNG/SVG export `export-graphique.ts`, "Comment c'est calculé"); `RENDERERS.analyse`; Adam's `workspace/turn.ts` weight `analyse: 46`.
+- **Guard**: `requete_sql` refuses any query NAMING a masked/sensitive column (alias bypass of `COLONNES_MASQUEES`, risk R3).
 
 ## 7. Coupling & blast radius
 

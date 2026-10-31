@@ -49,6 +49,8 @@ export interface SpecFeuille {
   libelleTotal?: string;
   /** Figer la ligne d'en-tête (défaut : oui). */
   figerEntete?: boolean;
+  /** K1 (décision 0031) : poser le filtre automatique d'Excel sur l'en-tête et les lignes (défaut : non). */
+  filtre?: boolean;
 }
 
 export interface SpecParametre { nom: string; valeur: number | string; libelle?: string; format?: string }
@@ -148,6 +150,7 @@ export async function construireClasseurVerifie(spec: SpecClasseur, opts: { main
       const r = ws.addRow(valeurs);
       sf.colonnes.forEach((c, j) => { if (c.format) r.getCell(j + 1).numFmt = c.format; });
     });
+    if (sf.filtre && sf.colonnes.length > 0) ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: Math.max(1, sf.lignes.length + 1), column: sf.colonnes.length } };
     if (sf.totaux && Object.keys(sf.totaux).length > 0) {
       const rowTotal = sf.lignes.length + 2;
       const r = ws.getRow(rowTotal);

@@ -26,6 +26,7 @@
  */
 
 import type { VueArtefact } from "@/platform/ia/artifact/view-types";
+import type { BlocAnalyseForme } from "@/platform/ia/workspace/analyse";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -720,6 +721,8 @@ type WorkspaceBlockShape =
       source?: string | null;
       actions?: WorkspaceAction[];
     }
+  /** K1 (décision 0031) : une ANALYSE calculée par le code — tableau typé, graphiques, journal du calcul (`workspace/analyse.ts`). */
+  | BlocAnalyseForme
   /** UN MINI-TABLEAU DE BORD : des tuiles (représentations, jauges, tableaux, fiches) sur une grille — composé à la volée, jamais un écran dédié. */
   | {
       kind: "dashboard";

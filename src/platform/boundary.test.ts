@@ -171,6 +171,11 @@ const DEBT_CEILING = 393;
  * 177 → 177 (2026-10-30, lot J9 « graphe de l'entreprise », décision 0021) : les outils du graphe (`lectures/graphe.ts`)
  * importent la porte du module `graphe-entreprise` (+1) ; `lectures/directory-tools.ts` n'importe plus l'énumération
  * `DirectoryChannel` de `@prisma/client` pour comparer deux libellés (−1 : la valeur littérale est typée par Prisma).
+ *
+ * 176 → 176 (2026-10-31, lot K1 « analyse de données », décision 0031) : le moteur PUR du bac à sable (analyse, pipeline,
+ * viz, porte, code isolé JS/Python) DÉMÉNAGE au socle (`platform/ia/analyse/`, aucun import vers l'ERP) ; le SQL reste
+ * dans `lib/sandbox/sql.ts`, atteint par UNE porte (`analyse/sql.ts`, +1) ; `teach/store.ts` réexporte ses noms déjà
+ * importés au lieu d'importer deux fois `lib/teach/model` (−1). Solde : 0.
  */
 const SOCLE_IA_CEILING = 177;
 

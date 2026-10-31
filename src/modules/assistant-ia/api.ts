@@ -92,3 +92,5 @@ export {
   capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION, type IssueCaptation, type VueCaptation,
 } from "./infra/terrain/captation";
 export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";
+// ── L'analyse de données (K1, décision 0031) : le classeur Excel d'une analyse — export d'un clic, dépôt au Drive sur geste
+export { classeurDAnalyse, type ClasseurDemande } from "./infra/analyse/classeur";

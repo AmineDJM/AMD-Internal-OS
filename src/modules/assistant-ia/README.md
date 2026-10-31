@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029, 0030 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0031 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -31,6 +31,22 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12), `assistant.conversations-privees` (0027, purge à 30 jours) (`src/lib/scheduled.ts`).
 - **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
   `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
+
+## Analyse de données (lot K1, décision 0031)
+
+- **Outils** (`infra/analyse/outils.ts`, conversation seulement) : `lire_tableur` (Excel/CSV joint ou du Drive, typé : feuilles,
+  en-têtes, types, formules → valeurs), `analyser_donnees` (le pipeline fermé du socle sur un JEU du tour), `calculer_code`
+  (JS isolé, Python s'il est présent ; chaque nombre vient de la demande), `requete_sql` (vue globale seulement, refuse une
+  colonne confidentielle même sous alias, audit). Moteur au SOCLE : `platform/ia/analyse/` (déménagé de `lib/sandbox/`).
+- **Jeux du tour** (`domaine/analyse/jeux.ts`) : chaque lecture (déjà jetonnée) devient un jeu nommé ; le modèle nomme, il ne
+  recopie jamais de lignes. **Colonnes confidentielles** masquées avant le calcul (`domaine/analyse/confidentialite.ts`).
+- **Chiffres exacts** : le bloc `analyse` (socle `analyse/bloc.ts`, `workspace/analyse.ts`) est posé sous la réponse par
+  `fil/tour.ts` ; le modèle cite l'aperçu déjà formaté ; un chiffre du message que rien ne prouve est dit (`domaine/analyse/chiffres.ts`).
+  Intention chiffrée → outils d'analyse en tête de la présélection (`domaine/analyse/intention.ts`).
+- **Écran** (socle `ecrans/blocks/analyse.tsx`) : tri, filtres, totaux, CSV / Excel d'un clic / « Enregistrer dans mon Drive »
+  (route `app/api/assistant-ia/analyse/classeur`, `infra/analyse/classeur.ts`), graphiques exportables PNG / SVG / données,
+  « Comment c'est calculé ». Le `chart` du modèle : onze formes, choix et garde (`domaine/ui/graphique.ts`).
+- **Preuves** : `analyse.test.ts`, `platform/ia/analyse/bloc.test.ts` ; banc réel `scripts/bench/analyse-k1.ts`.
 
 ## Formulaires de carte et dépôt de dossier (lot J11, décision 0030)
 

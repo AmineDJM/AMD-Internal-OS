@@ -1,5 +1,5 @@
 import { EFFECTS, EFFECT_RANK, PRIMITIVES, type Effect, type LatencyClass, type Primitive } from "@/lib/missions/registry/capability-meta";
-import type { Attente, SchemaSortie } from "@/lib/sandbox/porte";
+import type { Attente, SchemaSortie } from "@/platform/ia/analyse/porte";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

@@ -136,6 +136,11 @@ const MOTS_CLES: Record<string, string> = {
   supprimer_note: "supprime retire efface enleve raye ligne note notes liste page",
   creer_page: "page nouvelle cree fais notes bloc",
   renommer_page: "renomme page nom appelle notes",
+  // K1 (décision 0031) — l'analyse de données : les mots d'une personne qui veut un chiffre CALCULÉ, un tableau, un graphique, un Excel.
+  analyser_donnees: "analyse analyser calcule calculer total totaux somme moyenne mediane repartition part parts pourcentage evolution croissance tendance compare comparaison classement top ecart variation tableau croise graphique courbe barres camembert secteurs chiffres statistiques par mois trimestre annee enveloppe consomme depenses ventes",
+  lire_tableur: "excel xlsx xls csv tableur classeur feuille feuilles colonnes joint fichier lignes",
+  calculer_code: "calcule simulation projection scenario taux compose actualisation formule ratio prevision code",
+  requete_sql: "sql requete base donnees jointure agrege toutes societes croise modules volume",
 };
 
 const MOTS_VIDES = new Set((
@@ -266,10 +271,12 @@ export const HERITES_MAX = 3;
  */
 export function preselectionner(
   demande: string, fiches: readonly FicheOutil[], k = PRESELECTION_MAX, precedente = "", poids?: (nom: string) => number,
+  /** K1 (décision 0031) : des outils à faire passer EN TÊTE des candidats (une demande chiffrée → les outils d'analyse). */
+  prioritaires: readonly string[] = [],
 ): string[] {
   const disponibles = new Set(fiches.map((f) => f.nom));
   const herites = precedente ? classer(precedente, fiches, HERITES_MAX).map((c) => c.nom) : [];
-  const candidats = [...classer(demande, fiches, k).map((c) => c.nom), ...herites];
+  const candidats = [...prioritaires.filter((n) => disponibles.has(n)), ...classer(demande, fiches, k).map((c) => c.nom), ...herites];
   const retenus = poids ? dansLeBudget(SOCLE_OUTILS.filter((n) => disponibles.has(n)), candidats, poids) : candidats;
   return ordonnerActifs([...SOCLE_OUTILS, ...retenus], disponibles);
 }

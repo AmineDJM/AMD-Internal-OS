@@ -11,7 +11,7 @@
 import {
   anomalies, cohortes, croiser, croissance, cumul, decrire, filtrer, moyenneMobile, rang, regrouper, scenario, serie, tendance, trier, versNombre,
   type Agregat, type Filtre, type Ignore, type Ligne, type Mesure, type Operateur, type Pas,
-} from "@/lib/sandbox/analyse";
+} from "@/platform/ia/analyse/analyse";
 
 export const AGREGATS: readonly Agregat[] = ["count", "sum", "avg", "min", "max", "median", "p90", "distinct"];
 export const OPERATEURS: readonly Operateur[] = ["=", "!=", ">", ">=", "<", "<=", "contient", "vide", "non_vide", "dans"];

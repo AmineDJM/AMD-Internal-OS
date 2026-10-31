@@ -1,5 +1,18 @@
 ## 🧾 Journal des évolutions récentes
 
+### K1 : L'ASSISTANT IA CALCULE — TABLEAUX, EXCEL, GRAPHIQUES, ET PAS UN CHIFFRE DU MODÈLE (2026-10-31)
+
+Lot K1 — `docs/assistant/decisions/0031-analyse-donnees.md`. Le moteur d'analyse d'Adam **déménage au socle**
+(`src/platform/ia/analyse/` : opérations, pipeline, conseil de graphique, porte de qualité, JS et Python isolés — déplacés,
+pas copiés ; Adam les réexporte ; le SQL reste dans `lib/sandbox/sql.ts`, une porte du socle). L'Assistant IA gagne
+`lire_tableur` (Excel/CSV typé), `analyser_donnees`, `calculer_code`, `requete_sql` (vue globale) ; chaque résultat est un
+**bloc « analyse »** composé par le code sous la réponse : tableau trié/filtrable avec totaux, graphique choisi et vérifié
+(onze formes, forme trompeuse remplacée), « Comment c'est calculé » (étapes et formules), export CSV / Excel d'un clic
+(classeur vérifié : en-tête figé, filtre, formats DZD et %, totaux en `=SUM()`, feuille « Méthode ») et dépôt au Drive sur
+le geste de la personne ; chaque graphique s'exporte en PNG, SVG et données. Colonnes confidentielles masquées avant le
+calcul ; un chiffre du message que rien ne prouve est dit. Banc réel `scripts/bench/analyse-k1.ts` (16 demandes, chiffres
+recalculés indépendamment en SQL/TS) : voir la décision.
+
 ### JARVIS INTÉGRÉ : LE TEST RÉEL UNIQUE DE FIN, ET LES DEUX DÉFAUTS QU'IL A TROUVÉS (2026-10-31)
 
 Tous les lots Jarvis (J0 → J14, conversions, « Mes notes », app Adventum IA) sont sur `claude/hopeful-goodall-phd0nb`.

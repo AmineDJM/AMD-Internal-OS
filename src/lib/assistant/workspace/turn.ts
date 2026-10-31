@@ -110,6 +110,8 @@ const KIND_WEIGHT: Record<WorkspaceBlockKind, number> = {
   // qu'il contient souvent ; une figure seule passe juste devant le tableau qu'elle accompagne.
   dashboard: 48,
   viz: 42,
+  // K1 (décision 0031) : une ANALYSE calculée — tableau, graphiques et calcul : la réponse chiffrée, devant la figure seule.
+  analyse: 46,
   table: 40,
   timeline: 35,
   record: 35,

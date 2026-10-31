@@ -16,6 +16,7 @@ import { Entity360Block } from "./blocks/entity360";
 import { AlerteBlock, ComparisonBlock, MissionBlock } from "./blocks/decision";
 import { ArtifactBlock } from "./blocks/artifact";
 import { VizBlock } from "./blocks/viz";
+import { AnalyseBlock } from "./blocks/analyse";
 
 export { WorkspaceAskProvider };
 
@@ -932,6 +933,7 @@ const RENDERERS: { [K in WorkspaceBlock["kind"]]: (p: { b: Extract<WorkspaceBloc
   email: EmailBlock,
   artifact: ArtifactBlock,
   viz: VizBlock,
+  analyse: AnalyseBlock,
   dashboard: DashboardBlock,
 };
 

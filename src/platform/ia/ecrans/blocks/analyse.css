@@ -1,0 +1,109 @@
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   LE BLOC « ANALYSE » (K1, décision 0031) — tableau, graphiques, calcul.
+
+   Les couleurs : la charte Adventum quand l'app est à l'écran (`--aia-*`, `ecrans/app/theme.css`, clair et sombre),
+   sinon les jetons de l'espace de travail (`--chief-*`) avec leur repli — le même bloc, deux hôtes.
+   Mobile d'abord : le tableau défile DANS sa boîte (`overflow-x: auto`), la page jamais ; la première colonne est
+   figée (`position: sticky`) ; chaque geste fait 44 px ; le champ fait 16 px (iOS ne zoome pas).
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+
+.ia-analyse {
+  --ia-accent: var(--aia-accent, hsl(var(--chief-accent, 218 58% 41%)));
+  --ia-fond: var(--aia-panneau, hsl(var(--chief-surface, 0 0% 100%)));
+  --ia-fond-creux: var(--aia-fond, hsl(var(--chief-surface-sunken, 220 30% 96.5%)));
+  --ia-texte: var(--aia-texte, hsl(var(--chief-text, 220 40% 13%)));
+  --ia-discret: var(--aia-discret, hsl(var(--chief-text-secondary, 220 12% 42%)));
+  --ia-filet: var(--aia-filet, hsl(var(--chief-border, 218 22% 89%)));
+  --ia-danger: var(--aia-danger, hsl(var(--chief-danger, 0 65% 45%)));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--ia-texte);
+}
+
+.ia-analyse-outils { display: flex; flex-wrap: wrap; gap: 8px; }
+.ia-analyse-recherche { flex: 1 1 160px; min-width: 0; }
+.ia-analyse-recherche input,
+.ia-analyse-choix select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font-size: 16px;
+  color: var(--ia-texte);
+  background: var(--ia-fond);
+  border: 1px solid var(--ia-filet);
+  border-radius: 10px;
+}
+.ia-analyse-choix { flex: 0 1 220px; min-width: 0; }
+.ia-analyse-recherche input:focus-visible,
+.ia-analyse-choix select:focus-visible,
+.ia-analyse-geste:focus-visible,
+.ia-analyse-tri:focus-visible,
+.ia-analyse-defile:focus-visible { outline: 2px solid var(--ia-accent); outline-offset: 2px; }
+
+/* Le défilement est DANS la boîte : le tableau garde ses colonnes lisibles, la page ne déborde pas. */
+.ia-analyse-defile {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--ia-filet);
+  border-radius: 12px;
+  background: var(--ia-fond);
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.ia-analyse-table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+.ia-analyse-table th,
+.ia-analyse-table td { padding: 9px 12px; border-bottom: 1px solid var(--ia-filet); white-space: nowrap; text-align: left; background: var(--ia-fond); }
+.ia-analyse-table thead th { position: sticky; top: 0; z-index: 2; padding: 0; font-size: 12.5px; font-weight: 600; color: var(--ia-discret); background: var(--ia-fond-creux); }
+.ia-analyse-table tbody th { font-weight: 600; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+/* La première colonne reste à l'écran pendant que le reste défile. */
+.ia-analyse-table tr > :first-child { position: sticky; left: 0; z-index: 1; box-shadow: 1px 0 0 var(--ia-filet); }
+.ia-analyse-table thead tr > :first-child { z-index: 3; }
+.ia-analyse-table .ia-num { text-align: right; }
+.ia-analyse-table tfoot th,
+.ia-analyse-table tfoot td { font-weight: 700; background: var(--ia-fond-creux); border-bottom: 0; position: sticky; bottom: 0; }
+.ia-analyse-table tfoot tr > :first-child { z-index: 2; }
+.ia-analyse-vide { color: var(--ia-discret); text-align: center; }
+
+.ia-analyse-tri {
+  display: inline-flex; align-items: center; gap: 6px; width: 100%; min-height: 44px; padding: 0 12px;
+  font: inherit; color: inherit; background: none; border: 0; cursor: pointer; text-align: inherit; white-space: nowrap;
+}
+.ia-num .ia-analyse-tri { justify-content: flex-end; }
+.ia-analyse-fleche { font-size: 10px; opacity: .7; }
+
+.ia-analyse-gestes { display: flex; flex-wrap: wrap; gap: 8px; }
+.ia-analyse-geste {
+  min-height: 44px; padding: 0 14px; font-size: 14px; font-weight: 600; color: var(--ia-accent);
+  background: var(--ia-fond); border: 1px solid var(--ia-filet); border-radius: 10px; cursor: pointer;
+}
+.ia-analyse-geste:hover { border-color: var(--ia-accent); }
+.ia-analyse-geste:disabled { opacity: .55; cursor: progress; }
+.ia-analyse-etat { margin: 0; font-size: 13.5px; }
+.ia-analyse-etat-erreur { color: var(--ia-danger); }
+.ia-analyse-etat a { color: var(--ia-accent); font-weight: 600; }
+
+.ia-analyse-graphique { margin: 6px 0 0; padding-top: 10px; border-top: 1px solid var(--ia-filet); min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ia-analyse-graphique-titre { font-size: 14px; font-weight: 600; }
+
+.ia-analyse-calcul { border: 1px solid var(--ia-filet); border-radius: 12px; padding: 0 12px; background: var(--ia-fond-creux); }
+.ia-analyse-calcul > summary { min-height: 44px; display: flex; align-items: center; font-weight: 600; font-size: 14px; cursor: pointer; color: var(--ia-accent); }
+.ia-analyse-calcul-liste { display: grid; gap: 6px; margin: 0 0 10px; font-size: 13.5px; }
+.ia-analyse-calcul-liste > div { display: grid; grid-template-columns: minmax(90px, 30%) 1fr; gap: 8px; }
+.ia-analyse-calcul-liste dt { color: var(--ia-discret); }
+.ia-analyse-calcul-liste dd { margin: 0; overflow-wrap: anywhere; }
+.ia-analyse-etapes { margin: 0 0 10px; padding-left: 20px; display: grid; gap: 8px; font-size: 13.5px; }
+.ia-analyse-etapes li { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ia-analyse-etape-op { font-weight: 600; }
+.ia-analyse-formule { font-size: 12.5px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ia-texte); }
+.ia-analyse-etape-lignes { color: var(--ia-discret); font-size: 12.5px; }
+.ia-analyse-notes { font-size: 13.5px; margin-bottom: 8px; }
+
+@media (max-width: 640px) {
+  .ia-analyse-calcul-liste > div { grid-template-columns: 1fr; gap: 2px; }
+  .ia-analyse-geste { flex: 1 1 auto; }
+}

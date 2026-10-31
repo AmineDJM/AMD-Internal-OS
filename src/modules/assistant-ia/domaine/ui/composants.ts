@@ -1,5 +1,5 @@
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
-import { readVizBlock } from "@/platform/ia/workspace/viz-block";
+import { chartEnBloc, CONSIGNE_CHART, lireChart } from "./graphique";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -35,7 +35,7 @@ export const CONSIGNE_COMPOSANTS = [
   "Composants disponibles (aucun autre) :",
   '- {"type":"card","title":"…","content":"…","fields":[{"label":"…","value":"…"}]} — une fiche (un dossier, une personne, un produit).',
   '- {"type":"table","title":"…","columns":["…"],"rows":[["…"]]} — des lignes LUES par tes outils dans ce tour, recopiées telles quelles.',
-  '- {"type":"chart","title":"…","chartType":"barres|courbe|secteurs","labels":["…"],"series":[{"name":"…","values":[1]}]} — seulement des nombres rendus par tes outils.',
+  CONSIGNE_CHART,
   '- {"type":"alert","level":"info|attention|critique","title":"…","content":"…"} — un point qui demande une action ou une vigilance.',
   '- {"type":"steps","title":"…","steps":[{"label":"…","detail":"…"}]} — un circuit ou une procédure, étape par étape : PRIVILÉGIE-LE pour expliquer un processus. Un circuit de validation se LIT d\'abord (read_workflow) ; jamais de mémoire.',
   '- {"type":"list","title":"…","items":["…"]} — une liste à retenir.',
@@ -250,15 +250,12 @@ export function composantsEnBlocs(lu: ReponseLue, sources: SourcesTour): Resulta
         break;
       }
       case "chart": {
+        // K1 (décision 0031) : onze formes, choix automatique, garde anti-graphique trompeur — `graphique.ts`.
         if (!corpus.outils) { retirer(type, "sans-outil"); break; }
-        const libelles = tab(c.labels).map((x) => str(x, 40)).filter(Boolean).slice(0, 24);
-        const series = tab(c.series).map((s) => (s && typeof s === "object" ? s as Record<string, unknown> : null)).filter(Boolean) as Record<string, unknown>[];
-        const valeurs = series.flatMap((s) => tab(s.values ?? s.valeurs)).filter((v): v is number => typeof v === "number");
-        if (!libelles.length || !valeurs.length) { retirer(type, "vide"); break; }
-        if (!valeurs.every((v) => corpus.nombreConnu(v))) { retirer(type, "chiffre-non-source"); break; }
-        const forme = str(c.chartType, 20);
-        const vizType = forme === "courbe" || forme === "line" ? "courbe" : forme === "secteurs" || forme === "pie" ? "secteurs" : "barres";
-        const b = readVizBlock({ type: vizType, donnees: { categories: libelles, series: series.map((s) => ({ label: str(s.name ?? s.label, 40), valeurs: tab(s.values ?? s.valeurs) })) } }, titre || "Graphique");
+        const lu = lireChart(c);
+        if (!lu.valeurs.length) { retirer(type, "vide"); break; }
+        if (!lu.valeurs.every((v) => corpus.nombreConnu(v))) { retirer(type, "chiffre-non-source"); break; }
+        const b = chartEnBloc(c, lu, titre || "Graphique");
         if (b) blocs.push(b); else retirer(type, "vide");
         break;
       }
