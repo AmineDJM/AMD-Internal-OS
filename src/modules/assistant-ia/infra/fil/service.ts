@@ -14,6 +14,7 @@ import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
 import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
 import { sectionDossierDuTour } from "../conversations/dossiers";
+import { sectionAttentesDuTour } from "../canaux/section";
 import { titreProvisoire } from "../../domaine/conversations";
 import { lireVueSimulation } from "../../domaine/simulation";
 
@@ -327,6 +328,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     texte: texteDit,
     prive: fil.prive,
     sectionDossier: await sectionDossierDuTour(user, fil.dossierId),
+    // K6 : les pièces attendues (WhatsApp, mail) — une section SEULEMENT si une attente est ouverte.
+    sectionAttentes: await sectionAttentesDuTour(userId),
     vocal: !tour.contenu.trim() && vocal?.etat === "TRANSCRIT",
     surLecture: async (lectures) => {
       await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { lecture: lectures as unknown as Prisma.InputJsonValue } }).catch(sansBloquer("fil-service.surLecture.assistantIaTour"));
@@ -375,14 +378,11 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
   const vu = await prisma.assistantIaFil.findUnique({ where: { id: tour.filId }, select: { consulteLe: true } });
   if (!vu?.consulteLe || Date.now() - vu.consulteLe.getTime() > ABSENT_APRES_MS) {
     const sujet = texteDit.replace(/\s+/g, " ").trim().slice(0, 60) || (vocal ? "message vocal" : "pièces jointes");
-    await notifyUser({
-      userId, type: "GENERIC",
-      title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
-      // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
-      body: sansValeursRevelees(r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
-      // LA BONNE CONVERSATION (décision 0027) : l'ERP l'ouvre sur `/assistant`, l'app Adventum IA renvoie ce lien vers `/ia`.
-      link: `/assistant?c=${tour.filId}`,
-    }).catch(sansBloquer("fil-service.jouerTourDuFil.notifyUser"));
+    await notifierConversation(
+      userId, tour.filId,
+      r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
+      r.ok ? r.content : r.error,
+    );
   }
 
   // LE TITRE PROPOSÉ (décision 0027) : après la première réponse, par le modèle rapide — jamais avant le premier mot.
@@ -390,6 +390,19 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
 
   // LE RÉSUMÉ ROULANT (J4) : après la réponse, jamais avant — il ne retarde aucun premier mot.
   if (r.ok) await compacterFil(tour.filId);
+}
+
+/**
+ * NOTIFIER LA PERSONNE D'UNE CONVERSATION (cloche + téléphone) — une réponse prête, une pièce reçue (K6). Le corps sort de
+ * l'écran : jamais une valeur révélée, ni Markdown ; le lien ouvre LA conversation (décision 0027 : l'ERP sur `/assistant`,
+ * l'app Adventum IA le renvoie vers `/ia`). Ne lève jamais.
+ */
+export async function notifierConversation(userId: string, filId: string, titre: string, corps: string): Promise<void> {
+  await notifyUser({
+    userId, type: "GENERIC", title: titre,
+    body: sansValeursRevelees(corps).replace(/[#*_`>]/g, "").trim().slice(0, 280),
+    link: `/assistant?c=${filId}`,
+  }).catch(sansBloquer("fil-service.notifierConversation"));
 }
 
 /**

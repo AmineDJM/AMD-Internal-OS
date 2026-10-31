@@ -60,5 +60,26 @@
 > \* Requis **ensemble** uniquement pour activer l'édition Office. Côté **service OnlyOffice**, poser
 > `JWT_ENABLED=true` et `JWT_SECRET=<même valeur que ONLYOFFICE_JWT_SECRET>`.
 
+### Pièces reçues par WhatsApp et par mail — Assistant IA (lot K6, décision 0036)
+
+| Variable | Requis | Rôle |
+|---|---|---|
+| `WHATSAPP_VERIFY_TOKEN` | ⬜ | Jeton d'**abonnement** du webhook (`GET /api/canaux/whatsapp`) : une chaîne au choix (`openssl rand -hex 24`), saisie à l'identique chez Meta. |
+| `WHATSAPP_APP_SECRET` | ⬜ | **Secret de l'app Meta** (*App settings › Basic › App secret*) : la signature `X-Hub-Signature-256` de chaque notification est vérifiée avec lui. Absent → le webhook refuse tout (503). |
+| `WHATSAPP_TOKEN` · `WHATSAPP_PHONE_ID` · `WHATSAPP_BASE_URL` | ⬜ | Déjà ceux de l'**envoi** (plugin messagerie) : jeton d'accès permanent (utilisateur système), identifiant du numéro, `https://graph.facebook.com/v21.0`. Ils servent aussi à **télécharger les médias** reçus et à répondre (accusé, refus poli). |
+| `ASSISTANT_IA_MAIL` | ⬜ | Adresse(s) de l'assistant (`assistant@adventum.dz`, séparées par des virgules). Un courrier reçu par `POST /api/mail/inbound` (signé, `MAIL_WEBHOOK_SECRET`) et adressé à l'une d'elles porte des pièces pour l'Assistant IA de son expéditeur. |
+| `ASSISTANT_IA_ATTENTE_HEURES` | ⬜ | Durée d'une **attente de pièces** (défaut 48 h, 1 h à 14 jours). |
+
+**Ce qui se passe.** La personne dit (à l'écrit ou dans un appel vocal) « je t'envoie la lettre du Dr Mansouri pour la demande SP-… » : l'assistant ouvre une **attente** (outil `attendre_pieces`, liée à la conversation et à la fiche, 48 h). Elle envoie la pièce au numéro WhatsApp de l'entreprise, ou la transfère à `ASSISTANT_IA_MAIL` (ou se l'envoie dans sa boîte Gmail connectée, si elle est le dirigeant et qu'une attente « mail » est ouverte). Reconnue par son **numéro** (fiche utilisateur, sinon fiche employé liée à un compte) ou son **adresse**, la pièce va dans son Drive (« Assistant IA — pièces reçues »), entre dans la conversation de l'attente, et l'assistant propose le rangement **par une carte** (« J'ai reçu la lettre… ; je l'ajoute à la demande ? »). Sans attente : la conversation courante et « À quoi la rattacher ? ». Numéro ou adresse inconnus : refus poli, **rien n'est stocké**. Chaque réception est au journal (`AssistantIaReception`).
+
+**Réglages chez Meta (une fois).**
+1. *developers.facebook.com › votre app › WhatsApp › Configuration › Webhook* : **URL de rappel** `https://amd-internal-os-k3uc.onrender.com/api/canaux/whatsapp` (ou l'adresse de l'app Adventum IA, qui sert la même route), **jeton de vérification** = `WHATSAPP_VERIFY_TOKEN`. Meta appelle aussitôt le `GET` : il doit répondre le défi (sinon : jeton différent, ou variable non posée sur Render).
+2. Champs du webhook : cocher **`messages`**.
+3. *App settings › Basic* : copier l'**App secret** dans `WHATSAPP_APP_SECRET` sur Render.
+4. Le jeton `WHATSAPP_TOKEN` doit être **permanent** (utilisateur système, droits `whatsapp_business_messaging`) : un jeton temporaire expire en 24 h et les médias ne se téléchargent plus.
+5. Les numéros des collaborateurs : renseigner le **téléphone** sur la fiche utilisateur (ou la fiche employé liée) — c'est lui qui reconnaît l'expéditeur.
+
+**Mail.** Chez le fournisseur de courrier entrant (Postmark recommandé : il transmet le contenu des pièces dans le webhook), router l'adresse `ASSISTANT_IA_MAIL` vers `https://amd-internal-os-k3uc.onrender.com/api/mail/inbound` avec la signature HMAC `MAIL_WEBHOOK_SECRET`. Avec Resend ou Brevo, le webhook ne porte que le nom des pièces : la réception le dit (« contenu non transmis par le fournisseur »).
+
 ---
 

@@ -58,8 +58,10 @@ process.env.__BANC_MANDATAIRE_ANNONCE = "1";
 if (!proxy) {
   if (!dejaDit) console.info("[banc] aucun HTTPS_PROXY : `fetch` reste en direct (c'est le cas en production).");
 } else {
-  const { ProxyAgent, setGlobalDispatcher } = require("undici");
-  setGlobalDispatcher(new ProxyAgent(proxy));
+  // `NO_PROXY` honoré (localhost, 127.0.0.1…) : un banc qui parle à un serveur LOCAL (faux Meta du lot K6) ne passe pas
+  // par le mandataire. `EnvHttpProxyAgent` lit HTTPS_PROXY et NO_PROXY ; à défaut (undici ancien), tout passe par lui.
+  const { EnvHttpProxyAgent, ProxyAgent, setGlobalDispatcher } = require("undici");
+  setGlobalDispatcher(EnvHttpProxyAgent ? new EnvHttpProxyAgent() : new ProxyAgent(proxy));
   let jeton = "";
   for (const cle of ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"]) {
     if (!process.env[cle]) { process.env[cle] = "mandataire"; jeton += ` ${cle}`; }

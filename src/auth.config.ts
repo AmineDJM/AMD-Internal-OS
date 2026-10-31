@@ -58,6 +58,10 @@ export const authConfig = {
       // (qui émet ces jetons) reste derrière la connexion.
       if (nextUrl.pathname === "/api/onlyoffice/file" || nextUrl.pathname === "/api/onlyoffice/callback") return true;
 
+      // K6 (décision 0036) : LES WEBHOOKS DES PIÈCES ENVOYÉES À L'ASSISTANT — Meta (WhatsApp) et le fournisseur de courrier
+      // n'ont pas de session. Chacune vérifie ELLE-MÊME sa signature (et refuse tout sans secret) avant de lire le corps.
+      if (nextUrl.pathname === "/api/canaux/whatsapp" || nextUrl.pathname === "/api/mail/inbound") return true;
+
       if (isOnLogin) {
         if (isLoggedIn) {
           return Response.redirect(new URL(pageApresConnexion(process.env.APP_MODE), nextUrl));

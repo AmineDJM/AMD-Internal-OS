@@ -91,4 +91,11 @@ export { tableauQualite } from "./infra/qualite/tableau";
 export {
   capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION, type IssueCaptation, type VueCaptation,
 } from "./infra/terrain/captation";
+// ── K6 (décision 0036) : les pièces reçues par WhatsApp et par mail, rattachées à l'attente de la conversation
+export {
+  attenteOuvertePour, ouvrirAttente, personneParAdresse, recevoirPieces, DOSSIER_PIECES_RECUES,
+  type EntreeReception, type FichierRecu, type ResultatReception,
+} from "./infra/canaux/reception";
+export { sectionAttentesDuTour } from "./infra/canaux/section";
+export { outilAttendrePieces, OUTIL_ATTENDRE_PIECES } from "./infra/canaux/outil";
 export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";

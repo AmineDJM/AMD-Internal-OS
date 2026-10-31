@@ -136,6 +136,26 @@ services:
       # Facultatif : signature HMAC-SHA256 du corps (même valeur que ERP_WEBHOOK_SECRET côté site).
       - key: ADVENTUM_WEBHOOK_SECRET
         sync: false
+      # LOT K6 (décision 0036) — LES PIÈCES ENVOYÉES À L'ASSISTANT IA PAR WHATSAPP ET PAR MAIL.
+      # WhatsApp (API Cloud de Meta) : webhook https://amd-internal-os-k3uc.onrender.com/api/canaux/whatsapp — le jeton
+      # d'abonnement (au choix, le même chez Meta), le secret de l'app Meta (signature des notifications), et le jeton /
+      # identifiant du numéro (déjà ceux de l'envoi). Sans WHATSAPP_APP_SECRET, le webhook refuse tout.
+      # Procédure : docs/readme/23-variables-d-environnement.md (« Pièces reçues par WhatsApp et par mail »).
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_ID
+        sync: false
+      - key: WHATSAPP_BASE_URL
+        sync: false
+      # Mail : l'adresse (ou les adresses, séparées par des virgules) de l'assistant, reçue par /api/mail/inbound (signée).
+      - key: ASSISTANT_IA_MAIL
+        sync: false
+      - key: MAIL_WEBHOOK_SECRET
+        sync: false
 
   # ───────────────────────────────────────────────────────────────────────────────────────────
   # ADVENTUM IA — L'APP DE L'ASSISTANT IA, SUR SON PROPRE SITE (décision 0027, 30/10/2026).
