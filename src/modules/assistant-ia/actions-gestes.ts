@@ -1,6 +1,6 @@
 "use server";
 
-import { porte } from "./infra/porte-actions";
+import { porte, porteDeLaPersonne } from "./infra/porte-actions";
 import { annulerGeste, gestesDeLAssistant, planDAnnulation, type CompteRenduAnnulation, type GesteListe } from "@/platform/ia/hors-requete";
 
 /**
@@ -39,4 +39,17 @@ export async function annulerGestesAssistant(gesteIds: string[]): Promise<{ ok: 
     comptes.push("refus" in r ? { gesteId: id, refus: r.refus } : r);
   }
   return { ok: true, comptes };
+}
+
+/**
+ * ANNULER UNE ACTION FAITE À L'ÉCRAN (K10a, décision 0035) — le bandeau « Annuler » de l'ERP. Pas de module exigé : la
+ * personne défait SON geste (l'annulation vérifie qu'elle en est le principal, ou le Super Admin) — RBAC inchangé.
+ * L'annulation est elle-même journalisée : son compte rendu porte `retablirGesteId`, que le même bandeau rétablit.
+ */
+export async function annulerMonGeste(gesteId: string): Promise<{ ok: true; compte: CompteRenduAnnulation } | { ok: false; error: string }> {
+  const p = await porteDeLaPersonne();
+  if (!p.ok) return { ok: false, error: p.erreur };
+  if (typeof gesteId !== "string" || !gesteId) return { ok: false, error: "Geste introuvable." };
+  const r = await annulerGeste(gesteId, p.user);
+  return "refus" in r ? { ok: false, error: r.refus } : { ok: true, compte: r };
 }

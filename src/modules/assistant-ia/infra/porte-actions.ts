@@ -8,6 +8,13 @@ import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
  */
 export type Porte = { ok: true; user: CurrentUser } | { ok: false; erreur: string };
 
+/** La porte d'un geste SUR SES PROPRES ACTIONS (K10a, bandeau « Annuler ») : la session, sans module exigé — jamais en « Vue exacte ». */
+export async function porteDeLaPersonne(): Promise<Porte> {
+  const user = await requireUser();
+  if (user.impersonatedBy || user.visualise) return { ok: false, erreur: "Indisponible en « Vue exacte »." };
+  return { ok: true, user };
+}
+
 export async function porte(ecriture: boolean): Promise<Porte> {
   const user = await requireUser();
   if (!peutUtiliserAssistantIA(user)) return { ok: false, erreur: REFUS_ASSISTANT_IA };

@@ -211,7 +211,7 @@ export async function updateInvoice(formData: FormData): Promise<ActionResult> {
  * (`sourceType = PCH_ORDER`) qui la fait apparaître sous SON bon dans la fiche marché, et qui
  * répond à « quelle facture correspond à quel BC ».
  */
-export async function setInvoiceOrder(formData: FormData): Promise<ActionResult> {
+export async function setInvoiceOrder(formData: FormData): Promise<ActionResult> { return annulable("retour", "Rattacher une facture à un ordre", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");
@@ -238,7 +238,7 @@ export async function setInvoiceOrder(formData: FormData): Promise<ActionResult>
   revalidatePath("/legal");
   revalidatePath("/pch");
   return { ok: true };
-}
+}); }
 
 /** Marquer réglée / à régler depuis la ligne du tableau — le geste le plus fréquent. */
 export async function setInvoicePaid(input: { id: string; paidDate: string | null }): Promise<ActionResult> { return annulable("compensation", "Marquer une facture payée", async () => {
@@ -274,7 +274,7 @@ export async function setInvoicePaid(input: { id: string; paidDate: string | nul
   return { ok: true };
 }); }
 
-export async function deleteInvoice(formData: FormData): Promise<ActionResult> {
+export async function deleteInvoice(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Supprimer facture", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "DELETE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");
@@ -288,4 +288,4 @@ export async function deleteInvoice(formData: FormData): Promise<ActionResult> {
   });
   revalidatePath("/legal");
   return { ok: true };
-}
+}); }

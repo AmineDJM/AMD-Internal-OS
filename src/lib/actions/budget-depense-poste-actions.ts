@@ -304,7 +304,7 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
 }); }
 
 /** ANNULER une dépense engagée : l'engagement est libéré (motif facultatif). Refusé une fois consommée. */
-export async function annulerDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function annulerDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("retour", "Annuler dépense poste", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Poste non précisé." };
@@ -327,4 +327,4 @@ export async function annulerDepensePoste(formData: FormData): Promise<ActionRes
     null, motif);
   revalider(owner);
   return { ok: true, id, message: `Dépense annulée : ${dzd(lue.depense.montantEngage)} rendus au budget.` };
-}
+}); }

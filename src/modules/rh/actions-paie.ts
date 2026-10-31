@@ -374,7 +374,7 @@ const RATTACHEMENT_MAX = 200;
  * un salarié rattaché entre-temps par quelqu'un d'autre garde SON entité et la phrase le nomme. Un
  * salaire déjà parti au nom d'une autre entité REFUSE tout le lot, en le nommant.
  */
-export async function rattacherSalariesAEntite(formData: FormData): Promise<ActionResult> {
+export async function rattacherSalariesAEntite(formData: FormData): Promise<ActionResult> { return annulable("retour", "Rattacher des salariés à une entité", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const companyId = fdStr(formData, "companyId");
@@ -450,7 +450,7 @@ export async function rattacherSalariesAEntite(formData: FormData): Promise<Acti
       dejaRattaches: fiches.filter((f) => !bouges.has(f.id)).map((f) => f.fullName),
     }),
   };
-}
+}); }
 
 /**
  * CORRIGER UNE LIGNE DE PAIE DÉJÀ FAITE — montants, fiche de paie, y compris après transfert.

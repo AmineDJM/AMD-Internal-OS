@@ -52,7 +52,7 @@ const fd = (champs: Record<string, string>) => {
  */
 suite("K10a — les actions d'argent se défont d'un geste", () => {
   const u: Record<string, string> = {};
-  let soc = "", compte = "";
+  let soc = "", compte = "", categorie = "";
 
   const dernierGeste = async () => {
     const g = await prisma.assistantGesteJournal.findFirst({ where: { principalId: ACTOR!.id, origine: "ecran", annuleLe: null }, orderBy: { creeLe: "desc" }, include: { effets: true } });
@@ -76,6 +76,15 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
     u.dem = (await prisma.user.create({ data: { name: `${RUN} demandeur`, email: `${RUN}dem@t.dz`, role: "VIEWER", passwordHash: "x" } })).id;
     ACTOR = { id: sa.id, name: sa.name, email: sa.email, role: "SUPER_ADMIN", access, mustChangePassword: false };
     soc = (await prisma.company.create({ data: { name: `${RUN} Adventum`, shortName: "K" } })).id;
+    // Un ordre réglé s'impute sur un budget : le banc tient sa ligne (comme `tresorerie-flow.test.ts`).
+    const env = await prisma.budgetEnvelope.create({
+      data: {
+        name: `${RUN} Fonctionnement`, modules: ["FINANCES"], periodStart: new Date("2026-01-01"), periodEnd: new Date("2027-12-31"), totalAmount: 10_000_000,
+        categories: { create: [{ name: `${TAG} Frais`, module: "FINANCES", allocated: 10_000_000 }] },
+      },
+      include: { categories: true },
+    });
+    categorie = env.categories[0]!.id;
     compte = (await prisma.treasuryAccount.create({ data: { name: `${RUN} Banque`, openingBalance: 1_000_000, companyId: soc, principal: true } })).id;
   }, 60_000);
 
@@ -85,6 +94,7 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
     await prisma.financeTransaction.updateMany({ where: { treasuryAccountId: compte }, data: { compensationDeId: null } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { treasuryAccountId: compte } }).catch(() => {});
     await prisma.treasuryAccount.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
+    await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.supplierUser.deleteMany({ where: { email: { startsWith: RUN } } }).catch(() => {});
     await prisma.supplier.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(u) } } }).catch(() => {});
@@ -162,7 +172,7 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
 
   it("RÉGLER un ordre (l'argent part) → annuler : l'ordre redevient dû, le décaissement RESTE, un « à récupérer » le compense ; rétablir remet « payé »", async () => {
     const o = await prisma.expenseOrder.create({
-      data: { reference: `${TAG}OD${RUN.slice(-5)}`, label: `${TAG} fournisseur`, amount: 20_000, category: "AUTRE", status: "PENDING", centralStatus: "APPROVED", companyId: soc, requestedById: u.dem },
+      data: { reference: `${TAG}OD${RUN.slice(-5)}`, label: `${TAG} fournisseur`, amount: 20_000, category: "AUTRE", status: "PENDING", centralStatus: "APPROVED", companyId: soc, budgetCategoryId: categorie, requestedById: u.dem },
     });
     const avant = await soldeDuCompte();
     const r = await settleExpenseOrder(fd({ id: o.id, treasuryAccountId: compte }));
@@ -189,7 +199,7 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
 
   it("REPORTER puis LEVER LE REPORT d'un ordre → chaque geste se remet", async () => {
     const o = await prisma.expenseOrder.create({
-      data: { reference: `${TAG}OR${RUN.slice(-5)}`, label: `${TAG} report`, amount: 1_000, category: "AUTRE", status: "PENDING", centralStatus: "APPROVED", companyId: soc, requestedById: u.dem },
+      data: { reference: `${TAG}OR${RUN.slice(-5)}`, label: `${TAG} report`, amount: 1_000, category: "AUTRE", status: "PENDING", centralStatus: "APPROVED", companyId: soc, budgetCategoryId: categorie, requestedById: u.dem },
     });
     const d = await deferExpenseOrder(fd({ id: o.id, until: "2027-03-01", reason: "trésorerie tendue" }));
     expect(d.ok, d.error).toBe(true);

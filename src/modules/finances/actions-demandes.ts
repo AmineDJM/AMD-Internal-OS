@@ -658,7 +658,7 @@ export async function reviewPaymentPiece(formData: FormData): Promise<ActionResu
 // ───────────────────────── Circuit du dossier ─────────────────────────
 
 /** Un message libre dans le fil — les deux côtés peuvent en écrire. */
-export async function addPaymentComment(formData: FormData): Promise<ActionResult> {
+export async function addPaymentComment(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Ajouter commentaire paiement", async () => {
   try {
     const user = await requireUser();
     const requestId = fdStr(formData, "requestId");
@@ -679,7 +679,7 @@ export async function addPaymentComment(formData: FormData): Promise<ActionResul
     console.error("[payment] addPaymentComment failed", err);
     return { ok: false, error: "Le message n'a pas pu être envoyé." };
   }
-}
+}); }
 
 /** Le demandeur (re)transmet son dossier aux Finances. */
 export async function submitPaymentRequest(formData: FormData): Promise<ActionResult> { return annulable("retour", "Soumettre une demande de paiement", async () => {
@@ -977,7 +977,7 @@ export async function cancelPaymentRequest(formData: FormData): Promise<ActionRe
  * dans le registre — la même règle pour l'écran, Adam et la corbeille) garde un dossier vivant, un compagnon, et tout
  * dossier dont le paiement est sorti. Le droit : le demandeur, ou le Super Admin (`peutSupprimerUneDemandePaiement`).
  */
-export async function supprimerDemandePaiement(formData: FormData): Promise<ActionResult> {
+export async function supprimerDemandePaiement(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Supprimer demande paiement", async () => {
   try {
     const user = await requireUser();
     const id = fdStr(formData, "id");
@@ -994,4 +994,4 @@ export async function supprimerDemandePaiement(formData: FormData): Promise<Acti
     console.error("[payment] supprimerDemandePaiement failed", err);
     return { ok: false, error: "La suppression a échoué." };
   }
-}
+}); }

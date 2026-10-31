@@ -561,7 +561,7 @@ export async function deleteTreasuryAccount(formData: FormData): Promise<ActionR
 export async function createEmployee(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> {
+): Promise<ActionResult> { return annulable("compensation", "Créer salarié", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
   const fullName = fdStr(formData, "fullName");
@@ -582,7 +582,7 @@ export async function createEmployee(
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Finances", entityType: "EMPLOYEE", entityId: created.id, summary: `Employé « ${fullName} »` });
   revalidatePath("/finances");
   return { ok: true, id: created.id };
-}
+}); }
 
 export async function createPayroll(
   _prev: ActionResult | undefined,
@@ -701,7 +701,7 @@ export async function createQuickIncome(
  * l'opération d'Adam `request_treasury_update` (la même porte, par la conversation). Un bouton
  * masqué n'est pas un contrôle d'accès : c'est CETTE ligne qui refuse.
  */
-export async function requestTreasuryUpdate(formData: FormData): Promise<ActionResult> {
+export async function requestTreasuryUpdate(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Demander mise à jour trésorerie", async () => {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
   const note = fdStr(formData, "note");
@@ -768,4 +768,4 @@ export async function requestTreasuryUpdate(formData: FormData): Promise<ActionR
       ? `Une demande était déjà en cours pour ${nomEntite} : ${destinataires.length} responsable(s) Finance relancé(s).`
       : `Demande envoyée à ${destinataires.length} responsable(s) Finance pour ${nomEntite} (${comptes.length} compte(s)).`,
   };
-}
+}); }

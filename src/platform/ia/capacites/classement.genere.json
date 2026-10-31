@@ -1790,6 +1790,15 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-gestes-actions:annulerMonGeste": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-gestes-actions:apercevoirAnnulation": {
   "risque": "R1",
   "familles": [

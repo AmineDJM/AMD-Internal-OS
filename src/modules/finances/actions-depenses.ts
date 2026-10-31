@@ -348,7 +348,7 @@ export async function purgeSettledExpenseOrders(): Promise<ActionResult> { retur
 }); }
 
 /** Le comptable demande la facture au demandeur (dépense événementielle sans facture). */
-export async function requestInvoice(formData: FormData): Promise<ActionResult> {
+export async function requestInvoice(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Demander facture", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE") && !hasGlobalView(user.role)) return { ok: false, error: "Réservé à la comptabilité (Finances)." };
   const id = fdStr(formData, "id");
@@ -374,7 +374,7 @@ export async function requestInvoice(formData: FormData): Promise<ActionResult> 
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Finances", entityType: "EXPENSE_ORDER", entityId: id, summary: `Facture demandée — ${order.reference}` });
   revalidatePath("/finances/paiements-a-faire");
   return { ok: true };
-}
+}); }
 
 /**
  * REPORTER UN PAIEMENT À UNE DATE — le seul geste, avec le règlement, qui reste aux Finances.
