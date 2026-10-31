@@ -28,6 +28,31 @@ jour, la conversation continue, une notification part à la fin. **Gouvernance**
 plafonds mensuels, modèles, durée max), coût réel journalisé, famille « Images & vidéos générées » de la console des accès,
 fermée par défaut. Coût mesuré : **0,0135 $ l'image** (medium 1024²) ; une vidéo de données ne coûte aucun appel de modèle.
 
+### K1 : L'ASSISTANT IA CALCULE — TABLEAUX, EXCEL, GRAPHIQUES, ET PAS UN CHIFFRE DU MODÈLE (2026-10-31)
+
+Lot K1 — `docs/assistant/decisions/0031-analyse-donnees.md`. Le moteur d'analyse d'Adam **déménage au socle**
+(`src/platform/ia/analyse/` : opérations, pipeline, conseil de graphique, porte de qualité, JS et Python isolés — déplacés,
+pas copiés ; Adam les réexporte ; le SQL reste dans `lib/sandbox/sql.ts`, une porte du socle). L'Assistant IA gagne
+`lire_tableur` (Excel/CSV typé), `analyser_donnees`, `calculer_code`, `requete_sql` (vue globale) ; chaque résultat est un
+**bloc « analyse »** composé par le code sous la réponse : tableau trié/filtrable avec totaux, graphique choisi et vérifié
+(onze formes, forme trompeuse remplacée), « Comment c'est calculé » (étapes et formules), export CSV / Excel d'un clic
+(classeur vérifié : en-tête figé, filtre, formats DZD et %, totaux en `=SUM()`, feuille « Méthode ») et dépôt au Drive sur
+le geste de la personne ; chaque graphique s'exporte en PNG, SVG et données. Colonnes confidentielles masquées avant le
+calcul ; un chiffre du message que rien ne prouve est dit. Banc réel `scripts/bench/analyse-k1.ts` (16 demandes, chiffres
+recalculés indépendamment en SQL/TS) : 15/16 justes, 0 chiffre inventé, 0,50 $. **Plus de visuels** (Direction) :
+indicateurs, jauges, chronologie et la règle du choix du visuel — 9/10 demandes avec le bon visuel, 0 sur les questions
+simples. Preuve sur serveur réel en mode app (iPhone 13 et bureau) : 0 erreur console, aucun débordement.
+
+### LOT K3 : SOUS-MISSIONS EN ARRIÈRE-PLAN, TABLEAU DE BORD EN TEMPS RÉEL, DÉPÔT D'OFFICE (2026-10-31)
+
+Décision [0033](../assistant/decisions/0033-sous-missions.md). Un message peut lancer PLUSIEURS sous-missions (`lancer_un_travail` :
+`remplace` pour reformuler, `parent` pour ranger) qui tournent en parallèle sur le worker pendant que la conversation continue ;
+un plan sans geste démarre d'office (Super Admin par défaut, réglable par personne et à la console). Sous la réponse, une carte
+suit chaque sous-mission en temps réel ; à la fin, la synthèse s'écrit dans la conversation et la personne est notifiée.
+Tableau de bord « Missions » (app Adventum IA et Assistant de l'ERP) en Server-Sent Events, avec repli en sondage court ;
+indicateur « 3 missions en cours » dans l'en-tête. Au-delà de 6 pièces, le dépôt est proposé d'office (« 14 fichiers : tout
+lire en arrière-plan »). Migration `20270216120000_sous_missions`.
+
 ### JARVIS INTÉGRÉ : LE TEST RÉEL UNIQUE DE FIN, ET LES DEUX DÉFAUTS QU'IL A TROUVÉS (2026-10-31)
 
 Tous les lots Jarvis (J0 → J14, conversions, « Mes notes », app Adventum IA) sont sur `claude/hopeful-goodall-phd0nb`.

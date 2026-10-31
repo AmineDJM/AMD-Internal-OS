@@ -348,7 +348,7 @@ episodic memory aging in the scheduler (`vieillirMemoire`).
 mints an ephemeral OpenAI Realtime secret; the browser talks WebRTC to OpenAI; tool calls come back to `/api/assistant/voice/tool`, which
 reuses `executeReadTool` / `buildProposal` (same RBAC + interception); usage posted to `/voice/log` → `journaliserSessionVocale`.
 
-**Sandbox** [V] `lib/sandbox/js.ts`: model-written JS runs in a `worker_threads` Worker with `vm.runInContext`, `codeGeneration` disabled
+**Sandbox** [V] `platform/ia/analyse/js.ts` (moved from `lib/sandbox/` by K1, decision 0031): model-written JS runs in a `worker_threads` Worker with `vm.runInContext`, `codeGeneration` disabled
 and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation relies on the worker + empty context.
 
 ### 4.4 Mission Runtime
@@ -412,6 +412,20 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   Atelier conversions; deposit under a `TravailEcriture` receipt (`|livrable`), reprise finds the document by its
   deterministic name. **Robustness** `robustesse.test.ts`: real child processes (`scripts/bench/travail-processus.ts`)
   SIGKILLed 10× over a 3-week fake-clock travail, plus web + worker processes racing on one travail.
+
+- **Sous-missions K3 (31/10/2026)** [V] decision `docs/assistant/decisions/0033-sous-missions.md`. `lancer_un_travail` gains
+  `remplace` (replace a plan of THIS turn; same normalised title also replaces) and `parent` (`Mission.parentMissionId`, own
+  travaux only, kept through `approuverTravail`). Several travaux per turn are kept and stored on the turn
+  (`AssistantIaTour.travaux`). `balayage.ts` / `reveil.ts` conduct travaux concurrently (`enParallele`, `TRAVAUX_EN_PARALLELE`
+  default 4), each under its own lease; approval signals the fast wake. **Auto-start** `demarrerDOffice` for plans whose steps
+  are all LECTURE/LOTS/ANALYSE/LIVRABLE with no geste (`regles.planSansGeste`): preference `AssistantIaPreference` > console
+  `AssistantIaAcces.travauxDOffice` > SUPER_ADMIN default; journal `TRAVAIL_DOFFICE`. **Synthesis** `persona.surFin` (called by
+  `conduite.ts` on completion) → `assistant-ia/infra/sous-missions.ts conclureSousMissions` → `fil/service.deposerSynthese`
+  (unique `syntheseDe`, notification), fallback task `assistant.sous-missions`. **Dashboard** `travaux/tableau.ts`
+  (`tableauDesTravaux`, cheap `signatureTableau` aggregate) streamed by SSE `app/api/assistant-ia/missions/flux` (1 s signature
+  poll server-side, 15 s heartbeat, close at 4 min 30, client fallback 3 s poll) → `ecrans/missions/*` (shared by `/ia` and
+  `/assistant`). **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
+  files too.
 
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
   `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
@@ -579,6 +593,15 @@ later `what_changed` tool reads it as a hint and re-reads canonical data.
 - **Providers** (`infra/visuels/fournisseurs.ts`, outside the text gateway like STT): OpenAI `/images/generations` + `/images/edits` (default `gpt-image-2.5-sunburst`, measured 0.0135 $ per medium 1024² image), Gemini `gemini-3-pro-image` only as fallback when OpenAI fails/refuses; `/videos` guarded by `etatModeleVideo` — **Sora is shut down (shutdown_date 2026-09-24, `/v1/videos` 404)**, so generative video refuses without spending.
 - **Data video**: pure `domaine/visuels/video-donnees.ts` (values must appear in the turn's tool outputs; captions computed; SVG per frame) → `infra/visuels/rendu-donnees.ts` (sharp + ffmpeg, H.264 High yuv420p faststart, 8 s, 1080²). Rendered immediately where ffmpeg exists, else by the worker through task `assistant.visuels` (`traiterVisuelsEnFile`; queue expiry 20 min, interrupted render → failure said; user notified via `avertirPersonne`).
 - **Routes**: `app/api/assistant-ia/visuels/[id]` (state, owner only, not in Vue exacte) and `[id]/media` (Drive rights re-checked, **Range/206** for iPhone Safari, `?dl=1` audited).
+
+### 6.7 Data analysis of the Assistant IA (K1, decision 0031)
+
+- **Engine at the socle**: `platform/ia/analyse/` (moved, not copied, from `lib/sandbox/`: `analyse`, `pipeline`, `viz`, `porte`, `js`, `python`; Adam's bridge re-exports them). Only `lib/sandbox/sql.ts` stays (Prisma) — reached by the socle through ONE port `analyse/sql.ts` (+1 toward `SOCLE_IA_CEILING`, compensated by merging a duplicate import in `teach/store.ts`). Shared table reading `analyse/tableur.ts` (Adam's `lireLignesDrive` uses it).
+- **Flow**: `fil/tour.ts` creates `JeuxDuTour` + `blocsCalcules` → `outilsV1(…, { analyse })` → every lecture output (already tokenised by `jetonnerSortie`) is noted as a dataset in `filtre()` → `analyser_donnees` / `calculer_code` / `requete_sql` / `lire_tableur` (`infra/analyse/outils.ts`) mask confidential headers (`domaine/analyse/confidentialite.ts`), compute, and push a `kind: "analyse"` block (`analyse/bloc.ts:composerAnalyse`) → appended after the model's components, revealed by `Revelateur.objet`. The model gets the pre-formatted preview only (`affichage.ts:enClair`). `noteChiffresNonSources` flags message numbers absent from tool outputs.
+- **Selection**: `domaine/analyse/intention.ts:outilsDAnalyseVoulus` → `selectionDuTour(…, prioritaires)` → `preselectionner(…, prioritaires)` (put first, still under `BUDGET_JETONS_FIXES`).
+- **Excel**: `analyse/classeur.ts` → `artifact/sheets.ts:construireClasseurOctets` / `construireClasseurDrive` (verified builder; `SpecFeuille.filtre` added in `lib/artifact/sheets/build.ts`). Route `POST /api/assistant-ia/analyse/classeur` (download, or `depot: true` = Drive on the person's click; refused in "Vue exacte"); input re-read by `analyse/lecture.ts`.
+- **Screen**: `ecrans/blocks/analyse.tsx` (sort, filters, totals, CSV/Excel, charts via `VizFigure`, PNG/SVG export `export-graphique.ts`, "Comment c'est calculé"); `RENDERERS.analyse`; Adam's `workspace/turn.ts` weight `analyse: 46`.
+- **Guard**: `requete_sql` refuses any query NAMING a masked/sensitive column (alias bypass of `COLONNES_MASQUEES`, risk R3).
 
 ## 7. Coupling & blast radius
 

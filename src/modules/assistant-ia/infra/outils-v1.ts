@@ -28,6 +28,7 @@ import { avecProvenance, type ProvenanceDuTour } from "./provenance";
 import { lecturesMetier, lecturesQuotidien, lecturesRh, lecturesSituation, situationRhSansMasse } from "./lectures";
 import { lecturesErp } from "./lectures-erp";
 import { outilsCapacites } from "./capacites";
+import { outilsAnalyse, OUTILS_ANALYSE, type ContexteAnalyseTour } from "./analyse/outils";
 import { censurerTexte, jetonnerSortie, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 import { FAMILLES_IA, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
 import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
@@ -59,6 +60,8 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   search_everything: ["DRIVE"],
   // J4 : la Bibliothèque — « Drive & documents » ; ses propres droits (l'écran qui sert chaque pièce) jugent en plus.
   chercher_documents: ["DRIVE"], ouvrir_documents: ["DRIVE"],
+  // K1 (décision 0031) — un tableur joint ou du Drive : sa lecture typée est une lecture du Drive.
+  lire_tableur: ["DRIVE"],
   // J11 — un dossier déposé : il vit dans le Drive de la personne, ses fiches dans la Bibliothèque.
   lire_dossier_depose: ["DRIVE"],
   read_budget: ["BUDGETS"], finance_totals: ["BUDGETS"],
@@ -112,7 +115,7 @@ export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELI
  * contenu écrit par un tiers (`contenu-non-fiable.ts` — un document ne donne pas d'ordres). Le journal
  * du tour garde la sortie censurée SANS cadre : c'est elle que l'UI générative confronte aux faits.
  */
-const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null, provenance?: ProvenanceDuTour): PowerTool => ({
+const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null, provenance?: ProvenanceDuTour, analyse?: ContexteAnalyseTour): PowerTool => ({
   ...outil,
   run: async (entree, user) => {
     // Avec un coffret (la conversation) : les valeurs sensibles deviennent des REPÈRES (décision 0012) ;
@@ -121,6 +124,8 @@ const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | 
     const sortie = jetonnerSortie(await outil.run(entree, user), coffret);
     coffret?.nommer(avant, outil.def.name);
     journal?.push(sortie);
+    // K1 (décision 0031) : ce qu'une LECTURE a rendu (déjà jetonné) devient un jeu que `analyser_donnees` peut calculer.
+    if (analyse && !(OUTILS_ANALYSE as readonly string[]).includes(outil.def.name)) analyse.jeux.noter(outil.def.name, sortie);
     const pourModele = sortiePourModele(outil.def.name, sortie);
     // J14 : ce que le tour a lu d'un tiers (encadré) ou de l'ERP — la carte dira ce qui vient d'un tiers.
     provenance?.noter(pourModele);
@@ -249,6 +254,8 @@ export interface OptionsCatalogue {
   notesProposees?: string[];
   /** K2 (décision 0032) : les visuels générés pendant le tour (blocs de la réponse). Absent : les outils des visuels ne sont pas offerts. */
   visuels?: WorkspaceBlock[];
+  /** K1 (décision 0031) : l'analyse de données du tour — ses jeux, ses blocs calculés, ses pièces (la conversation seulement). */
+  analyse?: ContexteAnalyseTour;
 }
 
 export function outilsV1(
@@ -276,6 +283,8 @@ export function outilsV1(
     outilRecettePour(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
     // K2 — les visuels : seulement dans la conversation (la réponse les affiche) ; la provenance des chiffres = ce journal.
     ...(options.visuels ? outilsVisuels(user, { visuels: options.visuels, journal }) : []),
+    // K1 — l'analyse de données : le code calcule sur ce que la personne a lu, sous ses droits.
+    ...(options.analyse ? outilsAnalyse(user, { ...options.analyse, coffret: coffret ?? null, driveOuvert: familleOuverte(acces, "DRIVE") }) : []),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a
@@ -312,7 +321,7 @@ export function outilsV1(
   });
   // « Mes notes » (décision 0026) : lire SES notes, et PROPOSER des modifications qu'elle accepte ou refuse.
   const notes = outilsNotes(user, { coffret, acces, proposees: options.notesProposees });
-  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret, provenance));
+  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret, provenance, options.analyse));
 }
 
 /**

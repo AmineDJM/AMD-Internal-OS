@@ -62,9 +62,9 @@ export const DOMAINS: { name: string; paths: string[] }[] = [
   // précédence, composition. Module PUR ; la persistance et les droits vivent dans le pont
   // (`platform/in-process/teach/`), comme pour `artifact/`.
   { name: "teach", paths: ["src/lib/teach/"] },
-  // `sandbox/` : le bac à sable d'exécution (mandat 4 §25) — SQL en lecture seule, code isolé,
-  // opérations d'analyse pures, conseil de visualisation. Il n'importe aucun domaine ; ses
-  // capacités sur le Drive et l'audit vivent dans le pont (`platform/in-process/sandbox/`).
+  // `sandbox/` : le SQL en lecture seule du bac à sable (mandat 4 §25). Le moteur pur (opérations d'analyse,
+  // pipeline, conseil de visualisation, code isolé) a déménagé au socle IA (`platform/ia/analyse/`, K1, décision 0031) ;
+  // Adam l'atteint par son pont (`platform/in-process/sandbox/`), l'Assistant IA par la porte `platform/ia/analyse/sql.ts`.
   { name: "sandbox", paths: ["src/lib/sandbox/"] },
   { name: "knowledge", paths: ["src/lib/knowledge/"] },
   { name: "scheduler", paths: ["src/lib/scheduler/"] },

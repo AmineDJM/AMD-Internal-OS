@@ -207,5 +207,20 @@ export async function construireClasseurDrive(
   return { ok: true, nodeId: cree.nodeId, nom, version: cree.version, verification: construit.verification, taille: construit.octets.length, ms: construit.ms };
 }
 
+/**
+ * CONSTRUIT un classeur vérifié SANS l'écrire nulle part (K1, décision 0031) — l'export d'un clic d'un tableau
+ * d'analyse : mêmes formules recalculées, même audit que le dépôt au Drive ; un classeur qui ne passe pas n'est pas rendu.
+ */
+export async function construireClasseurOctets(spec: SpecClasseur, auteur: string): Promise<{ ok: true; octets: Buffer; verification: Verification } | { ok: false; motif: string }> {
+  try {
+    const c = await construireClasseurVerifie({ ...spec, auteur: spec.auteur ?? auteur });
+    return c.verification.ok ? { ok: true, octets: c.octets, verification: c.verification } : { ok: false, motif: `vérification échouée : ${c.verification.erreurs.slice(0, 3).map((e) => `${e.ref} ${e.erreur}`).join(" ; ") || `${c.verification.constats.length} constat(s)`}` };
+  } catch (e) {
+    return { ok: false, motif: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export type { SpecClasseur };
+
 /** Pour les tests : vider le cache d'analyses. */
 export function oublierAnalyses(): void { cache.clear(); }

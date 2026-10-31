@@ -610,6 +610,24 @@ Décision [0016](../assistant/decisions/0016-travaux.md). Code : `src/lib/missio
 - **Worker** : sous `TACHES_DE_FOND=les-deux`, le web s'abstient de conduire les travaux dès que le worker bat. Image
   Docker `Dockerfile.worker` (LibreOffice, ffmpeg, Tesseract) — procédure : [Déploiement — Render](24-deploiement-render.md).
 
+### Sous-missions, tableau de bord en temps réel, dépôt d'office (lot K3, 31/10/2026)
+
+Décision [0033](../assistant/decisions/0033-sous-missions.md). Code : `src/lib/missions/travaux/{service,tableau,regles,balayage,reveil,conduite}.ts`,
+`src/platform/ia/travaux/outil.ts`, module `assistant-ia` : `infra/sous-missions.ts`, `domaine/sous-missions.ts`, `ecrans/missions/`,
+route SSE `app/api/assistant-ia/missions/flux`.
+- **Plusieurs sous-missions par tour** : `lancer_un_travail` sans `remplace` = une de plus ; `remplace` (ou le même titre dans le
+  tour) = reformulation ; `parent` = sous-mission d'un travail de la personne (`parentMissionId`). Conduites EN PARALLÈLE
+  (`TRAVAUX_EN_PARALLELE`, 4), chacune sous le bail de son travail.
+- **D'office** : un plan sans geste (lecture, lots, analyse, livrable) démarre sans clic si la personne l'a réglé — préférence
+  (`AssistantIaPreference`) > console par rôle (`AssistantIaAcces.travauxDOffice`) > oui pour le Super Admin, non sinon.
+- **Retour dans la conversation** : le tour garde ses sous-missions (`AssistantIaTour.travaux`) — carte en temps réel ; à la fin
+  de la dernière, réponse de SYNTHÈSE unique (`syntheseDe`) + notification ; rattrapage `assistant.sous-missions`.
+- **Tableau « Missions »** (app et ERP) : flux SSE (signature SQL chaque seconde, tableau poussé au changement, battement 15 s,
+  reconnexion à 4 min 30, repli en sondage 3 s) ; étapes, lots, coût, durée, journal, livrables ; approuver, pause, reprendre,
+  annuler (avec les sous-missions). Indicateur « 3 missions en cours » dans l'en-tête.
+- **Dépôt d'office** : au-delà de 6 pièces (fichiers isolés ou dossier), une puce « 14 fichiers : tout lire en arrière-plan »
+  — lu en entier par la Bibliothèque, interrogé par `lire_dossier_depose` ; plus de refus à 10 ni de pièce « nommée non lue ».
+
 ### Simulation, journal des effets, annulation (lot J7, 30/10/2026)
 
 Décision [0029](../assistant/decisions/0029-simulation-annulation.md). Code : `src/lib/effets/` (façade `lib/contexte-geste.ts`,

@@ -13,6 +13,7 @@ export function classerExclusionsCircuits(): void {
     "assistant-ia-consommation-actions:enregistrerReglagesAssistantIa", "assistant-ia-consommation-actions:enregistrerAccesAssistantIa", "assistant-ia-consommation-actions:enregistrerPlafondsTravaux",
     "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe", "assistant-ia-consommation-actions:enregistrerRetentionEffets",
     "assistant-ia-consommation-actions:enregistrerReglagesVisuels",
+    "assistant-ia-consommation-actions:enregistrerTravauxDOffice",
     // K8 (décision 0035) : la LECTURE de la consommation est l'écran lui-même (Réglages, Administration › IA) — rien à proposer.
     "assistant-ia-consommation-actions:lireConsommationIa",
   ]);
