@@ -9,7 +9,7 @@ import { CONTRAT_PAR_ID, CONTRATS_ACTIONS } from "@/lib/actions/contrat.genere";
 import { contratVuParLAssistantIa, interdictionDeLAssistantIa, validerEntree } from "@/lib/actions/generique";
 import { prisma } from "@/lib/prisma";
 import { executerAction } from "@/lib/actions/executer";
-import { classerGeste } from "@/lib/annulation/reversibilite";
+import { annulationDeclaree, classerGeste } from "@/lib/annulation/reversibilite";
 import { candidatsDuChamp, resoudreEntrees } from "@/lib/cibles/resoudre-entrees";
 import { avecPersonnes, deriverRegistre, libelleChamp, schemaDe, zodDe, type Registre } from "@/platform/ia/capacites/registre";
 import { formulaireDe, type FormulaireCarte } from "@/platform/ia/capacites/formulaire";
@@ -62,7 +62,7 @@ let registre: Registre | null = null;
 /** LE REGISTRE DES ACTIONS ET DE L'ATELIER (une fois par processus) ; les outils du module s'y ajoutent à la demande. */
 export function registreDesCapacites(outils: readonly OutilDecrit[] = []): Registre {
   if (!outils.length && registre) return registre;
-  const r = deriverRegistre(CONTRATS_IA, { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS }, outils);
+  const r = deriverRegistre(CONTRATS_IA, { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS, annulationDeclaree }, outils);
   if (!outils.length) registre = r;
   return r;
 }

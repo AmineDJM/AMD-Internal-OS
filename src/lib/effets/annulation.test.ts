@@ -177,8 +177,9 @@ suite("l'annulation honnête, sur 50 cas réels (J7)", () => {
       const i = await parModele(g, r);
       expect(i.Meeting).toEqual(["ANNULE"]);
       expect(i.MeetingParticipant?.every((x) => x === "ANNULE")).toBe(true);
-      // La poussée d'invitation, elle, est partie (ou l'aurait été) : dite impossible, jamais « annulée ».
-      expect(i.NOTIFICATION_PUSH ?? []).not.toContain("ANNULE");
+      // K10b (décision 0035) : la poussée d'invitation attendait sa FENÊTRE D'ANNULATION — elle ne part pas : annulée.
+      expect(i.NOTIFICATION_PUSH ?? []).toEqual((i.NOTIFICATION_PUSH ?? []).map(() => "ANNULE"));
+      expect(await prisma.effetSortantDiffere.count({ where: { gesteId: g, statut: { not: "ANNULE" } } })).toBe(0);
       expect(await prisma.meeting.count({ where: { title: `${TAG} réunion` } })).toBe(0);
     });
 
@@ -418,11 +419,11 @@ suite("l'annulation honnête, sur 50 cas réels (J7)", () => {
       expect(i.TaskComment).toEqual(["ANNULE"]);
     });
 
-    it("47. un courriel parti : impossible, avec le rectificatif à la place — jamais « annulé »", async () => {
-      const g = await geste(async () => {
+    it("47. un courriel parti (geste SANS fenêtre d'annulation) : impossible, avec le rectificatif à la place — jamais « annulé »", async () => {
+      const g = (await journaliserGeste(moi, { origine: "carte", libelle: "cas" }, async () => {
         await sendSmartEmail({ to: ["partenaire@exemple.dz"], subject: "Devis", text: "x" });
         return { ok: true };
-      });
+      }, { horsRequete: true, fenetre: false })).gesteId!;
       const r = await annuler(g);
       expect(r.details).toEqual([expect.objectContaining({ issue: "IMPOSSIBLE", aLaPlace: expect.stringMatching(/rectificatif/) })]);
       expect(r.complet).toBe(false);

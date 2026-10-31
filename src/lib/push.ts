@@ -2,6 +2,7 @@ import webpush from "web-push";
 import { prisma } from "./prisma";
 import { sortieAutorisee } from "@/lib/sortie/garde";
 import { noterEffetExterne } from "@/lib/effets/magasin";
+import { differerSiFenetre } from "@/lib/effets/fenetre";
 import { endpointPushAutorise } from "@/lib/notifications/endpoint-push";
 import { sansBloquer } from "@/lib/journal";
 
@@ -98,6 +99,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   // que le banc puisse dire ce qu'Adam aurait notifié.
   // LE PORT DE SIMULATION (J7) : un geste simulé note la notification et ne la pousse pas.
   if (noterEffetExterne({ acte: "NOTIFICATION_PUSH", cible: userId, apercu: payload.title, origine: "push:sendPushToUser" })) return;
+  // LA FENÊTRE D'ANNULATION (K10b, décision 0035) : sous un geste réversible, la poussée attend sa fenêtre.
+  if (await differerSiFenetre({ type: "push", acte: "NOTIFICATION_PUSH", cible: userId, apercu: payload.title, charge: { userId, payload } })) return;
   if (!sortieAutorisee("NOTIFICATION_PUSH", userId, { apercu: payload.title, origine: "push:sendPushToUser" })) return;
   if (!(await ensureVapid())) return;
   try {

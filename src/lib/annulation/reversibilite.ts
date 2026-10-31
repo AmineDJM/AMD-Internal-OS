@@ -186,3 +186,6 @@ export function natureDe(input: { action: string; module?: string | null; resume
   if (a === "DELETE") return "ENREGISTREMENT_SUPPRIME";
   return "CHAMP_MODIFIE";
 }
+
+// K10 (décision 0035) : les annulations DÉCLARÉES des actions que l'ERP a rendues réversibles — le port du registre.
+export { annulationDeclaree } from "@/lib/effets/declarations";
