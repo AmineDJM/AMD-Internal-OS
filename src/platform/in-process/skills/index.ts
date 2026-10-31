@@ -16,7 +16,7 @@ import {
   type ExecuteurCode, type ExecuteurHttp, type ExecuteurPlaybook, type SkillManifest, type SourceSkill,
 } from "@/lib/skills/manifest";
 import { lireChemin, remplir, trous } from "@/lib/skills/gabarit";
-import type { Attente, SchemaSortie } from "@/lib/sandbox/porte";
+import type { Attente, SchemaSortie } from "@/platform/ia/analyse/porte";
 import { executerJs, executerPython, passerLaPorte, sonderPython } from "@/platform/in-process/sandbox";
 import { reglesEnVigueurPour, sujetDe, type RegleVue } from "@/platform/ia/teach/store";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";

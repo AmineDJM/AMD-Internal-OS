@@ -19,7 +19,7 @@ dossier de J11 ([0030](0030-formulaires-dossiers.md)).
 > `carte-sous-missions.tsx`, `reglage-d-office.tsx`), `ecrans/app/{adventum-ia-app,tiroir,reglages}.tsx`,
 > `ecrans/assistant-workspace.tsx`, `ecrans/{depot-dossier.tsx,use-pieces.ts}` ; route SSE
 > `src/app/api/assistant-ia/missions/flux/route.ts` ; console `/admin/ai/acces`. Migration additive
-> `20270216120100_sous_missions`. Tâche de fond `assistant.sous-missions`. Bancs : `infra/sous-missions.test.ts`,
+> `20270216120000_sous_missions`. Tâche de fond `assistant.sous-missions`. Bancs : `infra/sous-missions.test.ts`,
 > `infra/travaux-un-plan-par-tour.test.ts`, `domaine/lecture/depot-dossier.test.ts`, `scripts/bench/k3-missions-ux.ts`.
 
 ## 1. Plusieurs sous-missions par tour — reformuler ≠ lancer une autre

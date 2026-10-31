@@ -3,10 +3,10 @@
 import React from "react";
 import dynamic from "next/dynamic";
 import { BookOpen, FileText, Sparkles, X } from "lucide-react";
-import type { PieceOuvrable } from "../pieces-jointes";
 import { useMissions } from "../missions/use-missions";
 import { BarreAvancement } from "../missions/tableau-missions";
 import { avancement, LIBELLE_MISSION, missionVivante } from "../../domaine/sous-missions";
+import type { PieceOuvrable } from "../pieces-jointes";
 
 /**
  * « MES NOTES » (décision 0026) — le même bloc-notes que dans l'ERP, chargé au premier affichage de l'onglet. L'app

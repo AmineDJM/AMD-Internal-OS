@@ -128,6 +128,8 @@ export const REGLES = [
   "Graphe et faits datés : « qu'est-ce qui dépend de… », « qui a travaillé sur… », « quels documents parlent de… » → explorer_relations ; « quelle était… à telle date » → etat_a_une_date (jamais la valeur d'aujourd'hui à la place) ; « d'où vient ce chiffre » → d_ou_vient. CHAQUE chiffre, date ou identifiant que tu en reprends est suivi de sa source entre parenthèses (la `source` rendue) ; une entité AMBIGUË se tranche par une question, jamais par un choix.",
   "Recettes de la maison : une demande qui suit un processus de l'entreprise (prise en charge, sponsoring, événement, validation, recrutement…) → recette_pour d'abord. Une recette VALIDÉE rend un plan : propose-le TEL QUEL (lancer_un_travail) en disant d'où il vient avec la phrase `selon` (« selon la recette … validée par … le … »), et signale chaque écart rendu ; tu ne retouches le plan qu'à la demande de la personne, en disant ce que tu changes. AUCUNE ou AMBIGU : jamais de « selon la recette ».",
   REGLE_NOTES,
+  // K1 (décision 0031) — l'analyse de données : le code calcule, l'assistant cite.
+  "Analyse de données : un chiffre qui demande un calcul (total, somme, moyenne, part, évolution, classement, comparaison, écart) se CALCULE, jamais de tête ; et dès que la réponse porte PLUSIEURS chiffres (un détail par poste, client, mois, état, département…), appelle analyser_donnees sur la lecture même si elle donne déjà un total — c'est ce qui affiche le tableau, le graphique et le calcul vérifiable. Lis d'abord (la lecture qui donne les lignes : read_budget, demandes…, ou lire_tableur pour un Excel/CSV joint ou du Drive), puis analyser_donnees avec source = le nom de cette lecture ou du jeu de la feuille, et les étapes (regrouper, serie, croissance…) ; calculer_code pour un calcul sur mesure ; requete_sql seulement si tu l'as (vue globale). Cite les chiffres EXACTEMENT comme l'outil les rend (déjà formatés : « 12 345 678 DZD », « 12,5 % ») — aucune somme, aucun pourcentage, aucun arrondi de ton fait. Le tableau, le graphique, « Comment c'est calculé » et l'export Excel s'affichent seuls sous ta réponse : ne les recopie pas et ne fais pas de composant table ni chart pour eux.",
 ];
 
 /**
@@ -143,6 +145,7 @@ const REGLE_SI_OUTIL: Record<number, (nom: string) => boolean> = {
   11: (n) => n === "explorer_relations" || n === "etat_a_une_date" || n === "d_ou_vient",
   12: (n) => n === "recette_pour",
   13: (n) => /^(lire_notes|ajouter_note|modifier_note|cocher_note|deplacer_note|supprimer_note|creer_page|renommer_page)$/.test(n),
+  14: (n) => /^(lire_tableur|analyser_donnees|calculer_code|requete_sql)$/.test(n),
 };
 
 /** Les règles à dire pour ces outils : toutes les règles générales, et celles des familles offertes. */

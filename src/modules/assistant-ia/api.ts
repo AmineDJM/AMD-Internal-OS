@@ -99,3 +99,5 @@ export {
 export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";
 // ── Les visuels (lot K2, décision 0032) : images, vidéos, vidéos de données — la tâche de fond, la carte, le média
 export { etatVisuel, etatVisuelsPourAdministration, fichierDuVisuel, traiterVisuelsEnFile } from "./infra/visuels/service";
+// ── L'analyse de données (K1, décision 0031) : le classeur Excel d'une analyse — export d'un clic, dépôt au Drive sur geste
+export { classeurDAnalyse, type ClasseurDemande } from "./infra/analyse/classeur";
