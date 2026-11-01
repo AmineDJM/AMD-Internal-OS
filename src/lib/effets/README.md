@@ -73,7 +73,7 @@ Le corps s'exécute sous le journal des effets (origine `ecran`) ; la barre « A
 (`modules/assistant-ia/ecrans/barre-annulation.tsx`) le propose une minute, l'historique de la fiche
 (`HistoriqueAnnulable modele="MailEntry" id=…`) le garde. Sous une carte de l'assistant, rien n'est ouvert en double.
 
-## Les actions métier réversibles — K10c (décision 0041)
+## Les actions métier réversibles — K10c (décision 0044)
 
 ```ts
 export async function decideValidation(formData: FormData) {

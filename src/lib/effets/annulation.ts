@@ -569,7 +569,7 @@ export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
   if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")} (il se rétablit).` };
-  // LES CASCADES, TOUT OU RIEN (K10b et K10c, décisions 0040 et 0041) : un geste d'ÉCRAN, ou une action métier déclarée
+  // LES CASCADES, TOUT OU RIEN (K10b et K10c, décisions 0040 et 0044) : un geste d'ÉCRAN, ou une action métier déclarée
   // sous sa politique, se défait EN ENTIER ou pas du tout. Si une de ses écritures ne se défait pas (l'ordre né de la
   // décision est déjà payé, quelqu'un a changé une valeur, un champ ne se remet qu'en partie…), défaire le reste
   // laisserait un état incohérent : rien n'est écrit, la liste dit pourquoi. Un effet EXTERNE impossible (une poussée

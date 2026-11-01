@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0038, 0040, 0041 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0038, 0040, 0044 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0035 : la consommation exacte en jetons et en dollars ; 0036 : pièces reçues par WhatsApp et par mail ; 0037 : exports de l'ERP, envoi d'un fichier, gestes d'écran ; 0038 : la voix orale, une carte confirmée à l'oral ; 0041 : actions métier réversibles, rétablir, fenêtre d'annulation).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0035 : la consommation exacte en jetons et en dollars ; 0036 : pièces reçues par WhatsApp et par mail ; 0037 : exports de l'ERP, envoi d'un fichier, gestes d'écran ; 0038 : la voix orale, une carte confirmée à l'oral ; 0044 : actions métier réversibles, rétablir, fenêtre d'annulation).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -191,7 +191,7 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   lister, aperçu, annuler un geste ou un lot — annulé / compensé / impossible / sans objet + pourquoi).
 - **Preuves** : `lib/effets/{simulation,ports,annulation}.test.ts` (50 cas réels), `infra/capacites-simulation.test.ts`.
 
-## Actions métier réversibles (lot K10c, décision 0041)
+## Actions métier réversibles (lot K10c, décision 0044)
 
 - Les réglages de ce module (`reglerMaReponseVocale`, `reglerMaConversationPrivee`, `reglerMaVeille`, `reglerMonVeilleur`,
   `reglerConsoleProactivite`, `reglerMaPreferenceDOffice`, `reglerPrioriteMonTravail`) enveloppent leur corps par

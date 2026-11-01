@@ -3,7 +3,7 @@
 ### K10c : LES ACTIONS MÉTIER RÉVERSIBLES (2026-10-31)
 
 Demande de la Direction : « toute action qui a été faite peut être réversible ». Lot K10c —
-`docs/assistant/decisions/0041-actions-reversibles-metiers.md` ; sur la fenêtre d'annulation de K10b (aucune migration propre).
+`docs/assistant/decisions/0044-actions-reversibles-metiers.md` ; sur la fenêtre d'annulation de K10b (aucune migration propre).
 Les 43 actions écrivantes encore classées « aucune » hors argent et communications (décisions de validation, décision
 finale d'un congrès, avances RH, pièces juridiques, matériel promo, fiches de voyage, réglages de l'Assistant IA, diffusion
 de notifications…) entrent au journal des effets au clic de l'écran et s'annulent d'un geste — bouton « Annuler » après

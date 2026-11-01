@@ -28,7 +28,7 @@ import { installerPortReseau } from "./reseau";
  */
 
 export interface MetaGesteAgent {
-  /** `ecran` (K10b, décision 0041) : le geste d'une personne à l'écran, rendu réversible (`gesteReversible`) ; `annulation` (K10c, décision 0041) : une annulation, journalisée pour être rétablie. */
+  /** `ecran` (K10b, décision 0044) : le geste d'une personne à l'écran, rendu réversible (`gesteReversible`) ; `annulation` (K10c, décision 0044) : une annulation, journalisée pour être rétablie. */
   origine: Extract<OrigineGeste, "carte" | "travail" | "mandat"> | "carte" | "travail" | "mandat" | "ecran" | "annulation";
   capaciteId?: string | null;
   libelle: string;

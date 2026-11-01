@@ -3,7 +3,7 @@ import { broadcastNotification, notifyUser } from "@/lib/notify";
 import type { ExecuteurEffetSortant } from "@/lib/effets/fenetre";
 
 /**
- * LA DIFFUSION DE NOTIFICATIONS DIFFÉRÉE (K10c, décision 0041) — l'exécuteur `notification.diffusion` de la fenêtre
+ * LA DIFFUSION DE NOTIFICATIONS DIFFÉRÉE (K10c, décision 0044) — l'exécuteur `notification.diffusion` de la fenêtre
  * d'annulation (K10b, `lib/effets/fenetre.ts`), pour `notification-actions:sendBroadcast`.
  *
  * La charge porte les destinataires FIXÉS au clic (le compte annoncé est celui qui partira), le contenu, et les

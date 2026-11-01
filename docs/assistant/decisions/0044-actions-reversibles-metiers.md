@@ -1,4 +1,4 @@
-# 0041 — Les actions métier réversibles (lot K10c, 31/10/2026)
+# 0044 — Les actions métier réversibles (lot K10c, 31/10/2026)
 
 Demande de la Direction (31/10/2026, verbatim) : « Je veux que toutes les actions soient réversibles. Même celles qui ne
 le sont pas : tu dois modifier l'ERP pour qu'elles le soient. Toute action qui a été faite peut être réversible. Ça doit
