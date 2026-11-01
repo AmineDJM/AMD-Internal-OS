@@ -1,0 +1,30 @@
+# ═══════════════════════════════════════════════════════════════════════════════════════════════
+# LE RELAIS CLAUDE CODE — service Render « claude-relais » (background worker), lot C2, décision 0043 § 3 bis.
+#
+# Node 22 + git + la CLI Claude Code PUBLIÉE par Anthropic, non modifiée, à une version ÉPINGLÉE (la changer ici, en
+# connaissance de cause : `npm view @anthropic-ai/claude-code version`). La connexion claude.ai n'est PAS dans l'image :
+# la Direction la fait elle-même dans le Shell du service (`claude auth login`), elle s'écrit sous CLAUDE_CONFIG_DIR
+# (disque persistant /var/data) et survit aux déploiements.
+#
+# L'image ne contient que le script du relais (Dockerfile.relais.dockerignore) : aucun code ni secret de l'ERP.
+# ═══════════════════════════════════════════════════════════════════════════════════════════════
+FROM node:22-bookworm-slim
+
+ARG CLAUDE_CODE_VERSION=2.1.316
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates \
+  && rm -rf /var/lib/apt/lists/* \
+  && npm install -g --no-audit --no-fund "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+  && npm cache clean --force \
+  && claude -v
+
+ENV NODE_ENV=production \
+    CLAUDE_CONFIG_DIR=/var/data/claude \
+    RELAIS_DOSSIER=/var/data/depots \
+    DISABLE_AUTOUPDATER=1
+
+WORKDIR /app
+COPY scripts/relais-claude.ts /app/relais-claude.ts
+
+CMD ["node", "--experimental-strip-types", "--no-warnings", "/app/relais-claude.ts"]

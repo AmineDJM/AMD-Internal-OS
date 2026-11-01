@@ -30,12 +30,12 @@ cela n'est lu par l'ERP.** Trois mécanismes officiels restent, derrière le mê
 |---|---|---|
 | `ROUTINE` | **Routines API** (abonnement, documentée, expérimentale) | **oui** |
 | `COMMENTAIRE_PR` | commentaire `@claude` sur une PR, traité par la GitHub Action `anthropics/claude-code-action` (secret `CLAUDE_CODE_OAUTH_TOKEN` **côté GitHub**, posé par la Direction) | oui, pour corriger dans le fil |
-| `CLI` | `claude --cloud` (créer) et `claude -p --cloud <id>` (parler à une session EXISTANTE) par un **relais** sur une machine de la Direction (§ 3 bis) | oui, pour garder le contexte d'une session |
+| `CLI` | `claude --cloud` (créer) et `claude -p --cloud <id>` (parler à une session EXISTANTE) par un **relais** dans le service Render `claude-relais` (§ 3 bis) | oui, pour garder le contexte d'une session |
 | Managed Agents | clé API Console, facturation API | **non** — option future, non codée (Direction, 01/11) |
 
 **Reprendre une session EXISTANTE de l'abonnement n'est pas possible depuis le SERVEUR** : seule la CLI connectée au
 compte claude.ai le fait, et y mettre les identifiants de la Direction est précisément ce qui est interdit. Deux voies :
-le **relais CLI** (§ 3 bis), qui fait tourner la CLI sur une machine de la Direction, connectée par elle — l'ERP ne voit
+le **relais CLI** (§ 3 bis), qui fait tourner la CLI dans un service Render à part (`claude-relais`), connectée par elle — l'ERP ne voit
 jamais ses identifiants ; ou la **branche et la PR** (nouveau lancement « reprends la branche X », commentaire `@claude`,
 auto-fix natif § 3 ter).
 
@@ -94,63 +94,60 @@ Vérifié le 01/11/2026 sur code.claude.com/docs/en/claude-code-on-the-web et /c
   relais le déclare ; l'écran affiche « connecté » seulement pour `claude.ai`. Le jeton `setup-token` n'est pas documenté
   pour `--cloud` : non utilisé.
 
-**Architecture** (conditions d'Anthropic : rien des identifiants claude.ai côté ERP) :
-- `scripts/relais-claude.ts` (Node ≥ 22.6, zéro dépendance) tourne sur l'ordinateur de la Direction ou une machine
-  qu'elle contrôle (PAS Render : disque éphémère, et ce serait le serveur). Il **tire** `GET /api/dev/relais/ordres`
-  (long-polling 25 s, battement : version de `claude`, `auth status`) avec SON jeton (`CLAUDE_RELAIS_TOKEN` côté ERP,
-  comparé par empreinte en temps constant ; sans jeton posé la route est fermée, 503), exécute **sans shell** (`spawn`,
-  arguments séparés, message sur l'entrée standard), garde une copie de travail par dépôt (`git clone` puis `fetch`,
-  branche réservée créée depuis la branche par défaut et **poussée** si absente), rend la sortie brute
-  (`POST`). Un ordre à la fois.
+**Architecture — le relais DANS LE CLOUD** (Direction, 01/11 : « le relais : dans le cloud ») :
+- Un **service Render à part**, `claude-relais` (background worker, `Dockerfile.relais` : Node 22 + git + la CLI
+  `@anthropic-ai/claude-code` publiée par Anthropic, **non modifiée**, version **épinglée** 2.1.316 ; l'image ne contient
+  que `scripts/relais-claude.ts`). **Disque persistant** `claude-relais-data` monté sur `/var/data` (render.com/docs/disks :
+  réservé aux offres payantes, persiste entre déploiements et redémarrages, une seule instance, pas de déploiement sans
+  coupure — sans gêne ici). `CLAUDE_CONFIG_DIR=/var/data/claude` : la doc d'Anthropic (Authentication › Credential
+  management) dit que `.credentials.json` vit alors SOUS ce dossier → la connexion survit aux déploiements. Copies de
+  travail sous `/var/data/depots`. Offre **starter** (0,5 CPU, 512 Mo — `0.5c-512mb` dans la nomenclature actuelle), la
+  plus petite offre payante d'un worker ; si la CLI manquait de mémoire : `standard`.
+- Le relais **n'a AUCUN accès à la base** (pas de `DATABASE_URL`) : il ne parle à l'ERP qu'en HTTPS avec son jeton.
+  Il tire `GET /api/dev/relais/ordres` (long-polling 25 s ; battement : version de `claude`, sortie de `claude auth status`),
+  exécute **sans shell** (`spawn`, arguments séparés, message sur l'entrée standard), garde une copie par dépôt (clone puis
+  `fetch` ; branche réservée créée depuis la branche par défaut et **poussée** si absente), rend la sortie brute (`POST`).
+  `GITHUB_TOKEN` n'est donné qu'à git, en en-tête HTTP par `GIT_CONFIG_*` (ni en argument, ni dans `.git/config`) ; ni lui
+  ni `CLAUDE_RELAIS_TOKEN` ne sont transmis à `claude`.
+- **Conformité** (code.claude.com/docs/en/legal-and-compliance) : sont interdits la collecte, le stockage ou
+  l'intermédiation des identifiants claude.ai par un développeur, et le routage de requêtes par l'abonnement « pour le
+  compte de ses utilisateurs ». La même page dit que cela « n'empêche pas un utilisateur final de se connecter au binaire
+  Claude Code non modifié avec son propre abonnement, y compris là où une plateforme héberge Claude Code ». Ici : c'est la
+  Direction qui se connecte, par le flux d'Anthropic, au binaire non modifié, pour SON usage ; l'ERP ne voit, ne stocke ni
+  ne relaie jamais l'identifiant (il reste dans le fichier de la CLI, sur le disque du relais). Point d'attention, à
+  garder en tête : les limites de l'abonnement « supposent un usage ordinaire, individuel » — les chantiers restent bornés
+  (quotas, budgets, anti-boucle).
 - Côté ERP : file `ClaudeRelaisOrdre` (migration `20270218200100_chantiers_relais_cli`) — idempotence par clé (`ECHEC`
   re-lançable, `INCERTAIN` bloqué), `EN_ATTENTE → EN_COURS → FAIT | ECHEC | INCERTAIN`, `EN_COURS` sans résultat depuis
   20 min → `INCERTAIN`, jamais tiré depuis 1 h → `ECHEC` ; texte effacé une fois conclu. La conclusion inscrit
   `DEV_SESSION` (références `ORDRE:`, `SESSION:`, `missionId` de l'ordre → réveil de SA mission). Battement :
   `ClaudeRelaisEtat`. Le port gagne `lancerParCli`, `envoyerMessage`, `ordreCli`, `relais()` ; un ordre est refusé
-  (`INDISPONIBLE`) si le relais n'a pas tiré depuis 2 min. Écrit au journal des effets J7.
+  (`INDISPONIBLE`) si le relais n'a pas tiré depuis 2 min OU s'il n'est pas connecté à claude.ai. Écrit au journal J7.
+- **Connexion perdue** (expirée, déconnectée) : le relais le déclare (`claude auth status` relu chaque minute tant que
+  c'est « non ») ; l'ERP ne lui donne plus aucun ordre, **les ordres en file ATTENDENT** (échéance repoussée), le Super
+  Admin reçoit UNE notification (« Relais Claude Code : connexion claude.ai perdue », lien Administration › Développement),
+  et la carte de l'écran dit quoi faire. La doc d'Anthropic : avertissement 3 jours avant l'expiration, `/login` pour
+  renouveler.
 
-**Installation (par la Direction, une fois)** :
-1. Sur la machine : Node ≥ 22.6, `git` (accès en écriture aux dépôts : identifiants git de la Direction), Claude Code
-   (`claude`), puis **`claude auth login`** avec le compte claude.ai (et l'app GitHub Claude installée sur les dépôts).
-2. Sur Render (ERP) : `CLAUDE_RELAIS_TOKEN` = une valeur aléatoire ≥ 24 caractères (`openssl rand -hex 32`).
-3. Copier `scripts/relais-claude.ts` sur la machine (ex. `~/adventum/relais-claude.ts`).
-4. **macOS (launchd)** — `~/Library/LaunchAgents/com.adventum.relais-claude.plist` :
-   ```xml
-   <?xml version="1.0" encoding="UTF-8"?>
-   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-   <plist version="1.0"><dict>
-     <key>Label</key><string>com.adventum.relais-claude</string>
-     <key>ProgramArguments</key><array>
-       <string>/opt/homebrew/bin/node</string><string>--experimental-strip-types</string>
-       <string>/Users/VOUS/adventum/relais-claude.ts</string></array>
-     <key>EnvironmentVariables</key><dict>
-       <key>RELAIS_ERP_URL</key><string>https://amd-internal-os-k3uc.onrender.com</string>
-       <key>RELAIS_JETON</key><string>(la valeur de CLAUDE_RELAIS_TOKEN)</string>
-       <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
-     <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
-     <key>StandardOutPath</key><string>/tmp/relais-claude.log</string>
-     <key>StandardErrorPath</key><string>/tmp/relais-claude.log</string>
-   </dict></plist>
-   ```
-   puis `launchctl load ~/Library/LaunchAgents/com.adventum.relais-claude.plist`. (Chemin de `node` : `which node`.)
-5. **Linux (systemd, service utilisateur)** — `~/.config/systemd/user/relais-claude.service` :
-   ```ini
-   [Unit]
-   Description=Relais Claude Code d'Adventum
-   After=network-online.target
-   [Service]
-   Environment=RELAIS_ERP_URL=https://amd-internal-os-k3uc.onrender.com
-   EnvironmentFile=%h/.config/relais-claude.env
-   ExecStart=/usr/bin/node --experimental-strip-types %h/adventum/relais-claude.ts
-   Restart=always
-   RestartSec=10
-   [Install]
-   WantedBy=default.target
-   ```
-   avec `~/.config/relais-claude.env` (droits 600) contenant `RELAIS_JETON=…`, puis `systemctl --user enable --now
-   relais-claude` et `loginctl enable-linger $USER` (pour qu'il tourne sans session ouverte).
-6. Vérifier : Administration › Développement → carte « relais CLI » : vu il y a quelques secondes, version, connexion
-   claude.ai « oui ».
+**Mise en service — pas à pas, par la Direction (une fois)** :
+1. **Blueprint › Sync** (à la main) : Render crée le service `claude-relais` et son disque (starter + disque de 1 Go).
+2. Générer un jeton : `openssl rand -hex 32` (ou tout générateur de 64 caractères).
+3. **amd-internal-os › Environment** : ajouter `CLAUDE_RELAIS_TOKEN` = ce jeton. Enregistrer (redéploiement de l'ERP).
+4. **claude-relais › Environment** : `CLAUDE_RELAIS_TOKEN` = le MÊME jeton ; `GITHUB_TOKEN` = un jeton fine-grained de la
+   Direction (Contents R/W sur les dépôts des chantiers). `ERP_URL`, `CLAUDE_CONFIG_DIR`, `RELAIS_DOSSIER` viennent du
+   Blueprint. (Un Blueprint existant ignore les `sync: false` : ces valeurs se posent ici à la main.)
+5. **claude-relais › Shell** : taper `claude auth login`. La CLI affiche une URL (touche `c` pour la copier) : l'ouvrir sur
+   son ordinateur, se connecter avec le compte claude.ai de l'abonnement, puis coller le code affiché au prompt
+   `Paste code here if prompted`. « Login successful ». Vérifier : `claude auth status` → `"authMethod": "claude.ai"`.
+6. **Administration › Développement**, carte « relais CLI » : vu il y a quelques secondes, `claude 2.1.316`, « relais
+   connecté à claude.ai : oui ».
+7. (Une fois) installer l'app GitHub Claude sur les dépôts des chantiers (https://github.com/apps/claude) : nécessaire à
+   `claude --cloud` (clone depuis GitHub) et à l'auto-fix.
+Changer de version de la CLI : `ARG CLAUDE_CODE_VERSION` dans `Dockerfile.relais`, puis déploiement (la connexion reste).
+Révoquer : claude-relais › Shell › `claude auth logout` (ou suspendre le service).
+
+Variante locale (non retenue, gardée) : le même script tourne sur une machine de la Direction (`node
+--experimental-strip-types scripts/relais-claude.ts` avec `ERP_URL`, `CLAUDE_RELAIS_TOKEN`, `GITHUB_TOKEN`).
 
 ## 3 ter. L'auto-fix natif des PR
 Même page de la doc : avec l'**app GitHub Claude installée sur le dépôt**, une session cloud surveille SA PR (CI rouge,

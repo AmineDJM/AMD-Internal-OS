@@ -1,24 +1,26 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE RELAIS CLAUDE CODE — à faire tourner sur UNE MACHINE DE LA DIRECTION (lot C2, décision 0043 § 3 bis).
+ * LE RELAIS CLAUDE CODE (lot C2, décision 0043 § 3 bis) — un SERVICE RENDER à part (`claude-relais`, background worker,
+ * `Dockerfile.relais`, disque persistant `/var/data`), décision de la Direction du 01/11 : « le relais : dans le cloud ».
  *
- * Il TIRE les ordres de l'ERP (HTTPS, son propre jeton), exécute la CLI `claude` connectée au compte claude.ai de la
- * Direction (`claude auth login`, fait par elle, sur cette machine), et rend la sortie BRUTE. Les identifiants claude.ai
- * ne quittent jamais cette machine ; l'ERP ne les voit pas.
+ * Il TIRE les ordres de l'ERP (HTTPS, son propre jeton), exécute la CLI `claude` NON MODIFIÉE à laquelle la Direction
+ * s'est connectée ELLE-MÊME (Render › claude-relais › Shell › `claude auth login` : flux d'Anthropic, URL à ouvrir et
+ * code à coller), et rend la sortie BRUTE. L'identifiant claude.ai reste dans `CLAUDE_CONFIG_DIR/.credentials.json` sur
+ * le disque de CE service ; l'ERP ne le voit jamais, et le relais n'a aucun accès à la base de l'ERP.
  *
- *   node --experimental-strip-types scripts/relais-claude.ts      (Node ≥ 22.6, aucune dépendance)
- *   npx tsx scripts/relais-claude.ts                              (équivalent, depuis une copie du dépôt de l'ERP)
+ *   node --experimental-strip-types scripts/relais-claude.ts      (Node ≥ 22.6, aucune dépendance — c'est le CMD de l'image)
  *
- * Variables : RELAIS_ERP_URL (ex. https://amd-internal-os-k3uc.onrender.com), RELAIS_JETON (= CLAUDE_RELAIS_TOKEN de
- * l'ERP), RELAIS_DOSSIER (où garder une copie de travail par dépôt ; défaut ~/.adventum-relais), RELAIS_CLAUDE (chemin
- * de `claude` ; défaut « claude »), RELAIS_GIT (défaut « git »).
+ * Variables : ERP_URL (ou RELAIS_ERP_URL), CLAUDE_RELAIS_TOKEN (ou RELAIS_JETON) — le même que celui de l'ERP —,
+ * GITHUB_TOKEN (cloner et POUSSER la branche réservée : passé à git par variables d'environnement, jamais en argument),
+ * RELAIS_DOSSIER (copies de travail ; `/var/data/depots` sur Render), CLAUDE_CONFIG_DIR (`/var/data/claude` : la
+ * connexion survit aux déploiements), RELAIS_CLAUDE (défaut « claude »), RELAIS_GIT (défaut « git »).
  *
  *   CREER    copie du dépôt (clone au premier ordre, puis `git fetch`), branche réservée créée depuis la branche par défaut
  *            si elle n'existe pas sur GitHub et POUSSÉE (le VM clone la branche du dépôt GitHub, pas la copie locale),
  *            puis `claude --cloud "<consigne>"`.
  *   MESSAGE  `claude -p --cloud <session-id> --output-format json`, consigne sur l'entrée standard.
  *
- * Jamais de shell : `spawn` avec des arguments. Un ordre à la fois. Rien n'est journalisé du texte des consignes.
+ * Jamais de shell : `spawn` avec des arguments. Un ordre à la fois. Rien n'est journalisé du texte des consignes ni d'un jeton.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { spawn } from "node:child_process";
@@ -26,11 +28,14 @@ import { existsSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-const ERP = (process.env.RELAIS_ERP_URL ?? "").replace(/\/+$/, "");
-const JETON = process.env.RELAIS_JETON ?? "";
+const ERP = (process.env.ERP_URL ?? process.env.RELAIS_ERP_URL ?? "").replace(/\/+$/, "");
+const JETON = process.env.CLAUDE_RELAIS_TOKEN ?? process.env.RELAIS_JETON ?? "";
+const JETON_GITHUB = process.env.GITHUB_TOKEN ?? "";
 const DOSSIER = process.env.RELAIS_DOSSIER ?? join(homedir(), ".adventum-relais");
 const CLAUDE = process.env.RELAIS_CLAUDE ?? "claude";
 const GIT = process.env.RELAIS_GIT ?? "git";
+/** L'hôte des dépôts (les bancs passent un dépôt nu local `file://…`). */
+const BASE_GIT = (process.env.RELAIS_GIT_BASE ?? "https://github.com").replace(/\/+$/, "");
 const DELAI_CLAUDE_MS = 10 * 60_000;
 const DELAI_GIT_MS = 5 * 60_000;
 const MAX_SORTIE = 8_000;
@@ -42,9 +47,24 @@ const log = (m: string) => console.log(`[${new Date().toISOString()}] ${m}`);
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Une commande SANS shell, avec délai ; l'entrée standard optionnelle porte le texte. */
+/** L'environnement d'un enfant : JAMAIS le jeton du relais ; le jeton GitHub seulement pour git, en en-tête HTTP. */
+function environnement(pourGit: boolean): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_TERMINAL_PROMPT: "0" };
+  delete env.CLAUDE_RELAIS_TOKEN;
+  delete env.RELAIS_JETON;
+  delete env.GITHUB_TOKEN;
+  if (pourGit && JETON_GITHUB) {
+    // `GIT_CONFIG_*` (git ≥ 2.31) : l'en-tête n'apparaît ni dans les arguments (visibles par `ps`) ni dans `.git/config`.
+    env.GIT_CONFIG_COUNT = "1";
+    env.GIT_CONFIG_KEY_0 = "http.https://github.com/.extraheader";
+    env.GIT_CONFIG_VALUE_0 = `AUTHORIZATION: basic ${Buffer.from(`x-access-token:${JETON_GITHUB}`).toString("base64")}`;
+  }
+  return env;
+}
+
 function executer(cmd: string, args: string[], opts: { cwd?: string; entree?: string; delaiMs: number }): Promise<Issue> {
   return new Promise((ok) => {
-    const p = spawn(cmd, args, { cwd: opts.cwd, stdio: ["pipe", "pipe", "pipe"], shell: false, env: process.env });
+    const p = spawn(cmd, args, { cwd: opts.cwd, stdio: ["pipe", "pipe", "pipe"], shell: false, env: environnement(cmd === GIT) });
     let stdout = "";
     let stderr = "";
     let delaiDepasse = false;
@@ -70,7 +90,7 @@ const BRANCHE_RE = /^[A-Za-z0-9._/-]{1,200}$/;
 async function preparer(depot: string, branche: string): Promise<string> {
   if (!DEPOT_RE.test(depot) || !BRANCHE_RE.test(branche) || branche.startsWith("-") || branche.includes("..")) throw new Error("dépôt ou branche invalide");
   const copie = join(DOSSIER, depot.replace("/", "__"));
-  if (!existsSync(copie)) { mkdirSync(DOSSIER, { recursive: true }); await git(["clone", `https://github.com/${depot}.git`, copie]); }
+  if (!existsSync(copie)) { mkdirSync(DOSSIER, { recursive: true }); await git(["clone", `${BASE_GIT}/${depot}.git`, copie]); }
   await git(["fetch", "--prune", "origin"], copie);
   const distantes = await git(["branch", "-r", "--list", `origin/${branche}`], copie);
   if (distantes) {
@@ -109,16 +129,21 @@ async function appelErp(methode: "GET" | "POST", chemin: string, corps?: unknown
 }
 
 async function main() {
-  if (!/^https?:\/\//.test(ERP) || JETON.length < 24) { console.error("RELAIS_ERP_URL et RELAIS_JETON (≥ 24 caractères) sont requis"); process.exit(2); }
+  if (!/^https?:\/\//.test(ERP) || JETON.length < 24) { console.error("ERP_URL et CLAUDE_RELAIS_TOKEN (≥ 24 caractères) sont requis"); process.exit(2); }
+  mkdirSync(DOSSIER, { recursive: true });
+  if (process.env.CLAUDE_CONFIG_DIR) mkdirSync(process.env.CLAUDE_CONFIG_DIR, { recursive: true });
   let etat = { version: null as string | null, authStatus: null as string | null, authCode: null as number | null };
   let etatLu = 0;
   log(`relais démarré → ${ERP}`);
   for (let pause = 1_000; ; ) {
     try {
-      if (Date.now() - etatLu > 10 * 60_000) {
+      // L'état de connexion se relit toutes les 10 min — toutes les minutes tant que `claude auth status` dit « non ».
+      if (Date.now() - etatLu > (etat.authCode === 0 ? 10 * 60_000 : 60_000)) {
         const v = await executer(CLAUDE, ["-v"], { delaiMs: 30_000 });
         const a = await executer(CLAUDE, ["auth", "status"], { delaiMs: 30_000 });
+        const avant = etatLu === 0 ? undefined : etat.authCode;
         etat = { version: v.stdout.trim().slice(0, 80) || null, authStatus: a.stdout.trim().slice(0, 2_000) || null, authCode: a.code };
+        if (a.code !== avant) log(`claude ${etat.version ?? "?"} — connexion claude.ai : ${a.code === 0 ? "oui" : "NON : Render › claude-relais › Shell › claude auth login"}`);
         etatLu = Date.now();
       }
       const q = new URLSearchParams({ version: etat.version ?? "", authCode: etat.authCode === null ? "" : String(etat.authCode), authStatus: etat.authStatus ?? "" });

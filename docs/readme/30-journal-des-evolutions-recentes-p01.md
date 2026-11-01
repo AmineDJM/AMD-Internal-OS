@@ -79,8 +79,8 @@ SDK : **Routines API** (`/v1/claude_code/routines/{trig}/fire`, vérifiée le 01
 journaux, NOMS des variables, `autoDeployTrigger` ; la synchro Blueprint ne se déclenche pas par API). **Webhooks signés**
 `/api/chantiers/webhooks/{github,render}` (HMAC GitHub, Standard Webhooks Render) → `BusinessEvent` `DEV_*`/`RENDER_*`
 exactement une fois (même clé pour le sondage de secours à pas croissant). Écran **Administration › Développement**
-(sondes en lecture seule, MiMo `GET /models`). **Relais CLI** (Direction, 01/11) : `scripts/relais-claude.ts` sur une
-machine de la Direction tire les ordres (`/api/dev/relais/ordres`) et exécute `claude --cloud` / `claude -p --cloud <id>`
+(sondes en lecture seule, MiMo `GET /models`). **Relais CLI** (Direction, 01/11 : « dans le cloud ») : service Render `claude-relais` (worker Docker,
+disque `/var/data`, connexion claude.ai faite une fois par la Direction dans son Shell) — `scripts/relais-claude.ts` tire les ordres (`/api/dev/relais/ordres`) et exécute `claude --cloud` / `claude -p --cloud <id>`
 (parler à une session existante) ; file `ClaudeRelaisOrdre`. Auto-fix natif demandé dans la consigne. Managed Agents :
 option future. Aucun identifiant claude.ai sur le serveur. Migrations additives
 `20270218200000_chantiers_connecteurs`, `20270218200100_chantiers_relais_cli`. Banc réel `scripts/bench/chantiers-reel.ts` (dépôt et service de test seulement).
