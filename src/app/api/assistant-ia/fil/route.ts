@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { idsDriveCites, lireFil, piecesCitees, propositionsParIds, souvenirsParIds, type MemoireRetenue, type PropositionNote } from "@/modules/assistant-ia/api";
+import {
+  idsDriveCites, lireFil, orchestrationDuFil, piecesCitees, propositionsParIds, souvenirsParIds, type MemoireRetenue, type PropositionNote,
+} from "@/modules/assistant-ia/api";
 import { getCurrentUser } from "@/lib/session";
 import { enVueExacte, refusAssistantIA, SANS_CACHE } from "../personne";
 
@@ -45,9 +47,12 @@ export async function GET(req: Request) {
       return { id: m.id, sorte: e?.sorte ?? m.sorte, contenu: e?.contenu ?? m.contenu, geste: m.geste === "remplace" ? "remplace" : "ajoute", annule: !e?.actif };
     }) : null;
   };
+  // O1 (décision 0046) : la question de l'agenda qui attend, les réponses tenues, l'avancement du travail long.
+  const orchestration = await orchestrationDuFil(user.id, fil.conversation.id);
   return NextResponse.json({
     vueExacte: false,
     enCours: fil.enCours,
+    orchestration,
     reponseVocale: fil.reponseVocale,
     conversation: fil.conversation,
     tours: fil.tours.map((t) => ({

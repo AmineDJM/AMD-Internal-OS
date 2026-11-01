@@ -1035,6 +1035,8 @@ model AssistantIaFil {
   depuisLe      DateTime            @default(now())
   /// Prise du fil : un seul passage joue ses messages à la fois (reprise si elle est perdue).
   traitementLe  DateTime?
+  /// O1 (décision 0046) : prise de la VOIE PARALLÈLE — une autre demande jouée pendant qu'un travail long tient le fil.
+  paralleleLe   DateTime?
   /// Option « réponse vocale » (28/10/2026) : chaque réponse est AUSSI lue à voix haute (synthèse OpenAI).
   reponseVocale Boolean             @default(false)
   /// J4 (décision 0018) : le RÉSUMÉ ROULANT des échanges sortis de la fenêtre mot pour mot — jamais une valeur sensible.
@@ -1173,6 +1175,8 @@ model AssistantIaTour {
   memoireEtat     String?
   /// K3 : un tour de SYNTHÈSE dit la fin des sous-missions de ce tour-là (unique : une seule synthèse par tour).
   syntheseDe      String?        @unique
+  /// O1 (décision 0046) : déposé pendant un travail LONG, c'est une autre demande — jouée dans la voie parallèle.
+  parallele       Boolean        @default(false)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -18914,6 +18918,34 @@ model AssistantIaVoixTravail {
 
   @@index([userId, creeLe])
   @@index([session])
+}
+
+/// L'AGENDA DE CONVERSATION D'UN TRAVAIL (lot O1, décision 0046) — ce qui se dit pendant qu'il tourne : une PRÉCISION
+/// qui change le résultat (`format`, `periode`, `detail`), l'ÉTAPE SUIVANTE (`destinataire`), un résultat PARTIEL
+/// (`partiel:<mission>`). Dérivé de la demande, sans modèle ; posé une fois (`A_POSER` → `POSEE` → `REPONDUE`), ou
+/// `SANS_OBJET` quand le résultat est arrivé avant ; `DIT` pour un partiel. `change` : la réponse a été transmise au travail.
+model AssistantIaAgenda {
+  id              String    @id @default(cuid())
+  userId          String
+  filId           String
+  /// Le message de la personne (tour `user`) qui porte le travail.
+  tourId          String
+  cle             String
+  nature          String
+  question        String    @db.Text
+  choix           Json?
+  etat            String    @default("A_POSER")
+  reponse         String?
+  change          Boolean   @default(false)
+  /// Le message de précision déposé pour l'appliquer (relance ciblée), s'il y en a un.
+  precisionTourId String?
+  poseeLe         DateTime?
+  repondueLe      DateTime?
+  creeLe          DateTime  @default(now())
+
+  @@unique([tourId, cle])
+  @@index([filId, etat])
+  @@index([userId, creeLe])
 }
 
 /// LA RÉSERVATION D'UNE RESSOURCE PAR UN CHANTIER (lot C1, décision 0042) — atomique par la contrainte d'unicité de `cle` :

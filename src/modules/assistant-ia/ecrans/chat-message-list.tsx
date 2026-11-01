@@ -16,6 +16,8 @@ import type { VueSimulation } from "../domaine/simulation";
 import type { FormulaireCarte } from "@/platform/ia/capacites/formulaire";
 import type { PropositionNote } from "../domaine/notes/gestes";
 import { WorkspaceBlocks } from "@/platform/ia/ecrans/blocks";
+import { precisionAffichee, type OrchestrationFil } from "../domaine/conversation/agenda";
+import { AvancementTravail, QuestionAgenda, ResultatTenu } from "./orchestration-fil";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
 export interface ChatMessage {
@@ -86,6 +88,9 @@ export interface ChatMessageListProps {
    * ChatGPT, aux couleurs du thème `app/theme.css`). Le contenu, les cartes et les règles sont les mêmes.
    */
   apparence?: "erp" | "app";
+  /** O1 (décision 0046) : la question de l'agenda, les réponses tenues, l'avancement — et répondre d'un toucher. */
+  orchestration?: OrchestrationFil | null;
+  onRepondre?: (texte: string) => void;
 }
 
 /** Les classes qui changent d'une apparence à l'autre — rien d'autre ne change. */
@@ -104,8 +109,12 @@ const STYLES = {
   },
 } as const;
 
-export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece, onOuvrirNotes, onSuivreMissions, apparence = "erp" }: ChatMessageListProps) {
+export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece, onOuvrirNotes, onSuivreMissions, apparence = "erp", orchestration, onRepondre }: ChatMessageListProps) {
   const st = STYLES[apparence];
+  // O1 : une réponse tenue (sa question attend) s'affiche d'un geste — « voir maintenant ».
+  const [vus, setVus] = useState<string[]>([]);
+  const tenus = new Set((orchestration?.tenus ?? []).filter((id) => !vus.includes(id)));
+  const ajustes = new Map((orchestration?.ajustes ?? []).map((a) => [a.reponseId, a.valeur]));
   // LE FIL SUIT LA RÉPONSE… SEULEMENT SI LA PERSONNE EST EN BAS (Direction, 31/10/2026 : « quand je suis en haut, au
   // bout de quelques secondes ça redescend »). Le fil se relit toutes les 0,9 à 15 s : chaque relecture ramenait en bas,
   // même sans rien de neuf. On ne réagit qu'à un VRAI changement (un message de plus, un texte qui s'écrit, un état) ;
@@ -155,6 +164,15 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
 
       {messages.map((m) => {
         const isUser = m.role === "user";
+        // O1 : une précision transmise au travail se montre en une ligne discrète, pas comme une demande.
+        const precision = isUser ? precisionAffichee(m.content) : null;
+        if (precision != null) {
+          return (
+            <p key={m.id} className="text-right text-[11px] text-slate-500 dark:text-zinc-400" data-testid="precision-transmise">
+              Précision transmise au travail en cours : {precision}
+            </p>
+          );
+        }
         if (isUser) {
           return (
             <div key={m.id} className="flex items-start justify-end gap-3">
@@ -215,13 +233,20 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                   <span className="truncate">{m.outilsAppeles.join(" · ")}</span>
                 </div>
               )}
+              {tenus.has(m.id) ? <ResultatTenu onVoir={() => setVus((v) => [...v, m.id])} /> : (
               <div data-glass={apparence === "erp" ? "true" : undefined} data-testid="reponse" className={st.reponse}>
+                {ajustes.has(m.id) && (
+                  <p className="mb-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-400" data-testid="reponse-ajustee">
+                    Version d&apos;avant ta précision ({ajustes.get(m.id)}) — la version ajustée suit.
+                  </p>
+                )}
                 {m.etat === "redaction" && (
                   <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-zinc-400">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     {m.content ? "Rédaction…" : m.outilsAppeles?.length ? "Je consulte vos données…" : "Je réfléchis…"}
                   </div>
                 )}
+                {orchestration?.avancement?.reponseId === m.id && <AvancementTravail texte={orchestration.avancement.texte} />}
                 {m.audio && (m.audio.id ? (
                   <div className="mb-2 flex flex-col gap-1">
                     <BulleVocale id={m.audio.id} dureeS={m.audio.dureeS} libelle="la réponse vocale" />
@@ -272,10 +297,14 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                   </div>
                 )}
               </div>
+              )}
             </div>
           </div>
         );
       })}
+
+      {/* O1 : la question utile de l'agenda — la dernière chose du fil, jamais recouverte par un résultat. */}
+      {orchestration?.question && onRepondre && <QuestionAgenda question={orchestration.question} onRepondre={onRepondre} />}
 
       {/* Indicateur de traitement épuré */}
       {isLoading && (

@@ -10,6 +10,9 @@ import { annulerMissionEtSousMissions } from "../sous-missions";
 import { listerTravaux, pauserTravail, PERSONA_ASSISTANT_IA, reprendreMonTravail } from "../travaux";
 import { carteOraleEnAttente, direLaCarte, ouvrirCarteOrale, traiterParoleSurCarte } from "./carte-orale";
 import { deposerMessage, ETAT, traiterFil } from "../fil/service";
+import type { ElementAgenda } from "@/platform/ia/conversation/orchestrateur";
+import { accuseDeReponse, estNouvelleDemande } from "../../domaine/conversation/agenda";
+import { avancementDuTravail, elementOuvert, ouvrirAgenda, partielsDuTravail, repondreElement, transmettrePrecision, transmettreSiPret, versElement } from "../orchestration/agenda";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -48,10 +51,19 @@ export interface RetourOral {
   /** Une commande que le navigateur applique lui-même (« stop » : couper la parole ; « plus court »). */
   commande?: "stop" | "plus_court";
   ecran?: string | null;
+  // ── O1 (décision 0046) : ce que l'orchestrateur du navigateur lit pour enchaîner sans couper ni attendre.
+  /** Ce que la voix va dire POSE une question (carte orale, « laquelle ? ») : rien ne s'y colle. */
+  questionPosee?: boolean;
+  /** C'était la réponse à cet élément d'agenda. */
+  repondA?: string;
+  /** La réponse a changé ce travail : son résultat en attente est caduc ; `nouveau` : le travail ajusté qu'on suit. */
+  change?: { travail: string; nouveau?: string };
+  /** Un travail est né : son agenda (précisions qui changent le résultat, étape suivante), dérivé de la demande. */
+  lance?: { id: string; agenda: ElementAgenda[] };
 }
 
 export type SuiviOral =
-  | { etat: "en_cours"; etapes: string[] }
+  | { etat: "en_cours"; etapes: string[]; agenda?: ElementAgenda[]; avancement?: string | null }
   | ({ etat: "pret" } & RetourOral)
   | { etat: "echec"; pourVoix: string }
   | { etat: "remplace"; par: string }
@@ -89,18 +101,29 @@ const HORS_SESSION: RetourOral = { pourVoix: "La session vocale n'est plus recon
 
 // ─── LE TRAVAIL DÉLÉGUÉ, ASYNCHRONE ────────────────────────────────────────────────────────
 
-const LANCE = "Le travail est lancé, il n'y a pas encore de résultat. Dis en quelques mots que tu regardes et que tu préviens dès que c'est prêt, puis pose UNE question courte pour affiner (la période, le but, le périmètre). N'invente aucun résultat.";
+/**
+ * O1 (décision 0046) : plus de « pose une question pour affiner » laissée au hasard du modèle vocal — la question utile,
+ * s'il y en a une, vient de l'AGENDA du travail (dérivé de la demande) et l'orchestrateur la colle à cet accusé.
+ */
+const LANCE = "Le travail est lancé, il n'y a pas encore de résultat. Dis en quelques mots que tu regardes et que tu préviens dès que c'est prêt. N'invente aucun résultat et ne pose pas de question de toi-même.";
 
-async function lancerTravail(user: CurrentUser, session: { id: string; conversation: string | null }, demande: string, delegationId: string | null, carte: { titre: string } | null): Promise<RetourOral> {
+/** Les éléments d'agenda d'un travail vocal — rattachés au TRAVAIL suivi par le navigateur (pas au message). */
+const pourTravail = (travail: string, xs: ElementAgenda[]): ElementAgenda[] => xs.map((x) => ({ ...x, travail }));
+
+async function lancerTravail(user: CurrentUser, session: { id: string; conversation: string | null }, demande: string, delegationId: string | null, carte: { titre: string } | null, parallele = false): Promise<RetourOral> {
   // K4 : une carte orale attend — la parole la complète ou la corrige (rien ne s'exécute dans ce tour).
   const entete = carte
     ? `${PREFIXE_VOCAL.slice(0, -1)} — carte en attente « ${carte.titre} » : la personne la complète ou la corrige (corriger_carte, ou l'outil preparer_* rappelé avec toutes les valeurs) ; rien ne s'exécute]`
     : PREFIXE_VOCAL;
-  const d = await deposerMessage(user.id, `${entete} ${demande}`.slice(0, 8_000), [], null, session.conversation);
+  const d = await deposerMessage(user.id, `${entete} ${demande}`.slice(0, 8_000), [], null, session.conversation, { parallele });
   if (!d.ok) return { pourVoix: d.erreur };
   void traiterFil(user.id, d.conversation);
   const w = await prisma.assistantIaVoixTravail.create({ data: { userId: user.id, session: session.id, delegationId, conversation: d.conversation, tourId: d.tour.id } });
-  return { travail: w.id, pourVoix: LANCE };
+  const agenda = carte ? [] : (await ouvrirAgenda(user.id, d.conversation, d.tour.id, demande)).map(versElement);
+  return {
+    travail: w.id, lance: { id: w.id, agenda: pourTravail(w.id, agenda) },
+    pourVoix: parallele ? `${LANCE} C'est une deuxième demande, menée en parallèle de la première : dis-le en trois mots.` : LANCE,
+  };
 }
 
 /**
@@ -112,22 +135,40 @@ async function lancerTravail(user: CurrentUser, session: { id: string; conversat
  * garde ce qui a été trouvé, et la voix n'annonce que la réponse à jour.)
  */
 async function preciser(user: CurrentUser, w: { id: string; tourId: string; conversation: string; session: string }, texte: string, delegationId: string | null): Promise<RetourOral> {
-  const tour = await prisma.assistantIaTour.findUnique({ where: { id: w.tourId }, select: { contenu: true, etat: true } });
-  if (tour?.etat === ETAT.ATTENTE) {
-    const n = await prisma.assistantIaTour.updateMany({ where: { id: w.tourId, etat: ETAT.ATTENTE }, data: { contenu: `${tour.contenu}\n${PREFIXE_PRECISION} ${texte}`.slice(0, 8_000) } });
-    if (n.count === 1) {
-      await prisma.assistantIaVoixTravail.update({ where: { id: w.id }, data: { delegationId } });
-      return { travail: w.id, pourVoix: "La précision est ajoutée à la demande, qui n'avait pas encore commencé. Dis-le en trois mots, sans résultat inventé." };
-    }
+  const t = await transmettrePrecision(user.id, w.tourId, texte, PREFIXE_PRECISION);
+  if (!t.ok) return { pourVoix: t.erreur };
+  if (t.mode === "ajoutee") {
+    await prisma.assistantIaVoixTravail.update({ where: { id: w.id }, data: { delegationId } });
+    return { travail: w.id, pourVoix: "La précision est ajoutée à la demande, qui n'avait pas encore commencé. Dis-le en trois mots, sans résultat inventé." };
   }
-  const avant = (tour?.contenu ?? "").replace(PREFIXE_VOCAL, "").trim().slice(0, 300);
-  const message = `${PREFIXE_PRECISION} ${texte}\n(La personne précise sa demande précédente « ${avant} », dont la réponse est en cours ou vient d'arriver : pars de ce que tu as déjà trouvé, ne refais pas les recherches déjà faites, et réponds à la demande ainsi précisée. Si c'est en fait une autre demande, traite-la.)`;
-  const d = await deposerMessage(user.id, message.slice(0, 8_000), [], null, w.conversation);
-  if (!d.ok) return { pourVoix: d.erreur };
-  void traiterFil(user.id, d.conversation);
-  const nouveau = await prisma.assistantIaVoixTravail.create({ data: { userId: user.id, session: w.session, delegationId, conversation: d.conversation, tourId: d.tour.id } });
+  const nouveau = await relancerTravail(user, w, t.tour, t.conversation, delegationId);
+  return { travail: nouveau, change: { travail: w.id, nouveau }, pourVoix: "La précision est transmise au travail en cours, qui en tient compte sans recommencer. Dis-le en quelques mots ; le résultat arrivera tout seul." };
+}
+
+/** La relance ciblée devient le travail suivi ; l'ancien est `remplacePar` (son résultat dépassé n'est pas dit). */
+async function relancerTravail(user: CurrentUser, w: { id: string; session: string }, tourId: string, conversation: string, delegationId: string | null): Promise<string> {
+  const nouveau = await prisma.assistantIaVoixTravail.create({ data: { userId: user.id, session: w.session, delegationId, conversation, tourId } });
   await prisma.assistantIaVoixTravail.update({ where: { id: w.id }, data: { remplacePar: nouveau.id } });
-  return { travail: nouveau.id, pourVoix: "La précision est transmise au travail en cours, qui en tient compte sans recommencer. Dis-le en quelques mots ; le résultat arrivera tout seul." };
+  return nouveau.id;
+}
+
+/**
+ * O1 — LA RÉPONSE À UNE QUESTION DE L'AGENDA (« Excel ou PDF ? » → « PDF ») : gardée, transmise au travail si elle le
+ * change (ajoutée au message qui attend, ou relance ciblée — le résultat DIT tiendra compte de la réponse), puis un
+ * accusé court. Le navigateur colle à cet accusé ce qui suit (un résultat tenu, la question suivante) — jamais d'attente.
+ */
+async function repondreAgendaVocal(user: CurrentUser, s: { id: string }, el: NonNullable<Awaited<ReturnType<typeof elementOuvert>>>, parole: string, delegationId: string | null): Promise<RetourOral> {
+  // Le travail suivi pour ce message (une précision antérieure a pu le remplacer : on suit la chaîne).
+  let w = await prisma.assistantIaVoixTravail.findFirst({ where: { tourId: el.tourId, userId: user.id, session: s.id } });
+  for (let i = 0; w?.remplacePar && i < 10; i++) w = await prisma.assistantIaVoixTravail.findFirst({ where: { id: w.remplacePar, userId: user.id } });
+  const r = await repondreElement(user.id, el, parole);
+  if (!w) return { pourVoix: accuseDeReponse(r.valeur, false), repondA: el.id };
+  if (r.relance) {
+    const nouveau = await relancerTravail(user, w, r.relance.tour, r.relance.conversation, delegationId);
+    return { pourVoix: accuseDeReponse(r.valeur, true), repondA: el.id, travail: nouveau, change: { travail: w.id, nouveau } };
+  }
+  if (delegationId) await prisma.assistantIaVoixTravail.update({ where: { id: w.id }, data: { delegationId } });
+  return { pourVoix: accuseDeReponse(r.valeur, r.change), repondA: el.id, ...(r.change ? { change: { travail: w.id } } : {}) };
 }
 
 /**
@@ -164,6 +205,12 @@ export async function suivreTravailVocal(user: CurrentUser, sessionId: unknown, 
     prisma.assistantIaTour.findFirst({ where: { repondA: w.tourId, role: "assistant" }, orderBy: { createdAt: "desc" }, select: { contenu: true, intent: true, blocs: true, etat: true, etapes: true, erreur: true } }),
     prisma.assistantIaTour.findUnique({ where: { id: w.tourId }, select: { etat: true } }),
   ]);
+  if (rep?.etat === ETAT.TERMINE || rep?.etat === ETAT.ECHEC) {
+    // O1 : des réponses de l'agenda attendaient sa fin pour lui être transmises — une relance ciblée, que l'on suit ; ce
+    // résultat-ci, dépassé, n'est pas dit (le résultat DIT tiendra compte de ce que la personne a répondu).
+    const rel = await transmettreSiPret(user.id, w.tourId);
+    if (rel) return { etat: "remplace", par: await relancerTravail(user, w, rel.tour, rel.conversation, w.delegationId) };
+  }
   if (rep?.etat === ETAT.TERMINE) {
     await prisma.assistantIaVoixTravail.updateMany({ where: { id: w.id, annonceLe: null }, data: { annonceLe: new Date() } });
     return { etat: "pret", ...(await pourVoixDuTour(user, rep)) };
@@ -172,7 +219,12 @@ export async function suivreTravailVocal(user: CurrentUser, sessionId: unknown, 
     await prisma.assistantIaVoixTravail.updateMany({ where: { id: w.id, annonceLe: null }, data: { annonceLe: new Date() } });
     return { etat: "echec", pourVoix: `L'assistant n'a pas pu répondre : ${(rep?.contenu || rep?.erreur || "erreur").slice(0, 200)}. Dis-le simplement et propose de réessayer.` };
   }
-  return { etat: "en_cours", etapes: Array.isArray(rep?.etapes) ? (rep!.etapes as string[]).slice(-3) : [] };
+  // O1 : ce que l'orchestrateur peut dire pendant l'attente — les partiels neufs, l'avancement réel.
+  const [partiels, avancement] = await Promise.all([partielsDuTravail(user.id, w.tourId), avancementDuTravail(user.id, w.tourId)]);
+  return {
+    etat: "en_cours", etapes: Array.isArray(rep?.etapes) ? (rep!.etapes as string[]).slice(-3) : [],
+    ...(partiels.length ? { agenda: pourTravail(w.id, partiels) } : {}), avancement,
+  };
 }
 
 /**
@@ -265,7 +317,7 @@ async function commandeMission(user: CurrentUser, nature: "pause_mission" | "rep
   const quoi = nature === "reprendre_mission" ? "à reprendre" : nature === "pause_mission" ? "en cours" : "à arrêter";
   if (!candidats.length) return { pourVoix: `Aucune mission ${quoi}.` };
   const vises = designesParNom(candidats, texte);
-  if (vises.length > 1) return { pourVoix: `Il y a ${vises.length} missions ${quoi} : ${vises.slice(0, 3).map((t) => t.titre).join(", ")}. Demande laquelle.` };
+  if (vises.length > 1) return { pourVoix: `Il y a ${vises.length} missions ${quoi} : ${vises.slice(0, 3).map((t) => t.titre).join(", ")}. Demande laquelle.`, questionPosee: true };
   const t = vises[0];
   const r = nature === "pause_mission" ? await pauserTravail(t.id, user.id)
     : nature === "reprendre_mission" ? await reprendreMonTravail(t.id, user.id, PERSONA_ASSISTANT_IA)
@@ -281,7 +333,7 @@ async function commandeMission(user: CurrentUser, nature: "pause_mission" | "rep
  * serveur : commande orale, réponse à la carte orale (K4 : oui / non / rien à ajouter), précision du travail en cours,
  * ou nouvelle demande. `parole` : SES mots neufs (vide si la demande n'est qu'une répétition) — seul juge d'un oui.
  */
-export async function traiterEnonceVocal(user: CurrentUser, d: { session: unknown; demande: string; delegationId?: string | null; enCours?: string | null; parole?: string | null }): Promise<RetourOral> {
+export async function traiterEnonceVocal(user: CurrentUser, d: { session: unknown; demande: string; delegationId?: string | null; enCours?: string | null; parole?: string | null; question?: string | null }): Promise<RetourOral> {
   const s = await sessionDe(user.id, d.session);
   if (!s) return HORS_SESSION;
   const texte = d.demande.trim();
@@ -303,11 +355,19 @@ export async function traiterEnonceVocal(user: CurrentUser, d: { session: unknow
       return {
         pourVoix: issue.pourVoix.slice(0, 1_800),
         ...(issue.execute ? { etatCarte: { intentId: carte.id, status: "EXECUTED" as const } } : {}),
+        // O1 : la carte attend encore (un champ, « tu confirmes ? ») — la voix pose une question, rien ne s'y colle.
+        ...(!issue.execute && (await carteOraleEnAttente(user)) ? { questionPosee: true } : {}),
       };
     }
   }
+  // O1 (décision 0046) : la question de l'agenda que l'orchestrateur a fait poser attend sa réponse — c'en est une,
+  // sauf si la personne demande tout autre chose (alors la question reste sans réponse et la demande part en parallèle).
+  const el = await elementOuvert(user.id, d.question);
+  if (el && parole && !estNouvelleDemande(parole)) return repondreAgendaVocal(user, s, el, parole, delegationId);
   if (typeof d.enCours === "string" && d.enCours) {
     const w = await prisma.assistantIaVoixTravail.findFirst({ where: { id: d.enCours, userId: user.id, session: s.id, remplacePar: null, annonceLe: null } });
+    // O1 : une AUTRE demande pendant le travail ne le précise pas — elle part en parallèle (multi-travaux).
+    if (w && estNouvelleDemande(texte)) return lancerTravail(user, s, texte, delegationId, null, true);
     if (w) return preciser(user, w, texte, delegationId);
   }
   return lancerTravail(user, s, texte, delegationId, carte ? { titre: carte.carte.titre } : null);
