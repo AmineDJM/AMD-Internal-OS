@@ -338,6 +338,7 @@ export async function purgeSettledExpenseOrders(): Promise<ActionResult> { retur
   const ids = (await prisma.expenseOrder.findMany({ where: { status: { in: ["PAID", "CANCELLED"] }, historiqueMasqueLe: null }, select: { id: true } })).map((o) => o.id);
   const le = new Date();
   const masque = { count: 0 };
+  // porte d'écriture : Super Admin seul (relu plus haut), et les identifiants viennent de la requête ci-dessus, jamais du formulaire.
   for (let i = 0; i < ids.length; i += 400) {
     masque.count += (await prisma.expenseOrder.updateMany({ where: { id: { in: ids.slice(i, i + 400) }, historiqueMasqueLe: null }, data: { historiqueMasqueLe: le } })).count;
   }

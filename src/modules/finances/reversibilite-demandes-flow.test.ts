@@ -277,7 +277,9 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
     expect(err(await purgeSettledExpenseOrders())).toBeNull();
     expect(await prisma.expenseOrder.count({ where: { ...nos, historiqueMasqueLe: null } })).toBe(0);
     const c = await annulerDernier();
-    expect(bloquants(c)).toEqual([]);
+    // La purge masque TOUT l'historique de la base partagée : un ordre d'un autre banc, retiré par son nettoyage entre-temps,
+    // « n'existe plus » — vrai, et pas le nôtre. Les nôtres réapparaissent tous.
+    expect(bloquants(c).filter((b) => b.includes(TAG) || !/n'existe plus/.test(b))).toEqual([]);
     expect(await prisma.expenseOrder.count({ where: { ...nos, historiqueMasqueLe: null } })).toBe(520);
   });
 

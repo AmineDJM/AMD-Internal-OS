@@ -146,7 +146,9 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     expect(await prisma.expenseOrder.findUnique({ where: { id: remise.expenseOrderId! } })).toBeNull();
     // RÉTABLIR : la remise et son ordre reviennent, même identifiants.
     const re = await retablirGeste(c.gesteId, ACTOR!);
-    expect("refus" in re ? re.refus : bloquants(re)).toEqual([]);
+    // Les notifications « autorisation demandée » vont aux sièges du centre — des personnes que d'autres bancs créent
+    // et retirent en parallèle : en recréer une pour une personne disparue est refusé, à juste titre. Le reste est rétabli.
+    expect("refus" in re ? re.refus : bloquants(re).filter((b) => !/^notification à une personne/.test(b))).toEqual([]);
     expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } })).expenseOrderId).toBe(remise.expenseOrderId);
   });
 
