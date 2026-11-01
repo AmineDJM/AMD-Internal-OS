@@ -745,3 +745,26 @@ Gotchas [V]:
 [V, K8] `ModelCallLog` no longer misses calls made before the sink is installed (queue + `instrumentation.ts`).
 [U] `node:vm` + worker sandbox strength against hostile model-generated code.
 [U] Production `AiSetting` / `AppSetting` values (switch states) — not read.
+
+## C2 (2026-11-01) — connecteurs des chantiers de développement [V]
+
+- **Contract** `src/platform/dev/ports.ts` (zero import, L0 socle): `AgentDeveloppeur` (Claude Code), `ForgeGit` (GitHub),
+  `Hebergeur` (Render), `FaitDev`. Every method returns `Resultat<T>`; error codes `NON_CONFIGURE|AUTH|INTERDIT|INTROUVABLE|
+  QUOTA|INVALIDE|CONFLIT|INDISPONIBLE|RESEAU|INCERTAIN|SIMULE|INCONNU` with `reessayable` / `reessayerApresMs`. Composition
+  root `connecteurs.ts` (`connecteursDev()` → `{agent, forge|null, hebergeur|null}`); the mission engine (lot C1) consumes it.
+- **Claude Code** = Routines API `/v1/claude_code/routines/{trig}/fire` (subscription) + `@claude` PR comment (GitHub
+  Action). No claude.ai credential server-side (Anthropic legal terms). Resuming an existing subscription session is
+  impossible server-side → continuity through branch + PR thread. Fire has **no idempotency**: `DevLancement.cleIdempotence`
+  claimed before sending (`createMany skipDuplicates`); timeout / connection reset / HTTP 500 ⇒ `INCERTAIN` (key blocked,
+  never replayed); 429 / 503 / pre-send network error ⇒ `ECHEC` (key re-claimable). Local hourly quota 30/routine,
+  100/account counted before the 429. Fire text arrives wrapped in `<routine-fire-payload>` (untrusted): the routine's own
+  prompt must opt in (decision 0041 § 2).
+- **Writes** (fire, comment, deploy, cancel, rollback, autoDeploy, rerun) call `noterEffetExterne` (J7): recorded in real
+  mode, neutralised (`SIMULE`) in simulation. Note: the J7 network port does NOT record anthropic.com calls by itself
+  (`HOTES_MODELES`), hence the explicit note.
+- **Webhooks** → `recevoirWebhook` (`reception.ts`): signature first (503 without secret, 401 bad), facts with SEMANTIC
+  keys claimed in `IngestedEvent (source "dev-github"|"dev-render", externalId)`, then `recordEvent` injected by the route
+  (`BusinessEvent` types `DEV_PUSH|DEV_PR|DEV_CHECKS|DEV_WORKFLOW|DEV_COMMENTAIRE|RENDER_DEPLOIEMENT|RENDER_SERVICE`,
+  `sourceDomain "DEV"`, refs `DEPOT:`, `BRANCHE:<repo>:<branch>`, `SHA:`, `PR:<repo>#n`, `SERVICE:`, `DEPLOIEMENT:`) → wakes
+  `WAIT_EVENT`. Polling (`sondage.ts`, 30 s ×2 → 15 min) emits the same keys ⇒ one event per fact.
+- Gotcha: the socle (`src/platform/dev/`) must not import `lib/events/ledger` (not socle) — the registry is injected.

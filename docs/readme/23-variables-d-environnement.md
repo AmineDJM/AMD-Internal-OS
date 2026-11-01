@@ -96,5 +96,30 @@
 Ensuite : soit pointer le webhook Meta vers `/api/canaux/whatsapp` (réglages ci-dessus), soit ajouter au scénario existant UNE étape
 HTTP vers `/api/canaux/relais` (JSON ci-dessus, signé avec `CANAUX_RELAIS_SECRET`). Un numéro WhatsApp ne peut avoir qu'UN webhook Meta.
 
----
+### Chantiers de développement — connecteurs Claude Code, GitHub, Render, MiMo (lot C2, décision 0041)
 
+Toutes **côté serveur** (service de l'ERP sur Render), jamais lues par un modèle, jamais journalisées. État et sondes :
+**Administration › Développement** (Super Admin).
+
+| Variable | Rôle |
+|---|---|
+| `GITHUB_TOKEN` | jeton **fine-grained** de la Direction (compte HUMAIN : un bot ne déclenche pas `@claude`), limité aux dépôts des chantiers ; droits : Contents R/W, Pull requests R/W, Issues R/W (commentaires), Checks R, Actions R/W (journaux, relance), Commit statuses R, Metadata R |
+| `GITHUB_WEBHOOK_SECRET` | secret du webhook GitHub (`X-Hub-Signature-256`) ; URL `https://<erp>/api/chantiers/webhooks/github`, type `application/json`, événements push, pull_request, check_suite, check_run, workflow_run, issue_comment |
+| `CHANTIERS_DEPOTS` | dépôts suivis, « proprio/nom » séparés par des virgules (sondés par l'écran) |
+| `RENDER_API_KEY` | clé API Render (Account Settings › API Keys) |
+| `RENDER_WEBHOOK_SECRET` | « signing secret » du webhook Render (Workspace › Integrations › Webhooks) ; URL `https://<erp>/api/chantiers/webhooks/render`, événements deploy_started, deploy_ended, build_ended, pre_deploy_ended, server_failed, server_available |
+| `CLAUDE_ROUTINE_<ALIAS>_ID` | `trig_…` d'une routine Claude Code (une par dépôt, créée par la Direction sur claude.ai/code/routines, déclencheur **API**) |
+| `CLAUDE_ROUTINE_<ALIAS>_TOKEN` | jeton de la routine (`sk-ant-oat01-…`, affiché une fois) — ne déclenche que CETTE routine |
+| `CLAUDE_ROUTINE_<ALIAS>_DEPOT` | le dépôt de la routine (« proprio/nom ») |
+| `mimo` (ou `MIMO_API_KEY`), `MIMO_BASE_URL` | MiMo : clé déjà posée ; base par défaut `https://token-plan-ams.xiaomimimo.com/v1` (sonde `GET /models`) |
+| `CHANTIERS_MANAGED_AGENTS` | `1` = Managed Agents demandés (adaptateur NON branché, facturation API) — absent par défaut |
+| `GITHUB_API_URL`, `RENDER_API_URL`, `ANTHROPIC_ROUTINES_URL` | bancs seulement (faux serveur) |
+
+**Jamais** d'identifiant claude.ai d'abonnement sur le serveur (ni OAuth, ni `claude setup-token`) : interdit par les
+conditions d'Anthropic. Le `CLAUDE_CODE_OAUTH_TOKEN` du suivi `@claude` est un **secret GitHub** du dépôt, posé par la
+Direction (modèle `docs/assistant/modeles/github-workflow-claude.yml`), que l'ERP ne voit pas.
+
+Banc réel (dépôt et service de **test**) : `BANC_DEPOT`, `BANC_ROUTINE`, `BANC_SERVICE_RENDER`, `BANC_ATTENTE_MIN`,
+`BANC_DEPOTS_PROTEGES`, `BANC_SERVICES_PROTEGES` — `scripts/bench/chantiers-reel.ts`.
+
+---

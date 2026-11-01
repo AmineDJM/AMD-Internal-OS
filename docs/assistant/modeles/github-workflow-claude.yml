@@ -1,0 +1,50 @@
+# ═══════════════════════════════════════════════════════════════════════════════════════════════
+# MODÈLE — `.github/workflows/claude.yml`, à POSER PAR LA DIRECTION dans chaque dépôt où Adventum fait
+# travailler Claude Code par commentaire `@claude` (lot C2, décision 0041). Il n'est PAS actif ici : il vit
+# sous docs/ pour qu'aucun dépôt ne l'exécute sans décision.
+#
+# Source : code.claude.com/docs/en/github-actions (vérifié le 01/11/2026) — exemple « Respond to @claude mentions »,
+# authentification par l'ABONNEMENT : `claude_code_oauth_token`.
+#
+# À faire une fois par dépôt (la Direction, sur SA machine et sur github.com — jamais Adventum) :
+#   1. installer l'application GitHub « Claude » sur le dépôt (https://github.com/apps/claude) ;
+#   2. sur sa machine : `claude setup-token`, puis poser la valeur en SECRET du dépôt sous le nom
+#      CLAUDE_CODE_OAUTH_TOKEN (Settings › Secrets and variables › Actions). Le jeton reste chez GitHub :
+#      l'ERP ne le voit, ne le stocke et ne l'utilise jamais (conditions d'Anthropic, legal-and-compliance) ;
+#   3. copier ce fichier dans `.github/workflows/claude.yml` de la branche par défaut (un workflow déclenché par
+#      `issue_comment` est lu sur la branche par défaut).
+#
+# Qui peut déclencher : un compte HUMAIN avec droit d'écriture sur le dépôt. L'ERP commente avec le GITHUB_TOKEN
+# de la Direction (compte humain) ; un bot est refusé par l'Action (sauf `allowed_bots`, qu'on NE pose PAS : c'est
+# ce qui empêche une boucle bot ↔ bot).
+# ═══════════════════════════════════════════════════════════════════════════════════════════════
+name: Claude Code
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+concurrency:
+  # Une seule exécution à la fois par PR / issue : deux commentaires rapprochés ne lancent pas deux Claude.
+  group: claude-${{ github.event.issue.number || github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  claude:
+    if: contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Borne le coût d'un tour (plafonds de l'abonnement) ; le fil de la PR garde le contexte d'un tour à l'autre.
+          claude_args: "--max-turns 40"

@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### C2 : LES CONNECTEURS DES CHANTIERS — CLAUDE CODE (ROUTINES, `@claude`), GITHUB, RENDER (2026-11-01)
+
+Lot C2 — `docs/assistant/decisions/0041-connecteurs-chantiers.md`, architecture `docs/architecture/CHANTIERS-DEV.md`.
+Contrat `src/platform/dev/ports.ts` (`AgentDeveloppeur`, `ForgeGit`, `Hebergeur`, `FaitDev`) et adaptateurs `fetch` sans
+SDK : **Routines API** (`/v1/claude_code/routines/{trig}/fire`, vérifiée le 01/11 ; idempotence côté Adventum dans
+`DevLancement`, jamais de réessai sur délai dépassé, quotas 30/h/routine et 100/h/compte comptés avant le 429), suivi par
+**commentaire `@claude`** dans la PR (GitHub Action, modèle de workflow fourni), **GitHub REST v3** (ETag, pagination
+`Link`, quotas primaire/secondaire, verdict déterministe des checks), **Render API v1** (déployer, annuler, rollback,
+journaux, NOMS des variables, `autoDeployTrigger` ; la synchro Blueprint ne se déclenche pas par API). **Webhooks signés**
+`/api/chantiers/webhooks/{github,render}` (HMAC GitHub, Standard Webhooks Render) → `BusinessEvent` `DEV_*`/`RENDER_*`
+exactement une fois (même clé pour le sondage de secours à pas croissant). Écran **Administration › Développement**
+(sondes en lecture seule, MiMo `GET /models`). Aucun identifiant claude.ai sur le serveur. Migration additive
+`20270218100000_chantiers_connecteurs`. Banc réel `scripts/bench/chantiers-reel.ts` (dépôt et service de test seulement).
+
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 
 Lot K8 — `docs/assistant/decisions/0035-consommation.md`. **Écran « Consommation »** dans les Réglages d'Adventum IA (et

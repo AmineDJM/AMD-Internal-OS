@@ -34,19 +34,19 @@ function Etat({ e }: { e: EtatConnecteur }) {
 
 export default async function DeveloppementPage() {
   const user = await requireModule("ADMIN", "UPDATE");
-  const tabs = <ModuleTabs tabs={ADMIN_TABS.map((t) => ({ label: t.label, href: t.href, show: userCan(user, t.module, "VIEW") }))} />;
-  if (user.role !== "SUPER_ADMIN") {
-    return (
-      <div className="space-y-5">
-        {tabs}
-        <p className="text-sm text-muted-foreground">Les connecteurs de développement sont réservés au Super Admin.</p>
-      </div>
-    );
-  }
-  const etats = await etatDesConnecteurs();
+  const reserve = user.role !== "SUPER_ADMIN";
+  const etats = reserve ? [] : await etatDesConnecteurs();
   return (
     <div className="space-y-5">
-      {tabs}
+      <ModuleTabs tabs={ADMIN_TABS.map((onglet) => ({ label: onglet.label, href: onglet.href, show: userCan(user, onglet.module, "VIEW") }))} />
+      {reserve ? <p className="text-sm text-muted-foreground">Les connecteurs de développement sont réservés au Super Admin.</p> : <Connecteurs etats={etats} />}
+    </div>
+  );
+}
+
+function Connecteurs({ etats }: { etats: EtatConnecteur[] }) {
+  return (
+    <>
       <PageHeader
         title="Développement — connecteurs"
         description="Claude Code, GitHub, Render et MiMo : ce que les chantiers peuvent utiliser. Sondes en lecture seule, à chaque chargement de la page."
@@ -87,6 +87,6 @@ export default async function DeveloppementPage() {
         GITHUB_WEBHOOK_SECRET, événements push, pull_request, check_suite, check_run, workflow_run, issue_comment) ; Render →
         <code> /api/chantiers/webhooks/render</code> (signing secret dans RENDER_WEBHOOK_SECRET). Décision 0041.
       </p>
-    </div>
+    </>
   );
 }

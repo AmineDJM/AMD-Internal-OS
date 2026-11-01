@@ -212,7 +212,6 @@ export type StatutDeploiement =
   | "build_failed" | "update_failed" | "canceled" | "pre_deploy_in_progress" | "pre_deploy_failed";
 
 export const STATUTS_DEPLOIEMENT_FINAUX: readonly StatutDeploiement[] = ["live", "deactivated", "build_failed", "update_failed", "canceled", "pre_deploy_failed"];
-export const STATUTS_DEPLOIEMENT_ECHEC: readonly StatutDeploiement[] = ["build_failed", "update_failed", "canceled", "pre_deploy_failed"];
 
 export type DeclencheurAutoDeploy = "commit" | "checksPass" | "off";
 
