@@ -41,7 +41,7 @@ async function ouvrir(page: Page) {
   await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000 });
   await page.goto("/ia");
   // Une conversation NEUVE : l'historique d'un passage précédent ne doit rien souffler.
-  await page.getByRole("button", { name: /Nouvelle conversation/ }).first().click().catch(() => {});
+  await page.getByRole("button", { name: /Nouvelle conversation/ }).first().click({ timeout: 3_000 }).catch(() => {});
   return page.getByPlaceholder(/Écrivez, glissez des fichiers/);
 }
 
