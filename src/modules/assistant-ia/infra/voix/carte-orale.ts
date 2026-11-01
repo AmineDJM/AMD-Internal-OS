@@ -13,7 +13,7 @@ import { confirmerCarte } from "../confirmation";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA CARTE À L'ORAL (lot K4, décision 0035) — l'état d'une carte préparée pendant une conversation vocale, et sa
+ * LA CARTE À L'ORAL (lot K4, décision 0038) — l'état d'une carte préparée pendant une conversation vocale, et sa
  * CONFIRMATION ORALE.
  *
  * L'état vit dans le JOURNAL de l'intention (`events`, en ajout seulement — une correction réécrit la charge, pas le

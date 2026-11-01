@@ -16,6 +16,7 @@ import { horsEcranSansValeur, retirerBornes, sansValeursRevelees } from "../../d
 import { compacterFil } from "./resume";
 import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
 import { sectionDossierDuTour } from "../conversations/dossiers";
+import { sectionAttentesDuTour } from "../canaux/section";
 import { titreProvisoire } from "../../domaine/conversations";
 import { lireVueSimulation } from "../../domaine/simulation";
 
@@ -332,6 +333,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     texte: texteDit,
     prive: fil.prive,
     sectionDossier: await sectionDossierDuTour(user, fil.dossierId),
+    // K6 : les pièces attendues (WhatsApp, mail) — une section SEULEMENT si une attente est ouverte.
+    sectionAttentes: await sectionAttentesDuTour(userId),
     vocal: !tour.contenu.trim() && vocal?.etat === "TRANSCRIT",
     surLecture: async (lectures) => {
       await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { lecture: lectures as unknown as Prisma.InputJsonValue } }).catch(sansBloquer("fil-service.surLecture.assistantIaTour"));
@@ -403,6 +406,19 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
 
   // LE RÉSUMÉ ROULANT (J4) : après la réponse, jamais avant — il ne retarde aucun premier mot.
   if (r.ok) await compacterFil(tour.filId);
+}
+
+/**
+ * NOTIFIER LA PERSONNE D'UNE CONVERSATION (cloche + téléphone) — une réponse prête, une pièce reçue (K6). Le corps sort de
+ * l'écran : jamais une valeur révélée, ni Markdown ; le lien ouvre LA conversation (décision 0027 : l'ERP sur `/assistant`,
+ * l'app Adventum IA le renvoie vers `/ia`). Ne lève jamais.
+ */
+export async function notifierConversation(userId: string, filId: string, titre: string, corps: string): Promise<void> {
+  await notifyUser({
+    userId, type: "GENERIC", title: titre,
+    body: sansValeursRevelees(corps).replace(/[#*_`>]/g, "").trim().slice(0, 280),
+    link: `/assistant?c=${filId}`,
+  }).catch(sansBloquer("fil-service.notifierConversation"));
 }
 
 /**

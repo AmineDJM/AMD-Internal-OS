@@ -195,6 +195,38 @@ export async function reprisesOrales(user: CurrentUser, sessionId: string): Prom
   return dits;
 }
 
+// ─── LES PIÈCES REÇUES EN PLEIN APPEL (K6) ─────────────────────────────────────────────────
+
+const LIBELLE_CANAL: Record<string, string> = { WHATSAPP: "WhatsApp", MAIL: "mail", GMAIL: "ta boîte mail" };
+
+/**
+ * UNE PIÈCE ARRIVE PENDANT L'APPEL (WhatsApp, mail — lot K6) : la voix l'annonce d'elle-même, avec ce que l'assistant en
+ * a dit dans la conversation et, s'il propose de la ranger, la carte orale (« je l'ajoute à SP-… ? » → « vas-y »). Chaque
+ * pièce n'est annoncée qu'une fois par session ; seules les pièces REÇUES de la personne comptent.
+ */
+export async function annoncesEnAppel(user: CurrentUser, sessionId: unknown): Promise<string[]> {
+  const s = await sessionDe(user.id, sessionId);
+  if (!s) return [];
+  const depuis = s.annonceJusquA ?? s.ouverteLe;
+  const recues = await prisma.assistantIaReception.findMany({
+    where: { userId: user.id, issue: "RECUE", createdAt: { gt: depuis } }, orderBy: { createdAt: "asc" }, take: 5,
+    select: { canal: true, nom: true, tourId: true, createdAt: true },
+  });
+  if (!recues.length) return [];
+  // Une seule veille les annonce (deux onglets, deux battements) : la date avance d'un coup, sous condition.
+  const n = await prisma.assistantIaVoixSession.updateMany({ where: { id: s.id, annonceJusquA: s.annonceJusquA }, data: { annonceJusquA: recues.at(-1)!.createdAt } });
+  if (n.count !== 1) return [];
+  const dits: string[] = [];
+  for (const tour of new Set(recues.map((r) => r.tourId))) {
+    const lot = recues.filter((r) => r.tourId === tour);
+    const quoi = lot.map((r) => `« ${(r.nom ?? "une pièce").slice(0, 60)} »`).join(", ");
+    const rep = tour ? await prisma.assistantIaTour.findFirst({ where: { id: tour, userId: user.id }, select: { contenu: true, blocs: true, intent: true } }) : null;
+    const suite = rep ? (await pourVoixDuTour(user, rep)).pourVoix : "";
+    dits.push(`Interromps-toi poliment : une pièce vient d'arriver par ${LIBELLE_CANAL[lot[0].canal] ?? lot[0].canal} — ${quoi}. ${suite}`.trim().slice(0, 1_800));
+  }
+  return dits;
+}
+
 // ─── LES COMMANDES ORALES ──────────────────────────────────────────────────────────────────
 
 async function annulerDerniere(user: CurrentUser): Promise<RetourOral> {

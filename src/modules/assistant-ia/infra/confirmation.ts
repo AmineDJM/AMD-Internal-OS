@@ -9,7 +9,7 @@ import { accesAssistantIa, verifierReperesAvantExecution } from "./role-config";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LA CONFIRMATION D'UNE CARTE DE L'ASSISTANT IA — UNE seule garde, que la personne signe au BOUTON
- * (`confirmerIntentionAssistantIA`, action de l'écran) ou À L'ORAL (décision 0035, `voix/carte-orale.ts`).
+ * (`confirmerIntentionAssistantIA`, action de l'écran) ou À L'ORAL (décision 0038, `voix/carte-orale.ts`).
  *
  * Jamais de payload reçu : seulement une intention que CE compte a préparée. Une correction du formulaire (J11)
  * repasse d'abord par les portes de la proposition (`corrigerCarteCapacite`) ; puis `executerIntention` (ressaisie

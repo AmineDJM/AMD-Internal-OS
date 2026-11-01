@@ -70,7 +70,9 @@ export interface DependancesClient {
   deleguer: (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null; parole: string }) => Promise<ResultatDelegation>;
   /** K9 : l'état d'un travail lancé par une délégation. */
   suivre?: (travail: string, session: string | null) => Promise<SuiviTravail>;
-  /** K9 : l'intervalle de suivi d'un travail (1,5 s ; 0 au banc : le banc appelle `suivreMaintenant`). */
+  /** K9 : les pièces reçues pendant l'appel (WhatsApp, mail — K6), à annoncer d'elles-mêmes. */
+  annonces?: (session: string | null) => Promise<string[]>;
+  /** K9 : l'intervalle de suivi d'un travail (1,5 s ; 0 au banc : le banc appelle `suivreMaintenant` / `annoncerMaintenant`). */
   suiviMs?: number;
   micro?: () => Promise<MediaStream>;
   connexion?: () => RTCPeerConnection;
@@ -119,6 +121,8 @@ export class ClientVoixTempsReel {
   travail: { id: string; delegationId: string } | null = null;
   private suivi: ReturnType<typeof setInterval> | null = null;
   private suiviEnVol = false;
+  private veille: ReturnType<typeof setInterval> | null = null;
+  private veilleEnVol = false;
   /** K9 : le son coupé parce que la personne parle (barge-in) — rouvert à la réponse suivante. */
   coupe = false;
   interruptions = 0;
@@ -201,6 +205,8 @@ export class ClientVoixTempsReel {
         this.poser("ECOUTE");
         // K9 : ce qui est arrivé après la dernière session — dit en ouvrant, sans délégation.
         for (const r of this.reprises.splice(0)) this.dire(null, `Résultat arrivé depuis la dernière conversation : ${r}`);
+        // K9 : une pièce reçue pendant l'appel (K6) est annoncée d'elle-même — une veille toutes les 5 s.
+        if (this.deps.annonces && (this.deps.suiviMs ?? 1_500) > 0 && !this.veille) this.veille = setInterval(() => { void this.annoncerMaintenant(); }, 5_000);
         break;
       case "session.input_transcript.delta":
         // K9 — BARGE-IN : la personne parle pendant que la voix parle → le son est coupé ICI, tout de suite.
@@ -334,6 +340,20 @@ export class ClientVoixTempsReel {
     }
   }
 
+  /** Une lecture des pièces reçues pendant l'appel. Public pour le banc. */
+  async annoncerMaintenant(): Promise<void> {
+    if (!this.deps.annonces || this.veilleEnVol) return;
+    this.veilleEnVol = true;
+    try {
+      let dites: string[];
+      // Une veille qui échoue (réseau) se retente au battement suivant.
+      try { dites = await this.deps.annonces(this.session); } catch { dites = []; }
+      for (const a of dites) this.dire(null, a);
+    } finally {
+      this.veilleEnVol = false;
+    }
+  }
+
   private arreterSuivi() {
     if (this.suivi) clearInterval(this.suivi);
     this.suivi = null;
@@ -374,6 +394,8 @@ export class ClientVoixTempsReel {
   private liberer() {
     if (this.suivi) clearInterval(this.suivi);
     this.suivi = null;
+    if (this.veille) clearInterval(this.veille);
+    this.veille = null;
     try { this.dc?.close(); } catch { /* déjà fermé */ }
     try { this.pc?.close(); } catch { /* déjà fermé */ }
     for (const t of this.micro?.getTracks() ?? []) t.stop();

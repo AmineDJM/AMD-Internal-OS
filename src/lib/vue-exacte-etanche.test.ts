@@ -345,6 +345,8 @@ describe("chaque route d'API résout l'identité par la session partagée", () =
     /api[\\/]google[\\/]pubsub[\\/]/, /api[\\/]mail[\\/]inbound[\\/]/, /api[\\/]onlyoffice[\\/]/, /api[\\/]push[\\/]key[\\/]/,
     /api[\\/]activity[\\/]/, /api[\\/]replay[\\/]/, /api[\\/]security[\\/]screenshot-attempt[\\/]/,
     /api[\\/]health[\\/]/,
+    // K6 (décision 0036) : le webhook WhatsApp de Meta — signé (X-Hub-Signature-256), la personne reconnue par son numéro.
+    /api[\\/]canaux[\\/]whatsapp[\\/]/, /api[\\/]canaux[\\/]relais[\\/]/,
   ];
   it("aucune route ne lit l'identité ailleurs que dans `@/lib/session` (hors routes sans session, nommées)", () => {
     const fautes = fichiers("src/app/api", (n) => n === "route.ts")

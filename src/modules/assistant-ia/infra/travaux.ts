@@ -18,7 +18,7 @@ import { recordAudit } from "@/lib/audit";
 import { executerHorsRequete, journaliserGeste } from "@/platform/ia/hors-requete";
 import { droitsSurDocument } from "@/platform/ia/artifact/ports";
 import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, type OutilTravail } from "@/platform/ia/travaux/outil";
-import { conclureSousMissions, demarrerSousMissionsDuTour, outilSousMissionsPour } from "./sous-missions";
+import { conclureSousMissions, demarrerSousMissionsDuTour, outilSousMissionsPour, outilsSousMissionsPour } from "./sous-missions";
 import { deposerLivrableTravail } from "./travaux-livrables";
 
 // J8 (décision 0023) : la porte du moteur des travaux pour le reste du module — délégation, équipe, priorité.
@@ -222,7 +222,8 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
     }
     const debut = Date.now();
     // Ce qui part au modèle passe le filtre de confidentialité, comme une saisie (décision IA-ASSISTANT-09).
-    const r = await sousBudget(budget, () => genererTexte(d.consigne, censurerTexte(d.texte).texte, 120_000));
+    // K3 : 4 min — le rapport complet d'une recherche approfondie s'écrit en plus de 2 min.
+    const r = await sousBudget(budget, () => genererTexte(d.consigne, censurerTexte(d.texte).texte, 240_000, { flux: true }));
     await fermerBudget(budget, { ok: r.ok, erreur: r.ok ? null : r.raison, ms: Date.now() - debut });
     const couts = budget.appels.map((a) => coutEstimeUsd(a.entree, a.sortie, tarifDe(a.provider), a.cache));
     const usage = {
@@ -252,8 +253,15 @@ export function outilTravailPour(user: CurrentUser, lances: string[] = [], demar
   return outilSousMissionsPour(user, PERSONA_ASSISTANT_IA, lances, demarrage);
 }
 
+/** K3 (décision 0033 § 7) : les outils de sous-mission du tour — `lancer_un_travail` et `recherche_approfondie`. */
+export function outilsSousMissionsDuTour(user: CurrentUser, lances: string[], demarrage: "immediat" | "fin-du-tour" = "fin-du-tour"): OutilTravail[] {
+  return outilsSousMissionsPour(user, PERSONA_ASSISTANT_IA, lances, demarrage);
+}
+
 /** La fin d'un tour de la conversation : ses sous-missions sans geste démarrent d'office (réglage de la personne). */
 export const demarrerLesSousMissions = (user: CurrentUser, ids: readonly string[]) => demarrerSousMissionsDuTour(user, ids, PERSONA_ASSISTANT_IA);
 
 /** La consigne des travaux, renforcée d'un indice quand la demande a la forme d'un travail long. */
-export const consigneTravaux = (texte: string): string => (demandeLongue(texte) ? `${CONSIGNE_TRAVAUX}\n${INDICE_DEMANDE_LONGUE}` : CONSIGNE_TRAVAUX);
+const CONSIGNE_RECHERCHE = "RECHERCHE APPROFONDIE (K3) : une demande de VEILLE, d'ÉTUDE DE MARCHÉ, de RÉGLEMENTATION étrangère, de concurrence ou d'état de l'art qui demande plus qu'une réponse rapide (« fais-moi une étude », « un rapport complet », « une veille sur… ») → `recherche_approfondie` avec 3 à 5 angles distincts : les sous-recherches partent en parallèle, le rapport complet et sourcé revient dans la conversation et au Drive (Word, PDF). Une simple question d'actualité reste `web_research`.";
+
+export const consigneTravaux = (texte: string): string => [CONSIGNE_TRAVAUX, CONSIGNE_RECHERCHE, demandeLongue(texte) ? INDICE_DEMANDE_LONGUE : null].filter(Boolean).join("\n");

@@ -107,7 +107,11 @@ const MOTS_CLES: Record<string, string> = {
   gerer_routine: "pause reprends supprime routine execute",
   proposer_memoire: "retiens souviens memoire rappelle toi",
   // Décision 0027 — la mémoire des conversations passées (« comme on avait dit pour le congrès d'Oran »).
+  // K6 (décision 0036) — « attends, je t'envoie la lettre par WhatsApp » : l'attente de pièces.
+  attendre_pieces: "attends attendre envoie envoyer je vais t envoyer transfere transferer transfert whatsapp mail email courriel piece pieces jointe jointes lettre scan scanne photo recevoir recu",
   chercher_conversations: "conversation precedente passee avait dit discute evoque parle derniere fois semaine derniere comme on avait convenu",
+  // K3 (décision 0033 § 7) : la recherche approfondie — les mots d'une étude, d'une veille, d'un rapport sourcé.
+  recherche_approfondie: "recherche approfondie etude marche veille concurrence concurrents benchmark etat de l art panorama rapport complet sources tendances reglementation etrangere pays analyse sectorielle",
   lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance",
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",

@@ -10,8 +10,9 @@ transmise au travail en cours, le résultat est dit de lui-même quand il arrive
 orale de K4 arrive avec le résultat ; pour une action renforcée la **voix relit** le montant, puis « ok fais-le »,
 « vas-y », « go », « ih dirha » suffisent (aucun mot imposé), jugés par le **serveur** sur la transcription et exécutés par
 la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule », « mets la
-mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole. Crédit OpenAI épuisé : vérifié
-par tests et scénarios oraux scriptés, pas de passage réel.
+mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
+WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
+et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
 
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 
@@ -37,10 +38,35 @@ peuvent être envoyés à l'IA, mais […] dis à OpenAI de ne pas s'entraîner 
 clair, l'assistant écrit et la voix prononce le salaire que la personne a le droit de voir, chaque transmission journalisée.
 `store: false` sur tous les appels de l'Assistant IA (les données de l'API ne servent déjà pas à l'entraînement ; la
 « Zero Data Retention » se demande à OpenAI). Passage réel : salaire lu en texte et par la délégation vocale, ≈ 0,024 $.
-**Extension (décision 0035) — la voix est orale** : en appel vocal, l'assistant dit la valeur, résume une demande avec ses
+**Extension (décision 0038) — la voix est orale** : en appel vocal, l'assistant dit la valeur, résume une demande avec ses
 mots, propose les cases facultatives, récapitule et demande « Tu confirmes ? ». La personne **confirme à l'oral** : le
 serveur juge son « oui » sur sa propre transcription (et le montant prononcé pour une action renforcée), puis la même garde
 que le bouton exécute ; « confirmée à l'oral » est à l'audit avec la transcription.
+
+### K7 : L'ASSISTANT FAIT CE QUE FONT LES ÉCRANS — EXPORTS DE L'ERP, ENVOI D'UN FICHIER À UN COLLÈGUE (2026-10-31)
+
+Lot K7 — `docs/assistant/decisions/0037-exports-et-gestes-d-ecran.md`. Constat de la Direction : « Envoie à Amine
+Djouamai l'Excel du suivi Regulatory » → « je ne peux pas ». Les exports étaient des ROUTES, invisibles pour l'assistant.
+**Chaque export** (14 : suivi Regulatory, budgets, pilotage, appel d'offres PCH, segmentation, demande de stocks,
+inscrits, étude de marché et sa présentation, coaching, annuaire, PDF du plan de tournée) est une fonction de la façade
+`src/lib/exports/`, appelée par la route de l'écran ET par l'outil `exporter_*` de l'assistant (même portée, mêmes
+droits, même audit). Le fichier va au Drive de la personne (« Exports ») et revient en bloc fichier + lien de
+téléchargement ; **`send_message` joint une pièce** (carte à confirmer ; la messagerie rejuge le droit de partager).
+La consigne ne dit plus « je ne peux pas » sans avoir cherché, ni sans nommer l'écran. **Inventaire** des 136 routes
+(`modules/assistant-ia/gestes-ecran.test.ts`) : une route nouvelle non classée fait échouer `npm test`. Banc réel
+(`scripts/bench/k7-exports.ts`, `amd_bench`) : le scénario de la Direction de bout en bout en 11 s, 0,023 $.
+
+### LOT K3 : SOUS-MISSIONS EN ARRIÈRE-PLAN, TABLEAU DE BORD EN TEMPS RÉEL, DÉPÔT D'OFFICE (2026-10-31)
+
+Décision [0033](../assistant/decisions/0033-sous-missions.md). Un message peut lancer PLUSIEURS sous-missions (`lancer_un_travail` :
+`remplace` pour reformuler, `parent` pour ranger) qui tournent en parallèle sur le worker pendant que la conversation continue ;
+un plan sans geste démarre d'office (Super Admin par défaut, réglable par personne et à la console). Sous la réponse, une carte
+suit chaque sous-mission en temps réel ; à la fin, la synthèse s'écrit dans la conversation et la personne est notifiée.
+Tableau de bord « Missions » (app Adventum IA et Assistant de l'ERP) en Server-Sent Events, avec repli en sondage court ;
+indicateur « 3 missions en cours » dans l'en-tête. Au-delà de 6 pièces, le dépôt est proposé d'office (« 14 fichiers : tout
+lire en arrière-plan »). **Recherche approfondie** (`recherche_approfondie`) : plusieurs recherches web en parallèle, puis un
+rapport complet (sommaire, chiffres datés, sources numérotées) affiché dans la conversation et déposé au Drive en Word et PDF.
+Migration `20270216120000_sous_missions`.
 
 ### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
 

@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0035 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0038 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0035 (voix-orale, K4) : la voix orale, une carte confirmée à l'oral ; 0039 : la voix entièrement orale — attente vivante, tout par la voix).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0035 : la consommation exacte en jetons et en dollars ; 0036 : pièces reçues par WhatsApp et par mail ; 0037 : exports de l'ERP, envoi d'un fichier, gestes d'écran ; 0038 : la voix orale, une carte confirmée à l'oral ; 0039 : la voix entièrement orale — attente vivante, réponses pour l'oreille, tout par la voix).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -25,7 +25,7 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 
 - **Tables** : `AssistantIaFil` (une CONVERSATION — plusieurs par personne depuis la décision 0027), `AssistantIaDossier`, `AssistantIaTour`, `AssistantMemoryItem`, `AssistantRoutine`, `AssistantRoutineRun`,
   `AssistantRoleConfig`, `AssistantIaAcces`, `AssistantIaReglage`, `AssistantIaPlafondAtteint` ; J12 : `AssistantVeille`,
-  `AssistantVeilleur`, `AssistantSignal`, `AssistantMandat`, `AssistantMandatGeste` ; J11 : `AssistantIaDepotDossier` ; « Mes notes » : `AssistantIaNote{Page,Version,Corbeille,Proposition}`
+  `AssistantVeilleur`, `AssistantSignal`, `AssistantMandat`, `AssistantMandatGeste` ; J11 : `AssistantIaDepotDossier` ; K6 : `AssistantIaAttentePieces`, `AssistantIaReception` ; « Mes notes » : `AssistantIaNote{Page,Version,Corbeille,Proposition}`
   (privées : aucune porte pour un autre compte). Les intentions
   (`AssistantActionIntent`) sont au socle IA (`src/platform/ia/intentions/`), partagées avec Adam.
 - **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12), `assistant.conversations-privees` (0027, purge à 30 jours) (`src/lib/scheduled.ts`).
@@ -46,6 +46,17 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - Tests : `consommation-precise.test.ts` (RBAC, exhaustivité des chemins payants, rapprochement),
   `src/lib/models/tarifs.test.ts`.
 
+## Pièces reçues par WhatsApp et par mail (lot K6, décision 0036)
+
+- **Attente de pièces** — `domaine/canaux/attentes.ts` (pur : durée, canal, rattachable, section de consigne, clé de
+  numéro, confidentialité, phrases) ; `infra/canaux/outil.ts` (`attendre_pieces`, écrit et voix) ; table `AssistantIaAttentePieces`.
+  La consigne n'a une section « PIÈCES ATTENDUES » que si une attente est ouverte (`infra/canaux/section.ts`).
+- **Réception** — `infra/canaux/reception.ts` (`recevoirPieces` : idempotence, personne par numéro ou adresse, gardes,
+  Drive « Assistant IA — pièces reçues », tour dans la conversation, carte `preparer_depot_piece`, notification) ; journal
+  `AssistantIaReception`. Entrées : `app/api/canaux/whatsapp` (socle `platform/ia/canaux/whatsapp.ts`), `app/api/mail/inbound`
+  (`platform/ia/canaux/courrier.ts`, adresse `ASSISTANT_IA_MAIL`), `lib/google/gmail/ingest.ts` (le dirigeant, attente ouverte).
+  Banc : `app/api/canaux/canaux.test.ts`.
+
 ## Valeurs sensibles et conservation chez OpenAI (lot K4, décision 0034)
 
 - **Réglage de la console** (`/admin/ai/acces`, Super Admin, audité) : « Valeurs sensibles » = **en clair pour qui a le droit
@@ -57,7 +68,7 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   recherche web, pièces jointes (leur propre garde).
 - **`store: false`** sur tous les appels Mastra du module (`optionsFournisseur`) ; la recherche web (passerelle, sans
   chaînage) l'a déjà. Banc : `valeurs-sensibles.test.ts`.
-## La voix orale — une carte devient une conversation (lot K4, décision 0035)
+## La voix orale — une carte devient une conversation (lot K4, décision 0038)
 
 - La voix **dit** les valeurs (mode « en clair ») ; une carte rendue par la délégation devient **orale** : résumé à dire,
   facultatifs proposés, récit, « Tu confirmes ? » (`domaine/terrain/voix-orale.ts`, `infra/voix/carte-orale.ts`).
@@ -111,6 +122,8 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   onglet, repli en sondage 3 s), `tableau-missions.tsx` (plein écran sur téléphone, tiroir sur ordinateur), `carte-sous-missions.tsx`
   (la carte du fil, l'indicateur d'en-tête), `reglage-d-office.tsx`. Actions `actions-travaux.ts` : `lireMonTableauDeMissions`,
   `annulerMaMission`, `lireMaPreferenceDOffice`, `reglerMaPreferenceDOffice` ; console : `enregistrerTravauxDOffice`.
+- **Recherche approfondie** (§ 7) — outil `recherche_approfondie` (`infra/sous-missions.ts`, plan pur `domaine/recherche-approfondie.ts`) :
+  une `web_research` par angle en parallèle, puis un rapport complet sourcé (Word + PDF au Drive), affiché en entier dans la conversation.
 - **Dépôt d'office** — `domaine/lecture/depot-dossier.ts` (`modeDuDepot` au-delà de 6 pièces, `libelleDepotDOffice`),
   `ecrans/depot-dossier.tsx`, `ecrans/use-pieces.ts`. Bancs : `infra/sous-missions.test.ts`, `scripts/bench/k3-missions-ux.ts`.
 
@@ -262,6 +275,20 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   `AssistantIaNoteProposition` ; `accepter` applique (version d'avant gardée, inverse posé), `annuler` rejoue l'inverse.
   Mêmes outils pour la voix (`outilsNotes`, `canal: "voix"`, par `api.ts`).
 
+## Exports de l'ERP et gestes d'écran (lot K7, décision 0037)
+
+- **Une fonction par export** (`(personne, options) → { octets, nomDeFichier, mime }` ou un refus avec son statut), dans la façade
+  `lib/exports/` (L2), atteinte par la porte du socle `platform/ia/exports.ts` ; la route d'écran ET l'assistant l'appellent (même portée, mêmes droits, même audit). Catalogue pur
+  `lib/exports/catalogue.ts` (14 fiches : outil, route, libellé, écran, filtres, mots), producteurs `lib/exports/producteurs.ts`.
+- **Outils `exporter_*`** — `infra/exports.ts` : offerts à qui a le bouton, familles Drive + domaine ; le fichier est déposé
+  au Drive de la personne (« Exports ») et rendu par deux liens (`/drive/<id>` → bloc fichier, `/api/drive/<id>/raw?dl=1`).
+  Fiches au registre des capacités (`registreDesCapacites`, R0) et mots à la sélection (`MOTS_EXPORTS`). Conversation seulement.
+- **Envoyer à un collègue** — `send_message` accepte des `pieces` (nodeId ou nom) : carte à confirmer ; la messagerie
+  (`sendMessage`, `driveRefs`) rejuge que l'expéditeur voit la pièce et l'ouvre au destinataire en lecture.
+- **Consigne** — règle 14 (`contexte.ts`) : chercher (`trouver_outil`) avant « je ne peux pas » ; sans outil, `trouver_outil`
+  rend les écrans qui portent le geste (`ecransPour`) et leur lien.
+- **Inventaire et cliquet** — `gestes-ecran.test.ts` : les 136 routes de `src/app/api` classées (couvert / exposé / hors, avec
+  raison) ; une route nouvelle non classée fait échouer `npm test`. Preuves : `exports.test.ts`, `scripts/bench/k7-exports.ts`.
 ## Carte d'action compacte (31/10/2026)
 
 - `ecrans/action-confirmation-card.tsx` : une carte À FORMULAIRE se résume dans le fil (`data-testid="carte-action-compacte"`) ;

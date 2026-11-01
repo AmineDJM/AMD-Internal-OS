@@ -1,4 +1,4 @@
-# 0035 — À l'oral, la voix dit tout, et une carte devient une conversation qui se confirme à l'oral (lot K4, 31/10/2026)
+# 0038 — À l'oral, la voix dit tout, et une carte devient une conversation qui se confirme à l'oral (lot K4, 31/10/2026)
 
 **Décision de la Direction (31/10/2026, résumée par le pilote du lot)** : « En appel vocal avec l'assistant (GPT Live 1),
 l'expérience doit être ORALE, pas écrite. Si je demande un salaire, il me DIT le salaire, pas "c'est affiché à l'écran" :

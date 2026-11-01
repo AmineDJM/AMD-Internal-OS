@@ -6,8 +6,10 @@ CREATE TABLE IF NOT EXISTS "AssistantIaVoixSession" (
   "conversation" TEXT,
   "ouverteLe" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "fermeeLe" TIMESTAMP(3),
+  "annonceJusquA" TIMESTAMP(3),
   CONSTRAINT "AssistantIaVoixSession_pkey" PRIMARY KEY ("id")
 );
+ALTER TABLE "AssistantIaVoixSession" ADD COLUMN IF NOT EXISTS "annonceJusquA" TIMESTAMP(3);
 CREATE INDEX IF NOT EXISTS "AssistantIaVoixSession_userId_ouverteLe_idx" ON "AssistantIaVoixSession"("userId", "ouverteLe");
 
 CREATE TABLE IF NOT EXISTS "AssistantIaVoixTravail" (

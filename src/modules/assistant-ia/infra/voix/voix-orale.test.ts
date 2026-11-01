@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE CARTE DEVIENT UNE CONVERSATION — et se CONFIRME À L'ORAL (lot K4, décision 0035). Vraie base, faux modèle.
+ * UNE CARTE DEVIENT UNE CONVERSATION — et se CONFIRME À L'ORAL (lot K4, décision 0038). Vraie base, faux modèle.
  *
  * On tient : la voix reçoit un résumé oral (pas les champs bruts), propose les facultatifs, récapitule et demande
  * « tu confirmes ? » ; un « oui » n'est entendu qu'APRÈS cette question et sur les mots de la personne ; sans « oui »

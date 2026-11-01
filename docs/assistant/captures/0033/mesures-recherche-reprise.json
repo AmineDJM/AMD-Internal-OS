@@ -1,0 +1,28 @@
+{
+  "sousRecherches": 5,
+  "rechercheReprises": 0,
+  "rechercheEtapesSimultaneesMax": 0,
+  "recherche": {
+    "statut": "COMPLETED",
+    "dureeS": 109,
+    "caracteres": 20981,
+    "sourcesNumerotees": 21,
+    "sections": 10,
+    "documents": [
+      "Rapport de recherche (travail n0vgex).docx",
+      "Rapport de recherche (travail n0vgex).pdf"
+    ]
+  },
+  "rechercheRapportDansLaConversation": true,
+  "largeur:recherche": {
+    "sw": 1280,
+    "w": 1280
+  },
+  "coutReel": {
+    "appels": 0,
+    "usd": 0,
+    "jetonsEntree": null,
+    "jetonsSortie": null
+  },
+  "erreursConsole": []
+}

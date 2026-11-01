@@ -6,6 +6,7 @@ import { APRES_LA_PREVALIDATION, circuitLisible, outilsV1, type PropositionPrepa
 import { jetonnerSortie } from "../domaine/filtre-confidentialite";
 import { OPERATIONS_IA } from "./operations";
 import { capacitesOffertes } from "./capacites";
+import { CATALOGUE_EXPORTS } from "@/platform/ia/exports";
 
 /**
  * LES OUTILS V1 SUR LA VRAIE BASE DE TEST (Q17) — sans Prisma simulé.
@@ -63,13 +64,15 @@ describe("outils V1", () => {
     expect(new Set(noms).size).toBe(noms.length);
   });
 
-  it("la conversation reçoit EN PLUS les capacités de l'ERP (J6) — toutes celles que la porte de l'écran ouvre, sans doublon", () => {
+  it("la conversation reçoit EN PLUS les capacités de l'ERP (J6) et les exports d'écran (K7) — sans doublon", () => {
     const sans = outilsV1(auteur, []).map((o) => o.def.name);
     const avec = outilsV1(auteur, [], [], [], null, undefined, { capacites: true }).map((o) => o.def.name);
     const capacites = capacitesOffertes(auteur).map((c) => c.outil);
     expect(capacites.length).toBeGreaterThan(900);
-    // Décision 0035 : avec les capacités vient `corriger_carte` (la carte en attente se corrige par la porte du formulaire).
-    expect([...avec].sort()).toEqual([...sans, ...capacites, "corriger_carte"].sort());
+    // Décision 0038 : avec les capacités vient `corriger_carte` ; K7 (décision 0037) : les exports des écrans, réservés à la conversation.
+    const exports = CATALOGUE_EXPORTS.map((f) => f.outil);
+    expect([...avec].sort()).toEqual([...sans, ...capacites, "corriger_carte", ...exports].sort());
+    expect(sans.filter((n) => n.startsWith("exporter_"))).toEqual([]);
     expect(new Set(avec).size).toBe(avec.length);
     expect(avec).toEqual(expect.arrayContaining(["task__createTask", "regulatory__createRegulatoryProduct", "admin-request__createRequest", "hr__requestLeave"]));
   });

@@ -50,6 +50,12 @@ describe("les commandes orales", () => {
     expect(lireCommandeOrale("tais-toi", sans)).toBe("stop");
     expect(lireCommandeOrale("plus court s'il te plaît", sans)).toBe("plus_court");
     expect(lireCommandeOrale("quel est le chiffre d'affaires d'Oran ?", sans)).toBeNull();
+    // Passage réel (K9) : une DEMANDE qui contient « en bref » n'est pas la commande « plus court ».
+    expect(lireCommandeOrale("Explique-moi en bref ce qu'est une AMM pour un médicament en Algérie", sans)).toBeNull();
+    expect(lireCommandeOrale("résume-moi le dossier Benali", sans)).toBeNull();
+    expect(lireCommandeOrale("en bref", sans)).toBe("plus_court");
+    // « annule la tâche Stand » vise une fiche de l'ERP : ni une mission, ni « la dernière action ».
+    expect(lireCommandeOrale("annule la tâche Stand", sans)).toBeNull();
   });
   it("la mission désignée par son nom ; seule, sans avoir à la nommer", () => {
     const m = [{ titre: "Veille congrès Oran" }, { titre: "Relance fournisseurs" }];

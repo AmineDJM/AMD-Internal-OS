@@ -3,7 +3,7 @@ import { compileContext } from "../contexte";
 import { accesAssistantIa, getRoleConfig, GESTE_MODELE_EN_CLAIR, resoudreConsignesRole, Revelateur } from "../role-config";
 import { consigneFamilles, type AccesIa } from "../../domaine/acces-regles";
 import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
-import { consigneTravaux, outilTravailPour } from "../travaux";
+import { consigneTravaux, outilsSousMissionsDuTour } from "../travaux";
 import { selectionDuTour, type SelectionDuTour } from "../selection";
 import { CONSIGNE_SELECTION, OUTIL_TROUVER } from "../../domaine/selection-outils";
 import { historiqueDansEnveloppe } from "../../domaine/assembleur";
@@ -11,6 +11,7 @@ import { sectionResume } from "../../domaine/fil/resume";
 import { roleDuTour } from "@/platform/ia/modeles-roles";
 import { CONSIGNE_ATELIER } from "../atelier/outils";
 import { outilConversationsPassees } from "../conversations/outil";
+import { outilAttendrePieces } from "../canaux/outil";
 import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "../modele";
 import { modelesEffectifs } from "../generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "../repondre";
@@ -96,6 +97,8 @@ export interface DemandeDuTour {
   prive?: boolean;
   /** Décision 0027 : la section du DOSSIER de la conversation (consignes, documents encore ouvrables). */
   sectionDossier?: string | null;
+  /** K6 (décision 0036) : les PIÈCES ATTENDUES (WhatsApp, mail) — absente tant qu'aucune attente n'est ouverte. */
+  sectionAttentes?: string | null;
 }
 
 /** Ce qu'une conversation privée dit au modèle (dans la partie variable : le préfixe stable ne bouge pas). */
@@ -204,10 +207,12 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const provenance = new ProvenanceDuTour([texteSaisi, ...saisie.historique.filter((h) => h.role === "user").map((h) => h.content)], message);
     outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, {
       capacites: true, provenance, notesProposees, visuels, analyse, ...(auModele ? { revelerAuModele: (s: string) => auModele.enClair(s) } : {}),
-    }), outilTravailPour(user, travauxLances, "fin-du-tour")];
+    }), ...outilsSousMissionsDuTour(user, travauxLances, "fin-du-tour")];
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     outils = d.prive ? outils.filter((o) => o.def.name !== "proposer_memoire") : [...outils, outilConversationsPassees(user, d.conversation ?? null)];
+    // K6 (décision 0036) : « je t'envoie la lettre par WhatsApp » — l'attente de pièces (fiche de la sélection, pas socle).
+    outils.push(outilAttendrePieces(user, d.conversation ?? null, d.vocal || texteSaisi.startsWith("[Conversation vocale]") ? "VOIX" : "ECRIT"));
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
     selection = selectionDuTour(outils, user, message, config, precedente, outilsDAnalyseVoulus(texteSaisi, analyse.pieces));
@@ -220,7 +225,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, d.consigne]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user)]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true, valeursEnClair: enClair,
-      sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, sectionResume(d.resume)]),
+      sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
     })).systemPrompt;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.

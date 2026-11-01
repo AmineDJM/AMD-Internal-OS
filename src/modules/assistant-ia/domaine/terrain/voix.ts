@@ -9,7 +9,7 @@
  *      la voix PRONONCE ce que la personne a le droit de voir — l'assistant ne lui rend que cela (même juge que
  *      l'écran). « Masquées » (décision 0012) : jamais lue à voix haute — le modèle vocal ne reçoit que des repères,
  *      et `pourLaVoix` remplace même le repère par « gardée dans la conversation écrite ».
- *   2. UNE CARTE DEVIENT UNE CONVERSATION (K4, décision « 0035-voix-orale », remplace la règle « jamais confirmée à la
+ *   2. UNE CARTE DEVIENT UNE CONVERSATION (K4, décision 0038, remplace la règle « jamais confirmée à la
  *      voix »). La voix (GPT-Live) n'a AUCUN outil : elle délègue. L'assistant prépare la carte ; la voix la résume,
  *      propose les cases facultatives, RELIT l'élément clé (R3/R4), demande « tu confirmes ? ». Le OUI (« vas-y », « go »,
  *      « ih dirha »…) est jugé par le SERVEUR sur les mots transcrits de la personne, puis la garde du bouton exécute
@@ -34,7 +34,7 @@ const CONSIGNES_VOIX_COMMUNES = [
   "pas de Markdown, pas d'adresse web ; ne lis jamais une liste de champs, et ne dis jamais « c'est affiché à l'écran » pour éviter de répondre.",
   "L'assistant de l'entreprise, à qui tu délègues, a exactement les mêmes droits que dans la conversation écrite.",
 ];
-// Décision 0035 (Direction, 31/10/2026) : « je peux confirmer à l'oral » — la confirmation est jugée par le SERVEUR, sur les
+// Décision 0038 (Direction, 31/10/2026) : « je peux confirmer à l'oral » — la confirmation est jugée par le SERVEUR, sur les
 // mots de la personne, jamais par la voix.
 const CONSIGNES_ECRITURE_VOIX = [
   "La personne NE VOIT PAS son écran (écouteurs, en marchant) : tout se passe à l'oral. Ne dis JAMAIS « regarde l'écran »,",

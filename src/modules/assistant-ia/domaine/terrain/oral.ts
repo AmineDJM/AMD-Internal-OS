@@ -25,7 +25,8 @@ const contient = (plie: string, expressions: readonly string[]) => expressions.s
 export type CommandeOrale =
   | "attendre" | "annuler_derniere" | "pause_mission" | "reprendre_mission" | "arreter_mission" | "stop" | "plus_court";
 
-const MOT_MISSION = /\b(mission|missions|travail|travaux|tache|taches|sous mission|recherche en cours|analyse en cours)\b/;
+// « Tâche » n'en est pas : « annule la tâche Stand » vise une fiche de l'ERP, pas une mission de l'assistant.
+const MOT_MISSION = /\b(mission|missions|sous mission|sous missions|travail en cours|recherche en cours|analyse en cours)\b/;
 const STOP_SEUL = ["stop", "arrete", "tais toi", "chut", "silence", "ca suffit", "baraka", "sekt", "skout", "اسكت", "بركا", "باركا"];
 
 /**
@@ -45,9 +46,13 @@ export function lireCommandeOrale(texte: string, ctx: { carteEnAttente: boolean 
     if (/\b(reprend\w*|relance\w*|continue\w*|redemarre\w*)\b/.test(brut)) return "reprendre_mission";
     if (/\b(arrete\w*|stoppe\w*|annule\w*|abandonne\w*|coupe\w*)\b/.test(brut)) return "arreter_mission";
   }
-  if (!ctx.carteEnAttente && /^(annule|annuler|defais|defaire)\b|\b(annule|defais|reviens sur) (ca|la derniere|le dernier|ce que tu (as|viens de) fait|l action)\b/.test(brut)) return "annuler_derniere";
+  // « Annule » SEUL (ou « annule ça », « annule ce que tu viens de faire ») : la dernière action de l'assistant. « Annule la
+  // tâche Stand » nomme une fiche : c'est une demande.
+  if (!ctx.carteEnAttente && /^(annule|annuler|defais|defaire|reviens en arriere)( (ca|tout ca|la derniere action|l action|le dernier geste|ce que tu (as fait|viens de faire)))?( s il te plait| stp)?$/.test(brut)) return "annuler_derniere";
   if (STOP_SEUL.includes(brut)) return "stop";
-  if (/\b(plus court|en bref|abrege|resume|va a l essentiel|plus vite|ikhtasar|khtasar)\b|اختصر/.test(brut)) return "plus_court";
+  // Une commande, pas une demande : « Explique-moi en bref ce qu'est une AMM » est une DEMANDE (passage réel, K9).
+  const bref = brut.split(" ").length <= 6;
+  if (bref && /^(sois |fais |reponds |parle )?(plus court|en bref|abrege|va a l essentiel|plus vite|ikhtasar|khtasar)\b|^اختصر/.test(brut)) return "plus_court";
   return null;
 }
 

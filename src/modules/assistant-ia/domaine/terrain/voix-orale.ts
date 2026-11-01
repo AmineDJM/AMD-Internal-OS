@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE CARTE DEVIENT UNE CONVERSATION (lot K4, décision 0035) — les RÈGLES de la voix orale, zéro import.
+ * UNE CARTE DEVIENT UNE CONVERSATION (lot K4, décision 0038) — les RÈGLES de la voix orale, zéro import.
  *
  * Direction, 31/10/2026 : « En appel vocal, l'expérience doit être ORALE. Pour une action, il me RÉSUME la demande de façon
  * fluide, pas comme un robot. Il me propose les cases non obligatoires […] Puis : "Tu confirmes ?". Je peux confirmer à

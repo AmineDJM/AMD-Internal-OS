@@ -15,7 +15,7 @@ import { remplacerModelesPourTests } from "../generer";
 import { modeleFactice } from "../testing/modele-factice";
 import { effacerJournalDe } from "../testing/journal";
 import { ETAT, filDe, traiterFil } from "../fil/service";
-import { enregistrerSessionVoix, fermerSessionVoix, reprisesOrales, suivreTravailVocal, traiterEnonceVocal, type SuiviOral } from "./oral";
+import { annoncesEnAppel, enregistrerSessionVoix, fermerSessionVoix, reprisesOrales, suivreTravailVocal, traiterEnonceVocal, type SuiviOral } from "./oral";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -221,6 +221,27 @@ suite("Assistant IA — la voix entièrement orale (K9)", () => {
     const dits = await reprisesOrales(sa, S3);
     expect(dits.some((d) => d.includes("Ton rendez-vous de jeudi est confirmé."))).toBe(true);
     expect(await reprisesOrales(sa, S3)).toEqual([]);
+  });
+
+  it("une pièce reçue par WhatsApp EN PLEIN APPEL (K6) est annoncée d'elle-même, une seule fois ; une pièce refusée, jamais", async () => {
+    const S4 = `live_${TAG}sa4`;
+    await enregistrerSessionVoix(sa.id, S4, null);
+    expect(await annoncesEnAppel(sa, S4)).toEqual([]);
+    const fil = await filDe(sa.id);
+    const q = await prisma.assistantIaTour.create({ data: { filId: fil.id, userId: sa.id, role: "user", contenu: "[Reçu par WhatsApp] lettre", etat: ETAT.TRAITE } });
+    const rep = await prisma.assistantIaTour.create({ data: { filId: fil.id, userId: sa.id, role: "assistant", contenu: "J'ai reçu la lettre du Dr Mansouri par WhatsApp. Où dois-je la ranger ?", etat: ETAT.TERMINE, repondA: q.id } });
+    await prisma.assistantIaReception.create({ data: { canal: "WHATSAPP", idExterne: `${TAG}wamid1`, userId: sa.id, expediteur: "+213•••", issue: "RECUE", nom: "lettre-mansouri.pdf", tourId: rep.id } });
+    await prisma.assistantIaReception.create({ data: { canal: "WHATSAPP", idExterne: `${TAG}wamid2`, userId: sa.id, expediteur: "+213•••", issue: "REFUS_FORMAT", nom: "virus.exe" } });
+    const dites = await annoncesEnAppel(sa, S4);
+    expect(dites).toHaveLength(1);
+    expect(dites[0]).toContain("WhatsApp");
+    expect(dites[0]).toContain("lettre-mansouri.pdf");
+    expect(dites[0]).toContain("Où dois-je la ranger");
+    expect(dites[0]).not.toContain("virus");
+    expect(await annoncesEnAppel(sa, S4)).toEqual([]);
+    // Hors de SA session : rien.
+    expect(await annoncesEnAppel(autre, S4)).toEqual([]);
+    await prisma.assistantIaReception.deleteMany({ where: { idExterne: { startsWith: TAG } } });
   });
 
   it("les commandes : stop et plus court reviennent au navigateur ; une mission absente se dit", async () => {

@@ -164,7 +164,7 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
     const user = await requireUser();
     if (!peutUtiliserAssistantIA(user)) return { ok: false, error: REFUS_ASSISTANT_IA };
     // J11 (décision 0030) : une correction du formulaire voyage en JSON (`corrections`) — le contrat de l'action reste
-    // lisible (trois textes). La garde est commune au bouton et à la confirmation orale (décision 0035).
+    // lisible (trois textes). La garde est commune au bouton et à la confirmation orale (décision 0038).
     const { confirmerCarte } = await import("@/modules/assistant-ia/api");
     return await confirmerCarte(user, intentId, confirmTyped, corrections);
   } catch (err) {

@@ -1,6 +1,6 @@
 # 0039 — La voix de l'Assistant IA entièrement orale (lot K9, 31/10/2026)
 
-> **Construit sur K4** (`0035-voix-orale.md`, renumérotée 0038 à l'intégration) : la carte orale de K4 — manquants →
+> **Construit sur K4** ([0038](0038-voix-orale.md)) : la carte orale de K4 — manquants →
 > facultatifs → récit → « tu confirmes ? », oui jugé par le serveur sur la transcription, garde du bouton
 > (`infra/voix/carte-orale.ts`, `infra/confirmation.ts:confirmerCarte`) — est reprise TELLE QUELLE, avec deux écarts
 > demandés par la Direction (§4). K9 ajoute l'attente vivante asynchrone, la rédaction pour l'oreille et « tout par la voix ».
@@ -99,6 +99,7 @@ d'avis ». L'écran reste à jour (l'état vit sur l'intention, que la conversat
 | « arrête la mission / la sous-mission » | `annulerMissionEtSousMissions` |
 | « stop », « tais-toi », « baraka » | le navigateur **coupe le son** et envoie `session.instructions.append` (interruption) ; le résultat de la délégation part en contexte silencieux |
 | « plus court », « en bref », « ikhtasar » | consigne de session : une phrase par réponse |
+| une pièce arrive par WhatsApp ou mail (K6, [0036](0036-canaux-entrants.md)) | **annoncée d'elle-même** pendant l'appel : la veille du navigateur (5 s, `/voix/travail?annonces=1`) lit les réceptions `RECUE` de la personne depuis l'ouverture, une seule fois par session (`annonceJusquA`) ; la voix dit d'où elle vient, son nom, ce que l'assistant en a dit — et la carte de rangement devient la carte orale (« je l'ajoute à SP-… ? » → « vas-y ») |
 | parler pendant que la voix parle | **barge-in côté navigateur** : au premier fragment de transcription d'entrée pendant la parole, l'élément audio est **coupé** (`muted`) — sans attendre le fournisseur — et rouvert à la réponse suivante |
 
 ## 6. Vérifié — et ce qui ne l'est pas
@@ -111,13 +112,18 @@ d'avis ». L'écran reste à jour (l'état vit sur l'intention, que la conversat
   asynchrone (précision ajoutée au message en attente, relance ciblée qui voit le résultat en cours, résultat dépassé
   remplacé, consigne orale reçue par le modèle, reprise à l'ouverture suivante une seule fois) ; flux d'événements rejoué
   (injection du résultat sous la dernière délégation, « oui » transcrit après 1,5 s, barge-in, « stop », « plus court », reprises).
-- **Limite** : le crédit OpenAI est épuisé (`insufficient_quota`) — aucun passage réel de GPT-Live dans ce lot. Les
-  scénarios oraux sont **scriptés** (transcriptions simulées). Deux points à vérifier au premier passage réel : que
-  GPT-Live **dit bien** de lui-même un `session.commentary.append` arrivé longtemps après la délégation (la documentation
-  dit « paraphrase », sans garantie de prise de parole), et la qualité de la transcription des accords en darja.
-- **Non fait** : la précision injectée DANS une boucle d'outils en cours (voir §3) ; l'**annonce orale d'une pièce reçue
-  en plein appel** (WhatsApp / courriel entrants, lot K6 `jarvis/k6-canaux`) — à brancher sur `reprisesOrales` /
-  `session.commentary.append` (`delegation_id: null`) quand K6 sera dans la base.
+- **Passage réel (01/11, crédit revenu)** : un tour vocal (« Explique-moi en bref ce qu'est une AMM pour un médicament en
+  Algérie ») avec le vrai modèle de l'assistant, sur la vraie base locale : la délégation a rendu la main à la voix en
+  **25 ms** (« je regarde, je te préviens »), le résultat est arrivé **75 s** plus tard (recherche web comprise) — c'est
+  exactement le cas que l'ancienne attente de 70 s renvoyait « à l'écran » — et il était **rédigé pour l'oreille** : la
+  réponse d'abord, trois phrases, puis « Tu veux que je t'explique la procédure ? ». ≈ 68 000 jetons d'entrée, 3 200 de
+  sortie. Ce passage a trouvé un défaut, corrigé et testé : « en bref » dans une DEMANDE était pris pour la commande
+  « plus court » (une commande est désormais un énoncé court qui n'est que la commande).
+- **Limite** : le média WebRTC ne passe pas le conteneur — GPT-Live lui-même n'a pas été entendu ici. Les scénarios oraux
+  sont scriptés (transcriptions simulées). À vérifier au premier passage réel en production : que GPT-Live **dit bien**
+  de lui-même un `session.commentary.append` arrivé longtemps après la délégation (la documentation dit « paraphrase »,
+  sans garantie de prise de parole), et la qualité de la transcription des accords en darja.
+- **Non fait** : la précision injectée DANS une boucle d'outils en cours (voir §3).
 
 ## 7. Décisions à confirmer par la Direction
 

@@ -82,6 +82,11 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
   }, []);
 
 
+  const annonces = useCallback(async (session: string | null): Promise<string[]> => {
+    const r = await fetch(`/api/assistant-ia/voix/travail?annonces=1&session=${encodeURIComponent(session ?? "")}`, { cache: "no-store" });
+    return r.ok ? (((await r.json()) as { annonces?: string[] }).annonces ?? []) : [];
+  }, []);
+
   const ouvrir = useCallback(async (sdp: string): Promise<{ sdp: string; session?: string; reprises?: string[] }> => {
     const r = await fetch("/api/assistant-ia/voix/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sdp, conversation: await conversationOuverte() }) });
     const d = (await r.json().catch(attendu("réponse non JSON : le statut HTTP décide", {}))) as { sdp?: string; session?: string; reprises?: string[]; error?: string };
@@ -105,7 +110,7 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
 
   const demarrer = useCallback(async () => {
     setDetail(null);
-    const c = new ClientVoixTempsReel({ ouvrir, deleguer, suivre }, {
+    const c = new ClientVoixTempsReel({ ouvrir, deleguer, suivre, annonces }, {
       etat: (e, x) => { setEtat(e); if (x) setDetail(x); },
       ligne: (qui, texte) => { dites.current.push({ qui, texte }); ajouter({ qui, texte }); },
       delegation: (_demande, res) => {
@@ -121,7 +126,7 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
     client.current = c;
     await conversationOuverte();
     try { await c.connecter(); } catch { client.current = null; }
-  }, [ouvrir, deleguer, suivre, conversationOuverte]);
+  }, [ouvrir, deleguer, suivre, annonces, conversationOuverte]);
 
   useEffect(() => () => { void terminer(); }, [terminer]);
 

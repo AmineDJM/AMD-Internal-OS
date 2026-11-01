@@ -3,7 +3,8 @@ import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
-import { demarrerLesSousMissions, outilTravailPour, PERSONA_ASSISTANT_IA } from "./travaux";
+import { demarrerLesSousMissions, outilsSousMissionsDuTour, outilTravailPour, PERSONA_ASSISTANT_IA } from "./travaux";
+import { lireDemandeRecherche, ORIGINE_RECHERCHE, planRecherche } from "../domaine/recherche-approfondie";
 import { conclureSousMissions, tableauDesMissions, travauxDOfficePour } from "./sous-missions";
 import { cleDeTitre, extraitDuLivrable, phraseIndicateur, phraseSynthese, reglageDOffice } from "../domaine/sous-missions";
 import { planSansGeste } from "@/lib/missions/travaux/regles";
@@ -74,6 +75,28 @@ describe("les règles pures des sous-missions", () => {
   });
 });
 
+describe("la recherche approfondie — les règles", () => {
+  it("un sujet et 2 à 6 angles distincts ; trop peu d'angles → trois angles par défaut ; sans sujet, refus", () => {
+    expect(lireDemandeRecherche({ angles: ["a", "b"] }).ok).toBe(false);
+    const peu = lireDemandeRecherche({ sujet: "Marché algérien des biosimilaires", angles: ["prix"] });
+    expect(peu.ok && peu.demande.angles).toHaveLength(3);
+    const trop = lireDemandeRecherche({ sujet: "Marché algérien des biosimilaires", angles: ["a", "b", "A", "c", "d", "e", "f", "g"] });
+    expect(trop.ok && trop.demande.angles).toEqual(["a", "b", "c", "d", "e", "f"]);
+  });
+  it("le plan : une LECTURE web_research par angle, sans dépendance (en parallèle), puis le rapport en PDF après toutes", () => {
+    const l = lireDemandeRecherche({ sujet: "Biosimilaires en Algérie", angles: ["marché", "acteurs", "réglementation"] });
+    if (!l.ok) throw new Error("demande refusée");
+    const p = planRecherche(l.demande) as { etapes: { cle: string; type: string; outil?: string; apres?: string[]; format?: string; entree?: { query: string } }[] };
+    const lectures = p.etapes.filter((e) => e.type === "LECTURE");
+    expect(lectures.map((e) => e.outil)).toEqual(["web_research", "web_research", "web_research"]);
+    expect(lectures.every((e) => !e.apres?.length)).toBe(true);
+    expect(lectures[1]!.entree!.query).toBe("Biosimilaires en Algérie — acteurs");
+    const rapport = p.etapes.at(-1)!;
+    expect(rapport).toMatchObject({ type: "LIVRABLE", format: "pdf", apres: ["recherche-1", "recherche-2", "recherche-3"] });
+    expect(planSansGeste(p as never, [])).toBe(true);
+  });
+});
+
 suite("les sous-missions — plusieurs par tour, d'office, conclues dans la conversation", () => {
   beforeAll(async () => {
     const a = await prisma.user.create({ data: { name: `${TAG}Directrice`, email: `${TAG}d@t.dz`, passwordHash: "x", role: "SUPER_ADMIN" } });
@@ -115,6 +138,28 @@ suite("les sous-missions — plusieurs par tour, d'office, conclues dans la conv
     const ms = await prisma.mission.findMany({ where: { id: { in: [a.travailId, b.travailId] } }, select: { id: true, status: true, planApprouveLe: true } });
     expect(ms.find((m) => m.id === a.travailId)?.planApprouveLe).toBeNull();
     expect(ms.find((m) => m.id === b.travailId)?.status).toBe("READY");
+  });
+
+  it("RECHERCHE APPROFONDIE : l'outil du tour ouvre une mission de sous-recherches en parallèle, démarrée d'office, marquée « recherche »", async () => {
+    const lances: string[] = [];
+    const [, recherche] = outilsSousMissionsDuTour(chef, lances, "immediat");
+    expect(recherche!.def.name).toBe("recherche_approfondie");
+    const r = JSON.parse(await recherche!.run({ sujet: "Biosimilaires de l'insuline en Afrique du Nord", angles: ["marché", "acteurs", "prix", "réglementation"] }, chef)) as { statut: string; travailId: string; sousRecherches: number };
+    expect(r.statut).toBe("DEMARRE");
+    expect(r.sousRecherches).toBe(4);
+    const m = await prisma.mission.findUnique({ where: { id: r.travailId }, select: { context: true, status: true, steps: { select: { key: true, capability: true } } } });
+    expect(m?.context).toBe(ORIGINE_RECHERCHE);
+    expect(m?.steps.filter((x) => x.capability?.endsWith("web_research"))).toHaveLength(4);
+    expect(lances).toEqual([r.travailId]);
+    await prisma.mission.update({
+      where: { id: r.travailId },
+      data: { status: "COMPLETED", carnet: { objectif: "x", plan: null, notes: [], trouvailles: [], livrables: [{ etape: "rapport", titre: "Rapport de recherche", contenu: "# Biosimilaires\n\n## Sommaire\n- Marché\n\n## Marché\nLe marché pèse 12 M$ en 2025 [1].\n\n## Sources\n[1] Rapport — https://exemple.org/rapport", at: new Date().toISOString() }] } },
+    });
+    const tour = await prisma.assistantIaTour.create({ data: { filId, userId: chef.id, role: "assistant", etat: "TERMINE", contenu: "Recherche lancée.", travaux: lances } });
+    expect(await conclureSousMissions(r.travailId)).toBe("ecrite");
+    const s = await prisma.assistantIaTour.findFirst({ where: { syntheseDe: tour.id }, select: { contenu: true } });
+    expect(s?.contenu).toContain("## Sources");
+    expect(s?.contenu).toContain("[1] Rapport — https://exemple.org/rapport");
   });
 
   it("la personne a réglé « non » : le plan sans geste ATTEND son accord", async () => {

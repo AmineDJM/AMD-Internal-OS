@@ -176,6 +176,12 @@ describe("K9 — la voix entièrement orale (flux rejoué)", () => {
     expect(String(envoyes[2].content)).toContain("une phrase");
   });
 
+  it("une pièce reçue pendant l'appel (K6) : la veille l'annonce d'elle-même, pour toute la session", async () => {
+    const { c, envoyes } = client({ annonces: async () => ["Une pièce vient d'arriver par WhatsApp — « lettre.pdf »."] });
+    await c.annoncerMaintenant();
+    expect(envoyes).toEqual([{ type: "session.commentary.append", event_id: "resultat_1", delegation_id: null, content: "Une pièce vient d'arriver par WhatsApp — « lettre.pdf »." }]);
+  });
+
   it("la reprise : ce qui est arrivé après la dernière session est dit à l'ouverture", async () => {
     const { c, envoyes } = client({});
     (c as unknown as { reprises: string[] }).reprises = ["Ton rendez-vous de jeudi est confirmé."];

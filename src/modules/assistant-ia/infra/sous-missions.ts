@@ -8,7 +8,8 @@ import {
   type MissionTableau, type PersonaTravaux,
 } from "./travaux";
 import { deposerSynthese } from "./fil/service";
-import { outilLancerUnTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
+import { outilLancerUnTravail, type OuvertureTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
+import { ANGLES_MAX, ANGLES_MIN, lireDemandeRecherche, NOM_OUTIL_RECHERCHE, ORIGINE_RECHERCHE, planRecherche } from "../domaine/recherche-approfondie";
 import { genererTexte } from "./generer";
 import { auNomDe } from "./consommation";
 import { cleDeTitre, extraitDuLivrable, phraseSynthese, reglageDOffice, statutFini, type IssueSousMission } from "../domaine/sous-missions";
@@ -53,16 +54,22 @@ export async function reglerPreferenceDOffice(userId: string, valeur: boolean | 
  * L'OUTIL « lancer_un_travail » DU TOUR — `lances` reçoit les travaux lancés (la carte du tour). Construit à chaque tour
  * (`fil/tour.ts`) : la mémoire « ce tour » est la fermeture.
  */
-export function outilSousMissionsPour(user: CurrentUser, persona: PersonaTravaux, lances: string[] = [], demarrage: "immediat" | "fin-du-tour" = "immediat"): OutilTravail {
+type Ouvrir = (plan: unknown, origine?: string) => Promise<OuvertureTravail>;
+
+/**
+ * L'OUVERTURE D'UNE SOUS-MISSION pour CE tour — partagée par `lancer_un_travail` et `recherche_approfondie` : la même
+ * mémoire du tour (reformulation remplacée), la même liste `lances` (la carte), le même démarrage d'office.
+ */
+function ouvrirDuTour(user: CurrentUser, persona: PersonaTravaux, lances: string[], demarrage: "immediat" | "fin-du-tour"): Ouvrir {
   const duTour: { id: string; cle: string }[] = [];
-  return outilLancerUnTravail(user.id, async (plan) => {
+  return async (plan, origine = "assistant-ia:conversation") => {
     const e = plan && typeof plan === "object" ? (plan as Record<string, unknown>) : {};
     const cle = cleDeTitre(e.titre);
     // REFORMULER ≠ LANCER UNE AUTRE : `remplace` explicite, ou le même titre qu'un plan de ce tour (le modèle qui « corrige »).
     const explicite = typeof e.remplace === "string" ? duTour.find((p) => p.id === e.remplace) : undefined;
     const cible = explicite ?? (cle ? duTour.find((p) => p.cle === cle) : undefined);
     const parentId = typeof e.parent === "string" && e.parent.trim() ? e.parent.trim().slice(0, 64) : null;
-    const r = await proposerTravail(user.id, persona, plan, { origine: "assistant-ia:conversation", parentId });
+    const r = await proposerTravail(user.id, persona, plan, { origine, parentId });
     if (!r.ok) return r;
     if (cible) {
       await annulerTravail(cible.id, user.id);
@@ -79,7 +86,51 @@ export function outilSousMissionsPour(user: CurrentUser, persona: PersonaTravaux
       demarre = demarrage === "fin-du-tour" ? true : (await demarrerDOffice(r.travailId, user.id, persona)).ok;
     }
     return { ok: true, travailId: r.travailId, etapes: r.plan.etapes.length, gestes: r.gestes.map((g) => g.libelle), plafondUsd: r.plafondUsd, demarre, remplace: cible?.id ?? null };
-  }, "LECTURE : le nom exact d'un de tes outils de lecture ; GESTE : le nom exact d'un de tes outils « preparer_… » / de relance / de rendez-vous.");
+  };
+}
+
+export function outilSousMissionsPour(user: CurrentUser, persona: PersonaTravaux, lances: string[] = [], demarrage: "immediat" | "fin-du-tour" = "immediat"): OutilTravail {
+  return outilsSousMissionsPour(user, persona, lances, demarrage)[0]!;
+}
+
+/** Les deux outils du tour — `lancer_un_travail` et `recherche_approfondie` —, sur la même mémoire du tour. */
+export function outilsSousMissionsPour(user: CurrentUser, persona: PersonaTravaux, lances: string[] = [], demarrage: "immediat" | "fin-du-tour" = "immediat"): [OutilTravail, OutilTravail] {
+  const ouvrir = ouvrirDuTour(user, persona, lances, demarrage);
+  const lancer = outilLancerUnTravail(user.id, (plan) => ouvrir(plan), "LECTURE : le nom exact d'un de tes outils de lecture ; GESTE : le nom exact d'un de tes outils « preparer_… » / de relance / de rendez-vous.");
+  const recherche: OutilTravail = {
+    def: {
+      name: NOM_OUTIL_RECHERCHE,
+      description: "RECHERCHE APPROFONDIE sur le web (veille, étude de marché, réglementation, concurrence, état de l'art) : plusieurs sous-recherches en parallèle, une par angle, puis un rapport complet — sommaire, sections, chiffres datés, sources numérotées —, affiché dans la conversation et déposé au Drive en Word et en PDF. Tourne en arrière-plan ; suivi au tableau « Missions ».",
+      input_schema: {
+        type: "object",
+        properties: {
+          sujet: { type: "string", description: "La question de recherche, précise (pays, période, produit)." },
+          angles: { type: "array", items: { type: "string" }, description: `${ANGLES_MIN} à ${ANGLES_MAX} angles DISTINCTS à instruire en parallèle (ex. « taille du marché et croissance », « acteurs et parts de marché », « prix et remboursement », « réglementation »).` },
+          contexte: { type: "string", description: "Ce qu'on sait déjà, pour orienter les recherches (jamais une donnée confidentielle)." },
+          titre: { type: "string", description: "Le titre du rapport (facultatif)." },
+          remplace: { type: "string", description: "Pour CORRIGER une recherche proposée dans ce tour : son travailId." },
+        },
+        required: ["sujet", "angles"],
+      },
+    },
+    allowed: (u) => u.id === user.id,
+    label: "Recherche approfondie lancée",
+    run: async (entree, u) => {
+      if (u.id !== user.id) return JSON.stringify({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." });
+      const lu = lireDemandeRecherche(entree);
+      if (!lu.ok) return JSON.stringify({ statut: "PLAN_REFUSE", fautes: lu.fautes });
+      const plan = { ...planRecherche(lu.demande), ...(typeof entree.remplace === "string" ? { remplace: entree.remplace } : {}) };
+      const r = await ouvrir(plan, ORIGINE_RECHERCHE);
+      if (!r.ok) return JSON.stringify({ statut: "PLAN_REFUSE", fautes: r.fautes.slice(0, 8), consigne: "La recherche web n'est peut-être pas ouverte à cette personne : réponds avec web_research dans la conversation." });
+      return JSON.stringify({
+        statut: r.demarre ? "DEMARRE" : "EN_ATTENTE_D_APPROBATION", travailId: r.travailId, sousRecherches: lu.demande.angles.length, plafondUsd: r.plafondUsd,
+        consigne: r.demarre
+          ? `Recherche lancée en arrière-plan (${lu.demande.angles.length} sous-recherches en parallèle) : dis-le en une phrase — le rapport complet reviendra dans la conversation, en Word et en PDF au Drive ; avancement au tableau « Missions ». Ne rappelle pas l'outil pour elle. Ne donne aucun résultat maintenant.`
+          : "La recherche attend l'accord de la personne (bouton « Approuver » sous ta réponse) : dis-le en une phrase. Ne rappelle pas l'outil pour elle.",
+      });
+    },
+  };
+  return [lancer, recherche];
 }
 
 /**
@@ -96,6 +147,9 @@ export async function demarrerSousMissionsDuTour(user: Pick<CurrentUser, "id" | 
 // ─────────────────────────────── Le retour dans la conversation ───────────────────────────────
 
 const CONSIGNE_SYNTHESE = "Tu es l'assistant d'Adventum Pharma. Plusieurs sous-missions lancées en arrière-plan viennent de se terminer. En français, en 3 à 6 phrases sobres, dis ce qu'elles ont trouvé ensemble et ce que la personne peut faire ensuite. N'invente rien : seulement ce qui est écrit ci-dessous. Pas de titre, pas de liste.";
+
+/** Le rapport d'une recherche approfondie, affiché en entier dans la conversation — borné tout de même. */
+const RAPPORT_MAX = 40_000;
 
 const idsDe = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
@@ -117,23 +171,34 @@ async function conclureTour(tour: { id: string; filId: string; userId: string; t
   if (await prisma.assistantIaTour.count({ where: { syntheseDe: tour.id } })) return "rien";
   const ms = await prisma.mission.findMany({
     where: { id: { in: ids }, principalId: tour.userId, kind: "TRAVAIL" },
-    select: { id: true, title: true, status: true, costUsd: true, carnet: true, startedAt: true, updatedAt: true },
+    select: { id: true, title: true, status: true, costUsd: true, carnet: true, startedAt: true, updatedAt: true, context: true },
   });
   if (ms.some((m) => !statutFini(m.status))) return "attente";
   if (!ms.length || ms.every((m) => m.status === "CANCELLED")) return "rien";
-  const issues: IssueSousMission[] = ms.map((m) => {
+  const issues: IssueSousMission[] = await Promise.all(ms.map(async (m) => {
     const c = lireCarnet(m.carnet);
     const livrable = c.livrables[c.livrables.length - 1];
+    // LA RECHERCHE APPROFONDIE (§ 7) : le rapport s'affiche EN ENTIER ; son Word (le PDF en est la conversion) est cité aussi.
+    const complet = m.context === ORIGINE_RECHERCHE && !!livrable?.contenu;
+    const doc = livrable?.document;
+    // Le Word et le PDF du rapport (le PDF peut être converti APRÈS, par le worker) : les deux, quel que soit celui du carnet.
+    const base = doc?.nom.replace(/\.(pdf|docx)$/i, "");
+    const freres = complet && base
+      ? await prisma.driveNode.findMany({ where: { ownerId: tour.userId, name: { in: [`${base}.docx`, `${base}.pdf`] }, type: "FILE", isTrashed: false, NOT: { id: doc!.nodeId } }, select: { id: true, name: true } })
+      : [];
     return {
-      titre: m.title, statut: m.status, coutUsd: m.costUsd,
-      extrait: censurerTexte(extraitDuLivrable(livrable?.contenu ?? c.trouvailles.slice(-3).map((t) => t.texte).join("\n"))).texte,
-      document: livrable?.document ? { nom: livrable.document.nom, lien: livrable.document.lien } : null,
+      titre: m.title, statut: m.status, coutUsd: m.costUsd, complet,
+      extrait: complet
+        ? censurerTexte(livrable!.contenu.slice(0, RAPPORT_MAX)).texte
+        : censurerTexte(extraitDuLivrable(livrable?.contenu ?? c.trouvailles.slice(-3).map((t) => t.texte).join("\n"))).texte,
+      document: doc ? { nom: doc.nom, lien: doc.lien } : null,
+      ...(freres.length ? { autres: freres.map((f) => ({ nom: f.name, lien: `/drive/${f.id}` })) } : {}),
       dureeMs: m.startedAt ? m.updatedAt.getTime() - m.startedAt.getTime() : null,
     };
-  });
+  }));
   // EN BREF : une phrase de synthèse par le modèle rapide quand plusieurs ont abouti — un échec n'empêche pas la réponse.
   let enBref: string | null = null;
-  const abouties = issues.filter((i) => i.statut === "COMPLETED" && i.extrait);
+  const abouties = issues.filter((i) => i.statut === "COMPLETED" && i.extrait && !i.complet);
   if (abouties.length >= 2) {
     const texte = abouties.map((i) => `## ${i.titre}\n${i.extrait}`).join("\n\n");
     const r = await auNomDe(tour.userId, () => genererTexte(CONSIGNE_SYNTHESE, texte, 45_000, { role: "rapide" }), tour.filId).catch(sansBloquer("sous-missions.synthese", null));

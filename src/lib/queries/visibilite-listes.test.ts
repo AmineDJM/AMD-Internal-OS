@@ -55,7 +55,7 @@ const CLAUSES: { fonction: string; ecrans: string[] }[] = [
   { fonction: "clauseMessagesVisibles", ecrans: [] },
   { fonction: "regulatoryVisibleWhere", ecrans: ["src/lib/queries/regulatory-rows.ts"] },
   { fonction: "accessibleDocumentWhere", ecrans: ["src/app/(app)/documents/page.tsx"] },
-  { fonction: "clausePraticiensVisibles", ecrans: ["src/app/api/medical/annuaire/export/route.ts"] },
+  { fonction: "clausePraticiensVisibles", ecrans: ["src/lib/exports/annuaire.ts"] },
   { fonction: "clauseDirectivesVisibles", ecrans: ["src/lib/queries/directives.ts"] },
   { fonction: "clauseTachesVisibles", ecrans: [] },
   { fonction: "resolveRegCompanyIdFor", ecrans: ["src/app/(app)/regulatory/enregistrement/analyse/page.tsx"] },
@@ -121,7 +121,7 @@ describe("La gamme Regulatory ne se recompose pas à côté de la clause de l'é
   });
 
   it("le rapprochement des catalogues, la relance et l'export lisent la clause de l'écran", () => {
-    for (const f of ["src/lib/queries/product-catalog.ts", "src/lib/queries/regulatory-reminders.ts", "src/app/api/regulatory/export/route.ts"]) {
+    for (const f of ["src/lib/queries/product-catalog.ts", "src/lib/queries/regulatory-reminders.ts", "src/lib/exports/regulatory.ts"]) {
       expect(code(f), f).toMatch(/regulatoryVisibleWhere\(user\)/);
       expect(code(f), f).not.toMatch(/\.\.\.\s*scopeRegulatory\(/);
     }
