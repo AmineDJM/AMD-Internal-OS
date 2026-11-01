@@ -61,7 +61,11 @@
 >   vectors (`generer.ts` `plongerTextes`) only when the memory exceeds the envelope; voice session gets the profile too.
 >   Per-person switch `AssistantIaPreference.memoireAuto` (default on; off → `proposer_memoire` + card come back). Private
 >   conversations: nothing read or written. Measured cost: ≈ 0.00017 $ per capture that retains, 0 $ when filtered (K8 usage
->   « memoire »). Removed `assembleur.souvenirsPourQuestion` / `ENVELOPPES.memoire`.
+>   « memoire »). Removed `assembleur.souvenirsPourQuestion` / `ENVELOPPES.memoire`. Direction 01/11: memory managed in
+>   TOKENS — calibrated counter (3.5 chars/token, measured against `usage.input_tokens`), per-person storage budget
+>   `AssistantIaReglage.memoireJetonsBudget` (8 000), batch consolidation by the fast model at 85 % (≤ 1/day, reversible via
+>   `consolideDans`; bench: 1 688 → 402 stored tokens, 892 → 467 injected per turn, 0.00097 $), history purged after 12 months
+>   (task `assistant.memoire`); daily token cap now 0 = none (per-turn cap unchanged).
 > - **J4 (2026-10-30) — speed & memory of the Assistant IA** (decision `docs/assistant/decisions/0018-vitesse-memoire.md`) [V]:
 >   tools on demand — a 10-tool socle + a 6-tool lexical preselection (`domaine/selection-outils.ts`, French full-text, 0 ms;
 >   reference corpus 60 requests: top-1 56/60, top-3 60/60) + meta-tool `trouver_outil` (`infra/selection.ts`); ALL tools stay

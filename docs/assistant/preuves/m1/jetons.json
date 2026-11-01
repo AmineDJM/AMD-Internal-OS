@@ -1,0 +1,40 @@
+{
+  "le": "2026-11-01T18:41:02.196Z",
+  "avant": {
+    "actifs": 123,
+    "stockes": 1688,
+    "injectes": {
+      "Tu te souviens de mon voyage ?": 892,
+      "Que sais-tu de ma famille ?": 890,
+      "Prépare-moi la réunion de dimanche.": 892
+    }
+  },
+  "apres": {
+    "actifs": 9,
+    "stockes": 402,
+    "injectes": {
+      "Tu te souviens de mon voyage ?": 467,
+      "Que sais-tu de ma famille ?": 467,
+      "Prépare-moi la réunion de dimanche.": 467
+    }
+  },
+  "bilan": {
+    "fait": true,
+    "motif": "consolide",
+    "jetonsAvant": 1688,
+    "jetonsApres": 402,
+    "budget": 8000,
+    "groupes": 9,
+    "faitsRepris": 123,
+    "refuses": []
+  },
+  "consolidation": [
+    {
+      "model": "gpt-6-luna",
+      "inputTokens": 4335,
+      "outputTokens": 1080,
+      "costUsd": 0.000974,
+      "ms": 10216
+    }
+  ]
+}

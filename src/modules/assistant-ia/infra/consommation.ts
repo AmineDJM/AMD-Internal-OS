@@ -7,7 +7,7 @@ import { sansBloquer } from "@/lib/journal";
 import { coutJournal, type ColonnesK8 } from "@/platform/ia/telemetry/cout-journal";
 import { sousImputation } from "@/platform/ia/telemetry/imputation";
 import {
-  coutEstimeUsd, debutJourAlger, jourAlger, normaliserReglages, refusPlafondJour, refusPlafondTour,
+  coutEstimeUsd, debutJourAlger, jourAlger, normaliserReglages, plafondJourActif, refusPlafondJour, refusPlafondTour,
   REGLAGES_PAR_DEFAUT, type ReglagesAssistantIa, type Tarif,
 } from "../domaine/consommation-regles";
 
@@ -289,7 +289,7 @@ export class Budget {
 
   /** Ce qui reste du jour à l'ouverture — infini quand l'appel n'a pas de personne (aucune n'est plafonnée). */
   private get resteJour(): number {
-    return this.userId ? Math.max(0, this.reglages.plafondJetonsJour - this.consommeAvant) : Infinity;
+    return this.userId && plafondJourActif(this.reglages) ? Math.max(0, this.reglages.plafondJetonsJour - this.consommeAvant) : Infinity;
   }
 
   /** La borne du tour : son plafond, ou ce qui reste du jour s'il est plus bas. */
@@ -318,7 +318,7 @@ export class Budget {
 export async function ouvrirBudget(p: { userId: string | null; origine: OrigineAppel; conversation?: string | null }): Promise<Budget> {
   const reglages = await lireReglagesAssistantIa();
   const avant = p.userId ? await jetonsDuJour(p.userId) : 0;
-  if (p.userId && avant >= reglages.plafondJetonsJour) {
+  if (p.userId && plafondJourActif(reglages) && avant >= reglages.plafondJetonsJour) {
     await signalerPlafondJour(p.userId, avant, reglages.plafondJetonsJour);
     throw new PlafondIaAtteint(refusPlafondJour(reglages.plafondJetonsJour));
   }
@@ -360,7 +360,7 @@ export async function fermerBudget(b: Budget, issue: { ok: boolean; erreur?: str
     // Un total partiel se lirait comme un total : un seul appel sans tarif rend le coût du tour inconnu.
     costUsd: couts.length && couts.every((c) => c != null) ? couts.reduce((s, c) => s + (c ?? 0), 0) : null,
   });
-  if (b.userId && b.consommeAvant < b.reglages.plafondJetonsJour && b.consommeAvant + b.consomme >= b.reglages.plafondJetonsJour) {
+  if (b.userId && plafondJourActif(b.reglages) && b.consommeAvant < b.reglages.plafondJetonsJour && b.consommeAvant + b.consomme >= b.reglages.plafondJetonsJour) {
     await signalerPlafondJour(b.userId, b.consommeAvant + b.consomme, b.reglages.plafondJetonsJour);
   }
 }

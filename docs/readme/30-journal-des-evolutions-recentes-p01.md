@@ -12,7 +12,11 @@ Lyon, le 12, avec Lina, dans une nouvelle conversation). Panneau « Ce qu'il ret
 l'origine de chaque souvenir et le réglage « mémoire automatique ». Rien en conversation privée, rien d'autrui, rien de
 confidentiel. Coût mesuré ≈ 0,00017 $ par capture (0 $ quand rien n'est à retenir). Migration
 `20270219100000_assistant_ia_memoire_auto`. Décision [0045](../assistant/decisions/0045-memoire-automatique.md) ; audit
-des fonctions de l'app : [preuves/m1](../assistant/preuves/m1/AUDIT.md).
+des fonctions de l'app : [preuves/m1](../assistant/preuves/m1/AUDIT.md). Décisions de la Direction du même jour : la
+mémoire se gère en **jetons** (budget de stockage par personne, 8 000 ; consolidation automatique rare et réversible —
+mesuré : 892 → 467 jetons injectés par tour, 0,001 $ la consolidation ; « X jetons sur Y » dans le panneau), l'historique
+des faits remplacés est gardé **12 mois**, la santé déclarée est retenue d'office, et il n'y a **plus de plafond
+quotidien** de jetons par personne (le plafond par tour reste). Migration `20270219300000_memoire_jetons_sans_plafond`.
 
 ### O1 (suite) : C'EST À L'ASSISTANT D'ORCHESTRER — CLASSER CHAQUE PHRASE, PRÉCISION MAJEURE OU MINEURE, AGENDA SANS PLAFOND (2026-11-01)
 

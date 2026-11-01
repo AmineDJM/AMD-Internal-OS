@@ -4,7 +4,7 @@ import { porte } from "./infra/porte-actions";
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import {
-  ajouterMemoire, annulerSouvenir, effacerMemoire, estChargeOperationIA, executerOperationJournalisee, listerMemoire, memoireAutoActive,
+  ajouterMemoire, annulerSouvenir, effacerMemoire, estChargeOperationIA, executerOperationJournalisee, jetonsDeLaMemoire, listerMemoire, lireReglagesAssistantIa, memoireAutoActive,
   modifierMemoire, reglerMemoireAuto, toutEffacerMemoire,
   type ElementMemoire, type PieceDuTour,
 } from "@/modules/assistant-ia/api";
@@ -25,11 +25,11 @@ import { actionReversible } from "@/lib/effets/reversible";
  */
 
 
-export async function listerMaMemoire(): Promise<{ ok: true; elements: ElementMemoire[]; auto: boolean } | { ok: false; erreur: string }> {
+export async function listerMaMemoire(): Promise<{ ok: true; elements: ElementMemoire[]; auto: boolean; jetons: number; budget: number } | { ok: false; erreur: string }> {
   const p = await porte(false);
   if (!p.ok) return p;
-  const [elements, auto] = await Promise.all([listerMemoire(p.user.id), memoireAutoActive(p.user.id)]);
-  return { ok: true, elements, auto };
+  const [elements, auto, jetons, reglages] = await Promise.all([listerMemoire(p.user.id), memoireAutoActive(p.user.id), jetonsDeLaMemoire(p.user.id), lireReglagesAssistantIa()]);
+  return { ok: true, elements, auto, jetons, budget: reglages.memoireJetonsBudget };
 }
 
 /** Retenir — le geste de CONFIRMATION d'une mémoire proposée (`propose`), ou un ajout à la main (`manuel`). */

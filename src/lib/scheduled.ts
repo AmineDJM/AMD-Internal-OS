@@ -275,6 +275,8 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   { cle: "assistant.sous-missions", executer: async () => { await (await import("@/modules/assistant-ia/api")).balayerSousMissions(); } },
   // LES CONVERSATIONS PRIVÉES (décision 0027) : supprimées 30 jours après leur création, tours compris.
   { cle: "assistant.conversations-privees", executer: async () => (await import("@/modules/assistant-ia/api")).purgerConversationsPrivees() },
+  // M1 (décision 0045) : l'historique de la mémoire purgé après 12 mois, les mémoires proches de leur budget consolidées.
+  { cle: "assistant.memoire", executer: async () => (await import("@/modules/assistant-ia/api")).tacheMemoire() },
   // K2 (décision 0032) — LES VISUELS : vidéos du modèle suivies (dépôt au Drive, avis), vidéos de données rendues là où ffmpeg
   // est (le worker ; pas le web Render), rendus interrompus et files abandonnées dits en échec. Chargé à l'appel.
   { cle: "assistant.visuels", bailMs: 300_000, executer: async () => { await (await import("@/modules/assistant-ia/api")).traiterVisuelsEnFile(); } },

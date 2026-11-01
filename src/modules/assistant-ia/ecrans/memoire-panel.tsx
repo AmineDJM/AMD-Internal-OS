@@ -32,6 +32,7 @@ export function MemoirePanel({ ouvert, onFermer, onOuvrirConversation }: {
 }) {
   const [elements, setElements] = useState<ElementMemoire[] | null>(null);
   const [auto, setAuto] = useState(true);
+  const [occupation, setOccupation] = useState<{ jetons: number; budget: number } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [edition, setEdition] = useState<{ id: string; texte: string } | null>(null);
   const [nouveau, setNouveau] = useState<{ texte: string; sorte: SorteMemoire } | null>(null);
@@ -42,7 +43,7 @@ export function MemoirePanel({ ouvert, onFermer, onOuvrirConversation }: {
   const charger = useCallback(async () => {
     try {
       const r = await listerMaMemoire();
-      if (r.ok) { setElements(r.elements); setAuto(r.auto); setErreur(null); } else setErreur(r.erreur);
+      if (r.ok) { setElements(r.elements); setAuto(r.auto); setOccupation({ jetons: r.jetons, budget: r.budget }); setErreur(null); } else setErreur(r.erreur);
     } catch {
       setErreur("La mémoire n'a pas pu être chargée (connexion ou serveur).");
     }
@@ -167,6 +168,18 @@ export function MemoirePanel({ ouvert, onFermer, onOuvrirConversation }: {
               onChange={(ev) => { const v = ev.target.checked; setAuto(v); void agir(() => reglerMaMemoireAuto(v)); }}
               className="h-5 w-9 cursor-pointer accent-violet-600" />
           </label>
+          {occupation && (
+            <div className="space-y-1" data-testid="occupation-memoire">
+              <p className="flex justify-between text-[12px] text-slate-600 dark:text-zinc-400">
+                <span>{occupation.jetons.toLocaleString("fr-FR")} jetons sur {occupation.budget.toLocaleString("fr-FR")}</span>
+                <span>{Math.min(100, Math.round((100 * occupation.jetons) / Math.max(1, occupation.budget)))} %</span>
+              </p>
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-zinc-800" aria-hidden>
+                <div className="h-full rounded-full bg-violet-500" style={{ width: `${Math.min(100, (100 * occupation.jetons) / Math.max(1, occupation.budget))}%` }} />
+              </div>
+              <p className="text-[11px] text-slate-500">Au-delà de 85 %, il regroupe lui-même les souvenirs proches ; les anciens restent un an, annulables.</p>
+            </div>
+          )}
           {total > 4 && (
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />

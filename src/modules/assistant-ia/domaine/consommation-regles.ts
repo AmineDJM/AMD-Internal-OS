@@ -18,12 +18,15 @@
  * (arrière-plan, 24 étapes) ≥ 216 k.
  *   • 12 étapes au plus par tour (la conversation en demande 8 ; l'arrière-plan en avait 24).
  *   • 150 000 jetons par tour : 12 étapes pleines, ou un long résumé de document.
- *   • 600 000 jetons par personne et par jour : une vingtaine de questions, ou quatre gros travaux.
+ *   • SANS plafond par personne et par jour (Direction, 01/11/2026 : « pas de plafond tout court ») — `0` = sans ;
+ *     réglable en console si un jour on le veut. Le plafond PAR TOUR reste : il arrête une boucle.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
 export interface ReglagesAssistantIa {
   plafondJetonsJour: number;
+  /** M1 : budget de STOCKAGE de la mémoire de chaque personne, en jetons (consolidation au-delà de 85 %). */
+  memoireJetonsBudget: number;
   plafondJetonsTour: number;
   etapesMaxTour: number;
   /** Décision IA-ASSISTANT-09 (option prudente) : le message saisi et l'historique sont filtrés. */
@@ -56,7 +59,8 @@ export const modeValeursSensibles = (v: unknown): ModeValeursSensibles =>
   (MODES_VALEURS_SENSIBLES as readonly unknown[]).includes(v) ? (v as ModeValeursSensibles) : "EN_CLAIR";
 
 export const REGLAGES_PAR_DEFAUT: ReglagesAssistantIa = {
-  plafondJetonsJour: 600_000,
+  plafondJetonsJour: 0,
+  memoireJetonsBudget: 8_000,
   plafondJetonsTour: 150_000,
   etapesMaxTour: 12,
   censurerSaisie: true,
@@ -74,8 +78,10 @@ export const nomDeModeleValide = (v: unknown): string => {
 
 /** Les bornes de l'écran : un réglage hors bornes est ramené dedans, jamais refusé en silence. */
 export const BORNES = {
-  plafondJetonsJour: { min: 10_000, max: 50_000_000 },
+  // 0 = sans plafond (défaut, Direction 01/11/2026) ; sinon au moins 10 000.
+  plafondJetonsJour: { min: 0, max: 50_000_000 },
   plafondJetonsTour: { min: 5_000, max: 2_000_000 },
+  memoireJetonsBudget: { min: 1_000, max: 100_000 },
   etapesMaxTour: { min: 1, max: 24 },
   expirationCartesHeures: { min: 1, max: 24 * 30 },
 } as const;
@@ -85,14 +91,19 @@ type CleNombre = keyof typeof BORNES;
 export function borner(cle: CleNombre, v: unknown): number {
   const n = Math.round(Number(v));
   if (!Number.isFinite(n)) return REGLAGES_PAR_DEFAUT[cle];
-  return Math.min(BORNES[cle].max, Math.max(BORNES[cle].min, n));
+  if (cle === "plafondJetonsJour" && n <= 0) return 0;
+  return Math.min(BORNES[cle].max, Math.max(cle === "plafondJetonsJour" ? 10_000 : BORNES[cle].min, n));
 }
+
+/** Le plafond du jour s'applique-t-il ? `0` = sans plafond (défaut). */
+export const plafondJourActif = (r: Pick<ReglagesAssistantIa, "plafondJetonsJour">): boolean => r.plafondJetonsJour > 0;
 
 /** Une ligne lue (ou saisie) ramenée à des réglages valides — les booléens absents gardent le défaut. */
 export function normaliserReglages(r: Partial<Record<keyof ReglagesAssistantIa, unknown>> | null | undefined): ReglagesAssistantIa {
   const b = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
   return {
     plafondJetonsJour: r?.plafondJetonsJour == null ? REGLAGES_PAR_DEFAUT.plafondJetonsJour : borner("plafondJetonsJour", r.plafondJetonsJour),
+    memoireJetonsBudget: r?.memoireJetonsBudget == null ? REGLAGES_PAR_DEFAUT.memoireJetonsBudget : borner("memoireJetonsBudget", r.memoireJetonsBudget),
     plafondJetonsTour: r?.plafondJetonsTour == null ? REGLAGES_PAR_DEFAUT.plafondJetonsTour : borner("plafondJetonsTour", r.plafondJetonsTour),
     etapesMaxTour: r?.etapesMaxTour == null ? REGLAGES_PAR_DEFAUT.etapesMaxTour : borner("etapesMaxTour", r.etapesMaxTour),
     expirationCartesHeures: r?.expirationCartesHeures == null ? REGLAGES_PAR_DEFAUT.expirationCartesHeures : borner("expirationCartesHeures", r.expirationCartesHeures),

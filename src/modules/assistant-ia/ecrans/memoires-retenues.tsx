@@ -44,6 +44,8 @@ export function MemoiresRetenues({ memoires }: { memoires: MemoireRetenue[] }) {
             {" — "}
             {annule ? (
               <span className="text-slate-400">annulé</span>
+            ) : m.depasse ? (
+              <span className="text-slate-400">mis à jour depuis</span>
             ) : (
               <button type="button" disabled={occupe === m.id} onClick={() => annuler(m.id)} className="inline-flex items-center gap-0.5 font-medium text-violet-700 underline-offset-2 hover:underline disabled:opacity-60 dark:text-violet-300">
                 {occupe === m.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Undo2 className="h-3 w-3" />} annuler

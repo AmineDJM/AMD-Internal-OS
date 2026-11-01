@@ -49,12 +49,13 @@ export const MEMOIRE_MAX_CARACTERES = 400;
 export const MEMOIRE_MAX_ELEMENTS = 300;
 
 /** D'où vient un souvenir — dit dans le panneau. */
-export type OrigineMemoire = "manuel" | "propose" | "auto" | "voix";
+export type OrigineMemoire = "manuel" | "propose" | "auto" | "voix" | "consolidation";
 export const LIBELLE_ORIGINE: Record<OrigineMemoire, string> = {
   manuel: "ajouté par vous",
   propose: "retenu sur votre confirmation",
   auto: "retenu de la conversation",
   voix: "retenu de la conversation vocale",
+  consolidation: "regroupé par l'assistant (consolidation)",
 };
 
 export interface ElementMemoire {
@@ -84,6 +85,8 @@ export interface MemoireRetenue {
   geste: "ajoute" | "remplace";
   /** Annulé depuis (la ligne le dit, le souvenir n'existe plus ou l'ancien est revenu). */
   annule?: boolean;
+  /** Mis à jour ou regroupé depuis (consolidation) : l'historique le garde 12 mois, il ne s'annule plus d'ici. */
+  depasse?: boolean;
 }
 
 /** La ligne discrète de la conversation : « Retenu : Part à Lyon le 12 avec sa fille Lina ». */

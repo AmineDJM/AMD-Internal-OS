@@ -8,13 +8,14 @@ import { useAction } from "@/components/shared/use-action";
 import { enregistrerReglagesAssistantIa } from "@/modules/assistant-ia/actions-consommation";
 import { BORNES, REGLAGES_PAR_DEFAUT, type ReglagesAssistantIa } from "@/modules/assistant-ia/partage";
 
-type CleNombre = "plafondJetonsJour" | "plafondJetonsTour" | "etapesMaxTour" | "expirationCartesHeures";
+type CleNombre = "plafondJetonsJour" | "plafondJetonsTour" | "etapesMaxTour" | "expirationCartesHeures" | "memoireJetonsBudget";
 type CleDecision = "censurerSaisie" | "retirerCartesCaduques";
 
 const NOMBRES: { cle: CleNombre; label: string; aide: string }[] = [
-  { cle: "plafondJetonsJour", label: "Jetons par personne et par jour", aide: "Atteint : les demandes de la personne sont refusées jusqu'à minuit (heure d'Alger), avec une phrase qui le dit ; vous êtes notifié une fois." },
+  { cle: "plafondJetonsJour", label: "Jetons par personne et par jour", aide: "0 = sans plafond (décision de la Direction, 01/11/2026). Sinon, atteint : les demandes de la personne sont refusées jusqu'à minuit (heure d'Alger), avec une phrase qui le dit ; vous êtes notifié une fois." },
   { cle: "plafondJetonsTour", label: "Jetons par tour", aide: "Toutes les étapes d'une demande, résumés de documents compris. Atteint : l'assistant s'arrête avant de finir et le dit." },
   { cle: "etapesMaxTour", label: "Étapes par tour", aide: "Appels du modèle pour UNE demande (lectures enchaînées). Chaque étape renvoie environ 9 000 jetons fixes." },
+  { cle: "memoireJetonsBudget", label: "Mémoire de chaque personne (jetons)", aide: "Ce que l'assistant garde de chacun, en jetons (≈ 3,5 caractères). Au-delà de 85 %, il consolide seul (fusion des faits proches, réécriture concise) — rarement, réversible, journalisé." },
   { cle: "expirationCartesHeures", label: "Expiration des cartes (heures)", aide: "Une carte d'action jamais confirmée expire après ce délai : elle ne s'exécute plus, on la redemande." },
 ];
 

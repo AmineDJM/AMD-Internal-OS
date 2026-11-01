@@ -8,7 +8,7 @@ import { ECRITURES_DU_MOTEUR, famillesDeLaLecture, famillesDuGeste, outilsV1 } f
 import { executerOperationIA, OPERATIONS_IA } from "./operations/index";
 import { estChargeOperationIA } from "../domaine/operations/types";
 import { fermerBudget, jetonsDuJour, lireReglagesAssistantIa, ouvrirBudget, PlafondIaAtteint, sousBudget, tarifDe } from "./consommation";
-import { coutEstimeUsd } from "../domaine/consommation-regles";
+import { coutEstimeUsd, plafondJourActif } from "../domaine/consommation-regles";
 import { genererTexte } from "./generer";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import { PLAFOND_MENSUEL_DEFAUT_USD, PLAFOND_TRAVAIL_DEFAUT_USD } from "@/lib/missions/travaux/plan";
@@ -140,7 +140,7 @@ export async function plafondsDe(principalId: string, now = new Date()): Promise
     travailUsd: parPersonne?.plafondTravailUsd ?? parRole?.plafondTravailUsd ?? reglage?.plafondTravailUsd ?? PLAFOND_TRAVAIL_DEFAUT_USD,
     mensuelUsd: parPersonne?.plafondMensuelUsd ?? parRole?.plafondMensuelUsd ?? reglage?.plafondMensuelUsd ?? PLAFOND_MENSUEL_DEFAUT_USD,
     depenseMoisUsd: Number(depense._sum.costUsd ?? 0),
-    jourAtteint: (await jetonsDuJour(principalId, now)) >= reglages.plafondJetonsJour,
+    jourAtteint: plafondJourActif(reglages) && (await jetonsDuJour(principalId, now)) >= reglages.plafondJetonsJour,
   };
 }
 

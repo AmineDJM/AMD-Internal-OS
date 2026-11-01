@@ -40,6 +40,15 @@ souvenirs pour le même message).
 | Voix — ouvrir, appeler, raccrocher, fermer au pouce | ✅ **corrigé** | « Annuler » et « Fermer » à y = 592 sur 664 (bas d'écran), panneau refermé ; la session gpt-live est ouverte par le serveur, mais l'audio WebRTC ne passe pas dans le conteneur du banc (pas d'UDP) : l'appel reste « Connexion… » — et pendant ce temps AUCUN bouton n'était au pouce (seule la croix du haut). Ajouté : « Annuler » en bas pendant la connexion. Les boutons « Fermer », « Appeler », « Raccrocher » sont dans la barre du bas (safe-area). [iphone-26a](iphone-26a-voix-pret.jpg), [iphone-26b](iphone-26b-voix-en-appel.jpg), [iphone-26c](iphone-26c-voix-raccroche.jpg) |
 | ERP `/assistant` — panneau « Ce qu'il retient » | ✅ marche | serveur de production SANS `APP_MODE` (l'ERP), même compte : 4 souvenirs, compteur, souvenir vocal (« retenu de la conversation vocale »), ouvert par « Ma mémoire » (bureau) et « Plus d'outils › Ma mémoire » (iPhone). Script `scripts/bench/m1-audit-erp.ts`. [erp-bureau](erp-bureau-panneau.jpg), [erp-iphone](erp-iphone-panneau.jpg) |
 
+## Décisions de la Direction du 01/11 — vérifiées
+
+| Point | Verdict | Preuve |
+|---|---|---|
+| Mémoire en jetons : consolidation | ✅ | 123 faits redondants → 9 ; stockage 1 688 → 402 jetons ; injecté par tour 892 → 467 ; 0,00097 $ (gpt-6-luna, 4 335/1 080 jetons, 10 s), aucun groupe refusé, rien de perdu. [`jetons.json`](jetons.json) |
+| Panneau « X jetons sur Y » | ✅ | « 402 jetons sur 8 000 — 5 % » (ERP, iPhone 13). [erp-iphone-memoire-jetons](erp-iphone-memoire-jetons.jpg) |
+| Sans plafond quotidien | ✅ | Console : « Sans plafond » ; Administration › IA : « Sans plafond par jour · 150 000 jetons par tour ». [erp-admin-consommation](erp-admin-consommation-sans-plafond.jpg), [erp-admin-ia](erp-admin-ia-plafonds.jpg) |
+| Historique 12 mois, santé d'office | ✅ | tests `infra/memoire-consolidation.test.ts` (purge à 13 mois, gardé à 11, actif de 3 ans gardé ; allergie retenue). |
+
 ## L'app face à l'ERP `/assistant`
 
 Outils de l'ERP (barre et « Plus d'outils ») : Ma mémoire, Mes routines, Mes travaux, Veille, « Ce que l'assistant a
@@ -65,9 +74,8 @@ trouvé : « Ce que l'assistant a fait » — corrigé. Restent propres à l'ERP
 
 ## Reste (hors de ce lot, pour décision)
 
-- **Plafond quotidien** : 600 000 jetons/personne/jour (défaut). L'audit l'a atteint (une recherche approfondie et des
-  missions pèsent ~150 000 jetons) : le refus est propre et dit, mais un usage intensif de la Direction peut le toucher.
-  Relevé pour le banc uniquement (`AssistantIaReglage`, 5 M) — à décider pour la production.
+- **Plafond quotidien** : atteint pendant l'audit (600 000 jetons, alors le défaut) — la Direction l'a supprimé le 01/11
+  (0 = sans plafond, décision 0045 § 4).
 - **Export des demandes de paiement** : aucun écran ne l'offre, l'assistant le dit honnêtement et cite le Centre de
   paiement. À ajouter au catalogue (`src/lib/exports/catalogue.ts`) si la Direction le veut.
 - **Missions hors Super Admin** : elles attendent « Approuver » (réglage « démarrer d'office », décision 0033) — voulu.

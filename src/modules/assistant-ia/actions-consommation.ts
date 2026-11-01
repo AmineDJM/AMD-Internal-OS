@@ -30,6 +30,7 @@ export async function enregistrerReglagesAssistantIa(formData: FormData): Promis
   const r = normaliserReglages({
     plafondJetonsJour: formData.get("plafondJetonsJour"),
     plafondJetonsTour: formData.get("plafondJetonsTour"),
+    memoireJetonsBudget: formData.get("memoireJetonsBudget"),
     etapesMaxTour: formData.get("etapesMaxTour"),
     expirationCartesHeures: formData.get("expirationCartesHeures"),
     censurerSaisie: fdBool(formData, "censurerSaisie"),
@@ -43,7 +44,7 @@ export async function enregistrerReglagesAssistantIa(formData: FormData): Promis
   await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
   await recordAudit({
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA",
-    summary: `Bornes de l'Assistant IA : ${r.plafondJetonsJour} jetons/jour/personne, ${r.plafondJetonsTour} par tour, ${r.etapesMaxTour} étapes`
+    summary: `Bornes de l'Assistant IA : ${r.plafondJetonsJour > 0 ? `${r.plafondJetonsJour} jetons/jour/personne` : "sans plafond par jour"}, ${r.plafondJetonsTour} par tour, ${r.etapesMaxTour} étapes`
       + `${r.modeleVoix ? ` — voix temps réel : ${r.modeleVoix}` : ""}${r.censurerSaisie ? "" : " — filtre de la saisie COUPÉ"}${r.retirerCartesCaduques ? "" : " — retrait des cartes caduques COUPÉ"}`,
   });
   revalidatePath("/admin/ai/consommation");

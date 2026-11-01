@@ -11,6 +11,7 @@ import type { MemoireRetenue, OrigineMemoire } from "../domaine/memoire-ui";
 import { ajouterMemoire, memoireAutoActive, memoirePourContexte } from "./memoire";
 import { genererTexte, modelesFactices, plongerTextes } from "./generer";
 import { auNomDe } from "./consommation";
+import { consoliderMemoire } from "./memoire-consolidation";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -115,6 +116,8 @@ export async function capturerApresTour(d: DemandeCapture): Promise<BilanCapture
     if (refuses.length) console.info("[assistant-memoire] souvenirs refusés par la garde", refuses.map((x) => x.raison));
     const plonger = d.deps?.plonger ?? plongeurDuMoment();
     if (retenus.length && plonger) await auNomDe(d.userId, () => plongerSouvenirs(d.userId, retenus.map((x) => x.id), plonger), d.conversation);
+    // LE BUDGET EN JETONS : la capture qui fait franchir 85 % déclenche la consolidation (rare : une par jour au plus).
+    if (retenus.length) await consoliderMemoire(d.userId, { maintenant }).catch(sansBloquer("assistant-memoire.consolidation"));
     return { retenus, motif: retenus.length ? "retenu" : "rien", appel: true, refuses };
   } catch (e) {
     console.error("[assistant-memoire] capture", e);

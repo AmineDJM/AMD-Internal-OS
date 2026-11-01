@@ -195,7 +195,11 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **Écrans** — `ecrans/memoires-retenues.tsx` (« Retenu : … — annuler · voir »), `ecrans/memoire-panel.tsx` (« Ce qu'il
   retient » : groupes, recherche, édition, origine, compteur, réglage, tout effacer) ; route `app/api/assistant-ia/fil`
   (`memoiresRetenues` dans leur état présent ; `enCours` tant que la capture tourne).
-- **Preuves** — `domaine/memoire/memoire.test.ts`, `infra/memoire-capture.test.ts`, `infra/memoire.test.ts` ; audit sur
+- **Jetons, consolidation, historique** (Direction 01/11) — compteur calibré (`rappel.ts`, 3,5 car./jeton), budget de
+  stockage `AssistantIaReglage.memoireJetonsBudget` (8 000), consolidation rare et réversible au modèle rapide
+  (`domaine/memoire/consolidation.ts`, `infra/memoire-consolidation.ts`, `consolideDans`), historique purgé à 12 mois
+  (`purgerHistoriqueMemoire`) — tâche `assistant.memoire`. Plafond quotidien : 0 = sans (défaut).
+- **Preuves** — `domaine/memoire/memoire.test.ts`, `infra/memoire-capture.test.ts`, `infra/memoire-consolidation.test.ts`, `infra/memoire.test.ts` ; audit sur
   serveur réel : `scripts/bench/m1-audit.ts` → `docs/assistant/preuves/m1/`.
 
 ## Le registre des capacités (lot J6, décision 0020)

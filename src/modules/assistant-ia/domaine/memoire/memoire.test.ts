@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { faitDurablePossible, garderCandidat, lireExtraction, normaliserSujet, similarite, SEUIL_DOUBLON, entreeExtracteur } from "./capture";
-import { choisirSouvenirs, ENVELOPPES_MEMOIRE, sectionDuRappel, toutTient } from "./rappel";
-import { estimerJetons } from "../assembleur";
+import { choisirSouvenirs, ENTETE_MEMOIRE_MAX, ENVELOPPES_MEMOIRE, jetonsLigne, jetonsMemoire, sectionDuRappel, toutTient } from "./rappel";
 import { GROUPES_MEMOIRE, SORTES_MEMOIRE } from "../memoire-ui";
 
 /** M1 (décision 0045) — la capture et le rappel de la mémoire, règles pures. */
@@ -83,7 +82,10 @@ describe("mémoire — le rappel par pertinence", () => {
 
   it("l'enveloppe est tenue, quelle que soit la taille de la mémoire", () => {
     const r = choisirSouvenirs(souvenirs, "bonjour");
-    expect(r.pertinents.reduce((s, x) => s + estimerJetons(x.contenu) + 1, 0)).toBeLessThanOrEqual(ENVELOPPES_MEMOIRE.pertinents);
+    expect(r.pertinents.reduce((s, x) => s + jetonsLigne(x.contenu), 0)).toBeLessThanOrEqual(ENVELOPPES_MEMOIRE.pertinents);
+    // La section ENTIÈRE, au jeton près du compteur calibré : en-têtes + profil + pertinents.
+    const section = sectionDuRappel(r) ?? "";
+    expect(jetonsMemoire(section)).toBeLessThanOrEqual(ENTETE_MEMOIRE_MAX + ENVELOPPES_MEMOIRE.profil + ENVELOPPES_MEMOIRE.pertinents);
     expect(r.ecartes).toBeGreaterThan(0);
     expect(toutTient(souvenirs)).toBe(false);
     expect(toutTient(souvenirs.slice(0, 3))).toBe(true);

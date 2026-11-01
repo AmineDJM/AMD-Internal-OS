@@ -75,10 +75,40 @@ plongement (≈ 150 jetons) = **0,000003 $**. Un tour sans fait durable : **0 $*
 l'usage « Mémoire (capture automatique) » (`role = memoire`). Ordre de grandeur : < 1 % du tour qu'elle suit
 (≈ 0,0066 $ pour un tour `gpt-6.1-terra`).
 
-## 4. Décisions laissées à la Direction
+## 4. Décisions de la Direction (01/11/2026) — appliquées
 
-- **Durée de l'historique** des faits remplacés : gardé sans limite aujourd'hui (effacé avec le souvenir). Purger
-  au-delà de N versions ou de 12 mois ?
-- **Santé déclarée** : retenue quand la personne la dit d'elle-même (allergie, régime). La garder, ou exiger « retiens »
-  pour cette sorte ?
-- **Plafond** : 300 souvenirs actifs par personne (au-delà, la capture s'arrête et le panneau le dit). Le relever ?
+Verbatim : « L'historique des souvenirs remplacés : on les garde 12 mois. La santé : il retient d'office. Le plafond de
+300 souvenirs, ok, mais il faut une très bonne gestion, efficiente et efficace en termes de tokens surtout. Ce n'est pas
+une histoire de nombre de souvenirs, plutôt un nombre de tokens. Le plafond quotidien : pas de plafond tout court. »
+
+**Historique 12 mois.** Un fait remplacé (un fait qui change) ou repris par une consolidation reste, inactif, 12 mois
+(`remplaceLe`), puis la tâche `assistant.memoire` le purge (`purgerHistoriqueMemoire`, idempotente, testée). Un fait
+ACTIF n'est jamais purgé par l'âge.
+
+**Santé d'office.** C'était déjà le comportement (filtre, consigne, garde) ; un test le fixe (« Je suis allergique à la
+pénicilline » → `SANTE_DECLAREE` retenu sans carte).
+
+**La mémoire en JETONS.**
+- *Compteur* : calibré sur le modèle — une section mémoire de 820 caractères a coûté 229 jetons d'entrée réels (mesurés
+  avec et sans elle, `usage.input_tokens`, gpt-6-luna) : 3,58 caractères/jeton ; 3,5 retenu (surestime de ~2 %).
+  `domaine/memoire/rappel.ts` (`jetonsMemoire`, `jetonsLigne`).
+- *Injection* : profil 250 + pertinents 600 + en-têtes ≤ 70 — la section entière est testée au jeton près de ce compteur.
+- *Stockage* : un budget par personne, `AssistantIaReglage.memoireJetonsBudget`, **défaut 8 000 jetons** (≈ 300 faits
+  courts, ≈ 9 fois la section injectée), réglable dans Administration › IA › Consommation. Le panneau affiche « X jetons
+  sur Y ». Les 300 éléments restent un garde-fou haut.
+- *Consolidation* (`domaine/memoire/consolidation.ts`, `infra/memoire-consolidation.ts`) : à 85 % du budget, UN appel du
+  modèle rapide en lot (après la capture qui franchit le seuil, ou par la tâche quotidienne), au plus une fois par jour et
+  par personne : fusion des faits proches, réécriture concise, regroupement par sujet, anciens jamais rappelés résumés,
+  vers 60 % du budget. La règle garde le dernier mot (le groupe économise des jetons, n'invente aucun chiffre ni nom).
+  Chaque fait repris passe à l'historique (`consolideDans`) : « annuler » sur le fait consolidé les rend actifs.
+  Journal K8 : usage « memoire ».
+- *Mesuré* (banc, 123 faits redondants comme après des semaines de conversations, vrai modèle) : stockage **1 688 → 402
+  jetons** (123 → 9 faits, aucun refusé, rien de perdu : enfants, âges, école, voyages et dates, goûts, santé, parcours,
+  contraintes) ; **injecté par tour 892 → 467 jetons** ; coût de la consolidation **0,00097 $** (4 335 jetons
+  d'entrée, 1 080 de sortie, 10 s). [`preuves/m1/jetons.json`](../preuves/m1/jetons.json).
+
+**Pas de plafond quotidien.** `plafondJetonsJour` vaut **0 = sans plafond** par défaut (migration
+`20270219300000_memoire_jetons_sans_plafond` : la ligne restée au défaut de 600 000 passe à 0), réglable en console si un
+jour on le veut ; l'écran Consommation (« Sans plafond par jour ») et Administration › IA › Consommation (« Sans plafond »,
+plus de pourcentage) le disent. **Inchangés**, et c'est voulu : le plafond **par tour** (150 000 jetons, garde-fou
+contre une boucle), les plafonds des travaux en arrière-plan (20 $/travail, mensuel), ceux des chantiers et des visuels.

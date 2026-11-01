@@ -267,7 +267,7 @@ export function TableauConsommation({ superAdmin, perimetreInitial = "moi" }: { 
           {vue.plafonds && (
             <section className={`${C.carte} flex flex-col gap-1 p-3 text-[12.5px]`} aria-label="Plafonds en cours">
               <h4 className="text-[13px] font-semibold">Plafonds en cours</h4>
-              <p>{nf(vue.plafonds.jetonsJour)} jetons par personne et par jour · {nf(vue.plafonds.jetonsTour)} par tour</p>
+              <p>{vue.plafonds.jetonsJour > 0 ? `${nf(vue.plafonds.jetonsJour)} jetons par personne et par jour` : "Sans plafond par jour"} · {nf(vue.plafonds.jetonsTour)} jetons par tour</p>
               <p>Travaux en arrière-plan : {vue.plafonds.travailUsd ?? 20} $ par travail · {vue.plafonds.mensuelUsd != null ? `${vue.plafonds.mensuelUsd} $` : "défaut"} par personne et par mois</p>
               {vue.plafonds.atteints.map((a) => (
                 <p key={`${a.nom}-${a.jour}`} className={C.discret}>{a.jour} — {a.nom} a atteint son plafond : {nf(a.jetons)} jetons (plafond {nf(a.plafond)})</p>

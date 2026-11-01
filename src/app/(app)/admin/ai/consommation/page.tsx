@@ -64,7 +64,7 @@ export default async function ConsommationIaPage() {
         </CardContent></Card>
         <Card><CardContent className="pt-5">
           <p className="text-xs text-muted-foreground">Plafond par personne et par jour</p>
-          <p className="text-xl font-semibold">{formatNumber(reglages.plafondJetonsJour)} jetons</p>
+          <p className="text-xl font-semibold">{reglages.plafondJetonsJour > 0 ? `${formatNumber(reglages.plafondJetonsJour)} jetons` : "Sans plafond"}</p>
           <p className="text-xs text-muted-foreground">{tarifConnu ? "Coût au tarif posé (ASSISTANT_IA_PRICE_IN / OUT / CACHED)." : "Coût à la grille datée par modèle (décision 0035) — le détail au micro-dollar est dans Administration › IA."}</p>
         </CardContent></Card>
       </div>
@@ -87,7 +87,7 @@ export default async function ConsommationIaPage() {
                 {c.parPersonne.map((p) => (
                   <TableRow key={p.userId}>
                     <TableCell className="font-medium">{p.nom}</TableCell>
-                    <TableCell>{formatNumber(p.jetonsAujourdhui)} <span className="text-xs text-muted-foreground">({Math.min(100, Math.round((100 * p.jetonsAujourdhui) / reglages.plafondJetonsJour))} %)</span></TableCell>
+                    <TableCell>{formatNumber(p.jetonsAujourdhui)}{reglages.plafondJetonsJour > 0 && <span className="text-xs text-muted-foreground"> ({Math.min(100, Math.round((100 * p.jetonsAujourdhui) / reglages.plafondJetonsJour))} %)</span>}</TableCell>
                     <TableCell>{formatNumber(p.jetons7j)}</TableCell>
                     <TableCell>{jetons(p)}</TableCell>
                     <TableCell>{formatNumber(p.appels)}</TableCell>

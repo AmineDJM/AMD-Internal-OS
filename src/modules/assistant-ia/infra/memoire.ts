@@ -5,6 +5,7 @@ import {
   type ElementMemoire, type OrigineMemoire, type SorteMemoire,
 } from "../domaine/memoire-ui";
 import { SEUIL_DOUBLON, similarite } from "../domaine/memoire/capture";
+import { DUREE_HISTORIQUE_MS, jetonsStockes } from "../domaine/memoire/consolidation";
 
 export * from "../domaine/memoire-ui";
 
@@ -52,7 +53,7 @@ const versElement = (i: Ligne, extra: Partial<ElementMemoire> = {}): ElementMemo
 export async function listerMemoire(userId: string): Promise<ElementMemoire[]> {
   const [items, anciens] = await Promise.all([
     prisma.assistantMemoryItem.findMany({ where: { userId, active: true }, select: CHAMPS, orderBy: { updatedAt: "desc" }, take: MEMOIRE_MAX_ELEMENTS }),
-    prisma.assistantMemoryItem.findMany({ where: { userId, active: false, remplaceLe: { not: null } }, select: { id: true, remplaceId: true }, take: 2_000 }),
+    prisma.assistantMemoryItem.findMany({ where: { userId, active: false, remplaceLe: { not: null } }, select: { id: true, remplaceId: true, consolideDans: true }, take: 2_000 }),
   ]);
   const precedent = new Map(anciens.map((a) => [a.id, a.remplaceId]));
   const versions = (id: string | null) => {
@@ -64,10 +65,18 @@ export async function listerMemoire(userId: string): Promise<ElementMemoire[]> {
   // La conversation d'origine — SEULEMENT si elle est à la personne (et existe encore : une privée expirée disparaît).
   const fils = ids.length ? await prisma.assistantIaFil.findMany({ where: { id: { in: ids }, userId }, select: { id: true, titre: true } }) : [];
   const titres = new Map(fils.map((f) => [f.id, f.titre]));
+  const repris = new Map<string, number>();
+  for (const a of anciens) if (a.consolideDans) repris.set(a.consolideDans, (repris.get(a.consolideDans) ?? 0) + 1);
   return items.map((i) => versElement(i, {
     conversation: i.sourceThreadId && titres.has(i.sourceThreadId) ? { id: i.sourceThreadId, titre: titres.get(i.sourceThreadId) ?? null } : null,
-    versionsAnterieures: versions(i.remplaceId),
+    versionsAnterieures: versions(i.remplaceId) + (repris.get(i.id) ?? 0),
   }));
+}
+
+/** Ce que la mémoire ACTIVE de la personne occupe, en jetons (le compteur calibré du rappel). */
+export async function jetonsDeLaMemoire(userId: string): Promise<number> {
+  const items = await prisma.assistantMemoryItem.findMany({ where: { userId, active: true }, select: { content: true } });
+  return jetonsStockes(items.map((i) => ({ contenu: i.content })));
 }
 
 export interface OptionsAjout {
@@ -136,12 +145,23 @@ async function ancetres(userId: string, depuis: string | null): Promise<string[]
   return out;
 }
 
-/** Effacer, c'est supprimer : un souvenir effacé ne doit plus exister nulle part — son historique non plus. */
+/** Effacer, c'est supprimer : un souvenir effacé ne doit plus exister nulle part — son historique (remplacé, repris) non plus. */
 export async function effacerMemoire(userId: string, id: string): Promise<boolean> {
   const e = await prisma.assistantMemoryItem.findFirst({ where: { id, userId }, select: { remplaceId: true } });
   if (!e) return false;
-  const r = await prisma.assistantMemoryItem.deleteMany({ where: { id: { in: [id, ...(await ancetres(userId, e.remplaceId))] }, userId } });
+  const repris = await prisma.assistantMemoryItem.findMany({ where: { userId, consolideDans: id }, select: { id: true } });
+  const r = await prisma.assistantMemoryItem.deleteMany({ where: { id: { in: [id, ...(await ancetres(userId, e.remplaceId)), ...repris.map((x) => x.id)] }, userId } });
   return r.count > 0;
+}
+
+/**
+ * L'HISTORIQUE GARDÉ 12 MOIS (Direction, 01/11/2026) : un fait REMPLACÉ ou REPRIS par une consolidation est purgé un an
+ * après ; un fait ACTIF ne l'est jamais par l'âge. Idempotent (tâche `assistant.memoire`).
+ */
+export async function purgerHistoriqueMemoire(maintenant = new Date()): Promise<{ purges: number }> {
+  const limite = new Date(maintenant.getTime() - DUREE_HISTORIQUE_MS);
+  const r = await prisma.assistantMemoryItem.deleteMany({ where: { active: false, remplaceLe: { not: null, lt: limite } } });
+  return { purges: r.count };
 }
 
 export async function toutEffacerMemoire(userId: string): Promise<number> {
@@ -152,6 +172,7 @@ export async function toutEffacerMemoire(userId: string): Promise<number> {
 /**
  * ANNULER UN SOUVENIR RETENU D'OFFICE (« Retenu : … (annuler) ») : il disparaît ; s'il remplaçait un fait, l'ancien
  * redevient actif — la mémoire est exactement celle d'avant le tour. Un souvenir déjà annulé l'est « sans objet ».
+ * Un souvenir né d'une CONSOLIDATION s'annule de même : les faits qu'il avait repris redeviennent actifs.
  */
 export async function annulerSouvenir(userId: string, id: string): Promise<{ ok: true; restaure: string | null } | { ok: false; erreur: string }> {
   const e = await prisma.assistantMemoryItem.findFirst({ where: { id, userId }, select: { id: true, active: true, remplaceId: true } });
@@ -159,6 +180,8 @@ export async function annulerSouvenir(userId: string, id: string): Promise<{ ok:
   if (!e.active) return { ok: false, erreur: "Ce souvenir a déjà été remplacé : annulez le plus récent, ou corrigez-le dans « Ce qu'il retient »." };
   return prisma.$transaction(async (tx) => {
     await tx.assistantMemoryItem.deleteMany({ where: { id, userId } });
+    const repris = await tx.assistantMemoryItem.updateMany({ where: { userId, consolideDans: id, active: false }, data: { active: true, remplaceLe: null, consolideDans: null } });
+    if (repris.count) return { ok: true as const, restaure: null };
     if (!e.remplaceId) return { ok: true as const, restaure: null };
     const r = await tx.assistantMemoryItem.updateMany({ where: { id: e.remplaceId, userId, active: false }, data: { active: true, remplaceLe: null } });
     return { ok: true as const, restaure: r.count ? e.remplaceId : null };

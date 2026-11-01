@@ -80,7 +80,10 @@ describe("règles pures", () => {
 
   it("un réglage hors bornes est ramené dedans ; une ligne absente rend les défauts", () => {
     expect(borner("etapesMaxTour", 99)).toBe(24);
-    expect(borner("plafondJetonsJour", -5)).toBe(10_000);
+    // 0 (ou moins) = sans plafond par jour (Direction, 01/11/2026) ; un plafond posé vaut au moins 10 000.
+    expect(borner("plafondJetonsJour", -5)).toBe(0);
+    expect(borner("plafondJetonsJour", 500)).toBe(10_000);
+    expect(REGLAGES_PAR_DEFAUT.plafondJetonsJour).toBe(0);
     expect(normaliserReglages(null)).toEqual(REGLAGES_PAR_DEFAUT);
     expect(normaliserReglages({ censurerSaisie: false }).censurerSaisie).toBe(false);
   });

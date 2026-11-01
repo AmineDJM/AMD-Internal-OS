@@ -1,4 +1,3 @@
-import { estimerJetons } from "../assembleur";
 import { termes } from "../selection-outils";
 import type { SorteMemoire } from "../memoire-ui";
 
@@ -15,6 +14,19 @@ import type { SorteMemoire } from "../memoire-ui";
  */
 
 export const ENVELOPPES_MEMOIRE = { profil: 250, pertinents: 600 } as const;
+
+/**
+ * LE COMPTEUR DE LA MÉMOIRE — CALIBRÉ sur le modèle (01/11/2026, gpt-6-luna) : une section mémoire de 820 caractères a
+ * coûté 229 jetons d'entrée RÉELS (`usage.input_tokens`, avec et sans la section) — 3,58 caractères par jeton en
+ * français. 3,5 est retenu : le compteur surestime de ~2 %, une enveloppe tenue ici l'est chez le fournisseur.
+ * (Aucun tokeniseur n'est installé dans le dépôt — `lib/assistant/context/tokens.ts` dit pourquoi.)
+ */
+export const CARACTERES_PAR_JETON = 3.5;
+export const jetonsMemoire = (t: string): number => (t ? Math.ceil(t.length / CARACTERES_PAR_JETON) : 0);
+/** Une ligne de la section (« - fait\n ») — l'unité que les enveloppes comptent. */
+export const jetonsLigne = (contenu: string): number => jetonsMemoire(`- ${contenu}\n`);
+/** Les en-têtes fixes de la section (titre, consigne, « Profil : », « Souvenirs utiles… ») — hors enveloppes, bornés. */
+export const ENTETE_MEMOIRE_MAX = 70;
 
 /** Les sortes du PROFIL stable. */
 export const SORTES_PROFIL: ReadonlySet<string> = new Set<SorteMemoire>(["PERSONNEL_IDENTITE", "FAMILLE", "USER_PREFERENCE"]);
@@ -94,7 +106,7 @@ function remplir<T extends { contenu: string }>(liste: readonly T[], enveloppe: 
   let j = 0;
   const gardes: T[] = [];
   for (const s of liste) {
-    const n = estimerJetons(s.contenu) + 1;
+    const n = jetonsLigne(s.contenu);
     if (j + n <= enveloppe) { gardes.push(s); j += n; }
   }
   return { gardes, ecartes: liste.length - gardes.length };
@@ -131,7 +143,7 @@ export function choisirSouvenirs(
 
 /** La mémoire entière tient-elle dans les enveloppes ? Si oui, aucun plongement de la question n'est utile. */
 export const toutTient = (souvenirs: readonly Pick<SouvenirRappelable, "contenu">[]): boolean =>
-  souvenirs.reduce((s, x) => s + estimerJetons(x.contenu) + 1, 0) <= ENVELOPPES_MEMOIRE.profil + ENVELOPPES_MEMOIRE.pertinents;
+  souvenirs.reduce((s, x) => s + jetonsLigne(x.contenu), 0) <= ENVELOPPES_MEMOIRE.profil + ENVELOPPES_MEMOIRE.pertinents;
 
 /** La section du contexte : le profil, puis les souvenirs pertinents — à la troisième personne, comme ils sont écrits. */
 export function sectionDuRappel(r: Pick<Rappel, "profil" | "pertinents">, filtre: (t: string) => string = (t) => t): string | null {

@@ -898,6 +898,8 @@ model AssistantMemoryItem {
   remplaceLe     DateTime?
   /// M1 : le message (tour du fil) d'où vient le souvenir — le lien « origine » du panneau.
   sourceTourId   String?
+  /// M1 (consolidation) : le souvenir consolidé qui a REPRIS celui-ci (fusion, réécriture) — l'ancien reste 12 mois.
+  consolideDans  String?
   /// M1 : le plongement du souvenir (text-embedding-3-small, 512) — vide sans clé : le rappel reste lexical.
   vecteur        Float[]   @default([])
   createdAt      DateTime  @default(now())
@@ -906,6 +908,8 @@ model AssistantMemoryItem {
   @@index([userId, active])
   @@index([userId, type])
   @@index([userId, sujet])
+  @@index([userId, consolideDans])
+  @@index([active, remplaceLe])
 }
 
 /// UNE ROUTINE DE L'ASSISTANT IA — « fais-moi un briefing du marché pharmaceutique en Algérie chaque
@@ -9594,13 +9598,18 @@ model AssistantIaPreference {
   travauxDOffice Boolean?
   /// M1 (décision 0045) : « mémoire automatique » — `null` = oui (défaut), `false` = l'assistant ne retient qu'à la carte.
   memoireAuto    Boolean?
+  /// M1 : la dernière consolidation de sa mémoire (rare : au plus une par jour).
+  memoireConsolideeLe DateTime?
   updatedAt      DateTime @default(now()) @updatedAt
 }
 
 model AssistantIaReglage {
   id                        String   @id @default("global")
   /// Jetons (entrée + sortie) par personne et par jour, heure d'Alger. Atteint : refus dit, avis au Super Admin.
-  plafondJetonsJour         Int      @default(600000)
+  /// 0 = SANS plafond (Direction, 01/11/2026 : « pas de plafond tout court ») ; sinon jetons par personne et par jour.
+  plafondJetonsJour         Int      @default(0)
+  /// M1 : budget de STOCKAGE de la mémoire de chaque personne, en jetons — au-delà de 85 %, consolidation automatique.
+  memoireJetonsBudget       Int      @default(8000)
   /// Jetons d'UN tour (toutes ses étapes, résumés de documents compris) : au-delà, le tour s'arrête et le dit.
   plafondJetonsTour         Int      @default(150000)
   /// Étapes (appels du modèle) d'un tour, au plus — plafonne aussi les tours en arrière-plan (24 avant).

@@ -44,7 +44,7 @@ export async function GET(req: Request) {
     const ms = Array.isArray(v) ? (v as MemoireRetenue[]).filter((m) => m && typeof m.id === "string") : [];
     return ms.length ? ms.map((m) => {
       const e = souvenirs.get(m.id);
-      return { id: m.id, sorte: e?.sorte ?? m.sorte, contenu: e?.contenu ?? m.contenu, geste: m.geste === "remplace" ? "remplace" : "ajoute", annule: !e?.actif };
+      return { id: m.id, sorte: e?.sorte ?? m.sorte, contenu: e?.contenu ?? m.contenu, geste: m.geste === "remplace" ? "remplace" : "ajoute", annule: !e, depasse: !!e && !e.actif };
     }) : null;
   };
   // O1 (décision 0046) : la question de l'agenda qui attend, les réponses tenues, l'avancement du travail long.
