@@ -147,6 +147,11 @@ export const TOOL_DOMAINS: Record<string, Domain[]> = {
   mission_create: ["MISSION"],
   mission_consolidate: ["MISSION"],
   mission_nudge_candidates: ["MISSION"],
+  // C1 (décision 0042) : les chantiers de développement — des missions du même moteur (Super Admin).
+  lancer_un_chantier: ["MISSION"],
+  ou_en_est_chantier: ["MISSION"],
+  valider_chantier: ["MISSION"],
+  annuler_chantier: ["MISSION"],
   list_commitments: ["MISSION"],
   record_commitment: ["MISSION"],
   close_commitment: ["MISSION"],
