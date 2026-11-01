@@ -9,10 +9,26 @@ délégation **ne bloque plus** : « je regarde, je te préviens », la voix aff
 transmise au travail en cours, le résultat est dit de lui-même quand il arrive (ou à la prochaine ouverture). La carte
 orale de K4 arrive avec le résultat ; pour une action renforcée la **voix relit** le montant, puis « ok fais-le »,
 « vas-y », « go », « ih dirha » suffisent (aucun mot imposé), jugés par le **serveur** sur la transcription et exécutés par
-la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule », « mets la
+la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule » (un envoi encore en fenêtre ne part
+pas ; un courriel déjà parti, la voix dit le rectificatif), « rétablis », « mets la
 mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
 WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
 et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
+
+### K10b : TOUTE ACTION RÉVERSIBLE — COMMUNICATIONS, EFFETS SORTANTS, SUPPRESSIONS ; LA FENÊTRE D'ANNULATION (2026-10-31)
+
+Lot K10b — `docs/assistant/decisions/0040-reversibilite-communications.md` (demande de la Direction du 31/10 : « toutes
+les actions réversibles »). **Fenêtre d'annulation des effets sortants** (`src/lib/effets/fenetre.ts`,
+`differerEffetSortant`) : courriels (SMTP, Microsoft, API), notifications poussées, publications au site, WhatsApp
+attendent 2 min (réglable par le Super Admin, Administration › IA › Accès) — « Annuler l'envoi » dans la barre : rien ne
+part ; parti : un rectificatif (lui-même annulable), jamais « effacé ». **Geste d'écran réversible** (`gesteReversible`) :
+barre « Annuler » dans toute l'application, « Rétablir » ensuite ; historique annulable sur la fiche courrier. **58 actions**
+du périmètre ne sont plus « aucune » au registre (courrier, candidatures, champs personnalisés, KPI, segmentation,
+diffusion d'offres, site web, boîtes mail et Microsoft, directives, décisions de circuit, pièces de la fabrique, portail
+fournisseur) ; chacune est exécutée puis annulée, rétablie et ré-annulée contre la base (`src/lib/actions/internes/reversibilite/`),
+un cliquet tient la liste vide. Règles nouvelles : tout ou rien pour un geste d'écran (un ordre déjà payé bloque, la
+liste le dit), pièce numérotée annulée jamais effacée, compteurs jamais reculés. Migration
+`20270217110000_fenetre_annulation_effets_sortants`.
 
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 

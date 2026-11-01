@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { designesParNom, lireCommandeOrale, lireNombreDit, nombreOral, resumeOralBlocs } from "./oral";
+import { designesParNom, lireCommandeOrale, lireNombreDit, nombreOral, phraseAnnulation, resumeOralBlocs } from "./oral";
 import { estNonExplicite, estOuiExplicite, texteOral } from "./voix-orale";
 import { consignesVoix } from "./voix";
 
@@ -56,6 +56,24 @@ describe("les commandes orales", () => {
     expect(lireCommandeOrale("en bref", sans)).toBe("plus_court");
     // « annule la tâche Stand » vise une fiche de l'ERP : ni une mission, ni « la dernière action ».
     expect(lireCommandeOrale("annule la tâche Stand", sans)).toBeNull();
+  });
+  it("rétablir : « rétablis », « finalement refais-le » ; jamais face à une carte", () => {
+    expect(lireCommandeOrale("rétablis", sans)).toBe("retablir_derniere");
+    expect(lireCommandeOrale("finalement refais-le", sans)).toBe("retablir_derniere");
+    expect(lireCommandeOrale("rétablis", avec)).toBeNull();
+  });
+  it("le compte rendu d'une annulation, dit honnêtement : ce qui est parti est compensé, ce qui ne se défait pas est dit", () => {
+    expect(phraseAnnulation("Créer la tâche « Stand »", [{ issue: "ANNULE", quoi: "tâche « Stand » créée", pourquoi: "retirée" }])).toBe("« Créer la tâche « Stand » » est annulé.");
+    const p = phraseAnnulation("Relancer le fournisseur", [
+      { issue: "ANNULE", quoi: "statut de la relance", pourquoi: "remis" },
+      { issue: "COMPENSE", quoi: "le courriel à fournisseur@x.dz", pourquoi: "un rectificatif part à sa place" },
+      { issue: "IMPOSSIBLE", quoi: "la publication sur le site", pourquoi: "elle ne se reprend pas d'ici", aLaPlace: "la retirer depuis l'écran du site" },
+    ]);
+    expect(p).toContain("est annulé en partie.");
+    expect(p).toContain("Le courriel à fournisseur@x.dz était déjà parti : un rectificatif part à sa place.");
+    expect(p).toContain("La publication sur le site ne se défait pas : elle ne se reprend pas d'ici");
+    expect(p).toContain("à la place : la retirer depuis l'écran du site");
+    expect(phraseAnnulation("Envoyer", [{ issue: "IMPOSSIBLE", quoi: "l'appel externe", pourquoi: "parti" }])).toContain("Rien n'a pu être annulé");
   });
   it("la mission désignée par son nom ; seule, sans avoir à la nommer", () => {
     const m = [{ titre: "Veille congrès Oran" }, { titre: "Relance fournisseurs" }];

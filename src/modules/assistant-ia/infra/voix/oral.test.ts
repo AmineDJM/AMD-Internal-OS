@@ -140,8 +140,12 @@ suite("Assistant IA — la voix entièrement orale (K9)", () => {
 
     // « annule » : la dernière action de l'assistant est défaite (journal des effets J7).
     const annule = await traiterEnonceVocal(sa, { session: S, demande: "annule", parole: "annule" });
-    expect(annule.pourVoix).toContain("Annulation");
+    expect(annule.pourVoix).toContain("est annulé");
     expect(await prisma.task.count({ where: { id: t.id } })).toBe(0);
+    // « rétablis » : l'annulation s'annule (K10b) — la tâche revient, même identifiant.
+    const retabli = await traiterEnonceVocal(sa, { session: S, demande: "rétablis", parole: "rétablis" });
+    expect(retabli.pourVoix).toContain("rétabli");
+    expect(await prisma.task.count({ where: { id: t.id } })).toBe(1);
   });
 
   it("une carte RENFORCÉE : la voix relit le montant, puis un simple « vas-y » suffit (la ressaisie est fournie par le serveur)", async () => {

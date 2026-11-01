@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -133,19 +134,21 @@ export async function apercuRegles(strategieId: string, contenuJson: string): Pr
 
 /** PUBLIE la version suivante. La précédente reste intacte — les cycles passés gardent leurs règles. */
 export async function publierRegles(strategieId: string, contenuJson: string, note: string): Promise<R<{ version: number }>> {
-  const { user, refus } = await exiger("VALIDATE");
-  if (refus) return { ok: false, error: refus };
-  const s = await chargerStrategie(strategieId);
-  if (!s) return { ok: false, error: "Stratégie introuvable." };
-  const lu = lireRegles(jsonOuNul(contenuJson));
-  if (!lu.ok) return { ok: false, error: lu.erreurs.join(" ") };
-  const classes = new Set(s.produits.map((p) => p.productId));
-  if (lu.regles.produits.some((p) => !classes.has(p.productId))) return { ok: false, error: "Les règles visent un produit qui n'est pas classé dans la stratégie." };
-  const version = (s.regle?.version ?? 0) + 1;
-  await prisma.segmentationRegle.create({ data: { strategieId, version, contenu: lu.regles as unknown as Prisma.InputJsonValue, note: note.trim() || null, publieeParId: user.id } });
-  await recordAudit({ actorId: user.id, action: "VALIDATE", module: MODULE, field: "regles", oldValue: s.regle ? `v${s.regle.version}` : null, newValue: `v${version}`, summary: `Règles de segmentation « ${s.nom} » publiées en version ${version}.${note.trim() ? ` ${note.trim()}` : ""}` });
-  revalidatePath(CHEMIN);
-  return { ok: true, version };
+  return gesteReversible(await requireUser(), { capaciteId: "segmentation-actions:publierRegles", libelle: "Règles de segmentation publiées" }, async () => {
+    const { user, refus } = await exiger("VALIDATE");
+    if (refus) return { ok: false, error: refus };
+    const s = await chargerStrategie(strategieId);
+    if (!s) return { ok: false, error: "Stratégie introuvable." };
+    const lu = lireRegles(jsonOuNul(contenuJson));
+    if (!lu.ok) return { ok: false, error: lu.erreurs.join(" ") };
+    const classes = new Set(s.produits.map((p) => p.productId));
+    if (lu.regles.produits.some((p) => !classes.has(p.productId))) return { ok: false, error: "Les règles visent un produit qui n'est pas classé dans la stratégie." };
+    const version = (s.regle?.version ?? 0) + 1;
+    await prisma.segmentationRegle.create({ data: { strategieId, version, contenu: lu.regles as unknown as Prisma.InputJsonValue, note: note.trim() || null, publieeParId: user.id } });
+    await recordAudit({ actorId: user.id, action: "VALIDATE", module: MODULE, field: "regles", oldValue: s.regle ? `v${s.regle.version}` : null, newValue: `v${version}`, summary: `Règles de segmentation « ${s.nom} » publiées en version ${version}.${note.trim() ? ` ${note.trim()}` : ""}` });
+    revalidatePath(CHEMIN);
+    return { ok: true, version };
+  });
 }
 
 // ───────────────────────────── Import d'un classeur ─────────────────────────────

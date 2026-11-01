@@ -91,6 +91,9 @@ export async function disconnect(userId: string): Promise<void> {
   const c = await prisma.mailConnection.findUnique({ where: { userId }, select: { id: true } });
   if (!c) return;
   await prisma.mailFolderState.deleteMany({ where: { connectionId: c.id } });
+  // K10b (décision 0040) : les liens de provenance partaient EN CASCADE, hors du journal — retirés ici, un par un, ils
+  // sont journalisés : la déconnexion s'annule (connexion, dossiers et liens recréés à l'identique, mêmes identifiants).
+  await prisma.mailLink.deleteMany({ where: { connectionId: c.id } });
   await prisma.mailConnection.delete({ where: { id: c.id } });
 }
 

@@ -3,6 +3,17 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
+
+/**
+ * K10b (décision 0040) : un envoi mis en file par un geste d'ÉCRAN attend sa fenêtre d'annulation (`nextAttemptAt`
+ * repoussé du délai réglé). Ce banc éprouve la FILE, pas la fenêtre (`effets/fenetre.test.ts`) : avant chaque vidage, la
+ * fenêtre des envois sans essai en cours est tenue pour passée. Les reprises (un essai compté) gardent leur échéance.
+ */
+async function viderFile(o: Parameters<typeof viderFileReel>[0] = {}) {
+  await prisma.sitePublication.updateMany({ where: { state: "PENDING", attempts: 0, nextAttemptAt: { gt: new Date() } }, data: { nextAttemptAt: new Date() } });
+  return viderFileReel(o);
+}
+
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
@@ -17,7 +28,7 @@ import { peutEcrireArticles, peutGererLaLiaison } from "./acces";
 import { ECRAN_LIAISON, REFUS_LIAISON } from "./ecran";
 import { enregistrerOffre, supprimerOffre } from "@/lib/actions/offres-emploi-actions";
 import { closeRecruitmentRequest, openRecruitmentSourcing } from "@/lib/actions/recruitment-actions";
-import { leverBlocage, lireBlocage, VERROU_PERIME_MS, viderFile } from "./file";
+import { leverBlocage, lireBlocage, VERROU_PERIME_MS, viderFile as viderFileReel } from "./file";
 import { rapprocherSite, rapprocherSiteSiDu, verifierSante } from "./reconciliation";
 import { synchroniserArticle } from "./contenus";
 import { empreinteCle, lireConfiguration } from "./config";
