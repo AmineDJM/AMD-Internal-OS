@@ -128,14 +128,16 @@ async function verrouiller(tx: Client, info: InfoModele, id: string): Promise<vo
 }
 
 /** Les lignes qui POINTENT vers celle-ci (hors celles créées par le même geste, défaites avant elle). */
-async function rattaches(c: Client, info: InfoModele, id: string, ignorer: ReadonlySet<string>): Promise<{ n: number; quoi: string[] }> {
+async function rattaches(c: Client, info: InfoModele, id: string, ignorer: ReadonlySet<string>, remis: ReadonlySet<string> = new Set()): Promise<{ n: number; quoi: string[] }> {
   let n = 0;
   const quoi: string[] = [];
   for (const e of info.enfants) {
     const d = c[e.delegue] as Delegue | undefined;
     const enfant = infoModele(e.modele);
     if (!d || !enfant?.cle) continue;
-    const exclus = [...ignorer];
+    // K10b : une ligne EXISTANTE que le même geste avait rattachée (son lien posé par une modification), et dont cette
+    // annulation remet le lien — elle ne compte pas, même à blanc (le plan ne l'a pas encore écrit).
+    const exclus = [...ignorer, ...[...remis].filter((r) => r.startsWith(`${e.modele}#`) && r.endsWith(`#${e.champ}`)).map((r) => r.split("#")[1]!)];
     const k = await d.count({ where: { [e.champ]: id, ...(exclus.length ? { NOT: { [enfant.cle]: { in: exclus } } } : {}) } }).catch(sansBloquer("effets.annulation.rattaches", 0));
     if (k) { n += k; quoi.push(`${k} ${natureDe(e.modele)}`); }
   }
@@ -187,6 +189,8 @@ interface Contexte {
   crees: Set<string>;
   /** K10b : les lignes GARDÉES de ce geste (pièce numérotée annulée, et ses fichiers) — leurs rattachements ne bloquent pas. */
   gardes: Set<string>;
+  /** K10b : les liens remis par cette annulation (`Modele#id#champ`) — ils ne comptent pas comme rattachements. */
+  remis: Set<string>;
   appliquer: boolean;
   nomDe: (id: string | null | undefined) => Promise<string | null>;
 }
@@ -252,7 +256,7 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
   const actuelle = await lireActuelle(ctx.c, info, id);
   if (!actuelle) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "elle a déjà été retirée par ailleurs" };
   const touches = Object.keys(apres).filter((c) => !info.auto.has(c) && info.types.has(c) && !memeValeur(actuelle[c] ?? null, apres[c] ?? null));
-  const lies = await rattaches(ctx.c, info, id, ctx.crees);
+  const lies = await rattaches(ctx.c, info, id, ctx.crees, ctx.remis);
   const verdict = classerGeste("ENREGISTREMENT_CREE");
   if (e.modele === "Notification" && actuelle.isRead === true) {
     const qui = await ctx.nomDe(String(actuelle.userId ?? ""));
@@ -271,7 +275,7 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
   if (numerotee) ctx.gardes.add(id);
   // LE DOCUMENT D'UNE PIÈCE NUMÉROTÉE (K10b) : le Word, le PDF, le dossier « Factures émises » nés du même geste restent
   // AVEC la pièce annulée, comme sa trace — ils ne bloquent pas l'annulation et ne sont pas retirés.
-  if (!numerotee && lies.n && !touches.length && ctx.gardes.size && !(await rattaches(ctx.c, info, id, new Set([...ctx.crees, ...ctx.gardes]))).n) {
+  if (!numerotee && lies.n && !touches.length && ctx.gardes.size && !(await rattaches(ctx.c, info, id, new Set([...ctx.crees, ...ctx.gardes]), ctx.remis)).n) {
     ctx.gardes.add(id);
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "document d'une pièce numérotée annulée : il reste avec elle, comme sa trace" };
   }
@@ -460,7 +464,7 @@ const nomsEnCache = () => {
 async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean, user: CurrentUser): Promise<CompteRenduAnnulation> {
   // Les lignes créées par ce geste et RETIRÉES (ou à retirer) : elles ne comptent pas comme rattachement de leur parent.
   const retirees = new Set<string>();
-  const ctx: Contexte = { user, libelle: g.libelle, c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache(),
+  const ctx: Contexte = { user, libelle: g.libelle, c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, remis: new Set(), appliquer, nomDe: nomsEnCache(),
     // Les pièces numérotées nées de ce geste sont GARDÉES (annulées, jamais retirées) : connues d'avance, quel que soit
     // l'ordre où leurs fichiers ont été écrits.
     gardes: new Set(g.effets.filter((e) => e.operation === "CREATE" && e.enregistrementId && MODELES_PIECES_NUMEROTEES.has(e.modele ?? "")).map((e) => e.enregistrementId!)) };
@@ -474,6 +478,7 @@ async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: 
       pourquoi: `l'annulation a échoué sur cet effet (${err instanceof Error ? err.message.slice(0, 160) : String(err)}) — rien n'y a été écrit`, aLaPlace: null,
     }));
     if (e.operation === "CREATE" && d.issue === "ANNULE" && e.enregistrementId) retirees.add(e.enregistrementId);
+    if (e.operation === "UPDATE" && d.issue === "ANNULE" && e.enregistrementId) for (const c of e.champs) ctx.remis.add(`${e.modele}#${e.enregistrementId}#${c}`);
     details.push(d);
   }
   // UNE ÉCRITURE SQL sur une table qui suit en CASCADE une ligne née de ce geste, et retirée : partie avec elle.
