@@ -133,9 +133,9 @@ for (const ecran of ECRANS) {
     page.on("pageerror", (e) => erreurs.push(e.message));
     const moi = await prisma.user.findUniqueOrThrow({ where: { email: E2E.superAdminEmail }, select: { id: true } });
     // LE DÉCOR : un travail long en cours (sa réponse s'écrit depuis 10 s) ; le fil est « tenu » — aucun modèle ne joue.
-    const fil = await prisma.assistantIaFil.create({ data: { userId: moi.id, titre: `__e2e__ O1 ${ecran.nom}`, titreSource: "manuel", traitementLe: new Date() } });
+    const fil = await prisma.assistantIaFil.create({ data: { userId: moi.id, titre: `__e2e__ O1 ${ecran.nom}`, titreSource: "manuel", traitementLe: new Date(), depuisLe: new Date(Date.now() - 60_000) } });
     fils.push(fil.id);
-    const q = await prisma.assistantIaTour.create({ data: { filId: fil.id, userId: moi.id, role: "user", contenu: "Prépare-moi un rapport des ventes par wilaya", etat: "EN_COURS" } });
+    const q = await prisma.assistantIaTour.create({ data: { filId: fil.id, userId: moi.id, role: "user", contenu: "Prépare-moi un rapport des ventes par wilaya", etat: "EN_COURS", createdAt: new Date(Date.now() - 11_000) } });
     const r = await prisma.assistantIaTour.create({ data: { filId: fil.id, userId: moi.id, role: "assistant", contenu: "", etat: "EN_COURS", repondA: q.id, etapes: ["Ventes lues"], createdAt: new Date(Date.now() - 10_000) } });
 
     await login(page);
