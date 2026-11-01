@@ -614,7 +614,8 @@ const SOCLE = [
   "src/platform/imports",
   // La phrase commune d'une action qui lève (`actionFailureMessage`) : le langage des primitives d'écran, pas un métier.
   "src/lib/action-outcome",
-  // L'enrobage qui rend une action RÉVERSIBLE (K10a, décision 0040) : transverse comme l'audit — toute action l'emploie.
+  // K10b (décision 0040) : le GESTE RÉVERSIBLE (`gesteReversible`) — la primitive que toute action d'écran emprunte pour
+  // être annulable (journal des effets, fenêtre d'annulation des envois). Infrastructure du socle, pas un métier.
   "src/lib/effets/ecran",
 ];
 /** Les actions serveur de `src/lib/actions/` : un écran de module peut les appeler (Next les remplace par un appel distant). */

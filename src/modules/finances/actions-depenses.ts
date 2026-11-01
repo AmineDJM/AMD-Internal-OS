@@ -333,10 +333,14 @@ export async function purgeSettledExpenseOrders(): Promise<ActionResult> { retur
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
 
-  const masque = await prisma.expenseOrder.updateMany({
-    where: { status: { in: ["PAID", "CANCELLED"] }, historiqueMasqueLe: null },
-    data: { historiqueMasqueLe: new Date() },
-  });
+  // PAR TRANCHES NOMMÉES (K10a) : le journal des effets ne détaille un `updateMany` que jusqu'à 500 lignes ; au-delà, le
+  // masque ne se défaisait plus. Chaque tranche nomme ses ordres — le geste entier s'annule, quel que soit l'historique.
+  const ids = (await prisma.expenseOrder.findMany({ where: { status: { in: ["PAID", "CANCELLED"] }, historiqueMasqueLe: null }, select: { id: true } })).map((o) => o.id);
+  const le = new Date();
+  const masque = { count: 0 };
+  for (let i = 0; i < ids.length; i += 400) {
+    masque.count += (await prisma.expenseOrder.updateMany({ where: { id: { in: ids.slice(i, i + 400) }, historiqueMasqueLe: null }, data: { historiqueMasqueLe: le } })).count;
+  }
   if (masque.count === 0) return { ok: false, error: "L'historique est déjà vide." };
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Finances",

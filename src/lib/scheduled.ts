@@ -178,9 +178,11 @@ export function identiteDesBaux(): string {
  * idempotente (elle peut tourner à chaque passage, et sur n'importe quel exécutant).
  */
 export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
-  // K10b (décision 0038) : les effets sortants dont la FENÊTRE D'ANNULATION est passée partent (courriels, poussées…).
+  // K10b (décision 0040) : les effets sortants dont la FENÊTRE D'ANNULATION est passée partent (courriels, poussées…).
   { cle: "effets.sortants", executer: async () => {
-    (await import("@/lib/mail/executeur-sortant")).enregistrerExecuteurGraph();
+    const graph = await import("@/lib/mail/executeur-sortant");
+    graph.enregistrerExecuteurGraph();
+    graph.enregistrerInversesGraph();
     await (await import("@/lib/contexte-geste")).executerEffetsSortantsDus();
   } },
   { cle: "rappels.reunions", executer: sendDueMeetingReminders },

@@ -2,7 +2,7 @@ import type { ExecuteurEffetSortant, PlanCompensation } from "./fenetre";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES EXÉCUTEURS DES EFFETS SORTANTS (K10b, décision 0038) — ce que le worker appelle quand la fenêtre est passée,
+ * LES EXÉCUTEURS DES EFFETS SORTANTS (K10b, décision 0040) — ce que le worker appelle quand la fenêtre est passée,
  * et la COMPENSATION de chacun après son départ.
  *
  * Une ligne par type, chargée à la demande (aucun transport n'est tiré tant qu'on n'exécute pas). Un exécuteur qui
@@ -56,14 +56,37 @@ export const EXECUTEURS: Readonly<Record<string, () => Promise<ExecuteurEffetSor
     const { sendSmartEmail } = await import("@/lib/mail-smart");
     type Charge = { to: string[]; cc?: string[]; subject: string; text: string; html?: string; replyTo?: string };
     return {
-      executer: async (charge) => {
+      executer: async (charge, ligne) => {
         const r = await sendSmartEmail(charge as Charge);
         if (!r.ok) throw new Error(r.error ?? "refus du fournisseur");
+        // Le journal des courriels (`OutboundEmail`) le disait « en file » : il le dit parti, avec l'identifiant du fournisseur.
+        const { prismaBrut } = await import("@/lib/prisma");
+        await prismaBrut.outboundEmail.updateMany({ where: { providerId: `differe:${ligne.id}` }, data: { status: "SENT", providerId: r.providerId ?? null, sentAt: new Date() } });
       },
       compensation: async (charge, _l, motif): Promise<PlanCompensation> => {
         const c = charge as Charge;
         const r = RECTIFICATIF(c.subject, motif);
         return { charge: { to: c.to, cc: c.cc, subject: r.sujet, text: r.texte, replyTo: c.replyTo }, apercu: `« ${r.sujet} »`, phrase: `un rectificatif part à ${c.to.join(", ")}` };
+      },
+    };
+  },
+
+  /**
+   * Message WhatsApp (K6, `platform/ia/canaux/whatsapp.ts`). Charge : `{ a, texte }`. Un geste qui répond par WhatsApp le
+   * diffère par `differerEffetSortant({ type: "whatsapp.texte", … })` ; les accusés automatiques du webhook, eux, ne sont
+   * le geste de personne et partent tels quels.
+   */
+  "whatsapp.texte": async () => {
+    const { configWhatsApp, envoyerTexteWhatsApp } = await import("@/platform/ia/canaux/whatsapp");
+    type Charge = { a: string; texte: string };
+    return {
+      executer: async (charge) => {
+        const c = charge as Charge;
+        if (!(await envoyerTexteWhatsApp(configWhatsApp(), c.a, c.texte))) throw new Error("WhatsApp n'a pas accepté le message (configuration absente ou refus)");
+      },
+      compensation: async (charge, _l, motif): Promise<PlanCompensation> => {
+        const c = charge as Charge;
+        return { charge: { a: c.a, texte: `Rectificatif : le message précédent est annulé${motif ? ` (${motif})` : ""} — merci de ne pas en tenir compte.` }, apercu: "rectificatif", phrase: `un rectificatif WhatsApp part à ${c.a}` };
       },
     };
   },

@@ -127,6 +127,7 @@ worker à côté (`TACHES_DE_FOND=les-deux`), vrai modèle par le mandataire, Ch
 | Dépôt d'office | « 20 fichiers : tout lire en arrière-plan » ; 20 téléversés, 20 lus par la Bibliothèque, 0 échec, en 4 s |
 | Largeur | `scrollWidth` = largeur partout (1280, 390) ; cibles ≥ 44 px sur téléphone |
 | Recherche approfondie (réelle) | 5 sous-recherches web lancées ensemble (19:05:28), 2 min 29 à 3 min 18 chacune ; rapport de 20 981 caractères, 10 sections, 21 sources numérotées ; Word ET PDF au Drive ; rapport affiché en entier dans la conversation (captures 30b à 33) |
+| Recherche approfondie — passage d'un trait (sur le build final) | 5 sous-recherches EN COURS ENSEMBLE au tableau (captures 30-…-1 et -2) ; terminée en 2 min 03 sans reprise ; rapport de 20 524 caractères, 10 sections, 21 sources numérotées ; « Documents : … .pdf · … .docx » dans la conversation (capture 32) ; 0 erreur console ; 2,12 $ (9 appels) |
 | Coût de la recherche approfondie | 2,04 $ pour les recherches web (≈ 0,35 à 0,56 $ par sous-recherche, modèle du rôle worker) + 0,07 $ de rédaction ; la reprise : 0,07 $ |
 | Coût réel du passage | 10 appels de modèle, 0,083 $ (le premier passage complet : 15 appels, 0,133 $) |
 

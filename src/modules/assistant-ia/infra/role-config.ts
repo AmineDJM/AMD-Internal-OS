@@ -219,7 +219,7 @@ export async function chargerConsoleAccesIa(): Promise<{
   managerVoitEquipe: boolean;
   /** J7 : durée de garde du journal des effets, en jours (défaut 180). */
   retentionEffetsJours: number;
-  /** K10b (décision 0038) : la fenêtre d'annulation des envois, en secondes (défaut 120). */
+  /** K10b (décision 0040) : la fenêtre d'annulation des envois, en secondes (défaut 120). */
   fenetreAnnulationSecondes: number;
   /** Décision 0034 : les valeurs sensibles vont au modèle en clair (défaut) ou en repères. */
   valeursSensibles: ModeValeursSensibles;

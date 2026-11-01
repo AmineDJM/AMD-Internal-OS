@@ -1,4 +1,4 @@
-# 0040 — L'argent réversible : journal J7 ouvert à l'écran, contre-passation, « à récupérer », rétablir (lot K10a, 31/10/2026)
+# 0041 — L'argent réversible : journal J7 ouvert à l'écran, contre-passation, « à récupérer », rétablir (lot K10a, 31/10/2026)
 
 Demande de la Direction (31/10/2026, verbatim) : « Je veux que toutes les actions soient réversibles. Même celles qui ne
 le sont pas : tu dois modifier l'ERP pour qu'elles le soient. Toute action qui a été faite peut être réversible. Ça doit
@@ -13,7 +13,7 @@ annulation honnête) — **aucun second mécanisme** : tout passe par `annulerGe
 > file d'indexation « sans objet »), `retablissement.ts` (crochet argent, parent d'abord), `capture.ts` (`updateMany` en
 > transaction). Migration additive et idempotente `20270217120000_k10a_compensation_ecritures` :
 > `FinanceTransaction.compensationDeId` (lien, `SET NULL`) et `FinanceTransaction.compensation`
-> (`CONTRE_PASSATION` | `A_RECUPERER`). Réconcilié avec K10b (décision 0038 : fenêtre d'annulation, barre « Annuler »,
+> (`CONTRE_PASSATION` | `A_RECUPERER`). Réconcilié avec K10b (décision 0040 : fenêtre d'annulation, barre « Annuler »,
 > rétablir, déclarations par périmètre) : un seul mécanisme.
 
 ## 1. La définition tenue
@@ -63,6 +63,17 @@ pointe). Le geste rétabli se ré-annule ; l'audit garde annulation et rétablis
 - Un dépendant né d'un AUTRE geste depuis (l'ordre autorisé par le centre après la demande ; la remise versée) : la ligne
   touchée est **compensée** (`CANCELLED`, plus payable) ou **refusée avec la raison** (« modifiée depuis : … ») — jamais
   écrasée, jamais d'état incohérent (tests « CASCADE »).
+
+## 5 bis. Avec les règles finales de K10b (décision 0040)
+
+- **Tout ou rien** pour un geste d'écran : si un effet ne se défait plus (une remise versée depuis par le centre), RIEN
+  n'est annulé et le refus nomme, effet par effet, ce qui a bougé (test « CASCADE »).
+- **Pièce numérotée** (facture — `MODELES_PIECES_NUMEROTEES`) : annuler sa création la passe à `CANCELLED`, elle reste
+  avec ses fichiers ; jamais retirée. Les compteurs de numérotation (`MODELES_COMPTEURS`) ne reculent pas.
+- **Champs techniques** (`modeles.ts`, `CHAMPS_TECHNIQUES`) : tenus par une tâche planifiée (le rappel mensuel d'une
+  caisse, `PettyCashPlan.lastReminderPeriod`), ni comparés ni restaurés — ils ne bloquent pas une annulation.
+- **Masquer les ordres réglés** : la purge procède par tranches nommées de 400 (le journal ne détaille un `updateMany`
+  que jusqu'à 500 lignes) — tout l'historique masqué réapparaît, prouvé sur 520 ordres.
 
 ## 6. La barre « Annuler » et l'assistant
 

@@ -55,7 +55,7 @@ async function acteur(id: string, role: SessionUser["role"]): Promise<CurrentUse
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * CAISSE D'AVANCE, BUDGETS, PAIE : RÉVERSIBLES PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0040).
+ * CAISSE D'AVANCE, BUDGETS, PAIE : RÉVERSIBLES PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0041).
  *
  * Même protocole que `reversibilite-argent-flow.test.ts` : exécuter l'action de l'écran, relire, annuler le geste
  * journalisé, vérifier l'état d'avant (ou la compensation), et que rien d'autre que la poussée partie ne reste
@@ -164,9 +164,13 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     // Le Super Admin annule de nouveau la remise rétablie : elle a vécu depuis — versée par le centre.
     await commeSa();
     const c = await annulerGeste(gesteRemise.id, ACTOR!);
-    if ("refus" in c) throw new Error(c.refus);
-    expect(c.complet).toBe(false);
-    expect(c.details.filter((x) => x.issue === "IMPOSSIBLE").map((x) => x.pourquoi).join(" ")).toMatch(/changé|modifiée|rattaché|vaut maintenant/);
+    // TOUT OU RIEN (K10b) : un geste d'écran dont un effet ne se défait plus n'est PAS annulé à moitié — le refus nomme,
+    // effet par effet, ce qui a bougé depuis.
+    expect("refus" in c, "un geste en partie vécu depuis ne s'annule pas à moitié").toBe(true);
+    if (!("refus" in c)) return;
+    expect(c.refus).toMatch(/^Rien n'est annulé/);
+    expect(c.refus).toMatch(/modifiée depuis|vaut maintenant|rattaché/);
+    expect((await prisma.assistantGesteJournal.findUniqueOrThrow({ where: { id: gesteRemise.id } })).annuleLe).toBeNull();
     // Rien d'incohérent : la remise reste versée, son ordre reste payé et lié.
     const apres = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } });
     const ordre = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: remise.expenseOrderId! } });
@@ -230,7 +234,8 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     expect(await prisma.pettyCashPlan.count({ where: { departmentId: dept } })).toBe(0);
 
     // Le rappel planifié tourne SANS session : il s'exécute tel quel, HORS journal (limite : une tâche planifiée n'a
-    // pas de personne au nom de qui l'annuler). Et le plan qu'il a touché depuis n'est plus retiré en silence : dit.
+    // pas de personne au nom de qui l'annuler). Ce qu'il touche (`lastReminderPeriod`) est un champ TECHNIQUE
+    // (`modeles.ts`, `CHAMPS_TECHNIQUES`) : il ne fait pas du plan une fiche « modifiée depuis » — l'annulation le retire.
     expect((await setPettyCashPlan(fd({ departmentId: dept, monthlyAmount: "30000", rechargeDay: "5", holderId: u.holder, isActive: "1" }))).ok).toBe(true);
     const sauve = ACTOR;
     ACTOR = null;
@@ -241,8 +246,8 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     const plan = await prisma.pettyCashPlan.findFirstOrThrow({ where: { departmentId: dept } });
     expect(plan.lastReminderPeriod).not.toBeNull();
     const c = await annulerDernier();
-    expect(c.details.find((d) => /petty cash plan/.test(d.quoi))).toMatchObject({ issue: "IMPOSSIBLE" });
-    expect(await prisma.pettyCashPlan.count({ where: { departmentId: dept } })).toBe(1);
+    expect(c.details.find((d) => /petty cash plan/.test(d.quoi))).toMatchObject({ issue: "ANNULE" });
+    expect(await prisma.pettyCashPlan.count({ where: { departmentId: dept } })).toBe(0);
   });
 
   // ── BUDGET DU DÉPARTEMENT ────────────────────────────────────────────────────────────────

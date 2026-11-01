@@ -7,7 +7,7 @@ import { agirSurMonEnvoi, annulerMonGeste, historiqueDeLaFiche, mesGestesEtEnvoi
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA BARRE « ANNULER » DE L'ERP (K10b, décision 0038) — montée par la coque, pour tout le monde.
+ * LA BARRE « ANNULER » DE L'ERP (K10b, décision 0040) — montée par la coque, pour tout le monde.
  *
  *   • « Fait : <geste> — Annuler » : le geste réversible qu'on vient de faire (bouton de l'ERP ou carte de l'assistant),
  *     pendant une minute. Annulé : le compte rendu honnête (annulé / compensé / impossible) et « Rétablir ».
@@ -59,14 +59,14 @@ function LigneEnvoi({ e, decalage, occupe, message, agir }: { e: Envoi; decalage
         {e.statut === "EN_ATTENTE" && <>{quoi} — part dans <strong className="tabular-nums">{mmss(secondes)}</strong></>}
         {e.statut === "EN_COURS" && <>{quoi} — en train de partir</>}
         {e.statut === "ANNULE" && <>{quoi} — <strong>envoi annulé : rien n&apos;est parti</strong></>}
-        {e.statut === "PARTI" && <>{quoi} — parti{e.parti ? ` le ${new Date(e.parti).toLocaleString("fr-FR")}` : ""}</>}
+        {e.statut === "PARTI" && <>{quoi} — {e.type.startsWith("inverse.") ? "fait" : "parti"}{e.parti ? ` le ${new Date(e.parti).toLocaleString("fr-FR")}` : ""}</>}
         {e.statut === "COMPENSE" && <>{quoi} — parti, compensé : {e.compensation}</>}
         {e.statut === "ECHEC" && <>{quoi} — non parti ({e.erreur})</>}
         {message && <span className="block text-xs text-muted-foreground">{message}</span>}
       </span>
       {e.statut === "EN_ATTENTE" && <button type="button" disabled={occupe} onClick={() => agir("annuler")} className="h-9 rounded-md border px-3 font-medium focus-ring">Annuler l&apos;envoi</button>}
       {e.statut === "ANNULE" && <button type="button" disabled={occupe} onClick={() => agir("retablir")} className="h-9 rounded-md border px-3 focus-ring">Rétablir l&apos;envoi</button>}
-      {e.statut === "PARTI" && <button type="button" disabled={occupe} onClick={() => agir("annuler")} className="h-9 rounded-md border px-3 focus-ring" title="Le message est parti : il n'est pas effacé chez son destinataire. Un rectificatif lui est envoyé.">Compenser</button>}
+      {e.statut === "PARTI" && <button type="button" disabled={occupe} onClick={() => agir("annuler")} className="h-9 rounded-md border px-3 focus-ring" title={e.type.startsWith("inverse.") ? "Le geste inverse est fait (le message retrouve son état d'avant)." : "Le message est parti : il n'est pas effacé chez son destinataire. Un rectificatif lui est envoyé."}>{e.type.startsWith("inverse.") ? "Défaire" : "Compenser"}</button>}
     </div>
   );
 }

@@ -1,0 +1,30 @@
+{
+  "rechercheTourS": 11,
+  "rechercheOrigine": "assistant-ia:recherche-approfondie",
+  "sousRecherches": 5,
+  "rechercheReprises": 0,
+  "rechercheEtapesSimultaneesMax": 5,
+  "recherche": {
+    "statut": "COMPLETED",
+    "dureeS": 123,
+    "caracteres": 20524,
+    "sourcesNumerotees": 21,
+    "sections": 10,
+    "documents": [
+      "Rapport de recherche (travail dntsls).docx",
+      "Rapport de recherche (travail dntsls).pdf"
+    ]
+  },
+  "rechercheRapportDansLaConversation": true,
+  "largeur:recherche": {
+    "sw": 1280,
+    "w": 1280
+  },
+  "coutReel": {
+    "appels": 9,
+    "usd": 2.118807,
+    "jetonsEntree": 424109,
+    "jetonsSortie": 67904
+  },
+  "erreursConsole": []
+}

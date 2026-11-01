@@ -5,7 +5,7 @@ import { etatDuGeste } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE GESTE D'ÉCRAN RÉVERSIBLE (K10b, décision 0038) — « toute action peut être réversible », d'un bouton.
+ * LE GESTE D'ÉCRAN RÉVERSIBLE (K10b, décision 0040) — « toute action peut être réversible », d'un bouton.
  *
  * `gesteReversible(user, { capaciteId, libelle }, geste)` exécute le corps d'une action de l'ERP SOUS LE JOURNAL DES
  * EFFETS (J7) : chaque écriture garde sa ligne avant / après, chaque effet sortant attend sa FENÊTRE D'ANNULATION
@@ -33,7 +33,7 @@ export async function gesteReversible<T>(user: CurrentUser | { id: string }, met
 }
 
 /**
- * LE MÊME GESTE, PRIS DANS LA SESSION (K10a, décision 0040) — pour les actions d'argent, dont le corps lit la personne
+ * LE MÊME GESTE, PRIS DANS LA SESSION (K10a, décision 0041) — pour les actions d'argent, dont le corps lit la personne
  * lui-même (`requireUser`) : `annulable("fichier:fonction", libellé, corps)` enrobe le corps SUR LA LIGNE DE SA SIGNATURE
  * (aucune ligne ajoutée), lit la personne de la session et appelle `gesteReversible`. Sans personne (tâche planifiée,
  * banc sans session) : l'action s'exécute telle quelle, sans journal. Le mode d'annulation est déclaré dans

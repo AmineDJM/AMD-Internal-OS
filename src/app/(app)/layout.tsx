@@ -117,7 +117,7 @@ export default async function AppLayout({
       <ActivityTracker />
       {/* J12 : les gestes confiés par mandat à l'Assistant IA se font dans la requête de la personne (jamais en Vue exacte). */}
       {!user.impersonatedBy && peutUtiliserAssistantIA(user) && <ExecuteurMandats />}
-      {/* K10b (décision 0038) : « Annuler » le geste qu'on vient de faire, « Annuler l'envoi » pendant sa fenêtre. */}
+      {/* K10b (décision 0040) : « Annuler » le geste qu'on vient de faire, « Annuler l'envoi » pendant sa fenêtre. */}
       {!user.impersonatedBy && <BarreAnnulation />}
       {/* LE REJEU DE SESSION — pour le support technique : rembobiner la suite des actions et
           voir où ça a bugué. Aucune valeur de champ n'est lue ; les champs sensibles sont

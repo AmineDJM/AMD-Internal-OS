@@ -99,7 +99,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   // que le banc puisse dire ce qu'Adam aurait notifié.
   // LE PORT DE SIMULATION (J7) : un geste simulé note la notification et ne la pousse pas.
   if (noterEffetExterne({ acte: "NOTIFICATION_PUSH", cible: userId, apercu: payload.title, origine: "push:sendPushToUser" })) return;
-  // LA FENÊTRE D'ANNULATION (K10b, décision 0038) : sous un geste réversible, la poussée attend sa fenêtre.
+  // LA FENÊTRE D'ANNULATION (K10b, décision 0040) : sous un geste réversible, la poussée attend sa fenêtre.
   if (await differerSiFenetre({ type: "push", acte: "NOTIFICATION_PUSH", cible: userId, apercu: payload.title, charge: { userId, payload } })) return;
   if (!sortieAutorisee("NOTIFICATION_PUSH", userId, { apercu: payload.title, origine: "push:sendPushToUser" })) return;
   if (!(await ensureVapid())) return;

@@ -3,7 +3,7 @@ import { DECLARATIONS_COMMUNICATIONS } from "./declarations/communications";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES ANNULATIONS DÉCLARÉES (lot K10, décision 0038) — « toute action peut être réversible ».
+ * LES ANNULATIONS DÉCLARÉES (lot K10, décision 0040) — « toute action peut être réversible ».
  *
  * Le registre DÉRIVE l'annulation d'une action de sa nature (`reversibilite.ts`) : un courriel → « aucune ». Quand
  * l'ERP a été MODIFIÉ pour qu'une action se défasse (fenêtre d'annulation des envois, corbeille, compensation métier),

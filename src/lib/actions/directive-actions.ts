@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import type { DirectiveStatus, Priority, UserRole } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -184,45 +185,47 @@ export async function createDirective(_prev: ActionResult | undefined, formData:
  */
 export async function publishDirective(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!canPublishDirectives(person(user))) {
-    return { ok: false, error: "Seule la direction générale (ou le Super Admin) publie une directive." };
-  }
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Directive introuvable." };
+  return gesteReversible(user, { capaciteId: "directive-actions:publishDirective", libelle: "Directive publiée" }, async () => {
+    if (!canPublishDirectives(person(user))) {
+      return { ok: false, error: "Seule la direction générale (ou le Super Admin) publie une directive." };
+    }
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Directive introuvable." };
 
-  const d = await prisma.directive.findUnique({ where: { id } });
-  if (!d) return { ok: false, error: "Directive introuvable." };
-  if (d.publication === "PUBLISHED") return { ok: false, error: "Cette directive est déjà publiée." };
+    const d = await prisma.directive.findUnique({ where: { id } });
+    if (!d) return { ok: false, error: "Directive introuvable." };
+    if (d.publication === "PUBLISHED") return { ok: false, error: "Cette directive est déjà publiée." };
 
-  const manque = validateAudience({
-    audience: d.audience, targetUserIds: d.targetUserIds,
-    targetRole: d.targetRole as string | null, companyId: d.companyId,
-  });
-  if (manque) return { ok: false, error: manque };
-
-  const now = new Date();
-  const sent = await sendDirective({ ...d, targetRole: d.targetRole as string | null });
-  await prisma.directive.update({
-    where: { id },
-    data: {
-      publication: "PUBLISHED", approvedById: user.id, approvedAt: now, publishedAt: now,
-      decisionNote: fdStr(formData, "note"), sendCount: { increment: 1 }, lastSentAt: now,
-    },
-  });
-
-  if (d.fromId && d.fromId !== user.id) {
-    await notifyUser({
-      userId: d.fromId, type: "GENERIC", title: "Directive publiée",
-      body: `${d.reference} — ${d.title} · ${sent} destinataire·s`, link: `${PATH}/${id}`,
+    const manque = validateAudience({
+      audience: d.audience, targetUserIds: d.targetUserIds,
+      targetRole: d.targetRole as string | null, companyId: d.companyId,
     });
-  }
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Directives", entityType: "DIRECTIVE", entityId: id,
-    field: "publication", newValue: "PUBLISHED",
-    summary: `Directive ${d.reference} publiée à ${sent} destinataire·s`,
+    if (manque) return { ok: false, error: manque };
+
+    const now = new Date();
+    const sent = await sendDirective({ ...d, targetRole: d.targetRole as string | null });
+    await prisma.directive.update({
+      where: { id },
+      data: {
+        publication: "PUBLISHED", approvedById: user.id, approvedAt: now, publishedAt: now,
+        decisionNote: fdStr(formData, "note"), sendCount: { increment: 1 }, lastSentAt: now,
+      },
+    });
+
+    if (d.fromId && d.fromId !== user.id) {
+      await notifyUser({
+        userId: d.fromId, type: "GENERIC", title: "Directive publiée",
+        body: `${d.reference} — ${d.title} · ${sent} destinataire·s`, link: `${PATH}/${id}`,
+      });
+    }
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Directives", entityType: "DIRECTIVE", entityId: id,
+      field: "publication", newValue: "PUBLISHED",
+      summary: `Directive ${d.reference} publiée à ${sent} destinataire·s`,
+    });
+    revalidate(id);
+    return { ok: true };
   });
-  revalidate(id);
-  return { ok: true };
 }
 
 /** REFUSER — la note ne part pas, et son auteur apprend POURQUOI. */
@@ -269,30 +272,32 @@ export async function rejectDirective(formData: FormData): Promise<ActionResult>
  */
 export async function resendDirective(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Directive introuvable." };
+  return gesteReversible(user, { capaciteId: "directive-actions:resendDirective", libelle: "Directive renvoyée" }, async () => {
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Directive introuvable." };
 
-  const d = await prisma.directive.findUnique({ where: { id } });
-  if (!d) return { ok: false, error: "Directive introuvable." };
-  // Renvoyer, c'est diffuser : le droit est celui de la publication, ou celui de l'émetteur.
-  if (!canPublishDirectives(person(user)) && d.fromId !== user.id) {
-    return { ok: false, error: "Seuls l'émetteur et la direction générale peuvent renvoyer une directive." };
-  }
-  if (d.publication !== "PUBLISHED") {
-    return { ok: false, error: "Une directive non publiée ne se renvoie pas — faites-la d'abord valider." };
-  }
+    const d = await prisma.directive.findUnique({ where: { id } });
+    if (!d) return { ok: false, error: "Directive introuvable." };
+    // Renvoyer, c'est diffuser : le droit est celui de la publication, ou celui de l'émetteur.
+    if (!canPublishDirectives(person(user)) && d.fromId !== user.id) {
+      return { ok: false, error: "Seuls l'émetteur et la direction générale peuvent renvoyer une directive." };
+    }
+    if (d.publication !== "PUBLISHED") {
+      return { ok: false, error: "Une directive non publiée ne se renvoie pas — faites-la d'abord valider." };
+    }
 
-  const sent = await sendDirective({ ...d, targetRole: d.targetRole as string | null }, { relance: true });
-  await prisma.directive.update({
-    where: { id },
-    data: { sendCount: { increment: 1 }, lastSentAt: new Date() },
+    const sent = await sendDirective({ ...d, targetRole: d.targetRole as string | null }, { relance: true });
+    await prisma.directive.update({
+      where: { id },
+      data: { sendCount: { increment: 1 }, lastSentAt: new Date() },
+    });
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Directives", entityType: "DIRECTIVE", entityId: id,
+      summary: `Directive ${d.reference} renvoyée à ${sent} destinataire·s (envoi n°${d.sendCount + 1})`,
+    });
+    revalidate(id);
+    return { ok: true, message: `Renvoyée à ${sent} personne·s.` };
   });
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Directives", entityType: "DIRECTIVE", entityId: id,
-    summary: `Directive ${d.reference} renvoyée à ${sent} destinataire·s (envoi n°${d.sendCount + 1})`,
-  });
-  revalidate(id);
-  return { ok: true, message: `Renvoyée à ${sent} personne·s.` };
 }
 
 // ───────────── Changement de statut (destinataire ou Direction) ─────────────

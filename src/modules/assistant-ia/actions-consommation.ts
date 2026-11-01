@@ -217,7 +217,7 @@ export async function enregistrerValeursSensibles(formData: FormData): Promise<A
 /**
  * J7 (décision 0029) — LA DURÉE DE GARDE DU JOURNAL DES EFFETS : combien de jours un geste de l'assistant reste
  * annulable (sa valeur AVANT gardée). Super Admin seul ; entre 7 jours et 3 ans ; à l'audit.
- * K10b (décision 0038) — et LA FENÊTRE D'ANNULATION DES ENVOIS (`fenetreAnnulationSecondes`, 10 s à 15 min, défaut
+ * K10b (décision 0040) — et LA FENÊTRE D'ANNULATION DES ENVOIS (`fenetreAnnulationSecondes`, 10 s à 15 min, défaut
  * 2 min) : combien de temps un courriel, une poussée, une publication attend avant de partir. Chaque champ fourni est
  * vérifié, écrit, et va à l'audit avec son avant et son après.
  */

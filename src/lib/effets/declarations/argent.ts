@@ -1,7 +1,7 @@
 import type { DeclarationAnnulation } from "../declarations";
 
 /**
- * K10a — L'ARGENT (décision 0040) : finance, trésorerie, paiements, caisse, paie, factures, budgets, fournisseurs.
+ * K10a — L'ARGENT (décision 0041) : finance, trésorerie, paiements, caisse, paie, factures, budgets, fournisseurs.
  *
  * Chaque action ci-dessous s'exécute sous `annulable("fichier:fonction", …)` (`lib/effets/ecran.ts` → `gesteReversible`) :
  * journalisée, elle se défait par l'annulation J7 et sa politique d'argent (`lib/effets/argent.ts`). Les tests qui les

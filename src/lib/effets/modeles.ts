@@ -61,7 +61,7 @@ function construire(): Map<string, InfoModele> {
       }])),
       octets: champs.filter((f) => f.kind === "scalar" && f.type === "Bytes").map((f) => f.name),
       relations: new Set(champs.filter((f) => f.kind === "object").map((f) => f.name)),
-      auto: new Set(champs.filter((f) => f.isUpdatedAt).map((f) => f.name)),
+      auto: new Set([...champs.filter((f) => f.isUpdatedAt).map((f) => f.name), ...(CHAMPS_TECHNIQUES[m.name] ?? [])]),
       cascades: [], enfants: [],
       annulation: statut && valeur ? { champ: statut.name, valeur } : null,
     });
@@ -80,6 +80,14 @@ function construire(): Map<string, InfoModele> {
   return out;
 }
 
+/**
+ * LES CHAMPS TECHNIQUES (K10a, décision 0041) — tenus par une tâche planifiée, pas par une personne : comme `updatedAt`,
+ * ni comparés (le rappel mensuel d'une caisse ne fait pas d'un plan « modifié depuis ») ni restaurés.
+ */
+const CHAMPS_TECHNIQUES: Readonly<Record<string, readonly string[]>> = {
+  PettyCashPlan: ["lastReminderPeriod"],
+};
+
 export function infoModele(nom: string): InfoModele | null {
   cache ??= construire();
   return cache.get(nom) ?? null;
@@ -94,3 +102,22 @@ export const MODELES_TRACE: ReadonlySet<string> = new Set([
   "AssistantRoleConfigAudit", "RegulatoryAuditLog", "SessionEvent", "BusinessEvent", "MissionEvent",
   "AssistantGesteJournal", "AssistantEffet", "EffetSortantDiffere",
 ]);
+
+/**
+ * K10b (décision 0040) — LES COMPTEURS DE NUMÉROTATION : un numéro attribué ne se rend JAMAIS (le reculer ferait
+ * naître deux pièces sous le même numéro). L'annulation les laisse : la pièce qui le porte est annulée, pas effacée.
+ */
+export const MODELES_COMPTEURS: ReadonlySet<string> = new Set(["DocumentSequence", "DocumentReference", "SerieReference"]);
+
+/**
+ * K10b — LES PIÈCES NUMÉROTÉES (facture, avoir, devis, bon de commande émis) : jamais retirées, même intactes —
+ * ANNULÉES (leur statut d'annulation) : le numéro, le document et la trace restent, la série n'a ni trou ni doublon.
+ */
+/**
+ * K10b — LES JOURNAUX D'ENVOI (`OutboundEmail`) : la ligne d'un envoi que la fenêtre a laissé partir a été écrite par le
+ * worker (« parti », identifiant du fournisseur). Elle n'est pas « modifiée par un autre » : c'est la trace de ce qui est
+ * sorti — elle reste, et la compensation (le rectificatif) se fait sur l'envoi lui-même.
+ */
+export const MODELES_JOURNAUX_ENVOI: ReadonlySet<string> = new Set(["OutboundEmail"]);
+
+export const MODELES_PIECES_NUMEROTEES: ReadonlySet<string> = new Set(["LegalDocument"]);

@@ -1,10 +1,10 @@
-# 0038 — Toute action réversible : communications, effets sortants, suppressions (lot K10b, 31/10/2026)
+# 0040 — Toute action réversible : communications, effets sortants, suppressions (lot K10b, 31/10/2026)
 
 Demande de la Direction (31/10/2026, verbatim) : « Je veux que toutes les actions soient réversibles. Même celles qui ne le
 sont pas : tu dois modifier l'ERP pour qu'elles le soient. Toute action qui a été faite peut être réversible. Ça doit être
 dans n'importe quelle action du registre. » Contexte : la voix de l'Assistant IA exécute sur un « vas-y » oral (K9) ; la
 sécurité vient de la réversibilité. Lot en trois sessions : K10a (argent), **K10b (communications, effets sortants,
-suppressions — ce document)**, K10c (le reste, décision 0039). Suit [0029](0029-simulation-annulation.md) (J7 : journal
+suppressions — ce document)**, K10c (le reste). Suit [0029](0029-simulation-annulation.md) (J7 : journal
 des effets, annulation honnête) — **aucun second système** : tout passe par le journal J7.
 
 Migration additive et idempotente `20270217110000_fenetre_annulation_effets_sortants` : table `EffetSortantDiffere`,
@@ -14,7 +14,7 @@ colonnes `AssistantIaReglage.fenetreAnnulationSecondes` (défaut 120) et `Assist
 > `declarations/communications.ts`, README) ; ports `mail.ts`, `mail-smart.ts`, `mail/graph/provider.ts`, `push.ts`,
 > `site-web/file.ts` ; `mail/executeur-sortant.ts` (Graph) ; barre `modules/assistant-ia/ecrans/barre-annulation.tsx`
 > (coque) et ses actions (`actions-gestes.ts`) ; réglage `/admin/ai/acces` ; tests `src/lib/effets/fenetre.test.ts`,
-> `src/lib/actions/reversibilite/` (banc + cas + cliquet).
+> `src/lib/actions/internes/reversibilite/` (banc + cas + cliquet).
 
 ## 1. Définition tenue
 
@@ -63,6 +63,13 @@ fiche courrier) garde les gestes et les envois de l'objet. Sous une carte de l'a
 - **Notification déjà lue** : compensée par un rectificatif dans l'ERP (« n'en tenez plus compte »), au lieu d'« impossible ».
 - **Rétablir** (`retablirGeste`) : refait ce que l'annulation avait défait, sous la même règle (verrou, relecture) ;
   ce qui a bougé depuis est dit, jamais écrasé. Le geste redevient annulable.
+- **Compteurs** : `DocumentSequence`, `DocumentReference`, `SerieReference` (références d'ordres, de demandes) ne reculent
+  jamais ; les **documents d'une pièce numérotée** annulée (Word, PDF, dossier « Factures émises ») restent avec elle.
+- **Journaux d'envoi** (`OutboundEmail`) : la ligne qu'écrit le worker au départ est la trace de ce qui est sorti — gardée.
+- **Capture** : un `updateMany` dans une transaction interactive n'était pas vu (relu hors transaction) — les valeurs simples
+  de `data` sont reportées sur l'« après » ; une ligne modifiée deux fois prend la place de sa DERNIÈRE écriture (un lien
+  posé après la naissance d'un parent est défait avant lui) ; à blanc, un lien que l'annulation remet ne compte pas comme
+  rattachement.
 - La déconnexion Microsoft retire les liens de provenance un par un (journalisés) au lieu de la cascade invisible.
 
 ## 5. Le registre
@@ -70,10 +77,20 @@ fiche courrier) garde les gestes et les envois de l'objet. Sous une carte de l'a
 Port `PortsRegistre.annulationDeclaree` (types.ts, sans toucher `ANNULATIONS`) ; table ERP `src/lib/effets/declarations.ts`
 fusionnant une table par périmètre (`declarations/communications.ts` pour K10b). `capacites:classement` ne classe plus
 « aucune » une action déclarée. Chaque déclaration a son cas « exécuter → annuler → rétablir → ré-annuler » contre la base
-(`src/lib/actions/reversibilite/`), et le **cliquet** exige que les actions écrivantes du périmètre ne soient plus
+(`src/lib/actions/internes/reversibilite/`), et le **cliquet** exige que les actions écrivantes du périmètre ne soient plus
 « aucune » et que chaque déclaration ait son cas.
 
-## 6. Limites et décisions de la Direction
+## 6. Mesures
+
+| Critère | Mesure |
+|---|---|
+| Actions du périmètre encore « aucune » (cliquet `communications.test.ts`) | **0 / 58** (aucune 236 → 189 au registre) |
+| Actions déclarées : retour 41 (dont 3 « sans effet » : lecture, ou texte proposé non enregistré) · compensation 17 (dont 8 par la fenêtre d’annulation) | 58 |
+| Cas exécuter → annuler → rétablir → ré-annuler contre la base locale | **57 cas verts** (internes 32 dont courrier 11, envois 17, décisions et pièces 8) + portail fournisseur |
+| Fenêtre (`fenetre.test.ts`) : rien ne sort dans la fenêtre (`fetch` espionné), un seul départ, rectificatif, course annulation / départ | 8 / 8 |
+| J7 inchangé ailleurs (`annulation.test.ts`, 50 cas ; cas 6, 13, 46, 47 mis à jour : rectificatif, poussée en fenêtre) | 50 / 50 |
+
+## 7. Limites et décisions de la Direction
 
 - **Délai de la fenêtre** : 120 s proposé, à confirmer.
 - Un courriel parti ne se reprend pas : la compensation est un rectificatif ; une notification poussée affichée ne se
