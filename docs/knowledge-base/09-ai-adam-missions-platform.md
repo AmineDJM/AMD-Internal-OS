@@ -771,3 +771,11 @@ Gotchas [V]:
   any ERP import in `src/platform/` outside the bridge); adapters, `DevLancement`, reception, polling, probes and the
   composition root `connecteursDev()` in the bridge `src/platform/in-process/chantiers/`. The registry (`recordEvent`) is
   injected by the route, not imported.
+- **CLI relay** (Direction 01/11): `scripts/relais-claude.ts` on a Direction machine (`claude auth login`) long-polls
+  `GET /api/dev/relais/ordres` (Bearer `CLAUDE_RELAIS_TOKEN`), runs `claude --cloud "<task>"` (CREER, after pushing the
+  reserved branch) or `claude -p --cloud <id> --output-format json` (MESSAGE, stdin), POSTs raw output; the ERP interprets
+  it (`platform/dev/relais.ts` `interpreter`, pure). Queue `ClaudeRelaisOrdre` (idempotent key; 20 min EN_COURS ⇒
+  INCERTAIN; 1 h unpulled ⇒ ECHEC), heartbeat `ClaudeRelaisEtat`, completion ⇒ `BusinessEvent DEV_SESSION` with the
+  order's `missionId`. Agent port: `lancerParCli`, `envoyerMessage`, `ordreCli`, `relais()`. Managed Agents: not coded.
+- Auto-fix: `ConsigneDev.autoFix` asks the session to turn on native PR auto-fix (Claude GitHub App required);
+  `apresEchec()` in `sondage.ts` shows a new push after a red verdict.

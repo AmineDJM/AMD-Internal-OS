@@ -1,8 +1,9 @@
 import { noterEffetExterne } from "@/lib/effets/magasin";
-import { aliasDeRoutines, baseRoutines, configRoutine, type Env } from "@/platform/dev/config";
+import { aliasDeRoutines, baseRoutines, configRoutine, jetonRelais, type Env } from "@/platform/dev/config";
 import { appeler, echec, masquer, type ConfigHttp } from "@/platform/dev/http";
 import { conclure, quotasRoutine, reclamer, type LigneLancement } from "./lancements";
-import type { AgentDeveloppeur, DemandeLancement, DemandeRelancePr, ErreurConnecteur, ForgeGit, MoyenAgent, Resultat, SessionLancee } from "@/platform/dev/ports";
+import type { AgentDeveloppeur, DemandeLancement, DemandeRelancePr, ErreurConnecteur, ForgeGit, MoyenAgent, OrdreCli, Resultat, SessionLancee } from "@/platform/dev/ports";
+import { enfilerOrdre, etatDuRelais, lireOrdreCli, type DemandeOrdre } from "./relais";
 
 /**
  * L'AGENT DÉVELOPPEUR — Claude Code Cloud par ses mécanismes OFFICIELS (lot C2, décision 0041).
@@ -90,8 +91,38 @@ export function creerAgentDeveloppeur(opts: OptionsAgent = {}): AgentDeveloppeur
     }
   }
 
+  /** Un ordre au relais CLI : jeton posé, relais vu récemment, effet noté (J7), clé d'idempotence. */
+  async function ordre(d: DemandeOrdre, cible: string): Promise<Resultat<OrdreCli>> {
+    if (!jetonRelais(env)) return echec("NON_CONFIGURE", "relais CLI : CLAUDE_RELAIS_TOKEN non posé");
+    if (!d.texte.trim()) return echec("INVALIDE", "consigne vide");
+    if (d.texte.length > TEXTE_MAX) return echec("INVALIDE", `consigne de ${d.texte.length} caractères (maximum ${TEXTE_MAX})`);
+    if (!d.cleIdempotence.trim()) return echec("INVALIDE", "clé d'idempotence requise");
+    const r = await etatDuRelais();
+    if (!r.vivant) return echec("INDISPONIBLE", "relais CLI hors ligne (pas de tirage depuis 2 min) : rien n'a été enfilé", true);
+    if (noterEffetExterne({ acte: "ECRITURE_EXTERNE", cible: `Claude Code (CLI) : ${cible}`.slice(0, 200), apercu: d.texte.slice(0, 160), origine: "chantiers" })) {
+      return echec("SIMULE", "simulation : l'ordre n'a pas été enfilé pour le relais");
+    }
+    return { ok: true, valeur: await enfilerOrdre(d) };
+  }
+
   return {
     routines: () => aliasDeRoutines(env),
+
+    lancerParCli: (d) => ordre({ type: "CREER", cleIdempotence: d.cleIdempotence, texte: d.texte, depot: d.depot, branche: d.branche, missionId: d.missionId }, `nouvelle session sur ${d.depot} (${d.branche})`),
+
+    envoyerMessage: (d) => /^(session|cse)_[A-Za-z0-9]+$/.test(d.sessionId)
+      ? ordre({ type: "MESSAGE", cleIdempotence: d.cleIdempotence, texte: d.texte, sessionCible: d.sessionId, missionId: d.missionId }, `message à ${d.sessionId}`)
+      : Promise.resolve(echec("INVALIDE", "identifiant de session invalide (session_… ou cse_…)")),
+
+    async ordreCli(id) {
+      const o = await lireOrdreCli(id);
+      return o ? { ok: true, valeur: o } : echec("INTROUVABLE", `ordre ${id} introuvable`);
+    },
+
+    async relais() {
+      const r = await etatDuRelais();
+      return { configure: Boolean(jetonRelais(env)), vivant: r.vivant, connecte: r.connecte, vuIlYaMs: r.vuLe ? Date.now() - r.vuLe.getTime() : null };
+    },
 
     async lancer(d: DemandeLancement): Promise<Resultat<SessionLancee>> {
       const routine = configRoutine(d.alias, env);

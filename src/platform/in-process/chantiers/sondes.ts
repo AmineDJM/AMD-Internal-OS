@@ -1,8 +1,9 @@
-import { aliasDeRoutines, configGithub, configMimo, configRender, configRoutine, managedAgentsActives, type Env } from "@/platform/dev/config";
+import { aliasDeRoutines, configGithub, configMimo, configRender, configRoutine, jetonRelais, type Env } from "@/platform/dev/config";
 import { creerForgeGithub } from "./forge-github";
 import { creerHebergeurRender } from "./hebergeur-render";
 import { appeler, type ConfigHttp } from "@/platform/dev/http";
 import { quotasRoutine } from "./lancements";
+import { etatDuRelais } from "./relais";
 import type { EtatConnecteur } from "@/platform/dev/ports";
 
 /**
@@ -84,7 +85,21 @@ export async function sonderRoutines(opts: OptionsSondes = {}): Promise<EtatConn
     if (a === alias[alias.length - 1]) etat.quotas.push({ libelle: "compte (lancements / heure)", restant: q.compte.limite - q.compte.utilises, limite: q.compte.limite });
   }
   etat.details.push("joignabilité : aucune sonde sans effet n'est documentée — un appel à /fire lance une session");
-  etat.details.push(`Managed Agents (option API) : ${managedAgentsActives(env) ? "demandés, adaptateur non branché" : "coupés"}`);
+  return etat;
+}
+
+/** Le relais CLI : rien n'est sondé chez lui (c'est LUI qui tire) — on lit son dernier battement et ce qu'il a déclaré. */
+export async function sonderRelais(opts: OptionsSondes = {}): Promise<EtatConnecteur> {
+  const env = opts.env ?? process.env;
+  const r = await etatDuRelais();
+  const etat: EtatConnecteur = {
+    connecteur: "relais", configure: Boolean(jetonRelais(env)), joignable: r.vuLe ? r.vivant : null,
+    variables: nomsPoses(env, ["CLAUDE_RELAIS_TOKEN"]), quotas: [], details: [],
+  };
+  etat.details.push(r.vuLe ? `vu il y a ${Math.round((Date.now() - r.vuLe.getTime()) / 1000)} s` : "jamais vu : relais non installé ou jamais démarré");
+  if (r.version) etat.details.push(`claude : ${r.version}`);
+  if (r.vuLe) etat.details.push(`connexion claude.ai : ${r.connecte === null ? "inconnue" : r.connecte ? "oui" : `non (${r.authMethod ?? "aucune"})`}`);
+  etat.details.push(`ordres en file : ${r.enAttente}${r.incertains ? ` — ${r.incertains} incertain(s) sur 7 jours, à vérifier sur claude.ai/code` : ""}`);
   return etat;
 }
 
@@ -105,10 +120,10 @@ export async function sonderMimo(opts: OptionsSondes = {}): Promise<EtatConnecte
   return etat;
 }
 
-/** Les quatre sondes, en parallèle ; une sonde qui tombe n'emporte pas les autres. */
+/** Les cinq sondes, en parallèle ; une sonde qui tombe n'emporte pas les autres. */
 export async function etatDesConnecteurs(opts: OptionsSondes = {}): Promise<EtatConnecteur[]> {
-  const sondes = [sonderRoutines, sonderGithub, sonderRender, sonderMimo];
-  const noms: EtatConnecteur["connecteur"][] = ["claude-code", "github", "render", "mimo"];
+  const sondes = [sonderRoutines, sonderRelais, sonderGithub, sonderRender, sonderMimo];
+  const noms: EtatConnecteur["connecteur"][] = ["claude-code", "relais", "github", "render", "mimo"];
   const r = await Promise.allSettled(sondes.map((f) => f(opts)));
   return r.map((x, i) => (x.status === "fulfilled" ? x.value : { connecteur: noms[i]!, configure: false, joignable: false, variables: [], quotas: [], details: [], erreur: "sonde en échec" }));
 }

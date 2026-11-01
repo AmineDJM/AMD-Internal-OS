@@ -27,7 +27,7 @@ const PERMIS = [
   "/api/canaux/", "/api/mail/inbound",
   // C2 (décision 0041) : les webhooks des chantiers (GitHub, Render) — publics, signés, vérifiés par la route ; reçus par
   // l'un ou l'autre service selon l'adresse que la Direction pose chez le fournisseur.
-  "/api/chantiers/webhooks/",
+  "/api/chantiers/webhooks/", "/api/dev/relais/",
   // Les limites d'envoi que la saisie de l'app lit au chargement (`use-limites-envoi.ts`, dépôt de dossier J11) — refusées,
   // elles faisaient deux 404 en console (constaté par K1 et K2).
   "/api/uploads/limites",

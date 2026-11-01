@@ -121,6 +121,7 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   "/api/events/qr/[token]": { methodes: "GET", classe: "HORS", raison: "QR d'un badge d'inscription : affiché et scanné à l'accueil de l'événement" },
   "/api/events/inbound/[source]": { methodes: "POST", classe: "HORS", raison: ENTRANT },
   "/api/chantiers/webhooks/[fournisseur]": { methodes: "POST", classe: "HORS", raison: ENTRANT },
+  "/api/dev/relais/ordres": { methodes: "GET,POST", classe: "HORS", raison: ENTRANT },
   "/api/mail/inbound": { methodes: "POST", classe: "HORS", raison: ENTRANT },
   "/api/canaux/whatsapp": { methodes: "GET,POST", classe: "HORS", raison: ENTRANT },
   "/api/canaux/relais": { methodes: "POST", classe: "HORS", raison: ENTRANT },

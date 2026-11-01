@@ -23,6 +23,7 @@ export function construireConsigne(c: ConsigneDev, limite = LIMITE_CONSIGNE): st
     "## Branche (réservée à ce chantier)",
     `Travaille UNIQUEMENT sur la branche \`${c.branche}\` du dépôt \`${c.depot}\` (crée-la depuis la branche par défaut si elle n'existe pas) et pousse-y chaque étape. Ne pousse sur aucune autre branche.`,
     c.numeroPr ? `Une PR existe déjà : #${c.numeroPr}. Reprends-la (même branche), ne l'abandonne pas.` : "Ouvre une PR (brouillon accepté) depuis cette branche vers la branche par défaut quand le travail est vérifié.",
+    ...(c.autoFix ? ["Active l'AUTO-FIX sur cette PR (surveille la CI et les relectures, et pousse toi-même les correctifs clairs)."] : []),
     "",
     "## Périmètre autorisé (fichiers)",
     liste(c.perimetre, "aucun périmètre déclaré : demande avant de toucher un fichier"),

@@ -21,6 +21,7 @@ export const metadata = { title: "Développement — connecteurs · Administrati
 
 const TITRES: Record<EtatConnecteur["connecteur"], string> = {
   "claude-code": "Claude Code Cloud (Routines API)",
+  relais: "Claude Code — relais CLI (machine de la Direction)",
   github: "GitHub",
   render: "Render",
   mimo: "MiMo",
@@ -49,9 +50,9 @@ function Connecteurs({ etats }: { etats: EtatConnecteur[] }) {
     <>
       <PageHeader
         title="Développement — connecteurs"
-        description="Claude Code, GitHub, Render et MiMo : ce que les chantiers peuvent utiliser. Sondes en lecture seule, à chaque chargement de la page."
+        description="Claude Code (Routines et relais CLI), GitHub, Render et MiMo : ce que les chantiers peuvent utiliser. Sondes en lecture seule, à chaque chargement de la page."
       />
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {etats.map((e) => (
           <Card key={e.connecteur}>
             <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">

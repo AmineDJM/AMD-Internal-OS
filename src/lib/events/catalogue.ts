@@ -69,6 +69,7 @@ export const CATALOGUE: readonly TypeFait[] = [
   { type: "DEV_COMMENTAIRE", libelle: "Commentaire sur une PR", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Un commentaire posté sur une PR (réponse de Claude Code dans le fil, ou d'une personne)." },
   { type: "RENDER_DEPLOIEMENT", libelle: "Déploiement Render", sourceDomain: "DEV", sources: ["render"], entites: [], description: "Un déploiement Render commencé ou terminé (succeeded, failed, canceled) ; références SERVICE:, DEPLOIEMENT:." },
   { type: "RENDER_SERVICE", libelle: "Service Render tombé ou revenu", sourceDomain: "DEV", sources: ["render"], entites: [], description: "Un service Render indisponible, revenu, redémarré, suspendu ou repris." },
+  { type: "DEV_SESSION", libelle: "Ordre du relais Claude Code conclu", sourceDomain: "DEV", sources: ["relais"], entites: [], description: "Le relais CLI a créé une session Claude Code ou remis un message (statut FAIT, ECHEC ou INCERTAIN) ; références ORDRE:, SESSION:, missionId de l'ordre." },
   { type: "WEBHOOK_RECEIVED", libelle: "Fait externe (type non catalogué)", sourceDomain: "external", sources: ["generic"], entites: [], description: "Un système externe a envoyé un fait dont le type n'est pas au catalogue : il entre sous son nom brut." },
 ];
 
