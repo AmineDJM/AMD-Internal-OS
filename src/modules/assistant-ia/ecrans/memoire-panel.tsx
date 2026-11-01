@@ -11,6 +11,7 @@ import {
   type ElementMemoire, type OrigineMemoire, type SorteMemoire,
 } from "../domaine/memoire-ui";
 import { MEMOIRE_CHANGEE } from "./memoires-retenues";
+import { useEchap } from "./use-echap";
 
 const plier = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const dateCourte = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" }) : "");
@@ -57,12 +58,7 @@ export function MemoirePanel({ ouvert, onFermer, onOuvrirConversation }: {
     return () => { window.removeEventListener(MEMOIRE_CHANGEE, relire); clearInterval(minuteur); };
   }, [ouvert, charger]);
 
-  useEffect(() => {
-    if (!ouvert) return;
-    const fermer = (e: KeyboardEvent) => { if (e.key === "Escape") onFermer(); };
-    window.addEventListener("keydown", fermer);
-    return () => window.removeEventListener("keydown", fermer);
-  }, [ouvert, onFermer]);
+  useEchap(onFermer);
 
   const agir = async (f: () => Promise<{ ok: boolean; erreur?: string }>) => {
     setOccupe(true);
