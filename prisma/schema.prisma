@@ -10295,6 +10295,23 @@ model ModelCallLog {
   ms                Int      @default(0)
   attempts          Int      @default(1)
   incompleteReason  String?
+  /// ── LOT K8 (décision 0035) : la ventilation exacte. Ce sont des PARTS des totaux ci-dessus
+  /// (`inputTokens` = texte + audio + image ; `cachedInputTokens` = tout le cache lu) — le texte est ce qui reste.
+  audioInputTokens       Int     @default(0)
+  cachedAudioInputTokens Int     @default(0)
+  audioOutputTokens      Int     @default(0)
+  imageInputTokens       Int     @default(0)
+  cachedImageInputTokens Int     @default(0)
+  imageOutputTokens      Int     @default(0)
+  /// Unités hors jetons : durée facturée (audio, GPT-Live, vidéo) en millisecondes, pages d'OCR.
+  durationMs             Int     @default(0)
+  pages                  Int     @default(0)
+  /// VRAI quand les jetons sont ESTIMÉS (équivalents, caractères ÷ 4) faute d'usage rendu par l'API.
+  estimated              Boolean @default(false)
+  /// VRAI pour un appel de l'API Batch (facturé à moitié prix).
+  batch                  Boolean @default(false)
+  /// La date de la grille tarifaire qui a calculé `costUsd` (`src/lib/models/tarifs.ts`), ou « env » pour un tarif posé.
+  priceGrid              String?
 
   @@index([at])
   @@index([userId, at])

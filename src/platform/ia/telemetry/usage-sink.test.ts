@@ -38,7 +38,10 @@ describe("puits d'usage — chaque appel de modèle devient une ligne, signée p
     const lignes = await prisma.modelCallLog.findMany({ where: { turnId: resume.turnId }, orderBy: { model: "asc" } });
     expect(lignes.map((l) => l.model)).toEqual(["gpt-5.6-luna", "gpt-5.6-terra"]);
     expect(lignes[1]).toMatchObject({ userId: "u-test", threadId: "t-test", feature: "assistant", route: "text", inputTokens: 1_000, cachedInputTokens: 600, reasoningTokens: 20 });
-    expect(Number(lignes[1].costUsd)).toBeCloseTo(0.002, 6);
+    // K8 (décision 0035) : le journal recalcule à la GRILLE datée — 400 × 2 + 600 × 0,2 (cache) + 100 × 12 = 0,002120 $,
+    // pas le chiffre que l'appelant annonçait (0,002). Le résumé du tour, lui, garde ce que la passerelle a rendu.
+    expect(lignes[1].costUsd?.toFixed(6)).toBe("0.002120");
+    expect(lignes[1].priceGrid).toBe("2026-10-31");
   });
 
   it("un tarif inconnu reste NULL en base — jamais un zéro ; un appel sans consommation ne vaut pas une ligne", async () => {

@@ -107,8 +107,10 @@ export async function journaliserVoix(user: CurrentUser, d: {
   const latences = (Array.isArray(d.latences) ? d.latences : []).map((x) => borne(x, 120_000)).slice(0, 500);
   const reglages = await lireReglagesAssistantIa();
   if (secondes > 0) {
-    await auNomDe(user.id, () => appelVoix("synthese", async (inscrire) => {
-      inscrire({ provider: "openai-live", model: modeleVoix(reglages.modeleVoix), entree: jetonsAudio(secondes), sortie: 0, ms: secondes * 1000 });
+    await auNomDe(user.id, () => appelVoix("voix", async (inscrire) => {
+      // GPT-Live se paie à la DURÉE (0,05 $ la minute, à la seconde) : la durée est facturée, les équivalents (10/s)
+      // ne servent qu'au plafond (audit K8, E3 — la ligne portait le rôle « synthese »).
+      inscrire({ provider: "openai-live", model: modeleVoix(reglages.modeleVoix), entree: jetonsAudio(secondes), sortie: 0, ms: secondes * 1000, dureeMs: Math.round(secondes * 1000), equivalents: true });
       return { ok: true, valeur: null };
     }));
   }

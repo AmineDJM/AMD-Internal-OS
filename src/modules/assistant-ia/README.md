@@ -12,7 +12,7 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 | `api-banc.ts` | porte des **bancs et de l'E2E** (`scripts/e2e/`) : le faux modèle et son branchement — jamais importée par la production |
 | `partage.ts` | **Porte pure** : familles d'accès, plafonds, filtre de confidentialité, règles de lecture et de dépôt, MRZ |
 | `actions.ts` | clé `assistant-ia-actions` : mémoire, routines, fil, et `confirmerIntentionAssistantIA` (l'exécution d'une carte) |
-| `actions-consommation.ts` | clé `assistant-ia-consommation-actions` : réglages de consommation et d'accès (Super Admin) |
+| `actions-consommation.ts` | clé `assistant-ia-consommation-actions` : réglages de consommation et d'accès (Super Admin) ; `lireConsommationIa` (K8 : ma consommation, ou toute l'entreprise pour le Super Admin) |
 | `actions-conversations.ts` | clé `assistant-ia-conversations-actions` (décision 0027) : conversations (lister, chercher, créer — privée ou non —, renommer, épingler, archiver, supprimer, ranger), dossiers (consignes, documents), appareils (déconnexion à distance) |
 | `actions-qualite.ts` | clé `assistant-ia-qualite-actions` (J5 + J14, décision 0022) : calendrier du banc programmé, passage maintenant, banc A/B, modèle d'un rôle (sur banc vert seulement) |
 | `actions-atelier.ts` | clé `assistant-ia-atelier-actions` (J3, décision 0017) : l'Atelier — ouvrir, revoir, enregistrer (nouvelle version), comparer, convertir |
@@ -31,6 +31,20 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12), `assistant.conversations-privees` (0027, purge à 30 jours) (`src/lib/scheduled.ts`).
 - **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
   `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
+
+## Consommation précise — jetons et dollars (lot K8, décision 0035)
+
+- **Grille** datée par modèle et par type de jeton : `src/lib/models/tarifs.ts` (pure ; vue du socle
+  `platform/ia/telemetry/tarifs.ts`). Coût en entiers, au micro-dollar ; hors grille → « tarif inconnu », jamais 0 $.
+- **Journal** : `ModelCallLog`, une ligne par appel payé, ventilée (audio, image, cache, raisonnement, durée, pages,
+  estimé, Batch, date de grille). Coût d'une ligne : `platform/ia/telemetry/cout-journal.ts` (budget de l'assistant,
+  visuels, puits de la passerelle). `auNomDe`/`sousBudget` posent aussi l'imputation de la passerelle (`sousImputation`).
+- **Écran** : `ecrans/consommation/tableau-consommation.tsx` — Réglages de l'app (« Consommation ») et Administration › IA ;
+  données `infra/consommation-detail.ts` (périmètre : « moi » = la personne connectée, « entreprise » = Super Admin),
+  vue pure `domaine/consommation-vue.ts`, rapprochement `infra/consommation-rapprochement.ts` (`OPENAI_ADMIN_KEY`),
+  export `GET /api/assistant-ia/consommation/export?format=csv|xlsx`.
+- Tests : `consommation-precise.test.ts` (RBAC, exhaustivité des chemins payants, rapprochement),
+  `src/lib/models/tarifs.test.ts`.
 
 ## Valeurs sensibles et conservation chez OpenAI (lot K4, décision 0034)
 

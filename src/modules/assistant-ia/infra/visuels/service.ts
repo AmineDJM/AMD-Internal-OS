@@ -154,6 +154,7 @@ export async function genererImage(user: CurrentUser, d: {
   await journaliserVisuel({
     userId: user.id, conversation, route: "image", provider: img.fournisseur, model: img.modele, ok: true, ms, costUsd: cout,
     entree: img.usage.texteEntree + img.usage.imageEntree, sortie: img.usage.imageSortie,
+    imageEntree: img.usage.imageEntree, imageSortie: img.usage.imageSortie,
   });
   const ligne = await prisma.assistantIaVisuel.create({
     data: {
@@ -273,7 +274,7 @@ async function suivreUneVideo(v: AssistantIaVisuel): Promise<void> {
   const secondes = v.secondes ?? 0;
   const cout = coutVideoUsd(v.modele ?? "", secondes);
   const { nodeId } = await portsArtefact.documents.creerFichier(v.userId, { nom: nomDeFichierVisuel(v.titre, v.id, "mp4"), octets, mime: "video/mp4", dossier: DOSSIER_VISUELS });
-  await journaliserVisuel({ userId: v.userId, conversation: v.conversationId, route: "video", provider: "openai", model: v.modele ?? "?", ok: true, ms: Date.now() - v.createdAt.getTime(), costUsd: cout, entree: 0, sortie: Math.round(secondes) });
+  await journaliserVisuel({ userId: v.userId, conversation: v.conversationId, route: "video", provider: "openai", model: v.modele ?? "?", ok: true, ms: Date.now() - v.createdAt.getTime(), costUsd: cout, entree: 0, sortie: 0, dureeMs: Math.round(secondes * 1000) });
   const fini = await prisma.assistantIaVisuel.update({
     where: { id: v.id }, data: { statut: "PRET", driveNodeId: nodeId, mime: "video/mp4", octets: octets.length, coutUsd: cout, progression: 100, termineLe: new Date() },
   });

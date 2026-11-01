@@ -194,6 +194,23 @@ export interface ModelUsage {
    * c'est notre erreur de réglage, pas une limite du modèle, et il faut pouvoir la compter.
    */
   incompleteReason?: string | null;
+  /**
+   * LOT K8 (décision 0035) — LA VENTILATION EXACTE, quand le protocole la rend. Ce sont des PARTS des
+   * totaux (`inputTokens` = texte + audio + image) ; absentes = zéro. Les unités hors jetons (durée,
+   * pages) ont leurs champs ; `estimated` dit que les jetons sont estimés (l'API n'a rien rendu).
+   */
+  audioInputTokens?: number;
+  cachedAudioInputTokens?: number;
+  audioOutputTokens?: number;
+  imageInputTokens?: number;
+  cachedImageInputTokens?: number;
+  imageOutputTokens?: number;
+  durationMs?: number;
+  pages?: number;
+  estimated?: boolean;
+  batch?: boolean;
+  /** Les jetons sont des équivalents de durée (le plafond les compte) : seule la durée se facture. */
+  equivalents?: boolean;
 }
 
 export interface ModelReply {

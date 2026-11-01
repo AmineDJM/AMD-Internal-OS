@@ -19,6 +19,11 @@ export {
   BORNES, LIBELLE_VALEURS_SENSIBLES, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglages, REGLAGES_PAR_DEFAUT,
   type ModeValeursSensibles, type ReglagesAssistantIa,
 } from "./domaine/consommation-regles";
+// ── Consommation précise (K8, décision 0035) : la vue de l'écran, ses périodes, ses libellés, l'export
+export {
+  additionner, COLONNES_EXPORT, intervallesResumes, jetonsDe, jourAlger, LIBELLE_RESUME, ligneExport, periodeChoisie, usageDe, versCsv,
+  type AppelDetaille, type LigneVentilee, type Perimetre, type PosteCout, type Rapprochement, type Totaux, type VueConsommation,
+} from "./domaine/consommation-vue";
 
 // ── Confidentialité : ce qui ne part jamais au modèle (rémunération, banque, pièce d'identité)
 export { censurerObjet, censurerTexte } from "./domaine/filtre-confidentialite";

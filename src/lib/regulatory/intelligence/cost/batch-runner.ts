@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { recordProviderCall } from "@/platform/ia/telemetry/imputation";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { getAppSettings } from "@/lib/settings";
 import { escalateCriticalSections } from "../agents/escalate";
@@ -353,6 +354,9 @@ export async function processCompletedBatch(batchId: string): Promise<number> {
         },
       }),
     ]);
+
+    // Au journal commun des appels payés (audit K8, trou G8) : un lot, une ligne, à moitié prix (grille « Batch »).
+    recordProviderCall({ role: "bulk", provider: batch.provider, model: batch.model, inputTokens, outputTokens, cachedInputTokens: 0, batch: true });
 
     // Les précédents ANPP s'attachent avec le CONTEXTE PRODUIT (DCI, fournisseur), comme sur la
     // voie immédiate : « cette réserve, l'avons-nous déjà eue SUR CETTE MOLÉCULE ? » est une

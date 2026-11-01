@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { interrupteurIaCoupe, logAiUsage, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { notifyUser } from "@/lib/notify";
 import { sansBloquer } from "@/lib/journal";
+import { coutJournal, type ColonnesK8 } from "@/platform/ia/telemetry/cout-journal";
+import { sousImputation } from "@/platform/ia/telemetry/imputation";
 import {
   coutEstimeUsd, debutJourAlger, jourAlger, normaliserReglages, refusPlafondJour, refusPlafondTour,
   REGLAGES_PAR_DEFAUT, type ReglagesAssistantIa, type Tarif,
@@ -46,7 +48,7 @@ import {
 export const FEATURE_ASSISTANT_IA = "assistant_ia" as const;
 
 /** D'où part l'appel — la colonne `role` du journal : ce que « par usage » distingue à l'écran. */
-export type OrigineAppel = "conversation" | "fil" | "routine" | "redaction" | "transcription" | "vision" | "synthese" | "ocr" | "image" | "video";
+export type OrigineAppel = "conversation" | "fil" | "routine" | "redaction" | "transcription" | "vision" | "synthese" | "ocr" | "image" | "video" | "voix";
 
 export class PlafondIaAtteint extends Error {
   constructor(message: string) { super(message); this.name = "PlafondIaAtteint"; }
@@ -156,12 +158,21 @@ export async function refusSiIaCoupee(): Promise<string | null> {
 export async function journaliserVisuel(v: {
   userId: string; conversation: string | null; route: "image" | "video"; provider: string; model: string; ok: boolean;
   ms: number; costUsd: number | null; entree: number; sortie: number; erreur?: string | null;
+  /** K8 : les parts image (⊂ entree / sortie) et la durée rendue d'une vidéo (millisecondes). */
+  imageEntree?: number; imageSortie?: number; dureeMs?: number;
 }): Promise<void> {
   if (v.ok) {
+    const c = colonnesDeLAppel({
+      provider: v.provider, model: v.model, entree: v.entree, sortie: v.sortie, cache: 0, raisonnement: 0, ms: v.ms,
+      imageEntree: v.imageEntree, imageSortie: v.imageSortie, dureeMs: v.dureeMs,
+    });
     await prisma.modelCallLog.create({
       data: {
         route: v.route, role: v.route, feature: FEATURE_ASSISTANT_IA, userId: v.userId, threadId: v.conversation,
-        provider: v.provider, model: v.model, inputTokens: v.entree, outputTokens: v.sortie, costUsd: v.costUsd, ms: Math.round(v.ms),
+        provider: v.provider, model: v.model, inputTokens: v.entree, outputTokens: v.sortie, ...c,
+        // Un modèle hors grille garde le coût que l'appelant a calculé (sa propre table), daté « appelant ».
+        ...(c.costUsd == null && v.costUsd != null ? { costUsd: v.costUsd.toFixed(6), priceGrid: "appelant" } : {}),
+        ms: Math.round(v.ms),
       },
     }).catch(sansBloquer("assistant-ia.journaliserVisuel.appel"));
   }
@@ -230,6 +241,33 @@ export interface AppelModele {
   raisonnement: number;
   /** Durée de l'ÉTAPE : l'appel du modèle et les outils qu'il a demandés. */
   ms: number;
+  /** K8 (décision 0035) — les PARTS rendues par l'API, et les unités hors jetons. */
+  audioEntree?: number;
+  audioSortie?: number;
+  imageEntree?: number;
+  imageSortie?: number;
+  recherchesWeb?: number;
+  /** Durée FACTURÉE (audio, GPT-Live, vidéo), en millisecondes — distincte de `ms`, la durée de l'étape. */
+  dureeMs?: number;
+  /** Les jetons sont des équivalents de durée (pour le plafond) : seule la durée se facture. */
+  equivalents?: boolean;
+  /** Les jetons sont estimés (caractères ÷ 4…) faute d'usage rendu par l'API. */
+  estime?: boolean;
+}
+
+/**
+ * LA LIGNE DU JOURNAL D'UN APPEL — le coût à la GRILLE datée (`lib/models/tarifs.ts`), sauf tarif POSÉ dans
+ * l'environnement (`ASSISTANT_IA_PRICE_*`), qui prime. Toutes les colonnes de la ventilation K8.
+ */
+export function colonnesDeLAppel(a: AppelModele): { costUsd: string | null; priceGrid: string | null } & ColonnesK8 & { webSearchCalls: number } {
+  const pose = tarifPose(a.provider);
+  const { costUsd, priceGrid, colonnes } = coutJournal({
+    model: a.model, inputTokens: a.entree, outputTokens: a.sortie, cachedInputTokens: a.cache, reasoningTokens: a.raisonnement,
+    costUsd: pose ? coutEstimeUsd(a.entree, a.sortie, tarifDe(a.provider), a.cache) : null,
+    audioInputTokens: a.audioEntree, audioOutputTokens: a.audioSortie, imageInputTokens: a.imageEntree, imageOutputTokens: a.imageSortie,
+    webSearchCalls: a.recherchesWeb, durationMs: a.dureeMs, equivalents: a.equivalents, estimated: a.estime,
+  }, { tarifPose: pose });
+  return { costUsd, priceGrid, ...colonnes, webSearchCalls: a.recherchesWeb ?? 0 };
 }
 
 export class Budget {
@@ -293,13 +331,13 @@ export async function fermerBudget(b: Budget, issue: { ok: boolean; erreur?: str
     turnId: b.turnId, route: b.origine, feature: FEATURE_ASSISTANT_IA,
     userId: b.userId, threadId: b.conversation, missionId: null,
     role: b.origine, provider: a.provider, model: a.model,
-    inputTokens: a.entree, outputTokens: a.sortie, cachedInputTokens: a.cache, reasoningTokens: a.raisonnement, webSearchCalls: 0,
-    costUsd: coutEstimeUsd(a.entree, a.sortie, tarifDe(a.provider), a.cache), ms: a.ms, attempts: 1, incompleteReason: null,
+    inputTokens: a.entree, outputTokens: a.sortie, cachedInputTokens: a.cache, reasoningTokens: a.raisonnement,
+    ...colonnesDeLAppel(a), ms: a.ms, attempts: 1, incompleteReason: null,
   }));
   if (lignes.length) {
     await prisma.modelCallLog.createMany({ data: lignes }).catch((e) => console.error("[assistant-ia] journal des appels", e));
   }
-  const couts = lignes.map((l) => l.costUsd);
+  const couts = lignes.map((l) => (l.costUsd == null ? null : Number(l.costUsd)));
   const premier = b.appels[0];
   await logAiUsage({
     feature: FEATURE_ASSISTANT_IA,
@@ -357,12 +395,16 @@ export function porteurCourant(): Porteur | null {
 /** Exécute `fn` au nom de cette personne : les appels de modèle qu'il déclenche lui sont imputés. */
 export function auNomDe<T>(userId: string, fn: () => Promise<T>, conversation: string | null = null): Promise<T> {
   const parent = porteurs.getStore();
-  return porteurs.run({ userId, conversation: conversation ?? parent?.conversation ?? null, budget: parent?.budget ?? null }, fn);
+  const conv = conversation ?? parent?.conversation ?? null;
+  // L'imputation de la passerelle suit (K8, E9) : un appel d'Adam lancé d'ici est au compte de cette personne.
+  return sousImputation({ userId, feature: FEATURE_ASSISTANT_IA, ...(conv ? { threadId: conv } : {}) },
+    () => porteurs.run({ userId, conversation: conv, budget: parent?.budget ?? null }, fn));
 }
 
 /** Exécute `fn` sous ce budget (le tour en cours) : les rédactions qu'il lance s'y inscrivent. */
 export function sousBudget<T>(b: Budget, fn: () => Promise<T>): Promise<T> {
-  return porteurs.run({ userId: b.userId, conversation: b.conversation, budget: b }, fn);
+  return sousImputation({ feature: FEATURE_ASSISTANT_IA, ...(b.userId ? { userId: b.userId } : {}), ...(b.conversation ? { threadId: b.conversation } : {}) },
+    () => porteurs.run({ userId: b.userId, conversation: b.conversation, budget: b }, fn));
 }
 
 // ─────────────────────────────── Les appels de VOIX (décision 0011) ───────────────────────────────
@@ -408,7 +450,7 @@ export async function budgetDeLAppel(
 }
 
 export async function appelVoix<T>(
-  origine: Extract<OrigineAppel, "transcription" | "synthese">,
+  origine: Extract<OrigineAppel, "transcription" | "synthese" | "voix">,
   fn: (inscrire: (a: Omit<AppelModele, "cache" | "raisonnement">) => void) => Promise<{ ok: true; valeur: T } | { ok: false; raison: string }>,
 ): Promise<IssueVoix<T>> {
   if (await interrupteurIaCoupe()) return { ok: false, raison: REFUS_IA_COUPEE, code: "IA_COUPEE" };

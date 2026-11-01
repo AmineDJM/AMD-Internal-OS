@@ -45,8 +45,8 @@ export default async function ConsommationIaPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Consommation IA</h1>
           <p className="text-sm text-muted-foreground">
-            L&apos;Assistant IA (MiMo) : chaque appel du modèle, par personne, par jour et par modèle — et les plafonds qui le bornent.{" "}
-            <Link href="/admin/ai" className="underline">Centre de contrôle IA</Link>
+            L&apos;Assistant IA : chaque appel du modèle, par personne, par jour et par modèle — et les plafonds qui le bornent.{" "}
+            <Link href="/admin/ai#consommation" className="underline">Consommation détaillée (jetons, dollars, appel par appel)</Link>
           </p>
         </div>
       </div>
@@ -65,7 +65,7 @@ export default async function ConsommationIaPage() {
         <Card><CardContent className="pt-5">
           <p className="text-xs text-muted-foreground">Plafond par personne et par jour</p>
           <p className="text-xl font-semibold">{formatNumber(reglages.plafondJetonsJour)} jetons</p>
-          <p className="text-xs text-muted-foreground">{tarifConnu ? "Coût estimé au tarif posé (ASSISTANT_IA_PRICE_IN / OUT / CACHED)." : "Coût estimé à la grille publique de gpt-6.1-terra (2 $ / 12 $ par million, 0,20 $ en cache) — posez ASSISTANT_IA_PRICE_IN / OUT / CACHED pour un autre tarif."}</p>
+          <p className="text-xs text-muted-foreground">{tarifConnu ? "Coût au tarif posé (ASSISTANT_IA_PRICE_IN / OUT / CACHED)." : "Coût à la grille datée par modèle (décision 0035) — le détail au micro-dollar est dans Administration › IA."}</p>
         </CardContent></Card>
       </div>
 

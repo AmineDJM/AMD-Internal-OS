@@ -1634,6 +1634,15 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:lireConsommationIa": {
+  "risque": "R0",
+  "familles": [
+   "BUDGETS"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
  "assistant-ia-conversations-actions:ajouterDocumentsAuDossier": {
   "risque": "R1",
   "familles": [

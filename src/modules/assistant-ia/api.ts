@@ -60,6 +60,7 @@ export { accesAssistantIa, chargerConsoleAccesIa, verifierReperesAvantExecution 
 // ── Consommation (budget par tour, plafonds, tableau de bord) et moteur
 export { auNomDe, lireReglagesAssistantIa, tarifPose } from "./infra/consommation";
 export { consommationAssistantIa, type Agregat } from "./infra/consommation-stats";
+export { lireConsommation, lireAppels, cibleDe, LIMITE_EXPORT } from "./infra/consommation-detail";
 export { modeleOpenAi } from "./infra/modele";
 export { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 

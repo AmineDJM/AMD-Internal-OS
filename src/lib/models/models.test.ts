@@ -104,7 +104,8 @@ describe("portabilité — `src/lib/models/` est ce qu'Adam emporte avec lui", (
     // Cette seconde entrée a été ouverte le jour où un HTTP 400 (`temperature` non supporté) a
     // montré qu'on n'avait NULLE PART où écrire cette connaissance. Le cliquet garde tous les
     // autres fichiers : c'est une exception nommée, pas un assouplissement.
-    const AUTORISES = ["registry.ts", "capabilities.ts"];
+    //   • `tarifs.ts`       — CE QUE CHAQUE MODÈLE COÛTE (lot K8) : la grille datée, une ligne par modèle.
+    const AUTORISES = ["registry.ts", "capabilities.ts", "tarifs.ts"];
     const offenders = files
       .filter((f) => !AUTORISES.some((a) => f.endsWith(a)))
       .filter((f) => /["'](gpt-|claude-)[a-z0-9.\-]+["']/.test(fs.readFileSync(f, "utf8")));
