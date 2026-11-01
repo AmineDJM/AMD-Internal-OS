@@ -130,10 +130,10 @@ export async function tableauDesTravaux(principalId: string, maintenant = new Da
     const etapes = haut.map((s): EtapeTableau => {
       const enfants = s.forEach ? m.steps.filter((x) => x.key.startsWith(`${s.key}#`)) : [];
       const typeChantier = m.kind === "CHANTIER" ? TYPE_CHANTIER[String((s.input as { chantier?: string } | null)?.chantier ?? "")] : undefined;
-      const r = (s.result ?? {}) as { essais?: number; tour?: number; attente?: string };
+      const r = (s.result ?? {}) as { essais?: number; tour?: number; tours?: number; attente?: string };
       return {
         cle: s.key, titre: s.title,
-        ...(typeChantier ? { essais: Math.max(r.essais ?? 0, r.tour ?? 0) } : {}),
+        ...(typeChantier ? { essais: Math.max(r.essais ?? 0, r.tour ?? 0, r.tours ?? 0) } : {}),
         type: typeChantier ?? (s.capability?.startsWith("geste:") ? "Geste" : s.forEach ? "Analyse par lot" : (TYPE[s.nodeType] ?? s.nodeType)),
         etat: etatEtape(s.status),
         debut: s.startedAt?.toISOString() ?? null,

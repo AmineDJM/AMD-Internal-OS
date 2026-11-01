@@ -182,8 +182,8 @@ export async function ouEnEstChantier(principalId: string, chantierId?: string):
       id: m.id, titre: m.title, statut: m.status, pause: m.pausedReason,
       coutUsd: Math.round(m.costUsd * 10_000) / 10_000, plafondUsd: m.plafondUsd,
       etapes: m.steps.map((s) => {
-        const r = (s.result ?? {}) as { attente?: string; essais?: number; tour?: number };
-        return { cle: s.key, titre: s.title, statut: s.status, attente: s.status === "WAITING" ? (r.attente ?? null) : null, erreur: s.status === "FAILED" ? s.error : null, essais: Math.max(r.essais ?? 0, r.tour ?? 0) };
+        const r = (s.result ?? {}) as { attente?: string; essais?: number; tour?: number; tours?: number };
+        return { cle: s.key, titre: s.title, statut: s.status, attente: s.status === "WAITING" ? (r.attente ?? null) : null, erreur: s.status === "FAILED" ? s.error : null, essais: Math.max(r.essais ?? 0, r.tour ?? 0, r.tours ?? 0) };
       }),
       validationsAttendues: m.events.map((e) => ({ cle: String((e.detail as { stepKey?: string } | null)?.stepKey ?? ""), texte: e.summary })).filter((e) => e.cle && !d.validations[e.cle]).map((e) => e.texte),
       compteurs: d.compteurs,

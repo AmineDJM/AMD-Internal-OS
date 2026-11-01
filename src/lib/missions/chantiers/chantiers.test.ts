@@ -144,6 +144,8 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     // Extrait court : transmis tel quel — AUCUN modèle payé pour le relire.
     expect(cerveau.appels).toEqual([]);
     expect((await dossier(id)).compteurs.lancements).toBe(2);
+    // Le tableau « Missions » dit le tour de correction.
+    expect((await tableauDesTravaux(admin)).find((x) => x.id === id)!.etapes.find((e) => e.cle === "corriger")?.essais).toBe(1);
   });
 
   it("l'Auto-fix d'abord : un rouge laisse à la session le temps de corriger SA PR — corrigé sans aucune relance payée", async () => {

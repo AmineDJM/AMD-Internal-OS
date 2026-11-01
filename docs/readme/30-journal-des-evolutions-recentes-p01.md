@@ -5,7 +5,9 @@
 Lot C1 — `docs/assistant/decisions/0042-chantiers-socle.md`, architecture `docs/architecture/CHANTIERS-DEV.md` (L1).
 Un **chantier** est une `Mission` `kind = "CHANTIER"` (Super Admin) conduite par le MÊME moteur que les travaux : étapes
 `DEV_LANCER`, `DEV_ATTENDRE`, `DEV_VERIFIER`, `DEV_CORRIGER`, `RENDER_DEPLOYER`, `RENDER_VERIFIER`, `RENDER_ROLLBACK`,
-`RAPPORT` (DSL fermé, compilé), qui appellent des PORTS (`src/platform/dev/ports.ts`, adaptateurs réels au lot C2) —
+`RAPPORT` (DSL fermé, compilé), qui appellent les PORTS du moteur (`chantiers/ports-moteur.ts`), branchés sur les
+connecteurs réels de C2 par une couche d'adaptation pure (`chantiers/adaptateur-c2.ts`) ; sur un rouge, **l'Auto-fix de la
+session d'abord** (gratuit), puis `@claude` dans la PR —
 la vérité est GitHub (branche, PR, checks du SHA exact) et Render (déploiement, santé), jamais la transcription.
 **Réservations atomiques** (`ChantierReservation` : branche, périmètre — deux globs qui se recouvrent sont SÉRIALISÉS —,
 migrations, déploiement ; ERP avant app/worker ; revérification du SHA d'intégration après fusion). **Anti-boucle** :

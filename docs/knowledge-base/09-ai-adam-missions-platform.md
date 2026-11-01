@@ -445,8 +445,13 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   `BUDGET_HOLD` (auto-resume when raised). Router `routeur.ts` (deterministic → MiMo → Terra → Sol); `cerveau.ts` under
   `sousImputation({ missionId, feature: "chantier" })`; MiMo adapter `src/lib/models/mimo.ts` (key `process.env.mimo`, base
   `MIMO_BASE_URL`, model `MIMO_MODEL` default `mimo-v2.6-pro` unconfirmed, cost null unless `MIMO_PRICE_IN/OUT`). Memory
-  `MemoireTechnique` (`memoire.ts`, excerpts ≤ 2k tokens). Ports `src/platform/dev/ports.ts` (C2 contract), real adapters plugged
-  via `ports-dev.ts brancherPortsDev` — none → chantier waits and says so. Dashboard: `travaux/tableau.ts` covers
+  `MemoireTechnique` (`memoire.ts`, excerpts ≤ 2k tokens). The engine keeps ITS port contract (`ports-moteur.ts`, the original
+  text); C2's richer connectors (`src/platform/dev/ports.ts`, `platform/in-process/chantiers/`) are translated by the pure
+  `adaptateur-c2.ts` (files via compare-with-base, CI excerpt from the job log tail, Render 202-queued deploy found by SHA, PR
+  relaunch via `relancerDansPr` with idempotency key, `INCERTAIN` surfaced, no open/merge PR → Claude opens it, Direction merges
+  after validation), composed in `scheduled.ts brancherConnecteursDev` → `ports-dev.ts brancherPortsDev`; none (no GitHub token)
+  → chantier waits and says so. DEV_CORRIGER waits `autofixMinutes` (default 15) once per tour for the session's native PR
+  Auto-fix before relaunching (Direction decision 01/11). Dashboard: `travaux/tableau.ts` covers
   `kind IN (TRAVAIL, CHANTIER)` with a `chantier` field; dashboard buttons routed by `travaux/service.ts siChantier`. Assistant IA
   tools `infra/chantiers.ts` (SUPER_ADMIN only). Sweep `chantiers.balayage` + fast wake loop. Benches `chantiers/*.test.ts`,
   `scripts/bench/chantier-processus.ts` (two-process reservation race, SIGKILL in DEV_ATTENDRE).
