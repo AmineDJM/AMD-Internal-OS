@@ -39,7 +39,7 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "hr-actions:decideAdvance": compensation(`l'avance revient en attente de décision ; ${ORDRE}`),
   "hr-actions:requestAdvance": retour("la demande d'avance est retirée (ou passée à ANNULÉE si elle a bougé)"),
   "legal-actions:cancelLegalDocument": retour("la pièce, son ordre non réglé et les visas du BC reprennent leur statut d'avant"),
-  "legal-actions:createLegalDocument": compensation("la pièce créée est retirée si rien ne s'y est rattaché, passée à ANNULÉE sinon ; ses visas et l'écriture de règlement suivent"),
+  "legal-actions:createLegalDocument": compensation("la pièce créée passe à ANNULÉE — une pièce numérotée n'est jamais retirée (règle K10b) ; ses visas et l'écriture de règlement suivent ; rétablir lui rend son statut"),
   "legal-actions:sendLegalInvoiceToSettlement": compensation(ORDRE),
   "legal-actions:updateLegalDocument": retour("les champs de la pièce reprennent leur valeur d'avant (une signature tombée revient avec eux)"),
   "lieux-actions:reglerDoubleEcritureLieux": retour(REGLAGE),

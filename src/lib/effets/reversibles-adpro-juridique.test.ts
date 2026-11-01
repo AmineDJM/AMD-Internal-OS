@@ -246,7 +246,7 @@ suite("K10c — Ad & Pro et juridique : exécuter, annuler, rétablir", () => {
     expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: ordre } })).status).toBe("CANCELLED");
   });
 
-  it("createLegalDocument : la pièce créée est retirée ; rétablir la recrée (même identifiant)", async () => {
+  it("createLegalDocument : une pièce numérotée n'est jamais retirée — elle passe à ANNULÉE (règle commune K10b) ; rétablir lui rend son statut", async () => {
     await comme("sa");
     const r = await createLegalDocument(undefined, fd({ title: `${TAG} Maintenance`, kind: "INVOICE", reference: `F-${TAG}`, counterpartyIds: partieId, amount: "180000", direction: "OUT" }));
     ok(r);
@@ -254,10 +254,13 @@ suite("K10c — Ad & Pro et juridique : exécuter, annuler, rétablir", () => {
     expect(await prisma.legalDocument.count({ where: { id: r.id! } })).toBe(1);
     const c = await annuler(g);
     await toutDefaitEnBase(g, c);
-    expect(await prisma.legalDocument.count({ where: { id: r.id! } })).toBe(0);
+    const avant = (await prisma.legalDocument.findUniqueOrThrow({ where: { id: r.id! } }));
+    expect(avant.status).toBe("CANCELLED");
     await traceeDe(g);
     await retablir(g);
-    expect((await prisma.legalDocument.findUniqueOrThrow({ where: { id: r.id! } })).title).toBe(`${TAG} Maintenance`);
+    const apres = await prisma.legalDocument.findUniqueOrThrow({ where: { id: r.id! } });
+    expect(apres.title).toBe(`${TAG} Maintenance`);
+    expect(apres.status).not.toBe("CANCELLED");
   });
 
   it("updateLegalDocument : les champs reprennent leur valeur d'avant", async () => {
