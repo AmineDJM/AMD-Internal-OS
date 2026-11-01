@@ -46,9 +46,9 @@ const introuvable: ResultatControle = {
 /**
  * `kind` : les gestes valent pour les missions d'Adam (`RUNTIME`, défaut) ET pour les travaux (`TRAVAIL`, J2) —
  * la même main sur le même moteur. Le `where` garde la famille : un geste sur un travail ne touche jamais une
- * mission d'Adam, et l'inverse.
+ * mission d'Adam, et l'inverse. C1 (décision 0041) : `CHANTIER`, les chantiers de développement du Super Admin.
  */
-export type FamilleMission = "RUNTIME" | "TRAVAIL";
+export type FamilleMission = "RUNTIME" | "TRAVAIL" | "CHANTIER";
 
 async function etat(missionId: string, ownerId: string, kind: FamilleMission = "RUNTIME"): Promise<MissionState | null> {
   const m = await prisma.mission.findFirst({

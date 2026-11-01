@@ -10081,6 +10081,8 @@ model DeletedRecord {
 
 model AppSetting {
   id                             String    @id @default("global")
+  /// C1 (décision 0041) : les réglages des chantiers de développement (plafonds, lancements, déploiements, tentatives, jour).
+  chantiersReglages              Json?
   /// ARRÊT D'URGENCE DES ACTIONS EXTERNES DE L'IA. Vrai = plus AUCUNE action de l'assistant qui
   /// touche le monde réel (messages, e-mails, tâches pour autrui, mutations métier, relances
   /// planifiées) — même confirmée. Les lectures, analyses et rappels pour soi continuent.
@@ -14747,6 +14749,8 @@ model Mission {
   /// J8 : un fait qui règle une attente de ce travail le signale ici — la boucle courte des réveils le reprend aussitôt.
   reveilDemandeLe  DateTime?
   demandesTravail  TravailDemande[]
+  /// C1 (décision 0041) : les réservations d'un chantier de développement (`kind = "CHANTIER"`) — branche, périmètre, migrations, déploiement.
+  reservationsChantier ChantierReservation[]
 
   artifacts    MissionArtifact[]
   participants MissionParticipant[]
@@ -18801,3 +18805,40 @@ model AssistantIaVisuel {
   @@index([userId, createdAt])
   @@index([statut, createdAt])
 }
+
+/// LA RÉSERVATION D'UNE RESSOURCE PAR UN CHANTIER (lot C1, décision 0041) — atomique par la contrainte d'unicité de `cle` :
+/// `BRANCHE:<dépôt>:<branche>`, `PERIMETRE:<dépôt>:<glob>` (le recouvrement se juge sous verrou consultatif),
+/// `MIGRATIONS:<dépôt>`, `DEPLOIEMENT:<service>`. Libérée à la fin du chantier ; une réservation EXPIRÉE se reprend.
+model ChantierReservation {
+  id        String   @id @default(cuid())
+  cle       String   @unique
+  ressource String
+  depot     String?
+  valeur    String
+  missionId String
+  mission   Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  expireLe  DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([missionId])
+  @@index([ressource, depot])
+}
+
+/// LA MÉMOIRE TECHNIQUE PERMANENTE (lot C1, décision 0041) — dépôts, services Render, branches, décisions, dépendances,
+/// incidents : ce qu'un chantier n'a pas à réanalyser. Lue par EXTRAITS (clé exacte, ≤ 2 k jetons) dans les consignes.
+model MemoireTechnique {
+  id        String   @id @default(cuid())
+  /// depot | service | branche | decision | dependance | incident
+  type      String
+  cle       String
+  contenu   String   @db.Text
+  source    String?
+  missionId String?
+  createdAt DateTime @default(now())
+  majLe     DateTime @default(now()) @updatedAt
+
+  @@unique([type, cle])
+  @@index([type, majLe])
+}
+
