@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { approuverChantier, proposerChantier } from "@/lib/missions/chantiers/service";
 import { conduireChantier } from "@/lib/missions/chantiers/conduite";
 import { REGLAGES_CHANTIERS_DEFAUT } from "@/lib/missions/chantiers/regles";
-import { fauxPortsDev } from "@/lib/missions/chantiers/faux-test-outils";
+import { fauxPortsDev, type ScenarioDev } from "@/lib/missions/chantiers/faux-test-outils";
 import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 
 const PAS_SUSPENDU: LecteurInterrupteur = async () => ({ suspendues: false, depuis: null, parId: null } as Awaited<ReturnType<LecteurInterrupteur>>);
@@ -18,7 +18,7 @@ const CERVEAU = { disponibles: () => ({ mimo: false, terra: false, sol: false })
 async function main(): Promise<void> {
   if (!/localhost|127\.0\.0\.1/.test(process.env.DATABASE_URL ?? "") || !/bench/.test(process.env.DATABASE_URL ?? "")) throw new Error("Base de banc locale seulement.");
   const sa = await prisma.user.findUniqueOrThrow({ where: { email: "super@adventum-bench.dz" }, select: { id: true } });
-  const semer = async (titre: string, branche: string, production: boolean, surSession: Parameters<typeof fauxPortsDev>[0]["surSession"]) => {
+  const semer = async (titre: string, branche: string, production: boolean, surSession: ScenarioDev["surSession"]) => {
     const p = await proposerChantier(sa.id, {
       titre, objectif: "Ajouter la route /api/sante qui rend 200 et son test.", depot: { proprietaire: "aminedjm", nom: "amd-internal-os" }, branche,
       perimetre: [`src/app/api/${branche.split("/")[1]}/**`, "src/lib/missions/chantiers/**"], criteres: ["GET rend 200", "npm test vert"], commandesVerif: ["npm test"],

@@ -114,7 +114,7 @@ describe("anti-boucle, délai croissant, budgets", () => {
   });
 
   it("les réglages de la console sont bornés, l'absent prend le défaut", () => {
-    expect(lireReglagesChantiers({ plafondUsd: "7,5", tentativesMax: 99, enParallele: -1 })).toMatchObject({ plafondUsd: 7.5, tentativesMax: 5, enParallele: 1, lancementsMax: REGLAGES_CHANTIERS_DEFAUT.lancementsMax });
+    expect(lireReglagesChantiers({ plafondUsd: "7,5", tentativesMax: 99, enParallele: -1, autofixMinutes: "0" })).toMatchObject({ plafondUsd: 7.5, tentativesMax: 5, enParallele: 1, autofixMinutes: 0, lancementsMax: REGLAGES_CHANTIERS_DEFAUT.lancementsMax });
   });
 
   it("une migration destructive se reconnaît (validation exigée)", () => {

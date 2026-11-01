@@ -146,6 +146,26 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     expect((await dossier(id)).compteurs.lancements).toBe(2);
   });
 
+  it("l'Auto-fix d'abord : un rouge laisse à la session le temps de corriger SA PR — corrigé sans aucune relance payée", async () => {
+    const ports = fauxPortsDev({ surSession: () => ({ sha: "acac000000000001", checks: "rouge", extrait: "FAIL lint" }) });
+    const id = await lancer(plan());
+    const h = new Horloge();
+    for (let i = 0; i < 4; i++) {
+      await conduireChantier(id, { ports, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_CHANTIERS_DEFAUT, interrupteur: PAS_SUSPENDU });
+      h.t += 31 * 60_000;
+      if ((await etapes(id)).corriger?.status === "WAITING") break;
+    }
+    expect(((await etapes(id)).corriger!.result as { attente: string }).attente).toMatch(/Auto-fix/);
+    // La session corrige elle-même (Auto-fix de la PR) : un commit vert arrive sans qu'Adam ait rien relancé.
+    ports.pousser((await dossier(id)).plan.branche, "acac000000000002", "vert");
+    h.t -= 31 * 60_000;
+    h.t += 4 * 60_000;
+    expect(await jusquAuBout(id, ports, { horloge: h })).toBe("COMPLETED");
+    expect((await dossier(id)).compteurs.lancements).toBe(1);
+    expect(ports.journal.filter((j) => j.quoi === "commenter" || j.quoi === "relancer")).toEqual([]);
+    expect(await prisma.missionEvent.count({ where: { missionId: id, kind: "CHANTIER_AUTOFIX" } })).toBe(1);
+  });
+
   it("même échec 3× : Sol consulté une seule fois (2ᵉ), blocage réel au 3ᵉ, rien déployé, rapport quand même", async () => {
     const ports = fauxPortsDev({ surSession: (k) => ({ sha: `cccc00000000000${k}`, checks: "rouge", extrait: `FAIL src/y.test.ts:${10 + k} attendu ${k} reçu ${k + 1}` }) });
     const cerveau = cerveauFactice();

@@ -158,7 +158,7 @@ describe("GitHub REST v3", () => {
   const forge = () => creerForgeGithub({ jeton: JETON_GITHUB, base });
 
   it("en-têtes de la doc, ETag : la seconde lecture envoie If-None-Match et un 304 rend la réponse gardée", async () => {
-    gerer = (r) => (r.entetes["if-none-match"] === '"e1"' ? { statut: 304, entetes: { "x-ratelimit-remaining": "4999", "x-ratelimit-limit": "5000" } } : { entetes: { etag: '"e1"', "x-ratelimit-remaining": "4998", "x-ratelimit-limit": "5000" }, corps: { login: "direction", type: "User", name: "La Direction" } });
+    gerer = (r): Reponse => (r.entetes["if-none-match"] === '"e1"' ? { statut: 304, entetes: { "x-ratelimit-remaining": "4999", "x-ratelimit-limit": "5000" } } : { entetes: { etag: '"e1"', "x-ratelimit-remaining": "4998", "x-ratelimit-limit": "5000" }, corps: { login: "direction", type: "User", name: "La Direction" } });
     const f = forge();
     expect(await f.moi()).toEqual({ ok: true, valeur: { login: "direction", type: "User", nom: "La Direction" } });
     expect(await f.moi()).toEqual({ ok: true, valeur: { login: "direction", type: "User", nom: "La Direction" } });

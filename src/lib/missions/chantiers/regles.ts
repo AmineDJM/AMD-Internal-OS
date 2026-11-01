@@ -24,16 +24,21 @@ export interface ReglagesChantiers {
   jourDeploiementsMax: number;
   /** Chantiers conduits en même temps au plus (les réservations sérialisent le reste). */
   enParallele: number;
+  /**
+   * L'AUTO-FIX D'ABORD (décision de la Direction, 01/11/2026) : sur un rouge, attendre ce temps qu'une correction native
+   * de la session (Auto-fix de la PR) pousse un commit — gratuit — avant de relancer quoi que ce soit. 0 = coupé.
+   */
+  autofixMinutes: number;
 }
 
 export const REGLAGES_CHANTIERS_DEFAUT: ReglagesChantiers = {
   plafondUsd: 5, lancementsMax: 4, deploiementsMax: 4, tentativesMax: 3,
-  jourUsdMax: 20, jourLancementsMax: 20, jourDeploiementsMax: 12, enParallele: 3,
+  jourUsdMax: 20, jourLancementsMax: 20, jourDeploiementsMax: 12, enParallele: 3, autofixMinutes: 15,
 };
 
 const BORNES: Record<keyof ReglagesChantiers, [number, number]> = {
   plafondUsd: [0.1, 200], lancementsMax: [1, 20], deploiementsMax: [0, 20], tentativesMax: [1, 5],
-  jourUsdMax: [0.5, 1000], jourLancementsMax: [1, 100], jourDeploiementsMax: [0, 100], enParallele: [1, 10],
+  jourUsdMax: [0.5, 1000], jourLancementsMax: [1, 100], jourDeploiementsMax: [0, 100], enParallele: [1, 10], autofixMinutes: [0, 120],
 };
 
 /** Des réglages lus de la base (ou d'un formulaire) — chaque valeur bornée, l'absente prend le défaut. */

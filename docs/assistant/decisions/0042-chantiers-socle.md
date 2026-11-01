@@ -8,15 +8,19 @@ proportionnées au risque ; mémoire technique permanente ; autonomie contrôlé
 
 S'appuie sur le moteur des travaux (J2 [0016](0016-travaux.md), J8 [0023](0023-delegation.md), K3
 [0033](0033-sous-missions.md)) — lui-même le Mission Runtime d'Adam — et sur le journal de consommation K8
-([0035](0035-consommation.md)). Le lot C2 (connecteurs GitHub, Render, Claude Code) tourne en parallèle : il implémente
-les PORTS posés dans `src/platform/dev/ports.ts`, que ce lot consomme sans jamais appeler le réseau.
+([0035](0035-consommation.md)). Le lot C2 (connecteurs GitHub, Render, Claude Code, décision
+[0041](0041-connecteurs-chantiers.md)) a publié ses ports dans `src/platform/dev/ports.ts`, plus riches que le contrat
+posé au départ : le moteur garde SON contrat (`chantiers/ports-moteur.ts`, le texte d'origine) et une couche
+d'adaptation PURE (`chantiers/adaptateur-c2.ts`) y traduit les connecteurs réels — composée dans `scheduled.ts`. Le
+moteur n'appelle jamais le réseau lui-même.
 
 > Code : moteur `src/lib/missions/chantiers/` — `plan.ts` (DSL, validation, compilation), `etapes.ts` (les huit
 > gestionnaires), `conduite.ts` (`conduireChantier`, réveil des attentes datées, juge des preuves, clôture), `service.ts`
 > (proposer, approuver, valider, pause, reprise, annulation, « où en est », battement), `reservations.ts`, `perimetre.ts`,
 > `regles.ts` (anti-boucle, budgets, délai croissant), `routeur.ts`, `cerveau.ts`, `dossier.ts` (dossier, juge, rapport),
-> `memoire.ts`, `ports-dev.ts` (branchement de C2), `faux-test-outils.ts` (doubles en mémoire, tests seulement) ; contrat
-> `src/platform/dev/ports.ts` ; passerelle `src/lib/models/mimo.ts` (+ famille `gpt-6` dans `capabilities.ts`, tarif MiMo
+> `memoire.ts`, `ports-moteur.ts` (contrat du moteur), `adaptateur-c2.ts` (connecteurs C2 → moteur), `ports-dev.ts`
+> (point de branchement), `faux-test-outils.ts` (doubles en mémoire, tests seulement) ; connecteurs
+> `src/platform/dev/ports.ts` + `src/platform/in-process/chantiers/` (C2) ; passerelle `src/lib/models/mimo.ts` (+ famille `gpt-6` dans `capabilities.ts`, tarif MiMo
 > posé dans `platform/ia/telemetry/cout-journal.ts`) ; tableau `src/lib/missions/travaux/tableau.ts` (champ `chantier`),
 > boutons aiguillés dans `travaux/service.ts` ; module `src/modules/assistant-ia/` — `infra/chantiers.ts` (quatre outils
 > de conversation, console), `infra/fil/tour.ts`, `domaine/selection-outils.ts`, `actions-travaux.ts`
@@ -40,7 +44,7 @@ Chaque étape compile en nœud **WORKER** dont le gestionnaire (`etapes.ts`) app
 | `DEV_LANCER` | dépendances terminées, réservations (tout ou rien), puis UNE session Claude Code sous reçu | session rendue |
 | `DEV_ATTENDRE` | sondage de la branche à pas croissant (1 → 10 min), 6 h au plus | SHA neuf |
 | `DEV_VERIFIER` | fichiers DANS le périmètre, PR ouverte au besoin, mergeable, checks du SHA de tête | `{ vert, sha, signature }` |
-| `DEV_CORRIGER` | si `verifier.vert = false` : boucle bornée « décider (anti-boucle) → relancer (commentaire `@claude` sur la PR, sinon relance) → attendre → contrôler » | `{ vert: true, sha, tours }` |
+| `DEV_CORRIGER` | si `verifier.vert = false` : boucle bornée « **Auto-fix d'abord** (une grâce par tour, `autofixMinutes`, 15 min : un commit arrivé SANS relance est vérifié, gratuit) → décider (anti-boucle) → relancer (commentaire `@claude` dans le fil de la PR, sinon nouvelle session) → attendre → contrôler » | `{ vert: true, sha, tours }` |
 | `RENDER_DEPLOYER` | preuve verte exigée ; production ou fusion → validation ; fusion, puis **revérification du SHA d'intégration exact** ; service exclusif ; ERP avant app/worker | statut `live` sur le SHA vert |
 | `RENDER_VERIFIER` | `healthCheckPath` 200..399 (essais à 30 s croissants), < 3 erreurs au journal depuis le déploiement | `{ sain }` |
 | `RENDER_ROLLBACK` | si `sain = false` : production → validation ; dernier déploiement sain antérieur, suivi, **autoDeploy coupé** (dit) | rollback `live` |
@@ -140,11 +144,17 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
 
 ## 8. Ce qui reste hors de ce lot (dit, pas caché)
 
-- **Les adaptateurs réels** (GitHub, Render, Routines Claude Code, commentaire `@claude`) sont le lot C2 : ils se
-  branchent par `brancherPortsDev(() => ({ agent, forge, hebergeur }))` (`chantiers/ports-dev.ts`). Tant que rien n'est
-  branché, un chantier ne part pas et le dit (« connecteurs non branchés »).
-- Les webhooks signés GitHub/Render → `BusinessEvent` → réveil : C2 ; ce lot sonde (pas croissant) et expose
-  `noterEvenementDev` + `signalerReveilChantier`.
+- **Branchement** : `scheduled.ts` compose `portsDepuisConnecteurs(connecteursDev())` avant chaque balayage. Sans
+  `GITHUB_TOKEN`, rien n'est branché et un chantier le dit (« connecteurs non branchés ») ; sans `RENDER_API_KEY`, un
+  chantier sans service tourne, un déploiement échoue en le disant ; sans routine pour le dépôt
+  (`CLAUDE_ROUTINE_<ALIAS>_DEPOT`, ou une seule routine), le lancement échoue en le disant.
+- Ce que les connecteurs C2 n'ont pas : **ouvrir une PR** (Claude Code l'ouvre, sa consigne le dit), **fusionner** (après
+  la carte de validation, la Direction fusionne à la main ; le chantier attend la fusion, puis revérifie le SHA
+  d'intégration), **lire un fichier**. La santé est un GET public de l'URL du service (adaptateur, 10 s).
+- **Relais CLI** (`claude -p … --cloud <session>`, décision de la Direction du 01/11) : pas encore écrit (aucun
+  `scripts/relais-claude.ts`) ; la correction passe par l'Auto-fix, puis le commentaire `@claude`, puis une session neuve.
+- Les webhooks signés GitHub/Render → `BusinessEvent` sont faits par C2 ; ce lot ne s'y abonne pas encore (il sonde à
+  pas croissant, ≤ 10 min) et expose `noterEvenementDev` + `signalerReveilChantier` pour le réveil immédiat.
 - Adam (persona `ADAM` historique, `src/lib/assistant/`) n'a pas encore les quatre outils : ils sont dans l'Assistant IA,
   la conversation de la Direction (Adventum IA). L'oral passe par la délégation vocale existante.
 - Le dépôt du rapport au Drive en document (comme un livrable de travail) n'est pas fait : le rapport est au dossier, au
@@ -153,10 +163,13 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
 
 ## 9. Preuves
 
+- `adaptateur-c2.test.ts` (7) : fichiers par comparaison, extrait du journal du job, déploiement en file retrouvé par SHA,
+  routine du dépôt et clé d'idempotence, relance dans le fil de la PR, `INCERTAIN` jamais relancé.
 - `regles.test.ts` (21) : DSL, enchaînements refusés, compilation et condition du moteur, anti-boucle, délai, budgets,
   réglages bornés, routeur, recouvrement, juge des preuves, rapport, MiMo (URL, clé jamais rendue, journal K8, sonde).
-- `chantiers.test.ts` (10, vraie base, vrai moteur, ports factices) : Super Admin seul ; succès de bout en bout ; CI rouge
-  corrigée au 2ᵉ tour (commentaire `@claude`, aucun modèle payé pour un extrait court) ; même échec 3× → Sol une fois,
+- `chantiers.test.ts` (11, vraie base, vrai moteur, ports factices) : Super Admin seul ; succès de bout en bout ; CI rouge
+  corrigée au 2ᵉ tour (commentaire `@claude`, aucun modèle payé pour un extrait court) ; Auto-fix : corrigé sans aucune
+  relance ; même échec 3× → Sol une fois,
   blocage réel, rien déployé, rapport ; santé 503 → rollback, autoDeploy coupé, conclusion refusée ; production → carte,
   validation orale, fusion, revérification, déploiement ; conclusion REFUSÉE sans preuve de santé ; lancements épuisés →
   `BUDGET_HOLD`, plafond relevé → reprise seule ; deux périmètres recouvrants → le second en file puis parti ; annulation

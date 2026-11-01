@@ -9,7 +9,7 @@ import { enregistrerReglagesChantiers } from "@/modules/assistant-ia/actions-con
 /** La forme des réglages (`lib/missions/chantiers/regles.ts`), redite ici : l'écran n'importe pas le moteur. */
 interface ReglagesChantiers {
   plafondUsd: number; lancementsMax: number; deploiementsMax: number; tentativesMax: number;
-  jourUsdMax: number; jourLancementsMax: number; jourDeploiementsMax: number; enParallele: number;
+  jourUsdMax: number; jourLancementsMax: number; jourDeploiementsMax: number; enParallele: number; autofixMinutes: number;
 }
 
 /**
@@ -28,6 +28,7 @@ const CHAMPS: { cle: keyof ReglagesChantiers; libelle: string; aide: string; pas
   { cle: "jourLancementsMax", libelle: "Lancements par jour, tous chantiers", aide: "les routines ont leurs propres plafonds horaires", pas: 1 },
   { cle: "jourDeploiementsMax", libelle: "Déploiements par jour, tous chantiers", aide: "", pas: 1 },
   { cle: "enParallele", libelle: "Chantiers conduits en parallèle", aide: "les réservations sérialisent le reste", pas: 1 },
+  { cle: "autofixMinutes", libelle: "Minutes laissées à l'Auto-fix avant de relancer", aide: "la session corrige sa PR elle-même, gratuitement ; 0 = relancer tout de suite", pas: 5 },
 ];
 
 export function ReglagesChantiersForm({ initial, mimo }: { initial: ReglagesChantiers; mimo: { configure: boolean; modele: string; base: string } }) {

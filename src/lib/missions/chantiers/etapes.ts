@@ -279,8 +279,25 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
     const r = (amont?.result ?? {}) as Etat;
     etat = { ...etat, phase: "DECIDER", tour: 0, echec: { sha: r.sha, signature: r.signature, check: r.check, extrait: r.extrait } };
   }
-  for (let garde = 0; garde < 4; garde++) {
+  for (let garde = 0; garde < 5; garde++) {
     const echec = etat.echec as { sha: string | null; signature: string; check: string | null; extrait: string };
+    // L'AUTO-FIX D'ABORD : une fois par tour, on laisse à la session le temps de corriger SA PR elle-même (gratuit).
+    if (etat.phase === "DECIDER" && !etat.graceFaite && ctx.reglages.autofixMinutes > 0) {
+      etat = { ...etat, phase: "AUTOFIX", graceFaite: true, base: echec.sha, graceDepuis: ctx.clock.now().toISOString(), sondages: 0 };
+    }
+    if (etat.phase === "AUTOFIX") {
+      const d = await ctx.dossier();
+      const t = await ctx.ports.forge.branche(d.plan.depot, d.plan.branche);
+      if (!t.ok) return apresEchecPort(ctx, "Lecture de la branche", t, etat);
+      if (t.valeur.sha && t.valeur.sha !== etat.base) {
+        await ctx.journal("CHANTIER_AUTOFIX", `Un commit est arrivé sans relance (${court(t.valeur.sha)}) : correction native de la session, vérifiée.`, { sha: t.valeur.sha });
+        etat = { ...etat, phase: "CONTROLER", sondages: 0, sansCheck: 0 };
+      } else if (ctx.clock.now().getTime() - new Date(String(etat.graceDepuis)).getTime() >= ctx.reglages.autofixMinutes * 60_000) {
+        etat = { ...etat, phase: "DECIDER" };
+      } else {
+        return attendre(ctx, `laisse ${ctx.reglages.autofixMinutes} min à l'Auto-fix de la session avant de relancer`, Math.min(5 * 60_000, ctx.reglages.autofixMinutes * 60_000), etat);
+      }
+    }
     if (etat.phase === "DECIDER") {
       const d = await ctx.dossier();
       const decision = deciderAntiBoucle({ historique: d.signatures, nouvelle: echec.signature, tours: num(etat.tour), tentativesMax: ctx.reglages.tentativesMax, solDejaPour: d.solPour });
@@ -312,7 +329,7 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
         });
         await ctx.journal("CHANTIER_LANCEMENT", `Correction demandée (tour ${tour}${sol ? ", analyse Sol" : ""}) : ${s.url}`, { tour, sol, signature: echec.signature });
       }
-      etat = { ...etat, phase: "ATTENDRE", tour, base: echec.sha, attenteDepuis: ctx.clock.now().toISOString(), sondages: 0 };
+      etat = { ...etat, phase: "ATTENDRE", tour, base: echec.sha, attenteDepuis: ctx.clock.now().toISOString(), sondages: 0, graceFaite: false };
     }
     if (etat.phase === "ATTENDRE") {
       const r = await commitNeuf(ctx, (etat.base as string | null) ?? null, etat);
