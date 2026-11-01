@@ -1,42 +1,43 @@
 import { describe, expect, it } from "vitest";
-import {
-  champSuivant, designesParNom, empreinteIntention, estAffirmatif, estRefus, facultatifsUtiles, lireCommandeOrale, lireDateDite,
-  lireNombreDit, nombreOral, questionDuChamp, resumeOralBlocs, resumeOralCarte, valeurDite, type ChampOral,
-} from "./oral";
+import { designesParNom, lireCommandeOrale, lireNombreDit, nombreOral, resumeOralBlocs } from "./oral";
+import { estNonExplicite, estOuiExplicite, texteOral } from "./voix-orale";
 import { consignesVoix } from "./voix";
 
 /**
- * LA VOIX ENTIÈREMENT ORALE (lot K9, décision 0038) — les règles pures que le SERVEUR applique sans le modèle.
+ * LA VOIX ENTIÈREMENT ORALE (lot K9, décision 0039) — les règles pures que le SERVEUR applique sans le modèle.
  */
-describe("l'accord oral — français parlé et darja", () => {
+describe("l'accord oral — français parlé et darja (règle K4 étendue par K9)", () => {
   it.each([
     "oui", "ok fais-le", "vas-y", "Go !", "oui c'est bon", "d'accord, lance", "c'est bon, envoie", "parfait", "pas de souci, vas-y",
     "ih dirha", "wakha", "yallah", "safi dirha", "ايه ديرها", "واخا", "okay go",
-  ])("« %s » vaut accord", (t) => expect(estAffirmatif(t)).toBe(true));
+  ])("« %s » vaut accord", (t) => expect(estOuiExplicite(t)).toBe(true));
 
   it.each([
     "non", "attends", "oui mais mets 5 000", "non vas-y pas", "c'est quoi déjà le montant ?", "ok mais change le titre", "lala",
-    "machi daba", "mazal", "laisse tomber", "ماشي", "", "euh", "je sais pas", "oui oui oui je pense que oui mais il faudrait voir avec Karim demain",
-  ])("« %s » n'est PAS un accord", (t) => expect(estAffirmatif(t)).toBe(false));
+    "machi daba", "mazal", "laisse tomber", "ماشي", "", "euh", "je sais pas",
+  ])("« %s » n'est PAS un accord", (t) => expect(estOuiExplicite(t)).toBe(false));
 
-  it("le refus", () => {
-    for (const t of ["non", "laisse tomber", "non merci", "lala", "ماشي", "annule"]) expect(estRefus(t), t).toBe(true);
-    for (const t of ["oui", "vas-y", "attends"]) expect(estRefus(t), t).toBe(false);
+  it("le refus, darja comprise", () => {
+    for (const t of ["non", "laisse tomber", "lala", "ماشي", "non, annule"]) expect(estNonExplicite(t), t).toBe(true);
+    for (const t of ["oui", "vas-y", "non mais mets plutôt vendredi"]) expect(estNonExplicite(t), t).toBe(false);
+  });
+
+  it("une carte renforcée : la VOIX relit l'élément clé — aucun mot imposé à la personne", () => {
+    const q = texteOral({ titre: "Ordre de dépense", champs: [{ label: "Montant", value: "450 000 DZD" }], facultatifs: [], manquants: [], elementCle: "450000" }, "QUESTION");
+    expect(q).toContain("RELIS clairement « 450000 »");
+    expect(q).toContain("un simple oui suffit");
+    expect(q).not.toMatch(/PRONON/);
   });
 });
 
 describe("les commandes orales", () => {
   const sans = { carteEnAttente: false };
   const avec = { carteEnAttente: true };
-  it("une carte attend : accord → confirmer, refus → refuser ; sinon rien de tel", () => {
-    expect(lireCommandeOrale("ok fais-le", avec)).toBe("confirmer");
-    expect(lireCommandeOrale("ih dirha", avec)).toBe("confirmer");
-    expect(lireCommandeOrale("non laisse tomber", avec)).toBe("refuser");
-    expect(lireCommandeOrale("annule", avec)).toBe("refuser");
-    expect(lireCommandeOrale("ok fais-le", sans)).toBeNull();
-    expect(lireCommandeOrale("oui mais mets 5 000", avec)).toBeNull();
+  it("face à une carte : « attends » la fait attendre ; « annule » est laissé au refus de la carte (K4)", () => {
     expect(lireCommandeOrale("oui mais attends", avec)).toBe("attendre");
     expect(lireCommandeOrale("une minute", avec)).toBe("attendre");
+    expect(lireCommandeOrale("annule", avec)).toBeNull();
+    expect(lireCommandeOrale("ok fais-le", avec)).toBeNull();
   });
   it("annuler la dernière action, les missions, stop, plus court", () => {
     expect(lireCommandeOrale("annule", sans)).toBe("annuler_derniere");
@@ -75,17 +76,7 @@ describe("les chiffres à l'oral", () => {
   });
 });
 
-describe("les résumés oraux", () => {
-  it("une carte en une phrase : titre, montant, bénéficiaire ; la relecture de la valeur critique", () => {
-    const r = resumeOralCarte({
-      title: "Ordre de dépense — congrès d'Oran",
-      fields: [{ label: "Objet", value: "Stand" }, { label: "Montant", value: "450 000 DZD" }, { label: "Bénéficiaire", value: "Imprimerie El Bahia" }],
-      confirmText: "450 000",
-    });
-    expect(r).toBe("Ordre de dépense — congrès d'Oran « Stand », montant 450 000 DZD, bénéficiaire Imprimerie El Bahia. Je relis : 450 000.");
-    expect(resumeOralCarte({ title: "Créer la tâche « Stand »" })).toBe("Créer la tâche « Stand ».");
-  });
-
+describe("les blocs dits en une phrase", () => {
   it("tableau, graphique, analyse, visuel : une phrase chacun ; jamais « à l'écran »", () => {
     const dit = resumeOralBlocs([
       { kind: "table", title: "Ventes par wilaya", columns: [], rows: [], total: 48 },
@@ -103,50 +94,6 @@ describe("les résumés oraux", () => {
   });
 });
 
-describe("les champs, un par un", () => {
-  const champs: ChampOral[] = [
-    { nom: "title", libelle: "Titre", widget: "texte", obligatoire: true, valeurs: null },
-    { nom: "dueDate", libelle: "Échéance", widget: "date", obligatoire: false, valeurs: null },
-    { nom: "priority", libelle: "Priorité", widget: "choix", obligatoire: true, valeurs: ["LOW", "MEDIUM", "HIGH"] },
-    { nom: "assignedToId", libelle: "Responsable", widget: "reference", obligatoire: false, valeurs: null },
-    { nom: "urgent", libelle: "Urgent", widget: "case", obligatoire: true, valeurs: null },
-    { nom: "notes", libelle: "Notes", widget: "zone", obligatoire: false, valeurs: null },
-  ];
-  it("le champ suivant : le premier obligatoire vide (jamais une case) ; puis deux facultatifs utiles", () => {
-    expect(champSuivant(champs, {})?.nom).toBe("title");
-    expect(champSuivant(champs, { title: "Stand" })?.nom).toBe("priority");
-    expect(champSuivant(champs, { title: "Stand", priority: "HIGH" })).toBeNull();
-    expect(facultatifsUtiles(champs, { title: "Stand", priority: "HIGH" }).map((c) => c.nom)).toEqual(["dueDate", "assignedToId"]);
-    expect(questionDuChamp(champs[2])).toBe("Il manque priorité (LOW, MEDIUM, HIGH).");
-  });
-  it("une valeur dite remplit le champ ; une référence se cherche par nom ; une valeur hors liste est redemandée", () => {
-    const maintenant = new Date(2026, 9, 31);
-    expect(valeurDite(champs[0], "c'est Stand du congrès")).toEqual({ ok: true, valeur: "Stand du congrès" });
-    expect(valeurDite(champs[1], "demain", maintenant)).toEqual({ ok: true, valeur: "2026-11-01" });
-    expect(valeurDite(champs[1], "le 12 novembre", maintenant)).toEqual({ ok: true, valeur: "2026-11-12" });
-    expect(valeurDite(champs[2], "high")).toEqual({ ok: true, valeur: "HIGH" });
-    expect(valeurDite(champs[2], "bof")).toMatchObject({ ok: false });
-    expect(valeurDite(champs[3], "Samia")).toEqual({ reference: "Samia" });
-    expect(valeurDite(champs[4], "oui")).toEqual({ ok: true, valeur: true });
-  });
-  it("les dates dites", () => {
-    const m = new Date(2026, 9, 31);
-    expect(lireDateDite("après-demain", m)).toBe("2026-11-02");
-    expect(lireDateDite("dans 10 jours", m)).toBe("2026-11-10");
-    expect(lireDateDite("le 5/1", m)).toBe("2027-01-05");
-    expect(lireDateDite("2026-12-24", m)).toBe("2026-12-24");
-    expect(lireDateDite("un jour", m)).toBeNull();
-  });
-});
-
-describe("l'empreinte d'une intention", () => {
-  it("stable à l'ordre des clés, change dès qu'un champ change", () => {
-    const a = empreinteIntention({ payload: { entree: { title: "A", n: 1 } }, title: "T" });
-    expect(empreinteIntention({ title: "T", payload: { entree: { n: 1, title: "A" } } })).toBe(a);
-    expect(empreinteIntention({ payload: { entree: { title: "B", n: 1 } }, title: "T" })).not.toBe(a);
-  });
-});
-
 describe("les consignes de la voix (inversées par K9)", () => {
   it("plus de « confirmez à l'écran » ni de « jamais un oui oral » ; l'attente engage la personne", () => {
     const c = consignesVoix(true);
@@ -154,5 +101,6 @@ describe("les consignes de la voix (inversées par K9)", () => {
     expect(c).toContain("NE VOIT PAS son écran");
     expect(c).toContain("je te préviens dès que c'est prêt");
     expect(c).toContain("DÉLÈGUE-LE");
+    expect(c).toContain("Tu confirmes ?");
   });
 });

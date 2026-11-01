@@ -15,18 +15,17 @@ import { remplacerModelesPourTests } from "../generer";
 import { modeleFactice } from "../testing/modele-factice";
 import { effacerJournalDe } from "../testing/journal";
 import { ETAT, filDe, traiterFil } from "../fil/service";
-import { enregistrerSessionVoix, fermerSessionVoix, reprisesOrales, resumeCarteDit, suivreTravailVocal, traiterEnonceVocal, type SuiviOral } from "./oral";
+import { enregistrerSessionVoix, fermerSessionVoix, reprisesOrales, suivreTravailVocal, traiterEnonceVocal, type SuiviOral } from "./oral";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA VOIX ENTIÈREMENT ORALE, CONTRE LA VRAIE BASE (lot K9, décision 0038) — scénarios oraux scriptés : les énoncés
+ * LA VOIX ENTIÈREMENT ORALE, CONTRE LA VRAIE BASE (lot K9, décision 0039) — scénarios oraux scriptés : les énoncés
  * sont ce que la transcription d'entrée de la session aurait rendu (le crédit du fournisseur est épuisé ; le flux
  * d'événements du navigateur est rejoué par `platform/ia/voix/voix.test.ts`).
  *
- *   • une carte se conclut à l'oral : champ demandé et rempli par la voix (une référence résolue par NOM, sous les droits),
- *     résumé DIT, puis « ok fais-le » → la tâche est créée par la même porte que le bouton ; « annule » la défait ;
- *   • garde-fous SERVEUR : session étrangère, résumé pas encore dit, énoncé non affirmatif, intention modifiée depuis
- *     le résumé → rien n'est exécuté ;
+ *   • la carte (orale, K4) arrive avec le résultat du travail et se conclut à l'oral : « ok fais-le » → exécutée par la
+ *     garde du bouton ; « annule » la défait ; une carte renforcée : la voix relit, un « vas-y » suffit ;
+ *   • garde-fous SERVEUR : autre personne, session inconnue, rien de neuf entendu, « oui mais attends » → rien n'est fait ;
  *   • la délégation asynchrone : une précision dite pendant le travail est TRANSMISE (ajoutée au message s'il attend,
  *     relance ciblée qui repart du résultat s'il est en cours) ; le résultat dépassé n'est pas dit ; après la session,
  *     le résultat est dit à l'ouverture suivante.
@@ -96,8 +95,7 @@ suite("Assistant IA — la voix entièrement orale (K9)", () => {
     const ids = [sa?.id, samia?.id, autre?.id].filter(Boolean) as string[];
     await effacerJournalDe(ids);
     await prisma.task.deleteMany({ where: { title: { contains: TAG } } }).catch(() => {});
-    await prisma.assistantIaVoixCarte.deleteMany({ where: { userId: { in: ids } } });
-    await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: { in: ids } } });
+        await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: { in: ids } } });
     await prisma.assistantIaVoixSession.deleteMany({ where: { userId: { in: ids } } });
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
@@ -106,75 +104,64 @@ suite("Assistant IA — la voix entièrement orale (K9)", () => {
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  it("la carte de bout en bout à l'oral : résumé, champ dit (référence par NOM), « vas-y » après le résumé dit → exécutée ; « annule » la défait", async () => {
-    const intentId = await carteTache({ title: `Stand ${TAG}` });
+  /** La carte arrive avec le résultat du travail ; « non c'est tout » aux facultatifs mène au récit et à la question. */
+  async function jusquALaQuestion(intentId: string): Promise<string> {
     const w = await prisma.assistantIaVoixTravail.findFirstOrThrow({ where: { userId: sa.id, session: S }, orderBy: { creeLe: "desc" } });
     const pret = await suivreTravailVocal(sa, S, w.id);
     expect(pret.etat).toBe("pret");
-    const p = pret as Extract<SuiviOral, { etat: "pret" }>;
-    expect(p.pourVoix).toContain("Carte préparée");
-    expect(p.pourVoix).toContain(`Stand ${TAG}`);
-    expect(p.resumeDe?.intentId).toBe(intentId);
+    let dit = (pret as Extract<SuiviOral, { etat: "pret" }>).pourVoix;
+    expect((pret as Extract<SuiviOral, { etat: "pret" }>).carte?.intentId).toBe(intentId);
+    if (/Ne demande PAS encore/.test(dit)) dit = (await traiterEnonceVocal(sa, { session: S, demande: "non c'est tout", parole: "non c'est tout" })).pourVoix;
+    expect(dit).toContain("Tu confirmes ?");
+    return dit;
+  }
 
-    // Le responsable (facultatif, mais utile) — la voix le propose ; on simule la demande d'UN champ par la voix.
-    await prisma.assistantIaVoixCarte.update({ where: { intentId }, data: { champ: "assignedToId" } });
-    const choisi = await traiterEnonceVocal(sa, { session: S, demande: `Samia ${TAG}` });
-    expect(choisi.pourVoix).toContain("C'est noté");
-    expect(choisi.pourVoix).toContain("Samia");
-    const corrigee = await prisma.assistantActionIntent.findUniqueOrThrow({ where: { id: intentId }, select: { payload: true } });
-    expect((corrigee.payload as { entree: Record<string, unknown> }).entree.assignedToId).toBe(samia.id);
+  it("la carte arrive avec le résultat, se conclut à l'oral : « ok fais-le » → exécutée par la garde du bouton ; « annule » la défait", async () => {
+    const intentId = await carteTache({ title: `Stand ${TAG}` });
+    const question = await jusquALaQuestion(intentId);
+    expect(question).toContain(`Stand ${TAG}`);
+    expect(question).not.toMatch(/écran/);
 
-    // GARDE-FOU : le résumé n'a pas encore été DIT → « vas-y » n'exécute rien.
-    const tot = await traiterEnonceVocal(sa, { session: S, demande: "vas-y" });
-    expect(tot.pourVoix).toContain("pas encore été dit");
+    // GARDE-FOU : une autre personne, ou une session qui n'est pas la sienne, ne confirme rien.
+    expect((await traiterEnonceVocal(autre, { session: S, demande: "ok fais-le", parole: "ok fais-le" })).pourVoix).toContain("n'est plus reconnue");
+    expect((await traiterEnonceVocal(sa, { session: `live_${TAG}inconnue`, demande: "ok fais-le", parole: "ok fais-le" })).pourVoix).toContain("n'est plus reconnue");
+    // GARDE-FOU : rien de NEUF entendu (la transcription du oui n'est pas arrivée) → on redemande, rien n'est fait.
+    expect((await traiterEnonceVocal(sa, { session: S, demande: "non c'est tout", parole: "" })).pourVoix).toContain("Je n'ai pas entendu sa réponse");
+    // « oui mais attends » : la carte attend.
+    expect((await traiterEnonceVocal(sa, { session: S, demande: "oui mais attends", parole: "oui mais attends" })).pourVoix).toContain("la carte attend");
     expect(await prisma.task.count({ where: { title: { contains: TAG } } })).toBe(0);
 
-    // GARDE-FOU : une autre personne (sa propre session) ne peut signaler le résumé ni confirmer.
-    const vc = await prisma.assistantIaVoixCarte.findUniqueOrThrow({ where: { intentId } });
-    expect(await resumeCarteDit(autre, `live_${TAG}autre`, intentId, vc.empreinte)).toBe(false);
-    expect(await resumeCarteDit(autre, S, intentId, vc.empreinte)).toBe(false);
-    const etranger = await traiterEnonceVocal(autre, { session: S, demande: "ok fais-le" });
-    expect(etranger.pourVoix).toContain("n'est plus reconnue");
-    expect(await prisma.task.count({ where: { title: { contains: TAG } } })).toBe(0);
-
-    // Le résumé est dit (accusé du fournisseur) ; un énoncé NON affirmatif n'exécute rien.
-    expect(await resumeCarteDit(sa, S, intentId, vc.empreinte)).toBe(true);
-    const flou = await traiterEnonceVocal(sa, { session: S, demande: "oui mais attends" });
-    expect(flou.etatCarte).toBeUndefined();
-    expect(await prisma.task.count({ where: { title: { contains: TAG } } })).toBe(0);
-
-    // « ok fais-le » : exécutée par la même porte que le bouton.
-    const fait = await traiterEnonceVocal(sa, { session: S, demande: "ok fais-le" });
+    // « ok fais-le » : exécutée — aucun mot imposé.
+    const fait = await traiterEnonceVocal(sa, { session: S, demande: "ok fais-le", parole: "ok fais-le" });
     expect(fait.etatCarte, fait.pourVoix).toEqual({ intentId, status: "EXECUTED" });
     expect(fait.pourVoix).toContain("C'est fait");
     expect(fait.pourVoix).toContain("annule");
-    const t = await prisma.task.findFirstOrThrow({ where: { title: { contains: TAG } }, select: { assignedToId: true, id: true } });
-    expect(t.assignedToId).toBe(samia.id);
-    expect((await prisma.assistantActionIntent.findUniqueOrThrow({ where: { id: intentId } })).status).toBe("EXECUTED");
+    const t = await prisma.task.findFirstOrThrow({ where: { title: { contains: TAG } }, select: { id: true } });
 
     // « annule » : la dernière action de l'assistant est défaite (journal des effets J7).
-    const annule = await traiterEnonceVocal(sa, { session: S, demande: "annule" });
+    const annule = await traiterEnonceVocal(sa, { session: S, demande: "annule", parole: "annule" });
     expect(annule.pourVoix).toContain("Annulation");
     expect(await prisma.task.count({ where: { id: t.id } })).toBe(0);
   });
 
-  it("garde-fou : l'intention a changé depuis le résumé → rien n'est fait, la voix relit la carte", async () => {
+  it("une carte RENFORCÉE : la voix relit le montant, puis un simple « vas-y » suffit (la ressaisie est fournie par le serveur)", async () => {
     const intentId = await carteTache({ title: `Relance ${TAG}` });
-    const w = await prisma.assistantIaVoixTravail.findFirstOrThrow({ where: { userId: sa.id, session: S }, orderBy: { creeLe: "desc" } });
-    await suivreTravailVocal(sa, S, w.id);
-    const vc = await prisma.assistantIaVoixCarte.findUniqueOrThrow({ where: { intentId } });
-    expect(await resumeCarteDit(sa, S, intentId, vc.empreinte)).toBe(true);
-    // Une autre fenêtre corrige la carte après le résumé.
-    const i = await prisma.assistantActionIntent.findUniqueOrThrow({ where: { id: intentId } });
-    await prisma.assistantActionIntent.update({ where: { id: intentId }, data: { payload: { ...(i.payload as object), entree: { title: `Relance modifiée ${TAG}` } } as never } });
-    const r = await traiterEnonceVocal(sa, { session: S, demande: "go" });
-    expect(r.pourVoix).toContain("La carte a changé depuis son résumé");
-    expect(r.etatCarte).toBeUndefined();
-    expect(await prisma.task.count({ where: { title: { contains: `Relance` } , AND: { title: { contains: TAG } } } })).toBe(0);
-    // Refusée à l'oral : abandonnée, jamais exécutée.
-    await resumeCarteDit(sa, S, intentId, (await prisma.assistantIaVoixCarte.findUniqueOrThrow({ where: { intentId } })).empreinte);
-    const non = await traiterEnonceVocal(sa, { session: S, demande: "non laisse tomber" });
-    expect(non.etatCarte).toEqual({ intentId, status: "CANCELLED" });
+    // La carte devient CRITIQUE (comme une capacité R3/R4) : l'élément clé est le titre.
+    await prisma.assistantActionIntent.update({ where: { id: intentId }, data: { level: "CRITICAL", confirmText: `Relance ${TAG}` } });
+    const question = await jusquALaQuestion(intentId);
+    expect(question).toContain(`RELIS clairement « Relance ${TAG} »`);
+    const r = await traiterEnonceVocal(sa, { session: S, demande: "vas-y", parole: "vas-y" });
+    expect(r.etatCarte, r.pourVoix).toEqual({ intentId, status: "EXECUTED" });
+    expect(await prisma.task.count({ where: { title: { contains: `Relance ${TAG}` } } })).toBe(1);
+  });
+
+  it("« non, laisse tomber » à la question : rien n'est fait", async () => {
+    const intentId = await carteTache({ title: `Abandon ${TAG}` });
+    await jusquALaQuestion(intentId);
+    const non = await traiterEnonceVocal(sa, { session: S, demande: "non laisse tomber", parole: "non, laisse tomber" });
+    expect(non.pourVoix).toContain("rien n'est envoyé");
+    expect(non.etatCarte).toBeUndefined();
+    expect(await prisma.task.count({ where: { title: { contains: `Abandon ${TAG}` } } })).toBe(0);
   });
 
   it("l'attente vivante : la précision dite pendant le travail est TRANSMISE ; seul le résultat à jour est dit", async () => {

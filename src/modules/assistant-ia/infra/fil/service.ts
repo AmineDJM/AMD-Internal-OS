@@ -342,7 +342,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     delaiMs: DELAI_FOND_MS,
     maxEtapes: ETAPES_FOND,
     conversation: tour.filId,
-    // K9 (décision 0038) : un tour délégué par la VOIX se rédige pour l'oreille, pas pour l'écran.
+    // K9 (décision 0039) : un tour délégué par la VOIX se rédige pour l'oreille, pas pour l'écran.
     consigne: tourVocal(texteDit) ? `${CONSIGNE_FOND}\n${CONSIGNE_ORALE}` : CONSIGNE_FOND,
     // J14 : la trace rejouable, rattachée à la réponse affichée (et au message de la personne).
     trace: { tourId: reponse.id, messageId: tour.id },

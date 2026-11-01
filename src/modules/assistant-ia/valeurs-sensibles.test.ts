@@ -85,7 +85,7 @@ describe("le réglage et ses règles (pur)", () => {
     expect(consignesVoix(true)).toContain("DIS-LA");
     expect(consignesVoix(true)).not.toContain("JAMAIS prononcée");
     expect(consignesVoix(false)).toContain("JAMAIS prononcée");
-    // Les deux modes gardent la règle des écritures — K9 (décision 0038) : une carte se conclut À L'ORAL, jugée par le serveur.
+    // Les deux modes gardent la règle des écritures — K9 (décision 0039) : une carte se conclut À L'ORAL, jugée par le serveur.
     for (const c of [consignesVoix(true), consignesVoix(false)]) expect(c).toContain("c'est le serveur qui juge et qui exécute");
   });
 

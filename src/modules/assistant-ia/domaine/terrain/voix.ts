@@ -9,10 +9,11 @@
  *      la voix PRONONCE ce que la personne a le droit de voir — l'assistant ne lui rend que cela (même juge que
  *      l'écran). « Masquées » (décision 0012) : jamais lue à voix haute — le modèle vocal ne reçoit que des repères,
  *      et `pourLaVoix` remplace même le repère par « gardée dans la conversation écrite ».
- *   2. UNE ÉCRITURE SE CONCLUT À L'ORAL (lot K9, décision 0038 — inverse le J13). La voix (GPT-Live) n'a aucun outil :
- *      elle délègue. L'assistant prépare une CARTE ; le SERVEUR la résume en une phrase, demande les champs manquants un
- *      par un, et c'est encore LUI qui juge l'énoncé transcrit de la personne (« vas-y », « go », « ih dirha ») avant
- *      d'appeler la MÊME confirmation que le bouton — garde-fous serveur, pas seulement le modèle (`infra/voix/oral.ts`).
+ *   2. UNE CARTE DEVIENT UNE CONVERSATION (K4, décision « 0035-voix-orale », remplace la règle « jamais confirmée à la
+ *      voix »). La voix (GPT-Live) n'a AUCUN outil : elle délègue. L'assistant prépare la carte ; la voix la résume,
+ *      propose les cases facultatives, RELIT l'élément clé (R3/R4), demande « tu confirmes ? ». Le OUI (« vas-y », « go »,
+ *      « ih dirha »…) est jugé par le SERVEUR sur les mots transcrits de la personne, puis la garde du bouton exécute
+ *      (`infra/voix/carte-orale.ts`). K9 (décision 0039) : la personne ne voit pas l'écran — tout se fait à l'oral.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -28,17 +29,20 @@ export function pourLaVoix(sortie: string, max = 6_000): string {
 }
 
 const CONSIGNES_VOIX_COMMUNES = [
-  "Tu parles à voix haute avec un collaborateur, souvent en déplacement : phrases courtes, une idée à la fois, en français",
-  "(réponds en arabe algérien si la personne te parle en arabe). Pas de listes, pas de Markdown, pas d'adresse web.",
+  "Tu parles à voix haute avec un collaborateur qui ne regarde PAS l'écran : tout ce qui compte se DIT. Ton naturel et chaleureux,",
+  "phrases courtes et variées, une idée à la fois, en français (en arabe algérien si la personne te parle en arabe). Pas de listes,",
+  "pas de Markdown, pas d'adresse web ; ne lis jamais une liste de champs, et ne dis jamais « c'est affiché à l'écran » pour éviter de répondre.",
   "L'assistant de l'entreprise, à qui tu délègues, a exactement les mêmes droits que dans la conversation écrite.",
 ];
+// Décision 0035 (Direction, 31/10/2026) : « je peux confirmer à l'oral » — la confirmation est jugée par le SERVEUR, sur les
+// mots de la personne, jamais par la voix.
 const CONSIGNES_ECRITURE_VOIX = [
   "La personne NE VOIT PAS son écran (écouteurs, en marchant) : tout se passe à l'oral. Ne dis JAMAIS « regarde l'écran »,",
-  "« c'est affiché », « confirme à l'écran ». Une action (créer, envoyer, modifier, demander) se prépare puis se conclut DE VIVE VOIX :",
-  "le résultat de la délégation te donne le résumé de la carte en une phrase et, s'il en manque, LE champ à demander — une question",
-  "à la fois. Tu peux proposer au plus un ou deux champs facultatifs utiles, sans insister. Quand tout y est, demande si c'est bon.",
-  "TOUT ce que la personne répond à une carte (une valeur, « vas-y », « go », « ok fais-le », « oui c'est bon », « ih dirha »,",
-  "« non », « change le montant ») : DÉLÈGUE-LE — c'est le serveur qui juge et qui exécute. N'annonce JAMAIS « c'est fait » avant que",
+  "« c'est affiché », « confirme à l'écran ». Une action (créer, envoyer, modifier, demander) se PRÉPARE par l'assistant, puis se",
+  "conclut DE VIVE VOIX : il te dit quoi dire — résume la demande avec tes mots, pose UNE question pour ce qui manque, propose ce qui",
+  "n'est pas obligatoire, relis la valeur clé, puis demande « Tu confirmes ? ». La personne n'a pas de mot imposé.",
+  "TOUT ce que la personne répond (une précision, une correction, « non c'est tout », « vas-y », « go », « ok fais-le », « ih dirha »,",
+  "« non ») : DÉLÈGUE-LE tel quel — c'est le serveur qui juge et qui exécute. N'annonce JAMAIS « c'est fait » avant que",
   "le résultat de la délégation le dise ; ensuite dis « c'est fait » et qu'elle peut dire « annule » si elle change d'avis.",
   "Les commandes orales se délèguent aussi : « annule » (la dernière action), « mets la mission en pause », « reprends », « arrête la mission ».",
 ];

@@ -1,5 +1,5 @@
--- K9 (décision 0038) : la voix de l'Assistant IA entièrement orale — sessions vocales, travaux délégués suivis en
--- asynchrone, cartes conduites et confirmées à l'oral. Additive et idempotente.
+-- K9 (décision 0039) : la voix de l'Assistant IA entièrement orale — sessions vocales et travaux délégués suivis en
+-- asynchrone (la carte orale est celle de K4, dans le journal de l'intention). Additive et idempotente.
 CREATE TABLE IF NOT EXISTS "AssistantIaVoixSession" (
   "id" TEXT NOT NULL,
   "userId" TEXT NOT NULL,
@@ -24,20 +24,3 @@ CREATE TABLE IF NOT EXISTS "AssistantIaVoixTravail" (
 );
 CREATE INDEX IF NOT EXISTS "AssistantIaVoixTravail_userId_creeLe_idx" ON "AssistantIaVoixTravail"("userId", "creeLe");
 CREATE INDEX IF NOT EXISTS "AssistantIaVoixTravail_session_idx" ON "AssistantIaVoixTravail"("session");
-
-CREATE TABLE IF NOT EXISTS "AssistantIaVoixCarte" (
-  "intentId" TEXT NOT NULL,
-  "userId" TEXT NOT NULL,
-  "session" TEXT NOT NULL,
-  "empreinte" TEXT NOT NULL,
-  "resume" TEXT NOT NULL,
-  "resumeLe" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "resumeDitLe" TIMESTAMP(3),
-  "champ" TEXT,
-  "formulaire" JSONB,
-  "etat" TEXT NOT NULL DEFAULT 'A_DIRE',
-  "majLe" TIMESTAMP(3) NOT NULL,
-  CONSTRAINT "AssistantIaVoixCarte_pkey" PRIMARY KEY ("intentId")
-);
-CREATE INDEX IF NOT EXISTS "AssistantIaVoixCarte_session_idx" ON "AssistantIaVoixCarte"("session");
-CREATE INDEX IF NOT EXISTS "AssistantIaVoixCarte_userId_resumeLe_idx" ON "AssistantIaVoixCarte"("userId", "resumeLe");

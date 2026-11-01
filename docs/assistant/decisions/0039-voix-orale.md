@@ -1,4 +1,9 @@
-# 0038 — La voix de l'Assistant IA entièrement orale (lot K9, 31/10/2026)
+# 0039 — La voix de l'Assistant IA entièrement orale (lot K9, 31/10/2026)
+
+> **Construit sur K4** (`0035-voix-orale.md`, renumérotée 0038 à l'intégration) : la carte orale de K4 — manquants →
+> facultatifs → récit → « tu confirmes ? », oui jugé par le serveur sur la transcription, garde du bouton
+> (`infra/voix/carte-orale.ts`, `infra/confirmation.ts:confirmerCarte`) — est reprise TELLE QUELLE, avec deux écarts
+> demandés par la Direction (§4). K9 ajoute l'attente vivante asynchrone, la rédaction pour l'oreille et « tout par la voix ».
 
 **Demande de la Direction (mot pour mot)** : « je peux marcher et mettre mes écouteurs et parler avec l'assistant IA …
 il faut qu'il sache que je ne vois pas mon écran, donc tout se passe à l'oral. Mais il faut qu'il me simplifie tout ça,
@@ -10,22 +15,23 @@ doit avoir la liberté de me poser quelques questions. Tableaux et graphiques di
 parole, bloquer ou arrêter une mission à l'oral. L'oral peut tout faire. Il n'y a pas de mode écouteur : c'est le mode
 oral-vocal qui est comme ça. »
 
-**Elle inverse** la règle « R3/R4 confirmée à l'écran, jamais à la voix » de la décision
-[0025](0025-terrain-voix.md) §4 et le dernier tiret du §2 de [0034](0034-valeurs-sensibles.md). Les **droits** ne changent
-pas (0012 partie A) ; les valeurs sensibles suivent toujours le mode de la console (0034).
+Elle prolonge K4, qui a déjà inversé la règle « R3/R4 confirmée à l'écran, jamais à la voix » de la décision
+[0025](0025-terrain-voix.md) §4. Les **droits** ne changent pas (0012 partie A) ; les valeurs sensibles suivent toujours
+le mode de la console (0034).
 
-> Code — module `src/modules/assistant-ia/` : règles pures `domaine/terrain/oral.ts` (accord / refus FR + darja, commandes
-> orales, chiffres à l'oral, résumés d'une carte et des blocs, champ suivant, valeur dite, empreinte, `CONSIGNE_ORALE`),
-> consignes de la voix `domaine/terrain/voix.ts` (`CONSIGNES_ECRITURE_VOIX` inversées, `CONSIGNES_ATTENTE_VOIX`) ;
-> serveur `infra/voix/oral.ts` (sessions, travail asynchrone, précision, reprise, cartes à l'oral, garde-fous, commandes) ;
-> porte unique de confirmation `infra/confirmation-carte.ts` (`confirmerIntentionDe`, appelée par le bouton
-> `confirmerIntentionAssistantIA` ET par le « vas-y ») ; `infra/voix/temps-reel.ts` (session enregistrée, reprises,
-> `deleguerALaVoix` qui rend aussitôt) ; `infra/fil/service.ts` (tour vocal → `CONSIGNE_ORALE`). Navigateur :
-> `platform/ia/voix/client-temps-reel.ts` (suivi du travail, injection du résultat, accusé du résumé, barge-in, « stop »,
-> « plus court », reprises), `ecrans/voix-temps-reel.tsx`. Routes `/api/assistant-ia/voix/{session,delegation,travail,carte,journal}`.
-> Migration additive `20270217130000_assistant_ia_voix_orale` (`AssistantIaVoixSession`, `AssistantIaVoixTravail`,
-> `AssistantIaVoixCarte`). Bancs : `domaine/terrain/oral.test.ts` (règles), `infra/voix/oral.test.ts` (vraie base,
-> scénarios oraux scriptés), `platform/ia/voix/voix.test.ts` (flux d'événements rejoué), `infra/voix/temps-reel.test.ts`.
+> Code — module `src/modules/assistant-ia/` : règles pures `domaine/terrain/oral.ts` (commandes orales, chiffres à l'oral,
+> blocs dits en une phrase, mission désignée par son nom, `CONSIGNE_ORALE`) ; `domaine/terrain/voix-orale.ts` (K4, étendu :
+> accord et refus en darja, lettres arabes gardées ; la voix RELIT l'élément clé) ; consignes `domaine/terrain/voix.ts`
+> (`CONSIGNES_ATTENTE_VOIX`) ; serveur `infra/voix/oral.ts` (sessions vocales, travail asynchrone, précision, reprise,
+> aiguillage d'un énoncé : commande → carte orale K4 → précision → nouveau travail) ; `infra/voix/carte-orale.ts` (K4 :
+> plus d'élément clé à prononcer) ; `infra/voix/temps-reel.ts` (session enregistrée, reprises, `deleguerALaVoix` qui rend
+> aussitôt) ; `infra/fil/service.ts` (tour vocal → `CONSIGNE_ORALE`) ; `infra/travaux.ts` (porte des missions : pause,
+> reprise). Navigateur : `platform/ia/voix/client-temps-reel.ts` (suivi du travail, injection du résultat, « oui » tardif,
+> barge-in, « stop », « plus court », reprises), `ecrans/voix-temps-reel.tsx`. Routes
+> `/api/assistant-ia/voix/{session,delegation,travail,journal}`. Migration additive `20270217130000_assistant_ia_voix_orale`
+> (`AssistantIaVoixSession`, `AssistantIaVoixTravail`). Bancs : `domaine/terrain/oral.test.ts`, `infra/voix/oral.test.ts`
+> (vraie base, scénarios oraux scriptés), `infra/voix/voix-orale.test.ts` (K4, suivi asynchrone), `platform/ia/voix/voix.test.ts`
+> (flux d'événements rejoué), `e2e/voix-orale.spec.ts` (serveur réel, mode app, bureau + iPhone 13).
 
 ## 1. Une seule voix — pas de « mode écouteur »
 
@@ -57,41 +63,31 @@ sensible devient « gardée dans la conversation écrite » (plus « affichée �
 Plus de « la réponse arrivera à l'écran ». La forme de l'API est celle de la documentation GPT-Live (guides
 « live conversations » et « live delegation », référence des événements) : `session.commentary.append` (contexte que la
 voix paraphrase, `delegation_id` nul pour toute la session), `session.thinking.append` (contexte silencieux),
-`session.instructions.append` (consigne de session, qui peut interrompre la parole en cours),
-`session.commentary.appended` (accusé, `client_event_id`) ; `session.delegation.created` ne porte pas le texte de la
+`session.instructions.append` (consigne de session, qui peut interrompre la parole en cours) ;
+`session.delegation.created` ne porte pas le texte de la
 demande — il se reconstruit des fragments de transcription d'entrée, comme avant.
 
-## 4. Une action se conclut à l'oral
+## 4. Une action se conclut à l'oral — la carte orale de K4, et deux écarts
 
-1. **Résumé en une phrase par le serveur** (`resumeOralCarte`) : titre, objet, montant, bénéficiaire — puis, pour une
-   carte critique, « Je relis : 450 000 » (le `confirmText`).
-2. **Les champs manquants un par un** (formulaire J11, `champSuivant`) : « Il manque l'échéance. » La valeur dite remplit
-   le champ (`valeurDite` : nombre, date dite — « demain », « le 12 novembre » —, choix, oui/non) ; une **référence se
-   résout par nom** sous les droits de la personne (`chercherReferenceDeCarte`) ; plusieurs candidats → « Il y en a
-   plusieurs : A, B, C. Demande lequel. » ; la carte est réécrite par `corrigerCarteCapacite` (mêmes portes que l'écran).
-3. **Quelques facultatifs** : la voix a la liberté d'en proposer au plus deux, utiles (date, choix, référence — jamais un
-   identifiant technique), sans insister.
-4. **La confirmation orale naturelle** : « ok fais-le », « vas-y », « go », « oui c'est bon », « pas de souci », « ih
-   dirha », « wakha », « yallah », « ايه ديرها »… (`estAffirmatif`). « Oui mais… », « attends », une question, une
-   négation, une phrase longue : **pas un accord** (la carte attend). « Non », « laisse tomber », « lala », « ماشي » :
-   carte abandonnée (`CANCELLED`).
-5. **Après** : « c'est fait » + « dis-moi annule si tu changes d'avis ».
+Le déroulé est celui de K4 : la carte arrive **avec le résultat du travail** (K9 la branche sur le suivi asynchrone), la
+voix la résume avec ses mots, pose UNE question pour un champ obligatoire manquant, propose les facultatifs en une
+question légère, récapitule et demande « Tu confirmes ? ». Une correction dite passe par `corriger_carte` (porte du
+formulaire J11). Le oui est jugé par le **serveur** sur la transcription de la personne, puis la **garde du bouton**
+(`confirmerCarte` : réclamation atomique, idempotence, journal des effets J7) ; la confirmation orale va à l'audit avec la
+transcription. Garde-fous serveur conservés : la carte est la dernière carte orale de **cette personne**, encore à signer,
+de moins de 30 minutes ; la question a été posée **après** la dernière correction ; la parole est la sienne (`parole`, ses
+mots neufs, jamais la reformulation du modèle vocal). K9 ajoute : le travail et ses gestes ne valent que dans **sa session
+vocale** ouverte (`AssistantIaVoixSession`, < 2 h).
 
-**Les garde-fous sont au serveur, pas dans le modèle** (`confirmerAOral`) — la voix n'a toujours aucun outil : tout
-énoncé lié à une carte est délégué, et c'est le serveur qui juge :
+| Écart (Direction) | K4 | K9 |
+|---|---|---|
+| **Pas de mot imposé** (R3/R4) | la personne devait PRONONCER l'élément clé (« oui, je confirme 150 000 ») | la **voix relit** l'élément clé dans le récit (« je relis : 150 000 ») ; ensuite tout oui sans réserve suffit — « ok fais-le », « vas-y », « go », « oui c'est bon », « pas de souci », « ih dirha », « wakha », « yallah », « ايه ديرها ». Le serveur fournit lui-même la ressaisie stockée. |
+| **Le « oui » tardif** | une transcription arrivée > 1,5 s après la délégation n'était pas entendue (la parole partait vide) | le navigateur attend le **premier fragment** jusqu'à 4 s quand rien de neuf n'a été entendu ; et si la question est posée et que la parole est vide, le serveur fait **redemander** (« je n'ai pas entendu ») au lieu de relancer l'ancienne demande. |
 
-| Garde | Refus si |
-|---|---|
-| Propriété | la carte n'est pas à la personne, ou pas à **cette** session vocale (`AssistantIaVoixSession` à la personne, ouverte, < 2 h) |
-| Ordre | le résumé n'a pas été **dit** : le navigateur le signale à l'accusé `session.commentary.appended` du fournisseur (`/voix/carte`), sous l'empreinte du résumé |
-| Énoncé | la transcription d'entrée de la personne (ce qu'elle a dit depuis la délégation précédente) n'est pas jugée affirmative par la règle |
-| Complétude | un champ obligatoire manque encore |
-| Inchangée | l'empreinte de l'intention (charge, titre, valeur à ressaisir, état) diffère de celle du résumé — la carte est relue, rien n'est fait |
-
-Puis la **même porte que le bouton** : `confirmerIntentionDe` (réclamation atomique, idempotence, journal des effets J7,
-repères rejugés). La **ressaisie R3/R4** devient, à l'oral, la **relecture** de la valeur par la voix avant le « vas-y » :
-le serveur fournit lui-même la valeur stockée, parce qu'elle a été dite dans le résumé accusé. La Direction ne veut pas de
-mot imposé : aucun.
+« Oui mais… », « attends », une question, une négation : **pas un accord** (« attends » fait attendre la carte). « Non »,
+« laisse tomber », « lala », « ماشي » : rien n'est envoyé. Après exécution : « c'est fait » + « dis-moi annule si tu changes
+d'avis ». L'écran reste à jour (l'état vit sur l'intention, que la conversation relit ; le panneau vocal passe la carte
+« exécutée ») mais n'est jamais requis.
 
 ## 5. Tout par la voix
 
@@ -107,24 +103,26 @@ mot imposé : aucun.
 
 ## 6. Vérifié — et ce qui ne l'est pas
 
-- **Tests** (0 réseau) : règles pures (accord / refus FR et darja, commandes, chiffres, résumés de carte / tableau /
-  graphique / analyse / visuel, champ suivant, valeurs dites, dates, empreinte) ; garde-fous contre la vraie base
-  (session étrangère, résumé non dit, énoncé non affirmatif, intention modifiée → rien n'est exécuté ; « ok fais-le » →
-  tâche créée avec le responsable résolu par nom ; « annule » → tâche retirée ; refus → carte abandonnée) ; délégation
+- **Tests** (0 réseau) : règles pures (accord / refus FR et darja, relecture de l'élément clé, commandes, chiffres,
+  tableau / graphique / analyse / visuel en une phrase) ; garde-fous contre la vraie base (autre personne, session
+  inconnue, rien de neuf entendu, « oui mais attends » → rien n'est exécuté ; « ok fais-le » → tâche créée ; carte
+  renforcée relue puis « vas-y » → exécutée ; « annule » → tâche retirée ; « non, laisse tomber » → rien) ; scénarios K4
+  rejoués sur le suivi asynchrone ; délégation
   asynchrone (précision ajoutée au message en attente, relance ciblée qui voit le résultat en cours, résultat dépassé
   remplacé, consigne orale reçue par le modèle, reprise à l'ouverture suivante une seule fois) ; flux d'événements rejoué
-  (injection du résultat sous la dernière délégation, accusé du résumé, barge-in, « stop », « plus court », reprises).
+  (injection du résultat sous la dernière délégation, « oui » transcrit après 1,5 s, barge-in, « stop », « plus court », reprises).
 - **Limite** : le crédit OpenAI est épuisé (`insufficient_quota`) — aucun passage réel de GPT-Live dans ce lot. Les
   scénarios oraux sont **scriptés** (transcriptions simulées). Deux points à vérifier au premier passage réel : que
   GPT-Live **dit bien** de lui-même un `session.commentary.append` arrivé longtemps après la délégation (la documentation
   dit « paraphrase », sans garantie de prise de parole), et la qualité de la transcription des accords en darja.
-- **Non fait** : la reconnaissance d'une référence ambiguë « la deuxième » (la voix redemande par nom) ; la précision
-  injectée DANS une boucle d'outils en cours (voir §3).
+- **Non fait** : la précision injectée DANS une boucle d'outils en cours (voir §3) ; l'**annonce orale d'une pièce reçue
+  en plein appel** (WhatsApp / courriel entrants, lot K6 `jarvis/k6-canaux`) — à brancher sur `reprisesOrales` /
+  `session.commentary.append` (`delegation_id: null`) quand K6 sera dans la base.
 
 ## 7. Décisions à confirmer par la Direction
 
 1. **Cartes critiques (R4 : paiement, signature) à l'oral** : appliqué tel que demandé — la relecture du montant ou du nom
-   par la voix tient lieu de ressaisie. Proposé : garder ; à fermer d'un réglage (critique = écran) si la Direction le
+   par la voix tient lieu de ressaisie (K4 exigeait que la personne le prononce). Proposé : garder ; à fermer d'un réglage (critique = écran) si la Direction le
    préfère.
 2. **« Annule »** vise la dernière action de l'assistant de moins de 30 minutes, sans redemander. Proposé : garder.
 3. **Une demande nouvelle pendant un travail en cours** est traitée comme une précision (la consigne laisse l'assistant

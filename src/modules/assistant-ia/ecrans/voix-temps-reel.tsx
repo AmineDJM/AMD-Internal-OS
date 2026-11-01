@@ -14,7 +14,7 @@ import { attendu, sansBloquer } from "@/lib/journal";
  * LA CONVERSATION VOCALE DE L'ASSISTANT IA (lot J13, décision 0025) — GPT-Live tient la conversation, l'assistant du fil
  * (mêmes outils, droits et repères que le texte) fait le travail délégué.
  *
- * K9 (décision 0038) — TOUT SE PASSE À L'ORAL : la personne marche, écouteurs aux oreilles. L'écran n'est JAMAIS
+ * K9 (décision 0039) — TOUT SE PASSE À L'ORAL : la personne marche, écouteurs aux oreilles. L'écran n'est JAMAIS
  * requis : il garde la trace (ce qui a été dit, les cartes, qui passent « exécutée » quand un « vas-y » oral les a
  * confirmées). La voix ne bloque plus pendant une recherche (le travail est suivi, le résultat dit de lui-même). La
  * latence (fin de parole → premier son) est affichée et journalisée : la cible est 1,5 s au p50.
@@ -70,8 +70,8 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
 
   const ajouter = (l: Ligne) => setLignes((xs) => [...xs, l].slice(-60));
 
-  const deleguer = useCallback(async (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null }): Promise<ResultatDelegation> => {
-    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, delegationId, session: ctx?.session, enCours: ctx?.enCours }) });
+  const deleguer = useCallback(async (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null; parole: string }): Promise<ResultatDelegation> => {
+    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, delegationId, session: ctx?.session, enCours: ctx?.enCours, parole: ctx?.parole }) });
     if (!r.ok) return { pourVoix: "Le serveur n'a pas répondu : dis-le et propose de réessayer." };
     return (await r.json()) as ResultatDelegation;
   }, []);
@@ -81,9 +81,6 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
     return r.ok ? ((await r.json()) as SuiviTravail) : { etat: "en_cours" };
   }, []);
 
-  const resumeDit = useCallback(async (c: { intentId: string; empreinte: string }, session: string | null) => {
-    await fetch("/api/assistant-ia/voix/carte", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...c, session }) });
-  }, []);
 
   const ouvrir = useCallback(async (sdp: string): Promise<{ sdp: string; session?: string; reprises?: string[] }> => {
     const r = await fetch("/api/assistant-ia/voix/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sdp, conversation: await conversationOuverte() }) });
@@ -108,7 +105,7 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
 
   const demarrer = useCallback(async () => {
     setDetail(null);
-    const c = new ClientVoixTempsReel({ ouvrir, deleguer, suivre, resumeDit }, {
+    const c = new ClientVoixTempsReel({ ouvrir, deleguer, suivre }, {
       etat: (e, x) => { setEtat(e); if (x) setDetail(x); },
       ligne: (qui, texte) => { dites.current.push({ qui, texte }); ajouter({ qui, texte }); },
       delegation: (_demande, res) => {
@@ -124,7 +121,7 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
     client.current = c;
     await conversationOuverte();
     try { await c.connecter(); } catch { client.current = null; }
-  }, [ouvrir, deleguer, suivre, resumeDit, conversationOuverte]);
+  }, [ouvrir, deleguer, suivre, conversationOuverte]);
 
   useEffect(() => () => { void terminer(); }, [terminer]);
 

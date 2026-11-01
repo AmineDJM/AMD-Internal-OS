@@ -18736,7 +18736,7 @@ model AssistantIaVisuel {
   @@index([statut, createdAt])
 }
 
-/// K9 (décision 0038) — UNE SESSION VOCALE GPT-Live ouverte par notre serveur : à qui elle est, quand elle se ferme.
+/// K9 (décision 0039) — UNE SESSION VOCALE GPT-Live ouverte par notre serveur : à qui elle est, quand elle se ferme.
 /// Les gestes oraux (confirmer une carte, annuler) ne valent que dans une session de la personne, encore ouverte.
 model AssistantIaVoixSession {
   /// L'identifiant `live_…` rendu par le fournisseur.
@@ -18766,25 +18766,4 @@ model AssistantIaVoixTravail {
 
   @@index([userId, creeLe])
   @@index([session])
-}
-
-/// K9 — UNE CARTE CONDUITE À L'ORAL : résumée dans une session, ses champs demandés un par un, confirmée d'un « vas-y ».
-model AssistantIaVoixCarte {
-  intentId    String    @id
-  userId      String
-  session     String
-  /// L'empreinte de l'intention au moment du résumé : la confirmation orale exige qu'elle n'ait pas changé.
-  empreinte   String
-  resume      String
-  resumeLe    DateTime  @default(now())
-  /// Le résumé a été DIT (accusé `session.commentary.appended` du fournisseur) — avant, aucun « vas-y » n'exécute.
-  resumeDitLe DateTime?
-  /// Le champ demandé en ce moment (nom du contrat), null : rien à demander.
-  champ       String?
-  formulaire  Json?
-  etat        String    @default("A_DIRE")
-  majLe       DateTime  @updatedAt
-
-  @@index([session])
-  @@index([userId, resumeLe])
 }

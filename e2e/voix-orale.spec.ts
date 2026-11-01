@@ -4,7 +4,7 @@ import { E2E } from "./global-setup";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA VOIX ENTIÈREMENT ORALE (lot K9, décision 0038) — serveur RÉEL (mode app `APP_MODE=adventum-ia`), au bureau et sur
+ * LA VOIX ENTIÈREMENT ORALE (lot K9, décision 0039) — serveur RÉEL (mode app `APP_MODE=adventum-ia`), au bureau et sur
  * iPhone 13 (390 × 844).
  *
  * Le média WebRTC ne passe pas le conteneur et le crédit du fournisseur est épuisé : la connexion GPT-Live est REMPLACÉE

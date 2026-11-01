@@ -27,7 +27,7 @@ import { sortiePourModele } from "../domaine/contenu-non-fiable";
 import { avecProvenance, type ProvenanceDuTour } from "./provenance";
 import { lecturesMetier, lecturesQuotidien, lecturesRh, lecturesSituation, situationRhSansMasse } from "./lectures";
 import { lecturesErp } from "./lectures-erp";
-import { outilsCapacites } from "./capacites";
+import { outilCorrigerCarte, outilsCapacites } from "./capacites";
 import { outilsAnalyse, OUTILS_ANALYSE, type ContexteAnalyseTour } from "./analyse/outils";
 import { censurerTexte, jetonnerSortie, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 import { FAMILLES_IA, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
@@ -116,8 +116,8 @@ export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELI
  * du tour garde la sortie censurée SANS cadre : c'est elle que l'UI générative confronte aux faits.
  */
 const filtre = (
-  outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null, provenance?: ProvenanceDuTour, revelerAuModele?: (sortie: string) => Promise<string>,
-  analyse?: ContexteAnalyseTour,
+  outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null, provenance?: ProvenanceDuTour, analyse?: ContexteAnalyseTour,
+  revelerAuModele?: (sortie: string) => Promise<string>,
 ): PowerTool => ({
   ...outil,
   run: async (entree, user) => {
@@ -332,7 +332,9 @@ export function outilsV1(
   });
   // « Mes notes » (décision 0026) : lire SES notes, et PROPOSER des modifications qu'elle accepte ou refuse.
   const notes = outilsNotes(user, { coffret, acces, proposees: options.notesProposees });
-  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret, provenance, options.revelerAuModele, options.analyse));
+  // Décision 0035 : la carte en attente se COMPLÈTE ou se CORRIGE par la parole, par la porte du formulaire (conversation seulement).
+  const correction = options.capacites ? [outilCorrigerCarte(user, acces)] : [];
+  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].concat(correction).map((o) => filtre(aSoi(o), journal, coffret, provenance, options.analyse, options.revelerAuModele));
 }
 
 /**

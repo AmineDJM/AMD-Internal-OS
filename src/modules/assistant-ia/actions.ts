@@ -163,10 +163,10 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
   try {
     const user = await requireUser();
     if (!peutUtiliserAssistantIA(user)) return { ok: false, error: REFUS_ASSISTANT_IA };
-    if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
-    // La MÊME porte que le « vas-y » oral (décision 0038) : correction J11, ressaisie critique, journal des effets J7.
-    const { confirmerIntentionDe } = await import("@/modules/assistant-ia/api");
-    return await confirmerIntentionDe(user, intentId, confirmTyped, corrections);
+    // J11 (décision 0030) : une correction du formulaire voyage en JSON (`corrections`) — le contrat de l'action reste
+    // lisible (trois textes). La garde est commune au bouton et à la confirmation orale (décision 0035).
+    const { confirmerCarte } = await import("@/modules/assistant-ia/api");
+    return await confirmerCarte(user, intentId, confirmTyped, corrections);
   } catch (err) {
     console.error("[assistant] confirmerIntentionAssistantIA failed", err);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };

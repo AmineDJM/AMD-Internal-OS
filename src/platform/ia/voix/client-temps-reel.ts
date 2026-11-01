@@ -9,13 +9,13 @@
  *   1. LA DÉLÉGATION — `session.delegation.created` : la demande de la personne (ce qu'elle a dit depuis la délégation
  *      précédente) part à NOTRE serveur (`deleguer`), où l'assistant la traite sous ses droits ; ce qu'il rend revient à
  *      GPT-Live par `session.commentary.append` (500 jetons au plus), avec l'identifiant de la délégation.
- *      K9 (décision 0038) : le serveur rend AUSSITÔT ; un TRAVAIL lancé est SUIVI ici (`suivre`) et son résultat
+ *      K9 (décision 0039) : le serveur rend AUSSITÔT ; un TRAVAIL lancé est SUIVI ici (`suivre`) et son résultat
  *      injecté de lui-même quand il arrive, même minutes plus tard ; ce que la personne dit entre-temps part comme
- *      PRÉCISION du travail en cours (`enCours`). Le résumé d'une carte, une fois DIT (accusé
- *      `session.commentary.appended`), est signalé au serveur (`resumeDit`) : avant, aucun « vas-y » ne vaut.
+ *      PRÉCISION du travail en cours (`enCours`).
  *      La personne qui parle pendant que la voix parle COUPE le son tout de suite (barge-in, côté navigateur).
  *   2. CE QUI S'AFFICHE — les fragments de transcription (`session.input_transcript.delta`, `…output_transcript.delta`)
- *      regroupés en répliques, et les CARTES que l'assistant a préparées : l'écran les montre, le bouton seul exécute.
+ *      regroupés en répliques, et les CARTES que l'assistant a préparées : l'écran les montre ; la personne confirme au
+ *      bouton ou à l'oral (décision 0035 : le serveur juge le oui sur SA transcription, `parole`).
  *   3. LA LATENCE — sur la LIGNE DE TEMPS DE LA SESSION (les `start_ms` / `end_ms` des fragments, pas l'arrivée des
  *      paquets) : de la fin de la parole de la personne au début de la réponse parlée. Cible : 1,5 s au p50.
  *
@@ -35,8 +35,6 @@ export interface ResultatDelegation {
   ecran?: string | null;
   /** K9 : un travail lancé, que ce client suit jusqu'au résultat. */
   travail?: string;
-  /** K9 : le résumé d'une carte — à signaler au serveur quand il a été DIT. */
-  resumeDe?: { intentId: string; empreinte: string };
   /** K9 : la carte a changé d'état à l'oral (exécutée, abandonnée). */
   etatCarte?: { intentId: string; status: string };
   /** K9 : une commande que ce client applique (« stop », « plus court »). */
@@ -64,11 +62,14 @@ export interface Rappels {
 export interface DependancesClient {
   /** Remet l'offre SDP à NOTRE serveur, qui ouvre la session et rend la réponse SDP (K9 : l'identifiant, les reprises). */
   ouvrir: (sdp: string) => Promise<{ sdp: string; session?: string; reprises?: string[] }>;
-  deleguer: (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null }) => Promise<ResultatDelegation>;
+  /**
+   * `ctx.parole` (K4) : ce que la personne a RÉELLEMENT dit depuis la délégation précédente — vide si rien de neuf (la
+   * demande est alors la précédente, répétée) : le serveur n'entend jamais un « oui » répété. `session`, `enCours` (K9) :
+   * la session vocale, et le travail suivi auquel une précision s'ajoute.
+   */
+  deleguer: (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null; parole: string }) => Promise<ResultatDelegation>;
   /** K9 : l'état d'un travail lancé par une délégation. */
   suivre?: (travail: string, session: string | null) => Promise<SuiviTravail>;
-  /** K9 : le résumé d'une carte a été dit (accusé du fournisseur). */
-  resumeDit?: (r: { intentId: string; empreinte: string }, session: string | null) => Promise<void>;
   /** K9 : l'intervalle de suivi d'un travail (1,5 s ; 0 au banc : le banc appelle `suivreMaintenant`). */
   suiviMs?: number;
   micro?: () => Promise<MediaStream>;
@@ -84,7 +85,6 @@ export interface DependancesClient {
 
 interface Evenement {
   type: string;
-  client_event_id?: string;
   delta?: string;
   start_ms?: number;
   end_ms?: number;
@@ -119,8 +119,6 @@ export class ClientVoixTempsReel {
   travail: { id: string; delegationId: string } | null = null;
   private suivi: ReturnType<typeof setInterval> | null = null;
   private suiviEnVol = false;
-  /** K9 : les résumés de carte en attente d'accusé, par `event_id` envoyé. */
-  private resumesAttendus = new Map<string, { intentId: string; empreinte: string }>();
   /** K9 : le son coupé parce que la personne parle (barge-in) — rouvert à la réponse suivante. */
   coupe = false;
   interruptions = 0;
@@ -204,12 +202,6 @@ export class ClientVoixTempsReel {
         // K9 : ce qui est arrivé après la dernière session — dit en ouvrant, sans délégation.
         for (const r of this.reprises.splice(0)) this.dire(null, `Résultat arrivé depuis la dernière conversation : ${r}`);
         break;
-      case "session.commentary.appended": {
-        // K9 : l'accusé d'un résumé de carte — le résumé est DIT, le serveur l'apprend (avant, aucun « vas-y » ne vaut).
-        const r = e.client_event_id ? this.resumesAttendus.get(e.client_event_id) : undefined;
-        if (r && e.client_event_id) { this.resumesAttendus.delete(e.client_event_id); await this.deps.resumeDit?.(r, this.session).catch(() => undefined); }
-        break;
-      }
       case "session.input_transcript.delta":
         // K9 — BARGE-IN : la personne parle pendant que la voix parle → le son est coupé ICI, tout de suite.
         if (this._etat === "PAROLE" && !this.coupe) this.couperSon(e.start_ms);
@@ -256,18 +248,23 @@ export class ClientVoixTempsReel {
 
   private async deleguer(delegationId: string) {
     const silence = this.deps.silenceTranscriptionMs ?? 500;
+    // K9 : la transcription d'un « oui » court peut arriver APRÈS la délégation, au-delà de 1,5 s (relevé par K4) — rien
+    // de neuf entendu : on attend son premier fragment jusqu'à 4 s, puis le silence habituel.
+    const premier = Date.now() + (silence > 0 ? 4_000 : 0);
+    while (!this.demande.trim() && Date.now() < premier) await new Promise((r) => setTimeout(r, 100));
     for (const limite = Date.now() + 1_500; silence > 0 && Date.now() < limite && Date.now() - this.dernierFragment < silence;) {
       await new Promise((r) => setTimeout(r, 100));
     }
     // La demande : ce que la personne a dit depuis la délégation précédente (sinon sa dernière demande, reformulée).
-    const demande = (this.demande.trim() || this.derniereDemande).slice(0, 4_000);
+    const parole = this.demande.trim().slice(0, 2_000);
+    const demande = (parole || this.derniereDemande).slice(0, 4_000);
     this.demande = "";
     this.derniereDemande = demande;
     this.delegations += 1;
     if (this._etat !== "FERMETURE") this.poser("REFLEXION");
     let r: ResultatDelegation;
     try {
-      r = await this.deps.deleguer(demande, delegationId, { session: this.session, enCours: this.travail?.id ?? null });
+      r = await this.deps.deleguer(demande, delegationId, { session: this.session, enCours: this.travail?.id ?? null, parole });
     } catch {
       r = { pourVoix: "Le serveur n'a pas répondu : dis-le simplement et propose de réessayer." };
     }
@@ -275,14 +272,13 @@ export class ClientVoixTempsReel {
     if (r.commande) this.appliquer(r.commande);
     // « stop » : on ne relance pas la parole — le résultat reste silencieux (contexte seulement).
     if (r.commande === "stop") this.envoyer({ type: "session.thinking.append", event_id: `resultat_${++this.numero}`, delegation_id: delegationId, content: r.pourVoix.slice(0, MAX_COMMENTAIRE) });
-    else this.dire(delegationId, r.pourVoix || "Rien à dire de plus.", r.resumeDe);
+    else this.dire(delegationId, r.pourVoix || "Rien à dire de plus.");
     if (r.travail) this.suivreTravail(r.travail, delegationId);
   }
 
   /** Dit (la voix paraphrase) — sous une délégation, ou pour toute la session (`null`). */
-  private dire(delegationId: string | null, contenu: string, resume?: { intentId: string; empreinte: string }) {
+  private dire(delegationId: string | null, contenu: string) {
     const id = `resultat_${++this.numero}`;
-    if (resume) this.resumesAttendus.set(id, resume);
     this.envoyer({ type: "session.commentary.append", event_id: id, delegation_id: delegationId, content: contenu.slice(0, MAX_COMMENTAIRE) });
   }
 
@@ -323,14 +319,16 @@ export class ClientVoixTempsReel {
     if (!t || !this.deps.suivre || this.suiviEnVol) return;
     this.suiviEnVol = true;
     try {
-      const s = await this.deps.suivre(t.id, this.session).catch(() => ({ etat: "en_cours" }) as SuiviTravail);
+      let s: SuiviTravail;
+      // Un suivi qui échoue (réseau) se retente au battement suivant : le travail est toujours « en cours ».
+      try { s = await this.deps.suivre(t.id, this.session); } catch { s = { etat: "en_cours" }; }
       if (this.travail?.id !== t.id) return;
       if (s.etat === "remplace") { this.travail = { id: s.par, delegationId: t.delegationId }; return; }
       if (s.etat === "en_cours") return;
       this.arreterSuivi();
       if (s.etat === "inconnu") return;
       if (s.etat === "pret") this.rappels.delegation?.(this.derniereDemande, s);
-      this.dire(t.delegationId, s.pourVoix || "Le résultat est arrivé, sans rien à dire de plus.", s.etat === "pret" ? s.resumeDe : undefined);
+      this.dire(t.delegationId, s.pourVoix || "Le résultat est arrivé, sans rien à dire de plus.");
     } finally {
       this.suiviEnVol = false;
     }

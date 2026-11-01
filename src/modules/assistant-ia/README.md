@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0034 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0035 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0038 : la voix entièrement orale).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0035 (voix-orale, K4) : la voix orale, une carte confirmée à l'oral ; 0039 : la voix entièrement orale — attente vivante, tout par la voix).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -57,6 +57,14 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   recherche web, pièces jointes (leur propre garde).
 - **`store: false`** sur tous les appels Mastra du module (`optionsFournisseur`) ; la recherche web (passerelle, sans
   chaînage) l'a déjà. Banc : `valeurs-sensibles.test.ts`.
+## La voix orale — une carte devient une conversation (lot K4, décision 0035)
+
+- La voix **dit** les valeurs (mode « en clair ») ; une carte rendue par la délégation devient **orale** : résumé à dire,
+  facultatifs proposés, récit, « Tu confirmes ? » (`domaine/terrain/voix-orale.ts`, `infra/voix/carte-orale.ts`).
+- **Confirmation orale** jugée par le SERVEUR sur la transcription de la personne (`parole`) : « oui » explicite après la
+  question, élément clé prononcé pour R3/R4, puis la garde du bouton (`infra/confirmation.ts` `confirmerCarte`) ; audit
+  « confirmée à l'oral » avec la transcription. Corrections dites : `corriger_carte` → `corrigerCarteCapacite`.
+
 ## Images, vidéos et vidéos de données (lot K2, décision 0032)
 
 - **Outils** (`infra/visuels/outils.ts`, conversation seulement, famille de console `VISUELS` fermée par défaut) :
@@ -233,11 +241,11 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - **Voix temps réel (GPT-Live)** — `infra/voix/temps-reel.ts` (session ouverte par le serveur, délégation au même
   assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Valeurs
   sensibles selon la console (0034) ; modèle `gpt-live-1` réglable (Consommation IA).
-- **Voix entièrement orale (lot K9, décision 0038)** — `domaine/terrain/oral.ts` (pur : accord / refus FR + darja,
-  commandes orales, chiffres à l'oral, résumés de carte et de blocs, champ suivant, valeur dite, empreinte,
-  `CONSIGNE_ORALE`), `infra/voix/oral.ts` (délégation asynchrone suivie par `/voix/travail`, précision transmise,
-  reprise à l'ouverture suivante, carte résumée → champs un par un → « vas-y » sous garde-fous serveur, annuler,
-  pause / reprise / arrêt de mission), `infra/confirmation-carte.ts` (une seule porte : bouton ET voix).
+- **Voix entièrement orale (lot K9, décision 0039, sur la carte orale de K4)** — `domaine/terrain/oral.ts` (pur :
+  commandes orales, chiffres à l'oral, blocs dits en une phrase, mission désignée par son nom, `CONSIGNE_ORALE`),
+  `infra/voix/oral.ts` (sessions vocales, délégation asynchrone suivie par `/voix/travail`, précision transmise, reprise à
+  l'ouverture suivante, aiguillage : commande → carte orale K4 → précision → travail ; annuler, pause / reprise / arrêt
+  de mission). La carte orale reste `infra/voix/carte-orale.ts` (K4) : la voix relit l'élément clé, un oui suffit.
 
 ## Recettes de la maison (lot J10, décision 0028)
 

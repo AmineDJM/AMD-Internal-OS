@@ -23,7 +23,7 @@ export { reponsePourVoix };
  *     navigateur est échangée ICI contre la réponse (`/v1/live/sessions`) — aucun secret ne sort du serveur.
  *   • DÉLÉGUER : GPT-Live tient la conversation ; dès qu'il faut l'ERP, il délègue. La demande dite part dans LE MÊME
  *     FIL que le texte : c'est le MÊME assistant — mêmes outils, mêmes droits, mêmes familles, mêmes repères, mêmes
- *     cartes. K9 (décision 0038) : la délégation NE BLOQUE PLUS la voix — elle rend un « travail » que le navigateur
+ *     cartes. K9 (décision 0039) : la délégation NE BLOQUE PLUS la voix — elle rend un « travail » que le navigateur
  *     suit, et la voix annonce le résultat d'elle-même ; une carte se résume, se complète et se confirme À L'ORAL
  *     (`./oral.ts`, garde-fous serveur). Valeurs sensibles selon la console (décision 0034).
  *   • JOURNALISER : la durée vocale facturée au nom de la personne, les latences, et la transcription de la conversation
@@ -78,10 +78,10 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
 export type ResultatDelegationVoix = RetourOral;
 
 /**
- * DÉLÉGUER UN ÉNONCÉ — K9 (décision 0038) : rend AUSSITÔT (travail lancé, précision transmise, carte résumée ou
+ * DÉLÉGUER UN ÉNONCÉ — K9 (décision 0039) : rend AUSSITÔT (travail lancé, précision transmise, carte résumée ou
  * confirmée, commande appliquée). Plus d'attente de 70 s, plus de « la réponse arrivera à l'écran ».
  */
-export async function deleguerALaVoix(user: CurrentUser, demande: string, d: { session: unknown; delegationId?: string | null; enCours?: string | null }): Promise<ResultatDelegationVoix> {
+export async function deleguerALaVoix(user: CurrentUser, demande: string, d: { session: unknown; delegationId?: string | null; enCours?: string | null; parole?: string | null }): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);
   if (refus) return { pourVoix: `Refus : ${refus.erreur}` };
   const texte = demande.trim();

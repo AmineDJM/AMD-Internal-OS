@@ -69,7 +69,6 @@ suite("Assistant IA — voix GPT-Live", () => {
     await prisma.assistantIaFil.deleteMany({ where: { userId: kam?.id } });
     await prisma.assistantIaVoixSession.deleteMany({ where: { userId: kam?.id } });
     await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: kam?.id } });
-    await prisma.assistantIaVoixCarte.deleteMany({ where: { userId: kam?.id } });
   });
 
   it("la session : gpt-live-1, délégation client, aucun outil donné à la voix, SDP échangé côté serveur ; refusée sans l'Assistant IA", async () => {
@@ -102,7 +101,7 @@ suite("Assistant IA — voix GPT-Live", () => {
     expect(!refus.ok && refus.erreur).toContain("gpt-live-1 ne répond pas");
   });
 
-  // K9 (décision 0038) : la délégation rend AUSSITÔT un travail, suivi jusqu'au résultat que la voix dit d'elle-même.
+  // K9 (décision 0039) : la délégation rend AUSSITÔT un travail, suivi jusqu'au résultat que la voix dit d'elle-même.
   const suivreJusquAuBout = async (u: CurrentUser, session: string, travail: string) => {
     for (let i = 0; i < 200; i++) {
       const s = await suivreTravailVocal(u, session, travail);
@@ -138,10 +137,9 @@ suite("Assistant IA — voix GPT-Live", () => {
     expect(fin.etat).toBe("pret");
     const f = fin as Extract<typeof fin, { etat: "pret" }>;
     expect(f.carte?.intentId).toBeTruthy();
-    expect(f.resumeDe?.intentId).toBe(f.carte?.intentId);
-    expect(f.pourVoix).toContain("Carte préparée");
-    expect(f.pourVoix).toContain("Rien n'est fait tant que la personne n'a pas dit oui");
-    expect(f.pourVoix).not.toMatch(/écran/);
+    // La carte orale (K4) : un résumé à dire, puis la question — jamais un renvoi à l'écran.
+    expect(f.pourVoix).toMatch(/Ne demande PAS encore de confirmer|Tu confirmes \?/);
+    expect(f.pourVoix).not.toMatch(/regarde l'écran|affichée à l'écran/);
     expect(await prisma.fieldReport.count({ where: { delegateId: kam.id } })).toBe(0);
   });
 

@@ -116,6 +116,7 @@ describe("K9 — la voix entièrement orale (flux rejoué)", () => {
     const { c, envoyes } = client({
       deleguer: async (demande, _id, ctx) => {
         appels.push({ demande, enCours: ctx?.enCours ?? null, session: ctx?.session ?? null });
+        expect(ctx?.parole).toBe(demande);
         return ctx?.enCours ? { pourVoix: "Précision transmise.", travail: "t2" } : { pourVoix: "Travail lancé.", travail: "t1" };
       },
       suivre: async (t) => (t === "t1" ? { etat: "remplace", par: "t2" } : etat === "pret" ? { etat: "pret", pourVoix: "À Oran : environ 3,1 millions." } : { etat: "en_cours" }),
@@ -139,18 +140,14 @@ describe("K9 — la voix entièrement orale (flux rejoué)", () => {
     expect(c.travail).toBeNull();
   });
 
-  it("le résumé d'une carte : signalé au serveur quand il a été DIT (accusé du fournisseur), pas avant", async () => {
-    const dits: string[] = [];
-    const { c } = client({
-      deleguer: async () => ({ pourVoix: "Carte préparée : créer la tâche « Stand ». C'est bon ?", resumeDe: { intentId: "i1", empreinte: "e1" } }),
-      resumeDit: async (r) => { dits.push(`${r.intentId}:${r.empreinte}`); },
-    });
-    await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d1", target: "client" } }));
-    expect(dits).toEqual([]);
-    await c.recevoir(ev({ type: "session.commentary.appended", client_event_id: "autre" }));
-    expect(dits).toEqual([]);
-    await c.recevoir(ev({ type: "session.commentary.appended", client_event_id: "resultat_1" }));
-    expect(dits).toEqual(["i1:e1"]);
+  it("un « oui » dont la transcription arrive APRÈS la délégation (au-delà de 1,5 s) est bien entendu", async () => {
+    const paroles: string[] = [];
+    const { c } = client({ silenceTranscriptionMs: 100, deleguer: async (_d, _id, ctx) => { paroles.push(ctx?.parole ?? ""); return { pourVoix: "ok" }; } });
+    const d = c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d1", target: "client" } }));
+    await new Promise((r) => setTimeout(r, 2_000));
+    await c.recevoir(ev(dire("oui vas-y", 3000)));
+    await d;
+    expect(paroles).toEqual(["oui vas-y"]);
   });
 
   it("couper la parole (barge-in) : le son est coupé AU NAVIGATEUR dès que la personne parle, rouvert à la réponse suivante", async () => {
