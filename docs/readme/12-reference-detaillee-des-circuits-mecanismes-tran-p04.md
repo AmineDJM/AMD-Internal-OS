@@ -647,8 +647,8 @@ porte IA `platform/ia/hors-requete.ts`), `lib/prisma.ts` (le client du geste), p
 
 ### Actions métier réversibles (lot K10c, 31/10/2026)
 
-Décision [0040](../assistant/decisions/0040-actions-reversibles-metiers.md) — sur la fenêtre d'annulation et la barre
-« Annuler » de K10b ([0038](../assistant/decisions/0038-reversibilite-communications.md)). Code : `src/lib/effets/{reversible,politiques}.ts`,
+Décision [0040](../assistant/decisions/0041-actions-reversibles-metiers.md) — sur la fenêtre d'annulation et la barre
+« Annuler » de K10b ([0040](../assistant/decisions/0040-reversibilite-communications.md)). Code : `src/lib/effets/{reversible,politiques}.ts`,
 `annulation.ts` / `retablissement.ts` (étendus), gestes inverses `lib/suppression/coeur.ts` (`restaurerDepuisLaCorbeille`),
 `lib/effets/annulation-bibliotheque.ts`, diffusion différée `lib/notifications/diffusion-differee.ts`, déclarations
 `lib/effets/declarations/metiers.ts`.

@@ -529,7 +529,7 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 ## 8quinquies. Reversible business actions (lot K10c, 2026-10-31)
 
 - **Where**: `src/lib/effets/reversible.ts` (`actionReversible`), `politiques.ts`, `fenetre.ts`; `annulation.ts` extended.
-  Decision `docs/assistant/decisions/0040-actions-reversibles-metiers.md`.
+  Decision `docs/assistant/decisions/0041-actions-reversibles-metiers.md`.
 - **Wrapper**: 43 server actions wrap their body in `actionReversible(id, label, body)`: on a screen click the body runs under
   `journaliserGeste` (origin `ecran`) and the result carries `annulable: { gesteId }`; under an assistant gesture or a
   simulation nothing changes. **Blast radius**: every wrapped action now pays the capture (one extra read per write).

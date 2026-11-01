@@ -181,7 +181,7 @@ suite("K10c — Ad & Pro et juridique : exécuter, annuler, rétablir", () => {
     await prisma.expenseOrder.update({ where: { id: r.id! }, data: { status: "PAID" } });
     const avant = await etat(id);
     const refus = await annulerGeste(g, moi);
-    expect("refus" in refus ? refus.refus : "").toMatch(/Rien n'a été annulé/);
+    expect("refus" in refus ? refus.refus : "").toMatch(/Rien n'est annulé/);
     expect("refus" in refus ? refus.bloquants?.length : 0).toBeGreaterThan(0);
     expect(await etat(id)).toEqual(avant);
     expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: r.id! } })).status).toBe("PAID");

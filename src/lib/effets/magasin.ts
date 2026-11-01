@@ -46,7 +46,7 @@ export interface EffetExterneCapture {
   origine?: string;
   /** VRAI en simulation : rien n'est parti. FAUX en réel : l'effet a eu lieu (journalisé, irréversible). */
   neutralise: boolean;
-  /** K10b (décision 0038) : l'effet n'est PAS parti — il attend sa fenêtre d'annulation (`EffetSortantDiffere`). */
+  /** K10b (décision 0040) : l'effet n'est PAS parti — il attend sa fenêtre d'annulation (`EffetSortantDiffere`). */
   differeId?: string;
 }
 
@@ -73,7 +73,7 @@ export interface EtatGeste {
   capture: Capture | null;
   /** Le client Prisma du geste — `prisma.ts` y route toute requête tant que le geste dure. */
   client: unknown;
-  /** K10b (décision 0038) : l'identifiant RÉSERVÉ de l'entrée du journal (posé avant le geste, pour y lier ses envois). */
+  /** K10b (décision 0040) : l'identifiant RÉSERVÉ de l'entrée du journal (posé avant le geste, pour y lier ses envois). */
   gesteId?: string | null;
   /** K10b : les effets sortants de ce geste attendent leur FENÊTRE D'ANNULATION au lieu de partir (`effets/fenetre.ts`). */
   fenetre?: boolean;

@@ -218,7 +218,7 @@ suite("K10c — fiches de voyage : exécuter, annuler, rétablir", () => {
     ACTOR = A1;
     expect((await prendreFiche(fd({ id: demande }))).ok).toBe(true);
     const r = await annulerGeste(g, DEM);
-    expect("refus" in r ? r.refus : "").toMatch(/Rien n'a été annulé/);
+    expect("refus" in r ? r.refus : "").toMatch(/Rien n'est annulé/);
     expect("refus" in r ? r.bloquants?.some((b) => /r[ée]servation/i.test(b.quoi) && /vaut maintenant/.test(b.pourquoi)) : false).toBe(true);
     const d = await fiche(demande);
     expect(d.etat).toBe("PRISE");

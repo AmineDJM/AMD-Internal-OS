@@ -144,7 +144,7 @@ suite("K10c — circuits : exécuter, annuler (cascade comprise), rétablir", ()
     const [ordre] = await ordresDe(adv.id);
     await prisma.expenseOrder.update({ where: { id: ordre!.id }, data: { status: "PAID" } });
     const r = await annulerGeste(g, moi);
-    expect("refus" in r ? r.refus : "").toMatch(/Rien n'a été annulé/);
+    expect("refus" in r ? r.refus : "").toMatch(/Rien n'est annulé/);
     const bloquants = "refus" in r ? r.bloquants ?? [] : [];
     expect(bloquants.length).toBeGreaterThan(0);
     expect(bloquants.some((b) => /ordre|dépense|paiement/i.test(`${b.quoi} ${b.pourquoi}`))).toBe(true);

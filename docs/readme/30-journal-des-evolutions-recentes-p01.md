@@ -3,7 +3,7 @@
 ### K10c : LES ACTIONS MÉTIER RÉVERSIBLES (2026-10-31)
 
 Demande de la Direction : « toute action qui a été faite peut être réversible ». Lot K10c —
-`docs/assistant/decisions/0040-actions-reversibles-metiers.md` ; sur la fenêtre d'annulation de K10b (aucune migration propre).
+`docs/assistant/decisions/0041-actions-reversibles-metiers.md` ; sur la fenêtre d'annulation de K10b (aucune migration propre).
 Les 43 actions écrivantes encore classées « aucune » hors argent et communications (décisions de validation, décision
 finale d'un congrès, avances RH, pièces juridiques, matériel promo, fiches de voyage, réglages de l'Assistant IA, diffusion
 de notifications…) entrent au journal des effets au clic de l'écran et s'annulent d'un geste — bouton « Annuler » après
@@ -11,6 +11,22 @@ l'action, historique de la fiche, ou l'Assistant IA. Une décision annulée rouv
 refus avec la liste s'il a été payé) ; une notification lue reçoit un rectificatif ; un poste supprimé revient de la
 corbeille ; une diffusion attend sa fenêtre d'annulation (celle de K10b, 120 s, réglable par le Super Admin) — annulée dedans, rien
 ne part. Une annulation se rétablit. Cliquet : plus aucune action « aucune » dans le périmètre.
+
+### K10b : TOUTE ACTION RÉVERSIBLE — COMMUNICATIONS, EFFETS SORTANTS, SUPPRESSIONS ; LA FENÊTRE D'ANNULATION (2026-10-31)
+
+Lot K10b — `docs/assistant/decisions/0040-reversibilite-communications.md` (demande de la Direction du 31/10 : « toutes
+les actions réversibles »). **Fenêtre d'annulation des effets sortants** (`src/lib/effets/fenetre.ts`,
+`differerEffetSortant`) : courriels (SMTP, Microsoft, API), notifications poussées, publications au site, WhatsApp
+attendent 2 min (réglable par le Super Admin, Administration › IA › Accès) — « Annuler l'envoi » dans la barre : rien ne
+part ; parti : un rectificatif (lui-même annulable), jamais « effacé ». **Geste d'écran réversible** (`gesteReversible`) :
+barre « Annuler » dans toute l'application, « Rétablir » ensuite ; historique annulable sur la fiche courrier. **58 actions**
+du périmètre ne sont plus « aucune » au registre (courrier, candidatures, champs personnalisés, KPI, segmentation,
+diffusion d'offres, site web, boîtes mail et Microsoft, directives, décisions de circuit, pièces de la fabrique, portail
+fournisseur) ; chacune est exécutée puis annulée, rétablie et ré-annulée contre la base (`src/lib/actions/internes/reversibilite/`),
+un cliquet tient la liste vide. Règles nouvelles : tout ou rien pour un geste d'écran (un ordre déjà payé bloque, la
+liste le dit), pièce numérotée annulée jamais effacée, compteurs jamais reculés. Migration
+`20270217110000_fenetre_annulation_effets_sortants`.
+
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 
 Lot K8 — `docs/assistant/decisions/0035-consommation.md`. **Écran « Consommation »** dans les Réglages d'Adventum IA (et

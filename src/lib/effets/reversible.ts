@@ -4,7 +4,7 @@ import { journaliserGeste } from "./journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE ACTION MÉTIER RÉVERSIBLE (K10c, décision 0040) — le journal des effets J7, au clic de l'ÉCRAN aussi.
+ * UNE ACTION MÉTIER RÉVERSIBLE (K10c, décision 0041) — le journal des effets J7, au clic de l'ÉCRAN aussi.
  *
  * Jusqu'ici seuls les gestes de l'assistant entraient au journal. Une action rendue réversible enveloppe son corps :
  *

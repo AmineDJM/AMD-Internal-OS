@@ -209,16 +209,18 @@ async function capturer(
             const ids = lignes.map((l) => l[info.cle!]);
             const apresTous = ids.length ? await d.findMany({ where: { [info.cle]: { in: ids } } }).catch(sansBloquer("effets.capture.lecture", [] as Record<string, unknown>[])) : [];
             const parId = new Map(apresTous.map((l) => [String(l[info.cle!]), l]));
+            // K10b (décision 0040) : DANS UNE TRANSACTION INTERACTIVE encore ouverte, la relecture sur le client de base voit
+            // l'ANCIENNE valeur — l'écriture passait inaperçue du journal (une annulation se disait complète sans l'être).
+            // Les valeurs SIMPLES posées par `data` (pas un `{ increment }`) sont donc reportées sur l'« après ».
+            const pose = Object.fromEntries(Object.entries((a.data as Record<string, unknown>) ?? {})
+              .filter(([k, v]) => garder.has(k) && (v === null || typeof v !== "object" || v instanceof Date || Prisma.Decimal.isDecimal(v))));
             for (const l of lignes) {
               const id = String(l[info.cle]);
               const avant = serialiserLigne(l, garder);
-              const apres = serialiserLigne(parId.get(id) ?? null, garder);
+              const relue = parId.get(id) ?? null;
+              const apres = serialiserLigne(relue ? { ...relue, ...pose } : null, garder);
               const champs = champsChanges(avant, apres);
-              // DANS une transaction interactive, en réel, la relecture (hors transaction, avant le commit) voit encore
-              // l'avant : la ligne est notée avec les champs écrits, `finaliserCapture` relit l'état final (K10c).
-              const enTransaction = etat.mode === "REEL" && !champs.length && (r?.count ?? 0) > 0;
-              const ecrits = Object.keys((a.data as object) ?? {}).sort();
-              if (champs.length || enTransaction) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs: champs.length ? champs : ecrits });
+              if (champs.length) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs });
             }
             return r;
           }

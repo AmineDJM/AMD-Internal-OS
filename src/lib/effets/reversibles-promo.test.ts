@@ -167,7 +167,7 @@ suite("K10c — matériel promotionnel : exécuter, annuler, rétablir", () => {
     const [ordre] = await ordresDe("LEGAL_DOCUMENT", facture.id);
     await prisma.expenseOrder.update({ where: { id: ordre.id }, data: { status: "PAID", centralStatus: "AUTHORIZED" } as never });
     const r = await annulerGeste(g, moi);
-    expect("refus" in r ? r.refus : "").toMatch(/Rien n'a été annulé/);
+    expect("refus" in r ? r.refus : "").toMatch(/Rien n'est annulé/);
     expect("refus" in r ? r.bloquants?.length : 0).toBeGreaterThan(0);
     // Rien n'a bougé : l'ordre payé, la facture qui le désigne, la ligne abandonnée, la déclaration.
     expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: ordre.id } })).status).toBe("PAID");

@@ -28,7 +28,7 @@ import { installerPortReseau } from "./reseau";
  */
 
 export interface MetaGesteAgent {
-  /** `ecran` (K10b, décision 0038) : le geste d'une personne à l'écran, rendu réversible (`gesteReversible`) ; `annulation` (K10c, décision 0040) : une annulation, journalisée pour être rétablie. */
+  /** `ecran` (K10b, décision 0041) : le geste d'une personne à l'écran, rendu réversible (`gesteReversible`) ; `annulation` (K10c, décision 0041) : une annulation, journalisée pour être rétablie. */
   origine: Extract<OrigineGeste, "carte" | "travail" | "mandat"> | "carte" | "travail" | "mandat" | "ecran" | "annulation";
   capaciteId?: string | null;
   libelle: string;
@@ -74,7 +74,7 @@ export async function journaliserGeste<T extends Resultat>(
   const etat = {
     ...etatPour(opts.horsRequete || opts.personneFixee ? user : null, { origine: meta.origine, mode: "REEL", travailId: meta.travailId, etape: meta.etape, cleIdempotence: meta.cleIdempotence }),
     mode: "REEL" as const, principalId: user.id, capture, client: clientCapturant(), debut,
-    // K10b (décision 0038) : l'identifiant de l'entrée, RÉSERVÉ — ses envois différés s'y lient avant l'inscription ;
+    // K10b (décision 0040) : l'identifiant de l'entrée, RÉSERVÉ — ses envois différés s'y lient avant l'inscription ;
     // et la FENÊTRE D'ANNULATION, armée par défaut : rien ne sort avant que la personne ait pu dire « annuler ».
     gesteId: idDeGeste(), fenetre: opts.fenetre !== false,
   };

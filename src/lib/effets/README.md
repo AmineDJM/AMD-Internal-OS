@@ -1,7 +1,7 @@
 # `src/lib/effets/` — simulation, journal des effets, annulation, fenêtre d'annulation
 
 Décisions : [0029](../../../docs/assistant/decisions/0029-simulation-annulation.md) (J7 : simulation, journal, annulation
-honnête) et [0038](../../../docs/assistant/decisions/0038-reversibilite-communications.md) (K10b : fenêtre d'annulation des
+honnête) et [0040](../../../docs/assistant/decisions/0040-reversibilite-communications.md) (K10b : fenêtre d'annulation des
 effets sortants, geste d'écran réversible, rétablissement).
 
 | Fichier | Rôle |
@@ -73,7 +73,7 @@ Le corps s'exécute sous le journal des effets (origine `ecran`) ; la barre « A
 (`modules/assistant-ia/ecrans/barre-annulation.tsx`) le propose une minute, l'historique de la fiche
 (`HistoriqueAnnulable modele="MailEntry" id=…`) le garde. Sous une carte de l'assistant, rien n'est ouvert en double.
 
-## Les actions métier réversibles — K10c (décision 0040)
+## Les actions métier réversibles — K10c (décision 0041)
 
 ```ts
 export async function decideValidation(formData: FormData) {

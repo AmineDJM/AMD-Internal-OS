@@ -579,7 +579,7 @@ export async function sendMail(account: MailAccount, opts: SendOptions): Promise
   // une chose de trop.
   // LE PORT DE SIMULATION (J7) : un geste simulé note le courriel et ne l'envoie pas.
   if (noterEffetExterne({ acte: "COURRIEL", cible: opts.to, apercu: `« ${opts.subject} »`, origine: "mail:sendMail" })) return;
-  // LA FENÊTRE D'ANNULATION (K10b, décision 0038) : sous un geste réversible, le courriel attend sa fenêtre.
+  // LA FENÊTRE D'ANNULATION (K10b, décision 0040) : sous un geste réversible, le courriel attend sa fenêtre.
   if (await differerSiFenetre({ type: "courriel.smtp", acte: "COURRIEL", cible: opts.to, apercu: `« ${opts.subject} »`, charge: { accountId: account.id, opts } })) return;
   exigerSortieAutorisee("COURRIEL", opts.to, {
     apercu: `« ${opts.subject} »${opts.attachments?.length ? ` + ${opts.attachments.length} pièce(s)` : ""}`,

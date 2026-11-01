@@ -1,4 +1,4 @@
-# 0040 — Les actions métier réversibles (lot K10c, 31/10/2026)
+# 0041 — Les actions métier réversibles (lot K10c, 31/10/2026)
 
 Demande de la Direction (31/10/2026, verbatim) : « Je veux que toutes les actions soient réversibles. Même celles qui ne
 le sont pas : tu dois modifier l'ERP pour qu'elles le soient. Toute action qui a été faite peut être réversible. Ça doit
@@ -8,7 +8,7 @@ effets sortants, suppressions), **K10c (le reste — ce document)**. Suit [0029]
 des effets, annulation honnête) et [0020](0020-capacites.md) (registre, classement).
 
 Aucune migration propre : la fenêtre d'annulation, sa table `EffetSortantDiffere` et son réglage
-(`AssistantIaReglage.fenetreAnnulationSecondes`) sont ceux de K10b ([0038](0038-reversibilite-communications.md),
+(`AssistantIaReglage.fenetreAnnulationSecondes`) sont ceux de K10b ([0040](0040-reversibilite-communications.md),
 migration `20270217110000_fenetre_annulation_effets_sortants`), adoptés à la fusion.
 
 > Code : `src/lib/effets/reversible.ts` (`actionReversible`), `politiques.ts` (tout ou rien, rectificatif, gestes inverses

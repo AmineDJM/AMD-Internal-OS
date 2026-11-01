@@ -1,7 +1,7 @@
 import type { DeclarationAnnulation } from "../declarations";
 
 /**
- * K10c — LES AUTRES ACTIONS MÉTIER (décision 0040) : Ad & Pro, congrès, avances RH, juridique, promo, réservations,
+ * K10c — LES AUTRES ACTIONS MÉTIER (décision 0041) : Ad & Pro, congrès, avances RH, juridique, promo, réservations,
  * validations, réglages de l'Assistant IA, diffusion de masse. Chaque ligne est enveloppée par `actionReversible`
  * (`lib/effets/reversible.ts`), suit la politique d'annulation (`lib/effets/politiques.ts` : tout ou rien, rectificatif,
  * gestes inverses métier), et a son banc qui l'EXÉCUTE puis l'ANNULE contre la base (`lib/effets/reversibles-*.test.ts`,

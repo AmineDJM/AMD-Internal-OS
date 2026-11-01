@@ -103,7 +103,7 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     const g = gesteDe(await reglerMaVeille(4, 21, 7, true, false));
     await prisma.assistantVeille.update({ where: { userId: moi.id }, data: { interruptionsMax: 3 } });
     const r = await annulerGeste(g, moi);
-    expect("refus" in r ? r.refus : "").toMatch(/Rien n'a été annulé/);
+    expect("refus" in r ? r.refus : "").toMatch(/Rien n'est annulé/);
     expect("refus" in r ? r.bloquants?.[0]?.pourquoi : "").toMatch(/vaut maintenant/);
     expect((await prisma.assistantVeille.findUniqueOrThrow({ where: { userId: moi.id } })).interruptionsMax).toBe(3);
     expect((await prisma.assistantGesteJournal.findUniqueOrThrow({ where: { id: g } })).annuleLe).toBeNull();

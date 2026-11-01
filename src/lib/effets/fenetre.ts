@@ -6,7 +6,7 @@ import { etatDuGeste, type EffetExterneCapture } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA FENÊTRE D'ANNULATION DES EFFETS SORTANTS (K10b, décision 0038) — « Annuler l'envoi », façon messagerie.
+ * LA FENÊTRE D'ANNULATION DES EFFETS SORTANTS (K10b, décision 0040) — « Annuler l'envoi », façon messagerie.
  *
  * Un effet SORTANT (courriel SMTP, Microsoft Graph ou API, notification poussée, publication, diffusion d'offre, appel
  * d'API externe, ordre transmis) ne part pas au moment du geste : il entre dans la file `EffetSortantDiffere` avec une
@@ -153,6 +153,43 @@ export async function differerSiFenetre(d: DemandeEffetSortant): Promise<EffetSo
   return p;
 }
 
+/**
+ * UN EFFET EXTERNE QUI A LIEU TOUT DE SUITE MAIS SE DÉFAIT (K10b) — marquer lu, déplacer un message, poser un brouillon
+ * chez Microsoft : différer serait faux (l'écran montre le résultat), mais le geste INVERSE existe. La ligne naît PARTIE
+ * (type « inverse.… »), liée au geste ; l'annuler exécute la compensation de son exécuteur (le geste inverse), la
+ * rétablir rejoue l'original. À appeler juste après l'effet, sous le geste (hors geste : rien n'est noté).
+ */
+export async function noterEffetFait(d: Omit<DemandeEffetSortant, "delaiSecondes">): Promise<string | null> {
+  const etat = etatDuGeste();
+  if (!etat || etat.mode !== "REEL" || !etat.capture) return null;
+  // L'appel réseau de l'effet lui-même (noté par le port réseau juste avant) EST cet effet : il ne compte pas en double.
+  while (etat.capture.effets.length && etat.capture.effets.at(-1)!.acte === "RESEAU" && !etat.capture.effets.at(-1)!.differeId) etat.capture.effets.pop();
+  etat.capture.effets.push({ acte: d.acte, cible: d.cible, apercu: d.apercu ?? undefined, neutralise: false });
+  const ligne = await prismaBrut.effetSortantDiffere.create({
+    data: {
+      type: d.type, acte: d.acte, cible: d.cible.slice(0, 500), apercu: d.apercu?.slice(0, 500) ?? null, charge: (enCharge(d.charge) ?? {}) as never,
+      principalId: d.principalId ?? etat.principalId ?? null, gesteId: etat.gesteId ?? null,
+      objetModele: d.objet?.modele ?? null, objetId: d.objet?.id ?? null, statut: "PARTI", executeLe: new Date(), parti: new Date(),
+    },
+    select: { id: true },
+  });
+  etat.capture.effets[etat.capture.effets.length - 1]!.differeId = ligne.id;
+  return ligne.id;
+}
+
+/** RÉTABLIR un effet « inverse.… » compensé : l'original est rejoué (le message redevient lu, retourne dans le dossier…). */
+export async function rejouerEffetFait(id: string, user: CurrentUser): Promise<IssueEffetSortant> {
+  const l = await lire(id);
+  if (!l || !l.type.startsWith("inverse.") || l.statut !== "COMPENSE") return { ok: false, issue: "SANS_OBJET", message: "Rien à rejouer." };
+  if (!peutAgir(l, user)) return { ok: false, issue: "REFUS", message: "Seule la personne qui a fait le geste (ou le Super Admin) peut le rétablir." };
+  const ex = await executeurDe(l.type);
+  if (!ex) return { ok: false, issue: "IMPOSSIBLE", message: "Le geste n'est pas encore chargé dans ce processus : réessayez dans une minute." };
+  const r = await ex.executer(deCharge(l.charge), ligneVue(l));
+  await prismaBrut.effetSortantDiffere.update({ where: { id }, data: { statut: "PARTI", compensation: null, compenseLe: null, parti: new Date(), ...(r && "charge" in r ? { charge: enCharge(r.charge) as never } : {}) } });
+  await auditer(user, l, "Geste externe rejoué (rétablissement)");
+  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte, l.type))} : rejoué.` };
+}
+
 // ── LES GESTES SUR UN EFFET EN FILE ──────────────────────────────────────────────────────
 
 export interface IssueEffetSortant {
@@ -168,11 +205,11 @@ type LigneEffet = NonNullable<Awaited<ReturnType<typeof lire>>>;
 const lire = (id: string) => prismaBrut.effetSortantDiffere.findUnique({ where: { id } });
 
 const peutAgir = (l: { principalId: string | null }, user: CurrentUser) => l.principalId === user.id || user.role === "SUPER_ADMIN";
-const libelleActe = (acte: string): string =>
+const libelleActe = (acte: string, type?: string): string => type?.startsWith("inverse.graph") ? "le geste dans la boîte Microsoft" :
   ({ COURRIEL: "le courriel", NOTIFICATION_PUSH: "la notification poussée", ECRITURE_EXTERNE: "la publication", RESEAU: "l'appel externe", PAIEMENT: "l'ordre de paiement", INVITATION_AGENDA: "l'invitation" } as Record<string, string>)[acte] ?? "l'effet";
 
-async function auditer(user: CurrentUser, l: { id: string; acte: string; cible: string; apercu: string | null }, quoi: string) {
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte)} à ${l.cible}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
+async function auditer(user: CurrentUser, l: { id: string; acte: string; type: string; cible: string; apercu: string | null }, quoi: string) {
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte, l.type)} à ${l.cible}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
 }
 
 /**
@@ -186,14 +223,14 @@ export async function annulerEffetSortant(id: string, user: CurrentUser, opts: {
   const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "EN_ATTENTE" }, data: { statut: "ANNULE", annuleLe: new Date(), annuleParId: user.id } });
   if (prise.count === 1) {
     await auditer(user, l, "Envoi annulé dans la fenêtre : rien n'est parti");
-    return { ok: true, issue: "ANNULE", message: `${majuscule(libelleActe(l.acte))} à ${l.cible} est annulé : rien n'est parti.` };
+    return { ok: true, issue: "ANNULE", message: `${majuscule(libelleActe(l.acte, l.type))} à ${l.cible} est annulé : rien n'est parti.` };
   }
   const relue = (await lire(id))!;
   if (relue.statut === "ANNULE") return { ok: true, issue: "SANS_OBJET", message: "Cet envoi était déjà annulé : rien n'est parti." };
   if (relue.statut === "COMPENSE") return { ok: true, issue: "SANS_OBJET", message: `Déjà compensé : ${relue.compensation ?? ""}`.trim() };
   if (relue.statut === "ECHEC") return { ok: true, issue: "SANS_OBJET", message: `Cet envoi n'est jamais parti (échec : ${relue.erreur ?? "inconnu"}).` };
-  if (relue.statut === "EN_COURS") return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte))} est en train de partir : trop tard pour l'arrêter. Réessayez dans un instant pour le compenser.` };
-  if (opts.compenser === false) return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte))} est déjà parti le ${dateFr(relue.parti)} : il n'est pas effacé chez son destinataire.` };
+  if (relue.statut === "EN_COURS") return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte, l.type))} est en train de partir : trop tard pour l'arrêter. Réessayez dans un instant pour le compenser.` };
+  if (opts.compenser === false) return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte, l.type))} est déjà parti le ${dateFr(relue.parti)} : il n'est pas effacé chez son destinataire.` };
   return compenserEffetSortant(id, user, opts.motif);
 }
 
@@ -204,16 +241,22 @@ export async function compenserEffetSortant(id: string, user: CurrentUser, motif
   if (!peutAgir(l, user)) return { ok: false, issue: "REFUS", message: "Seule la personne au nom de qui l'envoi est parti (ou le Super Admin) peut le compenser." };
   if (l.statut !== "PARTI") return { ok: false, issue: "SANS_OBJET", message: l.statut === "COMPENSE" ? `Déjà compensé : ${l.compensation ?? ""}` : "Cet envoi n'est pas parti : il n'y a rien à compenser." };
   const ex = await executeurDe(l.type);
-  const parti = `${majuscule(libelleActe(l.acte))} est parti le ${dateFr(l.parti)} : il n'est pas effacé chez son destinataire`;
-  const plan = ex?.compensation ? await ex.compensation(deCharge(l.charge), ligneVue(l), motif ?? null) : null;
+  if (!ex) return { ok: false, issue: "IMPOSSIBLE", message: "Le geste inverse de cet effet n'est pas encore chargé dans ce processus : réessayez dans une minute (rien n'a été écrit)." };
+  const parti = l.type.startsWith("inverse.")
+    ? `${majuscule(libelleActe(l.acte, l.type))} a eu lieu le ${dateFr(l.parti)}`
+    : `${majuscule(libelleActe(l.acte, l.type))} est parti le ${dateFr(l.parti)} : il n'est pas effacé chez son destinataire`;
+  const plan = ex.compensation ? await ex.compensation(deCharge(l.charge), ligneVue(l), motif ?? null) : null;
   if (!plan) {
-    const phrase = ex?.sansCompensation ?? "aucun geste inverse n'existe pour cet effet";
+    const phrase = ex.sansCompensation ?? "aucun geste inverse n'existe pour cet effet";
     const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "PARTI" }, data: { statut: "COMPENSE", compensation: `Impossible : ${phrase}`.slice(0, 1000), compenseLe: new Date(), annuleParId: user.id } });
     if (prise.count === 1) await auditer(user, l, `Annulation demandée après le départ — ${phrase}`);
     return { ok: false, issue: "IMPOSSIBLE", message: `${parti}. ${majuscule(phrase)}.` };
   }
   if ("fait" in plan) {
-    const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "PARTI" }, data: { statut: "COMPENSE", compensation: plan.fait.slice(0, 1000), compenseLe: new Date(), annuleParId: user.id } });
+    const prise = await prismaBrut.effetSortantDiffere.updateMany({
+      where: { id, statut: "PARTI" },
+      data: { statut: "COMPENSE", compensation: plan.fait.slice(0, 1000), compenseLe: new Date(), annuleParId: user.id, ...(plan.charge !== undefined ? { charge: enCharge(plan.charge) as never } : {}) },
+    });
     if (prise.count !== 1) return { ok: false, issue: "SANS_OBJET", message: "Déjà compensé, depuis un autre écran." };
     await auditer(user, l, `Compensé après le départ : ${plan.fait}`);
     return { ok: true, issue: "COMPENSE", message: `${parti}. ${plan.fait}` };
@@ -244,7 +287,7 @@ export async function retablirEffetSortant(id: string, user: CurrentUser): Promi
   if (prise.count !== 1) return { ok: false, issue: "SANS_OBJET", message: "Cet envoi n'est pas annulé : rien à rétablir." };
   programmerReveil(delai);
   await auditer(user, l, "Envoi rétabli (l'annulation est annulée)");
-  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte))} à ${l.cible} repart dans ${delai} s (annulable d'ici là).` };
+  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte, l.type))} à ${l.cible} repart dans ${delai} s (annulable d'ici là).` };
 }
 
 // ── LE WORKER ────────────────────────────────────────────────────────────────────────────
@@ -326,7 +369,7 @@ export interface EffetSortantVu {
 
 function ligneVue(l: LigneEffet): EffetSortantVu {
   return {
-    id: l.id, type: l.type, acte: l.acte, quoi: libelleActe(l.acte), cible: l.cible, apercu: l.apercu, statut: l.statut as StatutEffetSortant,
+    id: l.id, type: l.type, acte: l.acte, quoi: libelleActe(l.acte, l.type), cible: l.cible, apercu: l.apercu, statut: l.statut as StatutEffetSortant,
     creeLe: l.creeLe.toISOString(), executeLe: l.executeLe.toISOString(), parti: l.parti?.toISOString() ?? null,
     compensation: l.compensation, erreur: l.erreur, gesteId: l.gesteId, principalId: l.principalId,
     objet: l.objetModele && l.objetId ? { modele: l.objetModele, id: l.objetId } : null,
@@ -352,18 +395,20 @@ export async function effetsSortantsDe(user: CurrentUser, opts: { objet?: { mode
 /** Ce que la compensation fait : un effet INVERSE à différer, ou un geste déjà fait (`fait`). */
 export type PlanCompensation =
   | { charge: unknown; phrase: string; apercu?: string; cible?: string; type?: string }
-  | { fait: string };
+  | { fait: string; /** La charge à garder pour rejouer l'original (un message déplacé change d'identifiant). */ charge?: unknown };
 
 export interface ExecuteurEffetSortant {
   /** Fait partir l'effet (hors de tout geste : le port sort réellement). Lève en cas d'échec. */
-  executer: (charge: unknown, ligne: EffetSortantVu) => Promise<void>;
+  executer: (charge: unknown, ligne: EffetSortantVu) => Promise<void | { charge: unknown }>;
   /** Le geste inverse après le départ — `null` : il n'y en a pas d'utile (`sansCompensation` le dit). */
   compensation?: (charge: unknown, ligne: EffetSortantVu, motif: string | null) => Promise<PlanCompensation | null>;
   /** La phrase honnête quand rien ne compense (« la notification s'est affichée sur son téléphone »). */
   sansCompensation?: string;
 }
 
-const enregistres = new Map<string, ExecuteurEffetSortant>();
+// UN SEUL registre par processus, même si Next charge deux copies du module (comme le magasin du geste).
+const g = globalThis as { __amdExecuteursSortants?: Map<string, ExecuteurEffetSortant> };
+const enregistres: Map<string, ExecuteurEffetSortant> = (g.__amdExecuteursSortants ??= new Map());
 
 /** Pour un exécuteur qui n'est pas dans la table (`executeurs.ts`) — un test, un module qui s'enregistre. */
 export function enregistrerExecuteur(type: string, ex: ExecuteurEffetSortant): void {
