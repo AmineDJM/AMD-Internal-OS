@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import type { MedicalInfoStatus } from "@prisma/client";
@@ -465,33 +466,35 @@ export async function requestSlipsValidation(_prev: ActionResult | undefined, fo
  */
 export async function requestSlipPayment(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!canManage(user)) return { ok: false, error: "Réservé au pharmacien responsable de l'information médicale." };
-  const slipId = fdStr(formData, "slipId");
-  if (!slipId) return { ok: false, error: "Matériel introuvable." };
-  const slip = await prisma.medicalInfoSlip.findUnique({ where: { id: slipId }, include: { declaration: true } });
-  if (!slip) return { ok: false, error: "Matériel introuvable." };
-  const decl = slip.declaration;
-  if (decl.bvSkippedAt) return { ok: false, error: "Ce dossier a été déclaré sans versement." };
+  return gesteReversible(user, { capaciteId: "medical-info-actions:requestSlipPayment", libelle: "Paiement du bordereau demandé" }, async () => {
+    if (!canManage(user)) return { ok: false, error: "Réservé au pharmacien responsable de l'information médicale." };
+    const slipId = fdStr(formData, "slipId");
+    if (!slipId) return { ok: false, error: "Matériel introuvable." };
+    const slip = await prisma.medicalInfoSlip.findUnique({ where: { id: slipId }, include: { declaration: true } });
+    if (!slip) return { ok: false, error: "Matériel introuvable." };
+    const decl = slip.declaration;
+    if (decl.bvSkippedAt) return { ok: false, error: "Ce dossier a été déclaré sans versement." };
 
-  const etat = await circuitStateOf(decl);
-  if (etat.lot !== "QUITTANCE_A_DEMANDER") {
-    return { ok: false, error: `Le dépôt des bons n'est pas encore validé : ${SLIPS_LOT_LABEL[etat.lot].toLowerCase()}.` };
-  }
-  const courant = etat.slips.find((sl) => sl.id === slipId);
-  if (!courant || !canRequestSlipPayment(courant)) {
-    return { ok: false, error: `Le paiement de ce bon ne peut pas être demandé maintenant : ${SLIP_STAGE_LABEL[slipStage(courant ?? { requestId: null, centralStatus: null, orderStatus: null, deliveredAt: null })].toLowerCase()}.` };
-  }
+    const etat = await circuitStateOf(decl);
+    if (etat.lot !== "QUITTANCE_A_DEMANDER") {
+      return { ok: false, error: `Le dépôt des bons n'est pas encore validé : ${SLIPS_LOT_LABEL[etat.lot].toLowerCase()}.` };
+    }
+    const courant = etat.slips.find((sl) => sl.id === slipId);
+    if (!courant || !canRequestSlipPayment(courant)) {
+      return { ok: false, error: `Le paiement de ce bon ne peut pas être demandé maintenant : ${SLIP_STAGE_LABEL[slipStage(courant ?? { requestId: null, centralStatus: null, orderStatus: null, deliveredAt: null })].toLowerCase()}.` };
+    }
 
-  const demande = await demanderLaQuittance(formData, { user, slipId, courant, slip, decl });
-  if ("fini" in demande) return demande.fini;
-  const { amount } = demande;
-  await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Information médicale",
-    entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id,
-    summary: `Quittance demandée au paiement — ${slip.label} · ${amount.toLocaleString("fr-FR")} DZD (${decl.reference})`,
+    const demande = await demanderLaQuittance(formData, { user, slipId, courant, slip, decl });
+    if ("fini" in demande) return demande.fini;
+    const { amount } = demande;
+    await recordAudit({
+      actorId: user.id, action: "CREATE", module: "Information médicale",
+      entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id,
+      summary: `Quittance demandée au paiement — ${slip.label} · ${amount.toLocaleString("fr-FR")} DZD (${decl.reference})`,
+    });
+    revalidate(decl.id);
+    return { ok: true, id: demande.id };
   });
-  revalidate(decl.id);
-  return { ok: true, id: demande.id };
 }
 
 /**
@@ -759,78 +762,80 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
  */
 export async function validateDeclarationByDirection(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!estDecideurInfoMed(user)) return { ok: false, error: `Validation finale réservée au ${DECIDEUR_INFO_MED_LABEL} (à défaut, au Super Admin).` };
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Identifiant manquant." };
-  const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { id } });
-  if (!decl) return { ok: false, error: "Déclaration introuvable." };
-  if (decl.status === "VALIDATED") return { ok: false, error: "Déclaration déjà validée." };
-  if (decl.status !== "AWAITING_DIRECTION") return { ok: false, error: "La déclaration doit d'abord être validée par le pharmacien responsable." };
-  const refus = refusDecideur(user, decl);
-  if (refus) return { ok: false, error: refus };
+  return gesteReversible(user, { capaciteId: "medical-info-actions:validateDeclarationByDirection", libelle: "Déclaration validée par la Direction" }, async () => {
+    if (!estDecideurInfoMed(user)) return { ok: false, error: `Validation finale réservée au ${DECIDEUR_INFO_MED_LABEL} (à défaut, au Super Admin).` };
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Identifiant manquant." };
+    const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { id } });
+    if (!decl) return { ok: false, error: "Déclaration introuvable." };
+    if (decl.status === "VALIDATED") return { ok: false, error: "Déclaration déjà validée." };
+    if (decl.status !== "AWAITING_DIRECTION") return { ok: false, error: "La déclaration doit d'abord être validée par le pharmacien responsable." };
+    const refus = refusDecideur(user, decl);
+    if (refus) return { ok: false, error: refus };
 
-  // Émission de l'ordre de dépense (si un budget a été accordé) → part au comptable — SAUF quand
-  // ce sont les postes qui portent la dépense : ils émettent chacun leur pièce (§118.151).
-  // L'ordre GLOBAL ne naît que là où rien d'autre ne porte la dépense (`ordreGlobalALaValidation`) :
-  // pas sur la saisie libre d'un dossier ouvert par le PRIM, ni sur un MIP ou un visa, ni deux fois.
-  const amount = ordreGlobalALaValidation(decl) ? Number(decl.amount ?? 0) : 0;
-  const parLesPostes = amount > 0 && (await laDepenseEstPorteeParLesPostes(decl.sourceType, decl.sourceId));
+    // Émission de l'ordre de dépense (si un budget a été accordé) → part au comptable — SAUF quand
+    // ce sont les postes qui portent la dépense : ils émettent chacun leur pièce (§118.151).
+    // L'ordre GLOBAL ne naît que là où rien d'autre ne porte la dépense (`ordreGlobalALaValidation`) :
+    // pas sur la saisie libre d'un dossier ouvert par le PRIM, ni sur un MIP ou un visa, ni deux fois.
+    const amount = ordreGlobalALaValidation(decl) ? Number(decl.amount ?? 0) : 0;
+    const parLesPostes = amount > 0 && (await laDepenseEstPorteeParLesPostes(decl.sourceType, decl.sourceId));
 
-  // LE GAGNANT SEUL : l'écriture ne passe que sur un dossier encore en attente de validation finale.
-  const pris = await prisma.medicalInfoDeclaration.updateMany({
-    where: { id, status: "AWAITING_DIRECTION" },
-    data: { status: "VALIDATED", validatedAt: new Date(), validatedById: user.id },
-  });
-  if (pris.count === 0) return { ok: false, error: DEJA_TRANCHE };
-
-  let order: Awaited<ReturnType<typeof createExpenseOrder>> | null;
-  try {
-    order = amount > 0 && !parLesPostes
-      ? await createExpenseOrder({
-          label: decl.label,
-          amount,
-          category: "EVENEMENT",
-          beneficiary: decl.beneficiary,
-          sourceType: decl.sourceType,
-          sourceId: decl.sourceId,
-          requestedById: decl.requesterId,
-          budgetCategoryId: decl.budgetCategoryId,
-        })
-      : null;
-  } catch (err) {
-    // L'ORDRE N'EST PAS NÉ : la validation n'a pas eu lieu. Le dossier revient en attente (seulement
-    // s'il porte encore CETTE validation, sans ordre) — sinon il resterait « validé » sans paiement.
-    await prisma.medicalInfoDeclaration.updateMany({
-      where: { id, status: "VALIDATED", validatedById: user.id, expenseOrderId: null },
-      data: { status: "AWAITING_DIRECTION", validatedAt: null, validatedById: null },
+    // LE GAGNANT SEUL : l'écriture ne passe que sur un dossier encore en attente de validation finale.
+    const pris = await prisma.medicalInfoDeclaration.updateMany({
+      where: { id, status: "AWAITING_DIRECTION" },
+      data: { status: "VALIDATED", validatedAt: new Date(), validatedById: user.id },
     });
-    console.error("[medical-info] ordre de dépense non émis à la validation finale :", err);
-    return { ok: false, error: "L'ordre de dépense n'a pas pu être émis : le dossier reste en attente de votre validation." };
-  }
-  if (order) await prisma.medicalInfoDeclaration.update({ where: { id }, data: { expenseOrderId: order.id } });
+    if (pris.count === 0) return { ok: false, error: DEJA_TRANCHE };
 
-  // Commentaire de validation (facultatif) → espace de discussion.
-  const comment = fdStr(formData, "comment");
-  if (comment) {
-    await prisma.comment.create({ data: { entityType: "MEDICAL_INFO_DECLARATION", entityId: id, body: comment, authorId: user.id } });
-  }
-  // Reporte l'ordre de dépense sur l'événement source (tout reste interconnecté).
-  if (order) await reporterOrdreSurLaSource(decl, order.id);
-  const qualite = qualiteDuDecideur(user);
-  if (decl.requesterId) await notifyUser({ userId: decl.requesterId, type: "GENERIC", title: `Information médicale — événement validé (${qualite})`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
-  if (decl.pharmacistId && decl.pharmacistId !== user.id) await notifyUser({ userId: decl.pharmacistId, type: "GENERIC", title: `Information médicale — validé par le ${qualite}`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
-  await recordAudit({ actorId: user.id, action: "VALIDATE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: id, summary: `Validation finale (${qualite}) — ${decl.reference}${order ? ` (ordre ${order.reference})` : parLesPostes ? " (dépense portée par les postes — aucun ordre global)" : ""}` });
-  // LE VISA D'UN PAIEMENT DE MATÉRIEL EST OBTENU : c'est peut-être la dernière pièce de son dossier,
-  // qui ne se clôt « payé et visé » qu'à la déclaration VALIDÉE (`promo-cloture.ts`). Best-effort.
-  if (decl.sourceType === "LEGAL_DOCUMENT") {
-    const promoId = await dossierPromoDeLaFacture(decl.sourceId).catch(sansBloquer("medical-info-actions.validateDeclarationByDirection.dossierPromoDeLaFacture", null));
-    if (promoId && (await cloreLeDossierPromoSiSolde(promoId, user.id))) revalidatePath(`/promo-material/${promoId}`);
-  }
-  revalidate(id);
-  revalidatePath("/mon-travail");
-  revalidatePath("/finances/paiements-a-faire");
-  revalidatePath("/comptabilite");
-  return { ok: true };
+    let order: Awaited<ReturnType<typeof createExpenseOrder>> | null;
+    try {
+      order = amount > 0 && !parLesPostes
+        ? await createExpenseOrder({
+            label: decl.label,
+            amount,
+            category: "EVENEMENT",
+            beneficiary: decl.beneficiary,
+            sourceType: decl.sourceType,
+            sourceId: decl.sourceId,
+            requestedById: decl.requesterId,
+            budgetCategoryId: decl.budgetCategoryId,
+          })
+        : null;
+    } catch (err) {
+      // L'ORDRE N'EST PAS NÉ : la validation n'a pas eu lieu. Le dossier revient en attente (seulement
+      // s'il porte encore CETTE validation, sans ordre) — sinon il resterait « validé » sans paiement.
+      await prisma.medicalInfoDeclaration.updateMany({
+        where: { id, status: "VALIDATED", validatedById: user.id, expenseOrderId: null },
+        data: { status: "AWAITING_DIRECTION", validatedAt: null, validatedById: null },
+      });
+      console.error("[medical-info] ordre de dépense non émis à la validation finale :", err);
+      return { ok: false, error: "L'ordre de dépense n'a pas pu être émis : le dossier reste en attente de votre validation." };
+    }
+    if (order) await prisma.medicalInfoDeclaration.update({ where: { id }, data: { expenseOrderId: order.id } });
+
+    // Commentaire de validation (facultatif) → espace de discussion.
+    const comment = fdStr(formData, "comment");
+    if (comment) {
+      await prisma.comment.create({ data: { entityType: "MEDICAL_INFO_DECLARATION", entityId: id, body: comment, authorId: user.id } });
+    }
+    // Reporte l'ordre de dépense sur l'événement source (tout reste interconnecté).
+    if (order) await reporterOrdreSurLaSource(decl, order.id);
+    const qualite = qualiteDuDecideur(user);
+    if (decl.requesterId) await notifyUser({ userId: decl.requesterId, type: "GENERIC", title: `Information médicale — événement validé (${qualite})`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
+    if (decl.pharmacistId && decl.pharmacistId !== user.id) await notifyUser({ userId: decl.pharmacistId, type: "GENERIC", title: `Information médicale — validé par le ${qualite}`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
+    await recordAudit({ actorId: user.id, action: "VALIDATE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: id, summary: `Validation finale (${qualite}) — ${decl.reference}${order ? ` (ordre ${order.reference})` : parLesPostes ? " (dépense portée par les postes — aucun ordre global)" : ""}` });
+    // LE VISA D'UN PAIEMENT DE MATÉRIEL EST OBTENU : c'est peut-être la dernière pièce de son dossier,
+    // qui ne se clôt « payé et visé » qu'à la déclaration VALIDÉE (`promo-cloture.ts`). Best-effort.
+    if (decl.sourceType === "LEGAL_DOCUMENT") {
+      const promoId = await dossierPromoDeLaFacture(decl.sourceId).catch(sansBloquer("medical-info-actions.validateDeclarationByDirection.dossierPromoDeLaFacture", null));
+      if (promoId && (await cloreLeDossierPromoSiSolde(promoId, user.id))) revalidatePath(`/promo-material/${promoId}`);
+    }
+    revalidate(id);
+    revalidatePath("/mon-travail");
+    revalidatePath("/finances/paiements-a-faire");
+    revalidatePath("/comptabilite");
+    return { ok: true };
+  });
 }
 
 /**

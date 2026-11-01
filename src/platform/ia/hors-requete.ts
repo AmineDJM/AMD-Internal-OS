@@ -6,7 +6,9 @@
  * J7 (décision 0029) : la même porte nomme le reste du contexte de geste — la SIMULATION transactionnelle (le diff
  * d'une carte), le JOURNAL DES EFFETS (tout geste d'agent garde la valeur avant) et l'ANNULATION honnête.
  */
+// K10b (décision 0040) : avec la barre « Annuler » de l'ERP (gestes d'écran, envois dans leur fenêtre) et le rétablissement.
 export {
   executerHorsRequete, simulerEnDiff, journaliserGeste, annulerGeste, planDAnnulation, gestesDeLAssistant,
-  type CompteRenduAnnulation, type GesteListe,
+  annulerEffetSortant, effetsSortantsDe, retablirEffetSortant, gestesDeLaFiche, gestesRecents, retablirGeste,
+  type CompteRenduAnnulation, type GesteListe, type EffetSortantVu, type GesteEcranVu, type IssueEffetSortant,
 } from "@/lib/contexte-geste";

@@ -104,17 +104,18 @@ suite("l'annulation honnête, sur 50 cas réels (J7)", () => {
       expect(await prisma.task.findUnique({ where: { id: t } })).toBeNull();
     });
 
-    it("6. Karim a LU la notification : elle est dite impossible à reprendre, la tâche est retirée", async () => {
+    it("6. Karim a LU la notification : elle ne se reprend pas — COMPENSÉE par un rectificatif (K10b), la tâche est retirée", async () => {
       const g = await geste(() => act("task-actions:createTask", { title: `${TAG} lue`, assignedToId: karim }));
       const notifs = (await prisma.assistantEffet.findMany({ where: { gesteId: g, modele: "Notification" } })).map((e) => e.enregistrementId!);
       await prisma.notification.updateMany({ where: { id: { in: notifs } }, data: { isRead: true } });
       const r = await annuler(g);
       const i = await parModele(g, r);
-      expect(i.Notification).toEqual(["IMPOSSIBLE"]);
-      expect(r.details.find((d) => d.issue === "IMPOSSIBLE")!.pourquoi).toMatch(/Karim l'a déjà lue/);
+      expect(i.Notification).toEqual(["COMPENSE"]);
+      expect(r.details.find((d) => d.issue === "COMPENSE")!.pourquoi).toMatch(/Karim l'a déjà lue : elle ne se reprend pas — un rectificatif/);
       expect(i.Task).toEqual(["ANNULE"]);
       preserve(notifs.length, await prisma.notification.count({ where: { id: { in: notifs } } }));
-      expect(r.complet).toBe(false);
+      expect(await prisma.notification.count({ where: { userId: karim, title: { startsWith: "Rectificatif" } } })).toBeGreaterThan(0);
+      expect(r.complet).toBe(true);
     });
 
     it("7. quelqu'un a COMMENTÉ la tâche depuis : compensée (CANCELLED), le commentaire reste", async () => {
@@ -177,8 +178,9 @@ suite("l'annulation honnête, sur 50 cas réels (J7)", () => {
       const i = await parModele(g, r);
       expect(i.Meeting).toEqual(["ANNULE"]);
       expect(i.MeetingParticipant?.every((x) => x === "ANNULE")).toBe(true);
-      // La poussée d'invitation, elle, est partie (ou l'aurait été) : dite impossible, jamais « annulée ».
-      expect(i.NOTIFICATION_PUSH ?? []).not.toContain("ANNULE");
+      // K10b (décision 0040) : la poussée d'invitation attendait sa FENÊTRE D'ANNULATION — elle ne part pas : annulée.
+      expect(i.NOTIFICATION_PUSH ?? []).toEqual((i.NOTIFICATION_PUSH ?? []).map(() => "ANNULE"));
+      expect(await prisma.effetSortantDiffere.count({ where: { gesteId: g, statut: { not: "ANNULE" } } })).toBe(0);
       expect(await prisma.meeting.count({ where: { title: `${TAG} réunion` } })).toBe(0);
     });
 
@@ -407,22 +409,22 @@ suite("l'annulation honnête, sur 50 cas réels (J7)", () => {
       expect(await prisma.taskComment.count({ where: { taskId: t } })).toBe(0);
     });
 
-    it("46. … Karim l'a lue : la notification est dite impossible, le commentaire est retiré", async () => {
+    it("46. … Karim l'a lue : la notification est compensée (rectificatif), le commentaire est retiré", async () => {
       const t = await nouvelleTache({ assignedToId: karim, title: `${TAG} commentaire lu` });
       const g = await geste(() => act("task-actions:addTaskComment", { id: t, body: `${TAG} commentaire lu` }));
       const avant = await prisma.notification.count({ where: { userId: karim, isRead: false } });
       await prisma.notification.updateMany({ where: { userId: karim }, data: { isRead: true } });
       const r = await annuler(g);
       const i = await parModele(g, r);
-      if (avant > 0) expect(i.Notification).toEqual(["IMPOSSIBLE"]);
+      if (avant > 0) expect(i.Notification).toEqual(["COMPENSE"]);
       expect(i.TaskComment).toEqual(["ANNULE"]);
     });
 
-    it("47. un courriel parti : impossible, avec le rectificatif à la place — jamais « annulé »", async () => {
-      const g = await geste(async () => {
+    it("47. un courriel parti (geste SANS fenêtre d'annulation) : impossible, avec le rectificatif à la place — jamais « annulé »", async () => {
+      const g = (await journaliserGeste(moi, { origine: "carte", libelle: "cas" }, async () => {
         await sendSmartEmail({ to: ["partenaire@exemple.dz"], subject: "Devis", text: "x" });
         return { ok: true };
-      });
+      }, { horsRequete: true, fenetre: false })).gesteId!;
       const r = await annuler(g);
       expect(r.details).toEqual([expect.objectContaining({ issue: "IMPOSSIBLE", aLaPlace: expect.stringMatching(/rectificatif/) })]);
       expect(r.complet).toBe(false);

@@ -6,8 +6,9 @@ import { recordAudit } from "@/lib/audit";
 import { composer, type Changement, type EtatActuel } from "@/lib/annulation/plan";
 import { classerGeste, natureDe as natureDuJournal, type NatureGeste } from "@/lib/annulation/reversibilite";
 import { construireDiff, natureDe } from "./diff";
+import { annulerEffetSortant } from "./fenetre";
 import type { Capture, EcritureCapturee, EffetExterneCapture } from "./magasin";
-import { infoModele, type InfoModele } from "./modeles";
+import { infoModele, MODELES_COMPTEURS, MODELES_JOURNAUX_ENVOI, MODELES_PIECES_NUMEROTEES, type InfoModele } from "./modeles";
 import { cleDeValeur, memeValeur, serialiserLigne, valeurLisible } from "./valeurs";
 
 /**
@@ -67,19 +68,19 @@ type Delegue = {
   delete: (a: unknown) => Promise<unknown>;
   create: (a: unknown) => Promise<unknown>;
 };
-type Client = Record<string, unknown>;
+export type Client = Record<string, unknown>;
 
 interface EffetLu {
   id: string; ordre: number; type: string; modele: string | null; operation: string | null; enregistrementId: string | null;
   avant: unknown; apres: unknown; champs: string[]; cascade: number | null; nombre: number | null; imbriquee: boolean;
-  acte: string | null; cible: string | null; apercu: string | null;
+  acte: string | null; cible: string | null; apercu: string | null; effetSortantId?: string | null;
 }
 
-const delegue = (c: Client, info: InfoModele) => c[info.delegue] as Delegue;
-const ligne = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+export const delegue = (c: Client, info: InfoModele) => c[info.delegue] as Delegue;
+export const ligne = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 
 /** Une valeur sérialisée, rendue au type de son champ pour l'écrire. `undefined` : elle ne se restaure pas. */
-function deserialiser(info: InfoModele, champ: string, v: unknown): unknown {
+export function deserialiser(info: InfoModele, champ: string, v: unknown): unknown {
   const t = info.types.get(champ);
   if (!t) return undefined;
   const un = (x: unknown): unknown => {
@@ -99,7 +100,7 @@ function deserialiser(info: InfoModele, champ: string, v: unknown): unknown {
 }
 
 /** La ligne telle qu'elle est maintenant, sérialisée (scalaires sans octets) — `null` si elle n'existe plus. */
-async function lireActuelle(c: Client, info: InfoModele, id: string): Promise<Record<string, unknown> | null> {
+export async function lireActuelle(c: Client, info: InfoModele, id: string): Promise<Record<string, unknown> | null> {
   if (!info.cle) return null;
   const r = await delegue(c, info).findUnique({ where: { [info.cle]: id } }).catch(sansBloquer("effets.annulation.lecture", null));
   return serialiserLigne(r, new Set(info.scalaires));
@@ -109,7 +110,7 @@ async function lireActuelle(c: Client, info: InfoModele, id: string): Promise<Re
  * L'ÉCRITURE VERROUILLÉE — la ligne est verrouillée (`FOR UPDATE`), RELUE, et l'écriture n'a lieu que si `verifier`
  * accepte la relecture. Rend `false` si la ligne a bougé entre le plan et l'écriture (ou si la base refuse).
  */
-async function ecrireVerrouille(
+export async function ecrireVerrouille(
   info: InfoModele, id: string, verifier: (relue: Record<string, unknown> | null) => boolean, ecrire: (t: Client) => Promise<unknown>,
 ): Promise<boolean> {
   return (prismaBrut.$transaction(async (tx) => {
@@ -127,14 +128,16 @@ async function verrouiller(tx: Client, info: InfoModele, id: string): Promise<vo
 }
 
 /** Les lignes qui POINTENT vers celle-ci (hors celles créées par le même geste, défaites avant elle). */
-async function rattaches(c: Client, info: InfoModele, id: string, ignorer: ReadonlySet<string>): Promise<{ n: number; quoi: string[] }> {
+async function rattaches(c: Client, info: InfoModele, id: string, ignorer: ReadonlySet<string>, remis: ReadonlySet<string> = new Set()): Promise<{ n: number; quoi: string[] }> {
   let n = 0;
   const quoi: string[] = [];
   for (const e of info.enfants) {
     const d = c[e.delegue] as Delegue | undefined;
     const enfant = infoModele(e.modele);
     if (!d || !enfant?.cle) continue;
-    const exclus = [...ignorer];
+    // K10b : une ligne EXISTANTE que le même geste avait rattachée (son lien posé par une modification), et dont cette
+    // annulation remet le lien — elle ne compte pas, même à blanc (le plan ne l'a pas encore écrit).
+    const exclus = [...ignorer, ...[...remis].filter((r) => r.startsWith(`${e.modele}#`) && r.endsWith(`#${e.champ}`)).map((r) => r.split("#")[1]!)];
     const k = await d.count({ where: { [e.champ]: id, ...(exclus.length ? { NOT: { [enfant.cle]: { in: exclus } } } : {}) } }).catch(sansBloquer("effets.annulation.rattaches", 0));
     if (k) { n += k; quoi.push(`${k} ${natureDe(e.modele)}`); }
   }
@@ -178,10 +181,16 @@ function issueExterne(e: EffetLu): DetailEffet {
 }
 
 interface Contexte {
+  user: CurrentUser;
+  libelle: string;
   c: Client;
   agent: string;
   creeLe: Date;
   crees: Set<string>;
+  /** K10b : les lignes GARDÉES de ce geste (pièce numérotée annulée, et ses fichiers) — leurs rattachements ne bloquent pas. */
+  gardes: Set<string>;
+  /** K10b : les liens remis par cette annulation (`Modele#id#champ`) — ils ne comptent pas comme rattachements. */
+  remis: Set<string>;
   appliquer: boolean;
   nomDe: (id: string | null | undefined) => Promise<string | null>;
 }
@@ -247,13 +256,33 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
   const actuelle = await lireActuelle(ctx.c, info, id);
   if (!actuelle) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "elle a déjà été retirée par ailleurs" };
   const touches = Object.keys(apres).filter((c) => !info.auto.has(c) && info.types.has(c) && !memeValeur(actuelle[c] ?? null, apres[c] ?? null));
-  const lies = await rattaches(ctx.c, info, id, ctx.crees);
+  const lies = await rattaches(ctx.c, info, id, ctx.crees, ctx.remis);
   const verdict = classerGeste("ENREGISTREMENT_CREE");
   if (e.modele === "Notification" && actuelle.isRead === true) {
     const qui = await ctx.nomDe(String(actuelle.userId ?? ""));
-    return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${qui ?? "son destinataire"} l'a déjà lue : la retirer ne reprendrait pas l'information`, aLaPlace: "lui envoyer un mot de rectification" };
+    // K10b (décision 0040) : LA COMPENSATION, codée — un rectificatif dans l'ERP, au même destinataire ; la lue reste.
+    if (ctx.appliquer) {
+      await prismaBrut.notification.create({
+        data: {
+          userId: String(actuelle.userId), type: (actuelle.type ?? "GENERIC") as never, link: (actuelle.link as string | null) ?? null,
+          title: `Rectificatif — ${String(actuelle.title ?? "")}`.slice(0, 300), body: `Annulé par ${ctx.user.name ?? "son auteur"} : n'en tenez plus compte.`,
+        },
+      });
+    }
+    return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: `${qui ?? "son destinataire"} l'a déjà lue : elle ne se reprend pas — un rectificatif lui ${ctx.appliquer ? "est envoyé" : "sera envoyé"} dans l'ERP (« n'en tenez plus compte »)` };
   }
-  if (!touches.length && !lies.n) {
+  if (touches.length && MODELES_JOURNAUX_ENVOI.has(e.modele ?? "")) {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "journal d'un envoi parti : il reste comme la trace de ce qui est sorti (l'envoi lui-même est compensé)" };
+  }
+  const numerotee = MODELES_PIECES_NUMEROTEES.has(e.modele ?? "");
+  if (numerotee) ctx.gardes.add(id);
+  // LE DOCUMENT D'UNE PIÈCE NUMÉROTÉE (K10b) : le Word, le PDF, le dossier « Factures émises » nés du même geste restent
+  // AVEC la pièce annulée, comme sa trace — ils ne bloquent pas l'annulation et ne sont pas retirés.
+  if (!numerotee && lies.n && !touches.length && ctx.gardes.size && !(await rattaches(ctx.c, info, id, new Set([...ctx.crees, ...ctx.gardes]), ctx.remis)).n) {
+    ctx.gardes.add(id);
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "document d'une pièce numérotée annulée : il reste avec elle, comme sa trace" };
+  }
+  if (!touches.length && !lies.n && !numerotee) {
     if (ctx.appliquer) {
       const fait = await ecrireVerrouille(info, id,
         (relue) => !!relue && !Object.keys(apres).some((c) => !info.auto.has(c) && info.types.has(c) && !memeValeur(relue[c] ?? null, apres[c] ?? null)),
@@ -263,7 +292,7 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
     const lue = e.modele === "Notification" ? " avant d'avoir été lue" : "";
     return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: `retirée${lue} : personne n'y avait touché et rien ne s'y était rattaché` };
   }
-  const raison = [
+  const raison = numerotee && !touches.length && !lies.n ? "pièce numérotée : elle ne s'efface pas (son numéro est consommé, elle a pu être transmise)" : [
     touches.length ? `modifiée depuis (${touches.slice(0, 4).map((c) => `« ${c} »`).join(", ")})` : "",
     lies.n ? `${lies.quoi.join(", ")} s'y ${lies.n > 1 ? "sont" : "est"} rattaché${lies.n > 1 ? "s" : ""} depuis` : "",
   ].filter(Boolean).join(" ; ");
@@ -313,9 +342,66 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
   return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: "recréée à l'identique, avec le même identifiant : les liens vers elle tiennent de nouveau" };
 }
 
+/**
+ * UN EFFET SORTANT DIFFÉRÉ (K10b, décision 0040) — la fenêtre d'annulation tranche : pas encore parti, il est annulé
+ * et RIEN ne sort ; parti, sa compensation (rectificatif différé, lui-même annulable) — jamais « effacé ».
+ */
+async function issueSortant(e: EffetLu, ctx: Contexte): Promise<DetailEffet | null> {
+  if (!e.effetSortantId) return null;
+  const l = await prismaBrut.effetSortantDiffere.findUnique({ where: { id: e.effetSortantId }, select: { id: true, statut: true, parti: true, compensation: true, erreur: true } }).catch(sansBloquer("effets.annulation.sortant", null));
+  if (!l) return null;
+  const quoi = construireDiff(enCapture([e]), { debut: 0, fin: 0 }).effets[0]?.phrase ?? "un effet externe";
+  if (!ctx.appliquer) {
+    if (l.statut === "EN_ATTENTE") return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: "il attend encore sa fenêtre d'annulation : il ne partira pas" };
+    if (l.statut === "ANNULE" || l.statut === "ECHEC") return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: l.statut === "ANNULE" ? "son envoi est déjà annulé : rien n'est parti" : "il n'est jamais parti (échec d'envoi)" };
+    if (l.statut === "COMPENSE") return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: `déjà compensé : ${l.compensation ?? ""}` };
+    return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: "il est parti : il ne sera pas effacé chez son destinataire ; sa compensation (un rectificatif au même destinataire, annulable lui aussi) partira" };
+  }
+  const r = await annulerEffetSortant(l.id, ctx.user, { motif: `annulation de « ${ctx.libelle} »` });
+  if (r.issue === "ANNULE") return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: "annulé dans sa fenêtre : rien n'est parti" };
+  if (r.issue === "COMPENSE") return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: r.message };
+  if (r.issue === "SANS_OBJET" || r.issue === "RETABLI") return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: r.message };
+  return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: r.message, aLaPlace: "prévenir le destinataire par son canal habituel" };
+}
+
+/**
+ * UNE PUBLICATION AU SITE DÉJÀ PARTIE (K10b, décision 0040) — la file l'a envoyée après sa fenêtre : la remettre en base
+ * ne retirerait rien du site. La compensation : la VERSION D'AVANT renvoyée (ou, pour une page née du geste, son
+ * RETRAIT), par la même file. Elle a pu être lue : le compte rendu le dit. Pas encore partie : `null` (J7 ordinaire).
+ */
+async function compenserPublicationPartie(e: EffetLu, ctx: Contexte, quoi: string): Promise<DetailEffet | null> {
+  const info = infoModele("SitePublication");
+  if (!info) return null;
+  const actuelle = await lireActuelle(ctx.c, info, e.enregistrementId!);
+  const apres = ligne(e.apres) ?? {};
+  if (!actuelle || (actuelle.state === "PENDING" && memeValeur(actuelle.version ?? null, apres.version ?? null) && memeValeur(actuelle.lastAttemptAt ?? null, apres.lastAttemptAt ?? null))) return null;
+  if (!memeValeur(actuelle.version ?? null, apres.version ?? null)) {
+    return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "une version plus récente a été envoyée au site depuis : la remplacer effacerait ce travail", aLaPlace: "corriger la page depuis son écran du site" };
+  }
+  const avant = ligne(e.avant);
+  const pourquoi = avant ? "la publication était partie sur le site (elle a pu être lue) : la version d'avant y est renvoyée par la file" : "la publication était partie sur le site (elle a pu être lue) : sa page est retirée du site par la file";
+  if (ctx.appliquer) {
+    const data = avant
+      ? { operation: String(avant.operation), body: (avant.body as string | null) ?? null, bodyHash: (avant.bodyHash as string | null) ?? null }
+      : { operation: "DELETE", body: null, bodyHash: null };
+    await prismaBrut.sitePublication.update({
+      where: { id: e.enregistrementId! },
+      data: { ...data, version: { increment: 1 }, state: "PENDING", attempts: 0, nextAttemptAt: new Date(), claimedAt: null, lastError: null },
+    });
+  }
+  return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi };
+}
+
 async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
-  if (e.type === "EXTERNE") return issueExterne(e);
+  if (e.type === "EXTERNE") return (await issueSortant(e, ctx)) ?? issueExterne(e);
   const quoi = phraseEcriture(e);
+  if (e.modele === "SitePublication" && e.enregistrementId && (e.operation === "CREATE" || e.operation === "UPDATE")) {
+    const d = await compenserPublicationPartie(e, ctx, quoi);
+    if (d) return d;
+  }
+  if (MODELES_COMPTEURS.has(e.modele ?? "")) {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "un numéro de pièce attribué ne se rend jamais (deux pièces porteraient le même) : la pièce est annulée, son numéro reste consommé" };
+  }
   if (e.operation === "SQL" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "compteur de références des octets d'une pièce : la purge des fichiers orphelins s'en charge" };
   }
@@ -378,10 +464,13 @@ const nomsEnCache = () => {
   };
 };
 
-async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean): Promise<CompteRenduAnnulation> {
+async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean, user: CurrentUser): Promise<CompteRenduAnnulation> {
   // Les lignes créées par ce geste et RETIRÉES (ou à retirer) : elles ne comptent pas comme rattachement de leur parent.
   const retirees = new Set<string>();
-  const ctx: Contexte = { c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache() };
+  const ctx: Contexte = { user, libelle: g.libelle, c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, remis: new Set(), appliquer, nomDe: nomsEnCache(),
+    // Les pièces numérotées nées de ce geste sont GARDÉES (annulées, jamais retirées) : connues d'avance, quel que soit
+    // l'ordre où leurs fichiers ont été écrits.
+    gardes: new Set(g.effets.filter((e) => e.operation === "CREATE" && e.enregistrementId && MODELES_PIECES_NUMEROTEES.has(e.modele ?? "")).map((e) => e.enregistrementId!)) };
   const details: DetailEffet[] = [];
   // DU PLUS RÉCENT AU PLUS ANCIEN (`plan.ts`) : l'enfant créé après son parent est défait avant lui. Le SQL brut, lui,
   // se juge en DERNIER : il suit ce qu'est devenue la ligne dont sa table dépend.
@@ -392,6 +481,7 @@ async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: 
       pourquoi: `l'annulation a échoué sur cet effet (${err instanceof Error ? err.message.slice(0, 160) : String(err)}) — rien n'y a été écrit`, aLaPlace: null,
     }));
     if (e.operation === "CREATE" && d.issue === "ANNULE" && e.enregistrementId) retirees.add(e.enregistrementId);
+    if (e.operation === "UPDATE" && d.issue === "ANNULE" && e.enregistrementId) for (const c of e.champs) ctx.remis.add(`${e.modele}#${e.enregistrementId}#${c}`);
     details.push(d);
   }
   // UNE ÉCRITURE SQL sur une table qui suit en CASCADE une ligne née de ce geste, et retirée : partie avec elle.
@@ -409,18 +499,30 @@ async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: 
 export async function planDAnnulation(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | { refus: string }> {
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
-  if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")}.` };
-  return derouler(r.g, false);
+  if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")} (il se rétablit).` };
+  return derouler(r.g, false, user);
 }
 
 /** ANNULER un geste de l'assistant — détail par effet, jamais un « annulé » de façade. */
 export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | { refus: string }> {
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
+  // LES CASCADES (K10b, décision 0040) : un geste d'ÉCRAN se défait EN ENTIER ou pas du tout. Si une de ses écritures ne
+  // se défait pas (l'ordre de dépense né de la décision est déjà payé, quelqu'un a changé une valeur…), défaire le reste
+  // laisserait un état incohérent (une approbation « en attente » à côté d'un paiement fait) : rien n'est écrit, et la
+  // liste dit pourquoi. Un effet EXTERNE impossible (une poussée affichée) ne bloque pas : il est dit, la base reste juste.
+  if (r.g.origine === "ecran") {
+    const plan = await derouler(r.g, false, user);
+    const externes = new Set(r.g.effets.filter((e) => e.type === "EXTERNE").map((e) => e.id));
+    const bloquants = plan.details.filter((d) => d.issue === "IMPOSSIBLE" && !externes.has(d.effetId));
+    if (bloquants.length) {
+      return { refus: `Rien n'est annulé : ${bloquants.length} effet(s) ne se défont pas, et défaire le reste laisserait un état incohérent — ${bloquants.map((d) => `${d.quoi} : ${d.pourquoi}`).join(" ; ").slice(0, 900)}` };
+    }
+  }
   // LA RÉCLAMATION ATOMIQUE : une seule annulation par geste, même en deux onglets.
   const prise = await prismaBrut.assistantGesteJournal.updateMany({ where: { id: gesteId, annuleLe: null }, data: { annuleLe: new Date(), annuleParId: user.id } });
   if (prise.count !== 1) return { refus: "Ce geste a déjà été annulé (ou l'est en ce moment même, depuis un autre écran)." };
-  const compte = await derouler(r.g, true);
+  const compte = await derouler(r.g, true, user);
   await prismaBrut.assistantGesteJournal.update({ where: { id: gesteId }, data: { annulation: compte as unknown as Prisma.InputJsonValue } });
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: gesteId,

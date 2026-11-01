@@ -206,10 +206,16 @@ async function capturer(
             const ids = lignes.map((l) => l[info.cle!]);
             const apresTous = ids.length ? await d.findMany({ where: { [info.cle]: { in: ids } } }).catch(sansBloquer("effets.capture.lecture", [] as Record<string, unknown>[])) : [];
             const parId = new Map(apresTous.map((l) => [String(l[info.cle!]), l]));
+            // K10b (décision 0040) : DANS UNE TRANSACTION INTERACTIVE encore ouverte, la relecture sur le client de base voit
+            // l'ANCIENNE valeur — l'écriture passait inaperçue du journal (une annulation se disait complète sans l'être).
+            // Les valeurs SIMPLES posées par `data` (pas un `{ increment }`) sont donc reportées sur l'« après ».
+            const pose = Object.fromEntries(Object.entries((a.data as Record<string, unknown>) ?? {})
+              .filter(([k, v]) => garder.has(k) && (v === null || typeof v !== "object" || v instanceof Date || Prisma.Decimal.isDecimal(v))));
             for (const l of lignes) {
               const id = String(l[info.cle]);
               const avant = serialiserLigne(l, garder);
-              const apres = serialiserLigne(parId.get(id) ?? null, garder);
+              const relue = parId.get(id) ?? null;
+              const apres = serialiserLigne(relue ? { ...relue, ...pose } : null, garder);
               const champs = champsChanges(avant, apres);
               if (champs.length) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs });
             }

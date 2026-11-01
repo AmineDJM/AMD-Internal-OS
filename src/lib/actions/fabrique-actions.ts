@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 /**
  * LE BOUTON DES FINANCES — composer une FACTURE ou un BON DE COMMANDE (ou un devis) au format de
  * la société, sur son papier en-tête, en Word et en PDF, depuis l'écran du registre.
@@ -291,31 +292,33 @@ export interface ResultatEmission extends ActionResult {
  */
 export async function emettrePieceCommerciale(_prev: ResultatEmission | undefined, formData: FormData): Promise<ResultatEmission> {
   const user = await requireUser();
-  const lignes = lireLignes(formData);
-  const choix = lireChoixDeLaPiece(formData);
-  const lu = lireDemande(formData, lignes, choix);
-  if (!lu.ok) return { ok: false, error: lu.error };
-  const r = await emettreDocumentDrive(user, lu.demande);
-  if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
-  revalidatePath("/legal");
-  revalidatePath(`/legal/${r.legalDocumentId}`);
-  revalidatePath("/finances");
-  const libelle = r.type === "FACTURE" ? "Facture" : r.type === "DEVIS" ? "Devis" : "Bon de commande";
-  // La fiche s'ouvre-t-elle à la personne ? La MÊME porte que la fiche : y mener quelqu'un qui n'y entre pas serait un
-  // geste offert puis retiré (§118.83).
-  const acces = await accesAuxPiecesLegalDetaille(user, [r.legalDocumentId], ["VIEW"]);
-  const ficheOuverte = (acces.droits.get("VIEW")?.has(r.legalDocumentId) ?? false) && !acces.horsFiche.has(r.legalDocumentId);
-  return {
-    ok: true, id: r.legalDocumentId, reference: r.reference, legalDocumentId: r.legalDocumentId,
-    lien: ficheOuverte ? `/legal/${r.legalDocumentId}?emis=1` : null, lienPdf: lienFichierEmis(r.legalDocumentId, "pdf"),
-    docxNodeId: r.docx.nodeId, docxNom: r.docx.nom, pdfNodeId: r.pdf?.nodeId ?? null, pdfNom: r.pdf?.nom ?? null, pdfMethode: r.pdf?.methode ?? null,
-    totalTtc: r.totaux.totalTtc, dejaEmis: r.dejaEmis, surPapierEnTete: r.surPapierEnTete, avertissements: r.avertissements,
-    message: (r.dejaEmis
-      ? `${libelle} ${r.reference} existait déjà pour ${r.tiers} : rendu tel quel, rien de nouveau n'a été émis.`
-      : `${libelle} ${r.reference} émis${r.type === "FACTURE" ? "e" : ""} au nom de ${r.societe.nom} pour ${r.tiers}.`)
-      // Un BC émis attend son centre de validation (§118.148) : l'écran le dit, dans la même phrase.
-      + (r.reserveBonDeCommande ? ` ${r.reserveBonDeCommande}` : ""),
-  };
+  return gesteReversible(user, { capaciteId: "fabrique-actions:emettrePieceCommerciale", libelle: "Pièce commerciale émise" }, async () => {
+    const lignes = lireLignes(formData);
+    const choix = lireChoixDeLaPiece(formData);
+    const lu = lireDemande(formData, lignes, choix);
+    if (!lu.ok) return { ok: false, error: lu.error };
+    const r = await emettreDocumentDrive(user, lu.demande);
+    if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
+    revalidatePath("/legal");
+    revalidatePath(`/legal/${r.legalDocumentId}`);
+    revalidatePath("/finances");
+    const libelle = r.type === "FACTURE" ? "Facture" : r.type === "DEVIS" ? "Devis" : "Bon de commande";
+    // La fiche s'ouvre-t-elle à la personne ? La MÊME porte que la fiche : y mener quelqu'un qui n'y entre pas serait un
+    // geste offert puis retiré (§118.83).
+    const acces = await accesAuxPiecesLegalDetaille(user, [r.legalDocumentId], ["VIEW"]);
+    const ficheOuverte = (acces.droits.get("VIEW")?.has(r.legalDocumentId) ?? false) && !acces.horsFiche.has(r.legalDocumentId);
+    return {
+      ok: true, id: r.legalDocumentId, reference: r.reference, legalDocumentId: r.legalDocumentId,
+      lien: ficheOuverte ? `/legal/${r.legalDocumentId}?emis=1` : null, lienPdf: lienFichierEmis(r.legalDocumentId, "pdf"),
+      docxNodeId: r.docx.nodeId, docxNom: r.docx.nom, pdfNodeId: r.pdf?.nodeId ?? null, pdfNom: r.pdf?.nom ?? null, pdfMethode: r.pdf?.methode ?? null,
+      totalTtc: r.totaux.totalTtc, dejaEmis: r.dejaEmis, surPapierEnTete: r.surPapierEnTete, avertissements: r.avertissements,
+      message: (r.dejaEmis
+        ? `${libelle} ${r.reference} existait déjà pour ${r.tiers} : rendu tel quel, rien de nouveau n'a été émis.`
+        : `${libelle} ${r.reference} émis${r.type === "FACTURE" ? "e" : ""} au nom de ${r.societe.nom} pour ${r.tiers}.`)
+        // Un BC émis attend son centre de validation (§118.148) : l'écran le dit, dans la même phrase.
+        + (r.reserveBonDeCommande ? ` ${r.reserveBonDeCommande}` : ""),
+    };
+  });
 }
 
 /**
@@ -456,33 +459,35 @@ export interface ResultatAvoir extends ActionResult {
  */
 export async function emettreAvoir(_prev: ResultatAvoir | undefined, formData: FormData): Promise<ResultatAvoir> {
   const user = await requireUser();
-  const factureId = fdStr(formData, "factureId");
-  if (!factureId) return { ok: false, error: "Facture introuvable." };
-  // La société de la facture, pour le profil documentaire ; une pièce qui n'est pas une facture émise est refusée
-  // par la FABRIQUE, avec sa phrase — une seconde rédaction ici finirait par dire autre chose (§118.5).
-  const facture = await factureACrediter(factureId);
-  const lignes = lireLignes(formData);
-  const r = await emettreDocumentDrive(user, {
-    type: "AVOIR", societe: facture?.companyId ?? null, chainFromId: factureId,
-    // Le client vient de la facture, sur le lien — la fabrique le remplace : rien n'est pris de l'écran.
-    tiers: { nom: "" },
-    lignes, objet: texte(formData, "motif"),
+  return gesteReversible(user, { capaciteId: "fabrique-actions:emettreAvoir", libelle: "Avoir émis" }, async () => {
+    const factureId = fdStr(formData, "factureId");
+    if (!factureId) return { ok: false, error: "Facture introuvable." };
+    // La société de la facture, pour le profil documentaire ; une pièce qui n'est pas une facture émise est refusée
+    // par la FABRIQUE, avec sa phrase — une seconde rédaction ici finirait par dire autre chose (§118.5).
+    const facture = await factureACrediter(factureId);
+    const lignes = lireLignes(formData);
+    const r = await emettreDocumentDrive(user, {
+      type: "AVOIR", societe: facture?.companyId ?? null, chainFromId: factureId,
+      // Le client vient de la facture, sur le lien — la fabrique le remplace : rien n'est pris de l'écran.
+      tiers: { nom: "" },
+      lignes, objet: texte(formData, "motif"),
+    });
+    if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
+    revalidatePath("/legal");
+    revalidatePath(`/legal/${factureId}`);
+    if (r.dejaEmis) {
+      return { ok: true, id: r.legalDocumentId, reference: r.reference, message: `Un avoir identique existait déjà (${r.reference}) : aucun nouvel avoir n'a été émis.` };
+    }
+    if (!facture) return { ok: true, id: r.legalDocumentId, reference: r.reference, message: `Avoir ${r.reference} émis : ${formaterTtc(r.totaux.totalTtc)} TTC crédités.` };
+    const net = netDeLaFacture(facture.ttc, await montantsDesAvoirsActifs(factureId));
+    return {
+      ok: true, id: r.legalDocumentId, reference: r.reference,
+      message: `Avoir ${r.reference} émis : ${formaterTtc(r.totaux.totalTtc)} TTC crédités sur la facture ${facture.numero} — net de la facture : ${formaterTtc(net)}.`
+        // UN AVOIR SUR UNE FACTURE RÉGLÉE est un remboursement : l'écriture du règlement a eu lieu, elle ne se réécrit
+        // pas — et la phrase dit où se demande ce qui est dû au client, au lieu de laisser croire que c'est fait.
+        + (facture.regleeLe ? " La facture est déjà réglée : ce montant est dû au client — son remboursement se demande depuis « Demandes de validations » (« Demande de paiement »)." : ""),
+    };
   });
-  if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
-  revalidatePath("/legal");
-  revalidatePath(`/legal/${factureId}`);
-  if (r.dejaEmis) {
-    return { ok: true, id: r.legalDocumentId, reference: r.reference, message: `Un avoir identique existait déjà (${r.reference}) : aucun nouvel avoir n'a été émis.` };
-  }
-  if (!facture) return { ok: true, id: r.legalDocumentId, reference: r.reference, message: `Avoir ${r.reference} émis : ${formaterTtc(r.totaux.totalTtc)} TTC crédités.` };
-  const net = netDeLaFacture(facture.ttc, await montantsDesAvoirsActifs(factureId));
-  return {
-    ok: true, id: r.legalDocumentId, reference: r.reference,
-    message: `Avoir ${r.reference} émis : ${formaterTtc(r.totaux.totalTtc)} TTC crédités sur la facture ${facture.numero} — net de la facture : ${formaterTtc(net)}.`
-      // UN AVOIR SUR UNE FACTURE RÉGLÉE est un remboursement : l'écriture du règlement a eu lieu, elle ne se réécrit
-      // pas — et la phrase dit où se demande ce qui est dû au client, au lieu de laisser croire que c'est fait.
-      + (facture.regleeLe ? " La facture est déjà réglée : ce montant est dû au client — son remboursement se demande depuis « Demandes de validations » (« Demande de paiement »)." : ""),
-  };
 }
 
 /** « 1 234 567,89 DZD » — la phrase du résultat ; les totaux viennent de la fabrique, jamais du navigateur. */
@@ -499,38 +504,40 @@ function formaterTtc(n: number): string {
  */
 export async function reglerNumerotationPieces(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const type = (fdStr(formData, "type") ?? "") as TypeDocumentCommercial;
-  if (!TYPES_DOCUMENT.includes(type)) return { ok: false, error: "Nature de pièce inconnue." };
-  const motifSaisi = formData.has("motif");
-  const departSaisi = formData.has("depart");
-  if (!motifSaisi && !departSaisi) return { ok: false, error: "Rien à régler : renseignez le motif et/ou le premier numéro de l'année." };
-  let depart: { annee: number; numero: number | null } | undefined;
-  if (departSaisi) {
-    const brut = (fdStr(formData, "depart") ?? "").trim();
-    const annee = Number(fdStr(formData, "annee") ?? new Date().getUTCFullYear());
-    if (brut === "") depart = { annee, numero: null };
-    else {
-      const numero = Number(brut);
-      if (!/^\d+$/.test(brut)) return { ok: false, error: `Le premier numéro est un entier (« ${brut} » ne se lit pas) : 32 pour commencer à 032.` };
-      depart = { annee, numero };
+  return gesteReversible(user, { capaciteId: "fabrique-actions:reglerNumerotationPieces", libelle: "Numérotation des pièces réglée" }, async () => {
+    const type = (fdStr(formData, "type") ?? "") as TypeDocumentCommercial;
+    if (!TYPES_DOCUMENT.includes(type)) return { ok: false, error: "Nature de pièce inconnue." };
+    const motifSaisi = formData.has("motif");
+    const departSaisi = formData.has("depart");
+    if (!motifSaisi && !departSaisi) return { ok: false, error: "Rien à régler : renseignez le motif et/ou le premier numéro de l'année." };
+    let depart: { annee: number; numero: number | null } | undefined;
+    if (departSaisi) {
+      const brut = (fdStr(formData, "depart") ?? "").trim();
+      const annee = Number(fdStr(formData, "annee") ?? new Date().getUTCFullYear());
+      if (brut === "") depart = { annee, numero: null };
+      else {
+        const numero = Number(brut);
+        if (!/^\d+$/.test(brut)) return { ok: false, error: `Le premier numéro est un entier (« ${brut} » ne se lit pas) : 32 pour commencer à 032.` };
+        depart = { annee, numero };
+      }
     }
-  }
-  const r = await definirProfilDocumentaire(user, {
-    societe: texte(formData, "societe"),
-    ...(motifSaisi ? { numerotation: { [type]: texte(formData, "motif") } } : {}),
-    ...(depart ? { numerotationDepart: { [type]: depart } } : {}),
+    const r = await definirProfilDocumentaire(user, {
+      societe: texte(formData, "societe"),
+      ...(motifSaisi ? { numerotation: { [type]: texte(formData, "motif") } } : {}),
+      ...(depart ? { numerotationDepart: { [type]: depart } } : {}),
+    });
+    if (!r.ok) return { ok: false, error: r.motif };
+    revalidatePath("/legal");
+    const applique = r.profil.reglages.numerotation[type];
+    const parts: string[] = [];
+    if (motifSaisi) parts.push(applique ? `Motif enregistré : ${applique}.` : "Motif effacé : retour à la numérotation par défaut.");
+    if (depart) {
+      parts.push(depart.numero === null
+        ? `Départ ${depart.annee} retiré : la série reprend son compteur.`
+        : `Premier numéro de ${depart.annee} : ${depart.numero}. Le compteur ne recule jamais — s'il est déjà plus loin, la série continue.`);
+    }
+    return { ok: true, message: parts.join(" ") };
   });
-  if (!r.ok) return { ok: false, error: r.motif };
-  revalidatePath("/legal");
-  const applique = r.profil.reglages.numerotation[type];
-  const parts: string[] = [];
-  if (motifSaisi) parts.push(applique ? `Motif enregistré : ${applique}.` : "Motif effacé : retour à la numérotation par défaut.");
-  if (depart) {
-    parts.push(depart.numero === null
-      ? `Départ ${depart.annee} retiré : la série reprend son compteur.`
-      : `Premier numéro de ${depart.annee} : ${depart.numero}. Le compteur ne recule jamais — s'il est déjà plus loin, la série continue.`);
-  }
-  return { ok: true, message: parts.join(" ") };
 }
 
 export type VerificationNumeroPiece = { ok: true; numero: string; change: boolean } | { ok: false; error: string };
