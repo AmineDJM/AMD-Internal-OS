@@ -121,7 +121,10 @@ describe("adaptateur C2 → moteur des chantiers", () => {
     const sans = portsDepuisConnecteurs({ agent, forge, hebergeur }, { env: {}, fetch: http })!;
     expect(await sans.agent.lancer(consigne, "k")).toMatchObject({ ok: true });
     const aucune = portsDepuisConnecteurs({ agent: { ...agent, routines: () => [] }, forge, hebergeur }, { env: { CLAUDE_ROUTINE_A_ID: "1", CLAUDE_ROUTINE_B_ID: "2" }, fetch: http })!;
-    expect(await aucune.agent.lancer(consigne, "k")).toMatchObject({ ok: false, definitif: true });
+    // Relais configuré mais hors ligne : le lancement ATTEND (réessayable), il ne bascule pas en échec définitif.
+    expect(await aucune.agent.lancer(consigne, "k")).toMatchObject({ ok: false, reessayerApresMs: 300_000 });
+    const sansRelais = portsDepuisConnecteurs({ agent: { ...agent, routines: () => [], relais: async () => ({ configure: false, vivant: false, connecte: null, vuIlYaMs: null }) }, forge, hebergeur }, { env: {}, fetch: http })!;
+    expect(await sansRelais.agent.lancer(consigne, "k")).toMatchObject({ ok: false, definitif: true });
     expect(await aucune.agent.disponible()).toMatchObject({ ok: false });
   });
 });

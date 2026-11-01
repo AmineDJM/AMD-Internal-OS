@@ -537,7 +537,9 @@ export async function rapporter(ctx: Pick<ContexteEtape, "chantierId" | "clock" 
   const texte = `${composerRapport(d, coutUsd, issue)}\n${verdict.raison}`;
   await ctx.ecrire((x) => { x.rapport = { le: ctx.clock.now().toISOString(), texte, issue }; });
   const depot = nomDepot(d.plan.depot);
-  await memoriser("branche", `${depot}:${d.plan.branche}`, `Chantier « ${d.plan.titre} » (${issue}) — ${d.vert ? `vert sur ${d.vert.sha}` : "jamais vert"}${d.pr ? `, PR #${d.pr.numero}` : ""}.`, { source: "chantier", missionId: ctx.chantierId });
+  // Les sessions Claude Code restent nommées (id + URL) : on peut leur reparler plus tard, contexte gardé (relais CLI).
+  const sessions = d.sessions.map((x) => `${x.sessionId} ${x.url}`.trim()).join(" ; ");
+  await memoriser("branche", `${depot}:${d.plan.branche}`, `Chantier « ${d.plan.titre} » (${issue}) — ${d.vert ? `vert sur ${d.vert.sha}` : "jamais vert"}${d.pr ? `, PR #${d.pr.numero}` : ""}.${sessions ? ` Sessions Claude Code : ${sessions}.` : ""}`, { source: "chantier", missionId: ctx.chantierId });
   if (d.plan.commandesVerif.length) {
     await memoriser("depot", depot, `Branche de base ${d.plan.brancheBase}. Commandes de vérification : ${d.plan.commandesVerif.join(" ; ")}.`, { source: "chantier", missionId: ctx.chantierId });
   }
