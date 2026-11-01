@@ -319,7 +319,9 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
       // neuve reprend la branche. Clé d'idempotence par tour : un redémarrage ne double jamais la relance.
       const texte = `Le contrôle est rouge sur ${court(echec.sha)} (${echec.check ?? "ci"}). Corrige sur cette branche, dans le périmètre réservé, puis pousse :\n\n${probleme}`;
       const cle = `${ctx.chantierId}|${ctx.step.key}|tour-${tour}`;
-      const r = await sousRecu(ctx, `tour-${tour}`, () => ctx.ports.agent.relancer({ ...consigne, probleme: texte, ...(d.pr ? { pr: d.pr.numero } : {}) }, cle));
+      // LA MÊME SESSION d'abord (relais CLI, contexte gardé), sinon le fil de la PR, sinon une session neuve — l'adaptateur choisit.
+      const session = [...d.sessions].reverse().find((x) => x.moyen !== "commentaire-pr" && !x.sessionId.startsWith("commentaire-"))?.sessionId;
+      const r = await sousRecu(ctx, `tour-${tour}`, () => ctx.ports.agent.relancer({ ...consigne, probleme: texte, ...(d.pr ? { pr: d.pr.numero } : {}), ...(session ? { session } : {}) }, cle));
       if (r.etat === "ECHEC" && !r.r.incertain) return apresEchecPort(ctx, "Relance de Claude Code", r.r, etat);
       if (r.etat === "FAIT") {
         const s = r.valeur;

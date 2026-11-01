@@ -46,7 +46,12 @@ const agent: C2.AgentDeveloppeur = {
   lancer: async (d) => { appels.push({ quoi: "lancer", args: d }); return d.cleIdempotence === "incertaine" ? ko("INCERTAIN") : ok({ moyen: "ROUTINE", sessionId: "s1", sessionUrl: "https://claude.ai/code/s1", deja: false, cleIdempotence: d.cleIdempotence }); },
   relancerDansPr: async (d) => { appels.push({ quoi: "relancerDansPr", args: d }); return ok({ moyen: "COMMENTAIRE_PR", sessionId: null, sessionUrl: null, commentaireId: 42, commentaireUrl: "https://github.com/pr/7#42", deja: false, cleIdempotence: d.cleIdempotence }); },
   routines: () => ["AMD"],
+  lancerParCli: async (d) => { appels.push({ quoi: "lancerParCli", args: d }); return ok({ ordreId: "o1", type: "CREER" as const, statut: "EN_ATTENTE" as const, sessionId: null, sessionUrl: null, erreur: null, deja: false }); },
+  envoyerMessage: async (d) => { appels.push({ quoi: "envoyerMessage", args: d }); return ok({ ordreId: "o2", type: "MESSAGE" as const, statut: "EN_ATTENTE" as const, sessionId: d.sessionId, sessionUrl: `https://claude.ai/code/${d.sessionId}`, erreur: null, deja: false }); },
+  ordreCli: async () => ko("INCONNU"),
+  relais: async () => ({ configure: true, vivant: relaisVivant, connecte: true, vuIlYaMs: 1000 }),
 };
+let relaisVivant = false;
 
 const env = { CLAUDE_ROUTINE_AMD_ID: "trig_1", CLAUDE_ROUTINE_AMD_TOKEN: "sk-x", CLAUDE_ROUTINE_AMD_DEPOT: "aminedjm/amd-internal-os" };
 const http = (async (u: string) => { appels.push({ quoi: "sante", args: u }); return new Response("ok", { status: 200 }); }) as unknown as typeof fetch;
@@ -96,6 +101,19 @@ describe("adaptateur C2 → moteur des chantiers", () => {
     const r = await ports.agent.relancer({ ...consigne, probleme: "corrige le test", pr: 7 }, "ch1|corriger|tour-1");
     expect(r).toMatchObject({ ok: true, valeur: { moyen: "commentaire-pr", url: "https://github.com/pr/7#42" } });
     expect(appels.find((a) => a.quoi === "relancerDansPr")!.args).toMatchObject({ numeroPr: 7, texte: "corrige le test", cleIdempotence: "ch1|corriger|tour-1" });
+  });
+
+  it("relais CLI vivant : la correction part à la MÊME session (contexte gardé) ; sans routine, le relais lance", async () => {
+    relaisVivant = true;
+    try {
+      const r = await ports.agent.relancer({ ...consigne, probleme: "corrige", pr: 7, session: "s1" }, "ch1|corriger|tour-2");
+      expect(r).toMatchObject({ ok: true, valeur: { moyen: "relais-cli", sessionId: "s1" } });
+      expect(appels.find((a) => a.quoi === "envoyerMessage")!.args).toMatchObject({ sessionId: "s1", texte: "corrige", cleIdempotence: "ch1|corriger|tour-2" });
+      const sansRoutine = portsDepuisConnecteurs({ agent: { ...agent, routines: () => [] }, forge, hebergeur }, { env: {}, fetch: http })!;
+      expect(await sansRoutine.agent.lancer(consigne, "k2")).toMatchObject({ ok: true, valeur: { moyen: "relais-cli", sessionId: "ordre-o1" } });
+    } finally {
+      relaisVivant = false;
+    }
   });
 
   it("INCERTAIN (la requête a pu partir) remonte comme tel : jamais « définitif », jamais réessayé en silence", async () => {

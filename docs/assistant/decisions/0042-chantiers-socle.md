@@ -44,7 +44,7 @@ Chaque étape compile en nœud **WORKER** dont le gestionnaire (`etapes.ts`) app
 | `DEV_LANCER` | dépendances terminées, réservations (tout ou rien), puis UNE session Claude Code sous reçu | session rendue |
 | `DEV_ATTENDRE` | sondage de la branche à pas croissant (1 → 10 min), 6 h au plus | SHA neuf |
 | `DEV_VERIFIER` | fichiers DANS le périmètre, PR ouverte au besoin, mergeable, checks du SHA de tête | `{ vert, sha, signature }` |
-| `DEV_CORRIGER` | si `verifier.vert = false` : boucle bornée « **Auto-fix d'abord** (une grâce par tour, `autofixMinutes`, 15 min : un commit arrivé SANS relance est vérifié, gratuit) → décider (anti-boucle) → relancer (commentaire `@claude` dans le fil de la PR, sinon nouvelle session) → attendre → contrôler » | `{ vert: true, sha, tours }` |
+| `DEV_CORRIGER` | si `verifier.vert = false` : boucle bornée « **Auto-fix d'abord** (une grâce par tour, `autofixMinutes`, 15 min : un commit arrivé SANS relance est vérifié, gratuit) → décider (anti-boucle) → relancer (même session par le relais CLI, sinon commentaire `@claude` dans le fil de la PR, sinon nouvelle session) → attendre → contrôler » | `{ vert: true, sha, tours }` |
 | `RENDER_DEPLOYER` | preuve verte exigée ; production ou fusion → validation ; fusion, puis **revérification du SHA d'intégration exact** ; service exclusif ; ERP avant app/worker | statut `live` sur le SHA vert |
 | `RENDER_VERIFIER` | `healthCheckPath` 200..399 (essais à 30 s croissants), < 3 erreurs au journal depuis le déploiement | `{ sain }` |
 | `RENDER_ROLLBACK` | si `sain = false` : production → validation ; dernier déploiement sain antérieur, suivi, **autoDeploy coupé** (dit) | rollback `live` |
@@ -151,8 +151,10 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
 - Ce que les connecteurs C2 n'ont pas : **ouvrir une PR** (Claude Code l'ouvre, sa consigne le dit), **fusionner** (après
   la carte de validation, la Direction fusionne à la main ; le chantier attend la fusion, puis revérifie le SHA
   d'intégration), **lire un fichier**. La santé est un GET public de l'URL du service (adaptateur, 10 s).
-- **Relais CLI** (`claude -p … --cloud <session>`, décision de la Direction du 01/11) : pas encore écrit (aucun
-  `scripts/relais-claude.ts`) ; la correction passe par l'Auto-fix, puis le commentaire `@claude`, puis une session neuve.
+- **Relais CLI** (décision de la Direction du 01/11, connecteur de C2) : la correction suit l'ordre décidé — Auto-fix de
+  la session (grâce `autofixMinutes`), puis message à la MÊME session par le relais (`envoyerMessage`, s'il est vivant),
+  puis commentaire `@claude` dans la PR, puis session neuve ; sans routine pour le dépôt, le lancement passe par le relais
+  (`lancerParCli`). Les ordres du relais sont asynchrones : le moteur ne lit pas leur état, il attend le commit (vérité GitHub).
 - Les webhooks signés GitHub/Render → `BusinessEvent` sont faits par C2 ; ce lot ne s'y abonne pas encore (il sonde à
   pas croissant, ≤ 10 min) et expose `noterEvenementDev` + `signalerReveilChantier` pour le réveil immédiat.
 - Adam (persona `ADAM` historique, `src/lib/assistant/`) n'a pas encore les quatre outils : ils sont dans l'Assistant IA,
@@ -163,7 +165,7 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
 
 ## 9. Preuves
 
-- `adaptateur-c2.test.ts` (7) : fichiers par comparaison, extrait du journal du job, déploiement en file retrouvé par SHA,
+- `adaptateur-c2.test.ts` (8) : relais CLI (même session, lancement sans routine) ; fichiers par comparaison, extrait du journal du job, déploiement en file retrouvé par SHA,
   routine du dépôt et clé d'idempotence, relance dans le fil de la PR, `INCERTAIN` jamais relancé.
 - `regles.test.ts` (21) : DSL, enchaînements refusés, compilation et condition du moteur, anti-boucle, délai, budgets,
   réglages bornés, routeur, recouvrement, juge des preuves, rapport, MiMo (URL, clé jamais rendue, journal K8, sonde).

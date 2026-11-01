@@ -13,6 +13,8 @@ import type { PortsDev } from "@/lib/missions/chantiers/etapes";
  *   • ouvrir une PR : Claude Code l'ouvre (sa consigne le dit) — refus « non pris en charge », le moteur continue ;
  *   • fusionner : la Direction fusionne à la main après la carte de validation — le moteur attend la fusion ;
  *   • la santé d'un service : un GET de son URL publique (`fetch` injecté, délai borné), rien d'autre.
+ * Relancer suit l'ordre de la Direction : message à la MÊME session par le relais CLI (s'il est vivant), sinon commentaire
+ * `@claude` dans la PR, sinon session neuve ; lancer : la routine du dépôt, sinon le relais (`claude --cloud`).
  * Une erreur `INCERTAIN` (la requête a pu partir) remonte comme telle : jamais de relance à l'aveugle. Aucun secret
  * ne passe ici — les connecteurs les masquent avant de construire leurs messages.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -124,15 +126,19 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
     const seules = a.routines();
     return routineDuDepot(nom(d), env)?.alias ?? (seules.length === 1 ? seules[0]! : null);
   };
+  const ordre = (o: C2.OrdreCli, cle: string) => ({ sessionId: o.sessionId ?? `ordre-${o.ordreId}`, url: o.sessionUrl ?? "", lanceeLe: new Date().toISOString(), moyen: "relais-cli" as const, cle });
   const session = (s: C2.SessionLancee, moyen: "routine" | "commentaire-pr") => ({
     sessionId: s.sessionId ?? (s.commentaireId ? `commentaire-${s.commentaireId}` : s.cleIdempotence), url: s.sessionUrl ?? s.commentaireUrl ?? "",
     lanceeLe: new Date().toISOString(), moyen,
   });
+  const relaisVivant = async () => (await a.relais()).vivant;
   const lancer: AgentDeveloppeur["lancer"] = async (c, cle) => {
-    const a2 = alias(c.depot);
-    if (!a2) return { ok: false, erreur: `aucune routine Claude Code pour ${nom(c.depot)} (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN / _DEPOT)`, definitif: true };
     const texte = construireConsigne({ depot: nom(c.depot), branche: c.branche, objectif: c.objectif, perimetre: c.perimetre, criteres: c.criteres, commandes: c.commandesVerif, contexte: c.contexte ?? null });
-    return vers(await a.lancer({ alias: a2, texte, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "routine"));
+    const a2 = alias(c.depot);
+    if (a2) return vers(await a.lancer({ alias: a2, texte, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "routine"));
+    // SANS ROUTINE pour ce dépôt : le relais CLI de la Direction (`claude --cloud`), s'il est vivant.
+    if (await relaisVivant()) return vers(await a.lancerParCli({ depot: nom(c.depot), branche: c.branche, texte, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
+    return { ok: false, erreur: `aucune routine Claude Code pour ${nom(c.depot)} (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN / _DEPOT) et relais CLI absent`, definitif: true };
   };
   return {
     disponible: async () => {
@@ -141,6 +147,10 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
     },
     lancer,
     relancer: async (c, cle) => {
+      // ORDRE DE LA DIRECTION (01/11) : la MÊME session par le relais (contexte gardé), puis le fil de la PR, puis une neuve.
+      if (c.session && !c.session.startsWith("ordre-") && (await relaisVivant())) {
+        return vers(await a.envoyerMessage({ sessionId: c.session, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
+      }
       if (c.pr) return vers(await a.relancerDansPr({ depot: nom(c.depot), numeroPr: c.pr, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "commentaire-pr"));
       return lancer({ ...c, contexte: [c.contexte, `## Problème à corriger\n${c.probleme}`].filter(Boolean).join("\n\n") }, cle);
     },
