@@ -93,7 +93,7 @@ for (const ecran of ECRANS) {
       await page.getByTestId("voix-temps-reel").first().click();
       await expect(panneau).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 30_000 });
-    await panneau.getByRole("button", { name: /Parler à l'assistant/ }).click();
+    await panneau.getByRole("button", { name: /Appeler l'assistant|Parler à l'assistant/ }).click();
     await page.waitForFunction(() => !!(window as unknown as { __voix: { etat: { canal: unknown } } }).__voix.etat.canal);
     const emettre = (e: Record<string, unknown>) => page.evaluate((x) => (window as unknown as { __voix: { emettre: (e: unknown) => void } }).__voix.emettre(x), e);
     await emettre({ type: "session.started", session: { id: session } });

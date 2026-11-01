@@ -94,7 +94,7 @@ for (const ecran of [{ nom: "bureau", largeur: 1440, hauteur: 900 }, { nom: "iph
     }).toPass({ timeout: 30_000 });
     await expect(panneau.getByText(/Tout se fait à l.oral/)).toBeVisible();
     await expect(panneau.getByText(/à l.écran|confirmez/i)).toHaveCount(0);
-    await panneau.getByRole("button", { name: /Parler à l'assistant/ }).click();
+    await panneau.getByRole("button", { name: /Appeler l'assistant|Parler à l'assistant/ }).click();
     await page.waitForFunction(() => !!(window as unknown as { __voix: { etat: { canal: unknown } } }).__voix.etat.canal);
 
     const emettre = (e: Record<string, unknown>) => page.evaluate((x) => (window as unknown as { __voix: { emettre: (e: unknown) => void } }).__voix.emettre(x), e);
