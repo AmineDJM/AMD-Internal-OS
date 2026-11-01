@@ -26,6 +26,7 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "ad-pro-item-actions:deleteAdProItem": retour("le poste revient de la corbeille avec ses éléments liés (même identifiant), l'ordre reprend son statut"),
   "ad-pro-item-actions:demanderPaiementPoste": compensation(ORDRE),
   "assistant-ia-actions:reglerMaReponseVocale": retour(REGLAGE),
+  "assistant-ia-actions:reglerMaMemoireAuto": retour(REGLAGE),
   "assistant-ia-conversations-actions:reglerMaConversationPrivee": retour(REGLAGE),
   "assistant-ia-proactivite-actions:reglerConsoleProactivite": retour(REGLAGE),
   "assistant-ia-proactivite-actions:reglerMaVeille": retour(REGLAGE),

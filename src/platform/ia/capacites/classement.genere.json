@@ -1449,7 +1449,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "assistant-ia-actions:reglerMaReponseVocale": {

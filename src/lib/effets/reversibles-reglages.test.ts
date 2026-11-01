@@ -18,7 +18,7 @@ import { getAccess } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { executerEffetsSortantsDus } from "@/lib/effets/fenetre";
-import { reglerMaReponseVocale } from "@/modules/assistant-ia/actions";
+import { reglerMaMemoireAuto, reglerMaReponseVocale } from "@/modules/assistant-ia/actions";
 import { reglerMaConversationPrivee } from "@/modules/assistant-ia/actions-conversations";
 import { reglerConsoleProactivite, reglerMaVeille, reglerMonVeilleur } from "@/modules/assistant-ia/actions-proactivite";
 import { reglerMaPreferenceDOffice, reglerPrioriteMonTravail } from "@/modules/assistant-ia/actions-travaux";
@@ -131,6 +131,12 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     const g2 = gesteDe(await reglerMaPreferenceDOffice(true));
     expect((await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } }))?.travauxDOffice).toBe(true);
     await annuler(g2);
+    expect(await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } })).toBeNull();
+
+    // M1 : « mémoire automatique : non » se défait — la préférence née du geste est retirée (défaut : oui).
+    const gm = gesteDe(await reglerMaMemoireAuto(false));
+    expect((await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } }))?.memoireAuto).toBe(false);
+    await annuler(gm);
     expect(await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } })).toBeNull();
 
     const fil = await prisma.assistantIaFil.create({ data: { userId: moi.id } });

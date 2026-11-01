@@ -72,10 +72,13 @@ export async function annulerSouvenirRetenu(id: string) {
 
 /** M1 : « mémoire automatique : oui / non » — un réglage de la personne (défaut : oui). */
 export async function reglerMaMemoireAuto(active: boolean) {
-  const p = await porte(true);
-  if (!p.ok) return p;
-  await reglerMemoireAuto(p.user.id, active === true);
-  return { ok: true as const, auto: active === true };
+  // Réversible comme tout réglage (décisions 0040-0044) : la valeur d'avant se remet d'un geste.
+  return actionReversible("assistant-ia-actions:reglerMaMemoireAuto", "Réglage de la mémoire automatique", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    await reglerMemoireAuto(p.user.id, active === true);
+    return { ok: true as const, auto: active === true };
+  });
 }
 
 // ─────────────────────────────── Les routines ───────────────────────────────
