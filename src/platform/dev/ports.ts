@@ -77,7 +77,7 @@ export interface EtatConnecteur {
 export type MoyenAgent =
   | "ROUTINE" // Routines API : nouvelle session cloud sur l'abonnement de la Direction
   | "COMMENTAIRE_PR" // commentaire `@claude` sur une PR, traité par la GitHub Action `anthropics/claude-code-action`
-  | "CLI"; // CLI `claude --cloud` sur la machine de la Direction, par le relais (`scripts/relais-claude.ts`)
+  | "CLI"; // CLI `claude --cloud` dans le service `claude-relais`, par le relais (`scripts/relais-claude.ts`)
 
 /** Ce qu'Adam demande à Claude Code. Le texte final est construit par `consigne.ts` (borné à 65 536 caractères). */
 export interface ConsigneDev {

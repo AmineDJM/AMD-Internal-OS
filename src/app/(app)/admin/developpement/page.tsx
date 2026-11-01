@@ -21,7 +21,7 @@ export const metadata = { title: "Développement — connecteurs · Administrati
 
 const TITRES: Record<EtatConnecteur["connecteur"], string> = {
   "claude-code": "Claude Code Cloud (Routines API)",
-  relais: "Claude Code — relais CLI (machine de la Direction)",
+  relais: "Claude Code — relais CLI (service Render claude-relais)",
   github: "GitHub",
   render: "Render",
   mimo: "MiMo",

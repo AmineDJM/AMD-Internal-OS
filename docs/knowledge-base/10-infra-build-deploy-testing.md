@@ -823,3 +823,10 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
   `vue-exacte-etanche.test.ts`, inventory + decision 0037). Migration `20270218200100_chantiers_relais_cli`
   (`ClaudeRelaisOrdre`, `ClaudeRelaisEtat`). `platform/dev/config.ts` is allowed to name `api.anthropic.com` in
   `passerelle-unique.test.ts` (Routines fire is not a model call).
+- Relay as a Render service (Direction 01/11, "in the cloud"): worker `claude-relais` in `render.yaml` (`runtime: docker`,
+  `Dockerfile.relais` = node:22-bookworm-slim + git + `@anthropic-ai/claude-code@2.1.316`, context limited to the script by
+  `Dockerfile.relais.dockerignore`), plan `starter`, disk `claude-relais-data` on `/var/data`, `CLAUDE_CONFIG_DIR=/var/data/claude`,
+  no `DATABASE_URL`. Login once by the Direction in the service Shell (`claude auth login`, URL + pasted code). Local
+  `docker build` here needs the proxy CA (`NODE_EXTRA_CA_CERTS`) and a Docker Hub mirror when rate-limited — done in a
+  scratch copy only; the shipped Dockerfile is unchanged. Test `in-process/chantiers/relais-script.test.ts` runs the real
+  script against a fake ERP + fake `claude` + a local bare git repo.

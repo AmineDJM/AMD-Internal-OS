@@ -319,3 +319,41 @@ services:
         sync: false
       - key: ADVENTUM_WEBHOOK_SECRET
         sync: false
+
+  # ── LE RELAIS CLAUDE CODE (lot C2, décision 0043 § 3 bis ; Direction 01/11/2026 : « le relais : dans le cloud ») ─────
+  # Un background worker À PART : la CLI Claude Code publiée par Anthropic (version épinglée dans Dockerfile.relais) + git.
+  # Il TIRE les ordres de l'ERP en HTTPS avec SON jeton (CLAUDE_RELAIS_TOKEN) ; il n'a AUCUN accès à la base de l'ERP
+  # (pas de DATABASE_URL). La connexion claude.ai se fait UNE FOIS par la Direction elle-même : Render › claude-relais ›
+  # Shell › `claude auth login` (URL à ouvrir, code à coller) ; elle s'écrit sous CLAUDE_CONFIG_DIR, sur le DISQUE
+  # persistant, et survit aux déploiements. Disque ⇒ offre payante, une seule instance, pas de déploiement sans coupure
+  # (render.com/docs/disks) — sans gêne ici : le relais reprend son tirage au redémarrage.
+  # Offre : STARTER (0,5 CPU, 512 Mo — `0.5c-512mb` dans la nomenclature actuelle), la plus petite offre payante d'un
+  # worker, seule à porter un disque. La CLI ne fait que des appels réseau ; si elle manquait de mémoire, passer à
+  # `standard` (1 CPU, 2 Go) ici ET dans le tableau de bord.
+  # ⚠ `sync: false` n'est demandé qu'à la CRÉATION par Blueprint ; sur un Blueprint existant, Render ignore ces clés :
+  # les poser à la main dans claude-relais › Environment après le Sync (décision 0043 § 3 bis, pas à pas).
+  - type: worker
+    name: claude-relais
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile.relais
+    dockerContext: .
+    disk:
+      name: claude-relais-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      # L'adresse de l'ERP que le relais interroge (littérale, comme APP_URL du worker).
+      - key: ERP_URL
+        value: https://amd-internal-os-k3uc.onrender.com
+      # Le MÊME jeton que CLAUDE_RELAIS_TOKEN de l'ERP (amd-internal-os) — `openssl rand -hex 32`.
+      - key: CLAUDE_RELAIS_TOKEN
+        sync: false
+      # Pour cloner et POUSSER la branche réservée avant `claude --cloud` (fine-grained : Contents R/W sur les dépôts
+      # des chantiers). Passé à git en en-tête HTTP par variables d'environnement, jamais en argument ni sur disque.
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: CLAUDE_CONFIG_DIR
+        value: /var/data/claude
+      - key: RELAIS_DOSSIER
+        value: /var/data/depots
