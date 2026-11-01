@@ -2,81 +2,8 @@
   "base": "http://localhost:3100",
   "compte": "yacine.benali@adventum-bench.dz",
   "debut": "2026-11-01T13:27:38.236Z",
-  "le": "2026-11-01T13:40:03.495Z",
+  "le": "2026-11-01T14:49:06.517Z",
   "lignes": [
-    {
-      "fonction": "Mémoire — capture automatique",
-      "ecran": "iPhone 13",
-      "verdict": "marche",
-      "preuve": "4 souvenir(s) en base (AssistantMemoryItem, origine « auto ») : [ETUDES_PARCOURS] A fait ses études à l’École nationale polytechnique d’Alger. | [FAMILLE] Fille : Lina. | [GOUTS_LOISIRS] Adore le café noir le matin. | [VOYAGES] Part à Lyon le 12 novembre 2026 avec sa fille Lina.",
-      "captures": [
-        "iphone-01-capture-retenu.jpg"
-      ],
-      "detail": {
-        "reponse": "Bonjour Yacine ! Je retiens votre voyage à Lyon avec Lina, vos études à l’École nationale polytechnique d’Alger et votre goût pour le café noir le matin. Bon voyage à vous deux !",
-        "memoiresRetenues": [
-          {
-            "id": "cmvxv7mv1000j8i327e2tdzlm",
-            "geste": "ajoute",
-            "sorte": "VOYAGES",
-            "contenu": "Part à Lyon le 12 novembre 2026 avec sa fille Lina."
-          },
-          {
-            "id": "cmvxv7mv9000m8i32k3nn138p",
-            "geste": "ajoute",
-            "sorte": "FAMILLE",
-            "contenu": "Fille : Lina."
-          },
-          {
-            "id": "cmvxv7mvi000p8i328mcpqg9v",
-            "geste": "ajoute",
-            "sorte": "ETUDES_PARCOURS",
-            "contenu": "A fait ses études à l’École nationale polytechnique d’Alger."
-          },
-          {
-            "id": "cmvxv7mvo000s8i32r071vxgp",
-            "geste": "ajoute",
-            "sorte": "GOUTS_LOISIRS",
-            "contenu": "Adore le café noir le matin."
-          }
-        ]
-      }
-    },
-    {
-      "fonction": "Conversations — création et titre",
-      "ecran": "iPhone 13",
-      "verdict": "marche",
-      "preuve": "AssistantIaFil cmvxv7h5000078i32p9zqj9zm : titre « Voyage à Lyon avec Lina » (auto)",
-      "captures": []
-    },
-    {
-      "fonction": "Mémoire — « annuler » un souvenir",
-      "ecran": "iPhone 13",
-      "verdict": "marche",
-      "preuve": "souvenirs actifs : 4 → 3",
-      "captures": [
-        "iphone-02-annule.jpg"
-      ]
-    },
-    {
-      "fonction": "Mémoire — rappel dans une NOUVELLE conversation",
-      "ecran": "iPhone 13",
-      "verdict": "marche",
-      "preuve": "réponse : « Oui, tu pars à Lyon le 12 novembre 2026 avec ta fille Lina. »",
-      "captures": [
-        "iphone-03-rappel-voyage.jpg"
-      ]
-    },
-    {
-      "fonction": "Mémoire — panneau « Ce qu'il retient » (groupes, édition, origine, compteur)",
-      "ecran": "iPhone 13",
-      "verdict": "marche",
-      "preuve": "3 souvenir(s) affiché(s), édition écrite en base : true",
-      "captures": [
-        "iphone-04-panneau.jpg",
-        "iphone-05-panneau-edite.jpg"
-      ]
-    },
     {
       "fonction": "Conversation privée — rien n'est retenu",
       "ecran": "iPhone 13",
@@ -103,16 +30,6 @@
       "preuve": "bouton « Nouveau dossier » : true",
       "captures": [
         "iphone-18-dossiers.jpg"
-      ]
-    },
-    {
-      "fonction": "Bureau — ligne « Retenu » et panneau",
-      "ecran": "bureau 1440",
-      "verdict": "marche",
-      "preuve": "conversation et panneau affichés",
-      "captures": [
-        "bureau-01-conversation-retenu.jpg",
-        "bureau-02-panneau.jpg"
       ]
     },
     {
@@ -197,32 +114,115 @@
         "iphone-07-notes-proposees.jpg",
         "iphone-08-onglet-notes.jpg"
       ]
+    },
+    {
+      "fonction": "Mémoire — capture automatique",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "4 souvenir(s) en base (AssistantMemoryItem, origine « auto ») : [ETUDES_PARCOURS] A fait ses études à l’École nationale polytechnique d’Alger. | [VOYAGES] Part à Lyon le 12 novembre 2026 avec sa fille Lina. | [GOUTS_LOISIRS] Aime le café noir le matin. | [FAMILLE] Fille : Lina.",
+      "captures": [
+        "iphone-01-capture-retenu.jpg"
+      ],
+      "detail": {
+        "reponse": "Bonjour Yacine ! Bon voyage à Lyon avec Lina le 12 novembre. Je retiens aussi vos études à l’École nationale polytechnique d’Alger et votre goût pour le café noir le matin.",
+        "memoiresRetenues": [
+          {
+            "id": "cmvxy3r85000jiajbmvq9ydpf",
+            "geste": "ajoute",
+            "sorte": "VOYAGES",
+            "contenu": "Part à Lyon le 12 novembre 2026 avec sa fille Lina."
+          },
+          {
+            "id": "cmvxy3r8c000miajbv5mamwbz",
+            "geste": "ajoute",
+            "sorte": "FAMILLE",
+            "contenu": "Fille : Lina."
+          },
+          {
+            "id": "cmvxy3r8j000piajbum3i5zsq",
+            "geste": "ajoute",
+            "sorte": "ETUDES_PARCOURS",
+            "contenu": "A fait ses études à l’École nationale polytechnique d’Alger."
+          },
+          {
+            "id": "cmvxy3r8o000siajbvuueg8fp",
+            "geste": "ajoute",
+            "sorte": "GOUTS_LOISIRS",
+            "contenu": "Aime le café noir le matin."
+          }
+        ]
+      }
+    },
+    {
+      "fonction": "Conversations — création et titre",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "AssistantIaFil cmvxy3lpx0007iajbu7otsc2l : titre « Voyage à Lyon avec Lina » (auto)",
+      "captures": []
+    },
+    {
+      "fonction": "Mémoire — « annuler » un souvenir",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "souvenirs actifs : 4 → 3",
+      "captures": [
+        "iphone-02-annule.jpg"
+      ]
+    },
+    {
+      "fonction": "Mémoire — rappel dans une NOUVELLE conversation",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "réponse : « Oui, tu pars à Lyon le 12 novembre 2026 avec ta fille Lina. »",
+      "captures": [
+        "iphone-03-rappel-voyage.jpg"
+      ]
+    },
+    {
+      "fonction": "Mémoire — panneau « Ce qu'il retient » (groupes, édition, origine, compteur)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "3 souvenir(s) affiché(s), édition écrite en base : true",
+      "captures": [
+        "iphone-04-panneau.jpg",
+        "iphone-05-panneau-edite.jpg"
+      ]
+    },
+    {
+      "fonction": "Bureau — ligne « Retenu » et panneau",
+      "ecran": "bureau 1440",
+      "verdict": "marche",
+      "preuve": "conversation et panneau affichés",
+      "captures": [
+        "bureau-01-conversation-retenu.jpg",
+        "bureau-02-panneau.jpg"
+      ]
     }
   ],
   "couts": {
     "fil · gpt-6.1-terra": {
-      "appels": 45,
-      "entree": 417059,
-      "sortie": 7206,
-      "usd": 0.26574200000000003
+      "appels": 47,
+      "entree": 430030,
+      "sortie": 7287,
+      "usd": 0.27911800000000003
     },
     "memoire · gpt-6-luna": {
-      "appels": 2,
-      "entree": 1300,
-      "sortie": 385,
-      "usd": 0.000323
+      "appels": 3,
+      "entree": 1935,
+      "sortie": 620,
+      "usd": 0.000504
     },
     "memoire · text-embedding-3-small": {
-      "appels": 2,
-      "entree": 163,
+      "appels": 3,
+      "entree": 285,
       "sortie": 0,
-      "usd": 0.000003
+      "usd": 0.0000049999999999999996
     },
     "redaction · gpt-6-luna": {
-      "appels": 13,
-      "entree": 2411,
-      "sortie": 860,
-      "usd": 0.000672
+      "appels": 15,
+      "entree": 2751,
+      "sortie": 969,
+      "usd": 0.0007600000000000002
     },
     "worker · gpt-5.6-terra": {
       "appels": 1,
@@ -243,6 +243,6 @@
       "usd": 0.01331
     }
   },
-  "toursRepondus": 24,
+  "toursRepondus": 26,
   "erreursConsole": []
 }
