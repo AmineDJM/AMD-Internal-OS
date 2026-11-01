@@ -5,8 +5,7 @@ import { MODULE_LABELS, ROLE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import { CONSIGNE_COMPOSANTS } from "../domaine/ui/composants";
-import { memoirePourContexte } from "./memoire";
-import { souvenirsPourQuestion } from "../domaine/assembleur";
+import { rappelDuTour } from "./memoire-capture";
 import { REGLE_NOTES } from "../domaine/notes/regles";
 
 /**
@@ -86,9 +85,6 @@ function adresseSure(pathname?: string): string | null {
   return /^\/[\w\-/[\]().]*$/.test(p) ? p.slice(0, 200) : null;
 }
 
-/** La mémoire personnelle (`memoire.ts`) : ce que la personne a confirmé, à elle seule. */
-const chargerMemoireUtilisateur = (userId: string) => memoirePourContexte(userId);
-
 async function chargerMessagesConversation(
   userId: string,
   threadId: string | undefined,
@@ -111,6 +107,13 @@ async function chargerMessagesConversation(
 }
 
 /**
+ * LA MÉMOIRE (M1, décision 0045) — par défaut, ce que la personne dit d'elle est retenu D'OFFICE après le tour : le modèle
+ * n'a rien à appeler. Mémoire automatique coupée par la personne : `CONSIGNE_MEMOIRE_A_LA_CARTE` (dans ses consignes).
+ */
+export const REGLE_MEMOIRE_AUTO = "Mémoire : ce que la personne te dit d'elle-même et qui dure (qui elle est, sa famille, ses études, ses voyages, ses goûts, sa santé si elle en parle, ses projets, ses habitudes, ses préférences) est RETENU D'OFFICE après ta réponse — elle le voit et l'annule d'un geste. Ne dis jamais que tu ne peux pas retenir ni que tu oublies d'une conversation à l'autre ; ne crée ni tâche ni note pour cela. Ta « MÉMOIRE DE L'INTERLOCUTEUR » ci-dessous est ce que tu sais d'elle : « tu te souviens… ? » se répond par elle, exactement ; si rien n'y est, dis que tu ne l'as pas retenu.";
+export const CONSIGNE_MEMOIRE_A_LA_CARTE = "### MÉMOIRE À LA CARTE\nLa personne a coupé la mémoire automatique : rien n'est retenu d'office. « Retiens que… », « souviens-toi… », ou un fait durable qu'elle te confie sur elle → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.";
+
+/**
  * LES RÈGLES DE RÉPONSE — tirées du prompt « Generative UI » fourni (C10,
  * `docs/assistant/prompt-systeme-ui-generative.md`), en français. La sortie structurée en
  * composants (R5) suit, dans sa propre section : `CONSIGNE_COMPOSANTS`.
@@ -126,7 +129,7 @@ export const REGLES = [
   "Routines : quand l'utilisateur te DEMANDE de faire quelque chose à un moment donné ou régulièrement (« chaque dimanche à 8 h », « tous les matins », « le 1er du mois », « demain à 9 h ») → programmer_routine ; ne devine jamais l'heure ni le jour, demande-les. Ses routines : mes_routines ; pause, reprise, suppression, exécution immédiate : gerer_routine. Jamais de routine ni de relance de ta propre initiative.",
   "Web : une information EXTÉRIEURE à l'entreprise (actualité, marché, laboratoire, réglementation, congrès, météo) → web_research, en citant ses sources et leur date ; jamais pour une donnée de l'ERP. Ne dis jamais que tu ne peux pas vérifier l'actualité : cherche. Une demande « [Conversation vocale] » → web_research avec rapide = true, et une réponse courte, à dire à voix haute.",
   CONSIGNE_CONTENU_NON_FIABLE,
-  "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
+  REGLE_MEMOIRE_AUTO,
   "Graphe et faits datés : « qu'est-ce qui dépend de… », « qui a travaillé sur… », « quels documents parlent de… » → explorer_relations ; « quelle était… à telle date » → etat_a_une_date (jamais la valeur d'aujourd'hui à la place) ; « d'où vient ce chiffre » → d_ou_vient. CHAQUE chiffre, date ou identifiant que tu en reprends est suivi de sa source entre parenthèses (la `source` rendue) ; une entité AMBIGUË se tranche par une question, jamais par un choix.",
   "Recettes de la maison : une demande qui suit un processus de l'entreprise (prise en charge, sponsoring, événement, validation, recrutement…) → recette_pour d'abord. Une recette VALIDÉE rend un plan : propose-le TEL QUEL (lancer_un_travail) en disant d'où il vient avec la phrase `selon` (« selon la recette … validée par … le … »), et signale chaque écart rendu ; tu ne retouches le plan qu'à la demande de la personne, en disant ce que tu changes. AUCUNE ou AMBIGU : jamais de « selon la recette ».",
   REGLE_NOTES,
@@ -196,8 +199,9 @@ export async function compileContext({
     .filter((m) => userCan(user, m, "VIEW"))
     .map((m) => MODULE_LABELS[m] ?? m);
 
-  const [memoireFaits, { messages, aCensure: censureMessages }] = await Promise.all([
-    sansMemoire ? Promise.resolve([] as Awaited<ReturnType<typeof chargerMemoireUtilisateur>>) : chargerMemoireUtilisateur(user.id),
+  // M1 : le profil stable et les souvenirs PERTINENTS pour la question (décision 0045) — rien en conversation privée.
+  const [memoire, { messages, aCensure: censureMessages }] = await Promise.all([
+    sansMemoire ? Promise.resolve(null) : rappelDuTour(user.id, question ?? ""),
     chargerMessagesConversation(user.id, threadId, maxMessagesHistorique),
   ]);
   if (censureMessages) censureGlobale = true;
@@ -225,15 +229,10 @@ export async function compileContext({
   const adresse = adresseSure(page?.pathname);
   if (adresse) sections.push(`### ÉCRAN OUVERT\nPage : ${adresse}. Pour en connaître le contenu, utilise tes outils de lecture.`);
 
-  // LA MÉMOIRE PERSONNELLE (couche c) : les souvenirs pertinents pour la question d'abord, dans leur enveloppe.
-  const souvenirs = question === undefined ? memoireFaits : souvenirsPourQuestion(memoireFaits, question);
-  if (souvenirs.length > 0) {
-    const faits = souvenirs.map((f) => {
-      const { texte, censure } = censurerTexte(f);
-      if (censure) censureGlobale = true;
-      return `- ${texte}`;
-    });
-    sections.push(`### MÉMOIRE DE L'INTERLOCUTEUR\n${faits.join("\n")}`);
+  // LA MÉMOIRE PERSONNELLE (couche c) : profil, puis souvenirs pertinents, chacun dans son enveloppe (filtrés à nouveau).
+  if (memoire?.section) {
+    if (memoire.censure) censureGlobale = true;
+    sections.push(memoire.section);
   }
 
   sections.push(...sectionsDuTour.filter(Boolean));

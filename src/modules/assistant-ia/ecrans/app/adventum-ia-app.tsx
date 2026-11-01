@@ -6,6 +6,7 @@ import { ChatMessageList, type ChatMessage } from "../chat-message-list";
 import { BoutonJoindre, PiecesEnAttente, type PieceOuvrable } from "../pieces-jointes";
 import { EnregistreurVocal } from "../enregistreur-vocal";
 import { MemoirePanel } from "../memoire-panel";
+import { OUVRIR_MEMOIRE } from "../memoires-retenues";
 import { TravauxPanel } from "../travaux-panel";
 import { TableauMissions } from "../missions/tableau-missions";
 import { IndicateurMissions } from "../missions/carte-sous-missions";
@@ -96,6 +97,10 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
     const t = q.get("travail");
     if (t) setMissions({ ouvert: true, initial: t });
     enregistrerServiceWorker();
+    // M1 : « voir » sous une ligne « Retenu : … » ouvre « Ce qu'il retient ».
+    const voirMemoire = () => setMemoire(true);
+    window.addEventListener(OUVRIR_MEMOIRE, voirMemoire);
+    return () => window.removeEventListener(OUVRIR_MEMOIRE, voirMemoire);
   }, []);
 
   const versUrl = (c: string | null) => window.history.replaceState(null, "", c ? `/ia?c=${encodeURIComponent(c)}` : "/ia");
@@ -342,7 +347,7 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
         </div>
       )}
       <ApercuPiece piece={apercu} onFermer={() => setApercu(null)} onDemanderModification={f.vueExacte ? undefined : demanderModification} onOuvrirAtelier={f.vueExacte ? undefined : ouvrirDansAtelier} />
-      <MemoirePanel ouvert={memoire} onFermer={() => setMemoire(false)} />
+      <MemoirePanel ouvert={memoire} onFermer={() => setMemoire(false)} onOuvrirConversation={(id) => { setMemoire(false); ouvrir(id); }} />
       <TravauxPanel ouvert={travaux.ouvert} onFermer={() => setTravaux({ ouvert: false, initial: null })} travailInitial={travaux.initial} />
       <TableauMissions ouvert={missions.ouvert} missionInitiale={missions.initial} onFermer={() => setMissions({ ouvert: false, initial: null })}
         onOuvrirLivrable={(piece) => setApercu(piece)} onOuvrirConversation={ouvrir} />

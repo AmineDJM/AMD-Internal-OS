@@ -5,12 +5,13 @@ import { User, Loader2, Wrench, Clock, Mic, AlertTriangle, ArrowDown } from "luc
 import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
+import { MemoiresRetenues } from "./memoires-retenues";
 import { NotesProposeesCard } from "./notes-proposees-card";
 import { CarteSousMissions } from "./missions/carte-sous-missions";
 import { PiecesDuMessage, PiecesRendues, type PieceOuvrable } from "./pieces-jointes";
 import { BulleVocale } from "./bulle-vocale";
 import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../domaine/lecture/regles";
-import type { MemoireProposee } from "../domaine/memoire-ui";
+import type { MemoireProposee, MemoireRetenue } from "../domaine/memoire-ui";
 import type { VueSimulation } from "../domaine/simulation";
 import type { FormulaireCarte } from "@/platform/ia/capacites/formulaire";
 import type { PropositionNote } from "../domaine/notes/gestes";
@@ -35,6 +36,8 @@ export interface ChatMessage {
   audio?: AudioDuTour | null;
   /** Une mémoire PROPOSÉE par l'assistant — retenue seulement au geste de la personne. */
   memoireProposee?: MemoireProposee | null;
+  /** M1 (décision 0045) : les souvenirs retenus d'office après ce tour — « Retenu : … (annuler) ». */
+  memoiresRetenues?: MemoireRetenue[] | null;
   /** « Mes notes » (décision 0026) : les modifications de notes PROPOSÉES par ce tour, dans leur état présent. */
   notesProposees?: PropositionNote[] | null;
   outilsAppeles?: string[];
@@ -236,6 +239,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                   </div>
                 )}
                 {m.piecesRendues && m.piecesRendues.length > 0 && onOuvrirPiece && <PiecesRendues pieces={m.piecesRendues} onOuvrir={onOuvrirPiece} />}
+                {m.memoiresRetenues && m.memoiresRetenues.length > 0 && <MemoiresRetenues memoires={m.memoiresRetenues} />}
                 {m.memoireProposee && (
                   <div className="mt-3">
                     <MemoireProposeeCard memoire={m.memoireProposee} />

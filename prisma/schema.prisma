@@ -888,11 +888,24 @@ model AssistantMemoryItem {
   sourceThreadId String?
   active         Boolean   @default(true)
   lastUsedAt     DateTime?
+  /// M1 (décision 0045) : « manuel » (ajouté dans le panneau), « propose » (carte « Retenir » confirmée), « auto »
+  /// (capture automatique après un tour, réversible), « voix » (capture en fin de conversation vocale).
+  origine        String    @default("manuel")
+  /// M1 : la clé de dédoublonnage (« voyage:lyon », « famille:fille ») — un fait qui change REMPLACE le précédent.
+  sujet          String?
+  /// M1 : l'HISTORIQUE — le souvenir que celui-ci remplace (l'ancien reste, inactif, avec `remplaceLe`).
+  remplaceId     String?
+  remplaceLe     DateTime?
+  /// M1 : le message (tour du fil) d'où vient le souvenir — le lien « origine » du panneau.
+  sourceTourId   String?
+  /// M1 : le plongement du souvenir (text-embedding-3-small, 512) — vide sans clé : le rappel reste lexical.
+  vecteur        Float[]   @default([])
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   @@index([userId, active])
   @@index([userId, type])
+  @@index([userId, sujet])
 }
 
 /// UNE ROUTINE DE L'ASSISTANT IA — « fais-moi un briefing du marché pharmaceutique en Algérie chaque
@@ -1154,6 +1167,10 @@ model AssistantIaTour {
   notesProposees  Json?
   /// K3 (décision 0033) : les SOUS-MISSIONS lancées pendant ce tour (identifiants de travaux) — la carte qui se met à jour.
   travaux         Json?
+  /// M1 (décision 0045) : les souvenirs RETENUS d'office après ce tour (identifiants) — la ligne « Retenu : … (annuler) ».
+  memoiresRetenues Json?
+  /// M1 : « EN_COURS » pendant la capture (l'écran continue de lire le fil), « FAIT » ensuite, `null` sans capture.
+  memoireEtat     String?
   /// K3 : un tour de SYNTHÈSE dit la fin des sous-missions de ce tour-là (unique : une seule synthèse par tour).
   syntheseDe      String?        @unique
   createdAt       DateTime       @default(now())
@@ -9571,6 +9588,8 @@ model AssistantIaAcces {
 model AssistantIaPreference {
   userId         String   @id
   travauxDOffice Boolean?
+  /// M1 (décision 0045) : « mémoire automatique » — `null` = oui (défaut), `false` = l'assistant ne retient qu'à la carte.
+  memoireAuto    Boolean?
   updatedAt      DateTime @default(now()) @updatedAt
 }
 

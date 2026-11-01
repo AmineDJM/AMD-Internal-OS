@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { idsDriveCites, lireFil, piecesCitees, propositionsParIds, type PropositionNote } from "@/modules/assistant-ia/api";
+import { idsDriveCites, lireFil, piecesCitees, propositionsParIds, souvenirsParIds, type MemoireRetenue, type PropositionNote } from "@/modules/assistant-ia/api";
 import { getCurrentUser } from "@/lib/session";
 import { enVueExacte, refusAssistantIA, SANS_CACHE } from "../personne";
 
@@ -35,6 +35,16 @@ export async function GET(req: Request) {
     const ps = Array.isArray(v) ? v.flatMap((id) => (typeof id === "string" && notes.has(id) ? [notes.get(id)!] : [])) : [];
     return ps.length ? ps : null;
   };
+  // M1 (décision 0045) : les souvenirs retenus d'office par un tour, dans leur état présent (annulés depuis, ou non).
+  const idsSouvenirs = fil.tours.flatMap((t) => (Array.isArray(t.memoiresRetenues) ? (t.memoiresRetenues as { id?: unknown }[]).map((m) => m?.id).filter((x): x is string => typeof x === "string") : []));
+  const souvenirs = await souvenirsParIds(user.id, idsSouvenirs);
+  const retenusDu = (v: unknown): MemoireRetenue[] | null => {
+    const ms = Array.isArray(v) ? (v as MemoireRetenue[]).filter((m) => m && typeof m.id === "string") : [];
+    return ms.length ? ms.map((m) => {
+      const e = souvenirs.get(m.id);
+      return { id: m.id, sorte: e?.sorte ?? m.sorte, contenu: e?.contenu ?? m.contenu, geste: m.geste === "remplace" ? "remplace" : "ajoute", annule: !e?.actif };
+    }) : null;
+  };
   return NextResponse.json({
     vueExacte: false,
     enCours: fil.enCours,
@@ -47,6 +57,7 @@ export async function GET(req: Request) {
       // K3 (décision 0033) : les sous-missions du tour (la carte les lit en temps réel par le flux du tableau de bord).
       travaux: Array.isArray(t.travaux) ? (t.travaux as unknown[]).filter((x): x is string => typeof x === "string") : null,
       synthese: !!t.syntheseDe,
+      memoiresRetenues: retenusDu(t.memoiresRetenues),
     })),
   }, SANS_CACHE);
 }

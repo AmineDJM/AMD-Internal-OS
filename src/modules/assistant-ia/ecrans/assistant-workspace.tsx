@@ -7,6 +7,7 @@ import { LuminescentCursor } from "./luminescent-cursor";
 import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
 import { MemoirePanel } from "./memoire-panel";
+import { OUVRIR_MEMOIRE } from "./memoires-retenues";
 import { RoutinesPanel } from "./routines-panel";
 import { listerMesDemandesRecues } from "../actions-travaux";
 import { TravauxPanel } from "./travaux-panel";
@@ -96,6 +97,12 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   // J12 : « Ce que mon assistant surveille » — une notification de veilleur mène ici (« ?veille=1 »).
   const [veilleOuverte, setVeilleOuverte] = useState(false);
   useEffect(() => { if (new URLSearchParams(window.location.search).get("veille")) setVeilleOuverte(true); }, []);
+  // M1 : « voir » sous une ligne « Retenu : … » ouvre « Ce qu'il retient ».
+  useEffect(() => {
+    const ouvrir = () => setMemoireOuverte(true);
+    window.addEventListener(OUVRIR_MEMOIRE, ouvrir);
+    return () => window.removeEventListener(OUVRIR_MEMOIRE, ouvrir);
+  }, []);
 
   // Une notification de routine mène ici (« ?routine=… ») : le panneau s'ouvre sur son dernier passage.
   useEffect(() => {
@@ -376,7 +383,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
         </div>
       </div>
       <ApercuPiece piece={apercu} onFermer={fermerApercu} onDemanderModification={vueExacte ? undefined : demanderModification} onOuvrirAtelier={vueExacte ? undefined : ouvrirDansAtelier} />
-      <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
+      <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} onOuvrirConversation={(id) => { setMemoireOuverte(false); ouvrirConversation(id); }} />
       <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
       <PanneauDuDossier panneau={panneauDossier} etat={conversations} onPanneau={setPanneauDossier} onDossierOuvert={setDossierOuvert} onNouvelleConversation={nouvelleConversation} />
       <VeillePanel ouvert={veilleOuverte} onFermer={() => setVeilleOuverte(false)} />

@@ -30,6 +30,8 @@ export interface TourDuFil {
   intent?: ChatMessage["intent"] | null;
   memoireProposee?: ChatMessage["memoireProposee"] | null;
   notesProposees?: ChatMessage["notesProposees"] | null;
+  /** M1 : les souvenirs retenus d'office après ce tour (la ligne « Retenu : … (annuler) »). */
+  memoiresRetenues?: ChatMessage["memoiresRetenues"] | null;
   /** K3 : les sous-missions lancées par ce tour ; `synthese` : ce tour EST la synthèse d'un autre. */
   travaux?: string[] | null;
   synthese?: boolean;
@@ -54,6 +56,7 @@ export function versMessage(t: TourDuFil): ChatMessage {
   return {
     id: t.id, role: "assistant", content: t.contenu, createdAt: t.createdAt,
     blocs: t.blocs ?? undefined, intent: t.intent ?? null, memoireProposee: t.memoireProposee ?? null, notesProposees: t.notesProposees ?? null, audio: t.audio ?? null,
+    memoiresRetenues: t.memoiresRetenues ?? null,
     piecesRendues: t.piecesRendues ?? null,
     travaux: t.travaux ?? null, synthese: t.synthese === true,
     outilsAppeles: redaction ? t.etapes ?? [] : (t.outils?.length ? t.outils : t.etapes ?? []),

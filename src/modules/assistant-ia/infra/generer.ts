@@ -1,5 +1,5 @@
 import { Agent } from "@mastra/core/agent";
-import { modelesAssistant, optionsFournisseur, pourMastra } from "./modele";
+import { cleFournisseurVoix, modelesAssistant, optionsFournisseur, pourMastra, urlFournisseur } from "./modele";
 import type { RoleModele } from "@/platform/ia/modeles-roles";
 import { fournisseurDe, type ModeleTour } from "./repondre";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
@@ -34,7 +34,7 @@ export interface ImageJointe {
 export interface OptionsGeneration {
   images?: ImageJointe[];
   /** La colonne `role` du journal quand l'appel ouvre son propre budget (« redaction » par défaut). */
-  origine?: Extract<OrigineAppel, "redaction" | "vision" | "ocr">;
+  origine?: Extract<OrigineAppel, "redaction" | "vision" | "ocr" | "memoire">;
   /** J4 : le rôle du modèle (« rapide » pour un résumé roulant) — « standard » par défaut. */
   role?: RoleModele;
   /**
@@ -49,6 +49,9 @@ let modelesDeTest: ModeleTour[] | null = null;
 export function remplacerModelesPourTests(m: ModeleTour[] | null): void {
   modelesDeTest = m;
 }
+
+/** Un test a-t-il remplacé les modèles ? (Les appels annexes — capture de mémoire — ne consomment pas son scénario.) */
+export const modelesFactices = (): boolean => modelesDeTest !== null;
 
 /** Les modèles de l'assistant pour un rôle — ou le faux modèle d'un test (le même, quel que soit le rôle). */
 export const modelesEffectifs = (role: RoleModele = "standard"): ModeleTour[] => modelesDeTest ?? modelesAssistant(role);
@@ -110,5 +113,40 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
     return resultat;
   } finally {
     if (proprietaire) await fermerBudget(budget, { ok: resultat.ok, erreur: resultat.ok ? null : resultat.raison, ms: Date.now() - debut });
+  }
+}
+
+/**
+ * M1 (décision 0045) — LES PLONGEMENTS de la mémoire (text-embedding-3-small, 512 dimensions, comme la Bibliothèque) :
+ * la même garde que le texte (interrupteur, budget de la personne, journal K8 sous l'usage « memoire »). `null` sans clé,
+ * sous le faux modèle d'un test, ou en panne : le rappel reste lexical.
+ */
+export const MODELE_PLONGEMENT = (process.env.ASSISTANT_IA_EMBED_MODEL || "text-embedding-3-small").trim();
+export async function plongerTextes(textes: readonly string[]): Promise<number[][] | null> {
+  if (!textes.length || modelesDeTest || !cleFournisseurVoix()) return null;
+  if (await interrupteurIaCoupe()) return null;
+  const ouvert = await budgetDeLAppel("memoire");
+  if (!ouvert.ok) return null;
+  const debut = Date.now();
+  let ok = false;
+  try {
+    const r = await fetch(urlFournisseur("/embeddings"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cleFournisseurVoix()}` },
+      body: JSON.stringify({ model: MODELE_PLONGEMENT, input: textes.map((t) => t.slice(0, 4_000)), dimensions: 512 }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { data?: { index: number; embedding: number[] }[]; usage?: { prompt_tokens?: number } };
+    ouvert.budget.enregistrer({ provider: "openai", model: MODELE_PLONGEMENT, entree: j.usage?.prompt_tokens ?? 0, sortie: 0, cache: 0, raisonnement: 0, ms: Date.now() - debut });
+    if (!Array.isArray(j.data) || j.data.length !== textes.length) return null;
+    const out: number[][] = new Array(textes.length);
+    for (const d of j.data) out[d.index] = d.embedding;
+    ok = true;
+    return out;
+  } catch {
+    return null;
+  } finally {
+    if (ouvert.proprietaire) await fermerBudget(ouvert.budget, { ok, erreur: ok ? null : "plongement", ms: Date.now() - debut });
   }
 }

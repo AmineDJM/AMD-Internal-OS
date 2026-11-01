@@ -137,7 +137,8 @@ suite("Adventum IA — conversations multiples, privées, dossiers (vraie base)"
     const [ordinaire] = await listerConversations(moi.id).then((l) => l.filter((c) => !c.prive));
     expect(await reglerPrive(moi.id, ordinaire.id, true)).toMatchObject({ ok: false, erreur: expect.stringMatching(/ne peut plus devenir privée/) });
 
-    // Une conversation ORDINAIRE, elle, lit la mémoire commune et peut proposer d'en retenir.
+    // Une conversation ORDINAIRE, elle, lit la mémoire commune — et retient d'office (M1, décision 0045 : plus de carte
+    // « Retenir » quand la mémoire automatique est active, le défaut ; coupée, la carte revient — `memoire-capture.test.ts`).
     const faux2 = modeleFactice([reponse("Jeudi à 10 h."), { texte: "Comité" }]);
     remplacerModelesPourTests([faux2.modele as never]);
     const o = await nouvelleConversation(moi.id);
@@ -145,7 +146,7 @@ suite("Adventum IA — conversations multiples, privées, dossiers (vraie base)"
     await deposerMessage(moi.id, "Quand a lieu mon comité de direction ?", [], null, o.conversation);
     await traiterFil(moi.id, o.conversation);
     expect(JSON.stringify(faux2.promptsRecus[0])).toContain(SOUVENIR);
-    expect(faux2.outilsRecus[0]).toContain("proposer_memoire");
+    expect(faux2.outilsRecus[0]).not.toContain("proposer_memoire");
   }, 60_000);
 
   it("la mémoire des conversations passées : les siennes seulement, jamais une privée ni celle en cours", async () => {

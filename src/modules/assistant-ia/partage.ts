@@ -33,7 +33,7 @@ export { idsDriveCites } from "./domaine/lecture/depot";
 export { DUREE_VOCAL_MAX_S, nomAnnonceLeCoffre } from "./domaine/lecture/regles";
 
 // ── Mémoire personnelle (ce qu'une carte « Retenir » propose)
-export type { MemoireProposee } from "./domaine/memoire-ui";
+export type { MemoireProposee, MemoireRetenue } from "./domaine/memoire-ui";
 
 // ── Opérations : la charge d'une carte de l'Assistant IA ; la bande MRZ (lue aussi par l'enrichissement)
 export { estChargeOperationIA } from "./domaine/operations/types";

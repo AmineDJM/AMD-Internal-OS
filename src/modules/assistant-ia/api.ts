@@ -37,8 +37,10 @@ export { piecesCitees } from "./infra/operations/pieces";
 
 // ── Mémoire personnelle
 export {
-  ajouterMemoire, effacerMemoire, listerMemoire, modifierMemoire, toutEffacerMemoire, type ElementMemoire,
+  ajouterMemoire, annulerSouvenir, effacerMemoire, listerMemoire, memoireAutoActive, modifierMemoire, reglerMemoireAuto, souvenirsParIds,
+  toutEffacerMemoire, type ElementMemoire, type MemoireRetenue,
 } from "./infra/memoire";
+export { capturerApresTour, memoirePourVoix, rappelDuTour } from "./infra/memoire-capture";
 
 // ── Routines programmées (lecture seule, balayées par `runScheduledJobs`)
 export {

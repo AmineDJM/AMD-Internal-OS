@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
-import { compileContext } from "../contexte";
+import { compileContext, CONSIGNE_MEMOIRE_A_LA_CARTE } from "../contexte";
+import { memoireAutoActive } from "../memoire";
 import { accesAssistantIa, getRoleConfig, GESTE_MODELE_EN_CLAIR, resoudreConsignesRole, Revelateur } from "../role-config";
 import { consigneFamilles, type AccesIa } from "../../domaine/acces-regles";
 import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
@@ -103,7 +104,7 @@ export interface DemandeDuTour {
 }
 
 /** Ce qu'une conversation privée dit au modèle (dans la partie variable : le préfixe stable ne bouge pas). */
-export const CONSIGNE_PRIVEE = "### CONVERSATION PRIVÉE\nL'utilisateur a ouvert une conversation privée : tu n'as pas sa mémoire, tu ne proposes RIEN à retenir et tu ne cherches pas dans ses autres conversations. Elle sera supprimée dans 30 jours.";
+export const CONSIGNE_PRIVEE = "### CONVERSATION PRIVÉE\nL'utilisateur a ouvert une conversation privée : tu n'as pas sa mémoire, RIEN de ce qu'il dit ici n'est retenu (dis-le s'il te demande de retenir) et tu ne cherches pas dans ses autres conversations. Elle sera supprimée dans 30 jours.";
 
 /** Les appels de modèle du tour — et ceux que ses outils déclenchent — sont imputés à la personne. */
 export function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<ResultatDuTour & { message: string }> {
@@ -199,6 +200,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   try {
     acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
+    // M1 (décision 0045) : mémoire automatique (défaut) — retenue d'office après le tour ; coupée, la carte « Retenir ».
+    const memoireAuto = d.prive ? false : await memoireAutoActive(user.id);
     // MODE « EN CLAIR » (décision 0034) : la sortie d'un outil rend au modèle les valeurs que la personne a le droit de
     // voir — le MÊME juge que l'affichage (politique du coffre, familles de la console), chaque valeur au journal.
     const auModele = enClair ? new Revelateur(coffret, user, acces, GESTE_MODELE_EN_CLAIR) : null;
@@ -211,7 +214,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     }), ...outilsSousMissionsDuTour(user, travauxLances, "fin-du-tour"), ...outilsChantierPour(user)];
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
-    outils = d.prive ? outils.filter((o) => o.def.name !== "proposer_memoire") : [...outils, outilConversationsPassees(user, d.conversation ?? null)];
+    // M1 : la mémoire automatique retient seule — la carte « Retenir » ne sert que si la personne l'a coupée.
+    if (d.prive || memoireAuto) outils = outils.filter((o) => o.def.name !== "proposer_memoire");
+    if (!d.prive) outils = [...outils, outilConversationsPassees(user, d.conversation ?? null)];
     // K6 (décision 0036) : « je t'envoie la lettre par WhatsApp » — l'attente de pièces (fiche de la sélection, pas socle).
     outils.push(outilAttendrePieces(user, d.conversation ?? null, d.vocal || texteSaisi.startsWith("[Conversation vocale]") ? "VOIX" : "ECRIT"));
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
@@ -224,7 +229,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     instructions = (await compileContext({
       user, consignesRole: resoudreConsignesRole(config),
       consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, d.consigne]),
-      consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user)]),
+      consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true, valeursEnClair: enClair,
       sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
     })).systemPrompt;

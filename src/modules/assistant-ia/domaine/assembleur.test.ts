@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assembler, ENVELOPPES, estimerJetons, historiqueDansEnveloppe, souvenirsPourQuestion } from "./assembleur";
+import { assembler, estimerJetons, historiqueDansEnveloppe } from "./assembleur";
 import { classer, ordonnerActifs, plier, racine, SOCLE_OUTILS } from "./selection-outils";
 
 /** L'ASSEMBLEUR (J4) : l'enveloppe est TOUJOURS respectée, quelle que soit la taille de ce qu'on lui donne. */
@@ -27,14 +27,6 @@ describe("assembleur de contexte (J4)", () => {
     ], 120);
     expect(a.gardes.map((m) => m.cle)).toEqual(["b"]);
     expect(a.ecartes).toEqual(["a"]);
-  });
-
-  it("les souvenirs pertinents pour la question passent devant les récents, dans leur enveloppe", () => {
-    const souvenirs = ["Je préfère les réponses courtes.", ...Array.from({ length: 60 }, (_, i) => `Souvenir ancien numéro ${i} sur un sujet sans rapport, assez long pour peser dans l'enveloppe.`), "Ma société est Pharmagène, je gère le portefeuille hépatologie."];
-    const gardes = souvenirsPourQuestion(souvenirs, "Quels produits d'hépatologie a ma société ?");
-    expect(gardes[0]).toBe(souvenirs[0]);
-    expect(gardes).toContain("Ma société est Pharmagène, je gère le portefeuille hépatologie.");
-    expect(gardes.reduce((s, t) => s + estimerJetons(t), 0)).toBeLessThanOrEqual(ENVELOPPES.memoire);
   });
 
   it("l'historique garde les échanges récents, jamais une réponse orpheline en tête", () => {

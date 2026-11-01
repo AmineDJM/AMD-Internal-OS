@@ -20,8 +20,7 @@ export const estimerJetons = (t: string): number => (t ? Math.ceil(t.length / 4)
 
 /** Les enveloppes d'un tour (jetons). La conversation la plus longue tient dans la même enveloppe que la première. */
 export const ENVELOPPES = {
-  /** Mémoire personnelle : les souvenirs les plus pertinents pour la question. */
-  memoire: 500,
+  // La mémoire personnelle a ses propres enveloppes (profil + pertinents) : `memoire/rappel.ts` (M1).
   /** Résumé roulant de la conversation antérieure. */
   resume: 700,
   /** Échanges mot pour mot (les plus récents d'abord). */
@@ -62,15 +61,6 @@ export function pertinence(texte: string, question: string): number {
   const q = new Set(termes(question));
   if (!q.size) return 0;
   return [...new Set(termes(texte))].filter((m) => q.has(m)).length;
-}
-
-/**
- * LES SOUVENIRS d'une personne (du plus récent au plus ancien) pour CETTE question : les pertinents d'abord, les plus
- * récents ensuite, dans l'enveloppe.
- */
-export function souvenirsPourQuestion(souvenirs: readonly string[], question: string, enveloppe: number = ENVELOPPES.memoire): string[] {
-  const morceaux = souvenirs.map((texte, i) => ({ cle: `m${i}`, texte, priorite: pertinence(texte, question) * 1000 - i }));
-  return assembler(morceaux, enveloppe).gardes.map((m) => m.texte);
 }
 
 /**

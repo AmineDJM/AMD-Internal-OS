@@ -173,6 +173,7 @@ export function usageDe(feature: string | null, role: string | null, route: stri
   if (r === "transcription" || r === "stt") return { cle: "transcription", libelle: "Transcription" };
   if (r === "ocr" || r === "vision") return { cle: "analyse", libelle: "Analyse de documents (OCR, vision)" };
   if (r === "routine" || r === "fil" || ro === "fil" || ro === "routine") return { cle: "arriere-plan", libelle: "Travaux en arrière-plan" };
+  if (r === "memoire") return { cle: "memoire", libelle: "Mémoire (capture automatique)" };
   if (r === "redaction") return { cle: "redaction", libelle: "Rédaction, résumés, traductions" };
   if (r === "conversation") return { cle: "conversation", libelle: "Conversation" };
   if (f === "mission" || f.startsWith("mission")) return { cle: "missions", libelle: "Missions (Adam)" };

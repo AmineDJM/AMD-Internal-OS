@@ -1302,6 +1302,15 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-actions:annulerSouvenirRetenu": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-actions:approuverMonTravail": {
   "risque": "R4",
   "familles": [
@@ -1432,6 +1441,15 @@
   ],
   "simulable": "inconnu",
   "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-actions:reglerMaMemoireAuto": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
   "appelable": false
  },
  "assistant-ia-actions:reglerMaReponseVocale": {

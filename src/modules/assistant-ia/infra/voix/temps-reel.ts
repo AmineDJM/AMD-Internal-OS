@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
@@ -10,6 +11,7 @@ import { consignesVoix } from "../../domaine/terrain/voix";
 import { appelVoix, auNomDe, budgetDeLAppel, fermerBudget, jetonsAudio, lireReglagesAssistantIa } from "../consommation";
 import { cleFournisseurVoix } from "../modele";
 import { ETAT, filDe } from "../fil/service";
+import { capturerApresTour, memoirePourVoix } from "../memoire-capture";
 import { enregistrerSessionVoix, fermerSessionVoix, reponsePourVoix, reprisesOrales, traiterEnonceVocal, type RetourOral } from "./oral";
 
 export { reponsePourVoix };
@@ -49,7 +51,9 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
   if (!budget.ok) return { ok: false, erreur: budget.raison, statut: 429 };
   if (budget.proprietaire) await fermerBudget(budget.budget, { ok: true, ms: 0 });
 
-  const [acces, reglages] = await Promise.all([accesAssistantIa(user), lireReglagesAssistantIa()]);
+  // M1 (décision 0045) : la voix connaît la personne — le même profil et les mêmes souvenirs (rien en conversation privée).
+  const prive = opts.conversation ? (await filDe(user.id, opts.conversation)).prive : false;
+  const [acces, reglages, memoire] = await Promise.all([accesAssistantIa(user), lireReglagesAssistantIa(), prive ? null : memoirePourVoix(user.id)]);
   const instructions = [
     `Tu es la voix de l'Assistant IA d'Adventum Pharma (laboratoire pharmaceutique algérien). Tu parles avec ${user.name}.`,
     consignesVoix(reglages.valeursSensibles === "EN_CLAIR"),
@@ -65,6 +69,7 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
     "Si la personne annonce qu'elle va envoyer une pièce (par WhatsApp ou par mail), ou si une pièce manque, DÉLÈGUE-le en nommant la",
     "pièce et la demande visée : l'assistant l'attendra et la rangera par une carte à son arrivée.",
     consigneFamilles(acces), consigneGestesFermes(user),
+    memoire,
   ].filter(Boolean).join("\n");
   const modele = modeleVoix(reglages.modeleVoix);
   // K9 : 800 ms avant l'accusé automatique d'une délégation — le temps que le serveur rende sa propre phrase d'attente.
@@ -127,9 +132,16 @@ export async function journaliserVoix(user: CurrentUser, d: {
     const question = await prisma.assistantIaTour.create({
       data: { filId: fil.id, userId: user.id, role: "user", contenu: `[Conversation vocale — transcription]\n${dit("personne")}`, etat: ETAT.TRAITE },
     });
-    await prisma.assistantIaTour.create({
+    const reponse = await prisma.assistantIaTour.create({
       data: { filId: fil.id, userId: user.id, role: "assistant", contenu: dit("assistant") || "(réponses vocales)", etat: ETAT.TERMINE, repondA: question.id },
     });
+    // M1 (décision 0045) : en fin de conversation vocale, ce que la personne a DIT d'elle est retenu (privée : rien).
+    const b = await capturerApresTour({
+      userId: user.id, nom: user.name, message: dit("personne"), conversation: fil.id, tour: question.id, prive: fil.prive, origine: "voix",
+    });
+    if (b.retenus.length) {
+      await prisma.assistantIaTour.update({ where: { id: reponse.id }, data: { memoireEtat: "FAIT", memoiresRetenues: b.retenus as unknown as Prisma.InputJsonValue } });
+    }
   }
   const tri = [...latences].sort((a, b) => a - b);
   console.info("[assistant-ia] voix temps réel", {

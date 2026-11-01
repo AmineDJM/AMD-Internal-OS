@@ -4,7 +4,8 @@ import { porte } from "./infra/porte-actions";
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import {
-  ajouterMemoire, effacerMemoire, estChargeOperationIA, executerOperationJournalisee, listerMemoire, modifierMemoire, toutEffacerMemoire,
+  ajouterMemoire, annulerSouvenir, effacerMemoire, estChargeOperationIA, executerOperationJournalisee, listerMemoire, memoireAutoActive,
+  modifierMemoire, reglerMemoireAuto, toutEffacerMemoire,
   type ElementMemoire, type PieceDuTour,
 } from "@/modules/assistant-ia/api";
 import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
@@ -24,17 +25,18 @@ import { actionReversible } from "@/lib/effets/reversible";
  */
 
 
-export async function listerMaMemoire(): Promise<{ ok: true; elements: ElementMemoire[] } | { ok: false; erreur: string }> {
+export async function listerMaMemoire(): Promise<{ ok: true; elements: ElementMemoire[]; auto: boolean } | { ok: false; erreur: string }> {
   const p = await porte(false);
   if (!p.ok) return p;
-  return { ok: true, elements: await listerMemoire(p.user.id) };
+  const [elements, auto] = await Promise.all([listerMemoire(p.user.id), memoireAutoActive(p.user.id)]);
+  return { ok: true, elements, auto };
 }
 
-/** Retenir — le geste de CONFIRMATION d'une mémoire proposée, ou un ajout à la main. */
-export async function retenirMemoire(contenu: string, sorte?: string) {
+/** Retenir — le geste de CONFIRMATION d'une mémoire proposée (`propose`), ou un ajout à la main (`manuel`). */
+export async function retenirMemoire(contenu: string, sorte?: string, depuisCarte?: boolean) {
   const p = await porte(true);
   if (!p.ok) return p;
-  const r = await ajouterMemoire(p.user.id, contenu, sorte);
+  const r = await ajouterMemoire(p.user.id, contenu, sorte, { origine: depuisCarte === true ? "propose" : "manuel" });
   return r.ok ? { ok: true as const, element: r.element } : { ok: false as const, erreur: r.erreur };
 }
 
@@ -57,6 +59,23 @@ export async function effacerToutMaMemoire() {
   const p = await porte(true);
   if (!p.ok) return p;
   return { ok: true as const, effaces: await toutEffacerMemoire(p.user.id) };
+}
+
+/** M1 (décision 0045) : « Retenu : … (annuler) » — le souvenir disparaît, l'ancien revient s'il en remplaçait un. */
+export async function annulerSouvenirRetenu(id: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (typeof id !== "string" || !id) return { ok: false as const, erreur: "Élément introuvable." };
+  const r = await annulerSouvenir(p.user.id, id);
+  return r.ok ? { ok: true as const, restaure: r.restaure } : { ok: false as const, erreur: r.erreur };
+}
+
+/** M1 : « mémoire automatique : oui / non » — un réglage de la personne (défaut : oui). */
+export async function reglerMaMemoireAuto(active: boolean) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  await reglerMemoireAuto(p.user.id, active === true);
+  return { ok: true as const, auto: active === true };
 }
 
 // ─────────────────────────────── Les routines ───────────────────────────────

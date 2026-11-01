@@ -204,6 +204,8 @@ export function classerExclusionsAttestations(): void {
   X("MÉMOIRE PERSONNELLE de l'Assistant IA — les gestes de la personne sur SA mémoire (voir, retenir après confirmation, corriger, effacer). Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable : ce n'est pas une action métier à proposer.", [
     "assistant-ia-actions:listerMaMemoire", "assistant-ia-actions:retenirMemoire", "assistant-ia-actions:corrigerMemoire",
     "assistant-ia-actions:effacerElementMemoire", "assistant-ia-actions:effacerToutMaMemoire",
+    // M1 (décision 0045) : annuler un souvenir retenu d'office, régler la mémoire automatique — SA mémoire, SON réglage.
+    "assistant-ia-actions:annulerSouvenirRetenu", "assistant-ia-actions:reglerMaMemoireAuto",
   ]);
   X("ROUTINES PERSONNELLES de l'Assistant IA — les gestes de la personne sur SES routines (voir, lire un passage, pause, reprise, suppression, exécution immédiate). Identité prise de la session, jamais d'un paramètre ; une routine ne lit qu'avec les droits de sa propriétaire et n'écrit rien : ce n'est pas une action métier à proposer.", [
     "assistant-ia-actions:listerMesRoutines", "assistant-ia-actions:lireMonPassage", "assistant-ia-actions:basculerMaRoutine",

@@ -14,6 +14,7 @@ import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
 import { demarrerLesSousMissions } from "../travaux";
 import { horsEcranSansValeur, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
+import { captureEnvisagee, capturerApresTour } from "../memoire-capture";
 import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
 import { sectionDossierDuTour } from "../conversations/dossiers";
 import { sectionAttentesDuTour } from "../canaux/section";
@@ -165,7 +166,9 @@ export async function lireFil(userId: string, limite = 80, conversation?: string
       const simulation = lireVueSimulation((etat?.payload as { simulation?: unknown } | null)?.simulation);
       return etat ? { ...t, intent: { ...i, status: etat.status, resultLink: etat.resultLink ?? undefined, resultMessage: etat.resultMessage ?? undefined, ...(simulation ? { simulation } : {}) } } : t;
     }),
-    enCours: tours.some((t) => t.etat === ETAT.ATTENTE || t.etat === ETAT.COURS),
+    // M1 : une capture de mémoire en cours garde l'écran attentif (la ligne « Retenu : … » arrive sans recharger).
+    enCours: tours.some((t) => t.etat === ETAT.ATTENTE || t.etat === ETAT.COURS
+      || (t.memoireEtat === "EN_COURS" && Date.now() - t.updatedAt.getTime() < 60_000)),
     reponseVocale: fil.reponseVocale,
     conversation: { id: fil.id, titre: fil.titre, prive: fil.prive, dossierId: fil.dossierId },
   };
@@ -354,6 +357,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
   });
   await enVol;
 
+  // M1 (décision 0045) : la capture de mémoire suit la réponse — annoncée sur le tour pour que l'écran continue de lire.
+  const capture = r.ok && (await captureEnvisagee(userId, texteDit, fil.prive));
   if (r.ok) {
     // K3 (décision 0033) : les sous-missions sans geste du tour démarrent d'office (réglage relu) AVANT que la réponse
     // s'affiche — la carte ne montre jamais, le temps d'un battement, un « Approuver » qui n'a plus lieu d'être.
@@ -366,7 +371,15 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       ...(r.notesProposees.length ? { notesProposees: r.notesProposees as unknown as Prisma.InputJsonValue } : {}),
       ...(r.travaux.length ? { travaux: r.travaux as unknown as Prisma.InputJsonValue } : {}),
       outils: r.outilsAppeles,
+      ...(capture ? { memoireEtat: "EN_COURS" } : {}),
     }, ETAT.TRAITE);
+    if (capture) {
+      const b = await capturerApresTour({ userId, nom: user.name, message: texteDit, conversation: tour.filId, tour: tour.id, prive: fil.prive });
+      await prisma.assistantIaTour.update({
+        where: { id: reponse.id },
+        data: { memoireEtat: "FAIT", ...(b.retenus.length ? { memoiresRetenues: b.retenus as unknown as Prisma.InputJsonValue } : {}) },
+      }).catch(sansBloquer("fil-service.memoire.assistantIaTour"));
+    }
   } else {
     await finir({ etat: ETAT.ECHEC, contenu: r.error, erreur: r.error.slice(0, 300), etapes }, ETAT.ECHEC);
   }

@@ -16,7 +16,7 @@ export function MemoireProposeeCard({ memoire }: { memoire: MemoireProposee }) {
   const retenir = async () => {
     setEtat("en-cours");
     setErreur(null);
-    const r = await retenirMemoire(memoire.contenu, memoire.sorte);
+    const r = await retenirMemoire(memoire.contenu, memoire.sorte, true);
     if (r.ok) setEtat("retenue");
     else { setEtat("proposee"); setErreur(r.erreur); }
   };

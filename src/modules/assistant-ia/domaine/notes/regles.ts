@@ -74,4 +74,4 @@ export const REGLE_NOTES =
   + "ajouter_note, modifier_note, cocher_note, deplacer_note, supprimer_note, creer_page, renommer_page (références ⟨…⟩ de lire_notes). Chaque geste n'est qu'une "
   + "PROPOSITION que la personne accepte ou refuse dans son panneau : dis « je vous propose », jamais « c'est fait ». Ne lis ses notes que si la demande s'y rapporte. "
   + "« Fais-en une tâche / une demande / un travail » : lis la ligne, puis l'outil habituel (create_task, preparer_*, lancer_un_travail) avec sa carte ; "
-  + "propose ensuite de cocher la ligne. « Retiens que… » reste la mémoire (proposer_memoire), pas les notes.";
+  + "propose ensuite de cocher la ligne. « Retiens que… » reste la mémoire (retenue d'office), pas les notes.";
