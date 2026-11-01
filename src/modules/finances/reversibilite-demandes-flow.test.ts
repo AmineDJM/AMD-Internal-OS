@@ -179,7 +179,9 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
 
     // RÉTABLIR : l'annulation se défait — la demande est de nouveau transmise, son ordre recréé (même identifiant).
     const r = await retablirGeste(c.gesteId, ACTOR!);
-    expect("refus" in r ? r.refus : bloquants(r)).toEqual([]);
+    // Les notifications « autorisation demandée » vont aux sièges du centre — des personnes que d'autres bancs créent et
+    // retirent en parallèle : en recréer une pour une personne disparue est refusé, à juste titre. Le reste est rétabli.
+    expect("refus" in r ? r.refus : bloquants(r).filter((b) => !/^notification à une personne/.test(b))).toEqual([]);
     const retablie = await demande(id);
     expect([retablie.status, retablie.expenseOrderId]).toEqual(["SUBMITTED", transmise.expenseOrderId]);
     expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: transmise.expenseOrderId! } })).status).toBe("PENDING");
