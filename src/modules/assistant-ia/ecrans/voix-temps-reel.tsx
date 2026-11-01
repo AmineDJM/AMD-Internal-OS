@@ -70,8 +70,8 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
 
   const ajouter = (l: Ligne) => setLignes((xs) => [...xs, l].slice(-60));
 
-  const deleguer = useCallback(async (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null; parole: string }): Promise<ResultatDelegation> => {
-    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, delegationId, session: ctx?.session, enCours: ctx?.enCours, parole: ctx?.parole }) });
+  const deleguer = useCallback(async (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null; parole: string; question?: string | null }): Promise<ResultatDelegation> => {
+    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, delegationId, session: ctx?.session, enCours: ctx?.enCours, parole: ctx?.parole, question: ctx?.question ?? null }) });
     if (!r.ok) return { pourVoix: "Le serveur n'a pas répondu : dis-le et propose de réessayer." };
     return (await r.json()) as ResultatDelegation;
   }, []);

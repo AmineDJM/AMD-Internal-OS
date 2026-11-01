@@ -303,6 +303,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
             onOuvrirPiece={setApercu}
             onOuvrirNotes={() => setNotesOuvertes(true)}
             onSuivreMissions={(id) => setMissions({ ouvert: true, initial: id ?? null })}
+            orchestration={f.orchestration}
+            onRepondre={f.repondre}
           />
 
           {/* Barre de saisie — au-dessus de la barre système du téléphone (zone sûre). */}

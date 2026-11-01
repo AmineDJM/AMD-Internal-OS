@@ -101,6 +101,7 @@ export type PieceDuTour = { id: string; nom: string };
  */
 export async function deposerMessage(
   userId: string, texte: string, pieces: PieceDuTour[], vocal?: { id: string; dureeS: number | null } | null, conversation?: string | null,
+  opts: { parallele?: boolean } = {},
 ): Promise<{ ok: true; tour: AssistantIaTour; conversation: string } | { ok: false; erreur: string }> {
   const t = (texte ?? "").trim().slice(0, 8000);
   const p = pieces.filter((x) => x && typeof x.id === "string").slice(0, PIECES_PAR_ENVOI_MAX).map((x) => ({ id: x.id, nom: String(x.nom ?? "").slice(0, 200) }));
@@ -115,6 +116,8 @@ export async function deposerMessage(
   const tour = await prisma.assistantIaTour.create({
     data: {
       filId: fil.id, userId, role: "user", contenu: t, etat: ETAT.ATTENTE,
+      // O1 (décision 0046) : une autre demande pendant un travail long — jouée dans la voie parallèle, sans l'attendre.
+      ...(opts.parallele ? { parallele: true } : {}),
       ...(p.length ? { pieces: p as Prisma.InputJsonValue } : {}),
       ...(v ? { vocal: v as unknown as Prisma.InputJsonValue } : {}),
     },
@@ -187,14 +190,21 @@ export async function nouvelleConversation(userId: string, opts: { prive?: boole
   return r.ok ? { ok: true, conversation: r.conversation.id } : r;
 }
 
-const prochain = (filId: string) => prisma.assistantIaTour.findFirst({
-  where: { filId, role: "user", etat: ETAT.ATTENTE },
+const prochain = (filId: string, parallele = false) => prisma.assistantIaTour.findFirst({
+  where: { filId, role: "user", etat: ETAT.ATTENTE, parallele },
   orderBy: { createdAt: "asc" },
 });
+
+/** La prise d'une voie : `traitementLe` pour la file habituelle, `paralleleLe` pour la voie parallèle (O1). */
+const PRISE = { false: "traitementLe", true: "paralleleLe" } as const;
 
 /**
  * JOUER LE FIL — prend le fil (une seule prise à la fois), joue les messages en attente dans
  * l'ordre, relâche. Un message déposé pendant qu'on relâchait est repris. Ne lève jamais.
+ *
+ * O1 (décision 0046) : DEUX VOIES. La file habituelle (un message après l'autre, chacun voit les réponses d'avant) ; et
+ * la voie PARALLÈLE, pour une autre demande déposée pendant un travail long (`parallele`) — elle a sa propre prise et
+ * sa propre file, et ne l'attend pas. Sa réponse ne voit que les échanges ABOUTIS (comme toute réponse).
  */
 export async function traiterFil(userId: string, conversation?: string | null): Promise<void> {
   // Sans conversation nommée : chacune de celles qui ont un message en attente (anciens appelants, balayage).
@@ -208,24 +218,29 @@ export async function traiterFil(userId: string, conversation?: string | null): 
   try {
     const fil = await prisma.assistantIaFil.findFirst({ where: { id: conversation, userId }, select: { id: true } });
     if (!fil) return;
-    for (let reprise = 0; reprise < 3; reprise++) {
-      const pris = await prisma.assistantIaFil.updateMany({
-        where: { id: fil.id, OR: [{ traitementLe: null }, { traitementLe: { lt: new Date(Date.now() - PRISE_PERDUE_MS) } }] },
-        data: { traitementLe: new Date() },
-      });
-      if (!pris.count) return; // un autre passage tient le fil : il verra ce message
-      try {
-        for (let t = await prochain(fil.id); t; t = await prochain(fil.id)) {
-          await jouerTourDuFil(userId, t);
-          await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { traitementLe: new Date() } });
-        }
-      } finally {
-        await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { traitementLe: null } }).catch(sansBloquer("fil-service.traiterFil.assistantIaFil"));
-      }
-      if (!(await prochain(fil.id))) return;
-    }
+    await Promise.all([jouerVoie(userId, fil.id, false), jouerVoie(userId, fil.id, true)]);
   } catch (e) {
     console.error("[assistant-fil] traitement", userId, e);
+  }
+}
+
+async function jouerVoie(userId: string, filId: string, parallele: boolean): Promise<void> {
+  const prise = PRISE[`${parallele}`];
+  for (let reprise = 0; reprise < 3; reprise++) {
+    if (!(await prochain(filId, parallele))) return;
+    const pris = await prisma.assistantIaFil.updateMany({
+      where: { id: filId, OR: [{ [prise]: null }, { [prise]: { lt: new Date(Date.now() - PRISE_PERDUE_MS) } }] },
+      data: { [prise]: new Date() },
+    });
+    if (!pris.count) return; // un autre passage tient cette voie : il verra ce message
+    try {
+      for (let t = await prochain(filId, parallele); t; t = await prochain(filId, parallele)) {
+        await jouerTourDuFil(userId, t);
+        await prisma.assistantIaFil.update({ where: { id: filId }, data: { [prise]: new Date() } });
+      }
+    } finally {
+      await prisma.assistantIaFil.update({ where: { id: filId }, data: { [prise]: null } }).catch(sansBloquer("fil-service.traiterFil.assistantIaFil"));
+    }
   }
 }
 
@@ -453,6 +468,7 @@ export async function reprendreLesFils(now = new Date(), parPassage = 5, attendr
   const fils = await prisma.assistantIaFil.findMany({
     where: {
       OR: [{ traitementLe: null }, { traitementLe: { lt: perdue } }],
+      AND: [{ OR: [{ paralleleLe: null }, { paralleleLe: { lt: perdue } }] }],
       tours: { some: { etat: { in: [ETAT.ATTENTE, ETAT.COURS] }, createdAt: { lt: new Date(now.getTime() - 15_000) } } },
     },
     select: { id: true, userId: true },
@@ -465,7 +481,7 @@ export async function reprendreLesFils(now = new Date(), parPassage = 5, attendr
       data: { etat: ETAT.ECHEC, erreur: "interrompu", contenu: "Réponse interrompue (redémarrage du serveur) — la demande est reprise." },
     });
     await prisma.assistantIaTour.updateMany({ where: { filId: f.id, role: "user", etat: ETAT.COURS }, data: { etat: ETAT.ATTENTE } });
-    await prisma.assistantIaFil.update({ where: { id: f.id }, data: { traitementLe: null } });
+    await prisma.assistantIaFil.update({ where: { id: f.id }, data: { traitementLe: null, paralleleLe: null } });
     relances.push(traiterFil(f.userId, f.id));
   }
   // Le battement n'attend pas les tours (ils peuvent durer des minutes) ; un test, si.

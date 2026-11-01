@@ -84,7 +84,7 @@ export type ResultatDelegationVoix = RetourOral;
  * DÉLÉGUER UN ÉNONCÉ — K9 (décision 0039) : rend AUSSITÔT (travail lancé, précision transmise, carte résumée ou
  * confirmée, commande appliquée). Plus d'attente de 70 s, plus de « la réponse arrivera à l'écran ».
  */
-export async function deleguerALaVoix(user: CurrentUser, demande: string, d: { session: unknown; delegationId?: string | null; enCours?: string | null; parole?: string | null }): Promise<ResultatDelegationVoix> {
+export async function deleguerALaVoix(user: CurrentUser, demande: string, d: { session: unknown; delegationId?: string | null; enCours?: string | null; parole?: string | null; question?: string | null }): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);
   if (refus) return { pourVoix: `Refus : ${refus.erreur}` };
   const texte = demande.trim();

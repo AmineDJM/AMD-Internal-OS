@@ -19,10 +19,21 @@
  *   3. LA LATENCE — sur la LIGNE DE TEMPS DE LA SESSION (les `start_ms` / `end_ms` des fragments, pas l'arrivée des
  *      paquets) : de la fin de la parole de la personne au début de la réponse parlée. Cible : 1,5 s au p50.
  *
+ *   4. O1 (décision 0046) — L'ORCHESTRATEUR DE CONVERSATION (`../conversation/orchestrateur.ts`) décide QUAND parler :
+ *      GPT-Live n'a ni détection de parole exposée ni fin de réponse (documentation : « transcript deltas have no item
+ *      ID or event that marks a completed conversational turn ») — les tours de parole se lisent donc sur les FRAGMENTS
+ *      de transcription (entrée : la personne parle ; sortie : la voix parle ; un silence de 0,9 s les clôt) et sur la
+ *      délégation (la personne a fini sa phrase). Un résultat qui arrive pendant une question, une parole ou une réponse
+ *      en route est TENU, puis dit au point de rupture — collé à l'accusé de la réponse de la personne. Plusieurs
+ *      travaux sont suivis à la fois ; libre, l'orchestrateur fait dire l'agenda (partiel, une précision utile, l'étape
+ *      suivante) ou l'avancement, une fois.
+ *
  * Tout ce qui touche le navigateur (micro, `RTCPeerConnection`, l'horloge) est INJECTABLE : le banc rejoue un flux
  * d'événements sans réseau ni micro.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+
+import { decider, etatInitial, transition, vieillir, type Action, type ElementAgenda, type EtatConversation, type Evenement as EvenementOrchestre } from "../conversation/orchestrateur";
 
 export type EtatVoix = "INACTIF" | "CONNEXION" | "ECOUTE" | "REFLEXION" | "PAROLE" | "FERMETURE" | "ERREUR" | "TERMINE";
 
@@ -39,11 +50,16 @@ export interface ResultatDelegation {
   etatCarte?: { intentId: string; status: string };
   /** K9 : une commande que ce client applique (« stop », « plus court »). */
   commande?: "stop" | "plus_court";
+  // O1 (décision 0046) — lus par l'orchestrateur.
+  questionPosee?: boolean;
+  repondA?: string;
+  change?: { travail: string; nouveau?: string };
+  lance?: { id: string; agenda: ElementAgenda[] };
 }
 
 /** K9 : l'état d'un travail suivi. */
 export type SuiviTravail =
-  | { etat: "en_cours"; etapes?: string[] }
+  | { etat: "en_cours"; etapes?: string[]; agenda?: ElementAgenda[]; avancement?: string | null }
   | ({ etat: "pret" } & ResultatDelegation)
   | { etat: "echec"; pourVoix: string }
   | { etat: "remplace"; par: string }
@@ -67,7 +83,7 @@ export interface DependancesClient {
    * demande est alors la précédente, répétée) : le serveur n'entend jamais un « oui » répété. `session`, `enCours` (K9) :
    * la session vocale, et le travail suivi auquel une précision s'ajoute.
    */
-  deleguer: (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null; parole: string }) => Promise<ResultatDelegation>;
+  deleguer: (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null; parole: string; question?: string | null }) => Promise<ResultatDelegation>;
   /** K9 : l'état d'un travail lancé par une délégation. */
   suivre?: (travail: string, session: string | null) => Promise<SuiviTravail>;
   /** K9 : les pièces reçues pendant l'appel (WhatsApp, mail — K6), à annoncer d'elles-mêmes. */
@@ -83,6 +99,9 @@ export interface DependancesClient {
    * fragments se taisent ce temps-là (1,5 s au plus) avant d'envoyer la demande. 0 au banc.
    */
   silenceTranscriptionMs?: number;
+  /** O1 : l'horloge murale (le banc la fait avancer) et le battement de l'orchestrateur (300 ms ; 0 au banc : `orchestrer()`). */
+  maintenant?: () => number;
+  orchestreMs?: number;
 }
 
 interface Evenement {
@@ -117,8 +136,12 @@ export class ClientVoixTempsReel {
   /** K9 : l'identifiant de la session vocale (rendu par notre serveur) et ce qui est à dire en ouvrant. */
   session: string | null = null;
   private reprises: string[] = [];
-  /** K9 : le travail suivi, et la délégation sous laquelle son résultat sera dit. */
-  travail: { id: string; delegationId: string } | null = null;
+  /** K9 → O1 : les travaux suivis (plusieurs à la fois), et la délégation sous laquelle le résultat de chacun sera dit. */
+  readonly suivis = new Map<string, { delegationId: string }>();
+  /** O1 : l'état du dialogue — qui parle, la question en attente, les annonces tenues, l'agenda de chaque travail. */
+  orchestre: EtatConversation = etatInitial();
+  private battement: ReturnType<typeof setInterval> | null = null;
+  private piecesRecues = 0;
   private suivi: ReturnType<typeof setInterval> | null = null;
   private suiviEnVol = false;
   private veille: ReturnType<typeof setInterval> | null = null;
@@ -138,6 +161,32 @@ export class ClientVoixTempsReel {
   constructor(private readonly deps: DependancesClient, private readonly rappels: Rappels = {}) {}
 
   get etat(): EtatVoix { return this._etat; }
+
+  /** Le travail le plus récent suivi — celui qu'une précision vise (K9). */
+  get travail(): { id: string; delegationId: string } | null {
+    const dernier = [...this.suivis.entries()].at(-1);
+    return dernier ? { id: dernier[0], delegationId: dernier[1].delegationId } : null;
+  }
+
+  private maintenant(): number { return (this.deps.maintenant ?? Date.now)(); }
+
+  private orchestrer_(ev: EvenementOrchestre) { this.orchestre = transition(this.orchestre, ev); }
+
+  /**
+   * O1 — LE POINT DE DÉCISION : faut-il parler maintenant ? Au plus une prise de parole ; sous la délégation qu'elle
+   * porte (l'accusé : celle de la personne ; une annonce : celle de son travail), sinon pour toute la session. Public
+   * pour le banc ; au navigateur, appelé à chaque événement et au battement (300 ms).
+   */
+  orchestrer(): Action {
+    const ms = this.maintenant();
+    this.orchestre = vieillir(this.orchestre, ms);
+    const a = decider(this.orchestre, ms);
+    if (a.type !== "dire") return a;
+    const delegation = a.delegationId ?? (a.annonce ? this.suivis.get(a.annonce.travail)?.delegationId ?? null : null);
+    this.dire(delegation, a.contenu);
+    this.orchestrer_({ type: "dit", ms, action: a });
+    return a;
+  }
 
   private poser(e: EtatVoix, detail?: string) {
     this._etat = e;
@@ -207,6 +256,8 @@ export class ClientVoixTempsReel {
         for (const r of this.reprises.splice(0)) this.dire(null, `Résultat arrivé depuis la dernière conversation : ${r}`);
         // K9 : une pièce reçue pendant l'appel (K6) est annoncée d'elle-même — une veille toutes les 5 s.
         if (this.deps.annonces && (this.deps.suiviMs ?? 1_500) > 0 && !this.veille) this.veille = setInterval(() => { void this.annoncerMaintenant(); }, 5_000);
+        // O1 : le battement de l'orchestrateur — une annonce tenue part au premier silence.
+        if ((this.deps.orchestreMs ?? 300) > 0 && !this.battement) this.battement = setInterval(() => { this.orchestrer(); }, this.deps.orchestreMs ?? 300);
         break;
       case "session.input_transcript.delta":
         // K9 — BARGE-IN : la personne parle pendant que la voix parle → le son est coupé ICI, tout de suite.
@@ -215,6 +266,7 @@ export class ClientVoixTempsReel {
         this.replique += e.delta ?? "";
         this.demande += e.delta ?? "";
         this.dernierFragment = Date.now();
+        this.orchestrer_({ type: "personne_parle", ms: this.maintenant() });
         if (typeof e.end_ms === "number") this.finParoleMs = e.end_ms;
         this.reponseAttendue = true;
         if (this._etat !== "FERMETURE") this.poser("ECOUTE");
@@ -225,6 +277,9 @@ export class ClientVoixTempsReel {
         if (typeof e.end_ms === "number") this.dernierSonMs = Math.max(this.dernierSonMs, e.end_ms);
         if (this.parleur !== "assistant") { this.finirReplique(); this.parleur = "assistant"; }
         this.replique += e.delta ?? "";
+        this.orchestrer_({ type: "assistant_parle", ms: this.maintenant() });
+        // Une réplique de la voix qui finit par « ? » : une question attend la réponse de la personne.
+        if (/\?\s*[»"')\]]*\s*$/.test(this.replique)) this.orchestrer_({ type: "replique_assistant", ms: this.maintenant(), texte: this.replique });
         if (this.reponseAttendue && this.finParoleMs != null && typeof e.start_ms === "number") {
           const ms = Math.max(0, Math.round(e.start_ms - this.finParoleMs));
           this.latences.push(ms);
@@ -268,18 +323,35 @@ export class ClientVoixTempsReel {
     this.derniereDemande = demande;
     this.delegations += 1;
     if (this._etat !== "FERMETURE") this.poser("REFLEXION");
+    // O1 : la parole de la personne est en route — rien ne se dit par-dessus tant qu'elle n'est pas prise en compte.
+    this.orchestrer_({ type: "reponse_envoyee", ms: this.maintenant() });
+    const enCours = this.travail?.id ?? null;
     let r: ResultatDelegation;
     try {
-      r = await this.deps.deleguer(demande, delegationId, { session: this.session, enCours: this.travail?.id ?? null, parole });
+      r = await this.deps.deleguer(demande, delegationId, { session: this.session, enCours, parole, question: this.orchestre.question?.element ?? null });
     } catch {
       r = { pourVoix: "Le serveur n'a pas répondu : dis-le simplement et propose de réessayer." };
     }
     this.rappels.delegation?.(demande, r);
     if (r.commande) this.appliquer(r.commande);
-    // « stop » : on ne relance pas la parole — le résultat reste silencieux (contexte seulement).
-    if (r.commande === "stop") this.envoyer({ type: "session.thinking.append", event_id: `resultat_${++this.numero}`, delegation_id: delegationId, content: r.pourVoix.slice(0, MAX_COMMENTAIRE) });
-    else this.dire(delegationId, r.pourVoix || "Rien à dire de plus.");
+    // Une précision qui a relancé le travail (serveur K9 sans `change`) : le nouveau travail remplace l'ancien.
+    const change = r.change ?? (r.travail && enCours && r.travail !== enCours && !r.lance ? { travail: enCours, nouveau: r.travail } : null);
+    if (change?.nouveau && change.nouveau !== change.travail) this.suivis.delete(change.travail);
+    const lance = r.lance ?? (r.travail && !this.suivis.has(r.travail) && !change ? { id: r.travail, agenda: [] } : null);
     if (r.travail) this.suivreTravail(r.travail, delegationId);
+    // « stop » : on ne relance pas la parole — le résultat reste silencieux (contexte seulement).
+    if (r.commande === "stop") {
+      this.envoyer({ type: "session.thinking.append", event_id: `resultat_${++this.numero}`, delegation_id: delegationId, content: r.pourVoix.slice(0, MAX_COMMENTAIRE) });
+      this.orchestrer_({ type: "reponse_prise_en_compte", ms: this.maintenant(), accuse: "", delegationId, silencieux: true, change, lance });
+      return;
+    }
+    // L'ACCUSÉ d'abord (la personne d'abord), auquel l'orchestrateur colle UN élément : un résultat tenu, une question
+    // utile de l'agenda, l'avancement — ou « je reste disponible ». Jamais « j'attends ».
+    this.orchestrer_({
+      type: "reponse_prise_en_compte", ms: this.maintenant(), accuse: r.pourVoix || "Rien à dire de plus.", delegationId,
+      questionPosee: r.questionPosee === true || !!(r.carte && !r.etatCarte), repondA: r.repondA ?? null, change, lance,
+    });
+    this.orchestrer();
   }
 
   /** Dit (la voix paraphrase) — sous une délégation, ou pour toute la session (`null`). */
@@ -313,31 +385,47 @@ export class ClientVoixTempsReel {
 
   /** K9 : suivre un travail lancé — son résultat sera dit sous la DERNIÈRE délégation qui le concerne. */
   private suivreTravail(id: string, delegationId: string) {
-    this.travail = { id, delegationId };
+    this.suivis.delete(id);
+    this.suivis.set(id, { delegationId });
     this.rappels.travail?.(true);
     const ms = this.deps.suiviMs ?? 1_500;
     if (ms > 0 && !this.suivi) this.suivi = setInterval(() => { void this.suivreMaintenant(); }, ms);
   }
 
-  /** Une lecture de l'état du travail suivi. Public pour le banc. */
+  /**
+   * Une lecture de l'état des travaux suivis. Public pour le banc. O1 : le résultat n'est plus dit d'office — il entre
+   * dans la file d'annonces de l'orchestrateur, qui le dit au prochain point de rupture (jamais par-dessus une question).
+   */
   async suivreMaintenant(): Promise<void> {
-    const t = this.travail;
-    if (!t || !this.deps.suivre || this.suiviEnVol) return;
+    if (!this.suivis.size || !this.deps.suivre || this.suiviEnVol) return;
     this.suiviEnVol = true;
     try {
-      let s: SuiviTravail;
-      // Un suivi qui échoue (réseau) se retente au battement suivant : le travail est toujours « en cours ».
-      try { s = await this.deps.suivre(t.id, this.session); } catch { s = { etat: "en_cours" }; }
-      if (this.travail?.id !== t.id) return;
-      if (s.etat === "remplace") { this.travail = { id: s.par, delegationId: t.delegationId }; return; }
-      if (s.etat === "en_cours") return;
-      this.arreterSuivi();
-      if (s.etat === "inconnu") return;
-      if (s.etat === "pret") this.rappels.delegation?.(this.derniereDemande, s);
-      this.dire(t.delegationId, s.pourVoix || "Le résultat est arrivé, sans rien à dire de plus.");
+      for (const [id, t] of [...this.suivis.entries()]) {
+        let s: SuiviTravail;
+        // Un suivi qui échoue (réseau) se retente au battement suivant : le travail est toujours « en cours ».
+        try { s = await this.deps.suivre(id, this.session); } catch { s = { etat: "en_cours" }; }
+        if (!this.suivis.has(id)) continue;
+        if (s.etat === "remplace") {
+          this.suivis.delete(id);
+          this.suivis.set(s.par, t);
+          this.orchestrer_({ type: "remplace", ancien: id, nouveau: s.par });
+          continue;
+        }
+        if (s.etat === "en_cours") {
+          if (s.agenda?.length) this.orchestrer_({ type: "agenda", travail: id, elements: s.agenda });
+          if (s.avancement) this.orchestrer_({ type: "avancement", travail: id, texte: s.avancement });
+          continue;
+        }
+        this.suivis.delete(id);
+        if (s.etat === "inconnu") continue;
+        if (s.etat === "pret") this.rappels.delegation?.(this.derniereDemande, s);
+        this.orchestrer_({ type: "resultat", ms: this.maintenant(), travail: id, contenu: s.pourVoix || "le travail est fini, sans rien à dire de plus.", echec: s.etat === "echec" });
+      }
+      if (!this.suivis.size) this.arreterSuivi();
     } finally {
       this.suiviEnVol = false;
     }
+    this.orchestrer();
   }
 
   /** Une lecture des pièces reçues pendant l'appel. Public pour le banc. */
@@ -348,16 +436,18 @@ export class ClientVoixTempsReel {
       let dites: string[];
       // Une veille qui échoue (réseau) se retente au battement suivant.
       try { dites = await this.deps.annonces(this.session); } catch { dites = []; }
-      for (const a of dites) this.dire(null, a);
+      // O1 : une pièce reçue est une annonce comme une autre — tenue pendant une question ou une parole.
+      for (const a of dites) this.orchestrer_({ type: "resultat", ms: this.maintenant(), travail: `piece:${++this.piecesRecues}`, contenu: a, brut: true });
     } finally {
       this.veilleEnVol = false;
     }
+    this.orchestrer();
   }
 
   private arreterSuivi() {
     if (this.suivi) clearInterval(this.suivi);
     this.suivi = null;
-    this.travail = null;
+    this.suivis.clear();
     this.rappels.travail?.(false);
   }
 
@@ -396,6 +486,8 @@ export class ClientVoixTempsReel {
     this.suivi = null;
     if (this.veille) clearInterval(this.veille);
     this.veille = null;
+    if (this.battement) clearInterval(this.battement);
+    this.battement = null;
     try { this.dc?.close(); } catch { /* déjà fermé */ }
     try { this.pc?.close(); } catch { /* déjà fermé */ }
     for (const t of this.micro?.getTracks() ?? []) t.stop();

@@ -103,12 +103,14 @@ describe("K9 — la voix entièrement orale (flux rejoué)", () => {
   type Envoye = Record<string, unknown>;
   function client(deps: Partial<ConstructorParameters<typeof ClientVoixTempsReel>[0]>) {
     const envoyes: Envoye[] = [];
-    const c = new ClientVoixTempsReel({ ouvrir: async () => ({ sdp: "" }), deleguer: async () => ({ pourVoix: "" }), silenceTranscriptionMs: 0, suiviMs: 0, ...deps });
+    const c = new ClientVoixTempsReel({ ouvrir: async () => ({ sdp: "" }), deleguer: async () => ({ pourVoix: "" }), silenceTranscriptionMs: 0, suiviMs: 0, orchestreMs: 0, maintenant: () => horloge, ...deps });
     (c as unknown as { dc: { readyState: string; send: (s: string) => void; close: () => void } }).dc = { readyState: "open", send: (s) => envoyes.push(JSON.parse(s)), close: () => {} };
     return { c, envoyes };
   }
   const ev = (o: Record<string, unknown>) => JSON.stringify(o);
   const dire = (texte: string, debut: number) => ({ type: "session.input_transcript.delta", delta: texte, start_ms: debut, end_ms: debut + 600 });
+  // L'horloge murale de l'orchestrateur (O1) : le banc la fait avancer.
+  let horloge = 0;
 
   it("la délégation ne bloque pas : « je regarde » tout de suite ; la précision part au travail EN COURS ; le résultat est dit de lui-même", async () => {
     const appels: { demande: string; enCours: string | null; session: string | null }[] = [];
@@ -124,8 +126,10 @@ describe("K9 — la voix entièrement orale (flux rejoué)", () => {
     c.session = "live_x";
     await c.recevoir(ev(dire("Le CA des ventes ", 0)));
     await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d1", target: "client" } }));
-    expect(envoyes.at(-1)).toEqual({ type: "session.commentary.append", event_id: "resultat_1", delegation_id: "d1", content: "Travail lancé." });
+    // O1 : l'accusé, puis — rien d'autre à dire (agenda vide) — « je reste disponible », jamais « j'attends ».
+    expect(envoyes.at(-1)).toMatchObject({ type: "session.commentary.append", event_id: "resultat_1", delegation_id: "d1", content: expect.stringMatching(/^Travail lancé\. Puis dis en une phrase que tu restes disponible/) });
     expect(c.travail).toEqual({ id: "t1", delegationId: "d1" });
+    horloge += 10_000;
     // La voix engage la personne ; elle précise ; c'est transmis au travail en cours.
     await c.recevoir(ev(dire("seulement Oran", 3000)));
     await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d2", target: "client" } }));
@@ -134,9 +138,10 @@ describe("K9 — la voix entièrement orale (flux rejoué)", () => {
     await c.suivreMaintenant();
     expect(envoyes).toHaveLength(2);
     etat = "pret";
+    horloge += 10_000;
     await c.suivreMaintenant();
     // Deux minutes plus tard ou dix secondes : le résultat est injecté sous la dernière délégation, sans qu'on le demande.
-    expect(envoyes.at(-1)).toEqual({ type: "session.commentary.append", event_id: "resultat_3", delegation_id: "d2", content: "À Oran : environ 3,1 millions." });
+    expect(envoyes.at(-1)).toEqual({ type: "session.commentary.append", event_id: "resultat_3", delegation_id: "d2", content: "Le résultat est arrivé : À Oran : environ 3,1 millions." });
     expect(c.travail).toBeNull();
   });
 
