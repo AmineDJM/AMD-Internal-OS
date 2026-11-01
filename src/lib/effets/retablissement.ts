@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { CurrentUser } from "@/lib/session";
-import { delegue, deserialiser, ecrireVerrouille, enfantsDAbord, ligne, lireActuelle, retablirParLeJournal, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
+import { delegue, deserialiser, ecrireVerrouille, enfantsDAbord, ligne, lireActuelle, retablirParLeJournal, destinataireDisparu, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
 import { retablirEcritureTresorerie } from "./argent";
 import { DECLARATIONS_METIERS } from "./declarations/metiers";
 import { annulerEffetSortant, rejouerEffetFait, retablirEffetSortant } from "./fenetre";
@@ -81,6 +81,8 @@ async function refaire(e: EffetLu, d: DetailEffet, user: CurrentUser): Promise<D
       return fait ? OK(d, `rétablie : son statut d'avant l'annulation lui est rendu`) : NON(d, "son statut a changé depuis l'annulation : laissé tel quel");
     }
     if (await lireActuelle(c, info, id)) return RIEN(d, "elle existe déjà de nouveau");
+    // K10c : une notification dont le destinataire a perdu son compte depuis — personne à prévenir, rien à recréer.
+    if (await destinataireDisparu(e.modele, apres)) return RIEN(d, "son destinataire n'a plus de compte : il n'y a plus personne à prévenir");
     const data: Record<string, unknown> = {};
     for (const x of champsReels(info, apres).concat([...info.auto].filter((x) => x in apres && info.types.has(x)))) {
       const v = deserialiser(info, x, apres[x] ?? null);

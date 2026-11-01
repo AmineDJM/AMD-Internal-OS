@@ -290,12 +290,14 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
     const qui = await ctx.nomDe(String(actuelle.userId ?? ""));
     // K10b (décision 0040) : LA COMPENSATION, codée — un rectificatif dans l'ERP, au même destinataire ; la lue reste.
     if (ctx.appliquer) {
-      await prismaBrut.notification.create({
+      const ecrit = await prismaBrut.notification.create({
         data: {
           userId: String(actuelle.userId), type: (actuelle.type ?? "GENERIC") as never, link: (actuelle.link as string | null) ?? null,
           title: `Rectificatif — ${String(actuelle.title ?? "")}`.slice(0, 300), body: `Annulé par ${ctx.user.name ?? "son auteur"} : n'en tenez plus compte.`,
         },
-      });
+      }).then(() => true, async (err) => { if (await destinataireDisparu("Notification", actuelle)) return false; throw err; });
+      // K10c : son compte a disparu entre la lecture et le rectificatif — plus personne à prévenir.
+      if (!ecrit) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "son destinataire n'a plus de compte : il n'y a plus personne à prévenir" };
     }
     return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: `${qui ?? "son destinataire"} l'a déjà lue : elle ne se reprend pas — un rectificatif lui ${ctx.appliquer ? "est envoyé" : "sera envoyé"} dans l'ERP (« n'en tenez plus compte »)` };
   }
@@ -339,6 +341,15 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
 }
 
 /** Une ligne SUPPRIMÉE : recréée à l'identique (même identifiant), si rien n'a suivi en cascade. */
+/**
+ * UNE NOTIFICATION DONT LE DESTINATAIRE N'EXISTE PLUS (K10c) — son compte a été supprimé depuis (la notification est
+ * partie avec lui, en cascade) : il n'y a plus personne à prévenir ni rien à rendre. « Sans objet », jamais un refus.
+ */
+export async function destinataireDisparu(modele: string | null, ligneNotif: Record<string, unknown> | null): Promise<boolean> {
+  if (modele !== "Notification" || typeof ligneNotif?.userId !== "string") return false;
+  return !(await prismaBrut.user.findUnique({ where: { id: ligneNotif.userId }, select: { id: true } }).catch(sansBloquer("effets.annulation.lecture", { id: "?" })));
+}
+
 async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): Promise<DetailEffet> {
   const quoi = phraseEcriture(e);
   const id = e.enregistrementId!;
@@ -347,6 +358,7 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
   if (!avant) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "le journal ne porte pas la ligne supprimée", aLaPlace: verdict.compensation };
   if (e.cascade) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${e.cascade} élément(s) lié(s) ont été supprimés avec elle, en cascade, et ne sont pas au journal : la recréer seule laisserait un dossier amputé`, aLaPlace: verdict.compensation };
   if (await lireActuelle(ctx.c, info, id)) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "une ligne porte de nouveau cet identifiant : elle a été rétablie par ailleurs" };
+  if (await destinataireDisparu(e.modele, avant)) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "son destinataire n'a plus de compte : il n'y a plus personne à prévenir" };
   const data: Record<string, unknown> = {};
   for (const [c, v] of Object.entries(avant)) {
     if (!info.types.has(c)) continue;
