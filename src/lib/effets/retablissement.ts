@@ -3,6 +3,7 @@ import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { CurrentUser } from "@/lib/session";
 import { delegue, deserialiser, ecrireVerrouille, ligne, lireActuelle, retablirParLeJournal, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
+import { DECLARATIONS_METIERS } from "./declarations/metiers";
 import { annulerEffetSortant, rejouerEffetFait, retablirEffetSortant } from "./fenetre";
 import { infoModele, type InfoModele } from "./modeles";
 import { memeValeur } from "./valeurs";
@@ -99,9 +100,9 @@ export async function retablirGeste(gesteId: string, user: CurrentUser): Promise
   if (g.principalId !== user.id && user.role !== "SUPER_ADMIN") return { refus: "Seule la personne au nom de qui le geste s'est fait (ou le Super Admin) peut le rétablir." };
   const compte = g.annulation as unknown as CompteRenduAnnulation | null;
   if (!g.annuleLe || !compte) return { refus: "Ce geste n'est pas annulé : rien à rétablir." };
-  // K10c : une annulation JOURNALISÉE (son geste porte ce qu'elle a écrit, gestes inverses métier compris) se rétablit
-  // en annulant ce geste-là — la corbeille remise, le rectificatif non lu retiré —, plutôt qu'effet par effet.
-  if (compte.gesteAnnulationId) {
+  // K10c : l'annulation JOURNALISÉE d'une action métier du périmètre K10c (gestes inverses métier compris) se rétablit
+  // en annulant ce geste-là — la corbeille remise, le rectificatif non lu retiré. Les autres : effet par effet (K10b).
+  if (compte.gesteAnnulationId && g.capaciteId && Object.hasOwn(DECLARATIONS_METIERS, g.capaciteId)) {
     const r = await retablirParLeJournal(gesteId, user);
     if ("refus" in r) return r;
     // Les envois retenus dans leur fenêtre (ou compensés) par l'annulation : ils repartent (fenêtre neuve), comme K10b.
