@@ -5,9 +5,11 @@ lint + typecheck + build), `next start` en mode app sur la base de banc `amd_ben
 `scripts/bench/seed-adam-bench.ts`), **vrai modèle** OpenAI (`gpt-6.1-terra` pour les tours, `gpt-6-luna` rapide,
 `gpt-image-2.5-sunburst`), compte de Direction du banc (Yacine Benali, assistant ouvert à sa personne). Script rejouable :
 `scripts/bench/m1-audit.ts` (Playwright, iPhone 13 puis bureau 1440 px) ; rapport brut : [`rapport.json`](rapport.json).
-Erreurs de console (navigateur, réponses ≥ 500) pendant tout l'audit : **0**. Rejoué après la dernière fusion de
-`origin/claude/hopeful-goodall-phd0nb` (4c6c7ec4), build propre : capture, annulation, rappel, panneau, bureau — 5/5
-« marche » (`rapport.json` porte ce passage ; ses coûts cumulent les deux).
+Erreurs de console (navigateur, réponses ≥ 500) pendant tout l'audit : **0**. Rejoué après chaque fusion de
+`origin/claude/hopeful-goodall-phd0nb` (4c6c7ec4, puis 03f6dbd3 avec l'orchestrateur O1), build propre : capture,
+annulation, rappel, panneau, voix, bureau — 6/6 « marche » (`rapport.json` porte le dernier passage ; ses coûts cumulent
+les passages ; d'un passage à l'autre, l'extracteur fusionne parfois « Fille : Lina » dans le fait du voyage — 3 ou 4
+souvenirs pour le même message).
 
 ## Le tableau
 

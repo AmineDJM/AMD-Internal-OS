@@ -2,7 +2,7 @@
   "base": "http://localhost:3100",
   "compte": "yacine.benali@adventum-bench.dz",
   "debut": "2026-11-01T13:27:38.236Z",
-  "le": "2026-11-01T14:49:06.517Z",
+  "le": "2026-11-01T15:55:12.948Z",
   "lignes": [
     {
       "fonction": "Conversation privée — rien n'est retenu",
@@ -97,15 +97,6 @@
       ]
     },
     {
-      "fonction": "Voix — session (porte), fin de conversation : transcription + mémoire",
-      "ecran": "iPhone 13",
-      "verdict": "marche",
-      "preuve": "session : HTTP 502 ; journal : HTTP 200 ; souvenir vocal : [FAMILLE] Fils : Adam, qui commence l’université à Constantine en septembre 2027.",
-      "captures": [
-        "iphone-15-voix-transcription.jpg"
-      ]
-    },
-    {
       "fonction": "Mes notes — proposition de l'assistant, acceptation, onglet",
       "ecran": "iPhone 13",
       "verdict": "marche",
@@ -119,36 +110,30 @@
       "fonction": "Mémoire — capture automatique",
       "ecran": "iPhone 13",
       "verdict": "marche",
-      "preuve": "4 souvenir(s) en base (AssistantMemoryItem, origine « auto ») : [ETUDES_PARCOURS] A fait ses études à l’École nationale polytechnique d’Alger. | [VOYAGES] Part à Lyon le 12 novembre 2026 avec sa fille Lina. | [GOUTS_LOISIRS] Aime le café noir le matin. | [FAMILLE] Fille : Lina.",
+      "preuve": "3 souvenir(s) en base (AssistantMemoryItem, origine « auto ») : [VOYAGES] Part à Lyon le 12 novembre 2026 avec sa fille Lina | [ETUDES_PARCOURS] A fait ses études à l’École nationale polytechnique d’Alger | [GOUTS_LOISIRS] Adore le café noir le matin",
       "captures": [
         "iphone-01-capture-retenu.jpg"
       ],
       "detail": {
-        "reponse": "Bonjour Yacine ! Bon voyage à Lyon avec Lina le 12 novembre. Je retiens aussi vos études à l’École nationale polytechnique d’Alger et votre goût pour le café noir le matin.",
+        "reponse": "Bonjour Yacine ! Bon voyage à Lyon avec Lina le 12 novembre. J’ai bien noté vos études à l’École nationale polytechnique d’Alger et votre goût pour le café noir le matin.",
         "memoiresRetenues": [
           {
-            "id": "cmvxy3r85000jiajbmvq9ydpf",
+            "id": "cmvy0gljd000jz2yd7w1ck50s",
             "geste": "ajoute",
             "sorte": "VOYAGES",
-            "contenu": "Part à Lyon le 12 novembre 2026 avec sa fille Lina."
+            "contenu": "Part à Lyon le 12 novembre 2026 avec sa fille Lina"
           },
           {
-            "id": "cmvxy3r8c000miajbv5mamwbz",
-            "geste": "ajoute",
-            "sorte": "FAMILLE",
-            "contenu": "Fille : Lina."
-          },
-          {
-            "id": "cmvxy3r8j000piajbum3i5zsq",
+            "id": "cmvy0gljl000mz2ydmniadfel",
             "geste": "ajoute",
             "sorte": "ETUDES_PARCOURS",
-            "contenu": "A fait ses études à l’École nationale polytechnique d’Alger."
+            "contenu": "A fait ses études à l’École nationale polytechnique d’Alger"
           },
           {
-            "id": "cmvxy3r8o000siajbvuueg8fp",
+            "id": "cmvy0gljq000pz2yd4vqz23ff",
             "geste": "ajoute",
             "sorte": "GOUTS_LOISIRS",
-            "contenu": "Aime le café noir le matin."
+            "contenu": "Adore le café noir le matin"
           }
         ]
       }
@@ -157,14 +142,14 @@
       "fonction": "Conversations — création et titre",
       "ecran": "iPhone 13",
       "verdict": "marche",
-      "preuve": "AssistantIaFil cmvxy3lpx0007iajbu7otsc2l : titre « Voyage à Lyon avec Lina » (auto)",
+      "preuve": "AssistantIaFil cmvy0gf880007z2yden774i8z : titre « Voyage à Lyon avec Lina » (auto)",
       "captures": []
     },
     {
       "fonction": "Mémoire — « annuler » un souvenir",
       "ecran": "iPhone 13",
       "verdict": "marche",
-      "preuve": "souvenirs actifs : 4 → 3",
+      "preuve": "souvenirs actifs : 3 → 2",
       "captures": [
         "iphone-02-annule.jpg"
       ]
@@ -173,7 +158,7 @@
       "fonction": "Mémoire — rappel dans une NOUVELLE conversation",
       "ecran": "iPhone 13",
       "verdict": "marche",
-      "preuve": "réponse : « Oui, tu pars à Lyon le 12 novembre 2026 avec ta fille Lina. »",
+      "preuve": "réponse : « Oui : tu pars à Lyon le 12 novembre 2026 avec ta fille Lina. »",
       "captures": [
         "iphone-03-rappel-voyage.jpg"
       ]
@@ -182,10 +167,19 @@
       "fonction": "Mémoire — panneau « Ce qu'il retient » (groupes, édition, origine, compteur)",
       "ecran": "iPhone 13",
       "verdict": "marche",
-      "preuve": "3 souvenir(s) affiché(s), édition écrite en base : true",
+      "preuve": "2 souvenir(s) affiché(s), édition écrite en base : true",
       "captures": [
         "iphone-04-panneau.jpg",
         "iphone-05-panneau-edite.jpg"
+      ]
+    },
+    {
+      "fonction": "Voix — session (porte), fin de conversation : transcription + mémoire",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "session : HTTP 502 ; journal : HTTP 200 ; souvenir vocal : [FAMILLE] Fils : Adam ; commence l’université à Constantine en septembre 2027.",
+      "captures": [
+        "iphone-15-voix-transcription.jpg"
       ]
     },
     {
@@ -201,28 +195,28 @@
   ],
   "couts": {
     "fil · gpt-6.1-terra": {
-      "appels": 47,
-      "entree": 430030,
-      "sortie": 7287,
-      "usd": 0.27911800000000003
+      "appels": 49,
+      "entree": 442993,
+      "sortie": 7369,
+      "usd": 0.29249100000000006
     },
     "memoire · gpt-6-luna": {
-      "appels": 3,
-      "entree": 1935,
-      "sortie": 620,
-      "usd": 0.000504
+      "appels": 5,
+      "entree": 3226,
+      "sortie": 1009,
+      "usd": 0.000828
     },
     "memoire · text-embedding-3-small": {
-      "appels": 3,
-      "entree": 285,
+      "appels": 5,
+      "entree": 417,
       "sortie": 0,
-      "usd": 0.0000049999999999999996
+      "usd": 0.000008
     },
     "redaction · gpt-6-luna": {
-      "appels": 15,
-      "entree": 2751,
-      "sortie": 969,
-      "usd": 0.0007600000000000002
+      "appels": 17,
+      "entree": 3092,
+      "sortie": 1063,
+      "usd": 0.0008410000000000002
     },
     "worker · gpt-5.6-terra": {
       "appels": 1,
@@ -243,6 +237,6 @@
       "usd": 0.01331
     }
   },
-  "toursRepondus": 26,
+  "toursRepondus": 29,
   "erreursConsole": []
 }
