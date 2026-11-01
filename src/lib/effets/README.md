@@ -16,6 +16,9 @@ effets sortants, geste d'écran réversible, rétablissement).
 | `fenetre.ts` | **La fenêtre d'annulation des effets sortants** (ci-dessous). |
 | `executeurs.ts` | Ce que le worker appelle quand la fenêtre est passée, et la compensation de chaque type. |
 | `ecran.ts` | `gesteReversible` : le corps d'une action de l'ERP sous le journal → bouton « Annuler » de la barre. |
+| `reversible.ts` | `actionReversible` (K10c) : la même enveloppe, la personne lue dans la session ; le résultat porte `annulable`. |
+| `politiques.ts` | La politique d'une action métier déclarée (K10c) : tout ou rien, rectificatif, gestes inverses métier. |
+| `annulation-bibliotheque.ts` | Geste inverse (K10c) : la clé d'index de la bibliothèque posée par un dépôt est retirée. |
 
 ## La fenêtre d'annulation — `differerEffetSortant`
 
@@ -69,3 +72,25 @@ export async function createMailEntry(fd: FormData) {
 Le corps s'exécute sous le journal des effets (origine `ecran`) ; la barre « Annuler » de l'application
 (`modules/assistant-ia/ecrans/barre-annulation.tsx`) le propose une minute, l'historique de la fiche
 (`HistoriqueAnnulable modele="MailEntry" id=…`) le garde. Sous une carte de l'assistant, rien n'est ouvert en double.
+
+## Les actions métier réversibles — K10c (décision 0040)
+
+```ts
+export async function decideValidation(formData: FormData) {
+  return actionReversible("validation-actions:decideValidation", "Décision de validation", async () => {
+    // … le corps d'origine, inchangé
+  });
+}
+```
+
+Une action déclarée dans `declarations/metiers.ts` s'annule sous **sa politique** (`politiques.ts`) :
+
+- **tout ou rien** — le plan est composé à blanc ; un effet en base qui ne se défait pas (un ordre payé depuis, une valeur
+  changée par un autre, un champ remis en partie) bloque tout : rien n'est écrit, `{ refus, bloquants }` dit pourquoi ;
+- **rectificatif** — une notification lue n'est pas retirée : un rectificatif part au même destinataire ;
+- **gestes inverses métier** (`METIERS`) — la corbeille restaurée (`suppression/coeur.ts`), l'index de la bibliothèque.
+
+L'annulation s'exécute sous son propre journal (`gesteAnnulationId`) : `retablirGeste` l'annule (`retablirParLeJournal`).
+Un compteur de références avancé par SQL (`SerieReference`) est « sans objet » : un numéro attribué ne se rend jamais.
+`baseDefaite` dit « tout est défait dans l'ERP » quand seuls des effets déjà sortis restent impossibles.
+

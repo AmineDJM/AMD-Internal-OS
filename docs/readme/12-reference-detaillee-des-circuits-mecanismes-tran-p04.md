@@ -647,19 +647,20 @@ porte IA `platform/ia/hors-requete.ts`), `lib/prisma.ts` (le client du geste), p
 
 ### Actions métier réversibles (lot K10c, 31/10/2026)
 
-Décision [0040](../assistant/decisions/0040-actions-reversibles-metiers.md). Code : `src/lib/effets/{reversible,politiques,fenetre}.ts`,
-`annulation.ts` (étendue), gestes inverses `lib/suppression/annulation-corbeille.ts`, `lib/references/annulation-numeros.ts`,
-`lib/reservation-fiche/annulation.ts`, diffusion différée `lib/notifications/diffusion-differee.ts`, registre
-`platform/ia/capacites/annulations-declarees.ts`, écran `lib/actions/gestes-reversibles-actions.ts` + `components/gestes/`.
+Décision [0040](../assistant/decisions/0040-actions-reversibles-metiers.md) — sur la fenêtre d'annulation et la barre
+« Annuler » de K10b ([0038](../assistant/decisions/0038-reversibilite-communications.md)). Code : `src/lib/effets/{reversible,politiques}.ts`,
+`annulation.ts` / `retablissement.ts` (étendus), gestes inverses `lib/suppression/coeur.ts` (`restaurerDepuisLaCorbeille`),
+`lib/effets/annulation-bibliotheque.ts`, diffusion différée `lib/notifications/diffusion-differee.ts`, déclarations
+`lib/effets/declarations/metiers.ts`.
 - **43 actions** (Ad & Pro, congrès, avances RH, juridique, promo, réservations, validations, réglages de l'Assistant IA,
   diffusion) enveloppent leur corps par `actionReversible(id, libellé, …)` : au clic, le geste entre au journal des effets
-  (origine « ecran ») et le résultat porte `annulable` → bandeau « Annuler » (`use-action.ts` → `primitives-ui.tsx`).
-- **Annuler** = `annulerGeste` (J7) + politique : **tout ou rien** (un ordre payé depuis, une valeur changée par un autre ⇒
+  (origine « ecran », fenêtre armée : leurs notifications poussées attendent la fenêtre) ; la barre « Annuler » le propose.
+- **Annuler** = `annulerGeste` + politique : **tout ou rien** (un ordre payé depuis, une valeur changée par un autre ⇒
   rien n'est écrit, liste des bloquants), **rectificatif** à qui avait lu une notification, gestes inverses métier
-  (corbeille, numéro jamais rendu, clé d'index de la bibliothèque). **Rétablir** = annuler le geste de l'annulation.
-- **Fenêtre d'annulation** (`EffetSortantDiffere`, `AssistantIaReglage.fenetreAnnulationSec`, 120 s, console
-  `/admin/ai/acces`) : `sendBroadcast` attend sa fenêtre — annulé dedans, rien ne part ; après, non lues retirées +
-  rectificatif, la poussée dite partie. Tâche `effets.sortants`.
+  (corbeille, clé d'index de la bibliothèque) ; un numéro de référence consommé n'est jamais rendu (dit). L'annulation est
+  journalisée : **Rétablir** l'annule.
+- **`sendBroadcast`** passe par la fenêtre (exécuteur `notification.diffusion`) : annulé dedans, rien ne part ; après,
+  non lues retirées + rectificatif, la poussée dite partie.
 - Garde : `effets/reversibles-metiers.test.ts` (cliquet : 0 action « aucune » du périmètre), bancs
   `effets/reversibles-{reglages,circuits,adpro-juridique,promo,reservations}.test.ts` (exécuter puis annuler, base réelle).
 

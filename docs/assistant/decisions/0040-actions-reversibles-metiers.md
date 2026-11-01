@@ -7,15 +7,17 @@ le sont pas : tu dois modifier l'ERP pour qu'elles le soient. Toute action qui a
 effets sortants, suppressions), **K10c (le reste — ce document)**. Suit [0029](0029-simulation-annulation.md) (J7 : journal
 des effets, annulation honnête) et [0020](0020-capacites.md) (registre, classement).
 
-Migration additive et idempotente `20270217120000_effets_reversibles` : table `EffetSortantDiffere`, colonne
-`AssistantIaReglage.fenetreAnnulationSec` (défaut 120).
+Aucune migration propre : la fenêtre d'annulation, sa table `EffetSortantDiffere` et son réglage
+(`AssistantIaReglage.fenetreAnnulationSecondes`) sont ceux de K10b ([0038](0038-reversibilite-communications.md),
+migration `20270217110000_fenetre_annulation_effets_sortants`), adoptés à la fusion.
 
 > Code : `src/lib/effets/reversible.ts` (`actionReversible`), `politiques.ts` (tout ou rien, rectificatif, gestes inverses
-> métier), `fenetre.ts` (fenêtre d'annulation), `annulation.ts` (étendue : client d'écriture du geste, rétablir, plan à
-> blanc qui connaît les liens posés par le geste) ; gestes inverses : `lib/suppression/annulation-corbeille.ts`,
-> `lib/references/annulation-numeros.ts`, `lib/reservation-fiche/annulation.ts` ; diffusion différée :
-> `lib/notifications/diffusion-differee.ts` ; registre : `platform/ia/capacites/annulations-declarees.ts` ; écran :
-> `lib/actions/gestes-reversibles-actions.ts`, `components/gestes/` ; console : `/admin/ai/acces` (fenêtre).
+> métier), `annulation.ts` (étendue : client d'écriture du geste, annulation journalisée, plan à blanc qui connaît les
+> liens posés par le geste, compteur de références « sans objet », `baseDefaite`), `retablissement.ts` (rétablir par le
+> journal), `capture.ts` (`updateMany` en transaction, verrous `SELECT` ignorés) ; gestes inverses :
+> `lib/suppression/coeur.ts` (`restaurerDepuisLaCorbeille`), `lib/effets/annulation-bibliotheque.ts` ; diffusion
+> différée : `lib/notifications/diffusion-differee.ts` (exécuteur `notification.diffusion`) ; déclarations :
+> `lib/effets/declarations/metiers.ts` ; écran : barre « Annuler » et `HistoriqueAnnulable` de K10b.
 
 ## 1. La définition tenue
 
@@ -50,45 +52,38 @@ change : l'écriture va au geste qui la porte. Pas de second système : l'annula
 
 L'annulation s'exécute sous **son propre** journal (`horsGesteParent` + `journaliserGeste`, origine « annulation ») et
 écrit par le client du geste : ses écritures (valeurs remises, lignes retirées ou recréées, rectificatifs) sont au
-journal. `retablirGeste` annule ce geste-là (mêmes règles : verrou, relecture, rien d'écrasé) et rend le geste d'origine
+journal. `retablirGeste` (K10b, `retablissement.ts`) passe la main à `retablirParLeJournal`, qui annule ce geste-là (mêmes règles : verrou, relecture, rien d'écrasé) et rend le geste d'origine
 de nouveau annulable. Une simulation n'annule ni ne rétablit rien (elle rend le plan).
 
-## 5. La fenêtre d'annulation des effets sortants (`fenetre.ts`)
+## 5. La fenêtre d'annulation des effets sortants — celle de K10b
 
-Un effet qui sort de l'ERP attend sa fenêtre (`fenetreAnnulationSec`, **120 s par défaut — décision Direction à
-rappeler**, réglable de 0 à 900 s par le Super Admin dans Administration › IA › accès) : `differerEffetSortant` écrit
-une ligne `EffetSortantDiffere` par `prisma` — sous le geste, c'est une création au journal. Annulée dans la fenêtre :
-la ligne est retirée sous verrou, **rien n'est parti**. Après : la tâche planifiée `effets.sortants` l'a expédiée
-(réclamation atomique `EN_ATTENTE → ENVOI`) ; l'annulation applique la **compensation** de l'expéditeur et dit ce qui
-ne se défait pas. Rétablir un envoi retiré lui donne une fenêtre **neuve**, jamais un départ sur-le-champ.
+La fenêtre est celle de K10b (`lib/effets/fenetre.ts`, 120 s par défaut — **décision Direction à rappeler** —, réglée
+par le Super Admin dans Administration › IA › Accès). Sous `actionReversible`, le journal arme la fenêtre : **chaque
+notification poussée** de ces 43 actions passe par le port de `push.ts` et attend sa fenêtre — annulée avec le geste,
+elle ne part pas. Après, l'annulation le dit : une poussée affichée ne se reprend pas.
 
-Dans ce périmètre, un seul effet sortant de masse : **`notification-actions:sendBroadcast`**. Parti, sa compensation
-retire les notifications non lues et envoie un rectificatif à qui l'a lue ; l'écran dit : « la notification poussée
-déjà affichée sur les appareils de N personne(s) n'est pas effacée chez eux ». Les réservations n'envoient **aucun
-courriel** à l'agence (vérifié : notifications internes seulement). Les notifications poussées des autres actions
-partent encore au clic (le port push est le chantier de K10b) : l'annulation les dit « parties », avec le rectificatif.
-
-> **Interface minimale, à réconcilier avec K10b** : `differerEffetSortant`, `expedierEffetsEchus`, `issueEffetDiffere`,
-> `nouvelleFenetre`, expéditeurs déclarés dans `EXPEDITEURS` (import tardif, jamais par effet de bord).
+Une seule diffusion de masse dans ce périmètre : **`notification-actions:sendBroadcast`**. Les destinataires et les
+identifiants des notifications sont fixés au clic ; l'effet est noté au geste puis différé (`differerSiFenetre`,
+exécuteur `notification.diffusion`). Annulée dans la fenêtre : rien ne part. Partie : la compensation retire les
+notifications non lues et envoie un rectificatif à qui l'a lue, et dit que la poussée affichée n'est pas effacée. Les
+réservations n'envoient **aucun courriel** à l'agence (vérifié : notifications internes seulement).
 
 ## 6. Le registre — `annulation` ne vaut plus « aucune »
 
-`ANNULATIONS_DECLAREES` (pur, dans le socle) donne l'annulation codée des actions rendues réversibles ; `ficheDeLAction`
-la lit avant la lecture lexicale (« régler » y valait paiement). Le cliquet `reversibles-metiers.test.ts` tient trois
-faits ensemble pour chaque entrée : déclarée et non « aucune » au cliché, enveloppée par `actionReversible("<id>"`,
-exécutée puis annulée par un banc (`reversibles-*.test.ts`). La liste des actions écrivantes encore « aucune » du
-périmètre est **vide** (43 → 0).
+Les 43 actions sont déclarées dans `lib/effets/declarations/metiers.ts` (table par périmètre de K10b, étalée dans
+`declarations.ts`) : « retour » (`journal`), « compensation » (`compensation-metier`, `fenetre`) ou « retour »
+`sans-effet` (le diagnostic Office). Le cliquet `reversibles-metiers.test.ts` tient trois faits ensemble pour chaque
+entrée : non « aucune » au cliché, enveloppée par `actionReversible("<id>"`, exécutée puis annulée par un banc
+(`reversibles-*.test.ts`). La liste des actions écrivantes encore « aucune » du périmètre est **vide** (43 → 0).
 
 ## 7. L'écran et l'Assistant IA
 
-- Après une action réversible passée par `useAction` / `useFormAction` (ou un écran branché sur `signalerAnnulable`),
-  un **bandeau** « <action> — fait. Annuler… » s'affiche deux minutes : le plan d'abord, puis le compte rendu effet par
-  effet, puis « Rétablir ». Chargé au premier geste annulable (rien dans le JS de la coque avant).
-- Sur les fiches juridiques et les dossiers de matériel promo : « Mes gestes sur cette fiche » (`GestesAnnulables`).
+- `actionReversible` journalise au clic (origine « ecran ») : la **barre « Annuler »** de K10b propose le geste qu'on vient
+  de faire, et « Rétablir » ; le résultat de l'action porte aussi `annulable: { gesteId, libelle }`.
+- Fiches juridiques et dossiers de matériel promo : `HistoriqueAnnulable` (« Mes gestes sur cette pièce — annuler »).
   Tous les gestes de la personne restent listés dans « Ce que l'assistant a fait » (`/assistant/gestes`).
-- `gestes-reversibles-actions` (`listerMesGestesAnnulables`, `apercevoirAnnulationDeMonGeste`, `annulerMonGeste`,
-  `retablirMonGeste`) est une action du contrat : l'assistant peut **proposer** l'annulation (carte, ou « vas-y » à la
-  voix) — c'est la personne qui décide ; en simulation, l'annulation rend son plan.
+- L'Assistant IA : sous une carte confirmée, l'action est sous le journal du geste de l'assistant, annulable de la même
+  façon ; le bouton d'annulation (`assistant-ia-gestes-actions`) reste celui de K10b.
 
 ## 8. Compensations choisies, et pourquoi
 
@@ -109,6 +104,3 @@ périmètre est **vide** (43 → 0).
 - Un **ordre payé** n'est pas « dé-payé » ici : l'annulation de l'action qui l'a fait naître est refusée, avec la liste
   (le « paiement à récupérer » est le chantier de K10a).
 - Une notification poussée ne se reprend pas ; un numéro de référence consommé ne se rend pas — dit, jamais caché.
-- Les actions appelées par un formulaire qui ne passe ni par `useAction` ni par `signalerAnnulable` n'affichent pas le
-  bandeau : leur geste s'annule depuis la fiche (juridique, promo) ou depuis « Ce que l'assistant a fait ».
-- La fenêtre d'annulation est une table neuve tant que K10b n'a pas livré la sienne : le parent réconcilie.

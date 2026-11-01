@@ -11,7 +11,7 @@ import { DECLARATIONS_METIERS as ANNULATIONS_DECLAREES } from "./declarations/me
  * réservations, validations, réglages de l'Assistant IA, diffusion de masse.
  *
  * Pour chacune, trois faits tenus ensemble — jamais l'un sans les autres :
- *   1. le cliché du registre ne la classe plus « aucune » (déclarée dans `annulations-declarees.ts`) ;
+ *   1. le cliché du registre ne la classe plus « aucune » (déclarée dans `declarations/metiers.ts`) ;
  *   2. son corps est enveloppé par `actionReversible("<id>", …)` : au clic, elle entre au journal des effets ;
  *   3. un banc l'EXÉCUTE puis l'ANNULE contre la base (`reversibles-*.test.ts`).
  * La liste des actions écrivantes encore « aucune » de ce périmètre doit être VIDE.

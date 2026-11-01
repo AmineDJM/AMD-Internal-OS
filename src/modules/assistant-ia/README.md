@@ -197,10 +197,8 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   `reglerConsoleProactivite`, `reglerMaPreferenceDOffice`, `reglerPrioriteMonTravail`) enveloppent leur corps par
   `actionReversible` (`lib/effets/reversible.ts`) : au clic, ils entrent au journal des effets ; « Annuler » remet la valeur
   d'avant (rien d'écrasé si quelqu'un l'a changée depuis), « Rétablir » la nouvelle.
-- « Ce que l'assistant a fait » liste aussi ces gestes d'écran ; l'annulation d'une action métier y suit la politique
-  tout-ou-rien (`lib/effets/politiques.ts`). La console `/admin/ai/acces` règle la **fenêtre d'annulation** des envois.
-- L'assistant peut proposer `gestes-reversibles-actions:annulerMonGeste` / `retablirMonGeste` (carte ou « vas-y ») : la
-  personne décide ; en simulation, l'annulation rend son plan sans rien écrire.
+- « Ce que l'assistant a fait » et la barre « Annuler » (K10b) listent aussi ces gestes d'écran ; l'annulation d'une
+  action métier y suit la politique tout-ou-rien (`lib/effets/politiques.ts`) ; une simulation n'annule rien (le plan).
 
 ## Travaux, suite (lot J8, décision 0023)
 

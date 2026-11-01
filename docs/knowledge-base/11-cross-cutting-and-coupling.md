@@ -536,12 +536,12 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 - **Policy** (declared actions + `annulation:*`): all-or-nothing (dry-run plan first; any IMPOSSIBLE or partial DB effect ⇒
   refusal with `bloquants`, nothing written), read notifications get a rectification, business inverse gestures
   (`METIERS`: recycle-bin restore, reference counters never given back, library index key removed).
-- **Rétablir**: the undo runs under its own journal (writes via the gesture client, `ecrivain()`), so `retablirGeste` undoes
-  the undo. The dry-run knows links the gesture itself set (`liensDuGeste` → `rattaches(…, relies)`).
-- **Undo window**: `EffetSortantDiffere` + `AssistantIaReglage.fenetreAnnulationSec` (120 s); `differerEffetSortant` writes the
-  row through `prisma` (journaled create) — undone in the window ⇒ nothing leaves; job `effets.sortants` sends; afterwards the
-  sender's `compenser` runs. Only `notification.diffusion` today (K10b owns the general outbound window — to reconcile).
-- **Registry**: `platform/ia/capacites/annulations-declarees.ts` overrides the lexical `annulation` in `ficheDeLAction`.
+- **Rétablir**: the undo runs under its own journal (writes via the gesture client, `ecrivain()`); K10b's `retablirGeste`
+  delegates to `retablirParLeJournal` (undoes the undo's gesture) then re-arms K10b outbound effects. The dry-run knows links the gesture itself set (`liensDuGeste` → `rattaches(…, relies)`).
+- **Undo window**: K10b's (`fenetre.ts`, `EffetSortantDiffere`); wrapped actions run with the window armed, so their pushes
+  wait. `sendBroadcast` notes the effect then `differerSiFenetre` (executor `notification.diffusion`, notification ids fixed at
+  click; compensation removes unread, rectifies read).
+- **Registry**: `lib/effets/declarations/metiers.ts` (spread in K10b's `declarations.ts`, read through `ports.annulationDeclaree`).
 - **Guards**: `effets/reversibles-metiers.test.ts` (ratchet), `effets/reversibles-*.test.ts` (execute then undo, real DB).
 
 ## 8ter. Recipes — procedural memory (lot J10, 2026-10-30)
