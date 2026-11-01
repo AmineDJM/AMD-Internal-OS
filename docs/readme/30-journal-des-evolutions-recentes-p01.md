@@ -54,6 +54,18 @@ machine de la Direction tire les ordres (`/api/dev/relais/ordres`) et exécute `
 option future. Aucun identifiant claude.ai sur le serveur. Migrations additives
 `20270218200000_chantiers_connecteurs`, `20270218200100_chantiers_relais_cli`. Banc réel `scripts/bench/chantiers-reel.ts` (dépôt et service de test seulement).
 
+### K10c : LES ACTIONS MÉTIER RÉVERSIBLES (2026-10-31)
+
+Demande de la Direction : « toute action qui a été faite peut être réversible ». Lot K10c —
+`docs/assistant/decisions/0044-actions-reversibles-metiers.md` ; sur la fenêtre d'annulation de K10b (aucune migration propre).
+Les 43 actions écrivantes encore classées « aucune » hors argent et communications (décisions de validation, décision
+finale d'un congrès, avances RH, pièces juridiques, matériel promo, fiches de voyage, réglages de l'Assistant IA, diffusion
+de notifications…) entrent au journal des effets au clic de l'écran et s'annulent d'un geste — bouton « Annuler » après
+l'action, historique de la fiche, ou l'Assistant IA. Une décision annulée rouvre l'étape (l'ordre né de l'accord est retiré,
+refus avec la liste s'il a été payé) ; une notification lue reçoit un rectificatif ; un poste supprimé revient de la
+corbeille ; une diffusion attend sa fenêtre d'annulation (celle de K10b, 120 s, réglable par le Super Admin) — annulée dedans, rien
+ne part. Une annulation se rétablit. Cliquet : plus aucune action « aucune » dans le périmètre.
+
 ### K10b : TOUTE ACTION RÉVERSIBLE — COMMUNICATIONS, EFFETS SORTANTS, SUPPRESSIONS ; LA FENÊTRE D'ANNULATION (2026-10-31)
 
 Lot K10b — `docs/assistant/decisions/0040-reversibilite-communications.md` (demande de la Direction du 31/10 : « toutes

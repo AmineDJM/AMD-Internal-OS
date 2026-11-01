@@ -24,6 +24,7 @@ import { annulerOrdreNonRegle } from "@/modules/finances/api";
 import { aiguillerBC } from "@/lib/bons-de-commande/aiguillage";
 import { sansBloquer } from "@/lib/journal";
 import { PARENTS, revalidate, canEditItems, canAllocate, demandeurDe, peutTrancherSur, prevenirLeTemps, audit, refusSiClos, reprojeterMontantDemande, loadItem, REFUS_HISTORIQUE, etatBcDe, FINANCES_BC, appliquerGesteVisa, cloreDemandesAuBureau, resumeRepartition, postesRepartis, recordDecision, envoyerDemandeBC, libellesArticles, signalerAuSujet } from "./infra/postes/commun";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * POSTES AD & PRO — DÉCIDER, RÉPARTIR, CORRIGER : la décision de la Direction sur un poste, la répartition d'un
@@ -487,55 +488,57 @@ export async function modifierDemandeBC(_prev: ActionResult | undefined, formDat
  * — le visa tient pour ce qu'il a vu, et la règle du visa jugera la réémission —, sinon sans BC.
  */
 export async function annulerOrdrePoste(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Poste non précisé." };
-  const motif = fdStr(formData, "motif");
-  if (!motif) return { ok: false, error: "Dites pourquoi l'ordre est annulé : le motif reste à l'historique de l'ordre et du poste." };
-  const found = await loadItem(id, user);
-  if (!found) return { ok: false, error: "Poste introuvable." };
-  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
-  const { item, owner } = found;
-  // LE DEMANDEUR ANNULE SA DEMANDE DE PAIEMENT tant qu'elle n'est pas réglée (décision du 04/10 :
-  // « on peut annuler sa demande tant qu'elle n'a pas été exécutée ») — les Finances et qui arbitre,
-  // comme avant. Un ordre réglé ne se défait pas : l'écrivain commun le refuse.
-  const isFinance = userCan(user, "FINANCES", "UPDATE") || userCan(user, "FINANCES", "VALIDATE");
-  if (!isFinance && !canAllocate(user, owner.parent) && !canEditItems(user, owner.parent)) {
-    return { ok: false, error: "Seuls le demandeur, les Finances, ou qui arbitre ce module, annulent une demande de paiement." };
-  }
-  if (!item.expenseOrderId) return { ok: false, error: "Aucun ordre de dépense n'a été émis pour ce poste." };
+  return actionReversible("ad-pro-item-actions:annulerOrdrePoste", "Annulation de l'ordre d'un poste Ad & Pro", async () => {
+    const user = await requireUser();
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Poste non précisé." };
+    const motif = fdStr(formData, "motif");
+    if (!motif) return { ok: false, error: "Dites pourquoi l'ordre est annulé : le motif reste à l'historique de l'ordre et du poste." };
+    const found = await loadItem(id, user);
+    if (!found) return { ok: false, error: "Poste introuvable." };
+    if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
+    const { item, owner } = found;
+    // LE DEMANDEUR ANNULE SA DEMANDE DE PAIEMENT tant qu'elle n'est pas réglée (décision du 04/10 :
+    // « on peut annuler sa demande tant qu'elle n'a pas été exécutée ») — les Finances et qui arbitre,
+    // comme avant. Un ordre réglé ne se défait pas : l'écrivain commun le refuse.
+    const isFinance = userCan(user, "FINANCES", "UPDATE") || userCan(user, "FINANCES", "VALIDATE");
+    if (!isFinance && !canAllocate(user, owner.parent) && !canEditItems(user, owner.parent)) {
+      return { ok: false, error: "Seuls le demandeur, les Finances, ou qui arbitre ce module, annulent une demande de paiement." };
+    }
+    if (!item.expenseOrderId) return { ok: false, error: "Aucun ordre de dépense n'a été émis pour ce poste." };
 
-  const annulation = await annulerOrdreNonRegle(item.expenseOrderId, { acteurId: user.id, motif: `poste « ${item.label} » — ${motif}` });
-  if (!annulation.ok) return { ok: false, error: annulation.error };
-  // LA FACTURE QUI A DEMANDÉ CE PAIEMENT (§118.204) part avec lui : laissée active et liée à un ordre
-  // annulé, la demande suivante en déposait une SECONDE, et le poste portait deux factures pour un
-  // seul paiement. Elle reste lisible, annulée, sur le poste.
-  const facturesAnnulees = await prisma.legalDocument.updateMany({
-    where: { kind: "INVOICE", expenseOrderId: item.expenseOrderId, status: { not: "CANCELLED" } },
-    data: { status: "CANCELLED", updatedById: user.id },
+    const annulation = await annulerOrdreNonRegle(item.expenseOrderId, { acteurId: user.id, motif: `poste « ${item.label} » — ${motif}` });
+    if (!annulation.ok) return { ok: false, error: annulation.error };
+    // LA FACTURE QUI A DEMANDÉ CE PAIEMENT (§118.204) part avec lui : laissée active et liée à un ordre
+    // annulé, la demande suivante en déposait une SECONDE, et le poste portait deux factures pour un
+    // seul paiement. Elle reste lisible, annulée, sur le poste.
+    const facturesAnnulees = await prisma.legalDocument.updateMany({
+      where: { kind: "INVOICE", expenseOrderId: item.expenseOrderId, status: { not: "CANCELLED" } },
+      data: { status: "CANCELLED", updatedById: user.id },
+    });
+    const etape: AdProItemOrderStage = item.orderRequestedAt ? "DIRECTION_OK" : "NONE";
+    await prisma.adProItem.updateMany({
+      where: { id, expenseOrderId: item.expenseOrderId },
+      data: { expenseOrderId: null, orderStage: etape, updatedById: user.id },
+    });
+    const info = await PARENTS[owner.parent].load(owner.id);
+    const prevenir = item.orderRequestedById ?? info?.requesterId ?? null;
+    if (prevenir && prevenir !== user.id) {
+      await notifyUser({
+        userId: prevenir, type: "GENERIC", title: "Ordre de dépense annulé",
+        body: `${info?.ref ?? ""} — « ${item.label} »${annulation.reference ? ` (${annulation.reference})` : ""} : ${motif}`,
+        link: lienPosteAdPro(owner.parent, owner.id, item.id),
+      }).catch(sansBloquer("ad-pro-item-actions.annulerOrdrePoste.notifyUser"));
+    }
+    await audit(user, owner.parent, owner.id, "UPDATE",
+      `Ordre de dépense ${annulation.reference ?? ""} ANNULÉ pour le poste « ${item.label} » — ${motif} (réémission possible).`);
+    revalidate(owner.parent, owner.id);
+    revalidatePath("/finances/paiements-a-faire");
+    return {
+      ok: true, id,
+      message: `Ordre ${annulation.reference ?? ""} annulé${facturesAnnulees.count > 0 ? ", sa facture aussi" : ""} — le paiement pourra être redemandé avec une facture${etape === "DIRECTION_OK" ? " ; le visa du centre tient pour le montant et le prestataire qu'il a vus" : ""}.`,
+    };
   });
-  const etape: AdProItemOrderStage = item.orderRequestedAt ? "DIRECTION_OK" : "NONE";
-  await prisma.adProItem.updateMany({
-    where: { id, expenseOrderId: item.expenseOrderId },
-    data: { expenseOrderId: null, orderStage: etape, updatedById: user.id },
-  });
-  const info = await PARENTS[owner.parent].load(owner.id);
-  const prevenir = item.orderRequestedById ?? info?.requesterId ?? null;
-  if (prevenir && prevenir !== user.id) {
-    await notifyUser({
-      userId: prevenir, type: "GENERIC", title: "Ordre de dépense annulé",
-      body: `${info?.ref ?? ""} — « ${item.label} »${annulation.reference ? ` (${annulation.reference})` : ""} : ${motif}`,
-      link: lienPosteAdPro(owner.parent, owner.id, item.id),
-    }).catch(sansBloquer("ad-pro-item-actions.annulerOrdrePoste.notifyUser"));
-  }
-  await audit(user, owner.parent, owner.id, "UPDATE",
-    `Ordre de dépense ${annulation.reference ?? ""} ANNULÉ pour le poste « ${item.label} » — ${motif} (réémission possible).`);
-  revalidate(owner.parent, owner.id);
-  revalidatePath("/finances/paiements-a-faire");
-  return {
-    ok: true, id,
-    message: `Ordre ${annulation.reference ?? ""} annulé${facturesAnnulees.count > 0 ? ", sa facture aussi" : ""} — le paiement pourra être redemandé avec une facture${etape === "DIRECTION_OK" ? " ; le visa du centre tient pour le montant et le prestataire qu'il a vus" : ""}.`,
-  };
 }
 
 /**

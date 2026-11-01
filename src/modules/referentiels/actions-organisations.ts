@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { annulerFusionOrganisation, ecarter, fusionner, RefusFusionOrganisation, MODULE_JOURNAL_REFONTE } from "@/modules/referentiels/api";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -95,19 +96,21 @@ export async function defaireFusionOrganisation(fd: FormData): Promise<ActionRes
 }
 
 export async function reglerDoubleEcritureOrganisations(fd: FormData): Promise<ActionResult> {
-  const user = await superAdmin();
-  if (!user) return REFUS;
-  const actif = fdStr(fd, "actif") === "1";
-  await prisma.appSetting.upsert({
-    where: { id: "global" },
-    create: { id: "global", doubleEcritureOrganisations: actif, updatedById: user.id },
-    update: { doubleEcritureOrganisations: actif, updatedById: user.id },
+  return actionReversible("organisation-actions:reglerDoubleEcritureOrganisations", "Réglage de la double écriture des organisations", async () => {
+    const user = await superAdmin();
+    if (!user) return REFUS;
+    const actif = fdStr(fd, "actif") === "1";
+    await prisma.appSetting.upsert({
+      where: { id: "global" },
+      create: { id: "global", doubleEcritureOrganisations: actif, updatedById: user.id },
+      update: { doubleEcritureOrganisations: actif, updatedById: user.id },
+    });
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REFONTE, field: "double-ecriture-organisations",
+      newValue: actif ? "ouverte" : "fermée",
+      summary: `Double écriture des organisations ${actif ? "ouverte" : "fermée"}`,
+    });
+    revalider();
+    return { ok: true };
   });
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REFONTE, field: "double-ecriture-organisations",
-    newValue: actif ? "ouverte" : "fermée",
-    summary: `Double écriture des organisations ${actif ? "ouverte" : "fermée"}`,
-  });
-  revalider();
-  return { ok: true };
 }

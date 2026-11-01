@@ -27,6 +27,7 @@ import { supprimerReversible } from "@/lib/suppression/coeur";
 import { apercuSuppression } from "@/lib/admin-delete-registry";
 import { sansBloquer } from "@/lib/journal";
 import { PARENTS, isParent, revalidate, canEditItems, canAllocate, valideursDuPoste, demandeurDe, peutTrancherSur, prevenirLeTemps, audit, refusSiClos, refusDemandeFermee, refusAvantPrevalidation, refusPostesClos, reprojeterMontantDemande, demandeVisible, loadItem, REFUS_HISTORIQUE, compterFichesPersonnes, priseEnChargeIndirecte, etatBcDe, appliquerGesteVisa, cloreDemandesAuBureau, resumeRepartition, postesRepartis, recordDecision, piecesOuvertes, envoyerDemandeBC, pieceComptee, depassementDuPoste } from "./infra/postes/commun";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * POSTES D'UNE DEMANDE AD & PRO — le poste et ses demandes : ajouter, modifier, retirer, rattacher un matériel
@@ -298,132 +299,134 @@ export async function updateAdProItem(_prev: ActionResult | undefined, formData:
 }
 
 export async function deleteAdProItem(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
+  return actionReversible("ad-pro-item-actions:deleteAdProItem", "Suppression d'un poste Ad & Pro", async () => {
+    const user = await requireUser();
 
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Poste non précisé." };
-  const found = await loadItem(id, user);
-  if (!found) return { ok: false, error: "Poste introuvable." };
-  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
-  const { item, owner } = found;
-  if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
-  const clos = await refusSiClos(owner.parent, owner.id);
-  if (clos) return { ok: false, error: clos };
-  // LE MATÉRIEL DU STOCK (§118.167) : réservé, il est dehors et effacer le poste l'y laisserait ;
-  // remis, abîmé ou perdu, le poste est la cause de ces sorties. La MÊME règle que la corbeille
-  // (`faitDeStock`) — sinon une demande qu'elle refuse se viderait poste par poste (§118.71).
-  const faitStock = (await prisma.adProStockLine.findMany({
-    where: { itemId: id }, select: { statut: true, utilisee: true, abimee: true, perdue: true },
-  })).map((l) => faitDeStock(l)).find((f) => f != null);
-  if (faitStock) return { ok: false, error: `Ce poste ne se retire pas : ${faitStock}.` };
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Poste non précisé." };
+    const found = await loadItem(id, user);
+    if (!found) return { ok: false, error: "Poste introuvable." };
+    if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
+    const { item, owner } = found;
+    if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
+    const clos = await refusSiClos(owner.parent, owner.id);
+    if (clos) return { ok: false, error: clos };
+    // LE MATÉRIEL DU STOCK (§118.167) : réservé, il est dehors et effacer le poste l'y laisserait ;
+    // remis, abîmé ou perdu, le poste est la cause de ces sorties. La MÊME règle que la corbeille
+    // (`faitDeStock`) — sinon une demande qu'elle refuse se viderait poste par poste (§118.71).
+    const faitStock = (await prisma.adProStockLine.findMany({
+      where: { itemId: id }, select: { statut: true, utilisee: true, abimee: true, perdue: true },
+    })).map((l) => faitDeStock(l)).find((f) => f != null);
+    if (faitStock) return { ok: false, error: `Ce poste ne se retire pas : ${faitStock}.` };
 
-  // UN POSTE PAYÉ NE S'EFFACE PAS EN SILENCE — mais il doit pouvoir être retiré.
-  //
-  // Le refus pur et simple créait une impasse : un poste émis par erreur (mauvais fournisseur,
-  // doublon) restait à l'écran pour toujours. On garde donc la protection pour les éditeurs
-  // ordinaires, et on l'ouvre à la DIRECTION — celle qui a signé l'ordre est celle qui peut le
-  // défaire. L'ordre de dépense est alors ANNULÉ, pas orphelin : la trace comptable subsiste,
-  // marquée annulée, au lieu de pointer vers un poste disparu.
-  const order = item.expenseOrderId
-    ? await prisma.expenseOrder.findUnique({ where: { id: item.expenseOrderId }, select: { status: true, reference: true } })
-    : null;
-  const removable = canRemoveItem(
-    { expenseOrderId: item.expenseOrderId, expenseOrderStatus: order?.status ?? null },
-    { canAllocate: canAllocate(user, owner.parent) },
-  );
-  if (!removable.ok) return { ok: false, error: removable.reason ?? "Ce poste ne peut pas être retiré." };
-  // CE QUE LA CORBEILLE REFUSERAIT, lu AVANT d'annuler quoi que ce soit — une pièce signée par les
-  // Finances, le paiement réglé d'une demande au secrétariat : sans cette lecture, l'ordre serait
-  // annulé pour rien, et le poste resterait là (§118.53 : on lit l'empreinte avant d'écrire).
-  const apercu = await apercuSuppression("AD_PRO_ITEM", id);
-  if (apercu.refus) return { ok: false, error: apercu.refus };
-  // Les demandes au secrétariat ENCORE OUVERTES partent avec le poste (le lot les emporte, et les rend
-  // à la restauration) : l'assistante qui y travaillait doit l'apprendre — elle disparaît de sa liste.
-  const ouvertes = await prisma.administrativeRequest.findMany({
-    where: { linkedEntityType: "AD_PRO_ITEM", linkedEntityId: id, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } },
-    select: { reference: true, title: true, assignedToId: true },
-  });
-  // Et les demandes de PIÈCE ouvertes chez l'assistante (le BC à déposer, §118.204) : elle doit
-  // l'apprendre aussi, sinon elle dépose un BC pour un poste qui n'existe plus.
-  const piecesOuvertes = await prisma.documentRequest.findMany({
-    where: { entityType: "AD_PRO_ITEM", entityId: id, status: { in: ["PENDING", "SUBMITTED", "DECLINED"] } },
-    select: { id: true, reference: true, label: true, askedToId: true },
-  });
-
-  // 1) L'ORDRE ÉMIS S'ANNULE PAR L'ÉCRIVAIN COMMUN (§118.185) — conditionnel : un règlement survenu
-  //    entre la lecture et l'annulation ne se défait pas, et le poste reste alors (il justifie un
-  //    paiement réellement sorti). L'écriture d'avant était un `update` sec, qui pouvait marquer
-  //    « annulé » un ordre que le centre venait de payer.
-  let ordreAnnule: string | null = null;
-  if (item.expenseOrderId) {
-    const a = await annulerOrdreNonRegle(item.expenseOrderId, { acteurId: user.id, motif: `le poste « ${item.label} » a été retiré` });
-    if (!a.ok) return { ok: false, error: a.error };
-    ordreAnnule = a.reference;
-    // Le poste QUITTE l'ordre annulé avant de partir à la corbeille, comme « Annuler l'ordre émis » :
-    // restauré, il pointerait sinon vers un ordre annulé, « émis » pour toujours et impossible à réémettre.
-    await prisma.adProItem.updateMany({
-      where: { id, expenseOrderId: item.expenseOrderId },
-      data: { expenseOrderId: null, orderStage: item.orderRequestedAt ? "DIRECTION_OK" : "NONE", updatedById: user.id },
+    // UN POSTE PAYÉ NE S'EFFACE PAS EN SILENCE — mais il doit pouvoir être retiré.
+    //
+    // Le refus pur et simple créait une impasse : un poste émis par erreur (mauvais fournisseur,
+    // doublon) restait à l'écran pour toujours. On garde donc la protection pour les éditeurs
+    // ordinaires, et on l'ouvre à la DIRECTION — celle qui a signé l'ordre est celle qui peut le
+    // défaire. L'ordre de dépense est alors ANNULÉ, pas orphelin : la trace comptable subsiste,
+    // marquée annulée, au lieu de pointer vers un poste disparu.
+    const order = item.expenseOrderId
+      ? await prisma.expenseOrder.findUnique({ where: { id: item.expenseOrderId }, select: { status: true, reference: true } })
+      : null;
+    const removable = canRemoveItem(
+      { expenseOrderId: item.expenseOrderId, expenseOrderStatus: order?.status ?? null },
+      { canAllocate: canAllocate(user, owner.parent) },
+    );
+    if (!removable.ok) return { ok: false, error: removable.reason ?? "Ce poste ne peut pas être retiré." };
+    // CE QUE LA CORBEILLE REFUSERAIT, lu AVANT d'annuler quoi que ce soit — une pièce signée par les
+    // Finances, le paiement réglé d'une demande au secrétariat : sans cette lecture, l'ordre serait
+    // annulé pour rien, et le poste resterait là (§118.53 : on lit l'empreinte avant d'écrire).
+    const apercu = await apercuSuppression("AD_PRO_ITEM", id);
+    if (apercu.refus) return { ok: false, error: apercu.refus };
+    // Les demandes au secrétariat ENCORE OUVERTES partent avec le poste (le lot les emporte, et les rend
+    // à la restauration) : l'assistante qui y travaillait doit l'apprendre — elle disparaît de sa liste.
+    const ouvertes = await prisma.administrativeRequest.findMany({
+      where: { linkedEntityType: "AD_PRO_ITEM", linkedEntityId: id, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } },
+      select: { reference: true, title: true, assignedToId: true },
     });
-  }
+    // Et les demandes de PIÈCE ouvertes chez l'assistante (le BC à déposer, §118.204) : elle doit
+    // l'apprendre aussi, sinon elle dépose un BC pour un poste qui n'existe plus.
+    const piecesOuvertes = await prisma.documentRequest.findMany({
+      where: { entityType: "AD_PRO_ITEM", entityId: id, status: { in: ["PENDING", "SUBMITTED", "DECLINED"] } },
+      select: { id: true, reference: true, label: true, askedToId: true },
+    });
 
-  // 2) LE POSTE PART À LA CORBEILLE, EN LOT (§118.187, audit R11) — avec ses décisions, ses voyageurs,
-  //    ses pièces, ses demandes au secrétariat et le BC non signé qu'elles ont fait naître, et il revient
-  //    avec eux. « Retirer le poste » l'effaçait définitivement, et l'historique des décisions partait
-  //    en cascade. Le matériel promotionnel rattaché n'est PAS supprimé : il a sa vie propre et son circuit.
-  // LE RACCOURCI VERS LA DEMANDE DE DEVIS (`adminRequestId`) désigne une demande que le lot EMPORTE
-  // comme branche du poste (son `linkedEntityId`) : la tête dépendrait de sa propre branche, et la
-  // corbeille refusait (« ordre de recréation impossible »). Le raccourci est redondant avec le lien
-  // canonique de la demande : on le vide avant le lot, et on le repose si le retrait échoue. Restauré,
-  // le poste retrouve sa demande par le lien canonique.
-  const raccourci = item.adminRequestId;
-  if (raccourci) await prisma.adProItem.update({ where: { id }, data: { adminRequestId: null } });
-  const r = await supprimerReversible("AD_PRO_ITEM", id, user.id,
-    `Poste « ${item.label} » retiré${item.promoMaterialId ? " (le matériel promotionnel rattaché est conservé)" : ""}.`);
-  if (!r.ok && raccourci) await prisma.adProItem.updateMany({ where: { id }, data: { adminRequestId: raccourci } }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.adProItem"));
-  if (!r.ok) {
+    // 1) L'ORDRE ÉMIS S'ANNULE PAR L'ÉCRIVAIN COMMUN (§118.185) — conditionnel : un règlement survenu
+    //    entre la lecture et l'annulation ne se défait pas, et le poste reste alors (il justifie un
+    //    paiement réellement sorti). L'écriture d'avant était un `update` sec, qui pouvait marquer
+    //    « annulé » un ordre que le centre venait de payer.
+    let ordreAnnule: string | null = null;
+    if (item.expenseOrderId) {
+      const a = await annulerOrdreNonRegle(item.expenseOrderId, { acteurId: user.id, motif: `le poste « ${item.label} » a été retiré` });
+      if (!a.ok) return { ok: false, error: a.error };
+      ordreAnnule = a.reference;
+      // Le poste QUITTE l'ordre annulé avant de partir à la corbeille, comme « Annuler l'ordre émis » :
+      // restauré, il pointerait sinon vers un ordre annulé, « émis » pour toujours et impossible à réémettre.
+      await prisma.adProItem.updateMany({
+        where: { id, expenseOrderId: item.expenseOrderId },
+        data: { expenseOrderId: null, orderStage: item.orderRequestedAt ? "DIRECTION_OK" : "NONE", updatedById: user.id },
+      });
+    }
+
+    // 2) LE POSTE PART À LA CORBEILLE, EN LOT (§118.187, audit R11) — avec ses décisions, ses voyageurs,
+    //    ses pièces, ses demandes au secrétariat et le BC non signé qu'elles ont fait naître, et il revient
+    //    avec eux. « Retirer le poste » l'effaçait définitivement, et l'historique des décisions partait
+    //    en cascade. Le matériel promotionnel rattaché n'est PAS supprimé : il a sa vie propre et son circuit.
+    // LE RACCOURCI VERS LA DEMANDE DE DEVIS (`adminRequestId`) désigne une demande que le lot EMPORTE
+    // comme branche du poste (son `linkedEntityId`) : la tête dépendrait de sa propre branche, et la
+    // corbeille refusait (« ordre de recréation impossible »). Le raccourci est redondant avec le lien
+    // canonique de la demande : on le vide avant le lot, et on le repose si le retrait échoue. Restauré,
+    // le poste retrouve sa demande par le lien canonique.
+    const raccourci = item.adminRequestId;
+    if (raccourci) await prisma.adProItem.update({ where: { id }, data: { adminRequestId: null } });
+    const r = await supprimerReversible("AD_PRO_ITEM", id, user.id,
+      `Poste « ${item.label} » retiré${item.promoMaterialId ? " (le matériel promotionnel rattaché est conservé)" : ""}.`);
+    if (!r.ok && raccourci) await prisma.adProItem.updateMany({ where: { id }, data: { adminRequestId: raccourci } }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.adProItem"));
+    if (!r.ok) {
+      return {
+        ok: false,
+        error: ordreAnnule
+          ? `L'ordre ${ordreAnnule} a été annulé, mais le poste n'a pas pu être retiré : ${r.error ?? "erreur inconnue"}`
+          : (r.error ?? "Le poste n'a pas pu être retiré."),
+      };
+    }
+    await audit(user, owner.parent, owner.id, "DELETE",
+      `Poste « ${item.label} » retiré (restaurable depuis la corbeille)${ordreAnnule ? ` — ordre de dépense ${ordreAnnule} annulé` : ""}${item.promoMaterialId ? " — le matériel promotionnel rattaché est conservé" : ""}.`);
+
+    // 3) CE QUI TRAVAILLAIT POUR LUI (audit R10) : ses demandes au secrétariat sont parties AVEC lui —
+    //    leur assistante l'apprend (la demande disparaît de sa liste, elle reviendrait avec le poste) —
+    //    et le sujet de réservation d'une billetterie l'apprend aussi : l'assistante ne réserve plus des
+    //    billets pour un poste qui n'existe plus. Les clore d'abord ferait revenir un poste dont la
+    //    demande de BC vit encore, avec un « BC à établir » annulé (§118.141c) : le lot les garde telles
+    //    qu'elles étaient.
+    for (const d of ouvertes) {
+      await prevenirLeSecretariat(d.assignedToId, {
+        type: "GENERIC", title: "Demande au secrétariat retirée avec son poste",
+        body: `${d.reference} — ${d.title} : le poste « ${item.label} » a été retiré (restaurable depuis la corbeille).`, link: "/demandes",
+      }, user.id);
+    }
+    if (ouvertes.length > 0) revalidatePath("/demandes");
+    for (const d of piecesOuvertes) {
+      await notifyUser({
+        userId: d.askedToId, type: "GENERIC", title: "Demande de pièce retirée avec son poste",
+        body: `${d.reference} — ${d.label} : le poste « ${item.label} » a été retiré (restaurable depuis la corbeille).`, link: "/pieces",
+      }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.notifyUser"));
+    }
+    if (piecesOuvertes.length > 0) revalidatePath("/pieces");
+    if (item.reservationDossierId) {
+      await ecrireDansLeSujet({ dossierId: item.reservationDossierId, authorId: user.id, body: `${item.label} — poste retiré : la réservation n'a plus d'objet.` }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.ecrireDansLeSujet", false));
+    }
+    // Une rallonge accordée qu'on retire doit QUITTER le montant de la demande : sinon la fiche
+    // porterait pour toujours un budget accordé à un poste qui n'existe plus.
+    await reprojeterMontantDemande(owner.parent, owner.id);
+    revalidate(owner.parent, owner.id);
     return {
-      ok: false,
-      error: ordreAnnule
-        ? `L'ordre ${ordreAnnule} a été annulé, mais le poste n'a pas pu être retiré : ${r.error ?? "erreur inconnue"}`
-        : (r.error ?? "Le poste n'a pas pu être retiré."),
+      ok: true,
+      message: `Poste retiré — restaurable depuis la corbeille${ordreAnnule ? ` ; l'ordre ${ordreAnnule} est annulé` : ""}.`
+        + (ouvertes.length > 0 ? ` ${ouvertes.length} demande${ouvertes.length > 1 ? "s" : ""} au secrétariat ${ouvertes.length > 1 ? "sont parties" : "est partie"} avec lui, l'assistante prévenue.` : ""),
     };
-  }
-  await audit(user, owner.parent, owner.id, "DELETE",
-    `Poste « ${item.label} » retiré (restaurable depuis la corbeille)${ordreAnnule ? ` — ordre de dépense ${ordreAnnule} annulé` : ""}${item.promoMaterialId ? " — le matériel promotionnel rattaché est conservé" : ""}.`);
-
-  // 3) CE QUI TRAVAILLAIT POUR LUI (audit R10) : ses demandes au secrétariat sont parties AVEC lui —
-  //    leur assistante l'apprend (la demande disparaît de sa liste, elle reviendrait avec le poste) —
-  //    et le sujet de réservation d'une billetterie l'apprend aussi : l'assistante ne réserve plus des
-  //    billets pour un poste qui n'existe plus. Les clore d'abord ferait revenir un poste dont la
-  //    demande de BC vit encore, avec un « BC à établir » annulé (§118.141c) : le lot les garde telles
-  //    qu'elles étaient.
-  for (const d of ouvertes) {
-    await prevenirLeSecretariat(d.assignedToId, {
-      type: "GENERIC", title: "Demande au secrétariat retirée avec son poste",
-      body: `${d.reference} — ${d.title} : le poste « ${item.label} » a été retiré (restaurable depuis la corbeille).`, link: "/demandes",
-    }, user.id);
-  }
-  if (ouvertes.length > 0) revalidatePath("/demandes");
-  for (const d of piecesOuvertes) {
-    await notifyUser({
-      userId: d.askedToId, type: "GENERIC", title: "Demande de pièce retirée avec son poste",
-      body: `${d.reference} — ${d.label} : le poste « ${item.label} » a été retiré (restaurable depuis la corbeille).`, link: "/pieces",
-    }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.notifyUser"));
-  }
-  if (piecesOuvertes.length > 0) revalidatePath("/pieces");
-  if (item.reservationDossierId) {
-    await ecrireDansLeSujet({ dossierId: item.reservationDossierId, authorId: user.id, body: `${item.label} — poste retiré : la réservation n'a plus d'objet.` }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.ecrireDansLeSujet", false));
-  }
-  // Une rallonge accordée qu'on retire doit QUITTER le montant de la demande : sinon la fiche
-  // porterait pour toujours un budget accordé à un poste qui n'existe plus.
-  await reprojeterMontantDemande(owner.parent, owner.id);
-  revalidate(owner.parent, owner.id);
-  return {
-    ok: true,
-    message: `Poste retiré — restaurable depuis la corbeille${ordreAnnule ? ` ; l'ordre ${ordreAnnule} est annulé` : ""}.`
-      + (ouvertes.length > 0 ? ` ${ouvertes.length} demande${ouvertes.length > 1 ? "s" : ""} au secrétariat ${ouvertes.length > 1 ? "sont parties" : "est partie"} avec lui, l'assistante prévenue.` : ""),
-  };
+  });
 }
 
 // ───────────────────────────── Matériel promotionnel ─────────────────────────────

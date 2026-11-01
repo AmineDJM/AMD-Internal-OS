@@ -29,6 +29,20 @@ export async function notifyUser(input: NotifyInput) {
 
 export type BroadcastAudience = "ALL" | "ROLE" | "USERS";
 
+/** Les comptes ACTIFS d'une audience de diffusion (tous, un rôle — principal ou secondaire —, des personnes). */
+export async function destinatairesDeLaDiffusion(opts: { audience: BroadcastAudience; role?: string | null; userIds?: string[] }): Promise<string[]> {
+  if (opts.audience === "USERS") {
+    const ids = [...new Set((opts.userIds ?? []).filter(Boolean))];
+    if (!ids.length) return [];
+    return (await prisma.user.findMany({ where: { id: { in: ids }, isActive: true }, select: { id: true } })).map((u) => u.id);
+  }
+  // Audience « rôle » : couvre le rôle principal ET le rôle secondaire.
+  const where = opts.audience === "ROLE" && opts.role
+    ? { isActive: true, ...anyRoleFilter([opts.role as UserRole]) }
+    : { isActive: true };
+  return (await prisma.user.findMany({ where, select: { id: true } })).map((u) => u.id);
+}
+
 /**
  * Diffuse une notification à une **audience** : tous les comptes actifs, un rôle,
  * ou des personnes précises. Renvoie le nombre de destinataires. Best-effort.
@@ -42,28 +56,18 @@ export async function broadcastNotification(opts: {
   link?: string;
   /** Affiche aussi la notification en **pop-up plein écran** (grande fenêtre centrée) chez le destinataire. */
   popup?: boolean;
-}): Promise<number> {
+}, fixe?: { idsFixes?: string[] }): Promise<number> {
   try {
-    let ids: string[];
-    if (opts.audience === "USERS") {
-      ids = [...new Set((opts.userIds ?? []).filter(Boolean))];
-      if (ids.length) {
-        const valid = await prisma.user.findMany({ where: { id: { in: ids }, isActive: true }, select: { id: true } });
-        ids = valid.map((u) => u.id);
-      }
-    } else {
-      // Audience « rôle » : couvre le rôle principal ET le rôle secondaire.
-      const where = opts.audience === "ROLE" && opts.role
-        ? { isActive: true, ...anyRoleFilter([opts.role as UserRole]) }
-        : { isActive: true };
-      ids = (await prisma.user.findMany({ where, select: { id: true } })).map((u) => u.id);
-    }
+    const ids = await destinatairesDeLaDiffusion(opts);
     if (ids.length === 0) return 0;
     // UN DESTINATAIRE DISPARU NE DOIT PAS FAIRE TAIRE TOUT L'ENVOI : le lot est le chemin
     // rapide, et un lot refusé se rejoue ligne à ligne (§118.137). Le nombre rendu est celui des
     // lignes RÉELLEMENT écrites, jamais celui des destinataires qu'on espérait joindre — sans
     // quoi on annoncerait « 200 personnes prévenues » sur 199 (§118.51).
-    const lignes = ids.map((userId) => ({ userId, type: "GENERIC" as NotificationType, title: opts.title, body: opts.body, link: opts.link, popup: opts.popup ?? false }));
+    // K10c : une diffusion différée fixe ses identifiants au clic (un par destinataire, dans l'ordre de `userIds`) —
+    // sa compensation, après la fenêtre, les retrouve sans rien deviner.
+    const idDe = (userId: string) => fixe?.idsFixes?.[opts.userIds?.indexOf(userId) ?? -1] ?? nouvelIdNotification();
+    const lignes = ids.map((userId) => ({ id: idDe(userId), userId, type: "GENERIC" as NotificationType, title: opts.title, body: opts.body, link: opts.link, popup: opts.popup ?? false }));
     let ecrites = lignes.length;
     try {
       await prisma.notification.createMany({ data: lignes });
@@ -78,6 +82,9 @@ export async function broadcastNotification(opts: {
     return 0;
   }
 }
+
+/** Une clé au format des `cuid()` du schéma — fixée avant l'écriture en lot, pour retrouver chaque ligne. */
+const nouvelIdNotification = (): string => `c${globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`;
 
 /** Notify every user holding one of the given roles — en principal OU en secondaire
  *  (ex. un compte « délégué » dont l'autre rôle est National Sales doit être prévenu). */

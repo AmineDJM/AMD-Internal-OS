@@ -526,6 +526,24 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 - **Guards**: `effets/{simulation,ports,annulation}.test.ts` (50 real cases, 0 overwrite), `assistant-ia/infra/capacites-simulation.test.ts`,
   `platform/ia/capacites/registre.test.ts` (≥ 80 % of R1–R2 simulable).
 
+## 8quinquies. Reversible business actions (lot K10c, 2026-10-31)
+
+- **Where**: `src/lib/effets/reversible.ts` (`actionReversible`), `politiques.ts`, `fenetre.ts`; `annulation.ts` extended.
+  Decision `docs/assistant/decisions/0044-actions-reversibles-metiers.md`.
+- **Wrapper**: 43 server actions wrap their body in `actionReversible(id, label, body)`: on a screen click the body runs under
+  `journaliserGeste` (origin `ecran`) and the result carries `annulable: { gesteId }`; under an assistant gesture or a
+  simulation nothing changes. **Blast radius**: every wrapped action now pays the capture (one extra read per write).
+- **Policy** (declared actions + `annulation:*`): all-or-nothing (dry-run plan first; any IMPOSSIBLE or partial DB effect ⇒
+  refusal with `bloquants`, nothing written), read notifications get a rectification, business inverse gestures
+  (`METIERS`: recycle-bin restore, reference counters never given back, library index key removed).
+- **Rétablir**: the undo runs under its own journal (writes via the gesture client, `ecrivain()`); K10b's `retablirGeste`
+  delegates to `retablirParLeJournal` (undoes the undo's gesture) then re-arms K10b outbound effects. The dry-run knows links the gesture itself set (`liensDuGeste` → `rattaches(…, relies)`).
+- **Undo window**: K10b's (`fenetre.ts`, `EffetSortantDiffere`); wrapped actions run with the window armed, so their pushes
+  wait. `sendBroadcast` notes the effect then `differerSiFenetre` (executor `notification.diffusion`, notification ids fixed at
+  click; compensation removes unread, rectifies read).
+- **Registry**: `lib/effets/declarations/metiers.ts` (spread in K10b's `declarations.ts`, read through `ports.annulationDeclaree`).
+- **Guards**: `effets/reversibles-metiers.test.ts` (ratchet), `effets/reversibles-*.test.ts` (execute then undo, real DB).
+
 ## 8ter. Recipes — procedural memory (lot J10, 2026-10-30)
 
 > Added with J10 (decision `docs/assistant/decisions/0028-recettes.md`). Verified against the code of `jarvis/j10-recettes`.

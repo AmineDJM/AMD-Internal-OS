@@ -20,6 +20,7 @@ import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { deviseDuPoste, lireMode, TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
 import { relierALaPersonne } from "@/modules/referentiels/api";
+import { actionReversible } from "@/lib/effets/reversible";
 
 // Le **même** circuit de prise en charge sert les prises en charge internationales/nationaux
 // ET les événements (module Events) : on paramètre tout par `type`.
@@ -333,105 +334,107 @@ export async function submitProductAnalysis(formData: FormData): Promise<ActionR
 // ───────────────────────────── Validation définitive (Direction) → ordre de dépense ─────────────────────────────
 
 export async function finalDecision(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const t = typeOf(formData);
-  const id = fdStr(formData, "id");
-  const decision = fdStr(formData, "decision");
-  if (!id || !decision) return { ok: false, error: "Paramètres manquants." };
-  // Validation définitive **réservée à la Direction** (et au Super Admin) — le chef
-  // de produit, même s'il « gère » le module, ne doit PAS pouvoir trancher.
-  if (!hasGlobalView(user)) return { ok: false, error: "Validation définitive réservée à la Direction." };
+  return actionReversible("congress-request-actions:finalDecision", "Décision finale sur une demande de congrès", async () => {
+    const user = await requireUser();
+    const t = typeOf(formData);
+    const id = fdStr(formData, "id");
+    const decision = fdStr(formData, "decision");
+    if (!id || !decision) return { ok: false, error: "Paramètres manquants." };
+    // Validation définitive **réservée à la Direction** (et au Super Admin) — le chef
+    // de produit, même s'il « gère » le module, ne doit PAS pouvoir trancher.
+    if (!hasGlobalView(user)) return { ok: false, error: "Validation définitive réservée à la Direction." };
 
-  const c = await loadCongress(t, id);
-  if (!c) return { ok: false, error: "Demande introuvable." };
-  if (c.requestStatus !== "AWAITING_FINAL") return { ok: false, error: "Cette demande n'est pas en attente de validation définitive." };
+    const c = await loadCongress(t, id);
+    if (!c) return { ok: false, error: "Demande introuvable." };
+    if (c.requestStatus !== "AWAITING_FINAL") return { ok: false, error: "Cette demande n'est pas en attente de validation définitive." };
 
-  if (decision === "REJECT") {
-    const reason = fdStr(formData, "note");
-    if (!reason) return { ok: false, error: "Le motif de refus est obligatoire." };
-    await updateCongress(t, id, { requestStatus: "REJECTED", rejectionReason: reason, finalById: user.id, finalAt: new Date(), updatedById: user.id });
-    if (c.requesterId) await notifyUser({ userId: c.requesterId, type: "GENERIC", title: `${NOUN(t)} — refusé (définitif)`, body: c.name, link: `${pathFor(t)}/${id}` });
-    await recordAudit({ actorId: user.id, action: "REFUSE", module: ML(t), entityType: entityFor(t), entityId: id, summary: `Refus définitif — ${c.name}` });
+    if (decision === "REJECT") {
+      const reason = fdStr(formData, "note");
+      if (!reason) return { ok: false, error: "Le motif de refus est obligatoire." };
+      await updateCongress(t, id, { requestStatus: "REJECTED", rejectionReason: reason, finalById: user.id, finalAt: new Date(), updatedById: user.id });
+      if (c.requesterId) await notifyUser({ userId: c.requesterId, type: "GENERIC", title: `${NOUN(t)} — refusé (définitif)`, body: c.name, link: `${pathFor(t)}/${id}` });
+      await recordAudit({ actorId: user.id, action: "REFUSE", module: ML(t), entityType: entityFor(t), entityId: id, summary: `Refus définitif — ${c.name}` });
+      revalidatePath(`${pathFor(t)}/${id}`);
+      return { ok: true };
+    }
+
+    // Le montant accordé par la Direction est **obligatoire** à la validation définitive :
+    // il fait foi pour la déclaration d'information médicale puis l'ordre de dépense.
+    const amount = fdNum(formData, "finalAmount");
+    if (amount === null || amount <= 0) return { ok: false, error: "Le montant accordé est obligatoire pour valider définitivement." };
+
+    // (Sous-)catégorie budgétaire : la Direction impute explicitement la dépense à une
+    // (sous-)catégorie AVANT qu'elle ne parte au comptable. Facultatif côté serveur
+    // (aucune enveloppe configurée = pas de choix), mais requis dans l'UI dès qu'il
+    // existe des (sous-)catégories. Vérifie qu'elle existe encore.
+    const budgetCategoryId = fdStr(formData, "budgetCategoryId");
+    if (budgetCategoryId) {
+      const okCat = await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } });
+      if (okCat === 0) return { ok: false, error: "La (sous-)catégorie budgétaire choisie est introuvable." };
+      // Elle convient à la demande : sa nature, son exercice, sa Business Unit (point 9, 27/10).
+      const refusCat = await refusCategoriePourLaDemande(budgetCategoryId, entityFor(t) as NatureDemandeAdPro, id);
+      if (refusCat) return { ok: false, error: refusCat };
+    }
+
+    // Étape « information médicale » : intercalée UNIQUEMENT si un pharmacien responsable
+    // est configuré. Sinon, on route directement l'ordre de dépense vers les Finances
+    // (le responsable des finances est notifié par createExpenseOrder).
+    // Le pharmacien désigné — le plus ancien actif, déterministe (`pharmacienAssigne`).
+    const pharmacist = await pharmacienAssigne();
+
+    if (pharmacist) {
+      const decl = await createMedicalInfoDeclaration({
+        sourceType: entityFor(t),
+        sourceId: id,
+        label: `${NOUN(t)} — ${c.name}`,
+        beneficiary: c.name,
+        amount,
+        requesterId: c.requesterId ?? user.id,
+        budgetCategoryId,
+      });
+      await updateCongress(t, id, {
+        requestStatus: "APPROVED",
+        finalById: user.id, finalAt: new Date(), finalNote: fdStr(formData, "note"), finalAmount: amount,
+        status: "VALIDATED",
+        updatedById: user.id,
+      });
+      await recordAudit({ actorId: user.id, action: "VALIDATE", module: ML(t), entityType: entityFor(t), entityId: id, summary: `Validation définitive — ${c.name} (déclaration ${decl.reference})` });
+      revalidatePath("/information-medicale");
+    } else {
+      // Pas de pharmacien PRIM : ordre de dépense émis directement → Finances.
+      const order = await createExpenseOrder({
+        label: `${NOUN(t)} — ${c.name}`,
+        amount,
+        category: "EVENEMENT",
+        beneficiary: c.name,
+        sourceType: entityFor(t),
+        sourceId: id,
+        requestedById: c.requesterId ?? user.id,
+        budgetCategoryId,
+      });
+      await updateCongress(t, id, {
+        requestStatus: "APPROVED",
+        finalById: user.id, finalAt: new Date(), finalNote: fdStr(formData, "note"), finalAmount: amount,
+        status: "VALIDATED", expenseOrderId: order.id,
+        updatedById: user.id,
+      });
+      await recordAudit({ actorId: user.id, action: "VALIDATE", module: ML(t), entityType: entityFor(t), entityId: id, summary: `Validation définitive — ${c.name} (ordre ${order.reference})` });
+      // LA DÉCLARATION NAÎT QUAND MÊME, non assignée, et porte l'ordre déjà parti : l'événement reste à
+      // déclarer au ministère même sans pharmacien, et la validation finale ne doublera pas l'ordre.
+      // Le paiement, lui, ne change pas. Best-effort : l'ordre est parti, une déclaration ratée se rattrape.
+      await createMedicalInfoDeclaration({
+        sourceType: entityFor(t), sourceId: id, label: `${NOUN(t)} — ${c.name}`, beneficiary: c.name,
+        amount, requesterId: c.requesterId ?? user.id, budgetCategoryId, expenseOrderId: order.id,
+      }).catch((e) => console.error("[information médicale] déclaration non assignée non créée", e));
+      revalidatePath("/information-medicale");
+      revalidatePath("/finances/paiements-a-faire");
+      revalidatePath("/finances");
+    }
+
+    if (c.requesterId) await notifyUser({ userId: c.requesterId, type: "GENERIC", title: `${NOUN(t)} validé — pris en charge`, body: c.name, link: `${pathFor(t)}/${id}` });
     revalidatePath(`${pathFor(t)}/${id}`);
     return { ok: true };
-  }
-
-  // Le montant accordé par la Direction est **obligatoire** à la validation définitive :
-  // il fait foi pour la déclaration d'information médicale puis l'ordre de dépense.
-  const amount = fdNum(formData, "finalAmount");
-  if (amount === null || amount <= 0) return { ok: false, error: "Le montant accordé est obligatoire pour valider définitivement." };
-
-  // (Sous-)catégorie budgétaire : la Direction impute explicitement la dépense à une
-  // (sous-)catégorie AVANT qu'elle ne parte au comptable. Facultatif côté serveur
-  // (aucune enveloppe configurée = pas de choix), mais requis dans l'UI dès qu'il
-  // existe des (sous-)catégories. Vérifie qu'elle existe encore.
-  const budgetCategoryId = fdStr(formData, "budgetCategoryId");
-  if (budgetCategoryId) {
-    const okCat = await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } });
-    if (okCat === 0) return { ok: false, error: "La (sous-)catégorie budgétaire choisie est introuvable." };
-    // Elle convient à la demande : sa nature, son exercice, sa Business Unit (point 9, 27/10).
-    const refusCat = await refusCategoriePourLaDemande(budgetCategoryId, entityFor(t) as NatureDemandeAdPro, id);
-    if (refusCat) return { ok: false, error: refusCat };
-  }
-
-  // Étape « information médicale » : intercalée UNIQUEMENT si un pharmacien responsable
-  // est configuré. Sinon, on route directement l'ordre de dépense vers les Finances
-  // (le responsable des finances est notifié par createExpenseOrder).
-  // Le pharmacien désigné — le plus ancien actif, déterministe (`pharmacienAssigne`).
-  const pharmacist = await pharmacienAssigne();
-
-  if (pharmacist) {
-    const decl = await createMedicalInfoDeclaration({
-      sourceType: entityFor(t),
-      sourceId: id,
-      label: `${NOUN(t)} — ${c.name}`,
-      beneficiary: c.name,
-      amount,
-      requesterId: c.requesterId ?? user.id,
-      budgetCategoryId,
-    });
-    await updateCongress(t, id, {
-      requestStatus: "APPROVED",
-      finalById: user.id, finalAt: new Date(), finalNote: fdStr(formData, "note"), finalAmount: amount,
-      status: "VALIDATED",
-      updatedById: user.id,
-    });
-    await recordAudit({ actorId: user.id, action: "VALIDATE", module: ML(t), entityType: entityFor(t), entityId: id, summary: `Validation définitive — ${c.name} (déclaration ${decl.reference})` });
-    revalidatePath("/information-medicale");
-  } else {
-    // Pas de pharmacien PRIM : ordre de dépense émis directement → Finances.
-    const order = await createExpenseOrder({
-      label: `${NOUN(t)} — ${c.name}`,
-      amount,
-      category: "EVENEMENT",
-      beneficiary: c.name,
-      sourceType: entityFor(t),
-      sourceId: id,
-      requestedById: c.requesterId ?? user.id,
-      budgetCategoryId,
-    });
-    await updateCongress(t, id, {
-      requestStatus: "APPROVED",
-      finalById: user.id, finalAt: new Date(), finalNote: fdStr(formData, "note"), finalAmount: amount,
-      status: "VALIDATED", expenseOrderId: order.id,
-      updatedById: user.id,
-    });
-    await recordAudit({ actorId: user.id, action: "VALIDATE", module: ML(t), entityType: entityFor(t), entityId: id, summary: `Validation définitive — ${c.name} (ordre ${order.reference})` });
-    // LA DÉCLARATION NAÎT QUAND MÊME, non assignée, et porte l'ordre déjà parti : l'événement reste à
-    // déclarer au ministère même sans pharmacien, et la validation finale ne doublera pas l'ordre.
-    // Le paiement, lui, ne change pas. Best-effort : l'ordre est parti, une déclaration ratée se rattrape.
-    await createMedicalInfoDeclaration({
-      sourceType: entityFor(t), sourceId: id, label: `${NOUN(t)} — ${c.name}`, beneficiary: c.name,
-      amount, requesterId: c.requesterId ?? user.id, budgetCategoryId, expenseOrderId: order.id,
-    }).catch((e) => console.error("[information médicale] déclaration non assignée non créée", e));
-    revalidatePath("/information-medicale");
-    revalidatePath("/finances/paiements-a-faire");
-    revalidatePath("/finances");
-  }
-
-  if (c.requesterId) await notifyUser({ userId: c.requesterId, type: "GENERIC", title: `${NOUN(t)} validé — pris en charge`, body: c.name, link: `${pathFor(t)}/${id}` });
-  revalidatePath(`${pathFor(t)}/${id}`);
-  return { ok: true };
+  });
 }
 
 // ───────────────────────────── Modification du budget accordé (Direction) ─────────────────────────────
@@ -442,54 +445,56 @@ export async function finalDecision(formData: FormData): Promise<ActionResult> {
  * validée) et sur l'ordre de dépense (s'il existe et n'est pas encore réglé).
  */
 export async function updateGrantedBudget(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const t = typeOf(formData);
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Identifiant manquant." };
-  if (!hasGlobalView(user)) return { ok: false, error: "Réservé à la Direction." };
-  const c = await loadCongress(t, id);
-  if (!c) return { ok: false, error: "Demande introuvable." };
-  if (!["APPROVED", "COMPLETED"].includes(c.requestStatus ?? "")) return { ok: false, error: "Le budget ne peut être modifié qu'après validation définitive." };
-  const amount = fdNum(formData, "finalAmount");
-  if (amount === null || amount <= 0) return { ok: false, error: "Montant invalide." };
+  return actionReversible("congress-request-actions:updateGrantedBudget", "Montant accordé d'un congrès", async () => {
+    const user = await requireUser();
+    const t = typeOf(formData);
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Identifiant manquant." };
+    if (!hasGlobalView(user)) return { ok: false, error: "Réservé à la Direction." };
+    const c = await loadCongress(t, id);
+    if (!c) return { ok: false, error: "Demande introuvable." };
+    if (!["APPROVED", "COMPLETED"].includes(c.requestStatus ?? "")) return { ok: false, error: "Le budget ne peut être modifié qu'après validation définitive." };
+    const amount = fdNum(formData, "finalAmount");
+    if (amount === null || amount <= 0) return { ok: false, error: "Montant invalide." };
 
-  await updateCongress(t, id, { finalAmount: amount, updatedById: user.id });
+    await updateCongress(t, id, { finalAmount: amount, updatedById: user.id });
 
-  // Répercussion sur la déclaration PRIM (tant qu'elle n'est pas validée).
-  const decl = await repercuterMontantSurDeclaration(entityFor(t), id, amount);
-  // Répercussion sur l'ordre de dépense (s'il existe et n'est pas réglé) — par l'UNIQUE réviseur
-  // d'ordre (§118.191). Il écrivait ici en ligne, et sans condition : un règlement passé entre la
-  // lecture et l'écriture voyait son ordre PAYÉ changer de montant et son autorisation rouverte. Le
-  // réviseur relève le montant sous condition, rouvre le centre quand il monte (§118.148), et ne
-  // touche ni un ordre réglé ni un ordre refusé.
-  const orderId = decl?.expenseOrderId ?? c.expenseOrderId;
-  let suiteOrdre: string | null = null;
-  if (orderId) {
-    const raison = "budget accordé modifié";
-    const revision = await reviserOrdreNonRegle(prisma, orderId, { montant: amount }, { acteurId: user.id, raison });
-    if (revision.ok && revision.revise) {
-      await apresRevisionOrdre(revision, { acteurId: user.id, objet: c.name, raison });
-      if (!revision.rouvert) {
-        await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], { type: "GENERIC", title: "Budget d'un événement modifié", body: `${c.name} — nouveau montant ${amount.toLocaleString("fr-FR")} DZD`, link: "/finances/paiements-a-faire" });
+    // Répercussion sur la déclaration PRIM (tant qu'elle n'est pas validée).
+    const decl = await repercuterMontantSurDeclaration(entityFor(t), id, amount);
+    // Répercussion sur l'ordre de dépense (s'il existe et n'est pas réglé) — par l'UNIQUE réviseur
+    // d'ordre (§118.191). Il écrivait ici en ligne, et sans condition : un règlement passé entre la
+    // lecture et l'écriture voyait son ordre PAYÉ changer de montant et son autorisation rouverte. Le
+    // réviseur relève le montant sous condition, rouvre le centre quand il monte (§118.148), et ne
+    // touche ni un ordre réglé ni un ordre refusé.
+    const orderId = decl?.expenseOrderId ?? c.expenseOrderId;
+    let suiteOrdre: string | null = null;
+    if (orderId) {
+      const raison = "budget accordé modifié";
+      const revision = await reviserOrdreNonRegle(prisma, orderId, { montant: amount }, { acteurId: user.id, raison });
+      if (revision.ok && revision.revise) {
+        await apresRevisionOrdre(revision, { acteurId: user.id, objet: c.name, raison });
+        if (!revision.rouvert) {
+          await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], { type: "GENERIC", title: "Budget d'un événement modifié", body: `${c.name} — nouveau montant ${amount.toLocaleString("fr-FR")} DZD`, link: "/finances/paiements-a-faire" });
+        }
+      } else if (!revision.ok) {
+        // Le budget est modifié ; l'ordre, non — et on le DIT (§118.52) : un silence se lirait « le
+        // paiement suit ». Un ordre réglé a payé l'ancien montant ; un ordre refusé reste ce que le
+        // centre a refusé — réécrire son chiffre falsifierait ce qu'il a vu.
+        const ref = revision.reference ?? "";
+        suiteOrdre = revision.motif === "REGLE"
+          ? `Budget modifié — le paiement ${ref} est déjà réglé : il ne suit pas ce montant (l'argent est parti au montant d'avant).`
+          : revision.motif === "REFUSE"
+            ? `Budget modifié — le paiement ${ref} a été refusé par le centre de paiement : il ne suit pas ce montant.`
+            : `Budget modifié — l'ordre de dépense ${ref} n'a pas pu suivre (il changeait au même moment) : relancez la modification.`;
       }
-    } else if (!revision.ok) {
-      // Le budget est modifié ; l'ordre, non — et on le DIT (§118.52) : un silence se lirait « le
-      // paiement suit ». Un ordre réglé a payé l'ancien montant ; un ordre refusé reste ce que le
-      // centre a refusé — réécrire son chiffre falsifierait ce qu'il a vu.
-      const ref = revision.reference ?? "";
-      suiteOrdre = revision.motif === "REGLE"
-        ? `Budget modifié — le paiement ${ref} est déjà réglé : il ne suit pas ce montant (l'argent est parti au montant d'avant).`
-        : revision.motif === "REFUSE"
-          ? `Budget modifié — le paiement ${ref} a été refusé par le centre de paiement : il ne suit pas ce montant.`
-          : `Budget modifié — l'ordre de dépense ${ref} n'a pas pu suivre (il changeait au même moment) : relancez la modification.`;
     }
-  }
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: ML(t), entityType: entityFor(t), entityId: id, field: "finalAmount", newValue: String(amount), summary: `Budget accordé modifié — ${c.name}` });
-  revalidatePath(`${pathFor(t)}/${id}`);
-  revalidatePath("/information-medicale");
-  revalidatePath("/finances/paiements-a-faire");
-  revalidatePath("/centre-de-paiement");
-  return suiteOrdre ? { ok: true, message: suiteOrdre } : { ok: true };
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: ML(t), entityType: entityFor(t), entityId: id, field: "finalAmount", newValue: String(amount), summary: `Budget accordé modifié — ${c.name}` });
+    revalidatePath(`${pathFor(t)}/${id}`);
+    revalidatePath("/information-medicale");
+    revalidatePath("/finances/paiements-a-faire");
+    revalidatePath("/centre-de-paiement");
+    return suiteOrdre ? { ok: true, message: suiteOrdre } : { ok: true };
+  });
 }
 
 // ───────────────────────────── Impliquer une tierce personne ─────────────────────────────

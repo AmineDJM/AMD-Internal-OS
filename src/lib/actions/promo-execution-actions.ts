@@ -54,6 +54,7 @@ import {
   paiementEnCours, quantiteLue, refusExecution, refusReception, type Dossier,
 } from "@/lib/actions/internes/promo-execution/dossier";
 import { detailDeLaFacture, ordreDejaLie, phraseDuPaiement } from "@/lib/actions/internes/promo-execution/paiement";
+import { actionReversible } from "@/lib/effets/reversible";
 // Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/promo-execution/{dossier,paiement}` — les actions restent ici (leur clé de contrat).
 
 /**
@@ -796,33 +797,35 @@ export async function annulerReceptionLigneFacturePromo(formData: FormData): Pro
  * entré au stock y est physiquement — on défait d'abord la réception, en connaissance de cause.
  */
 export async function annulerFacturePromo(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const pm = await chargerDossier(fdStr(formData, "promoMaterialId"));
-  const refus = refusExecution(user, pm);
-  if (refus || !pm) return { ok: false, error: refus ?? "Dossier introuvable." };
-  const facture = await factureDuDossier(pm, fdStr(formData, "invoiceId"));
-  if (!facture) return { ok: false, error: "Cette facture n'appartient pas à ce dossier." };
-  if (await paiementEnCours(facture)) return { ok: false, error: "Le paiement de cette facture est déjà demandé : elle ne s'annule plus d'ici." };
-  const recues = await prisma.promoFactureLigne.count({ where: { facture: { legalDocumentId: facture.id }, quantiteRecue: { not: null } } });
-  if (recues > 0) return { ok: false, error: `${recues} ligne(s) de cette facture sont réceptionnées : annulez d'abord leur réception (ce qui est entré au stock y est physiquement).` };
-  const doc = await prisma.legalDocument.findUnique({ where: { id: facture.id }, select: { status: true } });
-  if (!doc || !canCancel(doc.status)) return { ok: false, error: "Cette facture ne peut plus être annulée." };
-  // Le motif APRÈS les refus ci-dessus : on ne demande pas pourquoi annuler une facture qui ne
-  // s'annule pas d'ici (§118.18).
-  const motif = fdStr(formData, "motif");
-  if (!motif) return { ok: false, error: "Dites pourquoi cette facture est annulée : elle reste au registre, avec ce motif." };
-  // Un ordre REFUSÉ par le centre reste « en attente » côté statut : il se ferme avec sa facture.
-  if (facture.expenseOrderId) {
-    const fermeture = await annulerOrdreNonRegle(facture.expenseOrderId, { acteurId: user.id, motif: `facture ${facture.reference ?? ""} annulée — ${motif.slice(0, 120)}` });
-    if (!fermeture.ok) return { ok: false, error: fermeture.error };
-  }
-  await prisma.legalDocument.update({
-    where: { id: facture.id },
-    data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: motif, updatedById: user.id },
+  return actionReversible("promo-execution-actions:annulerFacturePromo", "Annulation d'une facture promo", async () => {
+    const user = await requireUser();
+    const pm = await chargerDossier(fdStr(formData, "promoMaterialId"));
+    const refus = refusExecution(user, pm);
+    if (refus || !pm) return { ok: false, error: refus ?? "Dossier introuvable." };
+    const facture = await factureDuDossier(pm, fdStr(formData, "invoiceId"));
+    if (!facture) return { ok: false, error: "Cette facture n'appartient pas à ce dossier." };
+    if (await paiementEnCours(facture)) return { ok: false, error: "Le paiement de cette facture est déjà demandé : elle ne s'annule plus d'ici." };
+    const recues = await prisma.promoFactureLigne.count({ where: { facture: { legalDocumentId: facture.id }, quantiteRecue: { not: null } } });
+    if (recues > 0) return { ok: false, error: `${recues} ligne(s) de cette facture sont réceptionnées : annulez d'abord leur réception (ce qui est entré au stock y est physiquement).` };
+    const doc = await prisma.legalDocument.findUnique({ where: { id: facture.id }, select: { status: true } });
+    if (!doc || !canCancel(doc.status)) return { ok: false, error: "Cette facture ne peut plus être annulée." };
+    // Le motif APRÈS les refus ci-dessus : on ne demande pas pourquoi annuler une facture qui ne
+    // s'annule pas d'ici (§118.18).
+    const motif = fdStr(formData, "motif");
+    if (!motif) return { ok: false, error: "Dites pourquoi cette facture est annulée : elle reste au registre, avec ce motif." };
+    // Un ordre REFUSÉ par le centre reste « en attente » côté statut : il se ferme avec sa facture.
+    if (facture.expenseOrderId) {
+      const fermeture = await annulerOrdreNonRegle(facture.expenseOrderId, { acteurId: user.id, motif: `facture ${facture.reference ?? ""} annulée — ${motif.slice(0, 120)}` });
+      if (!fermeture.ok) return { ok: false, error: fermeture.error };
+    }
+    await prisma.legalDocument.update({
+      where: { id: facture.id },
+      data: { status: "CANCELLED", cancelledAt: new Date(), cancelReason: motif, updatedById: user.id },
+    });
+    await audit(user, pm.id, `Facture ${facture.reference ?? ""} annulée — ${motif.slice(0, 200)}`);
+    revalidatePath(chemin(pm.id));
+    return { ok: true, message: `Facture ${facture.reference ?? ""} annulée — ses lignes redeviennent à facturer sur le BC.` };
   });
-  await audit(user, pm.id, `Facture ${facture.reference ?? ""} annulée — ${motif.slice(0, 200)}`);
-  revalidatePath(chemin(pm.id));
-  return { ok: true, message: `Facture ${facture.reference ?? ""} annulée — ses lignes redeviennent à facturer sur le BC.` };
 }
 
 const FORMALITES = ["AD_VISA", "MIP"] as const;
@@ -841,103 +844,105 @@ const LIBELLE_FORMALITE: Record<Formalite, string> = { AD_VISA: "demande de visa
  * fois (§118.151).
  */
 export async function demanderPaiementFacturePromo(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const pm = await chargerDossier(fdStr(formData, "promoMaterialId"));
-  const refus = refusExecution(user, pm);
-  if (refus || !pm) return { ok: false, error: refus ?? "Dossier introuvable." };
-  const formalite = fdStr(formData, "formalite") as Formalite | null;
-  if (!formalite || !FORMALITES.includes(formalite)) {
-    return { ok: false, error: "Choisissez la formalité qui accompagne ce paiement : demande de visa publicitaire, ou déclaration au ministère." };
-  }
-  const invoiceId = fdStr(formData, "invoiceId");
-  // SÉRIALISÉ PAR FACTURE : deux clics simultanés liraient tous deux « aucun ordre » et feraient
-  // naître deux ordres de dépense pour la même facture — le même dinar demandé deux fois.
-  // La clé est celle de la fiche Legal, qui envoie la MÊME pièce par l'autre porte (§118.185).
-  return enSerie(cleEnvoiAuReglement(invoiceId), async (): Promise<ActionResult> => {
-    const facture = await factureDuDossier(pm, invoiceId);
-    if (!facture) return { ok: false, error: "Cette facture n'appartient pas à ce dossier." };
-    const bc = facture.chainFrom ? await etatDuBC(facture.chainFrom.id) : null;
-    if (!bc || bc.annule) return { ok: false, error: "Cette facture ne découle d'aucun bon de commande actif du dossier." };
-    if (bc.etape !== "SIGNE") return { ok: false, error: `Le bon de commande ${bc.reference ?? ""} n'est pas signé par les Finances : sa facture ne se paie pas encore.` };
+  return actionReversible("promo-execution-actions:demanderPaiementFacturePromo", "Demande de paiement d'une facture promo", async () => {
+    const user = await requireUser();
+    const pm = await chargerDossier(fdStr(formData, "promoMaterialId"));
+    const refus = refusExecution(user, pm);
+    if (refus || !pm) return { ok: false, error: refus ?? "Dossier introuvable." };
+    const formalite = fdStr(formData, "formalite") as Formalite | null;
+    if (!formalite || !FORMALITES.includes(formalite)) {
+      return { ok: false, error: "Choisissez la formalité qui accompagne ce paiement : demande de visa publicitaire, ou déclaration au ministère." };
+    }
+    const invoiceId = fdStr(formData, "invoiceId");
+    // SÉRIALISÉ PAR FACTURE : deux clics simultanés liraient tous deux « aucun ordre » et feraient
+    // naître deux ordres de dépense pour la même facture — le même dinar demandé deux fois.
+    // La clé est celle de la fiche Legal, qui envoie la MÊME pièce par l'autre porte (§118.185).
+    return enSerie(cleEnvoiAuReglement(invoiceId), async (): Promise<ActionResult> => {
+      const facture = await factureDuDossier(pm, invoiceId);
+      if (!facture) return { ok: false, error: "Cette facture n'appartient pas à ce dossier." };
+      const bc = facture.chainFrom ? await etatDuBC(facture.chainFrom.id) : null;
+      if (!bc || bc.annule) return { ok: false, error: "Cette facture ne découle d'aucun bon de commande actif du dossier." };
+      if (bc.etape !== "SIGNE") return { ok: false, error: `Le bon de commande ${bc.reference ?? ""} n'est pas signé par les Finances : sa facture ne se paie pas encore.` };
 
-    // LA RÉCEPTION D'ABORD (§118.165) : une facture DÉTAILLÉE se paie pour ce qui est REÇU. Une
-    // ligne qui attend bloque le paiement — sauf renoncement CONFIRMÉ, définitif (« un paiement
-    // pour cette ligne ne pourra pas être fait ultérieurement »). Une facture d'avant le détail
-    // ligne à ligne garde le comportement d'avant : son montant, sans réception.
-    const detail = await detailDeLaFacture(facture.id);
-    let montant = facture.amount != null ? Number(facture.amount) : 0;
-    let renoncer: string[] = [];
-    let partiel = false;
-    if (detail) {
-      const v = verdictPaiementDetaille(
-        { tvaRate: Number(detail.tvaRate), extraTaxRate: detail.extraTaxRate != null ? Number(detail.extraTaxRate) : null, totalImprime: detail.totalImprime != null ? Number(detail.totalImprime) : null },
-        detail.lignes.map(ligneFactureLue),
-        formData.get("confirmeRenoncement") === "1",
-      );
-      if (!v.ok) return { ok: false, error: v.error };
-      montant = v.montant;
-      renoncer = v.renoncer;
-      partiel = !v.complet;
-    }
-    // L'ORDRE DÉJÀ LIÉ (§118.185, audit 360° I8) : refusé par le centre ou annulé, il ne paiera
-    // jamais — la facture repart, et l'ancien ordre est fermé pour qu'aucune décision tardive du
-    // centre ne rende payables deux ordres pour la même facture.
-    const ordreLie = await ordreDejaLie(facture.expenseOrderId);
-    const envoi = canSendToSettlement({
-      kind: facture.kind, amount: montant || null, paidDate: facture.paidDate, expenseOrderId: facture.expenseOrderId,
-      bc: { porte: await porteDuBC(bc.id), reference: bc.reference }, ordreLie,
-    });
-    if (!envoi.ok) return { ok: false, error: envoi.error };
-    // RENONCER EST DÉFINITIF (« un paiement pour cette ligne ne pourra pas être fait ultérieurement ») :
-    // il dit pourquoi (audit 360°, R17) — APRÈS les refus ci-dessus (on ne demande pas pourquoi renoncer
-    // pour une facture qui ne partira pas, §118.18) et AVANT tout effet. `=== null` : un paiement complet
-    // n'a rien à expliquer, et la dérivation ne doit pas rendre le motif obligatoire pour lui (§118.138).
-    const motifRenoncement = fdStr(formData, "motifRenoncement");
-    if (renoncer.length > 0 && motifRenoncement === null) {
-      return { ok: false, error: "Dites pourquoi vous renoncez aux lignes non reçues : ce renoncement est définitif." };
-    }
-    if (ordreLie) {
-      const fermeture = await annulerOrdreNonRegle(facture.expenseOrderId, { acteurId: user.id, motif: `remplacé par un nouvel envoi de la facture ${facture.reference ?? ""}` });
-      if (!fermeture.ok) return { ok: false, error: fermeture.error };
-    }
-    if (renoncer.length) {
-      // Écrit AVANT l'ordre : un renoncement confirmé ne dépend pas de la suite. Conditionnel : une
-      // ligne déjà renoncée ne l'est pas deux fois (la date et l'auteur restent ceux du premier geste).
-      await prisma.promoFactureLigne.updateMany({
-        where: { id: { in: renoncer }, renonce: false },
-        data: { renonce: true, renonceMotif: motifRenoncement, renonceLe: new Date(), renonceParId: user.id },
+      // LA RÉCEPTION D'ABORD (§118.165) : une facture DÉTAILLÉE se paie pour ce qui est REÇU. Une
+      // ligne qui attend bloque le paiement — sauf renoncement CONFIRMÉ, définitif (« un paiement
+      // pour cette ligne ne pourra pas être fait ultérieurement »). Une facture d'avant le détail
+      // ligne à ligne garde le comportement d'avant : son montant, sans réception.
+      const detail = await detailDeLaFacture(facture.id);
+      let montant = facture.amount != null ? Number(facture.amount) : 0;
+      let renoncer: string[] = [];
+      let partiel = false;
+      if (detail) {
+        const v = verdictPaiementDetaille(
+          { tvaRate: Number(detail.tvaRate), extraTaxRate: detail.extraTaxRate != null ? Number(detail.extraTaxRate) : null, totalImprime: detail.totalImprime != null ? Number(detail.totalImprime) : null },
+          detail.lignes.map(ligneFactureLue),
+          formData.get("confirmeRenoncement") === "1",
+        );
+        if (!v.ok) return { ok: false, error: v.error };
+        montant = v.montant;
+        renoncer = v.renoncer;
+        partiel = !v.complet;
+      }
+      // L'ORDRE DÉJÀ LIÉ (§118.185, audit 360° I8) : refusé par le centre ou annulé, il ne paiera
+      // jamais — la facture repart, et l'ancien ordre est fermé pour qu'aucune décision tardive du
+      // centre ne rende payables deux ordres pour la même facture.
+      const ordreLie = await ordreDejaLie(facture.expenseOrderId);
+      const envoi = canSendToSettlement({
+        kind: facture.kind, amount: montant || null, paidDate: facture.paidDate, expenseOrderId: facture.expenseOrderId,
+        bc: { porte: await porteDuBC(bc.id), reference: bc.reference }, ordreLie,
       });
-    }
+      if (!envoi.ok) return { ok: false, error: envoi.error };
+      // RENONCER EST DÉFINITIF (« un paiement pour cette ligne ne pourra pas être fait ultérieurement ») :
+      // il dit pourquoi (audit 360°, R17) — APRÈS les refus ci-dessus (on ne demande pas pourquoi renoncer
+      // pour une facture qui ne partira pas, §118.18) et AVANT tout effet. `=== null` : un paiement complet
+      // n'a rien à expliquer, et la dérivation ne doit pas rendre le motif obligatoire pour lui (§118.138).
+      const motifRenoncement = fdStr(formData, "motifRenoncement");
+      if (renoncer.length > 0 && motifRenoncement === null) {
+        return { ok: false, error: "Dites pourquoi vous renoncez aux lignes non reçues : ce renoncement est définitif." };
+      }
+      if (ordreLie) {
+        const fermeture = await annulerOrdreNonRegle(facture.expenseOrderId, { acteurId: user.id, motif: `remplacé par un nouvel envoi de la facture ${facture.reference ?? ""}` });
+        if (!fermeture.ok) return { ok: false, error: fermeture.error };
+      }
+      if (renoncer.length) {
+        // Écrit AVANT l'ordre : un renoncement confirmé ne dépend pas de la suite. Conditionnel : une
+        // ligne déjà renoncée ne l'est pas deux fois (la date et l'auteur restent ceux du premier geste).
+        await prisma.promoFactureLigne.updateMany({
+          where: { id: { in: renoncer }, renonce: false },
+          data: { renonce: true, renonceMotif: motifRenoncement, renonceLe: new Date(), renonceParId: user.id },
+        });
+      }
 
-    const ordre = await createExpenseOrder({
-      label: `${facture.reference ? `${facture.reference} — ` : ""}${facture.title}${partiel ? " — part reçue" : ""}`,
-      amount: montant,
-      category: "FOURNISSEUR",
-      beneficiary: facture.counterparty,
-      sourceType: "LEGAL_DOCUMENT",
-      sourceId: facture.id,
-      requestedById: user.id,
-      dueDate: facture.endDate,
-      budgetCategoryId: pm.budgetCategoryId,
+      const ordre = await createExpenseOrder({
+        label: `${facture.reference ? `${facture.reference} — ` : ""}${facture.title}${partiel ? " — part reçue" : ""}`,
+        amount: montant,
+        category: "FOURNISSEUR",
+        beneficiary: facture.counterparty,
+        sourceType: "LEGAL_DOCUMENT",
+        sourceId: facture.id,
+        requestedById: user.id,
+        dueDate: facture.endDate,
+        budgetCategoryId: pm.budgetCategoryId,
+      });
+      await prisma.legalDocument.update({ where: { id: facture.id }, data: { expenseOrderId: ordre.id, updatedById: user.id } });
+      // LA DEMANDE À L'INFORMATION MÉDICALE part avec le paiement. Si elle échoue, le paiement, lui,
+      // est PARTI : le taire en rendant une erreur ferait recliquer — et `canSendToSettlement`
+      // refuserait alors un paiement déjà demandé, sans dire que la seule chose qui manque est la
+      // demande de visa. On le DIT, avec le geste qui la rattrape.
+      const declaration = await createMedicalInfoDeclaration({
+        sourceType: "LEGAL_DOCUMENT",
+        sourceId: facture.id,
+        label: `Matériel promotionnel ${pm.reference} — ${pm.title} — ${facture.counterparty ?? "fournisseur"}, facture ${facture.reference ?? ""}`.trim(),
+        beneficiary: facture.counterparty,
+        amount: null,
+        requesterId: pm.requesterId,
+        declarationKind: formalite,
+      }).catch(sansBloquer("promo-execution-actions.demanderPaiementFacturePromo.createMedicalInfoDeclaration", null));
+      await audit(user, pm.id, `Paiement demandé — facture ${facture.reference ?? ""} (${formatDzd(montant)}${partiel ? ", part reçue" : ""}, ordre ${ordre.reference})${renoncer.length ? ` ; ${renoncer.length} ligne(s) non livrée(s) — renoncement confirmé, elles ne se paieront pas` : ""} ; ${declaration ? `${LIBELLE_FORMALITE[formalite]} ${declaration.reference} adressée à l'information médicale` : `${LIBELLE_FORMALITE[formalite]} NON adressée (échec) — à rattraper`}`);
+      revalidatePath(chemin(pm.id));
+      revalidatePath("/information-medicale");
+      return { ok: true, message: phraseDuPaiement(ordre.reference, montant, partiel, renoncer.length, declaration, LIBELLE_FORMALITE[formalite]) };
     });
-    await prisma.legalDocument.update({ where: { id: facture.id }, data: { expenseOrderId: ordre.id, updatedById: user.id } });
-    // LA DEMANDE À L'INFORMATION MÉDICALE part avec le paiement. Si elle échoue, le paiement, lui,
-    // est PARTI : le taire en rendant une erreur ferait recliquer — et `canSendToSettlement`
-    // refuserait alors un paiement déjà demandé, sans dire que la seule chose qui manque est la
-    // demande de visa. On le DIT, avec le geste qui la rattrape.
-    const declaration = await createMedicalInfoDeclaration({
-      sourceType: "LEGAL_DOCUMENT",
-      sourceId: facture.id,
-      label: `Matériel promotionnel ${pm.reference} — ${pm.title} — ${facture.counterparty ?? "fournisseur"}, facture ${facture.reference ?? ""}`.trim(),
-      beneficiary: facture.counterparty,
-      amount: null,
-      requesterId: pm.requesterId,
-      declarationKind: formalite,
-    }).catch(sansBloquer("promo-execution-actions.demanderPaiementFacturePromo.createMedicalInfoDeclaration", null));
-    await audit(user, pm.id, `Paiement demandé — facture ${facture.reference ?? ""} (${formatDzd(montant)}${partiel ? ", part reçue" : ""}, ordre ${ordre.reference})${renoncer.length ? ` ; ${renoncer.length} ligne(s) non livrée(s) — renoncement confirmé, elles ne se paieront pas` : ""} ; ${declaration ? `${LIBELLE_FORMALITE[formalite]} ${declaration.reference} adressée à l'information médicale` : `${LIBELLE_FORMALITE[formalite]} NON adressée (échec) — à rattraper`}`);
-    revalidatePath(chemin(pm.id));
-    revalidatePath("/information-medicale");
-    return { ok: true, message: phraseDuPaiement(ordre.reference, montant, partiel, renoncer.length, declaration, LIBELLE_FORMALITE[formalite]) };
   });
 }
 

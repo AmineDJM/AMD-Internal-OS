@@ -3,7 +3,11 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
+// Comme `session.ts` : la personne d'un geste en cours (fixée au clic par `actionReversible`, K10c) passe avant la variable.
+vi.mock("@/lib/session", () => {
+  const acteurCourant = async () => (await import("@/lib/effets/geste")).utilisateurDuGeste() ?? ACTOR;
+  return { requireUser: acteurCourant, requireUserAuNomDeLaVue: acteurCourant, getCurrentUser: async () => ACTOR };
+});
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
