@@ -167,8 +167,3 @@ export async function avancementDuTravail(userId: string, tourId: string, mainte
     estimeMs: estimerDureeMs(passes.map((p) => p.ms ?? 0)),
   });
 }
-
-/** Le résultat est arrivé avant qu'on les pose : ces précisions n'ont plus d'objet (jamais une question inutile). */
-export async function clorePrecisions(tourId: string): Promise<void> {
-  await prisma.assistantIaAgenda.updateMany({ where: { tourId, nature: "precision", etat: ETAT_AGENDA.A_POSER }, data: { etat: ETAT_AGENDA.SANS_OBJET } });
-}
