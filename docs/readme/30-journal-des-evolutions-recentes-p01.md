@@ -11,6 +11,72 @@ contre-passée (montant opposé, datée, liée), un paiement parti laisse une é
 dû ; l'annulation se rétablit. Migration `20270217120000_k10a_compensation_ecritures`. Décision
 [0041](../assistant/decisions/0041-argent-reversible.md).
 
+### K9 : LA VOIX DE L'ASSISTANT IA ENTIÈREMENT ORALE — ÉCOUTEURS, SANS ÉCRAN (2026-10-31)
+
+Lot K9 — `docs/assistant/decisions/0039-voix-orale.md`, construit sur la carte orale de K4. Direction : « je ne vois pas mon écran, donc tout se passe à
+l'oral ». La conversation vocale ne renvoie plus à l'écran : l'assistant **rédige pour l'oreille** (la réponse d'abord,
+chiffres arrondis, une ouverture), tableaux, analyses, graphiques et visuels sont dits en une phrase par le serveur. La
+délégation **ne bloque plus** : « je regarde, je te préviens », la voix affine pendant la recherche, la précision est
+transmise au travail en cours, le résultat est dit de lui-même quand il arrive (ou à la prochaine ouverture). La carte
+orale de K4 arrive avec le résultat ; pour une action renforcée la **voix relit** le montant, puis « ok fais-le »,
+« vas-y », « go », « ih dirha » suffisent (aucun mot imposé), jugés par le **serveur** sur la transcription et exécutés par
+la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule » (un envoi encore en fenêtre ne part
+pas ; un courriel déjà parti, la voix dit le rectificatif), « rétablis », « mets la
+mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
+WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
+et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
+
+### C1 : LES CHANTIERS DE DÉVELOPPEMENT — ADAM SUPERVISE CLAUDE CODE, GITHUB ET RENDER, SUR LE MOTEUR DES TRAVAUX (2026-11-01)
+
+Lot C1 — `docs/assistant/decisions/0042-chantiers-socle.md`, architecture `docs/architecture/CHANTIERS-DEV.md` (L1).
+Un **chantier** est une `Mission` `kind = "CHANTIER"` (Super Admin) conduite par le MÊME moteur que les travaux : étapes
+`DEV_LANCER`, `DEV_ATTENDRE`, `DEV_VERIFIER`, `DEV_CORRIGER`, `RENDER_DEPLOYER`, `RENDER_VERIFIER`, `RENDER_ROLLBACK`,
+`RAPPORT` (DSL fermé, compilé), qui appellent les PORTS du moteur (`chantiers/ports-moteur.ts`), branchés sur les
+connecteurs réels de C2 par une couche d'adaptation pure (`chantiers/adaptateur-c2.ts`) ; sur un rouge, **l'Auto-fix de la
+session d'abord** (gratuit), puis `@claude` dans la PR —
+la vérité est GitHub (branche, PR, checks du SHA exact) et Render (déploiement, santé), jamais la transcription.
+**Réservations atomiques** (`ChantierReservation` : branche, périmètre — deux globs qui se recouvrent sont SÉRIALISÉS —,
+migrations, déploiement ; ERP avant app/worker ; revérification du SHA d'intégration après fusion). **Anti-boucle** :
+même échec 2× → Sol une fois, 3× → blocage réel et rapport ; tentatives bornées, délai croissant. **Budgets** (Administration
+› IA › Chantiers : dollars par chantier et par jour, lancements, déploiements) → pause `BUDGET_HOLD`, reprise seule quand
+le plafond est relevé. **Routeur** déterministe → MiMo → Terra → Sol ; **MiMo** OpenAI-compatible dans la passerelle
+(clé `mimo`, modèle `mimo-v2.6-pro` à confirmer par `/v1/models`, tarif inconnu tant que `MIMO_PRICE_IN/OUT` n'est pas
+posé), chaque appel au journal K8 avec son `missionId`. **Mémoire technique** (`MemoireTechnique`) lue par extraits
+≤ 2 k jetons dans la consigne. Le chantier apparaît au **tableau « Missions »** existant (réservations, liens session/PR,
+SHA vert, déploiements, essais, carte Valider/Refuser). **Conversation** (Adventum IA, Super Admin) : `lancer_un_chantier`,
+`ou_en_est_chantier`, `valider_chantier` (écrit ou oral), `annuler_chantier`. Production, fusion sur main, rollback de
+production : validation de la Direction au moment d'agir. Aucune réussite sans preuve : le juge des preuves refuse la
+conclusion. Migration additive `20270218100000_chantiers_socle`. Tâche de fond `chantiers.balayage`.
+
+### C2 : LES CONNECTEURS DES CHANTIERS — CLAUDE CODE (ROUTINES, `@claude`), GITHUB, RENDER (2026-11-01)
+
+Lot C2 — `docs/assistant/decisions/0043-connecteurs-chantiers.md`, architecture `docs/architecture/CHANTIERS-DEV.md`.
+Contrat `src/platform/dev/ports.ts` (`AgentDeveloppeur`, `ForgeGit`, `Hebergeur`, `FaitDev`) et adaptateurs `fetch` (pont `src/platform/in-process/chantiers/`) sans
+SDK : **Routines API** (`/v1/claude_code/routines/{trig}/fire`, vérifiée le 01/11 ; idempotence côté Adventum dans
+`DevLancement`, jamais de réessai sur délai dépassé, quotas 30/h/routine et 100/h/compte comptés avant le 429), suivi par
+**commentaire `@claude`** dans la PR (GitHub Action, modèle de workflow fourni), **GitHub REST v3** (ETag, pagination
+`Link`, quotas primaire/secondaire, verdict déterministe des checks), **Render API v1** (déployer, annuler, rollback,
+journaux, NOMS des variables, `autoDeployTrigger` ; la synchro Blueprint ne se déclenche pas par API). **Webhooks signés**
+`/api/chantiers/webhooks/{github,render}` (HMAC GitHub, Standard Webhooks Render) → `BusinessEvent` `DEV_*`/`RENDER_*`
+exactement une fois (même clé pour le sondage de secours à pas croissant). Écran **Administration › Développement**
+(sondes en lecture seule, MiMo `GET /models`). **Relais CLI** (Direction, 01/11) : `scripts/relais-claude.ts` sur une
+machine de la Direction tire les ordres (`/api/dev/relais/ordres`) et exécute `claude --cloud` / `claude -p --cloud <id>`
+(parler à une session existante) ; file `ClaudeRelaisOrdre`. Auto-fix natif demandé dans la consigne. Managed Agents :
+option future. Aucun identifiant claude.ai sur le serveur. Migrations additives
+`20270218200000_chantiers_connecteurs`, `20270218200100_chantiers_relais_cli`. Banc réel `scripts/bench/chantiers-reel.ts` (dépôt et service de test seulement).
+
+### K10c : LES ACTIONS MÉTIER RÉVERSIBLES (2026-10-31)
+
+Demande de la Direction : « toute action qui a été faite peut être réversible ». Lot K10c —
+`docs/assistant/decisions/0044-actions-reversibles-metiers.md` ; sur la fenêtre d'annulation de K10b (aucune migration propre).
+Les 43 actions écrivantes encore classées « aucune » hors argent et communications (décisions de validation, décision
+finale d'un congrès, avances RH, pièces juridiques, matériel promo, fiches de voyage, réglages de l'Assistant IA, diffusion
+de notifications…) entrent au journal des effets au clic de l'écran et s'annulent d'un geste — bouton « Annuler » après
+l'action, historique de la fiche, ou l'Assistant IA. Une décision annulée rouvre l'étape (l'ordre né de l'accord est retiré,
+refus avec la liste s'il a été payé) ; une notification lue reçoit un rectificatif ; un poste supprimé revient de la
+corbeille ; une diffusion attend sa fenêtre d'annulation (celle de K10b, 120 s, réglable par le Super Admin) — annulée dedans, rien
+ne part. Une annulation se rétablit. Cliquet : plus aucune action « aucune » dans le périmètre.
+
 ### K10b : TOUTE ACTION RÉVERSIBLE — COMMUNICATIONS, EFFETS SORTANTS, SUPPRESSIONS ; LA FENÊTRE D'ANNULATION (2026-10-31)
 
 Lot K10b — `docs/assistant/decisions/0040-reversibilite-communications.md` (demande de la Direction du 31/10 : « toutes
@@ -39,6 +105,7 @@ la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ;
 mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
 WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
 et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
+
 
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 

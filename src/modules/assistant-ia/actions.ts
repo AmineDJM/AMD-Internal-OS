@@ -9,6 +9,7 @@ import {
 } from "@/modules/assistant-ia/api";
 import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
 import type { TravailDetail, TravailVue } from "@/lib/missions/travaux/service";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -141,11 +142,13 @@ export async function repartirDeZero() {
 
 /** L'option « réponse vocale » : chaque réponse de l'assistant est aussi dite à voix haute (fichier audio du Drive). */
 export async function reglerMaReponseVocale(active: boolean) {
-  const p = await porte(true);
-  if (!p.ok) return p;
-  const { reglerReponseVocale } = await import("@/modules/assistant-ia/api");
-  await reglerReponseVocale(p.user.id, active === true);
-  return { ok: true as const, active: active === true };
+  return actionReversible("assistant-ia-actions:reglerMaReponseVocale", "Réglage de la réponse vocale", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    const { reglerReponseVocale } = await import("@/modules/assistant-ia/api");
+    await reglerReponseVocale(p.user.id, active === true);
+    return { ok: true as const, active: active === true };
+  });
 }
 
 /**

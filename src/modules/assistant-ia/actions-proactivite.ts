@@ -5,6 +5,7 @@ import { requireUser, type CurrentUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { porte } from "./infra/porte-actions";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -28,18 +29,22 @@ export async function lireMaVeille() {
 
 /** `actif` ou `seuil` à `null` : inchangé. */
 export async function reglerMonVeilleur(code: string, actif: boolean | null, seuil: number | null) {
-  const p = await porte(true);
-  if (!p.ok) return p;
-  if (typeof code !== "string") return { ok: false as const, erreur: "Réglage illisible." };
-  const r = await (await service()).reglerVeilleur(p.user.id, code, { actif: typeof actif === "boolean" ? actif : undefined, seuil: typeof seuil === "number" ? seuil : undefined });
-  return r.ok ? { ok: true as const } : { ok: false as const, erreur: r.erreur };
+  return actionReversible("assistant-ia-proactivite-actions:reglerMonVeilleur", "Réglage d'un veilleur", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    if (typeof code !== "string") return { ok: false as const, erreur: "Réglage illisible." };
+    const r = await (await service()).reglerVeilleur(p.user.id, code, { actif: typeof actif === "boolean" ? actif : undefined, seuil: typeof seuil === "number" ? seuil : undefined });
+    return r.ok ? { ok: true as const } : { ok: false as const, erreur: r.erreur };
+  });
 }
 
 export async function reglerMaVeille(interruptionsMax: number, calmeDebut: number, calmeFin: number, weekendCalme: boolean, pointDuMatin: boolean) {
-  const p = await porte(true);
-  if (!p.ok) return p;
-  await (await service()).reglerPreferences(p.user.id, { interruptionsMax, calmeDebut, calmeFin, weekendCalme, pointDuMatin });
-  return { ok: true as const };
+  return actionReversible("assistant-ia-proactivite-actions:reglerMaVeille", "Réglage de ma veille", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    await (await service()).reglerPreferences(p.user.id, { interruptionsMax, calmeDebut, calmeFin, weekendCalme, pointDuMatin });
+    return { ok: true as const };
+  });
 }
 
 /** « Utile » / « pas utile » — un clic. */
@@ -109,19 +114,21 @@ export async function lireConsoleProactivite() {
 
 /** Une valeur à `null` : inchangée. */
 export async function reglerConsoleProactivite(interruptionsMaxJour: number | null, coupee: boolean | null) {
-  const admin = await superAdmin();
-  if (!admin) return { ok: false as const, erreur: "Réservé au Super Admin." };
-  const { ecrireConsoleProactivite } = await import("./infra/proactivite/reglages");
-  const n = await ecrireConsoleProactivite({
-    ...(typeof interruptionsMaxJour === "number" && Number.isFinite(interruptionsMaxJour) ? { interruptionsMaxJour } : {}),
-    ...(typeof coupee === "boolean" ? { coupee } : {}),
-  }, admin.id);
-  await recordAudit({
-    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA",
-    summary: `Proactivité de l'Assistant IA : ${n.interruptionsMaxJour} interruption(s)/jour/personne au plus${n.coupee ? " — COUPÉE" : ""}`,
+  return actionReversible("assistant-ia-proactivite-actions:reglerConsoleProactivite", "Réglage de la proactivité (console)", async () => {
+    const admin = await superAdmin();
+    if (!admin) return { ok: false as const, erreur: "Réservé au Super Admin." };
+    const { ecrireConsoleProactivite } = await import("./infra/proactivite/reglages");
+    const n = await ecrireConsoleProactivite({
+      ...(typeof interruptionsMaxJour === "number" && Number.isFinite(interruptionsMaxJour) ? { interruptionsMaxJour } : {}),
+      ...(typeof coupee === "boolean" ? { coupee } : {}),
+    }, admin.id);
+    await recordAudit({
+      actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA",
+      summary: `Proactivité de l'Assistant IA : ${n.interruptionsMaxJour} interruption(s)/jour/personne au plus${n.coupee ? " — COUPÉE" : ""}`,
+    });
+    revalidatePath("/admin/ai/acces");
+    return { ok: true as const, reglages: n };
   });
-  revalidatePath("/admin/ai/acces");
-  return { ok: true as const, reglages: n };
 }
 
 export async function approuverMandatConsole(id: string) {

@@ -246,6 +246,8 @@ const FAMILLES: [string, () => ModelCapability][] = [
   ["gpt-5.6-luna", () => MODEL_CAPABILITIES["gpt-5.6-luna"]],
   ["gpt-realtime", () => MODEL_CAPABILITIES["gpt-realtime-2.1"]],
   ["gpt-5", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],
+  // C1 (décision 0042) : Terra et Sol 6.1 (`gpt-6.1-terra`, `gpt-6.1-sol`) — même porte (Responses) et mêmes paramètres que Terra 5.6.
+  ["gpt-6", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],
   ["o1", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],
   ["o3", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],
   ["o4", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],

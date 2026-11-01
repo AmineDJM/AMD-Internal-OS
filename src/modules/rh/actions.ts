@@ -27,6 +27,7 @@ import { champsNonSaisis } from "@/modules/coffre/partage";
 // LA FRONTIÈRE — l'ERP annonce ses faits ; il ne sait pas qui les écoute, et c'est le principe.
 import { emit } from "@/platform/events";
 import { sansBloquer } from "@/lib/journal";
+import { actionReversible } from "@/lib/effets/reversible";
 
 function castContract(v: string | null): ContractType | null {
   return v ? (v as ContractType) : null;
@@ -649,118 +650,124 @@ export async function requestAdvance(
   _prev: ActionResult | undefined,
   formData: FormData,
 ): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!userCan(user, "WORKSPACE", "CREATE")) return { ok: false, error: "Non autorisé." };
+  return actionReversible("hr-actions:requestAdvance", "Demande d'avance sur salaire", async () => {
+    const user = await requireUser();
+    if (!userCan(user, "WORKSPACE", "CREATE")) return { ok: false, error: "Non autorisé." };
 
-  const explicitId = fdStr(formData, "employeeId");
-  const isRh = userCan(user, "RH", "CREATE");
-  const employee = explicitId && isRh
-    ? await prisma.employee.findUnique({ where: { id: explicitId } })
-    : await prisma.employee.findUnique({ where: { userId: user.id } });
-  if (!employee) {
-    return { ok: false, error: "Aucune fiche employé n'est liée à votre compte. Contactez l'administrateur." };
-  }
+    const explicitId = fdStr(formData, "employeeId");
+    const isRh = userCan(user, "RH", "CREATE");
+    const employee = explicitId && isRh
+      ? await prisma.employee.findUnique({ where: { id: explicitId } })
+      : await prisma.employee.findUnique({ where: { userId: user.id } });
+    if (!employee) {
+      return { ok: false, error: "Aucune fiche employé n'est liée à votre compte. Contactez l'administrateur." };
+    }
 
-  const amount = fdNum(formData, "amount");
-  if (!amount || amount <= 0) return { ok: false, error: "Montant invalide." };
+    const amount = fdNum(formData, "amount");
+    if (!amount || amount <= 0) return { ok: false, error: "Montant invalide." };
 
-  const created = await prisma.salaryAdvance.create({
-    data: { employeeId: employee.id, amount, reason: fdStr(formData, "reason"), createdById: user.id },
+    const created = await prisma.salaryAdvance.create({
+      data: { employeeId: employee.id, amount, reason: fdStr(formData, "reason"), createdById: user.id },
+    });
+    await recordAudit({
+      actorId: user.id, action: "CREATE", module: "Ressources humaines",
+      entityType: "SALARY_ADVANCE", entityId: created.id,
+      summary: `Demande d'avance — ${employee.fullName}`,
+    });
+    revalidatePath("/mon-espace");
+    revalidatePath("/rh");
+    return { ok: true, id: created.id };
   });
-  await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Ressources humaines",
-    entityType: "SALARY_ADVANCE", entityId: created.id,
-    summary: `Demande d'avance — ${employee.fullName}`,
-  });
-  revalidatePath("/mon-espace");
-  revalidatePath("/rh");
-  return { ok: true, id: created.id };
 }
 
 /** Approve or reject a pending salary advance (RH). */
 export async function decideAdvance(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!userCan(user, "RH", "VALIDATE")) return { ok: false, error: "Non autorisé." };
-  const id = fdStr(formData, "id");
-  const decision = fdStr(formData, "decision"); // APPROVED | REJECTED
-  if (!id || (decision !== "APPROVED" && decision !== "REJECTED")) {
-    return { ok: false, error: "Paramètres manquants." };
-  }
-  const adv = await prisma.salaryAdvance.findUnique({ where: { id }, include: { employee: true } });
-  if (!adv) return { ok: false, error: "Demande introuvable." };
-  if (adv.status !== "PENDING") return { ok: false, error: "Cette demande a déjà été traitée." };
-  const surSoi = refusDecisionSurSoi(adv.employee.userId, user.id);
-  if (surSoi) return { ok: false, error: surSoi };
+  return actionReversible("hr-actions:decideAdvance", "Décision sur une avance sur salaire", async () => {
+    const user = await requireUser();
+    if (!userCan(user, "RH", "VALIDATE")) return { ok: false, error: "Non autorisé." };
+    const id = fdStr(formData, "id");
+    const decision = fdStr(formData, "decision"); // APPROVED | REJECTED
+    if (!id || (decision !== "APPROVED" && decision !== "REJECTED")) {
+      return { ok: false, error: "Paramètres manquants." };
+    }
+    const adv = await prisma.salaryAdvance.findUnique({ where: { id }, include: { employee: true } });
+    if (!adv) return { ok: false, error: "Demande introuvable." };
+    if (adv.status !== "PENDING") return { ok: false, error: "Cette demande a déjà été traitée." };
+    const surSoi = refusDecisionSurSoi(adv.employee.userId, user.id);
+    if (surSoi) return { ok: false, error: surSoi };
 
-  // UN GESTE À LA FOIS : la décision ne s'écrit que sur une avance ENCORE en attente — un retrait par
-  // le salarié (décision du 04/10) ou une décision croisée l'emportent, sans ordre de dépense en double.
-  const pris = await prisma.salaryAdvance.updateMany({
-    where: { id, status: "PENDING" },
-    data: { status: decision, decidedById: user.id, decidedAt: new Date(), decisionNote: fdStr(formData, "note") },
-  });
-  if (pris.count === 0) return { ok: false, error: "Cette demande vient d'être traitée ou retirée — rechargez la page." };
-  if (adv.employee.userId) {
-    await prisma.notification.create({
-      data: {
-        userId: adv.employee.userId, type: "GENERIC",
-        title: decision === "APPROVED" ? "Avance approuvée" : "Avance refusée",
-        body: `Votre demande d'avance sur salaire a été ${decision === "APPROVED" ? "approuvée" : "refusée"}.`,
-        link: LIEN_MES_AVANCES,
-      },
-    }).catch(sansBloquer("hr-actions.decideAdvance.notification"));
-  }
-
-  // Approval → emit an ordre de dépense for the comptable (who settles it).
-  if (decision === "APPROVED") {
-    await createExpenseOrder({
-      label: `Avance sur salaire — ${adv.employee.fullName}`,
-      amount: Number(adv.amount),
-      category: "AVANCE",
-      beneficiary: adv.employee.fullName,
-      sourceType: "SALARY_ADVANCE",
-      sourceId: id,
-      requestedById: user.id,
+    // UN GESTE À LA FOIS : la décision ne s'écrit que sur une avance ENCORE en attente — un retrait par
+    // le salarié (décision du 04/10) ou une décision croisée l'emportent, sans ordre de dépense en double.
+    const pris = await prisma.salaryAdvance.updateMany({
+      where: { id, status: "PENDING" },
+      data: { status: decision, decidedById: user.id, decidedAt: new Date(), decisionNote: fdStr(formData, "note") },
     });
-  }
+    if (pris.count === 0) return { ok: false, error: "Cette demande vient d'être traitée ou retirée — rechargez la page." };
+    if (adv.employee.userId) {
+      await prisma.notification.create({
+        data: {
+          userId: adv.employee.userId, type: "GENERIC",
+          title: decision === "APPROVED" ? "Avance approuvée" : "Avance refusée",
+          body: `Votre demande d'avance sur salaire a été ${decision === "APPROVED" ? "approuvée" : "refusée"}.`,
+          link: LIEN_MES_AVANCES,
+        },
+      }).catch(sansBloquer("hr-actions.decideAdvance.notification"));
+    }
 
-  await recordAudit({
-    actorId: user.id, action: decision === "APPROVED" ? "VALIDATE" : "REFUSE", module: "Ressources humaines",
-    entityType: "SALARY_ADVANCE", entityId: id,
-    summary: `Avance ${decision === "APPROVED" ? "approuvée" : "refusée"} — ${adv.employee.fullName}`,
+    // Approval → emit an ordre de dépense for the comptable (who settles it).
+    if (decision === "APPROVED") {
+      await createExpenseOrder({
+        label: `Avance sur salaire — ${adv.employee.fullName}`,
+        amount: Number(adv.amount),
+        category: "AVANCE",
+        beneficiary: adv.employee.fullName,
+        sourceType: "SALARY_ADVANCE",
+        sourceId: id,
+        requestedById: user.id,
+      });
+    }
+
+    await recordAudit({
+      actorId: user.id, action: decision === "APPROVED" ? "VALIDATE" : "REFUSE", module: "Ressources humaines",
+      entityType: "SALARY_ADVANCE", entityId: id,
+      summary: `Avance ${decision === "APPROVED" ? "approuvée" : "refusée"} — ${adv.employee.fullName}`,
+    });
+    revalidatePath("/rh");
+    revalidatePath("/mon-espace");
+    return { ok: true };
   });
-  revalidatePath("/rh");
-  revalidatePath("/mon-espace");
-  return { ok: true };
 }
 
 /** Cancel a still-pending advance (by its author or an RH manager). */
 export async function cancelAdvance(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Demande introuvable." };
-  const adv = await prisma.salaryAdvance.findUnique({ where: { id }, include: { employee: true } });
-  if (!adv) return { ok: false, error: "Demande introuvable." };
-  const isOwner = adv.employee.userId === user.id;
-  const isRh = userCan(user, "RH", "UPDATE");
-  if (!isOwner && !isRh) return { ok: false, error: "Non autorisé." };
-  if (adv.status !== "PENDING") return { ok: false, error: "Seule une demande en attente peut être annulée." };
+  return actionReversible("hr-actions:cancelAdvance", "Annulation d'une demande d'avance", async () => {
+    const user = await requireUser();
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Demande introuvable." };
+    const adv = await prisma.salaryAdvance.findUnique({ where: { id }, include: { employee: true } });
+    if (!adv) return { ok: false, error: "Demande introuvable." };
+    const isOwner = adv.employee.userId === user.id;
+    const isRh = userCan(user, "RH", "UPDATE");
+    if (!isOwner && !isRh) return { ok: false, error: "Non autorisé." };
+    if (adv.status !== "PENDING") return { ok: false, error: "Seule une demande en attente peut être annulée." };
 
-  // Conditionnelle : une décision des RH passée entre-temps l'emporte, et deux clics n'annulent qu'une fois.
-  const pris = await prisma.salaryAdvance.updateMany({ where: { id, status: "PENDING" }, data: { status: "CANCELLED" } });
-  if (pris.count === 0) return { ok: false, error: "Cette demande vient d'être traitée — rechargez la page." };
-  // CEUX QUI DEVAIENT LA TRAITER SONT PRÉVENUS (décision du 04/10) : les RH quand le salarié la retire,
-  // le salarié quand ce sont les RH.
-  const corpsAvance = `${adv.employee.fullName} — avance de ${Number(adv.amount)} DZD : demande annulée${isOwner ? " par le salarié" : " par les RH"}.`;
-  if (isOwner) {
-    await notifyRoles(rolesWithModule("RH", "VALIDATE"), { type: "GENERIC", title: "Avance sur salaire annulée", body: corpsAvance, link: CHEMIN_PAIE_RH }).catch(sansBloquer("hr-actions.cancelAdvance.notifyRoles"));
-  } else if (adv.employee.userId) {
-    await notifyUser({ userId: adv.employee.userId, type: "GENERIC", title: "Avance sur salaire annulée", body: corpsAvance, link: LIEN_MES_AVANCES }).catch(sansBloquer("hr-actions.cancelAdvance.notifyUser"));
-  }
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Ressources humaines", entityType: "SALARY_ADVANCE",
-    entityId: id, field: "status", oldValue: "PENDING", newValue: "CANCELLED", summary: `Avance annulée — ${adv.employee.fullName}`,
+    // Conditionnelle : une décision des RH passée entre-temps l'emporte, et deux clics n'annulent qu'une fois.
+    const pris = await prisma.salaryAdvance.updateMany({ where: { id, status: "PENDING" }, data: { status: "CANCELLED" } });
+    if (pris.count === 0) return { ok: false, error: "Cette demande vient d'être traitée — rechargez la page." };
+    // CEUX QUI DEVAIENT LA TRAITER SONT PRÉVENUS (décision du 04/10) : les RH quand le salarié la retire,
+    // le salarié quand ce sont les RH.
+    const corpsAvance = `${adv.employee.fullName} — avance de ${Number(adv.amount)} DZD : demande annulée${isOwner ? " par le salarié" : " par les RH"}.`;
+    if (isOwner) {
+      await notifyRoles(rolesWithModule("RH", "VALIDATE"), { type: "GENERIC", title: "Avance sur salaire annulée", body: corpsAvance, link: CHEMIN_PAIE_RH }).catch(sansBloquer("hr-actions.cancelAdvance.notifyRoles"));
+    } else if (adv.employee.userId) {
+      await notifyUser({ userId: adv.employee.userId, type: "GENERIC", title: "Avance sur salaire annulée", body: corpsAvance, link: LIEN_MES_AVANCES }).catch(sansBloquer("hr-actions.cancelAdvance.notifyUser"));
+    }
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Ressources humaines", entityType: "SALARY_ADVANCE",
+      entityId: id, field: "status", oldValue: "PENDING", newValue: "CANCELLED", summary: `Avance annulée — ${adv.employee.fullName}`,
+    });
+    revalidatePath("/rh");
+    revalidatePath("/mon-espace");
+    return { ok: true };
   });
-  revalidatePath("/rh");
-  revalidatePath("/mon-espace");
-  return { ok: true };
 }

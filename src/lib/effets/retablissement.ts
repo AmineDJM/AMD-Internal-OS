@@ -2,8 +2,9 @@ import type { Prisma } from "@prisma/client";
 import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { CurrentUser } from "@/lib/session";
-import { delegue, deserialiser, ecrireVerrouille, enfantsDAbord, ligne, lireActuelle, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
+import { delegue, deserialiser, ecrireVerrouille, enfantsDAbord, ligne, lireActuelle, retablirParLeJournal, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
 import { retablirEcritureTresorerie } from "./argent";
+import { DECLARATIONS_METIERS } from "./declarations/metiers";
 import { annulerEffetSortant, rejouerEffetFait, retablirEffetSortant } from "./fenetre";
 import { infoModele, type InfoModele } from "./modeles";
 import { memeValeur } from "./valeurs";
@@ -103,6 +104,22 @@ export async function retablirGeste(gesteId: string, user: CurrentUser): Promise
   if (g.principalId !== user.id && user.role !== "SUPER_ADMIN") return { refus: "Seule la personne au nom de qui le geste s'est fait (ou le Super Admin) peut le rétablir." };
   const compte = g.annulation as unknown as CompteRenduAnnulation | null;
   if (!g.annuleLe || !compte) return { refus: "Ce geste n'est pas annulé : rien à rétablir." };
+  // K10c : l'annulation JOURNALISÉE d'une action métier du périmètre K10c (gestes inverses métier compris) se rétablit
+  // en annulant ce geste-là — la corbeille remise, le rectificatif non lu retiré. Les autres : effet par effet (K10b).
+  if (compte.gesteAnnulationId && g.capaciteId && Object.hasOwn(DECLARATIONS_METIERS, g.capaciteId)) {
+    const r = await retablirParLeJournal(gesteId, user);
+    if ("refus" in r) return r;
+    // Les envois retenus dans leur fenêtre (ou compensés) par l'annulation : ils repartent (fenêtre neuve), comme K10b.
+    const parEffet = new Map(compte.details.map((d) => [d.effetId, d]));
+    for (const e of g.effets) {
+      const d = parEffet.get(e.id);
+      if (e.type !== "EXTERNE" || !e.effetSortantId || !d || (d.issue !== "ANNULE" && d.issue !== "COMPENSE")) continue;
+      const fait = await refaire(e, d, user).catch((err): DetailEffet => NON(d, `le rétablissement a échoué sur cet effet (${err instanceof Error ? err.message.slice(0, 160) : String(err)})`));
+      r.details.push(fait);
+      r.compte[fait.issue]++;
+    }
+    return r;
+  }
   // LA RÉCLAMATION ATOMIQUE : un seul rétablissement, même en deux onglets.
   const prise = await prismaBrut.assistantGesteJournal.updateMany({ where: { id: gesteId, annuleLe: g.annuleLe }, data: { annuleLe: null, annuleParId: null } });
   if (prise.count !== 1) return { refus: "Ce geste est rétabli (ou l'est en ce moment même, depuis un autre écran)." };

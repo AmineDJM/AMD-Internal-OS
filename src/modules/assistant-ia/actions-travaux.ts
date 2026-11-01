@@ -2,6 +2,7 @@
 
 import { porte } from "./infra/porte-actions";
 import type { DemandeRecue, EtapeVue, TableauDesMissions, TravailDEquipe } from "@/modules/assistant-ia/api";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -43,10 +44,12 @@ export async function declinerMaDemande(demandeId: string, motif: string) {
 }
 
 export async function reglerPrioriteMonTravail(travailId: string, priorite: string) {
-  const p = await porte(true);
-  if (!p.ok) return p;
-  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
-  return (await api()).reglerPrioriteTravail(travailId, p.user.id, String(priorite ?? "").toUpperCase());
+  return actionReversible("assistant-ia-travaux-actions:reglerPrioriteMonTravail", "Priorité d'un travail", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+    return (await api()).reglerPrioriteTravail(travailId, p.user.id, String(priorite ?? "").toUpperCase());
+  });
 }
 
 /** L'onglet « Mon équipe » existe-t-il ? La console seule le dit — rien n'est lu, rien n'est audité. */
@@ -90,6 +93,18 @@ export async function annulerMaMission(travailId: string): Promise<{ ok: true; m
   return (await api()).annulerMissionEtSousMissions(travailId, p.user.id);
 }
 
+/**
+ * C1 (décision 0042) : la CARTE DE VALIDATION d'un chantier au tableau « Missions » — valider ou refuser le geste
+ * critique qu'il attend (production, fusion sur main, rollback de production). Super Admin relu par le service.
+ */
+export async function validerMonChantier(chantierId: string, accorde: boolean): Promise<{ ok: true; message: string } | { ok: false; erreur: string }> {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(chantierId)) return { ok: false, erreur: "Chantier introuvable." };
+  const r = await (await api()).validerDepuisLeTableau(chantierId, p.user.id, accorde === true);
+  return r.ok ? { ok: true, message: r.message } : r;
+}
+
 /** « Démarrer d'office les travaux sans geste » : la préférence de la personne (null = le défaut de la console). */
 export async function lireMaPreferenceDOffice(): Promise<{ ok: true; preference: boolean | null; effectif: boolean } | { ok: false; erreur: string }> {
   const p = await porte(false);
@@ -98,9 +113,11 @@ export async function lireMaPreferenceDOffice(): Promise<{ ok: true; preference:
 }
 
 export async function reglerMaPreferenceDOffice(valeur: boolean | null): Promise<{ ok: true; effectif: boolean } | { ok: false; erreur: string }> {
-  const p = await porte(true);
-  if (!p.ok) return p;
-  const m = await api();
-  await m.reglerPreferenceDOffice(p.user.id, typeof valeur === "boolean" ? valeur : null);
-  return { ok: true, effectif: await m.travauxDOfficePour(p.user) };
+  return actionReversible("assistant-ia-travaux-actions:reglerMaPreferenceDOffice", "Préférence des travaux d'office", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    const m = await api();
+    await m.reglerPreferenceDOffice(p.user.id, typeof valeur === "boolean" ? valeur : null);
+    return { ok: true, effectif: await m.travauxDOfficePour(p.user) };
+  });
 }

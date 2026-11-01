@@ -645,6 +645,25 @@ porte IA `platform/ia/hors-requete.ts`), `lib/prisma.ts` (le client du geste), p
   verrouillée (`FOR UPDATE`), relue, jamais par-dessus une valeur changée depuis ; la personne (ou le Super Admin) seule ;
   à l'audit ; un lot rend son détail geste par geste.
 
+### Actions métier réversibles (lot K10c, 31/10/2026)
+
+Décision [0040](../assistant/decisions/0044-actions-reversibles-metiers.md) — sur la fenêtre d'annulation et la barre
+« Annuler » de K10b ([0040](../assistant/decisions/0040-reversibilite-communications.md)). Code : `src/lib/effets/{reversible,politiques}.ts`,
+`annulation.ts` / `retablissement.ts` (étendus), gestes inverses `lib/suppression/coeur.ts` (`restaurerDepuisLaCorbeille`),
+`lib/effets/annulation-bibliotheque.ts`, diffusion différée `lib/notifications/diffusion-differee.ts`, déclarations
+`lib/effets/declarations/metiers.ts`.
+- **43 actions** (Ad & Pro, congrès, avances RH, juridique, promo, réservations, validations, réglages de l'Assistant IA,
+  diffusion) enveloppent leur corps par `actionReversible(id, libellé, …)` : au clic, le geste entre au journal des effets
+  (origine « ecran », fenêtre armée : leurs notifications poussées attendent la fenêtre) ; la barre « Annuler » le propose.
+- **Annuler** = `annulerGeste` + politique : **tout ou rien** (un ordre payé depuis, une valeur changée par un autre ⇒
+  rien n'est écrit, liste des bloquants), **rectificatif** à qui avait lu une notification, gestes inverses métier
+  (corbeille, clé d'index de la bibliothèque) ; un numéro de référence consommé n'est jamais rendu (dit). L'annulation est
+  journalisée : **Rétablir** l'annule.
+- **`sendBroadcast`** passe par la fenêtre (exécuteur `notification.diffusion`) : annulé dedans, rien ne part ; après,
+  non lues retirées + rectificatif, la poussée dite partie.
+- Garde : `effets/reversibles-metiers.test.ts` (cliquet : 0 action « aucune » du périmètre), bancs
+  `effets/reversibles-{reglages,circuits,adpro-juridique,promo,reservations}.test.ts` (exécuter puis annuler, base réelle).
+
 ### Travaux, suite — délégation, attentes avancées, équipe, livrables au Drive (lot J8, 30/10/2026)
 
 Décision [0023](../assistant/decisions/0023-delegation.md). Code : `src/lib/missions/travaux/` (`delegation.ts`, `jalons.ts`,
@@ -857,3 +876,26 @@ Décision `docs/assistant/decisions/0032-visuels.md`.
   refus sans rien lancer ni facturer. Interrupteur coupé par défaut.
 - **Média** : `/api/assistant-ia/visuels/[id]/media` — propriétaire seule, droits du Drive relus, requêtes partielles (206,
   indispensables au lecteur de l'iPhone), `?dl=1` à l'audit.
+
+### Chantiers de développement — Adam supervise Claude Code, GitHub et Render (lot C1, 01/11/2026)
+
+Décision [0042](../assistant/decisions/0042-chantiers-socle.md), architecture [CHANTIERS-DEV](../architecture/CHANTIERS-DEV.md).
+Code : `src/lib/missions/chantiers/` (moteur), `src/platform/dev/ports.ts` (contrat des connecteurs, adaptateurs au lot C2),
+`src/lib/models/mimo.ts` (passerelle), module `assistant-ia` : `infra/chantiers.ts`, `ecrans/reglages-chantiers.tsx`,
+`ecrans/missions/tableau-missions.tsx`.
+- **Qui** : le Super Admin seul (rôle relu à chaque passage et à chaque geste). Un chantier = `Mission` `kind = "CHANTIER"`,
+  conduite par le moteur des travaux (bail, reçus, reprise après coupure, tableau « Missions »).
+- **Étapes** (DSL fermé) : `DEV_LANCER` (dépendances, réservations, une session Claude Code sous reçu) → `DEV_ATTENDRE` (commit
+  neuf, sondage 1 → 10 min, 6 h au plus) → `DEV_VERIFIER` (périmètre, PR, checks du SHA de tête) → `DEV_CORRIGER` si rouge
+  (commentaire `@claude` sur la PR, anti-boucle) → par service, ERP d'abord : `RENDER_DEPLOYER` (preuve verte exigée,
+  fusion + revérification du SHA d'intégration si le service suit `main`) → `RENDER_VERIFIER` (santé, journaux) →
+  `RENDER_ROLLBACK` si malsain (autoDeploy coupé) → `RAPPORT` (SHA, checks, live, santé, coût).
+- **Réservations** `ChantierReservation` : `BRANCHE`, `PERIMETRE` (recouvrement → file d'attente), `MIGRATIONS` et
+  `DEPLOIEMENT` exclusifs ; tout ou rien, sous verrou ; expirent à 6 h si le chantier meurt.
+- **Anti-boucle et budgets** : même échec 2× → Sol une fois, 3× → blocage réel ; console Administration › IA › Chantiers
+  (dollars par chantier et par jour, lancements, déploiements, tentatives, parallélisme) → pause `BUDGET_HOLD` et reprise seule.
+- **Validation de la Direction** (carte du tableau, ou « valide » à l'écrit comme à l'oral dans la conversation) :
+  production, fusion sur main, rollback de production.
+- **Conversation** (Adventum IA) : `lancer_un_chantier`, `ou_en_est_chantier`, `valider_chantier`, `annuler_chantier`.
+- **Mémoire technique** `MemoireTechnique` (dépôts, services, branches, incidents) : extraits ≤ 2 k jetons dans la consigne.
+- Sans connecteurs branchés (C2), un chantier ne part pas et le dit.

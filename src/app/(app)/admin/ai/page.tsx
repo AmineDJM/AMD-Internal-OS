@@ -14,8 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber, formatDateTime } from "@/lib/utils";
 import { AiSettingsForm } from "./ai-settings-form";
-import { depenseOcrVisionDuMois, etatVisuelsPourAdministration, lireReglageOcrVision } from "@/modules/assistant-ia/api";
+import { depenseOcrVisionDuMois, etatChantiersPourAdministration, etatVisuelsPourAdministration, lireReglageOcrVision } from "@/modules/assistant-ia/api";
 import { ReglagesVisuelsForm } from "@/modules/assistant-ia/ecrans/reglages-visuels";
+import { ReglagesChantiersForm } from "@/modules/assistant-ia/ecrans/reglages-chantiers";
 import { TableauConsommation } from "@/modules/assistant-ia/ecrans/consommation/tableau-consommation";
 import { AiHealthCheckButton } from "./health-check-button";
 import { adamHealth, type HealthLevel } from "@/lib/google/health";
@@ -59,8 +60,9 @@ const libelleFonction = (f: string): string => (FEATURE_LABEL as Record<string, 
 export default async function AiControlCenterPage() {
   const user = await requireModule("ADMIN", "UPDATE");
   const settings = await getAiSettings();
-  const [ocrVision, depenseOcr, visuels] = await Promise.all([
+  const [ocrVision, depenseOcr, visuels, chantiers] = await Promise.all([
     lireReglageOcrVision(), depenseOcrVisionDuMois().catch(sansBloquer("admin-ia.depense-ocr", 0)), etatVisuelsPourAdministration(),
+    user.role === "SUPER_ADMIN" ? etatChantiersPourAdministration() : Promise.resolve(null),
   ]);
 
   const since30 = new Date(Date.now() - 30 * 86400000);
@@ -294,6 +296,14 @@ export default async function AiControlCenterPage() {
           <ReglagesVisuelsForm initial={visuels.reglages} depenseImagesUsd={visuels.depenseImagesUsd} depenseVideosUsd={visuels.depenseVideosUsd} videoIndisponible={visuels.videoIndisponible} />
         </CardContent>
       </Card>
+
+      {/* C1 (décision 0042) : les chantiers de développement (Claude Code, GitHub, Render) — plafonds par chantier et par jour. */}
+      {chantiers && (
+        <Card id="chantiers">
+          <CardHeader><CardTitle>Chantiers de développement</CardTitle></CardHeader>
+          <CardContent><ReglagesChantiersForm initial={chantiers.reglages} mimo={chantiers.mimo} /></CardContent>
+        </Card>
+      )}
 
 
       {/* COÛT — où part l'argent. Lu dans ModelCallLog (une ligne par appel) et AiUsageLog (une

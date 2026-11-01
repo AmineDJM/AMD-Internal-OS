@@ -516,6 +516,10 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/persona",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/plan",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/service",
+    // C1 (décision 0042) — LES CHANTIERS DE DÉVELOPPEMENT : le même moteur (`lib/missions/`), une SEULE porte
+    // (`chantiers/service`, qui réexporte réglages et état de MiMo) ; outils de conversation, console et carte de
+    // validation y passent tous. Cible : la porte du moteur des travaux, comme l'entrée ci-dessus.
+    "src/modules/assistant-ia/infra/chantiers.ts → src/lib/missions/chantiers/service",
     // J6 (décision 0020) — LE CATALOGUE D'ADAM n'est plus emprunté (4 entrées vers `src/lib/assistant*` et celle de
     // `outils-v1.ts → hr/confidentialite` retirées). À leur place, et pas plus (5 pour 5) : le registre des capacités lit la
     // table d'annulation (`annulation/reversibilite`) et désigne une fiche par son nom sous la portée de la personne
@@ -617,6 +621,9 @@ const SOCLE = [
   // K10b (décision 0040) : le GESTE RÉVERSIBLE (`gesteReversible`) — la primitive que toute action d'écran emprunte pour
   // être annulable (journal des effets, fenêtre d'annulation des envois). Infrastructure du socle, pas un métier.
   "src/lib/effets/ecran",
+  // Le geste RÉVERSIBLE (K10c, décision 0044) : l'enveloppe qui fait entrer une action au journal des effets — comme
+  // l'audit, toute action d'écran y passe ; ce n'est pas un métier.
+  "src/lib/effets/reversible",
 ];
 /** Les actions serveur de `src/lib/actions/` : un écran de module peut les appeler (Next les remplace par un appel distant). */
 const ACTIONS = "src/lib/actions/";
