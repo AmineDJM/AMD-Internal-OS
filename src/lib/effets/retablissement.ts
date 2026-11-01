@@ -2,8 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { CurrentUser } from "@/lib/session";
-import { delegue, deserialiser, ecrireVerrouille, enfantsDAbord, ligne, lireActuelle, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
-import { retablirEcritureTresorerie } from "./argent";
+import { delegue, deserialiser, ecrireVerrouille, ligne, lireActuelle, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
 import { annulerEffetSortant, rejouerEffetFait, retablirEffetSortant } from "./fenetre";
 import { infoModele, type InfoModele } from "./modeles";
 import { memeValeur } from "./valeurs";
@@ -70,9 +69,6 @@ async function refaire(e: EffetLu, d: DetailEffet, user: CurrentUser): Promise<D
     return fait ? OK(d, `rétabli : ${champs.map((x) => `« ${x} »`).join(", ")} rendu(s) à la valeur du geste`) : NON(d, "la ligne a changé depuis l'annulation : la valeur du geste n'est pas réécrite par-dessus");
   }
   if (e.operation === "CREATE") {
-    // L'ARGENT (K10a) : une écriture de trésorerie compensée se rétablit par une ligne de plus, jamais un effacement.
-    const argent = d.issue === "COMPENSE" ? await retablirEcritureTresorerie(e, { acteurId: user.id, ecrireVerrouille }) : null;
-    if (argent) return argent.ok ? OK(d, argent.pourquoi) : NON(d, argent.pourquoi);
     if (d.issue === "COMPENSE" && info.annulation) {
       const a = info.annulation;
       const v = deserialiser(info, a.champ, apres[a.champ] ?? null);
@@ -108,9 +104,7 @@ export async function retablirGeste(gesteId: string, user: CurrentUser): Promise
   if (prise.count !== 1) return { refus: "Ce geste est rétabli (ou l'est en ce moment même, depuis un autre écran)." };
   const parEffet = new Map(compte.details.map((d) => [d.effetId, d]));
   const details: DetailEffet[] = [];
-  // LE PARENT D'ABORD (K10a) : l'ordre inverse de l'annulation — une ligne recréée avant celle vers laquelle elle pointe
-  // (la remise de caisse avant son ordre) serait refusée par sa clé étrangère.
-  for (const e of enfantsDAbord([...g.effets].reverse()).reverse()) {
+  for (const e of g.effets) {
     const d = parEffet.get(e.id);
     if (!d || (d.issue !== "ANNULE" && d.issue !== "COMPENSE")) continue;
     details.push(await refaire(e, d, user).catch((err): DetailEffet => NON(d, `le rétablissement a échoué sur cet effet (${err instanceof Error ? err.message.slice(0, 160) : String(err)})`)));

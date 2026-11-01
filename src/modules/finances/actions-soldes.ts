@@ -12,7 +12,6 @@ import { toNumber } from "@/lib/utils";
 import {
   jourAlger, estEtatLigne, etatDemande, lireReponse, phraseBilan, type EtatLigne, type SaisieLigne,
 } from "@/modules/finances/api";
-import { annulable } from "@/lib/effets/ecran";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -32,7 +31,7 @@ import { annulable } from "@/lib/effets/ecran";
  * répondent ensemble ne réancrent pas deux fois le même compte.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export async function repondreActualisationSoldes(formData: FormData): Promise<ActionResult> { return annulable("actualisation-soldes-actions:repondreActualisationSoldes", "Répondre à l'actualisation des soldes", async () => {
+export async function repondreActualisationSoldes(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Actualiser un solde demande le droit « Modifier » des Finances." };
   const id = fdStr(formData, "id");
@@ -162,4 +161,4 @@ export async function repondreActualisationSoldes(formData: FormData): Promise<A
       ? `Soldes actualisés pour ${nomEntite}. Le demandeur et les Super Admins sont prévenus.`
       : `Réponse enregistrée pour ${nomEntite} — les comptes « pas encore reçu » restent à compléter depuis cette même demande. Le demandeur et les Super Admins sont prévenus.`,
   };
-}); }
+}

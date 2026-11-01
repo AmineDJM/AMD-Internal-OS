@@ -16,7 +16,6 @@ import { syncInvoiceSettlement } from "@/modules/finances/api";
 import { refusMaillonAmont } from "@/lib/legal/chaine";
 import { refusPieceARanger, rangerPiece } from "@/lib/legal/adoption";
 import type { CurrentUser } from "@/lib/session";
-import { annulable } from "@/lib/effets/ecran";
 
 /**
  * LES FACTURES — DES DOCUMENTS LÉGAUX DE NATURE « FACTURE », et rien d'autre.
@@ -73,7 +72,7 @@ function readFields(formData: FormData) {
 export async function createInvoice(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> { return annulable("invoice-actions:createInvoice", "Enregistrer une facture", async () => {
+): Promise<ActionResult> {
   const user = await requireUser();
   if (!peutEcrire(user, "CREATE")) return { ok: false, error: "Non autorisé." };
 
@@ -152,7 +151,7 @@ export async function createInvoice(
   return fichiers || rangement || avertissement
     ? { ok: true, id: created.id, message: ["Facture créée.", fichiers, rangement, avertissement].filter(Boolean).join(" "), ...(avertissement ? { avertissement } : {}) }
     : { ok: true, id: created.id };
-}); }
+}
 
 /** La pièce visée existe-t-elle, et est-elle bien une facture ? */
 async function laFacture(id: string) {
@@ -164,7 +163,7 @@ async function laFacture(id: string) {
   return doc && doc.kind === "INVOICE" ? doc : null;
 }
 
-export async function updateInvoice(formData: FormData): Promise<ActionResult> { return annulable("invoice-actions:updateInvoice", "Modifier une facture", async () => {
+export async function updateInvoice(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");
@@ -203,7 +202,7 @@ export async function updateInvoice(formData: FormData): Promise<ActionResult> {
   revalidatePath(`/legal/${doc.id}`);
   revalidatePath("/finances");
   return { ok: true };
-}); }
+}
 
 /**
  * RATTACHER une facture EXISTANTE à un bon de commande PCH (ou l'en détacher) — le geste
@@ -211,7 +210,7 @@ export async function updateInvoice(formData: FormData): Promise<ActionResult> {
  * (`sourceType = PCH_ORDER`) qui la fait apparaître sous SON bon dans la fiche marché, et qui
  * répond à « quelle facture correspond à quel BC ».
  */
-export async function setInvoiceOrder(formData: FormData): Promise<ActionResult> { return annulable("invoice-actions:setInvoiceOrder", "Rattacher une facture à un ordre", async () => {
+export async function setInvoiceOrder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");
@@ -238,10 +237,10 @@ export async function setInvoiceOrder(formData: FormData): Promise<ActionResult>
   revalidatePath("/legal");
   revalidatePath("/pch");
   return { ok: true };
-}); }
+}
 
 /** Marquer réglée / à régler depuis la ligne du tableau — le geste le plus fréquent. */
-export async function setInvoicePaid(input: { id: string; paidDate: string | null }): Promise<ActionResult> { return annulable("invoice-actions:setInvoicePaid", "Marquer une facture payée", async () => {
+export async function setInvoicePaid(input: { id: string; paidDate: string | null }): Promise<ActionResult> {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(input.id);
@@ -272,9 +271,9 @@ export async function setInvoicePaid(input: { id: string; paidDate: string | nul
   revalidatePath(`/legal/${doc.id}`);
   revalidatePath("/finances");
   return { ok: true };
-}); }
+}
 
-export async function deleteInvoice(formData: FormData): Promise<ActionResult> { return annulable("invoice-actions:deleteInvoice", "Supprimer facture", async () => {
+export async function deleteInvoice(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!peutEcrire(user, "DELETE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");
@@ -288,4 +287,4 @@ export async function deleteInvoice(formData: FormData): Promise<ActionResult> {
   });
   revalidatePath("/legal");
   return { ok: true };
-}); }
+}

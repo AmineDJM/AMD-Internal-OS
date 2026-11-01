@@ -1,5 +1,5 @@
 import { prismaBrut } from "@/lib/prisma";
-import { getCurrentUserPourEcrire, type CurrentUser } from "@/lib/session";
+import type { CurrentUser } from "@/lib/session";
 import { journaliserGeste } from "./journal";
 import { etatDuGeste } from "./magasin";
 
@@ -30,23 +30,6 @@ export async function gesteReversible<T>(user: CurrentUser | { id: string }, met
   if (etatDuGeste()?.capture) return geste();
   const { resultat } = await journaliserGeste(user as CurrentUser, { origine: "ecran", capaciteId: meta.capaciteId, libelle: meta.libelle }, geste);
   return resultat;
-}
-
-/**
- * LE MÊME GESTE, PRIS DANS LA SESSION (K10a, décision 0041) — pour les actions d'argent, dont le corps lit la personne
- * lui-même (`requireUser`) : `annulable("fichier:fonction", libellé, corps)` enrobe le corps SUR LA LIGNE DE SA SIGNATURE
- * (aucune ligne ajoutée), lit la personne de la session et appelle `gesteReversible`. Sans personne (tâche planifiée,
- * banc sans session) : l'action s'exécute telle quelle, sans journal. Le mode d'annulation est déclaré dans
- * `declarations/argent.ts`, pas ici.
- */
-export async function annulable<T>(capaciteId: string, libelle: string, corps: () => Promise<T>): Promise<T> {
-  let user: CurrentUser | null = null;
-  try {
-    user = await getCurrentUserPourEcrire();
-  } catch {
-    user = null; // hors requête : aucune session à lire — c'est attendu, pas une panne
-  }
-  return user ? gesteReversible(user, { capaciteId, libelle }, corps) : corps();
 }
 
 export interface GesteEcranVu {

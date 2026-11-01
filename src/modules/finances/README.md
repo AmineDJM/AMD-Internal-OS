@@ -35,17 +35,6 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
   l'argent (`company`, `entity-access`), les pièces, la garde des factures connues, et surtout la **clôture des
   chantiers d'origine au règlement** (matériel promo, BV) — à remplacer par un événement « ordre réglé ».
 
-### L'argent réversible (K10a, décision 0041)
-
-Chaque action écrivante de ce module (et des fichiers d'argent hors module : budgets, caisse, factures, fournisseurs,
-paie) s'exécute sous `annulable("fichier:fonction", libellé, …)` (`@/lib/effets/ecran`, sur `gesteReversible`) et se déclare dans
-`src/lib/effets/declarations/argent.ts` : journalisée (J7), elle se défait depuis la barre « Annuler » ou l'historique. **Une écriture de trésorerie ne s'efface jamais** :
-prévue → `CANCELLED` ; réalisée par une saisie → **contre-passation** (même sens, montant opposé, `compensationDeId`) ;
-décaissement d'un paiement → reste, et une écriture **« à récupérer »** le compense ; le statut « payé » de l'ordre est
-remis (il redevient dû). L'annulation se journalise (rétablir). Tests : `reversibilite-*-flow.test.ts` (exécuter puis
-annuler, base locale) ; cliquet `src/lib/effets/argent-cliquet.test.ts` (aucune action écrivante du périmètre
-« sans annulation »). Une action ajoutée ici s'enrobe de `annulable(…)` sur la ligne de sa signature et prend sa ligne dans la table.
-
 ### Ce qui n'existe plus (et pourquoi) — ex-fin de `payment-request-actions.ts`
 
 `askPaymentValidation` (faire valider le dossier) et `askPieceValidation` (faire valider une pièce) permettaient aux

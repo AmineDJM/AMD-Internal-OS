@@ -17,7 +17,6 @@ import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
 import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import { getAppSettings } from "@/lib/settings";
 import { sansBloquer } from "@/lib/journal";
-import { annulable } from "@/lib/effets/ecran";
 
 /**
  * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
@@ -104,7 +103,7 @@ function isDecision(v: string): v is Extract<CentralDecision, "APPROVE" | "REFUS
  * Le MOTIF est exigé pour un refus : refuser sans dire pourquoi renvoie le demandeur deviner — et
  * le dossier revient identique, par une nouvelle pièce, sans que rien ait changé.
  */
-export async function decidePayment(formData: FormData): Promise<ActionResult> { return annulable("payment-centre-actions:decidePayment", "Décider d'un paiement au centre", async () => {
+export async function decidePayment(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!sitsOnPaymentCentre(user)) {
     return { ok: false, error: PAYMENT_CENTRE_REFUSAL };
@@ -252,7 +251,7 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
     return { ok: true, message: `Autorisé — ${versement.montant.toLocaleString("fr-FR")} DZD ajoutés à la caisse d'avance ${versement.departement}.` };
   }
   return { ok: true, message: `${CENTRAL_DECISION_LABEL[decision]} — enregistré.` };
-}); }
+}
 
 /**
  * Le demandeur répond et resoumet : la balle repasse au centre — pour les dossiers D'AVANT la
@@ -262,7 +261,7 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
  * On ne resoumet QUE si le centre a rendu la main — sinon on pourrait relancer indéfiniment un
  * dossier qu'il n'a pas encore regardé.
  */
-export async function respondToPaymentCentre(formData: FormData): Promise<ActionResult> { return annulable("payment-centre-actions:respondToPaymentCentre", "Répondre au centre de paiement", async () => {
+export async function respondToPaymentCentre(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   const body = (fdStr(formData, "body") ?? "").trim();
@@ -323,4 +322,4 @@ export async function respondToPaymentCentre(formData: FormData): Promise<Action
 
   revalidatePath(PATH);
   return { ok: true, message: "Réponse envoyée — le dossier retourne au centre de paiement." };
-}); }
+}

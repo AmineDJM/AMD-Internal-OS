@@ -23,7 +23,6 @@ import { getAppSettings } from "@/lib/settings";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { ordresBvAvecQuittance, deposerQuittanceBv, cocherPaiementBv } from "@/lib/regulatory/bv-reglement";
 import { sansBloquer } from "@/lib/journal";
-import { annulable } from "@/lib/effets/ecran";
 
 /**
  * OÙ ENVOYER LE DEMANDEUR D'UN ORDRE — le dossier qui l'a émis (sa demande, ses pièces), qu'il peut
@@ -35,7 +34,7 @@ async function lienDuDossierDeLOrdre(orderId: string): Promise<string> {
 }
 
 /** Comptable settles an ordre de dépense → generates the treasury OUT entry and marks the source paid. */
-export async function settleExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:settleExpenseOrder", "Régler un ordre de dépense", async () => {
+export async function settleExpenseOrder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
@@ -308,7 +307,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   revalidatePath("/moyens-generaux");
   revalidatePath("/mon-espace");
   return { ok: true };
-}); }
+}
 
 /**
  * VIDER L'HISTORIQUE DES RÈGLEMENTS — réglés et annulés, et eux seuls, RETIRÉS DE L'ÉCRAN.
@@ -329,7 +328,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
  * Un ordre EN COURS (à régler, révision demandée) n'est jamais touché : vider l'historique ne doit pas
  * pouvoir faire disparaître un paiement qui attend.
  */
-export async function purgeSettledExpenseOrders(): Promise<ActionResult> { return annulable("expense-actions:purgeSettledExpenseOrders", "Masquer les ordres réglés de l'historique", async () => {
+export async function purgeSettledExpenseOrders(): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
 
@@ -345,10 +344,10 @@ export async function purgeSettledExpenseOrders(): Promise<ActionResult> { retur
   revalidatePath("/finances/paiements-a-faire");
   revalidatePath("/finances");
   return { ok: true, message: `${masque.count} ordre(s) retiré(s) de l'historique. Les ordres et les écritures de trésorerie sont conservés.` };
-}); }
+}
 
 /** Le comptable demande la facture au demandeur (dépense événementielle sans facture). */
-export async function requestInvoice(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:requestInvoice", "Demander facture", async () => {
+export async function requestInvoice(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE") && !hasGlobalView(user.role)) return { ok: false, error: "Réservé à la comptabilité (Finances)." };
   const id = fdStr(formData, "id");
@@ -374,7 +373,7 @@ export async function requestInvoice(formData: FormData): Promise<ActionResult> 
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Finances", entityType: "EXPENSE_ORDER", entityId: id, summary: `Facture demandée — ${order.reference}` });
   revalidatePath("/finances/paiements-a-faire");
   return { ok: true };
-}); }
+}
 
 /**
  * REPORTER UN PAIEMENT À UNE DATE — le seul geste, avec le règlement, qui reste aux Finances.
@@ -397,7 +396,7 @@ export async function requestInvoice(formData: FormData): Promise<ActionResult> 
  * veto : les Finances peuvent devoir décaler, et personne ne peut le leur interdire depuis un
  * formulaire. C'est la trace que le demandeur relira quand il devra expliquer le retard.
  */
-export async function deferExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:deferExpenseOrder", "Reporter un ordre de dépense", async () => {
+export async function deferExpenseOrder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
@@ -440,7 +439,7 @@ export async function deferExpenseOrder(formData: FormData): Promise<ActionResul
   revalidatePath("/finances");
   revalidatePath("/mon-espace");
   return { ok: true };
-}); }
+}
 
 /**
  * LEVER LE REPORT — l'ordre redevient simplement « non payé », l'état par défaut.
@@ -448,7 +447,7 @@ export async function deferExpenseOrder(formData: FormData): Promise<ActionResul
  * Ce n'est pas un quatrième geste : c'est le retour au premier des trois états. Sans lui, une
  * date saisie trop loin ne pourrait plus être corrigée qu'en attendant qu'elle arrive.
  */
-export async function resumeExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:resumeExpenseOrder", "Lever le report d'un ordre de dépense", async () => {
+export async function resumeExpenseOrder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
@@ -470,4 +469,4 @@ export async function resumeExpenseOrder(formData: FormData): Promise<ActionResu
   revalidatePath("/finances/paiements-a-faire");
   revalidatePath("/finances");
   return { ok: true };
-}); }
+}

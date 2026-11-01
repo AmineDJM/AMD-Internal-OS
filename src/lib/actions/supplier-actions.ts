@@ -11,7 +11,6 @@ import { reposerWilayaCode } from "@/modules/lieux/api";
 import { recordAudit } from "@/lib/audit";
 import { doubleEcrireOrganisation, relierALaPersonne } from "@/modules/referentiels/api";
 import { fdStr, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
-import { annulable } from "@/lib/effets/ecran";
 
 const EXTERNAL_STATUSES: ExternalRegulatoryStatus[] = [
   "IN_PREPARATION", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "APPROVED", "ON_HOLD", "CLOSED",
@@ -20,7 +19,7 @@ const SUPER_ONLY: ActionResult = { ok: false, error: "Réservé au Super Admin."
 
 // ───── Vue fournisseur d'un dossier (équipe Regulatory) ─────
 
-export async function updateSupplierView(formData: FormData): Promise<ActionResult> { return annulable("supplier-actions:updateSupplierView", "Régler la vue d'un fournisseur", async () => {
+export async function updateSupplierView(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const productId = fdStr(formData, "productId");
   if (!productId) return { ok: false, error: "Dossier manquant." };
@@ -52,14 +51,14 @@ export async function updateSupplierView(formData: FormData): Promise<ActionResu
   });
   revalidatePath(`/regulatory/${productId}`);
   return { ok: true };
-}); }
+}
 
 // ───── Gestion des comptes fournisseurs (Super Admin) ─────
 
 export async function createSupplier(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> { return annulable("supplier-actions:createSupplier", "Créer un fournisseur", async () => {
+): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return SUPER_ONLY;
   const name = fdStr(formData, "name");
@@ -72,12 +71,12 @@ export async function createSupplier(
   await doubleEcrireOrganisation("SUPPLIER", created.id, user.id);
   revalidatePath("/admin/suppliers");
   return { ok: true, id: created.id };
-}); }
+}
 
 export async function createSupplierUser(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> { return annulable("supplier-actions:createSupplierUser", "Créer un accès fournisseur", async () => {
+): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return SUPER_ONLY;
   const supplierId = fdStr(formData, "supplierId");
@@ -101,9 +100,9 @@ export async function createSupplierUser(
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Portail fournisseur", entityType: "SUPPLIER", entityId: supplierId, summary: `Compte portail ${email}` });
   revalidatePath("/admin/suppliers");
   return { ok: true, id: created.id };
-}); }
+}
 
-export async function toggleSupplier(formData: FormData): Promise<ActionResult> { return annulable("supplier-actions:toggleSupplier", "Activer ou désactiver un fournisseur", async () => {
+export async function toggleSupplier(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return SUPER_ONLY;
   const id = fdStr(formData, "id");
@@ -113,9 +112,9 @@ export async function toggleSupplier(formData: FormData): Promise<ActionResult> 
   await prisma.supplier.update({ where: { id }, data: { active: !s.active } });
   revalidatePath("/admin/suppliers");
   return { ok: true };
-}); }
+}
 
-export async function toggleSupplierUser(formData: FormData): Promise<ActionResult> { return annulable("supplier-actions:toggleSupplierUser", "Activer ou désactiver un accès fournisseur", async () => {
+export async function toggleSupplierUser(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return SUPER_ONLY;
   const id = fdStr(formData, "id");
@@ -125,4 +124,4 @@ export async function toggleSupplierUser(formData: FormData): Promise<ActionResu
   await prisma.supplierUser.update({ where: { id }, data: { active: !su.active } });
   revalidatePath("/admin/suppliers");
   return { ok: true };
-}); }
+}

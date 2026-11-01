@@ -616,7 +616,6 @@ const SOCLE = [
   "src/lib/action-outcome",
   // K10b (décision 0040) : le GESTE RÉVERSIBLE (`gesteReversible`) — la primitive que toute action d'écran emprunte pour
   // être annulable (journal des effets, fenêtre d'annulation des envois). Infrastructure du socle, pas un métier.
-  // Et l'enrobage qui rend une action RÉVERSIBLE (K10a, décision 0041) : transverse comme l'audit — toute action l'emploie.
   "src/lib/effets/ecran",
 ];
 /** Les actions serveur de `src/lib/actions/` : un écran de module peut les appeler (Next les remplace par un appel distant). */
