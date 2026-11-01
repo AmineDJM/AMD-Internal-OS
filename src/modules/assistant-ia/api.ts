@@ -106,6 +106,8 @@ export {
 export { sectionAttentesDuTour } from "./infra/canaux/section";
 export { outilAttendrePieces, OUTIL_ATTENDRE_PIECES } from "./infra/canaux/outil";
 export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";
+// K9 (décision 0039) : la voix entièrement orale — travail délégué suivi en asynchrone, annoncé de lui-même.
+export { annoncesEnAppel, suivreTravailVocal, type SuiviOral } from "./infra/voix/oral";
 // ── Les visuels (lot K2, décision 0032) : images, vidéos, vidéos de données — la tâche de fond, la carte, le média
 export { etatVisuel, etatVisuelsPourAdministration, fichierDuVisuel, traiterVisuelsEnFile } from "./infra/visuels/service";
 // ── L'analyse de données (K1, décision 0031) : le classeur Excel d'une analyse — export d'un clic, dépôt au Drive sur geste

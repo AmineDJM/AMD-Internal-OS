@@ -6,12 +6,13 @@ import { ouvrirSessionLive, type SessionLiveOuverte } from "@/platform/ia/voix/s
 import { accesAssistantIa } from "../role-config";
 import { consigneFamilles } from "../../domaine/acces-regles";
 import { consigneGestesFermes } from "../outils-v1";
-import { MASQUE_CONFIDENTIEL, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
-import { consignesVoix, DIT_A_L_ECRAN, NON_OUVERTE, pourLaVoix } from "../../domaine/terrain/voix";
+import { consignesVoix } from "../../domaine/terrain/voix";
 import { appelVoix, auNomDe, budgetDeLAppel, fermerBudget, jetonsAudio, lireReglagesAssistantIa } from "../consommation";
 import { cleFournisseurVoix } from "../modele";
-import { deposerMessage, ETAT, filDe, traiterFil } from "../fil/service";
-import { carteOraleEnAttente, direLaCarte, ouvrirCarteOrale, traiterParoleSurCarte } from "./carte-orale";
+import { ETAT, filDe } from "../fil/service";
+import { enregistrerSessionVoix, fermerSessionVoix, reponsePourVoix, reprisesOrales, traiterEnonceVocal, type RetourOral } from "./oral";
+
+export { reponsePourVoix };
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -21,22 +22,18 @@ import { carteOraleEnAttente, direLaCarte, ouvrirCarteOrale, traiterParoleSurCar
  *   • OUVRIR : la porte de l'Assistant IA, la console d'accès relue, le plafond du jour ; puis l'offre WebRTC du
  *     navigateur est échangée ICI contre la réponse (`/v1/live/sessions`) — aucun secret ne sort du serveur.
  *   • DÉLÉGUER : GPT-Live tient la conversation ; dès qu'il faut l'ERP, il délègue. La demande dite part dans LE MÊME
- *     FIL que le texte (`deposerMessage` → `traiterFil`) : c'est le MÊME assistant — mêmes outils, mêmes droits, mêmes
- *     familles, mêmes repères, mêmes cartes. Sa réponse revient à la voix selon le mode de la console (décision 0034) : EN
- *     CLAIR, avec les valeurs que la personne a le droit de voir (prononcées) ; MASQUÉES, sans (« affichée à l'écran »).
- *     Une écriture reste une CARTE, confirmée à l'écran seulement.
+ *     FIL que le texte : c'est le MÊME assistant — mêmes outils, mêmes droits, mêmes familles, mêmes repères, mêmes
+ *     cartes. K9 (décision 0039) : la délégation NE BLOQUE PLUS la voix — elle rend un « travail » que le navigateur
+ *     suit, et la voix annonce le résultat d'elle-même ; une carte se résume, se complète et se confirme À L'ORAL
+ *     (`./oral.ts`, garde-fous serveur). Valeurs sensibles selon la console (décision 0034).
  *   • JOURNALISER : la durée vocale facturée au nom de la personne, les latences, et la transcription de la conversation
  *     dans le fil.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
 export const VOIX_ASSISTANT = (process.env.ASSISTANT_IA_VOICE || "marin").trim();
-/** Le temps qu'on attend la réponse de l'assistant délégué (un tour d'outils peut prendre 20 à 40 s). */
-// 31/10/2026 : 70 s — une question d'actualité (recherche web rapide, plusieurs sources) dépasse 45 s ; la voix dit
-// « je regarde » pendant ce temps plutôt que de renvoyer à l'écran.
-export const DELAI_DELEGATION_MS = 70_000;
 
-export type OuvertureVoix = SessionLiveOuverte | { ok: false; erreur: string; statut: number };
+export type OuvertureVoix = (SessionLiveOuverte & { reprises: string[] }) | { ok: false; erreur: string; statut: number };
 
 async function porte(user: CurrentUser): Promise<{ ok: false; erreur: string; statut: number } | null> {
   if (!peutUtiliserAssistantIA(user)) return { ok: false, erreur: REFUS_ASSISTANT_IA, statut: 403 };
@@ -44,7 +41,7 @@ async function porte(user: CurrentUser): Promise<{ ok: false; erreur: string; st
   return null;
 }
 
-export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: { fetchImpl?: typeof fetch } = {}): Promise<OuvertureVoix> {
+export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: { fetchImpl?: typeof fetch; conversation?: string | null } = {}): Promise<OuvertureVoix> {
   const refus = await porte(user);
   if (refus) return refus;
   // Le plafond du jour : une session vocale qui ne pourrait rien dépenser ne s'ouvre pas.
@@ -70,79 +67,29 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
     consigneFamilles(acces), consigneGestesFermes(user),
   ].filter(Boolean).join("\n");
   const modele = modeleVoix(reglages.modeleVoix);
-  const s = await ouvrirSessionLive({ cle: cleFournisseurVoix(), modele, instructions, voix: VOIX_ASSISTANT, sdp, fetchImpl: opts.fetchImpl });
-  if (s.ok) console.info("[assistant-ia] voix ouverte", { userId: user.id, modele, session: s.id });
-  return s;
+  // K9 : 800 ms avant l'accusé automatique d'une délégation — le temps que le serveur rende sa propre phrase d'attente.
+  const s = await ouvrirSessionLive({ cle: cleFournisseurVoix(), modele, instructions, voix: VOIX_ASSISTANT, sdp, fetchImpl: opts.fetchImpl, delaiAccuseMs: 800 });
+  if (!s.ok) return s;
+  // La session est À LA PERSONNE : les gestes oraux (confirmer, annuler) n'y valent que pour elle, tant qu'elle est ouverte.
+  const conversation = opts.conversation ? (await filDe(user.id, opts.conversation)).id : null;
+  await enregistrerSessionVoix(user.id, s.id, conversation);
+  console.info("[assistant-ia] voix ouverte", { userId: user.id, modele, session: s.id });
+  // Ce qui est arrivé depuis la dernière session et n'a pas été dit : la voix le dit en ouvrant.
+  return { ...s, reprises: await reprisesOrales(user, s.id) };
 }
 
-export interface ResultatDelegationVoix {
-  pourVoix: string;
-  carte?: Record<string, unknown> & { intentId: string };
-  ecran?: string | null;
-}
-
-const NETTOYER_MD = (t: string) => t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`#>|]+/g, " ").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
+export type ResultatDelegationVoix = RetourOral;
 
 /**
- * Ce que la voix peut dire d'une réponse écrite : sans Markdown, borné (500 jetons). Masquées (décision 0012) : sans valeur
- * sensible. EN CLAIR (décision 0034) : avec celles que l'assistant a rendues à la personne — elle avait le droit de les voir.
+ * DÉLÉGUER UN ÉNONCÉ — K9 (décision 0039) : rend AUSSITÔT (travail lancé, précision transmise, carte résumée ou
+ * confirmée, commande appliquée). Plus d'attente de 70 s, plus de « la réponse arrivera à l'écran ».
  */
-export function reponsePourVoix(contenu: string, enClair = false): string {
-  if (enClair) return pourLaVoix(NETTOYER_MD(retirerBornes(contenu)).split(MASQUE_CONFIDENTIEL).join(NON_OUVERTE), 1_600);
-  return pourLaVoix(NETTOYER_MD(sansValeursRevelees(contenu)).split(MASQUE_CONFIDENTIEL).join(DIT_A_L_ECRAN), 1_600);
-}
-
-/**
- * DÉLÉGUER UNE DEMANDE DITE à l'assistant — par le FIL (le même que le texte) : la demande y est déposée, le fil la
- * joue, on attend sa réponse (70 s au plus ; au-delà, la voix dit que la réponse arrivera à l'écran).
- *
- * UNE CARTE DEVIENT UNE CONVERSATION (décision 0038) : une carte rendue ici est une carte ORALE — la voix la résume, propose
- * les cases facultatives, la récapitule et demande « tu confirmes ? ». `parole` = ce que la PERSONNE a dit (sa
- * transcription, depuis la délégation précédente) : un « oui » explicite à la question, l'élément clé dit pour une carte
- * renforcée, et la carte s'exécute par la garde du bouton (`carte-orale.ts`) — sans appel de modèle.
- */
-export async function deleguerALaVoix(user: CurrentUser, demande: string, conversation?: string | null, parole?: string | null): Promise<ResultatDelegationVoix> {
+export async function deleguerALaVoix(user: CurrentUser, demande: string, d: { session: unknown; delegationId?: string | null; enCours?: string | null; parole?: string | null }): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);
   if (refus) return { pourVoix: `Refus : ${refus.erreur}` };
   const texte = demande.trim();
   if (!texte) return { pourVoix: "Je n'ai pas compris la demande : demande à la personne de la répéter." };
-  const enClair = (await lireReglagesAssistantIa()).valeursSensibles === "EN_CLAIR";
-  // LA CARTE ORALE EN ATTENTE : la parole de la personne la confirme, la refuse, ou passe au récit — sans modèle.
-  const avant = await carteOraleEnAttente(user);
-  if (avant) {
-    const issue = await traiterParoleSurCarte(user, avant, parole ?? "");
-    if (issue.suite === "repondu") return { pourVoix: issue.pourVoix.slice(0, 1_800) };
-  }
-  // Décision 0027 : la voix écrit dans la conversation OUVERTE (sans elle, la conversation courante).
-  const entete = avant
-    ? `[Conversation vocale — carte en attente « ${avant.carte.titre} » : la personne la complète ou la corrige (corriger_carte, ou l'outil preparer_* rappelé avec toutes les valeurs) ; rien ne s'exécute]`
-    : "[Conversation vocale]";
-  const d = await deposerMessage(user.id, `${entete} ${texte}`.slice(0, 8_000), [], null, conversation ?? null);
-  if (!d.ok) return { pourVoix: d.erreur };
-  void traiterFil(user.id, d.conversation);
-  const fin = Date.now() + DELAI_DELEGATION_MS;
-  for (;;) {
-    const [rep, q] = await Promise.all([
-      prisma.assistantIaTour.findFirst({ where: { repondA: d.tour.id, role: "assistant" }, orderBy: { createdAt: "desc" }, select: { contenu: true, intent: true, etat: true } }),
-      prisma.assistantIaTour.findUnique({ where: { id: d.tour.id }, select: { etat: true, erreur: true } }),
-    ]);
-    if (rep && rep.etat === ETAT.TERMINE) {
-      const intent = rep.intent as (Record<string, unknown> & { id?: string; fields?: { label: string; value: string }[] }) | null;
-      const dit = reponsePourVoix(rep.contenu, enClair);
-      // Une carte NÉE de cette délégation devient orale ; elle hérite des facultatifs déjà proposés pour la précédente.
-      if (intent?.id && intent.id !== avant?.id) await ouvrirCarteOrale(intent.id, Array.isArray(intent.fields) ? intent.fields : [], avant?.facultatifsProposes === true, avant?.id ?? null);
-      const carte = await carteOraleEnAttente(user);
-      const suite = carte && (carte.id === intent?.id || carte.id === avant?.id) ? ` — ${await direLaCarte(carte)}` : "";
-      return {
-        pourVoix: `${dit}${suite}`.slice(0, 1_800),
-        ...(intent?.id ? { carte: { ...intent, intentId: intent.id } } : {}),
-        ecran: rep.contenu,
-      };
-    }
-    if (q?.etat === ETAT.ECHEC) return { pourVoix: `L'assistant n'a pas pu répondre : ${(q.erreur ?? "erreur").slice(0, 200)}` };
-    if (Date.now() > fin) return { pourVoix: "La recherche prend plus de temps : dis que la réponse s'affichera dans la conversation écrite." };
-    await new Promise((r) => setTimeout(r, 350));
-  }
+  return traiterEnonceVocal(user, { ...d, demande: texte });
 }
 
 /**
@@ -154,7 +101,10 @@ export async function journaliserVoix(user: CurrentUser, d: {
   secondes: number; latences: number[]; confirme: boolean; lignes: { qui: "personne" | "assistant"; texte: string }[];
   /** Décision 0027 : la conversation ouverte, où la transcription s'écrit (sans elle, la conversation courante). */
   conversation?: string | null;
+  /** K9 : la session vocale qui se ferme — plus aucun geste oral n'y vaut. */
+  session?: string | null;
 }): Promise<void> {
+  await fermerSessionVoix(user.id, d.session);
   const borne = (n: unknown, max: number) => (typeof n === "number" && Number.isFinite(n) && n >= 0 ? Math.min(Math.round(n), max) : 0);
   const secondes = borne(d.secondes, 7_200);
   const latences = (Array.isArray(d.latences) ? d.latences : []).map((x) => borne(x, 120_000)).slice(0, 500);

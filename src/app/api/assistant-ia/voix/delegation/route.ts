@@ -3,23 +3,25 @@ import { deleguerALaVoix } from "@/modules/assistant-ia/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// L'assistant délégué peut enchaîner des lectures et une recherche web : la voix attend sa réponse jusqu'à 70 s.
-export const maxDuration = 90;
+// K9 (décision 0039) : la délégation rend AUSSITÔT (travail lancé, carte résumée ou confirmée) — elle ne tient plus la voix.
+export const maxDuration = 60;
+
+const court = (v: unknown, max: number) => (typeof v === "string" && v.length > 0 && v.length <= max ? v : null);
 
 /**
- * UNE DÉLÉGATION DE LA VOIX (lot J13, décision 0025) — la demande dite part dans le fil de la personne, traitée par
- * l'assistant sous ses droits ; rend ce que la voix dit (valeurs selon le réglage de la décision 0034), la carte à
- * afficher, et la réponse écrite pour l'écran. Une carte se confirme aussi À L'ORAL (décision 0035), jugée ici sur `parole`.
+ * UN ÉNONCÉ DÉLÉGUÉ PAR LA VOIX (lots J13 puis K9) — ce que la personne a dit (transcription d'entrée de SA session
+ * vocale) : nouvelle demande (travail lancé, suivi par `/voix/travail`), précision du travail en cours, valeur d'un
+ * champ, réponse à la carte orale (K4), commande orale. Le serveur juge ; la voix dit ce qu'il rend.
  */
 export async function POST(req: Request) {
   const personne = await getCurrentUserPourEcrire();
   if (!personne) return Response.json({ error: "Non authentifié." }, { status: 401 });
-  let corps: { demande?: unknown; conversation?: unknown; parole?: unknown };
+  let corps: { demande?: unknown; session?: unknown; delegationId?: unknown; enCours?: unknown; parole?: unknown };
   try { corps = (await req.json()) as typeof corps; } catch { return Response.json({ error: "Requête invalide." }, { status: 400 }); }
   const demande = typeof corps.demande === "string" ? corps.demande.slice(0, 4_000) : "";
-  // Décision 0027 : la conversation ouverte (un identifiant qui n'est pas à la personne retombe sur la courante).
-  const conversation = typeof corps.conversation === "string" && corps.conversation.length < 64 ? corps.conversation : null;
-  // Décision 0035 : ce que la PERSONNE a dit depuis la délégation précédente (sa transcription) — seul juge d'un « oui ».
-  const parole = typeof corps.parole === "string" ? corps.parole.slice(0, 2_000) : null;
-  return Response.json(await deleguerALaVoix(personne, demande, conversation, parole));
+  return Response.json(await deleguerALaVoix(personne, demande, {
+    session: court(corps.session, 120), delegationId: court(corps.delegationId, 120), enCours: court(corps.enCours, 64),
+    // K4 : ce que la PERSONNE a dit depuis la délégation précédente (sa transcription) — seul juge d'un « oui ».
+    parole: typeof corps.parole === "string" ? corps.parole.slice(0, 2_000) : null,
+  }));
 }

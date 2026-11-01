@@ -4,7 +4,7 @@ Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super 
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
 [`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0038 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0035 : la consommation exacte en jetons et en dollars ; 0036 : pièces reçues par WhatsApp et par mail ; 0037 : exports de l'ERP, envoi d'un fichier, gestes d'écran ; 0038 : la voix orale, une carte confirmée à l'oral).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0035 : la consommation exacte en jetons et en dollars ; 0036 : pièces reçues par WhatsApp et par mail ; 0037 : exports de l'ERP, envoi d'un fichier, gestes d'écran ; 0038 : la voix orale, une carte confirmée à l'oral ; 0039 : la voix entièrement orale — attente vivante, réponses pour l'oreille, tout par la voix).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -252,8 +252,13 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   (`terrain_*`), `ecrans/terrain/` (écran mobile, file IndexedDB), page `/medical/terrain`, confirmation
   `confirmerCarteTerrain`. Table `AssistantIaTerrainCapture`.
 - **Voix temps réel (GPT-Live)** — `infra/voix/temps-reel.ts` (session ouverte par le serveur, délégation au même
-  assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune
-  confirmation à la voix ; valeurs sensibles jamais lues ; modèle `gpt-live-1` réglable (Consommation IA).
+  assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Valeurs
+  sensibles selon la console (0034) ; modèle `gpt-live-1` réglable (Consommation IA).
+- **Voix entièrement orale (lot K9, décision 0039, sur la carte orale de K4)** — `domaine/terrain/oral.ts` (pur :
+  commandes orales, chiffres à l'oral, blocs dits en une phrase, mission désignée par son nom, `CONSIGNE_ORALE`),
+  `infra/voix/oral.ts` (sessions vocales, délégation asynchrone suivie par `/voix/travail`, précision transmise, reprise à
+  l'ouverture suivante, aiguillage : commande → carte orale K4 → précision → travail ; annuler, pause / reprise / arrêt
+  de mission). La carte orale reste `infra/voix/carte-orale.ts` (K4) : la voix relit l'élément clé, un oui suffit.
 
 ## Recettes de la maison (lot J10, décision 0028)
 

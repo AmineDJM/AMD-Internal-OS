@@ -7,7 +7,7 @@ import type { CurrentUser } from "@/lib/session";
  *
  * On tient : la voix reçoit un résumé oral (pas les champs bruts), propose les facultatifs, récapitule et demande
  * « tu confirmes ? » ; un « oui » n'est entendu qu'APRÈS cette question et sur les mots de la personne ; sans « oui »
- * (ou avec un « oui » répété, sans parole neuve) rien ne s'exécute ; une carte renforcée exige l'élément clé PRONONCÉ ;
+ * (ou avec un « oui » répété, sans parole neuve) rien ne s'exécute ; une carte renforcée : la voix relit l'élément clé, un oui suffit (K9) ;
  * une correction dite repasse les contrôles de la correction écrite ; la confirmation orale est au journal avec la
  * transcription ; la carte reste confirmable au bouton (idempotence).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -29,10 +29,28 @@ import { effacerJournalDe } from "../testing/journal";
 import { outilsV1 } from "../outils-v1";
 import { accesAssistantIa } from "../role-config";
 import { confirmerCarte } from "../confirmation";
-import { deleguerALaVoix } from "./temps-reel";
-import {
-  elementCleDit, estNonExplicite, estOuiExplicite, estRienAAjouter, etapeOrale, nombresDits, recitDeCarte, texteOral, type CarteOrale,
-} from "../../domaine/terrain/voix-orale";
+import { deleguerALaVoix as deleguerTravail } from "./temps-reel";
+import { enregistrerSessionVoix, suivreTravailVocal } from "./oral";
+import { estNonExplicite, estOuiExplicite, estRienAAjouter, etapeOrale, recitDeCarte, texteOral, type CarteOrale } from "../../domaine/terrain/voix-orale";
+
+/**
+ * K9 (décision 0039) : la délégation rend AUSSITÔT un travail, suivi jusqu'au résultat. Ce banc garde ses scénarios K4
+ * en suivant le travail jusqu'au bout — ce que fait le navigateur.
+ */
+const SESSIONS = new Map<string, string>();
+async function deleguerALaVoix(u: CurrentUser, demande: string, _conversation: null, parole: string | null) {
+  if (!SESSIONS.has(u.id)) { SESSIONS.set(u.id, `live_k4_${u.id}`); await enregistrerSessionVoix(u.id, `live_k4_${u.id}`, null); }
+  const session = SESSIONS.get(u.id)!;
+  const r = await deleguerTravail(u, demande, { session, parole });
+  if (!r.travail) return r;
+  for (let i = 0; i < 200; i++) {
+    const s = await suivreTravailVocal(u, session, r.travail);
+    if (s.etat === "pret") return s;
+    if (s.etat === "echec") return { pourVoix: s.pourVoix };
+    await new Promise((x) => setTimeout(x, 50));
+  }
+  throw new Error("travail jamais terminé");
+}
 
 const reponse = (message: string) => ({ texte: JSON.stringify({ message, components: [] }) });
 
@@ -49,16 +67,6 @@ describe("les mots de la personne (pur)", () => {
     expect(estRienAAjouter("rien d'autre")).toBe(true);
     expect(estRienAAjouter("ajoute un budget de 50 000")).toBe(false);
   });
-  it("l'élément clé PRONONCÉ : un montant en chiffres ou en lettres ; un mot tel quel", () => {
-    expect(nombresDits("un million cinq cent mille dinars")).toContain(1_500_000);
-    expect(nombresDits("cent cinquante mille")).toContain(150_000);
-    expect(nombresDits("oui 150 000 DA")).toContain(150_000);
-    expect(elementCleDit("oui je confirme cent cinquante mille", "150000")).toBe(true);
-    expect(elementCleDit("oui je confirme 150.000", "150000")).toBe(true);
-    expect(elementCleDit("oui je confirme", "150000")).toBe(false);
-    expect(elementCleDit("oui je confirme cent mille", "150000")).toBe(false);
-    expect(elementCleDit("oui, créer", "CREER")).toBe(true);
-  });
   it("le texte pour la voix : un résumé à dire avec ses mots, une question à la fois, jamais d'identifiant technique", () => {
     const c: CarteOrale = {
       titre: "Demande de sponsoring — Association Cardio", champs: [{ label: "Institution", value: "Association Cardio" }, { label: "Médecin", value: "cmvx1234567890abcdefghijk" }, { label: "Suggéré", value: "150 000 DZD" }],
@@ -72,7 +80,8 @@ describe("les mots de la personne (pur)", () => {
     expect(texteOral(c, "FACULTATIFS")).toContain("ne lis pas une liste");
     expect(etapeOrale(c, true)).toBe("QUESTION");
     expect(texteOral(c, "QUESTION")).toContain("Tu confirmes ?");
-    expect(texteOral({ ...c, elementCle: "150000" }, "QUESTION")).toContain("PRONONÇANT « 150000 »");
+    // K9 : la VOIX relit l'élément clé ; aucun mot imposé à la personne.
+    expect(texteOral({ ...c, elementCle: "150000" }, "QUESTION")).toContain("RELIS clairement « 150000 »");
     expect(etapeOrale({ ...c, manquants: ["la date"] }, true)).toBe("MANQUANTS");
   });
 });
@@ -115,6 +124,8 @@ suite("la carte à l'oral, contre la base", () => {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } });
     await prisma.assistantIaFil.deleteMany({ where: { userId: { in: ids } } });
+    await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: { in: ids } } });
+    await prisma.assistantIaVoixSession.deleteMany({ where: { userId: { in: ids } } });
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } });
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
   });
@@ -159,20 +170,18 @@ suite("la carte à l'oral, contre la base", () => {
     expect(await prisma.fieldReport.count({ where: { delegateId: kam.id } })).toBe(1);
   });
 
-  it("une carte RENFORCÉE (R3/R4) : sans l'élément clé prononcé, refusée ; avec, exécutée", async () => {
+  it("une carte RENFORCÉE (R3/R4) : la voix relit l'élément clé, puis un oui sans réserve exécute (K9 : pas de mot imposé)", async () => {
     remplacerModelesPourTests([compteRendu()]);
     const a = await deleguerALaVoix(kam, "un autre compte rendu", null, "un autre compte rendu");
     const id = a.carte!.intentId;
     // La carte devient CRITIQUE (comme une capacité R3/R4) : l'élément clé est le montant.
     await prisma.assistantActionIntent.update({ where: { id }, data: { level: "CRITICAL", confirmText: "150000" } });
     remplacerModelesPourTests([]);
-    if (/Ne demande PAS encore/.test(a.pourVoix)) await deleguerALaVoix(kam, "non rien", null, "non rien");
-    const sans = await deleguerALaVoix(kam, "oui je confirme", null, "oui je confirme");
-    expect(sans.pourVoix).toContain("PRONONCER « 150000 »");
-    expect((await prisma.assistantActionIntent.findUnique({ where: { id }, select: { status: true } }))?.status).toBe("PROPOSED");
-    const faux = await deleguerALaVoix(kam, "oui je confirme cent mille", null, "oui je confirme cent mille");
-    expect(faux.pourVoix).not.toMatch(/C'est fait/);
-    const avec = await deleguerALaVoix(kam, "oui je confirme cent cinquante mille", null, "oui je confirme cent cinquante mille");
+    const q = /Ne demande PAS encore/.test(a.pourVoix) ? await deleguerALaVoix(kam, "non rien", null, "non rien") : a;
+    if (/Ne demande PAS encore/.test(a.pourVoix)) expect(q.pourVoix).toContain("RELIS clairement « 150000 »");
+    const flou = await deleguerALaVoix(kam, "oui mais cent mille", null, "oui mais cent mille");
+    expect(flou.pourVoix).not.toMatch(/C'est fait/);
+    const avec = await deleguerALaVoix(kam, "vas-y", null, "vas-y");
     expect(avec.pourVoix).toMatch(/C'est fait/);
     expect((await prisma.assistantActionIntent.findUnique({ where: { id }, select: { status: true } }))?.status).toBe("EXECUTED");
   });
