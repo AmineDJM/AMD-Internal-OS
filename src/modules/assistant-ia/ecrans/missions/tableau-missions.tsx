@@ -109,7 +109,7 @@ export function useGestesMission(relire: () => Promise<void>) {
 
 const lien = "inline-flex min-h-9 items-center gap-1 rounded-lg px-1.5 text-[12.5px] text-[var(--aia-accent)] hover:bg-[var(--aia-survol)]";
 
-/** C1 (décision 0041) : ce qu'un CHANTIER montre de plus — dépôt, réservations, liens, preuves, carte de validation. */
+/** C1 (décision 0042) : ce qu'un CHANTIER montre de plus — dépôt, réservations, liens, preuves, carte de validation. */
 function BlocChantier({ m, gestes }: { m: MissionDuTableau; gestes: ReturnType<typeof useGestesMission> }) {
   const c = m.chantier!;
   return (

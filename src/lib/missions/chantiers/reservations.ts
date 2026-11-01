@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { globsSeRecouvrent } from "@/lib/missions/chantiers/perimetre";
-import type { RefDepot } from "@/platform/dev/ports";
+import type { RefDepot } from "@/lib/missions/chantiers/ports-moteur";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES RÉSERVATIONS DES CHANTIERS (lot C1, décision 0041 ; CHANTIERS-DEV.md § 4) — avant tout lancement.
+ * LES RÉSERVATIONS DES CHANTIERS (lot C1, décision 0042 ; CHANTIERS-DEV.md § 4) — avant tout lancement.
  *
  *   BRANCHE:<dépôt>:<branche>    une branche n'a qu'un chantier
  *   PERIMETRE:<dépôt>:<glob>     deux périmètres qui se RECOUVRENT sont sérialisés (jamais deux chantiers au même endroit)

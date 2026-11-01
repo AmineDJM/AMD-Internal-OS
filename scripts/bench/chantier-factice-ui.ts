@@ -1,5 +1,5 @@
 /**
- * UN CHANTIER FACTICE POUR L'ÉCRAN (lot C1, décision 0041) — sème, sur la base de BANC, deux chantiers du Super Admin conduits
+ * UN CHANTIER FACTICE POUR L'ÉCRAN (lot C1, décision 0042) — sème, sur la base de BANC, deux chantiers du Super Admin conduits
  * par les PORTS FACTICES (aucun réseau) : l'un LIVRÉ (vert, déployé, sain), l'autre arrêté sur la carte de validation d'un
  * déploiement de production. Sert au contrôle du tableau « Missions » sur serveur réel (Playwright, iPhone 13 + bureau).
  *

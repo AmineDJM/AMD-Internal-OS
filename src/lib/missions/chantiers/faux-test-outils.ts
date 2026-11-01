@@ -1,6 +1,6 @@
 import type {
   AgentDeveloppeur, ConsigneDev, DeploiementRender, EtatChecks, ForgeGit, Hebergeur, RefDepot, Resultat, SessionDev,
-} from "@/platform/dev/ports";
+} from "@/lib/missions/chantiers/ports-moteur";
 import type { PortsDev } from "@/lib/missions/chantiers/etapes";
 
 /**
@@ -38,9 +38,9 @@ export function fauxPortsDev(s: ScenarioDev = {}): FauxPorts {
     branches.set(branche, { sha, fichiers });
     checks.set(sha, { statut, extrait });
   };
-  const session = (c: ConsigneDev & { probleme?: string }): Resultat<SessionDev> => {
+  const session = (c: ConsigneDev & { probleme?: string; pr?: number }): Resultat<SessionDev> => {
     sessions += 1;
-    journal.push({ quoi: sessions === 1 ? "lancer" : "relancer", detail: { branche: c.branche, probleme: c.probleme ?? null } });
+    if (!("pr" in c && c.pr)) journal.push({ quoi: sessions === 1 ? "lancer" : "relancer", detail: { branche: c.branche, probleme: c.probleme ?? null } });
     const effet = s.surSession?.(sessions, c);
     if (effet) pousser(c.branche, effet.sha, effet.checks, effet.extrait, effet.fichiers);
     return ok({ sessionId: `session-${sessions}`, url: `https://claude.ai/code/session-${sessions}`, lanceeLe: new Date().toISOString(), moyen: "routine" });
@@ -48,7 +48,13 @@ export function fauxPortsDev(s: ScenarioDev = {}): FauxPorts {
   const agent: AgentDeveloppeur = {
     disponible: async () => ({ ok: true, moyens: ["routine", "commentaire-pr"] }),
     lancer: async (c) => session(c),
-    relancer: async (c) => session(c),
+    // Une PR existe : la relance part dans son fil (commentaire `@claude`, comme le connecteur réel) ; sinon une session neuve.
+    relancer: async (c) => {
+      if (!c.pr) return session(c);
+      const r = session(c);
+      journal.push({ quoi: "commenter", detail: { numero: c.pr, texte: `@claude ${c.probleme}` } });
+      return r.ok ? ok({ ...r.valeur, moyen: "commentaire-pr", url: `https://github.com/pr/${c.pr}#commentaire-${sessions}` }) : r;
+    },
   };
   const cle = (d: RefDepot, b: string) => `${d.proprietaire}/${d.nom}:${b}`;
   const forge: ForgeGit = {
@@ -61,13 +67,7 @@ export function fauxPortsDev(s: ScenarioDev = {}): FauxPorts {
       const c = checks.get(sha);
       return ok({ statut: c?.statut ?? "aucun", echecs: c?.statut === "rouge" ? [{ nom: "tests", url: `https://ci/${sha}`, extrait: c.extrait }] : [] });
     },
-    commenterPr: async (d, numero, texte) => {
-      journal.push({ quoi: "commenter", detail: { numero, texte } });
-      const [b] = [...prs.entries()].find(([, p]) => p.numero === numero) ?? [];
-      const effet = s.surSession?.(++sessions, { depot: d, branche: b?.split(":")[1] ?? "", brancheBase: "main", objectif: "", perimetre: [], criteres: [], commandesVerif: [], chantierId: "", probleme: texte });
-      if (effet && b) pousser(b.split(":")[1]!, effet.sha, effet.checks, effet.extrait, effet.fichiers);
-      return ok({ url: `https://github.com/pr/${numero}#commentaire-${sessions}` });
-    },
+    commenterPr: async (_d, numero, texte) => { journal.push({ quoi: "commentaire", detail: { numero, texte } }); return ok({ url: `https://github.com/pr/${numero}#c` }); },
     ouvrirPr: async (d, b) => {
       const p = { numero: prs.size + 1, url: `https://github.com/${d.proprietaire}/${d.nom}/pull/${prs.size + 1}`, etat: "ouverte" as const };
       prs.set(cle(d, b), p);

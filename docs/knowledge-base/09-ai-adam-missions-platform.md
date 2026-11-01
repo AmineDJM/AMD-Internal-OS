@@ -430,7 +430,7 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
   files too.
 
-- **Chantiers de développement C1 (01/11/2026)** [V] decision `docs/assistant/decisions/0041-chantiers-socle.md`,
+- **Chantiers de développement C1 (01/11/2026)** [V] decision `docs/assistant/decisions/0042-chantiers-socle.md`,
   architecture `docs/architecture/CHANTIERS-DEV.md`. `src/lib/missions/chantiers/`: a *chantier* is a `Mission` with
   `kind = "CHANTIER"`, `persona = "ADAM"`, `principalId` = SUPER_ADMIN (role re-read each pass, `refusChantier`). Closed DSL
   (`plan.ts`: DEV_LANCER/ATTENDRE/VERIFIER/CORRIGER, RENDER_DEPLOYER/VERIFIER/ROLLBACK, RAPPORT; default plan; refusals) compiled
@@ -766,3 +766,29 @@ Gotchas [V]:
 [V, K8] `ModelCallLog` no longer misses calls made before the sink is installed (queue + `instrumentation.ts`).
 [U] `node:vm` + worker sandbox strength against hostile model-generated code.
 [U] Production `AiSetting` / `AppSetting` values (switch states) — not read.
+
+## C2 (2026-11-01) — connecteurs des chantiers de développement [V]
+
+- **Contract** `src/platform/dev/ports.ts` (zero import, L0 socle): `AgentDeveloppeur` (Claude Code), `ForgeGit` (GitHub),
+  `Hebergeur` (Render), `FaitDev`. Every method returns `Resultat<T>`; error codes `NON_CONFIGURE|AUTH|INTERDIT|INTROUVABLE|
+  QUOTA|INVALIDE|CONFLIT|INDISPONIBLE|RESEAU|INCERTAIN|SIMULE|INCONNU` with `reessayable` / `reessayerApresMs`. Composition
+  root `in-process/chantiers/connecteurs.ts` (`connecteursDev()` → `{agent, forge|null, hebergeur|null}`); the mission engine (lot C1) consumes it.
+- **Claude Code** = Routines API `/v1/claude_code/routines/{trig}/fire` (subscription) + `@claude` PR comment (GitHub
+  Action). No claude.ai credential server-side (Anthropic legal terms). Resuming an existing subscription session is
+  impossible server-side → continuity through branch + PR thread. Fire has **no idempotency**: `DevLancement.cleIdempotence`
+  claimed before sending (`createMany skipDuplicates`); timeout / connection reset / HTTP 500 ⇒ `INCERTAIN` (key blocked,
+  never replayed); 429 / 503 / pre-send network error ⇒ `ECHEC` (key re-claimable). Local hourly quota 30/routine,
+  100/account counted before the 429. Fire text arrives wrapped in `<routine-fire-payload>` (untrusted): the routine's own
+  prompt must opt in (decision 0041 § 2).
+- **Writes** (fire, comment, deploy, cancel, rollback, autoDeploy, rerun) call `noterEffetExterne` (J7): recorded in real
+  mode, neutralised (`SIMULE`) in simulation. Note: the J7 network port does NOT record anthropic.com calls by itself
+  (`HOTES_MODELES`), hence the explicit note.
+- **Webhooks** → `recevoirWebhook` (`reception.ts`): signature first (503 without secret, 401 bad), facts with SEMANTIC
+  keys claimed in `IngestedEvent (source "dev-github"|"dev-render", externalId)`, then `recordEvent` injected by the route
+  (`BusinessEvent` types `DEV_PUSH|DEV_PR|DEV_CHECKS|DEV_WORKFLOW|DEV_COMMENTAIRE|RENDER_DEPLOIEMENT|RENDER_SERVICE`,
+  `sourceDomain "DEV"`, refs `DEPOT:`, `BRANCHE:<repo>:<branch>`, `SHA:`, `PR:<repo>#n`, `SERVICE:`, `DEPLOIEMENT:`) → wakes
+  `WAIT_EVENT`. Polling (`sondage.ts`, 30 s ×2 → 15 min) emits the same keys ⇒ one event per fact.
+- Layout: PURE part in `src/platform/dev/` (ports, http, config, webhooks, consigne — no Prisma: `boundary.test.ts` forbids
+  any ERP import in `src/platform/` outside the bridge); adapters, `DevLancement`, reception, polling, probes and the
+  composition root `connecteursDev()` in the bridge `src/platform/in-process/chantiers/`. The registry (`recordEvent`) is
+  injected by the route, not imported.

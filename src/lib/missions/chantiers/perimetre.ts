@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE PÉRIMÈTRE D'UN CHANTIER (lot C1, décision 0041) — pur, zéro import.
+ * LE PÉRIMÈTRE D'UN CHANTIER (lot C1, décision 0042) — pur, zéro import.
  *
  * Deux chantiers dont les globs SE RECOUVRENT ne tournent jamais ensemble : le second attend la libération du
  * premier (sérialisation). Le recouvrement se juge de façon CONSERVATRICE : dans le doute, ils se recouvrent —

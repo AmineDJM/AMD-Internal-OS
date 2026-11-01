@@ -112,6 +112,18 @@ function armHeartbeat(): void {
  */
 export const BOUCLE_REVEILS_MS = Math.max(2_000, Number(process.env.TRAVAUX_REVEILS_MS ?? 10_000));
 
+/**
+ * C1 ↔ C2 (décisions 0041, 0042) : LA RACINE DE COMPOSITION DES CHANTIERS — les connecteurs réels (Claude Code, GitHub,
+ * Render) traduits dans les termes du moteur, branchés avant chaque conduite. Sans jeton GitHub : rien n'est branché, un
+ * chantier attend et le dit.
+ */
+async function brancherConnecteursDev(): Promise<void> {
+  const [{ brancherPortsDev }, { portsDepuisConnecteurs }, { connecteursDev }] = await Promise.all([
+    import("@/lib/missions/chantiers/ports-dev"), import("@/lib/missions/chantiers/adaptateur-c2"), import("@/platform/in-process/chantiers/connecteurs"),
+  ]);
+  brancherPortsDev(() => portsDepuisConnecteurs(connecteursDev()));
+}
+
 export function armerReveilsTravaux(executeur: "web" | "worker"): () => void {
   let enCours = false;
   const t = setInterval(() => {
@@ -124,6 +136,7 @@ export function armerReveilsTravaux(executeur: "web" | "worker"): () => void {
       // C1 : un chantier signalé (approbation, validation de la Direction, reprise) part dans la même boucle courte.
       if (process.env.CHANTIERS_SWEEP !== "off") {
         const { balayerChantiers } = await import("@/lib/missions/chantiers/service");
+        await brancherConnecteursDev();
         await balayerChantiers({ seulementSignales: true });
       }
     })().catch((e) => console.error("[travaux] boucle des réveils", e)).finally(() => { enCours = false; });
@@ -381,12 +394,13 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
   } },
 
-  // LES CHANTIERS DE DÉVELOPPEMENT (C1, décision 0041) — le même moteur conduit Claude Code, GitHub et Render pour le
+  // LES CHANTIERS DE DÉVELOPPEMENT (C1, décision 0042) — le même moteur conduit Claude Code, GitHub et Render pour le
   // Super Admin : attentes datées (sondage à pas croissant), réservations prolongées, plafonds relus avant chaque vague.
   // Sans connecteurs branchés (C2), un chantier attend et le dit. Débrayage : CHANTIERS_SWEEP=off.
   { cle: "chantiers.balayage", bailMs: 180_000, executer: async () => {
     if (process.env.CHANTIERS_SWEEP === "off") return ignoree("CHANTIERS_SWEEP=off");
     const { balayerChantiers } = await import("@/lib/missions/chantiers/service");
+    await brancherConnecteursDev();
     const r = await balayerChantiers();
     if (r.length === 0) return ignoree("aucun chantier à conduire");
   } },

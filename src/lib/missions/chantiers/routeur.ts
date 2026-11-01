@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE ROUTEUR DE MODÈLES DES CHANTIERS (lot C1, décision 0041 ; CHANTIERS-DEV.md § 2) — pur, testé, zéro import.
+ * LE ROUTEUR DE MODÈLES DES CHANTIERS (lot C1, décision 0042 ; CHANTIERS-DEV.md § 2) — pur, testé, zéro import.
  *
  *   DETERMINISTE → MIMO → TERRA → SOL
  *

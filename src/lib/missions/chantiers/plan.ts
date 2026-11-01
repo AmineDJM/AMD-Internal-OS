@@ -1,10 +1,10 @@
 import type { CompiledMission, CompiledStep } from "@/lib/missions/compiler/compile";
 import type { StepCondition } from "@/lib/missions/planner/contract";
-import type { RefDepot } from "@/platform/dev/ports";
+import type { RefDepot } from "@/lib/missions/chantiers/ports-moteur";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE PLAN D'UN CHANTIER DE DÉVELOPPEMENT (lot C1, décision 0041, docs/architecture/CHANTIERS-DEV.md § 3).
+ * LE PLAN D'UN CHANTIER DE DÉVELOPPEMENT (lot C1, décision 0042, docs/architecture/CHANTIERS-DEV.md § 3).
  * Module PUR : aucune base, aucun réseau — l'écran le lit comme le serveur.
  *
  * Un chantier n'est PAS un second moteur : c'est une `Mission` `kind = "CHANTIER"` dont le plan se compile en

@@ -2,7 +2,7 @@ import type { PlanChantier } from "@/lib/missions/chantiers/plan";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE DOSSIER D'UN CHANTIER (lot C1, décision 0041) — pur. Il vit dans `Mission.carnet` (`{ chantier: … }`) : le
+ * LE DOSSIER D'UN CHANTIER (lot C1, décision 0042) — pur. Il vit dans `Mission.carnet` (`{ chantier: … }`) : le
  * plan approuvé, les sessions Claude Code lancées, la PR, les signatures d'échec, les compteurs, les validations de
  * la Direction et les PREUVES. Chaque étape le relit au lieu de l'historique ; le tableau « Missions » l'affiche.
  *

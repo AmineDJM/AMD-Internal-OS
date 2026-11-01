@@ -9,7 +9,7 @@ import { appelerMimo, configMimo, coutMimo, MIMO_BASE_DEFAUT, MIMO_MODELE_DEFAUT
 import { setModelCallSink } from "@/lib/models/telemetry";
 
 /**
- * LES RÈGLES PURES DES CHANTIERS (lot C1, décision 0041) — le DSL du plan (catalogue fermé, enchaînements interdits),
+ * LES RÈGLES PURES DES CHANTIERS (lot C1, décision 0042) — le DSL du plan (catalogue fermé, enchaînements interdits),
  * l'anti-boucle (Sol au 2ᵉ échec identique, blocage au 3ᵉ), les budgets, le routeur de modèles (déterministe →
  * MiMo → Terra → Sol), le recouvrement de périmètres, le juge des preuves, et l'adaptateur MiMo (sans réseau).
  */

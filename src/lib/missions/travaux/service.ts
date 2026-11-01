@@ -29,7 +29,7 @@ import { signalerReveil } from "@/lib/missions/travaux/signaux";
 export type ResultatTravail = { ok: true; travailId: string; message: string } | { ok: false; erreur: string };
 
 /**
- * C1 (décision 0041) : un CHANTIER de développement vit au même tableau « Missions » ; les mêmes boutons (approuver,
+ * C1 (décision 0042) : un CHANTIER de développement vit au même tableau « Missions » ; les mêmes boutons (approuver,
  * pause, reprendre, annuler) l'aiguillent vers son service — même cloisonnement (`principalId`), rôle relu là-bas.
  */
 async function siChantier(id: string, principalId: string, geste: "approuver" | "pauser" | "reprendre" | "annuler"): Promise<ResultatTravail | null> {

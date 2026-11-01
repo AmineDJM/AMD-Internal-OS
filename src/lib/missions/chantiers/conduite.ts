@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 import { avancer, type EngineDeps, type StepContext, type StepOutcome } from "@/lib/missions/runtime/engine";
 import { compter, journaliser } from "@/lib/missions/runtime/store";
 import { rendreBail } from "@/lib/missions/runtime/bail";
@@ -18,7 +19,7 @@ import { liberer, prolonger } from "@/lib/missions/chantiers/reservations";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * CONDUIRE UN CHANTIER (lot C1, décision 0041) — le Mission Runtime, sans second moteur.
+ * CONDUIRE UN CHANTIER (lot C1, décision 0042) — le Mission Runtime, sans second moteur.
  *
  * Un passage : (1) le Super Admin a-t-il ENCORE ce rôle ? (2) les attentes DATÉES dues repartent en file ;
  * (3) les réservations sont prolongées ; (4) quelques VAGUES de `avancer`, un plafond relu AVANT chacune ; (5) à la
@@ -68,7 +69,7 @@ export async function refusChantier(userId: string): Promise<string | null> {
 }
 
 export async function lireReglagesConsole(): Promise<ReglagesChantiers> {
-  const s = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { chantiersReglages: true } }).catch(() => null);
+  const s = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { chantiersReglages: true } }).catch(sansBloquer("chantiers.reglages", null));
   return lireReglagesChantiers(s?.chantiersReglages ?? null);
 }
 
@@ -241,7 +242,7 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
 
 /** LA CLÔTURE — le rapport s'il manque (blocage, échec, annulation), les réservations libérées, la Direction prévenue. */
 export async function clore(chantierId: string, principalId: string, titre: string, statut: string, coutUsd: number, clock: Clock = systemClock): Promise<void> {
-  const d = await lireLeDossier(chantierId).catch(() => null);
+  const d = await lireLeDossier(chantierId).catch(sansBloquer("chantiers.clore.dossier", null));
   if (!d) return;
   if (!d.rapport) {
     await rapporter({

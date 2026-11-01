@@ -42,7 +42,7 @@ export interface EtapeTableau {
   essais?: number;
 }
 
-/** C1 (décision 0041) : ce qu'un CHANTIER montre de plus au tableau — dépôt, réservations, liens, preuves, budget. */
+/** C1 (décision 0042) : ce qu'un CHANTIER montre de plus au tableau — dépôt, réservations, liens, preuves, budget. */
 export interface ChantierTableau extends VueDossier {
   lancements: number;
   deploiementsFaits: number;

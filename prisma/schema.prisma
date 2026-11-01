@@ -10081,7 +10081,7 @@ model DeletedRecord {
 
 model AppSetting {
   id                             String    @id @default("global")
-  /// C1 (décision 0041) : les réglages des chantiers de développement (plafonds, lancements, déploiements, tentatives, jour).
+  /// C1 (décision 0042) : les réglages des chantiers de développement (plafonds, lancements, déploiements, tentatives, jour).
   chantiersReglages              Json?
   /// ARRÊT D'URGENCE DES ACTIONS EXTERNES DE L'IA. Vrai = plus AUCUNE action de l'assistant qui
   /// touche le monde réel (messages, e-mails, tâches pour autrui, mutations métier, relances
@@ -14749,7 +14749,7 @@ model Mission {
   /// J8 : un fait qui règle une attente de ce travail le signale ici — la boucle courte des réveils le reprend aussitôt.
   reveilDemandeLe  DateTime?
   demandesTravail  TravailDemande[]
-  /// C1 (décision 0041) : les réservations d'un chantier de développement (`kind = "CHANTIER"`) — branche, périmètre, migrations, déploiement.
+  /// C1 (décision 0042) : les réservations d'un chantier de développement (`kind = "CHANTIER"`) — branche, périmètre, migrations, déploiement.
   reservationsChantier ChantierReservation[]
 
   artifacts    MissionArtifact[]
@@ -18806,7 +18806,7 @@ model AssistantIaVisuel {
   @@index([statut, createdAt])
 }
 
-/// LA RÉSERVATION D'UNE RESSOURCE PAR UN CHANTIER (lot C1, décision 0041) — atomique par la contrainte d'unicité de `cle` :
+/// LA RÉSERVATION D'UNE RESSOURCE PAR UN CHANTIER (lot C1, décision 0042) — atomique par la contrainte d'unicité de `cle` :
 /// `BRANCHE:<dépôt>:<branche>`, `PERIMETRE:<dépôt>:<glob>` (le recouvrement se juge sous verrou consultatif),
 /// `MIGRATIONS:<dépôt>`, `DEPLOIEMENT:<service>`. Libérée à la fin du chantier ; une réservation EXPIRÉE se reprend.
 model ChantierReservation {
@@ -18825,7 +18825,7 @@ model ChantierReservation {
   @@index([ressource, depot])
 }
 
-/// LA MÉMOIRE TECHNIQUE PERMANENTE (lot C1, décision 0041) — dépôts, services Render, branches, décisions, dépendances,
+/// LA MÉMOIRE TECHNIQUE PERMANENTE (lot C1, décision 0042) — dépôts, services Render, branches, décisions, dépendances,
 /// incidents : ce qu'un chantier n'a pas à réanalyser. Lue par EXTRAITS (clé exacte, ≤ 2 k jetons) dans les consignes.
 model MemoireTechnique {
   id        String   @id @default(cuid())
@@ -18842,3 +18842,30 @@ model MemoireTechnique {
   @@index([type, majLe])
 }
 
+/// UN LANCEMENT DE CLAUDE CODE (lot C2, décision 0041) — la clé d'idempotence qu'Anthropic n'a pas.
+/// La Routines API (`/fire`) et le commentaire `@claude` créent une session à CHAQUE appel : la ligne est
+/// RÉCLAMÉE avant l'envoi (`cleIdempotence` unique), donc la même clé ne lance jamais deux sessions. Un délai
+/// dépassé laisse la ligne `INCERTAIN` : personne ne relance à l'aveugle. Sert aussi au compte des quotas
+/// (30 lancements/h/routine, 100/h/compte). Jamais le texte envoyé (son empreinte seulement), jamais un jeton.
+model DevLancement {
+  id             String   @id @default(cuid())
+  cleIdempotence String   @unique
+  /// ROUTINE | COMMENTAIRE_PR | MANAGED_AGENTS
+  moyen          String
+  /// L'alias de routine (ROUTINE) ou le dépôt (COMMENTAIRE_PR).
+  cible          String
+  missionId      String?
+  /// EN_COURS | LANCE | ECHEC | INCERTAIN
+  statut         String   @default("EN_COURS")
+  empreinte      String
+  sessionId      String?
+  sessionUrl     String?
+  commentaireId  String?
+  erreur         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([moyen, cible, createdAt])
+  @@index([statut, createdAt])
+  @@index([missionId])
+}

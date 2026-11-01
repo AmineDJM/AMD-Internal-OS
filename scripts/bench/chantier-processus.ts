@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UN PROCESSUS QUI TOUCHE À UN CHANTIER — et qu'on peut TUER (lot C1, décision 0041, `chantiers/processus.test.ts`).
+ * UN PROCESSUS QUI TOUCHE À UN CHANTIER — et qu'on peut TUER (lot C1, décision 0042, `chantiers/processus.test.ts`).
  *
  *   MODE=reserver   attend `DEPART_MS` (horloge murale) puis tente `reserver(MISSION_ID, RESSOURCES)` ; écrit
  *                   « RESULTAT {json} ». Deux processus lancés ensemble sur la même ressource : un seul gagne.

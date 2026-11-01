@@ -9,7 +9,7 @@ import { lireDossier } from "@/lib/missions/chantiers/dossier";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES CHANTIERS SUR DE VRAIS PROCESSUS (lot C1, décision 0041) — `scripts/bench/chantier-processus.ts`.
+ * LES CHANTIERS SUR DE VRAIS PROCESSUS (lot C1, décision 0042) — `scripts/bench/chantier-processus.ts`.
  *
  *   • RÉSERVATIONS CONCURRENTES : deux processus partent à la même milliseconde sur la même branche (puis sur deux
  *     périmètres qui se recouvrent) — un seul gagne, l'autre rend le conflit ; jamais les deux.

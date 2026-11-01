@@ -7,7 +7,7 @@ import {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES CHANTIERS DANS LA CONVERSATION (lot C1, décision 0041) — « je parle à Adventum IA ; il organise et supervise
+ * LES CHANTIERS DANS LA CONVERSATION (lot C1, décision 0042) — « je parle à Adventum IA ; il organise et supervise
  * Claude Code ». Quatre outils, offerts au SUPER ADMIN seul (rôle relu par le service à chaque geste) :
  *
  *   lancer_un_chantier      Terra formule la consigne technique (objectif, dépôt, branche, périmètre, critères) ;

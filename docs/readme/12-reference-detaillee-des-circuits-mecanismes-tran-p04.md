@@ -860,7 +860,7 @@ Décision `docs/assistant/decisions/0032-visuels.md`.
 
 ### Chantiers de développement — Adam supervise Claude Code, GitHub et Render (lot C1, 01/11/2026)
 
-Décision [0041](../assistant/decisions/0041-chantiers-socle.md), architecture [CHANTIERS-DEV](../architecture/CHANTIERS-DEV.md).
+Décision [0042](../assistant/decisions/0042-chantiers-socle.md), architecture [CHANTIERS-DEV](../architecture/CHANTIERS-DEV.md).
 Code : `src/lib/missions/chantiers/` (moteur), `src/platform/dev/ports.ts` (contrat des connecteurs, adaptateurs au lot C2),
 `src/lib/models/mimo.ts` (passerelle), module `assistant-ia` : `infra/chantiers.ts`, `ecrans/reglages-chantiers.tsx`,
 `ecrans/missions/tableau-missions.tsx`.

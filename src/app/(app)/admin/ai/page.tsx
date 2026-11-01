@@ -297,7 +297,7 @@ export default async function AiControlCenterPage() {
         </CardContent>
       </Card>
 
-      {/* C1 (décision 0041) : les chantiers de développement (Claude Code, GitHub, Render) — plafonds par chantier et par jour. */}
+      {/* C1 (décision 0042) : les chantiers de développement (Claude Code, GitHub, Render) — plafonds par chantier et par jour. */}
       {chantiers && (
         <Card id="chantiers">
           <CardHeader><CardTitle>Chantiers de développement</CardTitle></CardHeader>

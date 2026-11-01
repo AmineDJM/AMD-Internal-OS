@@ -91,7 +91,7 @@ export async function annulerMaMission(travailId: string): Promise<{ ok: true; m
 }
 
 /**
- * C1 (décision 0041) : la CARTE DE VALIDATION d'un chantier au tableau « Missions » — valider ou refuser le geste
+ * C1 (décision 0042) : la CARTE DE VALIDATION d'un chantier au tableau « Missions » — valider ou refuser le geste
  * critique qu'il attend (production, fusion sur main, rollback de production). Super Admin relu par le service.
  */
 export async function validerMonChantier(chantierId: string, accorde: boolean): Promise<{ ok: true; message: string } | { ok: false; erreur: string }> {

@@ -20,7 +20,7 @@ export const etatMimo = () => { const c = configMimo(); return { configure: c.cl
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES CHANTIERS DU SUPER ADMIN (lot C1, décision 0041) — proposer, approuver, valider un geste critique, suspendre,
+ * LES CHANTIERS DU SUPER ADMIN (lot C1, décision 0042) — proposer, approuver, valider un geste critique, suspendre,
  * reprendre, annuler, « où en est… ». Cloisonné comme les travaux : le `principalId` est dans chaque `where`, et le
  * rôle Super Admin est RELU à chaque geste.
  *

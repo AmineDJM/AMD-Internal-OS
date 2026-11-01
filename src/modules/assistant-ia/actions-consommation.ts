@@ -271,7 +271,7 @@ export async function enregistrerReglagesVisuels(formData: FormData): Promise<Ac
 }
 
 /**
- * C1 (décision 0041) — LES CHANTIERS DE DÉVELOPPEMENT : plafond en dollars par chantier, lancements Claude Code et
+ * C1 (décision 0042) — LES CHANTIERS DE DÉVELOPPEMENT : plafond en dollars par chantier, lancements Claude Code et
  * déploiements au plus, tentatives par étape, plafonds globaux du jour, chantiers en parallèle. Super Admin seul ;
  * bornés (`lireReglagesChantiers`) ; chaque changement à l'audit, avant et après.
  */

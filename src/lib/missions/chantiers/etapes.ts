@@ -3,7 +3,7 @@ import type { Clock } from "@/lib/missions/ports";
 import type { StepOutcome } from "@/lib/missions/runtime/engine";
 import type { EtatEtape, EtatMission } from "@/lib/missions/runtime/store";
 import { cloreEcriture, reclamerEcriture } from "@/lib/missions/travaux/ecritures";
-import type { AgentDeveloppeur, ConsigneDev, ForgeGit, Hebergeur, Resultat } from "@/platform/dev/ports";
+import type { AgentDeveloppeur, ConsigneDev, ForgeGit, Hebergeur, Resultat } from "@/lib/missions/chantiers/ports-moteur";
 import type { ServiceChantier, TypeEtapeChantier } from "@/lib/missions/chantiers/plan";
 import { court, jugerPreuves, composerRapport, type DossierChantier, type PreuveDeploiement } from "@/lib/missions/chantiers/dossier";
 import { deciderAntiBoucle, delaiCroissantMs, motifBudgetChantier, signatureEchec, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
@@ -15,7 +15,7 @@ import { extraitMemoire, memoriser, noterEvenementDev } from "@/lib/missions/cha
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES ÉTAPES D'UN CHANTIER (lot C1, décision 0041) — un gestionnaire par type, appelé par le moteur (nœud WORKER).
+ * LES ÉTAPES D'UN CHANTIER (lot C1, décision 0042) — un gestionnaire par type, appelé par le moteur (nœud WORKER).
  *
  * Trois règles, tenues ici et nulle part ailleurs :
  *   1. LA VÉRITÉ EST GITHUB ET RENDER. Une session Claude Code ne se lit pas par API : on lit la branche, la PR, les
@@ -68,7 +68,8 @@ function attendre(ctx: ContexteEtape, raison: string, ms: number, etat: Etat): S
   return { status: "WAITING", raison, result: { ...etat, reessayerA: new Date(ctx.clock.now().getTime() + ms).toISOString(), attente: raison } };
 }
 
-const echoue = (erreur: string): StepOutcome => ({ status: "FAILED", error: erreur, errorKind: "CHANTIER", retryable: false });
+// Un échec de chantier est celui d'une capacité (taxinomie du moteur, `recovery/strategy.ts`) : non rejouable, il est DIT.
+const echoue = (erreur: string): StepOutcome => ({ status: "FAILED", error: erreur, errorKind: "CAPABILITY_FAILURE", retryable: false });
 
 /** Un port a échoué : définitif → échec dit ; sinon un essai de plus, délai croissant, borné par les tentatives. */
 function apresEchecPort(ctx: ContexteEtape, quoi: string, r: Extract<Resultat<unknown>, { ok: false }>, etat: Etat): StepOutcome {
@@ -152,12 +153,12 @@ async function devLancer(ctx: ContexteEtape): Promise<StepOutcome> {
     if (avant.ok) d = await ctx.ecrire((x) => { x.shaVu = avant.valeur.existe ? avant.valeur.sha : null; });
   }
   const consigne = await consigneDev(ctx, d);
-  const r = await sousRecu(ctx, "lancement", () => ctx.ports.agent.lancer(consigne));
-  if (r.etat === "ECHEC") return apresEchecPort(ctx, "Lancement de Claude Code", r.r, etat);
-  if (r.etat === "INTERROMPU") {
+  const r = await sousRecu(ctx, "lancement", () => ctx.ports.agent.lancer(consigne, recu));
+  if (r.etat === "ECHEC" && !r.r.incertain) return apresEchecPort(ctx, "Lancement de Claude Code", r.r, etat);
+  if (r.etat === "INTERROMPU" || r.etat === "ECHEC") {
     // ON NE SAIT PAS si la session est partie : la branche le dit. Rien poussé → on attend quand même (la session
     // peut tourner) ; le blocage à 6 h et l'anti-boucle bornent le cas où elle n'est jamais partie.
-    await ctx.journal("CHANTIER_REPRISE", "Lancement interrompu par un redémarrage : la session n'est pas relancée, GitHub dira si elle travaille.");
+    await ctx.journal("CHANTIER_REPRISE", "Lancement interrompu ou incertain (redémarrage, délai dépassé) : la session n'est pas relancée, GitHub dira si elle travaille.");
     return { status: "DONE", result: { session: null, reprise: true }, receipt: "CHANTIER_LANCER" };
   }
   const s = r.valeur;
@@ -297,14 +298,12 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
       const probleme = await formulerProbleme(ctx, echec.extrait, sol);
       if (sol) await ctx.ecrire((x) => { x.solPour.push(echec.signature); });
       const consigne = await consigneDev(ctx, d);
-      const r = await sousRecu(ctx, `tour-${tour}`, async () => {
-        if (d.pr) {
-          const c = await ctx.ports.forge.commenterPr(d.plan.depot, d.pr.numero, `@claude Le contrôle est rouge sur ${court(echec.sha)} (${echec.check ?? "ci"}). Corrige sur cette branche, dans le périmètre réservé, puis pousse :\n\n${probleme}`);
-          return c.ok ? { ok: true, valeur: { sessionId: `pr-${d.pr.numero}-tour-${tour}`, url: c.valeur.url, lanceeLe: ctx.clock.now().toISOString(), moyen: "commentaire-pr" as const } } : c;
-        }
-        return ctx.ports.agent.relancer({ ...consigne, probleme });
-      });
-      if (r.etat === "ECHEC") return apresEchecPort(ctx, "Relance de Claude Code", r.r, etat);
+      // UNE PR EXISTE : le problème part dans SON fil (commentaire `@claude`, le fil porte le contexte) ; sinon une session
+      // neuve reprend la branche. Clé d'idempotence par tour : un redémarrage ne double jamais la relance.
+      const texte = `Le contrôle est rouge sur ${court(echec.sha)} (${echec.check ?? "ci"}). Corrige sur cette branche, dans le périmètre réservé, puis pousse :\n\n${probleme}`;
+      const cle = `${ctx.chantierId}|${ctx.step.key}|tour-${tour}`;
+      const r = await sousRecu(ctx, `tour-${tour}`, () => ctx.ports.agent.relancer({ ...consigne, probleme: texte, ...(d.pr ? { pr: d.pr.numero } : {}) }, cle));
+      if (r.etat === "ECHEC" && !r.r.incertain) return apresEchecPort(ctx, "Relance de Claude Code", r.r, etat);
       if (r.etat === "FAIT") {
         const s = r.valeur;
         await ctx.ecrire((x) => {
@@ -363,11 +362,28 @@ async function renderDeployer(ctx: ContexteEtape): Promise<StepOutcome> {
   // d'autres chantiers fusionnés entre-temps. L'absence de conflit Git n'est pas l'absence de conflit fonctionnel.
   if (integre && !etat.shaIntegre) {
     if (!d.pr) return echoue("aucune PR à fusionner");
-    const f = await sousRecu(ctx, "fusion", () => ctx.ports.forge.fusionnerPr(p.depot, d.pr!.numero));
-    if (f.etat === "ECHEC") return apresEchecPort(ctx, "Fusion de la PR", f.r, etat);
-    if (f.etat === "INTERROMPU") return echoue("fusion interrompue par un redémarrage : vérifiez la PR avant de relancer");
-    etat = { ...etat, shaIntegre: f.valeur.sha };
-    await ctx.journal("CHANTIER_FUSION", `PR #${d.pr.numero} fusionnée sur ${s.branche} : ${court(f.valeur.sha)}.`, { sha: f.valeur.sha });
+    if (!etat.fusionManuelle) {
+      const f = await sousRecu(ctx, "fusion", () => ctx.ports.forge.fusionnerPr(p.depot, d.pr!.numero));
+      if (f.etat === "INTERROMPU") return echoue("fusion interrompue par un redémarrage : vérifiez la PR avant de relancer");
+      if (f.etat === "ECHEC" && !f.r.definitif) return apresEchecPort(ctx, "Fusion de la PR", f.r, etat);
+      if (f.etat === "FAIT") {
+        etat = { ...etat, shaIntegre: f.valeur.sha };
+        await ctx.journal("CHANTIER_FUSION", `PR #${d.pr.numero} fusionnée sur ${s.branche} : ${court(f.valeur.sha)}.`, { sha: f.valeur.sha });
+      } else {
+        // LA FORGE NE FUSIONNE PAS (connecteur sans ce geste, ou refus) : la Direction fusionne à la main, le chantier l'attend.
+        await ctx.journal("CHANTIER_FUSION", `Fusion par la forge impossible (${f.r.erreur}) : fusionnez la PR #${d.pr.numero} sur ${s.branche}, le chantier reprend seul.`, {});
+        etat = { ...etat, fusionManuelle: true };
+      }
+    }
+    if (etat.fusionManuelle) {
+      const lu = await ctx.ports.forge.pr(p.depot, p.branche);
+      if (!lu.ok) return apresEchecPort(ctx, "Lecture de la PR", lu, etat);
+      if (lu.valeur?.etat !== "fusionnee") return sonder(ctx, `attend la fusion de la PR #${d.pr.numero} sur ${s.branche}`, etat);
+      const t = await ctx.ports.forge.branche(p.depot, s.branche!);
+      if (!t.ok) return apresEchecPort(ctx, `Lecture de ${s.branche}`, t, etat);
+      if (!t.valeur.sha) return echoue(`${s.branche} introuvable après la fusion`);
+      etat = { ...etat, shaIntegre: t.valeur.sha };
+    }
   }
   const sha = (etat.shaIntegre as string | undefined) ?? d.vert.sha;
   if (integre && !etat.integrationVerte) {

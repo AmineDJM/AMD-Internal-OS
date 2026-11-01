@@ -13,7 +13,7 @@ interface ReglagesChantiers {
 }
 
 /**
- * LES CHANTIERS DE DÉVELOPPEMENT — la console du Super Admin (lot C1, décision 0041), dans Administration › IA : les
+ * LES CHANTIERS DE DÉVELOPPEMENT — la console du Super Admin (lot C1, décision 0042), dans Administration › IA : les
  * plafonds qui empêchent un chantier de tourner en rond en dépensant. Un plafond atteint met le chantier en pause
  * (« Plafond atteint » au tableau « Missions ») ; relevé ici, il reprend seul au passage suivant. Le modèle exécutant
  * (MiMo) est dit tel que configuré — sa clé ne s'affiche jamais.
@@ -47,7 +47,7 @@ export function ReglagesChantiersForm({ initial, mimo }: { initial: ReglagesChan
       <p className="text-sm text-muted-foreground">
         Exécutant : MiMo <span className="font-mono">{mimo.modele}</span> — {mimo.configure ? "clé posée (variable « mimo »)" : "clé absente : les lectures longues retombent sur Terra"} · <span className="font-mono">{mimo.base}</span>
       </p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {CHAMPS.map((c) => (
           <label key={c.cle} className="flex flex-col gap-1 text-sm">
             <span className="font-medium">{c.libelle}</span>

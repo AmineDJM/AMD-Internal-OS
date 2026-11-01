@@ -516,7 +516,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/persona",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/plan",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/service",
-    // C1 (décision 0041) — LES CHANTIERS DE DÉVELOPPEMENT : le même moteur (`lib/missions/`), une SEULE porte
+    // C1 (décision 0042) — LES CHANTIERS DE DÉVELOPPEMENT : le même moteur (`lib/missions/`), une SEULE porte
     // (`chantiers/service`, qui réexporte réglages et état de MiMo) ; outils de conversation, console et carte de
     // validation y passent tous. Cible : la porte du moteur des travaux, comme l'entrée ci-dessus.
     "src/modules/assistant-ia/infra/chantiers.ts → src/lib/missions/chantiers/service",

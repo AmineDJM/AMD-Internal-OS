@@ -62,6 +62,10 @@ export const authConfig = {
       // n'ont pas de session. Chacune vérifie ELLE-MÊME sa signature (et refuse tout sans secret) avant de lire le corps.
       if (nextUrl.pathname === "/api/canaux/whatsapp" || nextUrl.pathname === "/api/canaux/relais" || nextUrl.pathname === "/api/mail/inbound") return true;
 
+      // C2 (décision 0041) : LES WEBHOOKS DES CHANTIERS — GitHub et Render n'ont pas de session. La route vérifie ELLE-MÊME
+      // la signature du corps brut (et refuse tout sans secret) avant de le lire. Chemins exacts.
+      if (nextUrl.pathname === "/api/chantiers/webhooks/github" || nextUrl.pathname === "/api/chantiers/webhooks/render") return true;
+
       if (isOnLogin) {
         if (isLoggedIn) {
           return Response.redirect(new URL(pageApresConnexion(process.env.APP_MODE), nextUrl));

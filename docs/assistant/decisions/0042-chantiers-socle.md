@@ -1,4 +1,4 @@
-# 0041 — Le socle des chantiers de développement : Adam supervise Claude Code, GitHub et Render (lot C1, 01/11/2026)
+# 0042 — Le socle des chantiers de développement : Adam supervise Claude Code, GitHub et Render (lot C1, 01/11/2026)
 
 **Lot C1** de l'architecture [CHANTIERS-DEV](../../architecture/CHANTIERS-DEV.md) (L1 « socle des chantiers »). Demande de la
 Direction : « Je parle à Adventum IA ; il organise et supervise Claude Code de manière autonome, résout les problèmes et me

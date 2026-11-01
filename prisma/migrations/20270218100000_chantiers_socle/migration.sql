@@ -1,4 +1,4 @@
--- C1 (décision 0041) : le socle des chantiers de développement — réservations, mémoire technique, réglages. Additive, idempotente.
+-- C1 (décision 0042) : le socle des chantiers de développement — réservations, mémoire technique, réglages. Additive, idempotente.
 ALTER TABLE "AppSetting" ADD COLUMN IF NOT EXISTS "chantiersReglages" JSONB;
 
 CREATE TABLE IF NOT EXISTS "ChantierReservation" (

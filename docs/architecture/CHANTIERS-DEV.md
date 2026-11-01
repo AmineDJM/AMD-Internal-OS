@@ -104,7 +104,7 @@ journalisés ; une valeur de variable Render n'est jamais lue, seulement son NOM
 
 - **L1 — Socle des chantiers** : `kind CHANTIER`, étapes DEV_*/RENDER_* au DSL, réservations, anti-boucle, budgets,
   routeur Terra/MiMo/Sol (adaptateur MiMo OpenAI-compatible + sonde `/v1/models`), mémoire technique, tableau K3 enrichi.
-  **Fait (01/11/2026, lot C1, décision [0041](../assistant/decisions/0041-chantiers-socle.md))** — code
+  **Fait (01/11/2026, lot C1, décision [0042](../assistant/decisions/0042-chantiers-socle.md))** — code
   `src/lib/missions/chantiers/`, contrat `src/platform/dev/ports.ts`, branchement des adaptateurs par `brancherPortsDev`.
 - **L2 — Connecteurs GitHub et Render** : ports + adaptateurs `fetch`, webhooks signés → `BusinessEvent` → réveil,
   sondage de secours, rollback, santé, logs résumés par MiMo.

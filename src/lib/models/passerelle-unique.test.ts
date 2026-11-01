@@ -47,12 +47,16 @@ const PORTES = /api\.anthropic\.com|\/v1\/messages\b|\/v1\/chat\/completions\b|\
  *     passerelle ne transporte pas de `multipart/form-data`.
  *   - `assistant/voice-realtime.ts` : la session temps reel (WebRTC), un protocole a part dont
  *     l\'usage est journalise sous `ROLE_VOIX`.
+ *   - `platform/dev/config.ts` (C2, decision 0041) : la base de la ROUTINES API d\'Anthropic, qui LANCE une
+ *     session Claude Code sur l\'abonnement de la Direction — aucun jeton de modele n\'y transite, et chaque
+ *     lancement est compte a part (`DevLancement`, quotas 30/h/routine). Ce n\'est pas un appel de modele.
  */
 const AUTORISES = [
   "src/lib/models/",
   "src/lib/openai-luna.ts",
   "src/lib/media/stt.ts",
   "src/lib/assistant/voice-realtime.ts",
+  "src/platform/dev/config.ts",
 ];
 
 /**

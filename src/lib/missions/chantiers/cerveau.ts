@@ -7,7 +7,7 @@ import { MODELE_SOL, MODELE_TERRA, type NiveauModele } from "@/lib/missions/chan
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE CERVEAU D'UN CHANTIER (lot C1, décision 0041) — le PORT par lequel les étapes demandent un texte à MiMo, Terra
+ * LE CERVEAU D'UN CHANTIER (lot C1, décision 0042) — le PORT par lequel les étapes demandent un texte à MiMo, Terra
  * ou Sol. Le routeur (`routeur.ts`) a déjà choisi le niveau ; ce port l'exécute par la passerelle unique, SOUS
  * IMPUTATION (`missionId`, `feature: "chantier"`) : chaque appel entre au journal K8 au nom du chantier qui paie.
  * Les tests injectent un double ; aucun appel réseau direct ici.

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA MÉMOIRE TECHNIQUE PERMANENTE (lot C1, décision 0041 ; CHANTIERS-DEV.md § 6) — ce qu'un chantier n'a pas à
+ * LA MÉMOIRE TECHNIQUE PERMANENTE (lot C1, décision 0042 ; CHANTIERS-DEV.md § 6) — ce qu'un chantier n'a pas à
  * réanalyser : dépôts (branche de base, commandes de vérification), services Render (id, type, santé, ordre),
  * branches, décisions, dépendances, incidents et leurs correctifs.
  *

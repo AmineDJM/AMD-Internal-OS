@@ -1,8 +1,9 @@
 import { recordProviderCall } from "./telemetry";
+import { attendu } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * MIMO 2.6 PRO (Xiaomi) — l'EXÉCUTANT bon marché des chantiers (lot C1, décision 0041 ; CHANTIERS-DEV.md § 2).
+ * MIMO 2.6 PRO (Xiaomi) — l'EXÉCUTANT bon marché des chantiers (lot C1, décision 0042 ; CHANTIERS-DEV.md § 2).
  *
  * API OpenAI-compatible (`POST {base}/chat/completions`), dans la PASSERELLE (`src/lib/models/`) pour qu'aucun appel
  * n'échappe au journal K8 : chaque appel passe par `recordProviderCall`, et l'imputation courante
@@ -86,7 +87,7 @@ export async function appelerMimo(
   } catch (e) {
     return { ok: false, erreur: `MiMo injoignable : ${expurger(e instanceof Error ? e.message : String(e))}`, configure: true, reessayable: true };
   }
-  const corps = (await r.json().catch(() => null)) as {
+  const corps = (await r.json().catch(attendu("réponse MiMo non JSON : traitée comme vide", null))) as {
     choices?: { message?: { content?: string } }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
     error?: { message?: string };
   } | null;
@@ -114,7 +115,7 @@ export async function sonderMimo(deps: DepsMimo = {}): Promise<{ ok: true; model
   try {
     const r = await (deps.fetch ?? fetch)(`${c.base}/models`, { headers: { Authorization: `Bearer ${c.cle}` }, signal: AbortSignal.timeout(deps.delaiMs ?? 15_000) });
     if (!r.ok) return { ok: false, erreur: `HTTP ${r.status}` };
-    const j = (await r.json().catch(() => null)) as { data?: { id?: string }[] } | null;
+    const j = (await r.json().catch(attendu("liste des modèles non JSON", null))) as { data?: { id?: string }[] } | null;
     const modeles = (j?.data ?? []).map((m) => m.id).filter((x): x is string => typeof x === "string");
     return { ok: true, modeles, configure: c.modele, present: modeles.includes(c.modele) };
   } catch (e) {

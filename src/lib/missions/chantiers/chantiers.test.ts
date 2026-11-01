@@ -13,7 +13,7 @@ import { tableauDesTravaux } from "@/lib/missions/travaux/tableau";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES CHANTIERS (lot C1, décision 0041) — sur la vraie base et le vrai moteur, avec des PORTS FACTICES (forge,
+ * LES CHANTIERS (lot C1, décision 0042) — sur la vraie base et le vrai moteur, avec des PORTS FACTICES (forge,
  * hébergeur, Claude Code en mémoire) et un cerveau factice qui compte ses appels :
  *
  *   • succès de bout en bout (lancer → commit → vert → déployer → sain → rapport → TERMINÉ) ;

@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES RÈGLES PURES DES CHANTIERS (lot C1, décision 0041) — zéro import : le serveur ET le tableau « Missions »
+ * LES RÈGLES PURES DES CHANTIERS (lot C1, décision 0042) — zéro import : le serveur ET le tableau « Missions »
  * (composant client) les lisent. Anti-boucle, budgets, délai croissant : ce qui empêche un chantier de tourner
  * en rond en dépensant, décidé ici, une fois.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
