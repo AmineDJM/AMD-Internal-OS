@@ -35,7 +35,9 @@ export async function actionReversible<T>(capaciteId: string, libelle: string, c
   if (etatDuGeste()?.capture || etatDuGeste()?.mode === "SIMULATION") return corps();
   const user = await personneConnectee();
   if (!user) return corps();
-  const { resultat, gesteId } = await journaliserGeste(user, { origine: "ecran", capaciteId, libelle }, corps);
+  // La personne est FIXÉE au début du geste (`personneFixee` : `requireUser` la rend telle quelle pendant tout le corps) —
+  // celle que la session donnait à l'instant du clic, jamais relue après un `await`.
+  const { resultat, gesteId } = await journaliserGeste(user, { origine: "ecran", capaciteId, libelle }, corps, { personneFixee: true });
   if (gesteId && resultat && typeof resultat === "object" && !Array.isArray(resultat) && (resultat as { ok?: unknown }).ok !== false) {
     return { ...(resultat as object), annulable: { gesteId, libelle } satisfies Annulable } as T;
   }

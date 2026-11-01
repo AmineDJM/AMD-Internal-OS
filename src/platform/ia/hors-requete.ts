@@ -9,9 +9,7 @@
 export {
   executerHorsRequete, simulerEnDiff, journaliserGeste, annulerGeste, planDAnnulation, gestesDeLAssistant,
   type CompteRenduAnnulation, type GesteListe,
-} from "@/lib/contexte-geste";
-// K10b (décision 0038) : la barre « Annuler » de l'ERP (gestes d'écran, envois dans leur fenêtre), le rétablissement.
-export {
+  // K10b (décision 0038) : la barre « Annuler » de l'ERP (gestes d'écran, envois dans leur fenêtre), le rétablissement.
   annulerEffetSortant, effetsSortantsDe, retablirEffetSortant, gestesDeLaFiche, gestesRecents, retablirGeste,
   type EffetSortantVu, type GesteEcranVu, type IssueEffetSortant,
 } from "@/lib/contexte-geste";

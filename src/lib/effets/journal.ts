@@ -63,7 +63,7 @@ export async function journaliserGeste<T extends Resultat>(
   user: CurrentUser,
   meta: MetaGesteAgent,
   geste: () => Promise<T>,
-  opts: { horsRequete?: boolean; fenetre?: boolean } = {},
+  opts: { horsRequete?: boolean; fenetre?: boolean; personneFixee?: boolean } = {},
 ): Promise<{ resultat: T; gesteId: string | null; ecart: boolean }> {
   const parent = etatDuGeste();
   // Déjà sous un geste capturé (ou une simulation) : ses écritures vont au geste qui le contient.
@@ -72,7 +72,7 @@ export async function journaliserGeste<T extends Resultat>(
   const capture: Capture = { ecritures: [], effets: [] };
   const debut = Date.now();
   const etat = {
-    ...etatPour(opts.horsRequete ? user : null, { origine: meta.origine, mode: "REEL", travailId: meta.travailId, etape: meta.etape, cleIdempotence: meta.cleIdempotence }),
+    ...etatPour(opts.horsRequete || opts.personneFixee ? user : null, { origine: meta.origine, mode: "REEL", travailId: meta.travailId, etape: meta.etape, cleIdempotence: meta.cleIdempotence }),
     mode: "REEL" as const, principalId: user.id, capture, client: clientCapturant(), debut,
     // K10b (décision 0038) : l'identifiant de l'entrée, RÉSERVÉ — ses envois différés s'y lient avant l'inscription ;
     // et la FENÊTRE D'ANNULATION, armée par défaut : rien ne sort avant que la personne ait pu dire « annuler ».

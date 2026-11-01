@@ -118,13 +118,14 @@ suite("K10c — fiches de voyage : exécuter, annuler, rétablir", () => {
 
   it("envoyerFiche (premier envoi) : la demande, le sujet ouvert pour elle et les notifications sont retirés", async () => {
     ACTOR = DEM;
-    const notesAvant = await prisma.notification.count({ where: { userId: { in: [A1.id, A2.id] } } });
     const g = gesteDe(await envoyerFiche(fd({ source: "VOYAGEUR", id: voyageur2 })));
     const d = await prisma.demandeReservation.findUniqueOrThrow({ where: { voyageurId: voyageur2 } });
     expect(d.etat).toBe("ENVOYEE");
     const sujet = d.dossierId!;
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteBillet } })).reservationDossierId).toBe(sujet);
-    expect(await prisma.notification.count({ where: { userId: { in: [A1.id, A2.id] } } })).toBeGreaterThan(notesAvant);
+    // Les notifications nées de CE geste (d'autres bancs préviennent les mêmes assistantes en parallèle).
+    const nees = (await prisma.assistantEffet.findMany({ where: { gesteId: g, modele: "Notification", operation: "CREATE" }, select: { enregistrementId: true } })).map((e) => e.enregistrementId!);
+    expect(await prisma.notification.count({ where: { id: { in: nees }, userId: { in: [A1.id, A2.id] } } })).toBeGreaterThan(0);
     const c = await annuler(g, DEM);
     // Tout est défait dans l'ERP ; seules les notifications poussées, déjà parties, restent dites « impossibles ».
     expect(c.baseDefaite, c.resume).toBe(true);
@@ -132,7 +133,7 @@ suite("K10c — fiches de voyage : exécuter, annuler, rétablir", () => {
     expect(await prisma.demandeReservation.count({ where: { voyageurId: voyageur2 } })).toBe(0);
     expect(await prisma.dossier.count({ where: { id: sujet } })).toBe(0);
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteBillet } })).reservationDossierId).toBeNull();
-    expect(await prisma.notification.count({ where: { userId: { in: [A1.id, A2.id] } } })).toBe(notesAvant);
+    expect(await prisma.notification.count({ where: { id: { in: nees } } })).toBe(0);
     await traceeDe(g, DEM);
   });
 

@@ -53,6 +53,9 @@ const retablir = async (gesteId: string): Promise<CompteRenduAnnulation> => {
   if ("refus" in r) throw new Error(r.refus);
   return r;
 };
+/** Les envois différés (fenêtre d'annulation) qu'un geste a laissés. */
+const envoisDe = async (gesteId: string): Promise<string[]> =>
+  (await prisma.assistantEffet.findMany({ where: { gesteId, effetSortantId: { not: null } }, select: { effetSortantId: true } })).map((e) => e.effetSortantId!);
 /** L'annulation est au journal (qui, quand) et à l'audit. */
 const traceeDe = async (gesteId: string) => {
   const g = await prisma.assistantGesteJournal.findUniqueOrThrow({ where: { id: gesteId } });
@@ -188,17 +191,21 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     expect((r as { message?: string }).message).toMatch(/Annuler/);
     const g = gesteDe(r);
     expect(await prisma.notification.count({ where: { userId: { in: autres } } })).toBe(0);
+    await prisma.effetSortantDiffere.updateMany({ where: { id: { in: await envoisDe(g) } }, data: { executeLe: new Date(Date.now() + 10 * 365 * 86_400_000) } });
     const c = await annuler(g);
     expect(c.details.some((d) => /rien n'est parti/.test(d.pourquoi))).toBe(true);
     // La fenêtre se ferme : il n'y a plus rien à expédier.
-    await executerEffetsSortantsDus({ maintenant: new Date(Date.now() + 3_600_000) });
+    await executerEffetsSortantsDus({ maintenant: new Date(Date.now() + 3_600_000), ids: await envoisDe(g) });
     expect(await prisma.notification.count({ where: { userId: { in: autres } } })).toBe(0);
     await traceeDe(g);
   });
 
   it("diffusion : partie APRÈS la fenêtre — non lues retirées, rectificatif à qui l'a lue, la poussée dite ; rétablir les remet", async () => {
     const g = gesteDe(await sendBroadcast(fd({ title: `${TAG} fermeture`, audience: "USERS", userIds: autres })));
-    expect((await executerEffetsSortantsDus({ maintenant: new Date(Date.now() + 3_600_000) })).partis).toBeGreaterThanOrEqual(1);
+    // L'envoi est repoussé hors de portée des autres bancs (qui expédient la file en avançant l'horloge), puis expédié ici.
+    const ids = await envoisDe(g);
+    await prisma.effetSortantDiffere.updateMany({ where: { id: { in: ids } }, data: { executeLe: new Date(Date.now() + 10 * 365 * 86_400_000) } });
+    expect((await executerEffetsSortantsDus({ maintenant: new Date(Date.now() + 11 * 365 * 86_400_000), ids })).partis).toBe(1);
     const parties = await prisma.notification.findMany({ where: { userId: { in: autres }, title: `${TAG} fermeture` } });
     expect(parties).toHaveLength(2);
     await prisma.notification.update({ where: { id: parties.find((n) => n.userId === autres[0])!.id }, data: { isRead: true } });
