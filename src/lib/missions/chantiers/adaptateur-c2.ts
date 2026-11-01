@@ -133,11 +133,13 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
   });
   const relaisVivant = async () => (await a.relais()).vivant;
   const lancer: AgentDeveloppeur["lancer"] = async (c, cle) => {
-    const texte = construireConsigne({ depot: nom(c.depot), branche: c.branche, objectif: c.objectif, perimetre: c.perimetre, criteres: c.criteres, commandes: c.commandesVerif, contexte: c.contexte ?? null });
+    const texte = construireConsigne({ depot: nom(c.depot), branche: c.branche, objectif: c.objectif, perimetre: c.perimetre, criteres: c.criteres, commandes: c.commandesVerif, contexte: c.contexte ?? null, autoFix: true });
     const a2 = alias(c.depot);
     if (a2) return vers(await a.lancer({ alias: a2, texte, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "routine"));
     // SANS ROUTINE pour ce dépôt : le relais CLI de la Direction (`claude --cloud`), s'il est vivant.
     if (await relaisVivant()) return vers(await a.lancerParCli({ depot: nom(c.depot), branche: c.branche, texte, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
+    // Le relais peut être HORS LIGNE (machine de la Direction éteinte) : on attend, sans basculer en échec définitif.
+    if (a.routines().length === 0 && (await a.relais()).configure) return { ok: false, erreur: "relais CLI hors ligne : le lancement attend la machine de la Direction", reessayerApresMs: 5 * 60_000 };
     return { ok: false, erreur: `aucune routine Claude Code pour ${nom(c.depot)} (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN / _DEPOT) et relais CLI absent`, definitif: true };
   };
   return {

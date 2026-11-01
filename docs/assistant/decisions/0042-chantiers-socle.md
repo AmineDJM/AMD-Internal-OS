@@ -161,6 +161,11 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
   la conversation de la Direction (Adventum IA). L'oral passe par la délégation vocale existante.
 - Le dépôt du rapport au Drive en document (comme un livrable de travail) n'est pas fait : le rapport est au dossier, au
   tableau et en notification.
+- **Parallélisme** : l'unité d'Adam reste « une session principale par chantier, réservations faites » ; les « Projects »
+  de Claude Code (une conversation qui coordonne des sessions parallèles) sont une option, non branchée.
+- Les sessions Claude Code d'un chantier (id + URL) restent au dossier, au tableau et en mémoire technique (clé
+  `branche`), pour leur reparler plus tard ; la consigne demande l'Auto-fix sur la PR (`autoFix` de C2). Relais CLI hors
+  ligne sans routine : le lancement attend (essais à délai croissant), il ne bascule pas en échec définitif.
 - E2E lourds : jamais par défaut ; la vérification est déterministe (checks CI, santé, journaux).
 
 ## 9. Preuves
