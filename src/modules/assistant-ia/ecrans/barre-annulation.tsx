@@ -7,7 +7,7 @@ import { agirSurMonEnvoi, annulerMonGeste, historiqueDeLaFiche, mesGestesEtEnvoi
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA BARRE « ANNULER » DE L'ERP (K10b, décision 0038) — montée par la coque, pour tout le monde.
+ * LA BARRE « ANNULER » DE L'ERP (K10b, décision 0040) — montée par la coque, pour tout le monde.
  *
  *   • « Fait : <geste> — Annuler » : le geste réversible qu'on vient de faire (bouton de l'ERP ou carte de l'assistant),
  *     pendant une minute. Annulé : le compte rendu honnête (annulé / compensé / impossible) et « Rétablir ».

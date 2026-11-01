@@ -10,7 +10,8 @@
  *      précédente) part à NOTRE serveur (`deleguer`), où l'assistant la traite sous ses droits ; le résultat revient à
  *      GPT-Live par `session.commentary.append` (500 jetons au plus), avec l'identifiant de la délégation.
  *   2. CE QUI S'AFFICHE — les fragments de transcription (`session.input_transcript.delta`, `…output_transcript.delta`)
- *      regroupés en répliques, et les CARTES que l'assistant a préparées : l'écran les montre, le bouton seul exécute.
+ *      regroupés en répliques, et les CARTES que l'assistant a préparées : l'écran les montre ; la personne confirme au
+ *      bouton ou à l'oral (décision 0035 : le serveur juge le oui sur SA transcription, `parole`).
  *   3. LA LATENCE — sur la LIGNE DE TEMPS DE LA SESSION (les `start_ms` / `end_ms` des fragments, pas l'arrivée des
  *      paquets) : de la fin de la parole de la personne au début de la réponse parlée. Cible : 1,5 s au p50.
  *
@@ -22,9 +23,9 @@
 export type EtatVoix = "INACTIF" | "CONNEXION" | "ECOUTE" | "REFLEXION" | "PAROLE" | "FERMETURE" | "ERREUR" | "TERMINE";
 
 export interface ResultatDelegation {
-  /** Ce que la voix reçoit (et paraphrase) : aucune valeur sensible, aucune confirmation. */
+  /** Ce que la voix reçoit (et dit avec ses mots) — les valeurs selon le réglage (décision 0034), la carte à l'oral (0035). */
   pourVoix: string;
-  /** Une carte préparée — affichée, jamais exécutée à la voix. */
+  /** Une carte préparée — affichée ; confirmable au bouton ou à l'oral (le serveur juge le oui, décision 0035). */
   carte?: unknown;
   /** La réponse écrite de l'assistant, valeurs révélées à qui a le droit — pour l'écran seulement. */
   ecran?: string | null;
@@ -41,7 +42,11 @@ export interface Rappels {
 export interface DependancesClient {
   /** Remet l'offre SDP à NOTRE serveur, qui ouvre la session et rend la réponse SDP. */
   ouvrir: (sdp: string) => Promise<{ sdp: string }>;
-  deleguer: (demande: string, delegationId: string) => Promise<ResultatDelegation>;
+  /**
+   * `parole` (décision 0035) : ce que la personne a RÉELLEMENT dit depuis la délégation précédente — vide si rien de
+   * neuf (la demande est alors la précédente, répétée) : le serveur n'entend jamais un « oui » répété.
+   */
+  deleguer: (demande: string, delegationId: string, parole: string) => Promise<ResultatDelegation>;
   micro?: () => Promise<MediaStream>;
   connexion?: () => RTCPeerConnection;
   haut?: () => HTMLAudioElement;
@@ -198,14 +203,15 @@ export class ClientVoixTempsReel {
       await new Promise((r) => setTimeout(r, 100));
     }
     // La demande : ce que la personne a dit depuis la délégation précédente (sinon sa dernière demande, reformulée).
-    const demande = (this.demande.trim() || this.derniereDemande).slice(0, 4_000);
+    const parole = this.demande.trim().slice(0, 2_000);
+    const demande = (parole || this.derniereDemande).slice(0, 4_000);
     this.demande = "";
     this.derniereDemande = demande;
     this.delegations += 1;
     if (this._etat !== "FERMETURE") this.poser("REFLEXION");
     let r: ResultatDelegation;
     try {
-      r = await this.deps.deleguer(demande, delegationId);
+      r = await this.deps.deleguer(demande, delegationId, parole);
     } catch {
       r = { pourVoix: "Le serveur n'a pas répondu : dis-le simplement et propose de réessayer." };
     }

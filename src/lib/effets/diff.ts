@@ -144,7 +144,7 @@ export function consolider(ecritures: readonly EcritureCapturee[]): EcritureCapt
     deja.apres = e.apres;
     deja.imbriquee = deja.imbriquee || e.imbriquee;
     if (deja.operation === "UPDATE") {
-      // K10b (décision 0038) : une ligne modifiée plusieurs fois prend la place de sa DERNIÈRE écriture — l'annulation va
+      // K10b (décision 0040) : une ligne modifiée plusieurs fois prend la place de sa DERNIÈRE écriture — l'annulation va
       // du plus récent au plus ancien, et un lien posé après la naissance d'un parent doit être défait avant lui.
       out.splice(out.indexOf(deja), 1);
       out.push(deja);

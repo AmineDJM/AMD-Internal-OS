@@ -230,7 +230,8 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
     const r = await persona.raisonner(principalId, {
       travailId,
       consigne: livrable ? consigneLivrable(persona.nom) : consigneAnalyse(persona.nom),
-      texte: texteEtape({ carnet: carnetPourEtape(carnet), titre: step.title, consigne: String(consigne ?? ""), entrees, amont: sortiesAmont(mission, step) }),
+      // K3 (§ 7) : un LIVRABLE lit plus de ses sorties amont (le rapport d'une recherche approfondie cite toutes ses sources).
+      texte: texteEtape({ carnet: carnetPourEtape(carnet), titre: step.title, consigne: String(consigne ?? ""), entrees, amont: sortiesAmont(mission, step), ...(livrable ? { maxAmont: 64_000 } : {}) }),
     });
     if (!r.ok) {
       // LE PLAFOND DU JOUR N'EST PAS UN ÉCHEC : l'étape attend, le travail dort, et la reprise la remet en file.

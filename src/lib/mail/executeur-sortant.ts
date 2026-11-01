@@ -5,7 +5,7 @@ import { MicrosoftGraphMailProvider } from "@/lib/mail/graph/provider";
 import type { MailDraftInput } from "@/lib/mail/provider";
 
 /**
- * L'EXÉCUTEUR « courriel.graph » DE LA FENÊTRE D'ANNULATION (K10b, décision 0038) — le courriel Microsoft différé part
+ * L'EXÉCUTEUR « courriel.graph » DE LA FENÊTRE D'ANNULATION (K10b, décision 0040) — le courriel Microsoft différé part
  * par la boîte de la personne, relue à l'échéance (jeton frais) ; sa compensation est un rectificatif au même
  * destinataire, différé lui aussi. Il vit dans le domaine `mail` (le socle `effets/` ne lit aucun domaine) et
  * s'enregistre à l'appel — la tâche `effets.sortants` l'arme avant chaque passage.

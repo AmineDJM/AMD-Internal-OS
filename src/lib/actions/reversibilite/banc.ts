@@ -7,7 +7,7 @@ import { retablirGeste } from "@/lib/effets/retablissement";
 import type { CompteRenduAnnulation } from "@/lib/effets/annulation";
 
 /**
- * LE BANC « EXÉCUTER PUIS ANNULER » DES ACTIONS DÉCLARÉES RÉVERSIBLES (lot K10, décision 0038) — tests seulement.
+ * LE BANC « EXÉCUTER PUIS ANNULER » DES ACTIONS DÉCLARÉES RÉVERSIBLES (lot K10, décision 0040) — tests seulement.
  *
  * `cycle` joue l'action de l'ÉCRAN (la vraie fonction, sous la personne, hors requête), retrouve son geste au journal,
  * l'ANNULE et vérifie que l'état relu est celui d'avant, puis le RÉTABLIT et vérifie qu'il est celui d'après — enfin

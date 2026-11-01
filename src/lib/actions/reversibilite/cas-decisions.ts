@@ -11,7 +11,7 @@ import { totauxAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import { aLEcran, cycle, fd, type CasReversible } from "./banc";
 
 /**
- * K10b (décision 0038) — LES CAS « EXÉCUTER PUIS ANNULER » DES DÉCISIONS ET DES PIÈCES : une décision qui fait naître un
+ * K10b (décision 0040) — LES CAS « EXÉCUTER PUIS ANNULER » DES DÉCISIONS ET DES PIÈCES : une décision qui fait naître un
  * ordre de dépense (l'annuler le retire ; payé entre-temps, l'annulation est refusée en entier), une imputation au
  * budget, une pièce numérotée (annulée, jamais effacée : son numéro reste consommé). Joués par `communications.test.ts`.
  */

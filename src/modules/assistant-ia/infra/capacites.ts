@@ -26,6 +26,7 @@ import { ecartAvecLaCarte, lireVueSimulation, vueDeCarte, vueNonSimulable, type 
 import type { ResultatOperation } from "../domaine/operations/types";
 import { REFUS_ARRET_URGENCE, REFUS_SECONDE_CARTE, type PropositionCarte } from "./operations";
 import { auNomDe } from "./consommation";
+import { FICHES_EXPORTS } from "./exports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -59,10 +60,13 @@ const CONTRAT_IA = new Map(CONTRATS_IA.map((c) => [c.id, c]));
 
 let registre: Registre | null = null;
 
-/** LE REGISTRE DES ACTIONS ET DE L'ATELIER (une fois par processus) ; les outils du module s'y ajoutent à la demande. */
+/**
+ * LE REGISTRE DES ACTIONS, DES EXPORTS D'ÉCRAN (K7, décision 0037) ET DE L'ATELIER (une fois par processus) ; les autres
+ * outils du module s'y ajoutent à la demande.
+ */
 export function registreDesCapacites(outils: readonly OutilDecrit[] = []): Registre {
   if (!outils.length && registre) return registre;
-  const r = deriverRegistre(CONTRATS_IA, { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS, annulationDeclaree }, outils);
+  const r = deriverRegistre(CONTRATS_IA, { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS, annulationDeclaree }, [...FICHES_EXPORTS, ...outils]);
   if (!outils.length) registre = r;
   return r;
 }
@@ -333,7 +337,7 @@ export async function corrigerCarteCapacite(
   const { fields, confirmText } = carteDe(c.cap, p.entree, p.affichage);
   const charge: ChargeCapacite = { kind: KIND_CAPACITE, id: c.cap.id, entree: p.entree };
   const corriges = Object.keys({ ...c.charge.entree, ...p.entree }).filter((k) => JSON.stringify(c.charge.entree[k] ?? null) !== JSON.stringify(p.entree[k] ?? null));
-  const events = [...(Array.isArray(c.intent.events) ? c.intent.events : []), { status: "CORRECTED", at: new Date().toISOString(), champs: corriges }];
+  const events = [...(Array.isArray(c.intent.events) ? c.intent.events : []), { status: "CORRECTED", at: new Date().toISOString(), champs: corriges, fields }];
   // La réécriture n'a lieu QUE si la carte est toujours à signer (une seconde fenêtre l'a peut-être confirmée).
   const n = await prisma.assistantActionIntent.updateMany({
     where: { id: c.intent.id, userId: user.id, status: "PROPOSED" },
@@ -363,3 +367,59 @@ export async function chercherReferenceDeCarte(
 }
 
 export { estChargeCapacite };
+
+/**
+ * LES CASES FACULTATIVES ENCORE VIDES d'une carte de capacité (décision 0035, la voix les propose) — les champs non
+ * obligatoires du contrat que la proposition n'a pas remplis, par leur libellé. Les identifiants techniques sans objet
+ * nommé ne se proposent pas à l'oral.
+ */
+export function facultatifsDeCapacite(charge: unknown): string[] {
+  if (!estChargeCapacite(charge)) return [];
+  const cap = registreDesCapacites().parId.get(charge.id);
+  return (cap?.champs ?? [])
+    .filter((c) => !c.obligatoire && charge.entree[c.nom] === undefined && !(c.type === "reference" && !c.modele))
+    .map((c) => libelleChamp(c.nom));
+}
+
+/**
+ * CORRIGER LA CARTE EN ATTENTE — par la parole (décision 0035) comme par le formulaire : la MÊME porte,
+ * `corrigerCarteCapacite` (champs du contrat, schéma, noms résolus, familles). Seulement la dernière carte de capacité
+ * de CETTE personne encore à signer, préparée il y a moins de 30 minutes ; rien ne s'exécute.
+ */
+export function outilCorrigerCarte(user: CurrentUser, acces: AccesIa): PowerTool {
+  return {
+    def: {
+      name: "corriger_carte",
+      description: "COMPLÈTE ou CORRIGE la carte d'action EN ATTENTE de la personne (la dernière préparée), avant qu'elle la confirme : "
+        + "une précision dite (« mets le budget à 200 000 », « ajoute une description », « plutôt vendredi »). Donne seulement les champs changés, "
+        + "par leur nom dans la carte. Rien n'est exécuté ; la carte est réécrite et revérifiée. Pour une carte de demande Ad & Pro (preparer_*), "
+        + "rappelle plutôt l'outil preparer_* avec toutes les valeurs.",
+      input_schema: {
+        type: "object",
+        properties: { champs: { type: "object", description: "Les champs à changer ou à ajouter : { nomDuChamp: valeur }.", additionalProperties: true } },
+        required: ["champs"],
+      } as PowerTool["def"]["input_schema"],
+    },
+    allowed: (u) => u.id === user.id,
+    label: "Carte complétée",
+    run: async (entree, u) => {
+      if (u.id !== user.id) return json({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." });
+      const champs = (entree as { champs?: unknown })?.champs;
+      if (!champs || typeof champs !== "object" || Array.isArray(champs)) return json({ statut: "INCOMPLET", manque: ["les champs à changer"] });
+      const i = await prisma.assistantActionIntent.findFirst({
+        where: { userId: u.id, status: "PROPOSED", proposedAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+        orderBy: { proposedAt: "desc" }, select: { id: true, payload: true },
+      });
+      if (!i) return json({ statut: "REFUS", raison: "Aucune carte en attente à corriger : prépare d'abord la demande." });
+      if (!estChargeCapacite(i.payload)) return json({ statut: "REFUS", raison: "Cette carte se corrige en rappelant son outil preparer_* avec toutes les valeurs." });
+      const r = await corrigerCarteCapacite(u, i.id, { ...i.payload.entree, ...(champs as Record<string, unknown>) }, acces);
+      if (!r.ok) return json({ statut: "REFUS", raison: r.error });
+      const lue = await prisma.assistantActionIntent.findUnique({ where: { id: i.id }, select: { title: true, events: true } });
+      const evts = Array.isArray(lue?.events) ? (lue!.events as { fields?: unknown }[]) : [];
+      return json({
+        statut: "EN_ATTENTE_DE_CONFIRMATION", titre: lue?.title, champs: [...evts].reverse().find((e) => Array.isArray(e.fields))?.fields ?? [],
+        consigne: `Carte corrigée : rien n'est exécuté${r.confirmText ? ` — la personne devra confirmer « ${r.confirmText} »` : ""}. Ne dis pas que c'est fait.`,
+      });
+    },
+  };
+}

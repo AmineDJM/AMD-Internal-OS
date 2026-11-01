@@ -206,7 +206,7 @@ async function capturer(
             const ids = lignes.map((l) => l[info.cle!]);
             const apresTous = ids.length ? await d.findMany({ where: { [info.cle]: { in: ids } } }).catch(sansBloquer("effets.capture.lecture", [] as Record<string, unknown>[])) : [];
             const parId = new Map(apresTous.map((l) => [String(l[info.cle!]), l]));
-            // K10b (décision 0038) : DANS UNE TRANSACTION INTERACTIVE encore ouverte, la relecture sur le client de base voit
+            // K10b (décision 0040) : DANS UNE TRANSACTION INTERACTIVE encore ouverte, la relecture sur le client de base voit
             // l'ANCIENNE valeur — l'écriture passait inaperçue du journal (une annulation se disait complète sans l'être).
             // Les valeurs SIMPLES posées par `data` (pas un `{ increment }`) sont donc reportées sur l'« après ».
             const pose = Object.fromEntries(Object.entries((a.data as Record<string, unknown>) ?? {})

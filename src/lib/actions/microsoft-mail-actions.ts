@@ -61,7 +61,7 @@ async function withProvider<T>(run: (p: MailProvider, ctx: { userId: string; con
   if (!conn) throw new MailError("unauthorized", "Aucune boîte Microsoft connectée.");
 
   const provider = new MicrosoftGraphMailProvider(conn.accessToken, conn.address);
-  // K10b (décision 0038) : l'envoi différé et les gestes inverses de la boîte (lu, déplacé, brouillon) — prêts ici.
+  // K10b (décision 0040) : l'envoi différé et les gestes inverses de la boîte (lu, déplacé, brouillon) — prêts ici.
   enregistrerExecuteurGraph();
   enregistrerInversesGraph();
   return run(provider, { userId: user.id, connectionId: conn.id, address: conn.address });

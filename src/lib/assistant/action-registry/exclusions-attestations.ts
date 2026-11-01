@@ -256,7 +256,7 @@ export function classerExclusionsAttestations(): void {
   X("« CE QUE L'ASSISTANT A FAIT » (J7, décision 0029) — l'historique des gestes de l'assistant au nom de la personne, l'aperçu et l'ANNULATION honnête d'un geste ou d'un lot. Identité prise de la session, seule la personne au nom de qui l'assistant a agi (ou le Super Admin) défait : un assistant qui annulerait ses propres gestes déciderait à la place de la personne — jamais proposé.", [
     "assistant-ia-gestes-actions:listerGestesAssistant", "assistant-ia-gestes-actions:apercevoirAnnulation", "assistant-ia-gestes-actions:annulerGestesAssistant",
   ]);
-  X("LA BARRE « ANNULER » DE L'ERP (K10b, décision 0038) — le bouton qui défait le geste qu'on vient de faire à l'écran, « Annuler l'envoi » pendant la fenêtre d'annulation, et le rétablissement. Identité prise de la session : la personne défait SES gestes ; l'assistant, lui, rend la même annulation par la carte « Annuler » de sa conversation.", [
+  X("LA BARRE « ANNULER » DE L'ERP (K10b, décision 0040) — le bouton qui défait le geste qu'on vient de faire à l'écran, « Annuler l'envoi » pendant la fenêtre d'annulation, et le rétablissement. Identité prise de la session : la personne défait SES gestes ; l'assistant, lui, rend la même annulation par la carte « Annuler » de sa conversation.", [
     "assistant-ia-gestes-actions:mesGestesEtEnvoisRecents", "assistant-ia-gestes-actions:historiqueDeLaFiche", "assistant-ia-gestes-actions:annulerMonGeste",
     "assistant-ia-gestes-actions:retablirMonGeste", "assistant-ia-gestes-actions:agirSurMonEnvoi",
   ]);

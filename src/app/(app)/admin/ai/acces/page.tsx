@@ -30,7 +30,7 @@ export default async function AccesAssistantIaPage() {
     );
   }
 
-  const { parRole, personnes: comptes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours, fenetreAnnulationSecondes, dOfficeParRole, valeursSensibles } = await chargerConsoleAccesIa();
+  const { parRole, personnes: comptes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours, fenetreAnnulationSecondes, valeursSensibles, dOfficeParRole } = await chargerConsoleAccesIa();
   const roles: LigneRole[] = (Object.keys(ROLE_LABELS) as UserRole[])
     .filter((r) => r !== "SUPER_ADMIN")
     .map((r) => ({ role: r, libelle: ROLE_LABELS[r] ?? r, reglage: parRole.get(r) ?? { ouvertes: [], fermees: [] }, dOffice: dOfficeParRole.get(r) ?? null }));

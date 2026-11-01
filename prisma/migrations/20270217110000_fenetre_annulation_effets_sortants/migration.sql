@@ -1,4 +1,4 @@
--- K10b (décision 0038) : la fenêtre d'annulation des effets sortants. Additive et idempotente.
+-- K10b (décision 0040) : la fenêtre d'annulation des effets sortants. Additive et idempotente.
 ALTER TABLE "AssistantIaReglage" ADD COLUMN IF NOT EXISTS "fenetreAnnulationSecondes" INTEGER NOT NULL DEFAULT 120;
 ALTER TABLE "AssistantEffet" ADD COLUMN IF NOT EXISTS "effetSortantId" TEXT;
 

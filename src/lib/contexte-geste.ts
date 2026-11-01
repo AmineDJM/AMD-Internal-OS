@@ -57,7 +57,7 @@ export { simulerEnDiff, simulerGeste, type IssueSimulation } from "@/lib/effets/
 export { journaliserGeste, purgerJournalDesEffets, type MetaGesteAgent } from "@/lib/effets/journal";
 export { annulerGeste, gestesDeLAssistant, planDAnnulation, type CompteRenduAnnulation, type GesteListe } from "@/lib/effets/annulation";
 export type { DiffSimulation, LigneDiff, EffetDiff } from "@/lib/effets/diff";
-// K10b (décision 0038) : la fenêtre d'annulation des effets sortants, le geste d'écran réversible, le rétablissement.
+// K10b (décision 0040) : la fenêtre d'annulation des effets sortants, le geste d'écran réversible, le rétablissement.
 export {
   annulerEffetSortant, compenserEffetSortant, differerEffetSortant, effetsSortantsDe, executerEffetsSortantsDus, retablirEffetSortant,
   type DemandeEffetSortant, type EffetSortantVu, type IssueEffetSortant,

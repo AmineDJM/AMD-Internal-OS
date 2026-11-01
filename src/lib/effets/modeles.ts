@@ -96,7 +96,7 @@ export const MODELES_TRACE: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * K10b (décision 0038) — LES COMPTEURS DE NUMÉROTATION : un numéro attribué ne se rend JAMAIS (le reculer ferait
+ * K10b (décision 0040) — LES COMPTEURS DE NUMÉROTATION : un numéro attribué ne se rend JAMAIS (le reculer ferait
  * naître deux pièces sous le même numéro). L'annulation les laisse : la pièce qui le porte est annulée, pas effacée.
  */
 export const MODELES_COMPTEURS: ReadonlySet<string> = new Set(["DocumentSequence", "DocumentReference", "SerieReference"]);

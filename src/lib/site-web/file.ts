@@ -14,7 +14,7 @@ import { etatDuGeste } from "@/lib/effets/magasin";
 import { delaiFenetre } from "@/lib/effets/fenetre";
 
 /**
- * LA FENÊTRE D'ANNULATION (K10b, décision 0038) : sous un geste réversible, un envoi au site attend le délai réglé par le
+ * LA FENÊTRE D'ANNULATION (K10b, décision 0040) : sous un geste réversible, un envoi au site attend le délai réglé par le
  * Super Admin avant d'être pris par la file — annulé d'ici là, le site n'a rien reçu. Hors geste : tout de suite.
  */
 async function echeanceDeLEnvoi(maintenant: Date): Promise<Date> {

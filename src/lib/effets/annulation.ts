@@ -260,7 +260,7 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
   const verdict = classerGeste("ENREGISTREMENT_CREE");
   if (e.modele === "Notification" && actuelle.isRead === true) {
     const qui = await ctx.nomDe(String(actuelle.userId ?? ""));
-    // K10b (décision 0038) : LA COMPENSATION, codée — un rectificatif dans l'ERP, au même destinataire ; la lue reste.
+    // K10b (décision 0040) : LA COMPENSATION, codée — un rectificatif dans l'ERP, au même destinataire ; la lue reste.
     if (ctx.appliquer) {
       await prismaBrut.notification.create({
         data: {
@@ -340,7 +340,7 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
 }
 
 /**
- * UN EFFET SORTANT DIFFÉRÉ (K10b, décision 0038) — la fenêtre d'annulation tranche : pas encore parti, il est annulé
+ * UN EFFET SORTANT DIFFÉRÉ (K10b, décision 0040) — la fenêtre d'annulation tranche : pas encore parti, il est annulé
  * et RIEN ne sort ; parti, sa compensation (rectificatif différé, lui-même annulable) — jamais « effacé ».
  */
 async function issueSortant(e: EffetLu, ctx: Contexte): Promise<DetailEffet | null> {
@@ -362,7 +362,7 @@ async function issueSortant(e: EffetLu, ctx: Contexte): Promise<DetailEffet | nu
 }
 
 /**
- * UNE PUBLICATION AU SITE DÉJÀ PARTIE (K10b, décision 0038) — la file l'a envoyée après sa fenêtre : la remettre en base
+ * UNE PUBLICATION AU SITE DÉJÀ PARTIE (K10b, décision 0040) — la file l'a envoyée après sa fenêtre : la remettre en base
  * ne retirerait rien du site. La compensation : la VERSION D'AVANT renvoyée (ou, pour une page née du geste, son
  * RETRAIT), par la même file. Elle a pu être lue : le compte rendu le dit. Pas encore partie : `null` (J7 ordinaire).
  */
@@ -504,7 +504,7 @@ export async function planDAnnulation(gesteId: string, user: CurrentUser): Promi
 export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | { refus: string }> {
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
-  // LES CASCADES (K10b, décision 0038) : un geste d'ÉCRAN se défait EN ENTIER ou pas du tout. Si une de ses écritures ne
+  // LES CASCADES (K10b, décision 0040) : un geste d'ÉCRAN se défait EN ENTIER ou pas du tout. Si une de ses écritures ne
   // se défait pas (l'ordre de dépense né de la décision est déjà payé, quelqu'un a changé une valeur…), défaire le reste
   // laisserait un état incohérent (une approbation « en attente » à côté d'un paiement fait) : rien n'est écrit, et la
   // liste dit pourquoi. Un effet EXTERNE impossible (une poussée affichée) ne bloque pas : il est dit, la base reste juste.
