@@ -30,6 +30,8 @@ export type { DocumentLivrable } from "@/lib/missions/travaux/persona";
 // K3 (décision 0033) : la porte du moteur des travaux pour les SOUS-MISSIONS (`sous-missions.ts`) — une seule entrée.
 export {
   annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
+  // K9 (décision 0038) : les commandes orales — mettre en pause, reprendre une mission dite par son nom.
+  listerTravaux, pauserTravail, reprendreMonTravail,
   type MissionTableau,
 } from "@/lib/missions/travaux/service";
 export type { PersonaTravaux } from "@/lib/missions/travaux/persona";

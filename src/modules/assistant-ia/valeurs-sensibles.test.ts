@@ -37,6 +37,7 @@ import { outilsV1 } from "./infra/outils-v1";
 import { accesAssistantIa, GESTE_MODELE_EN_CLAIR, Revelateur } from "./infra/role-config";
 import { optionsFournisseur } from "./infra/modele";
 import { deleguerALaVoix, reponsePourVoix } from "./infra/voix/temps-reel";
+import { enregistrerSessionVoix, suivreTravailVocal } from "./infra/voix/oral";
 import { REGLE_CONFIDENTIALITE_EN_CLAIR, REGLES, reglesPour } from "./infra/contexte";
 import { refusFamille } from "./domaine/acces-regles";
 import { normaliserReglages, REGLAGES_PAR_DEFAUT } from "./domaine/consommation-regles";
@@ -71,7 +72,7 @@ describe("le réglage et ses règles (pur)", () => {
     expect(reglesPour(undefined, true)).toHaveLength(REGLES.length);
   });
 
-  it("la voix : EN CLAIR elle prononce la valeur (bornes retirées) ; masquée, « affichée à l'écran »", () => {
+  it("la voix : EN CLAIR elle prononce la valeur (bornes retirées) ; masquée, gardée dans la conversation écrite", () => {
     const contenu = `**Salaire de base** : ${BORNE_REVELEE}185 000 DZD${BORNE_REVELEE} ; IBAN ${MASQUE_CONFIDENTIEL}.`;
     const clair = reponsePourVoix(contenu, true);
     expect(clair).toContain("185 000 DZD");
@@ -84,8 +85,8 @@ describe("le réglage et ses règles (pur)", () => {
     expect(consignesVoix(true)).toContain("DIS-LA");
     expect(consignesVoix(true)).not.toContain("JAMAIS prononcée");
     expect(consignesVoix(false)).toContain("JAMAIS prononcée");
-    // Les deux modes gardent la règle des écritures : une carte, confirmée à l'écran.
-    for (const c of [consignesVoix(true), consignesVoix(false)]) expect(c).toContain("seul le bouton de la carte exécute");
+    // Les deux modes gardent la règle des écritures — K9 (décision 0038) : une carte se conclut À L'ORAL, jugée par le serveur.
+    for (const c of [consignesVoix(true), consignesVoix(false)]) expect(c).toContain("c'est le serveur qui juge et qui exécute");
   });
 
   it("l'historique EN CLAIR : la réponse de l'assistant repart telle qu'il l'a écrite ; une valeur bornée (temps des repères) reste masquée", () => {
@@ -163,6 +164,8 @@ suite("contre la base", () => {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await effacerJournalDe(ids);
     await prisma.assistantIaFil.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
+    await prisma.assistantIaVoixSession.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
+    await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } }).catch(() => {});
@@ -249,8 +252,12 @@ suite("contre la base", () => {
       { appel: { outil: "lire_paie", entree: { nom: `Assia ${TAG}Benali` } } },
       (prompt) => reponse(chiffres(prompt).includes("185000") ? "Le salaire de base d'Assia est de 185 000 DZD." : "Je ne l'ai pas."),
     ]).modele as never]);
-    const v = await deleguerALaVoix(superAdmin, `quel est le salaire d'Assia ${TAG}Benali ?`);
-    expect(v.pourVoix).toBe("Le salaire de base d'Assia est de 185 000 DZD.");
+    // K9 : la délégation rend un travail, suivi jusqu'au résultat que la voix dit.
+    await enregistrerSessionVoix(superAdmin.id, `live_${TAG}`, null);
+    const v = await deleguerALaVoix(superAdmin, `quel est le salaire d'Assia ${TAG}Benali ?`, { session: `live_${TAG}` });
+    let s = await suivreTravailVocal(superAdmin, `live_${TAG}`, v.travail);
+    for (let i = 0; i < 200 && s.etat === "en_cours"; i++) { await new Promise((r) => setTimeout(r, 50)); s = await suivreTravailVocal(superAdmin, `live_${TAG}`, v.travail); }
+    expect(s).toMatchObject({ etat: "pret", pourVoix: "Le salaire de base d'Assia est de 185 000 DZD." });
   });
 
   it("le réglage : Super Admin seul, à l'audit (avant → après) ; une valeur inconnue refusée", async () => {

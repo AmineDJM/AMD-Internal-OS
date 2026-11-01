@@ -1,5 +1,18 @@
 ## 🧾 Journal des évolutions récentes
 
+### K9 : LA VOIX DE L'ASSISTANT IA ENTIÈREMENT ORALE — ÉCOUTEURS, SANS ÉCRAN (2026-10-31)
+
+Lot K9 — `docs/assistant/decisions/0038-voix-orale.md`. Direction : « je ne vois pas mon écran, donc tout se passe à
+l'oral ». La conversation vocale ne renvoie plus à l'écran : l'assistant **rédige pour l'oreille** (la réponse d'abord,
+chiffres arrondis, une ouverture), tableaux, analyses, graphiques et visuels sont dits en une phrase par le serveur. La
+délégation **ne bloque plus** : « je regarde, je te préviens », la voix affine pendant la recherche, la précision est
+transmise au travail en cours, le résultat est dit de lui-même quand il arrive (ou à la prochaine ouverture). Une carte se
+**conclut à l'oral** : résumé en une phrase, champs manquants un par un (référence résolue par nom), quelques
+facultatifs, puis « ok fais-le », « vas-y », « go », « ih dirha » — jugés par le **serveur** (session de la personne,
+résumé dit, énoncé affirmatif, carte inchangée) et exécutés par la même porte que le bouton ; « annule », « mets la
+mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole. Crédit OpenAI épuisé : vérifié
+par tests et scénarios oraux scriptés, pas de passage réel.
+
 ### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
 
 Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.

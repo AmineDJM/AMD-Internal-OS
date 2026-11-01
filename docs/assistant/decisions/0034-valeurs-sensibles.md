@@ -44,7 +44,8 @@ Une personne ne reçoit que ce que le RBAC et la console lui ouvrent déjà. Le 
   contrôle du coffre pour une colonne quand l'interrupteur `coffreLecture` est ouvert) sous le geste
   « Assistant IA — valeur transmise au modèle (mode en clair) » ;
 - la **carte** et la **ressaisie** des actions sensibles (R3/R4) restent : une écriture qui transmet une valeur est une
-  carte confirmée à l'écran, jamais un « oui » oral.
+  carte confirmée à l'écran, jamais un « oui » oral. *(Amendé par [0038](0038-voix-orale.md), lot K9 : la carte se conclut
+  à l'oral — résumé dit, relecture de la valeur, « vas-y » jugé par le serveur.)*
 
 ## 3. Ce qui suit le mode, ce qui ne le suit pas (décidé)
 

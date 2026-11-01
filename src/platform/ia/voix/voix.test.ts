@@ -98,3 +98,91 @@ describe("la délégation attend la fin de la phrase", () => {
     expect(appels).toEqual(["Qui est Assia ?"]);
   });
 });
+
+describe("K9 — la voix entièrement orale (flux rejoué)", () => {
+  type Envoye = Record<string, unknown>;
+  function client(deps: Partial<ConstructorParameters<typeof ClientVoixTempsReel>[0]>) {
+    const envoyes: Envoye[] = [];
+    const c = new ClientVoixTempsReel({ ouvrir: async () => ({ sdp: "" }), deleguer: async () => ({ pourVoix: "" }), silenceTranscriptionMs: 0, suiviMs: 0, ...deps });
+    (c as unknown as { dc: { readyState: string; send: (s: string) => void; close: () => void } }).dc = { readyState: "open", send: (s) => envoyes.push(JSON.parse(s)), close: () => {} };
+    return { c, envoyes };
+  }
+  const ev = (o: Record<string, unknown>) => JSON.stringify(o);
+  const dire = (texte: string, debut: number) => ({ type: "session.input_transcript.delta", delta: texte, start_ms: debut, end_ms: debut + 600 });
+
+  it("la délégation ne bloque pas : « je regarde » tout de suite ; la précision part au travail EN COURS ; le résultat est dit de lui-même", async () => {
+    const appels: { demande: string; enCours: string | null; session: string | null }[] = [];
+    let etat: "en_cours" | "pret" = "en_cours";
+    const { c, envoyes } = client({
+      deleguer: async (demande, _id, ctx) => {
+        appels.push({ demande, enCours: ctx?.enCours ?? null, session: ctx?.session ?? null });
+        return ctx?.enCours ? { pourVoix: "Précision transmise.", travail: "t2" } : { pourVoix: "Travail lancé.", travail: "t1" };
+      },
+      suivre: async (t) => (t === "t1" ? { etat: "remplace", par: "t2" } : etat === "pret" ? { etat: "pret", pourVoix: "À Oran : environ 3,1 millions." } : { etat: "en_cours" }),
+    });
+    c.session = "live_x";
+    await c.recevoir(ev(dire("Le CA des ventes ", 0)));
+    await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d1", target: "client" } }));
+    expect(envoyes.at(-1)).toEqual({ type: "session.commentary.append", event_id: "resultat_1", delegation_id: "d1", content: "Travail lancé." });
+    expect(c.travail).toEqual({ id: "t1", delegationId: "d1" });
+    // La voix engage la personne ; elle précise ; c'est transmis au travail en cours.
+    await c.recevoir(ev(dire("seulement Oran", 3000)));
+    await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d2", target: "client" } }));
+    expect(appels).toEqual([{ demande: "Le CA des ventes", enCours: null, session: "live_x" }, { demande: "seulement Oran", enCours: "t1", session: "live_x" }]);
+    expect(c.travail).toEqual({ id: "t2", delegationId: "d2" });
+    await c.suivreMaintenant();
+    expect(envoyes).toHaveLength(2);
+    etat = "pret";
+    await c.suivreMaintenant();
+    // Deux minutes plus tard ou dix secondes : le résultat est injecté sous la dernière délégation, sans qu'on le demande.
+    expect(envoyes.at(-1)).toEqual({ type: "session.commentary.append", event_id: "resultat_3", delegation_id: "d2", content: "À Oran : environ 3,1 millions." });
+    expect(c.travail).toBeNull();
+  });
+
+  it("le résumé d'une carte : signalé au serveur quand il a été DIT (accusé du fournisseur), pas avant", async () => {
+    const dits: string[] = [];
+    const { c } = client({
+      deleguer: async () => ({ pourVoix: "Carte préparée : créer la tâche « Stand ». C'est bon ?", resumeDe: { intentId: "i1", empreinte: "e1" } }),
+      resumeDit: async (r) => { dits.push(`${r.intentId}:${r.empreinte}`); },
+    });
+    await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d1", target: "client" } }));
+    expect(dits).toEqual([]);
+    await c.recevoir(ev({ type: "session.commentary.appended", client_event_id: "autre" }));
+    expect(dits).toEqual([]);
+    await c.recevoir(ev({ type: "session.commentary.appended", client_event_id: "resultat_1" }));
+    expect(dits).toEqual(["i1:e1"]);
+  });
+
+  it("couper la parole (barge-in) : le son est coupé AU NAVIGATEUR dès que la personne parle, rouvert à la réponse suivante", async () => {
+    const haut = { muted: false, autoplay: true, srcObject: null } as unknown as HTMLAudioElement;
+    const { c } = client({});
+    (c as unknown as { audio: HTMLAudioElement }).audio = haut;
+    await c.recevoir(ev(dire("Bonjour", 0)));
+    await c.recevoir(ev({ type: "session.output_transcript.delta", delta: "Voici une longue réponse ", start_ms: 1000, end_ms: 4000 }));
+    expect(c.etat).toBe("PAROLE");
+    await c.recevoir(ev(dire("attends", 2500)));
+    expect(haut.muted).toBe(true);
+    expect(c.interruptions).toBe(1);
+    await c.recevoir(ev({ type: "session.output_transcript.delta", delta: "D'accord.", start_ms: 4200, end_ms: 4800 }));
+    expect(haut.muted).toBe(false);
+  });
+
+  it("« stop » : la voix se tait (consigne d'interruption, aucun nouveau commentaire) ; « plus court » vaut pour la suite", async () => {
+    const { c, envoyes } = client({ deleguer: async (d) => (d === "stop" ? { pourVoix: "Tais-toi.", commande: "stop" } : { pourVoix: "Une phrase.", commande: "plus_court" }) });
+    await c.recevoir(ev(dire("stop", 0)));
+    await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d1", target: "client" } }));
+    expect(envoyes.map((e) => e.type)).toEqual(["session.instructions.append", "session.thinking.append"]);
+    expect(c.coupe).toBe(true);
+    await c.recevoir(ev(dire("plus court", 2000)));
+    await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d2", target: "client" } }));
+    expect(envoyes.slice(2).map((e) => e.type)).toEqual(["session.instructions.append", "session.commentary.append"]);
+    expect(String(envoyes[2].content)).toContain("une phrase");
+  });
+
+  it("la reprise : ce qui est arrivé après la dernière session est dit à l'ouverture", async () => {
+    const { c, envoyes } = client({});
+    (c as unknown as { reprises: string[] }).reprises = ["Ton rendez-vous de jeudi est confirmé."];
+    await c.recevoir(ev({ type: "session.started" }));
+    expect(envoyes).toEqual([{ type: "session.commentary.append", event_id: "resultat_1", delegation_id: null, content: "Résultat arrivé depuis la dernière conversation : Ton rendez-vous de jeudi est confirmé." }]);
+  });
+});

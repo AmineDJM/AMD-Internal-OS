@@ -18718,3 +18718,56 @@ model AssistantIaVisuel {
   @@index([userId, createdAt])
   @@index([statut, createdAt])
 }
+
+/// K9 (décision 0038) — UNE SESSION VOCALE GPT-Live ouverte par notre serveur : à qui elle est, quand elle se ferme.
+/// Les gestes oraux (confirmer une carte, annuler) ne valent que dans une session de la personne, encore ouverte.
+model AssistantIaVoixSession {
+  /// L'identifiant `live_…` rendu par le fournisseur.
+  id           String    @id
+  userId       String
+  conversation String?
+  ouverteLe    DateTime  @default(now())
+  fermeeLe     DateTime?
+
+  @@index([userId, ouverteLe])
+}
+
+/// K9 — UN TRAVAIL DÉLÉGUÉ PAR LA VOIX, suivi en asynchrone : la voix n'attend plus, elle annonce le résultat quand il
+/// arrive (ou à la prochaine ouverture si la session s'est fermée avant).
+model AssistantIaVoixTravail {
+  id           String    @id @default(cuid())
+  userId       String
+  session      String
+  delegationId String?
+  conversation String
+  /// Le message de la personne (tour `user`) déposé dans le fil.
+  tourId       String
+  /// Une précision a remplacé ce travail : on suit celui-là (et on ne dit pas ce résultat dépassé).
+  remplacePar  String?
+  annonceLe    DateTime?
+  creeLe       DateTime  @default(now())
+
+  @@index([userId, creeLe])
+  @@index([session])
+}
+
+/// K9 — UNE CARTE CONDUITE À L'ORAL : résumée dans une session, ses champs demandés un par un, confirmée d'un « vas-y ».
+model AssistantIaVoixCarte {
+  intentId    String    @id
+  userId      String
+  session     String
+  /// L'empreinte de l'intention au moment du résumé : la confirmation orale exige qu'elle n'ait pas changé.
+  empreinte   String
+  resume      String
+  resumeLe    DateTime  @default(now())
+  /// Le résumé a été DIT (accusé `session.commentary.appended` du fournisseur) — avant, aucun « vas-y » n'exécute.
+  resumeDitLe DateTime?
+  /// Le champ demandé en ce moment (nom du contrat), null : rien à demander.
+  champ       String?
+  formulaire  Json?
+  etat        String    @default("A_DIRE")
+  majLe       DateTime  @updatedAt
+
+  @@index([session])
+  @@index([userId, resumeLe])
+}

@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AudioLines, Loader2, Mic, MicOff, PhoneOff, X } from "lucide-react";
-import { ClientVoixTempsReel, type EtatVoix, type ResultatDelegation } from "@/platform/ia/voix/client-temps-reel";
+import { ClientVoixTempsReel, type EtatVoix, type ResultatDelegation, type SuiviTravail } from "@/platform/ia/voix/client-temps-reel";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { CIBLE_LATENCE_VOCALE_MS, mediane } from "@/modules/assistant-ia/partage";
 import { ActionConfirmationCard } from "./action-confirmation-card";
@@ -14,14 +14,14 @@ import { attendu, sansBloquer } from "@/lib/journal";
  * LA CONVERSATION VOCALE DE L'ASSISTANT IA (lot J13, décision 0025) — GPT-Live tient la conversation, l'assistant du fil
  * (mêmes outils, droits et repères que le texte) fait le travail délégué.
  *
- * Ce que l'écran garde, parce qu'une parole ne se reprend pas : les CARTES (une écriture préparée à la voix ne
- * s'exécute que par son bouton, ressaisie comprise pour une carte critique), les VALEURS CONFIDENTIELLES (montrées
- * ici à qui a le droit, jamais lues), et la ligne de ce qui a été dit. La latence (fin de parole → premier son) est
- * affichée et journalisée : la cible est 1,5 s au p50.
+ * K9 (décision 0038) — TOUT SE PASSE À L'ORAL : la personne marche, écouteurs aux oreilles. L'écran n'est JAMAIS
+ * requis : il garde la trace (ce qui a été dit, les cartes, qui passent « exécutée » quand un « vas-y » oral les a
+ * confirmées). La voix ne bloque plus pendant une recherche (le travail est suivi, le résultat dit de lui-même). La
+ * latence (fin de parole → premier son) est affichée et journalisée : la cible est 1,5 s au p50.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-interface Carte { intentId: string; kind: string; title: string; fields?: { label: string; value: string }[]; warnings?: string[]; confirmText?: string; libelleBouton?: string }
+interface Carte { intentId: string; kind: string; title: string; fields?: { label: string; value: string }[]; warnings?: string[]; confirmText?: string; libelleBouton?: string; status?: string }
 type Ligne = { qui: "personne" | "assistant"; texte: string } | { qui: "carte"; carte: Carte } | { qui: "ecran"; texte: string };
 
 const LIBELLE_ETAT: Record<EtatVoix, string> = {
@@ -64,31 +64,41 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
   const [lignes, setLignes] = useState<Ligne[]>([]);
   const [latences, setLatences] = useState<number[]>([]);
   const [muet, setMuet] = useState(false);
+  const [cherche, setCherche] = useState(false);
   const client = useRef<ClientVoixTempsReel | null>(null);
   const dites = useRef<{ qui: "personne" | "assistant"; texte: string }[]>([]);
 
   const ajouter = (l: Ligne) => setLignes((xs) => [...xs, l].slice(-60));
 
-  const deleguer = useCallback(async (demande: string): Promise<ResultatDelegation> => {
-    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, conversation: await conversationOuverte() }) });
+  const deleguer = useCallback(async (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null }): Promise<ResultatDelegation> => {
+    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, delegationId, session: ctx?.session, enCours: ctx?.enCours }) });
     if (!r.ok) return { pourVoix: "Le serveur n'a pas répondu : dis-le et propose de réessayer." };
     return (await r.json()) as ResultatDelegation;
-  }, [conversationOuverte]);
+  }, []);
 
-  const ouvrir = useCallback(async (sdp: string): Promise<{ sdp: string }> => {
-    const r = await fetch("/api/assistant-ia/voix/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sdp }) });
-    const d = (await r.json().catch(attendu("réponse non JSON : le statut HTTP décide", {}))) as { sdp?: string; error?: string };
+  const suivre = useCallback(async (travail: string, session: string | null): Promise<SuiviTravail> => {
+    const r = await fetch(`/api/assistant-ia/voix/travail?id=${encodeURIComponent(travail)}&session=${encodeURIComponent(session ?? "")}`, { cache: "no-store" });
+    return r.ok ? ((await r.json()) as SuiviTravail) : { etat: "en_cours" };
+  }, []);
+
+  const resumeDit = useCallback(async (c: { intentId: string; empreinte: string }, session: string | null) => {
+    await fetch("/api/assistant-ia/voix/carte", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...c, session }) });
+  }, []);
+
+  const ouvrir = useCallback(async (sdp: string): Promise<{ sdp: string; session?: string; reprises?: string[] }> => {
+    const r = await fetch("/api/assistant-ia/voix/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sdp, conversation: await conversationOuverte() }) });
+    const d = (await r.json().catch(attendu("réponse non JSON : le statut HTTP décide", {}))) as { sdp?: string; session?: string; reprises?: string[]; error?: string };
     // Pas de modèle de secours (Direction, 30/10) : l'échec se DIT.
     if (!r.ok || !d.sdp) throw new Error(d.error ?? "La conversation vocale est indisponible.");
-    return { sdp: d.sdp };
-  }, []);
+    return { sdp: d.sdp, session: d.session, reprises: d.reprises };
+  }, [conversationOuverte]);
 
   const terminer = useCallback(async () => {
     const c = client.current;
     client.current = null;
     if (!c) return;
     await c.fermer();
-    const corps = JSON.stringify({ secondes: c.secondes, confirme: c.usageConfirme, latences: c.latences, lignes: dites.current, conversation: cible.current ?? null });
+    const corps = JSON.stringify({ secondes: c.secondes, confirme: c.usageConfirme, latences: c.latences, lignes: dites.current, conversation: cible.current ?? null, session: c.session });
     dites.current = [];
     // Le journal part même si l'onglet se ferme.
     if (!navigator.sendBeacon?.("/api/assistant-ia/voix/journal", new Blob([corps], { type: "application/json" }))) {
@@ -98,19 +108,23 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
 
   const demarrer = useCallback(async () => {
     setDetail(null);
-    const c = new ClientVoixTempsReel({ ouvrir, deleguer }, {
+    const c = new ClientVoixTempsReel({ ouvrir, deleguer, suivre, resumeDit }, {
       etat: (e, x) => { setEtat(e); if (x) setDetail(x); },
       ligne: (qui, texte) => { dites.current.push({ qui, texte }); ajouter({ qui, texte }); },
       delegation: (_demande, res) => {
         if (res.carte) ajouter({ qui: "carte", carte: res.carte as Carte });
         if (res.ecran) ajouter({ qui: "ecran", texte: res.ecran });
+        // Une carte confirmée (ou abandonnée) À L'ORAL passe « exécutée » ici aussi.
+        const ec = res.etatCarte;
+        if (ec) setLignes((xs) => xs.map((l) => (l.qui === "carte" && l.carte.intentId === ec.intentId ? { qui: "carte", carte: { ...l.carte, status: ec.status } } : l)));
       },
       latence: (ms) => setLatences((xs) => [...xs, ms]),
+      travail: setCherche,
     });
     client.current = c;
     await conversationOuverte();
     try { await c.connecter(); } catch { client.current = null; }
-  }, [ouvrir, deleguer, conversationOuverte]);
+  }, [ouvrir, deleguer, suivre, resumeDit, conversationOuverte]);
 
   useEffect(() => () => { void terminer(); }, [terminer]);
 
@@ -121,16 +135,16 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-zinc-800">
         <div>
           <p className="text-sm font-semibold">Conversation vocale</p>
-          <p className="text-xs text-slate-500" data-testid="etat-voix">{LIBELLE_ETAT[etat]}{p50 != null ? ` · réponse en ${(p50 / 1000).toFixed(1)} s (médiane)` : ""}</p>
+          <p className="text-xs text-slate-500" data-testid="etat-voix">{LIBELLE_ETAT[etat]}{cherche && etat !== "REFLEXION" ? " · recherche en cours" : ""}{p50 != null ? ` · réponse en ${(p50 / 1000).toFixed(1)} s (médiane)` : ""}</p>
         </div>
         <button type="button" onClick={() => { void terminer(); onFermer(); }} aria-label="Fermer" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-4 w-4" /></button>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3 text-sm">
         <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 dark:bg-zinc-900 dark:text-zinc-400">
-          L&apos;assistant a vos outils et vos droits. Une action qu&apos;il prépare s&apos;affiche ici en carte : elle ne s&apos;exécute que par son bouton, jamais à la voix. Une valeur confidentielle n&apos;est jamais lue : elle s&apos;affiche ici si vous avez le droit de la voir.
+          Tout se fait à l&apos;oral : l&apos;assistant a vos outils et vos droits, résume ce qu&apos;il prépare, vous demande ce qui manque et l&apos;exécute quand vous dites « vas-y ». Dites « annule », « stop » ou « mets la mission en pause » à tout moment. L&apos;écran garde seulement la trace.
         </p>
         {lignes.map((l, i) => l.qui === "carte" ? (
-          <ActionConfirmationCard key={i} intentId={l.carte.intentId} kind={l.carte.kind} title={l.carte.title} fields={l.carte.fields} warnings={l.carte.warnings}
+          <ActionConfirmationCard key={`${i}:${l.carte.status ?? "PROPOSED"}`} initialStatus={(l.carte.status ?? "PROPOSED") as "PROPOSED" | "EXECUTED" | "CANCELLED"} intentId={l.carte.intentId} kind={l.carte.kind} title={l.carte.title} fields={l.carte.fields} warnings={l.carte.warnings}
             confirmText={l.carte.confirmText} libelleBouton={l.carte.libelleBouton} onConfirm={(id, t) => confirmerIntentionAssistantIA(id, t)} />
         ) : l.qui === "ecran" ? (
           <pre key={i} className="whitespace-pre-wrap break-words rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">{l.texte.slice(0, 1_500)}</pre>

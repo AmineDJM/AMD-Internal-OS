@@ -14,6 +14,7 @@ import { effacerJournalDe } from "../testing/journal";
 import { BORNE_REVELEE } from "../../domaine/filtre-confidentialite";
 import { DIT_A_L_ECRAN } from "../../domaine/terrain/voix";
 import { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, reponsePourVoix } from "./temps-reel";
+import { enregistrerSessionVoix, suivreTravailVocal } from "./oral";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -21,8 +22,9 @@ import { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, reponsePourVoix 
  *
  * On tient : la session ne s'ouvre qu'avec l'Assistant IA, sur `gpt-live-1` (ou le modèle réglé), délégation « client »,
  * sans outil donné à la voix ; une délégation passe par LE FIL (le même assistant, au faux modèle) ; une écriture rend
- * une CARTE pour l'écran, la voix n'entend que « carte à l'écran » et rien n'est créé ; une valeur révélée ne repart
- * jamais à la voix ; la durée est comptée au nom de la personne et la transcription s'écrit dans le fil.
+ * une CARTE, résumée à l'oral, et rien n'est créé sans accord ; une valeur révélée ne repart
+ * jamais à la voix ; la durée est comptée au nom de la personne et la transcription s'écrit dans le fil. K9 : la
+ * délégation rend aussitôt un travail suivi ; une carte se résume à l'oral.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 let dbOk = false;
@@ -65,6 +67,9 @@ suite("Assistant IA — voix GPT-Live", () => {
     await effacerJournalDe([kam?.id, sansAssistant?.id]);
     await prisma.assistantActionIntent.deleteMany({ where: { userId: kam?.id } });
     await prisma.assistantIaFil.deleteMany({ where: { userId: kam?.id } });
+    await prisma.assistantIaVoixSession.deleteMany({ where: { userId: kam?.id } });
+    await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: kam?.id } });
+    await prisma.assistantIaVoixCarte.deleteMany({ where: { userId: kam?.id } });
   });
 
   it("la session : gpt-live-1, délégation client, aucun outil donné à la voix, SDP échangé côté serveur ; refusée sans l'Assistant IA", async () => {
@@ -97,24 +102,46 @@ suite("Assistant IA — voix GPT-Live", () => {
     expect(!refus.ok && refus.erreur).toContain("gpt-live-1 ne répond pas");
   });
 
-  it("une délégation passe par le fil : le même assistant répond, la demande dite y est écrite", async () => {
+  // K9 (décision 0038) : la délégation rend AUSSITÔT un travail, suivi jusqu'au résultat que la voix dit d'elle-même.
+  const suivreJusquAuBout = async (u: CurrentUser, session: string, travail: string) => {
+    for (let i = 0; i < 200; i++) {
+      const s = await suivreTravailVocal(u, session, travail);
+      if (s.etat !== "en_cours") return s;
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    throw new Error("travail jamais terminé");
+  };
+
+  it("une délégation passe par le fil, SANS bloquer : un travail rendu tout de suite, le résultat dit quand il arrive", async () => {
+    await enregistrerSessionVoix(kam.id, "live_kam", null);
     remplacerModelesPourTests([modeleFactice([reponse("Vous avez trois visites prévues demain.")]).modele as never]);
-    const r = await deleguerALaVoix(kam, "qu'est-ce que j'ai demain ?");
-    expect(r.pourVoix).toBe("Vous avez trois visites prévues demain.");
-    expect(r.carte).toBeUndefined();
+    const r = await deleguerALaVoix(kam, "qu'est-ce que j'ai demain ?", { session: "live_kam", delegationId: "item_1" });
+    expect(r.travail).toBeTruthy();
+    expect(r.pourVoix).toContain("préviens dès que c'est prêt");
+    const fin = await suivreJusquAuBout(kam, "live_kam", r.travail!);
+    expect(fin).toMatchObject({ etat: "pret", pourVoix: "Vous avez trois visites prévues demain." });
     const tours = await prisma.assistantIaTour.findMany({ where: { userId: kam.id }, orderBy: { createdAt: "asc" }, select: { role: true, contenu: true } });
     expect(tours[0]).toMatchObject({ role: "user", contenu: "[Conversation vocale] qu'est-ce que j'ai demain ?" });
     expect(tours.at(-1)?.role).toBe("assistant");
+    // Hors de SA session (ou session inconnue), rien n'est suivi ni délégué.
+    expect(await suivreTravailVocal(kam, "live_autre", r.travail!)).toEqual({ etat: "inconnu" });
+    expect((await deleguerALaVoix(kam, "et après-demain ?", { session: "live_autre" })).travail).toBeUndefined();
   });
 
-  it("une écriture : une CARTE pour l'écran, la voix n'entend que « carte à l'écran », rien n'est créé", async () => {
+  it("une écriture : une CARTE résumée à l'oral, rien n'est créé avant le « vas-y »", async () => {
     remplacerModelesPourTests([modeleFactice([
       { appel: { outil: "terrain_compte_rendu", entree: { medecin: "Dr Inconnu", synthese: "Visite du Dr Inconnu : intéressé par Cardiovex." } } },
-      reponse("J'ai préparé le compte rendu : la carte est affichée."),
+      reponse("J'ai préparé le compte rendu."),
     ]).modele as never]);
-    const r = await deleguerALaVoix(kam, "prépare le compte rendu de ma visite chez le docteur Inconnu, intéressé par Cardiovex");
-    expect(r.carte?.intentId).toBeTruthy();
-    expect(r.pourVoix).toContain("seule la personne la confirme");
+    const r = await deleguerALaVoix(kam, "prépare le compte rendu de ma visite chez le docteur Inconnu, intéressé par Cardiovex", { session: "live_kam", delegationId: "item_2" });
+    const fin = await suivreJusquAuBout(kam, "live_kam", r.travail!);
+    expect(fin.etat).toBe("pret");
+    const f = fin as Extract<typeof fin, { etat: "pret" }>;
+    expect(f.carte?.intentId).toBeTruthy();
+    expect(f.resumeDe?.intentId).toBe(f.carte?.intentId);
+    expect(f.pourVoix).toContain("Carte préparée");
+    expect(f.pourVoix).toContain("Rien n'est fait tant que la personne n'a pas dit oui");
+    expect(f.pourVoix).not.toMatch(/écran/);
     expect(await prisma.fieldReport.count({ where: { delegateId: kam.id } })).toBe(0);
   });
 

@@ -8,22 +8,23 @@
  *   1. UNE VALEUR SENSIBLE SUIT LE MODE DE LA CONSOLE (décision 0034). « En clair » (défaut, Direction 31/10/2026) :
  *      la voix PRONONCE ce que la personne a le droit de voir — l'assistant ne lui rend que cela (même juge que
  *      l'écran). « Masquées » (décision 0012) : jamais lue à voix haute — le modèle vocal ne reçoit que des repères,
- *      et `pourLaVoix` remplace même le repère par « affichée à l'écran ».
- *   2. UNE ÉCRITURE NE SE CONFIRME JAMAIS À LA VOIX. La voix (GPT-Live) n'a AUCUN outil : elle délègue à l'assistant,
- *      qui ne fait que préparer une CARTE ; la carte s'affiche à l'écran et ne s'exécute que d'un clic (R3/R4 :
- *      ressaisie comprise). Un « oui » dit n'atteint aucune porte d'exécution.
+ *      et `pourLaVoix` remplace même le repère par « gardée dans la conversation écrite ».
+ *   2. UNE ÉCRITURE SE CONCLUT À L'ORAL (lot K9, décision 0038 — inverse le J13). La voix (GPT-Live) n'a aucun outil :
+ *      elle délègue. L'assistant prépare une CARTE ; le SERVEUR la résume en une phrase, demande les champs manquants un
+ *      par un, et c'est encore LUI qui juge l'énoncé transcrit de la personne (« vas-y », « go », « ih dirha ») avant
+ *      d'appeler la MÊME confirmation que le bouton — garde-fous serveur, pas seulement le modèle (`infra/voix/oral.ts`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
 const RE_REPERE = /⟦S\d+⟧/g;
-export const DIT_A_L_ECRAN = "[valeur confidentielle affichée à l'écran]";
+export const DIT_A_L_ECRAN = "[valeur confidentielle gardée dans la conversation écrite]";
 /** Décision 0034, mode « en clair » : une valeur que la personne n'a pas le droit de voir — la voix le dit ainsi. */
 export const NON_OUVERTE = "[valeur confidentielle non ouverte à cette personne]";
 
 /** Le résultat d'un outil tel que la voix le reçoit : aucun repère, borné (le contexte vocal se paie en latence). */
 export function pourLaVoix(sortie: string, max = 6_000): string {
   const t = (sortie ?? "").replace(RE_REPERE, DIT_A_L_ECRAN);
-  return t.length <= max ? t : `${t.slice(0, max)}… (tronqué pour la voix — le détail est à l'écran)`;
+  return t.length <= max ? t : `${t.slice(0, max)}… (tronqué pour la voix — le détail est dans la conversation)`;
 }
 
 const CONSIGNES_VOIX_COMMUNES = [
@@ -32,10 +33,24 @@ const CONSIGNES_VOIX_COMMUNES = [
   "L'assistant de l'entreprise, à qui tu délègues, a exactement les mêmes droits que dans la conversation écrite.",
 ];
 const CONSIGNES_ECRITURE_VOIX = [
-  "Une écriture (créer, envoyer, modifier, demander) se PRÉPARE : l'assistant affiche une carte à l'écran. Dis « la carte est",
-  "affichée, confirmez-la à l'écran ». Ne dis JAMAIS qu'une action est faite, et n'accepte jamais un « oui » oral comme",
-  "confirmation : seul le bouton de la carte exécute.",
+  "La personne NE VOIT PAS son écran (écouteurs, en marchant) : tout se passe à l'oral. Ne dis JAMAIS « regarde l'écran »,",
+  "« c'est affiché », « confirme à l'écran ». Une action (créer, envoyer, modifier, demander) se prépare puis se conclut DE VIVE VOIX :",
+  "le résultat de la délégation te donne le résumé de la carte en une phrase et, s'il en manque, LE champ à demander — une question",
+  "à la fois. Tu peux proposer au plus un ou deux champs facultatifs utiles, sans insister. Quand tout y est, demande si c'est bon.",
+  "TOUT ce que la personne répond à une carte (une valeur, « vas-y », « go », « ok fais-le », « oui c'est bon », « ih dirha »,",
+  "« non », « change le montant ») : DÉLÈGUE-LE — c'est le serveur qui juge et qui exécute. N'annonce JAMAIS « c'est fait » avant que",
+  "le résultat de la délégation le dise ; ensuite dis « c'est fait » et qu'elle peut dire « annule » si elle change d'avis.",
+  "Les commandes orales se délèguent aussi : « annule » (la dernière action), « mets la mission en pause », « reprends », « arrête la mission ».",
 ];
+const CONSIGNES_ATTENTE_VOIX = [
+  "ATTENTE VIVANTE : quand tu délègues une recherche, dis en quelques mots « je regarde, je te préviens dès que c'est prêt » — la",
+  "délégation ne te bloque pas. Pendant que l'assistant cherche, ENGAGE la personne pour affiner, une question courte à la fois :",
+  "« tu le veux pour quelle période ? », « c'est pour préparer quoi ? », « une région en particulier ? ». Ce qu'elle précise, DÉLÈGUE-LE :",
+  "c'est transmis au travail en cours, sans recommencer. N'invente aucun résultat en attendant. Quand le résultat arrive (même deux",
+  "minutes plus tard), dis-le de toi-même, en commençant par la réponse, en une ou deux phrases, puis propose le détail.",
+  "Si la personne dit « stop », tais-toi et attends. Si elle dit « plus court », réponds désormais en une phrase.",
+];
+
 
 /**
  * LES CONSIGNES DE LA VOIX SELON LE MODE (décision 0034). En clair (défaut) : la voix PRONONCE une valeur sensible que
@@ -49,10 +64,10 @@ export function consignesVoix(enClair: boolean): string {
       "résultat dit « valeur confidentielle non ouverte à cette personne », dis qu'elle ne lui est pas ouverte.",
     ]
     : [
-      "Une valeur confidentielle n'est JAMAIS prononcée : quand un résultat dit « valeur confidentielle affichée à l'écran »,",
-      "dis seulement qu'elle est affichée à l'écran.",
+      "Une valeur confidentielle n'est JAMAIS prononcée : quand un résultat dit « valeur confidentielle gardée dans la conversation",
+      "écrite », dis seulement qu'elle est confidentielle et qu'elle reste dans la conversation écrite.",
     ];
-  return [...CONSIGNES_VOIX_COMMUNES, ...sensibles, ...CONSIGNES_ECRITURE_VOIX].join("\n");
+  return [...CONSIGNES_VOIX_COMMUNES, ...sensibles, ...CONSIGNES_ECRITURE_VOIX, ...CONSIGNES_ATTENTE_VOIX].join("\n");
 }
 
 
