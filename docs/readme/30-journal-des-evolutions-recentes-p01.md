@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### UNE VRAIE MÉMOIRE POUR ADVENTUM IA — il retient ce que vous dites de vous (M1, 2026-11-01)
+
+« J'ai parlé de moi, de ma famille, de mes voyages, de mes études… quand je suis allé cliquer sur ce qu'il retient, je
+n'ai rien trouvé » (Direction). La mémoire attendait un clic sur une carte « Retenir » qui n'était presque jamais proposée,
+et ne visait que le travail. Désormais, après chaque réponse (et en fin de conversation vocale), ce que la personne dit
+d'elle — famille, études, voyages, goûts, santé déclarée, projets, habitudes — est **retenu d'office**, visible sous la
+réponse (« Retenu : … — annuler · voir ») et **annulable** d'un geste ; un fait qui change remplace l'ancien (l'historique
+reste). Le rappel sert à chaque tour un profil stable et les souvenirs pertinents (« tu te souviens de mon voyage ? » →
+Lyon, le 12, avec Lina, dans une nouvelle conversation). Panneau « Ce qu'il retient » groupé, cherchable, éditable, avec
+l'origine de chaque souvenir et le réglage « mémoire automatique ». Rien en conversation privée, rien d'autrui, rien de
+confidentiel. Coût mesuré ≈ 0,00017 $ par capture (0 $ quand rien n'est à retenir). Migration
+`20270219100000_assistant_ia_memoire_auto`. Décision [0045](../assistant/decisions/0045-memoire-automatique.md) ; audit
+des fonctions de l'app : [preuves/m1](../assistant/preuves/m1/AUDIT.md).
+
 ### L'ARGENT RÉVERSIBLE — « Annuler » sur toute action d'argent (K10a, 2026-10-31)
 
 « Toute action qui a été faite peut être réversible » (Direction). Les 62 actions d'argent classées « sans annulation »

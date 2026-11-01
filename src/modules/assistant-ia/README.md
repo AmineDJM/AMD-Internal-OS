@@ -2,7 +2,7 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0038, 0040, 0044 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0027, 0029 → 0038, 0040, 0044, 0045 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
 capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0027 : Adventum IA, conversations et dossiers ; 0029 : simulation, journal des effets, annulation ; 0030 : formulaires de carte, dépôt de dossier, gros volumes ; 0031 : analyse de données, chiffres exacts, Excel, graphiques ; 0032 : images, vidéos et vidéos de données générées ; 0033 : sous-missions, tableau de bord en temps réel, dépôt d'office ; 0034 : valeurs sensibles en clair pour qui a le droit, `store: false` ; 0035 : la consommation exacte en jetons et en dollars ; 0036 : pièces reçues par WhatsApp et par mail ; 0037 : exports de l'ERP, envoi d'un fichier, gestes d'écran ; 0038 : la voix orale, une carte confirmée à l'oral ; 0039 : la voix entièrement orale — attente vivante, réponses pour l'oreille, tout par la voix ; 0040 : communications réversibles et fenêtre d'annulation ; 0042-0043 : chantiers de développement (Claude Code, GitHub, Render) ; 0044 : actions métier réversibles, rétablir).
 
@@ -156,6 +156,23 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   `platform/ia/lectures/connaissance.ts`). **Assembleur** : `domaine/assembleur.ts` (enveloppes fixes).
 - **Le bon modèle** — `platform/ia/modeles-roles.ts` (rapide / standard / raisonnement, effort adaptatif) ;
   `infra/modele.ts` (`optionsFournisseur` : effort, clé de cache).
+
+## La super mémoire (lot M1, décision 0045)
+
+- **Capture automatique** — `infra/memoire-capture.ts` (`capturerApresTour`, appelée par `fil/service.ts` après la
+  réponse et par `voix/temps-reel.ts` en fin de vocal) ; règle pure `domaine/memoire/capture.ts` : filtre déterministe
+  (aucun appel sans fait durable), extracteur `rapide` en JSON strict sur le SEUL message de la personne, garde (ancres du
+  message, rien de confidentiel ni d'autrui). Journal K8 : usage « memoire ». Privée et réglage coupé : rien.
+- **Stockage et historique** — `infra/memoire.ts` : dédoublonnage, `remplaceId`/`remplaceLe` (un fait qui change remplace
+  l'ancien), `annulerSouvenir` (l'ancien revient), `memoireAutoActive`/`reglerMemoireAuto` (`AssistantIaPreference`).
+- **Rappel** — `domaine/memoire/rappel.ts` (profil 250 jetons + pertinents 600, BM25 sur racines + mots de la sorte, cosinus
+  si la mémoire dépasse l'enveloppe), `rappelDuTour` dans `infra/contexte.ts` ; la voix : `memoirePourVoix`. Plongements :
+  `infra/generer.ts` (`plongerTextes`, même garde que le texte).
+- **Écrans** — `ecrans/memoires-retenues.tsx` (« Retenu : … — annuler · voir »), `ecrans/memoire-panel.tsx` (« Ce qu'il
+  retient » : groupes, recherche, édition, origine, compteur, réglage, tout effacer) ; route `app/api/assistant-ia/fil`
+  (`memoiresRetenues` dans leur état présent ; `enCours` tant que la capture tourne).
+- **Preuves** — `domaine/memoire/memoire.test.ts`, `infra/memoire-capture.test.ts`, `infra/memoire.test.ts` ; audit sur
+  serveur réel : `scripts/bench/m1-audit.ts` → `docs/assistant/preuves/m1/`.
 
 ## Le registre des capacités (lot J6, décision 0020)
 

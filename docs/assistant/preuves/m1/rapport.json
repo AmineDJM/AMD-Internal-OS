@@ -1,0 +1,75 @@
+{
+  "base": "http://localhost:3100",
+  "compte": "yacine.benali@adventum-bench.dz",
+  "le": "2026-11-01T13:07:49.437Z",
+  "lignes": [
+    {
+      "fonction": "Exports (fichier Excel dans le Drive)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "fichiers créés : 2 ; outils : Exporter le suivi Regulatory (Excel) ; « Le suivi Regulatory a été exporté en Excel : il contient 8 dossiers et se trouve dans Drive › Exports.\n\n[Télécharger le fichier]( /api/drive/cmvxufaq500qhiytvgn »",
+      "captures": [
+        "iphone-10-export.jpg"
+      ]
+    },
+    {
+      "fonction": "Missions — sous-missions, tableau temps réel, synthèse",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "sous-missions : 2 ; synthèse : TERMINE « **Les sous-missions sont finies** — 2/2 terminées, coût total 0,01 $.\n\nEn bref : Deux tâches critiques sont ouvertes et en cours : finaliser »",
+      "captures": [
+        "iphone-12a-missions-a-approuver.jpg",
+        "iphone-12-missions.jpg"
+      ]
+    },
+    {
+      "fonction": "Images (génération)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "AssistantIaVisuel : cmvxuhs4p00yeiytvhw7vxblu ; « L’image est prête et enregistrée dans votre Drive. »",
+      "captures": [
+        "iphone-14-image.jpg"
+      ]
+    }
+  ],
+  "couts": {
+    "fil · gpt-6.1-terra": {
+      "appels": 13,
+      "entree": 151347,
+      "sortie": 5291,
+      "usd": 0.07899699999999998
+    },
+    "redaction · gpt-6-luna": {
+      "appels": 4,
+      "entree": 982,
+      "sortie": 257,
+      "usd": 0.000227
+    },
+    "memoire · gpt-6-luna": {
+      "appels": 1,
+      "entree": 563,
+      "sortie": 138,
+      "usd": 0.000125
+    },
+    "memoire · text-embedding-3-small": {
+      "appels": 1,
+      "entree": 32,
+      "sortie": 0,
+      "usd": 0.000001
+    },
+    "redaction · gpt-6.1-terra": {
+      "appels": 2,
+      "entree": 1208,
+      "sortie": 1019,
+      "usd": 0.0063030000000000004
+    },
+    "image · gpt-image-2.5-sunburst": {
+      "appels": 1,
+      "entree": 30,
+      "sortie": 439,
+      "usd": 0.01332
+    }
+  },
+  "toursRepondus": 4,
+  "erreursConsole": []
+}

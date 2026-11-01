@@ -47,6 +47,21 @@
 >   person → "ce RIB provient du document X, à vérifier"; injection detection FR/AR/EN, hidden text) — 240-item trap corpus,
 >   0 unflagged misleading card. Model per role changed on screen (`AssistantIaModeleRole`) ONLY with a green A/B bench for that
 >   exact candidate (< 14 d); revert to env always allowed. New env: `ASSISTANT_IA_MODEL_RAISONNEMENT`, `ASSISTANT_IA_TRACES(_JOURS)`.
+> - **M1 (2026-11-01) — a real memory for Adventum IA** (decision `docs/assistant/decisions/0045-memoire-automatique.md`) [V]:
+>   the memory no longer waits for a click on a « Retenir » card. After each fil turn (`fil/service.ts`) and at the end of a
+>   voice session (`voix/temps-reel.ts`), `infra/memoire-capture.ts` `capturerApresTour` runs a deterministic filter
+>   (`domaine/memoire/capture.ts` `faitDurablePossible` — no call without a durable first-person fact), then the **rapide**
+>   model in strict JSON on the person's message ONLY (never the answer: it carries ERP data), then a guard (every number/proper
+>   noun must appear in the message; salary, IBAN, ID numbers, appraisals refused). Facts are written at once (origine `auto` /
+>   `voix`), deduplicated (Jaccard ≥ 0.8), a changed fact replaces the old one (`remplaceId`/`remplaceLe`, history kept), and
+>   each is undoable (`annulerSouvenir` restores the replaced version) from the « Retenu : … — annuler » line under the answer
+>   (`AssistantIaTour.memoiresRetenues`, `memoireEtat` keeps the screen polling). New sorts for personal life (identity, family,
+>   studies, declared health, travel, tastes, projects, constraints, people cited). Recall (`domaine/memoire/rappel.ts`): stable
+>   profile (250 tokens) + relevant memories (600) by BM25 over roots + the sort's words, cosine on text-embedding-3-small
+>   vectors (`generer.ts` `plongerTextes`) only when the memory exceeds the envelope; voice session gets the profile too.
+>   Per-person switch `AssistantIaPreference.memoireAuto` (default on; off → `proposer_memoire` + card come back). Private
+>   conversations: nothing read or written. Measured cost: ≈ 0.00017 $ per capture that retains, 0 $ when filtered (K8 usage
+>   « memoire »). Removed `assembleur.souvenirsPourQuestion` / `ENVELOPPES.memoire`.
 > - **J4 (2026-10-30) — speed & memory of the Assistant IA** (decision `docs/assistant/decisions/0018-vitesse-memoire.md`) [V]:
 >   tools on demand — a 10-tool socle + a 6-tool lexical preselection (`domaine/selection-outils.ts`, French full-text, 0 ms;
 >   reference corpus 60 requests: top-1 56/60, top-3 60/60) + meta-tool `trouver_outil` (`infra/selection.ts`); ALL tools stay

@@ -23,6 +23,7 @@ describe("mémoire — le filtre déterministe (aucun appel sans fait durable)",
     "Liste les factures du fournisseur Biopharm.",
     "Quel est le budget marketing 2026 ?",
     "Tu te souviens de mon voyage ?",
+    "Lance deux sous-missions en parallèle sur les demandes en cours, puis fais-moi la synthèse.",
   ])("ne dépense rien pour : %s", (m) => expect(faitDurablePossible(m)).toBe(false));
 });
 
@@ -32,6 +33,12 @@ describe("mémoire — l'extracteur et sa garde", () => {
     expect(c).toEqual([{ sorte: "VOYAGES", contenu: "Part à Lyon le 12 novembre avec sa fille Lina", sujet: "voyage:lyon", remplace: null }]);
     expect(lireExtraction("pas du json")).toEqual([]);
     expect(lireExtraction('{"souvenirs":[{"sorte":"FAMILLE","contenu":"Sa fille s\'appelle Lina","remplace":"m2"}]}')[0].remplace).toBe("m2");
+  });
+
+  it("ne retient pas son nom (celui du compte)", () => {
+    expect(garderCandidat({ contenu: "Elle s'appelle Yacine Benali." }, "Je suis Yacine Benali", { nom: "Yacine Benali" }).ok).toBe(false);
+    expect(garderCandidat({ contenu: "La personne s’appelle Yacine Benali." }, "bonjour", { nom: "Yacine Benali" }).ok).toBe(false);
+    expect(garderCandidat({ contenu: "Yacine Benali est né à Oran" }, "Je suis né à Oran", { nom: "Yacine Benali" }).ok).toBe(true);
   });
 
   it("garde les faits personnels que la personne a dits", () => {

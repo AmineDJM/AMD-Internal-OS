@@ -29,8 +29,8 @@ export const CAPTURES_MAX_PAR_TOUR = 5;
 /** Ce qui marque une personne qui parle d'elle (première personne, en français — et « j' » collé). */
 const PREMIERE_PERSONNE = /(^|[^a-z])(je|j|moi|mon|ma|mes|nous|notre|nos|m)(?=[^a-z]|$)/;
 
-/** Les thèmes d'un fait durable. Un seul suffit, avec la première personne. */
-const THEMES = new RegExp([
+/** Les thèmes d'un fait durable — chacun au DÉBUT d'un mot (« thèse » n'est pas dans « synthèse »). Un seul suffit. */
+const THEMES = new RegExp(`(?:^| )(?:${[
   // retiens / souviens-toi — la demande explicite
   "retien", "souviens toi", "rappelle toi", "n oublie pas", "note que", "sache que",
   // identité, origine, âge, lieu de vie
@@ -54,7 +54,7 @@ const THEMES = new RegExp([
   "mon poste", "mon role", "mon service", "mon equipe", "ma societe", "mon bureau", "mon manager", "mon chef", "mon assistant",
   "disponible", "indisponible", "je ne peux pas", "je ne suis pas", "projet", "je compte", "je prevois", "je veux", "j envisage",
   "objectif", "reponds moi", "tutoie", "vouvoie", "en anglais", "en arabe", "court", "concis", "detaill",
-].join("|"));
+].join("|")})`);
 
 /** Une demande sur l'ERP — sans fait durable, elle ne mérite pas d'appel. */
 const SEULEMENT_UNE_DEMANDE = /^(montre|affiche|liste|donne|combien|quel|quelle|quels|quelles|ou en est|cherche|trouve|ouvre|prepare|cree|envoie|exporte|resume|traduis|analyse|lis)\b/;
@@ -90,8 +90,9 @@ export const CONSIGNE_EXTRACTEUR = [
   "- Jamais une rémunération, une prime, un salaire, une coordonnée bancaire, un numéro de pièce d'identité, un mot de passe,",
   "  ni une donnée confidentielle sur une AUTRE personne (sa santé, son salaire, son évaluation).",
   "- Rien de passager (« je suis fatigué aujourd'hui », « réponds à ce mail »), rien de déjà connu à l'identique.",
-  "- Chaque fait : une phrase courte, à la troisième personne, autonome, avec les dates en clair (« Part à Lyon le 12 novembre",
-  "  2026 avec sa fille Lina »). Ne déduis rien qui n'est pas dit.",
+  "- Chaque fait : une phrase courte, autonome, SANS pronom ni genre supposé (jamais « il » ni « elle ») — commence par le",
+  "  verbe ou le sujet du fait : « Part à Lyon le 12 novembre 2026 avec sa fille Lina », « Fille : Lina », « A étudié à… ».",
+  "  Dates en clair. Ne déduis rien qui n'est pas dit. Son nom (donné ci-dessus) est déjà connu : ne le retiens pas.",
   "- Si un fait CHANGE un souvenir déjà connu (liste « Déjà retenu »), donne `remplace` = son identifiant (m1, m2…) et la",
   "  phrase complète à jour. Deux faits proches se FUSIONNENT en une phrase.",
   "- `sujet` : une clé courte et stable, minuscules (« voyage:lyon », « famille:fille », « etudes:master », « gout:cafe »).",
@@ -115,7 +116,7 @@ export interface SouvenirConnu {
  */
 export function entreeExtracteur(p: { message: string; existants: readonly SouvenirConnu[]; aujourdhui: string; nom?: string | null }): string {
   const lignes = [`Aujourd'hui : ${p.aujourdhui}.`];
-  if (p.nom) lignes.push(`La personne s'appelle ${p.nom}.`);
+  if (p.nom) lignes.push(`(Contexte, à ne PAS retenir : le compte est celui de ${p.nom}.)`);
   if (p.existants.length) lignes.push("Déjà retenu :", ...p.existants.slice(0, EXISTANTS_MAX).map((e) => `${e.cle}. ${e.contenu}`));
   lignes.push("", `PERSONNE : ${sansEntete(p.message).slice(0, ENTREE_MAX_MESSAGE)}`);
   return lignes.join("\n");
@@ -188,6 +189,11 @@ export type VerdictGarde = { ok: true } | { ok: false; raison: string };
 export function garderCandidat(c: Pick<Candidat, "contenu">, message: string, p: { nom?: string | null; aujourdhui?: Date } = {}): VerdictGarde {
   const plie = plier(c.contenu).replace(/'/g, " ");
   if (CONFIDENTIEL.test(plie)) return { ok: false, raison: "confidentiel" };
+  // Son nom est celui du compte : « S'appelle Yacine Benali » n'apprend rien (le contexte le dit déjà).
+  const nomPlie = plier(p.nom ?? "");
+  if (nomPlie && plie.includes(nomPlie) && plie.replace(nomPlie, "").replace(/\b(s appelle|il|elle|est|se nomme|nom|son|prenom|la personne|personne|utilisateur|la|le|l)\b/g, "").trim().length < 4) {
+    return { ok: false, raison: "son nom, déjà connu" };
+  }
   const source = ` ${plier(sansEntete(message))} `;
   const chiffresSource = sansEntete(message).replace(/\D+/g, " ");
   const nom = new Set(termes(p.nom ?? "").concat(plier(p.nom ?? "").split(" ")));
