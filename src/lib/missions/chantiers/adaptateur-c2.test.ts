@@ -25,6 +25,11 @@ const forge = {
   journalDeJob: async () => ok(`${"x".repeat(5_000)}\nFAIL src/a.test.ts attendu 1 reçu 2`),
   commenterPr: async () => ok({ id: 1, url: "u" }),
   relancerEchecs: async () => ok(true as const),
+  fusionnerPr: async (_d: string, numero: number, o: { shaAttendu: string; methode?: C2.MethodeFusion }) => {
+    appels.push({ quoi: "fusionnerPr", args: [numero, o] });
+    return o.shaAttendu === "abc1234567" ? ok({ sha: "f00d000000", methode: "merge" as const }) : ko("CONFLIT");
+  },
+  proposerRevert: async (_d: string, numero: number, o: { titre: string; corps: string }) => { appels.push({ quoi: "proposerRevert", args: [numero, o] }); return ok({ numero: 8, url: "https://github.com/pr/8" }); },
 } satisfies C2.ForgeGit;
 
 const deploiements: C2.Deploiement[] = [{ id: "dep-2", statut: "build_in_progress", sha: "abc1234567", messageCommit: null, declencheur: "api", creeLe: "2026-11-01T10:00:00Z", termineLe: null }];
@@ -76,9 +81,12 @@ describe("adaptateur C2 → moteur des chantiers", () => {
     expect(r.ok && r.valeur.echecs[0]!.extrait.length).toBeLessThanOrEqual(4_000);
   });
 
-  it("la PR : ouverte, fusionnable ; ouvrir et fusionner sont « non pris en charge » (définitif), jamais simulés", async () => {
-    expect(await ports.forge.pr(depot, "claude/x")).toEqual({ ok: true, valeur: { numero: 7, url: "https://github.com/pr/7", mergeable: true, etat: "ouverte" } });
-    expect(await ports.forge.fusionnerPr(depot, 7)).toMatchObject({ ok: false, definitif: true });
+  it("la PR : ouverte, fusionnable, titrée ; fusionner AU SHA vérifié (tête bougée → refus) ; compenser = PR de revert", async () => {
+    expect(await ports.forge.pr(depot, "claude/x")).toEqual({ ok: true, valeur: { numero: 7, url: "https://github.com/pr/7", titre: "t", mergeable: true, etat: "ouverte" } });
+    expect(await ports.forge.fusionnerPr(depot, 7, "abc1234567")).toEqual({ ok: true, valeur: { sha: "f00d000000" } });
+    expect(appels.find((a) => a.quoi === "fusionnerPr")?.args).toEqual([7, { shaAttendu: "abc1234567" }]);
+    expect(await ports.forge.fusionnerPr(depot, 7, "autre")).toMatchObject({ ok: false });
+    expect(await ports.forge.proposerRevert(depot, 7, "Revert #7", "Compensation")).toEqual({ ok: true, valeur: { numero: 8, url: "https://github.com/pr/8" } });
   });
 
   it("un déploiement « en file » (202) se retrouve ensuite par son SHA ; journaux par le propriétaire ; autoDeploy coupé", async () => {

@@ -517,9 +517,9 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/plan",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/service",
     // C1 (décision 0042) — LES CHANTIERS DE DÉVELOPPEMENT : le même moteur (`lib/missions/`), une SEULE porte
-    // (`chantiers/service`, qui réexporte réglages et état de MiMo) ; outils de conversation, console et carte de
+    // (`chantiers/outils`, les outils partagés avec Adam, qui réexporte réglages, état de MiMo et validation) ; outils de conversation, console et carte de
     // validation y passent tous. Cible : la porte du moteur des travaux, comme l'entrée ci-dessus.
-    "src/modules/assistant-ia/infra/chantiers.ts → src/lib/missions/chantiers/service",
+    "src/modules/assistant-ia/infra/chantiers.ts → src/lib/missions/chantiers/outils",
     // J6 (décision 0020) — LE CATALOGUE D'ADAM n'est plus emprunté (4 entrées vers `src/lib/assistant*` et celle de
     // `outils-v1.ts → hr/confidentialite` retirées). À leur place, et pas plus (5 pour 5) : le registre des capacités lit la
     // table d'annulation (`annulation/reversibilite`) et désigne une fiche par son nom sous la portée de la personne

@@ -23,17 +23,22 @@ const erp = { id: "srv-erp", nom: "ERP", role: "erp", production: false };
 const app = { id: "srv-app", nom: "App", role: "app", production: true, branche: "main" };
 
 describe("plan d'un chantier — DSL compilé, refusé hors catalogue", () => {
-  it("sans étapes, le plan type est posé : lancer, attendre, vérifier, corriger si rouge, ERP puis app, rapport", () => {
+  it("sans étapes, le plan type est posé : lancer, attendre, vérifier, corriger si rouge, fusionner, ERP puis app, rapport", () => {
     const r = lirePlanChantier({ ...base, services: [app, erp] });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     const types = r.plan.etapes.map((e) => `${e.type}${e.service ? `:${e.service}` : ""}`);
     expect(types).toEqual([
-      "DEV_LANCER", "DEV_ATTENDRE", "DEV_VERIFIER", "DEV_CORRIGER",
+      "DEV_LANCER", "DEV_ATTENDRE", "DEV_VERIFIER", "DEV_CORRIGER", "DEV_FUSIONNER",
       "RENDER_DEPLOYER:srv-erp", "RENDER_VERIFIER:srv-erp", "RENDER_ROLLBACK:srv-erp",
       "RENDER_DEPLOYER:srv-app", "RENDER_VERIFIER:srv-app", "RENDER_ROLLBACK:srv-app", "RAPPORT",
     ]);
-    expect(gestesCritiques(r.plan)).toEqual(["Déployer App en production (après fusion sur main)", "Rollback de production, si la santé l'exige"]);
+    expect(gestesCritiques(r.plan)).toEqual([
+      "Fusionner la PR dans main (carte écrite ou orale ; compensable par une PR de revert)", "Déployer App en production", "Rollback de production, si la santé l'exige",
+    ]);
+    // Sans fusion (`fusion: false`), un déploiement sur la branche de base n'a rien à déployer : refusé à la lecture.
+    const sansFusion = lirePlanChantier({ ...base, services: [app], fusion: false });
+    expect(!sansFusion.ok && sansFusion.fautes.join(" ")).toMatch(/fusion/i);
   });
 
   it("refuse un type hors catalogue, main comme branche, un périmètre vide, un déploiement avant vérification", () => {
@@ -77,7 +82,8 @@ describe("plan d'un chantier — DSL compilé, refusé hors catalogue", () => {
   });
 
   it("le plan par défaut sans service : aucune étape RENDER_*", () => {
-    expect(etapesParDefaut([]).map((e) => e.type)).toEqual(["DEV_LANCER", "DEV_ATTENDRE", "DEV_VERIFIER", "DEV_CORRIGER", "RAPPORT"]);
+    expect(etapesParDefaut([]).map((e) => e.type)).toEqual(["DEV_LANCER", "DEV_ATTENDRE", "DEV_VERIFIER", "DEV_CORRIGER", "DEV_FUSIONNER", "RAPPORT"]);
+    expect(etapesParDefaut([], false).map((e) => e.type)).toEqual(["DEV_LANCER", "DEV_ATTENDRE", "DEV_VERIFIER", "DEV_CORRIGER", "RAPPORT"]);
   });
 });
 
@@ -169,6 +175,9 @@ describe("juge des preuves — aucune réussite sans preuve", () => {
     expect(v.manquantes).toEqual(expect.arrayContaining(["aucun SHA aux checks verts", "srv-erp : aucun déploiement"]));
     d.vert = { sha: "abc1234def", le: "2026-11-01T10:00:00.000Z" };
     d.deploiements.push({ service: "srv-erp", nom: "ERP", deployId: "dep-1", commit: "abc1234def", statut: "live", le: "x" });
+    expect(jugerPreuves(d, 0.12).manquantes).toEqual(["la PR n'est pas fusionnée dans la base (validation refusée ou en attente)", "ERP : santé non démontrée"]);
+    // Le plan type fusionne : sans fusion prouvée, pas de « terminé ».
+    d.fusion = { sha: "abc1234def", pr: 7, base: "main", le: "x" };
     expect(jugerPreuves(d, 0.12).manquantes).toEqual(["ERP : santé non démontrée"]);
     d.deploiements[0]!.sain = true;
     expect(jugerPreuves(d, 0.12)).toMatchObject({ satisfait: true });

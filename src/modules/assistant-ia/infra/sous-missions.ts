@@ -170,7 +170,8 @@ async function conclureTour(tour: { id: string; filId: string; userId: string; t
   if (!ids.length) return "rien";
   if (await prisma.assistantIaTour.count({ where: { syntheseDe: tour.id } })) return "rien";
   const ms = await prisma.mission.findMany({
-    where: { id: { in: ids }, principalId: tour.userId, kind: "TRAVAIL" },
+    // C1 (décision 0042) : un CHANTIER lancé depuis la conversation y rend compte comme un travail (rapport au carnet).
+    where: { id: { in: ids }, principalId: tour.userId, kind: { in: ["TRAVAIL", "CHANTIER"] } },
     select: { id: true, title: true, status: true, costUsd: true, carnet: true, startedAt: true, updatedAt: true, context: true },
   });
   if (ms.some((m) => !statutFini(m.status))) return "attente";

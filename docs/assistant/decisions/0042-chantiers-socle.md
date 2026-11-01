@@ -148,19 +148,13 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
   `GITHUB_TOKEN`, rien n'est branché et un chantier le dit (« connecteurs non branchés ») ; sans `RENDER_API_KEY`, un
   chantier sans service tourne, un déploiement échoue en le disant ; sans routine pour le dépôt
   (`CLAUDE_ROUTINE_<ALIAS>_DEPOT`, ou une seule routine), le lancement échoue en le disant.
-- Ce que les connecteurs C2 n'ont pas : **ouvrir une PR** (Claude Code l'ouvre, sa consigne le dit), **fusionner** (après
-  la carte de validation, la Direction fusionne à la main ; le chantier attend la fusion, puis revérifie le SHA
-  d'intégration), **lire un fichier**. La santé est un GET public de l'URL du service (adaptateur, 10 s).
+- Ce que les connecteurs C2 n'ont pas : **ouvrir une PR** (Claude Code l'ouvre, sa consigne le dit), **lire un fichier**.
+  La **fusion** est faite (§ 10). La santé est un GET public de l'URL du service (adaptateur, 10 s).
 - **Relais CLI** (décision de la Direction du 01/11, connecteur de C2) : la correction suit l'ordre décidé — Auto-fix de
   la session (grâce `autofixMinutes`), puis message à la MÊME session par le relais (`envoyerMessage`, s'il est vivant),
   puis commentaire `@claude` dans la PR, puis session neuve ; sans routine pour le dépôt, le lancement passe par le relais
   (`lancerParCli`). Les ordres du relais sont asynchrones : le moteur ne lit pas leur état, il attend le commit (vérité GitHub).
-- Les webhooks signés GitHub/Render → `BusinessEvent` sont faits par C2 ; ce lot ne s'y abonne pas encore (il sonde à
-  pas croissant, ≤ 10 min) et expose `noterEvenementDev` + `signalerReveilChantier` pour le réveil immédiat.
-- Adam (persona `ADAM` historique, `src/lib/assistant/`) n'a pas encore les quatre outils : ils sont dans l'Assistant IA,
-  la conversation de la Direction (Adventum IA). L'oral passe par la délégation vocale existante.
-- Le dépôt du rapport au Drive en document (comme un livrable de travail) n'est pas fait : le rapport est au dossier, au
-  tableau et en notification.
+- Webhooks, outils chez Adam, rapport au Drive : faits (§ 10).
 - **Parallélisme** : l'unité d'Adam reste « une session principale par chantier, réservations faites » ; les « Projects »
   de Claude Code (une conversation qui coordonne des sessions parallèles) sont une option, non branchée.
 - Les sessions Claude Code d'un chantier (id + URL) restent au dossier, au tableau et en mémoire technique (clé
@@ -168,19 +162,63 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
   ligne sans routine : le lancement attend (essais à délai croissant), il ne bascule pas en échec définitif.
 - E2E lourds : jamais par défaut ; la vérification est déterministe (checks CI, santé, journaux).
 
+## 10. Phase 2 (01/11, décisions de la Direction) — la fusion, le réveil par webhook, Adam, le rapport au Drive
+
+**Plafonds par défaut confirmés** : 5 $ par chantier, 20 $ par jour, 4 lancements, 4 déploiements, 3 tentatives, Auto-fix
+15 min. **« La fusion sur main : tu la fais une fois que j'approuve. »**
+
+- **Le geste de fusion — `DEV_FUSIONNER`** (au plan type, après `DEV_CORRIGER` ; `fusion: false` le retire ; un service
+  qui suit une autre branche que celle du chantier exige une étape `DEV_FUSIONNER` avant son déploiement — refusé à la
+  lecture du plan). Quand la PR est verte (checks verts sur le SHA de tête, `mergeable`, tête = SHA vérifié, périmètre
+  tenu par `DEV_VERIFIER`), le chantier pose la carte **« Fusionner la PR #n (« titre ») dans <base> — SHA vérifié … »**,
+  écrite et ORALE (K4/K9 : la voix relit, « vas-y » suffit — l'outil `valider_chantier` le dit). Validée : l'ERP fusionne
+  par l'API GitHub — `fusionnerPr` ajouté au connecteur ForgeGit de C2 (`PUT /repos/{o}/{r}/pulls/{n}/merge` avec
+  `sha` = la tête vérifiée → 409 « la tête a bougé » si elle a bougé ; méthode : `CHANTIERS_METHODE_FUSION`, sinon celle
+  que le dépôt autorise — merge par défaut). **Refus clair** si la protection de branche l'interdit (405 → « fusion
+  refusée : … », blocage, rien n'est déployé). Puis la **CI de la base sur le commit de fusion** : en cours → sondage ;
+  aucun check après 6 passages → blocage ; rouge → blocage, incident en mémoire, rien n'est déployé ; verte → le SHA
+  vert devient le commit de fusion, et le **déploiement s'enchaîne** : préproduction autonome, **production = sa propre
+  carte** (« déployer X en PRODUCTION (SHA vérifié …) »). Un plan qui fusionne ne déploie rien tant que la fusion n'a pas
+  abouti ; le juge des preuves refuse « terminé » sans fusion.
+- **Réversible (décisions 0040-0044)** : `validerMonChantier` est enveloppée par `actionReversible` et déclarée
+  (`effets/declarations/metiers.ts`) ; son inverse métier `platform/in-process/chantiers/compensation.ts` : le geste n'a pas encore agi →
+  la validation est retirée (ANNULÉ) ; **la fusion a eu lieu → COMPENSÉE par une PR de revert ouverte et proposée**
+  (`proposerRevert` du connecteur : mutation GraphQL `revertPullRequest`) — **jamais un force-push** ; sa fusion repasse
+  par la validation ; un déploiement / rollback de production fait → IMPOSSIBLE, dit avec le geste qui reste. La même
+  compensation est offerte en conversation (`annuler_chantier` avec `annulerFusion`). Reçu `…|revert|<pr>` : une seule PR
+  de revert, même demandée deux fois.
+- **Le réveil par webhook** : le registre (`events/ledger.ts`) envoie chaque `BusinessEvent` `DEV_*` / `RENDER_*` (C2) à
+  `chantiers/reveil.ts` : les chantiers vivants dont le dépôt, la branche (ou la base après fusion), un SHA, la PR, un
+  service ou un déploiement est cité voient leurs étapes en attente (`DEV_ATTENDRE`, checks, CI de la base, `RENDER_*`)
+  repartir aussitôt, et la boucle courte (10 s) les conduit. Le sondage à pas croissant reste en secours.
+- **Les outils chez Adam aussi** : les quatre outils vivent désormais dans `lib/missions/chantiers/outils.ts` (socle) ;
+  l'Assistant IA les enveloppe (`infra/chantiers.ts`, une seule arête de dette, celle d'avant), Adam les reçoit en
+  `PowerTool` par le PONT (`platform/in-process/chantiers/outils-adam.ts`, `allowed: peutPiloterMissionsAdam`, Super Admin relu par le service).
+  **`SOCLE_IA_CEILING` n'est pas relevé** : Adam n'est pas du socle IA de l'Assistant, et le module n'y gagne aucun import.
+- **Le rapport final au Drive (dossier « Travaux »)** : à la fin, le rapport est déposé en VRAI document Word par la
+  persona de l'Assistant IA (`deposerLivrable`, reçu `…|rapport|document`, reprise sans doublon), inscrit aux livrables
+  du carnet ; un chantier lancé depuis la conversation s'inscrit au tour (`travauxLances`) et la synthèse K3 y écrit le
+  rapport **avec son lien** (`conclureTour` lit `TRAVAIL` et `CHANTIER`). Composé par `scheduled.ts` (`depsFinChantier`).
+
 ## 9. Preuves
 
 - `adaptateur-c2.test.ts` (8) : relais CLI (même session, lancement sans routine) ; fichiers par comparaison, extrait du journal du job, déploiement en file retrouvé par SHA,
   routine du dépôt et clé d'idempotence, relance dans le fil de la PR, `INCERTAIN` jamais relancé.
 - `regles.test.ts` (21) : DSL, enchaînements refusés, compilation et condition du moteur, anti-boucle, délai, budgets,
   réglages bornés, routeur, recouvrement, juge des preuves, rapport, MiMo (URL, clé jamais rendue, journal K8, sonde).
-- `chantiers.test.ts` (11, vraie base, vrai moteur, ports factices) : Super Admin seul ; succès de bout en bout ; CI rouge
+- `chantiers.test.ts` (16, vraie base, vrai moteur, ports factices) : Super Admin seul ; succès de bout en bout ; CI rouge
   corrigée au 2ᵉ tour (commentaire `@claude`, aucun modèle payé pour un extrait court) ; Auto-fix : corrigé sans aucune
   relance ; même échec 3× → Sol une fois,
   blocage réel, rien déployé, rapport ; santé 503 → rollback, autoDeploy coupé, conclusion refusée ; production → carte,
   validation orale, fusion, revérification, déploiement ; conclusion REFUSÉE sans preuve de santé ; lancements épuisés →
   `BUDGET_HOLD`, plafond relevé → reprise seule ; deux périmètres recouvrants → le second en file puis parti ; annulation
-  et tableau « Missions ».
+  et tableau « Missions ». Phase 2 : carte « Fusionner la PR #1 (« … ») dans main », validée à l'oral, fusion au SHA
+  attendu, CI de main, puis carte de production distincte ; préproduction autonome après fusion (une seule carte) ;
+  fusion refusée par la protection de branche (dit, rien déployé) ; CI de main rouge → rien déployé, PR de revert
+  (salarié refusé, une seule PR même redemandée) ; réveil par un fait `DEV_*` (fait étranger ignoré) ; rapport au Drive,
+  une fois, aux livrables, conversation prévenue.
+- `effets/reversibles-chantiers.test.ts` (2) : `validerMonChantier` exécutée puis annulée — validation retirée avant la
+  fusion ; fusion faite → compensée par une PR de revert.
 - `processus.test.ts` (2, vrais processus) : deux processus sur la même branche puis sur deux globs recouvrants à la même
   milliseconde → un seul gagnant ; SIGKILL pendant `DEV_ATTENDRE` → reprise de l'orpheline, aucune seconde session
   Claude Code, chantier terminé, réservations libérées.

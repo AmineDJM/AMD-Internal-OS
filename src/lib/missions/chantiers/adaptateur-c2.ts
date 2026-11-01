@@ -11,7 +11,7 @@ import type { PortsDev } from "@/lib/missions/chantiers/etapes";
  * Elle reçoit les trois connecteurs (`platform/in-process/chantiers/connecteurs.ts`, composés par `scheduled.ts`) et
  * rend le contrat du moteur (`ports-moteur.ts`). Ce que le moteur demande et que les connecteurs n'ont pas est dit :
  *   • ouvrir une PR : Claude Code l'ouvre (sa consigne le dit) — refus « non pris en charge », le moteur continue ;
- *   • fusionner : la Direction fusionne à la main après la carte de validation — le moteur attend la fusion ;
+ *   • fusionner : APRÈS la carte de validation, au SHA vérifié (`fusionnerPr` du connecteur, décision 0042) ;
  *   • la santé d'un service : un GET de son URL publique (`fetch` injecté, délai borné), rien d'autre.
  * Relancer suit l'ordre de la Direction : message à la MÊME session par le relais CLI (s'il est vivant), sinon commentaire
  * `@claude` dans la PR, sinon session neuve ; lancer : la routine du dépôt, sinon le relais (`claude --cloud`).
@@ -48,7 +48,7 @@ function forgeDe(f: C2.ForgeGit): ForgeGit {
       return vers(cmp, (c) => ({ existe: true, sha: tete.valeur, commits: c.commits.map((x) => ({ sha: x.sha, message: x.message, le: x.date ?? "" })), fichiers: c.fichiers.map((x) => x.chemin) }));
     },
     pr: async (d, b) => vers(await f.prDeBranche(nom(d), b), (p) => p && ({
-      numero: p.numero, url: p.url, mergeable: p.fusionnable, etat: p.fusionnee ? "fusionnee" as const : p.etat === "open" ? "ouverte" as const : "fermee" as const,
+      numero: p.numero, url: p.url, titre: p.titre, mergeable: p.fusionnable, etat: p.fusionnee ? "fusionnee" as const : p.etat === "open" ? "ouverte" as const : "fermee" as const,
     })),
     checks: async (d, sha) => {
       const c = await f.checks(nom(d), sha);
@@ -63,7 +63,9 @@ function forgeDe(f: C2.ForgeGit): ForgeGit {
     },
     commenterPr: async (d, numero, texte) => vers(await f.commenterPr(nom(d), numero, texte), (x) => ({ url: x.url })),
     ouvrirPr: async () => nonPrisEnCharge("ouvrir une PR (Claude Code l'ouvre)"),
-    fusionnerPr: async () => nonPrisEnCharge("fusionner une PR (fusion à la main après validation)"),
+    // La fusion VALIDÉE, au SHA vérifié (GitHub refuse si la tête a bougé) ; sa compensation, une PR de revert.
+    fusionnerPr: async (d, numero, shaAttendu) => vers(await f.fusionnerPr(nom(d), numero, { shaAttendu }), (x) => ({ sha: x.sha })),
+    proposerRevert: async (d, numero, titre, corps) => vers(await f.proposerRevert(nom(d), numero, { titre, corps }), (x) => x),
     fichier: async () => nonPrisEnCharge("lire un fichier"),
   };
 }

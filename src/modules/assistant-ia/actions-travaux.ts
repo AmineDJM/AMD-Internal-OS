@@ -1,8 +1,8 @@
 "use server";
 
 import { porte } from "./infra/porte-actions";
-import type { DemandeRecue, EtapeVue, TableauDesMissions, TravailDEquipe } from "@/modules/assistant-ia/api";
 import { actionReversible } from "@/lib/effets/reversible";
+import type { DemandeRecue, EtapeVue, TableauDesMissions, TravailDEquipe } from "@/modules/assistant-ia/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -98,11 +98,14 @@ export async function annulerMaMission(travailId: string): Promise<{ ok: true; m
  * critique qu'il attend (production, fusion sur main, rollback de production). Super Admin relu par le service.
  */
 export async function validerMonChantier(chantierId: string, accorde: boolean): Promise<{ ok: true; message: string } | { ok: false; erreur: string }> {
-  const p = await porte(true);
-  if (!p.ok) return p;
-  if (!id(chantierId)) return { ok: false, erreur: "Chantier introuvable." };
-  const r = await (await api()).validerDepuisLeTableau(chantierId, p.user.id, accorde === true);
-  return r.ok ? { ok: true, message: r.message } : r;
+  // RÉVERSIBLE (décision 0044) : au journal des effets ; l'annuler retire la validation, ou compense une fusion faite.
+  return actionReversible("assistant-ia-travaux-actions:validerMonChantier", "Validation d'un chantier", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    if (!id(chantierId)) return { ok: false as const, erreur: "Chantier introuvable." };
+    const r = await (await api()).validerDepuisLeTableau(chantierId, p.user.id, accorde === true);
+    return r.ok ? { ok: true as const, message: r.message } : r;
+  });
 }
 
 /** « Démarrer d'office les travaux sans geste » : la préférence de la personne (null = le défaut de la console). */
