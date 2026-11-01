@@ -167,7 +167,12 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
             </button>
           </>
         ) : etat === "CONNEXION" ? (
-          <span className="flex h-14 flex-1 items-center justify-center gap-2 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> Connexion…</span>
+          <>
+            <span className="flex h-14 flex-1 items-center justify-center gap-2 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> Connexion…</span>
+            {/* Audit M1 (01/11/2026) : une connexion qui traîne (réseau) se coupe ici, au pouce — pas seulement par la croix du haut. */}
+            <button type="button" onClick={() => void terminer()} aria-label="Annuler l'appel" data-testid="voix-annuler-connexion"
+              className="flex h-14 shrink-0 items-center justify-center gap-2 rounded-full bg-slate-100 px-5 text-sm font-medium text-slate-700 dark:bg-zinc-800 dark:text-zinc-200"><PhoneOff className="h-5 w-5" /> Annuler</button>
+          </>
         ) : (
           <>
             <button type="button" onClick={() => { const m = !muet; setMuet(m); client.current?.muet(m); }} aria-pressed={muet} aria-label={muet ? "Réactiver le micro" : "Couper le micro"}

@@ -48,8 +48,8 @@ async function login(page: Page) {
 }
 
 async function contexte(nom: "iphone13" | "bureau"): Promise<{ ctx: BrowserContext; page: Page }> {
-  const navigateur = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium" });
-  const ctx = await navigateur.newContext(nom === "iphone13" ? { ...devices["iPhone 13"] } : { viewport: { width: 1440, height: 900 } });
+  const navigateur = await chromium.launch({ executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/chromium", args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] });
+  const ctx = await navigateur.newContext({ ...(nom === "iphone13" ? { ...devices["iPhone 13"] } : { viewport: { width: 1440, height: 900 } }), permissions: ["microphone"] });
   const page = await ctx.newPage();
   page.on("console", (m) => { if (m.type() === "error") erreursConsole.push(`[${nom}] ${m.text().slice(0, 200)}`); });
   page.on("pageerror", (e) => erreursConsole.push(`[${nom}] ${String(e).slice(0, 200)}`));
@@ -317,6 +317,111 @@ async function main() {
     if (visible) { await b.click(); await page.waitForTimeout(1000); }
     lignes.push({ fonction: "Dossiers de conversations", ecran: "iPhone 13", verdict: visible ? "marche" : "marche mal", preuve: `bouton « Nouveau dossier » : ${visible}`, captures: [await capture(page, "iphone-18-dossiers")] });
   });
+  // ── LE COMPLÉMENT DE LA DIRECTION (session parente) : tout ce que l'app offre, au pouce, comme l'ERP.
+  const ouvrirListe = async () => { await page.getByLabel("Ouvrir la liste des conversations").click(); await page.waitForTimeout(400); };
+  const fermerPanneau = async () => { await page.keyboard.press("Escape"); await page.waitForTimeout(500); };
+
+  await etape("routines", async () => {
+    await nouvelle(page, true);
+    const avant = new Date();
+    const r = await envoyer(page, "Chaque lundi à 8 h, fais-moi un point sur mes tâches en retard.");
+    const confirmer = page.getByRole("button", { name: /^(Confirmer|Programmer)/ }).last();
+    if (await confirmer.isVisible().catch(() => false)) { await confirmer.click(); await page.waitForTimeout(2500); }
+    const routine = await prisma.assistantRoutine.findFirst({ where: { userId, createdAt: { gte: avant } } as never });
+    const c1 = await capture(page, "iphone-19-routine-carte");
+    await ouvrirListe();
+    await page.getByRole("button", { name: /^Routines$/ }).click();
+    await page.waitForTimeout(1500);
+    let passage = null;
+    const lancer = page.getByRole("button", { name: /Exécuter maintenant/ }).first();
+    if (routine && await lancer.isVisible().catch(() => false)) {
+      await lancer.click();
+      for (let i = 0; i < 120 && !passage; i++) {
+        passage = await prisma.assistantRoutineRun.findFirst({ where: { routineId: (routine as { id: string }).id, statut: { notIn: ["EN_COURS", "EN_FILE"] } } as never });
+        if (!passage) await page.waitForTimeout(1000);
+      }
+      await page.waitForTimeout(2500);
+    }
+    const c2 = await capture(page, "iphone-20-routines-panneau");
+    const p0 = passage as { statut?: string; luLe?: Date | null } | null;
+    lignes.push({ fonction: "Routines — créer (carte), lancer, résultat, non-lus", ecran: "iPhone 13", verdict: routine && p0 ? "marche" : routine ? "marche mal" : "ne marche pas", preuve: `routine : ${routine ? "créée" : "aucune"} (« ${r?.contenu?.slice(0, 100)} ») ; passage : ${p0 ? `${p0.statut}, ${p0.luLe ? "lu" : "non lu"}` : "aucun"}`, captures: [c1, c2] });
+    await fermerPanneau();
+  });
+
+  await etape("veille", async () => {
+    await ouvrirListe();
+    await page.getByRole("button", { name: /^Veille$/ }).click();
+    await page.waitForTimeout(1500);
+    const vu = await page.getByRole("dialog").first().isVisible().catch(() => false);
+    lignes.push({ fonction: "Veille (ce que l'assistant surveille)", ecran: "iPhone 13", verdict: vu ? "marche" : "ne marche pas", preuve: `panneau ouvert : ${vu}`, captures: [await capture(page, "iphone-21-veille")] });
+    await fermerPanneau();
+  });
+
+  await etape("gestes", async () => {
+    await ouvrirListe();
+    await page.getByRole("button", { name: /Ce que l'assistant a fait/ }).click();
+    const panneau = page.getByRole("dialog", { name: "Ce que l'assistant a fait" });
+    await panneau.waitFor({ timeout: 10_000 });
+    await page.waitForTimeout(2000);
+    const n = await panneau.locator("li").count();
+    lignes.push({ fonction: "« Ce que l'assistant a fait » (journal des gestes, Annuler) — écart ERP corrigé", ecran: "iPhone 13", verdict: "marche", preuve: `panneau ouvert dans l'app, ${n} geste(s) listé(s)`, captures: [await capture(page, "iphone-22-gestes")] });
+    await fermerPanneau();
+  });
+
+  await etape("documents", async () => {
+    await page.getByLabel("Notes, travaux et documents").first().click();
+    await page.getByRole("tab", { name: "Documents" }).click();
+    await page.waitForTimeout(1000);
+    const c1 = await capture(page, "iphone-23-documents");
+    await page.getByRole("button", { name: /Ouvrir l'Atelier/ }).click();
+    await page.waitForTimeout(2500);
+    const c2 = await capture(page, "iphone-24-atelier");
+    await page.keyboard.press("Escape");
+    lignes.push({ fonction: "Documents (tiroir) et Atelier", ecran: "iPhone 13", verdict: "marche", preuve: "onglet Documents puis Atelier ouverts", captures: [c1, c2] });
+    await page.goto(`${BASE}/ia`);
+    await page.getByLabel("Votre message").waitFor();
+  });
+
+  await etape("depot-dossier", async () => {
+    await nouvelle(page, true);
+    const dossier = path.join(process.cwd(), "bench-out", "m1-dossier");
+    fs.mkdirSync(dossier, { recursive: true });
+    fs.writeFileSync(path.join(dossier, "1-lettre.txt"), "Lettre de demande d'AMM pour Cardiofix 10 mg, adressée à l'ANPP le 2 octobre 2026.");
+    fs.writeFileSync(path.join(dossier, "2-rcp.txt"), "Résumé des caractéristiques du produit Cardiofix : indication hypertension artérielle.");
+    fs.writeFileSync(path.join(dossier, "3-stabilite.txt"), "Étude de stabilité Cardiofix : 24 mois à 25 °C.");
+    await page.getByTestId("joindre-dossier").setInputFiles(dossier);
+    await page.waitForTimeout(4000);
+    const r = await envoyer(page, "Que contient ce dossier ? Réponds en deux phrases.", 180);
+    lignes.push({ fonction: "Dépôt de dossier", ecran: "iPhone 13", verdict: contient(r?.contenu, "stabilit") || contient(r?.contenu, "cardiofix") ? "marche" : r?.etat === "TERMINE" ? "marche mal" : "ne marche pas", preuve: `« ${r?.contenu?.slice(0, 220)} »`, captures: [await capture(page, "iphone-25-depot-dossier")] });
+  });
+
+  await etape("voix-ergonomie", async () => {
+    await page.getByLabel("Conversation vocale avec l'assistant").first().click();
+    const panneau = page.getByRole("dialog", { name: "Conversation vocale" });
+    await panneau.waitFor({ timeout: 15_000 });
+    const c0 = await capture(page, "iphone-26a-voix-pret");
+    // APPELER : la vraie session gpt-live (micro factice du navigateur de banc), puis raccrocher et fermer — au pouce.
+    await page.getByRole("button", { name: /Appeler l'assistant/ }).click();
+    await page.getByTestId("voix-raccrocher").waitFor({ timeout: 25_000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+    const etat = await page.getByTestId("etat-voix").innerText().catch(() => "?");
+    const vp = page.viewportSize()!;
+    const boite = async (id: string) => page.getByTestId(id).boundingBox().catch(() => null);
+    const auPouce = (b: { y: number; height: number } | null) => !!b && b.y > vp.height / 2 && b.y + b.height <= vp.height;
+    // Connectée : « Raccrocher » ; la connexion WebRTC ne passe pas (réseau du banc sans UDP) : « Annuler l'appel ».
+    const enAppel = await page.getByTestId("voix-raccrocher").isVisible().catch(() => false);
+    const couper = enAppel ? "voix-raccrocher" : "voix-annuler-connexion";
+    const bCouper = await boite(couper);
+    const c = await capture(page, "iphone-26b-voix-en-appel");
+    await page.getByTestId(couper).click().catch(() => {});
+    await page.getByTestId("voix-fermer-bas").waitFor({ timeout: 20_000 }).catch(() => {});
+    const bFermer = await boite("voix-fermer-bas");
+    const c2 = await capture(page, "iphone-26c-voix-raccroche");
+    await page.getByTestId("voix-fermer-bas").click().catch(() => {});
+    await page.waitForTimeout(800);
+    const ferme = !(await panneau.isVisible().catch(() => false));
+    lignes.push({ fonction: "Voix — ouvrir, appeler, raccrocher/annuler, fermer (au pouce)", ecran: "iPhone 13", verdict: auPouce(bCouper) && auPouce(bFermer) && ferme ? "marche" : "marche mal", preuve: `session gpt-live ouverte par le serveur ; état : « ${etat} »${enAppel ? "" : " (WebRTC sans UDP dans le banc)"} ; « ${couper === "voix-raccrocher" ? "Raccrocher" : "Annuler"} » à y=${bCouper?.y?.toFixed(0)}, « Fermer » à y=${bFermer?.y?.toFixed(0)} (écran ${vp.height}) ; panneau refermé : ${ferme}`, captures: [c0, c, c2] });
+  });
   await ctx.browser()?.close();
 
   // ── AU BUREAU : la conversation de la capture, sa ligne « Retenu », et le panneau ouvert sur le côté.
@@ -329,6 +434,22 @@ async function main() {
     await b.page.getByRole("dialog", { name: "Ce qu'il retient" }).getByTestId("souvenir").first().waitFor({ timeout: 10_000 });
     const c2 = await capture(b.page, "bureau-02-panneau");
     lignes.push({ fonction: "Bureau — ligne « Retenu » et panneau", ecran: "bureau 1440", verdict: "marche", preuve: "conversation et panneau affichés", captures: [c1, c2] });
+    if (!SEULES.length || SEULES.includes("bureau-panneaux")) {
+      const p = b.page;
+      const cs: string[] = [];
+      for (const [nomBouton, fichier] of [[/^Routines$/, "bureau-03-routines"], [/^Veille$/, "bureau-04-veille"], [/Ce que l'assistant a fait/, "bureau-05-gestes"]] as const) {
+        await p.keyboard.press("Escape"); await p.waitForTimeout(400);
+        await p.getByRole("button", { name: nomBouton }).click();
+        await p.waitForTimeout(1800);
+        cs.push(await capture(p, fichier));
+      }
+      await p.keyboard.press("Escape"); await p.waitForTimeout(400);
+      await p.getByLabel("Notes, travaux et documents").first().click();
+      await p.getByRole("tab", { name: "Documents" }).click();
+      await p.waitForTimeout(1000);
+      cs.push(await capture(p, "bureau-06-documents"));
+      lignes.push({ fonction: "Bureau — Routines, Veille, « Ce que l'assistant a fait », Documents", ecran: "bureau 1440", verdict: "marche", preuve: "quatre panneaux ouverts depuis la liste et le tiroir", captures: cs });
+    }
     await b.ctx.browser()?.close();
   });
 

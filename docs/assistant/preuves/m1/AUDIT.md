@@ -32,8 +32,22 @@ souvenirs pour le même message).
 | Pièces jointes | ✅ marche | fichier déposé, lu, résumé exact (« reporté à janvier 2027 faute d'enregistrement ANPP »). [iphone-13](iphone-13-piece.jpg) |
 | Images | ✅ marche | `AssistantIaVisuel` créé, image dans le Drive (famille « Images & vidéos » ouverte pour le banc — fermée par défaut). [iphone-14](iphone-14-image.jpg) |
 | Réglages | ✅ marche | thème, réponse vocale, missions d'office, notifications, appareils connectés, consommation. [iphone-16](iphone-16-reglages.jpg), [iphone-17](iphone-17-consommation.jpg) |
-| Voix — session temps réel | ⚪ non testable ici | la session WebRTC exige un vrai micro : la route répond proprement (502 du fournisseur à une offre SDP factice, 429 au plafond), jamais d'erreur serveur. La capture de fin de session est prouvée ci-dessus. |
+| Routines (créer, lancer, résultat, non-lus) | ✅ marche | « Chaque lundi à 8 h, fais-moi un point sur mes tâches en retard » → carte confirmée → `AssistantRoutine` ; « Exécuter maintenant » → passage `SUCCES`, marqué lu à l'ouverture. [iphone-19](iphone-19-routine-carte.jpg), [iphone-20](iphone-20-routines-panneau.jpg), [bureau-03](bureau-03-routines.jpg) |
+| Veille | ✅ marche | panneau ouvert depuis la liste. [iphone-21](iphone-21-veille.jpg), [bureau-04](bureau-04-veille.jpg) |
+| « Ce que l'assistant a fait » (journal des gestes, Annuler) | ✅ **corrigé** | ABSENT de l'app (page ERP `/assistant/gestes` non servie en mode app) → panneau `ecrans/app/panneau-gestes.tsx` dans la liste latérale, même écran `GestesAssistant`. [iphone-22](iphone-22-gestes.jpg), [bureau-05](bureau-05-gestes.jpg) |
+| Documents (tiroir) et Atelier | ✅ marche | [iphone-23](iphone-23-documents.jpg), [iphone-24](iphone-24-atelier.jpg), [bureau-06](bureau-06-documents.jpg) |
+| Dépôt de dossier | ✅ marche | 3 fichiers en dossier → « une lettre de demande d'AMM pour Cardiofix 10 mg…, un RCP…, une étude de stabilité sur 24 mois ». [iphone-25](iphone-25-depot-dossier.jpg) |
+| Voix — ouvrir, appeler, raccrocher, fermer au pouce | ✅ **corrigé** | « Annuler » et « Fermer » à y = 592 sur 664 (bas d'écran), panneau refermé ; la session gpt-live est ouverte par le serveur, mais l'audio WebRTC ne passe pas dans le conteneur du banc (pas d'UDP) : l'appel reste « Connexion… » — et pendant ce temps AUCUN bouton n'était au pouce (seule la croix du haut). Ajouté : « Annuler » en bas pendant la connexion. Les boutons « Fermer », « Appeler », « Raccrocher » sont dans la barre du bas (safe-area). [iphone-26a](iphone-26a-voix-pret.jpg), [iphone-26b](iphone-26b-voix-en-appel.jpg), [iphone-26c](iphone-26c-voix-raccroche.jpg) |
 | ERP `/assistant` — panneau « Ce qu'il retient » | ✅ marche | serveur de production SANS `APP_MODE` (l'ERP), même compte : 4 souvenirs, compteur, souvenir vocal (« retenu de la conversation vocale »), ouvert par « Ma mémoire » (bureau) et « Plus d'outils › Ma mémoire » (iPhone). Script `scripts/bench/m1-audit-erp.ts`. [erp-bureau](erp-bureau-panneau.jpg), [erp-iphone](erp-iphone-panneau.jpg) |
+
+## L'app face à l'ERP `/assistant`
+
+Outils de l'ERP (barre et « Plus d'outils ») : Ma mémoire, Mes routines, Mes travaux, Veille, « Ce que l'assistant a
+fait », Atelier, réponse vocale, missions, dépôt de dossier, pièces, voix. Dans l'app : tous présents — mémoire, routines,
+veille et « Ce que l'assistant a fait » dans la liste latérale ; travaux et missions dans le tiroir (onglet Missions,
+demandes reçues) et l'indicateur d'en-tête ; Atelier par l'onglet Documents ; réponse vocale dans Réglages. Seul écart
+trouvé : « Ce que l'assistant a fait » — corrigé. Restent propres à l'ERP, sans fonction perdue : le bandeau d'indicateurs
+(KPI) et l'effet de curseur décoratif.
 
 ## Ce qui a été trouvé et CORRIGÉ dans ce lot
 
@@ -46,6 +60,8 @@ souvenirs pour le même message).
 3. **Faux positif du filtre** : « fais-moi la synthèse » déclenchait l'extracteur (« thèse » dans « synthèse »). → thèmes
    ancrés en début de mot (test ajouté).
 4. **Mise en page iPhone** : la ligne « Retenu » se cassait (icône seule sur une ligne). → texte en flux.
+5. **Écart ERP ↔ app** : « Ce que l'assistant a fait » (historique des gestes et Annuler) n'existait que dans l'ERP. → panneau dans l'app.
+6. **Voix au pouce** : pendant « Connexion… », aucun bouton en bas pour abandonner un appel qui traîne. → « Annuler » en bas.
 
 ## Reste (hors de ce lot, pour décision)
 
