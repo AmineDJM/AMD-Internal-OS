@@ -1,128 +1,381 @@
-import { Prisma } from "@prisma/client";
+import { prismaBrut } from "@/lib/prisma";
+import { recordAudit } from "@/lib/audit";
 import { journaliser, sansBloquer } from "@/lib/journal";
-import { prisma, prismaBrut } from "@/lib/prisma";
+import type { CurrentUser } from "@/lib/session";
+import { etatDuGeste, type EffetExterneCapture } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA FENÊTRE D'ANNULATION D'UN EFFET SORTANT (K10c — interface minimale, à réconcilier avec K10b).
+ * LA FENÊTRE D'ANNULATION DES EFFETS SORTANTS (K10b, décision 0038) — « Annuler l'envoi », façon messagerie.
  *
- * Un effet qui SORT de l'ERP (une diffusion de notifications poussées à toute l'entreprise…) ne part pas au clic :
- * il attend la fin de sa fenêtre (`AssistantIaReglage.fenetreAnnulationSec`, 120 s par défaut, réglée par le Super
- * Admin dans la console IA › accès). Pendant la fenêtre, l'annuler = RIEN N'EST PARTI. Après, il est parti : son
- * annulation est une COMPENSATION dite (retrait des notifications non lues, rectificatif à qui les a lues) et l'écran
- * dit ce qui ne se « dés-envoie » pas (une notification poussée affichée sur un téléphone).
+ * Un effet SORTANT (courriel SMTP, Microsoft Graph ou API, notification poussée, publication, diffusion d'offre, appel
+ * d'API externe, ordre transmis) ne part pas au moment du geste : il entre dans la file `EffetSortantDiffere` avec une
+ * échéance (`executeLe` = maintenant + délai réglé par le Super Admin, `AssistantIaReglage.fenetreAnnulationSecondes`,
+ * défaut 120 s). Puis :
  *
- * ── POURQUOI C'EST LE JOURNAL J7 QUI L'ANNULE ────────────────────────────────────────────
+ *   • ANNULÉ DANS LA FENÊTRE (`annulerEffetSortant`) — RIEN n'est parti. La ligne passe à ANNULE (qui, quand), l'audit
+ *     le garde, et l'annulation elle-même se rétablit (`retablirEffetSortant` : l'effet repart pour une fenêtre neuve).
+ *   • LA FENÊTRE PASSÉE — le worker (`executerEffetsSortantsDus`, tâche `effets.sortants`) prend la ligne (réclamation
+ *     atomique : jamais deux envois) et appelle son EXÉCUTEUR (`executeurs.ts`), hors de tout geste : le port sort.
+ *   • ANNULÉ APRÈS LE DÉPART (`compenserEffetSortant`) — on ne prétend JAMAIS qu'un courriel parti est effacé chez son
+ *     destinataire. L'exécuteur dit sa COMPENSATION : un rectificatif au même destinataire (lui-même différé, donc
+ *     annulable), une dépublication… ou, quand il n'y en a pas d'utile, la phrase qui le dit. La ligne passe à COMPENSE.
  *
- * `differerEffetSortant` écrit une ligne `EffetSortantDiffere` par `prisma` : sous un geste journalisé, c'est une
- * CRÉATION au journal des effets, comme n'importe quelle écriture. L'annulation du geste la retire si elle attend
- * encore (verrou, relecture : la course avec l'expédition est fermée par `FOR UPDATE` d'un côté et la réclamation
- * atomique `EN_ATTENTE → ENVOI` de l'autre) ; partie, `issueEffetDiffere` la compense. Pas de second mécanisme.
+ * ── DEUX FAÇONS D'Y ENTRER ───────────────────────────────────────────────────────────────
  *
- * Les expéditeurs sont DÉCLARÉS ici (import tardif), jamais enregistrés par effet de bord : le worker qui expédie
- * n'a pas chargé l'écran qui a différé.
+ *   • `differerEffetSortant(demande)` — l'appel EXPLICITE (K10a, K10c, tout code qui veut une fenêtre) : l'effet est
+ *     différé, où qu'on soit.
+ *   • `differerSiFenetre(demande)` — le PORT : appelé par chaque primitive de sortie juste après `noterEffetExterne`.
+ *     Sous un geste réversible (journal des effets, `fenetre: true`) il diffère et rend `true` (la primitive ne sort
+ *     pas) ; hors geste — le worker qui exécute, un écran non migré — il rend `false` et la primitive sort.
+ *
+ * Le lien au journal J7 : l'effet externe capturé porte `differeId` (colonne `AssistantEffet.effetSortantId`) ;
+ * `annulerGeste` lit la file — EN_ATTENTE → « annulé, rien n'est parti » ; PARTI → compensation. Pas de second système.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export type Charge = Record<string, unknown>;
+export const STATUTS_EFFET_SORTANT = ["EN_ATTENTE", "EN_COURS", "PARTI", "ECHEC", "ANNULE", "COMPENSE"] as const;
+export type StatutEffetSortant = (typeof STATUTS_EFFET_SORTANT)[number];
 
-export interface Expediteur {
-  /** Fait partir l'effet ; rend ce qu'il a laissé (identifiants), matière de sa compensation. */
-  envoyer: (charge: Charge) => Promise<Charge>;
-  /**
-   * Parti : la compensation, au nom de `parNom`. Rend ce qui a été fait et ce qui ne peut PAS être défait — l'écran
-   * et la voix le disent tels quels. `appliquer` faux : seulement le dire (le plan).
-   */
-  compenser: (charge: Charge, resultat: Charge | null, ctx: { appliquer: boolean; parNom: string; libelle: string }) => Promise<{ fait: string; irreversible: string }>;
+/** Défaut proposé à la Direction : 2 minutes (réglable dans Administration › IA › Accès). */
+export const FENETRE_DEFAUT_SECONDES = 120;
+export const FENETRE_MIN_SECONDES = 10;
+export const FENETRE_MAX_SECONDES = 900;
+/** Un exécuteur qui échoue est réessayé, puis la ligne passe à ECHEC (le dire vaut mieux qu'un envoi en double). */
+export const TENTATIVES_MAX = 3;
+
+export interface DemandeEffetSortant {
+  /** La clé de l'exécuteur (`executeurs.ts`) : « courriel.smtp », « courriel.graph », « courriel.api », « push »… */
+  type: string;
+  acte: EffetExterneCapture["acte"];
+  cible: string;
+  apercu?: string | null;
+  /** Ce que l'exécuteur recevra — passé par `enCharge` (les `Buffer` en base64). */
+  charge: unknown;
+  /** La personne au nom de qui l'effet part (défaut : le principal du geste en cours). */
+  principalId?: string | null;
+  /** L'objet métier concerné (l'écran de sa fiche montre l'envoi en attente). */
+  objet?: { modele: string; id: string } | null;
+  /** Le délai, en secondes — défaut : le réglage du Super Admin. */
+  delaiSecondes?: number;
 }
 
-const EXPEDITEURS: Readonly<Record<string, () => Promise<Expediteur>>> = {
-  "notification.diffusion": async () => (await import("@/lib/notifications/diffusion-differee")).expediteurDiffusion,
-};
-
-export const STATUTS_EFFET = ["EN_ATTENTE", "ENVOI", "PARTI", "ANNULE", "ECHEC", "COMPENSE"] as const;
-
-/** La fenêtre réglée (secondes, 0 à 900) — 120 par défaut. */
-export async function fenetreAnnulationSec(): Promise<number> {
-  const r = await prismaBrut.assistantIaReglage.findUnique({ where: { id: "global" }, select: { fenetreAnnulationSec: true } }).catch(sansBloquer("effets.fenetre.reglage", null));
-  return Math.max(0, Math.min(900, r?.fenetreAnnulationSec ?? 120));
+export interface EffetSortantProgramme {
+  id: string;
+  executeLe: Date;
+  delaiSecondes: number;
 }
 
-export interface EffetDiffere { id: string; partA: Date; secondes: number }
+// ── LA CHARGE : sérialisable, octets compris ──────────────────────────────────────────────
+
+const OCTETS = "$octets64";
+
+/** Rend une valeur sérialisable en JSON : `Buffer` / `Uint8Array` → `{ $octets64 }`, `Date` → ISO. */
+export function enCharge(v: unknown): unknown {
+  if (v === undefined || v === null) return v ?? null;
+  if (Buffer.isBuffer(v) || v instanceof Uint8Array) return { [OCTETS]: Buffer.from(v).toString("base64") };
+  if (v instanceof Date) return v.toISOString();
+  if (Array.isArray(v)) return v.map(enCharge);
+  if (typeof v === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) if (x !== undefined) out[k] = enCharge(x);
+    return out;
+  }
+  return v;
+}
+
+/** L'inverse : `{ $octets64 }` → `Buffer`. */
+export function deCharge<T = unknown>(v: unknown): T {
+  const un = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(un);
+    if (x && typeof x === "object") {
+      const o = x as Record<string, unknown>;
+      if (typeof o[OCTETS] === "string" && Object.keys(o).length === 1) return Buffer.from(o[OCTETS] as string, "base64");
+      const out: Record<string, unknown> = {};
+      for (const [k, y] of Object.entries(o)) out[k] = un(y);
+      return out;
+    }
+    return x;
+  };
+  return un(v) as T;
+}
+
+// ── LE DÉLAI ──────────────────────────────────────────────────────────────────────────────
+
+export const borneFenetre = (s: number): number =>
+  Math.min(FENETRE_MAX_SECONDES, Math.max(FENETRE_MIN_SECONDES, Math.round(Number.isFinite(s) ? s : FENETRE_DEFAUT_SECONDES)));
+
+/** Le délai de la fenêtre, en secondes — le réglage du Super Admin, borné. */
+export async function delaiFenetre(): Promise<number> {
+  const r = await prismaBrut.assistantIaReglage
+    .findUnique({ where: { id: "global" }, select: { fenetreAnnulationSecondes: true } })
+    .catch(sansBloquer("effets.fenetre.reglage", null));
+  return borneFenetre(r?.fenetreAnnulationSecondes ?? FENETRE_DEFAUT_SECONDES);
+}
+
+// ── ENTRER DANS LA FENÊTRE ────────────────────────────────────────────────────────────────
 
 /**
- * DIFFÈRE un effet sortant : il partira à la fin de la fenêtre, sauf annulation. `secondes` force la durée (tests).
- * Une fenêtre réglée à 0 le fait partir tout de suite (toujours journalisé, toujours compensable).
+ * DIFFÈRE un effet sortant : il attendra sa fenêtre d'annulation. Rend l'identifiant et l'échéance. Sous un geste
+ * journalisé, la ligne est liée au geste (`gesteId`) — l'annulation du geste l'annule avec le reste.
  */
-export async function differerEffetSortant(e: { type: keyof typeof EXPEDITEURS | string; libelle: string; cible: string; principalId: string | null; charge: Charge; secondes?: number }): Promise<EffetDiffere> {
-  if (!EXPEDITEURS[e.type]) throw new Error(`Effet sortant inconnu : ${e.type}`);
-  const secondes = e.secondes ?? await fenetreAnnulationSec();
-  const partA = new Date(Date.now() + secondes * 1000);
-  const ligne = await prisma.effetSortantDiffere.create({
-    data: { type: e.type, libelle: e.libelle.slice(0, 300), cible: e.cible.slice(0, 500), principalId: e.principalId, charge: e.charge as Prisma.InputJsonValue, partA },
+export async function differerEffetSortant(d: DemandeEffetSortant): Promise<EffetSortantProgramme> {
+  const etat = etatDuGeste();
+  const delaiSecondes = d.delaiSecondes !== undefined ? Math.max(0, Math.round(d.delaiSecondes)) : await delaiFenetre();
+  const executeLe = new Date(Date.now() + delaiSecondes * 1000);
+  const ligne = await prismaBrut.effetSortantDiffere.create({
+    data: {
+      type: d.type, acte: d.acte, cible: d.cible.slice(0, 500), apercu: d.apercu?.slice(0, 500) ?? null,
+      charge: (enCharge(d.charge) ?? {}) as never,
+      principalId: d.principalId ?? etat?.principalId ?? null, gesteId: etat?.gesteId ?? null,
+      objetModele: d.objet?.modele ?? null, objetId: d.objet?.id ?? null, executeLe,
+    },
     select: { id: true },
   });
-  if (secondes === 0) await expedierUn(ligne.id);
-  return { id: ligne.id, partA, secondes };
+  programmerReveil(delaiSecondes);
+  return { id: ligne.id, executeLe, delaiSecondes };
 }
-
-/** Expédie UN effet échu, s'il attend encore (réclamation atomique : jamais deux départs). */
-async function expedierUn(id: string): Promise<boolean> {
-  const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "EN_ATTENTE" }, data: { statut: "ENVOI" } });
-  if (prise.count !== 1) return false;
-  const e = await prismaBrut.effetSortantDiffere.findUniqueOrThrow({ where: { id } });
-  try {
-    const exp = await EXPEDITEURS[e.type]!();
-    const resultat = await exp.envoyer(e.charge as Charge);
-    await prismaBrut.effetSortantDiffere.update({ where: { id }, data: { statut: "PARTI", parti: new Date(), resultat: resultat as Prisma.InputJsonValue } });
-    return true;
-  } catch (err) {
-    journaliser("erreur", "effets.fenetre.envoi", { id, type: e.type }, err);
-    await prismaBrut.effetSortantDiffere.update({ where: { id }, data: { statut: "ECHEC", erreur: (err instanceof Error ? err.message : String(err)).slice(0, 500) } });
-    return false;
-  }
-}
-
-/** La tâche de fond : tout ce dont la fenêtre est close part. Rend le nombre d'effets partis. */
-export async function expedierEffetsEchus(maintenant = new Date()): Promise<number> {
-  const echus = await prismaBrut.effetSortantDiffere.findMany({ where: { statut: "EN_ATTENTE", partA: { lte: maintenant } }, select: { id: true }, orderBy: { partA: "asc" }, take: 100 });
-  let n = 0;
-  for (const e of echus) if (await expedierUn(e.id)) n++;
-  return n;
-}
-
-export interface IssueDiffere { issue: "ANNULE" | "COMPENSE" | "IMPOSSIBLE" | "SANS_OBJET"; pourquoi: string; aLaPlace?: string | null }
 
 /**
- * L'ANNULATION d'un effet différé créé par un geste (`annulation.ts` l'appelle pour chaque création au journal).
- * Ses écritures passent par `prisma` : sous le journal de l'annulation, « rétablir » les défait.
+ * LE PORT DE LA FENÊTRE — appelé par une primitive de sortie juste APRÈS `noterEffetExterne` (qui a noté l'effet au
+ * geste) : sous un geste réversible en mode réel, l'effet est différé (`true` : la primitive rend un succès sans
+ * sortir) et l'effet capturé reçoit `differeId`. Hors geste réversible : `false`, la primitive sort.
  */
-export async function issueEffetDiffere(id: string, ctx: { appliquer: boolean; parNom: string; libelle: string }): Promise<IssueDiffere> {
-  const e = await prismaBrut.effetSortantDiffere.findUnique({ where: { id } });
-  if (!e) return { issue: "SANS_OBJET", pourquoi: "l'envoi différé n'existe plus" };
-  if (e.statut === "EN_ATTENTE") {
-    if (ctx.appliquer) {
-      // Retiré par le client de l'annulation : la suppression est au journal, « rétablir » la remet (fenêtre neuve).
-      const fait = await prisma.effetSortantDiffere.deleteMany({ where: { id, statut: "EN_ATTENTE" } });
-      if (fait.count !== 1) return issueEffetDiffere(id, ctx);
-    }
-    return { issue: "ANNULE", pourquoi: `annulé dans la fenêtre d'annulation : rien n'est parti (${e.cible})` };
+export async function differerSiFenetre(d: DemandeEffetSortant): Promise<EffetSortantProgramme | null> {
+  const etat = etatDuGeste();
+  if (!etat || etat.mode !== "REEL" || !etat.fenetre) return null;
+  const p = await differerEffetSortant(d);
+  const effets = etat.capture?.effets ?? [];
+  // L'effet que la primitive vient de noter (le dernier du même acte, pas encore lié).
+  for (let i = effets.length - 1; i >= 0; i--) {
+    if (effets[i]!.acte === d.acte && !effets[i]!.differeId) { effets[i]!.differeId = p.id; break; }
   }
-  if (e.statut === "ENVOI") return { issue: "IMPOSSIBLE", pourquoi: "l'envoi part à l'instant même", aLaPlace: "réessayer l'annulation dans quelques secondes : il sera alors compensé" };
-  if (e.statut === "ECHEC" || e.statut === "ANNULE") {
-    if (ctx.appliquer && e.statut === "ECHEC") await prisma.effetSortantDiffere.update({ where: { id }, data: { statut: "ANNULE" } });
-    return { issue: "SANS_OBJET", pourquoi: e.statut === "ECHEC" ? `il n'était jamais parti (échec d'envoi : ${e.erreur ?? "inconnu"}) — il ne sera pas retenté` : "déjà annulé" };
-  }
-  if (e.statut === "COMPENSE") return { issue: "SANS_OBJET", pourquoi: "déjà compensé" };
-  const exp = await EXPEDITEURS[e.type]!();
-  const c = await exp.compenser(e.charge as Charge, (e.resultat as Charge | null) ?? null, ctx);
-  if (ctx.appliquer) await prisma.effetSortantDiffere.update({ where: { id }, data: { statut: "COMPENSE" } });
-  const quand = e.parti ? ` le ${e.parti.toLocaleString("fr-FR", { timeZone: "Africa/Algiers" })}` : "";
-  return { issue: "COMPENSE", pourquoi: `parti${quand}, après la fenêtre d'annulation : ${c.fait}. Ce qui ne se défait pas : ${c.irreversible}` };
+  return p;
 }
 
-/** RÉTABLIR un effet différé retiré dans sa fenêtre : il repart pour une fenêtre NEUVE (jamais tout de suite). */
-export async function nouvelleFenetre(id: string): Promise<void> {
-  const secondes = await fenetreAnnulationSec();
-  await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "EN_ATTENTE" }, data: { partA: new Date(Date.now() + secondes * 1000) } });
+// ── LES GESTES SUR UN EFFET EN FILE ──────────────────────────────────────────────────────
+
+export interface IssueEffetSortant {
+  ok: boolean;
+  /** ANNULE : rien n'est parti. COMPENSE : parti, compensé (ou la phrase qui dit pourquoi rien). REFUS : rien fait. */
+  issue: "ANNULE" | "COMPENSE" | "RETABLI" | "SANS_OBJET" | "IMPOSSIBLE" | "REFUS";
+  message: string;
+  /** L'effet de compensation, quand il est lui-même différé (un rectificatif annulable). */
+  compensationId?: string | null;
 }
+
+type LigneEffet = NonNullable<Awaited<ReturnType<typeof lire>>>;
+const lire = (id: string) => prismaBrut.effetSortantDiffere.findUnique({ where: { id } });
+
+const peutAgir = (l: { principalId: string | null }, user: CurrentUser) => l.principalId === user.id || user.role === "SUPER_ADMIN";
+const libelleActe = (acte: string): string =>
+  ({ COURRIEL: "le courriel", NOTIFICATION_PUSH: "la notification poussée", ECRITURE_EXTERNE: "la publication", RESEAU: "l'appel externe", PAIEMENT: "l'ordre de paiement", INVITATION_AGENDA: "l'invitation" } as Record<string, string>)[acte] ?? "l'effet";
+
+async function auditer(user: CurrentUser, l: { id: string; acte: string; cible: string; apercu: string | null }, quoi: string) {
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte)} à ${l.cible}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
+}
+
+/**
+ * ANNULER un effet sortant. Dans la fenêtre : rien n'est parti (ANNULE). Déjà parti : la compensation de son exécuteur
+ * (COMPENSE, ou IMPOSSIBLE avec ce qu'on peut faire à la place). Jamais un « effacé » de façade.
+ */
+export async function annulerEffetSortant(id: string, user: CurrentUser, opts: { motif?: string; compenser?: boolean } = {}): Promise<IssueEffetSortant> {
+  const l = await lire(id);
+  if (!l) return { ok: false, issue: "REFUS", message: "Cet envoi n'est plus dans la file." };
+  if (!peutAgir(l, user)) return { ok: false, issue: "REFUS", message: "Seule la personne au nom de qui l'envoi part (ou le Super Admin) peut l'annuler." };
+  const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "EN_ATTENTE" }, data: { statut: "ANNULE", annuleLe: new Date(), annuleParId: user.id } });
+  if (prise.count === 1) {
+    await auditer(user, l, "Envoi annulé dans la fenêtre : rien n'est parti");
+    return { ok: true, issue: "ANNULE", message: `${majuscule(libelleActe(l.acte))} à ${l.cible} est annulé : rien n'est parti.` };
+  }
+  const relue = (await lire(id))!;
+  if (relue.statut === "ANNULE") return { ok: true, issue: "SANS_OBJET", message: "Cet envoi était déjà annulé : rien n'est parti." };
+  if (relue.statut === "COMPENSE") return { ok: true, issue: "SANS_OBJET", message: `Déjà compensé : ${relue.compensation ?? ""}`.trim() };
+  if (relue.statut === "ECHEC") return { ok: true, issue: "SANS_OBJET", message: `Cet envoi n'est jamais parti (échec : ${relue.erreur ?? "inconnu"}).` };
+  if (relue.statut === "EN_COURS") return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte))} est en train de partir : trop tard pour l'arrêter. Réessayez dans un instant pour le compenser.` };
+  if (opts.compenser === false) return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte))} est déjà parti le ${dateFr(relue.parti)} : il n'est pas effacé chez son destinataire.` };
+  return compenserEffetSortant(id, user, opts.motif);
+}
+
+/** APRÈS LE DÉPART : la compensation de l'exécuteur — un geste inverse, dit et tracé. */
+export async function compenserEffetSortant(id: string, user: CurrentUser, motif?: string): Promise<IssueEffetSortant> {
+  const l = await lire(id);
+  if (!l) return { ok: false, issue: "REFUS", message: "Cet envoi n'est plus dans la file." };
+  if (!peutAgir(l, user)) return { ok: false, issue: "REFUS", message: "Seule la personne au nom de qui l'envoi est parti (ou le Super Admin) peut le compenser." };
+  if (l.statut !== "PARTI") return { ok: false, issue: "SANS_OBJET", message: l.statut === "COMPENSE" ? `Déjà compensé : ${l.compensation ?? ""}` : "Cet envoi n'est pas parti : il n'y a rien à compenser." };
+  const ex = await executeurDe(l.type);
+  const parti = `${majuscule(libelleActe(l.acte))} est parti le ${dateFr(l.parti)} : il n'est pas effacé chez son destinataire`;
+  const plan = ex?.compensation ? await ex.compensation(deCharge(l.charge), ligneVue(l), motif ?? null) : null;
+  if (!plan) {
+    const phrase = ex?.sansCompensation ?? "aucun geste inverse n'existe pour cet effet";
+    const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "PARTI" }, data: { statut: "COMPENSE", compensation: `Impossible : ${phrase}`.slice(0, 1000), compenseLe: new Date(), annuleParId: user.id } });
+    if (prise.count === 1) await auditer(user, l, `Annulation demandée après le départ — ${phrase}`);
+    return { ok: false, issue: "IMPOSSIBLE", message: `${parti}. ${majuscule(phrase)}.` };
+  }
+  if ("fait" in plan) {
+    const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "PARTI" }, data: { statut: "COMPENSE", compensation: plan.fait.slice(0, 1000), compenseLe: new Date(), annuleParId: user.id } });
+    if (prise.count !== 1) return { ok: false, issue: "SANS_OBJET", message: "Déjà compensé, depuis un autre écran." };
+    await auditer(user, l, `Compensé après le départ : ${plan.fait}`);
+    return { ok: true, issue: "COMPENSE", message: `${parti}. ${plan.fait}` };
+  }
+  // La compensation est elle-même un effet sortant : différée, donc annulable dans SA fenêtre.
+  const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "PARTI" }, data: { statut: "COMPENSE", compenseLe: new Date(), annuleParId: user.id } });
+  if (prise.count !== 1) return { ok: false, issue: "SANS_OBJET", message: "Déjà compensé, depuis un autre écran." };
+  const c = await differerEffetSortant({
+    type: plan.type ?? l.type, acte: l.acte as EffetExterneCapture["acte"], cible: plan.cible ?? l.cible, apercu: plan.apercu,
+    charge: plan.charge, principalId: l.principalId, objet: l.objetModele && l.objetId ? { modele: l.objetModele, id: l.objetId } : null,
+  });
+  const fait = `${plan.phrase} (part dans ${c.delaiSecondes} s, annulable d'ici là)`;
+  await prismaBrut.effetSortantDiffere.update({ where: { id }, data: { compensation: `${fait} [${c.id}]`.slice(0, 1000) } });
+  await auditer(user, l, `Compensé après le départ : ${plan.phrase}`);
+  return { ok: true, issue: "COMPENSE", message: `${parti}. ${fait}.`, compensationId: c.id };
+}
+
+/** RÉTABLIR un envoi annulé dans sa fenêtre : il repart pour une fenêtre neuve (l'annulation s'annule). */
+export async function retablirEffetSortant(id: string, user: CurrentUser): Promise<IssueEffetSortant> {
+  const l = await lire(id);
+  if (!l) return { ok: false, issue: "REFUS", message: "Cet envoi n'est plus dans la file." };
+  if (!peutAgir(l, user)) return { ok: false, issue: "REFUS", message: "Seule la personne au nom de qui l'envoi part (ou le Super Admin) peut le rétablir." };
+  const delai = await delaiFenetre();
+  const prise = await prismaBrut.effetSortantDiffere.updateMany({
+    where: { id, statut: "ANNULE" },
+    data: { statut: "EN_ATTENTE", annuleLe: null, annuleParId: null, executeLe: new Date(Date.now() + delai * 1000) },
+  });
+  if (prise.count !== 1) return { ok: false, issue: "SANS_OBJET", message: "Cet envoi n'est pas annulé : rien à rétablir." };
+  programmerReveil(delai);
+  await auditer(user, l, "Envoi rétabli (l'annulation est annulée)");
+  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte))} à ${l.cible} repart dans ${delai} s (annulable d'ici là).` };
+}
+
+// ── LE WORKER ────────────────────────────────────────────────────────────────────────────
+
+/** Une ligne EN_COURS depuis plus longtemps : le processus est mort en route. On ne réessaie pas (double envoi). */
+const EN_COURS_PERIME_MS = 10 * 60_000;
+
+/** EXÉCUTE les effets dont la fenêtre est passée — tâche `effets.sortants` (et réveil du processus web). */
+export async function executerEffetsSortantsDus(opts: { maintenant?: Date; limite?: number; ids?: string[] } = {}): Promise<{ partis: number; echecs: number; reportes: number }> {
+  const maintenant = opts.maintenant ?? new Date();
+  await prismaBrut.effetSortantDiffere.updateMany({
+    where: { statut: "EN_COURS", executeLe: { lt: new Date(maintenant.getTime() - EN_COURS_PERIME_MS) } },
+    data: { statut: "ECHEC", erreur: "Interrompu en route (processus arrêté) : on ne sait pas s'il est parti — à vérifier, pas renvoyé." },
+  });
+  const dus = await prismaBrut.effetSortantDiffere.findMany({
+    where: { statut: "EN_ATTENTE", executeLe: { lte: maintenant }, ...(opts.ids ? { id: { in: opts.ids } } : {}) },
+    orderBy: { executeLe: "asc" }, take: opts.limite ?? 50, select: { id: true },
+  });
+  let partis = 0, echecs = 0, reportes = 0;
+  for (const { id } of dus) {
+    // LA RÉCLAMATION ATOMIQUE : une annulation qui arrive au même instant gagne ou perd, jamais les deux.
+    const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "EN_ATTENTE", executeLe: { lte: maintenant } }, data: { statut: "EN_COURS", tentatives: { increment: 1 } } });
+    if (prise.count !== 1) continue;
+    const l = (await lire(id))!;
+    const ex = await executeurDe(l.type);
+    if (!ex) {
+      // L'exécuteur d'un domaine s'enregistre depuis son domaine (la tâche `effets.sortants` l'arme) : pas encore là
+      // dans ce processus — la ligne RESTE en file, le prochain passage l'enverra. Jamais un échec pour si peu.
+      await prismaBrut.effetSortantDiffere.update({ where: { id }, data: { statut: "EN_ATTENTE", tentatives: { decrement: 1 } } });
+      continue;
+    }
+    try {
+      await ex.executer(deCharge(l.charge), ligneVue(l));
+      await prismaBrut.effetSortantDiffere.update({ where: { id }, data: { statut: "PARTI", parti: new Date(), erreur: null } });
+      partis++;
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      const encore = l.tentatives < TENTATIVES_MAX && !/SortieInterdite/.test(`${(e as Error)?.name ?? ""} ${message}`);
+      await prismaBrut.effetSortantDiffere.update({
+        where: { id },
+        data: encore ? { statut: "EN_ATTENTE", executeLe: new Date(Date.now() + 60_000 * l.tentatives), erreur: message.slice(0, 1000) } : { statut: "ECHEC", erreur: message.slice(0, 1000) },
+      });
+      if (encore) reportes++; else { echecs++; journaliser("erreur", "effets.sortant", { id, type: l.type }, e); }
+    }
+  }
+  return { partis, echecs, reportes };
+}
+
+let reveil: ReturnType<typeof setTimeout> | null = null;
+/** Le processus web se réveille à l'échéance (le battement de la tâche de fond reste le filet). */
+function programmerReveil(delaiSecondes: number): void {
+  if (process.env.VITEST || process.env.NODE_ENV === "test" || reveil) return;
+  reveil = setTimeout(() => {
+    reveil = null;
+    void executerEffetsSortantsDus().catch((e) => journaliser("erreur", "effets.sortants.reveil", {}, e));
+  }, (delaiSecondes + 1) * 1000);
+  reveil.unref?.();
+}
+
+// ── L'ÉCRAN ──────────────────────────────────────────────────────────────────────────────
+
+export interface EffetSortantVu {
+  id: string;
+  type: string;
+  acte: string;
+  quoi: string;
+  cible: string;
+  apercu: string | null;
+  statut: StatutEffetSortant;
+  creeLe: string;
+  executeLe: string;
+  parti: string | null;
+  compensation: string | null;
+  erreur: string | null;
+  gesteId: string | null;
+  principalId: string | null;
+  objet: { modele: string; id: string } | null;
+}
+
+function ligneVue(l: LigneEffet): EffetSortantVu {
+  return {
+    id: l.id, type: l.type, acte: l.acte, quoi: libelleActe(l.acte), cible: l.cible, apercu: l.apercu, statut: l.statut as StatutEffetSortant,
+    creeLe: l.creeLe.toISOString(), executeLe: l.executeLe.toISOString(), parti: l.parti?.toISOString() ?? null,
+    compensation: l.compensation, erreur: l.erreur, gesteId: l.gesteId, principalId: l.principalId,
+    objet: l.objetModele && l.objetId ? { modele: l.objetModele, id: l.objetId } : null,
+  };
+}
+
+/** Les envois d'une personne : ceux qui attendent, et les récents (pour « Annuler l'envoi » et la fiche). */
+export async function effetsSortantsDe(user: CurrentUser, opts: { objet?: { modele: string; id: string }; depuisMinutes?: number; gesteId?: string } = {}): Promise<EffetSortantVu[]> {
+  const depuis = new Date(Date.now() - (opts.depuisMinutes ?? 30) * 60_000);
+  const lignes = await prismaBrut.effetSortantDiffere.findMany({
+    where: {
+      ...(user.role === "SUPER_ADMIN" && (opts.objet || opts.gesteId) ? {} : { principalId: user.id }),
+      ...(opts.objet ? { objetModele: opts.objet.modele, objetId: opts.objet.id } : {}),
+      ...(opts.gesteId ? { gesteId: opts.gesteId } : { OR: [{ statut: { in: ["EN_ATTENTE", "EN_COURS"] } }, { creeLe: { gte: depuis } }] }),
+    },
+    orderBy: { creeLe: "desc" }, take: 30,
+  });
+  return lignes.map(ligneVue);
+}
+
+// ── LES EXÉCUTEURS ───────────────────────────────────────────────────────────────────────
+
+/** Ce que la compensation fait : un effet INVERSE à différer, ou un geste déjà fait (`fait`). */
+export type PlanCompensation =
+  | { charge: unknown; phrase: string; apercu?: string; cible?: string; type?: string }
+  | { fait: string };
+
+export interface ExecuteurEffetSortant {
+  /** Fait partir l'effet (hors de tout geste : le port sort réellement). Lève en cas d'échec. */
+  executer: (charge: unknown, ligne: EffetSortantVu) => Promise<void>;
+  /** Le geste inverse après le départ — `null` : il n'y en a pas d'utile (`sansCompensation` le dit). */
+  compensation?: (charge: unknown, ligne: EffetSortantVu, motif: string | null) => Promise<PlanCompensation | null>;
+  /** La phrase honnête quand rien ne compense (« la notification s'est affichée sur son téléphone »). */
+  sansCompensation?: string;
+}
+
+const enregistres = new Map<string, ExecuteurEffetSortant>();
+
+/** Pour un exécuteur qui n'est pas dans la table (`executeurs.ts`) — un test, un module qui s'enregistre. */
+export function enregistrerExecuteur(type: string, ex: ExecuteurEffetSortant): void {
+  enregistres.set(type, ex);
+}
+
+async function executeurDe(type: string): Promise<ExecuteurEffetSortant | null> {
+  if (enregistres.has(type)) return enregistres.get(type)!;
+  const { EXECUTEURS } = await import("./executeurs");
+  const charger = EXECUTEURS[type];
+  return charger ? charger() : null;
+}
+
+const majuscule = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const dateFr = (d: Date | null) => (d ? d.toLocaleString("fr-FR", { timeZone: "Africa/Algiers", dateStyle: "short", timeStyle: "short" }) : "?");

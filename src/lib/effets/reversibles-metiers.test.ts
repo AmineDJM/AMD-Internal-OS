@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import cliche from "@/platform/ia/capacites/classement.genere.json";
-import { ANNULATIONS_DECLAREES } from "@/platform/ia/capacites/annulations-declarees";
+import { DECLARATIONS_METIERS as ANNULATIONS_DECLAREES } from "./declarations/metiers";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

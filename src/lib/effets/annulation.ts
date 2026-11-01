@@ -7,8 +7,8 @@ import { notifyUser } from "@/lib/notify";
 import { composer, type Changement, type EtatActuel } from "@/lib/annulation/plan";
 import { classerGeste, natureDe as natureDuJournal, type NatureGeste } from "@/lib/annulation/reversibilite";
 import { construireDiff, natureDe } from "./diff";
+import { annulerEffetSortant } from "./fenetre";
 import { etatDuGeste, sousGeste, type Capture, type EcritureCapturee, type EffetExterneCapture } from "./magasin";
-import { issueEffetDiffere, nouvelleFenetre } from "./fenetre";
 import { journaliserGeste } from "./journal";
 import { politiqueDe, type PolitiqueAnnulation } from "./politiques";
 import { infoModele, type InfoModele } from "./modeles";
@@ -79,7 +79,7 @@ type Delegue = {
   delete: (a: unknown) => Promise<unknown>;
   create: (a: unknown) => Promise<unknown>;
 };
-type Client = Record<string, unknown>;
+export type Client = Record<string, unknown>;
 
 /**
  * LE CLIENT QUI ÉCRIT L'ANNULATION (K10c) — celui du geste en cours : l'annulation s'exécute sous SON propre journal
@@ -90,11 +90,11 @@ const ecrivain = (): typeof prismaBrut => (etatDuGeste()?.client as typeof prism
 export interface EffetLu {
   id: string; ordre: number; type: string; modele: string | null; operation: string | null; enregistrementId: string | null;
   avant: unknown; apres: unknown; champs: string[]; cascade: number | null; nombre: number | null; imbriquee: boolean;
-  acte: string | null; cible: string | null; apercu: string | null;
+  acte: string | null; cible: string | null; apercu: string | null; effetSortantId?: string | null;
 }
 
-const delegue = (c: Client, info: InfoModele) => c[info.delegue] as Delegue;
-const ligne = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+export const delegue = (c: Client, info: InfoModele) => c[info.delegue] as Delegue;
+export const ligne = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 
 /** Une valeur sérialisée, rendue au type de son champ pour l'écrire. `undefined` : elle ne se restaure pas. */
 export function deserialiser(info: InfoModele, champ: string, v: unknown): unknown {
@@ -117,7 +117,7 @@ export function deserialiser(info: InfoModele, champ: string, v: unknown): unkno
 }
 
 /** La ligne telle qu'elle est maintenant, sérialisée (scalaires sans octets) — `null` si elle n'existe plus. */
-async function lireActuelle(c: Client, info: InfoModele, id: string): Promise<Record<string, unknown> | null> {
+export async function lireActuelle(c: Client, info: InfoModele, id: string): Promise<Record<string, unknown> | null> {
   if (!info.cle) return null;
   const r = await delegue(c, info).findUnique({ where: { [info.cle]: id } }).catch(sansBloquer("effets.annulation.lecture", null));
   return serialiserLigne(r, new Set(info.scalaires));
@@ -127,7 +127,7 @@ async function lireActuelle(c: Client, info: InfoModele, id: string): Promise<Re
  * L'ÉCRITURE VERROUILLÉE — la ligne est verrouillée (`FOR UPDATE`), RELUE, et l'écriture n'a lieu que si `verifier`
  * accepte la relecture. Rend `false` si la ligne a bougé entre le plan et l'écriture (ou si la base refuse).
  */
-async function ecrireVerrouille(
+export async function ecrireVerrouille(
   info: InfoModele, id: string, verifier: (relue: Record<string, unknown> | null) => boolean, ecrire: (t: Client) => Promise<unknown>,
 ): Promise<boolean> {
   return (ecrivain().$transaction(async (tx) => {
@@ -202,6 +202,8 @@ function issueExterne(e: EffetLu): DetailEffet {
 }
 
 interface Contexte {
+  user: CurrentUser;
+  libelle: string;
   c: Client;
   agent: string;
   creeLe: Date;
@@ -210,7 +212,6 @@ interface Contexte {
   nomDe: (id: string | null | undefined) => Promise<string | null>;
   /** La politique de l'action annulée (K10c) — `null` : l'annulation J7 telle quelle. */
   politique: PolitiqueAnnulation | null;
-  libelle: string;
   /** Qui annule — le rectificatif le nomme. */
   parNom: string;
   /** Les liens posés par le geste lui-même (« Modele.champ » → lignes) : l'annulation les remet d'abord. */
@@ -356,14 +357,31 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
   return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: "recréée à l'identique, avec le même identifiant : les liens vers elle tiennent de nouveau" };
 }
 
-async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
-  if (e.type === "EXTERNE") return issueExterne(e);
-  const quoi = phraseEcriture(e);
-  // LA FENÊTRE D'ANNULATION (K10c) : un effet sortant différé se retire s'il attend, se compense s'il est parti.
-  if (e.modele === "EffetSortantDiffere" && e.enregistrementId && e.operation === "CREATE") {
-    const d = await issueEffetDiffere(e.enregistrementId, { appliquer: ctx.appliquer, parNom: ctx.parNom, libelle: ctx.libelle });
-    return { effetId: e.id, quoi: e.apercu ?? "un envoi différé", ...d };
+/**
+ * UN EFFET SORTANT DIFFÉRÉ (K10b, décision 0038) — la fenêtre d'annulation tranche : pas encore parti, il est annulé
+ * et RIEN ne sort ; parti, sa compensation (rectificatif différé, lui-même annulable) — jamais « effacé ».
+ */
+async function issueSortant(e: EffetLu, ctx: Contexte): Promise<DetailEffet | null> {
+  if (!e.effetSortantId) return null;
+  const l = await prismaBrut.effetSortantDiffere.findUnique({ where: { id: e.effetSortantId }, select: { id: true, statut: true, parti: true, compensation: true, erreur: true } }).catch(sansBloquer("effets.annulation.sortant", null));
+  if (!l) return null;
+  const quoi = construireDiff(enCapture([e]), { debut: 0, fin: 0 }).effets[0]?.phrase ?? "un effet externe";
+  if (!ctx.appliquer) {
+    if (l.statut === "EN_ATTENTE") return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: "il attend encore sa fenêtre d'annulation : il ne partira pas" };
+    if (l.statut === "ANNULE" || l.statut === "ECHEC") return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: l.statut === "ANNULE" ? "son envoi est déjà annulé : rien n'est parti" : "il n'est jamais parti (échec d'envoi)" };
+    if (l.statut === "COMPENSE") return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: `déjà compensé : ${l.compensation ?? ""}` };
+    return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: "il est parti : il ne sera pas effacé chez son destinataire ; sa compensation (un rectificatif au même destinataire, annulable lui aussi) partira" };
   }
+  const r = await annulerEffetSortant(l.id, ctx.user, { motif: `annulation de « ${ctx.libelle} »` });
+  if (r.issue === "ANNULE") return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: "annulé dans sa fenêtre : rien n'est parti" };
+  if (r.issue === "COMPENSE") return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: r.message };
+  if (r.issue === "SANS_OBJET" || r.issue === "RETABLI") return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: r.message };
+  return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: r.message, aLaPlace: "prévenir le destinataire par son canal habituel" };
+}
+
+async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
+  if (e.type === "EXTERNE") return (await issueSortant(e, ctx)) ?? issueExterne(e);
+  const quoi = phraseEcriture(e);
   // UN NUMÉRO DE PIÈCE CONSOMMÉ ne se rend pas (`lib/refs.ts` : « un trou dans la série vaut mieux qu'une référence
   // reprise ») : le compteur avancé par SQL est dit, il ne bloque pas l'annulation (K10c).
   if (e.operation === "SQL" && e.modele === "SerieReference") {
@@ -395,10 +413,7 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "octets d'une pièce, partagés par empreinte : la purge des fichiers orphelins les retire dès que plus rien n'y renvoie" };
   }
   if (e.operation === "CREATE") return defaireCreation(e, info, ctx);
-  const d = await defaireSuppression(e, info, ctx);
-  // Rétablir un envoi retiré dans sa fenêtre : il repart pour une fenêtre NEUVE, jamais sur-le-champ.
-  if (e.modele === "EffetSortantDiffere" && d.issue === "ANNULE" && ctx.appliquer) await nouvelleFenetre(e.enregistrementId!);
-  return d;
+  return defaireSuppression(e, info, ctx);
 }
 
 function conclure(gesteId: string, libelle: string, details: DetailEffet[], deja: boolean): CompteRenduAnnulation {
@@ -453,14 +468,14 @@ function liensDuGeste(effets: readonly EffetLu[]): Map<string, Set<string>> {
 
 async function derouler(
   g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean,
-  opts: { politique?: PolitiqueAnnulation | null; user?: CurrentUser } = {},
+  opts: { politique?: PolitiqueAnnulation | null; user: CurrentUser },
 ): Promise<CompteRenduAnnulation> {
   // Les lignes créées par ce geste et RETIRÉES (ou à retirer) : elles ne comptent pas comme rattachement de leur parent.
   const retirees = new Set<string>();
   const politique = opts.politique ?? null;
   const ctx: Contexte = {
-    c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache(),
-    politique, libelle: g.libelle, parNom: opts.user?.name ?? "Quelqu'un", relies: liensDuGeste(g.effets),
+    user: opts.user, c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, appliquer, nomDe: nomsEnCache(),
+    politique, libelle: g.libelle, parNom: opts.user.name ?? "Quelqu'un", relies: liensDuGeste(g.effets),
   };
   const details: DetailEffet[] = [];
   // LE GESTE INVERSE MÉTIER (K10c) d'abord — la corbeille restaurée, par exemple : les effets qu'il prend en charge
@@ -498,7 +513,7 @@ async function derouler(
 export async function planDAnnulation(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | { refus: string }> {
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
-  if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")}.` };
+  if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")} (il se rétablit).` };
   return derouler(r.g, false, { politique: await politiqueDe(r.g.capaciteId), user });
 }
 
@@ -556,17 +571,18 @@ export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<
 }
 
 /**
- * RÉTABLIR (K10c) — une annulation est elle-même un geste journalisé : la défaire remet ce qu'elle avait retiré
- * (mêmes règles : verrou, relecture, rien d'écrasé ; une notification retirée revient si elle n'avait pas été lue).
- * Le geste d'origine redevient annulable.
+ * RÉTABLIR PAR LE JOURNAL (K10c) — une annulation journalisée (`gesteAnnulationId`) est elle-même un geste : la
+ * défaire remet ce qu'elle avait retiré, gestes inverses métier compris (le poste remis en corbeille, le rectificatif
+ * non lu retiré) — mêmes règles : verrou, relecture, rien d'écrasé. Le geste d'origine redevient annulable.
+ * `retablissement.ts` (`retablirGeste`, K10b) y passe la main quand l'annulation porte son geste.
  */
-export async function retablirGeste(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | RefusAnnulation> {
+export async function retablirParLeJournal(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | RefusAnnulation> {
   if (etatDuGeste()?.mode === "SIMULATION") return { refus: "Une simulation ne rétablit rien." };
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
   const a = r.g.annulation as unknown as CompteRenduAnnulation | null;
   if (!r.g.annuleLe || !a) return { refus: "Ce geste n'a pas été annulé : il n'y a rien à rétablir." };
-  if (!a.gesteAnnulationId) return { refus: "Cette annulation n'a pas été journalisée (antérieure aux actions réversibles) : elle ne se rétablit pas d'ici." };
+  if (!a.gesteAnnulationId) return { refus: "Cette annulation n'a pas été journalisée : elle se rétablit effet par effet." };
   const compte = await annulerGeste(a.gesteAnnulationId, user);
   if ("refus" in compte) return compte;
   const libere = await prismaBrut.assistantGesteJournal.updateMany({

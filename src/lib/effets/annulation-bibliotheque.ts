@@ -1,6 +1,6 @@
 import { prisma, prismaBrut } from "@/lib/prisma";
-import type { DetailEffet } from "@/lib/effets/annulation";
-import type { PolitiqueAnnulation, ResultatMetier } from "@/lib/effets/politiques";
+import type { DetailEffet } from "./annulation";
+import type { PolitiqueAnnulation, ResultatMetier } from "./politiques";
 
 type Metier = NonNullable<PolitiqueAnnulation["metier"]>;
 

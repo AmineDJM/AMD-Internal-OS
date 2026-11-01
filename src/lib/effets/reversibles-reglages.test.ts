@@ -15,8 +15,9 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
-import { annulerGeste, retablirGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
-import { expedierEffetsEchus } from "@/lib/effets/fenetre";
+import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
+import { retablirGeste } from "@/lib/effets/retablissement";
+import { executerEffetsSortantsDus } from "@/lib/effets/fenetre";
 import { reglerMaReponseVocale } from "@/modules/assistant-ia/actions";
 import { reglerMaConversationPrivee } from "@/modules/assistant-ia/actions-conversations";
 import { reglerConsoleProactivite, reglerMaVeille, reglerMonVeilleur } from "@/modules/assistant-ia/actions-proactivite";
@@ -190,14 +191,14 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     const c = await annuler(g);
     expect(c.details.some((d) => /rien n'est parti/.test(d.pourquoi))).toBe(true);
     // La fenêtre se ferme : il n'y a plus rien à expédier.
-    await expedierEffetsEchus(new Date(Date.now() + 3_600_000));
+    await executerEffetsSortantsDus({ maintenant: new Date(Date.now() + 3_600_000) });
     expect(await prisma.notification.count({ where: { userId: { in: autres } } })).toBe(0);
     await traceeDe(g);
   });
 
   it("diffusion : partie APRÈS la fenêtre — non lues retirées, rectificatif à qui l'a lue, la poussée dite ; rétablir les remet", async () => {
     const g = gesteDe(await sendBroadcast(fd({ title: `${TAG} fermeture`, audience: "USERS", userIds: autres })));
-    expect(await expedierEffetsEchus(new Date(Date.now() + 3_600_000))).toBeGreaterThanOrEqual(1);
+    expect((await executerEffetsSortantsDus({ maintenant: new Date(Date.now() + 3_600_000) })).partis).toBeGreaterThanOrEqual(1);
     const parties = await prisma.notification.findMany({ where: { userId: { in: autres }, title: `${TAG} fermeture` } });
     expect(parties).toHaveLength(2);
     await prisma.notification.update({ where: { id: parties.find((n) => n.userId === autres[0])!.id }, data: { isRead: true } });

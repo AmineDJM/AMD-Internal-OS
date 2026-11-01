@@ -20,7 +20,8 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { annulerGeste, retablirGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
+import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
+import { retablirGeste } from "@/lib/effets/retablissement";
 import { addAdProItem, submitAdProItem, deleteAdProItem } from "@/modules/ad-pro/actions-postes";
 import { decideAdProItem, annulerOrdrePoste } from "@/modules/ad-pro/actions-postes-decision";
 import { demanderPaiementPoste } from "@/modules/ad-pro/actions-postes-paiement";

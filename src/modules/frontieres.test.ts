@@ -614,6 +614,9 @@ const SOCLE = [
   "src/platform/imports",
   // La phrase commune d'une action qui lève (`actionFailureMessage`) : le langage des primitives d'écran, pas un métier.
   "src/lib/action-outcome",
+  // Le geste RÉVERSIBLE (K10c, décision 0040) : l'enveloppe qui fait entrer une action au journal des effets — comme
+  // l'audit, toute action d'écran y passe ; ce n'est pas un métier.
+  "src/lib/effets/reversible",
 ];
 /** Les actions serveur de `src/lib/actions/` : un écran de module peut les appeler (Next les remplace par un appel distant). */
 const ACTIONS = "src/lib/actions/";

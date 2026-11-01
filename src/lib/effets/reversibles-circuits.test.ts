@@ -17,7 +17,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
-import { annulerGeste, retablirGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
+import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
+import { retablirGeste } from "@/lib/effets/retablissement";
 import { cancelAdvance, decideAdvance, requestAdvance } from "@/modules/rh/actions";
 import { decideValidation } from "@/lib/actions/validation-actions";
 import { finalDecision, updateGrantedBudget } from "@/modules/ad-pro/actions-congres";

@@ -587,8 +587,7 @@ export async function confirmBcSent(formData: FormData): Promise<ActionResult> {
 
 // ───────────────────────── 7. Information médicale : bordereau de paiement ─────────────────────────
 
-export async function initiatePayment(formData: FormData): Promise<ActionResult> {
-  return actionReversible("promo-material-actions:initiatePayment", "Lancement du paiement d'un matériel promo", async () => {
+export async function initiatePayment(formData: FormData): Promise<ActionResult> { return actionReversible("promo-material-actions:initiatePayment", "Lancement du paiement d'un matériel promo", async () => {
     const user = await requireUser();
     const id = fdStr(formData, "id");
     if (!id) return { ok: false, error: "Identifiant manquant." };
@@ -802,8 +801,7 @@ export async function recordInvoice(formData: FormData): Promise<ActionResult> {
   return { ok: true };
 }
 
-export async function settle(formData: FormData): Promise<ActionResult> {
-  return actionReversible("promo-material-actions:settle", "Règlement d'un matériel promo", async () => {
+export async function settle(formData: FormData): Promise<ActionResult> { return actionReversible("promo-material-actions:settle", "Règlement d'un matériel promo", async () => {
     const user = await requireUser();
     const id = fdStr(formData, "id");
     if (!id) return { ok: false, error: "Identifiant manquant." };
@@ -915,8 +913,7 @@ async function bcsActifsDuDossier(id: string): Promise<number> {
   return ids.filter((bcId) => { const e = etats.get(bcId); return Boolean(e && !e.annule); }).length;
 }
 
-export async function cancelPromoMaterial(formData: FormData): Promise<ActionResult> {
-  return actionReversible("promo-material-actions:cancelPromoMaterial", "Annulation d'un dossier de matériel promo", async () => {
+export async function cancelPromoMaterial(formData: FormData): Promise<ActionResult> { return actionReversible("promo-material-actions:cancelPromoMaterial", "Annulation d'un dossier de matériel promo", async () => {
     const user = await requireUser();
     const id = fdStr(formData, "id");
     if (!id) return { ok: false, error: "Identifiant manquant." };

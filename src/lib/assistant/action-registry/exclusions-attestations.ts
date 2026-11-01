@@ -256,9 +256,9 @@ export function classerExclusionsAttestations(): void {
   X("« CE QUE L'ASSISTANT A FAIT » (J7, décision 0029) — l'historique des gestes de l'assistant au nom de la personne, l'aperçu et l'ANNULATION honnête d'un geste ou d'un lot. Identité prise de la session, seule la personne au nom de qui l'assistant a agi (ou le Super Admin) défait : un assistant qui annulerait ses propres gestes déciderait à la place de la personne — jamais proposé.", [
     "assistant-ia-gestes-actions:listerGestesAssistant", "assistant-ia-gestes-actions:apercevoirAnnulation", "assistant-ia-gestes-actions:annulerGestesAssistant",
   ]);
-  X("ANNULER, RÉTABLIR UNE ACTION MÉTIER RÉVERSIBLE (K10c, décision 0040) — le bouton de l'écran de l'objet : lister mes gestes annulables, voir le plan, annuler (tout ou rien), rétablir. Garde du journal : la personne qui a fait le geste, ou le Super Admin. Adam est en pause : l'Assistant IA les propose par le chemin générique (carte confirmée), jamais Adam.", [
-    "gestes-reversibles-actions:listerMesGestesAnnulables", "gestes-reversibles-actions:apercevoirAnnulationDeMonGeste",
-    "gestes-reversibles-actions:annulerMonGeste", "gestes-reversibles-actions:retablirMonGeste",
+  X("LA BARRE « ANNULER » DE L'ERP (K10b, décision 0038) — le bouton qui défait le geste qu'on vient de faire à l'écran, « Annuler l'envoi » pendant la fenêtre d'annulation, et le rétablissement. Identité prise de la session : la personne défait SES gestes ; l'assistant, lui, rend la même annulation par la carte « Annuler » de sa conversation.", [
+    "assistant-ia-gestes-actions:mesGestesEtEnvoisRecents", "assistant-ia-gestes-actions:historiqueDeLaFiche", "assistant-ia-gestes-actions:annulerMonGeste",
+    "assistant-ia-gestes-actions:retablirMonGeste", "assistant-ia-gestes-actions:agirSurMonEnvoi",
   ]);
   X("LES MANDATS de l'Assistant IA (J12, décision 0024) — une approbation que SEULE la personne accorde ou révoque à l'écran, et le geste de la coque qui fait, dans SA requête, les gestes qu'elle a confiés (bornés, journalisés). Un assistant qui s'accorderait un mandat se donnerait un droit : jamais proposé par un assistant.", [
     "assistant-ia-proactivite-actions:accorderMonMandat", "assistant-ia-proactivite-actions:revoquerMonMandat", "assistant-ia-proactivite-actions:executerMesGestesSousMandat",

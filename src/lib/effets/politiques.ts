@@ -1,5 +1,5 @@
 import type { CurrentUser } from "@/lib/session";
-import { ANNULATIONS_DECLAREES } from "@/platform/ia/capacites/annulations-declarees";
+import { ANNULATIONS_DECLAREES } from "./declarations";
 import type { DetailEffet, EffetLu } from "./annulation";
 
 /**
@@ -29,11 +29,11 @@ export interface PolitiqueAnnulation {
 
 /** Les gestes inverses métier — importés tard : l'annulation ne tire pas l'ERP entier. */
 const METIERS: Readonly<Record<string, () => Promise<NonNullable<PolitiqueAnnulation["metier"]>>>> = {
-  "ad-pro-item-actions:deleteAdProItem": async () => (await import("@/lib/suppression/annulation-corbeille")).restaurerDepuisLaCorbeille,
-  "reservation-fiche-actions:envoyerFiche": async () => (await import("@/lib/reservation-fiche/annulation")).indexBibliotheque,
-  "reservation-fiche-actions:envoyerFichesPretes": async () => (await import("@/lib/reservation-fiche/annulation")).indexBibliotheque,
-  "reservation-fiche-actions:joindreDevisAgence": async () => (await import("@/lib/reservation-fiche/annulation")).indexBibliotheque,
-  "reservation-fiche-actions:deposerBillet": async () => (await import("@/lib/reservation-fiche/annulation")).indexBibliotheque,
+  "ad-pro-item-actions:deleteAdProItem": async () => (await import("@/lib/suppression/coeur")).restaurerDepuisLaCorbeille,
+  "reservation-fiche-actions:envoyerFiche": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
+  "reservation-fiche-actions:envoyerFichesPretes": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
+  "reservation-fiche-actions:joindreDevisAgence": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
+  "reservation-fiche-actions:deposerBillet": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
 };
 
 export async function politiqueDe(capaciteId: string | null | undefined): Promise<PolitiqueAnnulation | null> {

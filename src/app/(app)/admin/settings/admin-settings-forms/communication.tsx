@@ -11,7 +11,6 @@ import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import type { Opt, UserLite } from "./types";
 import { Retour } from "@/components/ui/retour";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserLite[] }) {
   const [audience, setAudience] = React.useState<"ALL" | "ROLE" | "USERS">("ALL");
@@ -35,7 +34,6 @@ export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserL
         picked.forEach((id) => fd.append("userIds", id));
         try {
           const r = await sendBroadcast(fd);
-          signalerAnnulable(r);
           setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Envoyée.") : (r.error ?? "L'annonce n'a pas été envoyée.") });
           if (r.ok) { setPicked(new Set()); (document.getElementById("bc-form") as HTMLFormElement | null)?.reset(); }
         } catch {

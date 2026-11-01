@@ -37,7 +37,6 @@ import { ancrePoste } from "@/lib/chemins/ad-pro";
 import type { ContexteDesPostes, ItemRow, Run } from "../items-panel";
 import { CasePiece, ChaineDuPoste, estPosteStock, EtatBC, ETIQUETTE, IconeGeste, LettresDevis, LignePiece, type OngletChaine, POSTE_STOCK_EDITABLE, RAFRAICHISSEMENT, STYLE_ETAPE } from "./elements";
 import { AllocateField, BoiteDecision, DemandeBC, DemandeSecretariat, EditItemForm, FormulairePiece, FormulaireRepartition, GesteAvecMotif, VerifierBC, VisaBC } from "./formulaires";
-import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 // La carte d'un poste, montée par `AdProItemsPanel` (`../items-panel.tsx`) — une par poste de la demande.
 
@@ -487,7 +486,6 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
             const avant = item.pieces.factures.map((f) => f.id);
             void run(`pay:${item.id}`, async () => {
               const r = await demanderPaiementPoste(undefined, fd);
-              signalerAnnulable(r);
               if (r.ok) setDepose({ case: "FACTURE", id: null, avant });
               return r;
             }, direct ? `${LIBELLE_JUSTIFICATIF_DIRECT} jointe — paiement demandé au centre de paiement.` : "Facture déposée — paiement demandé au centre de paiement.").then(fermer);

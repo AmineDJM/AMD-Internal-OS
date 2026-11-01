@@ -9,7 +9,6 @@ import { InfoBulle } from "@/components/ui/info-bulle";
 import { ADVANCE_STATUS } from "@/lib/labels";
 import { formatCurrency, formatDate, initials, cn } from "@/lib/utils";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
-import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 export interface AdvanceRow {
   id: string;
@@ -23,7 +22,7 @@ export interface AdvanceRow {
 function DecideButton({ id, decision, label, icon: IconCmp, danger }: { id: string; decision: "APPROVED" | "REJECTED"; label: string; icon: typeof Check; danger?: boolean }) {
   const [saving, setSaving] = React.useState(false);
   return (
-    <form action={async (fd) => { setSaving(true); signalerAnnulable(await decideAdvance(fd)); setSaving(false); }} className="inline">
+    <form action={async (fd) => { setSaving(true); await decideAdvance(fd); setSaving(false); }} className="inline">
       <input type="hidden" name="id" value={id} />
       <input type="hidden" name="decision" value={decision} />
       <BoutonDecisif brut type="submit" disabled={saving}

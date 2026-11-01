@@ -1,10 +1,9 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState } from "react";
 import { Wallet } from "lucide-react";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { imputerBudgetMaterielPromo } from "@/lib/actions/promo-budget-actions";
-import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 /**
  * LE BUDGET DU DOSSIER (Direction, 27/10 — point 21) : la catégorie du Budget Marketing qui porte ce matériel
@@ -19,8 +18,6 @@ export function BudgetPromoCard({ promoMaterialId, actuelle, options, peutImpute
   peutImputer: boolean;
 }) {
   const [etat, envoyer] = useActionState(imputerBudgetMaterielPromo, undefined);
-  // K10c : l'imputation est réversible — le bandeau « Annuler » s'affiche après elle.
-  useEffect(() => { signalerAnnulable(etat); }, [etat]);
   return (
     <section className="surface space-y-2 px-4 py-3 text-sm">
       <h2 className="flex items-center gap-1.5 text-[0.9375rem] font-semibold"><Wallet className="h-4 w-4 text-muted-foreground" aria-hidden /> Budget</h2>

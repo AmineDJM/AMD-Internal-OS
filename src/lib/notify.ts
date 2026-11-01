@@ -56,7 +56,7 @@ export async function broadcastNotification(opts: {
   link?: string;
   /** Affiche aussi la notification en **pop-up plein écran** (grande fenêtre centrée) chez le destinataire. */
   popup?: boolean;
-}, sortie?: { notificationIds?: string[] }): Promise<number> {
+}, fixe?: { idsFixes?: string[] }): Promise<number> {
   try {
     const ids = await destinatairesDeLaDiffusion(opts);
     if (ids.length === 0) return 0;
@@ -64,7 +64,10 @@ export async function broadcastNotification(opts: {
     // rapide, et un lot refusé se rejoue ligne à ligne (§118.137). Le nombre rendu est celui des
     // lignes RÉELLEMENT écrites, jamais celui des destinataires qu'on espérait joindre — sans
     // quoi on annoncerait « 200 personnes prévenues » sur 199 (§118.51).
-    const lignes = ids.map((userId) => ({ id: nouvelIdNotification(), userId, type: "GENERIC" as NotificationType, title: opts.title, body: opts.body, link: opts.link, popup: opts.popup ?? false }));
+    // K10c : une diffusion différée fixe ses identifiants au clic (un par destinataire, dans l'ordre de `userIds`) —
+    // sa compensation, après la fenêtre, les retrouve sans rien deviner.
+    const idDe = (userId: string) => fixe?.idsFixes?.[opts.userIds?.indexOf(userId) ?? -1] ?? nouvelIdNotification();
+    const lignes = ids.map((userId) => ({ id: idDe(userId), userId, type: "GENERIC" as NotificationType, title: opts.title, body: opts.body, link: opts.link, popup: opts.popup ?? false }));
     let ecrites = lignes.length;
     try {
       await prisma.notification.createMany({ data: lignes });
@@ -73,8 +76,6 @@ export async function broadcastNotification(opts: {
     }
     // Push (PWA) sur les appareils de chaque destinataire — best-effort.
     await Promise.all(ids.map((userId) => sendPushToUser(userId, { title: opts.title, body: opts.body, url: opts.link ?? "/" })));
-    // Les identifiants écrits (K10c) : la compensation d'une diffusion partie retire les non lues, rectifie les autres.
-    if (sortie) sortie.notificationIds = lignes.map((l) => l.id);
     return ecrites;
   } catch (err) {
     console.error("[notify] broadcast failed", err);

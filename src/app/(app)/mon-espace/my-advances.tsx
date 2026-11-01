@@ -8,7 +8,6 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ADVANCE_STATUS } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 export interface AdvanceItem {
   id: string;
@@ -21,7 +20,7 @@ export interface AdvanceItem {
 function CancelButton({ id }: { id: string }) {
   const [saving, setSaving] = React.useState(false);
   return (
-    <form action={async (fd) => { setSaving(true); signalerAnnulable(await cancelAdvance(fd)); setSaving(false); }} className="inline">
+    <form action={async (fd) => { setSaving(true); await cancelAdvance(fd); setSaving(false); }} className="inline">
       <input type="hidden" name="id" value={id} />
       <button
         type="submit"

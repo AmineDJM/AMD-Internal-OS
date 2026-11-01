@@ -8,7 +8,6 @@ import { relancerPaiement } from "@/modules/finances/actions-relances";
 import type { CibleRelance, FactureDejaConnue } from "@/lib/factures/blocage-vue";
 import { COMMENTAIRE_RELANCE_MAX } from "@/modules/finances/partage";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -41,7 +40,6 @@ export function RelancerPaiement({ cible, jeton, libelle = "Relancer", compact =
     if (commentaire.trim()) fd.set("commentaire", commentaire.trim());
     try {
       const r = await relancerPaiement(fd);
-      signalerAnnulable(r);
       if (!r.ok) { setErreur(r.error ?? "La relance n'a pas pu être envoyée."); return; }
       setFait(r.message ?? "Relance envoyée."); setOuvert(false); setCommentaire("");
     } catch {

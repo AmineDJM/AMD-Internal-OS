@@ -5,8 +5,9 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { destinatairesDeLaDiffusion, type BroadcastAudience } from "@/lib/notify";
-import { differerEffetSortant } from "@/lib/effets/fenetre";
-import type { ChargeDiffusion } from "@/lib/notifications/diffusion-differee";
+import { differerSiFenetre } from "@/lib/effets/fenetre";
+import { noterEffetExterne } from "@/lib/effets/magasin";
+import { executeurDiffusion, type ChargeDiffusion } from "@/lib/notifications/diffusion-differee";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { actionReversible } from "@/lib/effets/reversible";
 
@@ -36,14 +37,18 @@ export async function sendBroadcast(formData: FormData): Promise<ActionResult> {
     const destinataires = await destinatairesDeLaDiffusion({ audience, role, userIds });
     const count = destinataires.length;
     if (count === 0) return { ok: false, error: "Aucun destinataire trouvé pour cette audience." };
-    const charge: ChargeDiffusion = { userIds: destinataires, title, body: body ?? null, link: link ?? null, popup };
-    const envoi = await differerEffetSortant({
-      type: "notification.diffusion", libelle: `Diffusion « ${title} »`, cible: `${count} personne·s`, principalId: admin.id, charge,
-    });
+    const notificationIds = destinataires.map(() => `c${globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 24)}`);
+    const charge: ChargeDiffusion = { userIds: destinataires, notificationIds, title, body: body ?? null, link: link ?? null, popup };
+    const demande = { type: "notification.diffusion", acte: "NOTIFICATION_PUSH" as const, cible: `${count} personne·s`, apercu: `« ${title} »`, charge };
+    // Noté au geste (simulation : neutralisé), puis différé par le port de la fenêtre ; hors geste réversible, il part.
+    const neutralise = noterEffetExterne({ acte: demande.acte, cible: demande.cible, apercu: demande.apercu, origine: "notification-actions:sendBroadcast" });
+    const envoi = neutralise ? null : await differerSiFenetre(demande);
+    if (!neutralise && !envoi) await executeurDiffusion.executer(charge, null as never);
 
-    await recordAudit({ actorId: admin.id, action: "CREATE", module: "Administration", summary: `Notification${popup ? " (pop-up)" : ""} diffusée à ${count} personne·s — « ${title} »${envoi.secondes ? ` (départ dans ${envoi.secondes} s, annulable d'ici là)` : ""}` });
+    await recordAudit({ actorId: admin.id, action: "CREATE", module: "Administration", summary: `Notification${popup ? " (pop-up)" : ""} diffusée à ${count} personne·s — « ${title} »${envoi ? ` (départ dans ${envoi.delaiSecondes} s, annulable d'ici là)` : ""}` });
     revalidatePath("/admin/settings");
-    const quand = envoi.secondes ? ` Elle part dans ${envoi.secondes >= 60 ? `${Math.round(envoi.secondes / 60)} min` : `${envoi.secondes} s`} : « Annuler » d'ici là, et rien ne sera parti.` : "";
+    const s = envoi?.delaiSecondes ?? 0;
+    const quand = s ? ` Elle part dans ${s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`} : « Annuler » d'ici là, et rien ne sera parti.` : "";
     return { ok: true, message: `Notification pour ${count} personne·s.${quand}` };
   });
 }

@@ -11,7 +11,6 @@ import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn } from "@/lib/utils";
 import { reglerDelaiEtape } from "@/lib/actions/process-intelligence-actions";
 import { formatJours, lenteur, type CircuitStats, type StepStat } from "@/lib/process/mining";
-import { signalerAnnulable } from "@/components/gestes/annulable-signal";
 
 const pct = (x: number | null) => (x === null ? "—" : `${Math.round(x * 100)} %`);
 const TON_POINT: Record<string, string> = { ko: "bg-destructive", w: "bg-warning", i: "bg-primary" };
@@ -146,7 +145,6 @@ function LigneEtape({ circuit, s, max }: { circuit: string; s: StepStat; max: nu
             setEnvoi(true); setErr(null);
             try {
               const r = await reglerDelaiEtape(fd);
-              signalerAnnulable(r);
               if (r.ok) { setEdition(false); rafraichir(); } else setErr(r.error ?? "Le délai de l'étape n'a pas été réglé.");
             } catch {
               setErr(actionFailureMessage("THROWN"));

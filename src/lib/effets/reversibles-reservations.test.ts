@@ -17,7 +17,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { annulerGeste, retablirGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
+import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
+import { retablirGeste } from "@/lib/effets/retablissement";
 import { ajouterVoyageur, ajouterHebergement } from "@/modules/ad-pro/actions-postes-voyageurs";
 import {
   envoyerFiche, envoyerFichesPretes, relancerFiche, retirerFiche, prendreFiche, signalerManque, deposerBillet, joindreDevisAgence,
