@@ -146,10 +146,18 @@ suite("Session légère des sondages — mêmes réponses, une fraction des requ
   });
 
   it("BUDGET : la session complète ≈ 10 requêtes, la légère ≤ 2 (identité + droit)", async () => {
-    // Session déjà « touchée » dans la minute par les cas précédents : aucune écriture de `lastSeenAt`.
+    // `lastSeenAt` s'écrit « au mieux » (non attendu), au plus 1×/min par session : sous la charge de la suite parallèle,
+    // la minute a pu passer depuis les cas précédents — l'écriture part alors avec le premier appel. On ATTEND qu'elle ait
+    // atterri (plus aucune requête pendant un instant) avant de mesurer la suivante : la mesure reste exacte.
+    const calme = async () => {
+      for (let vu = -1; vu !== requetes.length;) { vu = requetes.length; await new Promise((r) => setTimeout(r, 150)); }
+    };
+    await getCurrentUser();
+    await calme();
     requetes.length = 0;
     await getCurrentUser();
     const complet = requetes.length;
+    await calme();
     requetes.length = 0;
     const qui = await identiteDuSondage();
     const identite = requetes.length;
