@@ -86,9 +86,12 @@ for (const ecran of [{ nom: "bureau", largeur: 1440, hauteur: 900 }, { nom: "iph
     await login(page);
     await page.goto("/ia");
     await expect(page.getByTestId("accueil")).toBeVisible({ timeout: 30_000 });
-    await page.getByTestId("voix-temps-reel").first().click();
     const panneau = page.getByRole("dialog", { name: "Conversation vocale" });
-    await expect(panneau).toBeVisible();
+    // Le bouton est rendu avant l'hydratation : on clique jusqu'à ce que le panneau s'ouvre.
+    await expect(async () => {
+      await page.getByTestId("voix-temps-reel").first().click();
+      await expect(panneau).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     await expect(panneau.getByText(/Tout se fait à l.oral/)).toBeVisible();
     await expect(panneau.getByText(/à l.écran|confirmez/i)).toHaveCount(0);
     await panneau.getByRole("button", { name: /Parler à l'assistant/ }).click();
