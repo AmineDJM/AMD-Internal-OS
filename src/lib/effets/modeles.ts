@@ -101,6 +101,10 @@ export const MODELES_TRACE: ReadonlySet<string> = new Set([
   "AuditLog", "ActivityLog", "AssistantIaTrace", "AiUsageLog", "ModelCallLog", "VoiceTurnLog", "AssistantActionIntent",
   "AssistantRoleConfigAudit", "RegulatoryAuditLog", "SessionEvent", "BusinessEvent", "MissionEvent",
   "AssistantGesteJournal", "AssistantEffet", "EffetSortantDiffere",
+  // LES CACHES DÉRIVÉS (01/11/2026) : recalculés depuis les faits, jamais l'effet d'un geste. `AssistantHotState` est
+  // invalidé par le registre d'événements à CHAQUE fait métier : capté, il rendait le rétablissement d'un accord
+  // « impossible » dès qu'un autre fait l'avait touché entre-temps (vu sous la suite parallèle, `decideApproval`).
+  "AssistantHotState", "RegulatoryAiCache", "VoixTerrainCache",
 ]);
 
 /**
