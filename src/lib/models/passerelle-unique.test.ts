@@ -47,7 +47,7 @@ const PORTES = /api\.anthropic\.com|\/v1\/messages\b|\/v1\/chat\/completions\b|\
  *     passerelle ne transporte pas de `multipart/form-data`.
  *   - `assistant/voice-realtime.ts` : la session temps reel (WebRTC), un protocole a part dont
  *     l\'usage est journalise sous `ROLE_VOIX`.
- *   - `platform/dev/config.ts` (C2, decision 0041) : la base de la Routines API de Claude Code
+ *   - `platform/dev/config.ts` (C2, decision 0043) : la base de la Routines API de Claude Code
  *     (`/v1/claude_code/routines/{id}/fire`). Ce n\'est PAS un appel de modele : elle cree une session
  *     Claude Code sur l\'abonnement (aucun jeton facture a l\'API) ; chaque lancement a sa ligne
  *     `DevLancement` (idempotence et quotas).

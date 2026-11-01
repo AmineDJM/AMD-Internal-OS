@@ -203,8 +203,8 @@ séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lance
 | `/api/mail/inbound` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |
 | `/api/canaux/whatsapp` | GET, POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière (K6) |
 | `/api/canaux/relais` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière (K6) |
-| `/api/chantiers/webhooks/[fournisseur]` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière (C2, décision 0041 — GitHub et Render, signés) |
-| `/api/dev/relais/ordres` | GET, POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière (C2, décision 0041 — le relais CLI de la Direction, jeton `CLAUDE_RELAIS_TOKEN`) |
+| `/api/chantiers/webhooks/[fournisseur]` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière (C2, décision 0043 — GitHub et Render, signés) |
+| `/api/dev/relais/ordres` | GET, POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière (C2, décision 0043 — le relais CLI de la Direction, jeton `CLAUDE_RELAIS_TOKEN`) |
 | `/api/assistant-ia/consommation/export` | GET | export de l'écran « Consommation » de l'assistant lui-même (K8) |
 | `/api/google/callback` | GET | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |
 | `/api/google/connect` | GET | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |

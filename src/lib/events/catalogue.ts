@@ -61,7 +61,7 @@ export const CATALOGUE: readonly TypeFait[] = [
   // ── Les travaux (J8, décision 0023) : la délégation d'un travail à une autre personne ──
   { type: "DEMANDE_DEPOSEE", libelle: "Demande d'un travail déposée", sourceDomain: "TRAVAUX", sources: ["erp"], entites: ["TRAVAIL_DEMANDE", "USER"], description: "Le travail d'une personne a déposé une demande (question, pièces attendues, échéance) dans l'espace d'une autre." },
   { type: "DEMANDE_REPONDUE", libelle: "Demande d'un travail répondue", sourceDomain: "TRAVAUX", sources: ["erp"], entites: ["TRAVAIL_DEMANDE", "USER"], description: "La personne sollicitée a répondu à la demande d'un travail (texte et pièces partagées) : le travail reprend." },
-  // ── Les chantiers de développement (C2, décision 0041 — `platform/dev/`, webhooks GitHub et Render, sondage de secours) ──
+  // ── Les chantiers de développement (C2, décision 0043 — `platform/dev/`, webhooks GitHub et Render, sondage de secours) ──
   { type: "DEV_PUSH", libelle: "Commit poussé sur une branche", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Un commit nouveau sur une branche d'un dépôt suivi (références DEPOT:, BRANCHE:<dépôt>:<branche>, SHA:)." },
   { type: "DEV_PR", libelle: "Pull request ouverte ou changée", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Une PR ouverte, mise à jour, fermée ou fusionnée (statut dans la charge : opened, synchronize, merged…)." },
   { type: "DEV_CHECKS", libelle: "Checks terminés sur un commit", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Une suite de checks ou un check terminé sur un SHA ; le verdict global se relit sur GitHub." },

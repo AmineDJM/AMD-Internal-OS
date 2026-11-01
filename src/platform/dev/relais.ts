@@ -1,7 +1,7 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 
 /**
- * LE RELAIS CLAUDE CODE (CLI) — la part PURE (lot C2, décision 0041 § 3 bis, Direction 01/11/2026 : « Claude Code Cloud
+ * LE RELAIS CLAUDE CODE (CLI) — la part PURE (lot C2, décision 0043 § 3 bis, Direction 01/11/2026 : « Claude Code Cloud
  * par Routines + CLI cloud »).
  *
  * La CLI `claude` connectée au compte claude.ai de la Direction (`claude auth login`) est la seule à pouvoir parler à

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { MoyenAgent } from "@/platform/dev/ports";
 
 /**
- * LES LANCEMENTS DE CLAUDE CODE ET LEUR CLÉ D'IDEMPOTENCE (lot C2, décision 0041).
+ * LES LANCEMENTS DE CLAUDE CODE ET LEUR CLÉ D'IDEMPOTENCE (lot C2, décision 0043).
  *
  * La Routines API n'a pas d'idempotence : « each successful request creates a new session » (doc Anthropic). La
  * clé vit donc chez Adventum, dans `DevLancement` :

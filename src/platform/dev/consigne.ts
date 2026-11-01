@@ -6,7 +6,7 @@ import type { ConsigneDev } from "./ports";
  * de la Routines API) en rognant d'abord le contexte.
  *
  * Elle arrive dans la session dans un bloc `<routine-fire-payload>` : le prompt de la routine (posé par la Direction,
- * modèle dans la décision 0041) dit de l'exécuter.
+ * modèle dans la décision 0043) dit de l'exécuter.
  */
 
 export const LIMITE_CONSIGNE = 65_536;

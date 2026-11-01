@@ -6,7 +6,7 @@ import { creerAgentDeveloppeur } from "./agent-routines";
 import { enfilerOrdre, rendreOrdre, tirerOrdre } from "./relais";
 
 /**
- * LE RELAIS CLAUDE CODE (lot C2, décision 0041 § 3 bis) : lecture des sorties de la CLI (documentées le 01/11/2026),
+ * LE RELAIS CLAUDE CODE (lot C2, décision 0043 § 3 bis) : lecture des sorties de la CLI (documentées le 01/11/2026),
  * file d'ordres idempotente, tirage atomique, balayage, route protégée par le jeton du relais.
  */
 

@@ -18802,7 +18802,7 @@ model AssistantIaVisuel {
   @@index([statut, createdAt])
 }
 
-/// UN LANCEMENT DE CLAUDE CODE (lot C2, décision 0041) — la clé d'idempotence qu'Anthropic n'a pas.
+/// UN LANCEMENT DE CLAUDE CODE (lot C2, décision 0043) — la clé d'idempotence qu'Anthropic n'a pas.
 /// La Routines API (`/fire`) et le commentaire `@claude` créent une session à CHAQUE appel : la ligne est
 /// RÉCLAMÉE avant l'envoi (`cleIdempotence` unique), donc la même clé ne lance jamais deux sessions. Un délai
 /// dépassé laisse la ligne `INCERTAIN` : personne ne relance à l'aveugle. Sert aussi au compte des quotas
@@ -18830,7 +18830,7 @@ model DevLancement {
   @@index([missionId])
 }
 
-/// UN ORDRE POUR LE RELAIS CLAUDE CODE (lot C2, décision 0041 § 3 bis) — la CLI `claude --cloud` tourne sur une machine
+/// UN ORDRE POUR LE RELAIS CLAUDE CODE (lot C2, décision 0043 § 3 bis) — la CLI `claude --cloud` tourne sur une machine
 /// de la Direction (`scripts/relais-claude.ts`), qui TIRE ces ordres avec son jeton. CREER : nouvelle session sur la
 /// branche réservée ; MESSAGE : `claude -p --cloud <session>` (contexte gardé). Idempotence par `cleIdempotence` ;
 /// EN_ATTENTE → EN_COURS → FAIT | ECHEC | INCERTAIN. Le texte est effacé une fois l'ordre conclu (l'empreinte reste).

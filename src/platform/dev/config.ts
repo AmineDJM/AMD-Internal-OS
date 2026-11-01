@@ -16,7 +16,7 @@ import type { NomDepot } from "./ports";
  *   Relais   CLAUDE_RELAIS_TOKEN : le jeton que le relais CLI (machine de la Direction) présente pour tirer ses ordres.
  *
  * Aucun identifiant claude.ai d'abonnement (OAuth, `claude setup-token`) n'est lu ici : les conditions d'Anthropic
- * l'interdisent côté serveur (décision 0041). Le jeton d'une routine n'est pas un identifiant de compte : il ne fait
+ * l'interdisent côté serveur (décision 0043). Le jeton d'une routine n'est pas un identifiant de compte : il ne fait
  * que déclencher CETTE routine.
  */
 

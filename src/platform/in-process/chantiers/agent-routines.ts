@@ -6,7 +6,7 @@ import type { AgentDeveloppeur, DemandeLancement, DemandeRelancePr, ErreurConnec
 import { enfilerOrdre, etatDuRelais, lireOrdreCli, type DemandeOrdre } from "./relais";
 
 /**
- * L'AGENT DÉVELOPPEUR — Claude Code Cloud par ses mécanismes OFFICIELS (lot C2, décision 0041).
+ * L'AGENT DÉVELOPPEUR — Claude Code Cloud par ses mécanismes OFFICIELS (lot C2, décision 0043).
  *
  *   lancer          Routines API : `POST {base}/v1/claude_code/routines/{trig_…}/fire`, `Authorization: Bearer <jeton de
  *                   la routine>`, `anthropic-version: 2023-06-01`, corps `{ text }` ≤ 65 536 caractères ; réponse
@@ -21,7 +21,7 @@ import { enfilerOrdre, etatDuRelais, lireOrdreCli, type DemandeOrdre } from "./r
  *
  * Le texte arrive dans la session ENVELOPPÉ dans un bloc `<routine-fire-payload>` marqué « donnée non fiable » : la
  * routine créée par la Direction doit dire, dans son propre prompt, d'exécuter la consigne de ce bloc (modèle dans la
- * décision 0041).
+ * décision 0043).
  *
  * Aucun réessai sur un délai dépassé : l'API n'a pas d'idempotence, un réessai ferait une seconde session. Seule une
  * requête certainement NON partie (DNS, connexion refusée) est rejouée, deux fois au plus.

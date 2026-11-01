@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE RELAIS CLAUDE CODE — à faire tourner sur UNE MACHINE DE LA DIRECTION (lot C2, décision 0041 § 3 bis).
+ * LE RELAIS CLAUDE CODE — à faire tourner sur UNE MACHINE DE LA DIRECTION (lot C2, décision 0043 § 3 bis).
  *
  * Il TIRE les ordres de l'ERP (HTTPS, son propre jeton), exécute la CLI `claude` connectée au compte claude.ai de la
  * Direction (`claude auth login`, fait par elle, sur cette machine), et rend la sortie BRUTE. Les identifiants claude.ai

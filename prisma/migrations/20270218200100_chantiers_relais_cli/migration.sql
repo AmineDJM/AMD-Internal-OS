@@ -1,4 +1,4 @@
--- C2 (décision 0041 § 3 bis) : la file d'ordres du relais Claude Code (CLI sur une machine de la Direction) et son battement.
+-- C2 (décision 0043 § 3 bis) : la file d'ordres du relais Claude Code (CLI sur une machine de la Direction) et son battement.
 CREATE TABLE IF NOT EXISTS "ClaudeRelaisOrdre" (
   "id" TEXT NOT NULL,
   "cleIdempotence" TEXT NOT NULL,

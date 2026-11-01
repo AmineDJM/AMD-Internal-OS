@@ -1,4 +1,4 @@
-# 0041 — Les connecteurs des chantiers : Claude Code par ses mécanismes officiels, GitHub et Render en `fetch` (lot C2, 01/11/2026)
+# 0043 — Les connecteurs des chantiers : Claude Code par ses mécanismes officiels, GitHub et Render en `fetch` (lot C2, 01/11/2026)
 
 **Demande de la Direction (résumé fidèle)** : « Adventum IA devient le superviseur de Claude Code : créer des sessions
 Claude Code Cloud sur mon compte, leur transmettre des instructions, vérifier commits, pushs, branches, PR, tests et CI/CD,

@@ -72,7 +72,7 @@ export interface EtatConnecteur {
 
 // ─────────────────────────────── AGENT DÉVELOPPEUR (Claude Code) ───────────────────────────────
 
-/** Les moyens OFFICIELS de faire travailler Claude Code (décision 0041 ; Direction 01/11 : « Routines + CLI cloud » —
+/** Les moyens OFFICIELS de faire travailler Claude Code (décision 0043 ; Direction 01/11 : « Routines + CLI cloud » —
  *  les Managed Agents, facturés à l'API, restent une option future, non codée). */
 export type MoyenAgent =
   | "ROUTINE" // Routines API : nouvelle session cloud sur l'abonnement de la Direction

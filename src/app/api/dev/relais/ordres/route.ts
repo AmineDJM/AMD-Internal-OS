@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * LE RELAIS CLAUDE CODE TIRE SES ORDRES (lot C2, décision 0041 § 3 bis) — `GET` (tirer, long-polling ≤ 25 s, battement
+ * LE RELAIS CLAUDE CODE TIRE SES ORDRES (lot C2, décision 0043 § 3 bis) — `GET` (tirer, long-polling ≤ 25 s, battement
  * de cœur en paramètres) et `POST` (rendre la sortie brute d'un ordre).
  *
  * Route PUBLIQUE (le relais n'a pas de session), jamais ouverte : sans `CLAUDE_RELAIS_TOKEN` posé, 503 ; jeton faux,

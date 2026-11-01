@@ -4,7 +4,7 @@ import type { OrdreCli } from "@/platform/dev/ports";
 import { DELAI_ORDRE_EN_COURS_MS, DUREE_VIE_ORDRE_MS, RELAIS_VIVANT_MS, interpreter, lireAuthStatus, type EtatDeclare, type OrdreRelais, type SortieRelais, type TypeOrdre } from "@/platform/dev/relais";
 
 /**
- * LA FILE D'ORDRES DU RELAIS CLAUDE CODE (lot C2, décision 0041 § 3 bis) — côté ERP.
+ * LA FILE D'ORDRES DU RELAIS CLAUDE CODE (lot C2, décision 0043 § 3 bis) — côté ERP.
  *
  *   enfiler   l'ordre est RÉCLAMÉ sous sa clé d'idempotence (`ClaudeRelaisOrdre.cleIdempotence` unique) : la même clé ne
  *             produit jamais deux commandes ; un ordre `ECHEC` (rien n'a agi) se re-réclame, `INCERTAIN` non.

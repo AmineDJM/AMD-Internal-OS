@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Développement — connecteurs · Administration" };
 
 /**
- * ADMINISTRATION › DÉVELOPPEMENT (lot C2, décision 0041) — Super Admin SEUL.
+ * ADMINISTRATION › DÉVELOPPEMENT (lot C2, décision 0043) — Super Admin SEUL.
  *
  * L'état des connecteurs des chantiers : configuré ? joignable ? quotas restants ? Chaque chargement SONDE, en lecture
  * seule (GitHub `GET /user` + dépôts listés, Render `GET /services`, MiMo `GET /models`) ; les routines n'ont pas de
@@ -86,7 +86,7 @@ function Connecteurs({ etats }: { etats: EtatConnecteur[] }) {
       <p className="text-xs text-muted-foreground">
         Les variables se posent sur Render (service de l&apos;ERP). Webhooks : GitHub → <code>/api/chantiers/webhooks/github</code> (secret
         GITHUB_WEBHOOK_SECRET, événements push, pull_request, check_suite, check_run, workflow_run, issue_comment) ; Render →
-        <code> /api/chantiers/webhooks/render</code> (signing secret dans RENDER_WEBHOOK_SECRET). Décision 0041.
+        <code> /api/chantiers/webhooks/render</code> (signing secret dans RENDER_WEBHOOK_SECRET). Décision 0043.
       </p>
     </>
   );

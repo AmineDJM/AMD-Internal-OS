@@ -96,7 +96,7 @@
 Ensuite : soit pointer le webhook Meta vers `/api/canaux/whatsapp` (réglages ci-dessus), soit ajouter au scénario existant UNE étape
 HTTP vers `/api/canaux/relais` (JSON ci-dessus, signé avec `CANAUX_RELAIS_SECRET`). Un numéro WhatsApp ne peut avoir qu'UN webhook Meta.
 
-### Chantiers de développement — connecteurs Claude Code, GitHub, Render, MiMo (lot C2, décision 0041)
+### Chantiers de développement — connecteurs Claude Code, GitHub, Render, MiMo (lot C2, décision 0043)
 
 Toutes **côté serveur** (service de l'ERP sur Render), jamais lues par un modèle, jamais journalisées. État et sondes :
 **Administration › Développement** (Super Admin).
@@ -112,7 +112,7 @@ Toutes **côté serveur** (service de l'ERP sur Render), jamais lues par un mod�
 | `CLAUDE_ROUTINE_<ALIAS>_TOKEN` | jeton de la routine (`sk-ant-oat01-…`, affiché une fois) — ne déclenche que CETTE routine |
 | `CLAUDE_ROUTINE_<ALIAS>_DEPOT` | le dépôt de la routine (« proprio/nom ») |
 | `mimo` (ou `MIMO_API_KEY`), `MIMO_BASE_URL` | MiMo : clé déjà posée ; base par défaut `https://token-plan-ams.xiaomimimo.com/v1` (sonde `GET /models`) |
-| `CLAUDE_RELAIS_TOKEN` | jeton du **relais CLI** (`scripts/relais-claude.ts`, sur une machine de la Direction connectée par `claude auth login`) ; aléatoire, ≥ 24 caractères ; sans lui `/api/dev/relais/ordres` est fermée (503). Côté relais : `RELAIS_ERP_URL`, `RELAIS_JETON` (même valeur), `RELAIS_DOSSIER`, `RELAIS_CLAUDE`, `RELAIS_GIT` — installation launchd/systemd dans la décision 0041 § 3 bis |
+| `CLAUDE_RELAIS_TOKEN` | jeton du **relais CLI** (`scripts/relais-claude.ts`, sur une machine de la Direction connectée par `claude auth login`) ; aléatoire, ≥ 24 caractères ; sans lui `/api/dev/relais/ordres` est fermée (503). Côté relais : `RELAIS_ERP_URL`, `RELAIS_JETON` (même valeur), `RELAIS_DOSSIER`, `RELAIS_CLAUDE`, `RELAIS_GIT` — installation launchd/systemd dans la décision 0043 § 3 bis |
 | `GITHUB_API_URL`, `RENDER_API_URL`, `ANTHROPIC_ROUTINES_URL` | bancs seulement (faux serveur) |
 
 **Jamais** d'identifiant claude.ai d'abonnement sur le serveur (ni OAuth, ni `claude setup-token`) : interdit par les

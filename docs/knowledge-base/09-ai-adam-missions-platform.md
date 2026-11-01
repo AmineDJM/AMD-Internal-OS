@@ -758,7 +758,7 @@ Gotchas [V]:
   claimed before sending (`createMany skipDuplicates`); timeout / connection reset / HTTP 500 ⇒ `INCERTAIN` (key blocked,
   never replayed); 429 / 503 / pre-send network error ⇒ `ECHEC` (key re-claimable). Local hourly quota 30/routine,
   100/account counted before the 429. Fire text arrives wrapped in `<routine-fire-payload>` (untrusted): the routine's own
-  prompt must opt in (decision 0041 § 2).
+  prompt must opt in (decision 0043 § 2).
 - **Writes** (fire, comment, deploy, cancel, rollback, autoDeploy, rerun) call `noterEffetExterne` (J7): recorded in real
   mode, neutralised (`SIMULE`) in simulation. Note: the J7 network port does NOT record anthropic.com calls by itself
   (`HOTES_MODELES`), hence the explicit note.
