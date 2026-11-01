@@ -110,7 +110,7 @@ export interface ContratAction {
   /** L'action laisse-t-elle une trace d'audit ? */
   audit: boolean;
   /**
-   * DÉCLARÉE RÉVERSIBLE (K10a, décision 0035) : le corps s'exécute sous `annulable(mode, …)` (`lib/effets/ecran.ts`) —
+   * DÉCLARÉE RÉVERSIBLE (K10a, décision 0039) : le corps s'exécute sous `annulable(mode, …)` (`lib/effets/ecran.ts`) —
    * journalisé, il se défait par l'annulation J7. `retour` ou `compensation` ; `null` : pas d'enrobage lu.
    */
   annulable: "retour" | "compensation" | null;

@@ -60,7 +60,7 @@ const err = (r: { ok: boolean; error?: string }) => (r.ok ? null : r.error ?? ""
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES DEMANDES DE PAIEMENT, LE CENTRE, SES SIÈGES ET LES FACTURES SE DÉFONT D'UN GESTE (lot K10a, décision 0035).
+ * LES DEMANDES DE PAIEMENT, LE CENTRE, SES SIÈGES ET LES FACTURES SE DÉFONT D'UN GESTE (lot K10a, décision 0039).
  *
  * Même banc que `reversibilite-argent-flow.test.ts` : chaque cas EXÉCUTE l'action par son vrai point d'entrée (une
  * vraie personne, la base locale), l'ANNULE par l'annulation J7 et relit l'état. Séparation des tâches respectée :

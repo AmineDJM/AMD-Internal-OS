@@ -164,10 +164,12 @@ export async function callAnthropic(
         const data = (await res.json()) as {
           content?: AnthropicBlock[];
           stop_reason?: string;
-          usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number };
+          usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
         };
         const blocks = fromAnthropicBlocks(data.content);
-        const inputTokens = data.usage?.input_tokens ?? 0;
+        // Anthropic compte la lecture et l'écriture de cache HORS de `input_tokens` (audit K8, E8) : le total de
+        // l'entrée les rajoute, pour que `cachedInputTokens` en soit bien une PART (convention du journal).
+        const inputTokens = (data.usage?.input_tokens ?? 0) + (data.usage?.cache_read_input_tokens ?? 0) + (data.usage?.cache_creation_input_tokens ?? 0);
         const outputTokens = data.usage?.output_tokens ?? 0;
         return {
           ok: true,
@@ -293,8 +295,11 @@ export async function streamAnthropic(
         const index = typeof evt.index === "number" ? evt.index : 0;
 
         if (type === "message_start") {
-          const msg = evt.message as { usage?: { input_tokens?: number; cache_read_input_tokens?: number } } | undefined;
-          inputTokens = msg?.usage?.input_tokens ?? inputTokens;
+          const msg = evt.message as { usage?: { input_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } } | undefined;
+          // Même total que l'appel non diffusé : lecture et écriture de cache comprises (audit K8, E8).
+          inputTokens = msg?.usage?.input_tokens != null
+            ? msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0)
+            : inputTokens;
           cachedInputTokens = msg?.usage?.cache_read_input_tokens ?? cachedInputTokens;
         } else if (type === "content_block_start") {
           const block = evt.content_block as AnthropicBlock | undefined;

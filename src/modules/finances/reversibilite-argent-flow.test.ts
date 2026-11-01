@@ -43,7 +43,7 @@ const fd = (champs: Record<string, string>) => {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * L'ARGENT RÉVERSIBLE, PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0035).
+ * L'ARGENT RÉVERSIBLE, PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0039).
  *
  * Chaque cas EXÉCUTE l'action de l'écran (session d'une vraie personne, base locale), relit le geste que le journal
  * des effets a gardé, l'ANNULE par l'annulation J7, et vérifie l'état : données, solde, journal, audit. L'argent ne

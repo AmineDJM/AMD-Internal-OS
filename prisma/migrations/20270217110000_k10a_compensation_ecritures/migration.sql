@@ -1,4 +1,4 @@
--- K10a (décision 0035) — une écriture de trésorerie ne s'efface jamais : on la COMPENSE.
+-- K10a (décision 0039) — une écriture de trésorerie ne s'efface jamais : on la COMPENSE.
 -- `compensationDeId` lie l'écriture inverse (contre-passation) ou l'écriture « à récupérer » à celle qu'elle compense ;
 -- `compensation` dit laquelle des deux. Additive et idempotente.
 ALTER TABLE "FinanceTransaction" ADD COLUMN IF NOT EXISTS "compensationDeId" TEXT;

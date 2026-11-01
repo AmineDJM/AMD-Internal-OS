@@ -1,5 +1,5 @@
 /**
- * LE GESTE D'ÉCRAN ANNULABLE, CÔTÉ NAVIGATEUR (K10a, décision 0035) — pur, sans import : le bandeau « Annuler » le lit.
+ * LE GESTE D'ÉCRAN ANNULABLE, CÔTÉ NAVIGATEUR (K10a, décision 0039) — pur, sans import : le bandeau « Annuler » le lit.
  *
  * Une action d'argent faite depuis l'ERP laisse, à son retour, un témoin court (`amd-geste-annulable`) : l'identifiant
  * du geste journalisé et son libellé. Le bandeau de l'application le lit et offre « Annuler » ; rien d'autre n'y est.

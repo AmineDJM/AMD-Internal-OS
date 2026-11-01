@@ -2,6 +2,7 @@
  * Adaptateur Responses — L'APPEL NON STREAMÉ, avec ses reprises et la mémoire des coupures
  * d'intermédiaires réseau (502/504/522/524) qui fait partir les appels suivants en flux.
  */
+import { recordModelCall } from "../telemetry";
 import { providerErrorMessage, isRetryableStatus } from "../errors";
 import { noterEnTetes, noter429, noterSucces } from "../throttle";
 import { budgetDeSecours, BUDGET_POLICY } from "../budget";
@@ -149,6 +150,10 @@ export async function callOpenAiResponses(
             + "La réserve de raisonnement de src/lib/models/budget.ts est à revoir : ce rattrapage "
             + "paie l'appel deux fois et ne doit pas devenir la normale.",
           );
+          // L'appel abandonné a été PAYÉ (audit K8, E6) : il va au journal, avec ses recherches web.
+          recordModelCall(usageDe(binding, data.usage, started, attempt, {
+            maxOutputTokens: plafond, incompleteReason: data.incomplete_details?.reason ?? "max_output_tokens", webSearchCalls: web.recherches,
+          }));
           continue;
         }
 

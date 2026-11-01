@@ -5,7 +5,7 @@ import { CHEMIN_CLICHE, type LigneCliche } from "@/platform/ia/capacites/cliche"
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * CLIQUET K10a — AUCUNE ACTION D'ARGENT QUI ÉCRIT N'EST « SANS ANNULATION » (décision 0035).
+ * CLIQUET K10a — AUCUNE ACTION D'ARGENT QUI ÉCRIT N'EST « SANS ANNULATION » (décision 0039).
  *
  * « Toute action qui a été faite peut être réversible » (Direction, 31/10/2026). Le périmètre de l'argent — finance,
  * trésorerie, paiements, caisse, paie, factures, budgets, fournisseurs — est lu par FICHIER d'actions : une action

@@ -163,7 +163,7 @@ export function annulationDe(nature: NatureGesteLue | null, classer: (n: NatureG
 }
 
 /**
- * DÉCLARÉE RÉVERSIBLE (K10a, décision 0035) — l'action s'exécute sous le journal des effets (`annulable`) : elle se
+ * DÉCLARÉE RÉVERSIBLE (K10a, décision 0039) — l'action s'exécute sous le journal des effets (`annulable`) : elle se
  * défait d'un geste, par l'annulation J7 ; l'argent par compensation (écriture inverse, « à récupérer »), jamais effacé.
  */
 export function annulationDeclaree(mode: "retour" | "compensation"): { annulation: Annulation; raison: string } {

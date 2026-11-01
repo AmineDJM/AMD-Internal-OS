@@ -381,9 +381,13 @@ const SOCLE = [
 // sous 1 000 lignes — aides, types, lectures, corps intermédiaires. Même couche que les actions qu'elles
 // servent (elles lisent les domaines et les façades), jamais importées par un domaine. Hors de la racine de
 // `actions/` et sans `"use server"` : ce ne sont PAS des actions (`actions/parc.ts`).
+//
+// `exports/` (lot K7, décision 0037) : les EXPORTS de l'ERP (Excel, CSV, PDF, PowerPoint), une fonction par export,
+// partagée par la route de l'écran et le socle IA. Transverse par construction : chaque export lit `queries/` et le
+// domaine qu'il exporte ; aucun domaine ne l'importe.
 const FACADES = [
   "src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/",
-  "src/lib/admin-delete-registry", "src/lib/entity-access/", "src/lib/actions/internes/",
+  "src/lib/admin-delete-registry", "src/lib/entity-access/", "src/lib/actions/internes/", "src/lib/exports/",
 ];
 
 /**

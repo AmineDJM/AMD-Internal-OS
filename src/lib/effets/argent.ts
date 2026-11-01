@@ -6,7 +6,7 @@ import { serialiserLigne, valeurLisible } from "./valeurs";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * L'ARGENT NE S'EFFACE PAS : IL SE COMPENSE (lot K10a, décision 0035) — la politique « argent » de l'annulation J7.
+ * L'ARGENT NE S'EFFACE PAS : IL SE COMPENSE (lot K10a, décision 0039) — la politique « argent » de l'annulation J7.
  *
  * « Toutes les actions sont réversibles » (Direction, 31/10/2026). Pour l'argent, réversible ne veut jamais dire
  * effacé : une écriture de trésorerie est un fait du livre. Défaire le geste qui l'a posée écrit une ligne DE PLUS,

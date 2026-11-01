@@ -5,7 +5,7 @@ import { journaliserGeste } from "./journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE ACTION DE L'ÉCRAN, RÉVERSIBLE (lot K10a, décision 0035) — le journal des effets J7, ouvert aux gestes de l'ERP.
+ * UNE ACTION DE L'ÉCRAN, RÉVERSIBLE (lot K10a, décision 0039) — le journal des effets J7, ouvert aux gestes de l'ERP.
  *
  * « Toute action qui a été faite peut être réversible » (Direction, 31/10/2026). J7 savait défaire un geste de
  * l'ASSISTANT ; l'action faite au bouton, elle, ne laissait que son audit. `annulable` l'enrobe : elle s'exécute sous

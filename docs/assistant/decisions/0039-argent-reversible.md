@@ -1,4 +1,4 @@
-# 0035 — L'argent réversible : journal J7 ouvert à l'écran, contre-passation, « à récupérer », rétablir (lot K10a, 31/10/2026)
+# 0039 — L'argent réversible : journal J7 ouvert à l'écran, contre-passation, « à récupérer », rétablir (lot K10a, 31/10/2026)
 
 Demande de la Direction (31/10/2026, verbatim) : « Je veux que toutes les actions soient réversibles. Même celles qui ne
 le sont pas : tu dois modifier l'ERP pour qu'elles le soient. Toute action qui a été faite peut être réversible. Ça doit
@@ -13,7 +13,7 @@ annulation honnête) — **aucun second mécanisme** : tout passe par `annulerGe
 > `contrat/types.ts`), registre (`platform/ia/capacites/{types,classement,registre}.ts`) ; bandeau
 > `components/layout/geste-annulable.tsx` (monté dans `app/(app)/layout.tsx`) ; action `annulerMonGeste`
 > (`modules/assistant-ia/actions-gestes.ts`, porte `porteDeLaPersonne`). Migration additive et idempotente
-> `20270217100000_k10a_compensation_ecritures` : `FinanceTransaction.compensationDeId` (lien, `SET NULL`) et
+> `20270217110000_k10a_compensation_ecritures` : `FinanceTransaction.compensationDeId` (lien, `SET NULL`) et
 > `FinanceTransaction.compensation` (`CONTRE_PASSATION` | `A_RECUPERER`).
 
 ## 1. La définition tenue

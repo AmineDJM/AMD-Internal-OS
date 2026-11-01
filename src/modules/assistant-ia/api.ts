@@ -50,6 +50,7 @@ export { executerVeilles, passerLaVeille } from "./infra/proactivite/veille";
 
 // ── Opérations (écritures confirmées) et accès
 export { executerOperationIA, executerOperationJournalisee } from "./infra/operations";
+export { confirmerCarte } from "./infra/confirmation";
 // J6 (décision 0020) : le registre des capacités de l'ERP, branché — l'exécution d'une carte de capacité confirmée.
 export { capacitesOffertes, chercherReferenceDeCarte, corrigerCarteCapacite, executerCapacite, porteOuverte, registreDesCapacites } from "./infra/capacites";
 export { estChargeCapacite } from "./domaine/capacites";
@@ -60,6 +61,7 @@ export { accesAssistantIa, chargerConsoleAccesIa, verifierReperesAvantExecution 
 // ── Consommation (budget par tour, plafonds, tableau de bord) et moteur
 export { auNomDe, lireReglagesAssistantIa, tarifPose } from "./infra/consommation";
 export { consommationAssistantIa, type Agregat } from "./infra/consommation-stats";
+export { lireConsommation, lireAppels, cibleDe, LIMITE_EXPORT } from "./infra/consommation-detail";
 export { modeleOpenAi } from "./infra/modele";
 export { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 
@@ -96,6 +98,13 @@ export { tableauQualite } from "./infra/qualite/tableau";
 export {
   capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION, type IssueCaptation, type VueCaptation,
 } from "./infra/terrain/captation";
+// ── K6 (décision 0036) : les pièces reçues par WhatsApp et par mail, rattachées à l'attente de la conversation
+export {
+  attenteOuvertePour, ouvrirAttente, personneParAdresse, recevoirMessage, recevoirPieces, DOSSIER_PIECES_RECUES,
+  type EntreeReception, type FichierRecu, type ResultatReception,
+} from "./infra/canaux/reception";
+export { sectionAttentesDuTour } from "./infra/canaux/section";
+export { outilAttendrePieces, OUTIL_ATTENDRE_PIECES } from "./infra/canaux/outil";
 export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";
 // ── Les visuels (lot K2, décision 0032) : images, vidéos, vidéos de données — la tâche de fond, la carte, le média
 export { etatVisuel, etatVisuelsPourAdministration, fichierDuVisuel, traiterVisuelsEnFile } from "./infra/visuels/service";

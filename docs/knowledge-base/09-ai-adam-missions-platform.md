@@ -212,7 +212,8 @@ pipeline internals, Live Office (§104).
 | `src/lib/ai.ts` | Legacy facade (`askClaude`=worker, `askClaudeCheap`=bulk); reads master kill switch first; Whisper transcription |
 | `src/lib/ai-settings.ts` | `AiSetting` row (master + per-feature toggles), `aiFeatureEnabled`, `interrupteurIaCoupe`, `logAiUsage` |
 | `src/lib/openai-luna.ts` | Regulatory CTD path: Luna vision, Batch API, embeddings; own accounting (`RegulatoryAiCall`) |
-| `src/platform/ia/telemetry/usage-sink.ts` | Buffered sink → `ModelCallLog` (installed by side-effect import: `assistant.ts`, mission reasoner, socle modules that call a model) |
+| `src/platform/ia/telemetry/usage-sink.ts` | Buffered sink → `ModelCallLog` (installed at boot by `src/instrumentation.ts` and `scripts/worker.ts` since K8, and by side-effect import; calls recorded before install wait in a 500-slot queue in `telemetry.ts`). Cost of each row recomputed by `cout-journal.ts` against the dated price grid `src/lib/models/tarifs.ts` (K8, decision 0035) |
+| `src/lib/models/tarifs.ts` | K8: dated price grid per model × token type (text/cached/audio/image/per-minute/per-second/per-page), BigInt cost to the micro-dollar; `null` = unknown, never 0 |
 | `src/lib/assistant.ts` | Adam: tool lists, prompts, `executeReadTool` :2354, `buildProposal` :2805, loops :4850/:5468, `performAction` :6107 |
 | `src/lib/assistant/power-tools.ts` | RBAC-gated "power" read tools; `powerToolsFor` :461, `executePowerTool` :477 |
 | `src/lib/assistant/ops/index.ts` + `ops/impl-*.ts` | Generic `domain_op` tools (catalogue × implementations, ~40 files) |
@@ -423,7 +424,10 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   (unique `syntheseDe`, notification), fallback task `assistant.sous-missions`. **Dashboard** `travaux/tableau.ts`
   (`tableauDesTravaux`, cheap `signatureTableau` aggregate) streamed by SSE `app/api/assistant-ia/missions/flux` (1 s signature
   poll server-side, 15 s heartbeat, close at 4 min 30, client fallback 3 s poll) → `ecrans/missions/*` (shared by `/ia` and
-  `/assistant`). **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
+  `/assistant`). **Deep research** `recherche_approfondie` (`domaine/recherche-approfondie.ts`): code-built plan, one `web_research`
+  LECTURE per angle (no deps → parallel), then LIVRABLE `pdf` (docx + converted pdf); mission `context` =
+  `assistant-ia:recherche-approfondie` makes the synthesis show the full report; livrables read up to 64k chars of upstream output.
+  **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
   files too.
 
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
@@ -691,7 +695,8 @@ Gotchas [V]:
 - `AiSetting` reads fail **open**; mission switch fails **closed**.
 - `logAiUsage` in the stream route hardcodes `provider: "openai"` even when `ADAM_MODEL_PROVIDER=anthropic` (`stream/route.ts`, logAiUsage call).
 - Two copies of the agent loop (`:4850` and `:5468`) must be changed together.
-- Telemetry sink is installed by **side-effect import** (`assistant.ts:67`, `reasoner.ts:2`); a process that never loads either would not persist `ModelCallLog` rows [U].
+- Telemetry sink: since K8 installed at boot (`src/instrumentation.ts`, worker) and calls made before install are queued (`telemetry.ts`, 500 max) — no silent loss. Out-of-turn gateway calls take user/feature from `sousImputation` (set by assistant-ia `auNomDe`/`sousBudget`).
+- K8 `ModelCallLog` convention: `inputTokens`/`outputTokens`/`cachedInputTokens` are TOTALS; `audio*`/`image*` columns are PARTS; `reasoningTokens` ⊂ output (never added twice); `durationMs`/`pages` are billed units; `estimated` flags non-API token counts; `priceGrid` dates the price. Every file calling a paid endpoint must write a row (ratchet `src/modules/assistant-ia/consommation-precise.test.ts`).
 - The scheduler runs inside the web process; an idle-suspended host stops missions (documented, `scheduled.ts:74`).
 - Container `DATABASE_URL` may default to production; benches/tests are protected by `prisma.ts`, ad-hoc `tsx` scripts outside `scripts/bench/` are **not**.
 
@@ -737,6 +742,6 @@ Gotchas [V]:
 [U] Whether missions can execute CRITICAL-level actions without the human retype (runner sets `confirmText` but `executeIntentGuarded` does not check it; scope approval may cover it).
 [U] How server actions that call `requireUser()` behave when invoked from the background heartbeat (no request context) via `domain_op`/generic executor.
 [U] Multi-instance behaviour of in-process scheduler/throttle/bus in production (Render instance count unknown).
-[U] Whether `ModelCallLog` misses calls in processes that never import the usage sink.
+[V, K8] `ModelCallLog` no longer misses calls made before the sink is installed (queue + `instrumentation.ts`).
 [U] `node:vm` + worker sandbox strength against hostile model-generated code.
 [U] Production `AiSetting` / `AppSetting` values (switch states) — not read.

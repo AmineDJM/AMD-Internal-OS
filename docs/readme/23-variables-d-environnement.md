@@ -10,7 +10,8 @@
 | `AI_MODEL` · `AI_MODEL_CHEAP` | ⬜ | Les **deux paliers** de modèle IA (maîtrise du coût). Palier **qualité** (défaut `claude-sonnet-4-6`) : revue CTD sourcée (14 agents), simulateur d'examen, réponse aux réserves, assistant conversationnel, Adventum Brain. Palier **éco** (défaut `claude-haiku-4-5`, ≈ 3× moins cher) : tâches **mécaniques** — revue de fond/forme par parts, extraction de faits & de rapports vocaux, résumés de réunion, brouillons fournisseur, Q&R de dossier, suggestion proactive. Baisser encore le coût = pointer `AI_MODEL` vers le palier éco. |
 | `OPENAI_API_KEY` | ⬜ | Active la **transcription vocale** (Whisper). |
 | `ASSISTANT_IA_MODEL` · `ASSISTANT_IA_TIMEOUT_MS` | ⬜ | L'**Assistant IA** (`/assistant`, Mastra) tourne sur la clé **`OPENAI_API_KEY`** déjà posée, modèle `gpt-6.1-terra` par l'API Responses (Direction, 28/10/2026 — il remplace MiMo, décision [0010](../assistant/decisions/0010-assistant-sur-openai.md)). Facultatifs : un autre modèle, le délai d'un tour (ms, 45 000 par défaut). |
-| `ASSISTANT_IA_PRICE_IN` · `ASSISTANT_IA_PRICE_OUT` · `ASSISTANT_IA_PRICE_CACHED` | ⬜ | Tarif du modèle en **dollars par million de jetons** (entrée, sortie, entrée lue en CACHE) : le coût ESTIMÉ de l'écran Consommation IA. Absent → la **grille publique documentée de `gpt-6.1-terra`** : 2 $ / 12 $ / 0,20 $ (`TARIFS_PAR_DEFAUT`, `consommation.ts`) ; `_CACHED` absent avec `_IN` posé → un dixième de l'entrée. Le cache (≈ 88 % de l'entrée, banc V4-H) est facturé à son tarif. Voix : `ASSISTANT_IA_AUDIO_PRICE_IN/OUT`, défaut 2,5 $ / 10 $. Les plafonds se comptent en jetons et tiennent sans tarif. (`MIMO_PRICE_*` ne sert plus qu'aux journaux d'avant le 28/10, sans défaut.) |
+| `ASSISTANT_IA_PRICE_IN` · `ASSISTANT_IA_PRICE_OUT` · `ASSISTANT_IA_PRICE_CACHED` | ⬜ | Tarif POSÉ du modèle de l'Assistant IA en **dollars par million de jetons** (entrée, sortie, entrée en cache). Posé, il **prime** sur la grille (`priceGrid = env`). Absent (cas normal depuis K8) → la **grille datée par modèle** `src/lib/models/tarifs.ts` (décision 0035 : `gpt-6.1-terra` 1 $ / 0,05 $ / 5 $, `gpt-6-luna` 0,10 / 0,01 / 0,50…). Voix : `ASSISTANT_IA_AUDIO_PRICE_IN/OUT` (posés, priment). Un modèle hors grille sans tarif posé : « tarif inconnu ». (`MIMO_PRICE_*` ne sert plus qu'aux journaux d'avant le 28/10.) |
+| `OPENAI_ADMIN_KEY` | ⬜ | Clé **administrateur** de l'organisation OpenAI (distincte de `OPENAI_API_KEY`) : active le **rapprochement** de l'écran Consommation (API Costs `/v1/organization/costs` : facturé vs journalisé, écart). Absente → l'écran dit « rapprochement non configuré » (K8, décision 0035). |
 | `GEMINI_API_KEY` | ⬜ | K2 (décision 0032) : clé Gemini du **secours** d'image (`gemini-3-pro-image`), appelé seulement quand OpenAI échoue ou refuse une image. Absente : pas de secours, l'échec OpenAI est dit. |
 | `ASSISTANT_IA_MODEL_RAPIDE` · `ASSISTANT_IA_EFFORT` · `ASSISTANT_IA_EFFORT_RAISONNEMENT` · `ASSISTANT_IA_EFFORT_RAPIDE` | ⬜ | Le **modèle de chaque geste** de l'Assistant IA (lot J4, décision [0018](../assistant/decisions/0018-vitesse-memoire.md)) : modèle « rapide » du résumé roulant (défaut `gpt-6-luna`) ; effort de raisonnement de la conversation (`low`), d'une analyse (`medium`), du résumé (`low`) — `none`, `minimal`, `low`, `medium`, `high`. |
 | `ASSISTANT_IA_MODEL_RAISONNEMENT` · `BANC_ESSAI_DATABASE_URL` · `ASSISTANT_IA_TRACES` · `ASSISTANT_IA_TRACES_JOURS` | ⬜ | Qualité continue (lots J5 + J14, décision [0022](../assistant/decisions/0022-qualite-continue.md)) : modèle à part pour le raisonnement (défaut : celui du standard ; un choix fait à l'écran, sur banc vert, passe avant) ; la **base d'essai** du banc programmé, sur le WORKER seulement (absente en production : le banc le dit et ne tourne pas) ; traces rejouables (`off` les coupe ; gardées 30 jours par défaut). |
@@ -60,6 +61,40 @@
 
 > \* Requis **ensemble** uniquement pour activer l'édition Office. Côté **service OnlyOffice**, poser
 > `JWT_ENABLED=true` et `JWT_SECRET=<même valeur que ONLYOFFICE_JWT_SECRET>`.
+
+### Pièces reçues par WhatsApp et par mail — Assistant IA (lot K6, décision 0036)
+
+| Variable | Requis | Rôle |
+|---|---|---|
+| `WHATSAPP_VERIFY_TOKEN` | ⬜ | Jeton d'**abonnement** du webhook (`GET /api/canaux/whatsapp`) : une chaîne au choix (`openssl rand -hex 24`), saisie à l'identique chez Meta. |
+| `WHATSAPP_APP_SECRET` | ⬜ | **Secret de l'app Meta** (*App settings › Basic › App secret*) : la signature `X-Hub-Signature-256` de chaque notification est vérifiée avec lui. Absent → le webhook refuse tout (503). |
+| `WHATSAPP_TOKEN` · `WHATSAPP_PHONE_ID` · `WHATSAPP_BASE_URL` | ⬜ | Déjà ceux de l'**envoi** (plugin messagerie) : jeton d'accès permanent (utilisateur système), identifiant du numéro, `https://graph.facebook.com/v21.0`. Ils servent aussi à **télécharger les médias** reçus et à répondre (accusé, refus poli). |
+| `ASSISTANT_IA_MAIL` | ⬜ | Adresse(s) de l'assistant (`assistant@adventum.dz`, séparées par des virgules). Un courrier reçu par `POST /api/mail/inbound` (signé, `MAIL_WEBHOOK_SECRET`) et adressé à l'une d'elles porte des pièces pour l'Assistant IA de son expéditeur. |
+| `CANAUX_RELAIS_SECRET` | ⬜ | Si le WhatsApp passe par un **relais** (Make, n8n, Twilio) : il poste `POST /api/canaux/relais` le JSON `{ id, de, texte?, pieces: [{ nom, mime?, base64? \| url? }] }`, signé HMAC-SHA256 hexadécimal du corps brut (en-tête `x-relais-signature`). La réponse porte `reponses` (texte à renvoyer à l'expéditeur — le relais l'envoie). Absent → 503. |
+| `ASSISTANT_IA_ATTENTE_HEURES` | ⬜ | Durée d'une **attente de pièces** (défaut 48 h, 1 h à 14 jours). |
+
+**Ce qui se passe.** La personne dit (à l'écrit ou dans un appel vocal) « je t'envoie la lettre du Dr Mansouri pour la demande SP-… » : l'assistant ouvre une **attente** (outil `attendre_pieces`, liée à la conversation et à la fiche, 48 h). Elle envoie la pièce au numéro WhatsApp de l'entreprise, ou la transfère à `ASSISTANT_IA_MAIL` (ou se l'envoie dans sa boîte Gmail connectée, si elle est le dirigeant et qu'une attente « mail » est ouverte). Reconnue par son **numéro** (fiche utilisateur, sinon fiche employé liée à un compte) ou son **adresse**, la pièce va dans son Drive (« Assistant IA — pièces reçues »), entre dans la conversation de l'attente, et l'assistant propose le rangement **par une carte** (« J'ai reçu la lettre… ; je l'ajoute à la demande ? »). Sans attente : la conversation courante et « À quoi la rattacher ? ». Numéro ou adresse inconnus : refus poli, **rien n'est stocké**. Chaque réception est au journal (`AssistantIaReception`).
+
+**Réglages chez Meta (une fois).**
+1. *developers.facebook.com › votre app › WhatsApp › Configuration › Webhook* : **URL de rappel** `https://amd-internal-os-k3uc.onrender.com/api/canaux/whatsapp` (ou l'adresse de l'app Adventum IA, qui sert la même route), **jeton de vérification** = `WHATSAPP_VERIFY_TOKEN`. Meta appelle aussitôt le `GET` : il doit répondre le défi (sinon : jeton différent, ou variable non posée sur Render).
+2. Champs du webhook : cocher **`messages`**.
+3. *App settings › Basic* : copier l'**App secret** dans `WHATSAPP_APP_SECRET` sur Render.
+4. Le jeton `WHATSAPP_TOKEN` doit être **permanent** (utilisateur système, droits `whatsapp_business_messaging`) : un jeton temporaire expire en 24 h et les médias ne se téléchargent plus.
+5. Les numéros des collaborateurs : renseigner le **téléphone** sur la fiche utilisateur (ou la fiche employé liée) — c'est lui qui reconnaît l'expéditeur.
+
+**Mail.** Chez le fournisseur de courrier entrant (Postmark recommandé : il transmet le contenu des pièces dans le webhook), router l'adresse `ASSISTANT_IA_MAIL` vers `https://amd-internal-os-k3uc.onrender.com/api/mail/inbound` avec la signature HMAC `MAIL_WEBHOOK_SECRET`. Avec Resend ou Brevo, le webhook ne porte que le nom des pièces : la réception le dit (« contenu non transmis par le fournisseur »).
+
+**Retrouver ce qui relie AUJOURD'HUI le WhatsApp de la Direction à Adam.** Le dépôt ne contient aucune réception WhatsApp
+(vérifié le 31/10/2026 : ni route, ni événement `IngestedEvent` WhatsApp) ; si Adam reçoit des WhatsApp, c'est par un service extérieur. Où regarder :
+1. **Meta Business Manager** (business.facebook.com › *Paramètres de l'entreprise › Comptes › Comptes WhatsApp*) : le numéro, puis
+   *developers.facebook.com › Mes apps › (l'app) › WhatsApp › Configuration › Webhook* — l'**URL de rappel** dit qui reçoit
+   (une adresse `hook.eu1.make.com` = Make, `…/webhook/…` d'un n8n, `api.twilio.com` = Twilio, l'ERP = nous).
+2. **Twilio** (console.twilio.com › *Messaging › Senders › WhatsApp senders*) : le numéro et son *Webhook URL* « when a message comes in ».
+3. **Make** (make.com › *Scenarios*, filtre « WhatsApp ») / **n8n** (*Workflows*, nœud « WhatsApp Trigger ») / **Zapier** : le scénario
+   déclenché par WhatsApp et ce qu'il appelle ensuite (souvent un e-mail vers la boîte Gmail connectée, ou `/api/events/inbound/generic`).
+4. **Boîte Gmail du dirigeant** : des courriels « WhatsApp » venus d'un de ces services = le relais passe par le mail (alors l'attente « mail » suffit).
+Ensuite : soit pointer le webhook Meta vers `/api/canaux/whatsapp` (réglages ci-dessus), soit ajouter au scénario existant UNE étape
+HTTP vers `/api/canaux/relais` (JSON ci-dessus, signé avec `CANAUX_RELAIS_SECRET`). Un numéro WhatsApp ne peut avoir qu'UN webhook Meta.
 
 ---
 

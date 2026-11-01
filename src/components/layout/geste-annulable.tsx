@@ -11,7 +11,7 @@ type Compte = { resume: string; details: { issue: string; quoi: string; pourquoi
 const oublier = () => { document.cookie = `${COOKIE_GESTE_ANNULABLE}=; max-age=0; path=/`; };
 
 /**
- * LE BANDEAU « ANNULER » (lot K10a, décision 0035) — après une action d'argent faite à l'écran, le geste journalisé
+ * LE BANDEAU « ANNULER » (lot K10a, décision 0039) — après une action d'argent faite à l'écran, le geste journalisé
  * est offert à l'annulation pendant deux minutes ; ensuite il reste dans « Ce que j'ai fait » (`/assistant/gestes`).
  * Le compte rendu dit, effet par effet, ce qui est défait, compensé (contre-passation, « à récupérer ») ou impossible
  * — jamais un « annulé » de façade — et « Rétablir » défait l'annulation. Lit un témoin court posé par l'action.

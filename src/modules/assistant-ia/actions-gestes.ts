@@ -42,7 +42,7 @@ export async function annulerGestesAssistant(gesteIds: string[]): Promise<{ ok: 
 }
 
 /**
- * ANNULER UNE ACTION FAITE À L'ÉCRAN (K10a, décision 0035) — le bandeau « Annuler » de l'ERP. Pas de module exigé : la
+ * ANNULER UNE ACTION FAITE À L'ÉCRAN (K10a, décision 0039) — le bandeau « Annuler » de l'ERP. Pas de module exigé : la
  * personne défait SON geste (l'annulation vérifie qu'elle en est le principal, ou le Super Admin) — RBAC inchangé.
  * L'annulation est elle-même journalisée : son compte rendu porte `retablirGesteId`, que le même bandeau rétablit.
  */

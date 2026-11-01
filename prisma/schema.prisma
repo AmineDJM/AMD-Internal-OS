@@ -1056,6 +1056,71 @@ model AssistantIaDossier {
 
 /// UN TOUR DU FIL — un message de la personne (EN_ATTENTE → EN_COURS → TRAITE | ECHEC) ou une réponse
 /// (EN_COURS pendant qu'elle s'écrit → TERMINE | ECHEC). `userId` redondant : filtrer sans jointure.
+/// K6 (décision 0036) — UNE ATTENTE DE PIÈCES : « je t'envoie la lettre du Dr Mansouri par WhatsApp ». Courte et
+/// structurée ; liée à la conversation et à la fiche visée ; elle expire (48 h par défaut). Seules les attentes
+/// ouvertes entrent dans la consigne (quelques dizaines de jetons), jamais un historique.
+model AssistantIaAttentePieces {
+  id           String                 @id @default(cuid())
+  userId       String
+  user         User                   @relation("AssistantIaAttentePieces", fields: [userId], references: [id], onDelete: Cascade)
+  /// La conversation (`AssistantIaFil.id`) où la pièce arrivera ; nulle : la conversation courante.
+  filId        String?
+  /// « lettre de demande du Dr Mansouri » — 200 caractères au plus.
+  description  String
+  /// WHATSAPP, MAIL — vide : l'un ou l'autre.
+  canaux       String[]
+  /// La fiche visée : type (`EntityType` ou nature Ad & Pro), identifiant, libellé lisible, lien.
+  cibleType    String?
+  cibleId      String?
+  cibleLibelle String?
+  cibleLien    String?
+  /// Catégorie du document à proposer au rangement (« Lettre de demande »).
+  categorie    String?
+  /// ECRIT (annoncée par la personne), VOIX (dans un appel), ASSISTANT (demandée par l'assistant).
+  origine      String                 @default("ECRIT")
+  /// OUVERTE → RECUE (une pièce est arrivée ; reste rattachable 30 min) → CLOSE / ANNULEE / EXPIREE.
+  etat         String                 @default("OUVERTE")
+  expireLe     DateTime
+  recueLe      DateTime?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  receptions   AssistantIaReception[]
+
+  @@index([userId, etat, expireLe])
+}
+
+/// K6 (décision 0036) — LE JOURNAL DES RÉCEPTIONS : chaque pièce reçue par WhatsApp ou par mail, et chaque refus.
+/// L'unicité (canal, idExterne) rend les relivraisons du fournisseur inoffensives. Un expéditeur inconnu n'y laisse
+/// qu'un numéro ou une adresse MASQUÉS, et aucun fichier.
+model AssistantIaReception {
+  id           String                    @id @default(cuid())
+  /// WHATSAPP, MAIL (adresse de l'assistant), GMAIL (boîte connectée du dirigeant).
+  canal        String
+  /// Identifiant du message chez le fournisseur (`wamid…`, Message-ID), suffixé du rang de la pièce.
+  idExterne    String
+  userId       String?
+  expediteur   String
+  /// RECUE, REFUS_INCONNU, REFUS_ACCES, REFUS_TAILLE, REFUS_FORMAT, REFUS_AUTOMATIQUE, SANS_PIECE, ERREUR.
+  issue        String
+  raison       String?
+  nom          String?
+  mime         String?
+  taille       Int?
+  driveNodeId  String?
+  attenteId    String?
+  attente      AssistantIaAttentePieces? @relation(fields: [attenteId], references: [id], onDelete: SetNull)
+  filId        String?
+  tourId       String?
+  intentId     String?
+  /// Le texte qui accompagnait la pièce portait des consignes suspectes (il est écarté).
+  injection    Boolean                   @default(false)
+  confidentiel Boolean                   @default(false)
+  createdAt    DateTime                  @default(now())
+
+  @@unique([canal, idExterne])
+  @@index([userId, createdAt])
+}
+
 model AssistantIaTour {
   id              String         @id @default(cuid())
   filId           String
@@ -1584,6 +1649,7 @@ model User {
   assistantMemoryItems        AssistantMemoryItem[]           @relation("AssistantMemoryItems")
   assistantRoutines           AssistantRoutine[]              @relation("AssistantRoutines")
   assistantIaFil              AssistantIaFil[]                @relation("AssistantIaFil")
+  assistantIaAttentesPieces   AssistantIaAttentePieces[]      @relation("AssistantIaAttentePieces")
   assistantIaDossiers         AssistantIaDossier[]            @relation("AssistantIaDossiers")
   executiveDecisions          ExecutiveDecision[]             @relation("ExecutiveDecisions")
   executiveObjectives         ExecutiveObjective[]            @relation("ExecutiveObjectives")
@@ -5869,7 +5935,7 @@ model FinanceTransaction {
   /// Règlement de facture dont ce mouvement est l'écriture (relation inverse).
   settledInvoice LegalDocument? @relation("LegalSettlement")
 
-  /// K10a (décision 0035) — UNE ÉCRITURE NE S'EFFACE JAMAIS : annuler l'écriture qui l'a posée la COMPENSE.
+  /// K10a (décision 0039) — UNE ÉCRITURE NE S'EFFACE JAMAIS : annuler l'écriture qui l'a posée la COMPENSE.
   /// `CONTRE_PASSATION` : même sens, montant opposé, datée du jour (le solde revient, les deux lignes restent) ;
   /// `A_RECUPERER` : un décaissement réellement parti — un encaissement prévu, à recouvrer (ou à réaliser s'il
   /// n'était pas parti : il le neutralise). Nul pour toute autre écriture.
@@ -10305,6 +10371,23 @@ model ModelCallLog {
   ms                Int      @default(0)
   attempts          Int      @default(1)
   incompleteReason  String?
+  /// ── LOT K8 (décision 0035) : la ventilation exacte. Ce sont des PARTS des totaux ci-dessus
+  /// (`inputTokens` = texte + audio + image ; `cachedInputTokens` = tout le cache lu) — le texte est ce qui reste.
+  audioInputTokens       Int     @default(0)
+  cachedAudioInputTokens Int     @default(0)
+  audioOutputTokens      Int     @default(0)
+  imageInputTokens       Int     @default(0)
+  cachedImageInputTokens Int     @default(0)
+  imageOutputTokens      Int     @default(0)
+  /// Unités hors jetons : durée facturée (audio, GPT-Live, vidéo) en millisecondes, pages d'OCR.
+  durationMs             Int     @default(0)
+  pages                  Int     @default(0)
+  /// VRAI quand les jetons sont ESTIMÉS (équivalents, caractères ÷ 4) faute d'usage rendu par l'API.
+  estimated              Boolean @default(false)
+  /// VRAI pour un appel de l'API Batch (facturé à moitié prix).
+  batch                  Boolean @default(false)
+  /// La date de la grille tarifaire qui a calculé `costUsd` (`src/lib/models/tarifs.ts`), ou « env » pour un tarif posé.
+  priceGrid              String?
 
   @@index([at])
   @@index([userId, at])

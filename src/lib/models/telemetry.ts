@@ -135,8 +135,36 @@ export function withTurn<T>(route: TurnRoute, fn: (trace: TurnTrace) => Promise<
 export type ModelCallSink = (usage: ModelUsage, turn: TurnTrace | undefined) => void;
 let sink: ModelCallSink | null = null;
 
+/**
+ * LES APPELS REÇUS AVANT LE PUITS (audit K8, trou E10) : le puits se branche par effet d'import, et un
+ * processus qui appelait un modèle avant d'avoir chargé un module qui l'installe PERDAIT la ligne en
+ * silence. Ils attendent ici (500 au plus) et partent au branchement.
+ */
+const enAttente: { usage: ModelUsage; turn: TurnTrace | undefined; imputation: TurnContext | undefined }[] = [];
+
+/**
+ * L'IMPUTATION HORS TOUR (audit K8, trou E9) — un appel de la passerelle lancé HORS d'un tour d'Adam (la recherche
+ * web de l'Assistant IA, un résumé) arrivait au journal SANS personne ni usage : invisible dans « ma consommation »
+ * et hors du plafond du jour. Un module qui sait au nom de qui il travaille le pose ici ; le puits le lit quand le
+ * tour n'en dit rien.
+ */
+const imputations = new AsyncLocalStorage<TurnContext>();
+
+export function sousImputation<T>(ctx: TurnContext, fn: () => T): T {
+  return imputations.run({ ...imputations.getStore(), ...ctx }, fn);
+}
+
+export function imputationCourante(): TurnContext | undefined {
+  return imputations.getStore();
+}
+const ATTENTE_MAX = 500;
+
 export function setModelCallSink(fn: ModelCallSink | null): void {
   sink = fn;
+  if (!fn) return;
+  for (const { usage, turn, imputation } of enAttente.splice(0)) {
+    try { imputations.run(imputation ?? {}, () => fn(usage, turn)); } catch (err) { console.error("[models] puits d'usage en échec", err); }
+  }
 }
 
 /** Complète le contexte du tour en cours — sans effet hors d'un tour. */
@@ -153,7 +181,20 @@ export function recordModelCall(usage: ModelUsage): void {
   t?.calls.push(usage);
   if (sink) {
     try { sink(usage, t); } catch (err) { console.error("[models] puits d'usage en échec", err); }
+  } else if (enAttente.length < ATTENTE_MAX) {
+    enAttente.push({ usage, turn: t, imputation: imputations.getStore() });
   }
+}
+
+/**
+ * UN APPEL PAYANT HORS PASSERELLE (plongements, transcription, OCR, lots) — même puits, même table
+ * (lot K8). Le fournisseur et le rôle sont libres (`mistral`, `stt`…) : la ligne du journal les écrit
+ * tels quels. Le coût est calculé par le puits, à la grille (`tarifs.ts`).
+ */
+export function recordProviderCall(u: Omit<ModelUsage, "provider" | "role" | "costUsd" | "attempts" | "ms"> & {
+  provider: string; role: string; costUsd?: number | null; attempts?: number; ms?: number;
+}): void {
+  recordModelCall({ costUsd: null, attempts: 1, ms: 0, ...u } as unknown as ModelUsage);
 }
 
 export function recordTool(trace: ToolTrace): void {

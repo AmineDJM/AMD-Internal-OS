@@ -35,7 +35,7 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
   l'argent (`company`, `entity-access`), les pièces, la garde des factures connues, et surtout la **clôture des
   chantiers d'origine au règlement** (matériel promo, BV) — à remplacer par un événement « ordre réglé ».
 
-### L'argent réversible (K10a, décision 0035)
+### L'argent réversible (K10a, décision 0039)
 
 Chaque action écrivante de ce module (et des fichiers d'argent hors module : budgets, caisse, factures, fournisseurs,
 paie) s'exécute sous `annulable(mode, libellé, …)` (`@/lib/effets/ecran`) : journalisée (J7), elle se défait depuis le

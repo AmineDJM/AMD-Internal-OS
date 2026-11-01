@@ -37,6 +37,11 @@ export interface OptionsGeneration {
   origine?: Extract<OrigineAppel, "redaction" | "vision" | "ocr">;
   /** J4 : le rôle du modèle (« rapide » pour un résumé roulant) — « standard » par défaut. */
   role?: RoleModele;
+  /**
+   * K3 : la réponse lue EN FLUX — pour un texte LONG (le rapport d'une recherche approfondie, un livrable de travail). Une
+   * requête non diffusée de plus de ~45 s était coupée en 502 par un mandataire ; diffusée, la connexion vit tant qu'elle écrit.
+   */
+  flux?: boolean;
 }
 
 let modelesDeTest: ModeleTour[] | null = null;
@@ -47,6 +52,19 @@ export function remplacerModelesPourTests(m: ModeleTour[] | null): void {
 
 /** Les modèles de l'assistant pour un rôle — ou le faux modèle d'un test (le même, quel que soit le rôle). */
 export const modelesEffectifs = (role: RoleModele = "standard"): ModeleTour[] => modelesDeTest ?? modelesAssistant(role);
+
+/** Le même appel, lu en flux : le texte, la raison de fin et l'usage, comme `generate` les rend. */
+async function enFlux(agent: Agent, messages: never, options: never): Promise<{ text: string; finishReason?: string; usage?: unknown }> {
+  const s = await agent.stream(messages, options);
+  let text = "";
+  const lecteur = s.textStream.getReader();
+  for (;;) {
+    const { done, value } = await lecteur.read();
+    if (done) break;
+    text += String(value ?? "");
+  }
+  return { text: text || (await s.text), finishReason: await s.finishReason, usage: await s.usage };
+}
 
 export async function genererTexte(consigne: string, texte: string, delaiMs = 60_000, opts: OptionsGeneration = {}): Promise<{ ok: true; texte: string } | { ok: false; raison: string }> {
   await chargerModelesRoles();
@@ -75,7 +93,9 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
             ]),
           ]
           : texte;
-        const r = await agent.generate([{ role: "user" as const, content: contenu }] as never, { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs), providerOptions: optionsFournisseur(m) } as never);
+        const options = { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs), providerOptions: optionsFournisseur(m) } as never;
+        const messages = [{ role: "user" as const, content: contenu }] as never;
+        const r = opts.flux ? await enFlux(agent, messages, options) : await agent.generate(messages, options);
         budget.enregistrer(appelDepuisEtape(fournisseurDe(m), (r as { usage?: unknown }).usage, Date.now() - t0));
         const fin = (r as { finishReason?: string }).finishReason;
         if (fin === "aborted") throw new Error(`délai dépassé (${delaiMs} ms)`);

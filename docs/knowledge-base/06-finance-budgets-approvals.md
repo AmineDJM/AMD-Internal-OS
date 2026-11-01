@@ -365,7 +365,7 @@ petty-cash-allotment, petty-cash-top-up; ENREGISTRE = finance-direct, invoice ma
   and a separate **"Montant à régler"** card (`finances/paiements-a-faire/page.tsx:190-256`); `tresorerie.disponible`
   is computed and not rendered anywhere [V by rg].
 
-- **Reversibility (K10a, decision 0035)** [V]: every writing action of the money perimeter (107 actions, 15 action
+- **Reversibility (K10a, decision 0039)** [V]: every writing action of the money perimeter (107 actions, 15 action
   files) runs under `annulable()` (`lib/effets/ecran.ts`) → journaled in J7 (`AssistantGesteJournal`, origin `ecran`)
   and undone by `annulerGeste`. A ledger entry is never deleted: PENDING → CANCELLED; SETTLED from data entry →
   **contre-passation** (same direction, negative amount, `compensationDeId`); OUT from a payment geste → stays, plus

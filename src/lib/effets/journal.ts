@@ -147,7 +147,7 @@ export async function purgerJournalDesEffets(maintenant = new Date()): Promise<n
 }
 
 /**
- * L'ANNULATION D'UN GESTE, JOURNALISÉE COMME UN GESTE (K10a, décision 0035) — ce qu'elle a écrit (valeurs remises,
+ * L'ANNULATION D'UN GESTE, JOURNALISÉE COMME UN GESTE (K10a, décision 0039) — ce qu'elle a écrit (valeurs remises,
  * lignes retirées ou recréées, contre-passations) entre au journal sous la personne qui annule. Annuler ce geste-là,
  * c'est RÉTABLIR : la même mécanique, dans l'autre sens. `null` si l'annulation n'a rien écrit.
  */

@@ -112,7 +112,7 @@ async function tourLuna<T>(system: string, user: string, schema: { name: string;
   const t0 = Date.now();
   const res = await callLuna<T>({ system, user, jsonSchema: schema, maxOutputTokens, temperature: 0 }).catch(sansBloquer("transcription.tourLuna.callLuna", null));
   if (!res) return { data: null, coutUsd: 0 };
-  recordModelCall({ role: "bulk", model: lunaModel(), provider: "openai", inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, cachedInputTokens: res.usage.cachedInputTokens, costUsd: res.usage.costUsd, ms: Date.now() - t0, attempts: 1 });
+  // L'appel est journalisé par `callLuna` lui-même (lot K8).
   return { data: res.ok && res.data ? res.data : null, coutUsd: res.usage.costUsd };
 }
 
@@ -260,7 +260,7 @@ export async function regarderVideoDrive(user: CurrentUser, cible: { nodeId?: st
       images: [{ buffer: png, mime: "image/png" }], jsonSchema: SCHEMA_IMAGE as unknown as { name: string; schema: Record<string, unknown> }, maxOutputTokens: 1_500, temperature: 0,
     }).catch(sansBloquer("transcription.regarderVideoDrive.callLuna", null));
     if (!res) { limites.push(`image à ${formatHorodatage(instant)} non lue`); continue; }
-    recordModelCall({ role: "bulk", model: lunaModel(), provider: "openai", inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, cachedInputTokens: res.usage.cachedInputTokens, costUsd: res.usage.costUsd, ms: Date.now() - t0, attempts: 1 });
+    // L'appel est journalisé par `callLuna` lui-même (lot K8).
     coutUsd += res.usage.costUsd;
     if (res.ok && res.data) images.push({ instant, horodatage: formatHorodatage(instant), type: res.data.type, description: res.data.description.slice(0, 500), texteVisible: res.data.texteVisible.slice(0, 2_000), chiffres: res.data.chiffres.slice(0, 30), contexte });
   }

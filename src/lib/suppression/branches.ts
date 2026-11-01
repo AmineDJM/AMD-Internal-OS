@@ -114,6 +114,8 @@ export const REFERENTS: readonly Referent[] = [
     raison: "commentaires : même traitement que les pièces jointes." },
 
   // ── HISTOIRE : la trace reste ─────────────────────────────────────────────────────────────
+  { modele: "AssistantIaAttentePieces", champType: "cibleType", champId: "cibleId", conduite: "HISTOIRE",
+    raison: "K6 (décision 0036) : une attente de pièces de l'Assistant IA — elle expire seule (48 h) ; à l'arrivée, la carte de rangement rejuge la fiche (disparue, elle n'est pas proposée)." },
   { modele: "AuditLog", champType: "entityType", champId: "entityId", conduite: "HISTOIRE",
     raison: "le journal d'audit ne s'efface pas — c'est lui qui dira qui a supprimé quoi." },
   { modele: "BusinessEvent", champType: "entityType", champId: "entityId", conduite: "HISTOIRE",

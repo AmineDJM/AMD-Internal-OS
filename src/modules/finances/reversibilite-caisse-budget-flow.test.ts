@@ -59,7 +59,7 @@ async function acteur(id: string, role: SessionUser["role"]): Promise<CurrentUse
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * CAISSE D'AVANCE, BUDGETS, PAIE : RÉVERSIBLES PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0035).
+ * CAISSE D'AVANCE, BUDGETS, PAIE : RÉVERSIBLES PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0039).
  *
  * Même protocole que `reversibilite-argent-flow.test.ts` : exécuter l'action de l'écran, relire, annuler le geste
  * journalisé, vérifier l'état d'avant (ou la compensation), et que rien d'autre que la poussée partie ne reste

@@ -19,7 +19,9 @@ import { cn } from "@/lib/utils";
 function Lien({ href, children }: { href: string; children: React.ReactNode }) {
   const classe = "font-medium text-blue-700 underline decoration-blue-700/30 underline-offset-2 hover:decoration-blue-700 dark:text-blue-400";
   if (/^\/api\/drive\/[^/]+\/raw/.test(href)) return <a href={href} download className={classe}>{children}</a>;
-  if (href.startsWith("/")) return <Link href={href} className={classe}>{children}</Link>;
+  // PAS DE PRÉCHARGEMENT (K7, décision 0037) : un lien cité par le modèle peut être à moitié écrit pendant le flux, ou
+  // mener à une page de l'ERP que l'app Adventum IA renvoie ailleurs — le précharger coûtait des 404 en console.
+  if (href.startsWith("/")) return <Link href={href} prefetch={false} className={classe}>{children}</Link>;
   return <a href={href} target="_blank" rel="noopener noreferrer nofollow" className={classe}>{children}</a>;
 }
 
