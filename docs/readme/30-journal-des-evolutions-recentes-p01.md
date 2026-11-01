@@ -1,5 +1,25 @@
 ## 🧾 Journal des évolutions récentes
 
+### O1 : L'ORCHESTRATEUR DE CONVERSATION — PARLER PENDANT QU'UN TRAVAIL TOURNE, À L'ORAL ET À L'ÉCRIT (2026-11-01)
+
+« Il me pose une question et, avant même que je réponde, il me répond parce que l'autre a fini » ; « je réponds, il dit
+ok et il ATTEND » ; « pas que à l'oral, c'est aussi le cas pour l'écrit ». **Une machine à états pure, commune**
+(`platform/ia/conversation/orchestrateur.ts`) : la personne parle / l'assistant parle / une question attend / libre ; un
+résultat qui tombe pendant une question, une parole ou une réponse en route est **tenu**, puis dit collé à l'accusé
+(« Noté, PDF. Et justement, la recherche vient de finir : … ») — jamais par-dessus une question, jamais deux annonces
+collées, jamais « j'attends ». **Une réponse qui change le travail** (format, période) rend le résultat tenu caduc et
+ajuste le travail (une seule relance ciblée) : le résultat dit en tient compte. **L'agenda utile**, dérivé de la demande
+sans modèle (`domaine/conversation/agenda.ts`, table `AssistantIaAgenda`) : précisions qui changent le résultat (au plus
+deux, jamais ce qui est déjà dit), étape suivante (« je l'envoie à quelqu'un ? »), partiels (sous-missions finies),
+avancement réel dit une fois ; la consigne K9 « pose une question pour affiner » est retirée. **Multi-travaux** : une
+autre demande pendant un travail part en parallèle (oral ; écrit : voie parallèle du fil après 8 s). **Écrit** : la
+question dans le fil avec ses choix, « Résultat prêt — affiché après ta réponse », « version d'avant ta précision ».
+**Oral** : GPT-Live n'expose ni détection de parole ni fin de réponse (vérifié dans sa documentation) — les tours se
+lisent sur les fragments de transcription et la délégation. Bancs : machine pure (11 croisements), agenda (9), bout en
+bout contre la vraie base (oral + écrit, 0 annonce qui coupe une question, 0 « j'attends »), Playwright mode app bureau +
+iPhone 13. Décision [0046](../assistant/decisions/0046-orchestration-conversation.md). Migration
+`20270219200000_assistant_ia_agenda`.
+
 ### L'ARGENT RÉVERSIBLE — « Annuler » sur toute action d'argent (K10a, 2026-10-31)
 
 « Toute action qui a été faite peut être réversible » (Direction). Les 62 actions d'argent classées « sans annulation »

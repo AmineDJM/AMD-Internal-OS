@@ -6,6 +6,7 @@ import type { AudioDuTour, LecturePiece, VocalDuTour } from "../domaine/lecture/
 import { envoyerAuFil, reglerMaReponseVocale } from "@/modules/assistant-ia/actions";
 import { creerMaConversation } from "@/modules/assistant-ia/actions-conversations";
 import { sansBloquer } from "@/lib/journal";
+import type { OrchestrationFil } from "../domaine/conversation/agenda";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -92,6 +93,8 @@ export function useFil({ conversation, nouvelle, onConversation, tourLocal }: Ci
   const [erreur, setErreur] = useState<string | null>(null);
   // L'option « réponse vocale » est un réglage de la personne : elle suit d'un appareil à l'autre.
   const [reponseVocale, setReponseVocale] = useState(false);
+  // O1 (décision 0046) : la question de l'agenda, les réponses tenues, l'avancement du travail long.
+  const [orchestration, setOrchestration] = useState<OrchestrationFil | null>(null);
 
   const lire = useCallback(async (): Promise<boolean> => {
     if (nouvelle) return false;
@@ -99,13 +102,14 @@ export function useFil({ conversation, nouvelle, onConversation, tourLocal }: Ci
       const r = await fetch(`/api/assistant-ia/fil${conversation ? `?c=${encodeURIComponent(conversation)}` : ""}`, { cache: "no-store" });
       if (!r.ok) return false;
       const d = (await r.json()) as {
-        tours: TourDuFil[]; enCours: boolean; vueExacte: boolean; reponseVocale?: boolean;
+        tours: TourDuFil[]; enCours: boolean; vueExacte: boolean; reponseVocale?: boolean; orchestration?: OrchestrationFil;
         conversation?: { id: string; titre: string | null; prive: boolean; dossierId: string | null };
       };
       setVueExacte(d.vueExacte);
       setReponseVocale(d.reponseVocale === true);
       setFil(d.tours.map(versMessage));
       setTravaille(d.enCours);
+      setOrchestration(d.orchestration ?? null);
       if (d.conversation) onConversation?.(d.conversation);
       return d.enCours;
     } catch {
@@ -118,7 +122,7 @@ export function useFil({ conversation, nouvelle, onConversation, tourLocal }: Ci
   const vientDeNaitre = useRef(false);
   useEffect(() => {
     if (vientDeNaitre.current) { vientDeNaitre.current = false; return; }
-    setFil([]); setTravaille(false); setErreur(null);
+    setFil([]); setTravaille(false); setErreur(null); setOrchestration(null);
   }, [conversation, nouvelle]);
 
   useEffect(() => {
@@ -252,6 +256,9 @@ export function useFil({ conversation, nouvelle, onConversation, tourLocal }: Ci
   return {
     fil, locaux, setLocaux, vueExacte, travaille, envoi, erreur, setErreur, reponseVocale, basculerReponseVocale,
     envoyer, envoyerVocal,
+    /** O1 : l'état d'orchestration du fil ; répondre à la question de l'agenda d'un toucher (un message comme un autre). */
+    orchestration: vueExacte ? null : orchestration,
+    repondre: (texte: string) => { void envoyer(texte, []); },
     /** L'indicateur « Consultation en cours » ne double pas une réponse qui s'écrit déjà sous les yeux. */
     attente: vueExacte ? localEnCours : (travaille || envoi) && !redige,
     occupeLocal: vueExacte && localEnCours,

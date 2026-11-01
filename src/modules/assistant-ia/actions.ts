@@ -122,14 +122,14 @@ export async function envoyerAuFil(texte: string, pieces?: string, conversation?
   const user = await requireUser();
   if (!peutUtiliserAssistantIA(user)) return { ok: false as const, erreur: REFUS_ASSISTANT_IA };
   if (user.impersonatedBy || user.visualise) return { ok: false as const, erreur: "Indisponible en « Vue exacte ».", vueExacte: true };
-  const { deposerMessage, traiterFil } = await import("@/modules/assistant-ia/api");
+  const { deposerEcrit } = await import("@/modules/assistant-ia/api");
   let liste: unknown = [];
   try { liste = JSON.parse(typeof pieces === "string" && pieces ? pieces : "[]"); } catch { liste = []; }
   const c = typeof conversation === "string" && conversation.length < 64 ? conversation : null;
-  const r = await deposerMessage(user.id, typeof texte === "string" ? texte : "", Array.isArray(liste) ? (liste as PieceDuTour[]) : [], null, c);
+  // O1 (décision 0046) : la réponse à la question de l'agenda, une autre demande en parallèle d'un travail long, ou la
+  // file habituelle. Le tour, joué NON ATTENDU (il peut durer des minutes) : la requête rend la main tout de suite.
+  const r = await deposerEcrit(user.id, typeof texte === "string" ? texte : "", Array.isArray(liste) ? (liste as PieceDuTour[]) : [], c);
   if (!r.ok) return { ok: false as const, erreur: r.erreur };
-  // NON ATTENDU, à dessein : le tour peut durer des minutes ; la requête rend la main tout de suite.
-  void traiterFil(user.id, r.conversation);
   return { ok: true as const, id: r.tour.id, conversation: r.conversation };
 }
 

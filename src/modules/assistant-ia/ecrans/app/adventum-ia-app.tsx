@@ -288,7 +288,7 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
         </header>
 
         {commencee || f.vueExacte ? (
-          <ChatMessageList apparence="app" messages={f.vueExacte ? f.locaux : f.fil} isLoading={f.attente} onConfirmIntent={confirmer} onOuvrirPiece={setApercu} onSuivreMissions={suivreMissions} />
+          <ChatMessageList apparence="app" messages={f.vueExacte ? f.locaux : f.fil} isLoading={f.attente} onConfirmIntent={confirmer} onOuvrirPiece={setApercu} onSuivreMissions={suivreMissions} orchestration={f.orchestration} onRepondre={f.repondre} />
         ) : (
           <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-4 py-6 text-center" data-testid="accueil">
             {/* eslint-disable-next-line @next/next/no-img-element -- le logo provisoire, remplaçable tel quel */}
