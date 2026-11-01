@@ -114,6 +114,8 @@ suite("K7 — l'export de tout : exporter_donnees, et les demandes de paiement",
     expect(r.statut).toBe("FAIT");
     const { octets } = await octetsDe(r.fichier!.nodeId);
     expect(octets.subarray(0, 5).toString()).toBe("%PDF-");
+    // Une page pour trois lignes : le pied de page ne déborde pas (mesuré : il ouvrait une page de plus par pied).
+    expect((octets.toString("latin1").match(/\/Type \/Page[^s]/g) ?? []).length).toBe(1);
     expect(r.fichier!.nom).toMatch(/\.pdf$/);
   });
 

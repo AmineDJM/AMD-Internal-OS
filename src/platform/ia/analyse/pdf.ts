@@ -92,6 +92,9 @@ export function rendrePdfTableau(t: TablePdf): Promise<Buffer> {
   const pages = doc.bufferedPageRange();
   for (let p = 0; p < pages.count; p++) {
     doc.switchToPage(pages.start + p);
+    // Le pied s'écrit SOUS la marge basse : sans la lever, pdfkit ouvre une page de plus pour chaque pied (mesuré : 3 pages
+    // pour un tableau de 3 lignes).
+    doc.page.margins.bottom = 0;
     doc.fillColor(GRIS).font("Helvetica").fontSize(7)
       .text("Adventum Pharma · export de l'Assistant IA", M, H - M + 4, { width: 300, lineBreak: false })
       .text(`page ${p + 1} / ${pages.count}`, L - M - 120, H - M + 4, { width: 120, align: "right", lineBreak: false });
