@@ -9,7 +9,7 @@ import { EVENEMENT_ANNULABLE, type AnnulableVu } from "./annulable-signal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * « ANNULER » — à l'écran de l'objet, après l'action (K10c, décision 0039).
+ * « ANNULER » — à l'écran de l'objet, après l'action (K10c, décision 0040).
  *
  * Trois temps, jamais deux : le PLAN (ce que l'annulation ferait, rien n'est écrit), puis l'ANNULATION (le compte
  * rendu effet par effet : annulé, compensé, impossible — et pourquoi), puis, si on le veut, RÉTABLIR. Un refus

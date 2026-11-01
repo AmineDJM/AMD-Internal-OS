@@ -7,7 +7,7 @@ import { annulerGeste, planDAnnulation, retablirGeste, type CompteRenduAnnulatio
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * ANNULER, RÉTABLIR — le bouton de l'écran de l'objet, et l'Assistant IA (K10c, décision 0039).
+ * ANNULER, RÉTABLIR — le bouton de l'écran de l'objet, et l'Assistant IA (K10c, décision 0040).
  *
  * Toute action métier réversible entre au journal des effets (`lib/effets/reversible.ts`). Ici, la personne qui l'a
  * faite — ou le Super Admin — la défait : D'ABORD le plan (rien n'est écrit), puis l'annulation (tout ou rien pour

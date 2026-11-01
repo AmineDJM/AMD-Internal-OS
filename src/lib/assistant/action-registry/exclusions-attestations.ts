@@ -256,7 +256,7 @@ export function classerExclusionsAttestations(): void {
   X("« CE QUE L'ASSISTANT A FAIT » (J7, décision 0029) — l'historique des gestes de l'assistant au nom de la personne, l'aperçu et l'ANNULATION honnête d'un geste ou d'un lot. Identité prise de la session, seule la personne au nom de qui l'assistant a agi (ou le Super Admin) défait : un assistant qui annulerait ses propres gestes déciderait à la place de la personne — jamais proposé.", [
     "assistant-ia-gestes-actions:listerGestesAssistant", "assistant-ia-gestes-actions:apercevoirAnnulation", "assistant-ia-gestes-actions:annulerGestesAssistant",
   ]);
-  X("ANNULER, RÉTABLIR UNE ACTION MÉTIER RÉVERSIBLE (K10c, décision 0039) — le bouton de l'écran de l'objet : lister mes gestes annulables, voir le plan, annuler (tout ou rien), rétablir. Garde du journal : la personne qui a fait le geste, ou le Super Admin. Adam est en pause : l'Assistant IA les propose par le chemin générique (carte confirmée), jamais Adam.", [
+  X("ANNULER, RÉTABLIR UNE ACTION MÉTIER RÉVERSIBLE (K10c, décision 0040) — le bouton de l'écran de l'objet : lister mes gestes annulables, voir le plan, annuler (tout ou rien), rétablir. Garde du journal : la personne qui a fait le geste, ou le Super Admin. Adam est en pause : l'Assistant IA les propose par le chemin générique (carte confirmée), jamais Adam.", [
     "gestes-reversibles-actions:listerMesGestesAnnulables", "gestes-reversibles-actions:apercevoirAnnulationDeMonGeste",
     "gestes-reversibles-actions:annulerMonGeste", "gestes-reversibles-actions:retablirMonGeste",
   ]);

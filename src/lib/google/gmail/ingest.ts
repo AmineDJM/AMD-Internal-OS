@@ -240,6 +240,12 @@ export async function ingestMessage(
     await ingestAttachments(active.accessToken, msg, record.id).catch(sansBloquer("ingest.ingestMessage.ingestAttachments", { extractedCount: 0 }));
   }
 
+  // K6 (décision 0036) : LE DIRIGEANT S'ENVOIE (ou se transfère) LA PIÈCE que l'Assistant IA attend — seulement s'il en
+  // est l'expéditeur, qu'il est lui-même destinataire, et qu'une attente « mail » est ouverte. Sinon, rien ne change.
+  if (outgoing && msg.attachments.length > 0 && !automated && !bounce && msg.to.concat(msg.cc).some((a) => a.address === conn.address.toLowerCase())) {
+    await remettreAlAssistant(conn.userId, active.accessToken, msg).catch(sansBloquer("ingest.ingestMessage.assistantIa"));
+  }
+
   if (mission && !outgoing) {
     await recordMissionReply({
       missionId: mission.missionId,
@@ -320,6 +326,24 @@ export async function ingestMessage(
     missionId: mission?.missionId ?? null,
     surfaced,
   };
+}
+
+/** K6 : les pièces d'un courrier du dirigeant à lui-même, remises à l'Assistant IA (chargement module à la demande). */
+async function remettreAlAssistant(userId: string, accessToken: string, msg: GmailMessage): Promise<void> {
+  const ia = await import("@/modules/assistant-ia/api");
+  if (!(await ia.attenteOuvertePour(userId, "GMAIL"))) return;
+  await ia.recevoirPieces({
+    canal: "GMAIL", idExterne: msg.id, expediteur: msg.from.address, userId, texte: msg.subject,
+    fichiers: async () => {
+      const out = [];
+      for (const a of msg.attachments.slice(0, 10)) {
+        if (!a.attachmentId) continue;
+        const octets = await getAttachmentBytes(accessToken, msg.id, a.attachmentId).catch(sansBloquer("ingest.remettreAlAssistant.piece", null));
+        out.push({ nom: a.filename, mime: a.mimeType, octets, taille: octets?.length ?? a.sizeBytes, raison: octets ? null : "pièce non téléchargeable depuis Gmail" });
+      }
+      return out;
+    },
+  });
 }
 
 /** Ingère une liste d'identifiants, sans jamais laisser un message fautif arrêter les autres. */

@@ -4,7 +4,7 @@ import type { DetailEffet, EffetLu } from "./annulation";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA POLITIQUE D'ANNULATION D'UNE ACTION MÉTIER (K10c, décision 0039).
+ * LA POLITIQUE D'ANNULATION D'UNE ACTION MÉTIER (K10c, décision 0040).
  *
  * L'annulation J7 (`annulation.ts`) rend une issue PAR EFFET — juste pour un geste d'assistant qu'on relit effet par
  * effet. Une action métier rendue réversible demande plus :

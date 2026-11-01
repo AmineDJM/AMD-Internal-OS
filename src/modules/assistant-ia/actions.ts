@@ -166,32 +166,10 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
   try {
     const user = await requireUser();
     if (!peutUtiliserAssistantIA(user)) return { ok: false, error: REFUS_ASSISTANT_IA };
-    if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
-    // J11 (décision 0030) : la personne a CORRIGÉ le formulaire de la carte — la correction repasse par les portes de
-    // la proposition et réécrit la carte (ressaisie comprise) AVANT la confirmation ordinaire, qui n'en sait rien.
-    // L'entrée corrigée voyage en JSON (`corrections`) : le contrat de l'action reste lisible (trois textes).
-    if (typeof corrections === "string" && corrections) {
-      let saisie: unknown;
-      try { saisie = JSON.parse(corrections); } catch { return { ok: false, error: "Formulaire illisible. Rien n'a été exécuté." }; }
-      const { accesAssistantIa, corrigerCarteCapacite } = await import("@/modules/assistant-ia/api");
-      const c = await corrigerCarteCapacite(user, intentId, saisie, await accesAssistantIa(user));
-      if (!c.ok) return { ok: false, error: c.error };
-    }
-    const executeur = async (stored: unknown) => {
-      // Une valeur confidentielle substituée dans la carte (décision 0012) est rejugée pour qui confirme, maintenant.
-      const reperes = (stored as { reperesSubstitues?: unknown } | null)?.reperesSubstitues;
-      if (Array.isArray(reperes) && reperes.length) {
-        const { verifierReperesAvantExecution } = await import("@/modules/assistant-ia/api");
-        const refus = await verifierReperesAvantExecution(user, reperes, (stored as { title?: string }).title ?? "carte de l'Assistant IA");
-        if (refus) return { ok: false, error: refus };
-      }
-      // J7 : chaque geste confirmé va au JOURNAL DES EFFETS (valeur avant de chaque champ) — il devient annulable.
-      const { accesAssistantIa, estChargeCapacite, executerCapacite } = await import("@/modules/assistant-ia/api");
-      if (estChargeOperationIA(stored)) return executerOperationJournalisee(user, stored, { origine: "carte", cle: intentId });
-      if (estChargeCapacite(stored)) return executerCapacite(user, stored, await accesAssistantIa(user), intentId);
-      return { ok: false, error: "Cette carte a été préparée avant une mise à jour de l'assistant : redemandez-la, puis confirmez la nouvelle carte. Rien n'a été exécuté." };
-    };
-    return (await executerIntention(user, intentId, confirmTyped, executeur)) ?? { ok: false, error: "Action introuvable." };
+    // J11 (décision 0030) : une correction du formulaire voyage en JSON (`corrections`) — le contrat de l'action reste
+    // lisible (trois textes). La garde est commune au bouton et à la confirmation orale (décision 0038).
+    const { confirmerCarte } = await import("@/modules/assistant-ia/api");
+    return await confirmerCarte(user, intentId, confirmTyped, corrections);
   } catch (err) {
     console.error("[assistant] confirmerIntentionAssistantIA failed", err);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };

@@ -126,14 +126,43 @@ worker à côté (`TACHES_DE_FOND=les-deux`), vrai modèle par le mandataire, Ch
 | Synthèse | écrite dans la conversation (3/3 terminées, « en bref » du modèle rapide, livrables téléchargeables) + notification |
 | Dépôt d'office | « 20 fichiers : tout lire en arrière-plan » ; 20 téléversés, 20 lus par la Bibliothèque, 0 échec, en 4 s |
 | Largeur | `scrollWidth` = largeur partout (1280, 390) ; cibles ≥ 44 px sur téléphone |
+| Recherche approfondie (réelle) | 5 sous-recherches web lancées ensemble (19:05:28), 2 min 29 à 3 min 18 chacune ; rapport de 20 981 caractères, 10 sections, 21 sources numérotées ; Word ET PDF au Drive ; rapport affiché en entier dans la conversation (captures 30b à 33) |
+| Coût de la recherche approfondie | 2,04 $ pour les recherches web (≈ 0,35 à 0,56 $ par sous-recherche, modèle du rôle worker) + 0,07 $ de rédaction ; la reprise : 0,07 $ |
 | Coût réel du passage | 10 appels de modèle, 0,083 $ (le premier passage complet : 15 appels, 0,133 $) |
 
 Le premier passage réel a trouvé deux défauts, corrigés : le modèle rappelait `lancer_un_travail` sur plusieurs étapes du même
 tour (9 plans pour 3 — d'où le démarrage d'office en FIN de tour et la consigne « ne relance pas »), et l'app refusait
-`/api/uploads/limites` (404 à chaque page, ajouté aux API de l'app). Reste une erreur de console connue hors du lot :
+`/api/uploads/limites` (404 à chaque page, ajouté aux API de l'app). La recherche approfondie a trouvé deux défauts de plus, corrigés : la rédaction d'un long rapport (> 45 s) était coupée en 502 par le mandataire (rédaction en flux), et une mission « en partie » écrivait sa synthèse trop tôt (elle se reprend désormais). Reste une erreur de console connue hors du lot :
 `/favicon.ico` répond 404 en mode app.
 
-## 7. Décisions à confirmer par la Direction
+## 7. La recherche approfondie — la vitrine des sous-missions
+
+Ajout de la Direction en cours de lot (« des recherches web aussi puissantes que ChatGPT »). Outil `recherche_approfondie`
+(`infra/sous-missions.ts`, règles pures `domaine/recherche-approfondie.ts`), offert à chaque tour à côté de `lancer_un_travail`
+et sur la MÊME mémoire du tour (reformulation remplacée, carte, démarrage d'office) :
+
+- **Le plan** est construit par le code, pas par le modèle : `sujet` + 2 à 6 `angles` distincts (trois angles par défaut sinon)
+  → une étape LECTURE `web_research` par angle, SANS dépendance (elles partent ensemble sous la concurrence du travail), puis un
+  LIVRABLE `pdf` après toutes : le Word est déposé au Drive (« Travaux »), puis converti en PDF par l'Atelier — les deux restent.
+- **Le rapport** (`CONSIGNE_RAPPORT`) : titre, date, sommaire, synthèse en puces, une section par angle, limites, et `## Sources`
+  numérotées une fois (« [n] Titre — URL »), chaque chiffre daté et appelé par sa source ; aucune URL hors des sorties des
+  sous-recherches. Le livrable lit jusqu'à 64 000 caractères de ses sorties amont (24 000 pour les autres étapes) ; la
+  rédaction a 4 minutes.
+- **Le retour** : la mission porte l'origine `assistant-ia:recherche-approfondie` ; sa synthèse dans la conversation est le
+  RAPPORT EN ENTIER (40 000 caractères au plus, filtre de confidentialité), suivi des liens PDF et Word.
+- **Le suivi** : chaque sous-recherche est une étape du tableau « Missions » (en file → en cours → faite), en temps réel.
+- **Le modèle** de la recherche web reste celui du rôle `worker` (`src/platform/ia/web-research.ts`, réflexion moyenne, 4 500
+  jetons) ; aucun nouveau modèle n'est ajouté. Le coût des recherches web est journalisé par l'appel de modèle du rôle worker,
+  pas au coût de la mission (qui compte les étapes de rédaction) : le banc dit le coût réel total.
+- **La rédaction en flux** : un livrable long (le rapport) s'écrit en plus de 45 s ; une requête au modèle NON diffusée était
+  coupée en 502 par un mandataire au banc réel. `genererTexte(…, { flux: true })` lit la réponse en flux pour toutes les
+  rédactions des travaux (`persona.raisonner`), 4 minutes au plus.
+- **Bloquée, elle se reprend** : une mission bloquée ou terminée en partie n'écrit plus de synthèse (`statutFini` : terminée,
+  annulée, échec) ; « Reprendre » (carte, tableau) la relance, et la synthèse s'écrit à sa vraie fin.
+- **Consigne** (`consigneTravaux`) : veille, étude de marché, réglementation étrangère, concurrence → `recherche_approfondie`
+  avec 3 à 5 angles ; une simple question d'actualité reste `web_research`.
+
+## 8. Décisions à confirmer par la Direction
 
 1. Le défaut du démarrage d'office : OUI pour le Super Admin, NON pour les autres (réglable par rôle et par personne).
 2. La borne de parallélisme `TRAVAUX_EN_PARALLELE` = 4 par processus (worker).

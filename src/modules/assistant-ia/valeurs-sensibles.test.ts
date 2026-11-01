@@ -85,7 +85,7 @@ describe("le réglage et ses règles (pur)", () => {
     expect(consignesVoix(true)).not.toContain("JAMAIS prononcée");
     expect(consignesVoix(false)).toContain("JAMAIS prononcée");
     // Les deux modes gardent la règle des écritures : une carte, confirmée à l'écran.
-    for (const c of [consignesVoix(true), consignesVoix(false)]) expect(c).toContain("seul le bouton de la carte exécute");
+    for (const c of [consignesVoix(true), consignesVoix(false)]) expect(c).toContain("Tu confirmes ?");
   });
 
   it("l'historique EN CLAIR : la réponse de l'assistant repart telle qu'il l'a écrite ; une valeur bornée (temps des repères) reste masquée", () => {

@@ -2,7 +2,7 @@ import type { Annulation } from "./types";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES ANNULATIONS DÉCLARÉES (K10c, décision 0039) — pur, zéro import hors du dossier.
+ * LES ANNULATIONS DÉCLARÉES (K10c, décision 0040) — pur, zéro import hors du dossier.
  *
  * La dérivation lexicale (`classement.ts`) classe une action par ses mots : « régler » y vaut paiement, une décision
  * y vaut signature. Pour les actions qu'un lot a RENDUES réversibles — le geste inverse codé (`lib/effets/`), un test
