@@ -230,7 +230,9 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte, 
   const champs = e.champs.filter((c) => !info.auto.has(c) && info.types.has(c));
   if (!champs.length) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "seuls des horodatages avaient changé" };
   const actuelle = await lireActuelle(ctx.c, info, id);
-  if (!actuelle) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${natureDe(e.modele!)} n'existe plus : il n'y a plus rien à remettre`, aLaPlace: null };
+  // Supprimée DEPUIS (par quelqu'un d'autre, ou partie en cascade avec son parent) : il n'y a plus rien à remettre — sans
+  // objet, ce n'est pas un refus ; le reste du geste se défait (K10c : une purge qui touche toute la base ne bloque plus).
+  if (!actuelle) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: `${natureDe(e.modele!)} a été supprimé(e) depuis : il n'y a plus rien à remettre` };
   // Un statut « payé » (argent compensé) ou « transmis » au centre (K10a) se juge comme un champ : la valeur n'entre pas dans la phrase.
   const resume = (c: string) => (argentCompense ? `${e.modele}.${c} (circuit d'argent interne, argent compensé)` : `${e.modele}.${c} → ${valeurLisible(apres[c])}`);
   const changements: Changement[] = champs.map((c) => ({
