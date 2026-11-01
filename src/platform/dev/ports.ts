@@ -219,6 +219,8 @@ export interface EtatChecks {
   echecs: CheckRun[];
 }
 
+export type MethodeFusion = "merge" | "squash" | "rebase";
+
 export interface ForgeGit {
   moi(): Promise<Resultat<CompteForge>>;
   depot(depot: NomDepot): Promise<Resultat<InfoDepot>>;
@@ -235,6 +237,18 @@ export interface ForgeGit {
   commenterPr(depot: NomDepot, numero: number, texte: string): Promise<Resultat<{ id: number; url: string }>>;
   /** Relance les jobs en échec d'un run Actions (geste autonome autorisé, § 7). */
   relancerEchecs(depot: NomDepot, runId: number): Promise<Resultat<true>>;
+  /**
+   * C1 (décision 0042) — FUSIONNE une PR, APRÈS la validation de la Direction : `PUT /pulls/{n}/merge` avec le SHA de tête
+   * ATTENDU (celui qui a été vérifié) — GitHub refuse (409 → `CONFLIT`) si la tête a bougé. Méthode :
+   * `CHANTIERS_METHODE_FUSION`, sinon celle que le dépôt autorise (merge, squash, rebase). Une protection de branche
+   * ou une PR non fusionnable (405) rend `INTERDIT`, message de GitHub à l'appui.
+   */
+  fusionnerPr(depot: NomDepot, numero: number, opts: { shaAttendu: string; methode?: MethodeFusion | null }): Promise<Resultat<{ sha: string; methode: MethodeFusion }>>;
+  /**
+   * C1 (décision 0042) — LA COMPENSATION d'une fusion : une PR de REVERT ouverte et proposée (GraphQL `revertPullRequest`),
+   * jamais un force-push ni une réécriture de l'historique ; sa fusion repasse par la validation.
+   */
+  proposerRevert(depot: NomDepot, numero: number, opts: { titre: string; corps: string }): Promise<Resultat<{ numero: number; url: string }>>;
 }
 
 // ─────────────────────────────── HÉBERGEUR (Render) ───────────────────────────────

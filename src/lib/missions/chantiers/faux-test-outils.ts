@@ -19,6 +19,10 @@ export interface ScenarioDev {
   /** Code HTTP de santé (défaut 200). */
   sante?: (url: string, n: number) => number;
   logsErreurs?: number;
+  /** La CI de la base sur le commit de fusion (défaut vert). */
+  ciBase?: EtatChecks["statut"];
+  /** La forge refuse la fusion (protection de branche). */
+  fusionRefusee?: boolean;
 }
 
 export interface FauxPorts extends PortsDev {
@@ -62,7 +66,7 @@ export function fauxPortsDev(s: ScenarioDev = {}): FauxPorts {
       const x = branches.get(b);
       return ok({ existe: !!x, sha: x?.sha ?? null, commits: x ? [{ sha: x.sha, message: "travail", le: new Date().toISOString() }] : [], fichiers: x?.fichiers ?? [] });
     },
-    pr: async (d, b) => ok(prs.has(cle(d, b)) ? { ...prs.get(cle(d, b))!, mergeable: true } : null),
+    pr: async (d, b) => ok(prs.has(cle(d, b)) ? { ...prs.get(cle(d, b))!, titre: `Chantier ${b}`, mergeable: true } : null),
     checks: async (_d, sha) => {
       const c = checks.get(sha);
       return ok({ statut: c?.statut ?? "aucun", echecs: c?.statut === "rouge" ? [{ nom: "tests", url: `https://ci/${sha}`, extrait: c.extrait }] : [] });
@@ -74,11 +78,21 @@ export function fauxPortsDev(s: ScenarioDev = {}): FauxPorts {
       journal.push({ quoi: "ouvrirPr", detail: { branche: b } });
       return ok({ numero: p.numero, url: p.url });
     },
-    fusionnerPr: async (_d, numero) => {
-      journal.push({ quoi: "fusionner", detail: { numero } });
+    fusionnerPr: async (d, numero, shaAttendu) => {
+      const [k, p] = [...prs.entries()].find(([, x]) => x.numero === numero) ?? [];
+      if (s.fusionRefusee) return { ok: false, erreur: "GitHub refuse la fusion (protection de branche)", definitif: true };
+      if (k && branches.get(k.split(":")[1]!)?.sha !== shaAttendu) return { ok: false, erreur: "la tête a bougé", definitif: true };
+      journal.push({ quoi: "fusionner", detail: { numero, shaAttendu } });
       const sha = `fusion${numero}`.padEnd(12, "0");
-      checks.set(sha, { statut: "vert", extrait: "" });
+      checks.set(sha, { statut: s.ciBase ?? "vert", extrait: s.ciBase === "rouge" ? "FAIL base" : "" });
+      branches.set("main", { sha, fichiers: [] });
+      if (k && p) prs.set(k, { ...p, etat: "fusionnee" });
+      void d;
       return ok({ sha });
+    },
+    proposerRevert: async (_d, numero) => {
+      journal.push({ quoi: "revert", detail: { numero } });
+      return ok({ numero: 100 + numero, url: `https://github.com/pr/${100 + numero}` });
     },
     fichier: async () => ok({ octets: Buffer.from(""), mime: "text/plain" }),
   };

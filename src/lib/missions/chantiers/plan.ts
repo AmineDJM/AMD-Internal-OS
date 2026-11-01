@@ -16,6 +16,8 @@ import type { RefDepot } from "@/lib/missions/chantiers/ports-moteur";
  *   DEV_ATTENDRE     attend un commit NEUF sur la branche (sondage à pas croissant, réveil par événement)
  *   DEV_VERIFIER     lit GitHub : périmètre, PR, checks du SHA de tête → { vert, sha, signature }
  *   DEV_CORRIGER     si rouge : renvoie le problème (commentaire @claude / relance), attend, revérifie — borné
+ *   DEV_FUSIONNER    PR verte → carte « Fusionner la PR #n (titre) dans <base> » ; validée : fusion au SHA vérifié,
+ *                    puis CI de la BASE sur le commit de fusion (compensation : une PR de revert, jamais un force-push)
  *   RENDER_DEPLOYER  déploie le SHA EXACT vérifié, sérialisé par service (ERP avant app et worker)
  *   RENDER_VERIFIER  santé (healthCheckPath 200), logs sans erreur nouvelle → { sain }
  *   RENDER_ROLLBACK  si malsain : rollback vers le dernier déploiement sain, autoDeploy coupé
@@ -27,7 +29,7 @@ import type { RefDepot } from "@/lib/missions/chantiers/ports-moteur";
  */
 
 export const TYPES_ETAPE_CHANTIER = [
-  "DEV_LANCER", "DEV_ATTENDRE", "DEV_VERIFIER", "DEV_CORRIGER", "RENDER_DEPLOYER", "RENDER_VERIFIER", "RENDER_ROLLBACK", "RAPPORT",
+  "DEV_LANCER", "DEV_ATTENDRE", "DEV_VERIFIER", "DEV_CORRIGER", "DEV_FUSIONNER", "RENDER_DEPLOYER", "RENDER_VERIFIER", "RENDER_ROLLBACK", "RAPPORT",
 ] as const;
 export type TypeEtapeChantier = (typeof TYPES_ETAPE_CHANTIER)[number];
 
@@ -107,7 +109,7 @@ const montant = (v: unknown): number | undefined => (typeof v === "number" && Nu
  * LE PLAN TYPE — ce que Terra n'a pas à écrire étape par étape : lancer, attendre, vérifier, corriger si rouge,
  * puis pour chaque service (ERP d'abord) déployer, vérifier, rollback si malsain ; enfin le rapport.
  */
-export function etapesParDefaut(services: readonly ServiceChantier[]): EtapeChantier[] {
+export function etapesParDefaut(services: readonly ServiceChantier[], fusion = true): EtapeChantier[] {
   const etapes: EtapeChantier[] = [
     { cle: "lancer", titre: "Lancer Claude Code sur la branche réservée", type: "DEV_LANCER" },
     { cle: "attendre", titre: "Attendre les commits de la session", type: "DEV_ATTENDRE", apres: ["lancer"] },
@@ -115,6 +117,10 @@ export function etapesParDefaut(services: readonly ServiceChantier[]): EtapeChan
     { cle: "corriger", titre: "Faire corriger jusqu'au vert", type: "DEV_CORRIGER", apres: ["verifier"], si: { etape: "verifier", champ: "vert", vaut: false } },
   ];
   let precedente = "corriger";
+  if (fusion) {
+    etapes.push({ cle: "fusionner", titre: "Fusionner la PR dans la base (validation)", type: "DEV_FUSIONNER", apres: ["corriger"] });
+    precedente = "fusionner";
+  }
   const ordonnes = [...services].sort((a, b) => RANG_ROLE[a.role] - RANG_ROLE[b.role]);
   for (const s of ordonnes) {
     const k = s.id.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 30);
@@ -188,6 +194,12 @@ function controlerEnchainement(etapes: EtapeChantier[], services: ServiceChantie
   for (const [i, e] of etapes.entries()) {
     if (e.type === "DEV_CORRIGER" && (verif < 0 || i < verif)) fautes.push(`« ${e.cle} » : DEV_CORRIGER suit une étape DEV_VERIFIER.`);
     if (e.type === "RENDER_DEPLOYER" && (verif < 0 || i < verif)) fautes.push(`« ${e.cle} » : aucun déploiement avant la vérification (DEV_VERIFIER).`);
+    if (e.type === "DEV_FUSIONNER" && (verif < 0 || i < verif)) fautes.push(`« ${e.cle} » : DEV_FUSIONNER suit une étape DEV_VERIFIER.`);
+    // Un service qui suit une AUTRE branche que celle du chantier (main) ne se déploie qu'après la fusion validée.
+    const sv = services.find((x) => x.id === e.service);
+    if (e.type === "RENDER_DEPLOYER" && sv?.branche && !etapes.some((x, j) => j < i && x.type === "DEV_FUSIONNER")) {
+      fautes.push(`« ${e.cle} » : ${sv.nom} suit ${sv.branche} — une étape DEV_FUSIONNER doit précéder son déploiement.`);
+    }
     if ((e.type === "RENDER_VERIFIER" || e.type === "RENDER_ROLLBACK")) {
       const dep = etapes.findIndex((x, j) => j < i && x.type === "RENDER_DEPLOYER" && x.service === e.service);
       if (dep < 0) fautes.push(`« ${e.cle} » : ${e.type} sans déploiement préalable du même service.`);
@@ -238,7 +250,7 @@ export function lirePlanChantier(brut: unknown): { ok: true; plan: PlanChantier 
     ...(entierPositif(b?.deploiements) ? { deploiements: entierPositif(b?.deploiements) } : {}),
     ...(tentatives ? { tentatives: Math.min(tentatives, BORNES_CHANTIER.tentativesMax) } : {}),
   };
-  const etapes = Array.isArray(o.etapes) && o.etapes.length > 0 ? lireEtapes(o.etapes, services, fautes) : etapesParDefaut(services);
+  const etapes = Array.isArray(o.etapes) && o.etapes.length > 0 ? lireEtapes(o.etapes, services, fautes) : etapesParDefaut(services, o.fusion !== false);
   if (etapes.length > 0) controlerEnchainement(etapes, services, fautes);
   if (fautes.length > 0) return { ok: false, fautes };
   return {
@@ -253,8 +265,9 @@ export function lirePlanChantier(brut: unknown): { ok: true; plan: PlanChantier 
 /** Le plan exige-t-il une carte de validation de la Direction (production, migration) ? Dit sur la carte d'approbation. */
 export function gestesCritiques(plan: PlanChantier): string[] {
   const out: string[] = [];
+  if (plan.etapes.some((e) => e.type === "DEV_FUSIONNER")) out.push(`Fusionner la PR dans ${plan.brancheBase} (carte écrite ou orale ; compensable par une PR de revert)`);
   for (const s of plan.services.filter((x) => x.production)) {
-    out.push(`Déployer ${s.nom} en production${(s.branche ?? plan.branche) !== plan.branche ? ` (après fusion sur ${s.branche})` : ""}`);
+    out.push(`Déployer ${s.nom} en production`);
   }
   if (plan.services.some((s) => s.production) && plan.etapes.some((e) => e.type === "RENDER_ROLLBACK")) out.push("Rollback de production, si la santé l'exige");
   if (plan.migrations) out.push("Migration de base (additive, idempotente — destructive refusée sans validation)");

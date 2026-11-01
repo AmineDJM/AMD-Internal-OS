@@ -887,8 +887,10 @@ Code : `src/lib/missions/chantiers/` (moteur), `src/platform/dev/ports.ts` (cont
   conduite par le moteur des travaux (bail, reçus, reprise après coupure, tableau « Missions »).
 - **Étapes** (DSL fermé) : `DEV_LANCER` (dépendances, réservations, une session Claude Code sous reçu) → `DEV_ATTENDRE` (commit
   neuf, sondage 1 → 10 min, 6 h au plus) → `DEV_VERIFIER` (périmètre, PR, checks du SHA de tête) → `DEV_CORRIGER` si rouge
-  (commentaire `@claude` sur la PR, anti-boucle) → par service, ERP d'abord : `RENDER_DEPLOYER` (preuve verte exigée,
-  fusion + revérification du SHA d'intégration si le service suit `main`) → `RENDER_VERIFIER` (santé, journaux) →
+  (Auto-fix, relais, commentaire `@claude` sur la PR, anti-boucle) → `DEV_FUSIONNER` (carte « Fusionner la PR #n (« titre »)
+  dans main », écrite ou orale ; fusion par l'API GitHub au SHA vérifié ; CI de main sur le commit de fusion ; protection de
+  branche → refus clair) → par service, ERP d'abord : `RENDER_DEPLOYER` (preuve verte exigée ; rien sans fusion aboutie ;
+  revérification du SHA d'intégration si d'autres fusions sont passées) → `RENDER_VERIFIER` (santé, journaux) →
   `RENDER_ROLLBACK` si malsain (autoDeploy coupé) → `RAPPORT` (SHA, checks, live, santé, coût).
 - **Réservations** `ChantierReservation` : `BRANCHE`, `PERIMETRE` (recouvrement → file d'attente), `MIGRATIONS` et
   `DEPLOIEMENT` exclusifs ; tout ou rien, sous verrou ; expirent à 6 h si le chantier meurt.
@@ -896,6 +898,11 @@ Code : `src/lib/missions/chantiers/` (moteur), `src/platform/dev/ports.ts` (cont
   (dollars par chantier et par jour, lancements, déploiements, tentatives, parallélisme) → pause `BUDGET_HOLD` et reprise seule.
 - **Validation de la Direction** (carte du tableau, ou « valide » à l'écrit comme à l'oral dans la conversation) :
   production, fusion sur main, rollback de production.
-- **Conversation** (Adventum IA) : `lancer_un_chantier`, `ou_en_est_chantier`, `valider_chantier`, `annuler_chantier`.
+- **Conversation** (Adventum IA et Adam — `chantiers/outils.ts`, `lib/assistant/chantier-tools.ts`) : `lancer_un_chantier`,
+  `ou_en_est_chantier`, `valider_chantier` (« vas-y » après relecture vocale), `annuler_chantier` (dont `annulerFusion`).
+- **Réversible** : annuler la validation (`validerMonChantier`, journal J7) retire la carte, ou compense une fusion faite par
+  une **PR de revert** (`lib/chantiers-compensation.ts`) — jamais un force-push.
+- **Réveil** : un `BusinessEvent` `DEV_*` / `RENDER_*` (webhooks C2) réveille le chantier concerné (`chantiers/reveil.ts`).
+- **Rapport** : Word au Drive (« Travaux »), aux livrables, et dans la conversation qui l'a lancé (synthèse K3, avec le lien).
 - **Mémoire technique** `MemoireTechnique` (dépôts, services, branches, incidents) : extraits ≤ 2 k jetons dans la consigne.
 - Sans connecteurs branchés (C2), un chantier ne part pas et le dit.

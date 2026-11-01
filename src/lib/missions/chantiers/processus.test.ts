@@ -93,7 +93,7 @@ suite("chantiers — vrais processus : réservations concurrentes, reprise aprè
     const branche = `claude/${TAG}-reprise`;
     const p = await proposerChantier(admin, {
       titre: `${TAG} reprise`, objectif: "Survivre à un redéploiement.", depot: { proprietaire: "aminedjm", nom: `${TAG}-depot` }, branche,
-      perimetre: ["src/lib/missions/chantiers/**"], criteres: ["vert"], commandesVerif: ["npm test"],
+      perimetre: ["src/lib/missions/chantiers/**"], criteres: ["vert"], commandesVerif: ["npm test"], fusion: false,
     });
     if (!p.ok) throw new Error(p.fautes.join(" "));
     expect((await approuverChantier(p.chantierId, admin)).ok).toBe(true);

@@ -110,12 +110,16 @@ journalisés ; une valeur de variable Render n'est jamais lue, seulement son NOM
   routeur Terra/MiMo/Sol (adaptateur MiMo OpenAI-compatible + sonde `/v1/models`), mémoire technique, tableau K3 enrichi.
   **Fait (01/11/2026, lot C1, décision [0042](../assistant/decisions/0042-chantiers-socle.md))** — code
   `src/lib/missions/chantiers/`, contrat `src/platform/dev/ports.ts`, branchement des adaptateurs par `brancherPortsDev`.
+  **Phase 2 (01/11)** : fusion de la PR après la carte de validation (`DEV_FUSIONNER`, `fusionnerPr` au SHA vérifié, CI
+  de la base sur le commit de fusion, compensation par PR de revert), réveil par les webhooks `DEV_*`/`RENDER_*`, outils
+  aussi chez Adam, rapport final au Drive (« Travaux ») et dans la conversation — décision 0042 § 10.
 - **L2 — Connecteurs GitHub et Render** : ports + adaptateurs `fetch`, webhooks signés → `BusinessEvent` → réveil,
   sondage de secours, rollback, santé, logs résumés par MiMo.
 - **L3 — Connecteur Claude Code** : port `AgentDeveloppeur` (lancer, relancer, suivre par GitHub) ; adaptateurs
   Routines (défaut, abonnement) et commentaire `@claude` (GitHub Action) ; Managed Agents en option API.
 - **L4 — Conversation et voix** : outils de l'Assistant IA / Adam (« lance un chantier », « où en est… », « déploie »,
-  « annule »), rapports, artefacts (Drive, WhatsApp K6), oral (K9).
+  « fusionne », « annule »), rapports, artefacts (Drive, WhatsApp K6), oral (K9). Outils, carte orale et rapport au
+  Drive : faits (phase 2 de C1).
 
 Tests réels : nécessitent sur Render `RENDER_API_KEY`, `GITHUB_TOKEN`, une routine + son jeton ; un dépôt de test dédié
 pour les allers-retours de correction automatique (jamais la production pour un banc).

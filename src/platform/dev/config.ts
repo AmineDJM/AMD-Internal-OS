@@ -6,7 +6,8 @@ import type { NomDepot } from "./ports";
  *   GitHub   GITHUB_TOKEN (fine-grained de la Direction : contents, pull-requests, checks, actions, metadata ; un compte
  *            HUMAIN — un commentaire `@claude` posté par un bot est refusé par l'Action), GITHUB_WEBHOOK_SECRET,
  *            CHANTIERS_DEPOTS (« proprietaire/nom » séparés par des virgules : les dépôts que les chantiers touchent),
- *            GITHUB_API_URL (défaut https://api.github.com).
+ *            GITHUB_API_URL (défaut https://api.github.com), CHANTIERS_METHODE_FUSION (merge | squash | rebase — sinon
+ *            celle que le dépôt autorise, merge d'abord ; C1, décision 0042).
  *   Render   RENDER_API_KEY, RENDER_WEBHOOK_SECRET (le « signing secret » du webhook), RENDER_API_URL
  *            (défaut https://api.render.com/v1).
  *   Claude   une routine PAR DÉPÔT, créée par la Direction sur claude.ai/code/routines : CLAUDE_ROUTINE_<ALIAS>_ID
@@ -87,3 +88,9 @@ export function routineDuDepot(depot: string, env: Env = process.env): ConfigRou
 
 /** Le jeton du relais CLI (`scripts/relais-claude.ts`) — le relais le présente en `Bearer` ; ≥ 24 caractères. */
 export const jetonRelais = (env: Env = process.env): string | null => lire(env, "CLAUDE_RELAIS_TOKEN");
+
+/** C1 (décision 0042) : la méthode de fusion imposée par la Direction, si elle l'a posée — sinon celle du dépôt. */
+export function methodeFusionImposee(env: Env = process.env): "merge" | "squash" | "rebase" | null {
+  const m = lire(env, "CHANTIERS_METHODE_FUSION")?.toLowerCase();
+  return m === "merge" || m === "squash" || m === "rebase" ? m : null;
+}

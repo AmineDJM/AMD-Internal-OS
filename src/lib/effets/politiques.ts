@@ -34,6 +34,8 @@ const METIERS: Readonly<Record<string, () => Promise<NonNullable<PolitiqueAnnula
   "reservation-fiche-actions:envoyerFichesPretes": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
   "reservation-fiche-actions:joindreDevisAgence": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
   "reservation-fiche-actions:deposerBillet": async () => (await import("./annulation-bibliotheque")).indexBibliotheque,
+  // C1 (décision 0042) : la carte d'un chantier — retirée si rien n'a agi ; une fusion faite est compensée par une PR de revert.
+  "assistant-ia-travaux-actions:validerMonChantier": async () => (await import("@/lib/chantiers-compensation")).compenserValidationChantier,
 };
 
 export async function politiqueDe(capaciteId: string | null | undefined): Promise<PolitiqueAnnulation | null> {

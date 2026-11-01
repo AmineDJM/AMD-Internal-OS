@@ -42,14 +42,19 @@ export interface DossierChantier {
   deploiements: PreuveDeploiement[];
   reservations: string[];
   blocage: string | null;
-  rapport: { le: string; texte: string; issue: "LIVRE" | "BLOQUE" | "ANNULE" | "PARTIEL" } | null;
+  /** La fusion VALIDÉE de la PR dans la base : le commit de fusion, vérifié vert (CI de la base). */
+  fusion: { sha: string; pr: number; base: string; le: string } | null;
+  /** La compensation d'une fusion : demandée (annulation J7, outil, écran), puis la PR de revert proposée. */
+  revertDemande: { par: string; le: string } | null;
+  revert: { numero: number; url: string; le: string } | null;
+  rapport: { le: string; texte: string; issue: "LIVRE" | "BLOQUE" | "ANNULE" | "PARTIEL"; document?: { nodeId: string; nom: string; lien: string } | null } | null;
 }
 
 export function dossierInitial(plan: PlanChantier): DossierChantier {
   return {
     plan, sessions: [], pr: null, shaVu: null, vert: null, signatures: [], solPour: [],
     compteurs: { lancements: 0, deploiements: 0, appelsModeles: {} }, validations: {}, deploiements: [], reservations: [],
-    blocage: null, rapport: null,
+    blocage: null, fusion: null, revertDemande: null, revert: null, rapport: null,
   };
 }
 
@@ -69,6 +74,7 @@ export function jugerPreuves(d: DossierChantier, coutUsd: number | null): Verdic
   const manquantes: string[] = [];
   if (!d.vert) manquantes.push("aucun SHA aux checks verts");
   else if (d.shaVu && d.shaVu !== d.vert.sha) manquantes.push(`le SHA de tête (${court(d.shaVu)}) n'est pas celui vérifié (${court(d.vert.sha)})`);
+  if (d.plan.etapes.some((e) => e.type === "DEV_FUSIONNER") && !d.fusion) manquantes.push("la PR n'est pas fusionnée dans la base (validation refusée ou en attente)");
   const prevus = d.plan.etapes.filter((e) => e.type === "RENDER_DEPLOYER").map((e) => e.service!);
   for (const id of prevus) {
     const p = [...d.deploiements].reverse().find((x) => x.service === id);
@@ -119,6 +125,8 @@ export function composerRapport(d: DossierChantier, coutUsd: number, issue: NonN
     `Dépôt ${p.depot.proprietaire}/${p.depot.nom}, branche ${p.branche} (base ${p.brancheBase}).`,
     d.vert ? `Checks verts sur ${d.vert.sha} (${d.vert.le}).` : "Aucun SHA aux checks verts.",
     d.pr ? `PR #${d.pr.numero} : ${d.pr.url}` : "Pas de PR.",
+    ...(d.fusion ? [`Fusionnée dans ${d.fusion.base} : ${d.fusion.sha} (CI de la base verte).`] : []),
+    ...(d.revert ? [`Fusion compensée : PR de revert #${d.revert.numero} proposée (${d.revert.url}).`] : []),
     ...d.sessions.map((s) => `Session Claude Code (${s.motif}) : ${s.url}`),
     ...d.deploiements.map((x) =>
       `${x.nom} : déploiement ${x.deployId} ${x.statut} sur ${court(x.commit)}${x.sante ? `, santé HTTP ${x.sante.statut} en ${x.sante.ms} ms` : ""}${x.rollback ? `, rollback ${x.rollback.deployId} ${x.rollback.statut}` : ""}.`),

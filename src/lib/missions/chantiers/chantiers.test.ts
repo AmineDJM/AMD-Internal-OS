@@ -2,8 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import type { Clock } from "@/lib/missions/ports";
 import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
-import { conduireChantier } from "@/lib/missions/chantiers/conduite";
-import { annulerChantier, approuverChantier, ouEnEstChantier, proposerChantier, validerGesteChantier } from "@/lib/missions/chantiers/service";
+import { conduireChantier, type DepsChantier } from "@/lib/missions/chantiers/conduite";
+import { annulerChantier, approuverChantier, demanderRevertFusion, ouEnEstChantier, proposerChantier, validerGesteChantier } from "@/lib/missions/chantiers/service";
+import { reveillerChantiersSurFait } from "@/lib/missions/chantiers/reveil";
+import { lireCarnet } from "@/lib/missions/travaux/carnet";
 import { lireDossier } from "@/lib/missions/chantiers/dossier";
 import { REGLAGES_CHANTIERS_DEFAUT, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
 import { fauxPortsDev, type FauxPorts, type ScenarioDev } from "@/lib/missions/chantiers/faux-test-outils";
@@ -33,6 +35,8 @@ try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
 const TAG = `__ch__${Date.now()}`;
+/** Les plafonds du JOUR sont communs à toute la suite (et aux autres bancs) : relevés ici ; ceux du chantier restent par défaut. */
+const REGLAGES_BANC: ReglagesChantiers = { ...REGLAGES_CHANTIERS_DEFAUT, jourLancementsMax: 100, jourDeploiementsMax: 100, jourUsdMax: 1000 };
 const PAS_SUSPENDU: LecteurInterrupteur = async () => ({ suspendues: false, depuis: null, parId: null } as Awaited<ReturnType<LecteurInterrupteur>>);
 
 class Horloge implements Clock {
@@ -58,6 +62,8 @@ const plan = (o: Record<string, unknown> = {}) => ({
   depot: { proprietaire: "aminedjm", nom: `depot-${TAG}` }, branche: `claude/${TAG}-${n}`,
   perimetre: [`src/lib/missions/chantiers/**`], criteres: ["la route rend 200"], commandesVerif: ["npm test"],
   services: [{ id: `srv-${TAG}-${n}`, nom: "ERP", role: "erp", production: false, url: "https://erp.test", healthCheckPath: "/api/health" }],
+  // La fusion (DEV_FUSIONNER) est au plan type ; les bancs d'avant la fusion la retirent, ceux de la fusion la remettent.
+  fusion: false,
   ...o,
 });
 
@@ -70,10 +76,10 @@ async function lancer(p: Record<string, unknown>): Promise<string> {
 }
 
 /** Conduit jusqu'à la fin (ou `max` passages), l'horloge avancée de 31 min entre deux : les attentes datées échoient. */
-async function jusquAuBout(id: string, ports: FauxPorts, o: { cerveau?: CerveauChantier; reglages?: ReglagesChantiers; max?: number; horloge?: Horloge } = {}) {
+async function jusquAuBout(id: string, ports: FauxPorts, o: { cerveau?: CerveauChantier; reglages?: ReglagesChantiers; max?: number; horloge?: Horloge; deps?: Partial<DepsChantier> } = {}) {
   const h = o.horloge ?? new Horloge();
   for (let i = 0; i < (o.max ?? 30); i++) {
-    await conduireChantier(id, { ports, cerveau: o.cerveau ?? cerveauFactice().c, clock: h, reglages: o.reglages ?? REGLAGES_CHANTIERS_DEFAUT, interrupteur: PAS_SUSPENDU });
+    await conduireChantier(id, { ...(o.deps ?? {}), ports, cerveau: o.cerveau ?? cerveauFactice().c, clock: h, reglages: o.reglages ?? REGLAGES_BANC, interrupteur: PAS_SUSPENDU });
     const s = (await prisma.mission.findUnique({ where: { id }, select: { status: true } }))!.status;
     if (["COMPLETED", "CANCELLED", "FAILED", "BLOCKED", "PARTIAL", "PAUSED"].includes(s)) return s;
     h.t += 31 * 60_000;
@@ -153,7 +159,7 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     const id = await lancer(plan());
     const h = new Horloge();
     for (let i = 0; i < 4; i++) {
-      await conduireChantier(id, { ports, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_CHANTIERS_DEFAUT, interrupteur: PAS_SUSPENDU });
+      await conduireChantier(id, { ports, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_BANC, interrupteur: PAS_SUSPENDU });
       h.t += 31 * 60_000;
       if ((await etapes(id)).corriger?.status === "WAITING") break;
     }
@@ -201,22 +207,116 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     expect(fin?.goalVerdict).toMatch(/Conclusion refusée faute de preuves/);
   });
 
-  it("production : carte de validation, fusion sur main, revérification du SHA d'intégration, puis déploiement", async () => {
+  it("production : carte « Fusionner la PR #1 » (orale), fusion au SHA vérifié, CI de main, PUIS sa propre carte de production", async () => {
     const ports = fauxPortsDev({ surSession: vert("eeee000000000001") });
-    const p = plan({ services: [{ id: `srv-${TAG}-prod`, nom: "App", role: "app", production: true, branche: "main", url: "https://app.test", healthCheckPath: "/" }] });
+    const p = plan({ fusion: true, services: [{ id: `srv-${TAG}-prod`, nom: "App", role: "app", production: true, branche: "main", url: "https://app.test", healthCheckPath: "/" }] });
     const id = await lancer(p);
     const h = new Horloge();
     expect(await jusquAuBout(id, ports, { max: 4, horloge: h })).not.toBe("COMPLETED");
     const vue = (await ouEnEstChantier(admin, id))[0]!;
-    expect(vue.validationsAttendues[0]).toMatch(/fusionner la PR #1 sur main puis déployer App en PRODUCTION/);
+    expect(vue.validationsAttendues[0]).toMatch(/Fusionner la PR #1 \(« .+ »\) dans main — SHA vérifié eeee000/);
     expect(ports.journal.some((j) => j.quoi === "fusionner" || j.quoi === "deployer")).toBe(false);
+    // « vas-y » à la voix : la validation ORALE suffit.
     expect((await validerGesteChantier(id, admin, { decision: "ACCORDEE", canal: "oral" })).ok).toBe(true);
+    expect(await jusquAuBout(id, ports, { max: 4, horloge: h })).not.toBe("COMPLETED");
+    expect(ports.journal.find((j) => j.quoi === "fusionner")!.detail).toMatchObject({ numero: 1, shaAttendu: "eeee000000000001" });
+    expect(ports.journal.some((j) => j.quoi === "deployer")).toBe(false);
+    // La PRODUCTION a sa propre carte, sur le commit de fusion vérifié par la CI de main.
+    const vue2 = (await ouEnEstChantier(admin, id))[0]!;
+    expect(vue2.validationsAttendues[0]).toMatch(/déployer App en PRODUCTION \(SHA vérifié fusion1\)/);
+    expect((await validerGesteChantier(id, admin, { decision: "ACCORDEE", canal: "ecrit" })).ok).toBe(true);
     expect(await jusquAuBout(id, ports, { horloge: h })).toBe("COMPLETED");
     const d = await dossier(id);
-    expect(d.validations).toMatchObject({ [Object.keys(d.validations)[0]!]: { decision: "ACCORDEE", canal: "oral" } });
+    expect(d.fusion).toMatchObject({ sha: "fusion1".padEnd(12, "0"), pr: 1, base: "main" });
+    expect(Object.values(d.validations).map((v) => v.canal)).toEqual(["oral", "ecrit"]);
     expect(d.vert?.sha).toBe("fusion1".padEnd(12, "0"));
     expect(d.deploiements[0]).toMatchObject({ commit: "fusion1".padEnd(12, "0"), sain: true });
     expect(ports.journal.map((j) => j.quoi)).toEqual(["lancer", "ouvrirPr", "fusionner", "deployer"]);
+    expect(d.rapport?.texte).toMatch(/fusion/i);
+  });
+
+  it("fusion validée, puis préproduction AUTONOME : une seule carte, déploiement du commit de fusion sans autre geste", async () => {
+    const ports = fauxPortsDev({ surSession: vert("e1e1000000000001") });
+    const id = await lancer(plan({ fusion: true }));
+    const h = new Horloge();
+    await jusquAuBout(id, ports, { max: 4, horloge: h });
+    expect((await validerGesteChantier(id, admin, { decision: "ACCORDEE", canal: "oral" })).ok).toBe(true);
+    expect(await jusquAuBout(id, ports, { horloge: h })).toBe("COMPLETED");
+    expect(await prisma.missionEvent.count({ where: { missionId: id, kind: "CHANTIER_VALIDATION_DEMANDEE" } })).toBe(1);
+    expect((await dossier(id)).deploiements[0]).toMatchObject({ commit: "fusion1".padEnd(12, "0"), statut: "live" });
+  });
+
+  it("fusion REFUSÉE par la protection de branche : dit clairement, rien n'est déployé", async () => {
+    const ports = fauxPortsDev({ surSession: vert("e2e2000000000001"), fusionRefusee: true });
+    const id = await lancer(plan({ fusion: true }));
+    const h = new Horloge();
+    await jusquAuBout(id, ports, { max: 4, horloge: h });
+    await validerGesteChantier(id, admin, { decision: "ACCORDEE", canal: "ecrit" });
+    expect(["BLOCKED", "PARTIAL", "FAILED"]).toContain(await jusquAuBout(id, ports, { horloge: h }));
+    const d = await dossier(id);
+    expect(d.blocage).toMatch(/fusion refusée : .*protection de branche/);
+    expect(d.fusion).toBeNull();
+    expect(ports.journal.some((j) => j.quoi === "deployer")).toBe(false);
+  });
+
+  it("CI de main ROUGE après la fusion : rien n'est déployé ; la compensation ouvre une PR de REVERT (jamais un force-push)", async () => {
+    const ports = fauxPortsDev({ surSession: vert("e3e3000000000001"), ciBase: "rouge" });
+    const id = await lancer(plan({ fusion: true }));
+    const h = new Horloge();
+    await jusquAuBout(id, ports, { max: 4, horloge: h });
+    await validerGesteChantier(id, admin, { decision: "ACCORDEE", canal: "ecrit" });
+    expect(["BLOCKED", "PARTIAL", "FAILED"]).toContain(await jusquAuBout(id, ports, { horloge: h }));
+    const d = await dossier(id);
+    expect(d.blocage).toMatch(/main est ROUGE sur le commit de fusion/);
+    expect(d.fusion?.pr).toBe(1);
+    expect(ports.journal.some((j) => j.quoi === "deployer")).toBe(false);
+    // Un salarié ne compense rien ; la Direction, si.
+    expect((await demanderRevertFusion(id, salarie)).ok).toBe(false);
+    expect((await demanderRevertFusion(id, admin)).ok).toBe(true);
+    await conduireChantier(id, { ports, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_BANC, interrupteur: PAS_SUSPENDU });
+    expect((await dossier(id)).revert).toMatchObject({ numero: 101 });
+    expect(ports.journal.filter((j) => j.quoi === "revert")).toHaveLength(1);
+    // Idempotent : redemander ne rouvre pas une seconde PR.
+    await demanderRevertFusion(id, admin);
+    await conduireChantier(id, { ports, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_BANC, interrupteur: PAS_SUSPENDU });
+    expect(ports.journal.filter((j) => j.quoi === "revert")).toHaveLength(1);
+    expect(await prisma.missionEvent.count({ where: { missionId: id, kind: "CHANTIER_REVERT" } })).toBe(1);
+  });
+
+  it("le réveil par un fait (webhook DEV_*) : l'étape qui attendait repart tout de suite ; un fait étranger ne réveille rien", async () => {
+    const ports = fauxPortsDev({ surSession: () => null });
+    const p = plan();
+    const id = await lancer(p);
+    await jusquAuBout(id, ports, { max: 2 });
+    expect((await etapes(id)).attendre!.status).toBe("WAITING");
+    expect(await reveillerChantiersSurFait({ type: "DEV_PUSH", relatedRefs: [`BRANCHE:aminedjm/autre-${TAG}:x`] })).not.toContain(id);
+    expect(await reveillerChantiersSurFait({ type: "FACTURE_PAYEE", relatedRefs: [`BRANCHE:aminedjm/depot-${TAG}:${p.branche}`] })).toEqual([]);
+    expect(await reveillerChantiersSurFait({ type: "DEV_PUSH", relatedRefs: [`BRANCHE:aminedjm/depot-${TAG}:${p.branche}`] })).toContain(id);
+    expect((await etapes(id)).attendre!.status).toBe("READY");
+    expect((await prisma.mission.findUnique({ where: { id }, select: { reveilDemandeLe: true } }))?.reveilDemandeLe).not.toBeNull();
+    await annulerChantier(id, admin);
+  });
+
+  it("le rapport final part au Drive (dossier « Travaux ») et rejoint les livrables ; la conversation est prévenue (K3)", async () => {
+    const ports = fauxPortsDev({ surSession: vert("e4e4000000000001") });
+    const id = await lancer(plan());
+    const depots: { cle: string; titre: string; reprise: boolean }[] = [];
+    const fins: string[] = [];
+    const deps: Partial<DepsChantier> = {
+      deposerRapport: async (_p, d) => { depots.push({ cle: d.cle, titre: d.titre, reprise: d.reprise }); return { ok: true, document: { nodeId: `node-${TAG}`, nom: "Rapport.docx", lien: `/drive/node-${TAG}` } }; },
+      surFin: async (x) => { fins.push(x); },
+    };
+    expect(await jusquAuBout(id, ports, { deps })).toBe("COMPLETED");
+    // Une seule fois, même si la conduite repasse.
+    await conduireChantier(id, { ...deps, ports, cerveau: cerveauFactice().c, reglages: REGLAGES_BANC, interrupteur: PAS_SUSPENDU });
+    expect(depots).toHaveLength(1);
+    expect(depots[0]!.titre).toMatch(/Rapport/);
+    const d = await dossier(id);
+    expect(d.rapport?.document).toMatchObject({ lien: `/drive/node-${TAG}` });
+    const carnet = (await prisma.mission.findUnique({ where: { id }, select: { carnet: true } }))!.carnet;
+    expect(lireCarnet(carnet).livrables.at(-1)?.document?.lien).toBe(`/drive/node-${TAG}`);
+    expect(lireDossier(carnet)?.plan.titre).toBe(d.plan.titre);
+    expect(fins).toContain(id);
   });
 
   it("conclusion REFUSÉE sans preuve : un plan qui ne vérifie pas la santé ne finit pas « terminé »", async () => {
@@ -240,12 +340,12 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
   it("budget : lancements épuisés → BUDGET_HOLD ; le plafond relevé, le chantier reprend seul et finit", async () => {
     const ports = fauxPortsDev({ surSession: (k) => (k === 1 ? { sha: "abab000000000001", checks: "rouge", extrait: "Type error" } : { sha: "abab000000000002", checks: "vert" }) });
     const id = await lancer(plan());
-    const serre = { ...REGLAGES_CHANTIERS_DEFAUT, lancementsMax: 1 };
+    const serre = { ...REGLAGES_BANC, lancementsMax: 1 };
     expect(await jusquAuBout(id, ports, { reglages: serre })).toBe("PAUSED");
     const m = await prisma.mission.findUnique({ where: { id }, select: { pausedReason: true } });
     expect(m?.pausedReason).toMatch(/^BUDGET_HOLD — 1 lancements de Claude Code sur 1/);
     // Un plafond de CHANTIER se lève seul quand la console le relève : la conduite suivante reprend sans clic.
-    expect(await jusquAuBout(id, ports, { reglages: { ...REGLAGES_CHANTIERS_DEFAUT, lancementsMax: 3 } })).toBe("COMPLETED");
+    expect(await jusquAuBout(id, ports, { reglages: { ...REGLAGES_BANC, lancementsMax: 3 } })).toBe("COMPLETED");
   });
 
   it("deux chantiers au périmètre recouvrant : le second attend en file, puis part quand le premier libère", async () => {
@@ -254,8 +354,8 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     const a = await lancer(plan({ perimetre: ["src/lib/missions/**"] }));
     const b = await lancer(plan({ perimetre: ["src/lib/missions/chantiers/**"] }));
     const h = new Horloge();
-    await conduireChantier(a, { ports: pA, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_CHANTIERS_DEFAUT, interrupteur: PAS_SUSPENDU, vagues: 1 });
-    await conduireChantier(b, { ports: pB, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_CHANTIERS_DEFAUT, interrupteur: PAS_SUSPENDU });
+    await conduireChantier(a, { ports: pA, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_BANC, interrupteur: PAS_SUSPENDU, vagues: 1 });
+    await conduireChantier(b, { ports: pB, cerveau: cerveauFactice().c, clock: h, reglages: REGLAGES_BANC, interrupteur: PAS_SUSPENDU });
     const eb = await etapes(b);
     expect(eb.lancer!.status).toBe("WAITING");
     expect((eb.lancer!.result as { attente: string }).attente).toMatch(/en file : le périmètre « src\/lib\/missions\/chantiers\/\*\* » recouvre « src\/lib\/missions\/\*\* »/);

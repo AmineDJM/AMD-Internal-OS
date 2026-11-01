@@ -12,10 +12,12 @@ import { signalerUneFois } from "@/lib/missions/travaux/signaux";
 import { TYPES_ETAPE_CHANTIER, type TypeEtapeChantier } from "@/lib/missions/chantiers/plan";
 import { jugerPreuves, lireDossier, type DossierChantier } from "@/lib/missions/chantiers/dossier";
 import { MOTIF_BUDGET_CHANTIER, lireReglagesChantiers, motifBudgetChantier, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
-import { executerEtape, rapporter, type ContexteEtape, type PortsDev } from "@/lib/missions/chantiers/etapes";
+import { executerEtape, rapporter, type ContexteEtape, type DeposerRapport, type PortsDev } from "@/lib/missions/chantiers/etapes";
 import { cerveauReel, type CerveauChantier } from "@/lib/missions/chantiers/cerveau";
 import { portsDevBranches } from "@/lib/missions/chantiers/ports-dev";
 import { liberer, prolonger } from "@/lib/missions/chantiers/reservations";
+import { memoriser } from "@/lib/missions/chantiers/memoire";
+import { cloreEcriture, reclamerEcriture } from "@/lib/missions/travaux/ecritures";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -45,6 +47,10 @@ export interface DepsChantier {
   vagues?: number;
   dureeMaxMs?: number;
   interrupteur?: LecteurInterrupteur;
+  /** Le rapport final en VRAI document au Drive de la Direction (dossier « Travaux ») — composé par `scheduled.ts`. */
+  deposerRapport?: DeposerRapport;
+  /** Le chantier vient de finir : la conversation qui l'a lancé en reçoit la synthèse (K3) — composé par `scheduled.ts`. */
+  surFin?: (chantierId: string) => Promise<void>;
   /** RÉSERVÉ AUX TESTS : un point d'arrêt avant chaque étape (SIGKILL simulé). */
   sondes?: { avantEtape?: (cle: string, type: TypeEtapeChantier) => Promise<void> };
 }
@@ -102,9 +108,13 @@ async function lireLeDossier(chantierId: string): Promise<DossierChantier> {
 
 /** Une écriture du dossier — relu, modifié, réécrit. Un seul écrivain : la conduite tient le bail, une étape à la fois. */
 export async function ecrireDossier(chantierId: string, maj: (d: DossierChantier) => void): Promise<DossierChantier> {
-  const d = await lireLeDossier(chantierId);
+  const m = await prisma.mission.findUnique({ where: { id: chantierId }, select: { carnet: true } });
+  const d = lireDossier(m?.carnet);
+  if (!d) throw new Error(`dossier de chantier illisible : ${chantierId}`);
   maj(d);
-  await prisma.mission.update({ where: { id: chantierId }, data: { carnet: { chantier: d } as unknown as Prisma.InputJsonValue } });
+  // Les AUTRES clés du carnet (les livrables, que lisent le tableau et la synthèse K3) sont gardées telles quelles.
+  const carnet = m?.carnet && typeof m.carnet === "object" && !Array.isArray(m.carnet) ? (m.carnet as Record<string, unknown>) : {};
+  await prisma.mission.update({ where: { id: chantierId }, data: { carnet: { ...carnet, chantier: d } as unknown as Prisma.InputJsonValue } });
   return d;
 }
 
@@ -134,6 +144,8 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
   if (!m) return bilan;
   bilan.statut = m.status;
   if (!m.planApprouveLe || !m.principalId) return { ...bilan, arret: "NON_APPROUVE" };
+  // LA COMPENSATION D'UNE FUSION se traite même sur un chantier TERMINÉ : c'est souvent après coup qu'on la demande.
+  await traiterRevert(chantierId, m.principalId, m.title, deps.ports === undefined ? portsDevBranches() : deps.ports, clock);
   if (TERMINAUX.has(m.status)) return bilan;
   const principalId = m.principalId;
   const reglages = deps.reglages ?? (await lireReglagesConsole());
@@ -164,6 +176,7 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
   let plafond: string | null = null;
   const contexte = (ctx: StepContext): ContexteEtape => ({
     chantierId, principalId, mission: ctx.mission, step: ctx.step, clock, ports, cerveau, reglages, plafondUsd: m.plafondUsd,
+    ...(deps.deposerRapport ? { deposerRapport: deps.deposerRapport } : {}),
     dossier: async () => (d = await lireLeDossier(chantierId)),
     ecrire: async (maj) => (d = await ecrireDossier(chantierId, maj)),
     conso: () => consommation(chantierId, d, clock.now()),
@@ -236,17 +249,41 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
   }
   const apres = await prisma.mission.findUnique({ where: { id: chantierId }, select: { status: true, costUsd: true } });
   bilan.statut = apres?.status ?? bilan.statut;
-  if (apres && FINIS.has(apres.status)) await clore(chantierId, principalId, m.title, apres.status, apres.costUsd, clock);
+  if (apres && FINIS.has(apres.status)) {
+    await clore(chantierId, principalId, m.title, apres.status, apres.costUsd, clock, deps.deposerRapport);
+    await deps.surFin?.(chantierId).catch(sansBloquer("chantiers.conduite.surFin"));
+  }
   return bilan;
 }
 
+/** LA PR DE REVERT, sous reçu : ouverte une fois, jamais deux ; dite à la Direction et retenue en mémoire technique. */
+async function traiterRevert(chantierId: string, principalId: string, titre: string, ports: PortsDev | null, clock: Clock): Promise<void> {
+  const d = await lireLeDossier(chantierId).catch(sansBloquer("chantiers.revert.dossier", null));
+  if (!d?.revertDemande || d.revert || !d.fusion || !ports) return;
+  const cle = `${chantierId}|revert|${d.fusion.pr}`;
+  const recu = await reclamerEcriture(cle, chantierId, "revert", "chantier:revert");
+  if (recu.etat === "INTERROMPU") return;
+  const r = recu.etat === "FAIT"
+    ? { ok: true as const, valeur: recu.resultat as { numero: number; url: string } }
+    : await ports.forge.proposerRevert(d.plan.depot, d.fusion.pr, `Revert « ${titre} » (#${d.fusion.pr})`, `Compensation de la fusion de #${d.fusion.pr} (${d.fusion.sha}) demandée par la Direction — chantier ${chantierId}. Sa fusion repasse par la validation.`);
+  if (recu.etat === "NEUF") await cloreEcriture(cle, r.ok ? "FAIT" : "ECHEC", r.ok ? r.valeur : { erreur: r.erreur });
+  if (!r.ok) {
+    await journaliser(chantierId, "CHANTIER_REVERT_ECHEC", `La PR de revert n'a pas pu être ouverte : ${r.erreur}`, {}, principalId);
+    return;
+  }
+  await ecrireDossier(chantierId, (x) => { x.revert = { numero: r.valeur.numero, url: r.valeur.url, le: clock.now().toISOString() }; });
+  await journaliser(chantierId, "CHANTIER_REVERT", `Fusion compensée : PR de revert #${r.valeur.numero} proposée (${r.valeur.url}).`, { numero: r.valeur.numero }, principalId);
+  await memoriser("decision", `${d.plan.depot.proprietaire}/${d.plan.depot.nom}:revert:${d.fusion.pr}`.toLowerCase(), `Fusion de #${d.fusion.pr} compensée par la PR de revert #${r.valeur.numero} (${r.valeur.url}).`, { source: "chantier", missionId: chantierId });
+  await signalerUneFois(chantierId, principalId, `revert:${d.fusion.pr}`, `PR de revert proposée — « ${titre} »`, `La fusion de #${d.fusion.pr} est compensée par la PR #${r.valeur.numero} : ${r.valeur.url}. Sa fusion vous sera soumise.`);
+}
+
 /** LA CLÔTURE — le rapport s'il manque (blocage, échec, annulation), les réservations libérées, la Direction prévenue. */
-export async function clore(chantierId: string, principalId: string, titre: string, statut: string, coutUsd: number, clock: Clock = systemClock): Promise<void> {
+export async function clore(chantierId: string, principalId: string, titre: string, statut: string, coutUsd: number, clock: Clock = systemClock, deposerRapport?: DeposerRapport): Promise<void> {
   const d = await lireLeDossier(chantierId).catch(sansBloquer("chantiers.clore.dossier", null));
   if (!d) return;
   if (!d.rapport) {
     await rapporter({
-      chantierId, clock,
+      chantierId, principalId, clock, ...(deposerRapport ? { deposerRapport } : {}),
       dossier: () => lireLeDossier(chantierId),
       ecrire: (maj) => ecrireDossier(chantierId, maj),
       journal: (kind, texte, detail) => journaliser(chantierId, kind, texte, detail, principalId),
