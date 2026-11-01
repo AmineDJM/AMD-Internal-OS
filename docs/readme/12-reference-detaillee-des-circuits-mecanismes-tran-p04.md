@@ -876,3 +876,26 @@ Décision `docs/assistant/decisions/0032-visuels.md`.
   refus sans rien lancer ni facturer. Interrupteur coupé par défaut.
 - **Média** : `/api/assistant-ia/visuels/[id]/media` — propriétaire seule, droits du Drive relus, requêtes partielles (206,
   indispensables au lecteur de l'iPhone), `?dl=1` à l'audit.
+
+### Chantiers de développement — Adam supervise Claude Code, GitHub et Render (lot C1, 01/11/2026)
+
+Décision [0042](../assistant/decisions/0042-chantiers-socle.md), architecture [CHANTIERS-DEV](../architecture/CHANTIERS-DEV.md).
+Code : `src/lib/missions/chantiers/` (moteur), `src/platform/dev/ports.ts` (contrat des connecteurs, adaptateurs au lot C2),
+`src/lib/models/mimo.ts` (passerelle), module `assistant-ia` : `infra/chantiers.ts`, `ecrans/reglages-chantiers.tsx`,
+`ecrans/missions/tableau-missions.tsx`.
+- **Qui** : le Super Admin seul (rôle relu à chaque passage et à chaque geste). Un chantier = `Mission` `kind = "CHANTIER"`,
+  conduite par le moteur des travaux (bail, reçus, reprise après coupure, tableau « Missions »).
+- **Étapes** (DSL fermé) : `DEV_LANCER` (dépendances, réservations, une session Claude Code sous reçu) → `DEV_ATTENDRE` (commit
+  neuf, sondage 1 → 10 min, 6 h au plus) → `DEV_VERIFIER` (périmètre, PR, checks du SHA de tête) → `DEV_CORRIGER` si rouge
+  (commentaire `@claude` sur la PR, anti-boucle) → par service, ERP d'abord : `RENDER_DEPLOYER` (preuve verte exigée,
+  fusion + revérification du SHA d'intégration si le service suit `main`) → `RENDER_VERIFIER` (santé, journaux) →
+  `RENDER_ROLLBACK` si malsain (autoDeploy coupé) → `RAPPORT` (SHA, checks, live, santé, coût).
+- **Réservations** `ChantierReservation` : `BRANCHE`, `PERIMETRE` (recouvrement → file d'attente), `MIGRATIONS` et
+  `DEPLOIEMENT` exclusifs ; tout ou rien, sous verrou ; expirent à 6 h si le chantier meurt.
+- **Anti-boucle et budgets** : même échec 2× → Sol une fois, 3× → blocage réel ; console Administration › IA › Chantiers
+  (dollars par chantier et par jour, lancements, déploiements, tentatives, parallélisme) → pause `BUDGET_HOLD` et reprise seule.
+- **Validation de la Direction** (carte du tableau, ou « valide » à l'écrit comme à l'oral dans la conversation) :
+  production, fusion sur main, rollback de production.
+- **Conversation** (Adventum IA) : `lancer_un_chantier`, `ou_en_est_chantier`, `valider_chantier`, `annuler_chantier`.
+- **Mémoire technique** `MemoireTechnique` (dépôts, services, branches, incidents) : extraits ≤ 2 k jetons dans la consigne.
+- Sans connecteurs branchés (C2), un chantier ne part pas et le dit.

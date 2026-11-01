@@ -23,6 +23,7 @@ import { openRemittances } from "@/lib/queries/general-means";
 import { resolveSource, sourceOf, sourceChange } from "@/lib/general-means/payment-source";
 import { toNumber } from "@/lib/utils";
 import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 const PATH = "/budgets/departements";
 
@@ -72,7 +73,7 @@ function list(formData: FormData, name: string): string[] {
  * décocher doit retirer. Mais une règle n'en écrase jamais une autre : la générale et celle du
  * département restent deux lignes distinctes, cumulées à la lecture.
  */
-export async function setDepartmentBudgetAccess(formData: FormData): Promise<ActionResult> {
+export async function setDepartmentBudgetAccess(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:setDepartmentBudgetAccess", "Régler l'accès au budget de département", async () => {
   const user = await requireUser();
   if (!canManageDepartmentBudgetAccess(setterOf(user))) {
     return { ok: false, error: "Régler les accès aux budgets départementaux est réservé au Super Admin." };
@@ -123,7 +124,7 @@ export async function setDepartmentBudgetAccess(formData: FormData): Promise<Act
 
   revalidatePath(PATH);
   return { ok: true, id: departmentId ?? "general" };
-}
+}); }
 
 /**
  * Règle le budget d'un département pour une année et une nature.
@@ -132,7 +133,7 @@ export async function setDepartmentBudgetAccess(formData: FormData): Promise<Act
  * tenterait de fixer la masse salariale se voit refuser, et réciproquement — même si les deux
  * cases sont dans le même tableau.
  */
-export async function setDepartmentBudget(formData: FormData): Promise<ActionResult> {
+export async function setDepartmentBudget(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:setDepartmentBudget", "Définir budget département", async () => {
   const user = await requireUser();
   const departmentId = fdStr(formData, "departmentId");
   const rawKind = fdStr(formData, "kind");
@@ -183,7 +184,7 @@ export async function setDepartmentBudget(formData: FormData): Promise<ActionRes
   revalidatePath(PATH);
   revalidatePath("/budgets");
   return { ok: true, id: departmentId };
-}
+}); }
 
 /**
  * Ce département est-il « le sien » ? Celui qu'elle dirige, celui dont elle tient la caisse, ou
@@ -218,7 +219,7 @@ async function headedDepartmentIds(userId: string): Promise<string[]> {
  * au lieu d'en faire un usage. Une dotation initiale est une rallonge partant de zéro — même
  * geste, même circuit, une seule trace à relire.
  */
-export async function requestDepartmentBudget(formData: FormData): Promise<ActionResult> {
+export async function requestDepartmentBudget(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:requestDepartmentBudget", "Demander budget département", async () => {
   const user = await requireUser();
   const departmentId = fdStr(formData, "departmentId");
   const rawKind = fdStr(formData, "kind");
@@ -258,14 +259,14 @@ export async function requestDepartmentBudget(formData: FormData): Promise<Actio
   });
   revalidatePath(PATH);
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * RETIRER SA DEMANDE DE DOTATION / RALLONGE (décision de la Direction, 04/10) — tant que
  * l'administration ne l'a pas tranchée. Elle se clôt (`CANCELLED`) par une écriture conditionnelle,
  * et l'administration est prévenue.
  */
-export async function annulerDemandeBudgetDepartement(formData: FormData): Promise<ActionResult> {
+export async function annulerDemandeBudgetDepartement(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:annulerDemandeBudgetDepartement", "Annuler demande budget département", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Demande introuvable." };
@@ -291,7 +292,7 @@ export async function annulerDemandeBudgetDepartement(formData: FormData): Promi
   });
   revalidatePath(PATH);
   return { ok: true, message: "Demande retirée — l'administration est prévenue." };
-}
+}); }
 
 /**
  * ACCORDER OU REFUSER une dotation / rallonge — l'administration, et elle seule.
@@ -299,7 +300,7 @@ export async function annulerDemandeBudgetDepartement(formData: FormData): Promi
  * Accorder AJOUTE au budget courant plutôt que de le remplacer : une rallonge s'ajoute par
  * définition, et remplacer effacerait silencieusement la dotation précédente.
  */
-export async function decideDepartmentBudgetRequest(formData: FormData): Promise<ActionResult> {
+export async function decideDepartmentBudgetRequest(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:decideDepartmentBudgetRequest", "Décider demande budget département", async () => {
   const user = await requireUser();
   if (!canDecideDepartmentBudgetRequest(setterOf(user))) {
     return { ok: false, error: "Accorder un budget est réservé à l'administration." };
@@ -348,7 +349,7 @@ export async function decideDepartmentBudgetRequest(formData: FormData): Promise
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * IMPUTER UNE DÉPENSE à un budget départemental — **avec sa pièce**.
@@ -358,7 +359,7 @@ export async function decideDepartmentBudgetRequest(formData: FormData): Promise
  * porte donc son justificatif (facture, bon de paiement) : sans pièce, une ligne de dépense
  * n'est qu'une affirmation.
  */
-export async function addDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function addDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:addDepartmentExpense", "Ajouter une dépense de département", async () => {
   const user = await requireUser();
   const departmentId = fdStr(formData, "departmentId");
   const rawKind = fdStr(formData, "kind");
@@ -473,7 +474,7 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * LA CAISSE D'AVANCE D'UN DÉPARTEMENT, telle qu'il faut la lire pour y imputer une dépense.
@@ -540,7 +541,7 @@ const AMEND_INCLUDE = {
  * la dépense en cours de correction, sans quoi son propre montant compterait deux fois et une
  * simple correction de libellé serait refusée faute d'argent.
  */
-export async function updateDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function updateDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:updateDepartmentExpense", "Modifier une dépense de département", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dépense introuvable." };
@@ -644,7 +645,7 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id };
-}
+}); }
 
 /**
  * SUPPRIMER UNE DÉPENSE IMPUTÉE — avec ses lignes et ses pièces.
@@ -657,7 +658,7 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
  * Les justificatifs partent avec elle : un scan de facture orphelin, rattaché à une dépense qui
  * n'existe plus, n'est plus consultable nulle part et occupe le stockage indéfiniment.
  */
-export async function deleteDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function deleteDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:deleteDepartmentExpense", "Supprimer une dépense de département", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dépense introuvable." };
@@ -687,4 +688,4 @@ export async function deleteDepartmentExpense(formData: FormData): Promise<Actio
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id };
-}
+}); }

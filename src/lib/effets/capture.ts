@@ -219,8 +219,11 @@ async function capturer(
               const avant = serialiserLigne(l, garder);
               const relue = parId.get(id) ?? null;
               const apres = serialiserLigne(relue ? { ...relue, ...pose } : null, garder);
+              // Dans une transaction interactive, la relecture (client de base) ne voit pas encore l'écriture : la ligne est
+              // notée quand même, avec les champs écrits — `finaliserCapture` la relit engagée et refait le constat (K10a).
+              const ecrits = Object.keys((a.data as object) ?? {}).filter((c) => garder.has(c));
               const champs = champsChanges(avant, apres);
-              if (champs.length) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs });
+              if (champs.length || ecrits.length) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs: champs.length ? champs : ecrits });
             }
             return r;
           }

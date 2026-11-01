@@ -365,6 +365,15 @@ petty-cash-allotment, petty-cash-top-up; ENREGISTRE = finance-direct, invoice ma
   and a separate **"Montant à régler"** card (`finances/paiements-a-faire/page.tsx:190-256`); `tresorerie.disponible`
   is computed and not rendered anywhere [V by rg].
 
+- **Reversibility (K10a, decision 0041)** [V]: every writing action of the money perimeter (107 actions, 15 action
+  files) runs under `annulable()` (`lib/effets/ecran.ts`) → journaled in J7 (`AssistantGesteJournal`, origin `ecran`)
+  and undone by `annulerGeste`. A ledger entry is never deleted: PENDING → CANCELLED; SETTLED from data entry →
+  **contre-passation** (same direction, negative amount, `compensationDeId`); OUT from a payment geste → stays, plus
+  an **"à récupérer"** IN/PENDING entry; the order's PAID status is restored. The undo is itself journaled
+  (redo = K10b `retablirGeste`, with a money hook `retablirEcritureTresorerie`). Declarations: `lib/effets/declarations/argent.ts`. Ratchet `lib/effets/argent-cliquet.test.ts`; flows `finances/reversibilite-*-flow.test.ts`.
+  Blast radius: `annulation.ts` now lifts J7's `PAIEMENT_EXECUTE`/`DEPOT_AUTORITE` refusal for `MODELES_ARGENT` —
+  for assistant gestes too.
+
 ### 4.12 Budgets: allocation, commitment, consumption
 
 - Model: `BudgetEnvelope` (period, modules, `domaine` GENERAL/MARKETING/REGULATORY/OPERATIONS — `schema:2999`,

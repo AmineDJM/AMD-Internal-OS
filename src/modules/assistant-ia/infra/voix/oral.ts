@@ -1,10 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
-import { annulerGeste, gestesDeLAssistant } from "@/platform/ia/hors-requete";
+import { annulerEffetSortant, annulerGeste, effetsSortantsDe, gestesDeLAssistant, retablirGeste } from "@/platform/ia/hors-requete";
 import { MASQUE_CONFIDENTIEL, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { DIT_A_L_ECRAN, NON_OUVERTE, pourLaVoix } from "../../domaine/terrain/voix";
-import { designesParNom, lireCommandeOrale, PREFIXE_PRECISION, PREFIXE_VOCAL, resumeOralBlocs } from "../../domaine/terrain/oral";
+import { designesParNom, lireCommandeOrale, phraseAnnulation, PREFIXE_PRECISION, PREFIXE_VOCAL, resumeOralBlocs } from "../../domaine/terrain/oral";
 import { lireReglagesAssistantIa } from "../consommation";
 import { annulerMissionEtSousMissions } from "../sous-missions";
 import { listerTravaux, pauserTravail, PERSONA_ASSISTANT_IA, reprendreMonTravail } from "../travaux";
@@ -229,12 +229,34 @@ export async function annoncesEnAppel(user: CurrentUser, sessionId: unknown): Pr
 
 // ─── LES COMMANDES ORALES ──────────────────────────────────────────────────────────────────
 
+/**
+ * « ANNULE » — la DERNIÈRE chose faite au nom de la personne, de moins de 30 minutes (K10b) : un ENVOI encore dans sa
+ * fenêtre (rien ne part : `annulerEffetSortant`) s'il est plus récent, sinon le dernier GESTE de l'assistant
+ * (`annulerGeste`, effet par effet : un courriel déjà parti est compensé par un rectificatif, et la voix le DIT).
+ */
 async function annulerDerniere(user: CurrentUser): Promise<RetourOral> {
-  const g = (await gestesDeLAssistant(user, { limite: 5 })).find((x) => !x.annuleLe && Date.now() - new Date(x.quand).getTime() < ANNULATION_MS);
-  if (!g) return { pourVoix: "Il n'y a pas d'action récente de l'assistant à annuler." };
+  const recent = (iso: string) => Date.now() - new Date(iso).getTime() < ANNULATION_MS;
+  const [gestes, envois] = await Promise.all([gestesDeLAssistant(user, { limite: 5 }), effetsSortantsDe(user, { depuisMinutes: 30 })]);
+  const g = gestes.find((x) => !x.annuleLe && recent(x.quand));
+  // Un envoi encore en fenêtre, hors geste de l'assistant (son geste l'annule avec lui).
+  const e = envois.find((x) => x.statut === "EN_ATTENTE" && recent(x.creeLe) && (!g || !x.gesteId || x.gesteId !== g.id));
+  if (e && (!g || new Date(e.creeLe) > new Date(g.quand))) {
+    const r = await annulerEffetSortant(e.id, user);
+    return { pourVoix: `${r.message} Dis-le en une phrase.` };
+  }
+  if (!g) return { pourVoix: "Il n'y a pas d'action récente de l'assistant à annuler. Dis-le simplement." };
   const r = await annulerGeste(g.id, user);
   if ("refus" in r) return { pourVoix: r.refus };
-  return { pourVoix: `Annulation de « ${g.libelle} » : ${r.resume}. Dis-le en une phrase${r.complet ? "" : ", en précisant ce qui n'a pas pu être défait"}.` };
+  return { pourVoix: `${phraseAnnulation(g.libelle, r.details)} Dis-le tel quel, sans enjoliver ; elle peut dire « rétablis » si elle change d'avis.` };
+}
+
+/** « RÉTABLIS » — la dernière annulation (< 30 min) s'annule : ce qui a bougé depuis est dit, jamais écrasé (K10b). */
+async function retablirDerniere(user: CurrentUser): Promise<RetourOral> {
+  const g = (await gestesDeLAssistant(user, { limite: 10 })).find((x) => x.annuleLe && Date.now() - new Date(x.annuleLe).getTime() < ANNULATION_MS);
+  if (!g) return { pourVoix: "Il n'y a pas d'annulation récente à rétablir. Dis-le simplement." };
+  const r = await retablirGeste(g.id, user);
+  if ("refus" in r) return { pourVoix: r.refus };
+  return { pourVoix: `${phraseAnnulation(g.libelle, r.details, true)} Dis-le tel quel.` };
 }
 
 async function commandeMission(user: CurrentUser, nature: "pause_mission" | "reprendre_mission" | "arreter_mission", texte: string): Promise<RetourOral> {
@@ -268,6 +290,7 @@ export async function traiterEnonceVocal(user: CurrentUser, d: { session: unknow
   const carte = await carteOraleEnAttente(user);
   const commande = lireCommandeOrale(parole, { carteEnAttente: !!carte });
   if (commande === "annuler_derniere") return annulerDerniere(user);
+  if (commande === "retablir_derniere") return retablirDerniere(user);
   if (commande === "pause_mission" || commande === "reprendre_mission" || commande === "arreter_mission") return commandeMission(user, commande, parole);
   if (commande === "stop") return { pourVoix: "La personne a dit stop : tais-toi et attends qu'elle reparle.", commande };
   if (commande === "plus_court") return { pourVoix: "La personne veut plus court : désormais, une phrase par réponse.", commande };

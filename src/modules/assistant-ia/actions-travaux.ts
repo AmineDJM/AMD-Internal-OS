@@ -93,6 +93,18 @@ export async function annulerMaMission(travailId: string): Promise<{ ok: true; m
   return (await api()).annulerMissionEtSousMissions(travailId, p.user.id);
 }
 
+/**
+ * C1 (décision 0042) : la CARTE DE VALIDATION d'un chantier au tableau « Missions » — valider ou refuser le geste
+ * critique qu'il attend (production, fusion sur main, rollback de production). Super Admin relu par le service.
+ */
+export async function validerMonChantier(chantierId: string, accorde: boolean): Promise<{ ok: true; message: string } | { ok: false; erreur: string }> {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(chantierId)) return { ok: false, erreur: "Chantier introuvable." };
+  const r = await (await api()).validerDepuisLeTableau(chantierId, p.user.id, accorde === true);
+  return r.ok ? { ok: true, message: r.message } : r;
+}
+
 /** « Démarrer d'office les travaux sans geste » : la préférence de la personne (null = le défaut de la console). */
 export async function lireMaPreferenceDOffice(): Promise<{ ok: true; preference: boolean | null; effectif: boolean } | { ok: false; erreur: string }> {
   const p = await porte(false);

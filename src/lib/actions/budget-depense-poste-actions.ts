@@ -19,6 +19,7 @@ import {
 import { fdNum, fdStr, type ActionResult } from "@/lib/actions/types";
 import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
 import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -189,20 +190,20 @@ async function imputation(formData: FormData, geste: GesteImputation): Promise<A
 }
 
 /** IMPUTER une dépense à un budget marketing — ses bons de commande signés, elle devient ENGAGÉE. */
-export async function imputerDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function imputerDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("budget-depense-poste-actions:imputerDepensePoste", "Imputer une dépense de poste", async () => {
   return imputation(formData, "IMPUTER");
-}
+}); }
 
 /** CHANGER LE BUDGET d'une dépense engagée, consommée ou payée — à tout moment, tracé ancien → nouveau. */
-export async function changerBudgetDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function changerBudgetDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("budget-depense-poste-actions:changerBudgetDepensePoste", "Changer le budget d'une dépense de poste", async () => {
   return imputation(formData, "CHANGER");
-}
+}); }
 
 /**
  * CONSOMMER une dépense engagée : le montant (≤ l'engagé), la facture facultative ; l'ordre de dépense du poste naît au
  * centre de paiement. Idempotent : la prise conditionnelle refuse un second envoi.
  */
-export async function consommerDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function consommerDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("budget-depense-poste-actions:consommerDepensePoste", "Consommer une dépense de poste", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Poste non précisé." };
@@ -300,10 +301,10 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
     }
     return { ok: false, error: "La consommation n'a pas pu être enregistrée." };
   }
-}
+}); }
 
 /** ANNULER une dépense engagée : l'engagement est libéré (motif facultatif). Refusé une fois consommée. */
-export async function annulerDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function annulerDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("budget-depense-poste-actions:annulerDepensePoste", "Annuler dépense poste", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Poste non précisé." };
@@ -326,4 +327,4 @@ export async function annulerDepensePoste(formData: FormData): Promise<ActionRes
     null, motif);
   revalider(owner);
   return { ok: true, id, message: `Dépense annulée : ${dzd(lue.depense.montantEngage)} rendus au budget.` };
-}
+}); }

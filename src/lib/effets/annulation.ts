@@ -11,6 +11,7 @@ import { annulerEffetSortant } from "./fenetre";
 import { etatDuGeste, sousGeste, type Capture, type EcritureCapturee, type EffetExterneCapture } from "./magasin";
 import { journaliserGeste } from "./journal";
 import { politiqueDe, type PolitiqueAnnulation } from "./politiques";
+import { defaireEcritureTresorerie, gesteDePaiement, MODELES_ARGENT } from "./argent";
 import { infoModele, MODELES_COMPTEURS, MODELES_JOURNAUX_ENVOI, MODELES_PIECES_NUMEROTEES, type InfoModele } from "./modeles";
 import { cleDeValeur, memeValeur, serialiserLigne, valeurLisible } from "./valeurs";
 
@@ -162,6 +163,8 @@ async function rattaches(c: Client, info: InfoModele, id: string, ignorer: Reado
 }
 
 const OCTETS = new Set(["FileBlob", "FileBlobChunk", "StoredFile"]);
+/** Des statuts d'AFFICHAGE dont les mots (« SUBMITTED ») ressemblent à un dépôt sans en être un (K10a). */
+const STATUTS_AFFICHES: ReadonlySet<string> = new Set(["RegulatoryProduct.externalStatus"]);
 
 const ACTE_NATURE: Readonly<Record<string, NatureGeste>> = {
   COURRIEL: "MESSAGE_ENVOYE", NOTIFICATION_PUSH: "MESSAGE_ENVOYE", INVITATION_AGENDA: "MESSAGE_ENVOYE", PAIEMENT: "PAIEMENT_EXECUTE",
@@ -210,6 +213,8 @@ interface Contexte {
   remis: Set<string>;
   appliquer: boolean;
   nomDe: (id: string | null | undefined) => Promise<string | null>;
+  /** Le geste a passé un modèle d'argent à « payé » (K10a, `argent.ts`) : son statut se remet, l'argent se compense. */
+  paiement: boolean;
   /** La politique de l'action annulée (K10c) — `null` : l'annulation J7 telle quelle. */
   politique: PolitiqueAnnulation | null;
   /** Qui annule — le rectificatif le nomme. */
@@ -217,7 +222,7 @@ interface Contexte {
 }
 
 /** Les champs MODIFIÉS d'une ligne : l'invariant de `plan.ts`, puis l'écriture verrouillée. */
-async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte): Promise<DetailEffet> {
+async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte, argentCompense = false): Promise<DetailEffet> {
   const quoi = phraseEcriture(e);
   const id = e.enregistrementId!;
   const avant = ligne(e.avant) ?? {};
@@ -226,7 +231,8 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte):
   if (!champs.length) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "seuls des horodatages avaient changé" };
   const actuelle = await lireActuelle(ctx.c, info, id);
   if (!actuelle) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${natureDe(e.modele!)} n'existe plus : il n'y a plus rien à remettre`, aLaPlace: null };
-  const resume = (c: string) => `${e.modele}.${c} → ${valeurLisible(apres[c])}`;
+  // Un statut « payé » (argent compensé) ou « transmis » au centre (K10a) se juge comme un champ : la valeur n'entre pas dans la phrase.
+  const resume = (c: string) => (argentCompense ? `${e.modele}.${c} (circuit d'argent interne, argent compensé)` : `${e.modele}.${c} → ${valeurLisible(apres[c])}`);
   const changements: Changement[] = champs.map((c) => ({
     id: `${e.id}:${c}`, auteurId: null, auteurNom: ctx.agent, parAdam: true, quand: ctx.creeLe, action: "UPDATE",
     module: e.modele!, entite: e.modele, entiteId: id, champ: c, avant: cleDeValeur(avant[c] ?? null), apres: cleDeValeur(apres[c] ?? null), resume: resume(c),
@@ -424,6 +430,11 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
   if (MODELES_COMPTEURS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "un numéro de pièce attribué ne se rend jamais (deux pièces porteraient le même) : la pièce est annulée, son numéro reste consommé" };
   }
+  // La FILE D'INDEXATION de la bibliothèque (une fiche prise par l'ingestion) : un état technique qui suit sa pièce
+  // (cascade) — rien de métier à défaire.
+  if (e.operation === "SQL" && e.modele === "BibliothequeFiche") {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "indexation de la bibliothèque (file technique d'ingestion) : elle suit sa pièce, retirée ou gardée avec elle" };
+  }
   if (e.operation === "SQL" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "compteur de références des octets d'une pièce : la purge des fichiers orphelins s'en charge" };
   }
@@ -435,21 +446,35 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
   // UN CHANGEMENT DE STATUT QUI VAUT PAIEMENT, DÉPÔT OU SIGNATURE ne se « remet » pas : la table de réversibilité tranche.
   if (e.operation === "UPDATE") {
     const apres = ligne(e.apres) ?? {};
+    let argentCompense = false;
     for (const c of e.champs) {
       const nature = natureDuJournal({ action: "UPDATE", module: e.modele, resume: `${c} ${valeurLisible(apres[c])}`, champ: c });
       const v = classerGeste(nature);
-      if (nature !== "CHAMP_MODIFIE" && v.reversibilite !== "REVERSIBLE") {
+      // K10a : le statut « payé » d'un modèle d'argent se remet quand le geste est un paiement — l'argent, lui, est
+      // compensé par l'écriture « à récupérer » (`argent.ts`), jamais effacé. Et un « SUBMITTED » d'un modèle d'argent
+      // est une transmission INTERNE (au centre de paiement), pas un dépôt à une autorité : il se remet comme un champ.
+      const argent = (MODELES_ARGENT.has(e.modele ?? "") && ((nature === "PAIEMENT_EXECUTE" && ctx.paiement) || nature === "DEPOT_AUTORITE"))
+        // Le statut que le PORTAIL FOURNISSEUR affiche (« soumis », « en revue ») n'est pas le dépôt lui-même : un champ.
+        || STATUTS_AFFICHES.has(`${e.modele}.${c}`);
+      argentCompense ||= argent;
+      if (nature !== "CHAMP_MODIFIE" && v.reversibilite !== "REVERSIBLE" && !argent) {
         return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: v.raison, aLaPlace: v.compensation ?? v.delegueA };
       }
     }
-    return defaireModification(e, info, ctx);
+    return defaireModification(e, info, ctx, argentCompense);
   }
   // LES OCTETS D'UNE PIÈCE (blob, tranches) : comptés par références, retirés par la purge des orphelins dès que plus
   // rien n'y renvoie — les supprimer ici casserait une autre pièce qui partagerait les mêmes octets (dédoublonnage).
   if (e.operation === "CREATE" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "octets d'une pièce, partagés par empreinte : la purge des fichiers orphelins les retire dès que plus rien n'y renvoie" };
   }
-  if (e.operation === "CREATE") return defaireCreation(e, info, ctx);
+  if (e.operation === "CREATE") {
+    const argent = await defaireEcritureTresorerie(e, {
+      effetId: e.id, quoi, appliquer: ctx.appliquer, paiement: ctx.paiement, acteurId: ctx.user.id,
+      lire: (i, x) => lireActuelle(ctx.c, i, x), ecrireVerrouille,
+    });
+    return argent ?? defaireCreation(e, info, ctx);
+  }
   return defaireSuppression(e, info, ctx);
 }
 
@@ -490,6 +515,29 @@ const nomsEnCache = () => {
   };
 };
 
+/**
+ * L'ENFANT D'ABORD (K10a) — une ligne créée par ce geste et vers laquelle une AUTRE ligne créée par ce geste renvoie
+ * (sa clé dans l'« après » de l'autre) se défait APRÈS elle, quel que soit l'ordre d'écriture : la remise de caisse
+ * naît avant son ordre de dépense, puis le pointe. Sans cela l'ordre, jugé le premier, voyait la remise « rattachée »
+ * et n'était que compensé, alors que le même geste allait la retirer.
+ */
+export function enfantsDAbord<E extends { operation: string | null; enregistrementId: string | null; apres: unknown }>(effets: E[]): E[] {
+  const out = [...effets];
+  const renvoie = (f: E, id: string) => f.operation === "CREATE" && f.enregistrementId !== id && Object.values(ligne(f.apres) ?? {}).includes(id);
+  for (let passe = 0; passe < out.length; passe += 1) {
+    let bouge = false;
+    for (let i = 0; i < out.length; i += 1) {
+      const id = out[i]!.operation === "CREATE" ? out[i]!.enregistrementId : null;
+      if (!id) continue;
+      let dernier = -1;
+      for (let j = i + 1; j < out.length; j += 1) if (renvoie(out[j]!, id)) dernier = j;
+      if (dernier > i) { out.splice(dernier, 0, ...out.splice(i, 1)); bouge = true; }
+    }
+    if (!bouge) break;
+  }
+  return out;
+}
+
 async function derouler(
   g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean,
   opts: { politique?: PolitiqueAnnulation | null; user: CurrentUser },
@@ -501,7 +549,8 @@ async function derouler(
   const ctx: Contexte = { user, libelle: g.libelle, politique, parNom: user.name ?? "Quelqu'un", c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, remis: new Set(), appliquer, nomDe: nomsEnCache(),
     // Les pièces numérotées nées de ce geste sont GARDÉES (annulées, jamais retirées) : connues d'avance, quel que soit
     // l'ordre où leurs fichiers ont été écrits.
-    gardes: new Set(g.effets.filter((e) => e.operation === "CREATE" && e.enregistrementId && MODELES_PIECES_NUMEROTEES.has(e.modele ?? "")).map((e) => e.enregistrementId!)) };
+    gardes: new Set(g.effets.filter((e) => e.operation === "CREATE" && e.enregistrementId && MODELES_PIECES_NUMEROTEES.has(e.modele ?? "")).map((e) => e.enregistrementId!)),
+    paiement: gesteDePaiement(g.effets) };
   const details: DetailEffet[] = [];
   // LE GESTE INVERSE MÉTIER (K10c) d'abord — la corbeille restaurée, par exemple : les effets qu'il prend en charge
   // ne repassent pas par l'annulation ligne à ligne.
@@ -515,7 +564,7 @@ async function derouler(
   // DU PLUS RÉCENT AU PLUS ANCIEN (`plan.ts`) : l'enfant créé après son parent est défait avant lui. Le SQL brut, lui,
   // se juge en DERNIER : il suit ce qu'est devenue la ligne dont sa table dépend.
   const sql = g.effets.filter((e) => e.type === "ECRITURE" && e.operation === "SQL");
-  for (const e of g.effets.filter((x) => !sql.includes(x))) {
+  for (const e of enfantsDAbord(g.effets.filter((x) => !sql.includes(x)))) {
     const d = await issueEffet(e, ctx).catch((err): DetailEffet => ({
       effetId: e.id, issue: "IMPOSSIBLE", quoi: e.type === "EXTERNE" ? e.cible ?? "effet" : phraseEcriture(e),
       pourquoi: `l'annulation a échoué sur cet effet (${err instanceof Error ? err.message.slice(0, 160) : String(err)}) — rien n'y a été écrit`, aLaPlace: null,

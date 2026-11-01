@@ -444,6 +444,32 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
   files too.
 
+- **Chantiers de développement C1 (01/11/2026)** [V] decision `docs/assistant/decisions/0042-chantiers-socle.md`,
+  architecture `docs/architecture/CHANTIERS-DEV.md`. `src/lib/missions/chantiers/`: a *chantier* is a `Mission` with
+  `kind = "CHANTIER"`, `persona = "ADAM"`, `principalId` = SUPER_ADMIN (role re-read each pass, `refusChantier`). Closed DSL
+  (`plan.ts`: DEV_LANCER/ATTENDRE/VERIFIER/CORRIGER, RENDER_DEPLOYER/VERIFIER/ROLLBACK, RAPPORT; default plan; refusals) compiled
+  to **WORKER** nodes, every step also depending on DEV_LANCER so synthesis nodes run past a dead intermediate — handlers
+  (`etapes.ts`) guard by PROOFS (no deploy without green checks on the exact SHA → SKIPPED). No DAG loop: the correction loop
+  lives inside DEV_CORRIGER (its WAITING result carries phase/tour/base), rollback is a `when` on `sain`. Waiting = `WAITING`
+  + `result.reessayerA`; `conduite.ts remettreEnFile` sets due ones READY with `attempt: 0`. External gestures under
+  `TravailEcriture` receipts; INTERROMPU never blindly replayed. Juge = `dossier.ts jugerPreuves` (green SHA = head, each planned
+  deploy live on it and healthy, no blocage) → otherwise BLOCKED/PARTIAL; `clore` writes the report if missing.
+  Dossier in `Mission.carnet.chantier`. Reservations `ChantierReservation` (unique `cle`, advisory-lock transaction, conservative
+  glob overlap `perimetre.ts`, 6 h expiry renewed each pass). Budgets `regles.ts` + `AppSetting.chantiersReglages` → pause
+  `BUDGET_HOLD` (auto-resume when raised). Router `routeur.ts` (deterministic → MiMo → Terra → Sol); `cerveau.ts` under
+  `sousImputation({ missionId, feature: "chantier" })`; MiMo adapter `src/lib/models/mimo.ts` (key `process.env.mimo`, base
+  `MIMO_BASE_URL`, model `MIMO_MODEL` default `mimo-v2.6-pro` unconfirmed, cost null unless `MIMO_PRICE_IN/OUT`). Memory
+  `MemoireTechnique` (`memoire.ts`, excerpts ≤ 2k tokens). The engine keeps ITS port contract (`ports-moteur.ts`, the original
+  text); C2's richer connectors (`src/platform/dev/ports.ts`, `platform/in-process/chantiers/`) are translated by the pure
+  `adaptateur-c2.ts` (files via compare-with-base, CI excerpt from the job log tail, Render 202-queued deploy found by SHA, PR
+  relaunch via `relancerDansPr` with idempotency key, `INCERTAIN` surfaced, no open/merge PR → Claude opens it, Direction merges
+  after validation), composed in `scheduled.ts brancherConnecteursDev` → `ports-dev.ts brancherPortsDev`; none (no GitHub token)
+  → chantier waits and says so. DEV_CORRIGER waits `autofixMinutes` (default 15) once per tour for the session's native PR
+  Auto-fix before relaunching (Direction decision 01/11). Dashboard: `travaux/tableau.ts` covers
+  `kind IN (TRAVAIL, CHANTIER)` with a `chantier` field; dashboard buttons routed by `travaux/service.ts siChantier`. Assistant IA
+  tools `infra/chantiers.ts` (SUPER_ADMIN only). Sweep `chantiers.balayage` + fast wake loop. Benches `chantiers/*.test.ts`,
+  `scripts/bench/chantier-processus.ts` (two-process reservation race, SIGKILL in DEV_ATTENDRE).
+
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
   `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
   (reads the view to locate targets, e.g. every PPTX shape holding a text) and computes `zonesModifiees` (content-based diff for
@@ -594,7 +620,7 @@ later `what_changed` tool reads it as a hint and re-reads canonical data.
 
 - **Capture → cards**: `infra/terrain/captation.ts` (idempotent on `(userId, cle)`) → Drive → `transcrireMedia` (`gpt-transcribe`, no forced language, vocabulary hint; `modeleSttTerrain` in `platform/ia/modeles-roles.ts`, chosen by the bench `scripts/banc-stt-terrain.mjs`) → `genererTexte` + `lireCompteRendu` (untrusted JSON) → `resoudreMedecin` over `scopeMedicalDoctors` → `preparerCarte` (same `proposer` + `persistActionIntents` as model tools). Operations `terrain_*` live in `OPERATIONS_IA` (MOTS_CLES fiches, not SOCLE_OUTILS) and execute through screen actions (`createFieldReport`/`updateFieldReport`, `demanderMateriel`, `ouvrirPlanTournee`+`planifierVisites`, `rattacherPhotoTerrain`).
 - **Realtime voice (GPT-Live, `gpt-live-1` only — Direction 30/10, no fallback)**: socle `platform/ia/voix/session-temps-reel.ts` (server-side SDP exchange with `POST /v1/live/sessions`, `delegation: { type: "client" }`, no secret reaches the browser; zero imports) + `client-temps-reel.ts` (thin WebRTC client: on `session.delegation.created` it posts what the user said to `/api/assistant-ia/voix/delegation` and returns the result with `session.commentary.append`; latency read on the session timeline from transcript `start_ms`/`end_ms`; graceful `session.close` → `session.closed` usage). Module `infra/voix/temps-reel.ts`: delegation = `deposerMessage` + `traiterFil` — the SAME text assistant (tools, rights, console, repères, cards) in the SAME fil; voice text via `sansValeursRevelees`; transcript appended to the fil at the end; model = admin setting `AssistantIaReglage.modeleVoix` → `ASSISTANT_IA_VOICE_MODEL` → `gpt-live-1`. Adam's realtime untouched.
-- **K9 — fully oral voice (decision 0039, built on K4's oral card `0038-voix-orale`)**: delegation no longer blocks — `/voix/delegation` returns a work id at once (`AssistantIaVoixTravail`, scoped to the user's `AssistantIaVoixSession`), the browser polls `/voix/travail` and injects the result with `session.commentary.append` under the latest delegation id; a refinement said meanwhile is appended to the waiting user turn, or replayed as a targeted precision turn that sees the in-flight answer (old work `remplacePar`, stale result never spoken); unspoken results are injected at the next `session.started` (`reprisesOrales`). Voice turns get `CONSIGNE_ORALE` (`infra/fil/service.ts`); tables/charts/analyses/visuals are summarised server-side in one sentence (`resumeOralBlocs`). The card is K4's (`infra/voix/carte-orale.ts`): opened when the work's result arrives, oral yes judged server-side on the person's own transcript (`estOuiExplicite`, now with darja), executed through `infra/confirmation.ts:confirmerCarte` (same gate as the button); K9 removed the spoken key element (the voice reads it back, the server supplies the stored retype) and made a late « oui » robust (client waits up to 4 s for the first fragment; empty parole after the question → ask again). Router `infra/voix/oral.ts:traiterEnonceVocal`: oral commands (undo last gesture J7, pause/resume/stop mission K3, stop, shorter) → oral card → precision → new work; client-side barge-in mutes the audio element.
+- **K9 — fully oral voice (decision 0039, built on K4's oral card `0038-voix-orale`)**: delegation no longer blocks — `/voix/delegation` returns a work id at once (`AssistantIaVoixTravail`, scoped to the user's `AssistantIaVoixSession`), the browser polls `/voix/travail` and injects the result with `session.commentary.append` under the latest delegation id; a refinement said meanwhile is appended to the waiting user turn, or replayed as a targeted precision turn that sees the in-flight answer (old work `remplacePar`, stale result never spoken); unspoken results are injected at the next `session.started` (`reprisesOrales`). Voice turns get `CONSIGNE_ORALE` (`infra/fil/service.ts`); tables/charts/analyses/visuals are summarised server-side in one sentence (`resumeOralBlocs`). The card is K4's (`infra/voix/carte-orale.ts`): opened when the work's result arrives, oral yes judged server-side on the person's own transcript (`estOuiExplicite`, now with darja), executed through `infra/confirmation.ts:confirmerCarte` (same gate as the button); K9 removed the spoken key element (the voice reads it back, the server supplies the stored retype) and made a late « oui » robust (client waits up to 4 s for the first fragment; empty parole after the question → ask again). Router `infra/voix/oral.ts:traiterEnonceVocal`: oral commands (undo the last thing done — an outgoing send still in its window via `annulerEffetSortant`, else the last gesture via `annulerGeste`, said honestly by `phraseAnnulation` — and redo via `retablirGeste` (K10b), pause/resume/stop mission K3, stop, shorter) → oral card → precision → new work; client-side barge-in mutes the audio element.
 - **Known limit**: a real `gpt-live-1` session was created (HTTP 201, 6.8 s) but WebRTC media (UDP) does not pass the dev container's egress; first real p50 is logged in production (`[assistant-ia] voix temps réel`).
 
 ### 6.5 Card forms, folder deposit, large volumes (J11, decision 0030)
@@ -760,3 +786,37 @@ Gotchas [V]:
 [V, K8] `ModelCallLog` no longer misses calls made before the sink is installed (queue + `instrumentation.ts`).
 [U] `node:vm` + worker sandbox strength against hostile model-generated code.
 [U] Production `AiSetting` / `AppSetting` values (switch states) — not read.
+
+## C2 (2026-11-01) — connecteurs des chantiers de développement [V]
+
+- **Contract** `src/platform/dev/ports.ts` (zero import, L0 socle): `AgentDeveloppeur` (Claude Code), `ForgeGit` (GitHub),
+  `Hebergeur` (Render), `FaitDev`. Every method returns `Resultat<T>`; error codes `NON_CONFIGURE|AUTH|INTERDIT|INTROUVABLE|
+  QUOTA|INVALIDE|CONFLIT|INDISPONIBLE|RESEAU|INCERTAIN|SIMULE|INCONNU` with `reessayable` / `reessayerApresMs`. Composition
+  root `in-process/chantiers/connecteurs.ts` (`connecteursDev()` → `{agent, forge|null, hebergeur|null}`); the mission engine (lot C1) consumes it.
+- **Claude Code** = Routines API `/v1/claude_code/routines/{trig}/fire` (subscription) + `@claude` PR comment (GitHub
+  Action). No claude.ai credential server-side (Anthropic legal terms). Resuming an existing subscription session is
+  impossible server-side → continuity through branch + PR thread. Fire has **no idempotency**: `DevLancement.cleIdempotence`
+  claimed before sending (`createMany skipDuplicates`); timeout / connection reset / HTTP 500 ⇒ `INCERTAIN` (key blocked,
+  never replayed); 429 / 503 / pre-send network error ⇒ `ECHEC` (key re-claimable). Local hourly quota 30/routine,
+  100/account counted before the 429. Fire text arrives wrapped in `<routine-fire-payload>` (untrusted): the routine's own
+  prompt must opt in (decision 0043 § 2).
+- **Writes** (fire, comment, deploy, cancel, rollback, autoDeploy, rerun) call `noterEffetExterne` (J7): recorded in real
+  mode, neutralised (`SIMULE`) in simulation. Note: the J7 network port does NOT record anthropic.com calls by itself
+  (`HOTES_MODELES`), hence the explicit note.
+- **Webhooks** → `recevoirWebhook` (`reception.ts`): signature first (503 without secret, 401 bad), facts with SEMANTIC
+  keys claimed in `IngestedEvent (source "dev-github"|"dev-render", externalId)`, then `recordEvent` injected by the route
+  (`BusinessEvent` types `DEV_PUSH|DEV_PR|DEV_CHECKS|DEV_WORKFLOW|DEV_COMMENTAIRE|RENDER_DEPLOIEMENT|RENDER_SERVICE`,
+  `sourceDomain "DEV"`, refs `DEPOT:`, `BRANCHE:<repo>:<branch>`, `SHA:`, `PR:<repo>#n`, `SERVICE:`, `DEPLOIEMENT:`) → wakes
+  `WAIT_EVENT`. Polling (`sondage.ts`, 30 s ×2 → 15 min) emits the same keys ⇒ one event per fact.
+- Layout: PURE part in `src/platform/dev/` (ports, http, config, webhooks, consigne — no Prisma: `boundary.test.ts` forbids
+  any ERP import in `src/platform/` outside the bridge); adapters, `DevLancement`, reception, polling, probes and the
+  composition root `connecteursDev()` in the bridge `src/platform/in-process/chantiers/`. The registry (`recordEvent`) is
+  injected by the route, not imported.
+- **CLI relay** (Direction 01/11): `scripts/relais-claude.ts` on a Direction machine (`claude auth login`) long-polls
+  `GET /api/dev/relais/ordres` (Bearer `CLAUDE_RELAIS_TOKEN`), runs `claude --cloud "<task>"` (CREER, after pushing the
+  reserved branch) or `claude -p --cloud <id> --output-format json` (MESSAGE, stdin), POSTs raw output; the ERP interprets
+  it (`platform/dev/relais.ts` `interpreter`, pure). Queue `ClaudeRelaisOrdre` (idempotent key; 20 min EN_COURS ⇒
+  INCERTAIN; 1 h unpulled ⇒ ECHEC), heartbeat `ClaudeRelaisEtat`, completion ⇒ `BusinessEvent DEV_SESSION` with the
+  order's `missionId`. Agent port: `lancerParCli`, `envoyerMessage`, `ordreCli`, `relais()`. Managed Agents: not coded.
+- Auto-fix: `ConsigneDev.autoFix` asks the session to turn on native PR auto-fix (Claude GitHub App required);
+  `apresEchec()` in `sondage.ts` shows a new push after a red verdict.

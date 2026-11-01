@@ -77,6 +77,8 @@ export {
   annulerMissionEtSousMissions, balayerSousMissions, conclureSousMissions, lirePreferenceDOffice, reglerPreferenceDOffice, signatureTableau, tableauDesMissions, travauxDOfficePour,
   type MissionDuTableau, type TableauDesMissions,
 } from "./infra/sous-missions";
+// ── C1 (décision 0042) : les chantiers de développement du Super Admin — la carte de validation du tableau « Missions »
+export { etatChantiersPourAdministration, normaliserReglagesChantiers, validerDepuisLeTableau } from "./infra/chantiers";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";

@@ -58,7 +58,7 @@ export interface MaterialiserOptions {
    * n'importe quel collaborateur). Sans elle, un travail écrit par cette fonction deviendrait une mission
    * d'Adam : son balayage la conduirait, et Mission Control la montrerait au Super Admin.
    */
-  kind?: "RUNTIME" | "TRAVAIL";
+  kind?: "RUNTIME" | "TRAVAIL" | "CHANTIER";
   /** Les colonnes posées à la NAISSANCE seulement (personne au nom de qui, persona, carnet…) — jamais à un replan. */
   naissance?: Partial<Prisma.MissionUncheckedCreateInput>;
 }

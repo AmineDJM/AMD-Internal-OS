@@ -256,6 +256,8 @@ export const ADMIN_TABS: NavTab[] = [
   // La LIAISON au site public (§118.160) : la clé, la vérification, le rapprochement à la demande,
   // la mise en service — Super Admin seul. Les contenus se publient, eux, depuis le module « Site web ».
   { module: "ADMIN", label: "Site web (connexion)", href: "/admin/site-web" },
+  // C2 (décision 0043) : les connecteurs des chantiers (Claude Code, GitHub, Render, MiMo) — état et sondes, Super Admin seul.
+  { module: "ADMIN", label: "Développement", href: "/admin/developpement" },
   { module: "ADMIN", label: "Test Center", href: "/admin/test-center" },
 ];
 
