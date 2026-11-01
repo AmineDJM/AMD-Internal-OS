@@ -1,6 +1,6 @@
 # Audit M1 — Adventum IA sur serveur réel (01/11/2026)
 
-**Conditions** : build de production propre (`rm -rf .next && APP_MODE=adventum-ia RENDER=1 npm run build:render`,
+**Conditions** : build de production propre — trois fois (mode app, après fusion, puis ERP) (`rm -rf .next && APP_MODE=adventum-ia RENDER=1 npm run build:render`,
 lint + typecheck + build), `next start` en mode app sur la base de banc `amd_bench` (semée par
 `scripts/bench/seed-adam-bench.ts`), **vrai modèle** OpenAI (`gpt-6.1-terra` pour les tours, `gpt-6-luna` rapide,
 `gpt-image-2.5-sunburst`), compte de Direction du banc (Yacine Benali, assistant ouvert à sa personne). Script rejouable :
@@ -29,7 +29,7 @@ Erreurs de console (navigateur, réponses ≥ 500) pendant tout l'audit : **0**.
 | Images | ✅ marche | `AssistantIaVisuel` créé, image dans le Drive (famille « Images & vidéos » ouverte pour le banc — fermée par défaut). [iphone-14](iphone-14-image.jpg) |
 | Réglages | ✅ marche | thème, réponse vocale, missions d'office, notifications, appareils connectés, consommation. [iphone-16](iphone-16-reglages.jpg), [iphone-17](iphone-17-consommation.jpg) |
 | Voix — session temps réel | ⚪ non testable ici | la session WebRTC exige un vrai micro : la route répond proprement (502 du fournisseur à une offre SDP factice, 429 au plafond), jamais d'erreur serveur. La capture de fin de session est prouvée ci-dessus. |
-| ERP `/assistant` — panneau « Ce qu'il retient » | voir § ERP | même composant (`MemoirePanel`), même ligne « Retenu » (`ChatMessageList`). |
+| ERP `/assistant` — panneau « Ce qu'il retient » | ✅ marche | serveur de production SANS `APP_MODE` (l'ERP), même compte : 4 souvenirs, compteur, souvenir vocal (« retenu de la conversation vocale »), ouvert par « Ma mémoire » (bureau) et « Plus d'outils › Ma mémoire » (iPhone). Script `scripts/bench/m1-audit-erp.ts`. [erp-bureau](erp-bureau-panneau.jpg), [erp-iphone](erp-iphone-panneau.jpg) |
 
 ## Ce qui a été trouvé et CORRIGÉ dans ce lot
 
