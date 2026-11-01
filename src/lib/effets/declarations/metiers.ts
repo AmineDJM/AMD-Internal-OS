@@ -31,6 +31,8 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "assistant-ia-proactivite-actions:reglerMaVeille": retour(REGLAGE),
   "assistant-ia-proactivite-actions:reglerMonVeilleur": retour(`${REGLAGE} ; les constats écartés par l'arrêt reviennent en attente`),
   "assistant-ia-travaux-actions:reglerMaPreferenceDOffice": retour(REGLAGE),
+  // C1 (décision 0042) : la carte de validation d'un chantier (fusion, production, rollback).
+  "assistant-ia-travaux-actions:validerMonChantier": compensation("rien n'a encore agi : la validation est retirée et le geste attend de nouveau ; la PR a été fusionnée : une PR de REVERT est ouverte et proposée (jamais un force-push), sa fusion repasse par la validation ; un déploiement ou un rollback de production fait se défait par un rollback ou un nouveau chantier"),
   "assistant-ia-travaux-actions:reglerPrioriteMonTravail": retour(REGLAGE),
   "budget-pole-actions:imputerBv": retour("l'ordre (ou l'écriture payée) retrouve sa catégorie budgétaire d'avant"),
   "congress-request-actions:finalDecision": compensation("l'étape de décision est rouverte ; l'ordre de paiement et la déclaration nés de l'accord sont retirés ou annulés ; le demandeur reçoit un rectificatif s'il avait lu"),

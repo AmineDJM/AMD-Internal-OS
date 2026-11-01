@@ -40,6 +40,19 @@ mission en pause », « reprends », « arrête », « stop », « plus court »
 WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
 et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
 
+### C1 (phase 2) : LA FUSION SUR MAIN APRÈS APPROBATION, LE RÉVEIL PAR WEBHOOK, ADAM, LE RAPPORT AU DRIVE (2026-11-01)
+
+« La fusion sur main : tu la fais une fois que j'approuve » (Direction). Nouvelle étape `DEV_FUSIONNER` au plan type :
+PR verte (checks verts sur la tête, fusionnable) → carte **« Fusionner la PR #n (« titre ») dans main »**, écrite et orale
+(« vas-y » suffit) ; validée, l'ERP fusionne par l'API GitHub **au SHA vérifié** (refus si la tête a bougé, refus clair si
+la protection de branche l'interdit), vérifie la **CI de main sur le commit de fusion**, puis déploie (préproduction
+autonome ; production = sa propre carte). **Réversible** : annuler la validation retire la carte, ou — fusion faite —
+**ouvre une PR de revert** (jamais un force-push). Les webhooks GitHub/Render de C2 (`DEV_*`, `RENDER_*`) réveillent le
+chantier concerné aussitôt (le sondage reste en secours). Les quatre outils sont aussi chez **Adam** (sans relever
+`SOCLE_IA_CEILING`). Le **rapport final** part au Drive (dossier « Travaux »), en Word, et revient avec son lien dans la
+conversation qui a lancé le chantier. Plafonds par défaut confirmés (5 $ / chantier, 20 $ / jour, 4 lancements, 4
+déploiements, 3 tentatives, Auto-fix 15 min). Décision [0042](../assistant/decisions/0042-chantiers-socle.md) § 10.
+
 ### C1 : LES CHANTIERS DE DÉVELOPPEMENT — ADAM SUPERVISE CLAUDE CODE, GITHUB ET RENDER, SUR LE MOTEUR DES TRAVAUX (2026-11-01)
 
 Lot C1 — `docs/assistant/decisions/0042-chantiers-socle.md`, architecture `docs/architecture/CHANTIERS-DEV.md` (L1).

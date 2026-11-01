@@ -2283,7 +2283,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "retour",
+  "annulation": "compensation",
   "appelable": false
  },
  "auth-actions:authenticate": {

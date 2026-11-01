@@ -1,12 +1,14 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Brain, EyeOff, Menu, PanelRight, Settings, X } from "lucide-react";
+import { Brain, CalendarClock, EyeOff, Menu, PanelRight, Radar, Settings, X } from "lucide-react";
 import { ChatMessageList, type ChatMessage } from "../chat-message-list";
 import { BoutonJoindre, PiecesEnAttente, type PieceOuvrable } from "../pieces-jointes";
 import { EnregistreurVocal } from "../enregistreur-vocal";
 import { MemoirePanel } from "../memoire-panel";
 import { OUVRIR_MEMOIRE } from "../memoires-retenues";
+import { RoutinesPanel } from "../routines-panel";
+import { VeillePanel } from "../veille-panel";
 import { TravauxPanel } from "../travaux-panel";
 import { TableauMissions } from "../missions/tableau-missions";
 import { IndicateurMissions } from "../missions/carte-sous-missions";
@@ -79,6 +81,9 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
   const [panneauDossier, setPanneauDossier] = useState<"nouveau" | string | null>(null);
   const [tiroir, setTiroir] = useState<OngletTiroir | null>(null);
   const [memoire, setMemoire] = useState(false);
+  // Direction (01/11/2026) : « même l'onglet Routines je ne le vois pas » — les panneaux de l'ERP, dans l'app aussi.
+  const [routines, setRoutines] = useState(false);
+  const [veille, setVeille] = useState(false);
   const [reglages, setReglages] = useState(false);
   const [travaux, setTravaux] = useState<{ ouvert: boolean; initial: string | null }>({ ouvert: false, initial: null });
   // K3 (décision 0033) : le tableau de bord des missions, en temps réel — ouvert sur une mission ou non.
@@ -250,6 +255,12 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
                 <button type="button" onClick={() => { setMemoire(true); setListeOuverte(false); }} className="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-[14px] hover:bg-[var(--aia-survol)]">
                   <Brain className="h-4 w-4" aria-hidden /> Ce que l&apos;assistant retient
                 </button>
+                <button type="button" onClick={() => { setRoutines(true); setListeOuverte(false); }} className="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-[14px] hover:bg-[var(--aia-survol)]">
+                  <CalendarClock className="h-4 w-4" aria-hidden /> Routines
+                </button>
+                <button type="button" onClick={() => { setVeille(true); setListeOuverte(false); }} className="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-[14px] hover:bg-[var(--aia-survol)]">
+                  <Radar className="h-4 w-4" aria-hidden /> Veille
+                </button>
                 <button type="button" onClick={() => { setReglages(true); setListeOuverte(false); }} className="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-[14px] hover:bg-[var(--aia-survol)]">
                   <Settings className="h-4 w-4" aria-hidden /> Réglages · voix, notifications
                 </button>
@@ -348,6 +359,8 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
       )}
       <ApercuPiece piece={apercu} onFermer={() => setApercu(null)} onDemanderModification={f.vueExacte ? undefined : demanderModification} onOuvrirAtelier={f.vueExacte ? undefined : ouvrirDansAtelier} />
       <MemoirePanel ouvert={memoire} onFermer={() => setMemoire(false)} onOuvrirConversation={(id) => { setMemoire(false); ouvrir(id); }} />
+      <RoutinesPanel ouvert={routines} onFermer={() => setRoutines(false)} />
+      <VeillePanel ouvert={veille} onFermer={() => setVeille(false)} />
       <TravauxPanel ouvert={travaux.ouvert} onFermer={() => setTravaux({ ouvert: false, initial: null })} travailInitial={travaux.initial} />
       <TableauMissions ouvert={missions.ouvert} missionInitiale={missions.initial} onFermer={() => setMissions({ ouvert: false, initial: null })}
         onOuvrirLivrable={(piece) => setApercu(piece)} onOuvrirConversation={ouvrir} />

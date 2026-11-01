@@ -93,6 +93,9 @@
 .aia-onde { animation: aia-respire 2.2s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .aia-onde { animation: none; } }
 
+html.dark:has(.aia-coque),
+html.dark:has(.aia-coque) body { background: #08111f; }
+
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
  * UNE APP, PAS UNE PAGE (Direction, 31/10/2026) — seulement quand la COQUE de l'app est à l'écran (`.aia-coque`) :
  * la page ne glisse ni ne rebondit (pas d'élastique iOS, pas de « tirer pour rafraîchir »), rien ne déborde à droite,
@@ -100,6 +103,8 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════ */
 html:has(.aia-coque),
 html:has(.aia-coque) body {
+  /* Derrière les zones du système (barre d'état, barre d'accueil iPhone) : la couleur de l'app, jamais une bande blanche. */
+  background: #f5f8fc;
   height: 100%;
   overflow: hidden;
   overscroll-behavior: none;

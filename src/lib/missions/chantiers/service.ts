@@ -149,6 +149,27 @@ export async function annulerChantier(chantierId: string, principalId: string): 
   return { ok: true, chantierId, message: `Chantier annulé, réservations libérées.${sessions ? " Une session Claude Code déjà lancée peut finir son tour : rien ne sera déployé." : ""}` };
 }
 
+/**
+ * LA COMPENSATION D'UNE FUSION (décision 0042) — demandée par la Direction (outil, écran, ou annulation J7 de la carte de
+ * fusion) : une PR de REVERT sera ouverte et proposée au passage suivant (la conduite tient les connecteurs), jamais un
+ * force-push ; sa fusion repasse par la validation. Idempotente : une seule demande, une seule PR.
+ */
+export async function demanderRevertFusion(chantierId: string, parId: string, clock: Clock = systemClock): Promise<ResultatChantier> {
+  const refus = await refusChantier(parId);
+  if (refus) return { ok: false, erreur: refus };
+  const m = await prisma.mission.findFirst({ where: { id: chantierId, kind: KIND_CHANTIER }, select: { carnet: true } });
+  const d = lireDossier(m?.carnet);
+  if (!d) return { ok: false, erreur: "Chantier introuvable." };
+  if (!d.fusion) return { ok: false, erreur: "Aucune fusion à compenser sur ce chantier." };
+  if (d.revert) return { ok: true, chantierId, message: `La PR de revert existe déjà : #${d.revert.numero} (${d.revert.url}).` };
+  if (!d.revertDemande) {
+    await ecrireDossier(chantierId, (x) => { x.revertDemande = { par: parId, le: clock.now().toISOString() }; });
+    await journaliser(chantierId, "CHANTIER_REVERT_DEMANDE", `Compensation de la fusion demandée : une PR de revert de #${d.fusion.pr} va être proposée.`, {}, parId);
+  }
+  await signalerReveilChantier(chantierId, clock.now());
+  return { ok: true, chantierId, message: `Une PR de revert de #${d.fusion.pr} va être ouverte et proposée (jamais un force-push) ; sa fusion vous sera soumise.` };
+}
+
 export interface VueChantier extends VueDossier {
   id: string;
   titre: string;

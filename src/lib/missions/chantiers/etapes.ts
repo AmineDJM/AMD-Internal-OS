@@ -32,6 +32,10 @@ import { extraitMemoire, memoriser, noterEvenementDev } from "@/lib/missions/cha
 
 export interface PortsDev { agent: AgentDeveloppeur; forge: ForgeGit; hebergeur: Hebergeur }
 
+/** Le dépôt du rapport au Drive (dossier « Travaux » de la personne) — `reprise` : un dépôt interrompu, à RETROUVER d'abord. */
+export type DeposerRapport = (principalId: string, d: { chantierId: string; cle: string; titre: string; contenu: string; reprise: boolean }) =>
+  Promise<{ ok: true; document: { nodeId: string; nom: string; lien: string } } | { ok: false; erreur: string }>;
+
 export interface ContexteEtape {
   chantierId: string;
   principalId: string;
@@ -42,6 +46,7 @@ export interface ContexteEtape {
   cerveau: CerveauChantier;
   reglages: ReglagesChantiers;
   plafondUsd: number | null;
+  deposerRapport?: DeposerRapport;
   dossier(): Promise<DossierChantier>;
   ecrire(maj: (d: DossierChantier) => void): Promise<DossierChantier>;
   conso(): Promise<ConsommationChantier>;
@@ -351,6 +356,69 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
   return attendre(ctx, "reprise de la boucle de correction", 60_000, etat);
 }
 
+// ─────────────────────────────── DEV_FUSIONNER ───────────────────────────────
+
+/**
+ * LA FUSION (décision de la Direction, 01/11 : « tu la fais une fois que j'approuve ») — PR verte (checks verts sur le SHA
+ * de tête, fusionnable, périmètre respecté) → carte « Fusionner la PR #n (titre) dans <base> », écrite ou orale ;
+ * accordée : fusion AU SHA VÉRIFIÉ (GitHub refuse si la tête a bougé), puis CI de la BASE sur le commit de fusion.
+ * Compensation : une PR de revert proposée (`proposerRevertFusion`), jamais un force-push.
+ */
+async function devFusionner(ctx: ContexteEtape): Promise<StepOutcome> {
+  let etat = etatDe(ctx.step);
+  const d = await ctx.dossier();
+  const p = d.plan;
+  if (d.fusion) return { status: "DONE", result: { fusionne: true, sha: d.fusion.sha }, receipt: "CHANTIER_FUSION" };
+  if (!d.vert) return { status: "SKIPPED", raison: "aucune preuve verte : rien n'est fusionné" };
+  if (!etat.shaFusion) {
+    const lu = await ctx.ports.forge.pr(p.depot, p.branche);
+    if (!lu.ok) return apresEchecPort(ctx, "Lecture de la PR", lu, etat);
+    if (!lu.valeur) return echoue(`aucune PR ouverte depuis ${p.branche} : rien à fusionner`);
+    const pr = lu.valeur;
+    if (pr.etat === "fermee") return echoue(`la PR #${pr.numero} est fermée sans fusion`);
+    if (pr.etat === "fusionnee") {
+      // Fusionnée à la main entre-temps : la base dit le commit, la CI de la base le vérifie quand même.
+      const t = await ctx.ports.forge.branche(p.depot, p.brancheBase);
+      if (!t.ok || !t.valeur.sha) return t.ok ? echoue(`${p.brancheBase} introuvable`) : apresEchecPort(ctx, `Lecture de ${p.brancheBase}`, t, etat);
+      etat = { ...etat, shaFusion: t.valeur.sha, numero: pr.numero, manuelle: true };
+    } else {
+      if (pr.mergeable === false) return echoue(`la PR #${pr.numero} est en conflit avec ${p.brancheBase} : rien n'est fusionné`);
+      if (d.shaVu && d.shaVu !== d.vert.sha) return echoue(`la tête de ${p.branche} (${court(d.shaVu)}) n'est plus celle vérifiée (${court(d.vert.sha)})`);
+      const v = await validation(ctx, "FUSION", `Fusionner la PR #${pr.numero}${pr.titre ? ` (« ${pr.titre} »)` : ""} dans ${p.brancheBase} — SHA vérifié ${court(d.vert.sha)}`, etat);
+      if (v !== "ACCORDEE") return v;
+      const f = await sousRecu(ctx, "fusion", () => ctx.ports.forge.fusionnerPr(p.depot, pr.numero, d.vert!.sha));
+      if (f.etat === "INTERROMPU") return echoue("fusion interrompue par un redémarrage : vérifiez la PR avant de relancer (elle n'est pas rejouée)");
+      if (f.etat === "ECHEC") {
+        if (!f.r.definitif) return apresEchecPort(ctx, "Fusion de la PR", f.r, etat);
+        await ctx.ecrire((x) => { x.blocage = `fusion refusée : ${f.r.erreur}`; });
+        return echoue(`fusion refusée : ${f.r.erreur}`);
+      }
+      etat = { ...etat, shaFusion: f.valeur.sha, numero: pr.numero };
+      await ctx.journal("CHANTIER_FUSION", `PR #${pr.numero} fusionnée dans ${p.brancheBase} : ${court(f.valeur.sha)} (validée par la Direction).`, { sha: f.valeur.sha, pr: pr.numero });
+    }
+  }
+  const sha = String(etat.shaFusion);
+  const c = await ctx.ports.forge.checks(p.depot, sha);
+  if (!c.ok) return apresEchecPort(ctx, `Checks de ${p.brancheBase}`, c, etat);
+  if (c.valeur.statut === "en_cours") return sonder(ctx, `CI de ${p.brancheBase} en cours sur le commit de fusion ${court(sha)}`, etat);
+  if (c.valeur.statut === "aucun") {
+    if (num(etat.sansCheck) < 6) return attendre(ctx, `aucun check encore sur le commit de fusion ${court(sha)}`, 60_000, { ...etat, sansCheck: num(etat.sansCheck) + 1 });
+    await ctx.ecrire((x) => { x.blocage = `aucun check CI sur le commit de fusion ${court(sha)} : la base n'est pas vérifiée`; });
+    return echoue(`aucun check CI sur ${p.brancheBase} après la fusion`);
+  }
+  if (c.valeur.statut === "rouge") {
+    await ctx.ecrire((x) => { x.blocage = `${p.brancheBase} est ROUGE sur le commit de fusion ${court(sha)} — compensable par une PR de revert (« annuler la fusion »)`; x.fusion = { sha, pr: Number(etat.numero), base: p.brancheBase, le: ctx.clock.now().toISOString() }; x.vert = null; });
+    await memoriser("incident", `${nomDepot(p.depot)}:fusion:${p.branche}`.slice(0, 200), `Fusion de la PR #${String(etat.numero)} dans ${p.brancheBase} (${court(sha)}) : CI de la base ROUGE.`, { source: "chantier", missionId: ctx.chantierId });
+    return echoue(`CI de ${p.brancheBase} rouge sur le commit de fusion ${court(sha)} : rien n'est déployé`);
+  }
+  await ctx.ecrire((x) => {
+    x.fusion = { sha, pr: Number(etat.numero), base: p.brancheBase, le: ctx.clock.now().toISOString() };
+    x.vert = { sha, le: ctx.clock.now().toISOString() };
+    x.shaVu = sha;
+  });
+  return { status: "DONE", result: { fusionne: true, sha, manuelle: etat.manuelle === true }, receipt: "CHANTIER_FUSION" };
+}
+
 // ─────────────────────────────── RENDER_* ───────────────────────────────
 
 const serviceDe = (d: DossierChantier, id: unknown): ServiceChantier | null => d.plan.services.find((s) => s.id === id) ?? null;
@@ -372,50 +440,34 @@ async function renderDeployer(ctx: ContexteEtape): Promise<StepOutcome> {
   if (!d.vert) return { status: "SKIPPED", raison: "aucune preuve verte : rien n'est déployé" };
   const p = d.plan;
   const integre = !!s.branche && s.branche !== p.branche;
-  if (s.production || integre) {
-    const texte = `${integre ? `fusionner la PR #${d.pr?.numero ?? "?"} sur ${s.branche} puis ` : ""}déployer ${s.nom}${s.production ? " en PRODUCTION" : ""} (SHA vérifié ${court(d.vert.sha)})`;
-    const v = await validation(ctx, integre ? "FUSION_ET_DEPLOIEMENT" : "DEPLOIEMENT_PRODUCTION", texte, etat);
+  // UN SERVICE QUI SUIT LA BASE ne se déploie qu'après la fusion VALIDÉE (DEV_FUSIONNER) — jamais d'une PR non fusionnée.
+  if (integre && !(d.fusion && d.fusion.base === s.branche)) return { status: "SKIPPED", raison: `la PR n'est pas fusionnée dans ${s.branche} : rien n'est déployé` };
+  // UN PLAN QUI FUSIONNE ne déploie rien tant que la fusion n'a pas abouti (refusée, en échec, CI de la base rouge).
+  if (!d.fusion && p.etapes.some((e) => e.type === "DEV_FUSIONNER")) return { status: "SKIPPED", raison: "la fusion n'a pas abouti : rien n'est déployé" };
+  // LA REVÉRIFICATION ENSEMBLE : si d'autres chantiers ont fusionné par-dessus depuis, c'est la TÊTE de la base qui part
+  // — après ses propres checks. L'absence de conflit Git n'est pas l'absence de conflit fonctionnel.
+  if (integre && !etat.shaIntegre) {
+    const t = await ctx.ports.forge.branche(p.depot, s.branche!);
+    if (!t.ok) return apresEchecPort(ctx, `Lecture de ${s.branche}`, t, etat);
+    const tete = t.valeur.sha ?? d.fusion!.sha;
+    if (tete !== d.fusion!.sha) {
+      const c = await ctx.ports.forge.checks(p.depot, tete);
+      if (!c.ok) return apresEchecPort(ctx, "Checks de l'intégration", c, etat);
+      if (c.valeur.statut === "en_cours" || c.valeur.statut === "aucun") return sonder(ctx, `revérification de ${s.branche} sur ${court(tete)} (d'autres fusions depuis)`, etat);
+      if (c.valeur.statut === "rouge") {
+        await ctx.ecrire((x) => { x.blocage = `${s.branche} est rouge sur ${court(tete)} après d'autres fusions (conflit fonctionnel probable)`; });
+        return echoue(`intégration rouge sur ${court(tete)} : rien n'est déployé`);
+      }
+      d = await ctx.ecrire((x) => { x.vert = { sha: tete, le: ctx.clock.now().toISOString() }; x.shaVu = tete; });
+    }
+    etat = { ...etat, shaIntegre: tete };
+  }
+  if (s.production) {
+    const sha0 = (etat.shaIntegre as string | undefined) ?? d.vert!.sha;
+    const v = await validation(ctx, "DEPLOIEMENT_PRODUCTION", `déployer ${s.nom} en PRODUCTION (SHA vérifié ${court(sha0)})`, etat);
     if (v !== "ACCORDEE") return v;
   }
-  // LA FUSION (validée), puis la REVÉRIFICATION ENSEMBLE : les checks du SHA d'intégration EXACT, qui porte peut-être
-  // d'autres chantiers fusionnés entre-temps. L'absence de conflit Git n'est pas l'absence de conflit fonctionnel.
-  if (integre && !etat.shaIntegre) {
-    if (!d.pr) return echoue("aucune PR à fusionner");
-    if (!etat.fusionManuelle) {
-      const f = await sousRecu(ctx, "fusion", () => ctx.ports.forge.fusionnerPr(p.depot, d.pr!.numero));
-      if (f.etat === "INTERROMPU") return echoue("fusion interrompue par un redémarrage : vérifiez la PR avant de relancer");
-      if (f.etat === "ECHEC" && !f.r.definitif) return apresEchecPort(ctx, "Fusion de la PR", f.r, etat);
-      if (f.etat === "FAIT") {
-        etat = { ...etat, shaIntegre: f.valeur.sha };
-        await ctx.journal("CHANTIER_FUSION", `PR #${d.pr.numero} fusionnée sur ${s.branche} : ${court(f.valeur.sha)}.`, { sha: f.valeur.sha });
-      } else {
-        // LA FORGE NE FUSIONNE PAS (connecteur sans ce geste, ou refus) : la Direction fusionne à la main, le chantier l'attend.
-        await ctx.journal("CHANTIER_FUSION", `Fusion par la forge impossible (${f.r.erreur}) : fusionnez la PR #${d.pr.numero} sur ${s.branche}, le chantier reprend seul.`, {});
-        etat = { ...etat, fusionManuelle: true };
-      }
-    }
-    if (etat.fusionManuelle) {
-      const lu = await ctx.ports.forge.pr(p.depot, p.branche);
-      if (!lu.ok) return apresEchecPort(ctx, "Lecture de la PR", lu, etat);
-      if (lu.valeur?.etat !== "fusionnee") return sonder(ctx, `attend la fusion de la PR #${d.pr.numero} sur ${s.branche}`, etat);
-      const t = await ctx.ports.forge.branche(p.depot, s.branche!);
-      if (!t.ok) return apresEchecPort(ctx, `Lecture de ${s.branche}`, t, etat);
-      if (!t.valeur.sha) return echoue(`${s.branche} introuvable après la fusion`);
-      etat = { ...etat, shaIntegre: t.valeur.sha };
-    }
-  }
-  const sha = (etat.shaIntegre as string | undefined) ?? d.vert.sha;
-  if (integre && !etat.integrationVerte) {
-    const c = await ctx.ports.forge.checks(p.depot, sha);
-    if (!c.ok) return apresEchecPort(ctx, "Checks de l'intégration", c, etat);
-    if (c.valeur.statut === "en_cours" || c.valeur.statut === "aucun") return sonder(ctx, `revérification de ${s.branche} sur ${court(sha)}`, etat);
-    if (c.valeur.statut === "rouge") {
-      await ctx.ecrire((x) => { x.blocage = `l'intégration ${s.branche} est rouge sur ${court(sha)} (conflit fonctionnel probable)`; x.vert = null; });
-      return echoue(`intégration rouge sur ${court(sha)} : rien n'est déployé`);
-    }
-    d = await ctx.ecrire((x) => { x.vert = { sha, le: ctx.clock.now().toISOString() }; x.shaVu = sha; });
-    etat = { ...etat, integrationVerte: true };
-  }
+  const sha = (etat.shaIntegre as string | undefined) ?? d.vert!.sha;
   // LE SERVICE EST EXCLUSIF, et l'app attend une migration en vol (ERP d'abord).
   if (!etat.deployId) {
     const autre = await prisma.chantierReservation.findFirst({
@@ -530,12 +582,17 @@ async function renderRollback(ctx: ContexteEtape): Promise<StepOutcome> {
 // ─────────────────────────────── RAPPORT ───────────────────────────────
 
 /** LE RAPPORT — composé par le code depuis le dossier ; la mémoire technique apprend ce que le chantier a établi. */
-export async function rapporter(ctx: Pick<ContexteEtape, "chantierId" | "clock" | "dossier" | "ecrire" | "journal">, coutUsd: number, issueForcee?: "ANNULE"): Promise<{ issue: string; texte: string }> {
+export async function rapporter(
+  ctx: Pick<ContexteEtape, "chantierId" | "principalId" | "clock" | "dossier" | "ecrire" | "journal" | "deposerRapport">, coutUsd: number, issueForcee?: "ANNULE",
+): Promise<{ issue: string; texte: string; document: { nodeId: string; nom: string; lien: string } | null }> {
   const d = await ctx.dossier();
   const verdict = jugerPreuves(d, coutUsd);
   const issue = issueForcee ?? (verdict.satisfait ? "LIVRE" : d.vert || d.deploiements.length ? "PARTIEL" : "BLOQUE");
   const texte = `${composerRapport(d, coutUsd, issue)}\n${verdict.raison}`;
-  await ctx.ecrire((x) => { x.rapport = { le: ctx.clock.now().toISOString(), texte, issue }; });
+  // LE RAPPORT EN VRAI DOCUMENT au Drive (« Travaux »), sous reçu : un redémarrage ne le dépose jamais deux fois.
+  const document = ctx.deposerRapport ? await deposerLeRapport(ctx, d, texte) : null;
+  await ctx.ecrire((x) => { x.rapport = { le: ctx.clock.now().toISOString(), texte, issue, document }; });
+  if (document) await ajouterLivrable(ctx.chantierId, { etape: "rapport", titre: `Rapport — ${d.plan.titre}`, contenu: texte, at: ctx.clock.now().toISOString(), document });
   const depot = nomDepot(d.plan.depot);
   // Les sessions Claude Code restent nommées (id + URL) : on peut leur reparler plus tard, contexte gardé (relais CLI).
   const sessions = d.sessions.map((x) => `${x.sessionId} ${x.url}`.trim()).join(" ; ");
@@ -544,8 +601,26 @@ export async function rapporter(ctx: Pick<ContexteEtape, "chantierId" | "clock" 
     await memoriser("depot", depot, `Branche de base ${d.plan.brancheBase}. Commandes de vérification : ${d.plan.commandesVerif.join(" ; ")}.`, { source: "chantier", missionId: ctx.chantierId });
   }
   await liberer(ctx.chantierId);
-  await ctx.journal("CHANTIER_RAPPORT", `Rapport : ${issue}.`, { issue, manquantes: verdict.manquantes });
-  return { issue, texte };
+  await ctx.journal("CHANTIER_RAPPORT", `Rapport : ${issue}${document ? ` — ${document.nom} (${document.lien})` : ""}.`, { issue, manquantes: verdict.manquantes, ...(document ? { nodeId: document.nodeId } : {}) });
+  return { issue, texte, document };
+}
+
+async function deposerLeRapport(ctx: Pick<ContexteEtape, "chantierId" | "principalId" | "deposerRapport">, d: DossierChantier, texte: string) {
+  const cle = `${ctx.chantierId}|rapport|document`;
+  const recu = await reclamerEcriture(cle, ctx.chantierId, "rapport", "chantier:rapport");
+  if (recu.etat === "FAIT") return (recu.resultat as { document?: { nodeId: string; nom: string; lien: string } } | null)?.document ?? null;
+  const r = await ctx.deposerRapport!(ctx.principalId, { chantierId: ctx.chantierId, cle, titre: `Rapport du chantier — ${d.plan.titre}`, contenu: texte, reprise: recu.etat === "INTERROMPU" })
+    .catch((e: unknown) => ({ ok: false as const, erreur: e instanceof Error ? e.message : String(e) }));
+  if (recu.etat !== "INTERROMPU" || r.ok) await cloreEcriture(cle, r.ok ? "FAIT" : "ECHEC", r.ok ? { document: r.document } : { erreur: r.erreur });
+  return r.ok ? r.document : null;
+}
+
+/** Le rapport rejoint les LIVRABLES du carnet : le tableau « Missions » et la synthèse de la conversation (K3) le lisent. */
+async function ajouterLivrable(chantierId: string, l: { etape: string; titre: string; contenu: string; at: string; document: { nodeId: string; nom: string; lien: string } }) {
+  const m = await prisma.mission.findUnique({ where: { id: chantierId }, select: { carnet: true } });
+  const carnet = m?.carnet && typeof m.carnet === "object" && !Array.isArray(m.carnet) ? (m.carnet as Record<string, unknown>) : {};
+  const avant = Array.isArray(carnet.livrables) ? (carnet.livrables as { etape?: string }[]).filter((x) => x.etape !== l.etape) : [];
+  await prisma.mission.update({ where: { id: chantierId }, data: { carnet: { ...carnet, livrables: [...avant, { ...l, document: { ...l.document, format: "docx" } }] } as never } });
 }
 
 export async function executerEtape(type: TypeEtapeChantier, ctx: ContexteEtape, coutUsd: () => Promise<number>): Promise<StepOutcome> {
@@ -554,6 +629,7 @@ export async function executerEtape(type: TypeEtapeChantier, ctx: ContexteEtape,
     case "DEV_ATTENDRE": return devAttendre(ctx);
     case "DEV_VERIFIER": return devVerifier(ctx);
     case "DEV_CORRIGER": return devCorriger(ctx);
+    case "DEV_FUSIONNER": return devFusionner(ctx);
     case "RENDER_DEPLOYER": return renderDeployer(ctx);
     case "RENDER_VERIFIER": return renderVerifier(ctx);
     case "RENDER_ROLLBACK": return renderRollback(ctx);
