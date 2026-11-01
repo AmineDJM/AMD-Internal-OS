@@ -74,10 +74,14 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   parle / l'assistant parle / une question attend sa réponse / libre. Un résultat arrivé hors de « libre » est TENU (file
   d'annonces par travail) et dit au point de rupture, collé à l'accusé de la réponse (« Noté, PDF. Et justement… ») ;
   jamais par-dessus une question ; jamais deux annonces collées ; jamais « j'attends ».
-- **L'agenda** (`domaine/conversation/agenda.ts`, sans modèle) : précisions qui changent le résultat (format, période,
-  détail — ce que la demande ne dit pas), étape suivante (destinataire), partiels (sous-missions K3 finies), avancement réel
-  dit une fois. Table `AssistantIaAgenda` (`infra/orchestration/agenda.ts`) ; une réponse qui change le travail lui est
-  transmise (ajoutée, ou relance ciblée — en UNE fois à sa fin s'il tourne), le résultat dit en tient compte.
+- **L'agenda** (`domaine/conversation/agenda.ts`, sans modèle, SANS plafond — une chose à la fois tant que le travail
+  tourne) : précisions (format, période, détail), approfondissements (ventilation, comparaison, vigilance), étape suivante
+  (destinataire), partiels (sous-missions K3 finies), avancement réel dit une fois. Table `AssistantIaAgenda`.
+- **Le classement** de chaque énoncé pendant un travail (`domaine/conversation/classement.ts`, `infra/orchestration/
+  classement.ts`) : précision / autre demande (parallèle) / conversation — règles quand c'est évident, sinon classifieur
+  `rapide` à sortie JSON stricte, journalisé (K8). **Impact** : MAJEURE réinjectée (ajoutée, ou UNE relance ciblée à la fin
+  du travail) ; MINEURE appliquée au rendu sans relance (la voix le dit ainsi ; l'écrit reformule par le modèle rapide ; un
+  fichier ou une carte d'envoi est produit d'après le résultat prêt). `appliquerPrecisions` (`infra/orchestration/agenda.ts`).
 - **Oral** : le client GPT-Live (`platform/ia/voix/client-temps-reel.ts`) lit les tours de parole sur les fragments de
   transcription (GPT-Live n'expose ni détection de parole ni fin de réponse), suit plusieurs travaux ; le serveur
   (`infra/voix/oral.ts`) rend l'agenda au lancement, juge la réponse à la question (`question` de la délégation), lance une

@@ -18939,6 +18939,14 @@ model AssistantIaAgenda {
   change          Boolean   @default(false)
   /// Le message de précision déposé pour l'appliquer (relance ciblée), s'il y en a un.
   precisionTourId String?
+  /// O1 (§2) : « majeur » (réinjecté dans le travail) | « mineur » (appliqué au rendu, sans relance) ; null = sans effet.
+  impact          String?
+  /// Pour un mineur : « texte » (ton, longueur, présentation) | « fichier » | « destinataire ».
+  forme           String?
+  /// Le mineur a été appliqué au rendu (ou porté par une relance) : il ne l'est pas deux fois.
+  appliqueLe      DateTime?
+  /// L'ordre de l'élément dans l'agenda (dérivé de la demande).
+  rang            Int       @default(0)
   poseeLe         DateTime?
   repondueLe      DateTime?
   creeLe          DateTime  @default(now())

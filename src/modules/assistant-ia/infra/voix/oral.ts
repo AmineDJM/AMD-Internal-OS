@@ -4,15 +4,20 @@ import type { CurrentUser } from "@/lib/session";
 import { annulerEffetSortant, annulerGeste, effetsSortantsDe, gestesDeLAssistant, retablirGeste } from "@/platform/ia/hors-requete";
 import { MASQUE_CONFIDENTIEL, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { DIT_A_L_ECRAN, NON_OUVERTE, pourLaVoix } from "../../domaine/terrain/voix";
-import { designesParNom, lireCommandeOrale, phraseAnnulation, PREFIXE_PRECISION, PREFIXE_VOCAL, resumeOralBlocs } from "../../domaine/terrain/oral";
+import { designesParNom, lireCommandeOrale, phraseAnnulation, PREFIXE_VOCAL, resumeOralBlocs } from "../../domaine/terrain/oral";
 import { lireReglagesAssistantIa } from "../consommation";
 import { annulerMissionEtSousMissions } from "../sous-missions";
 import { listerTravaux, pauserTravail, PERSONA_ASSISTANT_IA, reprendreMonTravail } from "../travaux";
 import { carteOraleEnAttente, direLaCarte, ouvrirCarteOrale, traiterParoleSurCarte } from "./carte-orale";
 import { deposerMessage, ETAT, traiterFil } from "../fil/service";
-import type { ElementAgenda } from "@/platform/ia/conversation/orchestrateur";
-import { accuseDeReponse, estNouvelleDemande } from "../../domaine/conversation/agenda";
-import { avancementDuTravail, elementOuvert, ouvrirAgenda, partielsDuTravail, repondreElement, transmettrePrecision, transmettreSiPret, versElement } from "../orchestration/agenda";
+import type { ElementAgenda, RetourOrchestre } from "@/platform/ia/conversation/orchestrateur";
+import { accuseDeReponse } from "../../domaine/conversation/agenda";
+import type { Classement } from "../../domaine/conversation/classement";
+import {
+  appliquerPrecisions, avancementDuTravail, elementOuvert, enregistrerPrecision, ouvrirAgenda, partielsDuTravail, questionDeLElement, racineDe,
+  repondreElement, versElement,
+} from "../orchestration/agenda";
+import { classerEnonce } from "../orchestration/classement";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -40,7 +45,8 @@ const REPRISE_MS = 24 * 60 * 60_000;
 /** « Annule » vise la dernière action de l'assistant — faite il y a moins d'une demi-heure. */
 const ANNULATION_MS = 30 * 60_000;
 
-export interface RetourOral {
+/** O1 (décision 0046) : avec les champs que l'orchestrateur du navigateur lit (`RetourOrchestre`). */
+export interface RetourOral extends RetourOrchestre {
   /** Ce que la voix dit (elle paraphrase) — jamais une valeur que la personne n'a pas le droit d'entendre. */
   pourVoix: string;
   /** Un travail lancé : le navigateur le suit et la voix annoncera son résultat. */
@@ -51,15 +57,6 @@ export interface RetourOral {
   /** Une commande que le navigateur applique lui-même (« stop » : couper la parole ; « plus court »). */
   commande?: "stop" | "plus_court";
   ecran?: string | null;
-  // ── O1 (décision 0046) : ce que l'orchestrateur du navigateur lit pour enchaîner sans couper ni attendre.
-  /** Ce que la voix va dire POSE une question (carte orale, « laquelle ? ») : rien ne s'y colle. */
-  questionPosee?: boolean;
-  /** C'était la réponse à cet élément d'agenda. */
-  repondA?: string;
-  /** La réponse a changé ce travail : son résultat en attente est caduc ; `nouveau` : le travail ajusté qu'on suit. */
-  change?: { travail: string; nouveau?: string };
-  /** Un travail est né : son agenda (précisions qui changent le résultat, étape suivante), dérivé de la demande. */
-  lance?: { id: string; agenda: ElementAgenda[] };
 }
 
 export type SuiviOral =
@@ -126,25 +123,6 @@ async function lancerTravail(user: CurrentUser, session: { id: string; conversat
   };
 }
 
-/**
- * UNE PRÉCISION PENDANT QUE L'ASSISTANT TRAVAILLE — transmise, jamais un nouveau départ :
- *   • le message n'a pas encore été pris : la précision S'AJOUTE au message lui-même (un seul tour, rien de perdu) ;
- *   • il est en cours : RELANCE CIBLÉE — un message de précision, joué juste après dans le même fil, qui voit la
- *     réponse en cours dans son historique et en repart ; le premier résultat, dépassé, n'est pas dit.
- * (Injecter la précision DANS la boucle d'outils en cours n'est pas offert par le moteur d'agent ; la relance ciblée
- * garde ce qui a été trouvé, et la voix n'annonce que la réponse à jour.)
- */
-async function preciser(user: CurrentUser, w: { id: string; tourId: string; conversation: string; session: string }, texte: string, delegationId: string | null): Promise<RetourOral> {
-  const t = await transmettrePrecision(user.id, w.tourId, texte, PREFIXE_PRECISION);
-  if (!t.ok) return { pourVoix: t.erreur };
-  if (t.mode === "ajoutee") {
-    await prisma.assistantIaVoixTravail.update({ where: { id: w.id }, data: { delegationId } });
-    return { travail: w.id, pourVoix: "La précision est ajoutée à la demande, qui n'avait pas encore commencé. Dis-le en trois mots, sans résultat inventé." };
-  }
-  const nouveau = await relancerTravail(user, w, t.tour, t.conversation, delegationId);
-  return { travail: nouveau, change: { travail: w.id, nouveau }, pourVoix: "La précision est transmise au travail en cours, qui en tient compte sans recommencer. Dis-le en quelques mots ; le résultat arrivera tout seul." };
-}
-
 /** La relance ciblée devient le travail suivi ; l'ancien est `remplacePar` (son résultat dépassé n'est pas dit). */
 async function relancerTravail(user: CurrentUser, w: { id: string; session: string }, tourId: string, conversation: string, delegationId: string | null): Promise<string> {
   const nouveau = await prisma.assistantIaVoixTravail.create({ data: { userId: user.id, session: w.session, delegationId, conversation, tourId } });
@@ -152,23 +130,56 @@ async function relancerTravail(user: CurrentUser, w: { id: string; session: stri
   return nouveau.id;
 }
 
+/** Le travail vocal SUIVI pour une racine : la dernière relance de sa chaîne (une précision a pu le remplacer). */
+async function travailCourant(userId: string, sessionId: string, racine: string) {
+  let w = await prisma.assistantIaVoixTravail.findFirst({ where: { tourId: racine, userId, session: sessionId } });
+  for (let i = 0; w?.remplacePar && i < 10; i++) w = await prisma.assistantIaVoixTravail.findFirst({ where: { id: w.remplacePar, userId } });
+  return w;
+}
+
 /**
- * O1 — LA RÉPONSE À UNE QUESTION DE L'AGENDA (« Excel ou PDF ? » → « PDF ») : gardée, transmise au travail si elle le
- * change (ajoutée au message qui attend, ou relance ciblée — le résultat DIT tiendra compte de la réponse), puis un
- * accusé court. Le navigateur colle à cet accusé ce qui suit (un résultat tenu, la question suivante) — jamais d'attente.
+ * APPLIQUER au travail vocal ce qui a été dit (O1, §2) : majeures RÉINJECTÉES (ajoutées au message qui attend, ou une
+ * relance ciblée qui devient le travail suivi) ; mineures de TEXTE portées sur le rendu (le navigateur dit le résultat
+ * tenu ainsi — aucune relance) ; mineures de FICHIER / d'ENVOI produites d'après le résultat prêt, un travail de plus.
  */
-async function repondreAgendaVocal(user: CurrentUser, s: { id: string }, el: NonNullable<Awaited<ReturnType<typeof elementOuvert>>>, parole: string, delegationId: string | null): Promise<RetourOral> {
-  // Le travail suivi pour ce message (une précision antérieure a pu le remplacer : on suit la chaîne).
-  let w = await prisma.assistantIaVoixTravail.findFirst({ where: { tourId: el.tourId, userId: user.id, session: s.id } });
-  for (let i = 0; w?.remplacePar && i < 10; i++) w = await prisma.assistantIaVoixTravail.findFirst({ where: { id: w.remplacePar, userId: user.id } });
-  const r = await repondreElement(user.id, el, parole);
-  if (!w) return { pourVoix: accuseDeReponse(r.valeur, false), repondA: el.id };
-  if (r.relance) {
-    const nouveau = await relancerTravail(user, w, r.relance.tour, r.relance.conversation, delegationId);
-    return { pourVoix: accuseDeReponse(r.valeur, true), repondA: el.id, travail: nouveau, change: { travail: w.id, nouveau } };
+async function appliquerVocal(user: CurrentUser, w: { id: string; session: string } | null, racine: string, delegationId: string | null): Promise<Partial<RetourOral>> {
+  const app = await appliquerPrecisions(user.id, racine);
+  if (!w) return {};
+  if (app.relance) {
+    const nouveau = await relancerTravail(user, w, app.relance.tour, app.relance.conversation, delegationId);
+    return { travail: nouveau, change: { travail: w.id, nouveau } };
   }
   if (delegationId) await prisma.assistantIaVoixTravail.update({ where: { id: w.id }, data: { delegationId } });
-  return { pourVoix: accuseDeReponse(r.valeur, r.change), repondA: el.id, ...(r.change ? { change: { travail: w.id } } : {}) };
+  const out: Partial<RetourOral> = {};
+  if (app.texte.length) out.miseEnForme = { travail: w.id, consigne: app.texte.join(" ") };
+  if (app.miseEnForme) {
+    const m = await prisma.assistantIaVoixTravail.create({ data: { userId: user.id, session: w.session, delegationId, conversation: app.miseEnForme.conversation, tourId: app.miseEnForme.tour } });
+    Object.assign(out, { travail: m.id, lance: { id: m.id, agenda: [] } });
+  }
+  return out;
+}
+
+/**
+ * O1 — UNE PRÉCISION pendant le travail : la réponse à la question de l'agenda (« Excel ou PDF ? » → « PDF »), ou une
+ * précision libre classée — gardée avec son IMPACT, appliquée (`appliquerVocal`), puis un accusé court. Le navigateur
+ * colle à cet accusé ce qui suit (un résultat tenu, l'élément suivant de l'agenda) — jamais d'attente.
+ */
+async function preciserVocal(user: CurrentUser, s: { id: string }, c: Classement, el: Awaited<ReturnType<typeof elementOuvert>>, racine: string, parole: string, delegationId: string | null): Promise<RetourOral> {
+  let valeur = c.consigne;
+  let impact = c.impact;
+  if (el && c.repondA === el.id) ({ valeur, impact } = await repondreElement(user.id, el, parole));
+  else await enregistrerPrecision(user.id, racine, c);
+  const w = await travailCourant(user.id, s.id, racine);
+  const applique = await appliquerVocal(user, w, racine, delegationId);
+  // Ni relance ni mise en forme maintenant (le travail tourne) : la précision part à sa fin — la voix le dit.
+  const majeureEnAttente = impact === "majeur" && !applique.change;
+  return {
+    pourVoix: accuseDeReponse(valeur.slice(0, 120), impact),
+    ...(el && c.repondA === el.id ? { repondA: el.id } : {}),
+    ...(majeureEnAttente && w ? { change: { travail: w.id } } : {}),
+    ...(w ? { travail: w.id } : {}),
+    ...applique,
+  };
 }
 
 /**
@@ -205,15 +216,22 @@ export async function suivreTravailVocal(user: CurrentUser, sessionId: unknown, 
     prisma.assistantIaTour.findFirst({ where: { repondA: w.tourId, role: "assistant" }, orderBy: { createdAt: "desc" }, select: { contenu: true, intent: true, blocs: true, etat: true, etapes: true, erreur: true } }),
     prisma.assistantIaTour.findUnique({ where: { id: w.tourId }, select: { etat: true } }),
   ]);
+  let miseEnForme: Partial<RetourOral> = {};
   if (rep?.etat === ETAT.TERMINE || rep?.etat === ETAT.ECHEC) {
-    // O1 : des réponses de l'agenda attendaient sa fin pour lui être transmises — une relance ciblée, que l'on suit ; ce
-    // résultat-ci, dépassé, n'est pas dit (le résultat DIT tiendra compte de ce que la personne a répondu).
-    const rel = await transmettreSiPret(user.id, w.tourId);
-    if (rel) return { etat: "remplace", par: await relancerTravail(user, w, rel.tour, rel.conversation, w.delegationId) };
+    // O1 : des précisions attendaient sa fin. MAJEURES : une relance ciblée, que l'on suit ; ce résultat-ci, dépassé,
+    // n'est pas dit. MINEURES : le résultat est dit tel quel, mis en forme comme demandé (aucune relance).
+    const applique = await appliquerVocal(user, w, await racineDe(w.tourId), w.delegationId);
+    if (applique.change?.nouveau) return { etat: "remplace", par: applique.change.nouveau };
+    miseEnForme = applique;
   }
   if (rep?.etat === ETAT.TERMINE) {
     await prisma.assistantIaVoixTravail.updateMany({ where: { id: w.id, annonceLe: null }, data: { annonceLe: new Date() } });
-    return { etat: "pret", ...(await pourVoixDuTour(user, rep)) };
+    const dit = await pourVoixDuTour(user, rep);
+    const consignes = [
+      miseEnForme.miseEnForme ? `Dis-le en tenant compte de ce que la personne a demandé pour la forme : ${miseEnForme.miseEnForme.consigne}` : "",
+      miseEnForme.lance ? "La version demandée (fichier, ou carte d'envoi) se prépare à partir de ce résultat, sans refaire la recherche : dis qu'elle suit." : "",
+    ].filter(Boolean).join(" ");
+    return { etat: "pret", ...dit, pourVoix: [dit.pourVoix, consignes].filter(Boolean).join(" — ").slice(0, 1_800), ...(miseEnForme.lance ? { lance: miseEnForme.lance, travail: miseEnForme.travail } : {}) };
   }
   if (rep?.etat === ETAT.ECHEC || q?.etat === ETAT.ECHEC) {
     await prisma.assistantIaVoixTravail.updateMany({ where: { id: w.id, annonceLe: null }, data: { annonceLe: new Date() } });
@@ -360,15 +378,19 @@ export async function traiterEnonceVocal(user: CurrentUser, d: { session: unknow
       };
     }
   }
-  // O1 (décision 0046) : la question de l'agenda que l'orchestrateur a fait poser attend sa réponse — c'en est une,
-  // sauf si la personne demande tout autre chose (alors la question reste sans réponse et la demande part en parallèle).
+  // O1 (décision 0046) : pendant un travail (une question de l'agenda posée, ou un travail suivi), l'énoncé est CLASSÉ —
+  // précision (majeure / mineure), autre demande (en parallèle), ou simple conversation. Évident : sans modèle ; sinon
+  // le classifieur rapide tranche (jamais « précision par défaut »).
   const el = await elementOuvert(user.id, d.question);
-  if (el && parole && !estNouvelleDemande(parole)) return repondreAgendaVocal(user, s, el, parole, delegationId);
-  if (typeof d.enCours === "string" && d.enCours) {
-    const w = await prisma.assistantIaVoixTravail.findFirst({ where: { id: d.enCours, userId: user.id, session: s.id, remplacePar: null, annonceLe: null } });
-    // O1 : une AUTRE demande pendant le travail ne le précise pas — elle part en parallèle (multi-travaux).
-    if (w && estNouvelleDemande(texte)) return lancerTravail(user, s, texte, delegationId, null, true);
-    if (w) return preciser(user, w, texte, delegationId);
-  }
-  return lancerTravail(user, s, texte, delegationId, carte ? { titre: carte.carte.titre } : null);
+  const w = typeof d.enCours === "string" && d.enCours
+    ? await prisma.assistantIaVoixTravail.findFirst({ where: { id: d.enCours, userId: user.id, session: s.id, remplacePar: null, annonceLe: null } })
+    : null;
+  if (!el && !w) return lancerTravail(user, s, texte, delegationId, carte ? { titre: carte.carte.titre } : null);
+  const racine = el ? el.tourId : await racineDe(w!.tourId);
+  const demandeEnCours = ((await prisma.assistantIaTour.findUnique({ where: { id: racine }, select: { contenu: true } }))?.contenu ?? "").replace(/^\[[^\]]*\]\s*/, "");
+  const c = await classerEnonce(user.id, s.conversation, { enonce: parole || texte, demandeEnCours, question: el ? { ...questionDeLElement(el), texte: el.question } : null });
+  if (c.nature === "precision") return preciserVocal(user, s, c, el, racine, parole || texte, delegationId);
+  if (c.nature === "autre_demande") return lancerTravail(user, s, texte, delegationId, null, true);
+  const ou = await avancementDuTravail(user.id, (w ? w.tourId : racine));
+  return { pourVoix: `C'est de la conversation pendant que le travail tourne, pas une demande : réponds-y naturellement, en une ou deux phrases, sans rien lancer.${ou ? ` Si elle demande où ça en est : ${ou}` : ""}` };
 }

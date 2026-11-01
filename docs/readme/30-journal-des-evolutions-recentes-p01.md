@@ -14,6 +14,21 @@ confidentiel. Coût mesuré ≈ 0,00017 $ par capture (0 $ quand rien n'est à r
 `20270219100000_assistant_ia_memoire_auto`. Décision [0045](../assistant/decisions/0045-memoire-automatique.md) ; audit
 des fonctions de l'app : [preuves/m1](../assistant/preuves/m1/AUDIT.md).
 
+### O1 (suite) : C'EST À L'ASSISTANT D'ORCHESTRER — CLASSER CHAQUE PHRASE, PRÉCISION MAJEURE OU MINEURE, AGENDA SANS PLAFOND (2026-11-01)
+
+Retour de la Direction : « ça dépend — c'est à LUI d'orchestrer » ; « au plus 2 précisions : bah ça dépend » ; « si c'est un
+changement MAJEUR, il doit l'injecter dans le raisonnement ; si ce sont de petits changements, juste une précision, pas une
+réinjection ». **Chaque phrase dite pendant un travail est classée** — précision du travail, autre demande (en parallèle),
+simple conversation (on répond, rien n'est lancé) : sans modèle quand c'est évident (choix proposé, « plus court »,
+« merci »), sinon un classifieur rapide à sortie JSON stricte, journalisé ; plus de « précision par défaut ». **Précision
+MAJEURE** (période, périmètre, comparaison) : réinjectée — en UNE relance ciblée à la fin du travail. **Précision
+MINEURE** (format, ton, longueur, destinataire) : aucune relance — le résultat est dit / affiché tel quel, mis en forme
+comme demandé (un fichier ou une carte d'envoi se prépare d'après lui). **L'agenda n'a plus de plafond** : précisions,
+approfondissements (ventilation, comparaison, points de vigilance), étape suivante — une chose à la fois tant que le
+travail tourne. Seuils devenus des réglages (`ASSISTANT_O1_*`). Confirmé : un résultat arrivé pendant une question attend
+la réponse, puis est donné juste après. Migration `20270219200100_assistant_ia_agenda_impact`. Décision
+[0046](../assistant/decisions/0046-orchestration-conversation.md) mise à jour.
+
 ### O1 : L'ORCHESTRATEUR DE CONVERSATION — PARLER PENDANT QU'UN TRAVAIL TOURNE, À L'ORAL ET À L'ÉCRIT (2026-11-01)
 
 « Il me pose une question et, avant même que je réponde, il me répond parce que l'autre a fini » ; « je réponds, il dit

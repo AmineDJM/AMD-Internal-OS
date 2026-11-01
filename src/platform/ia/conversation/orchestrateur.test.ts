@@ -214,4 +214,24 @@ describe("orchestrateur — les états de dialogue", () => {
     expect(b.tic(2100)).toMatchObject({ annonce: { travail: "t1" } });
     expect(b.e.travaux[0].agenda.map((x) => x.id)).toEqual(["a3"]);
   });
+
+  it("PRÉCISION MINEURE sur un résultat tenu : il n'est PAS caduc — il est dit tout de suite, mis en forme comme demandé", () => {
+    const b = banc();
+    b.pas(lancer(0)); b.tic(0);
+    b.pas({ type: "resultat", ms: 3000, travail: "t1", contenu: "Le rapport des ventes." });
+    b.pas({ type: "reponse_envoyee", ms: 4000 });
+    b.pas({ type: "reponse_prise_en_compte", ms: 4200, accuse: "Noté, PDF.", delegationId: "d2", repondA: "a1", miseEnForme: { travail: "t1", consigne: "Format de rendu voulu : PDF." } });
+    const a = b.tic(4200);
+    expect(a.type === "dire" && a.contenu).toMatch(/^Noté, PDF\. Et justement, le résultat vient d'arriver : Le rapport des ventes\. \(Dis-le en tenant compte .*PDF/);
+    expect(b.e.travaux[0]).toMatchObject({ id: "t1", etat: "fini" });
+  });
+
+  it("un travail né hors d'une réponse (la mise en forme d'un résultat) est suivi ; son résultat est dit à son tour", () => {
+    const b = banc();
+    b.pas({ type: "travail", ms: 0, id: "m1", delegationId: "d1" });
+    b.pas({ type: "travail", ms: 0, id: "m1", delegationId: "d1" });
+    expect(b.e.travaux).toHaveLength(1);
+    b.pas({ type: "resultat", ms: 100, travail: "m1", contenu: "Le PDF est prêt." });
+    expect(b.tic(2000)).toMatchObject({ annonce: { travail: "m1", delegationId: "d1" } });
+  });
 });

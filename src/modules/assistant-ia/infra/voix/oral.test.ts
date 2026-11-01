@@ -170,6 +170,9 @@ suite("Assistant IA — la voix entièrement orale (K9)", () => {
 
   it("l'attente vivante : la précision dite pendant le travail est TRANSMISE ; seul le résultat à jour est dit", async () => {
     const fil = await filDe(sa.id);
+    // Le classifieur rapide (O1) : ces précisions sont MAJEURES (elles changent le périmètre, la période).
+    const classifieur = (prompt: string) => (prompt.includes("Tu classes UN énoncé") ? { texte: '{"nature":"precision","impact":"majeur","forme":null,"consigne":"' + (prompt.includes("Oran") ? "Seulement Oran." : "Pour le troisième trimestre.") + '"}' } : null);
+    remplacerModelesPourTests([modeleFactice([(prompt) => classifieur(prompt) ?? reponse("(sans objet)")]).modele as never]);
     // Le fil est tenu (un autre passage joue) : la demande attend.
     await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { traitementLe: new Date() } });
     const lance = await traiterEnonceVocal(sa, { session: S, demande: "le chiffre d'affaires des ventes", delegationId: "d1" });
@@ -179,31 +182,37 @@ suite("Assistant IA — la voix entièrement orale (K9)", () => {
     expect(p1.travail).toBe(lance.travail);
     const w1 = await prisma.assistantIaVoixTravail.findUniqueOrThrow({ where: { id: lance.travail! } });
     const t1 = await prisma.assistantIaTour.findUniqueOrThrow({ where: { id: w1.tourId } });
-    expect(t1.contenu).toContain("pour le troisième trimestre");
+    expect(t1.contenu).toContain("Pour le troisième trimestre");
     expect(w1.delegationId).toBe("d2");
-    // 2) En cours : RELANCE CIBLÉE — un message de précision qui repart du résultat, l'ancien travail est remplacé.
+    // 2) En cours : la précision MAJEURE est gardée (O1 : pas une relance par réponse) — le travail en tient compte.
     await prisma.assistantIaTour.update({ where: { id: w1.tourId }, data: { etat: ETAT.COURS } });
     const p2 = await traiterEnonceVocal(sa, { session: S, demande: "seulement Oran", delegationId: "d3", enCours: lance.travail });
-    expect(p2.travail).not.toBe(lance.travail);
-    expect(p2.pourVoix).toContain("transmise au travail en cours");
-    expect(await suivreTravailVocal(sa, S, lance.travail)).toEqual({ etat: "remplace", par: p2.travail });
-    // Le premier tour aboutit (son résultat est dépassé) ; le fil se libère et joue la précision, avec ce résultat en historique.
+    expect(p2.pourVoix).toContain("le travail en tient compte");
+    expect(p2.change).toEqual({ travail: lance.travail });
+    expect(await suivreTravailVocal(sa, S, lance.travail)).toMatchObject({ etat: "en_cours" });
+    // Le premier tour aboutit : son résultat, dépassé, n'est PAS dit — la relance ciblée part, avec lui en historique.
     await prisma.assistantIaTour.update({ where: { id: w1.tourId }, data: { etat: ETAT.TRAITE } });
     await prisma.assistantIaTour.create({ data: { filId: fil.id, userId: sa.id, role: "assistant", contenu: "Le CA du T3 est de 12 millions, dont Oran 3,1 millions.", etat: ETAT.TERMINE, repondA: w1.tourId } });
+    const remplace = await suivreTravailVocal(sa, S, lance.travail);
+    expect(remplace).toMatchObject({ etat: "remplace" });
+    const relance = (remplace as Extract<SuiviOral, { etat: "remplace" }>).par;
     await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { traitementLe: null } });
     let vuHistorique = false;
     let vuConsigne = false;
+    let vuPrecision = false;
     remplacerModelesPourTests([modeleFactice([(prompt) => {
       // Le faux modèle sert aussi le titre de la conversation : on cumule ce que le tour principal a reçu.
       vuHistorique ||= prompt.includes("dont Oran 3,1 millions");
       vuConsigne ||= prompt.includes("RÉPONSE POUR L'OREILLE");
+      vuPrecision ||= prompt.includes("Seulement Oran.");
       return reponse("À Oran, le chiffre d'affaires du troisième trimestre est d'environ 3,1 millions de dinars. Je te détaille par produit ?");
     }]).modele as never]);
     await traiterFil(sa.id, fil.id);
-    const fin = await suivreJusquAuBout(sa, S, p2.travail!);
+    const fin = await suivreJusquAuBout(sa, S, relance);
     expect(fin).toMatchObject({ etat: "pret", pourVoix: expect.stringContaining("À Oran") });
     expect(vuHistorique).toBe(true);
     expect(vuConsigne).toBe(true);
+    expect(vuPrecision).toBe(true);
   });
 
   it("au-delà de la session : le résultat est dit à l'ouverture suivante (une fois)", async () => {

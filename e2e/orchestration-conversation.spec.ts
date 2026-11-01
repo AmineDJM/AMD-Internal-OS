@@ -93,7 +93,7 @@ for (const ecran of ECRANS) {
       await page.getByTestId("voix-temps-reel").first().click();
       await expect(panneau).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 30_000 });
-    await panneau.getByRole("button", { name: /Parler à l'assistant/ }).click();
+    await panneau.getByRole("button", { name: /Appeler l'assistant|Parler à l'assistant/ }).click();
     await page.waitForFunction(() => !!(window as unknown as { __voix: { etat: { canal: unknown } } }).__voix.etat.canal);
     const emettre = (e: Record<string, unknown>) => page.evaluate((x) => (window as unknown as { __voix: { emettre: (e: unknown) => void } }).__voix.emettre(x), e);
     await emettre({ type: "session.started", session: { id: session } });
@@ -117,15 +117,16 @@ for (const ecran of ECRANS) {
     await emettre({ type: "session.delegation.created", delegation: { id: "deleg_2", target: "client" } });
     await expect.poll(async () => (await commentaires(page))[1] ?? "", { timeout: 20_000 }).toMatch(/Noté, PDF/);
     const suite = (await commentaires(page))[1];
-    expect(suite).toMatch(/période/);
-    expect(suite).not.toMatch(/n'a pas pu répondre|j'attends/);
+    // La forme (PDF) est une précision MINEURE : le résultat tenu n'est pas caduc — il est donné juste après la réponse.
+    expect(suite).toMatch(/Noté, PDF.*(Et justement|n'a pas abouti)/s);
+    expect(suite).not.toMatch(/j'attends/);
     await page.screenshot({ path: `e2e-screenshots/o1-oral-${ecran.nom}-2-accuse.png` });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await panneau.getByRole("button", { name: "Raccrocher" }).click();
     expect(erreurs, erreurs.join("\n")).toEqual([]);
   });
 
-  test(`O1 écrit (${ecran.nom}) — la question de l'agenda dans le fil, le résultat tenu, le choix touché qui lève la question`, async ({ page }) => {
+  test(`O1 écrit (${ecran.nom}) — la question de l'agenda dans le fil, le résultat tenu, le choix touché (mineur) qui lève la question sans relance`, async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: ecran.largeur, height: ecran.hauteur });
     const erreurs: string[] = [];
@@ -152,11 +153,13 @@ for (const ecran of ECRANS) {
     await expect(page.getByText("Voici le rapport des ventes par wilaya, en tableau.")).toHaveCount(0);
     await page.screenshot({ path: `e2e-screenshots/o1-ecrit-${ecran.nom}-2-tenu.png` });
 
-    // « PDF » d'un toucher : la question est levée ; la réponse d'avant s'affiche, marquée « version d'avant ».
+    // « PDF » d'un toucher — une précision MINEURE : la question est levée, la réponse s'affiche telle quelle (elle n'est
+    // pas « version d'avant ») et la version PDF se prépare d'après elle, sans refaire la recherche.
     await question.getByRole("button", { name: "PDF" }).click();
-    await expect(question).toHaveCount(0, { timeout: 20_000 });
+    await expect(page.getByTestId("question-agenda")).toHaveCount(0, { timeout: 20_000 });
     await expect(page.getByText("Voici le rapport des ventes par wilaya, en tableau.")).toBeVisible();
-    await expect(page.getByTestId("reponse-ajustee")).toContainText("PDF");
+    await expect(page.getByTestId("reponse-ajustee")).toHaveCount(0);
+    await expect(page.getByTestId("precision-transmise")).toContainText("Mise en forme demandée");
     await expect(page.getByTestId("precision-transmise")).toContainText("Format de rendu voulu : PDF");
     await page.screenshot({ path: `e2e-screenshots/o1-ecrit-${ecran.nom}-3-repondu.png` });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
