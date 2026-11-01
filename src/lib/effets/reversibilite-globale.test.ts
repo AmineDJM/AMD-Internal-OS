@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { CHEMIN_CLICHE } from "@/platform/ia/capacites/cliche";
 
 /**
  * CLIQUET GLOBAL DE LA RÉVERSIBILITÉ (Direction, 31/10/2026 : « toute action qui a été faite peut être réversible, dans
@@ -11,7 +12,7 @@ import { describe, expect, it } from "vitest";
  */
 describe("réversibilité — tout le registre", () => {
   it("aucune action écrivante n'est sans annulation", () => {
-    const classement = JSON.parse(readFileSync("src/platform/ia/capacites/classement.genere.json", "utf8")) as
+    const classement = JSON.parse(readFileSync(CHEMIN_CLICHE, "utf8")) as
       Record<string, { risque: string; annulation: string }>;
     const sansAnnulation = Object.entries(classement)
       .filter(([, c]) => c.annulation === "aucune" && c.risque !== "R0")
