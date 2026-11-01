@@ -295,7 +295,12 @@ export async function enregistrerReglagesChantiers(formData: FormData): Promise<
   const admin = await requireUser();
   if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
   const { normaliserReglagesChantiers: lireReglagesChantiers } = await import("@/modules/assistant-ia/api");
-  const r = lireReglagesChantiers(Object.fromEntries(formData.entries()));
+  // Chaque champ par son NOM : le contrat de l'action se dérive de la source (`actions:contrat`).
+  const r = lireReglagesChantiers({
+    plafondUsd: formData.get("plafondUsd"), lancementsMax: formData.get("lancementsMax"), deploiementsMax: formData.get("deploiementsMax"),
+    tentativesMax: formData.get("tentativesMax"), jourUsdMax: formData.get("jourUsdMax"), jourLancementsMax: formData.get("jourLancementsMax"),
+    jourDeploiementsMax: formData.get("jourDeploiementsMax"), enParallele: formData.get("enParallele"), autofixMinutes: formData.get("autofixMinutes"),
+  });
   const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { chantiersReglages: true } });
   const json = { ...r } as Record<string, number>;
   await prisma.appSetting.upsert({ where: { id: "global" }, create: { id: "global", chantiersReglages: json }, update: { chantiersReglages: json } });
