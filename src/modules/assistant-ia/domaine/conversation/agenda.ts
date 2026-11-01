@@ -59,7 +59,7 @@ export function construireAgenda(demande: string): GabaritAgenda[] {
 }
 
 /** « peu importe », « comme tu veux », « c'est pour moi », « non » : une réponse qui ne change rien au travail. */
-const SANS_EFFET = /^(peu importe|comme tu veux|comme tu (le )?sens|n'importe|ca m'est egal|egal|pas d'importance|aucune importance|c'est pour moi|pour moi|personne|non|non merci|pas besoin|rien|laisse|garde[- ]le|je le garde|ok|d'accord|ca va)\b/;
+const SANS_EFFET = /^(peu importe|comme tu veux|comme tu (le )?sens|n'importe|ca m'est egal|egal|pas d'importance|aucune importance|c'est pour moi|pour moi|personne|non|non merci|pas besoin|rien|laisse|garde[- ]le|je le garde|ok|d'accord|ca va|merci|super|parfait|top|cool|tres bien|bien recu)\b/;
 
 export interface LectureReponse {
   /** La valeur retenue — le choix reconnu, sinon les mots de la personne (bornés). */

@@ -28,6 +28,8 @@ describe("agenda de conversation — règles pures", () => {
     expect(lireReponseAgenda(f, "en PDF s'il te plaît")).toEqual({ valeur: "PDF", sansEffet: false });
     expect(lireReponseAgenda(f, "un xlsx")).toEqual({ valeur: "Excel", sansEffet: false });
     expect(lireReponseAgenda(f, "Peu importe.")).toMatchObject({ sansEffet: true });
+    // Une politesse n'est pas une valeur : rien n'est transmis au travail.
+    expect(lireReponseAgenda(f, "merci")).toMatchObject({ sansEffet: true });
     expect(lireReponseAgenda({ cle: "destinataire", choix: ["C'est pour moi"] }, "c'est pour moi")).toEqual({ valeur: "C'est pour moi", sansEffet: true });
     expect(lireReponseAgenda({ cle: "destinataire", choix: ["C'est pour moi"] }, "À Amel")).toEqual({ valeur: "À Amel", sansEffet: false });
     expect(lireReponseAgenda({ cle: "periode", choix: ["Ce mois-ci", "Le trimestre", "L'année"] }, "le trimestre")).toEqual({ valeur: "Le trimestre", sansEffet: false });

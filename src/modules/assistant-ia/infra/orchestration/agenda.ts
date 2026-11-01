@@ -1,5 +1,6 @@
 import type { AssistantIaAgenda } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { attendu } from "@/lib/journal";
 import { censurerTexte } from "../../domaine/filtre-confidentialite";
 import {
   construireAgenda, estimerDureeMs, PREFIXE_PRECISION_ECRITE, lireReponseAgenda, phraseAvancement, precisionDeLaReponse, type CleAgenda,
@@ -148,7 +149,7 @@ export async function partielsDuTravail(userId: string, tourId: string): Promise
     const c = lireCarnet(m.carnet);
     const extrait = censurerTexte(extraitDuLivrable(c.livrables.at(-1)?.contenu ?? c.trouvailles.slice(-2).map((t) => t.texte).join("\n"), 240)).texte;
     const texte = `la sous-mission « ${m.title.slice(0, 80)} » est finie${extrait ? ` : ${extrait}` : "."}`;
-    const r = await prisma.assistantIaAgenda.create({ data: { userId, filId: tour.filId, tourId, cle: `partiel:${m.id}`, nature: "partiel", question: texte, etat: ETAT_AGENDA.DIT } }).catch(() => null);
+    const r = await prisma.assistantIaAgenda.create({ data: { userId, filId: tour.filId, tourId, cle: `partiel:${m.id}`, nature: "partiel", question: texte, etat: ETAT_AGENDA.DIT } }).catch(attendu("partiel déjà gardé par une lecture concurrente (clé unique) : il est dit par elle", null));
     if (r) out.push(versElement(r));
   }
   return out;
