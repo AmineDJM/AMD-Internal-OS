@@ -10,7 +10,7 @@ part ; parti : un rectificatif (lui-même annulable), jamais « effacé ». **Ge
 barre « Annuler » dans toute l'application, « Rétablir » ensuite ; historique annulable sur la fiche courrier. **58 actions**
 du périmètre ne sont plus « aucune » au registre (courrier, candidatures, champs personnalisés, KPI, segmentation,
 diffusion d'offres, site web, boîtes mail et Microsoft, directives, décisions de circuit, pièces de la fabrique, portail
-fournisseur) ; chacune est exécutée puis annulée, rétablie et ré-annulée contre la base (`src/lib/actions/reversibilite/`),
+fournisseur) ; chacune est exécutée puis annulée, rétablie et ré-annulée contre la base (`src/lib/actions/internes/reversibilite/`),
 un cliquet tient la liste vide. Règles nouvelles : tout ou rien pour un geste d'écran (un ordre déjà payé bloque, la
 liste le dit), pièce numérotée annulée jamais effacée, compteurs jamais reculés. Migration
 `20270217110000_fenetre_annulation_effets_sortants`.

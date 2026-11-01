@@ -27,6 +27,16 @@ export interface CasReversible {
 
 export const couvertes = new Set<string>();
 
+/**
+ * LES ÉCRITURES SENSIBLES DES FIXTURES — posées par le fichier de TEST (`communications.test.ts`), seul autorisé à écrire
+ * hors des chemins gardés : passer un ordre à « payé » (la garde du centre de paiement) et poser l'identité légale
+ * complète d'une société (la garde du coffre). Les cas les empruntent ; aucun module de production ne les porte.
+ */
+export const outilsDeTest: {
+  payerOrdre?: (ordreId: string, parId: string) => Promise<void>;
+  identiteLegale?: (companyId: string, tag: string) => Promise<void>;
+} = {};
+
 export async function personneDeTest(tag: string, role = "SUPER_ADMIN"): Promise<CurrentUser> {
   const u = await prisma.user.create({ data: { name: `${tag}${role}`, email: `${tag}${role.toLowerCase()}@t.dz`, passwordHash: "x", role: role as never } });
   return (await personneDuGeste(u.id))!;

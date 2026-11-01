@@ -21,7 +21,7 @@ vi.mock("@/lib/supplier-auth", () => ({
 import { prisma } from "@/lib/prisma";
 import { cleConnexionPortail } from "@/lib/login-throttle";
 import { DECLARATIONS_COMMUNICATIONS } from "@/lib/effets/declarations/communications";
-import { supplierLogin, supplierLogout } from "../supplier-portal-actions";
+import { supplierLogin, supplierLogout } from "../../supplier-portal-actions";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

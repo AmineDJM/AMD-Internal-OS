@@ -3,7 +3,7 @@ import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
-import { couvertes, nettoyer, personneDeTest } from "./banc";
+import { couvertes, nettoyer, outilsDeTest, personneDeTest } from "./banc";
 import { CAS_INTERNES } from "./cas-internes";
 import { CAS_ENVOIS } from "./cas-envois";
 import { CAS_DECISIONS } from "./cas-decisions";
@@ -59,7 +59,22 @@ const CLASSEMENT = CLASSEMENT_JSON as Record<string, LigneCliche>;
 let moi: CurrentUser;
 
 suite("K10b — exécuter puis annuler, action par action (décision 0040)", () => {
-  beforeAll(async () => { moi = await personneDeTest(TAG); });
+  beforeAll(async () => {
+    moi = await personneDeTest(TAG);
+    // Les écritures sensibles des fixtures vivent ICI, dans le test (voir `outilsDeTest`).
+    outilsDeTest.payerOrdre = async (ordreId, parId) => {
+      await prisma.expenseOrder.update({ where: { id: ordreId }, data: { status: "PAID", paidDate: new Date(), paidById: parId } });
+    };
+    outilsDeTest.identiteLegale = async (companyId, tag) => {
+      await prisma.companyLegalIdentity.create({
+        data: {
+          companyId, legalName: `${tag} Pharma SARL`, legalForm: "SARL", shareCapital: "10 000 000 DZD", rcNumber: "16/00-1234567B21", nif: "001916012345678",
+          nis: "001916012345690", taxArticle: "16012345678", headOffice: "12 rue des Frères Bouadou, Alger", phone: "+213 21 00 00 00", email: "contact@t.dz",
+          bankName: "BNA", bankAgency: "Hydra", rib: "001 00123 0123456789 45", managerName: "Amine Djouamai", managerTitle: "Gérant",
+        },
+      });
+    };
+  });
   afterAll(async () => {
     await nettoyer([moi.id]);
     for (const c of [...CAS_INTERNES, ...CAS_ENVOIS, ...CAS_DECISIONS]) await c.nettoyer?.(TAG);

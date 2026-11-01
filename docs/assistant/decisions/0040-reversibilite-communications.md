@@ -14,7 +14,7 @@ colonnes `AssistantIaReglage.fenetreAnnulationSecondes` (défaut 120) et `Assist
 > `declarations/communications.ts`, README) ; ports `mail.ts`, `mail-smart.ts`, `mail/graph/provider.ts`, `push.ts`,
 > `site-web/file.ts` ; `mail/executeur-sortant.ts` (Graph) ; barre `modules/assistant-ia/ecrans/barre-annulation.tsx`
 > (coque) et ses actions (`actions-gestes.ts`) ; réglage `/admin/ai/acces` ; tests `src/lib/effets/fenetre.test.ts`,
-> `src/lib/actions/reversibilite/` (banc + cas + cliquet).
+> `src/lib/actions/internes/reversibilite/` (banc + cas + cliquet).
 
 ## 1. Définition tenue
 
@@ -77,7 +77,7 @@ fiche courrier) garde les gestes et les envois de l'objet. Sous une carte de l'a
 Port `PortsRegistre.annulationDeclaree` (types.ts, sans toucher `ANNULATIONS`) ; table ERP `src/lib/effets/declarations.ts`
 fusionnant une table par périmètre (`declarations/communications.ts` pour K10b). `capacites:classement` ne classe plus
 « aucune » une action déclarée. Chaque déclaration a son cas « exécuter → annuler → rétablir → ré-annuler » contre la base
-(`src/lib/actions/reversibilite/`), et le **cliquet** exige que les actions écrivantes du périmètre ne soient plus
+(`src/lib/actions/internes/reversibilite/`), et le **cliquet** exige que les actions écrivantes du périmètre ne soient plus
 « aucune » et que chaque déclaration ait son cas.
 
 ## 6. Mesures

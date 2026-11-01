@@ -408,7 +408,7 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   `SerieReference`) never roll back, read notification → rectificatif, `OutboundEmail` kept as trace, `retablirGeste`
   (undo the undo), Graph immediate gestures with recorded inverse (`noterEffetFait`). Registry: optional port
   `annulationDeclaree` ← `lib/effets/declarations.ts` (one table per perimeter). Tests/ratchet:
-  `src/lib/actions/reversibilite/` (58 K10b actions, execute → undo → redo → re-undo against the DB).
+  `src/lib/actions/internes/reversibilite/` (58 K10b actions, execute → undo → redo → re-undo against the DB).
 
 - **Travaux J8 (30/10/2026)** [V] decision `docs/assistant/decisions/0023-delegation.md`. **Delegation**: plan step `DEMANDE`
   → `WAIT_INPUT`, handled in `conduite.ts` by `delegation.ts deposerDemande` (one `TravailDemande` per step, unique

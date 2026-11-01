@@ -312,7 +312,6 @@ export async function decideApproval(formData: FormData): Promise<ActionResult> 
       return { ok: false, error: refusSaPropreDemande(approval.validatorId === user.id, approval.validator?.name) };
     }
     if (approval.status !== "PENDING") return { ok: false, error: "Cette validation a déjà été tranchée — rechargez la page." };
-
     // L'ÉTAT D'ABORD, LE MOTIF ENSUITE (§118.18 — audit des managers, M15). Refuser ou demander une modification
     // renvoie la balle au demandeur : sans motif, il ne sait ni pourquoi, ni quoi corriger — les boutons partaient
     // d'un clic, sans un mot. La règle vit dans `secretariat/decision-approbation.ts`, lue aussi par les boutons ;
@@ -320,7 +319,6 @@ export async function decideApproval(formData: FormData): Promise<ActionResult> 
     const note = fdStr(formData, "comment");
     const sansMotif = refusSansMotif(decision, note);
     if (sansMotif) return { ok: false, error: sansMotif };
-
     // UNE SEULE ÉCRITURE, SOUS CONDITION DE TOUT CE QUI A ÉTÉ LU (lot E5) : l'approbation encore en attente ET sa
     // demande encore vivante, au même instant. Une décision prise entre la lecture et le clic ne se prend pas une
     // seconde fois (elle ferait partir un second ordre de dépense) ; une demande annulée entre-temps ne s'approuve pas.
@@ -394,10 +392,8 @@ export async function decideApproval(formData: FormData): Promise<ActionResult> 
 }
 
 // ─────────────────────────────── Missions chauffeur ───────────────────────────────
-
 // LES MISSIONS CHAUFFEUR NE SE CRÉENT PLUS (Direction, 10/2026) — `createMission` est retirée. Les courses déjà
 // posées se lisent, et le chauffeur les mène à leur terme (`toggleMissionStop`, `updateMission`).
-
 /** Coche / décoche un point de passage d'une course (chauffeur assigné ou gestionnaire). */
 export async function toggleMissionStop(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();

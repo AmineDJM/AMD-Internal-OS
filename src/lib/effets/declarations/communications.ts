@@ -2,7 +2,7 @@ import type { DeclarationAnnulation } from "../declarations";
 
 /**
  * K10b — COMMUNICATIONS, EFFETS SORTANTS ET SUPPRESSIONS (décision 0040). Chaque ligne a son test d'exécution puis
- * d'annulation contre la base (`src/lib/actions/reversibilite/communications.test.ts`).
+ * d'annulation contre la base (`src/lib/actions/internes/reversibilite/communications.test.ts`).
  */
 const J = (raison: string): DeclarationAnnulation => ({ annulation: "retour", mecanisme: "journal", raison });
 const F = (annulation: DeclarationAnnulation["annulation"], raison: string): DeclarationAnnulation => ({ annulation, mecanisme: "fenetre", raison });

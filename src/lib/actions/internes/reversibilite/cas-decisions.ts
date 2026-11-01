@@ -8,7 +8,7 @@ import { requestSlipPayment, validateDeclarationByDirection } from "@/lib/action
 import { emettreAvoir, emettrePieceCommerciale } from "@/lib/actions/fabrique-actions";
 import { emettreDocumentDrive } from "@/platform/ia/artifact/factory";
 import { totauxAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
-import { aLEcran, cycle, fd, type CasReversible } from "./banc";
+import { aLEcran, cycle, fd, outilsDeTest, type CasReversible } from "./banc";
 
 /**
  * K10b (décision 0040) — LES CAS « EXÉCUTER PUIS ANNULER » DES DÉCISIONS ET DES PIÈCES : une décision qui fait naître un
@@ -45,7 +45,7 @@ const DEMANDES: CasReversible[] = [
     const r = await aLEcran(moi, () => decideApproval(fd({ approvalId, decision: "APPROVED" })));
     expect(r.ok, JSON.stringify(r)).toBe(true);
     const [ordre] = await ordresDe(requestId);
-    await prisma.expenseOrder.update({ where: { id: ordre!.id }, data: { status: "PAID", paidDate: new Date(), paidById: moi.id } });
+    await outilsDeTest.payerOrdre!(ordre!.id, moi.id);
     const avant = await lireDecision(requestId, approvalId);
     const g = await prisma.assistantGesteJournal.findFirstOrThrow({ where: { principalId: moi.id, capaciteId: "admin-request-actions:decideApproval", creeLe: { gte: debut } }, orderBy: { creeLe: "desc" } });
     const compte = await annulerGeste(g.id, moi);
@@ -165,13 +165,7 @@ const nettoyerInformationMedicale = async (tag: string) => {
 /** Une société émettrice, son identité légale complète (la fabrique la reprend sur chaque pièce). */
 async function societe(tag: string): Promise<string> {
   const c = await prisma.company.create({ data: { name: `${tag} Pharma ${alea()}`, shortName: `K${alea()}`, color: "#1B7F79" } });
-  await prisma.companyLegalIdentity.create({
-    data: {
-      companyId: c.id, legalName: `${tag} Pharma SARL`, legalForm: "SARL", shareCapital: "10 000 000 DZD", rcNumber: "16/00-1234567B21", nif: "001916012345678",
-      nis: "001916012345690", taxArticle: "16012345678", headOffice: "12 rue des Frères Bouadou, Alger", phone: "+213 21 00 00 00", email: "contact@t.dz",
-      bankName: "BNA", bankAgency: "Hydra", rib: "001 00123 0123456789 45", managerName: "Amine Djouamai", managerTitle: "Gérant",
-    },
-  });
+  await outilsDeTest.identiteLegale!(c.id, tag);
   return c.id;
 }
 
