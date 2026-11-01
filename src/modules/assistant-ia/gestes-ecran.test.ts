@@ -121,6 +121,8 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   "/api/events/qr/[token]": { methodes: "GET", classe: "HORS", raison: "QR d'un badge d'inscription : affiché et scanné à l'accueil de l'événement" },
   "/api/events/inbound/[source]": { methodes: "POST", classe: "HORS", raison: ENTRANT },
   "/api/mail/inbound": { methodes: "POST", classe: "HORS", raison: ENTRANT },
+  "/api/canaux/whatsapp": { methodes: "GET,POST", classe: "HORS", raison: ENTRANT },
+  "/api/canaux/relais": { methodes: "POST", classe: "HORS", raison: ENTRANT },
   "/api/google/callback": { methodes: "GET", classe: "HORS", raison: ENTRANT },
   "/api/google/connect": { methodes: "GET", classe: "HORS", raison: ENTRANT },
   "/api/google/pubsub": { methodes: "POST", classe: "HORS", raison: ENTRANT },
@@ -171,6 +173,7 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   // K1 (décision 0031) : le classeur d'une analyse de l'assistant ; K3 (décision 0033) : le flux du tableau des missions.
   "/api/assistant-ia/analyse/classeur": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/missions/flux": { methodes: "GET", classe: "HORS", raison: PROPRE },
+  "/api/assistant-ia/consommation/export": { methodes: "GET", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/delegation": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/journal": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/session": { methodes: "POST", classe: "HORS", raison: PROPRE },

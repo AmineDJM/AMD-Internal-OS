@@ -201,6 +201,9 @@ séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lance
 | `/api/events/qr/[token]` | GET | QR d'un badge d'inscription : affiché et scanné à l'accueil de l'événement |
 | `/api/events/inbound/[source]` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |
 | `/api/mail/inbound` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |
+| `/api/canaux/whatsapp` | GET, POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière (K6) |
+| `/api/canaux/relais` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière (K6) |
+| `/api/assistant-ia/consommation/export` | GET | export de l'écran « Consommation » de l'assistant lui-même (K8) |
 | `/api/google/callback` | GET | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |
 | `/api/google/connect` | GET | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |
 | `/api/google/pubsub` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |
