@@ -8,7 +8,7 @@ import { classerGeste, natureDe as natureDuJournal, type NatureGeste } from "@/l
 import { construireDiff, natureDe } from "./diff";
 import { annulerEffetSortant } from "./fenetre";
 import type { Capture, EcritureCapturee, EffetExterneCapture } from "./magasin";
-import { infoModele, MODELES_COMPTEURS, MODELES_PIECES_NUMEROTEES, type InfoModele } from "./modeles";
+import { infoModele, MODELES_COMPTEURS, MODELES_JOURNAUX_ENVOI, MODELES_PIECES_NUMEROTEES, type InfoModele } from "./modeles";
 import { cleDeValeur, memeValeur, serialiserLigne, valeurLisible } from "./valeurs";
 
 /**
@@ -270,6 +270,9 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
       });
     }
     return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: `${qui ?? "son destinataire"} l'a déjà lue : elle ne se reprend pas — un rectificatif lui ${ctx.appliquer ? "est envoyé" : "sera envoyé"} dans l'ERP (« n'en tenez plus compte »)` };
+  }
+  if (touches.length && MODELES_JOURNAUX_ENVOI.has(e.modele ?? "")) {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "journal d'un envoi parti : il reste comme la trace de ce qui est sorti (l'envoi lui-même est compensé)" };
   }
   const numerotee = MODELES_PIECES_NUMEROTEES.has(e.modele ?? "");
   if (numerotee) ctx.gardes.add(id);

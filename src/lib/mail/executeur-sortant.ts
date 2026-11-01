@@ -54,7 +54,8 @@ export function enregistrerInversesGraph(): void {
   enregistrerExecuteur("inverse.graph.deplace", {
     executer: async (charge, l) => {
       const c = charge as Deplace;
-      await (await fournisseur(c as never, l.principalId)).move(c.messageId, c.versDossier);
+      const deplace = await (await fournisseur(c as never, l.principalId)).move(c.messageId, c.versDossier);
+      return { charge: { ...c, messageId: deplace.id } };
     },
     compensation: async (charge, l) => {
       const c = charge as Deplace;

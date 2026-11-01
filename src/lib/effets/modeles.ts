@@ -105,4 +105,11 @@ export const MODELES_COMPTEURS: ReadonlySet<string> = new Set(["DocumentSequence
  * K10b — LES PIÈCES NUMÉROTÉES (facture, avoir, devis, bon de commande émis) : jamais retirées, même intactes —
  * ANNULÉES (leur statut d'annulation) : le numéro, le document et la trace restent, la série n'a ni trou ni doublon.
  */
+/**
+ * K10b — LES JOURNAUX D'ENVOI (`OutboundEmail`) : la ligne d'un envoi que la fenêtre a laissé partir a été écrite par le
+ * worker (« parti », identifiant du fournisseur). Elle n'est pas « modifiée par un autre » : c'est la trace de ce qui est
+ * sorti — elle reste, et la compensation (le rectificatif) se fait sur l'envoi lui-même.
+ */
+export const MODELES_JOURNAUX_ENVOI: ReadonlySet<string> = new Set(["OutboundEmail"]);
+
 export const MODELES_PIECES_NUMEROTEES: ReadonlySet<string> = new Set(["LegalDocument"]);

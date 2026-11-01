@@ -84,10 +84,13 @@ suite("K10b — exécuter puis annuler, action par action (décision 0040)", () 
     expect(encoreAucune).toEqual([...RESTANTES_K10B]);
     // Chaque déclaration a son cas (le cycle exécuter → annuler → rétablir → ré-annuler l'a couverte) ; « sans-effet »
     // (rien n'est écrit) n'a rien à défaire, et le dit.
+    // Le portail fournisseur n'a pas de session ERP : ses deux gestes, l'un l'inverse de l'autre, ont leur test dédié
+    // (`portail-fournisseur.test.ts`, la session observée par un faux `supplier-auth`).
+    const DEDIES = new Set(["supplier-portal-actions:supplierLogin", "supplier-portal-actions:supplierLogout"]);
     const sansCas = Object.keys(DECLARATIONS_COMMUNICATIONS).filter((id) => DECLARATIONS_COMMUNICATIONS[id]!.mecanisme !== "sans-effet"
-      && ![...CAS_INTERNES, ...CAS_ENVOIS, ...CAS_DECISIONS].some((c) => c.id === id));
+      && !DEDIES.has(id) && ![...CAS_INTERNES, ...CAS_ENVOIS, ...CAS_DECISIONS].some((c) => c.id === id));
     expect(sansCas).toEqual([]);
     // Un cas joué en entier a couvert son action (le test du cas échoue sinon) : aucun cas ne prétend couvrir sans cycle.
-    if (!process.env.VITEST_FILTRE) for (const c of [...CAS_INTERNES, ...CAS_ENVOIS, ...CAS_DECISIONS]) expect(couvertes.has(c.id) || c.id.startsWith("supplier-portal"), c.id).toBe(true);
+    if (!process.env.VITEST_FILTRE) for (const c of [...CAS_INTERNES, ...CAS_ENVOIS, ...CAS_DECISIONS]) expect(couvertes.has(c.id), c.id).toBe(true);
   });
 });

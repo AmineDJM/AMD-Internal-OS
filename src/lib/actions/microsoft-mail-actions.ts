@@ -154,12 +154,12 @@ export async function saveDraft(fd: FormData): Promise<MailActionResult & { id?:
         if (existing) {
           const avant = await p.getMessage(existing);
           await p.updateDraft(existing, input);
-          await noterEffetFait({ type: "inverse.graph.brouillon", acte: "ECRITURE_EXTERNE", cible: `brouillon Microsoft (${ctx.address})`, apercu: `« ${input.subject} »`,
+          await noterEffetFait({ type: "inverse.graph.brouillon", acte: "RESEAU", cible: `brouillon Microsoft (${ctx.address})`, apercu: `« ${input.subject} »`,
             charge: { address: ctx.address, draftId: existing, cree: false, apres: input, avant: { to: avant.to, cc: avant.cc, bcc: avant.bcc, subject: avant.subject, bodyHtml: avant.bodyHtml } } });
           return { ok: true, id: existing };
         }
         const { id } = await p.createDraft(input);
-        await noterEffetFait({ type: "inverse.graph.brouillon", acte: "ECRITURE_EXTERNE", cible: `brouillon Microsoft (${ctx.address})`, apercu: `« ${input.subject} »`,
+        await noterEffetFait({ type: "inverse.graph.brouillon", acte: "RESEAU", cible: `brouillon Microsoft (${ctx.address})`, apercu: `« ${input.subject} »`,
           charge: { address: ctx.address, draftId: id, cree: true, apres: input, avant: null } });
         return { ok: true, id };
       });
@@ -173,7 +173,7 @@ export async function setMessageRead(messageId: string, read: boolean): Promise<
       return await withProvider(async (p, ctx) => {
         const avant = (await p.getMessage(messageId)).isRead;
         await p.setRead(messageId, read);
-        if (avant !== read) await noterEffetFait({ type: "inverse.graph.lu", acte: "ECRITURE_EXTERNE", cible: `message Microsoft (${ctx.address})`, apercu: read ? "marqué lu" : "marqué non lu", charge: { address: ctx.address, messageId, lu: read, avant } });
+        if (avant !== read) await noterEffetFait({ type: "inverse.graph.lu", acte: "RESEAU", cible: `message Microsoft (${ctx.address})`, apercu: read ? "marqué lu" : "marqué non lu", charge: { address: ctx.address, messageId, lu: read, avant } });
         revalidatePath("/messagerie");
         return { ok: true };
       });
@@ -187,7 +187,7 @@ export async function moveMessage(messageId: string, folderId: string): Promise<
       return await withProvider(async (p, ctx) => {
         const depuisDossier = (await p.getMessage(messageId)).folderId;
         const moved = await p.move(messageId, folderId);
-        await noterEffetFait({ type: "inverse.graph.deplace", acte: "ECRITURE_EXTERNE", cible: `message Microsoft (${ctx.address})`, apercu: "déplacé", charge: { address: ctx.address, messageId: moved.id, versDossier: folderId, depuisDossier } });
+        await noterEffetFait({ type: "inverse.graph.deplace", acte: "RESEAU", cible: `message Microsoft (${ctx.address})`, apercu: "déplacé", charge: { address: ctx.address, messageId: moved.id, versDossier: folderId, depuisDossier } });
         revalidatePath("/messagerie");
         return { ok: true, id: moved.id };
       });

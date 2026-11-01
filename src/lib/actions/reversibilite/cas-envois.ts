@@ -234,16 +234,18 @@ const COURRIELS: CasReversible[] = [
     expect(await rectificatifDe(ligne)).toMatchObject({ statut: "EN_ATTENTE", type: "courriel.smtp" });
     expect(partis).toHaveLength(1);
   }) },
-  { id: "smart-mail-actions:sendMail", titre: "parti puis annulé : l'annulation est REFUSÉE (journal des courriels modifié par l'envoi) — défaut rapporté", jouer: (moi, tag) => sousReseauSimule(async () => {
+  { id: "smart-mail-actions:sendMail", titre: "parti puis annulé : COMPENSÉ par un rectificatif, le journal des courriels garde la trace de l'envoi", jouer: (moi, tag) => sousReseauSimule(async () => {
     await courrierSmartOuvert(moi);
     // Ce que fait le vrai exécuteur au départ : le journal des courriels passe à SENT (executeurs.ts, « courriel.api »).
     const marquerParti = (id: string) => prisma.outboundEmail.updateMany({ where: { providerId: `differe:${id}` }, data: { status: "SENT", providerId: "banc-1", sentAt: new Date() } }).then(() => undefined);
     const { compte, ligne, partis } = await partiPuisAnnule(moi, "smart-mail-actions:sendMail", "courriel.api", () => envoyerCourrielSmart({ to: `${tag}api-parti@exemple.dz`, subject: `${tag} API parti`, body: "corps" }), marquerParti);
-    // DÉFAUT (rapporté, non corrigé ici) : la création de la ligne `OutboundEmail` est « modifiée depuis » par l'exécuteur,
-    // le tout-ou-rien refuse l'annulation entière — le rectificatif ne part pas. Attendu : COMPENSE + rectificatif EN_ATTENTE.
-    expect("refus" in compte ? compte.refus : JSON.stringify(compte.details)).toMatch(/outbound email.*modifiée depuis/);
-    expect(ligne.statut).toBe("PARTI");
-    expect(ligne.compensation).toBeNull();
+    // La ligne `OutboundEmail` écrite par l'exécuteur au départ est la TRACE de ce qui est sorti (MODELES_JOURNAUX_ENVOI) :
+    // elle reste, et l'envoi est compensé par un rectificatif différé.
+    if ("refus" in compte) throw new Error(compte.refus);
+    expect(compte.complet, JSON.stringify(compte.details)).toBe(true);
+    expect(compte.details.map((d) => d.issue).sort()).toEqual(["COMPENSE", "SANS_OBJET"]);
+    expect(ligne.statut).toBe("COMPENSE");
+    expect(await rectificatifDe(ligne)).toMatchObject({ statut: "EN_ATTENTE", type: "courriel.api" });
     expect(partis).toHaveLength(1);
   }) },
 ];
@@ -252,12 +254,12 @@ const COURRIELS: CasReversible[] = [
 
 /**
  * LE GESTE MICROSOFT IMMÉDIAT (lu, déplacé, brouillon) : l'annulation exécute le geste inverse (la boîte simulée revient,
- * la ligne « inverse » est COMPENSE) ; mais le port réseau a noté l'appel Graph lui-même comme un appel sortant
- * IMPOSSIBLE à reprendre — le compte rendu n'est donc pas complet (défaut rapporté). `complet:false` : l'état est vérifié ici.
+ * la ligne « inverse » est COMPENSE). L'appel Graph lui-même n'est pas compté en double (`noterEffetFait` le rattache) :
+ * le compte rendu est complet. L'état de la boîte est vérifié ici, en plus du banc.
  */
 async function inverseExecute(r: { compte: CompteRenduAnnulation; avant: unknown; gesteId: string }, etat: unknown, type: string): Promise<void> {
-  expect(r.compte.details.map((d) => d.issue).sort()).toEqual(["COMPENSE", "IMPOSSIBLE"]);
-  expect(r.compte.details.find((d) => d.issue === "IMPOSSIBLE")!.quoi).toMatch(/graph\.microsoft\.com/);
+  expect(r.compte.details.map((d) => d.issue).sort()).toEqual(["COMPENSE"]);
+  expect(r.compte.complet).toBe(true);
   expect(etat, "la boîte Microsoft ne revient pas à l'état d'avant").toEqual(r.avant);
   expect(await statutsDuGeste(r.gesteId)).toEqual([`${type}:COMPENSE`]);
 }
@@ -280,7 +282,7 @@ const MICROSOFT: CasReversible[] = [
   { id: "microsoft-mail-actions:moveMessage", titre: "le message déplacé revient dans son dossier d'origine", jouer: (moi, tag) => sousReseauSimule(async (g) => {
     await connecterMicrosoft(moi, tag);
     const id = g.poser({ subject: `${tag} à ranger`, isRead: true, folder: "inbox" });
-    // Le rétablissement est joué ici, pas par le banc : la ré-annulation qui le suit échoue (défaut rapporté, voir plus bas).
+    // Rétablir puis ré-annuler sont joués ici, pour suivre l'identifiant que Microsoft change à chaque déplacement.
     const r = await cycle({ id: "microsoft-mail-actions:moveMessage", moi, complet: false, retablir: false, faire: () => moveMessage(id, "archive"), lire: async () => g.etat() });
     await inverseExecute(r, g.etat(), "inverse.graph.deplace");
     const re = await retablirGeste(r.gesteId, moi);
@@ -288,11 +290,9 @@ const MICROSOFT: CasReversible[] = [
     expect(g.etat()).toEqual(r.apres);
     const encore = await annulerGeste(r.gesteId, moi);
     if ("refus" in encore) throw new Error(encore.refus);
-    // DÉFAUT (rapporté, non corrigé ici) : rejouer le déplacement change l'identifiant chez Microsoft, mais l'exécuteur
-    // « inverse.graph.deplace » ne garde pas le nouveau (`executer` ne rend pas `{ charge }`, comme le fait le brouillon) :
-    // la ré-annulation vise l'ancien identifiant, Graph répond 404, le message reste dans « archive ».
-    expect(encore.details.find((d) => d.issue === "IMPOSSIBLE" && /n'existe plus/.test(d.pourquoi)), JSON.stringify(encore.details)).toBeTruthy();
-    expect(g.etat()).toEqual(r.apres);
+    // Le rejeu a gardé le nouvel identifiant chez Microsoft : la ré-annulation ramène le message dans son dossier d'origine.
+    expect(encore.complet, JSON.stringify(encore.details)).toBe(true);
+    expect(g.etat()).toEqual(r.avant);
   }) },
   { id: "microsoft-mail-actions:saveDraft", titre: "le brouillon créé part à la corbeille de la boîte, puis est recréé", jouer: (moi, tag) => sousReseauSimule(async (g) => {
     await connecterMicrosoft(moi, tag);

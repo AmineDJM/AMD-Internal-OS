@@ -162,6 +162,8 @@ export async function differerSiFenetre(d: DemandeEffetSortant): Promise<EffetSo
 export async function noterEffetFait(d: Omit<DemandeEffetSortant, "delaiSecondes">): Promise<string | null> {
   const etat = etatDuGeste();
   if (!etat || etat.mode !== "REEL" || !etat.capture) return null;
+  // L'appel réseau de l'effet lui-même (noté par le port réseau juste avant) EST cet effet : il ne compte pas en double.
+  while (etat.capture.effets.length && etat.capture.effets.at(-1)!.acte === "RESEAU" && !etat.capture.effets.at(-1)!.differeId) etat.capture.effets.pop();
   etat.capture.effets.push({ acte: d.acte, cible: d.cible, apercu: d.apercu ?? undefined, neutralise: false });
   const ligne = await prismaBrut.effetSortantDiffere.create({
     data: {
@@ -185,7 +187,7 @@ export async function rejouerEffetFait(id: string, user: CurrentUser): Promise<I
   const r = await ex.executer(deCharge(l.charge), ligneVue(l));
   await prismaBrut.effetSortantDiffere.update({ where: { id }, data: { statut: "PARTI", compensation: null, compenseLe: null, parti: new Date(), ...(r && "charge" in r ? { charge: enCharge(r.charge) as never } : {}) } });
   await auditer(user, l, "Geste externe rejoué (rétablissement)");
-  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte))} : rejoué.` };
+  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte, l.type))} : rejoué.` };
 }
 
 // ── LES GESTES SUR UN EFFET EN FILE ──────────────────────────────────────────────────────
@@ -203,11 +205,11 @@ type LigneEffet = NonNullable<Awaited<ReturnType<typeof lire>>>;
 const lire = (id: string) => prismaBrut.effetSortantDiffere.findUnique({ where: { id } });
 
 const peutAgir = (l: { principalId: string | null }, user: CurrentUser) => l.principalId === user.id || user.role === "SUPER_ADMIN";
-const libelleActe = (acte: string): string =>
+const libelleActe = (acte: string, type?: string): string => type?.startsWith("inverse.graph") ? "le geste dans la boîte Microsoft" :
   ({ COURRIEL: "le courriel", NOTIFICATION_PUSH: "la notification poussée", ECRITURE_EXTERNE: "la publication", RESEAU: "l'appel externe", PAIEMENT: "l'ordre de paiement", INVITATION_AGENDA: "l'invitation" } as Record<string, string>)[acte] ?? "l'effet";
 
 async function auditer(user: CurrentUser, l: { id: string; acte: string; cible: string; apercu: string | null }, quoi: string) {
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte)} à ${l.cible}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte, l.type)} à ${l.cible}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
 }
 
 /**
@@ -221,14 +223,14 @@ export async function annulerEffetSortant(id: string, user: CurrentUser, opts: {
   const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "EN_ATTENTE" }, data: { statut: "ANNULE", annuleLe: new Date(), annuleParId: user.id } });
   if (prise.count === 1) {
     await auditer(user, l, "Envoi annulé dans la fenêtre : rien n'est parti");
-    return { ok: true, issue: "ANNULE", message: `${majuscule(libelleActe(l.acte))} à ${l.cible} est annulé : rien n'est parti.` };
+    return { ok: true, issue: "ANNULE", message: `${majuscule(libelleActe(l.acte, l.type))} à ${l.cible} est annulé : rien n'est parti.` };
   }
   const relue = (await lire(id))!;
   if (relue.statut === "ANNULE") return { ok: true, issue: "SANS_OBJET", message: "Cet envoi était déjà annulé : rien n'est parti." };
   if (relue.statut === "COMPENSE") return { ok: true, issue: "SANS_OBJET", message: `Déjà compensé : ${relue.compensation ?? ""}`.trim() };
   if (relue.statut === "ECHEC") return { ok: true, issue: "SANS_OBJET", message: `Cet envoi n'est jamais parti (échec : ${relue.erreur ?? "inconnu"}).` };
-  if (relue.statut === "EN_COURS") return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte))} est en train de partir : trop tard pour l'arrêter. Réessayez dans un instant pour le compenser.` };
-  if (opts.compenser === false) return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte))} est déjà parti le ${dateFr(relue.parti)} : il n'est pas effacé chez son destinataire.` };
+  if (relue.statut === "EN_COURS") return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte, l.type))} est en train de partir : trop tard pour l'arrêter. Réessayez dans un instant pour le compenser.` };
+  if (opts.compenser === false) return { ok: false, issue: "IMPOSSIBLE", message: `${majuscule(libelleActe(l.acte, l.type))} est déjà parti le ${dateFr(relue.parti)} : il n'est pas effacé chez son destinataire.` };
   return compenserEffetSortant(id, user, opts.motif);
 }
 
@@ -241,8 +243,8 @@ export async function compenserEffetSortant(id: string, user: CurrentUser, motif
   const ex = await executeurDe(l.type);
   if (!ex) return { ok: false, issue: "IMPOSSIBLE", message: "Le geste inverse de cet effet n'est pas encore chargé dans ce processus : réessayez dans une minute (rien n'a été écrit)." };
   const parti = l.type.startsWith("inverse.")
-    ? `${majuscule(libelleActe(l.acte))} a eu lieu le ${dateFr(l.parti)}`
-    : `${majuscule(libelleActe(l.acte))} est parti le ${dateFr(l.parti)} : il n'est pas effacé chez son destinataire`;
+    ? `${majuscule(libelleActe(l.acte, l.type))} a eu lieu le ${dateFr(l.parti)}`
+    : `${majuscule(libelleActe(l.acte, l.type))} est parti le ${dateFr(l.parti)} : il n'est pas effacé chez son destinataire`;
   const plan = ex.compensation ? await ex.compensation(deCharge(l.charge), ligneVue(l), motif ?? null) : null;
   if (!plan) {
     const phrase = ex.sansCompensation ?? "aucun geste inverse n'existe pour cet effet";
@@ -285,7 +287,7 @@ export async function retablirEffetSortant(id: string, user: CurrentUser): Promi
   if (prise.count !== 1) return { ok: false, issue: "SANS_OBJET", message: "Cet envoi n'est pas annulé : rien à rétablir." };
   programmerReveil(delai);
   await auditer(user, l, "Envoi rétabli (l'annulation est annulée)");
-  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte))} à ${l.cible} repart dans ${delai} s (annulable d'ici là).` };
+  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte, l.type))} à ${l.cible} repart dans ${delai} s (annulable d'ici là).` };
 }
 
 // ── LE WORKER ────────────────────────────────────────────────────────────────────────────
@@ -367,7 +369,7 @@ export interface EffetSortantVu {
 
 function ligneVue(l: LigneEffet): EffetSortantVu {
   return {
-    id: l.id, type: l.type, acte: l.acte, quoi: libelleActe(l.acte), cible: l.cible, apercu: l.apercu, statut: l.statut as StatutEffetSortant,
+    id: l.id, type: l.type, acte: l.acte, quoi: libelleActe(l.acte, l.type), cible: l.cible, apercu: l.apercu, statut: l.statut as StatutEffetSortant,
     creeLe: l.creeLe.toISOString(), executeLe: l.executeLe.toISOString(), parti: l.parti?.toISOString() ?? null,
     compensation: l.compensation, erreur: l.erreur, gesteId: l.gesteId, principalId: l.principalId,
     objet: l.objetModele && l.objetId ? { modele: l.objetModele, id: l.objetId } : null,
