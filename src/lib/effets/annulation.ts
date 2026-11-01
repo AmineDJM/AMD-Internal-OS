@@ -317,7 +317,14 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
       const fait = await ecrireVerrouille(info, id,
         (relue) => !!relue && !Object.keys(apres).some((c) => !info.auto.has(c) && info.types.has(c) && !memeValeur(relue[c] ?? null, apres[c] ?? null)),
         (t) => delegue(t, info).delete({ where: { [info.cle!]: id } }));
-      if (!fait) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "elle a changé au moment même de l'annulation (ou une ligne y tient encore) : laissée telle quelle", aLaPlace: verdict.compensation };
+      if (!fait) {
+        // K10c : relue après le refus — retirée entre-temps par ailleurs (son destinataire supprimé : la notification part
+        // avec lui), c'est sans objet ; une notification LUE à l'instant même suit le chemin du rectificatif.
+        const relue = await lireActuelle(ctx.c, info, id);
+        if (!relue) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "elle a été retirée par ailleurs au moment même de l'annulation" };
+        if (e.modele === "Notification" && relue.isRead === true && actuelle.isRead !== true) return defaireCreation(e, info, ctx);
+        return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "elle a changé au moment même de l'annulation (ou une ligne y tient encore) : laissée telle quelle", aLaPlace: verdict.compensation };
+      }
     }
     const lue = e.modele === "Notification" ? " avant d'avoir été lue" : "";
     return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: `retirée${lue} : personne n'y avait touché et rien ne s'y était rattaché` };
