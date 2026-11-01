@@ -93,7 +93,8 @@ d'avis ». L'écran reste à jour (l'état vit sur l'intention, que la conversat
 
 | Dit | Effet |
 |---|---|
-| « annule », « annule ce que tu viens de faire » | la dernière action de l'assistant (< 30 min) est défaite par le journal des effets J7 (`annulerGeste`), compte rendu honnête dit |
+| « annule », « annule ce que tu viens de faire » | la **dernière chose faite** (< 30 min, K10b — [0040](0040-reversibilite-communications.md)) : un **envoi encore dans sa fenêtre** → `annulerEffetSortant`, rien ne part ; sinon le dernier geste de l'assistant → `annulerGeste`, effet par effet. La voix le dit **honnêtement** (`phraseAnnulation`) : « annulé en partie », un courriel déjà parti → « un rectificatif part à sa place », ce qui ne se défait pas → dit, avec ce qu'on peut faire à la place. « Annule la tâche X » nomme une fiche : c'est une demande, pas cette commande. |
+| « rétablis », « finalement refais-le » | la dernière annulation (< 30 min) s'annule (`retablirGeste`) ; ce qui a bougé depuis est dit, jamais écrasé |
 | « mets la mission en pause », « bloque la mission du congrès » | `pauserTravail` (K3) — la mission désignée par son nom, seule sans avoir à la nommer, sinon « laquelle ? » |
 | « reprends la mission » | `reprendreMonTravail` |
 | « arrête la mission / la sous-mission » | `annulerMissionEtSousMissions` |

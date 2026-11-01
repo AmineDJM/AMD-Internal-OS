@@ -23,7 +23,7 @@ export function plier(texte: string): string {
 const contient = (plie: string, expressions: readonly string[]) => expressions.some((e) => plie.includes(` ${e} `));
 
 export type CommandeOrale =
-  | "attendre" | "annuler_derniere" | "pause_mission" | "reprendre_mission" | "arreter_mission" | "stop" | "plus_court";
+  | "attendre" | "annuler_derniere" | "retablir_derniere" | "pause_mission" | "reprendre_mission" | "arreter_mission" | "stop" | "plus_court";
 
 // « Tâche » n'en est pas : « annule la tâche Stand » vise une fiche de l'ERP, pas une mission de l'assistant.
 const MOT_MISSION = /\b(mission|missions|sous mission|sous missions|travail en cours|recherche en cours|analyse en cours)\b/;
@@ -49,12 +49,39 @@ export function lireCommandeOrale(texte: string, ctx: { carteEnAttente: boolean 
   // « Annule » SEUL (ou « annule ça », « annule ce que tu viens de faire ») : la dernière action de l'assistant. « Annule la
   // tâche Stand » nomme une fiche : c'est une demande.
   if (!ctx.carteEnAttente && /^(annule|annuler|defais|defaire|reviens en arriere)( (ca|tout ca|la derniere action|l action|le dernier geste|ce que tu (as fait|viens de faire)))?( s il te plait| stp)?$/.test(brut)) return "annuler_derniere";
+  // « Rétablis », « finalement refais-le » : l'annulation s'annule (K10b).
+  if (!ctx.carteEnAttente && /^(retablis|retablir|refais le|refais la|remets le|remets la|finalement (refais|remets|fais) (le|la|ca))( s il te plait| stp)?$/.test(brut)) return "retablir_derniere";
   if (STOP_SEUL.includes(brut)) return "stop";
   // Une commande, pas une demande : « Explique-moi en bref ce qu'est une AMM » est une DEMANDE (passage réel, K9).
   const bref = brut.split(" ").length <= 6;
   if (bref && /^(sois |fais |reponds |parle )?(plus court|en bref|abrege|va a l essentiel|plus vite|ikhtasar|khtasar)\b|^اختصر/.test(brut)) return "plus_court";
   return null;
 }
+
+// ─── CE QUI SE DÉFAIT, CE QUI NE SE DÉFAIT PAS ─────────────────────────────────────────────
+
+export interface DetailDit { issue: "ANNULE" | "COMPENSE" | "IMPOSSIBLE" | "SANS_OBJET"; quoi: string; pourquoi: string; aLaPlace?: string | null }
+
+/**
+ * LE COMPTE RENDU D'UNE ANNULATION, DIT HONNÊTEMENT (K10b) : ce qui est défait en une phrase, puis — une phrase chacun,
+ * trois au plus — ce qui a été COMPENSÉ (un courriel déjà parti → un rectificatif) et ce qui ne se défait PAS, avec ce
+ * qu'on peut faire à la place. Jamais un « c'est annulé » de façade.
+ */
+export function phraseAnnulation(libelle: string, details: readonly DetailDit[], retabli = false): string {
+  const faits = details.filter((d) => d.issue === "ANNULE").length;
+  const compenses = details.filter((d) => d.issue === "COMPENSE");
+  const impossibles = details.filter((d) => d.issue === "IMPOSSIBLE");
+  const verbe = retabli ? "rétabli" : "annulé";
+  const tete = impossibles.length && !faits && !compenses.length
+    ? `Rien n'a pu être ${verbe} pour « ${court(libelle, 70)} ».`
+    : `« ${court(libelle, 70)} » est ${verbe}${impossibles.length || compenses.length ? " en partie" : ""}.`;
+  const dits = [
+    ...compenses.map((d) => `${majuscule(court(d.quoi, 80))} était déjà parti : ${court(d.pourquoi, 120)}.`),
+    ...impossibles.map((d) => `${majuscule(court(d.quoi, 80))} ne se défait pas : ${court(d.pourquoi, 120)}${d.aLaPlace ? ` — à la place : ${court(d.aLaPlace, 100)}` : ""}.`),
+  ];
+  return [tete, ...dits.slice(0, 3), dits.length > 3 ? `Et ${dits.length - 3} autre${dits.length - 3 > 1 ? "s" : ""} point${dits.length - 3 > 1 ? "s" : ""}, détaillés dans la conversation.` : ""].filter(Boolean).join(" ").replace(/\.\./g, ".");
+}
+const majuscule = (s: string) => (s ? s[0]!.toUpperCase() + s.slice(1) : s);
 
 // ─── LES CHIFFRES À L'ORAL ─────────────────────────────────────────────────────────────────
 
