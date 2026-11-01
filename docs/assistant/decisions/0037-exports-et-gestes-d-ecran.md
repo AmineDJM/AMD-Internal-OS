@@ -255,6 +255,7 @@ séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lance
 | `/api/assistant-ia/voix/delegation` | POST | plomberie de l'Assistant IA lui-même |
 | `/api/assistant-ia/voix/journal` | POST | plomberie de l'Assistant IA lui-même |
 | `/api/assistant-ia/voix/session` | POST | plomberie de l'Assistant IA lui-même |
+| `/api/assistant-ia/voix/travail` | GET | plomberie de l'Assistant IA lui-même (K9 : suivi du travail délégué par la voix, pièces reçues en plein appel) |
 | `/api/assistant/stream` | POST | Adam, le Chief of Staff : produit séparé, l'Assistant IA ne l'emprunte pas (décision 0013) |
 | `/api/assistant/transcribe` | POST | Adam, le Chief of Staff : produit séparé, l'Assistant IA ne l'emprunte pas (décision 0013) |
 | `/api/assistant/voice/log` | POST | Adam, le Chief of Staff : produit séparé, l'Assistant IA ne l'emprunte pas (décision 0013) |

@@ -27,6 +27,20 @@ un cliquet tient la liste vide. Règles nouvelles : tout ou rien pour un geste d
 liste le dit), pièce numérotée annulée jamais effacée, compteurs jamais reculés. Migration
 `20270217110000_fenetre_annulation_effets_sortants`.
 
+### K9 : LA VOIX DE L'ASSISTANT IA ENTIÈREMENT ORALE — ÉCOUTEURS, SANS ÉCRAN (2026-10-31)
+
+Lot K9 — `docs/assistant/decisions/0039-voix-orale.md`, construit sur la carte orale de K4. Direction : « je ne vois pas mon écran, donc tout se passe à
+l'oral ». La conversation vocale ne renvoie plus à l'écran : l'assistant **rédige pour l'oreille** (la réponse d'abord,
+chiffres arrondis, une ouverture), tableaux, analyses, graphiques et visuels sont dits en une phrase par le serveur. La
+délégation **ne bloque plus** : « je regarde, je te préviens », la voix affine pendant la recherche, la précision est
+transmise au travail en cours, le résultat est dit de lui-même quand il arrive (ou à la prochaine ouverture). La carte
+orale de K4 arrive avec le résultat ; pour une action renforcée la **voix relit** le montant, puis « ok fais-le »,
+« vas-y », « go », « ih dirha » suffisent (aucun mot imposé), jugés par le **serveur** sur la transcription et exécutés par
+la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule », « mets la
+mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
+WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
+et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
+
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 
 Lot K8 — `docs/assistant/decisions/0035-consommation.md`. **Écran « Consommation »** dans les Réglages d'Adventum IA (et

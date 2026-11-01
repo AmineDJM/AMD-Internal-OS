@@ -15,9 +15,11 @@ export async function POST(req: Request) {
   const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (await interrupteurIaCoupe()) return NextResponse.json({ error: REFUS_IA_COUPEE }, { status: 409 });
-  let sdp = "";
-  try { sdp = String(((await req.json()) as { sdp?: unknown }).sdp ?? ""); } catch { return NextResponse.json({ error: "Requête invalide." }, { status: 400 }); }
-  const s = await ouvrirVoixAssistant(user, sdp);
+  let corps: { sdp?: unknown; conversation?: unknown };
+  try { corps = (await req.json()) as typeof corps; } catch { return NextResponse.json({ error: "Requête invalide." }, { status: 400 }); }
+  const conversation = typeof corps.conversation === "string" && corps.conversation.length < 64 ? corps.conversation : null;
+  const s = await ouvrirVoixAssistant(user, String(corps.sdp ?? ""), { conversation });
   if (!s.ok) return NextResponse.json({ error: s.erreur }, { status: s.statut });
-  return NextResponse.json({ session: s.id, sdp: s.sdp, modele: s.modele }, { status: 201 });
+  // K9 : `reprises` — ce qui est arrivé après la dernière session vocale, que la voix dit en ouvrant.
+  return NextResponse.json({ session: s.id, sdp: s.sdp, modele: s.modele, reprises: s.reprises }, { status: 201 });
 }

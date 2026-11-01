@@ -93,6 +93,7 @@ export const MODELES_INTERDITS: Readonly<Record<string, string>> = {
   // LE MODÈLE DE CHAQUE RÔLE DE L'ASSISTANT IA (J14, décision 0022) — changé seulement sur un banc vert, par le Super Admin :
   // l'écrire par le chemin générique contournerait la garde du protocole A/B.
   assistantIaModeleRole: "le modèle de chaque rôle de l'Assistant IA (changé seulement sur un banc vert)",
+  assistantIaVoixSession: "la session vocale d'une personne — ses gestes oraux (confirmer une carte, annuler) n'y valent que pour elle (K9)",
 };
 
 /**
