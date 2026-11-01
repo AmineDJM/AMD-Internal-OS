@@ -56,7 +56,7 @@ export type NomDepot = `${string}/${string}`;
 
 /** L'état d'un connecteur, tel que l'écran Administration › Développement l'affiche. Aucune valeur secrète. */
 export interface EtatConnecteur {
-  connecteur: "claude-code" | "github" | "render" | "mimo";
+  connecteur: "claude-code" | "relais" | "github" | "render" | "mimo";
   configure: boolean;
   /** `null` = non sondé (pas de sonde sans effet documentée, ou non configuré). */
   joignable: boolean | null;
@@ -72,11 +72,12 @@ export interface EtatConnecteur {
 
 // ─────────────────────────────── AGENT DÉVELOPPEUR (Claude Code) ───────────────────────────────
 
-/** Les moyens OFFICIELS de faire travailler Claude Code depuis un serveur (décision 0041). */
+/** Les moyens OFFICIELS de faire travailler Claude Code (décision 0043 ; Direction 01/11 : « Routines + CLI cloud » —
+ *  les Managed Agents, facturés à l'API, restent une option future, non codée). */
 export type MoyenAgent =
   | "ROUTINE" // Routines API : nouvelle session cloud sur l'abonnement de la Direction
   | "COMMENTAIRE_PR" // commentaire `@claude` sur une PR, traité par la GitHub Action `anthropics/claude-code-action`
-  | "MANAGED_AGENTS"; // option API (clé Console, facturation API) — interface seulement, désactivée par défaut
+  | "CLI"; // CLI `claude --cloud` sur la machine de la Direction, par le relais (`scripts/relais-claude.ts`)
 
 /** Ce qu'Adam demande à Claude Code. Le texte final est construit par `consigne.ts` (borné à 65 536 caractères). */
 export interface ConsigneDev {
@@ -93,6 +94,9 @@ export interface ConsigneDev {
   contexte?: string | null;
   /** La PR à reprendre, si elle existe déjà. */
   numeroPr?: number | null;
+  /** Demander à la session d'activer l'AUTO-FIX natif sur sa PR (exige l'app GitHub Claude sur le dépôt) : elle
+   *  surveille alors la CI et les relectures et pousse elle-même les correctifs clairs. */
+  autoFix?: boolean;
 }
 
 export interface DemandeLancement {
@@ -125,6 +129,27 @@ export interface DemandeRelancePr {
   missionId?: string | null;
 }
 
+/** Créer une session par la CLI (relais) : le relais prépare la branche réservée (poussée), puis `claude --cloud`. */
+export interface DemandeCli { depot: NomDepot; branche: string; texte: string; cleIdempotence: string; missionId?: string | null }
+
+/** Parler à une session EXISTANTE (contexte gardé) : `claude -p --cloud <id>` par le relais. */
+export interface DemandeMessage { sessionId: string; texte: string; cleIdempotence: string; missionId?: string | null }
+
+/** Un ordre du relais. Asynchrone : `EN_ATTENTE` → `EN_COURS` → `FAIT` | `ECHEC` | `INCERTAIN`. Sa conclusion inscrit un
+ *  fait `DEV_SESSION` (références `ORDRE:<id>`, `SESSION:<id>`, `missionId` de l'ordre) qui réveille la mission. */
+export interface OrdreCli {
+  ordreId: string;
+  type: "CREER" | "MESSAGE";
+  statut: "EN_ATTENTE" | "EN_COURS" | "FAIT" | "ECHEC" | "INCERTAIN";
+  sessionId: string | null;
+  sessionUrl: string | null;
+  erreur: string | null;
+  /** VRAI si la clé existait déjà : rien n'a été ré-enfilé. */
+  deja: boolean;
+}
+
+export interface EtatRelaisAgent { configure: boolean; vivant: boolean; connecte: boolean | null; vuIlYaMs: number | null }
+
 export interface AgentDeveloppeur {
   /** Nouvelle session Claude Code (Routines API). Un délai dépassé rend `INCERTAIN` et la clé reste bloquée. */
   lancer(d: DemandeLancement): Promise<Resultat<SessionLancee>>;
@@ -132,6 +157,13 @@ export interface AgentDeveloppeur {
   relancerDansPr(d: DemandeRelancePr): Promise<Resultat<SessionLancee>>;
   /** Les alias de routine configurés (noms seulement). */
   routines(): string[];
+  /** Nouvelle session par la CLI (relais). Refusé (`INDISPONIBLE`) si le relais n'est pas vu depuis 2 min. */
+  lancerParCli(d: DemandeCli): Promise<Resultat<OrdreCli>>;
+  /** Message de suivi dans une session existante — le seul moyen de « lui reparler en gardant son contexte ». */
+  envoyerMessage(d: DemandeMessage): Promise<Resultat<OrdreCli>>;
+  /** L'état d'un ordre du relais (le fait `DEV_SESSION` réveille ; ceci sert au sondage de secours). */
+  ordreCli(ordreId: string): Promise<Resultat<OrdreCli>>;
+  relais(): Promise<EtatRelaisAgent>;
 }
 
 // ─────────────────────────────── FORGE GIT (GitHub) ───────────────────────────────
@@ -273,6 +305,7 @@ export const TYPES_FAITS_DEV = [
   "DEV_COMMENTAIRE", // un commentaire sur une PR / issue (réponse de Claude Code)
   "RENDER_DEPLOIEMENT", // un déploiement Render terminé (ou commencé)
   "RENDER_SERVICE", // un service Render tombé / revenu
+  "DEV_SESSION", // un ordre du relais CLI conclu (session créée, message remis, échec)
 ] as const;
 export type TypeFaitDev = (typeof TYPES_FAITS_DEV)[number];
 

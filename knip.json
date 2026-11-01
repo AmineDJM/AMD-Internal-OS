@@ -28,6 +28,7 @@
     "!src/lib/assistant/context/holdout-corpus.ts!",
     "!src/lib/bons-de-commande/*-test-outils.ts!",
     "!src/lib/missions/chantiers/*-test-outils.ts!",
+    "!src/lib/actions/internes/reversibilite/{banc,cas-*}.ts!",
     "!src/lib/budget-marketing/integration-fixture.ts!",
     "!src/lib/derive-schema/**!",
     "!src/modules/finances/domaine/invariants-argent.ts!",

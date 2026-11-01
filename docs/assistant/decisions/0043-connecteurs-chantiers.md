@@ -1,4 +1,4 @@
-# 0041 — Les connecteurs des chantiers : Claude Code par ses mécanismes officiels, GitHub et Render en `fetch` (lot C2, 01/11/2026)
+# 0043 — Les connecteurs des chantiers : Claude Code par ses mécanismes officiels, GitHub et Render en `fetch` (lot C2, 01/11/2026)
 
 **Demande de la Direction (résumé fidèle)** : « Adventum IA devient le superviseur de Claude Code : créer des sessions
 Claude Code Cloud sur mon compte, leur transmettre des instructions, vérifier commits, pushs, branches, PR, tests et CI/CD,
@@ -15,9 +15,9 @@ Architecture : [`docs/architecture/CHANTIERS-DEV.md`](../../architecture/CHANTIE
 > touche la base et le journal des effets dans le pont `src/platform/in-process/chantiers/` (le cliquet de frontière
 > `boundary.test.ts` interdit Prisma hors du pont) : adaptateurs `agent-routines.ts` (Claude Code), `forge-github.ts`
 > (GitHub REST v3), `hebergeur-render.ts` (Render API v1) ; idempotence et quotas `lancements.ts` (table `DevLancement`,
-> migration `20270218100000_chantiers_connecteurs`) ; réception `reception.ts` (dédoublonnage `IngestedEvent`,
+> migration `20270218200000_chantiers_connecteurs`) ; réception `reception.ts` (dédoublonnage `IngestedEvent`,
 > inscription par port) ; sondage de secours `sondage.ts` ; sondes de l'écran `sondes.ts` ; racine de composition
-> `connecteurs.ts` (`connecteursDev()`). Route `app/api/chantiers/webhooks/[fournisseur]`, écran
+> `connecteurs.ts` (`connecteursDev()`) ; file du relais CLI `relais.ts` (pur : `platform/dev/relais.ts`). Routes `app/api/chantiers/webhooks/[fournisseur]` et `app/api/dev/relais/ordres`, relais `scripts/relais-claude.ts`, écran
 > `app/(app)/admin/developpement`. Tests `in-process/chantiers/{connecteurs,webhooks}.test.ts` (faux serveur HTTP local).
 > Banc réel `scripts/bench/chantiers-reel.ts`. Modèle de workflow `docs/assistant/modeles/github-workflow-claude.yml`.
 
@@ -30,12 +30,14 @@ cela n'est lu par l'ERP.** Trois mécanismes officiels restent, derrière le mê
 |---|---|---|
 | `ROUTINE` | **Routines API** (abonnement, documentée, expérimentale) | **oui** |
 | `COMMENTAIRE_PR` | commentaire `@claude` sur une PR, traité par la GitHub Action `anthropics/claude-code-action` (secret `CLAUDE_CODE_OAUTH_TOKEN` **côté GitHub**, posé par la Direction) | oui, pour corriger dans le fil |
-| `MANAGED_AGENTS` | clé API Console, facturation API | **non** — interface seulement (voir § 6) |
+| `CLI` | `claude --cloud` (créer) et `claude -p --cloud <id>` (parler à une session EXISTANTE) par un **relais** sur une machine de la Direction (§ 3 bis) | oui, pour garder le contexte d'une session |
+| Managed Agents | clé API Console, facturation API | **non** — option future, non codée (Direction, 01/11) |
 
-**Reprendre une session EXISTANTE de l'abonnement n'est pas possible depuis un serveur** : seule la CLI connectée au
-compte claude.ai le fait, et la sortir de la machine de la Direction est précisément ce qui est interdit. Le contexte
-d'un chantier passe donc par **la branche et la PR** : une relance est soit un nouveau lancement (« reprends la branche
-X, corrige Y »), soit un commentaire `@claude` dans le fil de la PR — le fil EST le contexte.
+**Reprendre une session EXISTANTE de l'abonnement n'est pas possible depuis le SERVEUR** : seule la CLI connectée au
+compte claude.ai le fait, et y mettre les identifiants de la Direction est précisément ce qui est interdit. Deux voies :
+le **relais CLI** (§ 3 bis), qui fait tourner la CLI sur une machine de la Direction, connectée par elle — l'ERP ne voit
+jamais ses identifiants ; ou la **branche et la PR** (nouveau lancement « reprends la branche X », commentaire `@claude`,
+auto-fix natif § 3 ter).
 
 ## 2. Routines API — vérifié le 01/11/2026
 Sources : platform.claude.com/docs/en/api/claude-code/routines-fire, code.claude.com/docs/en/routines.
@@ -76,6 +78,88 @@ documenté, sans secret : `docs/assistant/modeles/github-workflow-claude.yml` (�
 `.github/workflows/claude.yml` de la branche par défaut, après `claude setup-token` sur SA machine et le secret posé chez
 GitHub). Les commits de l'Action passent par l'app GitHub Claude, donc ils déclenchent la CI (pas un `GITHUB_TOKEN`
 d'Actions).
+
+## 3 bis. Le relais CLI — décision de la Direction du 01/11 (« Routines + CLI cloud »)
+Vérifié le 01/11/2026 sur code.claude.com/docs/en/claude-code-on-the-web et /cli-reference :
+- `claude --cloud "<tâche>"` crée une session cloud ; le VM clone **la branche courante du dépôt GitHub** (pas la copie
+  locale) : la branche doit être poussée. Sa sortie n'est **pas documentée en JSON** : le relais rend la sortie brute,
+  l'ERP y lit `session_…`/`cse_…` ou l'URL claude.ai/code ; sortie 0 sans identifiant ou délai dépassé → `INCERTAIN`.
+  ⚠ À vérifier au premier banc réel : la doc ne dit pas si cette forme rend la main sans terminal (le relais ferme
+  l'entrée standard et borne à 10 min).
+- `claude -p --cloud <session-id> --output-format json` (texte sur l'entrée standard, documenté) met UN message en file
+  dans une session existante, contexte gardé, depuis n'importe quelle machine connectée par `claude auth login` (la doc
+  cite l'usage depuis un script de CI) ; JSON `{ok, session_id, url}` ou `{ok:false, session_id, error}` (introuvable,
+  archivée) ; erreurs de configuration sur stderr sans JSON ; `stream-json` refusé.
+- `claude auth status` → JSON (`authMethod` : `none`, `claude.ai`, `oauth_token`, `api_key`…), code 0 si connecté. Le
+  relais le déclare ; l'écran affiche « connecté » seulement pour `claude.ai`. Le jeton `setup-token` n'est pas documenté
+  pour `--cloud` : non utilisé.
+
+**Architecture** (conditions d'Anthropic : rien des identifiants claude.ai côté ERP) :
+- `scripts/relais-claude.ts` (Node ≥ 22.6, zéro dépendance) tourne sur l'ordinateur de la Direction ou une machine
+  qu'elle contrôle (PAS Render : disque éphémère, et ce serait le serveur). Il **tire** `GET /api/dev/relais/ordres`
+  (long-polling 25 s, battement : version de `claude`, `auth status`) avec SON jeton (`CLAUDE_RELAIS_TOKEN` côté ERP,
+  comparé par empreinte en temps constant ; sans jeton posé la route est fermée, 503), exécute **sans shell** (`spawn`,
+  arguments séparés, message sur l'entrée standard), garde une copie de travail par dépôt (`git clone` puis `fetch`,
+  branche réservée créée depuis la branche par défaut et **poussée** si absente), rend la sortie brute
+  (`POST`). Un ordre à la fois.
+- Côté ERP : file `ClaudeRelaisOrdre` (migration `20270218200100_chantiers_relais_cli`) — idempotence par clé (`ECHEC`
+  re-lançable, `INCERTAIN` bloqué), `EN_ATTENTE → EN_COURS → FAIT | ECHEC | INCERTAIN`, `EN_COURS` sans résultat depuis
+  20 min → `INCERTAIN`, jamais tiré depuis 1 h → `ECHEC` ; texte effacé une fois conclu. La conclusion inscrit
+  `DEV_SESSION` (références `ORDRE:`, `SESSION:`, `missionId` de l'ordre → réveil de SA mission). Battement :
+  `ClaudeRelaisEtat`. Le port gagne `lancerParCli`, `envoyerMessage`, `ordreCli`, `relais()` ; un ordre est refusé
+  (`INDISPONIBLE`) si le relais n'a pas tiré depuis 2 min. Écrit au journal des effets J7.
+
+**Installation (par la Direction, une fois)** :
+1. Sur la machine : Node ≥ 22.6, `git` (accès en écriture aux dépôts : identifiants git de la Direction), Claude Code
+   (`claude`), puis **`claude auth login`** avec le compte claude.ai (et l'app GitHub Claude installée sur les dépôts).
+2. Sur Render (ERP) : `CLAUDE_RELAIS_TOKEN` = une valeur aléatoire ≥ 24 caractères (`openssl rand -hex 32`).
+3. Copier `scripts/relais-claude.ts` sur la machine (ex. `~/adventum/relais-claude.ts`).
+4. **macOS (launchd)** — `~/Library/LaunchAgents/com.adventum.relais-claude.plist` :
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0"><dict>
+     <key>Label</key><string>com.adventum.relais-claude</string>
+     <key>ProgramArguments</key><array>
+       <string>/opt/homebrew/bin/node</string><string>--experimental-strip-types</string>
+       <string>/Users/VOUS/adventum/relais-claude.ts</string></array>
+     <key>EnvironmentVariables</key><dict>
+       <key>RELAIS_ERP_URL</key><string>https://amd-internal-os-k3uc.onrender.com</string>
+       <key>RELAIS_JETON</key><string>(la valeur de CLAUDE_RELAIS_TOKEN)</string>
+       <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string></dict>
+     <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+     <key>StandardOutPath</key><string>/tmp/relais-claude.log</string>
+     <key>StandardErrorPath</key><string>/tmp/relais-claude.log</string>
+   </dict></plist>
+   ```
+   puis `launchctl load ~/Library/LaunchAgents/com.adventum.relais-claude.plist`. (Chemin de `node` : `which node`.)
+5. **Linux (systemd, service utilisateur)** — `~/.config/systemd/user/relais-claude.service` :
+   ```ini
+   [Unit]
+   Description=Relais Claude Code d'Adventum
+   After=network-online.target
+   [Service]
+   Environment=RELAIS_ERP_URL=https://amd-internal-os-k3uc.onrender.com
+   EnvironmentFile=%h/.config/relais-claude.env
+   ExecStart=/usr/bin/node --experimental-strip-types %h/adventum/relais-claude.ts
+   Restart=always
+   RestartSec=10
+   [Install]
+   WantedBy=default.target
+   ```
+   avec `~/.config/relais-claude.env` (droits 600) contenant `RELAIS_JETON=…`, puis `systemctl --user enable --now
+   relais-claude` et `loginctl enable-linger $USER` (pour qu'il tourne sans session ouverte).
+6. Vérifier : Administration › Développement → carte « relais CLI » : vu il y a quelques secondes, version, connexion
+   claude.ai « oui ».
+
+## 3 ter. L'auto-fix natif des PR
+Même page de la doc : avec l'**app GitHub Claude installée sur le dépôt**, une session cloud surveille SA PR (CI rouge,
+commentaires de relecture) et pousse elle-même les correctifs clairs ; elle demande quand c'est ambigu ; elle ne réagit
+pas à un conflit (pas de webhook GitHub pour ça). On l'active en le demandant dans la consigne (`ConsigneDev.autoFix` →
+« Active l'AUTO-FIX sur cette PR »). Pour que le moteur voie qu'une correction est en cours : `apresEchec(forge, dépôt,
+branche, shaRouge)` (`sondage.ts`) rend le NOUVEAU SHA poussé après le verdict rouge et ses checks ; le fait `DEV_PUSH`
+le signale aussi. ⚠ L'auto-fix répond sous l'identité GitHub de la Direction : un commentaire peut déclencher les
+workflows `issue_comment` (dont `@claude`) — à garder en tête sur les dépôts où un commentaire déploie.
 
 ## 4. GitHub et Render
 - **GitHub REST v3** (`fetch`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, `User-Agent`) :
@@ -119,16 +203,15 @@ d'Actions).
   délai d'un quota ; mêmes clés que les webhooks.
 
 ## 6. Managed Agents
-Laissé en **interface** (`MoyenAgent = "MANAGED_AGENTS"`, variable `CHANTIERS_MANAGED_AGENTS`, affichée « coupés » à
-l'écran) : je ne l'ai pas branché faute d'avoir pu vérifier, dans ce lot, le montage d'un dépôt GitHub dans une session
-Managed Agents dans la documentation officielle ; et il facture à l'API (coût). À brancher derrière le même port si la
-Direction le demande.
+Option future, **non codée** (Direction, 01/11 : « Claude Code Cloud par Routines + CLI cloud, pas les Managed Agents
+facturés à l'API pour l'instant »).
 
 ## 7. Écran Administration › Développement (Super Admin)
-État des quatre connecteurs (configuré, joignable, quotas restants, noms des variables posées ou manquantes), sondes en
+État des cinq connecteurs (Routines, relais CLI, GitHub, Render, MiMo : configuré, joignable, quotas restants, noms des variables posées ou manquantes), sondes en
 **lecture seule** à chaque chargement : GitHub `GET /user` + `GET /repos/{dépôt}` pour chaque dépôt de `CHANTIERS_DEPOTS` ;
 Render `GET /services` ; Routines : **aucune sonde sans effet documentée** (un appel à `/fire` lance une session) →
-configurée/non configurée + quotas comptés ; MiMo `GET <MIMO_BASE_URL>/models` avec la clé `mimo` (base par défaut
+configurée/non configurée + quotas comptés ; relais CLI : dernier battement, version de `claude`, connexion claude.ai
+déclarée, ordres en file et incertains ; MiMo `GET <MIMO_BASE_URL>/models` avec la clé `mimo` (base par défaut
 `https://token-plan-ams.xiaomimimo.com/v1`, l'ancien point de l'ERP), liste des modèles disponibles.
 
 ## 8. Secrets

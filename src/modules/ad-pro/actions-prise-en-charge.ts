@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import { Prisma, type CareCellKind, type CareCellStatus, type CareOpinion, type CareServiceKind } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -507,132 +508,134 @@ export async function createCareQuote(_prev: ActionResult | undefined, formData:
  */
 export async function decideCareQuote(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const id = fdStr(formData, "id");
-  const decision = fdStr(formData, "decision");
-  if (!id || (decision !== "ACCEPTED" && decision !== "REJECTED")) return { ok: false, error: "Décision non précisée." };
+  return gesteReversible(user, { capaciteId: "care-actions:decideCareQuote", libelle: "Devis de prise en charge tranché" }, async () => {
+    const id = fdStr(formData, "id");
+    const decision = fdStr(formData, "decision");
+    if (!id || (decision !== "ACCEPTED" && decision !== "REJECTED")) return { ok: false, error: "Décision non précisée." };
 
-  const quote = await prisma.careQuote.findUnique({
-    where: { id },
-    select: {
-      id: true, supplier: true, amountDzd: true, status: true, expenseOrderId: true, amount: true, currency: true, retainedAt: true,
-      decidedById: true, decidedAt: true,
-      congressNationalId: true, congressInternationalId: true,
-      cells: { select: { cellId: true } },
-    },
-  });
-  if (!quote) return { ok: false, error: "Devis introuvable." };
-  const scope: Scope = quote.congressNationalId ? "NATIONAL" : "INTERNATIONAL";
-  const requestId = quote.congressNationalId ?? quote.congressInternationalId;
-  if (!requestId) return { ok: false, error: "Devis orphelin." };
-  if (!canDecide(user, scope)) return { ok: false, error: "Seule la Direction tranche un devis." };
-  if (quote.expenseOrderId) return { ok: false, error: "Ce devis a déjà été engagé : sa décision ne peut plus changer." };
-
-  const cellIds = quote.cells.map((c) => c.cellId);
-
-  // ACCEPTER ENGAGE LA DÉPENSE (27/10/2026) : la demande prévalidée, chaque personne couverte accordée, et une
-  // catégorie budgétaire — l'ordre né du devis la porte, il n'échappe plus aux enveloppes.
-  let budgetCategoryId: string | null = null;
-  if (decision === "ACCEPTED") {
-    const refusEngagement = await refusEngagementPriseEnCharge(scope, requestId, cellIds);
-    if (refusEngagement) return { ok: false, error: refusEngagement };
-    // LE DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil, aucun ordre sans sa validation. Un devis
-    // accepté sans avoir été retenu n'est pas encore dans le total : il y entre ici.
-    const refusDg = await refusSiPorteDgFermee(SPEC[scope].module, requestId, quote.status === "PENDING" && !quote.retainedAt ? toNumber(quote.amountDzd) : 0);
-    if (refusDg) {
-      await signalerPorteDgSiBesoin(SPEC[scope].module, requestId);
-      return { ok: false, error: refusDg };
-    }
-    budgetCategoryId = fdStr(formData, "budgetCategoryId");
-    if (!budgetCategoryId) return { ok: false, error: "Choisissez la catégorie budgétaire du devis : l'ordre de dépense qu'il émet l'impute à son enveloppe." };
-    const cat = await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } });
-    if (cat === 0) return { ok: false, error: "La catégorie budgétaire choisie est introuvable." };
-  }
-
-  if (decision === "ACCEPTED") {
-    const others = await prisma.careQuote.findMany({
-      where: { ...parentWhere(scope, requestId), id: { not: id } },
-      select: { id: true, status: true, amountDzd: true, cells: { select: { cellId: true } } },
+    const quote = await prisma.careQuote.findUnique({
+      where: { id },
+      select: {
+        id: true, supplier: true, amountDzd: true, status: true, expenseOrderId: true, amount: true, currency: true, retainedAt: true,
+        decidedById: true, decidedAt: true,
+        congressNationalId: true, congressInternationalId: true,
+        cells: { select: { cellId: true } },
+      },
     });
-    const conflicts = quoteConflicts(
-      { id, status: "PENDING", amountDzd: toNumber(quote.amountDzd), cellIds },
-      others.map((o) => ({ id: o.id, status: o.status, amountDzd: toNumber(o.amountDzd), cellIds: o.cells.map((c) => c.cellId) })),
-    );
-    if (conflicts.length > 0) {
-      const labels = await prisma.careCell.findMany({ where: { id: { in: conflicts.map((c) => c.cellId) } }, select: { label: true } });
-      return {
-        ok: false,
-        error: `Déjà couvert par un devis accepté : ${labels.map((l) => l.label).join(", ")}. Refusez d'abord l'autre devis.`,
-      };
-    }
-  }
+    if (!quote) return { ok: false, error: "Devis introuvable." };
+    const scope: Scope = quote.congressNationalId ? "NATIONAL" : "INTERNATIONAL";
+    const requestId = quote.congressNationalId ?? quote.congressInternationalId;
+    if (!requestId) return { ok: false, error: "Devis orphelin." };
+    if (!canDecide(user, scope)) return { ok: false, error: "Seule la Direction tranche un devis." };
+    if (quote.expenseOrderId) return { ok: false, error: "Ce devis a déjà été engagé : sa décision ne peut plus changer." };
 
-  const req = await loadRequest(scope, requestId);
+    const cellIds = quote.cells.map((c) => c.cellId);
 
-  // UN DEVIS N'ÉMET QU'UN ORDRE, MÊME À DEUX CLICS (audit argent 2026-10-27, ARGENT-02). Le garde « déjà engagé »
-  // était lu en tête, l'ordre créé ensuite, et le devis écrit par son seul id : deux acceptations simultanées
-  // passaient toutes deux la lecture et émettaient DEUX ordres au centre de paiement — le second écrasait le
-  // lien du premier, qui restait payable sans que rien ne le rattache plus au devis. Le devis se RÉSERVE donc
-  // d'abord, sur l'état lu (§118.151) : seul le gagnant émet l'ordre ; un échec de l'émission rend la réserve.
-  if (decision === "ACCEPTED") {
-    const reserve = await prisma.careQuote.updateMany({
-      where: { id, expenseOrderId: null, status: quote.status, decidedAt: quote.decidedAt },
-      data: { status: "ACCEPTED", decidedById: user.id, decidedAt: new Date() },
-    });
-    if (reserve.count === 0) return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
-  }
-  const rendreLaReserve = () => rendreLaReserveDuDevis(id, cellIds, quote);
-  // DEVIS RIVAUX SUR LES MÊMES CASES (DONNEES-08) : seul le devis qui les trouve toutes libres les prend, sous verrou.
-  if (decision === "ACCEPTED" && !(await prendreLesCasesDuDevis(id, cellIds))) { await rendreLaReserve(); return { ok: false, error: "Un autre devis couvrant les mêmes éléments vient d'être accepté : rechargez la page." }; }
-
-  let ordreNe = false;
-  try {
+    // ACCEPTER ENGAGE LA DÉPENSE (27/10/2026) : la demande prévalidée, chaque personne couverte accordée, et une
+    // catégorie budgétaire — l'ordre né du devis la porte, il n'échappe plus aux enveloppes.
+    let budgetCategoryId: string | null = null;
     if (decision === "ACCEPTED") {
-      const amount = toNumber(quote.amountDzd);
-      const order = await createExpenseOrder({
-        label: `${req?.name ?? "Prise en charge"} — devis ${quote.supplier}`,
-        amount,
-        category: "EVENEMENT",
-        beneficiary: quote.supplier,
-        sourceType: SPEC[scope].module,
-        sourceId: requestId,
-        requestedById: user.id,
-        budgetCategoryId,
-        // LE BUDGET EST EN DZD : un devis saisi en dollars entre à son équivalent au taux figé de la demande.
-        notes: `Devis couvrant ${cellIds.length} élément(s) de la prise en charge.${quote.currency === "USD" && quote.amount != null ? ` Saisi : ${montantLisible(toNumber(quote.amount), "USD")} (converti au taux de la demande).` : ""}`,
-      });
-      ordreNe = true;
-      await prisma.$transaction([
-        prisma.careQuote.update({
-          where: { id },
-          data: { status: "ACCEPTED", decidedById: user.id, decidedAt: new Date(), expenseOrderId: order.id },
-        }),
-        // Les cases couvertes deviennent réglées et portent leur part de la dépense.
-        prisma.careCell.updateMany({
-          where: { id: { in: cellIds } },
-          data: { status: "SETTLED", quoteId: id, expenseOrderId: order.id },
-        }),
-      ]);
-      await audit(user, scope, requestId, "UPDATE",
-        `Devis ${quote.supplier} ACCEPTÉ (${amount.toLocaleString("fr-FR")} DZD) — ordre de dépense ${order.reference}.`);
-    } else {
-      await prisma.$transaction([
-        prisma.careQuote.update({ where: { id }, data: { status: "REJECTED", decidedById: user.id, decidedAt: new Date(), note: fdStr(formData, "note") } }),
-        // Les cases redeviennent « demandées » : il faut un autre devis.
-        prisma.careCell.updateMany({ where: { id: { in: cellIds }, status: "PROVIDED" }, data: { status: "REQUESTED" } }),
-      ]);
-      await audit(user, scope, requestId, "UPDATE", `Devis ${quote.supplier} REFUSÉ — les éléments couverts repassent en attente.`);
+      const refusEngagement = await refusEngagementPriseEnCharge(scope, requestId, cellIds);
+      if (refusEngagement) return { ok: false, error: refusEngagement };
+      // LE DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil, aucun ordre sans sa validation. Un devis
+      // accepté sans avoir été retenu n'est pas encore dans le total : il y entre ici.
+      const refusDg = await refusSiPorteDgFermee(SPEC[scope].module, requestId, quote.status === "PENDING" && !quote.retainedAt ? toNumber(quote.amountDzd) : 0);
+      if (refusDg) {
+        await signalerPorteDgSiBesoin(SPEC[scope].module, requestId);
+        return { ok: false, error: refusDg };
+      }
+      budgetCategoryId = fdStr(formData, "budgetCategoryId");
+      if (!budgetCategoryId) return { ok: false, error: "Choisissez la catégorie budgétaire du devis : l'ordre de dépense qu'il émet l'impute à son enveloppe." };
+      const cat = await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } });
+      if (cat === 0) return { ok: false, error: "La catégorie budgétaire choisie est introuvable." };
     }
 
-    revalidate(scope, requestId);
-    revalidatePath("/finances/paiements-a-faire");
-    return { ok: true, id };
-  } catch (err) {
-    console.error("[care] décision de devis impossible", err);
-    // L'ordre n'est pas né : la réserve se rend. Né mais non rattaché, le devis RESTE réservé — le rendre
-    // laisserait accepter une seconde fois, donc émettre un second ordre.
-    if (decision === "ACCEPTED" && !ordreNe) await rendreLaReserve();
-    return { ok: false, error: "La décision n'a pas pu être enregistrée." };
-  }
+    if (decision === "ACCEPTED") {
+      const others = await prisma.careQuote.findMany({
+        where: { ...parentWhere(scope, requestId), id: { not: id } },
+        select: { id: true, status: true, amountDzd: true, cells: { select: { cellId: true } } },
+      });
+      const conflicts = quoteConflicts(
+        { id, status: "PENDING", amountDzd: toNumber(quote.amountDzd), cellIds },
+        others.map((o) => ({ id: o.id, status: o.status, amountDzd: toNumber(o.amountDzd), cellIds: o.cells.map((c) => c.cellId) })),
+      );
+      if (conflicts.length > 0) {
+        const labels = await prisma.careCell.findMany({ where: { id: { in: conflicts.map((c) => c.cellId) } }, select: { label: true } });
+        return {
+          ok: false,
+          error: `Déjà couvert par un devis accepté : ${labels.map((l) => l.label).join(", ")}. Refusez d'abord l'autre devis.`,
+        };
+      }
+    }
+
+    const req = await loadRequest(scope, requestId);
+
+    // UN DEVIS N'ÉMET QU'UN ORDRE, MÊME À DEUX CLICS (audit argent 2026-10-27, ARGENT-02). Le garde « déjà engagé »
+    // était lu en tête, l'ordre créé ensuite, et le devis écrit par son seul id : deux acceptations simultanées
+    // passaient toutes deux la lecture et émettaient DEUX ordres au centre de paiement — le second écrasait le
+    // lien du premier, qui restait payable sans que rien ne le rattache plus au devis. Le devis se RÉSERVE donc
+    // d'abord, sur l'état lu (§118.151) : seul le gagnant émet l'ordre ; un échec de l'émission rend la réserve.
+    if (decision === "ACCEPTED") {
+      const reserve = await prisma.careQuote.updateMany({
+        where: { id, expenseOrderId: null, status: quote.status, decidedAt: quote.decidedAt },
+        data: { status: "ACCEPTED", decidedById: user.id, decidedAt: new Date() },
+      });
+      if (reserve.count === 0) return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
+    }
+    const rendreLaReserve = () => rendreLaReserveDuDevis(id, cellIds, quote);
+    // DEVIS RIVAUX SUR LES MÊMES CASES (DONNEES-08) : seul le devis qui les trouve toutes libres les prend, sous verrou.
+    if (decision === "ACCEPTED" && !(await prendreLesCasesDuDevis(id, cellIds))) { await rendreLaReserve(); return { ok: false, error: "Un autre devis couvrant les mêmes éléments vient d'être accepté : rechargez la page." }; }
+
+    let ordreNe = false;
+    try {
+      if (decision === "ACCEPTED") {
+        const amount = toNumber(quote.amountDzd);
+        const order = await createExpenseOrder({
+          label: `${req?.name ?? "Prise en charge"} — devis ${quote.supplier}`,
+          amount,
+          category: "EVENEMENT",
+          beneficiary: quote.supplier,
+          sourceType: SPEC[scope].module,
+          sourceId: requestId,
+          requestedById: user.id,
+          budgetCategoryId,
+          // LE BUDGET EST EN DZD : un devis saisi en dollars entre à son équivalent au taux figé de la demande.
+          notes: `Devis couvrant ${cellIds.length} élément(s) de la prise en charge.${quote.currency === "USD" && quote.amount != null ? ` Saisi : ${montantLisible(toNumber(quote.amount), "USD")} (converti au taux de la demande).` : ""}`,
+        });
+        ordreNe = true;
+        await prisma.$transaction([
+          prisma.careQuote.update({
+            where: { id },
+            data: { status: "ACCEPTED", decidedById: user.id, decidedAt: new Date(), expenseOrderId: order.id },
+          }),
+          // Les cases couvertes deviennent réglées et portent leur part de la dépense.
+          prisma.careCell.updateMany({
+            where: { id: { in: cellIds } },
+            data: { status: "SETTLED", quoteId: id, expenseOrderId: order.id },
+          }),
+        ]);
+        await audit(user, scope, requestId, "UPDATE",
+          `Devis ${quote.supplier} ACCEPTÉ (${amount.toLocaleString("fr-FR")} DZD) — ordre de dépense ${order.reference}.`);
+      } else {
+        await prisma.$transaction([
+          prisma.careQuote.update({ where: { id }, data: { status: "REJECTED", decidedById: user.id, decidedAt: new Date(), note: fdStr(formData, "note") } }),
+          // Les cases redeviennent « demandées » : il faut un autre devis.
+          prisma.careCell.updateMany({ where: { id: { in: cellIds }, status: "PROVIDED" }, data: { status: "REQUESTED" } }),
+        ]);
+        await audit(user, scope, requestId, "UPDATE", `Devis ${quote.supplier} REFUSÉ — les éléments couverts repassent en attente.`);
+      }
+
+      revalidate(scope, requestId);
+      revalidatePath("/finances/paiements-a-faire");
+      return { ok: true, id };
+    } catch (err) {
+      console.error("[care] décision de devis impossible", err);
+      // L'ordre n'est pas né : la réserve se rend. Né mais non rattaché, le devis RESTE réservé — le rendre
+      // laisserait accepter une seconde fois, donc émettre un second ordre.
+      if (decision === "ACCEPTED" && !ordreNe) await rendreLaReserve();
+      return { ok: false, error: "La décision n'a pas pu être enregistrée." };
+    }
+  });
 }
 
 // ───────────────────────────── Secrétariat & Finances ─────────────────────────────

@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * BANC RÉEL DES CONNECTEURS DES CHANTIERS (lot C2, décision 0041) — sur un dépôt et un service de TEST, jamais la prod.
+ * BANC RÉEL DES CONNECTEURS DES CHANTIERS (lot C2, décision 0043) — sur un dépôt et un service de TEST, jamais la prod.
  *
  *   npx tsx scripts/bench/chantiers-reel.ts            tout ce que les variables permettent
  *   BANC_ETAPES=github,render npx tsx …                 seulement certaines étapes (github, routine, render)

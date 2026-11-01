@@ -977,7 +977,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "admin-request-actions:deleteOwnRequest": {
@@ -1013,7 +1013,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "admin-request-actions:requestApproval": {
@@ -1800,7 +1800,25 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-gestes-actions:agirSurMonEnvoi": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-gestes-actions:annulerGestesAssistant": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-gestes-actions:annulerMonGeste": {
   "risque": "R1",
   "familles": [
    "ECRITURES"
@@ -1818,11 +1836,38 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-gestes-actions:historiqueDeLaFiche": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-gestes-actions:listerGestesAssistant": {
   "risque": "R0",
   "familles": [],
   "simulable": "oui",
   "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-gestes-actions:mesGestesEtEnvoisRecents": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-gestes-actions:retablirMonGeste": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
   "appelable": false
  },
  "assistant-ia-notes-actions:accepterPropositionNote": {
@@ -2925,7 +2970,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "candidatures-site-actions:effacerCandidatureSite": {
@@ -2945,7 +2990,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "candidatures-site-actions:remettreCandidatureATrier": {
@@ -2955,7 +3000,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "care-actions:addCareBeneficiary": {
@@ -3043,7 +3088,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "care-actions:demanderBCPriseEnCharge": {
@@ -3660,7 +3705,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "custom-field-actions:saveCustomValues": {
@@ -3670,7 +3715,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "custom-field-actions:upsertCustomFieldDef": {
@@ -3989,7 +4034,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "directive-actions:rejectDirective": {
@@ -4007,7 +4052,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "directive-actions:updateDirectiveStatus": {
@@ -4220,7 +4265,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "dossier-actions:listLinkableDossiers": {
@@ -4764,7 +4809,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "fabrique-actions:emettrePieceCommerciale": {
@@ -4774,7 +4819,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "fabrique-actions:previsualiserPieceCommerciale": {
@@ -4793,7 +4838,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "fabrique-actions:reviserNumeroDuBc": {
@@ -5731,7 +5776,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "kpi-actions:reglerFrequenceRevue": {
@@ -5740,7 +5785,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "kpi-actions:retirerAffectationKpi": {
@@ -6002,7 +6047,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-actions:disconnectMailbox": {
@@ -6011,7 +6056,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-actions:sendMailAction": {
@@ -6020,7 +6065,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "mail-actions:updateMailSignature": {
@@ -6038,7 +6083,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-folder-actions:deleteMailFolder": {
@@ -6056,7 +6101,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-folder-actions:updateMailFolder": {
@@ -6065,7 +6110,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-partner-actions:createMailPartner": {
@@ -6074,7 +6119,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-partner-actions:deleteMailPartner": {
@@ -6092,7 +6137,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-piece-actions:addMailPiece": {
@@ -6101,7 +6146,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-piece-actions:deleteMailPiece": {
@@ -6119,7 +6164,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-register-actions:attachDriveNodeToMail": {
@@ -6128,7 +6173,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-register-actions:createMailEntry": {
@@ -6137,7 +6182,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-register-actions:deleteMailEntry": {
@@ -6155,7 +6200,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-register-actions:setMailDate": {
@@ -6164,7 +6209,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "market-actions:analyzeMarketMolecule": {
@@ -6741,7 +6786,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "medical-info-actions:requestSlipsValidation": {
@@ -6777,7 +6822,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "meeting-actions:acceptMeetingProposal": {
@@ -7137,7 +7182,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "microsoft-mail-actions:linkMessageToEntity": {
@@ -7146,7 +7191,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "microsoft-mail-actions:moveMessage": {
@@ -7155,7 +7200,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "microsoft-mail-actions:saveAttachmentToDrive": {
@@ -7164,7 +7209,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "microsoft-mail-actions:saveDraft": {
@@ -7173,7 +7218,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "microsoft-mail-actions:saveMailSignature": {
@@ -7191,7 +7236,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "microsoft-mail-actions:setMessageRead": {
@@ -7200,7 +7245,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mission-actions:addMissionComment": {
@@ -9910,7 +9955,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "recrutement-diffusion-actions:envoyerOffreEmploitic": {
@@ -9920,7 +9965,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "recrutement-diffusion-actions:marquerCanalPublie": {
@@ -9930,7 +9975,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "recrutement-diffusion-actions:preparerPostLinkedIn": {
@@ -9940,7 +9985,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "recrutement-diffusion-actions:publierOffreSiteDuRecrutement": {
@@ -9950,7 +9995,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "recrutement-diffusion-actions:retirerCanal": {
@@ -9960,7 +10005,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "refonte-reprise-actions:apercuReprise": {
@@ -10960,7 +11005,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "segmentation-actions:rendreLettreCalculee": {
@@ -11140,7 +11185,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "site-web-actions:enregistrerArticle": {
@@ -11149,7 +11194,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "site-web-actions:genererCleSite": {
@@ -11158,7 +11203,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "site-web-actions:leverBlocageSite": {
@@ -11176,7 +11221,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "site-web-actions:relancerEnvoiSite": {
@@ -11185,7 +11230,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "site-web-actions:supprimerArticle": {
@@ -11203,7 +11248,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "site-web-redaction-actions:redigerArticleAvecIA": {
@@ -11212,7 +11257,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "site-web-redaction-actions:redigerOffreAvecIA": {
@@ -11221,7 +11266,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "smart-mail-actions:sendMail": {
@@ -11230,7 +11275,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "smart-mail-actions:smartMailStatus": {
@@ -11239,7 +11284,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "sponsoring-actions:cloturerSponsoring": {
@@ -11476,7 +11521,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": false
  },
  "supplier-portal-actions:supplierLogout": {
@@ -11485,7 +11530,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": false
  },
  "support-actions:answerSupportRequest": {

@@ -347,8 +347,8 @@ describe("chaque route d'API résout l'identité par la session partagée", () =
     /api[\\/]health[\\/]/,
     // K6 (décision 0036) : le webhook WhatsApp de Meta — signé (X-Hub-Signature-256), la personne reconnue par son numéro.
     /api[\\/]canaux[\\/]whatsapp[\\/]/, /api[\\/]canaux[\\/]relais[\\/]/,
-    // C2 (décision 0041) : les webhooks GitHub (HMAC) et Render (Standard Webhooks) des chantiers — signés, aucune personne.
-    /api[\\/]chantiers[\\/]webhooks[\\/]/,
+    // C2 (décision 0043) : webhooks GitHub / Render signés, et le relais CLI de la Direction (jeton `CLAUDE_RELAIS_TOKEN`).
+    /api[\\/]chantiers[\\/]webhooks[\\/]/, /api[\\/]dev[\\/]relais[\\/]/,
   ];
   it("aucune route ne lit l'identité ailleurs que dans `@/lib/session` (hors routes sans session, nommées)", () => {
     const fautes = fichiers("src/app/api", (n) => n === "route.ts")

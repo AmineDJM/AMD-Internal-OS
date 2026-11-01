@@ -1,6 +1,6 @@
 # ═══════════════════════════════════════════════════════════════════════════════════════════════
 # MODÈLE — `.github/workflows/claude.yml`, à POSER PAR LA DIRECTION dans chaque dépôt où Adventum fait
-# travailler Claude Code par commentaire `@claude` (lot C2, décision 0041). Il n'est PAS actif ici : il vit
+# travailler Claude Code par commentaire `@claude` (lot C2, décision 0043). Il n'est PAS actif ici : il vit
 # sous docs/ pour qu'aucun dépôt ne l'exécute sans décision.
 #
 # Source : code.claude.com/docs/en/github-actions (vérifié le 01/11/2026) — exemple « Respond to @claude mentions »,

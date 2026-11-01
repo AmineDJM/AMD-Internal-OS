@@ -396,6 +396,20 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   with an honest undo (annulé / compensé / impossible / sans objet + why). Classification: `simulableDe` (J7 rules), 92.5 %
   of R1–R2 capabilities simulable. Cross-cutting details: KB 11 § 8ter.
 
+- **Reversibility K10b — outbound undo window, screen gestures (31/10/2026)** [V] decision
+  `docs/assistant/decisions/0040-reversibilite-communications.md`, README `src/lib/effets/README.md`. Every outbound effect
+  (SMTP / Graph / API mail, push, site queue, WhatsApp executor) waits `AssistantIaReglage.fenetreAnnulationSecondes`
+  (default 120 s) in `EffetSortantDiffere` (`lib/effets/fenetre.ts` `differerEffetSortant` — the interface K10a/K10c adopt;
+  port `differerSiFenetre` in each sending primitive under a journaled gesture); cancelled in the window → nothing left;
+  after → executor's compensation (rectificatif, itself deferred), never "deleted at the recipient". Screen actions wrap
+  their body in `gesteReversible` (`lib/effets/ecran.ts`, origin `ecran`) → shell bar "Annuler / Annuler l'envoi"
+  (`modules/assistant-ia/ecrans/barre-annulation.tsx`), `HistoriqueAnnulable` on a record. J7 extended: screen gestures undo
+  all-or-nothing (cascades), `LegalDocument` cancelled never deleted, counters (`DocumentSequence`, `DocumentReference`,
+  `SerieReference`) never roll back, read notification → rectificatif, `OutboundEmail` kept as trace, `retablirGeste`
+  (undo the undo), Graph immediate gestures with recorded inverse (`noterEffetFait`). Registry: optional port
+  `annulationDeclaree` ← `lib/effets/declarations.ts` (one table per perimeter). Tests/ratchet:
+  `src/lib/actions/internes/reversibilite/` (58 K10b actions, execute → undo → redo → re-undo against the DB).
+
 - **Travaux J8 (30/10/2026)** [V] decision `docs/assistant/decisions/0023-delegation.md`. **Delegation**: plan step `DEMANDE`
   → `WAIT_INPUT`, handled in `conduite.ts` by `delegation.ts deposerDemande` (one `TravailDemande` per step, unique
   `missionId, stepKey`; delays counted from the deposit; shared Drive pieces granted VIEW via the persona port
@@ -784,7 +798,7 @@ Gotchas [V]:
   claimed before sending (`createMany skipDuplicates`); timeout / connection reset / HTTP 500 ⇒ `INCERTAIN` (key blocked,
   never replayed); 429 / 503 / pre-send network error ⇒ `ECHEC` (key re-claimable). Local hourly quota 30/routine,
   100/account counted before the 429. Fire text arrives wrapped in `<routine-fire-payload>` (untrusted): the routine's own
-  prompt must opt in (decision 0041 § 2).
+  prompt must opt in (decision 0043 § 2).
 - **Writes** (fire, comment, deploy, cancel, rollback, autoDeploy, rerun) call `noterEffetExterne` (J7): recorded in real
   mode, neutralised (`SIMULE`) in simulation. Note: the J7 network port does NOT record anthropic.com calls by itself
   (`HOTES_MODELES`), hence the explicit note.
@@ -797,3 +811,11 @@ Gotchas [V]:
   any ERP import in `src/platform/` outside the bridge); adapters, `DevLancement`, reception, polling, probes and the
   composition root `connecteursDev()` in the bridge `src/platform/in-process/chantiers/`. The registry (`recordEvent`) is
   injected by the route, not imported.
+- **CLI relay** (Direction 01/11): `scripts/relais-claude.ts` on a Direction machine (`claude auth login`) long-polls
+  `GET /api/dev/relais/ordres` (Bearer `CLAUDE_RELAIS_TOKEN`), runs `claude --cloud "<task>"` (CREER, after pushing the
+  reserved branch) or `claude -p --cloud <id> --output-format json` (MESSAGE, stdin), POSTs raw output; the ERP interprets
+  it (`platform/dev/relais.ts` `interpreter`, pure). Queue `ClaudeRelaisOrdre` (idempotent key; 20 min EN_COURS ⇒
+  INCERTAIN; 1 h unpulled ⇒ ECHEC), heartbeat `ClaudeRelaisEtat`, completion ⇒ `BusinessEvent DEV_SESSION` with the
+  order's `missionId`. Agent port: `lancerParCli`, `envoyerMessage`, `ordreCli`, `relais()`. Managed Agents: not coded.
+- Auto-fix: `ConsigneDev.autoFix` asks the session to turn on native PR auto-fix (Claude GitHub App required);
+  `apresEchec()` in `sondage.ts` shows a new push after a red verdict.

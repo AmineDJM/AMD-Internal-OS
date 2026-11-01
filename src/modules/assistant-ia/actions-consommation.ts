@@ -217,20 +217,36 @@ export async function enregistrerValeursSensibles(formData: FormData): Promise<A
 /**
  * J7 (décision 0029) — LA DURÉE DE GARDE DU JOURNAL DES EFFETS : combien de jours un geste de l'assistant reste
  * annulable (sa valeur AVANT gardée). Super Admin seul ; entre 7 jours et 3 ans ; à l'audit.
+ * K10b (décision 0040) — et LA FENÊTRE D'ANNULATION DES ENVOIS (`fenetreAnnulationSecondes`, 10 s à 15 min, défaut
+ * 2 min) : combien de temps un courriel, une poussée, une publication attend avant de partir. Chaque champ fourni est
+ * vérifié, écrit, et va à l'audit avec son avant et son après.
  */
+const REGLAGES_JOURNAL = {
+  retentionEffetsJours: { min: 7, max: 1095, defaut: 180, unite: "jours", champ: "Journal des effets — durée de garde", erreur: "Une durée en jours, entre 7 et 1 095 (trois ans).", resume: (n: number) => `Les gestes restent annulables ${n} jours (journal des effets)` },
+  fenetreAnnulationSecondes: { min: 10, max: 900, defaut: 120, unite: "secondes", champ: "Fenêtre d'annulation des envois", erreur: "Une fenêtre en secondes, entre 10 et 900 (15 minutes).", resume: (n: number) => `Les envois (courriels, poussées, publications) attendent ${n} s avant de partir : annulables d'ici là` },
+} as const;
+
 export async function enregistrerRetentionEffets(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
   if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
-  const jours = Number(String(formData.get("retentionEffetsJours") ?? "").trim());
-  if (!Number.isInteger(jours) || jours < 7 || jours > 1095) return { ok: false, error: "Une durée en jours, entre 7 et 1 095 (trois ans)." };
-  const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { retentionEffetsJours: true } });
-  const data = { retentionEffetsJours: jours, updatedById: admin.id };
+  const cles = (Object.keys(REGLAGES_JOURNAL) as (keyof typeof REGLAGES_JOURNAL)[]).filter((k) => formData.get(k) !== null);
+  const valeurs: Partial<Record<keyof typeof REGLAGES_JOURNAL, number>> = {};
+  for (const k of cles) {
+    const n = Number(String(formData.get(k) ?? "").trim());
+    if (!Number.isInteger(n) || n < REGLAGES_JOURNAL[k].min || n > REGLAGES_JOURNAL[k].max) return { ok: false, error: REGLAGES_JOURNAL[k].erreur };
+    valeurs[k] = n;
+  }
+  if (!cles.length) return { ok: false, error: "Rien à enregistrer." };
+  const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { retentionEffetsJours: true, fenetreAnnulationSecondes: true } });
+  const data = { ...valeurs, updatedById: admin.id };
   await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
-  await recordAudit({
-    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Journal des effets — durée de garde",
-    oldValue: `${avant?.retentionEffetsJours ?? 180} jours`, newValue: `${jours} jours`,
-    summary: `Les gestes de l'assistant restent annulables ${jours} jours (journal des effets)`,
-  });
+  for (const k of cles) {
+    const r = REGLAGES_JOURNAL[k];
+    await recordAudit({
+      actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: r.champ,
+      oldValue: `${avant?.[k] ?? r.defaut} ${r.unite}`, newValue: `${valeurs[k]} ${r.unite}`, summary: r.resume(valeurs[k]!),
+    });
+  }
   revalidatePath("/admin/ai/acces");
   return { ok: true };
 }

@@ -77,7 +77,7 @@ export function ficheDeLAction<C extends ContratLu>(c: C, ports: PortsRegistre<C
       ?? (binaires.length ? `Cette action attend un FICHIER (${binaires.map((b) => b.nom).join(", ")}) : elle se fait à l'écran, où l'on choisit le fichier.` : null);
   const { simulable, raison: raisonSimulable } = simulableDe(c, risque);
   const nature = natureDeLAction(c, risque, raison);
-  const { annulation, raison: raisonAnnulation } = annulationDe(nature, ports.classerGeste);
+  const { annulation, raison: raisonAnnulation } = (risque !== "R0" ? ports.annulationDeclaree?.(c) : null) ?? annulationDe(nature, ports.classerGeste);
   const libelle = libelleDeFonction(c.fonction);
   const module = c.porte.moduleFr ?? (porte.modules[0] ? ports.modules[porte.modules[0]] ?? null : null);
   const description = `${libelle}${module ? ` — ${module}` : ""}. ${PHRASE_RISQUE[risque]}`;

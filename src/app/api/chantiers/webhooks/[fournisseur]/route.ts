@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * LES WEBHOOKS DES CHANTIERS DE DÉVELOPPEMENT (lot C2, décision 0041) — `POST /api/chantiers/webhooks/{github|render}`.
+ * LES WEBHOOKS DES CHANTIERS DE DÉVELOPPEMENT (lot C2, décision 0043) — `POST /api/chantiers/webhooks/{github|render}`.
  *
  * Route PUBLIQUE (GitHub et Render n'ont pas de session), jamais ouverte :
  *   1. sans secret (`GITHUB_WEBHOOK_SECRET`, `RENDER_WEBHOOK_SECRET`) la source est fermée — 503 ;

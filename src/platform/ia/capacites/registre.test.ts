@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { CONTRATS_ACTIONS } from "@/lib/actions/contrat.genere";
 import { PORTES_DU_GESTE } from "./portes";
 import { contratVuParLAssistantIa, GESTES_DE_FICHE, interdictionDeLAssistantIa, interdictionGenerique } from "@/lib/actions/generique";
-import { classerGeste } from "@/lib/annulation/reversibilite";
+import { annulationDeclaree, classerGeste } from "@/lib/annulation/reversibilite";
 import { MODULE_LABELS } from "@/lib/labels";
 import { ACTIONS_GESTE } from "@/platform/ia/artifact/atelier/gestes";
 import { deriverRegistre, ficheDeLOutil, nomOutilDe, schemaDe, zodDe } from "./registre";
@@ -17,7 +17,7 @@ import { libelleDeFonction } from "./lexique";
  * ne doive pas l'être. Le cliché (`classement.genere.json`) est la revue : une action nouvelle du contrat qui n'y est
  * pas fait échouer ce test (`npm run capacites:classement`, puis relire le diff).
  */
-const registre = deriverRegistre(CONTRATS_ACTIONS.map(contratVuParLAssistantIa), { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS });
+const registre = deriverRegistre(CONTRATS_ACTIONS.map(contratVuParLAssistantIa), { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS, annulationDeclaree });
 const actions = registre.capacites.filter((c) => c.source === "action");
 const de = (id: string) => registre.parId.get(id)!;
 

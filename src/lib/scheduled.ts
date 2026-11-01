@@ -113,7 +113,7 @@ function armHeartbeat(): void {
 export const BOUCLE_REVEILS_MS = Math.max(2_000, Number(process.env.TRAVAUX_REVEILS_MS ?? 10_000));
 
 /**
- * C1 ↔ C2 (décisions 0041, 0042) : LA RACINE DE COMPOSITION DES CHANTIERS — les connecteurs réels (Claude Code, GitHub,
+ * C1 ↔ C2 (décisions 0042, 0043) : LA RACINE DE COMPOSITION DES CHANTIERS — les connecteurs réels (Claude Code, GitHub,
  * Render) traduits dans les termes du moteur, branchés avant chaque conduite. Sans jeton GitHub : rien n'est branché, un
  * chantier attend et le dit.
  */
@@ -196,6 +196,13 @@ export function identiteDesBaux(): string {
  * idempotente (elle peut tourner à chaque passage, et sur n'importe quel exécutant).
  */
 export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
+  // K10b (décision 0040) : les effets sortants dont la FENÊTRE D'ANNULATION est passée partent (courriels, poussées…).
+  { cle: "effets.sortants", executer: async () => {
+    const graph = await import("@/lib/mail/executeur-sortant");
+    graph.enregistrerExecuteurGraph();
+    graph.enregistrerInversesGraph();
+    await (await import("@/lib/contexte-geste")).executerEffetsSortantsDus();
+  } },
   { cle: "rappels.reunions", executer: sendDueMeetingReminders },
   { cle: "rappels.personnels", executer: sendDueReminders },
   { cle: "rh.paie-notifiee", executer: sendDuePayrollNotifications },

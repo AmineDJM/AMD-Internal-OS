@@ -9,7 +9,7 @@ proportionnées au risque ; mémoire technique permanente ; autonomie contrôlé
 S'appuie sur le moteur des travaux (J2 [0016](0016-travaux.md), J8 [0023](0023-delegation.md), K3
 [0033](0033-sous-missions.md)) — lui-même le Mission Runtime d'Adam — et sur le journal de consommation K8
 ([0035](0035-consommation.md)). Le lot C2 (connecteurs GitHub, Render, Claude Code, décision
-[0041](0041-connecteurs-chantiers.md)) a publié ses ports dans `src/platform/dev/ports.ts`, plus riches que le contrat
+[0043](0043-connecteurs-chantiers.md)) a publié ses ports dans `src/platform/dev/ports.ts`, plus riches que le contrat
 posé au départ : le moteur garde SON contrat (`chantiers/ports-moteur.ts`, le texte d'origine) et une couche
 d'adaptation PURE (`chantiers/adaptateur-c2.ts`) y traduit les connecteurs réels — composée dans `scheduled.ts`. Le
 moteur n'appelle jamais le réseau lui-même.

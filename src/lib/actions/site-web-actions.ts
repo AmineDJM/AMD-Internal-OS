@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -67,78 +68,80 @@ function phraseArticle(intention: Intention, s: ResultatSynchro): string {
  */
 export async function enregistrerArticle(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutEcrireArticles(user)) return { ok: false, error: REFUS_ARTICLES };
+  return gesteReversible(user, { capaciteId: "site-web-actions:enregistrerArticle", libelle: "Article enregistré" }, async () => {
+    if (!peutEcrireArticles(user)) return { ok: false, error: REFUS_ARTICLES };
 
-  const id = fdStr(formData, "id");
-  const intentionBrute = fdStr(formData, "intention") ?? "enregistrer";
-  if (!(INTENTIONS as readonly string[]).includes(intentionBrute)) return { ok: false, error: `Geste inconnu : « ${intentionBrute} ».` };
-  const intention = intentionBrute as Intention;
+    const id = fdStr(formData, "id");
+    const intentionBrute = fdStr(formData, "intention") ?? "enregistrer";
+    if (!(INTENTIONS as readonly string[]).includes(intentionBrute)) return { ok: false, error: `Geste inconnu : « ${intentionBrute} ».` };
+    const intention = intentionBrute as Intention;
 
-  const title = fdStr(formData, "title") ?? "";
-  const body = String(formData.get("body") ?? "").replace(/\r\n/g, "\n");
-  const description = fdStr(formData, "description");
-  const slug = fdStr(formData, "slug");
-  const category = fdStr(formData, "category");
-  const tags = lignes((fdStr(formData, "tags") ?? "").replace(/,/g, "\n"));
-  const author = fdStr(formData, "author");
-  const publishedOnSaisie = fdDate(formData, "publishedOn");
-  const featured = fdBool(formData, "featured");
+    const title = fdStr(formData, "title") ?? "";
+    const body = String(formData.get("body") ?? "").replace(/\r\n/g, "\n");
+    const description = fdStr(formData, "description");
+    const slug = fdStr(formData, "slug");
+    const category = fdStr(formData, "category");
+    const tags = lignes((fdStr(formData, "tags") ?? "").replace(/,/g, "\n"));
+    const author = fdStr(formData, "author");
+    const publishedOnSaisie = fdDate(formData, "publishedOn");
+    const featured = fdBool(formData, "featured");
 
-  if (!title) return { ok: false, error: "Le titre est obligatoire." };
+    if (!title) return { ok: false, error: "Le titre est obligatoire." };
 
-  const avant = id
-    ? await prisma.blogArticle.findUnique({
-        where: { id },
-        select: { id: true, title: true, body: true, description: true, published: true, publishedOn: true, firstPublishedAt: true, revisedAt: true },
-      })
-    : null;
-  if (id && !avant) return { ok: false, error: "Article introuvable." };
-  const dejaEnvoye = avant ? (await prisma.sitePublication.count({ where: { kind: "POST", externalId: avant.id } })) > 0 : false;
+    const avant = id
+      ? await prisma.blogArticle.findUnique({
+          where: { id },
+          select: { id: true, title: true, body: true, description: true, published: true, publishedOn: true, firstPublishedAt: true, revisedAt: true },
+        })
+      : null;
+    if (id && !avant) return { ok: false, error: "Article introuvable." };
+    const dejaEnvoye = avant ? (await prisma.sitePublication.count({ where: { kind: "POST", externalId: avant.id } })) > 0 : false;
 
-  const published = intention === "publier" ? true : intention === "enregistrer" ? (avant?.published ?? false) : false;
-  const maintenant = new Date();
-  const firstPublishedAt = avant?.firstPublishedAt ?? (published ? maintenant : null);
-  // La date affichée : celle que l'auteur fixe, sinon celle déjà posée, sinon la première mise en
-  // ligne — et elle ne bouge plus à chaque correction.
-  const publishedOn = publishedOnSaisie ?? avant?.publishedOn ?? (published ? firstPublishedAt : null);
-  // Une révision d'un article déjà en ligne alimente `dateModified` ; un brouillon qu'on retouche, non.
-  const contenuChange = Boolean(avant && (avant.title !== title || avant.body !== body || (avant.description ?? null) !== description));
-  const revisedAt = avant?.firstPublishedAt && contenuChange ? maintenant : (avant?.revisedAt ?? null);
+    const published = intention === "publier" ? true : intention === "enregistrer" ? (avant?.published ?? false) : false;
+    const maintenant = new Date();
+    const firstPublishedAt = avant?.firstPublishedAt ?? (published ? maintenant : null);
+    // La date affichée : celle que l'auteur fixe, sinon celle déjà posée, sinon la première mise en
+    // ligne — et elle ne bouge plus à chaque correction.
+    const publishedOn = publishedOnSaisie ?? avant?.publishedOn ?? (published ? firstPublishedAt : null);
+    // Une révision d'un article déjà en ligne alimente `dateModified` ; un brouillon qu'on retouche, non.
+    const contenuChange = Boolean(avant && (avant.title !== title || avant.body !== body || (avant.description ?? null) !== description));
+    const revisedAt = avant?.firstPublishedAt && contenuChange ? maintenant : (avant?.revisedAt ?? null);
 
-  // Ce qui partira vers le site est jugé AVANT d'écrire : un article accepté ici et refusé par le
-  // site ferait croire à une publication qui n'aura pas lieu.
-  if (published || dejaEnvoye) {
-    const saisie: ArticleSaisi = { title, body, description, slug, category, tags, author, date: publishedOn, updated: revisedAt, featured, published };
-    const refus = refusArticle(saisie, refusTitresNiveau1(body));
-    if (refus.length) return { ok: false, error: refus.join("\n") };
-  }
-  if (slug) {
-    const autre = await prisma.blogArticle.findFirst({ where: { slug, ...(avant ? { NOT: { id: avant.id } } : {}) }, select: { title: true } });
-    if (autre) return { ok: false, error: `L'adresse « ${slug} » est déjà celle de l'article « ${autre.title} ».` };
+    // Ce qui partira vers le site est jugé AVANT d'écrire : un article accepté ici et refusé par le
+    // site ferait croire à une publication qui n'aura pas lieu.
     if (published || dejaEnvoye) {
-      const depot = await slugsDuDepotConnus();
-      if (depot.slugs.includes(slug)) {
-        return { ok: false, error: refusAdresseDuDepot(slug) };
+      const saisie: ArticleSaisi = { title, body, description, slug, category, tags, author, date: publishedOn, updated: revisedAt, featured, published };
+      const refus = refusArticle(saisie, refusTitresNiveau1(body));
+      if (refus.length) return { ok: false, error: refus.join("\n") };
+    }
+    if (slug) {
+      const autre = await prisma.blogArticle.findFirst({ where: { slug, ...(avant ? { NOT: { id: avant.id } } : {}) }, select: { title: true } });
+      if (autre) return { ok: false, error: `L'adresse « ${slug} » est déjà celle de l'article « ${autre.title} ».` };
+      if (published || dejaEnvoye) {
+        const depot = await slugsDuDepotConnus();
+        if (depot.slugs.includes(slug)) {
+          return { ok: false, error: refusAdresseDuDepot(slug) };
+        }
       }
     }
-  }
 
-  const data = {
-    title, slug, description, body, category, tags, author, publishedOn, firstPublishedAt, revisedAt, featured, published, updatedById: user.id,
-  };
-  const article = avant
-    ? await prisma.blogArticle.update({ where: { id: avant.id }, data, select: { id: true } })
-    : await prisma.blogArticle.create({ data: { ...data, createdById: user.id }, select: { id: true } });
+    const data = {
+      title, slug, description, body, category, tags, author, publishedOn, firstPublishedAt, revisedAt, featured, published, updatedById: user.id,
+    };
+    const article = avant
+      ? await prisma.blogArticle.update({ where: { id: avant.id }, data, select: { id: true } })
+      : await prisma.blogArticle.create({ data: { ...data, createdById: user.id }, select: { id: true } });
 
-  await recordAudit({
-    actorId: user.id, action: avant ? "UPDATE" : "CREATE", module: AUDIT_MODULE, entityId: article.id,
-    summary: `${intention === "publier" ? "Publication" : intention === "retirer" ? "Retrait du site" : avant ? "Modification" : "Création"} de l'article « ${title} »`,
+    await recordAudit({
+      actorId: user.id, action: avant ? "UPDATE" : "CREATE", module: AUDIT_MODULE, entityId: article.id,
+      summary: `${intention === "publier" ? "Publication" : intention === "retirer" ? "Retrait du site" : avant ? "Modification" : "Création"} de l'article « ${title} »`,
+    });
+
+    const synchro = await synchroniserArticle(article.id, user.id);
+    revalider(article.id);
+    if (synchro.etat === "REFUSE") return { ok: false, id: article.id, error: synchro.message };
+    return { ok: true, id: article.id, message: phraseArticle(intention, synchro) };
   });
-
-  const synchro = await synchroniserArticle(article.id, user.id);
-  revalider(article.id);
-  if (synchro.etat === "REFUSE") return { ok: false, id: article.id, error: synchro.message };
-  return { ok: true, id: article.id, message: phraseArticle(intention, synchro) };
 }
 
 /**
@@ -170,16 +173,18 @@ export async function supprimerArticle(formData: FormData): Promise<ActionResult
 /** RELANCE un envoi en échec — par celui qui a le droit de publier ce contenu. */
 export async function relancerEnvoiSite(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const publicationId = fdStr(formData, "publicationId");
-  if (!publicationId) return { ok: false, error: "Envoi manquant." };
-  const p = await prisma.sitePublication.findUnique({ where: { id: publicationId }, select: { kind: true } });
-  if (!p) return { ok: false, error: "Envoi introuvable." };
-  const permis = p.kind === "JOB" ? peutPublierOffres(user) : peutEcrireArticles(user);
-  if (!permis) return { ok: false, error: p.kind === "JOB" ? "Les offres d'emploi se publient par les RH." : REFUS_ARTICLES };
-  const r = await relancerPublication(publicationId, user.id);
-  revalider();
-  revalidatePath("/site-web/offres");
-  return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
+  return gesteReversible(user, { capaciteId: "site-web-actions:relancerEnvoiSite", libelle: "Envoi au site relancé" }, async () => {
+    const publicationId = fdStr(formData, "publicationId");
+    if (!publicationId) return { ok: false, error: "Envoi manquant." };
+    const p = await prisma.sitePublication.findUnique({ where: { id: publicationId }, select: { kind: true } });
+    if (!p) return { ok: false, error: "Envoi introuvable." };
+    const permis = p.kind === "JOB" ? peutPublierOffres(user) : peutEcrireArticles(user);
+    if (!permis) return { ok: false, error: p.kind === "JOB" ? "Les offres d'emploi se publient par les RH." : REFUS_ARTICLES };
+    const r = await relancerPublication(publicationId, user.id);
+    revalider();
+    revalidatePath("/site-web/offres");
+    return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
+  });
 }
 
 /**
@@ -191,31 +196,33 @@ export async function relancerEnvoiSite(formData: FormData): Promise<ActionResul
  */
 export async function verifierConnexionSite(): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutGererLaLiaison(user)) return { ok: false, error: REFUS_LIAISON };
-  // UNE CLÉ EN ATTENTE passe d'abord (§118.159) : c'est presque toujours ce que la personne veut
-  // savoir en cliquant — « est-ce que le site a pris la clé que je viens de coller ? ». Le même
-  // entretien que le battement, sans attendre son rythme ; il lit aussi la santé du site.
-  const l = await entretenirLiaison({ force: true });
-  if (l.presentation?.issue === "PROMUE") {
-    reveillerFile(0);
-    revalider();
-    return { ok: true, message: l.presentation.message };
-  }
-  if (l.presentation && l.presentation.issue !== "PAS_DUE") {
-    revalider();
-    return { ok: false, error: l.presentation.message };
-  }
-  const s = await verifierSante();
-  if (s.ok && s.authentifie) {
-    await leverBlocage();
-    reveillerFile(0);
-    revalider();
-    return {
-      ok: true,
-      message: `${s.message}${s.heureDuSite ? ` Heure du site : ${s.heureDuSite}.` : ""} Si un blocage était posé, il est levé ; si le site refuse encore les envois, générez une nouvelle clé et collez le bloc ENTIER dans l'environnement du site (il porte aussi le secret de signature).`,
-    };
-  }
-  return { ok: false, error: s.message };
+  return gesteReversible(user, { capaciteId: "site-web-actions:verifierConnexionSite", libelle: "Connexion au site vérifiée" }, async () => {
+    if (!peutGererLaLiaison(user)) return { ok: false, error: REFUS_LIAISON };
+    // UNE CLÉ EN ATTENTE passe d'abord (§118.159) : c'est presque toujours ce que la personne veut
+    // savoir en cliquant — « est-ce que le site a pris la clé que je viens de coller ? ». Le même
+    // entretien que le battement, sans attendre son rythme ; il lit aussi la santé du site.
+    const l = await entretenirLiaison({ force: true });
+    if (l.presentation?.issue === "PROMUE") {
+      reveillerFile(0);
+      revalider();
+      return { ok: true, message: l.presentation.message };
+    }
+    if (l.presentation && l.presentation.issue !== "PAS_DUE") {
+      revalider();
+      return { ok: false, error: l.presentation.message };
+    }
+    const s = await verifierSante();
+    if (s.ok && s.authentifie) {
+      await leverBlocage();
+      reveillerFile(0);
+      revalider();
+      return {
+        ok: true,
+        message: `${s.message}${s.heureDuSite ? ` Heure du site : ${s.heureDuSite}.` : ""} Si un blocage était posé, il est levé ; si le site refuse encore les envois, générez une nouvelle clé et collez le bloc ENTIER dans l'environnement du site (il porte aussi le secret de signature).`,
+      };
+    }
+    return { ok: false, error: s.message };
+  });
 }
 
 /**
@@ -225,11 +232,13 @@ export async function verifierConnexionSite(): Promise<ActionResult> {
  */
 export async function rapprocherSiteMaintenant(): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutGererLaLiaison(user)) return { ok: false, error: REFUS_LIAISON };
-  const b = await rapprocherSite({ declencheur: "MANUEL", parId: user.id });
-  revalider();
-  revalidatePath("/site-web/offres");
-  return b.ok ? { ok: true, message: b.message } : { ok: false, error: b.message };
+  return gesteReversible(user, { capaciteId: "site-web-actions:rapprocherSiteMaintenant", libelle: "Site rapproché maintenant" }, async () => {
+    if (!peutGererLaLiaison(user)) return { ok: false, error: REFUS_LIAISON };
+    const b = await rapprocherSite({ declencheur: "MANUEL", parId: user.id });
+    revalider();
+    revalidatePath("/site-web/offres");
+    return b.ok ? { ok: true, message: b.message } : { ok: false, error: b.message };
+  });
 }
 
 /** LÈVE LE BLOCAGE à la main — le Super Admin, qui tient les variables d'environnement. */
@@ -253,17 +262,21 @@ export async function leverBlocageSite(): Promise<ActionResult> {
  */
 export async function genererCleSite(): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutGererLaLiaison(user)) return { ok: false, error: REFUS_LIAISON };
-  const c = await genererCle(user.id);
-  revalider();
-  return { ok: true, message: `Clé générée (empreinte ${c.empreinte}). Copiez le bloc affiché et collez-le dans l'environnement du site : l'ERP bascule tout seul dès que le site l'a.` };
+  return gesteReversible(user, { capaciteId: "site-web-actions:genererCleSite", libelle: "Clé du site générée" }, async () => {
+    if (!peutGererLaLiaison(user)) return { ok: false, error: REFUS_LIAISON };
+    const c = await genererCle(user.id);
+    revalider();
+    return { ok: true, message: `Clé générée (empreinte ${c.empreinte}). Copiez le bloc affiché et collez-le dans l'environnement du site : l'ERP bascule tout seul dès que le site l'a.` };
+  });
 }
 
 /** ABANDONNE la clé en attente (collée nulle part, ou montrée à la mauvaise personne). L'active ne bouge pas. */
 export async function abandonnerCleSite(): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutGererLaLiaison(user)) return { ok: false, error: REFUS_LIAISON };
-  const fait = await abandonnerCleEnAttente(user.id);
-  revalider();
-  return fait ? { ok: true, message: "Clé en attente abandonnée : elle ne sera jamais acceptée. La clé en vigueur reste la même." } : { ok: false, error: "Aucune clé en attente." };
+  return gesteReversible(user, { capaciteId: "site-web-actions:abandonnerCleSite", libelle: "Clé du site en attente abandonnée" }, async () => {
+    if (!peutGererLaLiaison(user)) return { ok: false, error: REFUS_LIAISON };
+    const fait = await abandonnerCleEnAttente(user.id);
+    revalider();
+    return fait ? { ok: true, message: "Clé en attente abandonnée : elle ne sera jamais acceptée. La clé en vigueur reste la même." } : { ok: false, error: "Aucune clé en attente." };
+  });
 }

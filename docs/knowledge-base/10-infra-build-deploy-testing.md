@@ -811,7 +811,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 - Render API v1 paths verified on api-docs.render.com OpenAPI (01/11/2026): rollback `POST /services/{id}/rollback
   {deployId}` does NOT turn autodeploy off (`PATCH /services/{id} {autoDeployTrigger:"off"}` separately); Blueprint sync is
   not triggerable by API; `GET /services/{id}/env-vars` returns values — the adapter keeps keys only.
-- Migration `20270218100000_chantiers_connecteurs` (additive, idempotent): table `DevLancement`.
+- Migration `20270218200000_chantiers_connecteurs` (additive, idempotent): table `DevLancement`.
 - Tests `src/platform/in-process/chantiers/{connecteurs,webhooks}.test.ts`: local `node:http` fake server (doc payloads), signatures,
   429/Retry-After, GitHub primary/secondary quotas, ETag 304, timeout ⇒ no retry, concurrent same key ⇒ one fire, no secret
   in messages/logs/DB, webhook + poll dedupe, public route.
@@ -819,3 +819,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
   `DATABASE_URL`, a production repo, a Render service not linked to the bench repo or with a protected name.
 - Admin screen `/admin/developpement` (Super Admin): read-only probes (GitHub `/user` + repos, Render `/services`, MiMo
   `/models`; routines: configured or not — no side-effect-free probe exists).
+- Public route `GET|POST /api/dev/relais/ordres` (exact path in `auth.config.ts`, app-mode allow-list, `SANS_SESSION` in
+  `vue-exacte-etanche.test.ts`, inventory + decision 0037). Migration `20270218200100_chantiers_relais_cli`
+  (`ClaudeRelaisOrdre`, `ClaudeRelaisEtat`). `platform/dev/config.ts` is allowed to name `api.anthropic.com` in
+  `passerelle-unique.test.ts` (Routines fire is not a model call).

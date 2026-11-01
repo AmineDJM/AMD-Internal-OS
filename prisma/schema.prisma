@@ -9596,6 +9596,9 @@ model AssistantIaReglage {
   proactiviteCoupee      Boolean  @default(false)
   /// J7 (décision 0029) : durée de garde du journal des effets (gestes de l'assistant et valeurs AVANT), en jours.
   retentionEffetsJours   Int      @default(180)
+  /// K10b (décision 0040) : la FENÊTRE D'ANNULATION des effets sortants (courriel, poussée, site, diffusion, appel
+  /// externe) — délai, en secondes, avant qu'un effet parte ; annulé dans la fenêtre, rien ne sort. Défaut 120 (2 min).
+  fenetreAnnulationSecondes Int   @default(120)
   /// K2 (décision 0032) : la génération d'IMAGES (gpt-image) — interrupteur et plafond de dépense du mois civil, en dollars.
   visuelsImagesActives   Boolean  @default(true)
   visuelsImagesPlafondUsd Float   @default(20)
@@ -18689,9 +18692,53 @@ model AssistantEffet {
   acte             String?
   cible            String?
   apercu           String?
+  /// K10b (décision 0040) : l'effet sortant DIFFÉRÉ qui porte cet effet externe (fenêtre d'annulation).
+  effetSortantId   String?
 
   @@index([gesteId, ordre])
   @@index([modele, enregistrementId])
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// LA FENÊTRE D'ANNULATION DES EFFETS SORTANTS (K10b, décision 0040) — un courriel, une poussée, une publication, une
+/// diffusion ou un appel externe ne part pas tout de suite : il attend ici `executeLe` (délai réglé par le Super Admin).
+/// Annulé dans la fenêtre : RIEN n'est parti. Parti : la compensation est dite et tracée (rectificatif, dépublication) —
+/// jamais un « effacé chez le destinataire ». Code : `src/lib/effets/fenetre.ts` (`differerEffetSortant`).
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+model EffetSortantDiffere {
+  id             String    @id @default(cuid())
+  /// L'exécuteur (`src/lib/effets/executeurs.ts`) : « courriel.smtp », « courriel.graph », « courriel.api », « push »…
+  type           String
+  /// COURRIEL | NOTIFICATION_PUSH | ECRITURE_EXTERNE | RESEAU | PAIEMENT… (l'acte du journal des effets)
+  acte           String
+  cible          String
+  apercu         String?
+  /// Ce que l'exécuteur reçoit — sérialisé (les octets en base64), relu par le worker.
+  charge         Json
+  /// La personne au nom de qui l'effet part : elle (ou le Super Admin) l'annule.
+  principalId    String?
+  /// Le geste du journal des effets qui l'a produit (nul hors geste journalisé).
+  gesteId        String?
+  /// L'objet métier qu'il concerne (pour l'écran de la fiche) : modèle et identifiant.
+  objetModele    String?
+  objetId        String?
+  /// EN_ATTENTE → EN_COURS → PARTI | ECHEC ; EN_ATTENTE → ANNULE (dans la fenêtre) ; PARTI → COMPENSE.
+  statut         String    @default("EN_ATTENTE")
+  creeLe         DateTime  @default(now())
+  executeLe      DateTime
+  parti          DateTime?
+  annuleLe       DateTime?
+  annuleParId    String?
+  /// Ce qui a été fait APRÈS la fenêtre : « rectificatif envoyé à … », « publication retirée » — ou pourquoi rien.
+  compensation   String?
+  compenseLe     DateTime?
+  tentatives     Int       @default(0)
+  erreur         String?
+
+  @@index([statut, executeLe])
+  @@index([principalId, creeLe(sort: Desc)])
+  @@index([gesteId])
+  @@index([objetModele, objetId])
 }
 
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -18842,7 +18889,7 @@ model MemoireTechnique {
   @@index([type, majLe])
 }
 
-/// UN LANCEMENT DE CLAUDE CODE (lot C2, décision 0041) — la clé d'idempotence qu'Anthropic n'a pas.
+/// UN LANCEMENT DE CLAUDE CODE (lot C2, décision 0043) — la clé d'idempotence qu'Anthropic n'a pas.
 /// La Routines API (`/fire`) et le commentaire `@claude` créent une session à CHAQUE appel : la ligne est
 /// RÉCLAMÉE avant l'envoi (`cleIdempotence` unique), donc la même clé ne lance jamais deux sessions. Un délai
 /// dépassé laisse la ligne `INCERTAIN` : personne ne relance à l'aveugle. Sert aussi au compte des quotas
@@ -18868,4 +18915,46 @@ model DevLancement {
   @@index([moyen, cible, createdAt])
   @@index([statut, createdAt])
   @@index([missionId])
+}
+
+/// UN ORDRE POUR LE RELAIS CLAUDE CODE (lot C2, décision 0043 § 3 bis) — la CLI `claude --cloud` tourne sur une machine
+/// de la Direction (`scripts/relais-claude.ts`), qui TIRE ces ordres avec son jeton. CREER : nouvelle session sur la
+/// branche réservée ; MESSAGE : `claude -p --cloud <session>` (contexte gardé). Idempotence par `cleIdempotence` ;
+/// EN_ATTENTE → EN_COURS → FAIT | ECHEC | INCERTAIN. Le texte est effacé une fois l'ordre conclu (l'empreinte reste).
+model ClaudeRelaisOrdre {
+  id             String    @id @default(cuid())
+  cleIdempotence String    @unique
+  /// CREER | MESSAGE
+  type           String
+  depot          String?
+  branche        String?
+  /// La session visée par un MESSAGE.
+  sessionCible   String?
+  texte          String
+  empreinte      String
+  /// EN_ATTENTE | EN_COURS | FAIT | ECHEC | INCERTAIN
+  statut         String    @default("EN_ATTENTE")
+  sessionId      String?
+  sessionUrl     String?
+  erreur         String?
+  missionId      String?
+  expireLe       DateTime
+  prisLe         DateTime?
+  termineLe      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  @@index([statut, createdAt])
+  @@index([missionId])
+}
+
+/// LE DERNIER BATTEMENT DU RELAIS CLAUDE CODE (une ligne, id « relais ») : vu le, version de `claude`, méthode
+/// d'authentification déclarée par `claude auth status` (jamais un identifiant).
+model ClaudeRelaisEtat {
+  id         String   @id
+  vuLe       DateTime
+  version    String?
+  authMethod String?
+  connecte   Boolean?
+  updatedAt  DateTime @default(now()) @updatedAt
 }

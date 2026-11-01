@@ -16,7 +16,7 @@ export function classerExclusionsCircuits(): void {
     // C1 (décision 0042) : les plafonds des chantiers de développement — une IA ne relève jamais ses propres plafonds.
     "assistant-ia-consommation-actions:enregistrerReglagesChantiers",
     "assistant-ia-consommation-actions:enregistrerTravauxDOffice",
-    // K8 (décision 0035) : la LECTURE de la consommation est l'écran lui-même (Réglages, Administration › IA) — rien à proposer.
+    // K8 (décision 0038) : la LECTURE de la consommation est l'écran lui-même (Réglages, Administration › IA) — rien à proposer.
     "assistant-ia-consommation-actions:lireConsommationIa",
   ]);
   X("LA QUALITÉ CONTINUE DE L'ASSISTANT IA (J5 + J14, décision 0022) : le calendrier du banc programmé, un passage ou un "

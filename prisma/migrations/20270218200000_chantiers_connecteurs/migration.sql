@@ -1,4 +1,4 @@
--- C2 (décision 0041) : les lancements de Claude Code, avec la clé d'idempotence côté Adventum (la Routines API n'en a pas).
+-- C2 (décision 0043) : les lancements de Claude Code, avec la clé d'idempotence côté Adventum (la Routines API n'en a pas).
 CREATE TABLE IF NOT EXISTS "DevLancement" (
   "id" TEXT NOT NULL,
   "cleIdempotence" TEXT NOT NULL,

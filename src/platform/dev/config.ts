@@ -13,9 +13,10 @@ import type { NomDepot } from "./ports";
  *            (`trig_…`), CLAUDE_ROUTINE_<ALIAS>_TOKEN (`sk-ant-oat01-…`, affiché une fois), CLAUDE_ROUTINE_<ALIAS>_DEPOT.
  *            ANTHROPIC_ROUTINES_URL (défaut https://api.anthropic.com) ne sert qu'aux bancs.
  *   MiMo     `mimo` (déjà posée sur Render ; MIMO_API_KEY accepté), MIMO_BASE_URL (défaut l'ancien point de l'ERP).
+ *   Relais   CLAUDE_RELAIS_TOKEN : le jeton que le relais CLI (machine de la Direction) présente pour tirer ses ordres.
  *
  * Aucun identifiant claude.ai d'abonnement (OAuth, `claude setup-token`) n'est lu ici : les conditions d'Anthropic
- * l'interdisent côté serveur (décision 0041). Le jeton d'une routine n'est pas un identifiant de compte : il ne fait
+ * l'interdisent côté serveur (décision 0043). Le jeton d'une routine n'est pas un identifiant de compte : il ne fait
  * que déclencher CETTE routine.
  */
 
@@ -84,5 +85,5 @@ export function routineDuDepot(depot: string, env: Env = process.env): ConfigRou
   return null;
 }
 
-/** Les Managed Agents (option API, facturation API) restent COUPÉS tant que la Direction ne les active pas. */
-export const managedAgentsActives = (env: Env = process.env): boolean => lire(env, "CHANTIERS_MANAGED_AGENTS") === "1";
+/** Le jeton du relais CLI (`scripts/relais-claude.ts`) — le relais le présente en `Bearer` ; ≥ 24 caractères. */
+export const jetonRelais = (env: Env = process.env): string | null => lire(env, "CLAUDE_RELAIS_TOKEN");

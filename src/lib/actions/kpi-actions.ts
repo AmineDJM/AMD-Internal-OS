@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { requireUser } from "@/lib/session";
@@ -213,44 +214,46 @@ export async function archiverKpi(formData: FormData): Promise<ActionResult> {
 /** Poser ou régler une affectation (et son poids). ROLE : Super Admin ; EQUIPE : à mon nom ; PERSONNE : mon équipe. */
 export async function reglerAffectationKpi(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const { faits } = await faitsKpi(user);
-  const famille = fdStr(formData, "famille");
-  const cible = fdStr(formData, "cible") ?? "EQUIPE";
-  const role = fdStr(formData, "role");
-  const cibleUserId = fdStr(formData, "userId");
-  const poids = fdNum(formData, "poids");
-  const assignmentId = fdStr(formData, "assignmentId");
-  if (poids === null || poids < 0 || poids > 100) return { ok: false, error: "Poids de 0 à 100." };
-  // RÉGLER LE POIDS d'une affectation existante — sans en créer une autre à mon nom.
-  if (assignmentId) {
-    const a = await prisma.kpiAssignment.findUnique({ where: { id: assignmentId } });
-    if (!a) return { ok: false, error: "Affectation introuvable." };
-    const permis = faits.superAdmin
-      || (a.cible === "EQUIPE" && a.managerUserId === user.id && faits.gestes.creer)
-      || (a.cible === "PERSONNE" && !!a.userId && peutGererPersonne(faits, a.userId));
-    if (!permis) return { ok: false, error: "Cette affectation n'est pas la vôtre." };
-    await prisma.kpiAssignment.update({ where: { id: a.id }, data: { poids } });
+  return gesteReversible(user, { capaciteId: "kpi-actions:reglerAffectationKpi", libelle: "Affectation de KPI réglée" }, async () => {
+    const { faits } = await faitsKpi(user);
+    const famille = fdStr(formData, "famille");
+    const cible = fdStr(formData, "cible") ?? "EQUIPE";
+    const role = fdStr(formData, "role");
+    const cibleUserId = fdStr(formData, "userId");
+    const poids = fdNum(formData, "poids");
+    const assignmentId = fdStr(formData, "assignmentId");
+    if (poids === null || poids < 0 || poids > 100) return { ok: false, error: "Poids de 0 à 100." };
+    // RÉGLER LE POIDS d'une affectation existante — sans en créer une autre à mon nom.
+    if (assignmentId) {
+      const a = await prisma.kpiAssignment.findUnique({ where: { id: assignmentId } });
+      if (!a) return { ok: false, error: "Affectation introuvable." };
+      const permis = faits.superAdmin
+        || (a.cible === "EQUIPE" && a.managerUserId === user.id && faits.gestes.creer)
+        || (a.cible === "PERSONNE" && !!a.userId && peutGererPersonne(faits, a.userId));
+      if (!permis) return { ok: false, error: "Cette affectation n'est pas la vôtre." };
+      await prisma.kpiAssignment.update({ where: { id: a.id }, data: { poids } });
+      revalider();
+      return { ok: true, message: "Poids enregistré." };
+    }
+    if (!famille) return { ok: false, error: "KPI introuvable." };
+    if (!(await prisma.kpiDefinition.findFirst({ where: { famille, statut: "ACTIF" }, select: { id: true } }))) return { ok: false, error: "KPI introuvable." };
+    let where: { famille: string; cible: string; role?: string | null; managerUserId?: string | null; userId?: string | null };
+    if (cible === "ROLE") {
+      if (!peutGererCatalogue(faits) || !role) return { ok: false, error: "Les modèles par rôle sont tenus par le Super Admin." };
+      where = { famille, cible, role };
+    } else if (cible === "PERSONNE") {
+      if (!cibleUserId || !peutGererPersonne(faits, cibleUserId)) return { ok: false, error: "Cette personne n'est pas dans votre équipe." };
+      where = { famille, cible, userId: cibleUserId };
+    } else {
+      if (!peutCreerPourEquipe(faits)) return { ok: false, error: "Réservé à qui encadre une équipe." };
+      where = { famille, cible: "EQUIPE", managerUserId: user.id };
+    }
+    const existe = await prisma.kpiAssignment.findFirst({ where, select: { id: true } });
+    if (existe) await prisma.kpiAssignment.update({ where: { id: existe.id }, data: { poids } });
+    else await prisma.kpiAssignment.create({ data: { ...where, poids, createdById: user.id } });
     revalider();
-    return { ok: true, message: "Poids enregistré." };
-  }
-  if (!famille) return { ok: false, error: "KPI introuvable." };
-  if (!(await prisma.kpiDefinition.findFirst({ where: { famille, statut: "ACTIF" }, select: { id: true } }))) return { ok: false, error: "KPI introuvable." };
-  let where: { famille: string; cible: string; role?: string | null; managerUserId?: string | null; userId?: string | null };
-  if (cible === "ROLE") {
-    if (!peutGererCatalogue(faits) || !role) return { ok: false, error: "Les modèles par rôle sont tenus par le Super Admin." };
-    where = { famille, cible, role };
-  } else if (cible === "PERSONNE") {
-    if (!cibleUserId || !peutGererPersonne(faits, cibleUserId)) return { ok: false, error: "Cette personne n'est pas dans votre équipe." };
-    where = { famille, cible, userId: cibleUserId };
-  } else {
-    if (!peutCreerPourEquipe(faits)) return { ok: false, error: "Réservé à qui encadre une équipe." };
-    where = { famille, cible: "EQUIPE", managerUserId: user.id };
-  }
-  const existe = await prisma.kpiAssignment.findFirst({ where, select: { id: true } });
-  if (existe) await prisma.kpiAssignment.update({ where: { id: existe.id }, data: { poids } });
-  else await prisma.kpiAssignment.create({ data: { ...where, poids, createdById: user.id } });
-  revalider();
-  return { ok: true, message: "Affectation enregistrée." };
+    return { ok: true, message: "Affectation enregistrée." };
+  });
 }
 
 export async function retirerAffectationKpi(formData: FormData): Promise<ActionResult> {
@@ -271,13 +274,15 @@ export async function retirerAffectationKpi(formData: FormData): Promise<ActionR
 /** La fréquence de revue de MON équipe (Direction, 08/10 : « revue au choix du manager »). */
 export async function reglerFrequenceRevue(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const { faits } = await faitsKpi(user);
-  if (!faits.superAdmin && !(faits.gestes.valider && faits.equipe.size > 0)) return { ok: false, error: "Réservé à qui encadre une équipe." };
-  const frequence = fdStr(formData, "frequence");
-  if (!frequence || !(FREQUENCES as readonly string[]).includes(frequence)) return { ok: false, error: "Fréquence inconnue." };
-  await prisma.kpiReviewSetting.upsert({ where: { managerUserId: user.id }, create: { managerUserId: user.id, frequence }, update: { frequence } });
-  revalider();
-  return { ok: true, message: "Fréquence de revue enregistrée." };
+  return gesteReversible(user, { capaciteId: "kpi-actions:reglerFrequenceRevue", libelle: "Fréquence de revue réglée" }, async () => {
+    const { faits } = await faitsKpi(user);
+    if (!faits.superAdmin && !(faits.gestes.valider && faits.equipe.size > 0)) return { ok: false, error: "Réservé à qui encadre une équipe." };
+    const frequence = fdStr(formData, "frequence");
+    if (!frequence || !(FREQUENCES as readonly string[]).includes(frequence)) return { ok: false, error: "Fréquence inconnue." };
+    await prisma.kpiReviewSetting.upsert({ where: { managerUserId: user.id }, create: { managerUserId: user.id, frequence }, update: { frequence } });
+    revalider();
+    return { ok: true, message: "Fréquence de revue enregistrée." };
+  });
 }
 
 // ── Évalué ───────────────────────────────────────────────────────────────────────────────────

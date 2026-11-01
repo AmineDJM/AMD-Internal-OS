@@ -1,4 +1,4 @@
-import type { FaitDev, ForgeGit, Hebergeur, NomDepot, PasDeSondage, Resultat } from "@/platform/dev/ports";
+import type { EtatChecks, FaitDev, ForgeGit, Hebergeur, NomDepot, PasDeSondage, Resultat } from "@/platform/dev/ports";
 import { STATUTS_DEPLOIEMENT_FINAUX } from "@/platform/dev/ports";
 import { inscrireFaits, type BilanReception, type Inscrire } from "./reception";
 import { cleChecks, cleDeploiement, clePush, statutFinalRender } from "@/platform/dev/webhooks";
@@ -58,4 +58,18 @@ export async function sonderEtInscrire(sonde: Promise<Resultat<FaitDev[]>>, insc
   const r = await sonde;
   if (!r.ok) return r;
   return { ok: true, valeur: await inscrireFaits(r.valeur, inscrire, "sondage") };
+}
+
+/**
+ * UNE CORRECTION EST-ELLE EN COURS ? (auto-fix natif, ou relance) — après un verdict ROUGE sur `shaRouge`, un NOUVEAU
+ * commit sur la branche dit que quelqu'un corrige ; ses checks disent où il en est. Le moteur attend tant que
+ * `nouveauSha` est `null` ou que ses checks sont `EN_COURS`, et ne relance Claude Code que si rien n'a bougé.
+ */
+export async function apresEchec(forge: ForgeGit, depot: NomDepot, branche: string, shaRouge: string): Promise<Resultat<{ nouveauSha: string | null; checks: EtatChecks | null }>> {
+  const t = await forge.teteDeBranche(depot, branche);
+  if (!t.ok) return t;
+  if (!t.valeur || t.valeur === shaRouge) return { ok: true, valeur: { nouveauSha: null, checks: null } };
+  const c = await forge.checks(depot, t.valeur);
+  if (!c.ok) return c;
+  return { ok: true, valeur: { nouveauSha: t.valeur, checks: c.valeur } };
 }
