@@ -208,7 +208,7 @@ const peutAgir = (l: { principalId: string | null }, user: CurrentUser) => l.pri
 const libelleActe = (acte: string, type?: string): string => type?.startsWith("inverse.graph") ? "le geste dans la boîte Microsoft" :
   ({ COURRIEL: "le courriel", NOTIFICATION_PUSH: "la notification poussée", ECRITURE_EXTERNE: "la publication", RESEAU: "l'appel externe", PAIEMENT: "l'ordre de paiement", INVITATION_AGENDA: "l'invitation" } as Record<string, string>)[acte] ?? "l'effet";
 
-async function auditer(user: CurrentUser, l: { id: string; acte: string; cible: string; apercu: string | null }, quoi: string) {
+async function auditer(user: CurrentUser, l: { id: string; acte: string; type: string; cible: string; apercu: string | null }, quoi: string) {
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte, l.type)} à ${l.cible}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
 }
 
