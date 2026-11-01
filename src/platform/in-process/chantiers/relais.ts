@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { notifyRoles } from "@/lib/notify";
+import { sansBloquer } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
 import type { OrdreCli } from "@/platform/dev/ports";
 import { DELAI_ORDRE_EN_COURS_MS, DUREE_VIE_ORDRE_MS, RELAIS_VIVANT_MS, interpreter, lireAuthStatus, type EtatDeclare, type OrdreRelais, type SortieRelais, type TypeOrdre } from "@/platform/dev/relais";
@@ -54,11 +56,29 @@ async function balayer(maintenant: Date): Promise<void> {
   ]);
 }
 
-/** Le relais tire : battement de cœur, balayage, puis l'ordre le plus ancien (ou `null`). */
+/**
+ * Le relais tire : battement de cœur, balayage, puis l'ordre le plus ancien (ou `null`).
+ *
+ * CONNEXION CLAUDE.AI PERDUE (connexion expirée, déconnexion) : aucun ordre n'est donné — les ordres en file ATTENDENT
+ * (leur échéance est repoussée), et le Super Admin est prévenu UNE fois, au passage de « connecté » à « non connecté ».
+ */
 export async function tirerOrdre(etat: EtatDeclare, maintenant = new Date()): Promise<OrdreRelais | null> {
   const auth = lireAuthStatus(etat.authStatus, etat.authCode);
   const vu = { vuLe: maintenant, version: etat.version?.slice(0, 80) ?? null, authMethod: auth.authMethod, connecte: auth.connecte };
+  const avant = await prisma.claudeRelaisEtat.findUnique({ where: { id: "relais" }, select: { connecte: true } });
   await prisma.claudeRelaisEtat.upsert({ where: { id: "relais" }, create: { id: "relais", ...vu }, update: vu });
+  if (auth.connecte === false && avant?.connecte !== false) {
+    await notifyRoles(["SUPER_ADMIN"], {
+      type: "GENERIC",
+      title: "Relais Claude Code : connexion claude.ai perdue",
+      body: "Les chantiers attendent. Render › claude-relais › Shell › « claude auth login » (URL à ouvrir, code à coller).",
+      link: "/admin/developpement",
+    }).catch(sansBloquer("chantiers.relais.notification"));
+  }
+  if (auth.connecte === false) {
+    await prisma.claudeRelaisOrdre.updateMany({ where: { statut: "EN_ATTENTE" }, data: { expireLe: new Date(maintenant.getTime() + DUREE_VIE_ORDRE_MS) } });
+    return null;
+  }
   await balayer(maintenant);
   for (let essai = 0; essai < 3; essai += 1) {
     const c = await prisma.claudeRelaisOrdre.findFirst({ where: { statut: "EN_ATTENTE" }, orderBy: { createdAt: "asc" }, select: { id: true, type: true, depot: true, branche: true, sessionCible: true, texte: true } });

@@ -96,9 +96,9 @@ export async function sonderRelais(opts: OptionsSondes = {}): Promise<EtatConnec
     connecteur: "relais", configure: Boolean(jetonRelais(env)), joignable: r.vuLe ? r.vivant : null,
     variables: nomsPoses(env, ["CLAUDE_RELAIS_TOKEN"]), quotas: [], details: [],
   };
-  etat.details.push(r.vuLe ? `vu il y a ${Math.round((Date.now() - r.vuLe.getTime()) / 1000)} s` : "jamais vu : relais non installé ou jamais démarré");
+  etat.details.push(r.vuLe ? `vu il y a ${Math.round((Date.now() - r.vuLe.getTime()) / 1000)} s` : "jamais vu : service Render « claude-relais » non créé ou arrêté (Blueprint › Sync, puis CLAUDE_RELAIS_TOKEN, ERP_URL, GITHUB_TOKEN)");
   if (r.version) etat.details.push(`claude : ${r.version}`);
-  if (r.vuLe) etat.details.push(`connexion claude.ai : ${r.connecte === null ? "inconnue" : r.connecte ? "oui" : `non (${r.authMethod ?? "aucune"})`}`);
+  if (r.vuLe) etat.details.push(`relais connecté à claude.ai : ${r.connecte === null ? "inconnu" : r.connecte ? "oui" : `NON (${r.authMethod ?? "aucune"}) — les chantiers attendent : Render › claude-relais › Shell › « claude auth login », ouvrir l'URL affichée, se connecter, coller le code`}`);
   etat.details.push(`ordres en file : ${r.enAttente}${r.incertains ? ` — ${r.incertains} incertain(s) sur 7 jours, à vérifier sur claude.ai/code` : ""}`);
   return etat;
 }
