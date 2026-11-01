@@ -18858,3 +18858,37 @@ model AssistantIaVisuel {
   @@index([userId, createdAt])
   @@index([statut, createdAt])
 }
+
+/// K9 (décision 0039) — UNE SESSION VOCALE GPT-Live ouverte par notre serveur : à qui elle est, quand elle se ferme.
+/// Les gestes oraux (confirmer une carte, annuler) ne valent que dans une session de la personne, encore ouverte.
+model AssistantIaVoixSession {
+  /// L'identifiant `live_…` rendu par le fournisseur.
+  id           String    @id
+  userId       String
+  conversation String?
+  ouverteLe    DateTime  @default(now())
+  fermeeLe     DateTime?
+  /// Les pièces reçues (WhatsApp, mail — K6) jusqu'à cette date ont été annoncées à la voix.
+  annonceJusquA DateTime?
+
+  @@index([userId, ouverteLe])
+}
+
+/// K9 — UN TRAVAIL DÉLÉGUÉ PAR LA VOIX, suivi en asynchrone : la voix n'attend plus, elle annonce le résultat quand il
+/// arrive (ou à la prochaine ouverture si la session s'est fermée avant).
+model AssistantIaVoixTravail {
+  id           String    @id @default(cuid())
+  userId       String
+  session      String
+  delegationId String?
+  conversation String
+  /// Le message de la personne (tour `user`) déposé dans le fil.
+  tourId       String
+  /// Une précision a remplacé ce travail : on suit celui-là (et on ne dit pas ce résultat dépassé).
+  remplacePar  String?
+  annonceLe    DateTime?
+  creeLe       DateTime  @default(now())
+
+  @@index([userId, creeLe])
+  @@index([session])
+}

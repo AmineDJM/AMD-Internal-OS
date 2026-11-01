@@ -13,8 +13,9 @@
  * Une correction dite (« mets plutôt 200 000 ») repasse par la porte de la correction écrite, puis on revient au récit.
  *
  * Ce qui est jugé ici l'est sur les MOTS DE LA PERSONNE (sa transcription, jamais la reformulation du modèle vocal) :
- * un « oui » explicite, un « non », « rien à ajouter », et l'ÉLÉMENT CLÉ d'une carte renforcée (le montant, le verbe)
- * comparé comme la ressaisie écrite.
+ * un « oui » explicite (français parlé ou darja : « vas-y », « go », « ih dirha », « ايه »), un « non », « rien à ajouter ».
+ * K9 (décision 0039, Direction : « pas de mot imposé ») : pour une carte renforcée, c'est la VOIX qui RELIT l'élément clé
+ * (le montant, le verbe) dans le récit ; un simple oui suffit ensuite — le serveur fournit la ressaisie stockée.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -27,7 +28,7 @@ export interface CarteOrale {
   facultatifs: string[];
   /** Les champs obligatoires encore vides (une carte préparée n'en a normalement aucun). */
   manquants: string[];
-  /** Carte renforcée (R3/R4) : l'élément à PRONONCER — le montant, ou le verbe de l'action. */
+  /** Carte renforcée (R3/R4) : l'élément que la VOIX RELIT avant la question — le montant, ou le verbe de l'action (K9). */
   elementCle: string | null;
   avertissements?: string[];
 }
@@ -68,7 +69,7 @@ export function texteOral(c: CarteOrale, etape: EtapeOrale): string {
     return `J'ai préparé la demande — ${recit} ${ton} Puis propose, en une seule question légère, de préciser ce qui n'est pas obligatoire (${q}) ou autre chose à ajouter. Ne demande PAS encore de confirmer.`;
   }
   const cle = c.elementCle
-    ? ` C'est une action renforcée : demande-lui de confirmer en PRONONÇANT « ${c.elementCle} » (par exemple « oui, je confirme ${c.elementCle} »).`
+    ? ` C'est une action renforcée : RELIS clairement « ${c.elementCle} » (« je relis : ${c.elementCle} »), puis termine par « Tu confirmes ? » — un simple oui suffit, aucun mot imposé.`
     : " Termine par « Tu confirmes ? ».";
   const attention = c.avertissements?.length ? ` Mentionne en passant : ${c.avertissements[0]}` : "";
   return `Récapitule la demande pour la faire confirmer — ${recit} ${ton}${attention}${cle} Rien n'est fait tant qu'elle n'a pas dit oui.`;
@@ -76,17 +77,20 @@ export function texteOral(c: CarteOrale, etape: EtapeOrale): string {
 
 /** Les mots de la personne, ramenés à l'essentiel : minuscules, sans accents ni ponctuation. */
 export function normaliserParole(parole: string): string {
-  return (parole ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[’']/g, " ").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+  // L'arabe (darja écrite en lettres arabes par la transcription) est gardé : « ايه ديرها » est un accord.
+  return (parole ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[’']/g, " ").replace(/[^a-z0-9\u0621-\u064a\s]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-const OUI = /^(?:(?:oui|ouais|ouai|yes|ok|okay|d accord|daccord|parfait|c est bon|c est ok|go|vas y|allez y|allez|bien sur|exactement|absolument|tout a fait)\b|(?:je )?confirm|valide|envoie|lance|fais le|c est parti)/;
-const NEGATION = /\b(?:non|pas|attends?|attendez|annule|annuler|stop|arrete|change|changer|modifie|modifier|corrige|plutot|sauf|mais|ne)\b/;
-const NON = /^(?:non|nan|annule|annuler|laisse tomber|laisse|stop|arrete|pas maintenant|surtout pas|n envoie pas|ne fais rien|on oublie)\b/;
+// K9 : le français parlé (« ok fais-le », « pas de souci ») et la darja, en lettres latines ou arabes.
+const OUI = /^(?:(?:oui|ouais|ouai|yes|yep|ok|okay|okey|d accord|daccord|dacc|parfait|nickel|impeccable|c est bon|c est ok|go|vas y|allez y|allez|bien sur|exactement|absolument|tout a fait|banco|carrement|ih|iih|iyeh|wah|wakha|ewa|yallah|yalla|zid|dir|dirha|sahit|mlih|safi dirha)\b|(?:je )?confirm|valide|envoie|lance|fais le|fais la|c est parti|(?:ايه|إيه|واه|واخا|يالله|يلا|ديرها|زيد|صحيت|مليح|اوكي)(?:\s|$))/;
+const NEGATION = /\b(?:non|pas|attends?|attendez|annule|annuler|stop|arrete|change|changer|modifie|modifier|corrige|plutot|sauf|mais|ne|lala|machi|mazal)\b|(?:^|\s)(?:لا|ماشي|مازال|خليها)(?:\s|$)/;
+const NON = /^(?:(?:non|nan|annule|annuler|laisse tomber|laisse|stop|arrete|pas maintenant|surtout pas|n envoie pas|ne fais rien|on oublie|lala|machi|khaliha|blach)\b|(?:لا|ماشي|خليها|بلاش)(?:\s|$))/;
 const RIEN = /^(?:non|nan|rien|c est tout|ca ira|ca va|pas besoin|non merci|c est bon comme ca|ca suffit|rien d autre|rien de plus|non rien|aucun|aucune|pas pour l instant)\b/;
 
 /** Un « oui » EXPLICITE et sans réserve (« oui, je confirme » ; pas « oui mais change la date »). */
 export function estOuiExplicite(parole: string): boolean {
-  const t = normaliserParole(parole);
+  // « Pas de souci », « sans problème » : des accords, malgré le « pas ».
+  const t = normaliserParole(parole).replace(/^(?:pas de (?:souci|soucis|probleme)|sans probleme|aucun probleme)\b/, "ok");
   if (!t || t.split(" ").length > 14) return false;
   return OUI.test(t) && !NEGATION.test(t);
 }
@@ -101,47 +105,4 @@ export function estNonExplicite(parole: string): boolean {
 export function estRienAAjouter(parole: string): boolean {
   const t = normaliserParole(parole);
   return !!t && t.split(" ").length <= 8 && RIEN.test(t) && !/\b(?:mais|plutot|mets|met|ajoute|budget|date)\b/.test(t);
-}
-
-// ─────────────────────────────── L'élément clé, dit à voix haute ───────────────────────────────
-
-const UNITES: Record<string, number> = {
-  zero: 0, un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8, neuf: 9, dix: 10, onze: 11, douze: 12,
-  treize: 13, quatorze: 14, quinze: 15, seize: 16, vingt: 20, vingts: 20, trente: 30, quarante: 40, cinquante: 50, soixante: 60,
-};
-
-/**
- * Les montants d'une parole, en chiffres — ceux que la transcription écrit en chiffres (« 1 500 000 », « 150.000 ») ET ceux
- * qu'elle écrit en lettres (« un million cinq cent mille », « cent cinquante mille »).
- */
-export function nombresDits(parole: string): number[] {
-  const t = normaliserParole(parole);
-  const out: number[] = [];
-  for (const m of (parole ?? "").matchAll(/\d[\d\s  .,]*\d|\d/g)) {
-    const n = Number(m[0].replace(/[\s  .]/g, "").replace(/,\d{1,2}$/, "").replace(/,/g, ""));
-    if (Number.isFinite(n)) out.push(n);
-  }
-  let total = 0;
-  let courant = 0;
-  let enCours = false;
-  const clore = () => { if (enCours) out.push(total + courant); total = 0; courant = 0; enCours = false; };
-  for (const mot of t.replace(/-/g, " ").split(" ")) {
-    if (mot in UNITES) { courant += UNITES[mot]!; enCours = true; } else if (mot === "et" && enCours) { continue; } else if (mot === "cent" || mot === "cents") { courant = (courant || 1) * 100; enCours = true; } else if (mot === "mille") { total += (courant || 1) * 1_000; courant = 0; enCours = true; } else if (mot === "million" || mot === "millions") { total += (courant || 1) * 1_000_000; courant = 0; enCours = true; } else if (mot === "milliard" || mot === "milliards") { total += (courant || 1) * 1_000_000_000; courant = 0; enCours = true; } else { clore(); }
-  }
-  clore();
-  return out;
-}
-
-/**
- * L'ÉLÉMENT CLÉ D'UNE CARTE RENFORCÉE, PRONONCÉ — la règle de la ressaisie écrite (`normalizeConfirmText` : lettres sans
- * accent et chiffres), adaptée à la parole : un montant se compare en NOMBRE (dit en chiffres ou en lettres) ; un mot (le
- * verbe de l'action, une référence) doit figurer tel quel dans ce que la personne a dit.
- */
-export function elementCleDit(parole: string, elementCle: string): boolean {
-  const cle = (elementCle ?? "").trim();
-  if (!cle) return false;
-  const chiffres = cle.replace(/[\s  .,]/g, "");
-  if (/^\d+$/.test(chiffres)) return nombresDits(parole).includes(Number(chiffres));
-  const compact = (s: string) => normaliserParole(s).replace(/\s/g, "");
-  return compact(parole).includes(compact(cle));
 }
