@@ -5935,6 +5935,15 @@ model FinanceTransaction {
   /// Règlement de facture dont ce mouvement est l'écriture (relation inverse).
   settledInvoice LegalDocument? @relation("LegalSettlement")
 
+  /// K10a (décision 0041) — UNE ÉCRITURE NE S'EFFACE JAMAIS : annuler l'écriture qui l'a posée la COMPENSE.
+  /// `CONTRE_PASSATION` : même sens, montant opposé, datée du jour (le solde revient, les deux lignes restent) ;
+  /// `A_RECUPERER` : un décaissement réellement parti — un encaissement prévu, à recouvrer (ou à réaliser s'il
+  /// n'était pas parti : il le neutralise). Nul pour toute autre écriture.
+  compensationDeId String?
+  compensationDe   FinanceTransaction?  @relation("CompensationEcriture", fields: [compensationDeId], references: [id], onDelete: SetNull)
+  compensations    FinanceTransaction[] @relation("CompensationEcriture")
+  compensation     String?
+
   @@index([date])
   @@index([direction])
   @@index([category])
@@ -5942,6 +5951,7 @@ model FinanceTransaction {
   @@index([account])
   @@index([budgetCategoryId])
   @@index([treasuryAccountId])
+  @@index([compensationDeId])
 }
 
 /// UN PAPIER EN-TÊTE — le modèle Office qu'on ouvre au lieu d'une page blanche.
@@ -9565,54 +9575,54 @@ model AssistantIaPreference {
 }
 
 model AssistantIaReglage {
-  id                     String   @id @default("global")
+  id                        String   @id @default("global")
   /// Jetons (entrée + sortie) par personne et par jour, heure d'Alger. Atteint : refus dit, avis au Super Admin.
-  plafondJetonsJour      Int      @default(600000)
+  plafondJetonsJour         Int      @default(600000)
   /// Jetons d'UN tour (toutes ses étapes, résumés de documents compris) : au-delà, le tour s'arrête et le dit.
-  plafondJetonsTour      Int      @default(150000)
+  plafondJetonsTour         Int      @default(150000)
   /// Étapes (appels du modèle) d'un tour, au plus — plafonne aussi les tours en arrière-plan (24 avant).
-  etapesMaxTour          Int      @default(12)
+  etapesMaxTour             Int      @default(12)
   /// Décision IA-ASSISTANT-09 : le message saisi et l'historique passent le filtre de confidentialité.
-  censurerSaisie         Boolean  @default(true)
+  censurerSaisie            Boolean  @default(true)
   /// Décision IA-ASSISTANT-10 : une carte dont la personne vient de reparler est retirée avant le tour.
-  retirerCartesCaduques  Boolean  @default(true)
+  retirerCartesCaduques     Boolean  @default(true)
   /// IA-ASSISTANT-07 : une carte non confirmée expire après ce délai (heures).
-  expirationCartesHeures Int      @default(24)
+  expirationCartesHeures    Int      @default(24)
   /// J13 (décision 0025) : le modèle de la voix temps réel, réglé par le Super Admin sans redéploiement. Nul = la variable
   /// `ASSISTANT_IA_VOICE_MODEL`, sinon `gpt-live-1` (décision de Direction du 30/10 : pas de modèle de secours).
-  modeleVoix             String?
+  modeleVoix                String?
   /// Décision 0034 (Direction, 31/10/2026) : « EN_CLAIR » (défaut) — les valeurs sensibles vont au modèle pour qui a le
   /// droit de les voir ; « MASQUEES » — repères ⟦Sn⟧ (décision 0012). Les droits ne changent pas d'un mode à l'autre.
-  valeursSensibles       String   @default("EN_CLAIR")
+  valeursSensibles          String   @default("EN_CLAIR")
   /// J2 (décision 0016) : plafond de dépense d'UN travail, en dollars. Atteint : le travail dort (BUDGET_HOLD).
-  plafondTravailUsd      Float    @default(20)
+  plafondTravailUsd         Float    @default(20)
   /// J2 : plafond de dépense IA d'une personne sur le mois (heure d'Alger), en dollars.
-  plafondMensuelUsd      Float    @default(50)
+  plafondMensuelUsd         Float    @default(50)
   /// J8 (décision 0023) : un responsable voit les travaux de son équipe (lecture seule, chaque consultation à l'audit). Défaut : non.
-  managerVoitEquipe      Boolean  @default(false)
+  managerVoitEquipe         Boolean  @default(false)
   /// J12 (décision 0024) : interruptions des veilleurs par personne et par jour, au plus (la personne peut baisser).
-  interruptionsMaxJour   Int      @default(5)
+  interruptionsMaxJour      Int      @default(5)
   /// J12 : coupe toute la proactivité (veilleurs, point du matin, gestes sous mandat) — les écrans restent lisibles.
-  proactiviteCoupee      Boolean  @default(false)
+  proactiviteCoupee         Boolean  @default(false)
   /// J7 (décision 0029) : durée de garde du journal des effets (gestes de l'assistant et valeurs AVANT), en jours.
-  retentionEffetsJours   Int      @default(180)
+  retentionEffetsJours      Int      @default(180)
   /// K10b (décision 0040) : la FENÊTRE D'ANNULATION des effets sortants (courriel, poussée, site, diffusion, appel
   /// externe) — délai, en secondes, avant qu'un effet parte ; annulé dans la fenêtre, rien ne sort. Défaut 120 (2 min).
-  fenetreAnnulationSecondes Int   @default(120)
+  fenetreAnnulationSecondes Int      @default(120)
   /// K2 (décision 0032) : la génération d'IMAGES (gpt-image) — interrupteur et plafond de dépense du mois civil, en dollars.
-  visuelsImagesActives   Boolean  @default(true)
-  visuelsImagesPlafondUsd Float   @default(20)
+  visuelsImagesActives      Boolean  @default(true)
+  visuelsImagesPlafondUsd   Float    @default(20)
   /// K2 : le modèle d'image (nul = le meilleur mesuré, `gpt-image-2.5-sunburst`).
-  visuelsModeleImage     String?
+  visuelsModeleImage        String?
   /// K2 : la génération de VIDÉOS par un modèle (Sora) — COUPÉE par défaut, plafond mensuel, modèle, durée max (secondes).
-  visuelsVideosActives   Boolean  @default(false)
-  visuelsVideosPlafondUsd Float   @default(30)
-  visuelsModeleVideo     String?
-  visuelsVideoSecondesMax Int     @default(8)
+  visuelsVideosActives      Boolean  @default(false)
+  visuelsVideosPlafondUsd   Float    @default(30)
+  visuelsModeleVideo        String?
+  visuelsVideoSecondesMax   Int      @default(8)
   /// K2 : les VIDÉOS DE DONNÉES (graphique animé rendu par le serveur, ffmpeg) — aucun coût de modèle.
-  visuelsDonneesActives  Boolean  @default(true)
-  updatedAt              DateTime @default(now()) @updatedAt
-  updatedById            String?
+  visuelsDonneesActives     Boolean  @default(true)
+  updatedAt                 DateTime @default(now()) @updatedAt
+  updatedById               String?
 }
 
 /// LE PLAFOND DU JOUR FRANCHI — une ligne par personne et par jour : la clé unique fait qu'un seul
@@ -10345,42 +10355,42 @@ model AiUsageLog {
 /// l'argent ? » — par modèle, par usage, par personne, par mission — sans recalcul. Aucun contenu
 /// n'y figure : des nombres, des identifiants, un modèle.
 model ModelCallLog {
-  id                String   @id @default(cuid())
-  at                DateTime @default(now())
-  turnId            String?
-  route             String?
-  feature           String?
-  userId            String?
-  threadId          String?
-  missionId         String?
-  role              String
-  provider          String
-  model             String
-  inputTokens       Int
-  outputTokens      Int
-  cachedInputTokens Int      @default(0)
-  reasoningTokens   Int      @default(0)
-  webSearchCalls    Int      @default(0)
+  id                     String   @id @default(cuid())
+  at                     DateTime @default(now())
+  turnId                 String?
+  route                  String?
+  feature                String?
+  userId                 String?
+  threadId               String?
+  missionId              String?
+  role                   String
+  provider               String
+  model                  String
+  inputTokens            Int
+  outputTokens           Int
+  cachedInputTokens      Int      @default(0)
+  reasoningTokens        Int      @default(0)
+  webSearchCalls         Int      @default(0)
   /// NULL = tarif inconnu pour ce modèle. Jamais zéro par défaut.
-  costUsd           Decimal? @db.Decimal(12, 6)
-  ms                Int      @default(0)
-  attempts          Int      @default(1)
-  incompleteReason  String?
+  costUsd                Decimal? @db.Decimal(12, 6)
+  ms                     Int      @default(0)
+  attempts               Int      @default(1)
+  incompleteReason       String?
   /// ── LOT K8 (décision 0035) : la ventilation exacte. Ce sont des PARTS des totaux ci-dessus
   /// (`inputTokens` = texte + audio + image ; `cachedInputTokens` = tout le cache lu) — le texte est ce qui reste.
-  audioInputTokens       Int     @default(0)
-  cachedAudioInputTokens Int     @default(0)
-  audioOutputTokens      Int     @default(0)
-  imageInputTokens       Int     @default(0)
-  cachedImageInputTokens Int     @default(0)
-  imageOutputTokens      Int     @default(0)
+  audioInputTokens       Int      @default(0)
+  cachedAudioInputTokens Int      @default(0)
+  audioOutputTokens      Int      @default(0)
+  imageInputTokens       Int      @default(0)
+  cachedImageInputTokens Int      @default(0)
+  imageOutputTokens      Int      @default(0)
   /// Unités hors jetons : durée facturée (audio, GPT-Live, vidéo) en millisecondes, pages d'OCR.
-  durationMs             Int     @default(0)
-  pages                  Int     @default(0)
+  durationMs             Int      @default(0)
+  pages                  Int      @default(0)
   /// VRAI quand les jetons sont ESTIMÉS (équivalents, caractères ÷ 4) faute d'usage rendu par l'API.
-  estimated              Boolean @default(false)
+  estimated              Boolean  @default(false)
   /// VRAI pour un appel de l'API Batch (facturé à moitié prix).
-  batch                  Boolean @default(false)
+  batch                  Boolean  @default(false)
   /// La date de la grille tarifaire qui a calculé `costUsd` (`src/lib/models/tarifs.ts`), ou « env » pour un tarif posé.
   priceGrid              String?
 
@@ -14735,23 +14745,23 @@ model Mission {
 
   /// ─── LES TRAVAUX (J2, décision 0016) — `kind = "TRAVAIL"` : le même moteur, pour n'importe quel collaborateur ───
   /// La personne AU NOM DE QUI le travail tourne (ses droits sont relus à chaque étape). NULL = mission d'Adam.
-  principalId      String?
+  principalId          String?
   /// La persona qui conduit : ADAM | ASSISTANT_IA. NULL = mission d'Adam d'avant J2.
-  persona          String?
+  persona              String?
   /// Le plafond de dépense de CE travail, en dollars (20 $ par défaut, console). Atteint : le travail DORT (BUDGET_HOLD).
-  plafondUsd       Float?
+  plafondUsd           Float?
   /// LE CARNET DE TRAVAIL : objectif, plan, notes, trouvailles, livrables — ce que chaque étape relit, à la place de l'historique.
-  carnet           Json?
+  carnet               Json?
   /// Les gestes (écritures) approuvés UNE fois avec le plan — bornés aux familles ouvertes dans la console, relues à chaque geste.
-  gestesAutorises  Json?
-  planApprouveLe   DateTime?
-  planApprouvePar  String?
+  gestesAutorises      Json?
+  planApprouveLe       DateTime?
+  planApprouvePar      String?
   /// Le dernier « point quotidien » envoyé pour un travail de plus d'un jour.
-  pointQuotidienLe DateTime?
-  ecrituresTravail TravailEcriture[]
+  pointQuotidienLe     DateTime?
+  ecrituresTravail     TravailEcriture[]
   /// J8 : un fait qui règle une attente de ce travail le signale ici — la boucle courte des réveils le reprend aussitôt.
-  reveilDemandeLe  DateTime?
-  demandesTravail  TravailDemande[]
+  reveilDemandeLe      DateTime?
+  demandesTravail      TravailDemande[]
   /// C1 (décision 0042) : les réservations d'un chantier de développement (`kind = "CHANTIER"`) — branche, périmètre, migrations, déploiement.
   reservationsChantier ChantierReservation[]
 
@@ -18706,34 +18716,34 @@ model AssistantEffet {
 /// jamais un « effacé chez le destinataire ». Code : `src/lib/effets/fenetre.ts` (`differerEffetSortant`).
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
 model EffetSortantDiffere {
-  id             String    @id @default(cuid())
+  id           String    @id @default(cuid())
   /// L'exécuteur (`src/lib/effets/executeurs.ts`) : « courriel.smtp », « courriel.graph », « courriel.api », « push »…
-  type           String
+  type         String
   /// COURRIEL | NOTIFICATION_PUSH | ECRITURE_EXTERNE | RESEAU | PAIEMENT… (l'acte du journal des effets)
-  acte           String
-  cible          String
-  apercu         String?
+  acte         String
+  cible        String
+  apercu       String?
   /// Ce que l'exécuteur reçoit — sérialisé (les octets en base64), relu par le worker.
-  charge         Json
+  charge       Json
   /// La personne au nom de qui l'effet part : elle (ou le Super Admin) l'annule.
-  principalId    String?
+  principalId  String?
   /// Le geste du journal des effets qui l'a produit (nul hors geste journalisé).
-  gesteId        String?
+  gesteId      String?
   /// L'objet métier qu'il concerne (pour l'écran de la fiche) : modèle et identifiant.
-  objetModele    String?
-  objetId        String?
+  objetModele  String?
+  objetId      String?
   /// EN_ATTENTE → EN_COURS → PARTI | ECHEC ; EN_ATTENTE → ANNULE (dans la fenêtre) ; PARTI → COMPENSE.
-  statut         String    @default("EN_ATTENTE")
-  creeLe         DateTime  @default(now())
-  executeLe      DateTime
-  parti          DateTime?
-  annuleLe       DateTime?
-  annuleParId    String?
+  statut       String    @default("EN_ATTENTE")
+  creeLe       DateTime  @default(now())
+  executeLe    DateTime
+  parti        DateTime?
+  annuleLe     DateTime?
+  annuleParId  String?
   /// Ce qui a été fait APRÈS la fenêtre : « rectificatif envoyé à … », « publication retirée » — ou pourquoi rien.
-  compensation   String?
-  compenseLe     DateTime?
-  tentatives     Int       @default(0)
-  erreur         String?
+  compensation String?
+  compenseLe   DateTime?
+  tentatives   Int       @default(0)
+  erreur       String?
 
   @@index([statut, executeLe])
   @@index([principalId, creeLe(sort: Desc)])
@@ -18821,36 +18831,70 @@ model RecetteUsage {
 /// de la personne (`driveNodeId`) ; cette ligne porte l'état (la carte « Vidéo en cours » la relit), le coût réel et
 /// l'erreur dite. Privée : seule la personne la lit (`userId`).
 model AssistantIaVisuel {
-  id               String    @id @default(cuid())
-  userId           String
-  conversationId   String?
+  id             String    @id @default(cuid())
+  userId         String
+  conversationId String?
   /// IMAGE | VIDEO | VIDEO_DONNEES
-  nature           String
+  nature         String
   /// EN_FILE | EN_COURS | PRET | ECHEC
-  statut           String    @default("EN_FILE")
-  titre            String
+  statut         String    @default("EN_FILE")
+  titre          String
   /// La consigne PASSÉE AU FILTRE (jamais une valeur confidentielle) ; pour une vidéo de données, vide.
-  consigne         String    @default("")
+  consigne       String    @default("")
   /// La spécification d'une vidéo de données (série, libellés, source) ou les options d'une génération.
-  spec             Json?
-  fournisseur      String?
-  modele           String?
+  spec           Json?
+  fournisseur    String?
+  modele         String?
   /// L'identifiant du travail chez le fournisseur (vidéo) — la reprise le relit après un redémarrage.
-  travailExterne   String?
-  progression      Int       @default(0)
-  driveNodeId      String?
-  mime             String?
-  octets           Int?
-  secondes         Float?
-  coutUsd          Float?
-  erreur           String?
-  notifie          Boolean   @default(false)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @default(now()) @updatedAt
-  termineLe        DateTime?
+  travailExterne String?
+  progression    Int       @default(0)
+  driveNodeId    String?
+  mime           String?
+  octets         Int?
+  secondes       Float?
+  coutUsd        Float?
+  erreur         String?
+  notifie        Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+  termineLe      DateTime?
 
   @@index([userId, createdAt])
   @@index([statut, createdAt])
+}
+
+/// K9 (décision 0039) — UNE SESSION VOCALE GPT-Live ouverte par notre serveur : à qui elle est, quand elle se ferme.
+/// Les gestes oraux (confirmer une carte, annuler) ne valent que dans une session de la personne, encore ouverte.
+model AssistantIaVoixSession {
+  /// L'identifiant `live_…` rendu par le fournisseur.
+  id            String    @id
+  userId        String
+  conversation  String?
+  ouverteLe     DateTime  @default(now())
+  fermeeLe      DateTime?
+  /// Les pièces reçues (WhatsApp, mail — K6) jusqu'à cette date ont été annoncées à la voix.
+  annonceJusquA DateTime?
+
+  @@index([userId, ouverteLe])
+}
+
+/// K9 — UN TRAVAIL DÉLÉGUÉ PAR LA VOIX, suivi en asynchrone : la voix n'attend plus, elle annonce le résultat quand il
+/// arrive (ou à la prochaine ouverture si la session s'est fermée avant).
+model AssistantIaVoixTravail {
+  id           String    @id @default(cuid())
+  userId       String
+  session      String
+  delegationId String?
+  conversation String
+  /// Le message de la personne (tour `user`) déposé dans le fil.
+  tourId       String
+  /// Une précision a remplacé ce travail : on suit celui-là (et on ne dit pas ce résultat dépassé).
+  remplacePar  String?
+  annonceLe    DateTime?
+  creeLe       DateTime  @default(now())
+
+  @@index([userId, creeLe])
+  @@index([session])
 }
 
 /// LA RÉSERVATION D'UNE RESSOURCE PAR UN CHANTIER (lot C1, décision 0042) — atomique par la contrainte d'unicité de `cle` :

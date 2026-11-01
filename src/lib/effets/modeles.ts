@@ -61,7 +61,7 @@ function construire(): Map<string, InfoModele> {
       }])),
       octets: champs.filter((f) => f.kind === "scalar" && f.type === "Bytes").map((f) => f.name),
       relations: new Set(champs.filter((f) => f.kind === "object").map((f) => f.name)),
-      auto: new Set(champs.filter((f) => f.isUpdatedAt).map((f) => f.name)),
+      auto: new Set([...champs.filter((f) => f.isUpdatedAt).map((f) => f.name), ...(CHAMPS_TECHNIQUES[m.name] ?? [])]),
       cascades: [], enfants: [],
       annulation: statut && valeur ? { champ: statut.name, valeur } : null,
     });
@@ -79,6 +79,14 @@ function construire(): Map<string, InfoModele> {
   }
   return out;
 }
+
+/**
+ * LES CHAMPS TECHNIQUES (K10a, décision 0041) — tenus par une tâche planifiée, pas par une personne : comme `updatedAt`,
+ * ni comparés (le rappel mensuel d'une caisse ne fait pas d'un plan « modifié depuis ») ni restaurés.
+ */
+const CHAMPS_TECHNIQUES: Readonly<Record<string, readonly string[]>> = {
+  PettyCashPlan: ["lastReminderPeriod"],
+};
 
 export function infoModele(nom: string): InfoModele | null {
   cache ??= construire();

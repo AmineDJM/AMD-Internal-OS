@@ -4,6 +4,7 @@ import { porte } from "./infra/porte-actions";
 import { prisma } from "@/lib/prisma";
 import type { ConversationResumee } from "./domaine/conversations";
 import type { DocumentDuDossier, DossierVue } from "./domaine/dossiers";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -75,10 +76,12 @@ export async function supprimerMaConversation(conversationId: string) {
 
 /** Privée ou non — seulement AVANT le premier message ; ensuite, le service refuse et dit pourquoi. */
 export async function reglerMaConversationPrivee(conversationId: string, prive: boolean) {
-  const p = await porte(true);
-  if (!p.ok) return p;
-  if (!id(conversationId)) return INTROUVABLE;
-  return (await conversations()).reglerPrive(p.user.id, conversationId, prive === true);
+  return actionReversible("assistant-ia-conversations-actions:reglerMaConversationPrivee", "Conversation privée ou non", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    if (!id(conversationId)) return INTROUVABLE;
+    return (await conversations()).reglerPrive(p.user.id, conversationId, prive === true);
+  });
 }
 
 export async function rangerMaConversation(conversationId: string, dossierId: string | null) {

@@ -151,3 +151,9 @@ avant elle (`effets/ports.test.ts`).
   effets directs du geste de la personne elle-même, sous sa propre identité, et elle va à l'audit.
 - Les opérations propres à l'Assistant IA (relance, rendez-vous, BC…) sont journalisées et annulables, mais leur carte
   n'est pas simulée (elle montre ce qui est proposé) ; leur simulation est le prochain pas.
+
+## 9. Suite — K10a (31/10/2026)
+
+Le journal s'ouvre aux gestes de l'ÉCRAN (`lib/effets/ecran.ts`, origine `ecran`), l'annulation applique une politique
+d'argent (contre-passation, « à récupérer », statut « payé » remis — `lib/effets/argent.ts`) et se journalise elle-même
+(rétablir). Voir [0041](0041-argent-reversible.md).

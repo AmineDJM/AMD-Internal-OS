@@ -2,7 +2,9 @@ import type { Prisma } from "@prisma/client";
 import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { CurrentUser } from "@/lib/session";
-import { delegue, deserialiser, ecrireVerrouille, ligne, lireActuelle, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
+import { delegue, deserialiser, ecrireVerrouille, enfantsDAbord, ligne, lireActuelle, retablirParLeJournal, destinataireDisparu, type Client, type CompteRenduAnnulation, type DetailEffet } from "./annulation";
+import { retablirEcritureTresorerie } from "./argent";
+import { DECLARATIONS_METIERS } from "./declarations/metiers";
 import { annulerEffetSortant, rejouerEffetFait, retablirEffetSortant } from "./fenetre";
 import { infoModele, type InfoModele } from "./modeles";
 import { memeValeur } from "./valeurs";
@@ -69,6 +71,9 @@ async function refaire(e: EffetLu, d: DetailEffet, user: CurrentUser): Promise<D
     return fait ? OK(d, `rétabli : ${champs.map((x) => `« ${x} »`).join(", ")} rendu(s) à la valeur du geste`) : NON(d, "la ligne a changé depuis l'annulation : la valeur du geste n'est pas réécrite par-dessus");
   }
   if (e.operation === "CREATE") {
+    // L'ARGENT (K10a) : une écriture de trésorerie compensée se rétablit par une ligne de plus, jamais un effacement.
+    const argent = d.issue === "COMPENSE" ? await retablirEcritureTresorerie(e, { acteurId: user.id, ecrireVerrouille }) : null;
+    if (argent) return argent.ok ? OK(d, argent.pourquoi) : NON(d, argent.pourquoi);
     if (d.issue === "COMPENSE" && info.annulation) {
       const a = info.annulation;
       const v = deserialiser(info, a.champ, apres[a.champ] ?? null);
@@ -76,6 +81,8 @@ async function refaire(e: EffetLu, d: DetailEffet, user: CurrentUser): Promise<D
       return fait ? OK(d, `rétablie : son statut d'avant l'annulation lui est rendu`) : NON(d, "son statut a changé depuis l'annulation : laissé tel quel");
     }
     if (await lireActuelle(c, info, id)) return RIEN(d, "elle existe déjà de nouveau");
+    // K10c : une notification dont le destinataire a perdu son compte depuis — personne à prévenir, rien à recréer.
+    if (await destinataireDisparu(e.modele, apres)) return RIEN(d, "son destinataire n'a plus de compte : il n'y a plus personne à prévenir");
     const data: Record<string, unknown> = {};
     for (const x of champsReels(info, apres).concat([...info.auto].filter((x) => x in apres && info.types.has(x)))) {
       const v = deserialiser(info, x, apres[x] ?? null);
@@ -99,12 +106,30 @@ export async function retablirGeste(gesteId: string, user: CurrentUser): Promise
   if (g.principalId !== user.id && user.role !== "SUPER_ADMIN") return { refus: "Seule la personne au nom de qui le geste s'est fait (ou le Super Admin) peut le rétablir." };
   const compte = g.annulation as unknown as CompteRenduAnnulation | null;
   if (!g.annuleLe || !compte) return { refus: "Ce geste n'est pas annulé : rien à rétablir." };
+  // K10c : l'annulation JOURNALISÉE d'une action métier du périmètre K10c (gestes inverses métier compris) se rétablit
+  // en annulant ce geste-là — la corbeille remise, le rectificatif non lu retiré. Les autres : effet par effet (K10b).
+  if (compte.gesteAnnulationId && g.capaciteId && Object.hasOwn(DECLARATIONS_METIERS, g.capaciteId)) {
+    const r = await retablirParLeJournal(gesteId, user);
+    if ("refus" in r) return r;
+    // Les envois retenus dans leur fenêtre (ou compensés) par l'annulation : ils repartent (fenêtre neuve), comme K10b.
+    const parEffet = new Map(compte.details.map((d) => [d.effetId, d]));
+    for (const e of g.effets) {
+      const d = parEffet.get(e.id);
+      if (e.type !== "EXTERNE" || !e.effetSortantId || !d || (d.issue !== "ANNULE" && d.issue !== "COMPENSE")) continue;
+      const fait = await refaire(e, d, user).catch((err): DetailEffet => NON(d, `le rétablissement a échoué sur cet effet (${err instanceof Error ? err.message.slice(0, 160) : String(err)})`));
+      r.details.push(fait);
+      r.compte[fait.issue]++;
+    }
+    return r;
+  }
   // LA RÉCLAMATION ATOMIQUE : un seul rétablissement, même en deux onglets.
   const prise = await prismaBrut.assistantGesteJournal.updateMany({ where: { id: gesteId, annuleLe: g.annuleLe }, data: { annuleLe: null, annuleParId: null } });
   if (prise.count !== 1) return { refus: "Ce geste est rétabli (ou l'est en ce moment même, depuis un autre écran)." };
   const parEffet = new Map(compte.details.map((d) => [d.effetId, d]));
   const details: DetailEffet[] = [];
-  for (const e of g.effets) {
+  // LE PARENT D'ABORD (K10a) : l'ordre inverse de l'annulation — une ligne recréée avant celle vers laquelle elle pointe
+  // (la remise de caisse avant son ordre) serait refusée par sa clé étrangère.
+  for (const e of enfantsDAbord([...g.effets].reverse()).reverse()) {
     const d = parEffet.get(e.id);
     if (!d || (d.issue !== "ANNULE" && d.issue !== "COMPENSE")) continue;
     details.push(await refaire(e, d, user).catch((err): DetailEffet => NON(d, `le rétablissement a échoué sur cet effet (${err instanceof Error ? err.message.slice(0, 160) : String(err)})`)));

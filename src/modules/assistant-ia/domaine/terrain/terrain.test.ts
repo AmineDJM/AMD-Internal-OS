@@ -146,7 +146,7 @@ describe("file hors ligne — aucune perte", () => {
 });
 
 describe("voix temps réel — règles", () => {
-  it("aucun repère ne part à la voix : la valeur est « affichée à l'écran »", () => {
+  it("aucun repère ne part à la voix : la valeur est « gardée dans la conversation écrite »", () => {
     expect(pourLaVoix('{"salaire":"⟦S3⟧","iban":"⟦S12⟧"}')).toBe(`{"salaire":"${DIT_A_L_ECRAN}","iban":"${DIT_A_L_ECRAN}"}`);
     expect(pourLaVoix("x".repeat(7000)).length).toBeLessThan(6_100);
   });

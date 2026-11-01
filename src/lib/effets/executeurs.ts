@@ -71,6 +71,8 @@ export const EXECUTEURS: Readonly<Record<string, () => Promise<ExecuteurEffetSor
     };
   },
 
+  /** Diffusion de notifications (K10c, `notification-actions:sendBroadcast`). Charge : `ChargeDiffusion`. */
+  "notification.diffusion": async () => (await import("@/lib/notifications/diffusion-differee")).executeurDiffusion,
   /**
    * Message WhatsApp (K6, `platform/ia/canaux/whatsapp.ts`). Charge : `{ a, texte }`. Un geste qui répond par WhatsApp le
    * diffère par `differerEffetSortant({ type: "whatsapp.texte", … })` ; les accusés automatiques du webhook, eux, ne sont

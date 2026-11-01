@@ -179,6 +179,7 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   "/api/assistant-ia/voix/delegation": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/journal": { methodes: "POST", classe: "HORS", raison: PROPRE },
   "/api/assistant-ia/voix/session": { methodes: "POST", classe: "HORS", raison: PROPRE },
+  "/api/assistant-ia/voix/travail": { methodes: "GET", classe: "HORS", raison: PROPRE },
   "/api/assistant/stream": { methodes: "POST", classe: "HORS", raison: ADAM },
   "/api/assistant/transcribe": { methodes: "POST", classe: "HORS", raison: ADAM },
   "/api/assistant/voice/log": { methodes: "POST", classe: "HORS", raison: ADAM },

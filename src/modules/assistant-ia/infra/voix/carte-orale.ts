@@ -5,7 +5,7 @@ import { sansBloquer } from "@/lib/journal";
 import { estChargeCapacite } from "../../domaine/capacites";
 import { estChargeOperationIA } from "../../domaine/operations/types";
 import {
-  elementCleDit, estNonExplicite, estOuiExplicite, estRienAAjouter, etapeOrale, recitDeCarte, texteOral, type CarteOrale, type ChampOral,
+  estNonExplicite, estOuiExplicite, estRienAAjouter, etapeOrale, recitDeCarte, texteOral, type CarteOrale, type ChampOral,
 } from "../../domaine/terrain/voix-orale";
 import { facultatifsDeCapacite } from "../capacites";
 import { facultatifsDOperation } from "../operations";
@@ -23,8 +23,8 @@ import { confirmerCarte } from "../confirmation";
  *
  * LA CONFIRMATION ORALE n'est entendue que si : la carte est la dernière carte orale de CETTE personne, encore à signer,
  * de moins de 30 minutes ; la question de confirmation a été posée APRÈS la dernière correction ; les MOTS DE LA PERSONNE
- * (sa transcription — jamais la reformulation du modèle vocal) disent un « oui » explicite ; pour une carte renforcée,
- * ils contiennent l'élément clé (montant, verbe), comparé comme la ressaisie écrite. Puis la MÊME garde que le bouton
+ * (sa transcription — jamais la reformulation du modèle vocal) disent un « oui » explicite. Pour une carte renforcée, la
+ * voix a RELU l'élément clé dans le récit qui précède la question (K9, décision 0039 : pas de mot imposé). Puis la MÊME garde que le bouton
  * (`confirmerCarte` → `executerIntention` : idempotence, arrêt d'urgence, porte, famille). Au journal : « confirmé à
  * l'oral », avec la transcription.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -105,14 +105,11 @@ export async function traiterParoleSurCarte(user: CurrentUser, c: CarteOraleLue,
   if (c.questionPosee && dit) {
     if (estNonExplicite(dit)) {
       await ajouterEvenement(c.id, { status: "VOIX", etape: "REFUS", transcription: dit.slice(0, 500) });
-      return { suite: "repondu", pourVoix: "La personne ne confirme pas : dis-lui simplement que rien n'est envoyé, et que la carte reste à l'écran si elle change d'avis." };
+      return { suite: "repondu", pourVoix: "La personne ne confirme pas : dis-lui simplement que rien n'est envoyé ; elle peut redemander la même chose plus tard." };
     }
-    if (estOuiExplicite(dit)) {
-      if (c.carte.elementCle && !elementCleDit(dit, c.carte.elementCle)) {
-        return { suite: "repondu", pourVoix: `Action renforcée : pour confirmer, la personne doit PRONONCER « ${c.carte.elementCle} ». Demande-lui de le redire, par exemple « oui, je confirme ${c.carte.elementCle} ». Rien n'est fait.` };
-      }
-      return confirmerALOral(user, c, dit);
-    }
+    // K9 (décision 0039) : pas de mot imposé — l'élément clé d'une carte renforcée a été RELU par la voix dans le récit
+    // (`texteOral`, étape QUESTION) ; un oui sans réserve suffit, la ressaisie stockée est fournie par le serveur.
+    if (estOuiExplicite(dit)) return confirmerALOral(user, c, dit);
   }
   if (!c.questionPosee && c.facultatifsProposes && estRienAAjouter(dit)) return { suite: "repondu", pourVoix: await direLaCarte(c) };
   return { suite: "assistant" };
@@ -127,6 +124,6 @@ async function confirmerALOral(user: CurrentUser, c: CarteOraleLue, transcriptio
     summary: `Carte « ${c.carte.titre} » confirmée à l'oral${r.ok ? "" : " — non exécutée"} · transcription : « ${transcription.slice(0, 300)} »`,
   });
   return r.ok
-    ? { suite: "repondu", execute: true, pourVoix: `C'est fait : ${r.message ?? c.carte.titre}. Annonce-le simplement, en une phrase.` }
+    ? { suite: "repondu", execute: true, pourVoix: `C'est fait : ${r.message ?? c.carte.titre}. Annonce-le simplement, en une phrase, et dis qu'elle peut dire « annule » si elle change d'avis.` }
     : { suite: "repondu", pourVoix: `L'action n'a pas été exécutée : ${r.error ?? "raison inconnue"}. Dis-le simplement.` };
 }

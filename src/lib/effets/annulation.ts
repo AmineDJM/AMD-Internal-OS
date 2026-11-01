@@ -3,11 +3,15 @@ import { attendu, sansBloquer } from "@/lib/journal";
 import type { CurrentUser } from "@/lib/session";
 import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { notifyUser } from "@/lib/notify";
 import { composer, type Changement, type EtatActuel } from "@/lib/annulation/plan";
 import { classerGeste, natureDe as natureDuJournal, type NatureGeste } from "@/lib/annulation/reversibilite";
 import { construireDiff, natureDe } from "./diff";
 import { annulerEffetSortant } from "./fenetre";
-import type { Capture, EcritureCapturee, EffetExterneCapture } from "./magasin";
+import { etatDuGeste, sousGeste, type Capture, type EcritureCapturee, type EffetExterneCapture } from "./magasin";
+import { journaliserGeste } from "./journal";
+import { politiqueDe, type PolitiqueAnnulation } from "./politiques";
+import { defaireEcritureTresorerie, gesteDePaiement, MODELES_ARGENT } from "./argent";
 import { infoModele, MODELES_COMPTEURS, MODELES_JOURNAUX_ENVOI, MODELES_PIECES_NUMEROTEES, type InfoModele } from "./modeles";
 import { cleDeValeur, memeValeur, serialiserLigne, valeurLisible } from "./valeurs";
 
@@ -49,6 +53,10 @@ export interface DetailEffet {
   pourquoi: string;
   /** Ce qu'on peut faire à la place, quand c'est impossible. */
   aLaPlace?: string | null;
+  /** Un effet SORTI de l'ERP (courriel, poussée, appel) — dit tel quel, il ne bloque pas un « tout ou rien » (K10c). */
+  externe?: boolean;
+  /** Défait EN PARTIE seulement (des champs changés depuis laissés tels quels) — bloque un « tout ou rien » (K10c). */
+  partiel?: boolean;
 }
 
 export interface CompteRenduAnnulation {
@@ -59,6 +67,10 @@ export interface CompteRenduAnnulation {
   /** VRAI seulement si tout ce qui pouvait l'être est défait ou compensé (et rien n'est impossible). */
   complet: boolean;
   resume: string;
+  /** VRAI quand tout ce qui est DANS l'ERP est défait ou compensé — seuls des effets déjà sortis restent (K10c). */
+  baseDefaite?: boolean;
+  /** Le geste qui porte l'annulation elle-même (K10c) — ce que « rétablir » défait. */
+  gesteAnnulationId?: string | null;
 }
 
 type Delegue = {
@@ -70,7 +82,13 @@ type Delegue = {
 };
 export type Client = Record<string, unknown>;
 
-interface EffetLu {
+/**
+ * LE CLIENT QUI ÉCRIT L'ANNULATION (K10c) — celui du geste en cours : l'annulation s'exécute sous SON propre journal
+ * (`annulerGeste`), ses écritures y entrent comme celles de n'importe quel geste, et « rétablir » les défait.
+ */
+const ecrivain = (): typeof prismaBrut => (etatDuGeste()?.client as typeof prismaBrut | null | undefined) ?? prismaBrut;
+
+export interface EffetLu {
   id: string; ordre: number; type: string; modele: string | null; operation: string | null; enregistrementId: string | null;
   avant: unknown; apres: unknown; champs: string[]; cascade: number | null; nombre: number | null; imbriquee: boolean;
   acte: string | null; cible: string | null; apercu: string | null; effetSortantId?: string | null;
@@ -113,7 +131,7 @@ export async function lireActuelle(c: Client, info: InfoModele, id: string): Pro
 export async function ecrireVerrouille(
   info: InfoModele, id: string, verifier: (relue: Record<string, unknown> | null) => boolean, ecrire: (t: Client) => Promise<unknown>,
 ): Promise<boolean> {
-  return (prismaBrut.$transaction(async (tx) => {
+  return (ecrivain().$transaction(async (tx) => {
     const t = tx as unknown as Client;
     await verrouiller(t, info, id);
     if (!verifier(await lireActuelle(t, info, id))) return false;
@@ -145,6 +163,8 @@ async function rattaches(c: Client, info: InfoModele, id: string, ignorer: Reado
 }
 
 const OCTETS = new Set(["FileBlob", "FileBlobChunk", "StoredFile"]);
+/** Des statuts d'AFFICHAGE dont les mots (« SUBMITTED ») ressemblent à un dépôt sans en être un (K10a). */
+const STATUTS_AFFICHES: ReadonlySet<string> = new Set(["RegulatoryProduct.externalStatus"]);
 
 const ACTE_NATURE: Readonly<Record<string, NatureGeste>> = {
   COURRIEL: "MESSAGE_ENVOYE", NOTIFICATION_PUSH: "MESSAGE_ENVOYE", INVITATION_AGENDA: "MESSAGE_ENVOYE", PAIEMENT: "PAIEMENT_EXECUTE",
@@ -177,7 +197,7 @@ function issueExterne(e: EffetLu): DetailEffet {
     ?? (e.acte === "ECRITURE_EXTERNE" ? "la publication est partie sur le site Adventum : elle ne se reprend pas d'ici" : "l'appel est parti vers un service extérieur : rien ici ne peut le reprendre");
   const aLaPlace = v?.compensation
     ?? (e.acte === "ECRITURE_EXTERNE" ? "retirer ou corriger la publication depuis l'écran du site" : "prévenir le destinataire de l'appel par son canal habituel");
-  return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi, aLaPlace };
+  return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi, aLaPlace, externe: true };
 }
 
 interface Contexte {
@@ -193,10 +213,16 @@ interface Contexte {
   remis: Set<string>;
   appliquer: boolean;
   nomDe: (id: string | null | undefined) => Promise<string | null>;
+  /** Le geste a passé un modèle d'argent à « payé » (K10a, `argent.ts`) : son statut se remet, l'argent se compense. */
+  paiement: boolean;
+  /** La politique de l'action annulée (K10c) — `null` : l'annulation J7 telle quelle. */
+  politique: PolitiqueAnnulation | null;
+  /** Qui annule — le rectificatif le nomme. */
+  parNom: string;
 }
 
 /** Les champs MODIFIÉS d'une ligne : l'invariant de `plan.ts`, puis l'écriture verrouillée. */
-async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte): Promise<DetailEffet> {
+async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte, argentCompense = false): Promise<DetailEffet> {
   const quoi = phraseEcriture(e);
   const id = e.enregistrementId!;
   const avant = ligne(e.avant) ?? {};
@@ -205,7 +231,8 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte):
   if (!champs.length) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "seuls des horodatages avaient changé" };
   const actuelle = await lireActuelle(ctx.c, info, id);
   if (!actuelle) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${natureDe(e.modele!)} n'existe plus : il n'y a plus rien à remettre`, aLaPlace: null };
-  const resume = (c: string) => `${e.modele}.${c} → ${valeurLisible(apres[c])}`;
+  // Un statut « payé » (argent compensé) ou « transmis » au centre (K10a) se juge comme un champ : la valeur n'entre pas dans la phrase.
+  const resume = (c: string) => (argentCompense ? `${e.modele}.${c} (circuit d'argent interne, argent compensé)` : `${e.modele}.${c} → ${valeurLisible(apres[c])}`);
   const changements: Changement[] = champs.map((c) => ({
     id: `${e.id}:${c}`, auteurId: null, auteurNom: ctx.agent, parAdam: true, quand: ctx.creeLe, action: "UPDATE",
     module: e.modele!, entite: e.modele, entiteId: id, champ: c, avant: cleDeValeur(avant[c] ?? null), apres: cleDeValeur(apres[c] ?? null), resume: resume(c),
@@ -220,7 +247,7 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte):
   });
   let ecrits: string[] = [];
   if (aRemettre.length && ctx.appliquer) {
-    ecrits = await (prismaBrut.$transaction(async (tx) => {
+    ecrits = await (ecrivain().$transaction(async (tx) => {
       const t = tx as unknown as Client;
       await verrouiller(t, info, id);
       const relue = await lireActuelle(t, info, id);
@@ -245,6 +272,7 @@ async function defaireModification(e: EffetLu, info: InfoModele, ctx: Contexte):
     effetId: e.id, issue: "ANNULE", quoi,
     pourquoi: refuses.length ? `${remis.join(", ")} ; mais ${refuses.join(" ; ")} — laissé(s) tel(s) quel(s)` : remis.join(", "),
     aLaPlace: refuses.length ? "reprendre à la main les champs laissés, en connaissance du changement" : null,
+    ...(refuses.length ? { partiel: true } : {}),
   };
 }
 
@@ -262,12 +290,14 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
     const qui = await ctx.nomDe(String(actuelle.userId ?? ""));
     // K10b (décision 0040) : LA COMPENSATION, codée — un rectificatif dans l'ERP, au même destinataire ; la lue reste.
     if (ctx.appliquer) {
-      await prismaBrut.notification.create({
+      const ecrit = await prismaBrut.notification.create({
         data: {
           userId: String(actuelle.userId), type: (actuelle.type ?? "GENERIC") as never, link: (actuelle.link as string | null) ?? null,
           title: `Rectificatif — ${String(actuelle.title ?? "")}`.slice(0, 300), body: `Annulé par ${ctx.user.name ?? "son auteur"} : n'en tenez plus compte.`,
         },
-      });
+      }).then(() => true, async (err) => { if (await destinataireDisparu("Notification", actuelle)) return false; throw err; });
+      // K10c : son compte a disparu entre la lecture et le rectificatif — plus personne à prévenir.
+      if (!ecrit) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "son destinataire n'a plus de compte : il n'y a plus personne à prévenir" };
     }
     return { effetId: e.id, issue: "COMPENSE", quoi, pourquoi: `${qui ?? "son destinataire"} l'a déjà lue : elle ne se reprend pas — un rectificatif lui ${ctx.appliquer ? "est envoyé" : "sera envoyé"} dans l'ERP (« n'en tenez plus compte »)` };
   }
@@ -287,7 +317,14 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
       const fait = await ecrireVerrouille(info, id,
         (relue) => !!relue && !Object.keys(apres).some((c) => !info.auto.has(c) && info.types.has(c) && !memeValeur(relue[c] ?? null, apres[c] ?? null)),
         (t) => delegue(t, info).delete({ where: { [info.cle!]: id } }));
-      if (!fait) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "elle a changé au moment même de l'annulation (ou une ligne y tient encore) : laissée telle quelle", aLaPlace: verdict.compensation };
+      if (!fait) {
+        // K10c : relue après le refus — retirée entre-temps par ailleurs (son destinataire supprimé : la notification part
+        // avec lui), c'est sans objet ; une notification LUE à l'instant même suit le chemin du rectificatif.
+        const relue = await lireActuelle(ctx.c, info, id);
+        if (!relue) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "elle a été retirée par ailleurs au moment même de l'annulation" };
+        if (e.modele === "Notification" && relue.isRead === true && actuelle.isRead !== true) return defaireCreation(e, info, ctx);
+        return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "elle a changé au moment même de l'annulation (ou une ligne y tient encore) : laissée telle quelle", aLaPlace: verdict.compensation };
+      }
     }
     const lue = e.modele === "Notification" ? " avant d'avoir été lue" : "";
     return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: `retirée${lue} : personne n'y avait touché et rien ne s'y était rattaché` };
@@ -311,6 +348,15 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
 }
 
 /** Une ligne SUPPRIMÉE : recréée à l'identique (même identifiant), si rien n'a suivi en cascade. */
+/**
+ * UNE NOTIFICATION DONT LE DESTINATAIRE N'EXISTE PLUS (K10c) — son compte a été supprimé depuis (la notification est
+ * partie avec lui, en cascade) : il n'y a plus personne à prévenir ni rien à rendre. « Sans objet », jamais un refus.
+ */
+export async function destinataireDisparu(modele: string | null, ligneNotif: Record<string, unknown> | null): Promise<boolean> {
+  if (modele !== "Notification" || typeof ligneNotif?.userId !== "string") return false;
+  return !(await prismaBrut.user.findUnique({ where: { id: ligneNotif.userId }, select: { id: true } }).catch(sansBloquer("effets.annulation.lecture", { id: "?" })));
+}
+
 async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): Promise<DetailEffet> {
   const quoi = phraseEcriture(e);
   const id = e.enregistrementId!;
@@ -319,6 +365,7 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
   if (!avant) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "le journal ne porte pas la ligne supprimée", aLaPlace: verdict.compensation };
   if (e.cascade) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: `${e.cascade} élément(s) lié(s) ont été supprimés avec elle, en cascade, et ne sont pas au journal : la recréer seule laisserait un dossier amputé`, aLaPlace: verdict.compensation };
   if (await lireActuelle(ctx.c, info, id)) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "une ligne porte de nouveau cet identifiant : elle a été rétablie par ailleurs" };
+  if (await destinataireDisparu(e.modele, avant)) return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "son destinataire n'a plus de compte : il n'y a plus personne à prévenir" };
   const data: Record<string, unknown> = {};
   for (const [c, v] of Object.entries(avant)) {
     if (!info.types.has(c)) continue;
@@ -330,7 +377,7 @@ async function defaireSuppression(e: EffetLu, info: InfoModele, ctx: Contexte): 
   if (manquants.length) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "la ligne portait des octets, que le journal ne recopie pas", aLaPlace: verdict.compensation };
   if (ctx.appliquer) {
     try {
-      await delegue(prismaBrut as unknown as Client, info).create({ data });
+      await delegue(ecrivain() as unknown as Client, info).create({ data });
     } catch (err) {
       const code = (err as { code?: string }).code;
       const pourquoi = code === "P2003" ? "un élément auquel elle était rattachée a disparu depuis"
@@ -402,6 +449,11 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
   if (MODELES_COMPTEURS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "un numéro de pièce attribué ne se rend jamais (deux pièces porteraient le même) : la pièce est annulée, son numéro reste consommé" };
   }
+  // La FILE D'INDEXATION de la bibliothèque (une fiche prise par l'ingestion) : un état technique qui suit sa pièce
+  // (cascade) — rien de métier à défaire.
+  if (e.operation === "SQL" && e.modele === "BibliothequeFiche") {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "indexation de la bibliothèque (file technique d'ingestion) : elle suit sa pièce, retirée ou gardée avec elle" };
+  }
   if (e.operation === "SQL" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "compteur de références des octets d'une pièce : la purge des fichiers orphelins s'en charge" };
   }
@@ -413,21 +465,35 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
   // UN CHANGEMENT DE STATUT QUI VAUT PAIEMENT, DÉPÔT OU SIGNATURE ne se « remet » pas : la table de réversibilité tranche.
   if (e.operation === "UPDATE") {
     const apres = ligne(e.apres) ?? {};
+    let argentCompense = false;
     for (const c of e.champs) {
       const nature = natureDuJournal({ action: "UPDATE", module: e.modele, resume: `${c} ${valeurLisible(apres[c])}`, champ: c });
       const v = classerGeste(nature);
-      if (nature !== "CHAMP_MODIFIE" && v.reversibilite !== "REVERSIBLE") {
+      // K10a : le statut « payé » d'un modèle d'argent se remet quand le geste est un paiement — l'argent, lui, est
+      // compensé par l'écriture « à récupérer » (`argent.ts`), jamais effacé. Et un « SUBMITTED » d'un modèle d'argent
+      // est une transmission INTERNE (au centre de paiement), pas un dépôt à une autorité : il se remet comme un champ.
+      const argent = (MODELES_ARGENT.has(e.modele ?? "") && ((nature === "PAIEMENT_EXECUTE" && ctx.paiement) || nature === "DEPOT_AUTORITE"))
+        // Le statut que le PORTAIL FOURNISSEUR affiche (« soumis », « en revue ») n'est pas le dépôt lui-même : un champ.
+        || STATUTS_AFFICHES.has(`${e.modele}.${c}`);
+      argentCompense ||= argent;
+      if (nature !== "CHAMP_MODIFIE" && v.reversibilite !== "REVERSIBLE" && !argent) {
         return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: v.raison, aLaPlace: v.compensation ?? v.delegueA };
       }
     }
-    return defaireModification(e, info, ctx);
+    return defaireModification(e, info, ctx, argentCompense);
   }
   // LES OCTETS D'UNE PIÈCE (blob, tranches) : comptés par références, retirés par la purge des orphelins dès que plus
   // rien n'y renvoie — les supprimer ici casserait une autre pièce qui partagerait les mêmes octets (dédoublonnage).
   if (e.operation === "CREATE" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "octets d'une pièce, partagés par empreinte : la purge des fichiers orphelins les retire dès que plus rien n'y renvoie" };
   }
-  if (e.operation === "CREATE") return defaireCreation(e, info, ctx);
+  if (e.operation === "CREATE") {
+    const argent = await defaireEcritureTresorerie(e, {
+      effetId: e.id, quoi, appliquer: ctx.appliquer, paiement: ctx.paiement, acteurId: ctx.user.id,
+      lire: (i, x) => lireActuelle(ctx.c, i, x), ecrireVerrouille,
+    });
+    return argent ?? defaireCreation(e, info, ctx);
+  }
   return defaireSuppression(e, info, ctx);
 }
 
@@ -435,6 +501,8 @@ function conclure(gesteId: string, libelle: string, details: DetailEffet[], deja
   const compte: Record<IssueEffet, number> = { ANNULE: 0, COMPENSE: 0, IMPOSSIBLE: 0, SANS_OBJET: 0 };
   for (const d of details) compte[d.issue]++;
   const complet = compte.IMPOSSIBLE === 0;
+  const sortis = details.filter((d) => d.issue === "IMPOSSIBLE" && d.externe).length;
+  const baseDefaite = compte.IMPOSSIBLE === sortis;
   const parts = [
     compte.ANNULE ? `${compte.ANNULE} annulé(s)` : "",
     compte.COMPENSE ? `${compte.COMPENSE} compensé(s)` : "",
@@ -444,8 +512,10 @@ function conclure(gesteId: string, libelle: string, details: DetailEffet[], deja
   const verbe = deja ? "Prévu" : "Fait";
   const resume = details.length === 0
     ? "Ce geste n'a rien laissé à défaire."
-    : `${verbe} : ${parts.join(", ")} sur ${details.length} effet(s).${complet ? "" : " Ce n'est PAS une annulation complète : chaque effet dit pourquoi."}`;
-  return { gesteId, libelle, details, compte, complet, resume };
+    : `${verbe} : ${parts.join(", ")} sur ${details.length} effet(s).${complet ? ""
+      : baseDefaite ? ` Ce n'est PAS une annulation complète : tout est défait dans l'ERP, mais ${sortis} effet(s) déjà sorti(s) (notification poussée, envoi) ne se reprennent pas — chacun dit quoi faire à la place.`
+        : " Ce n'est PAS une annulation complète : chaque effet dit pourquoi."}`;
+  return { gesteId, libelle, details, compte, complet, baseDefaite, resume };
 }
 
 async function charger(gesteId: string, user: CurrentUser) {
@@ -464,18 +534,56 @@ const nomsEnCache = () => {
   };
 };
 
-async function derouler(g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean, user: CurrentUser): Promise<CompteRenduAnnulation> {
+/**
+ * L'ENFANT D'ABORD (K10a) — une ligne créée par ce geste et vers laquelle une AUTRE ligne créée par ce geste renvoie
+ * (sa clé dans l'« après » de l'autre) se défait APRÈS elle, quel que soit l'ordre d'écriture : la remise de caisse
+ * naît avant son ordre de dépense, puis le pointe. Sans cela l'ordre, jugé le premier, voyait la remise « rattachée »
+ * et n'était que compensé, alors que le même geste allait la retirer.
+ */
+export function enfantsDAbord<E extends { operation: string | null; enregistrementId: string | null; apres: unknown }>(effets: E[]): E[] {
+  const out = [...effets];
+  const renvoie = (f: E, id: string) => f.operation === "CREATE" && f.enregistrementId !== id && Object.values(ligne(f.apres) ?? {}).includes(id);
+  for (let passe = 0; passe < out.length; passe += 1) {
+    let bouge = false;
+    for (let i = 0; i < out.length; i += 1) {
+      const id = out[i]!.operation === "CREATE" ? out[i]!.enregistrementId : null;
+      if (!id) continue;
+      let dernier = -1;
+      for (let j = i + 1; j < out.length; j += 1) if (renvoie(out[j]!, id)) dernier = j;
+      if (dernier > i) { out.splice(dernier, 0, ...out.splice(i, 1)); bouge = true; }
+    }
+    if (!bouge) break;
+  }
+  return out;
+}
+
+async function derouler(
+  g: { id: string; libelle: string; creeLe: Date; effets: EffetLu[] }, appliquer: boolean,
+  opts: { politique?: PolitiqueAnnulation | null; user: CurrentUser },
+): Promise<CompteRenduAnnulation> {
   // Les lignes créées par ce geste et RETIRÉES (ou à retirer) : elles ne comptent pas comme rattachement de leur parent.
   const retirees = new Set<string>();
-  const ctx: Contexte = { user, libelle: g.libelle, c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, remis: new Set(), appliquer, nomDe: nomsEnCache(),
+  const { user } = opts;
+  const politique = opts.politique ?? null;
+  const ctx: Contexte = { user, libelle: g.libelle, politique, parNom: user.name ?? "Quelqu'un", c: prismaBrut as unknown as Client, agent: "l'assistant", creeLe: g.creeLe, crees: retirees, remis: new Set(), appliquer, nomDe: nomsEnCache(),
     // Les pièces numérotées nées de ce geste sont GARDÉES (annulées, jamais retirées) : connues d'avance, quel que soit
     // l'ordre où leurs fichiers ont été écrits.
-    gardes: new Set(g.effets.filter((e) => e.operation === "CREATE" && e.enregistrementId && MODELES_PIECES_NUMEROTEES.has(e.modele ?? "")).map((e) => e.enregistrementId!)) };
+    gardes: new Set(g.effets.filter((e) => e.operation === "CREATE" && e.enregistrementId && MODELES_PIECES_NUMEROTEES.has(e.modele ?? "")).map((e) => e.enregistrementId!)),
+    paiement: gesteDePaiement(g.effets) };
   const details: DetailEffet[] = [];
+  // LE GESTE INVERSE MÉTIER (K10c) d'abord — la corbeille restaurée, par exemple : les effets qu'il prend en charge
+  // ne repassent pas par l'annulation ligne à ligne.
+  const traites = new Set<string>();
+  if (politique?.metier) {
+    const m = await politique.metier({ geste: g, appliquer, user });
+    details.push(...m.details);
+    for (const id of m.traites) traites.add(id);
+  }
+  g = { ...g, effets: g.effets.filter((e) => !traites.has(e.id)) };
   // DU PLUS RÉCENT AU PLUS ANCIEN (`plan.ts`) : l'enfant créé après son parent est défait avant lui. Le SQL brut, lui,
   // se juge en DERNIER : il suit ce qu'est devenue la ligne dont sa table dépend.
   const sql = g.effets.filter((e) => e.type === "ECRITURE" && e.operation === "SQL");
-  for (const e of g.effets.filter((x) => !sql.includes(x))) {
+  for (const e of enfantsDAbord(g.effets.filter((x) => !sql.includes(x)))) {
     const d = await issueEffet(e, ctx).catch((err): DetailEffet => ({
       effetId: e.id, issue: "IMPOSSIBLE", quoi: e.type === "EXTERNE" ? e.cible ?? "effet" : phraseEcriture(e),
       pourquoi: `l'annulation a échoué sur cet effet (${err instanceof Error ? err.message.slice(0, 160) : String(err)}) — rien n'y a été écrit`, aLaPlace: null,
@@ -500,33 +608,90 @@ export async function planDAnnulation(gesteId: string, user: CurrentUser): Promi
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
   if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")} (il se rétablit).` };
-  return derouler(r.g, false, user);
+  return derouler(r.g, false, { politique: await politiqueDe(r.g.capaciteId), user });
+}
+
+/** Un refus d'annulation : la phrase, et — quand des effets bloquent — leur liste, chacun avec sa raison. */
+export interface RefusAnnulation { refus: string; bloquants?: DetailEffet[] }
+
+/**
+ * LA CASCADE, TOUT OU RIEN (K10c) : une action métier dont un effet ne peut pas être défait (un BC payé depuis, une
+ * valeur changée par quelqu'un) ne s'annule PAS à moitié — rien n'est écrit, la liste dit pourquoi. Les effets
+ * sortis (poussée, appel externe) ne bloquent pas : ils sont dits tels quels, avec ce qu'on peut faire à la place.
+ */
+function bloquantsDe(g: { effets: EffetLu[] }, plan: CompteRenduAnnulation): DetailEffet[] {
+  const externes = new Set(g.effets.filter((e) => e.type === "EXTERNE").map((e) => e.id));
+  return plan.details.filter((d) => (d.issue === "IMPOSSIBLE" || d.partiel) && !d.externe && !externes.has(d.effetId));
+}
+
+/** Hors du journal d'un geste parent : l'annulation ouvre le SIEN (sinon ses écritures iraient au geste qui la contient). */
+function horsGesteParent<T>(fn: () => Promise<T>): Promise<T> {
+  const parent = etatDuGeste();
+  return parent ? sousGeste({ ...parent, capture: null, client: null }, fn) : fn();
 }
 
 /** ANNULER un geste de l'assistant — détail par effet, jamais un « annulé » de façade. */
-export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | { refus: string }> {
+export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | RefusAnnulation> {
+  // Une SIMULATION n'annule rien : elle montre le plan (aucune réclamation, aucune écriture hors de sa transaction).
+  if (etatDuGeste()?.mode === "SIMULATION") return planDAnnulation(gesteId, user);
   const r = await charger(gesteId, user);
   if ("refus" in r) return { refus: r.refus! };
-  // LES CASCADES (K10b, décision 0040) : un geste d'ÉCRAN se défait EN ENTIER ou pas du tout. Si une de ses écritures ne
-  // se défait pas (l'ordre de dépense né de la décision est déjà payé, quelqu'un a changé une valeur…), défaire le reste
-  // laisserait un état incohérent (une approbation « en attente » à côté d'un paiement fait) : rien n'est écrit, et la
-  // liste dit pourquoi. Un effet EXTERNE impossible (une poussée affichée) ne bloque pas : il est dit, la base reste juste.
-  if (r.g.origine === "ecran") {
-    const plan = await derouler(r.g, false, user);
-    const externes = new Set(r.g.effets.filter((e) => e.type === "EXTERNE").map((e) => e.id));
-    const bloquants = plan.details.filter((d) => d.issue === "IMPOSSIBLE" && !externes.has(d.effetId));
+  if (r.g.annuleLe) return { refus: `Ce geste a déjà été annulé le ${r.g.annuleLe.toLocaleDateString("fr-FR")} (il se rétablit).` };
+  // LES CASCADES, TOUT OU RIEN (K10b et K10c, décisions 0040 et 0044) : un geste d'ÉCRAN, ou une action métier déclarée
+  // sous sa politique, se défait EN ENTIER ou pas du tout. Si une de ses écritures ne se défait pas (l'ordre né de la
+  // décision est déjà payé, quelqu'un a changé une valeur, un champ ne se remet qu'en partie…), défaire le reste
+  // laisserait un état incohérent : rien n'est écrit, la liste dit pourquoi. Un effet EXTERNE impossible (une poussée
+  // affichée) ne bloque pas : il est dit, la base reste juste.
+  const politique = await politiqueDe(r.g.capaciteId);
+  if (politique?.toutOuRien || r.g.origine === "ecran") {
+    const bloquants = bloquantsDe(r.g, await derouler(r.g, false, { politique, user }));
     if (bloquants.length) {
-      return { refus: `Rien n'est annulé : ${bloquants.length} effet(s) ne se défont pas, et défaire le reste laisserait un état incohérent — ${bloquants.map((d) => `${d.quoi} : ${d.pourquoi}`).join(" ; ").slice(0, 900)}` };
+      return {
+        refus: `Rien n'est annulé : ${bloquants.length} effet(s) ne se défont pas, et défaire le reste laisserait un état incohérent — ${bloquants.map((d) => `${d.quoi} : ${d.pourquoi}`).join(" ; ")}`.slice(0, 1500),
+        bloquants,
+      };
     }
   }
   // LA RÉCLAMATION ATOMIQUE : une seule annulation par geste, même en deux onglets.
   const prise = await prismaBrut.assistantGesteJournal.updateMany({ where: { id: gesteId, annuleLe: null }, data: { annuleLe: new Date(), annuleParId: user.id } });
   if (prise.count !== 1) return { refus: "Ce geste a déjà été annulé (ou l'est en ce moment même, depuis un autre écran)." };
-  const compte = await derouler(r.g, true, user);
-  await prismaBrut.assistantGesteJournal.update({ where: { id: gesteId }, data: { annulation: compte as unknown as Prisma.InputJsonValue } });
+  // L'ANNULATION SOUS SON PROPRE JOURNAL (K10c) : ce qu'elle écrit est au journal des effets — « rétablir » le défait.
+  const { resultat: compte, gesteId: gesteAnnulationId } = await horsGesteParent(() => journaliserGeste(
+    user, { origine: "annulation", capaciteId: `annulation:${gesteId}`, libelle: `Annulation — ${r.g.libelle}`.slice(0, 300) },
+    () => derouler(r.g, true, { politique, user }),
+  ));
+  const garde: CompteRenduAnnulation = { ...compte, gesteAnnulationId };
+  await prismaBrut.assistantGesteJournal.update({ where: { id: gesteId }, data: { annulation: garde as unknown as Prisma.InputJsonValue } });
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: gesteId,
     summary: `Annulation d'un geste de l'assistant (« ${r.g.libelle} ») — ${compte.resume}`.slice(0, 500),
+  });
+  return garde;
+}
+
+/**
+ * RÉTABLIR PAR LE JOURNAL (K10c) — une annulation journalisée (`gesteAnnulationId`) est elle-même un geste : la
+ * défaire remet ce qu'elle avait retiré, gestes inverses métier compris (le poste remis en corbeille, le rectificatif
+ * non lu retiré) — mêmes règles : verrou, relecture, rien d'écrasé. Le geste d'origine redevient annulable.
+ * `retablissement.ts` (`retablirGeste`, K10b) y passe la main quand l'annulation porte son geste.
+ */
+export async function retablirParLeJournal(gesteId: string, user: CurrentUser): Promise<CompteRenduAnnulation | RefusAnnulation> {
+  if (etatDuGeste()?.mode === "SIMULATION") return { refus: "Une simulation ne rétablit rien." };
+  const r = await charger(gesteId, user);
+  if ("refus" in r) return { refus: r.refus! };
+  const a = r.g.annulation as unknown as CompteRenduAnnulation | null;
+  if (!r.g.annuleLe || !a) return { refus: "Ce geste n'a pas été annulé : il n'y a rien à rétablir." };
+  if (!a.gesteAnnulationId) return { refus: "Cette annulation n'a pas été journalisée : elle se rétablit effet par effet." };
+  const compte = await annulerGeste(a.gesteAnnulationId, user);
+  if ("refus" in compte) return compte;
+  const libere = await prismaBrut.assistantGesteJournal.updateMany({
+    where: { id: gesteId, annuleLe: r.g.annuleLe },
+    data: { annuleLe: null, annuleParId: null, annulation: { ...a, retabliLe: new Date().toISOString(), retablissement: compte } as unknown as Prisma.InputJsonValue },
+  });
+  if (libere.count !== 1) return { refus: "Le geste a changé pendant le rétablissement : rechargez l'écran." };
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: gesteId,
+    summary: `Rétablissement d'un geste annulé (« ${r.g.libelle} ») — ${compte.resume}`.slice(0, 500),
   });
   return compte;
 }

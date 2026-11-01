@@ -12,6 +12,7 @@ import {
 } from "@/modules/finances/api";
 import { verifierJetonRelance } from "@/lib/factures/jeton-relance";
 import { CHEMIN_CENTRE_DE_PAIEMENT } from "@/lib/chemins/finances";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -67,67 +68,69 @@ function peutRelancerSansJeton(user: SessionUser, lu: Lu): boolean {
 }
 
 export async function relancerPaiement(formData: FormData): Promise<ActionResult> {
-  try {
-    const user = await requireUser();
-    const type = fdStr(formData, "cibleType") as Cible | null;
-    const id = fdStr(formData, "cibleId");
-    if (!type || !(CIBLES as readonly string[]).includes(type) || !id) return { ok: false, error: "Paiement introuvable." };
-    const lu = await lireCible(type, id);
-    if (!lu) return { ok: false, error: "Paiement introuvable." };
+  return actionReversible("relance-paiement-actions:relancerPaiement", "Relance d'un paiement", async () => {
+    try {
+      const user = await requireUser();
+      const type = fdStr(formData, "cibleType") as Cible | null;
+      const id = fdStr(formData, "cibleId");
+      if (!type || !(CIBLES as readonly string[]).includes(type) || !id) return { ok: false, error: "Paiement introuvable." };
+      const lu = await lireCible(type, id);
+      if (!lu) return { ok: false, error: "Paiement introuvable." };
 
-    const jeton = fdStr(formData, "jeton");
-    const parJeton = verifierJetonRelance(jeton, user.id, type, id);
-    if (!peutRelancerSansJeton(user, lu) && !parJeton) {
-      return { ok: false, error: "Seul le demandeur peut relancer ce paiement." };
-    }
-    const demandeurId = lu.dossier?.requesterId ?? lu.ordre?.requestedById ?? null;
-    const parLeDemandeur = demandeurId === user.id;
-    const factureDejaConnue = parJeton && !parLeDemandeur;
+      const jeton = fdStr(formData, "jeton");
+      const parJeton = verifierJetonRelance(jeton, user.id, type, id);
+      if (!peutRelancerSansJeton(user, lu) && !parJeton) {
+        return { ok: false, error: "Seul le demandeur peut relancer ce paiement." };
+      }
+      const demandeurId = lu.dossier?.requesterId ?? lu.ordre?.requestedById ?? null;
+      const parLeDemandeur = demandeurId === user.id;
+      const factureDejaConnue = parJeton && !parLeDemandeur;
 
-    const etat = etatDuPaiement({ ordre: lu.ordre, demande: lu.dossier });
-    const derniere = lu.dossier
-      ? await prisma.paymentRequestEvent.findFirst({ where: { requestId: lu.dossier.id, kind: "NUDGE", actorId: user.id }, orderBy: { at: "desc" }, select: { at: true } })
-      : lu.ordre
-        ? await prisma.paymentCentreMessage.findFirst({ where: { orderId: lu.ordre.id, authorId: user.id, body: { startsWith: "Relance" } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } })
-            .then((m) => (m ? { at: m.createdAt } : null))
-        : null;
-    const refus = refusDeRelance({ etat, parLeDemandeur, derniereRelance: derniere?.at ?? null });
-    if (refus) return { ok: false, error: refus };
+      const etat = etatDuPaiement({ ordre: lu.ordre, demande: lu.dossier });
+      const derniere = lu.dossier
+        ? await prisma.paymentRequestEvent.findFirst({ where: { requestId: lu.dossier.id, kind: "NUDGE", actorId: user.id }, orderBy: { at: "desc" }, select: { at: true } })
+        : lu.ordre
+          ? await prisma.paymentCentreMessage.findFirst({ where: { orderId: lu.ordre.id, authorId: user.id, body: { startsWith: "Relance" } }, orderBy: { createdAt: "desc" }, select: { createdAt: true } })
+              .then((m) => (m ? { at: m.createdAt } : null))
+          : null;
+      const refus = refusDeRelance({ etat, parLeDemandeur, derniereRelance: derniere?.at ?? null });
+      if (refus) return { ok: false, error: refus };
 
-    const commentaire = commentaireDeRelance(fdStr(formData, "commentaire"));
-    const auteur = (await prisma.user.findUnique({ where: { id: user.id }, select: { name: true } }))?.name ?? "un utilisateur";
-    const reference = lu.ordre && lu.dossier ? `${lu.dossier.reference} (${lu.ordre.reference})` : lu.reference;
-    const message = messageDeRelance({ reference, auteur, parLeDemandeur, factureDejaConnue, commentaire });
+      const commentaire = commentaireDeRelance(fdStr(formData, "commentaire"));
+      const auteur = (await prisma.user.findUnique({ where: { id: user.id }, select: { name: true } }))?.name ?? "un utilisateur";
+      const reference = lu.ordre && lu.dossier ? `${lu.dossier.reference} (${lu.ordre.reference})` : lu.reference;
+      const message = messageDeRelance({ reference, auteur, parLeDemandeur, factureDejaConnue, commentaire });
 
-    // LA TRACE — dans le fil du dossier (c'est lui que le délai relit), et au centre quand c'est lui qui a la main.
-    if (lu.dossier) {
-      await prisma.paymentRequestEvent.create({
-        data: { requestId: lu.dossier.id, actorId: user.id, kind: "NUDGE", message: factureDejaConnue ? `Relance — facture déjà existante : ${message}` : (commentaire ?? "Relance") },
+      // LA TRACE — dans le fil du dossier (c'est lui que le délai relit), et au centre quand c'est lui qui a la main.
+      if (lu.dossier) {
+        await prisma.paymentRequestEvent.create({
+          data: { requestId: lu.dossier.id, actorId: user.id, kind: "NUDGE", message: factureDejaConnue ? `Relance — facture déjà existante : ${message}` : (commentaire ?? "Relance") },
+        });
+      }
+      if (lu.ordre && (etat === "CENTRE" || !lu.dossier)) {
+        await prisma.paymentCentreMessage.create({ data: { orderId: lu.ordre.id, body: `Relance — ${message}`, authorId: user.id } });
+      }
+
+      const title = factureDejaConnue ? "Relance : une facture déjà en paiement a été redéposée" : "Relance sur un paiement";
+      const prevenus = await prevenirQuiALaMain({
+        etat, title, body: message, dossierId: lu.dossier?.id ?? null, recipientId: lu.dossier?.recipientId ?? null, demandeurId, acteurId: user.id,
       });
+      // LE DEMANDEUR SAIT QU'ON ATTEND SON PAIEMENT : relancé par un tiers, il en est informé.
+      if (!parLeDemandeur && demandeurId && etat !== "DEMANDEUR") {
+        await notifyUser({ userId: demandeurId, type: "GENERIC", title: "Votre paiement a été relancé", body: message, link: lu.dossier ? `/validations/paiements/${lu.dossier.id}` : CHEMIN_CENTRE_DE_PAIEMENT });
+      }
+      await recordAudit({
+        actorId: user.id, action: "UPDATE", module: "Demandes de paiement",
+        entityType: lu.dossier ? "PAYMENT_REQUEST" : "EXPENSE_ORDER", entityId: lu.dossier?.id ?? lu.ordre?.id ?? id,
+        summary: message,
+      });
+      revalidatePath("/validations/paiements");
+      if (lu.dossier) revalidatePath(`/validations/paiements/${lu.dossier.id}`);
+      revalidatePath(CHEMIN_CENTRE_DE_PAIEMENT);
+      return { ok: true, id: lu.dossier?.id ?? lu.ordre?.id ?? id, message: `Relance envoyée — ${prevenus} (${QUI_A_LA_MAIN[etat] ?? "qui a la main"} a la main).` };
+    } catch (err) {
+      console.error("[paiement] relancerPaiement failed", err);
+      return { ok: false, error: "La relance n'a pas pu être envoyée." };
     }
-    if (lu.ordre && (etat === "CENTRE" || !lu.dossier)) {
-      await prisma.paymentCentreMessage.create({ data: { orderId: lu.ordre.id, body: `Relance — ${message}`, authorId: user.id } });
-    }
-
-    const title = factureDejaConnue ? "Relance : une facture déjà en paiement a été redéposée" : "Relance sur un paiement";
-    const prevenus = await prevenirQuiALaMain({
-      etat, title, body: message, dossierId: lu.dossier?.id ?? null, recipientId: lu.dossier?.recipientId ?? null, demandeurId, acteurId: user.id,
-    });
-    // LE DEMANDEUR SAIT QU'ON ATTEND SON PAIEMENT : relancé par un tiers, il en est informé.
-    if (!parLeDemandeur && demandeurId && etat !== "DEMANDEUR") {
-      await notifyUser({ userId: demandeurId, type: "GENERIC", title: "Votre paiement a été relancé", body: message, link: lu.dossier ? `/validations/paiements/${lu.dossier.id}` : CHEMIN_CENTRE_DE_PAIEMENT });
-    }
-    await recordAudit({
-      actorId: user.id, action: "UPDATE", module: "Demandes de paiement",
-      entityType: lu.dossier ? "PAYMENT_REQUEST" : "EXPENSE_ORDER", entityId: lu.dossier?.id ?? lu.ordre?.id ?? id,
-      summary: message,
-    });
-    revalidatePath("/validations/paiements");
-    if (lu.dossier) revalidatePath(`/validations/paiements/${lu.dossier.id}`);
-    revalidatePath(CHEMIN_CENTRE_DE_PAIEMENT);
-    return { ok: true, id: lu.dossier?.id ?? lu.ordre?.id ?? id, message: `Relance envoyée — ${prevenus} (${QUI_A_LA_MAIN[etat] ?? "qui a la main"} a la main).` };
-  } catch (err) {
-    console.error("[paiement] relancerPaiement failed", err);
-    return { ok: false, error: "La relance n'a pas pu être envoyée." };
-  }
+  });
 }

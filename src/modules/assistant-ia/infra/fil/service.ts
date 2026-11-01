@@ -4,6 +4,7 @@ import { notifyUser } from "@/lib/notify";
 import { proprietaire } from "@/platform/ia/proprietaire";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { jouerTour } from "./tour";
+import { CONSIGNE_ORALE, PREFIXE_PRECISION, PREFIXE_VOCAL } from "../../domaine/terrain/oral";
 import { messagePartiel } from "../../domaine/fil/partiel";
 import { sansBloquer } from "@/lib/journal";
 import { auNomDe, lireReglagesAssistantIa } from "../consommation";
@@ -228,6 +229,9 @@ export async function traiterFil(userId: string, conversation?: string | null): 
   }
 }
 
+/** Le tour vient de la conversation vocale (K9) : la réponse sera DITE. */
+const tourVocal = (texte: string) => texte.startsWith(PREFIXE_VOCAL) || texte.startsWith(PREFIXE_PRECISION);
+
 /** Ce que la personne a DIT : son texte, sinon la transcription de son vocal. */
 export function texteDuTour(t: Pick<AssistantIaTour, "contenu" | "vocal">): string {
   const v = t.vocal as VocalDuTour | null;
@@ -341,7 +345,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     delaiMs: DELAI_FOND_MS,
     maxEtapes: ETAPES_FOND,
     conversation: tour.filId,
-    consigne: CONSIGNE_FOND,
+    // K9 (décision 0039) : un tour délégué par la VOIX se rédige pour l'oreille, pas pour l'écran.
+    consigne: tourVocal(texteDit) ? `${CONSIGNE_FOND}\n${CONSIGNE_ORALE}` : CONSIGNE_FOND,
     // J14 : la trace rejouable, rattachée à la réponse affichée (et au message de la personne).
     trace: { tourId: reponse.id, messageId: tour.id },
     surTexte: (brut) => { partiel = messagePartiel(brut); publier(); },

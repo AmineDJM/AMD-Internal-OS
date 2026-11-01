@@ -9,6 +9,7 @@ import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { LIBELLE_MAX, valeurNouvelle } from "@/lib/general-means/natures";
 import { assurerNaturesMoyensGeneraux, categoriePourNom, naturesConnues } from "@/lib/general-means/natures-store";
 import { classerLibelles } from "@/lib/natures-depenses-ia";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * LES NATURES DES DÉPENSES DES MOYENS GÉNÉRAUX — les deux gestes autour de l'IA (Direction, 10/2026).
@@ -72,74 +73,76 @@ const estSuperAdmin = (u: { role: string; secondaryRole?: string | null }) => u.
  * ce qui reste.
  */
 export async function classerDepensesNonClassees(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!estSuperAdmin(user)) return { ok: false, error: "Réservé au Super Admin." };
-  const departmentId = fdStr(formData, "departmentId");
-  const duDepartement = departmentId ? { departmentId } : {};
+  return actionReversible("natures-moyens-generaux-actions:classerDepensesNonClassees", "Classement des dépenses non classées", async () => {
+    const user = await requireUser();
+    if (!estSuperAdmin(user)) return { ok: false, error: "Réservé au Super Admin." };
+    const departmentId = fdStr(formData, "departmentId");
+    const duDepartement = departmentId ? { departmentId } : {};
 
-  await assurerNaturesMoyensGeneraux();
-  const categories = await naturesConnues();
+    await assurerNaturesMoyensGeneraux();
+    const categories = await naturesConnues();
 
-  const lignes = await prisma.departmentExpenseLine.findMany({
-    where: { budgetCategoryId: null, expense: { budgetCategoryId: null, kind: { not: "HR" }, ...duDepartement } },
-    select: { id: true, label: true, expense: { select: { label: true } } },
-    orderBy: { createdAt: "desc" },
-    take: LOT_LIGNES,
+    const lignes = await prisma.departmentExpenseLine.findMany({
+      where: { budgetCategoryId: null, expense: { budgetCategoryId: null, kind: { not: "HR" }, ...duDepartement } },
+      select: { id: true, label: true, expense: { select: { label: true } } },
+      orderBy: { createdAt: "desc" },
+      take: LOT_LIGNES,
+    });
+    const depenses = await prisma.departmentBudgetExpense.findMany({
+      where: { budgetCategoryId: null, kind: { not: "HR" }, lines: { none: {} }, ...duDepartement },
+      select: { id: true, label: true },
+      orderBy: { date: "desc" },
+      take: LOT_DEPENSES,
+    });
+    if (lignes.length === 0 && depenses.length === 0) return { ok: true, message: "Aucune dépense à classer : tout est rangé." };
+
+    const { propositions, ia } = await classerLibelles({
+      libelles: [...lignes.map((l) => `${l.label} (ticket : ${l.expense.label})`), ...depenses.map((d) => d.label)],
+      categories,
+      userId: user.id,
+    });
+
+    let rangees = 0;
+    const creees = new Set<string>();
+    const idDe = async (k: number): Promise<string | null> => {
+      const p = propositions[k];
+      if (!p) return null;
+      if ("categorieId" in p) return p.categorieId;
+      const avant = categories.length;
+      const c = await categoriePourNom(p.nouvelle, categories);
+      if (c && categories.length > avant) creees.add(c.nom);
+      return c?.id ?? null;
+    };
+    for (let k = 0; k < lignes.length; k++) {
+      const id = await idDe(k);
+      if (!id) continue;
+      await prisma.departmentExpenseLine.update({ where: { id: lignes[k].id }, data: { budgetCategoryId: id } });
+      rangees++;
+    }
+    for (let k = 0; k < depenses.length; k++) {
+      const id = await idDe(lignes.length + k);
+      if (!id) continue;
+      await prisma.departmentBudgetExpense.update({ where: { id: depenses[k].id }, data: { budgetCategoryId: id } });
+      rangees++;
+    }
+
+    const [resteLignes, resteDepenses] = await Promise.all([
+      prisma.departmentExpenseLine.count({ where: { budgetCategoryId: null, expense: { budgetCategoryId: null, kind: { not: "HR" }, ...duDepartement } } }),
+      prisma.departmentBudgetExpense.count({ where: { budgetCategoryId: null, kind: { not: "HR" }, lines: { none: {} }, ...duDepartement } }),
+    ]);
+    const reste = resteLignes + resteDepenses;
+
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: departmentId ?? "moyens-generaux",
+      summary: `Natures des dépenses des moyens généraux : ${rangees} élément(s) rangé(s)${ia ? " par l'IA" : " par mots-clés (IA indisponible)"}${creees.size ? ` · nouvelles catégories : ${[...creees].join(", ")}` : ""}`,
+    });
+    revalidatePath("/moyens-generaux");
+
+    const morceaux = [
+      `${rangees} élément${rangees > 1 ? "s" : ""} rangé${rangees > 1 ? "s" : ""}${ia ? "" : " (par mots-clés : l'IA n'a pas répondu)"}.`,
+      creees.size ? `Nouvelles catégories : ${[...creees].join(", ")}.` : "",
+      reste > 0 ? `Il en reste ${reste} — relancez pour continuer.` : "",
+    ].filter(Boolean);
+    return { ok: true, message: morceaux.join(" ") };
   });
-  const depenses = await prisma.departmentBudgetExpense.findMany({
-    where: { budgetCategoryId: null, kind: { not: "HR" }, lines: { none: {} }, ...duDepartement },
-    select: { id: true, label: true },
-    orderBy: { date: "desc" },
-    take: LOT_DEPENSES,
-  });
-  if (lignes.length === 0 && depenses.length === 0) return { ok: true, message: "Aucune dépense à classer : tout est rangé." };
-
-  const { propositions, ia } = await classerLibelles({
-    libelles: [...lignes.map((l) => `${l.label} (ticket : ${l.expense.label})`), ...depenses.map((d) => d.label)],
-    categories,
-    userId: user.id,
-  });
-
-  let rangees = 0;
-  const creees = new Set<string>();
-  const idDe = async (k: number): Promise<string | null> => {
-    const p = propositions[k];
-    if (!p) return null;
-    if ("categorieId" in p) return p.categorieId;
-    const avant = categories.length;
-    const c = await categoriePourNom(p.nouvelle, categories);
-    if (c && categories.length > avant) creees.add(c.nom);
-    return c?.id ?? null;
-  };
-  for (let k = 0; k < lignes.length; k++) {
-    const id = await idDe(k);
-    if (!id) continue;
-    await prisma.departmentExpenseLine.update({ where: { id: lignes[k].id }, data: { budgetCategoryId: id } });
-    rangees++;
-  }
-  for (let k = 0; k < depenses.length; k++) {
-    const id = await idDe(lignes.length + k);
-    if (!id) continue;
-    await prisma.departmentBudgetExpense.update({ where: { id: depenses[k].id }, data: { budgetCategoryId: id } });
-    rangees++;
-  }
-
-  const [resteLignes, resteDepenses] = await Promise.all([
-    prisma.departmentExpenseLine.count({ where: { budgetCategoryId: null, expense: { budgetCategoryId: null, kind: { not: "HR" }, ...duDepartement } } }),
-    prisma.departmentBudgetExpense.count({ where: { budgetCategoryId: null, kind: { not: "HR" }, lines: { none: {} }, ...duDepartement } }),
-  ]);
-  const reste = resteLignes + resteDepenses;
-
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: departmentId ?? "moyens-generaux",
-    summary: `Natures des dépenses des moyens généraux : ${rangees} élément(s) rangé(s)${ia ? " par l'IA" : " par mots-clés (IA indisponible)"}${creees.size ? ` · nouvelles catégories : ${[...creees].join(", ")}` : ""}`,
-  });
-  revalidatePath("/moyens-generaux");
-
-  const morceaux = [
-    `${rangees} élément${rangees > 1 ? "s" : ""} rangé${rangees > 1 ? "s" : ""}${ia ? "" : " (par mots-clés : l'IA n'a pas répondu)"}.`,
-    creees.size ? `Nouvelles catégories : ${[...creees].join(", ")}.` : "",
-    reste > 0 ? `Il en reste ${reste} — relancez pour continuer.` : "",
-  ].filter(Boolean);
-  return { ok: true, message: morceaux.join(" ") };
 }

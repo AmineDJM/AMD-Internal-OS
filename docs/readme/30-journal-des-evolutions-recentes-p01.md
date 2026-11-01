@@ -1,5 +1,31 @@
 ## 🧾 Journal des évolutions récentes
 
+### L'ARGENT RÉVERSIBLE — « Annuler » sur toute action d'argent (K10a, 2026-10-31)
+
+« Toute action qui a été faite peut être réversible » (Direction). Les 62 actions d'argent classées « sans annulation »
+(finance, trésorerie, paiements, caisse, paie, factures, budgets, fournisseurs) — et 45 autres des mêmes fichiers — se
+défont désormais d'un geste : le journal des effets J7 s'ouvre aux actions faites à l'écran (`annulable` sur `gesteReversible`
+de K10b), la barre « Annuler » de K10b les propose (puis l'historique de la fiche), et le compte rendu dit effet par
+effet ce qui est défait, compensé ou impossible. **Rien ne s'efface dans le livre** : une écriture réalisée est
+contre-passée (montant opposé, datée, liée), un paiement parti laisse une écriture « à récupérer », l'ordre redevient
+dû ; l'annulation se rétablit. Migration `20270217120000_k10a_compensation_ecritures`. Décision
+[0041](../assistant/decisions/0041-argent-reversible.md).
+
+### K9 : LA VOIX DE L'ASSISTANT IA ENTIÈREMENT ORALE — ÉCOUTEURS, SANS ÉCRAN (2026-10-31)
+
+Lot K9 — `docs/assistant/decisions/0039-voix-orale.md`, construit sur la carte orale de K4. Direction : « je ne vois pas mon écran, donc tout se passe à
+l'oral ». La conversation vocale ne renvoie plus à l'écran : l'assistant **rédige pour l'oreille** (la réponse d'abord,
+chiffres arrondis, une ouverture), tableaux, analyses, graphiques et visuels sont dits en une phrase par le serveur. La
+délégation **ne bloque plus** : « je regarde, je te préviens », la voix affine pendant la recherche, la précision est
+transmise au travail en cours, le résultat est dit de lui-même quand il arrive (ou à la prochaine ouverture). La carte
+orale de K4 arrive avec le résultat ; pour une action renforcée la **voix relit** le montant, puis « ok fais-le »,
+« vas-y », « go », « ih dirha » suffisent (aucun mot imposé), jugés par le **serveur** sur la transcription et exécutés par
+la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule » (un envoi encore en fenêtre ne part
+pas ; un courriel déjà parti, la voix dit le rectificatif), « rétablis », « mets la
+mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
+WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
+et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
+
 ### C1 : LES CHANTIERS DE DÉVELOPPEMENT — ADAM SUPERVISE CLAUDE CODE, GITHUB ET RENDER, SUR LE MOTEUR DES TRAVAUX (2026-11-01)
 
 Lot C1 — `docs/assistant/decisions/0042-chantiers-socle.md`, architecture `docs/architecture/CHANTIERS-DEV.md` (L1).
@@ -39,6 +65,18 @@ machine de la Direction tire les ordres (`/api/dev/relais/ordres`) et exécute `
 option future. Aucun identifiant claude.ai sur le serveur. Migrations additives
 `20270218200000_chantiers_connecteurs`, `20270218200100_chantiers_relais_cli`. Banc réel `scripts/bench/chantiers-reel.ts` (dépôt et service de test seulement).
 
+### K10c : LES ACTIONS MÉTIER RÉVERSIBLES (2026-10-31)
+
+Demande de la Direction : « toute action qui a été faite peut être réversible ». Lot K10c —
+`docs/assistant/decisions/0044-actions-reversibles-metiers.md` ; sur la fenêtre d'annulation de K10b (aucune migration propre).
+Les 43 actions écrivantes encore classées « aucune » hors argent et communications (décisions de validation, décision
+finale d'un congrès, avances RH, pièces juridiques, matériel promo, fiches de voyage, réglages de l'Assistant IA, diffusion
+de notifications…) entrent au journal des effets au clic de l'écran et s'annulent d'un geste — bouton « Annuler » après
+l'action, historique de la fiche, ou l'Assistant IA. Une décision annulée rouvre l'étape (l'ordre né de l'accord est retiré,
+refus avec la liste s'il a été payé) ; une notification lue reçoit un rectificatif ; un poste supprimé revient de la
+corbeille ; une diffusion attend sa fenêtre d'annulation (celle de K10b, 120 s, réglable par le Super Admin) — annulée dedans, rien
+ne part. Une annulation se rétablit. Cliquet : plus aucune action « aucune » dans le périmètre.
+
 ### K10b : TOUTE ACTION RÉVERSIBLE — COMMUNICATIONS, EFFETS SORTANTS, SUPPRESSIONS ; LA FENÊTRE D'ANNULATION (2026-10-31)
 
 Lot K10b — `docs/assistant/decisions/0040-reversibilite-communications.md` (demande de la Direction du 31/10 : « toutes
@@ -53,6 +91,21 @@ fournisseur) ; chacune est exécutée puis annulée, rétablie et ré-annulée c
 un cliquet tient la liste vide. Règles nouvelles : tout ou rien pour un geste d'écran (un ordre déjà payé bloque, la
 liste le dit), pièce numérotée annulée jamais effacée, compteurs jamais reculés. Migration
 `20270217110000_fenetre_annulation_effets_sortants`.
+
+### K9 : LA VOIX DE L'ASSISTANT IA ENTIÈREMENT ORALE — ÉCOUTEURS, SANS ÉCRAN (2026-10-31)
+
+Lot K9 — `docs/assistant/decisions/0039-voix-orale.md`, construit sur la carte orale de K4. Direction : « je ne vois pas mon écran, donc tout se passe à
+l'oral ». La conversation vocale ne renvoie plus à l'écran : l'assistant **rédige pour l'oreille** (la réponse d'abord,
+chiffres arrondis, une ouverture), tableaux, analyses, graphiques et visuels sont dits en une phrase par le serveur. La
+délégation **ne bloque plus** : « je regarde, je te préviens », la voix affine pendant la recherche, la précision est
+transmise au travail en cours, le résultat est dit de lui-même quand il arrive (ou à la prochaine ouverture). La carte
+orale de K4 arrive avec le résultat ; pour une action renforcée la **voix relit** le montant, puis « ok fais-le »,
+« vas-y », « go », « ih dirha » suffisent (aucun mot imposé), jugés par le **serveur** sur la transcription et exécutés par
+la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule », « mets la
+mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
+WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
+et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
+
 
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 
