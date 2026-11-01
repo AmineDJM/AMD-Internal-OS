@@ -87,7 +87,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "ad-pro-centre-actions:deciderVisaCentreAdPro": {
@@ -2614,7 +2614,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "budget-campagne-actions:renvoyerProposition": {
@@ -2704,7 +2704,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "budget-depense-poste-actions:consommerDepensePoste": {
@@ -2714,7 +2714,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "budget-depense-poste-actions:imputerDepensePoste": {
@@ -2724,7 +2724,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "budget-envelope-actions:addBudgetExpense": {
@@ -2744,7 +2744,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "budget-envelope-actions:changerSocieteEcriture": {
@@ -2754,7 +2754,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "budget-envelope-actions:createBudgetCategory": {
@@ -3892,7 +3892,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "department-budget-actions:annulerDemandeBudgetDepartement": {
@@ -3922,7 +3922,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "department-budget-actions:requestDepartmentBudget": {
@@ -3962,7 +3962,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "direction-artistique-actions:definirModeleDePiece": {
@@ -4750,7 +4750,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "expense-actions:purgeSettledExpenseOrders": {
@@ -4760,7 +4760,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "expense-actions:requestInvoice": {
@@ -4780,7 +4780,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "expense-actions:settleExpenseOrder": {
@@ -4790,7 +4790,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "fabrique-actions:apercuAvantImpressionPiece": {
@@ -5003,7 +5003,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "finance-actions:createEmployee": {
@@ -5023,7 +5023,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "finance-actions:createQuickIncome": {
@@ -5033,7 +5033,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "finance-actions:createTransaction": {
@@ -5043,7 +5043,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "finance-actions:deleteTransaction": {
@@ -5053,7 +5053,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "finance-actions:deleteTreasuryAccount": {
@@ -5063,7 +5063,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "finance-actions:importTransactions": {
@@ -5073,7 +5073,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "finance-actions:modifierCompteTresorerie": {
@@ -5083,7 +5083,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "finance-actions:requestTreasuryUpdate": {
@@ -5103,7 +5103,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "finance-actions:updateTransaction": {
@@ -5113,7 +5113,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "finance-actions:updateTransactionStatus": {
@@ -5123,7 +5123,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "force-de-vente-actions:affecterAuDelegue": {
@@ -5610,7 +5610,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "invoice-actions:deleteInvoice": {
@@ -5640,7 +5640,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "invoice-actions:updateInvoice": {
@@ -5650,7 +5650,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "knowledge-actions:relancerBoiteMorte": {
@@ -7924,7 +7924,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "payment-centre-actions:respondToPaymentCentre": {
@@ -7934,7 +7934,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-centre-seat-actions:grantPaymentCentreSeat": {
@@ -7944,7 +7944,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "payment-centre-seat-actions:revokePaymentCentreSeat": {
@@ -7954,7 +7954,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-request-actions:addPaymentComment": {
@@ -7974,7 +7974,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "payment-request-actions:cancelPaymentRequest": {
@@ -7984,7 +7984,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-request-actions:commentPaymentPiece": {
@@ -7994,7 +7994,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-request-actions:corrigerDemandePaiement": {
@@ -8004,7 +8004,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-request-actions:createPaymentRequest": {
@@ -8014,7 +8014,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": false
  },
  "payment-request-actions:decidePaymentRequest": {
@@ -8024,7 +8024,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-request-actions:nudgePaymentRequest": {
@@ -8034,7 +8034,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-request-actions:reviewPaymentPiece": {
@@ -8044,7 +8044,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-request-actions:submitPaymentRequest": {
@@ -8054,7 +8054,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payment-request-actions:supprimerDemandePaiement": {
@@ -8074,7 +8074,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payroll-hr-actions:envoyerPaieAuCentre": {
@@ -8084,7 +8084,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "payroll-hr-actions:markSalaryPaid": {
@@ -8094,7 +8094,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "payroll-hr-actions:rattacherSalariesAEntite": {
@@ -8114,7 +8114,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "payroll-hr-actions:updatePayrollEntry": {
@@ -8124,7 +8124,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "pch-actions:createOrder": {
@@ -8458,7 +8458,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "petty-cash-actions:annulerRallongeCaisse": {
@@ -8468,7 +8468,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "petty-cash-actions:closePettyCash": {
@@ -8478,7 +8478,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "petty-cash-actions:confirmPettyCashReceipt": {
@@ -8488,7 +8488,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "petty-cash-actions:decidePettyCashTopUp": {
@@ -8498,7 +8498,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "compensation",
   "appelable": true
  },
  "petty-cash-actions:nextRechargeFor": {
@@ -8508,7 +8508,7 @@
    "ECRITURES"
   ],
   "simulable": "inconnu",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "petty-cash-actions:requestPettyCashTopUp": {
@@ -8518,7 +8518,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "petty-cash-actions:runPettyCashRechargeReminders": {
@@ -8528,7 +8528,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "petty-cash-actions:setPettyCashPlan": {
@@ -8538,7 +8538,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "petty-cash-actions:spendFromPettyCash": {
@@ -8548,7 +8548,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "pharmacovigilance-actions:ajouterParticipantsPv": {
@@ -11476,7 +11476,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "supplier-actions:createSupplierUser": {
@@ -11485,7 +11485,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "supplier-actions:toggleSupplier": {
@@ -11494,7 +11494,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "supplier-actions:toggleSupplierUser": {
@@ -11503,7 +11503,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": false
  },
  "supplier-actions:updateSupplierView": {
@@ -11512,7 +11512,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "supplier-portal-actions:supplierLogin": {
@@ -12072,7 +12072,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "workflow-actions:advanceWorkflow": {
