@@ -1,9 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
 import type { OutilTravail } from "@/platform/ia/travaux/outil";
-import {
-  annulerChantier, approuverChantier, etatMimo, lireReglagesChantiers, lireReglagesConsole, ouEnEstChantier, pauserChantier, proposerChantier,
-  validerGesteChantier, type VueChantier,
-} from "@/lib/missions/chantiers/service";
+import { etatMimo, lireReglagesChantiers, lireReglagesConsole, OUTILS_CHANTIER, validerGesteChantier } from "@/lib/missions/chantiers/outils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -23,127 +20,28 @@ import {
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const SERVICE = {
-  type: "object",
-  properties: {
-    id: { type: "string", description: "Identifiant Render du service (srv-…)." },
-    nom: { type: "string" },
-    role: { type: "string", enum: ["erp", "app", "worker"], description: "erp se déploie AVANT app et worker (migrations)." },
-    production: { type: "boolean", description: "Vrai : déploiement et rollback sous validation de la Direction." },
-    branche: { type: "string", description: "La branche que le service déploie, si ce n'est pas celle du chantier (ex. main → fusion validée d'abord)." },
-    url: { type: "string" },
-    healthCheckPath: { type: "string" },
-  },
-  required: ["id", "role"],
-};
-
 const json = (o: unknown) => JSON.stringify(o);
-const resume = (v: VueChantier) => ({
-  chantierId: v.id, titre: v.titre, statut: v.statut, pause: v.pause, depot: v.depot, branche: v.branche,
-  coutUsd: v.coutUsd, plafondUsd: v.plafondUsd, etapes: v.etapes.map((e) => `${e.titre} : ${e.statut}${e.attente ? ` (${e.attente})` : ""}${e.erreur ? ` — ${e.erreur}` : ""}`),
-  reservations: v.reservations, sessions: v.sessions, pr: v.pr, shaVert: v.vert, deploiements: v.deploiements,
-  validationsAttendues: v.validationsAttendues, lancements: v.compteurs.lancements, rapport: v.rapport,
-});
 
-export function outilsChantierPour(user: CurrentUser): OutilTravail[] {
+/** Les outils du Super Admin, liés à CETTE personne (un outil préparé pour une autre refuse). */
+export function outilsChantierPour(user: CurrentUser, lances?: string[]): OutilTravail[] {
   if (user.role !== "SUPER_ADMIN") return [];
   const pourLui = (u: { id: string }) => u.id === user.id;
-  const refus = json({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." });
-  return [
-    {
-      def: {
-        name: "lancer_un_chantier",
-        description: "CHANTIER DE DÉVELOPPEMENT (Super Admin) : confie une modification de code à Claude Code, sur SA branche, dans un périmètre de fichiers RÉSERVÉ ; le moteur attend les commits, vérifie les checks CI sur le SHA exact, fait corriger si rouge (borné), déploie sur Render (ERP avant app/worker), vérifie la santé, rollback si malsain, et rend un rapport avec preuves. Production, fusion sur main et rollback de production attendent la validation de la Direction. Rédige toi-même la consigne technique : objectif précis, critères vérifiables, commandes de test.",
-        input_schema: {
-          type: "object",
-          properties: {
-            titre: { type: "string" },
-            objectif: { type: "string", description: "Ce que le code doit faire, précisément (comportement attendu, cas limites)." },
-            depot: { type: "object", properties: { proprietaire: { type: "string" }, nom: { type: "string" } }, required: ["proprietaire", "nom"] },
-            branche: { type: "string", description: "Branche du chantier (ex. « claude/sante-api ») — jamais main." },
-            brancheBase: { type: "string", description: "Branche de base de la PR (défaut main)." },
-            perimetre: { type: "array", items: { type: "string" }, description: "Globs des fichiers que le chantier peut toucher (réservés)." },
-            criteres: { type: "array", items: { type: "string" }, description: "Critères d'acceptation vérifiables." },
-            commandesVerif: { type: "array", items: { type: "string" }, description: "Commandes de vérification (npm test…)." },
-            migrations: { type: "boolean", description: "Le chantier écrit une migration de base." },
-            services: { type: "array", items: SERVICE, description: "Services Render à déployer après le vert (vide : pas de déploiement)." },
-            dependances: { type: "array", items: { type: "string" }, description: "Chantiers (identifiants) à terminer avant celui-ci." },
-            budget: { type: "object", properties: { usd: { type: "number" }, lancements: { type: "number" }, deploiements: { type: "number" }, tentatives: { type: "number" } } },
-          },
-          required: ["titre", "objectif", "depot", "branche", "perimetre", "criteres"],
-        },
-      },
-      allowed: pourLui,
-      label: "Chantier lancé",
-      run: async (entree, u) => {
-        if (!pourLui(u)) return refus;
-        const p = await proposerChantier(user.id, entree, { origine: "assistant-ia:chantier" });
-        if (!p.ok) return json({ statut: "PLAN_REFUSE", fautes: p.fautes.slice(0, 10), consigne: "Corrige le plan et rappelle l'outil." });
-        const a = await approuverChantier(p.chantierId, user.id);
-        if (!a.ok) return json({ statut: "REFUS", raison: a.erreur });
-        return json({
-          statut: "DEMARRE", chantierId: p.chantierId, etapes: p.plan.etapes.length, plafondUsd: p.plafondUsd, gestesSousValidation: p.gestesCritiques,
-          consigne: "Dis en deux phrases que le chantier tourne en arrière-plan (réservations, puis Claude Code), qu'il est suivi au tableau « Missions », et quels gestes te seront soumis. Ne promets aucun résultat.",
-        });
-      },
+  return OUTILS_CHANTIER.map((o) => ({
+    def: o.def, label: o.label, allowed: pourLui,
+    run: async (entree, u) => {
+      if (!pourLui(u)) return json({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." });
+      const sortie = await o.run(entree, user.id);
+      // LE RETOUR DANS LA CONVERSATION (K3) : le chantier lancé ici s'inscrit au tour — sa fin y écrit la synthèse (rapport au Drive).
+      if (lances && o.def.name === "lancer_un_chantier") noterLance(sortie, lances);
+      return sortie;
     },
-    {
-      def: {
-        name: "ou_en_est_chantier",
-        description: "L'état RÉEL d'un chantier de développement (ou des derniers) : étapes, attente en cours, réservations, sessions Claude Code, PR, SHA vert, déploiements et santé, validations attendues, coût, rapport final.",
-        input_schema: { type: "object", properties: { chantierId: { type: "string", description: "Facultatif : les 8 derniers sinon." } } },
-      },
-      allowed: pourLui,
-      label: "État des chantiers lu",
-      run: async (entree, u) => {
-        if (!pourLui(u)) return refus;
-        const vues = await ouEnEstChantier(user.id, typeof entree.chantierId === "string" ? entree.chantierId : undefined);
-        return json({ chantiers: vues.map(resume), consigne: "Réponds avec les FAITS lus (SHA, statuts, liens) ; n'annonce aucune réussite que le rapport ne prouve pas." });
-      },
-    },
-    {
-      def: {
-        name: "valider_chantier",
-        description: "Donne la décision de la Direction sur un geste critique qu'un chantier ATTEND (déployer en production, fusionner sur main, rollback de production). N'appelle cet outil QUE si la Direction vient de dire explicitement « valide », « déploie », « fusionne », « accorde » ou « refuse » — jamais de toi-même.",
-        input_schema: {
-          type: "object",
-          properties: {
-            chantierId: { type: "string" },
-            decision: { type: "string", enum: ["valide", "refuse"] },
-            canal: { type: "string", enum: ["ecrit", "oral"], description: "oral si la Direction l'a dit en conversation vocale." },
-            note: { type: "string" },
-          },
-          required: ["chantierId", "decision"],
-        },
-      },
-      allowed: pourLui,
-      label: "Décision de la Direction transmise",
-      run: async (entree, u) => {
-        if (!pourLui(u)) return refus;
-        const r = await validerGesteChantier(String(entree.chantierId ?? ""), user.id, {
-          decision: entree.decision === "refuse" ? "REFUSEE" : "ACCORDEE",
-          canal: entree.canal === "oral" ? "oral" : "ecrit",
-          ...(typeof entree.note === "string" ? { note: entree.note } : {}),
-        });
-        return json(r.ok ? { statut: "TRANSMIS", message: r.message } : { statut: "REFUS", raison: r.erreur });
-      },
-    },
-    {
-      def: {
-        name: "annuler_chantier",
-        description: "Arrête (annule : réservations libérées, rapport « annulé ») ou suspend (pause) un chantier de développement, à la demande de la Direction.",
-        input_schema: { type: "object", properties: { chantierId: { type: "string" }, pause: { type: "boolean", description: "Vrai : suspendre seulement." } }, required: ["chantierId"] },
-      },
-      allowed: pourLui,
-      label: "Chantier arrêté",
-      run: async (entree, u) => {
-        if (!pourLui(u)) return refus;
-        const id = String(entree.chantierId ?? "");
-        const r = entree.pause === true ? await pauserChantier(id, user.id) : await annulerChantier(id, user.id);
-        return json(r.ok ? { statut: "FAIT", message: r.message } : { statut: "REFUS", raison: r.erreur });
-      },
-    },
-  ];
+  }));
+}
+
+function noterLance(sortie: string, lances: string[]): void {
+  let lu: { statut?: unknown; chantierId?: unknown } = {};
+  try { lu = JSON.parse(sortie) as typeof lu; } catch { return; /* une sortie illisible : rien à inscrire */ }
+  if (lu.statut === "DEMARRE" && typeof lu.chantierId === "string" && !lances.includes(lu.chantierId)) lances.push(lu.chantierId);
 }
 
 /** Le geste de l'écran « Missions » : valider ou refuser la carte d'un chantier (Super Admin, session). */

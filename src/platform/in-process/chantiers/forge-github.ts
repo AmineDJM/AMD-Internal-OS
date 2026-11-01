@@ -1,7 +1,7 @@
 import { noterEffetExterne } from "@/lib/effets/magasin";
-import { configGithub, type Env } from "@/platform/dev/config";
+import { configGithub, methodeFusionImposee, type Env } from "@/platform/dev/config";
 import { appeler, echec, pageSuivante, type ConfigHttp, type OptionsAppel, type ReponseHttp, type ValeurRequete } from "@/platform/dev/http";
-import type { CheckRun, Commit, CompteForge, Comparaison, ConclusionCheck, EtatChecks, ForgeGit, InfoDepot, NomDepot, PullRequest, Resultat } from "@/platform/dev/ports";
+import type { CheckRun, Commit, CompteForge, Comparaison, ConclusionCheck, EtatChecks, ForgeGit, InfoDepot, MethodeFusion, NomDepot, PullRequest, Resultat } from "@/platform/dev/ports";
 
 /**
  * LA FORGE — GitHub REST v3 en `fetch` nu (lot C2).
@@ -129,7 +129,7 @@ export function creerForgeGithub(opts: OptionsForge = {}): ForgeGit & { quota():
     return { ok: true, valeur: acc };
   }
 
-  async function ecrire<T>(methode: "POST", route: string, corps: unknown, libelle: string): Promise<Resultat<ReponseHttp<T>>> {
+  async function ecrire<T>(methode: "POST" | "PUT", route: string, corps: unknown, libelle: string): Promise<Resultat<ReponseHttp<T>>> {
     if (noterEffetExterne({ acte: "ECRITURE_EXTERNE", cible: `GitHub : ${libelle}`.slice(0, 200), origine: "chantiers" })) {
       return echec("SIMULE", `simulation : ${libelle} — rien n'a été envoyé à GitHub`);
     }
@@ -227,6 +227,43 @@ export function creerForgeGithub(opts: OptionsForge = {}): ForgeGit & { quota():
     async relancerEchecs(depot, runId): Promise<Resultat<true>> {
       const r = await ecrire<Brut>("POST", chemin(depot, `/actions/runs/${runId}/rerun-failed-jobs`), {}, `relance des jobs en échec du run ${runId} (${depot})`);
       return r.ok ? { ok: true, valeur: true } : r;
+    },
+
+    // C1 (décision 0042) : la fusion VALIDÉE, au SHA vérifié ; la méthode imposée, sinon la première que le dépôt autorise.
+    async fusionnerPr(depot, numero, { shaAttendu, methode }): Promise<Resultat<{ sha: string; methode: MethodeFusion }>> {
+      let m: MethodeFusion | null = methode ?? methodeFusionImposee(opts.env ?? process.env);
+      if (!m) {
+        const r = await lire<Brut>(chemin(depot, ""));
+        if (!r.ok) return r;
+        const c = o(r.valeur.corps);
+        m = c.allow_merge_commit !== false ? "merge" : c.allow_squash_merge !== false ? "squash" : "rebase";
+      }
+      const r = await ecrire<Brut>("PUT", chemin(depot, `/pulls/${numero}/merge`), { sha: shaAttendu, merge_method: m }, `fusion de ${depot}#${numero} (${m})`);
+      if (!r.ok) {
+        const e = r.erreur;
+        if (e.statut === 405) return echec("INTERDIT", `GitHub refuse la fusion de #${numero} (protection de branche, checks exigés ou PR non fusionnable) — ${e.message}`);
+        if (e.statut === 409) return echec("CONFLIT", `la tête de #${numero} a bougé depuis la vérification : rien n'est fusionné (${e.message})`);
+        return r;
+      }
+      const c = o(r.valeur.corps);
+      if (c.merged === false || !s(c.sha)) return echec("INVALIDE", `fusion de #${numero} non faite : ${s(c.message) ?? "réponse sans SHA"}`);
+      return { ok: true, valeur: { sha: s(c.sha)!, methode: m } };
+    },
+
+    // C1 (décision 0042) : la compensation — une PR de revert ouverte (GraphQL), jamais un force-push.
+    async proposerRevert(depot, numero, { titre, corps }): Promise<Resultat<{ numero: number; url: string }>> {
+      const pr = await lire<Brut>(chemin(depot, `/pulls/${numero}`));
+      if (!pr.ok) return pr;
+      const id = s(o(pr.valeur.corps).node_id);
+      if (!id) return echec("INTROUVABLE", `PR #${numero} sans identifiant GraphQL`);
+      const requete = "mutation($id: ID!, $t: String, $b: String) { revertPullRequest(input: { pullRequestId: $id, title: $t, body: $b, draft: false }) { revertPullRequest { number url } } }";
+      const r = await ecrire<Brut>("POST", "/graphql", { query: requete, variables: { id, t: titre, b: corps } }, `PR de revert de ${depot}#${numero}`);
+      if (!r.ok) return r;
+      const c = o(r.valeur.corps);
+      const erreurs = Array.isArray(c.errors) ? (c.errors as unknown[]).map((x) => s(o(x).message)).filter(Boolean) : [];
+      const rev = o(o(o(c.data).revertPullRequest).revertPullRequest);
+      if (erreurs.length || !n(rev.number)) return echec("INVALIDE", `revert de #${numero} refusé par GitHub : ${erreurs.join(" ; ") || "réponse vide"}`);
+      return { ok: true, valeur: { numero: n(rev.number), url: s(rev.url) ?? "" } };
     },
   };
 }

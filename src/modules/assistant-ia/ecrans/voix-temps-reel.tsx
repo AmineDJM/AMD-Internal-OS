@@ -133,13 +133,13 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
   const p50 = mediane(latences);
   const actif = etat === "ECOUTE" || etat === "REFLEXION" || etat === "PAROLE" || etat === "FERMETURE";
   return (
-    <div role="dialog" aria-label="Conversation vocale" className="fixed inset-0 z-[60] flex flex-col bg-white dark:bg-zinc-950 sm:inset-auto sm:bottom-24 sm:right-6 sm:h-[34rem] sm:w-[26rem] sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-2xl dark:sm:border-zinc-800">
+    <div role="dialog" aria-label="Conversation vocale" className="fixed inset-0 z-[60] flex flex-col bg-white pt-[env(safe-area-inset-top)] text-slate-900 dark:bg-zinc-950 dark:text-zinc-100 sm:inset-auto sm:pt-0 sm:bottom-24 sm:right-6 sm:h-[34rem] sm:w-[26rem] sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-2xl dark:sm:border-zinc-800">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-zinc-800">
         <div>
           <p className="text-sm font-semibold">Conversation vocale</p>
           <p className="text-xs text-slate-500" data-testid="etat-voix">{LIBELLE_ETAT[etat]}{cherche && etat !== "REFLEXION" ? " · recherche en cours" : ""}{p50 != null ? ` · réponse en ${(p50 / 1000).toFixed(1)} s (médiane)` : ""}</p>
         </div>
-        <button type="button" onClick={() => { void terminer(); onFermer(); }} aria-label="Fermer" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={() => { void terminer(); onFermer(); }} aria-label="Fermer" className="flex h-11 w-11 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-5 w-5" /></button>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3 text-sm">
         <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 dark:bg-zinc-900 dark:text-zinc-400">
@@ -158,16 +158,21 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
       </div>
       <div className="flex items-center justify-center gap-3 border-t border-slate-200 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 dark:border-zinc-800">
         {!actif && etat !== "CONNEXION" ? (
-          <button type="button" onClick={() => void demarrer()} className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--aia-accent,#7c3aed)] text-sm font-medium text-white">
-            <Mic className="h-5 w-5" /> Parler à l&apos;assistant
-          </button>
+          <>
+            {/* Direction (01/11/2026, iPhone) : la croix du haut est sous la barre d'état — fermer se fait AUSSI ici, au pouce. */}
+            <button type="button" onClick={() => { void terminer(); onFermer(); }} aria-label="Fermer la conversation vocale" data-testid="voix-fermer-bas"
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-zinc-200"><X className="h-5 w-5" /></button>
+            <button type="button" onClick={() => void demarrer()} className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-[var(--aia-accent,#7c3aed)] text-sm font-medium text-white">
+              <Mic className="h-5 w-5" /> Appeler l&apos;assistant
+            </button>
+          </>
         ) : etat === "CONNEXION" ? (
           <span className="flex h-14 flex-1 items-center justify-center gap-2 text-sm text-slate-500"><Loader2 className="h-5 w-5 animate-spin" /> Connexion…</span>
         ) : (
           <>
             <button type="button" onClick={() => { const m = !muet; setMuet(m); client.current?.muet(m); }} aria-pressed={muet} aria-label={muet ? "Réactiver le micro" : "Couper le micro"}
               className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-zinc-800">{muet ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
-            <button type="button" onClick={() => void terminer()} aria-label="Raccrocher" className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white"><PhoneOff className="h-5 w-5" /></button>
+            <button type="button" onClick={() => void terminer()} aria-label="Raccrocher" data-testid="voix-raccrocher" className="flex h-14 flex-1 items-center justify-center gap-2 rounded-full bg-red-600 text-sm font-medium text-white"><PhoneOff className="h-5 w-5" /> Raccrocher</button>
           </>
         )}
       </div>

@@ -469,6 +469,20 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   `kind IN (TRAVAIL, CHANTIER)` with a `chantier` field; dashboard buttons routed by `travaux/service.ts siChantier`. Assistant IA
   tools `infra/chantiers.ts` (SUPER_ADMIN only). Sweep `chantiers.balayage` + fast wake loop. Benches `chantiers/*.test.ts`,
   `scripts/bench/chantier-processus.ts` (two-process reservation race, SIGKILL in DEV_ATTENDRE).
+  **Phase 2 (01/11, decision 0042 § 10)**: `DEV_FUSIONNER` in the default plan (`fusion: false` removes it; a service on another
+  branch requires it before its deploy). Green PR → validation card "Fusionner la PR #n (« titre ») dans <base>" (written or oral)
+  → `forge.fusionnerPr(depot, n, shaAttendu)` = C2 ForgeGit `fusionnerPr` (`PUT …/pulls/{n}/merge` with `sha`, 409 head moved,
+  405 protected → clear refusal; method `CHANTIERS_METHODE_FUSION` or repo setting) → base CI on the merge commit (red → blocage,
+  nothing deployed) → `vert` = merge commit, deploys follow (prod has its own card). A fusion plan deploys nothing until the
+  fusion succeeded; `jugerPreuves` requires `dossier.fusion`. Reversible: `validerMonChantier` under `actionReversible`, metier
+  inverse `src/platform/in-process/chantiers/compensation.ts` (not acted → validation removed; merged → `demanderRevertFusion` → `conduite.ts
+  traiterRevert` → `forge.proposerRevert` (GraphQL `revertPullRequest`), receipt `…|revert|<pr>`; prod deploy done → IMPOSSIBLE).
+  Webhook wake: `events/ledger.ts` consequence → `chantiers/reveil.ts reveillerChantiersSurFait` (DEV_*/RENDER_* refs vs dossier) →
+  WAITING worker steps READY + `reveilDemandeLe`. Tools moved to `chantiers/outils.ts`; Assistant IA wraps them, Adam gets them as
+  PowerTools (`platform/in-process/chantiers/outils-adam.ts`, `SOCLE_IA_CEILING` unchanged). Final report deposited to Drive « Travaux » as
+  Word (`DeposerRapport`, composed in `scheduled.ts depsFinChantier` from `PERSONA_ASSISTANT_IA.deposerLivrable`), added to
+  `carnet.livrables`; chantiers launched in a conversation join `travauxLances` and `conclureTour` (kinds TRAVAIL+CHANTIER) posts
+  the synthesis with the link.
 
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
   `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**

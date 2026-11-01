@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import type { DeposerRapport } from "@/lib/missions/chantiers/etapes";
 import { clauseSalairesVersesANotifier } from "@/modules/finances/partage";
 import { instantDuCentreDePaie } from "@/modules/finances/api";
 import { declencherRecurrencesStock } from "@/lib/stocks/recurrence-runner";
@@ -124,6 +125,21 @@ async function brancherConnecteursDev(): Promise<void> {
   brancherPortsDev(() => portsDepuisConnecteurs(connecteursDev()));
 }
 
+/**
+ * C1 : ce que le chantier rend à la Direction en finissant — le rapport en VRAI document au Drive (dossier « Travaux »,
+ * par la persona de l'Assistant IA) et la synthèse dans la conversation qui l'a lancé (K3).
+ */
+async function depsFinChantier(): Promise<{ deposerRapport: DeposerRapport; surFin: (id: string) => Promise<void> }> {
+  const { PERSONA_ASSISTANT_IA, conclureSousMissions } = await import("@/modules/assistant-ia/api");
+  return {
+    deposerRapport: async (principalId, d) => {
+      const r = await PERSONA_ASSISTANT_IA.deposerLivrable(principalId, { travailId: d.chantierId, cle: d.cle, titre: d.titre, contenu: d.contenu, format: "docx", reprise: d.reprise });
+      return r.ok ? { ok: true, document: { nodeId: r.document.nodeId, nom: r.document.nom, lien: r.document.lien } } : r;
+    },
+    surFin: async (id) => { await conclureSousMissions(id); },
+  };
+}
+
 export function armerReveilsTravaux(executeur: "web" | "worker"): () => void {
   let enCours = false;
   const t = setInterval(() => {
@@ -137,7 +153,7 @@ export function armerReveilsTravaux(executeur: "web" | "worker"): () => void {
       if (process.env.CHANTIERS_SWEEP !== "off") {
         const { balayerChantiers } = await import("@/lib/missions/chantiers/service");
         await brancherConnecteursDev();
-        await balayerChantiers({ seulementSignales: true });
+        await balayerChantiers({ seulementSignales: true, deps: await depsFinChantier() });
       }
     })().catch((e) => console.error("[travaux] boucle des réveils", e)).finally(() => { enCours = false; });
   }, BOUCLE_REVEILS_MS);
@@ -408,7 +424,7 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     if (process.env.CHANTIERS_SWEEP === "off") return ignoree("CHANTIERS_SWEEP=off");
     const { balayerChantiers } = await import("@/lib/missions/chantiers/service");
     await brancherConnecteursDev();
-    const r = await balayerChantiers();
+    const r = await balayerChantiers({ deps: await depsFinChantier() });
     if (r.length === 0) return ignoree("aucun chantier à conduire");
   } },
 
