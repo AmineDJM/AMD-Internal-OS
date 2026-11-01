@@ -1,3 +1,5 @@
+import { companyIdForNew } from "@/lib/company";
+import { sansBloquer } from "@/lib/journal";
 import { expect } from "vitest";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
@@ -24,7 +26,7 @@ const ordresDe = (sourceId: string) => prisma.expenseOrder.findMany({ where: { s
 
 /** Une demande ouverte et son approbation CHIFFRÉE en attente, adressée à la personne du banc. */
 async function approbationChiffree(moi: CurrentUser, tag: string) {
-  const req = await prisma.administrativeRequest.create({ data: { reference: `${tag}REQ-${alea()}`, title: `${tag} achat`, type: "OTHER", status: "IN_PROGRESS", createdById: moi.id } });
+  const req = await prisma.administrativeRequest.create({ data: { reference: `${tag}REQ-${alea()}`, title: `${tag} achat`, type: "OTHER", status: "IN_PROGRESS", companyId: await companyIdForNew(moi.id), createdById: moi.id } });
   const a = await prisma.adminApproval.create({ data: { requestId: req.id, validatorId: moi.id, requestedById: moi.id, amount: 12_000 } });
   return { requestId: req.id, approvalId: a.id };
 }
@@ -57,7 +59,7 @@ const DEMANDES: CasReversible[] = [
   } },
   { id: "admin-request-actions:finishRequest", titre: "la demande terminée rouvre, l'imputation au budget du département est remise", jouer: async (moi, tag) => {
     const dept = await prisma.department.create({ data: { name: `${tag} Moyens généraux`, code: `${tag}MG${alea()}` } });
-    const req = await prisma.administrativeRequest.create({ data: { reference: `${tag}REQ-${alea()}`, title: `${tag} fournitures`, type: "OTHER", status: "IN_PROGRESS", assignedToId: moi.id, createdById: moi.id } });
+    const req = await prisma.administrativeRequest.create({ data: { reference: `${tag}REQ-${alea()}`, title: `${tag} fournitures`, type: "OTHER", status: "IN_PROGRESS", assignedToId: moi.id, companyId: await companyIdForNew(moi.id), createdById: moi.id } });
     await cycle({ id: "admin-request-actions:finishRequest", moi,
       faire: () => finishRequest(fd({ id: req.id, budgetDepartmentId: dept.id, budgetAmount: "8500" })),
       lire: async () => ({
@@ -68,13 +70,13 @@ const DEMANDES: CasReversible[] = [
 ];
 
 const nettoyerDemandes = async (tag: string) => {
-  const demandes = (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: tag } }, select: { id: true, archivedNodeId: true } }).catch(() => []));
+  const demandes = (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: tag } }, select: { id: true, archivedNodeId: true } }).catch(sansBloquer("banc-k10b.cas-decisions", [])));
   const ids = demandes.map((d) => d.id);
-  await prisma.departmentBudgetExpense.deleteMany({ where: { adminRequestId: { in: ids } } }).catch(() => undefined);
-  await prisma.department.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.expenseOrder.deleteMany({ where: { sourceId: { in: ids } } }).catch(() => undefined);
-  await prisma.adminApproval.deleteMany({ where: { requestId: { in: ids } } }).catch(() => undefined);
-  await prisma.administrativeRequest.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
+  await prisma.departmentBudgetExpense.deleteMany({ where: { adminRequestId: { in: ids } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.department.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.expenseOrder.deleteMany({ where: { sourceId: { in: ids } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.adminApproval.deleteMany({ where: { requestId: { in: ids } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.administrativeRequest.deleteMany({ where: { id: { in: ids } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
 };
 
 // ── PRISE EN CHARGE (Ad & Pro) ───────────────────────────────────────────────────────────────
@@ -101,13 +103,13 @@ const PRISE_EN_CHARGE: CasReversible[] = [
 ];
 
 const nettoyerPriseEnCharge = async (tag: string) => {
-  const ints = (await prisma.congressInternational.findMany({ where: { name: { startsWith: tag } }, select: { id: true } }).catch(() => [])).map((c) => c.id);
-  await prisma.careQuote.deleteMany({ where: { congressInternationalId: { in: ints } } }).catch(() => undefined);
-  await prisma.careBeneficiary.deleteMany({ where: { congressInternationalId: { in: ints } } }).catch(() => undefined);
-  await prisma.expenseOrder.deleteMany({ where: { sourceId: { in: ints } } }).catch(() => undefined);
-  await prisma.workflowInstance.deleteMany({ where: { entityId: { in: ints } } }).catch(() => undefined);
-  await prisma.congressInternational.deleteMany({ where: { id: { in: ints } } }).catch(() => undefined);
-  await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
+  const ints = (await prisma.congressInternational.findMany({ where: { name: { startsWith: tag } }, select: { id: true } }).catch(sansBloquer("banc-k10b.cas-decisions", []))).map((c) => c.id);
+  await prisma.careQuote.deleteMany({ where: { congressInternationalId: { in: ints } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.careBeneficiary.deleteMany({ where: { congressInternationalId: { in: ints } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.expenseOrder.deleteMany({ where: { sourceId: { in: ints } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.workflowInstance.deleteMany({ where: { entityId: { in: ints } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.congressInternational.deleteMany({ where: { id: { in: ints } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
 };
 
 // ── INFORMATION MÉDICALE ─────────────────────────────────────────────────────────────────────
@@ -146,18 +148,18 @@ const INFORMATION_MEDICALE: CasReversible[] = [
 ];
 
 const nettoyerInformationMedicale = async (tag: string) => {
-  const ids = (await prisma.medicalInfoDeclaration.findMany({ where: { reference: { startsWith: tag } }, select: { id: true } }).catch(() => [])).map((d) => d.id);
-  const spos = (await prisma.sponsoringRequest.findMany({ where: { reference: { startsWith: tag } }, select: { id: true } }).catch(() => [])).map((s) => s.id);
-  const demandes = await prisma.paymentRequest.findMany({ where: { entityId: { in: ids } }, select: { id: true, expenseOrderId: true } }).catch(() => []);
-  await prisma.paymentRequestEvent.deleteMany({ where: { requestId: { in: demandes.map((x) => x.id) } } }).catch(() => undefined);
-  await prisma.paymentRequest.deleteMany({ where: { id: { in: demandes.map((x) => x.id) } } }).catch(() => undefined);
-  await prisma.sponsoringRequest.updateMany({ where: { id: { in: spos } }, data: { expenseOrderId: null } }).catch(() => undefined);
-  await prisma.expenseOrder.deleteMany({ where: { OR: [{ id: { in: demandes.map((x) => x.expenseOrderId).filter((x): x is string => !!x) } }, { sourceId: { in: spos } }] } }).catch(() => undefined);
-  await prisma.validationRequest.deleteMany({ where: { reference: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.medicalInfoSlip.deleteMany({ where: { declarationId: { in: ids } } }).catch(() => undefined);
-  await prisma.comment.deleteMany({ where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: { in: ids } } }).catch(() => undefined);
-  await prisma.medicalInfoDeclaration.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
-  await prisma.sponsoringRequest.deleteMany({ where: { id: { in: spos } } }).catch(() => undefined);
+  const ids = (await prisma.medicalInfoDeclaration.findMany({ where: { reference: { startsWith: tag } }, select: { id: true } }).catch(sansBloquer("banc-k10b.cas-decisions", []))).map((d) => d.id);
+  const spos = (await prisma.sponsoringRequest.findMany({ where: { reference: { startsWith: tag } }, select: { id: true } }).catch(sansBloquer("banc-k10b.cas-decisions", []))).map((s) => s.id);
+  const demandes = await prisma.paymentRequest.findMany({ where: { entityId: { in: ids } }, select: { id: true, expenseOrderId: true } }).catch(sansBloquer("banc-k10b.cas-decisions", []));
+  await prisma.paymentRequestEvent.deleteMany({ where: { requestId: { in: demandes.map((x) => x.id) } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.paymentRequest.deleteMany({ where: { id: { in: demandes.map((x) => x.id) } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.sponsoringRequest.updateMany({ where: { id: { in: spos } }, data: { expenseOrderId: null } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.expenseOrder.deleteMany({ where: { OR: [{ id: { in: demandes.map((x) => x.expenseOrderId).filter((x): x is string => !!x) } }, { sourceId: { in: spos } }] } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.validationRequest.deleteMany({ where: { reference: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.medicalInfoSlip.deleteMany({ where: { declarationId: { in: ids } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.comment.deleteMany({ where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: { in: ids } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.medicalInfoDeclaration.deleteMany({ where: { id: { in: ids } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.sponsoringRequest.deleteMany({ where: { id: { in: spos } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
 };
 
 // ── LA FABRIQUE : PIÈCES NUMÉROTÉES ──────────────────────────────────────────────────────────
@@ -204,18 +206,18 @@ const FABRIQUE: CasReversible[] = [
 ];
 
 const nettoyerFabrique = async (tag: string) => {
-  const societes = (await prisma.company.findMany({ where: { name: { startsWith: tag } }, select: { id: true } }).catch(() => [])).map((c) => c.id);
-  const comptes = (await prisma.user.findMany({ where: { email: { startsWith: tag } }, select: { id: true } }).catch(() => [])).map((u) => u.id);
+  const societes = (await prisma.company.findMany({ where: { name: { startsWith: tag } }, select: { id: true } }).catch(sansBloquer("banc-k10b.cas-decisions", []))).map((c) => c.id);
+  const comptes = (await prisma.user.findMany({ where: { email: { startsWith: tag } }, select: { id: true } }).catch(sansBloquer("banc-k10b.cas-decisions", []))).map((u) => u.id);
   // Par le tiers aussi : un autre ménage du banc retire les sociétés du `tag` avant celui-ci (la pièce perd sa société).
-  const pieces = (await prisma.legalDocument.findMany({ where: { OR: [{ companyId: { in: societes } }, { counterparty: { startsWith: tag } }] }, select: { id: true } }).catch(() => [])).map((p) => p.id);
-  await prisma.legalDocument.updateMany({ where: { id: { in: pieces } }, data: { chainFromId: null } }).catch(() => undefined);
-  await prisma.auditLog.deleteMany({ where: { entityId: { in: pieces } } }).catch(() => undefined);
-  await prisma.legalDocument.deleteMany({ where: { id: { in: pieces } } }).catch(() => undefined);
-  await prisma.fileVersion.deleteMany({ where: { node: { ownerId: { in: comptes } } } }).catch(() => undefined);
-  await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(() => undefined);
-  await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes } } }).catch(() => undefined);
-  await prisma.companyLegalIdentity.deleteMany({ where: { companyId: { in: societes } } }).catch(() => undefined);
-  await prisma.company.deleteMany({ where: { id: { in: societes } } }).catch(() => undefined);
+  const pieces = (await prisma.legalDocument.findMany({ where: { OR: [{ companyId: { in: societes } }, { counterparty: { startsWith: tag } }] }, select: { id: true } }).catch(sansBloquer("banc-k10b.cas-decisions", []))).map((p) => p.id);
+  await prisma.legalDocument.updateMany({ where: { id: { in: pieces } }, data: { chainFromId: null } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.auditLog.deleteMany({ where: { entityId: { in: pieces } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.legalDocument.deleteMany({ where: { id: { in: pieces } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.fileVersion.deleteMany({ where: { node: { ownerId: { in: comptes } } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.companyLegalIdentity.deleteMany({ where: { companyId: { in: societes } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await prisma.company.deleteMany({ where: { id: { in: societes } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
 };
 
 const nettoyerDecisions = async (tag: string) => {
@@ -224,7 +226,7 @@ const nettoyerDecisions = async (tag: string) => {
   await nettoyerInformationMedicale(tag);
   await nettoyerFabrique(tag);
   // Les notifications nées des décisions (centre de paiement, secrétariat) et les rectificatifs, retirés avec leur lien.
-  await prisma.notification.deleteMany({ where: { OR: [{ body: { contains: tag } }, { title: { contains: tag } }] } }).catch(() => undefined);
+  await prisma.notification.deleteMany({ where: { OR: [{ body: { contains: tag } }, { title: { contains: tag } }] } }).catch(sansBloquer("banc-k10b.cas-decisions"));
 };
 
 export const CAS_DECISIONS: CasReversible[] = [

@@ -1,3 +1,4 @@
+import { sansBloquer } from "@/lib/journal";
 import crypto from "node:crypto";
 import http from "node:http";
 import tls from "node:tls";
@@ -85,11 +86,11 @@ const COURRIER: CasReversible[] = [
 ];
 
 const nettoyerCourrier = async (tag: string) => {
-  await prisma.mailEntryPiece.deleteMany({ where: { label: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.mailEntry.deleteMany({ where: { title: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.mailEntryFolder.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.mailPartner.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.driveNode.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
+  await prisma.mailEntryPiece.deleteMany({ where: { label: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
+  await prisma.mailEntry.deleteMany({ where: { title: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
+  await prisma.mailEntryFolder.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
+  await prisma.mailPartner.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
+  await prisma.driveNode.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
 };
 
 // ───────────────────────────── Les auxiliaires des autres écritures internes ─────────────────────────────

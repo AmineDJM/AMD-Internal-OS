@@ -1,3 +1,4 @@
+import { sansBloquer } from "@/lib/journal";
 import { expect } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { executerHorsRequete, personneDuGeste } from "@/lib/contexte-geste";
@@ -100,6 +101,6 @@ export async function cycle<R>(c: Cycle<R>): Promise<{ compte: CompteRenduAnnula
 
 /** Le ménage : les gestes et l'audit de la personne de test. */
 export async function nettoyer(ids: string[]): Promise<void> {
-  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } }).catch(() => undefined);
-  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(() => undefined);
+  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } }).catch(sansBloquer("banc-k10b.banc"));
+  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(sansBloquer("banc-k10b.banc"));
 }

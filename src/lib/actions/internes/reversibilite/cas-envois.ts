@@ -1,3 +1,4 @@
+import { sansBloquer } from "@/lib/journal";
 import { expect } from "vitest";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
@@ -411,18 +412,18 @@ const SITE: CasReversible[] = [
 const nettoyerEnvois = async (tag: string) => {
   const articles = await prisma.blogArticle.findMany({ where: { title: { startsWith: tag } }, select: { id: true } });
   const offres = await prisma.jobPosting.findMany({ where: { title: { startsWith: tag } }, select: { id: true } });
-  await prisma.sitePublication.deleteMany({ where: { externalId: { in: [...articles, ...offres].map((x) => x.id) } } }).catch(() => undefined);
-  await prisma.blogArticle.deleteMany({ where: { title: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.jobPosting.deleteMany({ where: { title: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.recruitmentRequest.deleteMany({ where: { reference: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.directive.deleteMany({ where: { reference: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.outboundEmail.deleteMany({ where: { subject: { startsWith: tag } } }).catch(() => undefined);
-  await prisma.mailConnection.deleteMany({ where: { address: { startsWith: tag.toLowerCase() } } }).catch(() => undefined);
-  await prisma.mailAccount.deleteMany({ where: { email: { startsWith: tag.toLowerCase() } } }).catch(() => undefined);
-  await prisma.driveNode.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
+  await prisma.sitePublication.deleteMany({ where: { externalId: { in: [...articles, ...offres].map((x) => x.id) } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.blogArticle.deleteMany({ where: { title: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.jobPosting.deleteMany({ where: { title: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.recruitmentRequest.deleteMany({ where: { reference: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.directive.deleteMany({ where: { reference: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.outboundEmail.deleteMany({ where: { subject: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.mailConnection.deleteMany({ where: { address: { startsWith: tag.toLowerCase() } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.mailAccount.deleteMany({ where: { email: { startsWith: tag.toLowerCase() } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.driveNode.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-envois"));
   const dests = await prisma.user.findMany({ where: { name: { startsWith: `${tag}dest` } }, select: { id: true } });
-  await prisma.notification.deleteMany({ where: { userId: { in: dests.map((u) => u.id) } } }).catch(() => undefined);
-  await prisma.user.deleteMany({ where: { id: { in: dests.map((u) => u.id) } } }).catch(() => undefined);
+  await prisma.notification.deleteMany({ where: { userId: { in: dests.map((u) => u.id) } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await prisma.user.deleteMany({ where: { id: { in: dests.map((u) => u.id) } } }).catch(sansBloquer("banc-k10b.cas-envois"));
 };
 
 export const CAS_ENVOIS: CasReversible[] = [...COURRIELS, ...MICROSOFT, ...DIRECTIVES, ...SITE].map((c, i) => (i === 0 ? { ...c, nettoyer: nettoyerEnvois } : c));
