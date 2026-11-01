@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { lireCarnet } from "@/lib/missions/travaux/carnet";
 import { etatTravail, phraseAttente, type EtatTravail } from "@/lib/missions/travaux/regles";
 import { prioriteDe, type PrioriteTravail } from "@/lib/missions/travaux/plan";
-import { court, lireDossier } from "@/lib/missions/chantiers/dossier";
+import { lireDossier, vueDossier, type VueDossier } from "@/lib/missions/chantiers/dossier";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -43,14 +43,7 @@ export interface EtapeTableau {
 }
 
 /** C1 (décision 0041) : ce qu'un CHANTIER montre de plus au tableau — dépôt, réservations, liens, preuves, budget. */
-export interface ChantierTableau {
-  depot: string;
-  branche: string;
-  reservations: string[];
-  sessions: { url: string; motif: string }[];
-  pr: { numero: number; url: string } | null;
-  vert: string | null;
-  deploiements: { nom: string; statut: string; commit: string; sain: boolean | null; rollback: boolean }[];
+export interface ChantierTableau extends VueDossier {
   lancements: number;
   deploiementsFaits: number;
   validationsAttendues: number;
@@ -172,10 +165,7 @@ export async function tableauDesTravaux(principalId: string, maintenant = new Da
       livrables: carnet.livrables.map((l) => ({ titre: l.titre, nodeId: l.document?.nodeId ?? null, nom: l.document?.nom ?? null })),
       ...(dossier ? {
         chantier: {
-          depot: `${dossier.plan.depot.proprietaire}/${dossier.plan.depot.nom}`, branche: dossier.plan.branche,
-          reservations: m.reservationsChantier.map((r) => r.cle),
-          sessions: dossier.sessions.map((x) => ({ url: x.url, motif: x.motif })), pr: dossier.pr, vert: dossier.vert ? court(dossier.vert.sha) : null,
-          deploiements: dossier.deploiements.map((x) => ({ nom: x.nom, statut: x.statut, commit: court(x.commit), sain: x.sain ?? null, rollback: !!x.rollback })),
+          ...vueDossier(dossier, m.reservationsChantier.map((r) => r.cle)),
           lancements: dossier.compteurs.lancements, deploiementsFaits: dossier.compteurs.deploiements,
           validationsAttendues: haut.filter((s) => s.status === "WAITING" && (s.result as { validationDemandee?: boolean } | null)?.validationDemandee && !dossier.validations[s.key]).length,
           blocage: dossier.blocage,

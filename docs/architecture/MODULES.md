@@ -52,6 +52,10 @@ Runtime à tous (façade `missions/`, pas un module métier) ; il ne connaît le
 partagée par les assistants (l'outil `lancer_un_travail`) vit au socle IA `src/platform/ia/travaux/` sans aucun import ; la persona
 de l'Assistant IA est `src/lib/agent/travaux.ts`. Décision 0016.
 
+**Au même moteur — les chantiers de développement (C1, 01/11/2026)** : `src/lib/missions/chantiers/` (façade `missions/`) conduit
+Claude Code, GitHub et Render par des PORTS sans import (`src/platform/dev/ports.ts`) ; le module `assistant-ia` n'y entre que par
+`chantiers/service` (une entrée de dette nommée dans `frontieres.test.ts`). Décision 0041.
+
 **Prochains candidats** (ordre du rapport 08, §3.5) : `produits` et `annuaires` (ils effacent la dette héritée de
 `consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `promo` (le stock et le dossier de matériel promotionnel, reste du pôle Ad & Pro) après (`rh`, `finances` et `ad-pro` migrés au lot V4) ; Adam en dernier.
 

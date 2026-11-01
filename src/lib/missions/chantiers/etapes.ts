@@ -11,7 +11,7 @@ import { horsPerimetre } from "@/lib/missions/chantiers/perimetre";
 import { routerModele } from "@/lib/missions/chantiers/routeur";
 import type { CerveauChantier } from "@/lib/missions/chantiers/cerveau";
 import { demandesDuPlan, liberer, nomDepot, reserver } from "@/lib/missions/chantiers/reservations";
-import { extraitMemoire, memoriser } from "@/lib/missions/chantiers/memoire";
+import { extraitMemoire, memoriser, noterEvenementDev } from "@/lib/missions/chantiers/memoire";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -440,7 +440,7 @@ async function renderVerifier(ctx: ContexteEtape): Promise<StepOutcome> {
     const info = l.ok ? l.valeur.find((x) => x.id === s.id) : undefined;
     url = url ?? info?.url ?? null;
     chemin = chemin ?? info?.healthCheckPath ?? "/";
-    if (info) await memoriser("service", s.id, `${info.nom} (${info.type}) — ${info.url ?? "sans URL"}, santé ${info.healthCheckPath ?? "/"}, branche ${info.branche ?? "?"}, autoDeploy ${info.autoDeploy ? "oui" : "non"}`, { source: "render", missionId: ctx.chantierId });
+    if (info) await noterEvenementDev({ type: "service", cle: s.id, contenu: `${info.nom} (${info.type}) — ${info.url ?? "sans URL"}, santé ${info.healthCheckPath ?? "/"}, branche ${info.branche ?? "?"}, autoDeploy ${info.autoDeploy ? "oui" : "non"}`, source: "render", missionId: ctx.chantierId });
   }
   if (!url) return echoue(`${s.nom} : aucune URL pour la santé`);
   const h = await ctx.ports.hebergeur.sante(url, chemin ?? "/");

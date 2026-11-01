@@ -271,6 +271,28 @@ export async function enregistrerReglagesVisuels(formData: FormData): Promise<Ac
 }
 
 /**
+ * C1 (décision 0041) — LES CHANTIERS DE DÉVELOPPEMENT : plafond en dollars par chantier, lancements Claude Code et
+ * déploiements au plus, tentatives par étape, plafonds globaux du jour, chantiers en parallèle. Super Admin seul ;
+ * bornés (`lireReglagesChantiers`) ; chaque changement à l'audit, avant et après.
+ */
+export async function enregistrerReglagesChantiers(formData: FormData): Promise<ActionResult> {
+  const admin = await requireUser();
+  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  const { normaliserReglagesChantiers: lireReglagesChantiers } = await import("@/modules/assistant-ia/api");
+  const r = lireReglagesChantiers(Object.fromEntries(formData.entries()));
+  const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { chantiersReglages: true } });
+  const json = { ...r } as Record<string, number>;
+  await prisma.appSetting.upsert({ where: { id: "global" }, create: { id: "global", chantiersReglages: json }, update: { chantiersReglages: json } });
+  const dire = (x: unknown) => JSON.stringify(lireReglagesChantiers(x));
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Chantiers de développement — plafonds",
+    oldValue: dire(avant?.chantiersReglages ?? null), newValue: dire(r), summary: `Plafonds des chantiers : ${r.plafondUsd} $ par chantier, ${r.lancementsMax} lancements, ${r.deploiementsMax} déploiements, ${r.tentativesMax} tentatives ; jour ${r.jourUsdMax} $`,
+  });
+  revalidatePath("/admin/ai");
+  return { ok: true };
+}
+
+/**
  * LA CONSOMMATION IA (lot K8, décision 0035) — jetons et dollars, appel par appel, lus dans le journal.
  * « moi » : la personne connectée, et elle seule (la garde est dans la requête). « entreprise » : toute
  * l'entreprise, par personne, avec les plafonds et le rapprochement — Super Admin seul.

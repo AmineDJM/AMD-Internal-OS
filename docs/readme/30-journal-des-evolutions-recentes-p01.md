@@ -1,5 +1,25 @@
 ## 🧾 Journal des évolutions récentes
 
+### C1 : LES CHANTIERS DE DÉVELOPPEMENT — ADAM SUPERVISE CLAUDE CODE, GITHUB ET RENDER, SUR LE MOTEUR DES TRAVAUX (2026-11-01)
+
+Lot C1 — `docs/assistant/decisions/0041-chantiers-socle.md`, architecture `docs/architecture/CHANTIERS-DEV.md` (L1).
+Un **chantier** est une `Mission` `kind = "CHANTIER"` (Super Admin) conduite par le MÊME moteur que les travaux : étapes
+`DEV_LANCER`, `DEV_ATTENDRE`, `DEV_VERIFIER`, `DEV_CORRIGER`, `RENDER_DEPLOYER`, `RENDER_VERIFIER`, `RENDER_ROLLBACK`,
+`RAPPORT` (DSL fermé, compilé), qui appellent des PORTS (`src/platform/dev/ports.ts`, adaptateurs réels au lot C2) —
+la vérité est GitHub (branche, PR, checks du SHA exact) et Render (déploiement, santé), jamais la transcription.
+**Réservations atomiques** (`ChantierReservation` : branche, périmètre — deux globs qui se recouvrent sont SÉRIALISÉS —,
+migrations, déploiement ; ERP avant app/worker ; revérification du SHA d'intégration après fusion). **Anti-boucle** :
+même échec 2× → Sol une fois, 3× → blocage réel et rapport ; tentatives bornées, délai croissant. **Budgets** (Administration
+› IA › Chantiers : dollars par chantier et par jour, lancements, déploiements) → pause `BUDGET_HOLD`, reprise seule quand
+le plafond est relevé. **Routeur** déterministe → MiMo → Terra → Sol ; **MiMo** OpenAI-compatible dans la passerelle
+(clé `mimo`, modèle `mimo-v2.6-pro` à confirmer par `/v1/models`, tarif inconnu tant que `MIMO_PRICE_IN/OUT` n'est pas
+posé), chaque appel au journal K8 avec son `missionId`. **Mémoire technique** (`MemoireTechnique`) lue par extraits
+≤ 2 k jetons dans la consigne. Le chantier apparaît au **tableau « Missions »** existant (réservations, liens session/PR,
+SHA vert, déploiements, essais, carte Valider/Refuser). **Conversation** (Adventum IA, Super Admin) : `lancer_un_chantier`,
+`ou_en_est_chantier`, `valider_chantier` (écrit ou oral), `annuler_chantier`. Production, fusion sur main, rollback de
+production : validation de la Direction au moment d'agir. Aucune réussite sans preuve : le juge des preuves refuse la
+conclusion. Migration additive `20270218100000_chantiers_socle`. Tâche de fond `chantiers.balayage`.
+
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 
 Lot K8 — `docs/assistant/decisions/0035-consommation.md`. **Écran « Consommation »** dans les Réglages d'Adventum IA (et

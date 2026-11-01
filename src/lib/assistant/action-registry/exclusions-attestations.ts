@@ -225,6 +225,9 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-travaux-actions:lireMonTableauDeMissions", "assistant-ia-travaux-actions:annulerMaMission",
     "assistant-ia-travaux-actions:lireMaPreferenceDOffice", "assistant-ia-travaux-actions:reglerMaPreferenceDOffice",
   ]);
+  X("CHANTIERS DE DÉVELOPPEMENT (C1, décision 0041) — la carte de validation d'un chantier au tableau « Missions » : la Direction (Super Admin) valide ou refuse le geste critique qu'il ATTEND (déploiement en production, fusion sur main, rollback de production). C'est la décision humaine elle-même ; une IA ne s'accorde JAMAIS ses propres validations (l'outil de conversation exige les mots explicites de la Direction) : ce n'est pas une action métier à proposer.", [
+    "assistant-ia-travaux-actions:validerMonChantier",
+  ]);
   X("L'ATELIER de l'Assistant IA (J3, décision 0017) — les gestes de la personne sur SES onglets de documents (ouvrir, relire, accepter / refuser une modification, annuler, comparer, convertir, enregistrer une NOUVELLE version, fermer). Identité prise de la session, droits du Drive relus à chaque geste ; un document rattaché à un objet métier s'enregistre par une carte de confirmation : ce n'est pas une action métier à proposer.", [
     "assistant-ia-atelier-actions:ouvrirDansLAtelier", "assistant-ia-atelier-actions:relireOnglet", "assistant-ia-atelier-actions:revoirModificationAtelier",
     "assistant-ia-atelier-actions:toutAccepterAtelier", "assistant-ia-atelier-actions:annulerDansAtelier", "assistant-ia-atelier-actions:enregistrerOnglet",

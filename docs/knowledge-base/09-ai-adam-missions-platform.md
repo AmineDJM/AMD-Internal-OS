@@ -430,6 +430,27 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
   files too.
 
+- **Chantiers de développement C1 (01/11/2026)** [V] decision `docs/assistant/decisions/0041-chantiers-socle.md`,
+  architecture `docs/architecture/CHANTIERS-DEV.md`. `src/lib/missions/chantiers/`: a *chantier* is a `Mission` with
+  `kind = "CHANTIER"`, `persona = "ADAM"`, `principalId` = SUPER_ADMIN (role re-read each pass, `refusChantier`). Closed DSL
+  (`plan.ts`: DEV_LANCER/ATTENDRE/VERIFIER/CORRIGER, RENDER_DEPLOYER/VERIFIER/ROLLBACK, RAPPORT; default plan; refusals) compiled
+  to **WORKER** nodes, every step also depending on DEV_LANCER so synthesis nodes run past a dead intermediate — handlers
+  (`etapes.ts`) guard by PROOFS (no deploy without green checks on the exact SHA → SKIPPED). No DAG loop: the correction loop
+  lives inside DEV_CORRIGER (its WAITING result carries phase/tour/base), rollback is a `when` on `sain`. Waiting = `WAITING`
+  + `result.reessayerA`; `conduite.ts remettreEnFile` sets due ones READY with `attempt: 0`. External gestures under
+  `TravailEcriture` receipts; INTERROMPU never blindly replayed. Juge = `dossier.ts jugerPreuves` (green SHA = head, each planned
+  deploy live on it and healthy, no blocage) → otherwise BLOCKED/PARTIAL; `clore` writes the report if missing.
+  Dossier in `Mission.carnet.chantier`. Reservations `ChantierReservation` (unique `cle`, advisory-lock transaction, conservative
+  glob overlap `perimetre.ts`, 6 h expiry renewed each pass). Budgets `regles.ts` + `AppSetting.chantiersReglages` → pause
+  `BUDGET_HOLD` (auto-resume when raised). Router `routeur.ts` (deterministic → MiMo → Terra → Sol); `cerveau.ts` under
+  `sousImputation({ missionId, feature: "chantier" })`; MiMo adapter `src/lib/models/mimo.ts` (key `process.env.mimo`, base
+  `MIMO_BASE_URL`, model `MIMO_MODEL` default `mimo-v2.6-pro` unconfirmed, cost null unless `MIMO_PRICE_IN/OUT`). Memory
+  `MemoireTechnique` (`memoire.ts`, excerpts ≤ 2k tokens). Ports `src/platform/dev/ports.ts` (C2 contract), real adapters plugged
+  via `ports-dev.ts brancherPortsDev` — none → chantier waits and says so. Dashboard: `travaux/tableau.ts` covers
+  `kind IN (TRAVAIL, CHANTIER)` with a `chantier` field; dashboard buttons routed by `travaux/service.ts siChantier`. Assistant IA
+  tools `infra/chantiers.ts` (SUPER_ADMIN only). Sweep `chantiers.balayage` + fast wake loop. Benches `chantiers/*.test.ts`,
+  `scripts/bench/chantier-processus.ts` (two-process reservation race, SIGKILL in DEV_ATTENDRE).
+
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
   `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
   (reads the view to locate targets, e.g. every PPTX shape holding a text) and computes `zonesModifiees` (content-based diff for

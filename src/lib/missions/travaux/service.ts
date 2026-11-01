@@ -28,6 +28,18 @@ import { signalerReveil } from "@/lib/missions/travaux/signaux";
 
 export type ResultatTravail = { ok: true; travailId: string; message: string } | { ok: false; erreur: string };
 
+/**
+ * C1 (décision 0041) : un CHANTIER de développement vit au même tableau « Missions » ; les mêmes boutons (approuver,
+ * pause, reprendre, annuler) l'aiguillent vers son service — même cloisonnement (`principalId`), rôle relu là-bas.
+ */
+async function siChantier(id: string, principalId: string, geste: "approuver" | "pauser" | "reprendre" | "annuler"): Promise<ResultatTravail | null> {
+  if (!(await prisma.mission.count({ where: { id, kind: "CHANTIER", principalId, ownerId: principalId } }))) return null;
+  const c = await import("@/lib/missions/chantiers/service");
+  const r = geste === "approuver" ? await c.approuverChantier(id, principalId) : geste === "pauser" ? await c.pauserChantier(id, principalId)
+    : geste === "reprendre" ? await c.reprendreChantier(id, principalId) : await c.annulerChantier(id, principalId);
+  return r.ok ? { ok: true, travailId: r.chantierId, message: r.message } : r;
+}
+
 const ou = (travailId: string, principalId: string): Prisma.MissionWhereInput => ({ id: travailId, kind: "TRAVAIL", principalId, ownerId: principalId });
 
 /**
@@ -99,6 +111,8 @@ async function resoudreDemandes(plan: PlanTravail, principalId: string, persona:
  * étapes du moteur, échéances posées à partir de MAINTENANT.
  */
 export async function approuverTravail(travailId: string, principalId: string, persona: PersonaTravaux, clock: Clock = systemClock): Promise<ResultatTravail> {
+  const chantier = await siChantier(travailId, principalId, "approuver");
+  if (chantier) return chantier;
   const m = await prisma.mission.findFirst({ where: ou(travailId, principalId), select: { id: true, status: true, title: true, carnet: true, gestesAutorises: true, persona: true, parentMissionId: true } });
   if (!m) return { ok: false, erreur: "Travail introuvable — ou il ne vous appartient pas." };
   // K3 : un plan DÉJÀ lancé (d'office, ou par un autre écran) — le second « Approuver » n'est pas une erreur.
@@ -152,11 +166,13 @@ async function parLaMain(travailId: string, principalId: string, geste: () => Pr
   return r.ok ? { ok: true, travailId, message: r.message.replace("Mission", "Travail") } : { ok: false, erreur: r.message };
 }
 
-export const pauserTravail = (travailId: string, principalId: string) =>
-  parLaMain(travailId, principalId, () => mettreEnPause(travailId, principalId, "à la demande de la personne", "TRAVAIL"));
+export const pauserTravail = async (travailId: string, principalId: string) =>
+  (await siChantier(travailId, principalId, "pauser")) ?? parLaMain(travailId, principalId, () => mettreEnPause(travailId, principalId, "à la demande de la personne", "TRAVAIL"));
 
 /** REPRENDRE — refusé, avec le motif, tant qu'un plafond est atteint : reprendre pour se rendormir n'apprendrait rien. */
 export async function reprendreMonTravail(travailId: string, principalId: string, persona: PersonaTravaux): Promise<ResultatTravail> {
+  const chantier = await siChantier(travailId, principalId, "reprendre");
+  if (chantier) return chantier;
   const m = await prisma.mission.findFirst({ where: ou(travailId, principalId), select: { status: true, costUsd: true, plafondUsd: true } });
   if (!m) return { ok: false, erreur: "Travail introuvable — ou il ne vous appartient pas." };
   if (m.status === "BLOCKED" || m.status === "FAILED" || m.status === "PARTIAL") {
@@ -178,6 +194,8 @@ export async function reprendreMonTravail(travailId: string, principalId: string
 
 /** ANNULER — et retirer ses demandes ouvertes : la personne sollicitée apprend qu'on n'attend plus sa réponse (J8). */
 export async function annulerTravail(travailId: string, principalId: string): Promise<ResultatTravail> {
+  const chantier = await siChantier(travailId, principalId, "annuler");
+  if (chantier) return chantier;
   const r = await parLaMain(travailId, principalId, () => annuler(travailId, principalId, "à la demande de la personne", "TRAVAIL"));
   if (r.ok) await annulerDemandesDuTravail(travailId);
   return r;

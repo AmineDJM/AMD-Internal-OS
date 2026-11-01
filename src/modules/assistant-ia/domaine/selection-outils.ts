@@ -113,6 +113,11 @@ const MOTS_CLES: Record<string, string> = {
   // K3 (décision 0033 § 7) : la recherche approfondie — les mots d'une étude, d'une veille, d'un rapport sourcé.
   recherche_approfondie: "recherche approfondie etude marche veille concurrence concurrents benchmark etat de l art panorama rapport complet sources tendances reglementation etrangere pays analyse sectorielle",
   lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance",
+  // C1 (décision 0041) : les chantiers de développement (Super Admin) — Claude Code, GitHub, Render.
+  lancer_un_chantier: "chantier claude code developpe developpement code corrige bug fonctionnalite branche depot github pull request pr implemente",
+  ou_en_est_chantier: "ou en est chantier avancement developpement claude code deploiement ci checks pr statut",
+  valider_chantier: "valide valider accorde autorise deploie deployer production fusionne fusion main rollback refuse chantier",
+  annuler_chantier: "annule arrete stoppe suspend pause chantier developpement",
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",

@@ -90,6 +90,25 @@ export function jugerPreuves(d: DossierChantier, coutUsd: number | null): Verdic
 
 export const court = (sha: string | null | undefined): string => (sha ? sha.slice(0, 7) : "—");
 
+/** CE QUE L'ÉCRAN ET LA CONVERSATION MONTRENT d'un dossier — une seule forme, pour le tableau « Missions » et « où en est ». */
+export interface VueDossier {
+  depot: string;
+  branche: string;
+  reservations: string[];
+  sessions: { url: string; motif: string }[];
+  pr: { numero: number; url: string } | null;
+  vert: string | null;
+  deploiements: { nom: string; statut: string; commit: string; sain: boolean | null; rollback: boolean }[];
+}
+
+export function vueDossier(d: DossierChantier, reservations: readonly string[]): VueDossier {
+  return {
+    depot: `${d.plan.depot.proprietaire}/${d.plan.depot.nom}`, branche: d.plan.branche, reservations: [...reservations],
+    sessions: d.sessions.map((s) => ({ url: s.url, motif: s.motif })), pr: d.pr, vert: d.vert ? court(d.vert.sha) : null,
+    deploiements: d.deploiements.map((x) => ({ nom: x.nom, statut: x.statut, commit: court(x.commit), sain: x.sain ?? null, rollback: !!x.rollback })),
+  };
+}
+
 const fmtUsd = (n: number) => `${n.toFixed(4).replace(".", ",")} $`;
 
 /** LE RAPPORT FINAL — composé par le CODE depuis le dossier (pas de modèle) : SHA, checks, live, santé, coût, liens. */

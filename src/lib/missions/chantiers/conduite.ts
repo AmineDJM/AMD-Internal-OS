@@ -221,16 +221,14 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
         bilan.arret = "BUDGET";
         break;
       }
-      const r = await avancer(chantierId, actor, moteur);
-      bilan.vagues += 1;
-      bilan.executees += r.executees;
-      bilan.statut = r.status;
-      if (r.bailRefuse) { bilan.arret = "BAIL"; break; }
-      if (r.suspenduGlobalement) { bilan.arret = "INTERRUPTEUR"; break; }
-      if (TERMINAUX.has(r.status) || r.status === "PAUSED") break;
-      if (r.executees + r.echouees + r.deployees > 0 && !plafond) { vides = 0; continue; }
-      if (plafond) continue;
-      if (!OCCUPE.has(r.status) || ++vides >= 2) break;
+      const t = await avancer(chantierId, actor, moteur);
+      Object.assign(bilan, { vagues: bilan.vagues + 1, executees: bilan.executees + t.executees, statut: t.status });
+      const coupe = t.bailRefuse ? "BAIL" : t.suspenduGlobalement ? "INTERRUPTEUR" : null;
+      if (coupe) { bilan.arret = coupe; break; }
+      if (TERMINAUX.has(t.status) || t.status === "PAUSED") break;
+      // Un plafond posé par une étape : la vague suivante le lit en tête et met le chantier en pause.
+      if (plafond || t.executees + t.echouees + t.deployees > 0) { vides = 0; continue; }
+      if (!OCCUPE.has(t.status) || ++vides >= 2) break;
     }
   } finally {
     await rendreBail(chantierId);

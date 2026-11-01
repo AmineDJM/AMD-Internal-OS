@@ -7,10 +7,16 @@ import { enParallele } from "@/lib/missions/runtime/engine/ordonnancement";
 import { systemClock, type Clock } from "@/lib/missions/ports";
 import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import { compilerChantier, gestesCritiques, lirePlanChantier, type PlanChantier } from "@/lib/missions/chantiers/plan";
-import { court, dossierInitial, lireDossier, type DossierChantier, type ValidationDirection } from "@/lib/missions/chantiers/dossier";
+import { dossierInitial, lireDossier, vueDossier, type DossierChantier, type ValidationDirection, type VueDossier } from "@/lib/missions/chantiers/dossier";
 import { MOTIF_BUDGET_CHANTIER, motifBudgetChantier } from "@/lib/missions/chantiers/regles";
 import { clore, conduireChantier, ecrireDossier, KIND_CHANTIER, lireReglagesConsole, PERSONA_CHANTIER, refusChantier, type BilanChantier, type DepsChantier } from "@/lib/missions/chantiers/conduite";
 import { liberer, reservationsDe } from "@/lib/missions/chantiers/reservations";
+import { configMimo } from "@/lib/models/mimo";
+
+/** LA PORTE pour les écrans et la conversation : les réglages de la console, leur normalisation, MiMo tel que configuré. */
+export { lireReglagesConsole };
+export { lireReglagesChantiers } from "@/lib/missions/chantiers/regles";
+export const etatMimo = () => { const c = configMimo(); return { configure: c.cle !== null, modele: c.modele, base: c.base }; };
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -143,21 +149,14 @@ export async function annulerChantier(chantierId: string, principalId: string): 
   return { ok: true, chantierId, message: `Chantier annulé, réservations libérées.${sessions ? " Une session Claude Code déjà lancée peut finir son tour : rien ne sera déployé." : ""}` };
 }
 
-export interface VueChantier {
+export interface VueChantier extends VueDossier {
   id: string;
   titre: string;
   statut: string;
   pause: string | null;
-  depot: string;
-  branche: string;
   coutUsd: number;
   plafondUsd: number | null;
   etapes: { cle: string; titre: string; statut: string; attente: string | null; erreur: string | null; essais: number }[];
-  reservations: string[];
-  sessions: { url: string; motif: string }[];
-  pr: { numero: number; url: string } | null;
-  vert: string | null;
-  deploiements: { nom: string; statut: string; commit: string; sain: boolean | null; rollback: boolean }[];
   validationsAttendues: string[];
   compteurs: DossierChantier["compteurs"];
   rapport: string | null;
@@ -179,16 +178,13 @@ export async function ouEnEstChantier(principalId: string, chantierId?: string):
     const d = lireDossier(m.carnet);
     if (!d) return [];
     return [{
-      id: m.id, titre: m.title, statut: m.status, pause: m.pausedReason, depot: `${d.plan.depot.proprietaire}/${d.plan.depot.nom}`, branche: d.plan.branche,
+      ...vueDossier(d, (res.get(m.id) ?? []).map((r) => r.cle)),
+      id: m.id, titre: m.title, statut: m.status, pause: m.pausedReason,
       coutUsd: Math.round(m.costUsd * 10_000) / 10_000, plafondUsd: m.plafondUsd,
       etapes: m.steps.map((s) => {
         const r = (s.result ?? {}) as { attente?: string; essais?: number; tour?: number };
         return { cle: s.key, titre: s.title, statut: s.status, attente: s.status === "WAITING" ? (r.attente ?? null) : null, erreur: s.status === "FAILED" ? s.error : null, essais: Math.max(r.essais ?? 0, r.tour ?? 0) };
       }),
-      reservations: (res.get(m.id) ?? []).map((r) => r.cle),
-      sessions: d.sessions.map((s) => ({ url: s.url, motif: s.motif })),
-      pr: d.pr, vert: d.vert ? court(d.vert.sha) : null,
-      deploiements: d.deploiements.map((x) => ({ nom: x.nom, statut: x.statut, commit: court(x.commit), sain: x.sain ?? null, rollback: !!x.rollback })),
       validationsAttendues: m.events.map((e) => ({ cle: String((e.detail as { stepKey?: string } | null)?.stepKey ?? ""), texte: e.summary })).filter((e) => e.cle && !d.validations[e.cle]).map((e) => e.texte),
       compteurs: d.compteurs,
       rapport: d.rapport?.texte ?? null,
@@ -197,7 +193,11 @@ export async function ouEnEstChantier(principalId: string, chantierId?: string):
 }
 
 /** Les chantiers à conduire maintenant : signalés, en file, en cours, une attente datée échue, ou en sommeil de plafond. */
-export async function chantiersAFaireAvancer(maintenant: Date, limite = 6): Promise<string[]> {
+export async function chantiersAFaireAvancer(maintenant: Date, limite = 6, seulementSignales = false): Promise<string[]> {
+  if (seulementSignales) {
+    const s = await prisma.mission.findMany({ where: { kind: KIND_CHANTIER, reveilDemandeLe: { not: null }, planApprouveLe: { not: null } }, select: { id: true }, take: limite });
+    return s.map((x) => x.id);
+  }
   const rows = await prisma.$queryRaw<{ id: string }[]>`
     SELECT m."id" FROM "Mission" m
     WHERE m."kind" = 'CHANTIER' AND m."planApprouveLe" IS NOT NULL AND (
@@ -212,11 +212,15 @@ export async function chantiersAFaireAvancer(maintenant: Date, limite = 6): Prom
 }
 
 /** LE BATTEMENT DES CHANTIERS (tâche `chantiers.balayage` et boucle courte des réveils) — conduits en parallèle, chacun sous son bail. */
-export async function balayerChantiers(o: { clock?: Clock; interrupteur?: LecteurInterrupteur; deps?: Omit<DepsChantier, "clock" | "interrupteur">; seulement?: readonly string[] } = {}): Promise<BilanChantier[]> {
+export async function balayerChantiers(o: {
+  clock?: Clock; interrupteur?: LecteurInterrupteur; deps?: Omit<DepsChantier, "clock" | "interrupteur">; seulement?: readonly string[];
+  /** La boucle courte des réveils (10 s) : seulement les chantiers SIGNALÉS (approuvés, validés, repris). */
+  seulementSignales?: boolean;
+} = {}): Promise<BilanChantier[]> {
   const opts = o; // le passe-plat de l'interrupteur (cliquet `suspension.test.ts`)
   const clock = o.clock ?? systemClock;
   const reglages = o.deps?.reglages ?? (await lireReglagesConsole());
-  const ids = (await chantiersAFaireAvancer(clock.now())).filter((id) => !o.seulement || o.seulement.includes(id));
+  const ids = (await chantiersAFaireAvancer(clock.now(), 6, o.seulementSignales)).filter((id) => !o.seulement || o.seulement.includes(id));
   const out: BilanChantier[] = [];
   await enParallele(ids, reglages.enParallele, async (id) => {
     await prisma.mission.updateMany({ where: { id }, data: { reveilDemandeLe: null } });

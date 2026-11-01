@@ -17,6 +17,7 @@ import { reserver, type DemandeReservation } from "@/lib/missions/chantiers/rese
 import { conduireChantier } from "@/lib/missions/chantiers/conduite";
 import { REGLAGES_CHANTIERS_DEFAUT } from "@/lib/missions/chantiers/regles";
 import { fauxPortsDev } from "@/lib/missions/chantiers/faux-test-outils";
+import { brancherPortsDev } from "@/lib/missions/chantiers/ports-dev";
 import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 
 const env = (k: string, d = "") => process.env[k] ?? d;
@@ -39,8 +40,10 @@ async function main(): Promise<void> {
   const pousse = env("POUSSE");
   if (pousse) ports.pousser(env("BRANCHE"), pousse, "vert");
   const sonde = env("SONDE");
+  // Le banc passe par le MÊME point de branchement que les adaptateurs réels de C2 : la conduite n'a pas de `ports`.
+  brancherPortsDev(() => ports);
   const b = await conduireChantier(MISSION, {
-    ports, clock, reglages: REGLAGES_CHANTIERS_DEFAUT, interrupteur: PAS_SUSPENDU, vagues: 20,
+    clock, reglages: REGLAGES_CHANTIERS_DEFAUT, interrupteur: PAS_SUSPENDU, vagues: 20,
     cerveau: { disponibles: () => ({ mimo: false, terra: false, sol: false }), executer: async () => ({ ok: false, erreur: "aucun modèle au banc" }) },
     sondes: {
       avantEtape: async (cle) => {

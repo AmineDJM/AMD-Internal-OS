@@ -284,15 +284,18 @@ export function compilerChantier(plan: PlanChantier): CompiledMission {
       maxAttempts: 3, spec: when ? { when } : null, forEach: null, waitFor: null,
     } as CompiledStep;
   });
-  const prof = new Map<string, number>();
-  for (const s of steps) prof.set(s.key, 1 + Math.max(0, ...s.dependsOn.map((d) => prof.get(d) ?? 0)));
-  for (const s of steps) s.wave = (prof.get(s.key) ?? 1) - 1;
+  // LA VAGUE d'une étape : un de plus que la plus haute de ses amonts (le journal du moteur s'en sert).
+  const vagues = new Map<string, number>();
+  for (const s of steps) {
+    s.wave = s.dependsOn.reduce((haut, d) => Math.max(haut, (vagues.get(d) ?? -1) + 1), 0);
+    vagues.set(s.key, s.wave);
+  }
   return {
     objective: plan.objectif,
     acceptance: [...plan.criteres, "Checks verts sur le SHA exact livré ; déploiements live et sains, ou rollback dit."],
     complexity: "B", scale: "M", steps,
     maxEffect: "EXTERNAL_COMMUNICATION", requiresApproval: false,
-    capabilities: [], depth: Math.max(1, ...prof.values()), gaps: [],
+    capabilities: [], depth: 1 + Math.max(0, ...vagues.values()), gaps: [],
     planMeta: { workstreams: [], expectedArtifacts: [], approvalStrategy: "BUNDLE", completionCriteria: null },
   };
 }
