@@ -48,7 +48,7 @@ export {
   chargerTresorerie, type CompteLu, getFinanceData, type LedgerRow, ORDRES_AUTORISES_NON_REGLES,
 } from "./infra/requetes/finance";
 export { type ComptaItem, getComptaData, getResultatMensuel } from "./infra/requetes/compta";
-export { myPaymentRequests } from "./infra/requetes/my-payment-requests";
+export { fileAInstruire, instruitLesDemandes, myPaymentRequests } from "./infra/requetes/my-payment-requests";
 export {
   peutSupprimerUneDemandePaiement, refusSuppressionDemandePaiement,
 } from "./infra/requetes/demande-paiement-suppression";

@@ -66,6 +66,9 @@ export interface CentreCharge {
   idsAffiches: string[];
   /** Combien de lignes de cette section l'écran ne montre PAS (les plus anciennes). */
   nonAffiches: number;
+  /** K7 (décision 0037) — pour l'EXPORT : toutes les lignes de la section choisie, puis de l'entité choisie (sans la coupe d'affichage). */
+  idsSection: string[];
+  idsEntite: string[];
 }
 
 const LOT = 2000;
@@ -215,5 +218,7 @@ export async function chargerCentre(
     bilan,
     idsAffiches: dansLaSection.slice(0, LIMITE_LIGNES_CENTRE).map((l) => l.id),
     nonAffiches: Math.max(0, dansLaSection.length - LIMITE_LIGNES_CENTRE),
+    idsSection: dansLaSection.map((l) => l.id),
+    idsEntite: deLEntite.map((l) => l.id),
   };
 }

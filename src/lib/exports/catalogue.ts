@@ -172,8 +172,29 @@ export const CATALOGUE_EXPORTS: readonly FicheExport[] = [
     },
     mots: "pdf plan tournee imprime telecharge visites mois kam planning",
   },
+  // Direction, 01/11/2026 : « L'export des demandes de paiement, oui. Enfin, l'export de tout. »
+  {
+    outil: "exporter_demandes_paiement", route: "/api/finances/demandes-paiement/export", ecran: "/validations/paiements", format: "Excel",
+    libelle: "Exporter les demandes de paiement (Excel)",
+    description: "PRODUIT le classeur Excel des DEMANDES DE PAIEMENT (l'écran « Demandes de paiement ») : les demandes de la personne et, pour les Finances, la file à instruire — référence, objet, bénéficiaire, demandeur, entité, montant, échéance, état. Déposé dans le Drive (« Exports »).",
+    proprietes: {
+      statuts: { type: "array", description: "États (« Chez les Finances », « En cours d'instruction », « Mise en attente », « Bon à payer », « Refusée »…) — facultatif." },
+      perimetre: { type: "string", description: "miennes, a_instruire (Finances) — facultatif : tout ce que l'écran montre sinon.", enum: ["miennes", "a_instruire"] },
+    },
+    mots: "export exporte excel demandes paiement paiements payer factures bon a payer instruire finances en attente montant beneficiaire",
+  },
+  {
+    outil: "exporter_ordres_centre_paiement", route: "/api/finances/centre/export", ecran: "/centre-de-paiement", format: "Excel",
+    libelle: "Exporter les ordres du centre de paiement (Excel)",
+    description: "PRODUIT le classeur Excel des ORDRES DU CENTRE DE PAIEMENT (l'écran « Centre de paiement ») pour une entité et une section (Regulatory, Sales & Marketing, Autres, ou toutes) : référence, libellé, bénéficiaire, montant, statut du centre, décision, échéance, demandeur. Déposé dans le Drive (« Exports »).",
+    proprietes: {
+      entite: { type: "string", description: "La société (son nom) — facultatif : celle de l'écran." },
+      section: { type: "string", description: "Regulatory, Sales & Marketing, Autres, ou toutes — facultatif." },
+      statuts: { type: "array", description: "Statuts du centre (« En attente du centre de paiement », « Autorisé », « Refusé »…) — facultatif." },
+    },
+    mots: "export exporte excel centre paiement ordres depense autoriser autorise refuse attente decision entite section",
+  },
 ];
-
 
 /** Le dossier du Drive personnel où l'assistant dépose les exports. */
 export const DOSSIER_EXPORTS = "Exports";

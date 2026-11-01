@@ -211,6 +211,28 @@ function graphique(lignes: readonly Ligne[], d: DemandeGraphique | null, questio
 }
 
 /** COMPOSER : des lignes calculées au bloc et au résumé. */
+/** UNE CELLULE : un nombre reste un nombre (« 12 345 DZD » lu par le moteur devient 12345) — l'écran trie et additionne. */
+export function celluleAnalyse(v: unknown, f: FormatColonne, max = 200): CelluleAnalyse {
+  if (v === null || v === undefined || v === "") return null;
+  if (f !== "texte" && f !== "date") { const n = versNombre(v); if (n !== null) return n; }
+  if (f === "date") { const dt = versDate(v); if (dt) return dt.toISOString().slice(0, 10); }
+  return typeof v === "object" ? JSON.stringify(v).slice(0, max) : String(v).slice(0, max);
+}
+
+/**
+ * LA MISE EN TABLE — des lignes et des colonnes typées à la matrice et aux TOTAUX (sommes faites par le code, sur toutes
+ * les lignes, seulement là où une colonne s'additionne). Partagée par le bloc d'analyse et l'export des données du tour
+ * (lot K7, décision 0037 : « l'export de tout »).
+ */
+export function mettreEnTable(lignes: readonly Ligne[], colonnes: readonly ColonneAnalyse[], max = 200): { matrice: CelluleAnalyse[][]; totaux: (number | null)[] | null } {
+  const matrice = lignes.map((l) => colonnes.map((c) => celluleAnalyse(l[c.cle], c.format, max)));
+  const additive = (c: ColonneAnalyse) => (c.format === "dzd" || c.format === "nombre" || c.format === "entier") && !RE_NON_ADDITIF.test(plier(c.cle));
+  const totaux = colonnes.some(additive) && matrice.length > 1
+    ? colonnes.map((c, j) => (additive(c) && j > 0 ? matrice.reduce((acc, r) => acc + (typeof r[j] === "number" ? (r[j] as number) : 0), 0) : null))
+    : null;
+  return { matrice, totaux };
+}
+
 export function composerAnalyse(d: DemandeAnalyse): { bloc: BlocAnalyseForme; resume: ResumeAnalyse } {
   const lignes = d.lignes.filter(isObj);
   const compte = new Map<string, number>();
@@ -230,19 +252,7 @@ export function composerAnalyse(d: DemandeAnalyse): { bloc: BlocAnalyseForme; re
     return { cle, libelle, format };
   });
   const formats = Object.fromEntries(colonnes.map((c) => [c.cle, c.format]));
-
-  // LES CELLULES : un nombre reste un nombre (« 12 345 DZD » lu par le moteur devient 12345) — l'écran trie et additionne.
-  const cellule = (v: unknown, f: FormatColonne): CelluleAnalyse => {
-    if (v === null || v === undefined || v === "") return null;
-    if (f !== "texte" && f !== "date") { const n = versNombre(v); if (n !== null) return n; }
-    if (f === "date") { const dt = versDate(v); if (dt) return dt.toISOString().slice(0, 10); }
-    return typeof v === "object" ? JSON.stringify(v).slice(0, 200) : String(v).slice(0, 200);
-  };
-  const matrice = lignes.map((l) => colonnes.map((c) => cellule(l[c.cle], c.format)));
-  const additive = (c: ColonneAnalyse) => (c.format === "dzd" || c.format === "nombre" || c.format === "entier") && !RE_NON_ADDITIF.test(plier(c.cle));
-  const totaux = colonnes.some(additive) && matrice.length > 1
-    ? colonnes.map((c, j) => (additive(c) && j > 0 ? matrice.reduce((acc, r) => acc + (typeof r[j] === "number" ? (r[j] as number) : 0), 0) : null))
-    : null;
+  const { matrice, totaux } = mettreEnTable(lignes, colonnes);
 
   // LES DATES SE LISENT EN DATES sur l'axe : un horodatage SQL (« 2026-01-01T00:00:00.000Z ») devient « 2026-01-01 », et
   // « 2026-01 » quand toutes tombent le 1er du mois (une série mensuelle) — mesuré sur serveur réel : « 2026-01-01T… ».

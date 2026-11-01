@@ -56,7 +56,7 @@ disant** (400, avec la liste des valeurs admises) — jamais deviné.
 ## 3. Les outils `exporter_*` de l'Assistant IA
 
 Le catalogue (`lib/exports/catalogue.ts`, pur) porte **une fiche par export** : outil, route, libellé français, écran,
-format, filtres, mots d'une demande. Quatorze exports :
+format, filtres, mots d'une demande. Seize exports (les deux de l'argent ajoutés le 01/11, § 7) :
 
 | Outil | Ce qu'il produit | Écran |
 |---|---|---|
@@ -73,6 +73,8 @@ format, filtres, mots d'une demande. Quatorze exports :
 | `exporter_suivi_coaching` | Excel du suivi du coaching (collaborateur, statut) | `/medical/coaching` |
 | `exporter_fiche_coaching` | Excel d'une fiche de coaching | `/medical/coaching` |
 | `exporter_annuaire` | Excel de l'annuaire (médecins, pharmaciens) | `/annuaires/medecins` |
+| `exporter_demandes_paiement` | Excel des demandes de paiement (miennes, file à instruire des Finances ; états) | `/validations/paiements` |
+| `exporter_ordres_centre_paiement` | Excel des ordres du centre de paiement (entité, section, statuts) | `/centre-de-paiement` |
 | `exporter_plan_de_tournee_pdf` | PDF d'un plan de tournée validé | `/medical/plan-de-tournee` |
 
 - **Offert à qui a le bouton** (`exportOuvert` : le module de l'écran) ; la fonction rejuge tout à chaque appel.
@@ -110,7 +112,7 @@ le clic est écartée, et le résultat le dit (« n pièce(s) n'ont pas pu être
 
 ## 6. L'inventaire des gestes d'écran hors actions
 
-Toutes les routes de `src/app/api` (136, dont celles de K1, K2 et K3 arrivées par fusion) sont classées dans `modules/assistant-ia/gestes-ecran.test.ts`. **Le
+Toutes les routes de `src/app/api` (138, dont celles de K1, K2 et K3 arrivées par fusion et les deux exports de l'argent du § 7) sont classées dans `modules/assistant-ia/gestes-ecran.test.ts`. **Le
 cliquet** (`gestes-ecran.test.ts`) relit le dossier : une route nouvelle, ou une méthode nouvelle sur une route, qui
 n'y est pas classée fait échouer `npm test` ; la présente décision doit aussi la nommer (le test le vérifie). Les
 exposés sont exactement le catalogue (et chaque fiche du catalogue pointe sa route) ; un COUVERT nomme un outil qui
@@ -123,10 +125,12 @@ pièce du Drive). Restent hors de l'assistant, avec leur raison : les télévers
 fil (elles s'ouvrent là où le fil les porte) et deux gestes d'écriture lourds qui restent au bouton (le **livret de
 séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lancement de l'analyse** d'un dossier CTD).
 
-### Exposé par ce lot (15)
+### Exposé par ce lot (17)
 
 | Route | Méthodes | Outil |
 |---|---|---|
+| `/api/finances/demandes-paiement/export` | GET | `exporter_demandes_paiement` (route et bouton ajoutés le 01/11) |
+| `/api/finances/centre/export` | GET | `exporter_ordres_centre_paiement` (route et bouton ajoutés le 01/11) |
 | `/api/regulatory/export` | POST | `exporter_suivi_regulatory` |
 | `/api/budgets/export` | GET | `exporter_budget` |
 | `/api/budgets/marketing/export` | GET | `exporter_budget_marketing` |
@@ -280,7 +284,45 @@ séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lance
 | `/api/v1/operations/[operation]` | POST | API publique v1 (jetons d'intégration) : un client externe, pas un écran |
 | `/api/v1/search` | GET | API publique v1 (jetons d'intégration) : un client externe, pas un écran |
 
-## 7. Ce qui ne change pas
+## 7. L'export de tout (Direction, 01/11/2026)
+
+> « L'export des demandes de paiement, oui. Enfin, l'export de tout, quoi. Tout ce qu'on veut. »
+
+**Les demandes de paiement et les ordres du centre** (`lib/exports/paiements.ts`) — deux fiches de plus au catalogue,
+avec leur route ET un bouton « Exporter » sur l'écran (`/validations/paiements`, `/centre-de-paiement`) : l'écran
+n'en avait pas. Même portée que l'écran, par les mêmes fonctions du module `finances` — la page des demandes lisait sa
+file « À instruire » et le droit d'instruire en ligne ; ils sont sortis dans le module (`fileAInstruire`,
+`instruitLesDemandes`, porte `api.ts`) et partagés par la page et l'export. Le centre s'exporte par son chargeur
+(`chargerCentre`, qui rend désormais aussi toutes les lignes de la section et de l'entité choisies, sans la coupe
+d'affichage de 300). Filtres : états des demandes, périmètre (miennes / à instruire), entité, section, statuts du centre.
+
+**Tout le reste : `exporter_donnees`** (`modules/assistant-ia/infra/analyse/exporter.ts`) — ce que le TOUR a lu ou
+calculé s'exporte en Excel, CSV ou PDF, déposé au Drive « Exports », lien de téléchargement, comme les seize autres :
+- **La source est un jeu du tour** (K1, `domaine/analyse/jeux.ts`) : la sortie d'une LECTURE appelée dans ce tour (déjà
+  filtrée par les droits de la personne et jetonnée), un tableur lu, un résultat SQL, une analyse (`analyse:<titre>`).
+  Le modèle nomme le jeu et, s'il veut, les colonnes (par leur nom ou leur libellé ; une colonne inconnue est refusée en
+  le disant) ; **il ne recopie aucune ligne**. Un jeu que le tour n'a pas lu ne s'exporte pas : l'outil le dit, et la
+  consigne (règle 15) fait relire la liste d'abord.
+- **Les formats** — socle `platform/ia/analyse/export.ts` : Excel = le classeur VÉRIFIÉ de K1 (`specClasseurAnalyse` :
+  en-tête figé, filtres, formats DZD / % / dates, totaux en formules recalculées avant livraison, feuille « Méthode ») ;
+  CSV = celui de l'écran (`versCsv` : « ; », BOM) ; PDF = `platform/ia/analyse/pdf.ts`, un tableau mis en page (A4,
+  paysage au-delà de six colonnes, en-tête répété, nombres formatés comme à l'écran, totaux, « page n / N »). La mise en
+  table (cellules typées, totaux) est celle du bloc d'analyse, sortie de `composerAnalyse` (`mettreEnTable`) pour être
+  partagée — aucune copie.
+- **La confidentialité, avec le juge de l'écran** : une valeur sensible y est un repère ⟦S1⟧ ; elle n'est écrite dans le
+  fichier que si la personne a le droit de la voir (`Revelateur` de K4, geste « valeur écrite dans un fichier exporté »,
+  journalisé), « [confidentiel] » sinon. Une colonne dont l'EN-TÊTE est confidentiel (salaire, IBAN, pièce d'identité…)
+  et dont la valeur n'est pas un repère jugé (un tableur, une saisie) devient « [confidentiel] » : jamais une valeur
+  brute non jugée. Le résultat dit quelles colonnes ont été masquées.
+- Au registre des capacités (une fiche, R0, famille Drive) et à la sélection (« exporte ce tableau en CSV », « la liste
+  que tu viens de me donner en PDF ») ; la conversation seulement, comme les autres exports.
+
+**Le cliquet des boutons** (`gestes-ecran.test.ts`) : les écrans (pages, composants, écrans des modules) sont relus ;
+toute adresse `/api/…export…` ou `/api/…/pdf` qu'ils appellent doit être la route d'une fiche du catalogue. Une seule
+exception nommée, avec sa raison : l'export de la consommation de l'Assistant IA lui-même (K8), dont la logique vit dans
+le module assistant (le catalogue de l'ERP ne l'importe pas : ce serait un cycle).
+
+## 8. Ce qui ne change pas
 
 - Les routes rendent les mêmes fichiers, sous les mêmes noms et types ; les refus gardent leur statut (le corps d'une
   erreur est désormais toujours `{ error }` en JSON — l'événement et la demande de stocks rendaient un corps vide).

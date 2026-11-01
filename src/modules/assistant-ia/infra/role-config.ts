@@ -298,6 +298,8 @@ export function vueDeLAssistant(user: CurrentUser, acces: AccesIa): CurrentUser 
 export const GESTE_ASSISTANT = "Assistant IA — réponse à la personne";
 /** Décision 0034 : la valeur part au modèle, en clair, parce que la personne a le droit de la voir — le journal le dit. */
 export const GESTE_MODELE_EN_CLAIR = "Assistant IA — valeur transmise au modèle (mode en clair)";
+/** K7 (décision 0037) : une valeur écrite dans un FICHIER exporté (Drive de la personne) — même juge que l'écran, journalisée. */
+export const GESTE_EXPORT_FICHIER = "Assistant IA — valeur écrite dans un fichier exporté";
 
 export async function peutVoirLaValeur(e: EntreeJeton, user: CurrentUser, acces: AccesIa, geste = GESTE_ASSISTANT): Promise<boolean> {
   const soi = !!e.titulaireUserId && e.titulaireUserId === user.id;
