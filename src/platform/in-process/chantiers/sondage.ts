@@ -1,7 +1,7 @@
-import type { FaitDev, ForgeGit, Hebergeur, NomDepot, PasDeSondage, Resultat } from "./ports";
-import { STATUTS_DEPLOIEMENT_FINAUX } from "./ports";
+import type { FaitDev, ForgeGit, Hebergeur, NomDepot, PasDeSondage, Resultat } from "@/platform/dev/ports";
+import { STATUTS_DEPLOIEMENT_FINAUX } from "@/platform/dev/ports";
 import { inscrireFaits, type BilanReception, type Inscrire } from "./reception";
-import { cleChecks, cleDeploiement, clePush, statutFinalRender } from "./webhooks";
+import { cleChecks, cleDeploiement, clePush, statutFinalRender } from "@/platform/dev/webhooks";
 
 /**
  * LE SONDAGE DE SECOURS (lot C2) — quand un webhook manque (non configuré, livraison perdue, Render qui a désactivé

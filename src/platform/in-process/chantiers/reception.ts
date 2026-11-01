@@ -1,8 +1,8 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { configGithub, configRender, type Env } from "./config";
-import type { FaitDev, Hebergeur } from "./ports";
-import { faitsGithub, faitsRender, verifierSignatureGithub, verifierSignatureRender } from "./webhooks";
+import { configGithub, configRender, type Env } from "@/platform/dev/config";
+import type { FaitDev, Hebergeur } from "@/platform/dev/ports";
+import { faitsGithub, faitsRender, verifierSignatureGithub, verifierSignatureRender } from "@/platform/dev/webhooks";
 
 /**
  * LA RÉCEPTION DES FAITS DES CHANTIERS (lot C2) — webhook ou sondage, même chemin :

@@ -5,7 +5,7 @@ import { ModuleTabs } from "@/components/shared/module-tabs";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ADMIN_TABS } from "@/lib/labels";
-import { etatDesConnecteurs } from "@/platform/dev/sondes";
+import { etatDesConnecteurs } from "@/platform/in-process/chantiers/sondes";
 import type { EtatConnecteur } from "@/platform/dev/ports";
 
 export const dynamic = "force-dynamic";

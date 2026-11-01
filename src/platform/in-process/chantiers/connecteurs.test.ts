@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { creerAgentDeveloppeur } from "./agent-routines";
 import { creerForgeGithub } from "./forge-github";
 import { creerHebergeurRender } from "./hebergeur-render";
-import { masquer } from "./http";
+import { masquer } from "@/platform/dev/http";
 import { sonderGithub, sonderMimo, sonderRender, sonderRoutines } from "./sondes";
 
 /**

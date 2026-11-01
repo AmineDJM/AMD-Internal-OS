@@ -3,7 +3,7 @@
 ### C2 : LES CONNECTEURS DES CHANTIERS — CLAUDE CODE (ROUTINES, `@claude`), GITHUB, RENDER (2026-11-01)
 
 Lot C2 — `docs/assistant/decisions/0041-connecteurs-chantiers.md`, architecture `docs/architecture/CHANTIERS-DEV.md`.
-Contrat `src/platform/dev/ports.ts` (`AgentDeveloppeur`, `ForgeGit`, `Hebergeur`, `FaitDev`) et adaptateurs `fetch` sans
+Contrat `src/platform/dev/ports.ts` (`AgentDeveloppeur`, `ForgeGit`, `Hebergeur`, `FaitDev`) et adaptateurs `fetch` (pont `src/platform/in-process/chantiers/`) sans
 SDK : **Routines API** (`/v1/claude_code/routines/{trig}/fire`, vérifiée le 01/11 ; idempotence côté Adventum dans
 `DevLancement`, jamais de réessai sur délai dépassé, quotas 30/h/routine et 100/h/compte comptés avant le 429), suivi par
 **commentaire `@claude`** dans la PR (GitHub Action, modèle de workflow fourni), **GitHub REST v3** (ETag, pagination

@@ -1,8 +1,8 @@
 import { creerAgentDeveloppeur } from "./agent-routines";
-import { configGithub, configRender, type Env } from "./config";
+import { configGithub, configRender, type Env } from "@/platform/dev/config";
 import { creerForgeGithub } from "./forge-github";
 import { creerHebergeurRender } from "./hebergeur-render";
-import type { AgentDeveloppeur, ForgeGit, Hebergeur } from "./ports";
+import type { AgentDeveloppeur, ForgeGit, Hebergeur } from "@/platform/dev/ports";
 
 /**
  * LA RACINE DE COMPOSITION DES CONNECTEURS (lot C2) — ce que le moteur des chantiers (C1) appelle pour obtenir ses

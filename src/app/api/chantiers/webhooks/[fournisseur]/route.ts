@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordEvent } from "@/lib/events/ledger";
-import { connecteursDev } from "@/platform/dev/connecteurs";
-import { recevoirWebhook } from "@/platform/dev/reception";
+import { connecteursDev } from "@/platform/in-process/chantiers/connecteurs";
+import { recevoirWebhook } from "@/platform/in-process/chantiers/reception";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

@@ -812,7 +812,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
   {deployId}` does NOT turn autodeploy off (`PATCH /services/{id} {autoDeployTrigger:"off"}` separately); Blueprint sync is
   not triggerable by API; `GET /services/{id}/env-vars` returns values — the adapter keeps keys only.
 - Migration `20270218100000_chantiers_connecteurs` (additive, idempotent): table `DevLancement`.
-- Tests `src/platform/dev/{connecteurs,webhooks}.test.ts`: local `node:http` fake server (doc payloads), signatures,
+- Tests `src/platform/in-process/chantiers/{connecteurs,webhooks}.test.ts`: local `node:http` fake server (doc payloads), signatures,
   429/Retry-After, GitHub primary/secondary quotas, ETag 304, timeout ⇒ no retry, concurrent same key ⇒ one fire, no secret
   in messages/logs/DB, webhook + poll dedupe, public route.
 - Real bench `scripts/bench/chantiers-reel.ts` (`BANC_DEPOT`, `BANC_ROUTINE`, `BANC_SERVICE_RENDER`…): refuses a non-local

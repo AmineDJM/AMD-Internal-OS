@@ -1,7 +1,7 @@
 import { noterEffetExterne } from "@/lib/effets/magasin";
-import { configGithub, type Env } from "./config";
-import { appeler, echec, pageSuivante, type ConfigHttp, type OptionsAppel, type ReponseHttp, type ValeurRequete } from "./http";
-import type { CheckRun, Commit, CompteForge, Comparaison, ConclusionCheck, EtatChecks, ForgeGit, InfoDepot, NomDepot, PullRequest, Resultat } from "./ports";
+import { configGithub, type Env } from "@/platform/dev/config";
+import { appeler, echec, pageSuivante, type ConfigHttp, type OptionsAppel, type ReponseHttp, type ValeurRequete } from "@/platform/dev/http";
+import type { CheckRun, Commit, CompteForge, Comparaison, ConclusionCheck, EtatChecks, ForgeGit, InfoDepot, NomDepot, PullRequest, Resultat } from "@/platform/dev/ports";
 
 /**
  * LA FORGE — GitHub REST v3 en `fetch` nu (lot C2).

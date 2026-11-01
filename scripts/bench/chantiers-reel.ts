@@ -25,13 +25,13 @@
  * BANC_ATTENTE_MIN (défaut 30). Le coût : une session de l'abonnement (une seule) et deux déploiements du service de test.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import { creerAgentDeveloppeur } from "@/platform/dev/agent-routines";
+import { creerAgentDeveloppeur } from "@/platform/in-process/chantiers/agent-routines";
 import { configRoutine, routineDuDepot } from "@/platform/dev/config";
 import { construireConsigne } from "@/platform/dev/consigne";
-import { creerForgeGithub } from "@/platform/dev/forge-github";
-import { creerHebergeurRender } from "@/platform/dev/hebergeur-render";
+import { creerForgeGithub } from "@/platform/in-process/chantiers/forge-github";
+import { creerHebergeurRender } from "@/platform/in-process/chantiers/hebergeur-render";
 import { STATUTS_DEPLOIEMENT_FINAUX, type NomDepot, type Resultat } from "@/platform/dev/ports";
-import { delaiSondage } from "@/platform/dev/sondage";
+import { delaiSondage } from "@/platform/in-process/chantiers/sondage";
 
 const env = process.env;
 const etapes = new Set((env.BANC_ETAPES ?? "github,routine,render").split(",").map((s) => s.trim()));

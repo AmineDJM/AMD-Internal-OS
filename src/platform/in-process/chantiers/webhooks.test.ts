@@ -2,11 +2,11 @@ import { createHmac, randomBytes } from "node:crypto";
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { POST } from "@/app/api/chantiers/webhooks/[fournisseur]/route";
-import { construireConsigne } from "./consigne";
-import type { ForgeGit, Hebergeur, Resultat } from "./ports";
+import { construireConsigne } from "@/platform/dev/consigne";
+import type { ForgeGit, Hebergeur, Resultat } from "@/platform/dev/ports";
 import { inscrireFaits, recevoirWebhook, type Inscrire } from "./reception";
 import { delaiSondage, sonderBranche, sonderChecks, sonderDeploiement, sonderEtInscrire } from "./sondage";
-import { faitsGithub, signerStandard, verifierSignatureGithub, verifierSignatureRender } from "./webhooks";
+import { faitsGithub, signerStandard, verifierSignatureGithub, verifierSignatureRender } from "@/platform/dev/webhooks";
 
 /**
  * LES WEBHOOKS DES CHANTIERS (lot C2) : signatures GitHub et Render (Standard Webhooks), réception exactement-une-fois

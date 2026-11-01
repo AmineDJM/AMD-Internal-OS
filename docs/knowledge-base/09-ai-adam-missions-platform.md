@@ -751,7 +751,7 @@ Gotchas [V]:
 - **Contract** `src/platform/dev/ports.ts` (zero import, L0 socle): `AgentDeveloppeur` (Claude Code), `ForgeGit` (GitHub),
   `Hebergeur` (Render), `FaitDev`. Every method returns `Resultat<T>`; error codes `NON_CONFIGURE|AUTH|INTERDIT|INTROUVABLE|
   QUOTA|INVALIDE|CONFLIT|INDISPONIBLE|RESEAU|INCERTAIN|SIMULE|INCONNU` with `reessayable` / `reessayerApresMs`. Composition
-  root `connecteurs.ts` (`connecteursDev()` → `{agent, forge|null, hebergeur|null}`); the mission engine (lot C1) consumes it.
+  root `in-process/chantiers/connecteurs.ts` (`connecteursDev()` → `{agent, forge|null, hebergeur|null}`); the mission engine (lot C1) consumes it.
 - **Claude Code** = Routines API `/v1/claude_code/routines/{trig}/fire` (subscription) + `@claude` PR comment (GitHub
   Action). No claude.ai credential server-side (Anthropic legal terms). Resuming an existing subscription session is
   impossible server-side → continuity through branch + PR thread. Fire has **no idempotency**: `DevLancement.cleIdempotence`
@@ -767,4 +767,7 @@ Gotchas [V]:
   (`BusinessEvent` types `DEV_PUSH|DEV_PR|DEV_CHECKS|DEV_WORKFLOW|DEV_COMMENTAIRE|RENDER_DEPLOIEMENT|RENDER_SERVICE`,
   `sourceDomain "DEV"`, refs `DEPOT:`, `BRANCHE:<repo>:<branch>`, `SHA:`, `PR:<repo>#n`, `SERVICE:`, `DEPLOIEMENT:`) → wakes
   `WAIT_EVENT`. Polling (`sondage.ts`, 30 s ×2 → 15 min) emits the same keys ⇒ one event per fact.
-- Gotcha: the socle (`src/platform/dev/`) must not import `lib/events/ledger` (not socle) — the registry is injected.
+- Layout: PURE part in `src/platform/dev/` (ports, http, config, webhooks, consigne — no Prisma: `boundary.test.ts` forbids
+  any ERP import in `src/platform/` outside the bridge); adapters, `DevLancement`, reception, polling, probes and the
+  composition root `connecteursDev()` in the bridge `src/platform/in-process/chantiers/`. The registry (`recordEvent`) is
+  injected by the route, not imported.

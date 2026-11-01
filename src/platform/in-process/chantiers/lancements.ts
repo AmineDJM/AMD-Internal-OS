@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { MoyenAgent } from "./ports";
+import type { MoyenAgent } from "@/platform/dev/ports";
 
 /**
  * LES LANCEMENTS DE CLAUDE CODE ET LEUR CLÉ D'IDEMPOTENCE (lot C2, décision 0041).

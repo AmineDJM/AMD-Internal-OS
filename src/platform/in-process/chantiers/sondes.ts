@@ -1,9 +1,9 @@
-import { aliasDeRoutines, configGithub, configMimo, configRender, configRoutine, managedAgentsActives, type Env } from "./config";
+import { aliasDeRoutines, configGithub, configMimo, configRender, configRoutine, managedAgentsActives, type Env } from "@/platform/dev/config";
 import { creerForgeGithub } from "./forge-github";
 import { creerHebergeurRender } from "./hebergeur-render";
-import { appeler, type ConfigHttp } from "./http";
+import { appeler, type ConfigHttp } from "@/platform/dev/http";
 import { quotasRoutine } from "./lancements";
-import type { EtatConnecteur } from "./ports";
+import type { EtatConnecteur } from "@/platform/dev/ports";
 
 /**
  * LES SONDES DE L'ÉCRAN Administration › Développement (lot C2) — SANS action destructive, en lecture seule :

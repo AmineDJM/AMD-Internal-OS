@@ -1,7 +1,7 @@
 import { noterEffetExterne } from "@/lib/effets/magasin";
-import { configRender, type Env } from "./config";
-import { appeler, echec, type ConfigHttp, type ReponseHttp, type ValeurRequete } from "./http";
-import type { DeclencheurAutoDeploy, Deploiement, Hebergeur, LigneJournal, PageJournal, Resultat, ServiceHeberge } from "./ports";
+import { configRender, type Env } from "@/platform/dev/config";
+import { appeler, echec, type ConfigHttp, type ReponseHttp, type ValeurRequete } from "@/platform/dev/http";
+import type { DeclencheurAutoDeploy, Deploiement, Hebergeur, LigneJournal, PageJournal, Resultat, ServiceHeberge } from "@/platform/dev/ports";
 
 /**
  * L'HÉBERGEUR — Render API v1 en `fetch` nu (lot C2). Base `https://api.render.com/v1`, `Authorization: Bearer

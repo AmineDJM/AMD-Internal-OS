@@ -10,14 +10,16 @@ Coût le plus bas possible. »
 Architecture : [`docs/architecture/CHANTIERS-DEV.md`](../../architecture/CHANTIERS-DEV.md). Ce lot (C2) livre les
 **connecteurs** ; le moteur des chantiers (réservations, étapes `DEV_*`/`RENDER_*`, routage Terra/MiMo/Sol) est le lot C1.
 
-> Code : contrat `src/platform/dev/ports.ts` (zéro import) ; adaptateurs `agent-routines.ts` (Claude Code),
-> `forge-github.ts` (GitHub REST v3), `hebergeur-render.ts` (Render API v1) ; client commun `http.ts` ; configuration
-> `config.ts` ; idempotence et quotas des lancements `lancements.ts` (table `DevLancement`, migration
-> `20270218100000_chantiers_connecteurs`) ; consigne `consigne.ts` ; webhooks `webhooks.ts` (signatures, normalisation)
-> et `reception.ts` (dédoublonnage `IngestedEvent`, inscription par port) ; sondage de secours `sondage.ts` ; sondes de
-> l'écran `sondes.ts` ; racine de composition `connecteurs.ts`. Route `app/api/chantiers/webhooks/[fournisseur]`, écran
-> `app/(app)/admin/developpement`. Tests `src/platform/dev/*.test.ts` (faux serveur HTTP local). Banc réel
-> `scripts/bench/chantiers-reel.ts`. Modèle de workflow `docs/assistant/modeles/github-workflow-claude.yml`.
+> Code : la part PURE au socle `src/platform/dev/` — contrat `ports.ts` (zéro import), client HTTP `http.ts`,
+> configuration `config.ts`, signatures et normalisation des webhooks `webhooks.ts`, consigne `consigne.ts`. La part qui
+> touche la base et le journal des effets dans le pont `src/platform/in-process/chantiers/` (le cliquet de frontière
+> `boundary.test.ts` interdit Prisma hors du pont) : adaptateurs `agent-routines.ts` (Claude Code), `forge-github.ts`
+> (GitHub REST v3), `hebergeur-render.ts` (Render API v1) ; idempotence et quotas `lancements.ts` (table `DevLancement`,
+> migration `20270218100000_chantiers_connecteurs`) ; réception `reception.ts` (dédoublonnage `IngestedEvent`,
+> inscription par port) ; sondage de secours `sondage.ts` ; sondes de l'écran `sondes.ts` ; racine de composition
+> `connecteurs.ts` (`connecteursDev()`). Route `app/api/chantiers/webhooks/[fournisseur]`, écran
+> `app/(app)/admin/developpement`. Tests `in-process/chantiers/{connecteurs,webhooks}.test.ts` (faux serveur HTTP local).
+> Banc réel `scripts/bench/chantiers-reel.ts`. Modèle de workflow `docs/assistant/modeles/github-workflow-claude.yml`.
 
 ## 1. Ce qui est interdit, et pourquoi c'est structurant
 Les conditions d'Anthropic (code.claude.com/docs/en/legal-and-compliance) défendent de stocker ou d'utiliser côté serveur

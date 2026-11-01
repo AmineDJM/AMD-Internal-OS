@@ -1,8 +1,8 @@
 import { noterEffetExterne } from "@/lib/effets/magasin";
-import { aliasDeRoutines, baseRoutines, configRoutine, type Env } from "./config";
-import { appeler, echec, masquer, type ConfigHttp } from "./http";
+import { aliasDeRoutines, baseRoutines, configRoutine, type Env } from "@/platform/dev/config";
+import { appeler, echec, masquer, type ConfigHttp } from "@/platform/dev/http";
 import { conclure, quotasRoutine, reclamer, type LigneLancement } from "./lancements";
-import type { AgentDeveloppeur, DemandeLancement, DemandeRelancePr, ErreurConnecteur, ForgeGit, MoyenAgent, Resultat, SessionLancee } from "./ports";
+import type { AgentDeveloppeur, DemandeLancement, DemandeRelancePr, ErreurConnecteur, ForgeGit, MoyenAgent, Resultat, SessionLancee } from "@/platform/dev/ports";
 
 /**
  * L'AGENT DÉVELOPPEUR — Claude Code Cloud par ses mécanismes OFFICIELS (lot C2, décision 0041).
