@@ -259,6 +259,8 @@ export interface Hebergeur {
   /** Les NOMS des variables d'environnement — la valeur n'est jamais lue hors de l'adaptateur, jamais rendue. */
   nomsDesVariables(serviceId: string): Promise<Resultat<string[]>>;
   reglerAutoDeploy(serviceId: string, declencheur: DeclencheurAutoDeploy): Promise<Resultat<ServiceHeberge>>;
+  /** `GET /events/{eventId}` — le détail qu'un webhook « mince » n'a pas (le `deployId` d'un `deploy_ended`). */
+  evenement(eventId: string): Promise<Resultat<{ type: string; serviceId: string | null; deployId: string | null }>>;
 }
 
 // ─────────────────────────────── LES FAITS (webhooks et sondage) ───────────────────────────────

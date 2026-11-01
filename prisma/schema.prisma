@@ -18801,3 +18801,31 @@ model AssistantIaVisuel {
   @@index([userId, createdAt])
   @@index([statut, createdAt])
 }
+
+/// UN LANCEMENT DE CLAUDE CODE (lot C2, décision 0041) — la clé d'idempotence qu'Anthropic n'a pas.
+/// La Routines API (`/fire`) et le commentaire `@claude` créent une session à CHAQUE appel : la ligne est
+/// RÉCLAMÉE avant l'envoi (`cleIdempotence` unique), donc la même clé ne lance jamais deux sessions. Un délai
+/// dépassé laisse la ligne `INCERTAIN` : personne ne relance à l'aveugle. Sert aussi au compte des quotas
+/// (30 lancements/h/routine, 100/h/compte). Jamais le texte envoyé (son empreinte seulement), jamais un jeton.
+model DevLancement {
+  id             String   @id @default(cuid())
+  cleIdempotence String   @unique
+  /// ROUTINE | COMMENTAIRE_PR | MANAGED_AGENTS
+  moyen          String
+  /// L'alias de routine (ROUTINE) ou le dépôt (COMMENTAIRE_PR).
+  cible          String
+  missionId      String?
+  /// EN_COURS | LANCE | ECHEC | INCERTAIN
+  statut         String   @default("EN_COURS")
+  empreinte      String
+  sessionId      String?
+  sessionUrl     String?
+  commentaireId  String?
+  erreur         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([moyen, cible, createdAt])
+  @@index([statut, createdAt])
+  @@index([missionId])
+}
