@@ -303,14 +303,16 @@ function ValeursSensibles({ initial }: { initial: ModeValeursSensibles }) {
   );
 }
 
-/** J7 (décision 0029) — combien de jours un geste de l'assistant reste annulable (journal des effets). */
-function RetentionEffets({ initial }: { initial: number }) {
+/** J7 (décision 0029) — combien de jours un geste reste annulable ; K10b (0038) — la fenêtre d'annulation des envois. */
+function RetentionEffets({ initial, fenetre }: { initial: number; fenetre: number }) {
   const { saving, err, run } = useAction();
   const [jours, setJours] = React.useState(String(initial));
+  const [secondes, setSecondes] = React.useState(String(fenetre));
   const [ok, setOk] = React.useState(false);
   const enregistrer = () => {
     const fd = new FormData();
     fd.set("retentionEffetsJours", jours);
+    fd.set("fenetreAnnulationSecondes", secondes);
     setOk(false);
     void run(() => enregistrerRetentionEffets(fd), () => setOk(true));
   };
@@ -320,6 +322,11 @@ function RetentionEffets({ initial }: { initial: number }) {
         Garder le journal
         <input type="number" min={7} max={1095} value={jours} onChange={(e) => setJours(e.target.value)} className="h-10 w-24 rounded-md border px-2 text-base sm:text-sm" />
         jours
+      </label>
+      <label className="inline-flex items-center gap-2 text-sm">
+        Fenêtre d&apos;annulation des envois
+        <input type="number" min={10} max={900} value={secondes} onChange={(e) => setSecondes(e.target.value)} className="h-10 w-24 rounded-md border px-2 text-base sm:text-sm" />
+        secondes
       </label>
       <button type="button" onClick={enregistrer} disabled={saving} className="h-10 rounded-md border px-3 text-sm">Enregistrer</button>
       <EtatEnregistrement saving={saving} ok={ok} err={err} />
@@ -359,8 +366,9 @@ function DOfficeParRole({ roles }: { roles: LigneRole[] }) {
   );
 }
 
-export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours, valeursSensibles }: {
+export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe, retentionEffetsJours, fenetreAnnulationSecondes, valeursSensibles }: {
   roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number }; managerVoitEquipe: boolean; retentionEffetsJours: number;
+  fenetreAnnulationSecondes: number;
   valeursSensibles: ModeValeursSensibles;
 }) {
   return (
@@ -410,14 +418,19 @@ export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, manage
         </CardContent>
       </Card>
       <Card>
-        <CardHeader><CardTitle className="text-base">Journal des effets — annuler un geste de l&apos;assistant</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-base">Journal des effets — annuler un geste</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Chaque geste de l&apos;assistant (carte confirmée, étape d&apos;un travail, geste sous mandat) garde la valeur d&apos;avant de ce qu&apos;il
-            a écrit : la personne peut l&apos;annuler depuis « Ce que l&apos;assistant a fait ». Au-delà de cette durée, le journal est purgé
-            et le geste ne s&apos;annule plus.
+            Chaque geste réversible (bouton de l&apos;ERP, carte confirmée, étape d&apos;un travail, geste sous mandat) garde la valeur d&apos;avant
+            de ce qu&apos;il a écrit : la personne l&apos;annule depuis la barre « Annuler », l&apos;historique de la fiche ou « Ce que l&apos;assistant a
+            fait ». Au-delà de la durée de garde, le journal est purgé et le geste ne s&apos;annule plus.
           </p>
-          <RetentionEffets initial={retentionEffetsJours} />
+          <p className="text-sm text-muted-foreground">
+            Un <strong>envoi</strong> (courriel, notification poussée, publication) attend la <strong>fenêtre d&apos;annulation</strong> avant de
+            partir : annulé dedans, rien n&apos;est parti. Après, il est compensé (rectificatif au même destinataire) — un courriel parti
+            n&apos;est jamais effacé chez son destinataire. Défaut proposé : 120 s (2 minutes), décision de la Direction.
+          </p>
+          <RetentionEffets initial={retentionEffetsJours} fenetre={fenetreAnnulationSecondes} />
         </CardContent>
       </Card>
       <ParPersonne personnes={personnes} plafondsGlobaux={plafondsGlobaux} />

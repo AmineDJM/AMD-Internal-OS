@@ -37,7 +37,7 @@ async function ensureCanManageCategory(user: Awaited<ReturnType<typeof requireUs
 // ─────────────────────── Budget total (fixe / flexible) ───────────────────────
 
 /** Règle le budget total : FIXED (montant figé) ou FLEXIBLE (= somme des enveloppes). */
-export async function setBudgetTotal(formData: FormData): Promise<ActionResult> { return annulable("retour", "Définir budget total", async () => {
+export async function setBudgetTotal(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:setBudgetTotal", "Définir budget total", async () => {
   const user = await requireUser();
   if (!canManageEnvelopes(user)) return NOT_ALLOWED;
   const mode = fdStr(formData, "mode") === "FIXED" ? "FIXED" : "FLEXIBLE";
@@ -53,7 +53,7 @@ export async function setBudgetTotal(formData: FormData): Promise<ActionResult> 
 
 // ─────────────────────────── Enveloppe ───────────────────────────
 
-export async function createEnvelope(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Créer enveloppe", async () => {
+export async function createEnvelope(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:createEnvelope", "Créer enveloppe", async () => {
   const user = await requireUser();
   if (!canManageEnvelopes(user)) return NOT_ALLOWED;
   const name = fdStr(formData, "name");
@@ -87,7 +87,7 @@ export async function createEnvelope(formData: FormData): Promise<ActionResult> 
   return { ok: true, id: created.id };
 }); }
 
-export async function updateEnvelope(formData: FormData): Promise<ActionResult> { return annulable("retour", "Modifier enveloppe", async () => {
+export async function updateEnvelope(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:updateEnvelope", "Modifier enveloppe", async () => {
   const user = await requireUser();
   if (!canManageEnvelopes(user)) return NOT_ALLOWED;
   const id = fdStr(formData, "id");
@@ -124,7 +124,7 @@ export async function updateEnvelope(formData: FormData): Promise<ActionResult> 
   return { ok: true };
 }); }
 
-export async function deleteEnvelope(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Supprimer enveloppe", async () => {
+export async function deleteEnvelope(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:deleteEnvelope", "Supprimer enveloppe", async () => {
   const user = await requireUser();
   if (!canManageEnvelopes(user)) return NOT_ALLOWED;
   const id = fdStr(formData, "id");
@@ -141,7 +141,7 @@ export async function deleteEnvelope(formData: FormData): Promise<ActionResult> 
 
 // ─────────────────────────── Catégories ───────────────────────────
 
-export async function createBudgetCategory(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Créer catégorie budget", async () => {
+export async function createBudgetCategory(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:createBudgetCategory", "Créer catégorie budget", async () => {
   const user = await requireUser();
   const envelopeId = fdStr(formData, "envelopeId");
   const name = fdStr(formData, "name");
@@ -165,7 +165,7 @@ export async function createBudgetCategory(formData: FormData): Promise<ActionRe
   return { ok: true, id: created.id };
 }); }
 
-export async function updateBudgetCategory(formData: FormData): Promise<ActionResult> { return annulable("retour", "Modifier catégorie budget", async () => {
+export async function updateBudgetCategory(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:updateBudgetCategory", "Modifier catégorie budget", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   const name = fdStr(formData, "name");
@@ -188,7 +188,7 @@ export async function updateBudgetCategory(formData: FormData): Promise<ActionRe
   return { ok: true };
 }); }
 
-export async function deleteBudgetCategory(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Supprimer catégorie budget", async () => {
+export async function deleteBudgetCategory(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:deleteBudgetCategory", "Supprimer catégorie budget", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
@@ -203,7 +203,7 @@ export async function deleteBudgetCategory(formData: FormData): Promise<ActionRe
 }); }
 
 /** Attribue (ou retire) une dépense à une catégorie budgétaire. */
-export async function attributeTransaction(formData: FormData): Promise<ActionResult> { return annulable("retour", "Attribuer une écriture à une enveloppe", async () => {
+export async function attributeTransaction(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:attributeTransaction", "Attribuer une écriture à une enveloppe", async () => {
   const user = await requireUser();
   const transactionId = fdStr(formData, "transactionId");
   if (!transactionId) return { ok: false, error: "Transaction manquante." };
@@ -237,7 +237,7 @@ export async function attributeTransaction(formData: FormData): Promise<ActionRe
  * dépense qu'elle a payé la suit ; elle quitte la liste « à imputer » de l'enveloppe de son ancienne société. Les deux
  * sociétés, l'ancienne et la nouvelle, doivent être de celles que la personne engage.
  */
-export async function changerSocieteEcriture(formData: FormData): Promise<ActionResult> { return annulable("retour", "Changer l'entité d'une écriture", async () => {
+export async function changerSocieteEcriture(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:changerSocieteEcriture", "Changer l'entité d'une écriture", async () => {
   const user = await requireUser();
   if (!(hasGlobalView(user.role) || userCan(user, "BUDGETS", "UPDATE") || userCan(user, "FINANCES", "UPDATE"))) return { ok: false, error: "Réservé à la Direction, aux Budgets et aux Finances." };
   const transactionId = fdStr(formData, "transactionId");
@@ -285,7 +285,7 @@ async function resolveExpenseCategory(user: Awaited<ReturnType<typeof requireUse
  * Finances ni la trésorerie (le financier enregistrera le mouvement réel s'il le souhaite).
  * Réservé à la Direction / aux gestionnaires, sur une enveloppe qui leur est ACCESSIBLE.
  */
-export async function addBudgetExpense(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Ajouter dépense budget", async () => {
+export async function addBudgetExpense(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:addBudgetExpense", "Ajouter dépense budget", async () => {
   const user = await requireUser();
   // L'autorisation fine (gestionnaire de l'enveloppe OU Direction sur enveloppe ouverte) est
   // décidée par resolveExpenseCategory une fois la catégorie — donc l'enveloppe — connue.
@@ -317,7 +317,7 @@ export async function addBudgetExpense(formData: FormData): Promise<ActionResult
  * ayant accès à l'enveloppe — et, en cas de ré-imputation, à l'enveloppe CIBLE.
  * (Les dépenses réelles, elles, se modifient dans les Finances.)
  */
-export async function updateBudgetExpense(formData: FormData): Promise<ActionResult> { return annulable("retour", "Modifier dépense budget", async () => {
+export async function updateBudgetExpense(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:updateBudgetExpense", "Modifier dépense budget", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
@@ -360,7 +360,7 @@ export async function updateBudgetExpense(formData: FormData): Promise<ActionRes
  * de la catégorie est réajustée aussitôt. Réservé à la Direction / aux gestionnaires ayant
  * accès à l'enveloppe. (Les dépenses réelles, elles, se suppriment dans les Finances.)
  */
-export async function deleteBudgetExpense(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Supprimer dépense budget", async () => {
+export async function deleteBudgetExpense(formData: FormData): Promise<ActionResult> { return annulable("budget-envelope-actions:deleteBudgetExpense", "Supprimer dépense budget", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };

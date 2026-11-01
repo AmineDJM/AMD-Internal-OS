@@ -101,7 +101,7 @@ async function deposerFicheDePaie(
  * fiche de paie (déposée dans le dossier RH de l'employé, période YYYY-MM).
  * L'employé est notifié 24 h PLUS TARD (marge d'erreur), via les tâches planifiées.
  */
-export async function markSalaryPaid(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Marquer un salaire payé", async () => {
+export async function markSalaryPaid(formData: FormData): Promise<ActionResult> { return annulable("payroll-hr-actions:markSalaryPaid", "Marquer un salaire payé", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const employeeId = fdStr(formData, "employeeId");
@@ -168,7 +168,7 @@ export async function markSalaryPaid(formData: FormData): Promise<ActionResult> 
  * dans le budget : supprime la fiche déposée et la notification différée si elle
  * n'est pas encore partie.
  */
-export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult> { return annulable("retour", "Annuler le marquage « payé » d'un salaire", async () => {
+export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult> { return annulable("payroll-hr-actions:unmarkSalaryPaid", "Annuler le marquage « payé » d'un salaire", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const id = fdStr(formData, "id");
@@ -243,7 +243,7 @@ export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult
  * deux. Les envois d'une même entité et d'un même mois passent UN PAR UN (`enSerie`), et chacun
  * relit, dans son tour, ce qui est déjà en cours.
  */
-export async function envoyerPaieAuCentre(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Envoyer la paie au centre de paiement", async () => {
+export async function envoyerPaieAuCentre(formData: FormData): Promise<ActionResult> { return annulable("payroll-hr-actions:envoyerPaieAuCentre", "Envoyer la paie au centre de paiement", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const companyId = fdStr(formData, "companyId");
@@ -374,7 +374,7 @@ const RATTACHEMENT_MAX = 200;
  * un salarié rattaché entre-temps par quelqu'un d'autre garde SON entité et la phrase le nomme. Un
  * salaire déjà parti au nom d'une autre entité REFUSE tout le lot, en le nommant.
  */
-export async function rattacherSalariesAEntite(formData: FormData): Promise<ActionResult> { return annulable("retour", "Rattacher des salariés à une entité", async () => {
+export async function rattacherSalariesAEntite(formData: FormData): Promise<ActionResult> { return annulable("payroll-hr-actions:rattacherSalariesAEntite", "Rattacher des salariés à une entité", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const companyId = fdStr(formData, "companyId");
@@ -468,7 +468,7 @@ export async function rattacherSalariesAEntite(formData: FormData): Promise<Acti
  * l'employé, et l'ancienne est libérée. Empiler deux bulletins pour le même mois dans le
  * dossier d'un salarié, c'est lui laisser deviner lequel fait foi.
  */
-export async function updatePayrollEntry(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Modifier une ligne de paie", async () => {
+export async function updatePayrollEntry(formData: FormData): Promise<ActionResult> { return annulable("payroll-hr-actions:updatePayrollEntry", "Modifier une ligne de paie", async () => {
   const user = await requireUser();
   if (!canRunPayroll(user)) return { ok: false, error: "Réservé aux RH." };
   const id = fdStr(formData, "id");

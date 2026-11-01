@@ -156,4 +156,4 @@ avant elle (`effets/ports.test.ts`).
 
 Le journal s'ouvre aux gestes de l'ÉCRAN (`lib/effets/ecran.ts`, origine `ecran`), l'annulation applique une politique
 d'argent (contre-passation, « à récupérer », statut « payé » remis — `lib/effets/argent.ts`) et se journalise elle-même
-(rétablir). Voir [0039](0039-argent-reversible.md).
+(rétablir). Voir [0040](0040-argent-reversible.md).

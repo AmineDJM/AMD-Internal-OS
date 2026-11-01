@@ -1790,6 +1790,15 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-gestes-actions:agirSurMonEnvoi": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-gestes-actions:annulerGestesAssistant": {
   "risque": "R1",
   "familles": [
@@ -1817,11 +1826,38 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-gestes-actions:historiqueDeLaFiche": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-gestes-actions:listerGestesAssistant": {
   "risque": "R0",
   "familles": [],
   "simulable": "oui",
   "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-gestes-actions:mesGestesEtEnvoisRecents": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-gestes-actions:retablirMonGeste": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
   "appelable": false
  },
  "assistant-ia-notes-actions:accepterPropositionNote": {
@@ -6028,7 +6064,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-folder-actions:deleteMailFolder": {
@@ -6046,7 +6082,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-folder-actions:updateMailFolder": {
@@ -6055,7 +6091,7 @@
    "ECRITURES"
   ],
   "simulable": "non",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-partner-actions:createMailPartner": {
@@ -6064,7 +6100,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-partner-actions:deleteMailPartner": {
@@ -6082,7 +6118,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-piece-actions:addMailPiece": {
@@ -6091,7 +6127,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-piece-actions:deleteMailPiece": {
@@ -6109,7 +6145,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-register-actions:attachDriveNodeToMail": {
@@ -6118,7 +6154,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-register-actions:createMailEntry": {
@@ -6127,7 +6163,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-register-actions:deleteMailEntry": {
@@ -6145,7 +6181,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "mail-register-actions:setMailDate": {
@@ -6154,7 +6190,7 @@
    "ECRITURES"
   ],
   "simulable": "oui",
-  "annulation": "aucune",
+  "annulation": "retour",
   "appelable": true
  },
  "market-actions:analyzeMarketMolecule": {

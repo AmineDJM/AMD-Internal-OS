@@ -92,5 +92,5 @@ export function infoModele(nom: string): InfoModele | null {
 export const MODELES_TRACE: ReadonlySet<string> = new Set([
   "AuditLog", "ActivityLog", "AssistantIaTrace", "AiUsageLog", "ModelCallLog", "VoiceTurnLog", "AssistantActionIntent",
   "AssistantRoleConfigAudit", "RegulatoryAuditLog", "SessionEvent", "BusinessEvent", "MissionEvent",
-  "AssistantGesteJournal", "AssistantEffet",
+  "AssistantGesteJournal", "AssistantEffet", "EffetSortantDiffere",
 ]);

@@ -162,16 +162,6 @@ export function annulationDe(nature: NatureGesteLue | null, classer: (n: NatureG
   return { annulation: PAR_REVERSIBILITE[v.reversibilite], raison: v.raison };
 }
 
-/**
- * DÉCLARÉE RÉVERSIBLE (K10a, décision 0039) — l'action s'exécute sous le journal des effets (`annulable`) : elle se
- * défait d'un geste, par l'annulation J7 ; l'argent par compensation (écriture inverse, « à récupérer »), jamais effacé.
- */
-export function annulationDeclaree(mode: "retour" | "compensation"): { annulation: Annulation; raison: string } {
-  return mode === "retour"
-    ? { annulation: "retour", raison: "journalisée : chaque écriture se remet à sa valeur d'avant (annulable depuis l'écran ou l'assistant)" }
-    : { annulation: "compensation", raison: "journalisée : elle se défait par compensation tracée — écriture inverse, « à récupérer », statut annulé — jamais un effacement" };
-}
-
 /** La sortie d'une lecture peut porter un texte écrit par un TIERS (courrier, document, pièce, fournisseur). */
 export function contenuTiersDe(c: ContratLu, risque: Risque): boolean {
   if (risque !== "R0") return false;

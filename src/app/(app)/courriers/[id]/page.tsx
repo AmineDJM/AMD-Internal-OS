@@ -23,6 +23,7 @@ import { EditMailButton } from "./edit-mail";
 import { RecordDeleteButton } from "@/components/shared/record-delete-button";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { MailPieces } from "./mail-pieces";
+import { HistoriqueAnnulable } from "@/modules/assistant-ia/ecrans/barre-annulation";
 import { EntityLinks } from "@/components/shared/entity-links";
 import { linksOf, linkedViews } from "@/lib/links/store";
 import { getMyCompanies, companyLabel } from "@/lib/company";
@@ -253,6 +254,9 @@ export default async function MailEntryPage(props: { params: Promise<{ id: strin
             canEdit={canEdit}
             emptyHint="Aucun lien. Reliez ce pli aux affaires qu'il concerne (marché, contrat, bon de commande, facture, dossier) — elles l'afficheront dans leur fiche."
           />
+
+          {/* K10b (décision 0038) : les gestes faits sur ce pli, chacun annulable (et rétablissable). */}
+          <HistoriqueAnnulable modele="MailEntry" id={entry.id} />
 
           <Card>
             <CardHeader>

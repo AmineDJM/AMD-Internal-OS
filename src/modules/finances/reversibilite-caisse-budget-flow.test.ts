@@ -2,11 +2,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
-const COOKIES: Record<string, string> = {};
-vi.mock("next/headers", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  cookies: async () => ({ set: (k: string, v: string) => { COOKIES[k] = v; }, get: () => undefined }),
-}));
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -16,6 +11,7 @@ vi.mock("@/lib/session", async (orig) => ({
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
+import { retablirGeste } from "@/lib/effets/retablissement";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import {
   allotPettyCash, annulerRallongeCaisse, closePettyCash, confirmPettyCashReceipt, decidePettyCashTopUp, nextRechargeFor,
@@ -59,7 +55,7 @@ async function acteur(id: string, role: SessionUser["role"]): Promise<CurrentUse
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * CAISSE D'AVANCE, BUDGETS, PAIE : RÉVERSIBLES PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0039).
+ * CAISSE D'AVANCE, BUDGETS, PAIE : RÉVERSIBLES PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0040).
  *
  * Même protocole que `reversibilite-argent-flow.test.ts` : exécuter l'action de l'écran, relire, annuler le geste
  * journalisé, vérifier l'état d'avant (ou la compensation), et que rien d'autre que la poussée partie ne reste
@@ -149,7 +145,7 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     expect(await prisma.pettyCashAllotment.findUnique({ where: { id: remise.id } })).toBeNull();
     expect(await prisma.expenseOrder.findUnique({ where: { id: remise.expenseOrderId! } })).toBeNull();
     // RÉTABLIR : la remise et son ordre reviennent, même identifiants.
-    const re = await annulerGeste(c.retablirGesteId!, ACTOR!);
+    const re = await retablirGeste(c.gesteId, ACTOR!);
     expect("refus" in re ? re.refus : bloquants(re)).toEqual([]);
     expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } })).expenseOrderId).toBe(remise.expenseOrderId);
   });
@@ -157,14 +153,15 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
   it("CASCADE — la remise VERSÉE par le centre (un autre geste) puis annulée : refus dit, ligne par ligne, et rien d'incohérent", async () => {
     await commeSa();
     const remise = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: dept } });
-    const gesteRemise = await prisma.assistantGesteJournal.findFirstOrThrow({ where: { principalId: u.sa, origine: "annulation", annuleLe: null }, orderBy: { creeLe: "desc" } });
+    // Le geste de la remise, RÉTABLI au cas précédent : il se ré-annule (K10b).
+    const gesteRemise = await prisma.assistantGesteJournal.findFirstOrThrow({ where: { principalId: u.sa, capaciteId: "petty-cash-actions:allotPettyCash", annuleLe: null }, orderBy: { creeLe: "desc" } });
     ACTOR = await acteur(u.pdg, "DIRECTION");
     const d = await decidePayment(fd({ id: remise.expenseOrderId!, decision: "APPROVE" }));
     expect(d.ok, d.error).toBe(true);
     const versee = await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } });
     expect(versee.status).toBe("RECEIVED");
     const ordreAvant = await prisma.expenseOrder.findUniqueOrThrow({ where: { id: remise.expenseOrderId! } });
-    // Le Super Admin défait le RÉTABLISSEMENT de la remise (qui l'a recréée) : elle a vécu depuis — versée par le centre.
+    // Le Super Admin annule de nouveau la remise rétablie : elle a vécu depuis — versée par le centre.
     await commeSa();
     const c = await annulerGeste(gesteRemise.id, ACTOR!);
     if ("refus" in c) throw new Error(c.refus);

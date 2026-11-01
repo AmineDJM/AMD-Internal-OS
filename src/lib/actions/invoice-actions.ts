@@ -73,7 +73,7 @@ function readFields(formData: FormData) {
 export async function createInvoice(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> { return annulable("compensation", "Enregistrer une facture", async () => {
+): Promise<ActionResult> { return annulable("invoice-actions:createInvoice", "Enregistrer une facture", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "CREATE")) return { ok: false, error: "Non autorisé." };
 
@@ -164,7 +164,7 @@ async function laFacture(id: string) {
   return doc && doc.kind === "INVOICE" ? doc : null;
 }
 
-export async function updateInvoice(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Modifier une facture", async () => {
+export async function updateInvoice(formData: FormData): Promise<ActionResult> { return annulable("invoice-actions:updateInvoice", "Modifier une facture", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");
@@ -211,7 +211,7 @@ export async function updateInvoice(formData: FormData): Promise<ActionResult> {
  * (`sourceType = PCH_ORDER`) qui la fait apparaître sous SON bon dans la fiche marché, et qui
  * répond à « quelle facture correspond à quel BC ».
  */
-export async function setInvoiceOrder(formData: FormData): Promise<ActionResult> { return annulable("retour", "Rattacher une facture à un ordre", async () => {
+export async function setInvoiceOrder(formData: FormData): Promise<ActionResult> { return annulable("invoice-actions:setInvoiceOrder", "Rattacher une facture à un ordre", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");
@@ -241,7 +241,7 @@ export async function setInvoiceOrder(formData: FormData): Promise<ActionResult>
 }); }
 
 /** Marquer réglée / à régler depuis la ligne du tableau — le geste le plus fréquent. */
-export async function setInvoicePaid(input: { id: string; paidDate: string | null }): Promise<ActionResult> { return annulable("compensation", "Marquer une facture payée", async () => {
+export async function setInvoicePaid(input: { id: string; paidDate: string | null }): Promise<ActionResult> { return annulable("invoice-actions:setInvoicePaid", "Marquer une facture payée", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(input.id);
@@ -274,7 +274,7 @@ export async function setInvoicePaid(input: { id: string; paidDate: string | nul
   return { ok: true };
 }); }
 
-export async function deleteInvoice(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Supprimer facture", async () => {
+export async function deleteInvoice(formData: FormData): Promise<ActionResult> { return annulable("invoice-actions:deleteInvoice", "Supprimer facture", async () => {
   const user = await requireUser();
   if (!peutEcrire(user, "DELETE")) return { ok: false, error: "Non autorisé." };
   const doc = await laFacture(fdStr(formData, "id") ?? "");

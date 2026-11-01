@@ -1,12 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import type { DetailEffet } from "./annulation";
-import type { EcritureCapturee } from "./magasin";
 import { infoModele, type InfoModele } from "./modeles";
-import { serialiserLigne, valeurLisible } from "./valeurs";
+import { valeurLisible } from "./valeurs";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * L'ARGENT NE S'EFFACE PAS : IL SE COMPENSE (lot K10a, décision 0039) — la politique « argent » de l'annulation J7.
+ * L'ARGENT NE S'EFFACE PAS : IL SE COMPENSE (lot K10a, décision 0040) — la politique « argent » de l'annulation J7.
  *
  * « Toutes les actions sont réversibles » (Direction, 31/10/2026). Pour l'argent, réversible ne veut jamais dire
  * effacé : une écriture de trésorerie est un fait du livre. Défaire le geste qui l'a posée écrit une ligne DE PLUS,
@@ -53,7 +52,6 @@ export interface OutilsArgent {
   acteurId: string;
   lire: (info: InfoModele, id: string) => Promise<Record<string, unknown> | null>;
   ecrireVerrouille: (info: InfoModele, id: string, verifier: (relue: Record<string, unknown> | null) => boolean, ecrire: (t: Record<string, unknown>) => Promise<unknown>) => Promise<boolean>;
-  noter: (e: EcritureCapturee) => void;
 }
 
 type Tx = Prisma.TransactionClient;
@@ -81,10 +79,8 @@ export async function defaireEcritureTresorerie(e: { modele: string | null; oper
   if (actuelle.status === "CANCELLED") return { ...base, issue: "SANS_OBJET", pourquoi: "l'écriture est déjà annulée" };
   if (actuelle.status === "PENDING") {
     if (o.appliquer) {
-      const fait = await o.ecrireVerrouille(info, id, (r) => r?.status === "PENDING", async (t) => {
-        const apres = await (t as unknown as Tx).financeTransaction.update({ where: { id }, data: { status: "CANCELLED" } });
-        o.noter({ modele: "FinanceTransaction", operation: "UPDATE", id, avant: actuelle, apres: serialiserLigne(apres, new Set(info.scalaires)), champs: ["status"] });
-      });
+      const fait = await o.ecrireVerrouille(info, id, (r) => r?.status === "PENDING",
+        (t) => (t as unknown as Tx).financeTransaction.update({ where: { id }, data: { status: "CANCELLED" } }));
       if (!fait) return { ...base, issue: "IMPOSSIBLE", pourquoi: "son statut a changé au moment même de l'annulation : laissée telle quelle", aLaPlace: "la reprendre depuis la Trésorerie" };
     }
     return { ...base, issue: "COMPENSE", pourquoi: "écriture prévue, jamais réalisée : passée à « annulée », la trace reste (le solde n'avait pas bougé)" };
@@ -95,14 +91,13 @@ export async function defaireEcritureTresorerie(e: { modele: string | null; oper
     ? `le décaissement de ${valeurLisible(montant)} DZD a pu réellement partir : il reste au livre, et une écriture « à récupérer » (encaissement prévu, même compte) le compense — recouvrée, ou si rien n'était parti, passez-la à « réalisé » : elle le neutralise`
     : `contre-passée : une écriture inverse de ${valeurLisible(-montant)} DZD, datée du jour et liée, ramène le solde ; les deux lignes restent au livre`;
   if (o.appliquer) {
-    let creee: Record<string, unknown> | null = null;
     const fait = await o.ecrireVerrouille(info, id, (r) => r?.status === "SETTLED", async (t) => {
       const tx = t as unknown as Tx;
       if (await tx.financeTransaction.count({ where: { compensationDeId: id, status: { not: "CANCELLED" } } })) throw new Error("déjà compensée");
       // La ligne RELUE sous le verrou, dans ses types (montant décimal, dates) : la compensation en recopie le compte.
       const a = await tx.financeTransaction.findUniqueOrThrow({ where: { id } });
       const ref = await referenceLibre(tx, `${a.reference}-${SUFFIXE[nature]}`);
-      const ligne = await tx.financeTransaction.create({
+      await tx.financeTransaction.create({
         data: {
           reference: ref, date: new Date(), category: a.category, method: a.method,
           direction: nature === "A_RECUPERER" ? "IN" : a.direction,
@@ -116,10 +111,56 @@ export async function defaireEcritureTresorerie(e: { modele: string | null; oper
           createdById: o.acteurId, compensationDeId: id, compensation: nature,
         },
       });
-      creee = serialiserLigne(ligne as unknown as Record<string, unknown>, new Set(info.scalaires));
     });
     if (!fait) return { ...base, issue: "IMPOSSIBLE", pourquoi: "l'écriture a changé de statut ou est déjà compensée au moment même de l'annulation : rien n'est écrit", aLaPlace: "voir la Trésorerie" };
-    if (creee) o.noter({ modele: "FinanceTransaction", operation: "CREATE", id: String((creee as Record<string, unknown>).id), avant: null, apres: creee, champs: Object.keys(creee).sort() });
   }
   return { ...base, issue: "COMPENSE", pourquoi: phrase };
+}
+
+/**
+ * RÉTABLIR UNE ÉCRITURE COMPENSÉE (K10a, avec `retablissement.ts` de K10b) — l'annulation l'avait laissée au livre et
+ * avait écrit une ligne de plus ; rétablir écrit encore une ligne de plus, jamais un effacement :
+ *   • elle avait été passée à `CANCELLED` (prévue) → son statut d'avant lui est rendu ;
+ *   • « à récupérer » encore prévu → passé à `CANCELLED` (le paiement redevient un paiement) ;
+ *   • contre-passation → contre-passée à son tour (le solde redescend, trois lignes au livre).
+ * `null` : ce n'est pas une écriture de trésorerie (la règle générale de K10b s'applique).
+ */
+export async function retablirEcritureTresorerie(
+  e: { modele: string | null; operation: string | null; enregistrementId: string | null; apres: unknown },
+  o: Pick<OutilsArgent, "acteurId" | "ecrireVerrouille">,
+): Promise<{ ok: boolean; pourquoi: string } | null> {
+  if (e.modele !== "FinanceTransaction" || e.operation !== "CREATE" || !e.enregistrementId) return null;
+  const info = infoModele("FinanceTransaction")!;
+  const id = e.enregistrementId;
+  let pourquoi = "";
+  const fait = await o.ecrireVerrouille(info, id, (r) => !!r, async (t) => {
+    const tx = t as unknown as Tx;
+    const a = await tx.financeTransaction.findUniqueOrThrow({ where: { id } });
+    const statutAvant = String(((e.apres ?? {}) as Record<string, unknown>).status ?? "SETTLED") as "PENDING" | "SETTLED";
+    if (a.status === "CANCELLED") {
+      await tx.financeTransaction.update({ where: { id }, data: { status: statutAvant } });
+      pourquoi = "rétablie : son statut d'avant l'annulation lui est rendu";
+      return;
+    }
+    const comp = await tx.financeTransaction.findFirst({ where: { compensationDeId: id, status: { not: "CANCELLED" } }, orderBy: { createdAt: "desc" } });
+    if (!comp) throw new Error("aucune compensation vivante");
+    if (comp.compensation === "A_RECUPERER") {
+      if (comp.status !== "PENDING") throw new Error("déjà recouvrée");
+      await tx.financeTransaction.update({ where: { id: comp.id }, data: { status: "CANCELLED" } });
+      pourquoi = `rétablie : l'écriture « à récupérer » ${comp.reference} est annulée — le décaissement redevient le paiement de l'ordre`;
+      return;
+    }
+    await tx.financeTransaction.create({
+      data: {
+        reference: await referenceLibre(tx, `${comp.reference}-CP`), date: new Date(), category: comp.category, method: comp.method,
+        direction: comp.direction, amount: comp.amount.negated(), status: "SETTLED", label: `Contre-passation — ${comp.label}`.slice(0, 300),
+        account: comp.account, counterparty: comp.counterparty, invoiceRef: comp.invoiceRef, companyId: comp.companyId,
+        employeeId: comp.employeeId, budgetCategoryId: comp.budgetCategoryId, treasuryAccountId: comp.treasuryAccountId,
+        notes: `Rétablissement : la contre-passation ${comp.reference} est contre-passée (${a.reference} vaut de nouveau).`,
+        createdById: o.acteurId, compensationDeId: comp.id, compensation: "CONTRE_PASSATION",
+      },
+    });
+    pourquoi = `rétablie : la contre-passation ${comp.reference} est contre-passée à son tour — le solde redescend, les lignes restent au livre`;
+  });
+  return fait ? { ok: true, pourquoi } : { ok: false, pourquoi: "l'écriture ou sa compensation a bougé depuis l'annulation (recouvrée, annulée à la main) : rien n'est réécrit" };
 }

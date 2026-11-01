@@ -29,8 +29,6 @@ export interface ContratLu {
   modelesEcrits: readonly string[];
   audit: boolean;
   illisible: string | null;
-  /** Déclarée réversible par son enrobage (`annulable`, K10a) — prime sur la nature lue. */
-  annulable?: "retour" | "compensation" | null;
 }
 
 /**
@@ -71,6 +69,8 @@ export interface PortsRegistre<C extends ContratLu = ContratLu> {
   classerGeste: (nature: NatureGesteLue) => VerdictLu;
   /** Les modules RBAC et leur libellé (`MODULE_LABELS`) — pour lire la porte d'une action qui ne la nomme pas. */
   modules: Readonly<Record<string, string>>;
+  /** K10 (décision 0038) : l'annulation DÉCLARÉE d'une action que l'ERP a rendue réversible (`lib/effets/declarations.ts`). */
+  annulationDeclaree?: (c: C) => { annulation: Annulation; raison: string } | null;
 }
 
 /** Un outil existant de l'Assistant IA, décrit par le module (le socle ne l'importe pas). */

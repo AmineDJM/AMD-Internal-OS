@@ -2,11 +2,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
-const COOKIES: Record<string, string> = {};
-vi.mock("next/headers", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  cookies: async () => ({ set: (k: string, v: string) => { COOKIES[k] = v; }, get: () => undefined }),
-}));
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -16,8 +11,9 @@ vi.mock("@/lib/session", async (orig) => ({
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
+import { retablirGeste } from "@/lib/effets/retablissement";
+import { gestesRecents } from "@/lib/effets/ecran";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
-import { COOKIE_GESTE_ANNULABLE, lireGesteAnnulable } from "@/lib/effets/ecran-ui";
 import {
   createQuickIncome, createTransaction, deleteTransaction, deleteTreasuryAccount, modifierCompteTresorerie,
   setTreasuryOpeningBalance, updateTransaction, updateTransactionStatus,
@@ -43,7 +39,7 @@ const fd = (champs: Record<string, string>) => {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * L'ARGENT RÉVERSIBLE, PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0039).
+ * L'ARGENT RÉVERSIBLE, PAR LES VRAIS POINTS D'ENTRÉE (lot K10a, décision 0040).
  *
  * Chaque cas EXÉCUTE l'action de l'écran (session d'une vraie personne, base locale), relit le geste que le journal
  * des effets a gardé, l'ANNULE par l'annulation J7, et vérifie l'état : données, solde, journal, audit. L'argent ne
@@ -107,10 +103,10 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
     const r = await createTransaction(undefined, fd({ label: `${TAG} loyer`, amount: "50000", category: "AUTRE", direction: "OUT", companyId: soc, treasuryAccountId: compte }));
     expect(r.ok, r.error).toBe(true);
     expect(await soldeDuCompte()).toBe(avant - 50_000);
-    // Le bandeau « Annuler » : un témoin court qui nomme le geste.
-    const temoin = lireGesteAnnulable(`${COOKIE_GESTE_ANNULABLE}=${COOKIES[COOKIE_GESTE_ANNULABLE]}`);
-    expect(temoin?.libelle).toBe("Saisir une écriture de trésorerie");
-    expect(temoin?.id).toBe((await dernierGeste()).id);
+    // La barre « Annuler » (K10b) le propose : le geste porte son action et sa phrase.
+    const g0 = await dernierGeste();
+    expect([g0.capaciteId, g0.libelle, g0.origine]).toEqual(["finance-actions:createTransaction", "Saisir une écriture de trésorerie", "ecran"]);
+    expect((await gestesRecents(ACTOR!)).map((x) => x.id)).toContain(g0.id);
 
     const compteRendu = await annulerDernier();
     expect(compteRendu.compte.COMPENSE).toBe(1);
@@ -125,9 +121,8 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
     expect(await prisma.auditLog.count({ where: { actorId: u.sa, module: "ASSISTANT_IA", entityId: compteRendu.gesteId } })).toBe(1);
 
     // RÉTABLIR = annuler l'annulation : la contre-passation est contre-passée, le solde redescend.
-    expect(compteRendu.retablirGesteId).toBeTruthy();
-    const retabli = await annulerGeste(compteRendu.retablirGesteId!, ACTOR!);
-    expect("refus" in retabli ? retabli.refus : retabli.compte.COMPENSE).toBe(1);
+    const retabli = await retablirGeste(compteRendu.gesteId, ACTOR!);
+    expect("refus" in retabli ? retabli.refus : retabli.compte.ANNULE).toBe(1);
     expect(await soldeDuCompte()).toBe(avant - 50_000);
   });
 
@@ -191,7 +186,7 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
     expect([ar.compensation, ar.direction, ar.status, Number(ar.amount)]).toEqual(["A_RECUPERER", "IN", "PENDING", 20_000]);
     expect(await soldeDuCompte()).toBe(avant - 20_000);
 
-    const retabli = await annulerGeste(c.retablirGesteId!, ACTOR!);
+    const retabli = await retablirGeste(c.gesteId, ACTOR!);
     expect("refus" in retabli ? retabli.refus : bloquants(retabli)).toEqual([]);
     expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: o.id } })).status).toBe("PAID");
     expect((await prisma.financeTransaction.findUniqueOrThrow({ where: { id: ar.id } })).status).toBe("CANCELLED");
@@ -206,8 +201,8 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
     expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: o.id } })).deferredUntil).not.toBeNull();
     const c = await annulerDernier();
     expect(bloquants(c)).toEqual([]);
-    // La poussée partie sur le téléphone ne se reprend pas : le compte rendu le DIT (la fenêtre d'envoi est K10b).
-    expect(c.details.find((d) => /^notification poussée/.test(d.quoi))?.issue).toBe("IMPOSSIBLE");
+    // La poussée attendait sa FENÊTRE D'ANNULATION (K10b) : annulée dans la fenêtre, elle n'est jamais partie.
+    expect(c.details.find((d) => /^notification poussée/.test(d.quoi))?.issue).toBe("ANNULE");
     expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: o.id } })).deferredUntil).toBeNull();
     await deferExpenseOrder(fd({ id: o.id, until: "2027-03-01", reason: "trésorerie tendue" }));
     const l = await resumeExpenseOrder(fd({ id: o.id }));

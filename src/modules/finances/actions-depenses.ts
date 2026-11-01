@@ -35,7 +35,7 @@ async function lienDuDossierDeLOrdre(orderId: string): Promise<string> {
 }
 
 /** Comptable settles an ordre de dépense → generates the treasury OUT entry and marks the source paid. */
-export async function settleExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Régler un ordre de dépense", async () => {
+export async function settleExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:settleExpenseOrder", "Régler un ordre de dépense", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
@@ -329,7 +329,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
  * Un ordre EN COURS (à régler, révision demandée) n'est jamais touché : vider l'historique ne doit pas
  * pouvoir faire disparaître un paiement qui attend.
  */
-export async function purgeSettledExpenseOrders(): Promise<ActionResult> { return annulable("retour", "Masquer les ordres réglés de l'historique", async () => {
+export async function purgeSettledExpenseOrders(): Promise<ActionResult> { return annulable("expense-actions:purgeSettledExpenseOrders", "Masquer les ordres réglés de l'historique", async () => {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
 
@@ -348,7 +348,7 @@ export async function purgeSettledExpenseOrders(): Promise<ActionResult> { retur
 }); }
 
 /** Le comptable demande la facture au demandeur (dépense événementielle sans facture). */
-export async function requestInvoice(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Demander facture", async () => {
+export async function requestInvoice(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:requestInvoice", "Demander facture", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE") && !hasGlobalView(user.role)) return { ok: false, error: "Réservé à la comptabilité (Finances)." };
   const id = fdStr(formData, "id");
@@ -397,7 +397,7 @@ export async function requestInvoice(formData: FormData): Promise<ActionResult> 
  * veto : les Finances peuvent devoir décaler, et personne ne peut le leur interdire depuis un
  * formulaire. C'est la trace que le demandeur relira quand il devra expliquer le retard.
  */
-export async function deferExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("retour", "Reporter un ordre de dépense", async () => {
+export async function deferExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:deferExpenseOrder", "Reporter un ordre de dépense", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
@@ -448,7 +448,7 @@ export async function deferExpenseOrder(formData: FormData): Promise<ActionResul
  * Ce n'est pas un quatrième geste : c'est le retour au premier des trois états. Sans lui, une
  * date saisie trop loin ne pourrait plus être corrigée qu'en attendant qu'elle arrive.
  */
-export async function resumeExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("retour", "Lever le report d'un ordre de dépense", async () => {
+export async function resumeExpenseOrder(formData: FormData): Promise<ActionResult> { return annulable("expense-actions:resumeExpenseOrder", "Lever le report d'un ordre de dépense", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };

@@ -73,7 +73,7 @@ export async function apercuFichiersVentesPch(formData: FormData): Promise<Resul
 export type ResultatImport = { ok: true; resultats: { nomFichier: string; message: string; ok: boolean }[] } | { ok: false; error: string };
 
 /** APPLIQUER : idempotent (le même fichier ne fait rien), chaque mois du fichier remplace le même mois de sa source. */
-export async function appliquerFichiersVentesPch(formData: FormData): Promise<ResultatImport> { return annulable("retour", "Appliquer fichiers ventes PCH", async () => {
+export async function appliquerFichiersVentesPch(formData: FormData): Promise<ResultatImport> { return annulable("ventes-pch-actions:appliquerFichiersVentesPch", "Appliquer fichiers ventes PCH", async () => {
   const { user, refus } = await exiger("UPLOAD");
   if (refus) return { ok: false, error: refus };
   const fichiers = fichiersDe(formData);
@@ -99,7 +99,7 @@ export async function appliquerFichiersVentesPch(formData: FormData): Promise<Re
 }); }
 
 /** « Ce client de la PCH est cet établissement » (vide = détacher) — toutes ses lignes suivent, mémorisé. */
-export async function rattacherEtablissementVentesPch(formData: FormData): Promise<ActionResult> { return annulable("retour", "Rattacher établissement ventes PCH", async () => {
+export async function rattacherEtablissementVentesPch(formData: FormData): Promise<ActionResult> { return annulable("ventes-pch-actions:rattacherEtablissementVentesPch", "Rattacher établissement ventes PCH", async () => {
   const { user, refus } = await exiger("UPDATE");
   if (refus) return { ok: false, error: refus };
   const cle = fdStr(formData, "cle");
@@ -113,7 +113,7 @@ export async function rattacherEtablissementVentesPch(formData: FormData): Promi
 }); }
 
 /** « Ce poste PCH est ce produit » (vide = aucun des nôtres) — fait à la main, il ne bougera plus. */
-export async function rattacherPosteVentesPch(formData: FormData): Promise<ActionResult> { return annulable("retour", "Rattacher poste ventes PCH", async () => {
+export async function rattacherPosteVentesPch(formData: FormData): Promise<ActionResult> { return annulable("ventes-pch-actions:rattacherPosteVentesPch", "Rattacher poste ventes PCH", async () => {
   const { user, refus } = await exiger("UPDATE");
   if (refus) return { ok: false, error: refus };
   const poste = fdNum(formData, "poste");
@@ -127,7 +127,7 @@ export async function rattacherPosteVentesPch(formData: FormData): Promise<Actio
 }); }
 
 /** Un fournisseur PCH « à nous » pour un produit — ses réceptions FO deviennent notre sell-in (ou cessent de l'être). */
-export async function reglerFournisseurVentesPch(formData: FormData): Promise<ActionResult> { return annulable("retour", "Régler un fournisseur des ventes PCH", async () => {
+export async function reglerFournisseurVentesPch(formData: FormData): Promise<ActionResult> { return annulable("ventes-pch-actions:reglerFournisseurVentesPch", "Régler un fournisseur des ventes PCH", async () => {
   const { user, refus } = await exiger("UPDATE");
   if (refus) return { ok: false, error: refus };
   const productId = fdStr(formData, "productId");
@@ -142,7 +142,7 @@ export async function reglerFournisseurVentesPch(formData: FormData): Promise<Ac
 }); }
 
 /** Le libellé et les wilayas d'une direction régionale de la PCH. */
-export async function enregistrerDrVentesPch(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Enregistrer une DR des ventes PCH", async () => {
+export async function enregistrerDrVentesPch(formData: FormData): Promise<ActionResult> { return annulable("ventes-pch-actions:enregistrerDrVentesPch", "Enregistrer une DR des ventes PCH", async () => {
   const { user, refus } = await exiger("UPDATE");
   if (refus) return { ok: false, error: refus };
   const code = fdStr(formData, "code");

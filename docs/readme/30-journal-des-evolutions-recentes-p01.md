@@ -4,12 +4,12 @@
 
 « Toute action qui a été faite peut être réversible » (Direction). Les 62 actions d'argent classées « sans annulation »
 (finance, trésorerie, paiements, caisse, paie, factures, budgets, fournisseurs) — et 45 autres des mêmes fichiers — se
-défont désormais d'un geste : le journal des effets J7 s'ouvre aux actions faites à l'écran (`annulable`), un bandeau
-« Annuler » apparaît deux minutes après l'action (puis l'historique `/assistant/gestes`), et le compte rendu dit effet par
+défont désormais d'un geste : le journal des effets J7 s'ouvre aux actions faites à l'écran (`annulable` sur `gesteReversible`
+de K10b), la barre « Annuler » de K10b les propose (puis l'historique de la fiche), et le compte rendu dit effet par
 effet ce qui est défait, compensé ou impossible. **Rien ne s'efface dans le livre** : une écriture réalisée est
 contre-passée (montant opposé, datée, liée), un paiement parti laisse une écriture « à récupérer », l'ordre redevient
-dû ; l'annulation se rétablit. Migration `20270217110000_k10a_compensation_ecritures`. Décision
-[0039](../assistant/decisions/0039-argent-reversible.md).
+dû ; l'annulation se rétablit. Migration `20270217120000_k10a_compensation_ecritures`. Décision
+[0040](../assistant/decisions/0040-argent-reversible.md).
 
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 

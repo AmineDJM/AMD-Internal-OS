@@ -32,7 +32,7 @@ import { annulable } from "@/lib/effets/ecran";
  * répondent ensemble ne réancrent pas deux fois le même compte.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export async function repondreActualisationSoldes(formData: FormData): Promise<ActionResult> { return annulable("retour", "Répondre à l'actualisation des soldes", async () => {
+export async function repondreActualisationSoldes(formData: FormData): Promise<ActionResult> { return annulable("actualisation-soldes-actions:repondreActualisationSoldes", "Répondre à l'actualisation des soldes", async () => {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Actualiser un solde demande le droit « Modifier » des Finances." };
   const id = fdStr(formData, "id");

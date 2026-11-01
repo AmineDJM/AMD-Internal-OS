@@ -1,4 +1,4 @@
-# 0039 — L'argent réversible : journal J7 ouvert à l'écran, contre-passation, « à récupérer », rétablir (lot K10a, 31/10/2026)
+# 0040 — L'argent réversible : journal J7 ouvert à l'écran, contre-passation, « à récupérer », rétablir (lot K10a, 31/10/2026)
 
 Demande de la Direction (31/10/2026, verbatim) : « Je veux que toutes les actions soient réversibles. Même celles qui ne
 le sont pas : tu dois modifier l'ERP pour qu'elles le soient. Toute action qui a été faite peut être réversible. Ça doit
@@ -7,14 +7,14 @@ sécurité vient de la réversibilité. K10 est découpé en trois : **K10a l'ar
 effets sortants et suppressions, K10c le reste. Suit [0029](0029-simulation-annulation.md) (journal des effets,
 annulation honnête) — **aucun second mécanisme** : tout passe par `annulerGeste`.
 
-> Code : `src/lib/effets/ecran.ts` (`annulable`), `ecran-ui.ts` (témoin du bandeau, pur), `argent.ts` (politique
-> d'argent), `annulation.ts` (levées K10a, notes, enfants d'abord), `journal.ts` (`inscrireAnnulation`,
-> `seulementSiEcrit`), `capture.ts` (`updateMany` en transaction) ; contrat `annulable` (`lib/actions/contrat.ts`,
-> `contrat/types.ts`), registre (`platform/ia/capacites/{types,classement,registre}.ts`) ; bandeau
-> `components/layout/geste-annulable.tsx` (monté dans `app/(app)/layout.tsx`) ; action `annulerMonGeste`
-> (`modules/assistant-ia/actions-gestes.ts`, porte `porteDeLaPersonne`). Migration additive et idempotente
-> `20270217110000_k10a_compensation_ecritures` : `FinanceTransaction.compensationDeId` (lien, `SET NULL`) et
-> `FinanceTransaction.compensation` (`CONTRE_PASSATION` | `A_RECUPERER`).
+> Code : `src/lib/effets/argent.ts` (politique d'argent, rétablissement d'une écriture compensée),
+> `declarations/argent.ts` (la table du périmètre, fusionnée dans `declarations.ts` de K10b), `ecran.ts` (`annulable`,
+> fine enveloppe de session sur `gesteReversible` de K10b), `annulation.ts` (levées K10a, enfants d'abord, séries et
+> file d'indexation « sans objet »), `retablissement.ts` (crochet argent, parent d'abord), `capture.ts` (`updateMany` en
+> transaction). Migration additive et idempotente `20270217120000_k10a_compensation_ecritures` :
+> `FinanceTransaction.compensationDeId` (lien, `SET NULL`) et `FinanceTransaction.compensation`
+> (`CONTRE_PASSATION` | `A_RECUPERER`). Réconcilié avec K10b (décision 0038 : fenêtre d'annulation, barre « Annuler »,
+> rétablir, déclarations par périmètre) : un seul mécanisme.
 
 ## 1. La définition tenue
 
@@ -22,21 +22,18 @@ Une action est réversible quand la personne qui l'a faite (ou le Super Admin �
 et que l'ERP revient à l'état d'avant (**retour**) ou applique une **compensation** tracée quand l'effacement serait faux.
 Pour l'argent : **jamais d'effacement d'une écriture de trésorerie**. Une lecture (R0) n'a rien à défaire.
 
-## 2. Le journal J7, ouvert aux gestes de l'écran
+## 2. Le journal J7, ouvert aux gestes de l'écran (avec K10b)
 
-J7 journalisait les gestes de l'ASSISTANT ; un bouton de l'ERP ne laissait que son audit. `annulable(mode, libellé,
-corps)` enrobe le corps de l'action, **sur la ligne de sa signature** (aucune ligne ajoutée : `actions-demandes.ts` est à
-997/1000) :
+`gesteReversible(user, { capaciteId, libelle }, corps)` (K10b) exécute le corps sous le journal des effets (origine
+`ecran`). Les actions d'argent lisent la personne DANS leur corps (`requireUser`) : `annulable("fichier:fonction",
+libellé, corps)` lit la session et appelle `gesteReversible` — enrobage posé **sur la ligne de la signature** (aucune
+ligne ajoutée : `actions-demandes.ts` est à 997/1000). Sous une carte ou un travail de l'assistant, le geste se fond dans
+celui qui le contient ; sans session (tâche planifiée, `runPettyCashRechargeReminders`), l'action s'exécute telle quelle.
 
-- appelée par l'assistant (carte, travail, mandat, simulation) : déjà sous un geste capturé, elle s'y fond ;
-- appelée par l'écran : `journaliserGeste(origine "ecran")` au nom de la personne de la session ; un geste qui n'a rien
-  écrit (formulaire refusé) n'entre pas au journal (`seulementSiEcrit`) ; un témoin court (`amd-geste-annulable`, 120 s)
-  porte l'identifiant au bandeau ;
-- sans session (tâche planifiée, `runPettyCashRechargeReminders`) : exécutée telle quelle, sans journal (limite §6).
-
-Le **mode** est une déclaration lue par `actions:contrat` (champ `annulable`, regex sur le corps) : le registre classe
-l'action `retour` ou `compensation` (`annulationDeclaree`) au lieu de la déduire de sa nature (« argent » → « paiement
-exécuté » → « aucune »). L'enrobage EST la déclaration : une action ne peut pas se dire réversible sans être journalisée.
+La **déclaration** est une ligne de `declarations/argent.ts` (`retour`/journal, ou `compensation`/compensation-metier ;
+`nextRechargeFor`, lecture déguisée classée « argent » par son nom, est `sans-effet` et n'est pas enrobée) : le registre
+la lit par le port `annulationDeclaree`. Le cliquet exige, pour chaque action écrivante du périmètre, la ligne de la table
+ET l'enrobage sous son propre identifiant.
 
 ## 3. La politique d'argent (`argent.ts`)
 
@@ -51,13 +48,13 @@ exécuté » → « aucune »). L'enrobage EST la déclaration : une action ne p
 
 Une écriture déjà compensée, ou dont le statut a bougé sous le verrou, n'est pas recompensée (IMPOSSIBLE, rien d'écrit).
 
-## 4. Rétablir : l'annulation est un geste
+## 4. Rétablir
 
-Ce que l'annulation écrit (valeurs remises, lignes retirées ou recréées, contre-passations) est noté comme une capture et
-entre au journal (`inscrireAnnulation`, origine `annulation`). Le compte rendu porte `retablirGesteId` ; l'annuler,
-c'est **rétablir** par la même mécanique : la contre-passation est contre-passée, l'« à récupérer » annulé, « payé »
-remis, la ligne retirée recréée (même identifiant). On n'écrit jamais qu'une ligne de plus. L'audit garde chaque
-annulation (`ASSISTANT_IA`, qui, quand, résumé) et le geste son compte rendu.
+Rétablir est `retablirGeste` (K10b) : le compte rendu de l'annulation est rejoué, chaque effet sous verrou. Pour l'argent,
+un crochet (`retablirEcritureTresorerie`) écrit encore **une ligne de plus** : l'écriture prévue retrouve son statut,
+l'« à récupérer » encore prévu passe à `CANCELLED`, la contre-passation est contre-passée ; le statut « payé » de l'ordre
+revient par la règle générale. Les créations se refont **parent d'abord** (l'ordre avant la remise de caisse qui le
+pointe). Le geste rétabli se ré-annule ; l'audit garde annulation et rétablissement.
 
 ## 5. Cascades
 
@@ -67,12 +64,12 @@ annulation (`ASSISTANT_IA`, qui, quand, résumé) et le geste son compte rendu.
   touchée est **compensée** (`CANCELLED`, plus payable) ou **refusée avec la raison** (« modifiée depuis : … ») — jamais
   écrasée, jamais d'état incohérent (tests « CASCADE »).
 
-## 6. Le bandeau « Annuler » et l'assistant
+## 6. La barre « Annuler » et l'assistant
 
-Le bandeau (`GesteAnnulable`) lit le témoin chaque seconde, offre « Annuler » deux minutes, montre le compte rendu effet
-par effet (compensé / impossible + pourquoi), puis « Rétablir » ; « Historique » ouvre `/assistant/gestes` (les gestes
-d'écran y figurent, origine `ecran`). `annulerMonGeste` n'exige pas le module Assistant IA : la personne défait SON geste.
-Il est **hors assistant** (comme les autres actions de `assistant-ia-gestes-actions`) — voir §8.
+La barre « Annuler » de l'ERP et l'historique de la fiche sont ceux de K10b (`barre-annulation.tsx`, `HistoriqueAnnulable`,
+actions `annulerMonGeste` / `retablirMonGeste`) : chaque action d'argent y apparaît avec sa phrase (`capaciteId`,
+libellé). Les notifications poussées attendent la **fenêtre d'annulation** de K10b : annulées dans la fenêtre, rien n'est
+parti (vérifié par le test « reporter un ordre »).
 
 ## 7. Le périmètre et sa mesure
 
@@ -87,13 +84,11 @@ Il est **hors assistant** (comme les autres actions de `assistant-ia-gestes-acti
 
 ## 8. Limites et décisions à rappeler à la Direction
 
-1. **Effets sortants** : la notification POUSSÉE partie sur le téléphone ne se reprend pas — le compte rendu le dit
-   (« impossible : envoyer un rectificatif »). Aucune action du périmètre n'appelle un canal sortant directement : la
-   fenêtre d'envoi différé de K10b (sur les ports `push`/`mail`) s'appliquera sans changement ici.
+1. **Effets sortants** : aucune action du périmètre n'appelle un canal sortant directement ; leurs notifications passent
+   par la fenêtre d'annulation de K10b (annulée dans la fenêtre : rien n'est parti ; après : la compensation dite).
 2. **Payé par erreur ou réellement payé ?** L'ERP ne le sait pas. Choix tenu : « à récupérer » (ce que la Direction a
    demandé) ; si rien n'était parti, passer l'« à récupérer » à « réalisé » le neutralise. À confirmer.
-3. **Durée du bandeau** : 2 minutes, constante (`DUREE_BANDEAU_SECONDES`) ; l'historique garde 180 jours. La fenêtre
-   d'annulation des effets sortants (réglable par le Super Admin) est celle de K10b.
+3. **Fenêtre et barre** : celles de K10b (réglables par le Super Admin, défaut 2 min) ; l'historique garde 180 jours.
 4. **Annuler par l'assistant** (écrit/oral) : la doctrine J7 « un assistant n'annule pas ses propres gestes » tient
    encore (`annulerMonGeste` exclu). Lever l'exclusion — ou donner à la voix un outil « annule ce que je viens de
    faire » — est une décision Direction / K9.

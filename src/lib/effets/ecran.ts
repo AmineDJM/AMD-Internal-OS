@@ -1,42 +1,86 @@
-import { cookies } from "next/headers";
-import { getCurrentUserPourEcrire } from "@/lib/session";
-import { COOKIE_GESTE_ANNULABLE, DUREE_BANDEAU_SECONDES, valeurGesteAnnulable } from "./ecran-ui";
+import { prismaBrut } from "@/lib/prisma";
+import { getCurrentUserPourEcrire, type CurrentUser } from "@/lib/session";
 import { journaliserGeste } from "./journal";
+import { etatDuGeste } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE ACTION DE L'ÉCRAN, RÉVERSIBLE (lot K10a, décision 0039) — le journal des effets J7, ouvert aux gestes de l'ERP.
+ * LE GESTE D'ÉCRAN RÉVERSIBLE (K10b, décision 0038) — « toute action peut être réversible », d'un bouton.
  *
- * « Toute action qui a été faite peut être réversible » (Direction, 31/10/2026). J7 savait défaire un geste de
- * l'ASSISTANT ; l'action faite au bouton, elle, ne laissait que son audit. `annulable` l'enrobe : elle s'exécute sous
- * le journal des effets (chaque écriture garde sa ligne avant et après), et le geste se défait par la MÊME annulation
- * honnête (`annulation.ts`, avec la politique d'argent de `argent.ts`) — pas un second mécanisme.
+ * `gesteReversible(user, { capaciteId, libelle }, geste)` exécute le corps d'une action de l'ERP SOUS LE JOURNAL DES
+ * EFFETS (J7) : chaque écriture garde sa ligne avant / après, chaque effet sortant attend sa FENÊTRE D'ANNULATION
+ * (`fenetre.ts`). L'action rend exactement ce qu'elle rendait ; le geste entre au journal avec l'origine `ecran`, et la
+ * barre « Annuler » de l'application (`ecrans/barre-annulation.tsx`) le propose aussitôt à la personne ; l'historique
+ * de la fiche (`gestesDeLaFiche`) le garde.
  *
- *   • appelée par l'assistant (carte, travail, mandat) : déjà sous un geste journalisé, elle s'y fond ;
- *   • appelée par l'écran : un geste d'origine `ecran`, au nom de la personne, et un témoin court pour le bandeau
- *     « Annuler » (`ecran-ui.ts`) ; l'historique « Ce que j'ai fait » le garde (`/assistant/gestes`).
- *
- * Le MODE est une déclaration lue par le contrat (`actions:contrat`, champ `annulable`) : le registre ne classe plus
- * l'action « aucune ». `retour` : ce qu'elle écrit se remet ; `compensation` : une part se compense (écriture inverse,
- * « à récupérer », statut annulé) parce que l'effacer serait faux.
+ * Sous une carte de l'assistant (ou un travail), le geste est déjà journalisé : rien n'est ouvert en double, ses
+ * écritures vont au geste qui le contient — l'annulation est la même.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export async function annulable<T>(mode: "retour" | "compensation", libelle: string, corps: () => Promise<T>): Promise<T> {
-  // Sans personne (tâche planifiée, banc qui ne fournit pas de session) : l'action s'exécute telle quelle, sans journal.
-  let user: Awaited<ReturnType<typeof getCurrentUserPourEcrire>> = null;
+
+export interface MetaGesteEcran {
+  /** L'action du contrat (`fichier:fonction`) — le registre la relie à sa déclaration d'annulation. */
+  capaciteId: string;
+  /** La phrase du geste, montrée dans la barre et l'historique : « Courrier enregistré », « Directive publiée ». */
+  libelle: string;
+}
+
+export async function gesteReversible<T>(user: CurrentUser | { id: string }, meta: MetaGesteEcran, geste: () => Promise<T>): Promise<T> {
+  // Une simulation (carte en préparation) ou un geste déjà journalisé : il n'ouvre rien.
+  if (etatDuGeste()?.capture) return geste();
+  const { resultat } = await journaliserGeste(user as CurrentUser, { origine: "ecran", capaciteId: meta.capaciteId, libelle: meta.libelle }, geste);
+  return resultat;
+}
+
+/**
+ * LE MÊME GESTE, PRIS DANS LA SESSION (K10a, décision 0040) — pour les actions d'argent, dont le corps lit la personne
+ * lui-même (`requireUser`) : `annulable("fichier:fonction", libellé, corps)` enrobe le corps SUR LA LIGNE DE SA SIGNATURE
+ * (aucune ligne ajoutée), lit la personne de la session et appelle `gesteReversible`. Sans personne (tâche planifiée,
+ * banc sans session) : l'action s'exécute telle quelle, sans journal. Le mode d'annulation est déclaré dans
+ * `declarations/argent.ts`, pas ici.
+ */
+export async function annulable<T>(capaciteId: string, libelle: string, corps: () => Promise<T>): Promise<T> {
+  let user: CurrentUser | null = null;
   try {
     user = await getCurrentUserPourEcrire();
   } catch {
     user = null; // hors requête : aucune session à lire — c'est attendu, pas une panne
   }
-  if (!user) return corps();
-  const { resultat, gesteId } = await journaliserGeste(user, { origine: "ecran", libelle }, corps, { seulementSiEcrit: true });
-  if (gesteId) {
-    try {
-      (await cookies()).set(COOKIE_GESTE_ANNULABLE, valeurGesteAnnulable({ id: gesteId, libelle, mode }), { path: "/", maxAge: DUREE_BANDEAU_SECONDES, sameSite: "lax" });
-    } catch {
-      // Hors requête (tâche planifiée, worker) : pas de bandeau, le geste reste à l'historique.
-    }
-  }
-  return resultat;
+  return user ? gesteReversible(user, { capaciteId, libelle }, corps) : corps();
+}
+
+export interface GesteEcranVu {
+  id: string;
+  libelle: string;
+  capaciteId: string | null;
+  quand: string;
+  resultat: string;
+  annuleLe: string | null;
+  /** Le compte rendu de la dernière annulation (ou du rétablissement), s'il y en a un. */
+  issue: string | null;
+}
+
+/** Les gestes RÉCENTS d'une personne (écran, cartes) — la barre « Annuler » de l'application. */
+export async function gestesRecents(user: CurrentUser, minutes = 10): Promise<GesteEcranVu[]> {
+  const gestes = await prismaBrut.assistantGesteJournal.findMany({
+    where: { principalId: user.id, resultat: "FAIT", creeLe: { gte: new Date(Date.now() - minutes * 60_000) }, effets: { some: {} } },
+    orderBy: { creeLe: "desc" }, take: 5,
+    select: { id: true, libelle: true, capaciteId: true, creeLe: true, resultat: true, annuleLe: true, annulation: true },
+  });
+  return gestes.map(vue);
+}
+
+/** L'HISTORIQUE D'UNE FICHE — les gestes journalisés qui ont touché cette ligne (le plus récent d'abord). */
+export async function gestesDeLaFiche(user: CurrentUser, modele: string, id: string): Promise<GesteEcranVu[]> {
+  const gestes = await prismaBrut.assistantGesteJournal.findMany({
+    where: { ...(user.role === "SUPER_ADMIN" ? {} : { principalId: user.id }), effets: { some: { modele, enregistrementId: id } } },
+    orderBy: { creeLe: "desc" }, take: 20,
+    select: { id: true, libelle: true, capaciteId: true, creeLe: true, resultat: true, annuleLe: true, annulation: true },
+  });
+  return gestes.map(vue);
+}
+
+function vue(g: { id: string; libelle: string; capaciteId: string | null; creeLe: Date; resultat: string; annuleLe: Date | null; annulation: unknown }): GesteEcranVu {
+  const a = g.annulation as { resume?: string } | null;
+  return { id: g.id, libelle: g.libelle, capaciteId: g.capaciteId, quand: g.creeLe.toISOString(), resultat: g.resultat, annuleLe: g.annuleLe?.toISOString() ?? null, issue: a?.resume ?? null };
 }

@@ -90,7 +90,7 @@ async function validerValideurs(ids: string[]): Promise<string[]> {
 // ─────────────────────────────── La campagne ───────────────────────────────
 
 /** Crée une campagne (brouillon) et la proposition de chaque pôle choisi. */
-export async function creerCampagne(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Créer campagne", async () => {
+export async function creerCampagne(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:creerCampagne", "Créer campagne", async () => {
   const user = await requireUser();
   if (!userCan(user, "BUDGET_CAMPAIGN", "CREATE")) return NON_AUTORISE;
   const year = fdNum(formData, "year");
@@ -134,7 +134,7 @@ export async function creerCampagne(formData: FormData): Promise<ActionResult> {
 }); }
 
 /** Règle une campagne (dates, valideurs, seuil, cadrage pour qui le voit, rectificatif pour le Super Admin). */
-export async function modifierCampagne(formData: FormData): Promise<ActionResult> { return annulable("retour", "Modifier campagne", async () => {
+export async function modifierCampagne(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:modifierCampagne", "Modifier campagne", async () => {
   const user = await requireUser();
   if (!userCan(user, "BUDGET_CAMPAIGN", "UPDATE")) return NON_AUTORISE;
   const id = fdStr(formData, "id");
@@ -180,7 +180,7 @@ export async function modifierCampagne(formData: FormData): Promise<ActionResult
 }); }
 
 /** Fait avancer (ou reculer d'un pas) la campagne. Ouvrir prévient chaque pôle ; clore ouvre les enveloppes validées. */
-export async function changerStatutCampagne(formData: FormData): Promise<ActionResult> { return annulable("retour", "Changer statut campagne", async () => {
+export async function changerStatutCampagne(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:changerStatutCampagne", "Changer statut campagne", async () => {
   const user = await requireUser();
   if (!userCan(user, "BUDGET_CAMPAIGN", "UPDATE")) return NON_AUTORISE;
   const id = fdStr(formData, "id");
@@ -221,7 +221,7 @@ export async function changerStatutCampagne(formData: FormData): Promise<ActionR
 }); }
 
 /** Ajoute un pôle (un département de l'organigramme) à la campagne. */
-export async function ajouterPoleCampagne(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Ajouter pôle campagne", async () => {
+export async function ajouterPoleCampagne(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:ajouterPoleCampagne", "Ajouter pôle campagne", async () => {
   const user = await requireUser();
   if (!userCan(user, "BUDGET_CAMPAIGN", "UPDATE")) return NON_AUTORISE;
   const campaignId = fdStr(formData, "campaignId");
@@ -242,7 +242,7 @@ export async function ajouterPoleCampagne(formData: FormData): Promise<ActionRes
 }); }
 
 /** Règle un pôle : son domaine d'enveloppe, et son cadrage (privé — pour qui le voit). */
-export async function reglerPoleCampagne(formData: FormData): Promise<ActionResult> { return annulable("retour", "Régler le pôle d'une campagne budgétaire", async () => {
+export async function reglerPoleCampagne(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:reglerPoleCampagne", "Régler le pôle d'une campagne budgétaire", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };
@@ -258,7 +258,7 @@ export async function reglerPoleCampagne(formData: FormData): Promise<ActionResu
 }); }
 
 /** Retire un pôle qui n'a encore rien soumis. */
-export async function retirerPoleCampagne(formData: FormData): Promise<ActionResult> { return annulable("retour", "Retirer pôle campagne", async () => {
+export async function retirerPoleCampagne(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:retirerPoleCampagne", "Retirer pôle campagne", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };
@@ -280,7 +280,7 @@ function peutEcrire(ctx: NonNullable<Awaited<ReturnType<typeof contexte>>>): Act
 }
 
 /** « Pré-remplir depuis l'année en cours » — rejouable, ne remplace jamais un montant saisi. */
-export async function preremplirProposition(formData: FormData): Promise<ActionResult> { return annulable("retour", "Préremplir proposition", async () => {
+export async function preremplirProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:preremplirProposition", "Préremplir proposition", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };
@@ -311,7 +311,7 @@ export async function preremplirProposition(formData: FormData): Promise<ActionR
 }); }
 
 /** Ajoute ou modifie une ligne (libellé, montant proposé, justification). */
-export async function enregistrerLigneProposition(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Enregistrer ligne proposition", async () => {
+export async function enregistrerLigneProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:enregistrerLigneProposition", "Enregistrer ligne proposition", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };
@@ -343,7 +343,7 @@ export async function enregistrerLigneProposition(formData: FormData): Promise<A
 }); }
 
 /** Retire une ligne (avant soumission, ou à revoir). */
-export async function supprimerLigneProposition(formData: FormData): Promise<ActionResult> { return annulable("compensation", "Supprimer ligne proposition", async () => {
+export async function supprimerLigneProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:supprimerLigneProposition", "Supprimer ligne proposition", async () => {
   const user = await requireUser();
   const lineId = fdStr(formData, "lineId");
   if (!lineId) return { ok: false, error: "Ligne introuvable." };
@@ -360,7 +360,7 @@ export async function supprimerLigneProposition(formData: FormData): Promise<Act
 }); }
 
 /** Joint une ou plusieurs pièces à une ligne. */
-export async function joindrePieceLigne(formData: FormData): Promise<ActionResult> { return annulable("retour", "Joindre pièce ligne", async () => {
+export async function joindrePieceLigne(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:joindrePieceLigne", "Joindre pièce ligne", async () => {
   const user = await requireUser();
   const lineId = fdStr(formData, "lineId");
   if (!lineId) return { ok: false, error: "Ligne introuvable." };
@@ -395,7 +395,7 @@ export async function proposerJustificationLuna(formData: FormData): Promise<Act
 }
 
 /** SOUMETTRE — fige la version n+1, résume les changements (Luna ou le repli exact), prévient les valideurs. */
-export async function soumettreProposition(formData: FormData): Promise<ActionResult> { return annulable("retour", "Soumettre proposition", async () => {
+export async function soumettreProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:soumettreProposition", "Soumettre proposition", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };
@@ -446,7 +446,7 @@ export async function soumettreProposition(formData: FormData): Promise<ActionRe
 // ─────────────────────────────── L'examen (les valideurs) ───────────────────────────────
 
 /** Décision sur une ligne : accepter, ajuster (montant), poser une question, refuser la ligne. */
-export async function deciderLigneProposition(formData: FormData): Promise<ActionResult> { return annulable("retour", "Décider ligne proposition", async () => {
+export async function deciderLigneProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:deciderLigneProposition", "Décider ligne proposition", async () => {
   const user = await requireUser();
   const lineId = fdStr(formData, "lineId");
   const decision = fdStr(formData, "decision");
@@ -475,7 +475,7 @@ export async function deciderLigneProposition(formData: FormData): Promise<Actio
 }); }
 
 /** L'avis d'un valideur sur la version en cours (accepter / refuser). La règle de la campagne (tous / un seul) tranche. */
-export async function voterProposition(formData: FormData): Promise<ActionResult> { return annulable("retour", "Voter proposition", async () => {
+export async function voterProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:voterProposition", "Voter proposition", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   const decision = fdStr(formData, "decision");
@@ -525,7 +525,7 @@ export async function voterProposition(formData: FormData): Promise<ActionResult
 }); }
 
 /** « À revoir » — renvoie la version au pôle, avec un commentaire (obligatoire). */
-export async function renvoyerProposition(formData: FormData): Promise<ActionResult> { return annulable("retour", "Renvoyer proposition", async () => {
+export async function renvoyerProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:renvoyerProposition", "Renvoyer proposition", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   const comment = fdStr(formData, "comment");
@@ -545,7 +545,7 @@ export async function renvoyerProposition(formData: FormData): Promise<ActionRes
 }); }
 
 /** Reprend une proposition refusée : elle repart « à revoir » chez le pôle. */
-export async function reprendreProposition(formData: FormData): Promise<ActionResult> { return annulable("retour", "Reprendre proposition", async () => {
+export async function reprendreProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:reprendreProposition", "Reprendre proposition", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };
@@ -561,7 +561,7 @@ export async function reprendreProposition(formData: FormData): Promise<ActionRe
 }); }
 
 /** Le fil d'échanges — un message, éventuellement sur une ligne. Il prévient l'autre côté. */
-export async function commenterProposition(formData: FormData): Promise<ActionResult> { return annulable("retour", "Commenter proposition", async () => {
+export async function commenterProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:commenterProposition", "Commenter proposition", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   const body = fdStr(formData, "body");
@@ -581,7 +581,7 @@ export async function commenterProposition(formData: FormData): Promise<ActionRe
 // ─────────────────────────────── Après la validation ───────────────────────────────
 
 /** AUTORISER UNE RÉVISION (Super Admin seul, audité) — sans elle, un budget validé ne bouge plus. */
-export async function autoriserRevisionProposition(formData: FormData): Promise<ActionResult> { return annulable("retour", "Autoriser révision proposition", async () => {
+export async function autoriserRevisionProposition(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:autoriserRevisionProposition", "Autoriser révision proposition", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };
@@ -597,7 +597,7 @@ export async function autoriserRevisionProposition(formData: FormData): Promise<
 }); }
 
 /** ROUVRIR EN RECTIFICATIF — une nouvelle version sur un budget validé, à re-valider ; l'autorisation est consommée. */
-export async function rouvrirRectificatif(formData: FormData): Promise<ActionResult> { return annulable("retour", "Rouvrir rectificatif", async () => {
+export async function rouvrirRectificatif(formData: FormData): Promise<ActionResult> { return annulable("budget-campagne-actions:rouvrirRectificatif", "Rouvrir rectificatif", async () => {
   const user = await requireUser();
   const proposalId = fdStr(formData, "proposalId");
   if (!proposalId) return { ok: false, error: "Proposition introuvable." };

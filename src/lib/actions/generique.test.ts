@@ -15,7 +15,7 @@ const CONTRATS_ACTIONS: ContratAction[] = [...CONTRAT_PAR_ID.values()];
 const contrat = (p: Partial<ContratAction>): ContratAction => ({
   id: "f:a", fichier: "f", fonction: "a", appel: "formulaire", champs: [],
   porte: { module: null, verbe: null, entite: null, moduleFr: null, gardes: [] },
-  ecrit: true, modelesEcrits: [], audit: false, annulable: null, illisible: null, avantFormulaire: 0, ...p,
+  ecrit: true, modelesEcrits: [], audit: false, illisible: null, avantFormulaire: 0, ...p,
 });
 
 describe("CHEMIN GÉNÉRIQUE — l'auto-escalade est refusée par CONSTRUCTION", () => {
@@ -295,7 +295,7 @@ describe("enArguments — le rang et la nature, pas seulement la valeur", () => 
   const aArguments = (champs: ChampAction[]): ContratAction => ({
     id: "x:y", fichier: "x", fonction: "y", appel: "arguments", champs,
     porte: { module: null, verbe: null, entite: null, gardes: [], moduleFr: null },
-    ecrit: false, modelesEcrits: [], audit: false, annulable: null, illisible: null, avantFormulaire: 0,
+    ecrit: false, modelesEcrits: [], audit: false, illisible: null, avantFormulaire: 0,
   });
   const ch = (nom: string, type: ChampAction["type"]): ChampAction =>
     ({ nom, type, obligatoire: false, valeurs: null, modele: null });

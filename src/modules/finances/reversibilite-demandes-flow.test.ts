@@ -2,11 +2,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
-const COOKIES: Record<string, string> = {};
-vi.mock("next/headers", async (orig) => ({
-  ...(await orig<Record<string, unknown>>()),
-  cookies: async () => ({ set: (k: string, v: string) => { COOKIES[k] = v; }, get: () => undefined }),
-}));
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
@@ -27,6 +22,7 @@ vi.mock("@/lib/documents", async (orig) => ({
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
+import { retablirGeste } from "@/lib/effets/retablissement";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import {
   addPaymentPiece, cancelPaymentRequest, commentPaymentPiece, corrigerDemandePaiement, createPaymentRequest, decidePaymentRequest,
@@ -60,7 +56,7 @@ const err = (r: { ok: boolean; error?: string }) => (r.ok ? null : r.error ?? ""
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES DEMANDES DE PAIEMENT, LE CENTRE, SES SIÈGES ET LES FACTURES SE DÉFONT D'UN GESTE (lot K10a, décision 0039).
+ * LES DEMANDES DE PAIEMENT, LE CENTRE, SES SIÈGES ET LES FACTURES SE DÉFONT D'UN GESTE (lot K10a, décision 0040).
  *
  * Même banc que `reversibilite-argent-flow.test.ts` : chaque cas EXÉCUTE l'action par son vrai point d'entrée (une
  * vraie personne, la base locale), l'ANNULE par l'annulation J7 et relit l'état. Séparation des tâches respectée :
@@ -181,8 +177,7 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
     expect(await prisma.expenseOrder.findUnique({ where: { id: transmise.expenseOrderId! } })).toBeNull();
 
     // RÉTABLIR : l'annulation se défait — la demande est de nouveau transmise, son ordre recréé (même identifiant).
-    expect(c.retablirGesteId).toBeTruthy();
-    const r = await annulerGeste(c.retablirGesteId!, ACTOR!);
+    const r = await retablirGeste(c.gesteId, ACTOR!);
     expect("refus" in r ? r.refus : bloquants(r)).toEqual([]);
     const retablie = await demande(id);
     expect([retablie.status, retablie.expenseOrderId]).toEqual(["SUBMITTED", transmise.expenseOrderId]);

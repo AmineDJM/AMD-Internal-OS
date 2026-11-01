@@ -107,8 +107,6 @@ export function decrireAction(
     ecrit: RE_ECRITURE.test(corps),
     modelesEcrits: modelesEcrits(corps),
     audit: /recordAudit\s*\(/.test(corps),
-    // K10a (décision 0039) : une action enrobée par `annulable(mode, …)` (`lib/effets/ecran.ts`) se défait par le journal.
-    annulable: (/\bannulable\s*\(\s*"(retour|compensation)"/.exec(corps)?.[1] ?? null) as ContratAction["annulable"],
   };
 
   // ── LE DÉLÉGUÉ IMPORTÉ, LUI, NE DÉPEND D'AUCUNE FORME D'APPEL (§118.158) ────────────────

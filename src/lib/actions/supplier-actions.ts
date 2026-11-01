@@ -20,7 +20,7 @@ const SUPER_ONLY: ActionResult = { ok: false, error: "Réservé au Super Admin."
 
 // ───── Vue fournisseur d'un dossier (équipe Regulatory) ─────
 
-export async function updateSupplierView(formData: FormData): Promise<ActionResult> { return annulable("retour", "Régler la vue d'un fournisseur", async () => {
+export async function updateSupplierView(formData: FormData): Promise<ActionResult> { return annulable("supplier-actions:updateSupplierView", "Régler la vue d'un fournisseur", async () => {
   const user = await requireUser();
   const productId = fdStr(formData, "productId");
   if (!productId) return { ok: false, error: "Dossier manquant." };
@@ -59,7 +59,7 @@ export async function updateSupplierView(formData: FormData): Promise<ActionResu
 export async function createSupplier(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> { return annulable("retour", "Créer un fournisseur", async () => {
+): Promise<ActionResult> { return annulable("supplier-actions:createSupplier", "Créer un fournisseur", async () => {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return SUPER_ONLY;
   const name = fdStr(formData, "name");
@@ -77,7 +77,7 @@ export async function createSupplier(
 export async function createSupplierUser(
   _prev: ActionResult | undefined,
   formData: FormData,
-): Promise<ActionResult> { return annulable("retour", "Créer un accès fournisseur", async () => {
+): Promise<ActionResult> { return annulable("supplier-actions:createSupplierUser", "Créer un accès fournisseur", async () => {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return SUPER_ONLY;
   const supplierId = fdStr(formData, "supplierId");
@@ -103,7 +103,7 @@ export async function createSupplierUser(
   return { ok: true, id: created.id };
 }); }
 
-export async function toggleSupplier(formData: FormData): Promise<ActionResult> { return annulable("retour", "Activer ou désactiver un fournisseur", async () => {
+export async function toggleSupplier(formData: FormData): Promise<ActionResult> { return annulable("supplier-actions:toggleSupplier", "Activer ou désactiver un fournisseur", async () => {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return SUPER_ONLY;
   const id = fdStr(formData, "id");
@@ -115,7 +115,7 @@ export async function toggleSupplier(formData: FormData): Promise<ActionResult> 
   return { ok: true };
 }); }
 
-export async function toggleSupplierUser(formData: FormData): Promise<ActionResult> { return annulable("retour", "Activer ou désactiver un accès fournisseur", async () => {
+export async function toggleSupplierUser(formData: FormData): Promise<ActionResult> { return annulable("supplier-actions:toggleSupplierUser", "Activer ou désactiver un accès fournisseur", async () => {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return SUPER_ONLY;
   const id = fdStr(formData, "id");

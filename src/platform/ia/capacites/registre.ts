@@ -1,5 +1,5 @@
 import { ACTIONS_GESTE } from "@/platform/ia/artifact/atelier/gestes";
-import { annulationDe, annulationDeclaree, CHAMP_BINAIRE, CHAMP_BINAIRE_PRINCIPAL, contenuTiersDe, famillesDeLAction, natureDeLAction, risqueDe, simulableDe } from "./classement";
+import { annulationDe, CHAMP_BINAIRE, CHAMP_BINAIRE_PRINCIPAL, contenuTiersDe, famillesDeLAction, natureDeLAction, risqueDe, simulableDe } from "./classement";
 import { libelleDeFonction, motsDuFichier, synonymesDe } from "./lexique";
 import { libelleChamp } from "./schema";
 import { porteDeLAction, refusSurface } from "./portes";
@@ -77,7 +77,7 @@ export function ficheDeLAction<C extends ContratLu>(c: C, ports: PortsRegistre<C
       ?? (binaires.length ? `Cette action attend un FICHIER (${binaires.map((b) => b.nom).join(", ")}) : elle se fait à l'écran, où l'on choisit le fichier.` : null);
   const { simulable, raison: raisonSimulable } = simulableDe(c, risque);
   const nature = natureDeLAction(c, risque, raison);
-  const { annulation, raison: raisonAnnulation } = c.annulable && nature ? annulationDeclaree(c.annulable) : annulationDe(nature, ports.classerGeste);
+  const { annulation, raison: raisonAnnulation } = (risque !== "R0" ? ports.annulationDeclaree?.(c) : null) ?? annulationDe(nature, ports.classerGeste);
   const libelle = libelleDeFonction(c.fonction);
   const module = c.porte.moduleFr ?? (porte.modules[0] ? ports.modules[porte.modules[0]] ?? null : null);
   const description = `${libelle}${module ? ` — ${module}` : ""}. ${PHRASE_RISQUE[risque]}`;
