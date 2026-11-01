@@ -64,16 +64,25 @@ function environnement(pourGit: boolean): NodeJS.ProcessEnv {
 
 function executer(cmd: string, args: string[], opts: { cwd?: string; entree?: string; delaiMs: number }): Promise<Issue> {
   return new Promise((ok) => {
-    const p = spawn(cmd, args, { cwd: opts.cwd, stdio: ["pipe", "pipe", "pipe"], shell: false, env: environnement(cmd === GIT) });
+    // L'ENTRÉE STANDARD : un tuyau SEULEMENT quand on a un texte à donner (`claude -p --cloud <id>`) ; sinon `ignore`
+    // (/dev/null : fin de fichier immédiate, rien à écrire). Écrire dans le tuyau d'un enfant qui ne le lit pas et qui
+    // s'est déjà terminé (git) levait EPIPE sur un flux sans gestionnaire : le relais entier mourait — sous charge,
+    // selon l'ordre d'arrivée des événements (constaté le 01/11/2026 sur le banc `relais-script.test.ts`).
+    const entree = opts.entree !== undefined;
+    const p = spawn(cmd, args, { cwd: opts.cwd, stdio: [entree ? "pipe" : "ignore", "pipe", "pipe"], shell: false, env: environnement(cmd === GIT) });
     let stdout = "";
     let stderr = "";
     let delaiDepasse = false;
     const minuteur = setTimeout(() => { delaiDepasse = true; p.kill("SIGTERM"); }, opts.delaiMs);
-    p.stdout.on("data", (d) => { stdout = (stdout + d).slice(-MAX_SORTIE); });
-    p.stderr.on("data", (d) => { stderr = (stderr + d).slice(-MAX_SORTIE); });
+    p.stdout?.on("data", (d) => { stdout = (stdout + d).slice(-MAX_SORTIE); });
+    p.stderr?.on("data", (d) => { stderr = (stderr + d).slice(-MAX_SORTIE); });
     p.on("error", (e) => { clearTimeout(minuteur); ok({ code: 127, stdout, stderr: `${stderr}\n${e.message}`, delaiDepasse }); });
     p.on("close", (code) => { clearTimeout(minuteur); ok({ code: delaiDepasse ? null : code, stdout, stderr, delaiDepasse }); });
-    p.stdin.end(opts.entree ?? "");
+    if (entree && p.stdin) {
+      // Un enfant qui sort sans lire son entrée (refus immédiat) rend EPIPE ici : son code de sortie dit déjà l'issue.
+      p.stdin.on("error", () => {});
+      p.stdin.end(opts.entree);
+    }
   });
 }
 
