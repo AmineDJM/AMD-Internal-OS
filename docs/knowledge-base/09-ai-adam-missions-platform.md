@@ -396,6 +396,20 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   with an honest undo (annulé / compensé / impossible / sans objet + why). Classification: `simulableDe` (J7 rules), 92.5 %
   of R1–R2 capabilities simulable. Cross-cutting details: KB 11 § 8ter.
 
+- **Reversibility K10b — outbound undo window, screen gestures (31/10/2026)** [V] decision
+  `docs/assistant/decisions/0040-reversibilite-communications.md`, README `src/lib/effets/README.md`. Every outbound effect
+  (SMTP / Graph / API mail, push, site queue, WhatsApp executor) waits `AssistantIaReglage.fenetreAnnulationSecondes`
+  (default 120 s) in `EffetSortantDiffere` (`lib/effets/fenetre.ts` `differerEffetSortant` — the interface K10a/K10c adopt;
+  port `differerSiFenetre` in each sending primitive under a journaled gesture); cancelled in the window → nothing left;
+  after → executor's compensation (rectificatif, itself deferred), never "deleted at the recipient". Screen actions wrap
+  their body in `gesteReversible` (`lib/effets/ecran.ts`, origin `ecran`) → shell bar "Annuler / Annuler l'envoi"
+  (`modules/assistant-ia/ecrans/barre-annulation.tsx`), `HistoriqueAnnulable` on a record. J7 extended: screen gestures undo
+  all-or-nothing (cascades), `LegalDocument` cancelled never deleted, counters (`DocumentSequence`, `DocumentReference`,
+  `SerieReference`) never roll back, read notification → rectificatif, `OutboundEmail` kept as trace, `retablirGeste`
+  (undo the undo), Graph immediate gestures with recorded inverse (`noterEffetFait`). Registry: optional port
+  `annulationDeclaree` ← `lib/effets/declarations.ts` (one table per perimeter). Tests/ratchet:
+  `src/lib/actions/reversibilite/` (58 K10b actions, execute → undo → redo → re-undo against the DB).
+
 - **Travaux J8 (30/10/2026)** [V] decision `docs/assistant/decisions/0023-delegation.md`. **Delegation**: plan step `DEMANDE`
   → `WAIT_INPUT`, handled in `conduite.ts` by `delegation.ts deposerDemande` (one `TravailDemande` per step, unique
   `missionId, stepKey`; delays counted from the deposit; shared Drive pieces granted VIEW via the persona port
