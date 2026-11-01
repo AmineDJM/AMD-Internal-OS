@@ -1,5 +1,14 @@
 ## 🧾 Journal des évolutions récentes
 
+### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
+
+Direction, 01/11 : « l'export des demandes de paiement, oui. Enfin, l'export de tout, quoi. » Décision 0037, § 7.
+**Demandes de paiement** et **ordres du centre de paiement** : un bouton « Exporter » sur leurs écrans, une fonction
+partagée avec l'assistant (`lib/exports/paiements.ts`, portée des écrans par le module `finances`). **Tout le reste** :
+`exporter_donnees` écrit en Excel vérifié, CSV ou PDF ce que la conversation a lu ou calculé (jeux du tour de K1), au
+Drive « Exports » ; le modèle ne recopie aucune ligne ; une valeur sensible n'est écrite que pour qui a le droit de la
+voir (juge de l'écran, K4). Cliquet : tout bouton d'export d'un écran a sa fiche au catalogue.
+
 ### UNE VRAIE MÉMOIRE POUR ADVENTUM IA — il retient ce que vous dites de vous (M1, 2026-11-01)
 
 « J'ai parlé de moi, de ma famille, de mes voyages, de mes études… quand je suis allé cliquer sur ce qu'il retient, je

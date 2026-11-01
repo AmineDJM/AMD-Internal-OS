@@ -341,8 +341,12 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   (`sendMessage`, `driveRefs`) rejuge que l'expéditeur voit la pièce et l'ouvre au destinataire en lecture.
 - **Consigne** — règle 14 (`contexte.ts`) : chercher (`trouver_outil`) avant « je ne peux pas » ; sans outil, `trouver_outil`
   rend les écrans qui portent le geste (`ecransPour`) et leur lien.
-- **Inventaire et cliquet** — `gestes-ecran.test.ts` : les 136 routes de `src/app/api` classées (couvert / exposé / hors, avec
-  raison) ; une route nouvelle non classée fait échouer `npm test`. Preuves : `exports.test.ts`, `scripts/bench/k7-exports.ts`.
+- **L'export de tout** (Direction, 01/11) — `exporter_demandes_paiement`, `exporter_ordres_centre_paiement` (catalogue,
+  boutons ajoutés aux écrans) ; `exporter_donnees` (`infra/analyse/exporter.ts`) : un JEU DU TOUR (lecture, tableur, SQL,
+  analyse) en Excel vérifié / CSV / PDF (`platform/ia/analyse/export.ts`, `pdf.ts`), lignes jamais recopiées par le modèle,
+  repères révélés par le `Revelateur` (K4) seulement à qui a le droit, colonnes confidentielles non jugées masquées.
+- **Inventaire et cliquet** — `gestes-ecran.test.ts` : les 138 routes de `src/app/api` classées (couvert / exposé / hors, avec
+  raison) ; une route nouvelle non classée fait échouer `npm test` ; tout bouton d'export d'un écran a sa fiche au catalogue. Preuves : `exports.test.ts`, `scripts/bench/k7-exports.ts`.
 ## Carte d'action compacte (31/10/2026)
 
 - `ecrans/action-confirmation-card.tsx` : une carte À FORMULAIRE se résume dans le fil (`data-testid="carte-action-compacte"`) ;

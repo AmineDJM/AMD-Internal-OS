@@ -66,6 +66,9 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   "/api/medical/coaching/[id]/export": { methodes: "GET", classe: "EXPOSE", par: "exporter_fiche_coaching" },
   "/api/medical/annuaire/export": { methodes: "GET", classe: "EXPOSE", par: "exporter_annuaire" },
   "/api/medical/plan-de-tournee/[id]/pdf": { methodes: "GET", classe: "EXPOSE", par: "exporter_plan_de_tournee_pdf" },
+  // Direction, 01/11 : « l'export des demandes de paiement » — et des ordres du centre ; un bouton ajouté aux deux écrans.
+  "/api/finances/demandes-paiement/export": { methodes: "GET", classe: "EXPOSE", par: "exporter_demandes_paiement" },
+  "/api/finances/centre/export": { methodes: "GET", classe: "EXPOSE", par: "exporter_ordres_centre_paiement" },
   // Joindre un fichier à un message : la pièce du Drive, par la carte d'envoi (`send_message`, `driveRefs`).
   "/api/messaging/upload": { methodes: "POST", classe: "EXPOSE", par: "send_message", raison: "joindre un fichier à un message : l'assistant joint une pièce du Drive (un export, un document), carte à confirmer" },
 
@@ -264,6 +267,46 @@ describe("K7 — l'inventaire des gestes d'écran hors actions", () => {
   });
 });
 
+/**
+ * CHAQUE BOUTON D'EXPORT D'UN ÉCRAN A SA FICHE (Direction, 01/11 : « l'export de tout »). Les écrans (pages, composants,
+ * écrans des modules) sont relus : toute adresse `/api/…export…` ou `/api/…/pdf` qu'ils appellent doit être la route
+ * d'une fiche du catalogue — l'assistant fait ce que fait le bouton. Les listes SANS bouton passent par
+ * `exporter_donnees` (ce que le tour a lu), tenu par `exporter-donnees.test.ts`.
+ */
+function fichiersEcrans(dir: string, out: string[] = []): string[] {
+  for (const nom of readdirSync(dir)) {
+    const chemin = join(dir, nom);
+    if (statSync(chemin).isDirectory()) { if (nom !== "api" && nom !== "node_modules") fichiersEcrans(chemin, out); }
+    else if (/\.tsx?$/.test(nom) && !/\.test\.tsx?$/.test(nom)) out.push(chemin);
+  }
+  return out;
+}
+/** Les boutons d'export qui ne sont PAS une liste de l'ERP — nommés, avec leur raison (une liste courte, qui ne grossit pas sans raison). */
+const BOUTONS_HORS_CATALOGUE: Readonly<Record<string, string>> = {
+  "/api/assistant-ia/consommation/export":
+    "la consommation de l'Assistant IA lui-même (K8, décision 0035) : sa logique vit dans le module assistant, que le catalogue de l'ERP n'importe pas (le module importe le catalogue — l'inverse ferait un cycle) ; elle s'exporte depuis son écran",
+};
+const motifDe = (route: string) => new RegExp(`^${route.replace(/\[[^\]]+\]/g, "[^/]+").replace(/[.]/g, "\\.")}$`);
+
+describe("K7 — chaque bouton d'export d'un écran est couvert par le catalogue", () => {
+  it("toute adresse d'export appelée par un écran est la route d'une fiche", () => {
+    const racines = ["src/app/(app)", "src/components", ...readdirSync(join(RACINE, "src/modules")).map((m) => `src/modules/${m}/ecrans`)]
+      .map((r) => join(RACINE, r)).filter((r) => { try { return statSync(r).isDirectory(); } catch { return false; } });
+    const motifs = CATALOGUE_EXPORTS.map((f) => motifDe(f.route));
+    const appels = new Map<string, string>();
+    for (const f of racines.flatMap((r) => fichiersEcrans(r))) {
+      for (const m of readFileSync(f, "utf8").matchAll(/["'`](\/api\/[^"'`?\s]*(?:export|\/pdf)[^"'`?\s]*)/g)) {
+        // Un segment `/${id}` est un paramètre ; ce qui suit un `${` hors segment (une requête composée) est coupé.
+        const adresse = m[1]!.replace(/\/\$\{[^}]+\}/g, "/X").replace(/\$\{.*$/, "").replace(/\/$/, "");
+        if (!appels.has(adresse)) appels.set(adresse, f.slice(RACINE.length + 1));
+      }
+    }
+    expect(appels.size).toBeGreaterThan(10);
+    const orphelins = [...appels].filter(([a]) => !motifs.some((re) => re.test(a)) && !BOUTONS_HORS_CATALOGUE[a]).map(([a, f]) => `${a} (${f})`);
+    expect(orphelins, "un bouton d'export sans fiche : ajouter la fiche au catalogue (lib/exports/catalogue.ts)").toEqual([]);
+  });
+});
+
 describe("K7 — les exports au registre des capacités et à la sélection d'outils", () => {
   it("une fiche par export au registre : lecture, familles Drive (+ domaine), libellé français", () => {
     const r = registreDesCapacites();
@@ -274,10 +317,12 @@ describe("K7 — les exports au registre des capacités et à la sélection d'ou
       expect(c!.familles).toContain("DRIVE");
       expect(c!.libelle).toBe(f.libelle);
     }
-    expect(FICHES_EXPORTS).toHaveLength(CATALOGUE_EXPORTS.length);
+    // + l'export de tout (`exporter_donnees`) : une fiche hors catalogue, au registre comme les autres.
+    expect(FICHES_EXPORTS).toHaveLength(CATALOGUE_EXPORTS.length + 1);
+    expect(r.parOutil.get("exporter_donnees")?.familles).toEqual(["DRIVE"]);
   });
 
-  const fiches: FicheOutil[] = CATALOGUE_EXPORTS.map((f) => ({ nom: f.outil, libelle: f.libelle, description: f.description, ...MOTS_EXPORTS.get(f.outil) }));
+  const fiches: FicheOutil[] = FICHES_EXPORTS.map((f) => ({ nom: f.nom, libelle: f.libelle, description: f.description, ...MOTS_EXPORTS.get(f.nom) }));
   it.each([
     ["Envoie à Amine Djouamai l'Excel du suivi Regulatory.", "exporter_suivi_regulatory"],
     ["Génère le suivi Regulatory en Excel", "exporter_suivi_regulatory"],
@@ -286,8 +331,16 @@ describe("K7 — les exports au registre des capacités et à la sélection d'ou
     ["Le PDF de mon plan de tournée de novembre", "exporter_plan_de_tournee_pdf"],
     ["Exporte le suivi du coaching", "exporter_suivi_coaching"],
     ["La liste des inscrits du congrès d'Oran en CSV", "exporter_inscrits_evenement"],
+    // Direction, 01/11 — les phrases du banc de « l'export de tout ».
+    ["Exporte-moi les demandes de paiement en attente en Excel", "exporter_demandes_paiement"],
+    ["Exporte les ordres du centre de paiement en attente", "exporter_ordres_centre_paiement"],
+    ["Exporte ce tableau en CSV", "exporter_donnees"],
   ])("« %s » → %s en tête", (demande, attendu) => {
     expect(classer(demande, fiches, 3)[0]?.nom).toBe(attendu);
+  });
+
+  it("« la liste que tu viens de me donner, en PDF » : l'export de ce que le tour a lu est parmi les premiers", () => {
+    expect(classer("Exporte la liste des médecins de Blida que tu viens de me donner en PDF", fiches, 3).map((c) => c.nom)).toContain("exporter_donnees");
   });
 
   it("quand rien ne couvre l'intention, trouver_outil nomme l'écran et son lien", () => {

@@ -27,18 +27,34 @@ const FAMILLE_DU_DOMAINE: Readonly<Record<string, FamilleIa>> = {
   exporter_budget_marketing: "BUDGETS",
   exporter_inscrits_evenement: "AD_PRO",
 };
-export const FAMILLES_EXPORTS: Readonly<Record<string, FamilleIa[]>> = Object.fromEntries(
-  CATALOGUE_EXPORTS.map((f) => [f.outil, ["DRIVE", ...(FAMILLE_DU_DOMAINE[f.outil] ? [FAMILLE_DU_DOMAINE[f.outil]!] : [])]]),
-);
+/**
+ * L'EXPORT DE TOUT (`exporter_donnees`, `infra/analyse/exporter.ts`) — ce que le tour a lu ou calculé : une fiche hors
+ * catalogue (aucune route d'écran), mêmes familles (le Drive), au registre et à la sélection comme les autres.
+ */
+const EXPORT_DONNEES = {
+  outil: "exporter_donnees",
+  libelle: "Exporter des données lues ou calculées (Excel, CSV, PDF)",
+  description: "EXPORTE en Excel, CSV ou PDF une liste ou un tableau lu ou calculé dans la conversation (une lecture, un tableur, une analyse) — déposé dans le Drive (« Exports »).",
+  mots: "export exporte exporter excel csv pdf fichier tableau liste ce tableau cette liste que tu viens de donner telecharger sors moi extraction donnees medecins resultats",
+  contexte: "Excel CSV PDF tableau lu calcule conversation",
+} as const;
+
+export const FAMILLES_EXPORTS: Readonly<Record<string, FamilleIa[]>> = Object.fromEntries([
+  ...CATALOGUE_EXPORTS.map((f) => [f.outil, ["DRIVE", ...(FAMILLE_DU_DOMAINE[f.outil] ? [FAMILLE_DU_DOMAINE[f.outil]!] : [])]]),
+  [EXPORT_DONNEES.outil, ["DRIVE"]],
+]);
 
 /** Les fiches des exports pour le REGISTRE DES CAPACITÉS (une lecture : rien n'est écrit chez un autre). */
-export const FICHES_EXPORTS: readonly OutilDecrit[] = CATALOGUE_EXPORTS.map((f) => ({
+export const FICHES_EXPORTS: readonly OutilDecrit[] = [...CATALOGUE_EXPORTS, EXPORT_DONNEES].map((f) => ({
   nom: f.outil, libelle: f.libelle, description: f.description, ecriture: false, familles: FAMILLES_EXPORTS[f.outil] ?? ["DRIVE"],
 }));
 
 /** Les mots de chaque export, pour la sélection d'outils (pesés comme un libellé). */
 export const MOTS_EXPORTS: ReadonlyMap<string, { mots: string; contexte: string }> = new Map(
-  CATALOGUE_EXPORTS.map((f) => [f.outil, { mots: `${f.libelle} ${f.mots}`, contexte: `${f.format} ${f.ecran.replace(/[/-]/g, " ")}` }]),
+  [
+    ...CATALOGUE_EXPORTS.map((f) => [f.outil, { mots: `${f.libelle} ${f.mots}`, contexte: `${f.format} ${f.ecran.replace(/[/-]/g, " ")}` }] as const),
+    [EXPORT_DONNEES.outil, { mots: `${EXPORT_DONNEES.libelle} ${EXPORT_DONNEES.mots}`, contexte: EXPORT_DONNEES.contexte }] as const,
+  ],
 );
 
 const json = (o: unknown) => JSON.stringify(o);

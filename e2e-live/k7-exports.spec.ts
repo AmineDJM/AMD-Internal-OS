@@ -50,8 +50,8 @@ test("export du suivi Regulatory, téléchargé, puis envoyé à Amel Haddad", a
   // ── LA DEMANDE ────────────────────────────────────────────────────────────────────────────
   const demande = "Génère le suivi Regulatory et envoie-le à Amel Haddad.";
   if (process.env.K7_FAUX === "1") {
-    execFileSync("npx", ["tsx", "scripts/e2e/k7-exports.ts", "demander", "super@adventum-bench.dz", demande], { env: process.env, stdio: "pipe" });
-    await page.reload();
+    const sortie = execFileSync("npx", ["tsx", "scripts/e2e/k7-exports.ts", "demander", "super@adventum-bench.dz", demande], { env: process.env, stdio: ["ignore", "pipe", "pipe"] }).toString();
+    await page.goto(`/ia?c=${(JSON.parse(sortie.slice(sortie.indexOf("{"))) as { conversation: string }).conversation}`);
   } else {
     await saisie.fill(demande);
     await page.getByRole("button", { name: "Envoyer", exact: true }).first().click();

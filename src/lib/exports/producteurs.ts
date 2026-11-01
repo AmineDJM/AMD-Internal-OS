@@ -14,6 +14,7 @@ import { exporterSuiviCoaching, exporterFicheCoaching } from "@/lib/exports/coac
 import { exporterAnnuaire } from "@/lib/exports/annuaire";
 import { exporterPlanTourneePdf } from "@/lib/exports/plan-de-tournee";
 import { exporterInscritsEvenement } from "./evenement";
+import { exporterDemandesPaiement, exporterOrdresCentre } from "./paiements";
 import { exporterEtudeDeMarche, exporterPresentationEtude } from "./etude-de-marche";
 import { cleParLibelle, date, entier, libellesDe, liste, texte } from "./filtres";
 import { refusExport, type ResultatExport } from "./types";
@@ -62,6 +63,8 @@ const PRODUCTEURS: Readonly<Record<string, Producteur>> = {
   exporter_fiche_coaching: (user, e) => exporterFicheCoaching(user, texte(e, "fiche")),
   exporter_annuaire: (user, e) => exporterAnnuaire(user, texte(e, "grade") || null),
   exporter_plan_de_tournee_pdf: (user, e) => exporterPlanTourneePdf(user, { kam: texte(e, "kam") || null, mois: texte(e, "mois") || null }),
+  exporter_demandes_paiement: (user, e) => exporterDemandesPaiement(user, { perimetre: texte(e, "perimetre") || null, statuts: liste(e, "statuts") }),
+  exporter_ordres_centre_paiement: (user, e) => exporterOrdresCentre(user, { entite: texte(e, "entite") || null, section: texte(e, "section") || null, statuts: liste(e, "statuts") }),
 };
 
 /**
@@ -84,6 +87,10 @@ const OUVERTURES: Readonly<Record<string, (u: CurrentUser) => boolean>> = {
   exporter_fiche_coaching: (u) => voit(u, "MEDICAL"),
   exporter_annuaire: (u) => voit(u, "MEDICAL") || peutAnnuaire(u, "MEDECINS", "VIEW") || peutAnnuaire(u, "PHARMACIENS", "VIEW"),
   exporter_plan_de_tournee_pdf: (u) => voit(u, "MEDICAL"),
+  // Les deux écrans de l'argent sont ouverts à toute personne connectée (chacun y voit ses demandes ; le centre et les
+  // Finances, leur file) : la porte est la PORTÉE, jugée par la fonction d'export.
+  exporter_demandes_paiement: () => true,
+  exporter_ordres_centre_paiement: () => true,
 };
 
 export const exportOuvert = (outil: string, user: CurrentUser): boolean => OUVERTURES[outil]?.(user) ?? false;

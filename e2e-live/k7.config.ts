@@ -12,7 +12,7 @@ const chromium = { executablePath: process.env.PW_CHROMIUM ?? "/opt/pw-browsers/
 
 export default defineConfig({
   testDir: ".",
-  testMatch: /k7-exports\.spec\.ts$/,
+  testMatch: /k7-(exports|export-de-tout)\.spec\.ts$/,
   timeout: 420_000,
   workers: 1,
   reporter: [["list"]],

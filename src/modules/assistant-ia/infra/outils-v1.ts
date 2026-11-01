@@ -29,6 +29,7 @@ import { lecturesMetier, lecturesQuotidien, lecturesRh, lecturesSituation, situa
 import { lecturesErp } from "./lectures-erp";
 import { outilCorrigerCarte, outilsCapacites } from "./capacites";
 import { FAMILLES_EXPORTS, outilsExports } from "./exports";
+import { outilExporterDonnees } from "./analyse/exporter";
 import { outilsAnalyse, OUTILS_ANALYSE, type ContexteAnalyseTour } from "./analyse/outils";
 import { censurerTexte, jetonnerSortie, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 import { FAMILLES_IA, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
@@ -301,6 +302,8 @@ export function outilsV1(
     ...(options.visuels ? outilsVisuels(user, { visuels: options.visuels, journal }) : []),
     // K1 — l'analyse de données : le code calcule sur ce que la personne a lu, sous ses droits.
     ...(options.analyse ? outilsAnalyse(user, { ...options.analyse, coffret: coffret ?? null, driveOuvert: familleOuverte(acces, "DRIVE") }) : []),
+    // K7 (décision 0037) — « l'export de tout » : ce que le tour a lu ou calculé, en Excel / CSV / PDF (la conversation seulement).
+    ...(options.analyse ? [outilExporterDonnees(user, { jeux: options.analyse.jeux, coffret, acces })] : []),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a

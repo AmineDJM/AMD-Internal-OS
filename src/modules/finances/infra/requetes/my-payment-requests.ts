@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 
 /**
  * MES DEMANDES DE PAIEMENT — la liste du DEMANDEUR, définie une seule fois.
@@ -29,5 +30,28 @@ export async function myPaymentRequests(userId: string, take = 200) {
     where: { requesterId: userId },
     orderBy: { createdAt: "desc" },
     take,
+  });
+}
+
+/**
+ * QUI INSTRUIT LES DEMANDES — les Finances (valider ou modifier), le responsable budget, la vue globale. Une seule
+ * définition pour l'écran (`/validations/paiements`, section « À instruire ») et son export (lot K7, décision 0037).
+ */
+export const instruitLesDemandes = (user: SessionUser): boolean =>
+  userCan(user, "FINANCES", "VALIDATE") || userCan(user, "FINANCES", "UPDATE")
+  || user.role === "FINANCE_BUDGET_MANAGER" || hasGlobalView(user.role);
+
+/**
+ * LA FILE À INSTRUIRE (Finances) — transmises, en instruction, mises en attente.
+ *
+ * LES COMPAGNONS NE S'INSTRUISENT PAS ICI : depuis que tout ordre de dépense ouvre son dossier, les paiements nés
+ * ailleurs (matériel promotionnel, bon de versement, sponsoring…) ont eux aussi un dossier ; leur circuit d'origine a
+ * validé, le centre a autorisé, les Finances les règlent dans « Banque & paiements ». Les faire remonter ici
+ * demanderait de les instruire une SECONDE fois — d'où `origin: "REQUEST"`.
+ */
+export async function fileAInstruire(take = 200) {
+  return prisma.paymentRequest.findMany({
+    where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "ON_HOLD"] }, origin: "REQUEST" },
+    orderBy: { createdAt: "desc" }, take,
   });
 }
