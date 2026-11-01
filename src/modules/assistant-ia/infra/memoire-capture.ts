@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { attendu, sansBloquer } from "@/lib/journal";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {
   CAPTURES_MAX_PAR_TOUR, CONSIGNE_EXTRACTEUR, entreeExtracteur, EXISTANTS_MAX, faitDurablePossible, garderCandidat, lireExtraction,
@@ -69,7 +70,7 @@ const dateLisible = (d: Date) => d.toLocaleDateString("fr-FR", { weekday: "long"
 /** Une capture PEUT-elle avoir lieu (réglage, privée, filtre déterministe) ? Rien n'est appelé — l'écran l'annonce. */
 export async function captureEnvisagee(userId: string, message: string, prive: boolean): Promise<boolean> {
   if (prive || !faitDurablePossible(censurerTexte(sansEntete(message)).texte)) return false;
-  return memoireAutoActive(userId).catch(() => false);
+  return memoireAutoActive(userId).catch(sansBloquer("assistant-memoire.captureEnvisagee", false));
 }
 
 /** CAPTURER après un tour. Ne lève jamais : une mémoire qui échoue ne casse pas la conversation. */
@@ -125,7 +126,7 @@ export async function capturerApresTour(d: DemandeCapture): Promise<BilanCapture
 export async function plongerSouvenirs(userId: string, ids: readonly string[], plonger: Plongeur): Promise<number> {
   const items = await prisma.assistantMemoryItem.findMany({ where: { id: { in: [...ids] }, userId }, select: { id: true, type: true, content: true } });
   if (!items.length) return 0;
-  const v = await plonger(items.map((i) => texteIndexe({ sorte: i.type, contenu: i.content }))).catch(() => null);
+  const v = await plonger(items.map((i) => texteIndexe({ sorte: i.type, contenu: i.content }))).catch(attendu("plongement au mieux : sans lui, le rappel reste lexical", null));
   if (!v || v.length !== items.length) return 0;
   await Promise.all(items.map((i, k) => prisma.assistantMemoryItem.updateMany({ where: { id: i.id, userId }, data: { vecteur: v[k] } })));
   return items.length;
@@ -142,7 +143,7 @@ export async function rappelDuTour(userId: string, question: string, deps: { plo
   // Le sens ne sert que si tout ne tient pas — et seulement si des souvenirs ont leur plongement.
   if (question.trim() && !toutTient(souvenirs) && tous.some((s) => s.vecteur.length)) {
     const plonger = deps.plonger ?? plongeurDuMoment();
-    const q = plonger ? await plonger([question.slice(0, 2_000)]).catch(() => null) : null;
+    const q = plonger ? await plonger([question.slice(0, 2_000)]).catch(attendu("plongement au mieux : sans lui, le rappel reste lexical", null)) : null;
     if (q?.[0]) similarites = new Map(tous.filter((s) => s.vecteur.length).map((s) => [s.id, cosinus(q[0], s.vecteur)]));
   }
   const rappel = choisirSouvenirs(souvenirs, question, { similarites });
@@ -155,7 +156,7 @@ export async function rappelDuTour(userId: string, question: string, deps: { plo
   const servis = [...rappel.profil, ...rappel.pertinents].map((s) => s.id);
   if (servis.length) {
     // Le temps n'est pas celui du tour : `lastUsedAt` ne touche pas `updatedAt` (l'ordre « du plus récent » reste celui des faits).
-    void prisma.$executeRaw`UPDATE "AssistantMemoryItem" SET "lastUsedAt" = NOW() WHERE "userId" = ${userId} AND "id" = ANY(${servis})`.catch(() => {});
+    void prisma.$executeRaw`UPDATE "AssistantMemoryItem" SET "lastUsedAt" = NOW() WHERE "userId" = ${userId} AND "id" = ANY(${servis})`.catch(sansBloquer("assistant-memoire.lastUsedAt"));
   }
   return { section, rappel, censure };
 }

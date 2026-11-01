@@ -98,11 +98,15 @@ const contient = (t: string | null | undefined, ...mots: string[]) => mots.every
 async function main() {
   const u = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL }, select: { id: true, name: true } });
   userId = u.id;
-  // Le banc : l'assistant ouvert à ce compte (la Direction l'active par personne), la mémoire repart de zéro.
+  // Le banc : l'assistant ouvert à ce compte (la Direction l'active par personne) ; le plafond du jour relevé (un audit
+  // complet dépasse les 600 000 jetons du défaut) ; la mémoire repart de zéro — sauf pour une reprise d'étapes.
   await prisma.userAccess.deleteMany({ where: { userId, module: "ASSISTANT_IA" } });
   await prisma.userAccess.create({ data: { userId, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
-  await prisma.assistantMemoryItem.deleteMany({ where: { userId } });
-  await prisma.assistantIaPreference.deleteMany({ where: { userId } });
+  await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", plafondJetonsJour: 5_000_000 }, update: { plafondJetonsJour: 5_000_000 } });
+  if (!SEULES.length || SEULES.includes("memoire-capture")) {
+    await prisma.assistantMemoryItem.deleteMany({ where: { userId } });
+    await prisma.assistantIaPreference.deleteMany({ where: { userId } });
+  }
 
   const { ctx, page } = await contexte("iphone13");
   let convA: string | null = null;
@@ -176,7 +180,8 @@ async function main() {
 
   await etape("notes", async () => {
     await nouvelle(page, true);
-    const r = await envoyer(page, "Ajoute dans mes notes : rappeler le Dr Mansouri lundi pour le congrès.");
+    // Une note NEUVE à chaque passage (la même déjà présente, l'assistant le dit et ne propose rien — vu au banc).
+    const r = await envoyer(page, `Ajoute dans mes notes : rappeler le Dr Mansouri lundi pour le congrès (dossier ${Date.now().toString(36).toUpperCase()}).`);
     const ids = Array.isArray(r?.notesProposees) ? (r!.notesProposees as string[]) : [];
     const bouton = page.getByRole("button", { name: /^Accepter$/ }).last();
     let accepte = false;
@@ -327,8 +332,16 @@ async function main() {
     await b.ctx.browser()?.close();
   });
 
+  // Une REPRISE d'étapes complète le rapport précédent (mêmes fonctions remplacées), coûts comptés depuis son début.
+  const fichier = path.join(SORTIE, "rapport.json");
+  const avant = SEULES.length && fs.existsSync(fichier) ? JSON.parse(fs.readFileSync(fichier, "utf8")) as { lignes: Ligne[]; debut?: string } : null;
+  const debut = avant?.debut ? new Date(avant.debut) : debutAudit;
+  if (avant) {
+    const neuves = new Set(lignes.map((l) => l.fonction));
+    lignes.unshift(...avant.lignes.filter((l) => !neuves.has(l.fonction) && !SEULES.includes(l.fonction)));
+  }
   // ── COÛTS : le journal K8 (ModelCallLog), par usage — la capture de mémoire à part.
-  const appels = await prisma.modelCallLog.findMany({ where: { userId, at: { gte: debutAudit } }, select: { role: true, model: true, inputTokens: true, outputTokens: true, costUsd: true } });
+  const appels = await prisma.modelCallLog.findMany({ where: { userId, at: { gte: debut } }, select: { role: true, model: true, inputTokens: true, outputTokens: true, costUsd: true } });
   const par = new Map<string, { appels: number; entree: number; sortie: number; usd: number }>();
   for (const a of appels) {
     const k = `${a.role ?? "?"} · ${a.model}`;
@@ -336,8 +349,8 @@ async function main() {
     v.appels += 1; v.entree += a.inputTokens; v.sortie += a.outputTokens; v.usd += Number(a.costUsd ?? 0);
     par.set(k, v);
   }
-  const tours = await prisma.assistantIaTour.count({ where: { userId, role: "assistant", createdAt: { gte: debutAudit } } });
-  const rapport = { base: BASE, compte: EMAIL, le: new Date().toISOString(), lignes, couts: Object.fromEntries(par), toursRepondus: tours, erreursConsole };
+  const tours = await prisma.assistantIaTour.count({ where: { userId, role: "assistant", createdAt: { gte: debut } } });
+  const rapport = { base: BASE, compte: EMAIL, debut: debut.toISOString(), le: new Date().toISOString(), lignes, couts: Object.fromEntries(par), toursRepondus: tours, erreursConsole };
   fs.writeFileSync(path.join(SORTIE, "rapport.json"), JSON.stringify(rapport, null, 2));
   console.log(JSON.stringify({ lignes: lignes.map((l) => `${l.verdict.padEnd(14)} ${l.fonction} — ${l.preuve.slice(0, 160)}`), couts: rapport.couts, erreursConsole }, null, 2));
   await prisma.$disconnect();
