@@ -13,6 +13,8 @@ export function classerExclusionsCircuits(): void {
     "assistant-ia-consommation-actions:enregistrerReglagesAssistantIa", "assistant-ia-consommation-actions:enregistrerAccesAssistantIa", "assistant-ia-consommation-actions:enregistrerPlafondsTravaux",
     "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe", "assistant-ia-consommation-actions:enregistrerValeursSensibles", "assistant-ia-consommation-actions:enregistrerRetentionEffets",
     "assistant-ia-consommation-actions:enregistrerReglagesVisuels",
+    // C1 (décision 0042) : les plafonds des chantiers de développement — une IA ne relève jamais ses propres plafonds.
+    "assistant-ia-consommation-actions:enregistrerReglagesChantiers",
     "assistant-ia-consommation-actions:enregistrerTravauxDOffice",
     // K8 (décision 0038) : la LECTURE de la consommation est l'écran lui-même (Réglages, Administration › IA) — rien à proposer.
     "assistant-ia-consommation-actions:lireConsommationIa",

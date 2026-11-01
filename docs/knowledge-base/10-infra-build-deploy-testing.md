@@ -801,3 +801,25 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 - Bench scripts write a normalized `BANC_SORTIE` JSON; `BANC_SEULEMENT=jarvis,…` runs a reduced pass.
 - Tests (fake model only): `infra/qualite/{regles,banc,traces,pieges-regles}.test.ts`, `pieges.test.ts` (35 traps through
   `jouerTour`). Task `assistant.traces` purges traces older than `ASSISTANT_IA_TRACES_JOURS` (30).
+
+## C2 (2026-11-01) — GitHub / Render / Routines connectors, webhooks, real bench [V]
+
+- New public routes `POST /api/chantiers/webhooks/github|render` (exact paths in `auth.config.ts`; `/api/chantiers/webhooks/`
+  in the app-mode allow-list; `HORS`/`ENTRANT` in `gestes-ecran.test.ts`). Render signature = Standard Webhooks
+  (`webhook-id`, `webhook-timestamp` ±5 min, `webhook-signature: v1,<b64>`), secret tried base64-decoded after `whsec_`
+  and raw. GitHub = `X-Hub-Signature-256`.
+- Render API v1 paths verified on api-docs.render.com OpenAPI (01/11/2026): rollback `POST /services/{id}/rollback
+  {deployId}` does NOT turn autodeploy off (`PATCH /services/{id} {autoDeployTrigger:"off"}` separately); Blueprint sync is
+  not triggerable by API; `GET /services/{id}/env-vars` returns values — the adapter keeps keys only.
+- Migration `20270218200000_chantiers_connecteurs` (additive, idempotent): table `DevLancement`.
+- Tests `src/platform/in-process/chantiers/{connecteurs,webhooks}.test.ts`: local `node:http` fake server (doc payloads), signatures,
+  429/Retry-After, GitHub primary/secondary quotas, ETag 304, timeout ⇒ no retry, concurrent same key ⇒ one fire, no secret
+  in messages/logs/DB, webhook + poll dedupe, public route.
+- Real bench `scripts/bench/chantiers-reel.ts` (`BANC_DEPOT`, `BANC_ROUTINE`, `BANC_SERVICE_RENDER`…): refuses a non-local
+  `DATABASE_URL`, a production repo, a Render service not linked to the bench repo or with a protected name.
+- Admin screen `/admin/developpement` (Super Admin): read-only probes (GitHub `/user` + repos, Render `/services`, MiMo
+  `/models`; routines: configured or not — no side-effect-free probe exists).
+- Public route `GET|POST /api/dev/relais/ordres` (exact path in `auth.config.ts`, app-mode allow-list, `SANS_SESSION` in
+  `vue-exacte-etanche.test.ts`, inventory + decision 0037). Migration `20270218200100_chantiers_relais_cli`
+  (`ClaudeRelaisOrdre`, `ClaudeRelaisEtat`). `platform/dev/config.ts` is allowed to name `api.anthropic.com` in
+  `passerelle-unique.test.ts` (Routines fire is not a model call).

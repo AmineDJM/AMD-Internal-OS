@@ -2,11 +2,11 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Ban, CheckCircle2, ChevronDown, Circle, CircleAlert, CircleDashed, Clock, FileText, Loader2, MessageSquare, Pause, Play, Radio, Rocket, X,
+  Ban, CheckCircle2, ChevronDown, Circle, CircleAlert, CircleDashed, Clock, ExternalLink, FileText, GitBranch, Loader2, Lock, MessageSquare, Pause, Play, Radio, Rocket, X,
 } from "lucide-react";
 import type { MissionDuTableau } from "@/modules/assistant-ia/api";
 import { approuverMonTravail, pauserMonTravail, reprendreMonTravailIA } from "@/modules/assistant-ia/actions";
-import { annulerMaMission } from "@/modules/assistant-ia/actions-travaux";
+import { annulerMaMission, validerMonChantier } from "@/modules/assistant-ia/actions-travaux";
 import { avancement, duree, gestesPermis, LIBELLE_ETAPE, LIBELLE_MISSION, missionVivante, usd } from "../../domaine/sous-missions";
 import { useMissions, type ModeFlux } from "./use-missions";
 import { useEchap } from "../use-echap";
@@ -103,7 +103,43 @@ export function useGestesMission(relire: () => Promise<void>) {
     pauser: (id: string) => agir(`pause-${id}`, () => pauserMonTravail(id)),
     reprendre: (id: string) => agir(`reprise-${id}`, () => reprendreMonTravailIA(id)),
     annuler: (id: string) => agir(`stop-${id}`, () => annulerMaMission(id)),
+    valider: (id: string, accorde: boolean) => agir(`valide-${id}`, () => validerMonChantier(id, accorde)),
   };
+}
+
+const lien = "inline-flex min-h-9 items-center gap-1 rounded-lg px-1.5 text-[12.5px] text-[var(--aia-accent)] hover:bg-[var(--aia-survol)]";
+
+/** C1 (décision 0042) : ce qu'un CHANTIER montre de plus — dépôt, réservations, liens, preuves, carte de validation. */
+function BlocChantier({ m, gestes }: { m: MissionDuTableau; gestes: ReturnType<typeof useGestesMission> }) {
+  const c = m.chantier!;
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-[var(--aia-cote)] px-2.5 py-2 text-[12.5px]" data-testid="chantier">
+      <p className="flex flex-wrap items-center gap-1.5 font-mono text-[12px]">
+        <GitBranch aria-hidden className="h-3.5 w-3.5" /> {c.depot} · {c.branche}
+        {c.vert && <span className="rounded bg-[var(--aia-accent-doux)] px-1 text-[var(--aia-accent)]">vert {c.vert}</span>}
+      </p>
+      <p className="text-[var(--aia-discret)]">
+        {c.lancements} lancement(s) Claude Code · {c.deploiementsFaits} déploiement(s){c.deploiements.map((d) => ` · ${d.nom} ${d.statut} ${d.commit}${d.sain === false ? " (malsain)" : d.sain ? " (sain)" : ""}${d.rollback ? ", rollback fait" : ""}`).join("")}
+      </p>
+      {c.reservations.length > 0 && (
+        <ul className="flex flex-wrap gap-1" aria-label="Réservations">
+          {c.reservations.map((r) => <li key={r} className="inline-flex items-center gap-1 rounded-full border border-[var(--aia-filet)] px-2 py-0.5 font-mono text-[11px]"><Lock aria-hidden className="h-3 w-3" />{r}</li>)}
+        </ul>
+      )}
+      <div className="flex flex-wrap gap-1">
+        {c.sessions.map((x, i) => <a key={x.url} href={x.url} target="_blank" rel="noreferrer" className={lien}><ExternalLink aria-hidden className="h-3.5 w-3.5" /> Session {i + 1} ({x.motif})</a>)}
+        {c.pr && <a href={c.pr.url} target="_blank" rel="noreferrer" className={lien}><ExternalLink aria-hidden className="h-3.5 w-3.5" /> PR #{c.pr.numero}</a>}
+      </div>
+      {c.blocage && <p className="text-[var(--aia-danger)]">{c.blocage}</p>}
+      {c.validationsAttendues > 0 && (
+        <div className="flex flex-wrap items-center gap-2" data-testid="validation-chantier">
+          <span className="font-medium">Un geste attend votre validation{m.attente ? ` : ${m.attente.replace(/^attend la validation de la Direction : /, "")}` : ""}.</span>
+          <button type="button" className={btnPlein} disabled={!!gestes.occupe} onClick={() => void gestes.valider(m.id, true)}><CheckCircle2 aria-hidden className="h-4 w-4" /> Valider</button>
+          <button type="button" className={btn} disabled={!!gestes.occupe} onClick={() => void gestes.valider(m.id, false)}><Ban aria-hidden className="h-4 w-4" /> Refuser</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function CarteMission({ m, ouverte, onBasculer, gestes, onOuvrirLivrable, onOuvrirConversation, maintenant }: {
@@ -141,6 +177,7 @@ function CarteMission({ m, ouverte, onBasculer, gestes, onOuvrirLivrable, onOuvr
 
       {ouverte && (
         <div className="flex flex-col gap-3 border-t border-[var(--aia-filet)] px-3.5 pb-3.5 pt-3">
+          {m.chantier && <BlocChantier m={m} gestes={gestes} />}
           <ol className="flex flex-col gap-1" aria-label={`Étapes de ${m.titre}`}>
             {m.etapes.map((e) => (
               <li key={e.cle} className="flex items-start gap-2 rounded-lg px-1.5 py-1.5" data-testid="etape" data-etape={e.cle} data-etat={e.etat}>
@@ -151,6 +188,7 @@ function CarteMission({ m, ouverte, onBasculer, gestes, onOuvrirLivrable, onOuvr
                     {e.type} · {LIBELLE_ETAPE[e.etat]}
                     {e.debut ? ` · ${duree((e.fin ? new Date(e.fin).getTime() : maintenant) - new Date(e.debut).getTime())}` : ""}
                     {e.lots && e.lots.total > 0 ? ` · lots ${e.lots.faits}/${e.lots.total}` : ""}
+                    {e.essais ? ` · essai ${e.essais}` : ""}
                   </span>
                   {e.erreur && <span className="mt-0.5 block text-[12px] text-[var(--aia-danger)]">{e.erreur}</span>}
                 </span>

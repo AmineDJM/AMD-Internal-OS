@@ -39,6 +39,8 @@ const n = (v: number | undefined | null) => (typeof v === "number" && Number.isF
 export function tarifPasserellePose(role: string | undefined, env: NodeJS.ProcessEnv = process.env): boolean {
   if (!role) return false;
   const r = role.toUpperCase();
+  // C1 (décision 0042) : MiMo n'est pas sur la grille (tarif non publié) — son tarif se pose par `MIMO_PRICE_IN` / `_OUT`.
+  if (r === "MIMO") return !!(env.MIMO_PRICE_IN?.trim() && env.MIMO_PRICE_OUT?.trim());
   return !!(env[`ADAM_PRICE_${r}_IN`]?.trim() || env[`ADAM_PRICE_${r}_OUT`]?.trim());
 }
 

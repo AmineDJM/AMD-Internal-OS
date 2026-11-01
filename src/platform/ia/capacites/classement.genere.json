@@ -1584,6 +1584,16 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:enregistrerReglagesChantiers": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
  "assistant-ia-consommation-actions:enregistrerReglagesVisuels": {
   "risque": "R1",
   "familles": [
@@ -2242,6 +2252,15 @@
  },
  "assistant-ia-travaux-actions:repondreAMaDemande": {
   "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:validerMonChantier": {
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
