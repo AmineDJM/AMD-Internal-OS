@@ -84,18 +84,19 @@ describe("le script du relais", () => {
       { id: "o-msg", type: "MESSAGE", depot: null, branche: null, sessionId: "session_01EXISTANTE00", texte: "corrige le test X" },
       { id: "o-creer", type: "CREER", depot: "adventum/banc", branche: "claude/banc-relais", sessionId: null, texte: "ajoute banc.md" },
     );
-    relais = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", "scripts/relais-claude.ts"], {
+    const enfant = spawn(process.execPath, ["--experimental-strip-types", "--no-warnings", "scripts/relais-claude.ts"], {
       env: {
-        PATH: process.env.PATH, HOME: dossier, ERP_URL: base, CLAUDE_RELAIS_TOKEN: JETON, GITHUB_TOKEN: "ghp_faux0123456789abcdef",
+        NODE_ENV: "test", PATH: process.env.PATH, HOME: dossier, ERP_URL: base, CLAUDE_RELAIS_TOKEN: JETON, GITHUB_TOKEN: "ghp_faux0123456789abcdef",
         RELAIS_CLAUDE: join(dossier, "claude"), RELAIS_DOSSIER: join(dossier, "depots"), RELAIS_GIT_BASE: `file://${join(dossier, "hote")}`,
         CLAUDE_CONFIG_DIR: join(dossier, "config-claude"), FAUX_JOURNAL: join(dossier, "journal.jsonl"),
         GIT_AUTHOR_NAME: "t", GIT_AUTHOR_EMAIL: "t@t", GIT_COMMITTER_NAME: "t", GIT_COMMITTER_EMAIL: "t@t",
       },
       stdio: "pipe",
     });
+    relais = enfant;
     let sortie = "";
-    relais.stdout?.on("data", (d) => { sortie += d; });
-    relais.stderr?.on("data", (d) => { sortie += d; });
+    enfant.stdout?.on("data", (d) => { sortie += d; });
+    enfant.stderr?.on("data", (d) => { sortie += d; });
     await attendre(() => rendus.length >= 2);
 
     expect(rendus[0]).toMatchObject({ id: "o-msg", code: 0, delaiDepasse: false });
