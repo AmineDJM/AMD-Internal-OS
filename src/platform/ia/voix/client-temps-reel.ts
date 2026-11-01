@@ -33,11 +33,12 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import { decider, etatInitial, transition, vieillir, type Action, type ElementAgenda, type EtatConversation, type Evenement as EvenementOrchestre } from "../conversation/orchestrateur";
+import { decider, etatInitial, transition, vieillir, type Action, type ElementAgenda, type EtatConversation, type Evenement as EvenementOrchestre, type RetourOrchestre } from "../conversation/orchestrateur";
 
 export type EtatVoix = "INACTIF" | "CONNEXION" | "ECOUTE" | "REFLEXION" | "PAROLE" | "FERMETURE" | "ERREUR" | "TERMINE";
 
-export interface ResultatDelegation {
+/** O1 (décision 0046) : avec les champs que l'orchestrateur lit (`RetourOrchestre`). */
+export interface ResultatDelegation extends RetourOrchestre {
   /** Ce que la voix reçoit (et paraphrase) : jamais une valeur que la personne n'a pas le droit d'entendre. */
   pourVoix: string;
   /** Une carte préparée — résumée à l'oral ; l'écran la montre aussi. */
@@ -50,11 +51,6 @@ export interface ResultatDelegation {
   etatCarte?: { intentId: string; status: string };
   /** K9 : une commande que ce client applique (« stop », « plus court »). */
   commande?: "stop" | "plus_court";
-  // O1 (décision 0046) — lus par l'orchestrateur.
-  questionPosee?: boolean;
-  repondA?: string;
-  change?: { travail: string; nouveau?: string };
-  lance?: { id: string; agenda: ElementAgenda[] };
 }
 
 /** K9 : l'état d'un travail suivi. */
@@ -349,7 +345,7 @@ export class ClientVoixTempsReel {
     // utile de l'agenda, l'avancement — ou « je reste disponible ». Jamais « j'attends ».
     this.orchestrer_({
       type: "reponse_prise_en_compte", ms: this.maintenant(), accuse: r.pourVoix || "Rien à dire de plus.", delegationId,
-      questionPosee: r.questionPosee === true || !!(r.carte && !r.etatCarte), repondA: r.repondA ?? null, change, lance,
+      questionPosee: r.questionPosee === true || !!(r.carte && !r.etatCarte), repondA: r.repondA ?? null, change, lance, miseEnForme: r.miseEnForme ?? null,
     });
     this.orchestrer();
   }
@@ -420,6 +416,11 @@ export class ClientVoixTempsReel {
         if (s.etat === "inconnu") continue;
         if (s.etat === "pret") this.rappels.delegation?.(this.derniereDemande, s);
         this.orchestrer_({ type: "resultat", ms: this.maintenant(), travail: id, contenu: s.pourVoix || "le travail est fini, sans rien à dire de plus.", echec: s.etat === "echec" });
+        // O1 : la mise en forme demandée (un fichier, une carte d'envoi) se prépare d'après ce résultat — suivie à son tour.
+        if (s.etat === "pret" && s.lance) {
+          this.suivis.set(s.lance.id, t);
+          this.orchestrer_({ type: "travail", ms: this.maintenant(), id: s.lance.id, agenda: s.lance.agenda, delegationId: t.delegationId });
+        }
       }
       if (!this.suivis.size) this.arreterSuivi();
     } finally {

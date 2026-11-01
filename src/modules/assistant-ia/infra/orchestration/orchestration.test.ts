@@ -51,19 +51,37 @@ async function compte(nom: string): Promise<CurrentUser> {
 
 /**
  * LE FAUX MODÈLE À PORTE : un tour dont le message contient `retenu` attend que la porte s'ouvre — le travail long. La
- * réponse dit ce que le modèle a VU (PDF, trimestre) : le banc vérifie que le résultat dit tient compte des réponses.
+ * réponse dit ce que le modèle a VU (PDF, trimestre) : le banc vérifie que le résultat dit tient compte des réponses. Il
+ * sert aussi le CLASSIFIEUR rapide (O1) et la MISE EN FORME d'une réponse écrite — chacun reconnu à sa consigne.
  */
 function modeleAPorte(retenu: RegExp) {
   let ouvrir!: () => void;
   const porte = new Promise<void>((r) => { ouvrir = r; });
+  const appels = { classement: 0, miseEnForme: 0 };
   const base = modeleFactice([(prompt) => {
-    if (/clients à Oran/.test(prompt) && !/rapport/.test(prompt.split("clients à Oran")[1] ?? "")) return reponse("Tu as 42 clients à Oran.");
-    const vu = [/PDF/.test(prompt) ? "en PDF" : "en tableau", /trimestre/i.test(prompt) ? "sur le trimestre" : ""].filter(Boolean).join(" ");
+    if (prompt.includes("Tu classes UN énoncé")) {
+      appels.classement += 1;
+      const enonce = prompt.slice(prompt.lastIndexOf("enonce"));
+      const json = /clients à Oran/.test(enonce) ? '{"nature":"autre_demande","impact":null,"forme":null,"consigne":"clients à Oran"}'
+        : /c'est long/i.test(enonce) ? '{"nature":"conversation","impact":null,"forme":null,"consigne":"c\'est long"}'
+          : '{"nature":"precision","impact":"majeur","forme":null,"consigne":"Seulement les grossistes."}';
+      return { texte: json };
+    }
+    if (prompt.includes("Tu remets en forme")) {
+      appels.miseEnForme += 1;
+      return { texte: "En bref : le rapport des ventes par wilaya." };
+    }
+    // La DERNIÈRE demande du prompt décide (l'historique peut contenir l'autre).
+    if (/clients à Oran/.test(prompt) && !/rapport/.test(prompt.slice(prompt.lastIndexOf("clients à Oran")))) return reponse("Tu as 42 clients à Oran.");
+    const vu = [/Format de rendu voulu : PDF/.test(prompt) ? "en PDF" : "en tableau", /trimestre/i.test(prompt) ? "sur le trimestre" : "", /grossistes/.test(prompt) ? "pour les grossistes" : ""].filter(Boolean).join(" ");
     return reponse(`Voici le rapport des ventes par wilaya, ${vu}.`);
   }]).modele as unknown as Record<string, (o: { prompt: unknown }) => Promise<unknown>>;
-  const tenir = async (o: { prompt: unknown }) => { if (retenu.test(JSON.stringify(o.prompt)) && !/Précision|précision/.test(JSON.stringify(o.prompt))) await porte; };
+  const tenir = async (o: { prompt: unknown }) => {
+    const p = JSON.stringify(o.prompt);
+    if (retenu.test(p) && !/Précision|précision|Tu classes UN énoncé|Tu remets en forme|Mise en forme du résultat/.test(p)) await porte;
+  };
   const modele = { ...base, doStream: async (o: { prompt: unknown }) => { await tenir(o); return base.doStream(o); }, doGenerate: async (o: { prompt: unknown }) => { await tenir(o); return base.doGenerate(o); } };
-  return { modele, ouvrir };
+  return { modele, ouvrir, appels };
 }
 
 async function jusqua<T>(f: () => Promise<T | null | undefined | false>, quoi: string): Promise<T> {
@@ -147,7 +165,7 @@ suite("Assistant IA — l'orchestrateur de conversation (O1), de bout en bout", 
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  it("ORAL — « Excel ou PDF ? » : le résultat arrivé pendant la question est TENU ; la réponse le change ; le résultat dit en tient compte", async () => {
+  it("ORAL — un long travail : la conversation continue UTILEMENT (plus de deux précisions) ; mineure portée, majeure RÉINJECTÉE, le résultat dit tient compte de tout", async () => {
     const m = modeleAPorte(/rapport des ventes/);
     remplacerModelesPourTests([m.modele as never]);
     const S = `live_${TAG}o1`;
@@ -158,35 +176,42 @@ suite("Assistant IA — l'orchestrateur de conversation (O1), de bout en bout", 
     // L'accusé, collé à LA question utile dérivée de la demande (pas « la période, le but, le périmètre » au hasard).
     expect(a.dits[0].contenu).toMatch(/tu regardes.*Excel ou PDF \?/s);
     await a.voix("Je regarde et je te préviens. Tu préfères un rendu Excel ou PDF ?");
+    const w1 = a.c.travail!.id;
+
+    // « En PDF » — MINEURE (la forme) : gardée, AUCUNE relance ; la conversation enchaîne sur l'élément suivant.
+    await a.personne("En PDF", "d2");
+    expect(a.dits[1].contenu).toMatch(/Noté, PDF.*rendu ainsi.*Sur quelle période/s);
+    await a.voix("Noté. Et sur quelle période : ce mois-ci, le trimestre ou l'année ?");
+    // « le trimestre » — MAJEURE (le périmètre) : gardée, elle partira dans le raisonnement du travail.
+    await a.personne("le trimestre", "d3");
+    expect(a.dits[2].contenu).toMatch(/Noté, Le trimestre.*le travail en tient compte.*grandes lignes ou le détail/s);
+    expect(a.c.travail!.id).toBe(w1);
+    await a.voix("Noté. Tu veux les grandes lignes ou le détail complet ?");
 
     // Le travail finit PENDANT que la question attend : rien n'est dit par-dessus.
     m.ouvrir();
-    const w1 = a.c.travail!.id;
     const t1 = (await prisma.assistantIaVoixTravail.findUniqueOrThrow({ where: { id: w1 } })).tourId;
     await jusqua(() => prisma.assistantIaTour.findFirst({ where: { repondA: t1, role: "assistant", etat: ETAT.TERMINE } }), "premier résultat");
     a.avancer(3_000);
     await a.c.suivreMaintenant();
-    expect(a.dits).toHaveLength(1);
-    expect(a.c.orchestre.annonces).toHaveLength(1);
+    expect(a.dits).toHaveLength(3);
+    // La majeure attendait sa fin : RELANCE CIBLÉE (une seule, qui porte aussi les mineures) — le premier résultat,
+    // dépassé, ne sera pas dit.
+    expect(a.c.travail!.id).not.toBe(w1);
+    expect(await prisma.assistantIaTour.count({ where: { filId: (await prisma.assistantIaTour.findUniqueOrThrow({ where: { id: t1 } })).filId, role: "user", contenu: { contains: "Période voulue : Le trimestre." } } })).toBe(1);
     expect(a.c.orchestrer()).toEqual({ type: "rien", raison: "question en attente" });
 
-    // « En PDF » : noté ; le résultat tenu (en tableau) est CADUC — il n'est pas dit ; la question suivante enchaîne.
-    await a.personne("En PDF", "d2");
-    const apres = a.dits[1].contenu;
-    expect(apres).toMatch(/Noté, PDF/);
-    expect(apres).toMatch(/Sur quelle période/);
-    expect(apres).not.toMatch(/en tableau/);
-    expect(a.c.travail!.id).not.toBe(w1);
-    await a.voix("Noté, PDF. Et sur quelle période : ce mois-ci, le trimestre ou l'année ?");
+    await a.personne("les grandes lignes", "d4");
+    expect(a.dits[3].contenu).toMatch(/Noté, Les grandes lignes/);
+    await a.voix("Noté. Tu veux que j'ajoute la comparaison avec la même période l'an dernier ?");
+    await a.personne("non", "d5");
+    await a.voix("D'accord. Je signale aussi les points de vigilance — retards, ruptures, écarts ?");
+    await a.personne("non merci", "d6");
+    await a.voix("D'accord. Quand ce sera prêt, je l'envoie à quelqu'un, ou c'est pour toi ?");
+    await a.personne("c'est pour moi", "d7");
+    // Cinq éléments utiles enchaînés — pas de plafond à deux.
+    expect(a.dits.filter((d) => /pose cette question/.test(d.contenu)).length).toBeGreaterThanOrEqual(5);
 
-    await a.personne("le trimestre", "d3");
-    expect(a.dits[2].contenu).toMatch(/Noté, Le trimestre/);
-    expect(a.dits[2].contenu).toMatch(/je l'envoie à quelqu'un/);
-    await a.voix("Noté. Quand ce sera prêt, je l'envoie à quelqu'un, ou c'est pour toi ?");
-    await a.personne("c'est pour moi", "d4");
-    expect(a.dits[3].contenu).toMatch(/Noté/);
-
-    // Le résultat DIT : celui qui tient compte des deux réponses — dit de lui-même, au premier silence.
     const final = await jusqua(async () => {
       a.avancer(7_000);
       await a.c.suivreMaintenant();
@@ -198,19 +223,56 @@ suite("Assistant IA — l'orchestrateur de conversation (O1), de bout en bout", 
     expect(attentes(a.dits)).toBe(0);
   });
 
-  it("ORAL — deux travaux : une AUTRE demande pendant le travail part en parallèle ; chaque résultat est dit à son tour, jamais deux collés", async () => {
+  it("ORAL — une précision MINEURE sans relance : « fais-le plus court » ; une phrase ambiguë, tranchée par le classifieur ; une conversation, sans rien lancer", async () => {
+    const m = modeleAPorte(/rapport détaillé/);
+    remplacerModelesPourTests([m.modele as never]);
+    const S = `live_${TAG}o3`;
+    const conv = await conversationNeuve();
+    await enregistrerSessionVoix(sa.id, S, conv);
+    const a = appel(S);
+    await a.personne("Fais un rapport détaillé des ventes par wilaya en Excel ce mois-ci, comparé à l'an dernier, avec les risques, et envoie-le à Amel", "d1");
+    await a.voix("Je regarde et je te préviens dès que c'est prêt.");
+    const w1 = a.c.travail!.id;
+    // Déterministe, sans modèle : une consigne de forme.
+    await a.personne("fais-le plus court", "d2");
+    expect(a.dits.at(-1)!.contenu).toMatch(/rendu ainsi/);
+    expect(m.appels.classement).toBe(0);
+    // Ambiguë : le classifieur tranche — c'est de la conversation ; rien n'est lancé.
+    await a.personne("c'est long là, non ?", "d3");
+    expect(m.appels.classement).toBe(1);
+    expect(a.dits.at(-1)!.contenu).toMatch(/conversation pendant que le travail tourne/);
+    expect(a.c.suivis.size).toBe(1);
+    // Le classement est imputé à la personne et journalisé (K8).
+    expect(await prisma.modelCallLog.count({ where: { userId: sa.id } })).toBeGreaterThan(0);
+
+    m.ouvrir();
+    const fin = await jusqua(async () => {
+      a.avancer(7_000);
+      await a.c.suivreMaintenant();
+      return a.dits.find((d) => /Voici le rapport/.test(d.contenu));
+    }, "résultat dit");
+    // Le résultat est dit TEL QUEL, mis en forme comme demandé — aucune relance n'a eu lieu.
+    expect(fin.contenu).toMatch(/plus court/);
+    expect(a.c.travail?.id ?? w1).toBe(w1);
+    expect(await prisma.assistantIaTour.count({ where: { filId: conv, role: "user", contenu: { contains: "précision" } } })).toBe(0);
+    expect(coupures(a.dits)).toBe(0);
+    expect(attentes(a.dits)).toBe(0);
+  });
+
+  it("ORAL — deux travaux : une AUTRE demande (le classifieur la reconnaît) part en parallèle ; chaque résultat est dit à son tour, jamais deux collés", async () => {
     const m = modeleAPorte(/rapport détaillé/);
     remplacerModelesPourTests([m.modele as never]);
     const S = `live_${TAG}o2`;
     await enregistrerSessionVoix(sa.id, S, await conversationNeuve());
     const a = appel(S);
-    await a.personne("Fais un rapport détaillé des ventes par wilaya en Excel ce mois-ci et envoie-le à Amel", "d1");
+    await a.personne("Fais un rapport détaillé des ventes par wilaya en Excel ce mois-ci, comparé à l'an dernier, avec les risques, et envoie-le à Amel", "d1");
     // Tout est dit dans la demande : aucune question — la voix ne meuble pas, elle reste disponible.
     expect(a.dits[0].contenu).toMatch(/restes disponible/);
     await a.voix("Je regarde et je te préviens dès que c'est prêt.");
     const w1 = a.c.travail!.id;
 
     await a.personne("Combien de clients à Oran ?", "d2");
+    expect(m.appels.classement).toBe(1);
     expect(a.dits[1].contenu).toMatch(/en parallèle/);
     expect(a.c.suivis.size).toBe(2);
     await a.voix("Je regarde aussi.");
@@ -231,46 +293,68 @@ suite("Assistant IA — l'orchestrateur de conversation (O1), de bout en bout", 
       return a.dits.find((d) => /Voici le rapport/.test(d.contenu));
     }, "premier résultat dit");
     expect(fin.contenu).not.toMatch(/42 clients/);
-    expect(a.dits.filter((d) => /Voici le rapport|42 clients/.test(d.contenu)).every((d) => !(/Voici le rapport/.test(d.contenu) && /42 clients/.test(d.contenu)))).toBe(true);
     expect(coupures(a.dits)).toBe(0);
     expect(attentes(a.dits)).toBe(0);
   });
 
-  it("ÉCRIT — pendant un travail long : la question de l'agenda dans le fil, une autre demande en parallèle, le résultat TENU jusqu'à la réponse, qui l'ajuste", async () => {
+  it("ÉCRIT — pendant un travail long : les questions de l'agenda dans le fil, une autre demande en parallèle, une mineure gardée, une majeure réinjectée", async () => {
     const m = modeleAPorte(/rapport des ventes/);
     remplacerModelesPourTests([m.modele as never]);
     const fil = { id: await conversationNeuve() };
     const d1 = await deposerEcrit(sa.id, "Prépare-moi un rapport des ventes par wilaya", [], fil.id);
     expect(d1.ok && d1.voie).toBe("suite");
     const r1 = await jusqua(() => prisma.assistantIaTour.findFirst({ where: { repondA: d1.ok ? d1.tour.id : "", role: "assistant", etat: ETAT.COURS } }), "travail en cours");
-    // Une réponse rapide n'a pas de question : l'agenda ne s'ouvre qu'au-delà de 4 s.
+    // Une réponse rapide n'a pas de question : l'agenda ne s'ouvre qu'au-delà du seuil (réglage, 4 s par défaut).
     expect((await orchestrationDuFil(sa.id, fil.id)).question).toBeNull();
     await prisma.assistantIaTour.update({ where: { id: r1.id }, data: { createdAt: new Date(Date.now() - 10_000) } });
     const o1 = await orchestrationDuFil(sa.id, fil.id);
     expect(o1.question).toMatchObject({ texte: "Tu préfères un rendu Excel ou PDF ?", choix: ["Excel", "PDF", "Peu importe"] });
     expect(o1.avancement?.reponseId).toBe(r1.id);
 
-    // Une AUTRE demande : elle n'attend pas derrière le travail long (voie parallèle) — la question reste posée.
+    // Une AUTRE demande (le classifieur la reconnaît) : elle n'attend pas derrière le travail long — la question reste.
     const d2 = await deposerEcrit(sa.id, "Combien de clients à Oran ?", [], fil.id);
     expect(d2.ok && d2.voie).toBe("parallele");
     await jusqua(() => prisma.assistantIaTour.findFirst({ where: { repondA: d2.ok ? d2.tour.id : "", role: "assistant", etat: ETAT.TERMINE, contenu: { contains: "42 clients" } } }), "réponse parallèle");
     expect((await prisma.assistantIaTour.findUniqueOrThrow({ where: { id: r1.id } })).etat).toBe(ETAT.COURS);
-    expect((await orchestrationDuFil(sa.id, fil.id)).question?.texte).toMatch(/Excel ou PDF/);
 
-    // Le travail finit pendant que SA question attend : la réponse est TENUE (« affichée après ta réponse »).
+    // « PDF » (le choix touché) — mineure, gardée ; l'agenda se renouvelle : la question suivante est posée.
+    const d3 = await deposerEcrit(sa.id, "PDF", [], fil.id);
+    expect(d3.ok && d3.voie).toBe("precision");
+    expect((await orchestrationDuFil(sa.id, fil.id)).question?.texte).toMatch(/Sur quelle période/);
+    // « le trimestre » — majeure, gardée jusqu'à la fin du travail.
+    const d4 = await deposerEcrit(sa.id, "le trimestre", [], fil.id);
+    expect(d4.ok && d4.voie).toBe("precision");
+
+    // Le travail finit : UNE relance ciblée porte la majeure ET la mineure ; la réponse d'avant est « version d'avant ».
     m.ouvrir();
     await jusqua(() => prisma.assistantIaTour.findFirst({ where: { id: r1.id, etat: ETAT.TERMINE } }), "premier résultat");
-    expect((await orchestrationDuFil(sa.id, fil.id)).tenus).toEqual([r1.id]);
+    const o2 = await orchestrationDuFil(sa.id, fil.id);
+    expect(o2.ajustes).toEqual([{ reponseId: r1.id, valeur: "Le trimestre" }]);
+    await jusqua(() => prisma.assistantIaTour.findFirst({ where: { filId: fil.id, role: "assistant", etat: ETAT.TERMINE, contenu: { contains: "en PDF sur le trimestre" } } }), "réponse ajustée");
+    expect(await prisma.assistantIaTour.count({ where: { filId: fil.id, role: "user", contenu: { startsWith: "[Précision du travail en cours]" } } })).toBe(1);
+    expect(await prisma.assistantIaTour.count({ where: { filId: fil.id, role: "user", contenu: { startsWith: "[Mise en forme du résultat]" } } })).toBe(0);
+    // Les messages de la personne sont dans le fil, tels qu'écrits.
+    expect(await prisma.assistantIaTour.count({ where: { filId: fil.id, role: "user", contenu: { in: ["PDF", "le trimestre"] } } })).toBe(2);
+  });
 
-    // « PDF » (le choix touché) : la question est levée, la réponse d'avant est « version d'avant », l'ajustée suit.
-    const d3 = await deposerEcrit(sa.id, "PDF", [], fil.id);
-    expect(d3.ok && d3.voie).toBe("reponse");
-    const o3 = await orchestrationDuFil(sa.id, fil.id);
-    expect(o3.tenus).toEqual([]);
-    expect(o3.ajustes).toEqual([{ reponseId: r1.id, valeur: "PDF" }]);
-    await jusqua(() => prisma.assistantIaTour.findFirst({ where: { filId: fil.id, role: "assistant", etat: ETAT.TERMINE, contenu: { contains: "en PDF" } } }), "réponse ajustée");
-    // Le message de la personne est dans le fil, tel qu'écrit ; la précision transmise aussi.
-    expect(await prisma.assistantIaTour.count({ where: { filId: fil.id, role: "user", contenu: "PDF" } })).toBe(1);
-    expect(await prisma.assistantIaTour.count({ where: { filId: fil.id, role: "user", contenu: { startsWith: "[Précision du travail en cours] Format de rendu voulu : PDF." } } })).toBe(1);
+  it("ÉCRIT — une précision MINEURE sur un résultat prêt : pas de relance, la réponse est remise en forme ; le résultat TENU pendant la question", async () => {
+    const m = modeleAPorte(/rapport des ventes/);
+    remplacerModelesPourTests([m.modele as never]);
+    const fil = { id: await conversationNeuve() };
+    const d1 = await deposerEcrit(sa.id, "Prépare-moi un rapport des ventes par wilaya", [], fil.id);
+    const r1 = await jusqua(() => prisma.assistantIaTour.findFirst({ where: { repondA: d1.ok ? d1.tour.id : "", role: "assistant", etat: ETAT.COURS } }), "travail en cours");
+    await prisma.assistantIaTour.update({ where: { id: r1.id }, data: { createdAt: new Date(Date.now() - 10_000) } });
+    expect((await orchestrationDuFil(sa.id, fil.id)).question?.texte).toMatch(/Excel ou PDF/);
+    m.ouvrir();
+    await jusqua(() => prisma.assistantIaTour.findFirst({ where: { id: r1.id, etat: ETAT.TERMINE } }), "résultat");
+    // Le travail a fini pendant que SA question attend : la réponse est TENUE (« affichée après ta réponse »).
+    expect((await orchestrationDuFil(sa.id, fil.id)).tenus).toEqual([r1.id]);
+    // « fais-le plus court » : ni relance ni tour d'agent — la réponse est remise en forme par le modèle rapide.
+    const d2 = await deposerEcrit(sa.id, "fais-le plus court", [], fil.id);
+    expect(d2.ok && d2.voie).toBe("precision");
+    expect(m.appels.miseEnForme).toBe(1);
+    expect(await prisma.assistantIaTour.findFirst({ where: { filId: fil.id, role: "assistant", repondA: d1.ok ? d1.tour.id : "", contenu: { startsWith: "_Mise en forme demandée" } } })).toBeTruthy();
+    expect(await prisma.assistantIaTour.count({ where: { filId: fil.id, role: "user", contenu: { startsWith: "[" } } })).toBe(0);
+    expect((await orchestrationDuFil(sa.id, fil.id)).ajustes).toEqual([]);
   });
 });

@@ -2,28 +2,51 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * L'AGENDA DE CONVERSATION — les RÈGLES (lot O1, décision 0046). Pur, navigateur compris.
  *
- * Pendant qu'un travail tourne, la conversation doit être UTILE (Direction : « pas des questions au hasard »). L'agenda
- * se DÉRIVE de la demande elle-même, sans appel de modèle :
- *   • (a) les PRÉCISIONS qui changent le résultat — format de rendu, période, niveau de détail — posées seulement si la
- *     demande ne les dit pas déjà, et seulement si elles comptent pour CE genre de demande ;
- *   • (c) l'ÉTAPE SUIVANTE à décider — « quand ce sera prêt, je l'envoie à quelqu'un ? » — pour un livrable ;
- *   • (b) les résultats PARTIELS (sous-missions finies) sont ajoutés par le serveur au fil du travail ;
- *   • (d) une AUTRE demande dite pendant le travail part en parallèle (`estNouvelleDemande`, `voieDuMessage`).
- * Au plus deux précisions et une étape suivante : on ne transforme pas l'attente en interrogatoire.
+ * Pendant qu'un travail tourne, la conversation reste FLUIDE et UTILE jusqu'au résultat (Direction : « pas des questions
+ * au hasard » ; puis « au plus 2 précisions : bah ça dépend »). L'agenda se DÉRIVE de la demande, sans appel de modèle,
+ * et n'a pas de plafond fixe : tout ce qui a une vraie valeur pour CE genre de demande, une chose à la fois —
+ *   • les PRÉCISIONS qui changent le résultat (format, période, niveau de détail) — jamais ce que la demande dit déjà ;
+ *   • les APPROFONDISSEMENTS que la personne voudra probablement (comparaison, ventilation, points de vigilance) ;
+ *   • l'ÉTAPE SUIVANTE à décider (« je l'envoie à quelqu'un ? ») ;
+ *   • les résultats PARTIELS (sous-missions finies), ajoutés par le serveur au fil du travail.
+ * Chaque élément porte son IMPACT : MAJEUR (périmètre, période, données, raisonnement → réinjecté dans le travail) ou
+ * MINEUR (forme, format, ton, longueur, destinataire → appliqué au rendu, sans relance).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
 /** Le préfixe d'une précision ÉCRITE transmise au travail (la voix garde le sien, qui demande une réponse pour l'oreille). */
 export const PREFIXE_PRECISION_ECRITE = "[Précision du travail en cours]";
+/** Le préfixe d'un tour de MISE EN FORME : le résultat prêt, rendu autrement (fichier, carte d'envoi) — sans recherche. */
+export const PREFIXE_MISE_EN_FORME = "[Mise en forme du résultat]";
 
-export type CleAgenda = "format" | "periode" | "detail" | "destinataire";
+export type CleAgenda = "format" | "periode" | "detail" | "comparaison" | "ventilation" | "vigilance" | "destinataire";
+
+/** MAJEUR : change ce que le travail cherche ou raisonne. MINEUR : change seulement la façon de le rendre. */
+export type Impact = "majeur" | "mineur";
+/** Pour un mineur : `texte` (ton, longueur, présentation), `fichier` (PDF, Excel…), `destinataire` (à qui l'envoyer). */
+export type Forme = "texte" | "fichier" | "destinataire";
 
 export interface GabaritAgenda {
   cle: CleAgenda;
   nature: "precision" | "suite";
   question: string;
   choix: string[];
+  impact: Impact;
+  forme: Forme | null;
 }
+
+/**
+ * LES RÉGLAGES DE L'ORCHESTRATION — des seuils de déclenchement, pas des plafonds de conversation (Direction : « ça
+ * dépend »). Le serveur les relit de l'environnement (`ASSISTANT_O1_*`) ; ces valeurs sont les défauts.
+ */
+export const REGLAGES_ORCHESTRATION = {
+  /** À l'écrit, l'agenda s'ouvre quand le travail tourne depuis ce temps (une réponse rapide n'a pas de question). */
+  agendaEcritApresMs: 4_000,
+  /** À l'écrit, au-delà, une autre demande ou une conversation n'attend plus le travail : voie parallèle. */
+  travailLongMs: 8_000,
+  /** À l'oral, une question sans réponse depuis ce temps n'est plus « en attente ». */
+  questionExpireMs: 20_000,
+} as const;
 
 const sansAccents = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
@@ -31,48 +54,65 @@ const LIVRABLE = /\b(rapport|export\w*|tableau|liste|fichier|document|synthese|b
 const FORMAT_DIT = /\b(excel|xlsx|csv|pdf|word|docx|pptx|powerpoint|tableur)\b/;
 const DONNEES_DATEES = /\b(ventes?|chiffre d'affaires|achats?|depenses?|stocks?|commandes?|factur\w*|encaissements?|recouvrements?|visites?|marges?|consommation|production|performances?|evolution|creances?|paiements?|livraisons?|absences?|conges?)\b/;
 const PERIODE_DITE = /\b(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre|20\d\d|aujourd'hui|hier|demain|semaine|mois|trimestre|t[1-4]|annee|an dernier|depuis|entre|du \d|cette|ce mois|derniers?|dernieres?|en cours|actuel\w*|a date|jour)\b/;
-const ANALYSE = /\b(rapport|synthese|analyse|bilan|etude|recherche|veille|compare\w*|comparaison|audit)\b/;
+const ANALYSE = /\b(rapport|synthese|analyse|bilan|etude|recherche|veille|audit)\b/;
 const DETAIL_DIT = /\b(bref|court|resume|detaill\w*|complet|exhaustif|grandes lignes|en une phrase|rapide\w*|en gros|precis\w*)\b/;
 const ENVOI_DIT = /\b(envoie|envoyer|transmets?|transmettre|partage|partager|mail|courriel|whatsapp|pour (le|la|les|mon|ma|mes) \w+|a l'equipe)\b/;
+const COMPARAISON_DITE = /\b(compar\w*|evolution|vs|versus|par rapport|n-1|l'an dernier|annee derniere)\b/;
+const VENTILATION_DITE = /\bpar (produit|produits|wilaya|wilayas|region|regions|client|clients|delegue|delegues|mois|gamme|famille|commercial|depot)\b/;
+const VIGILANCE_DITE = /\b(risques?|vigilance|alertes?|anomalies?|ecarts?|problemes?)\b/;
 
 /**
- * L'AGENDA D'UNE DEMANDE — déterministe : la même demande donne toujours les mêmes questions, et aucune ne porte sur
- * ce que la demande dit déjà. Une demande courte et sans livrable (« combien de clients à Oran ? ») n'en a aucune.
+ * L'AGENDA D'UNE DEMANDE — déterministe : la même demande donne toujours les mêmes éléments, et aucun ne porte sur ce que
+ * la demande dit déjà. Une demande courte et sans livrable (« combien de clients à Oran ? ») n'en a aucun. Sans plafond :
+ * l'orchestrateur en dit UN à la fois, tant que le travail tourne ; un travail fini efface ce qui ne sert plus.
  */
 export function construireAgenda(demande: string): GabaritAgenda[] {
   const d = sansAccents(demande);
   const livrable = LIVRABLE.test(d);
+  const datees = DONNEES_DATEES.test(d);
   const out: GabaritAgenda[] = [];
   if (livrable && !FORMAT_DIT.test(d)) {
-    out.push({ cle: "format", nature: "precision", question: "Tu préfères un rendu Excel ou PDF ?", choix: ["Excel", "PDF", "Peu importe"] });
+    out.push({ cle: "format", nature: "precision", question: "Tu préfères un rendu Excel ou PDF ?", choix: ["Excel", "PDF", "Peu importe"], impact: "mineur", forme: "fichier" });
   }
-  if (DONNEES_DATEES.test(d) && !PERIODE_DITE.test(d)) {
-    out.push({ cle: "periode", nature: "precision", question: "Sur quelle période : ce mois-ci, le trimestre ou l'année ?", choix: ["Ce mois-ci", "Le trimestre", "L'année"] });
+  if (datees && !PERIODE_DITE.test(d)) {
+    out.push({ cle: "periode", nature: "precision", question: "Sur quelle période : ce mois-ci, le trimestre ou l'année ?", choix: ["Ce mois-ci", "Le trimestre", "L'année"], impact: "majeur", forme: null });
   }
-  if (out.length < 2 && ANALYSE.test(d) && !DETAIL_DIT.test(d)) {
-    out.push({ cle: "detail", nature: "precision", question: "Tu veux les grandes lignes ou le détail complet ?", choix: ["Les grandes lignes", "Le détail"] });
+  if (ANALYSE.test(d) && !DETAIL_DIT.test(d)) {
+    out.push({ cle: "detail", nature: "precision", question: "Tu veux les grandes lignes ou le détail complet ?", choix: ["Les grandes lignes", "Le détail"], impact: "mineur", forme: "texte" });
+  }
+  if (datees && (livrable || ANALYSE.test(d)) && !VENTILATION_DITE.test(d)) {
+    out.push({ cle: "ventilation", nature: "precision", question: "Je le détaille par produit, par wilaya, ou le total suffit ?", choix: ["Par produit", "Par wilaya", "Le total suffit"], impact: "majeur", forme: null });
+  }
+  if (datees && !COMPARAISON_DITE.test(d)) {
+    out.push({ cle: "comparaison", nature: "precision", question: "Tu veux que j'ajoute la comparaison avec la même période l'an dernier ?", choix: ["Oui, compare", "Non"], impact: "majeur", forme: null });
+  }
+  if (ANALYSE.test(d) && !VIGILANCE_DITE.test(d)) {
+    out.push({ cle: "vigilance", nature: "precision", question: "Je signale aussi les points de vigilance — retards, ruptures, écarts ?", choix: ["Oui", "Non"], impact: "majeur", forme: null });
   }
   if (livrable && !ENVOI_DIT.test(d)) {
-    out.push({ cle: "destinataire", nature: "suite", question: "Quand ce sera prêt, je l'envoie à quelqu'un, ou c'est pour toi ?", choix: ["C'est pour moi"] });
+    out.push({ cle: "destinataire", nature: "suite", question: "Quand ce sera prêt, je l'envoie à quelqu'un, ou c'est pour toi ?", choix: ["C'est pour moi"], impact: "mineur", forme: "destinataire" });
   }
-  return out.slice(0, 3);
+  return out;
 }
 
 /** « peu importe », « comme tu veux », « c'est pour moi », « non » : une réponse qui ne change rien au travail. */
-const SANS_EFFET = /^(peu importe|comme tu veux|comme tu (le )?sens|n'importe|ca m'est egal|egal|pas d'importance|aucune importance|c'est pour moi|pour moi|personne|non|non merci|pas besoin|rien|laisse|garde[- ]le|je le garde|ok|d'accord|ca va|merci|super|parfait|top|cool|tres bien|bien recu)\b/;
+const SANS_EFFET = /^(peu importe|comme tu veux|comme tu (le )?sens|n'importe|ca m'est egal|egal|pas d'importance|aucune importance|c'est pour moi|pour moi|personne|non|non merci|pas besoin|rien|laisse|garde[- ]le|je le garde|ok|d'accord|ca va|merci|super|parfait|top|cool|tres bien|bien recu|le total suffit)\b/;
+const OUI = /^(oui|ouais|vas[- ]y|d'accord|ok|volontiers|bien sur|carrement|go|yallah|wakha|ih)\b/;
 
 export interface LectureReponse {
   /** La valeur retenue — le choix reconnu, sinon les mots de la personne (bornés). */
   valeur: string;
-  /** La réponse ne change pas le travail (« peu importe ») : rien n'est transmis. */
+  /** La réponse ne change pas le travail (« peu importe », « non ») : rien n'est transmis. */
   sansEffet: boolean;
 }
 
 /** LIRE la réponse à une question d'agenda. Un choix reconnu dans les mots de la personne l'emporte. */
 export function lireReponseAgenda(g: { cle: string; choix: string[] }, texte: string): LectureReponse {
   const t = sansAccents(texte).replace(/[.!?,;]+/g, " ").replace(/\s+/g, " ").trim();
+  // Une question oui / non (« Oui, compare » / « Non ») : un oui sans réserve choisit le premier.
+  if (g.choix.length === 2 && /^oui/i.test(g.choix[0]) && g.choix[1] === "Non" && OUI.test(t)) return { valeur: g.choix[0], sansEffet: false };
   const choix = g.choix.find((c) => c !== "Peu importe" && new RegExp(`\\b${sansAccents(c).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(t));
-  if (choix) return { valeur: choix, sansEffet: choix === "C'est pour moi" };
+  if (choix) return { valeur: choix, sansEffet: choix === "C'est pour moi" || choix === "Non" || choix === "Le total suffit" };
   if (g.cle === "format") {
     const f = t.match(/\b(excel|xlsx|csv|pdf|word|docx|powerpoint|pptx)\b/);
     if (f) return { valeur: f[1] === "xlsx" || f[1] === "csv" ? "Excel" : f[1] === "docx" ? "Word" : f[1] === "pptx" ? "PowerPoint" : f[1][0].toUpperCase() + f[1].slice(1), sansEffet: false };
@@ -81,55 +121,25 @@ export function lireReponseAgenda(g: { cle: string; choix: string[] }, texte: st
   return { valeur: texte.trim().slice(0, 200), sansEffet: false };
 }
 
-const LIBELLE_CLE: Record<CleAgenda, string> = {
-  format: "Format de rendu voulu", periode: "Période voulue", detail: "Niveau de détail voulu", destinataire: "Quand c'est prêt, à envoyer à",
-};
-
-/** La PRÉCISION transmise au travail — une ligne, ce que la personne a choisi. */
-export function precisionDeLaReponse(cle: CleAgenda, valeur: string): string {
-  if (cle === "destinataire") return `${LIBELLE_CLE.destinataire} : ${valeur} (prépare la carte d'envoi avec le résultat ; rien ne part sans confirmation).`;
-  return `${LIBELLE_CLE[cle]} : ${valeur}.`;
+/** La PRÉCISION transmise au travail (majeur) ou portée sur son rendu (mineur) — une ligne, ce que la personne a choisi. */
+export function precisionDeLaReponse(cle: string, valeur: string): string {
+  switch (cle) {
+    case "format": return `Format de rendu voulu : ${valeur}.`;
+    case "periode": return `Période voulue : ${valeur}.`;
+    case "detail": return `Niveau de détail voulu : ${valeur}.`;
+    case "ventilation": return `Détail voulu : ${valeur.toLowerCase()}.`;
+    case "comparaison": return "Ajoute la comparaison avec la même période l'an dernier.";
+    case "vigilance": return "Signale aussi les points de vigilance (retards, ruptures, écarts).";
+    case "destinataire": return `Quand c'est prêt, à envoyer à : ${valeur} (prépare la carte d'envoi avec le résultat ; rien ne part sans confirmation).`;
+    default: return valeur.endsWith(".") ? valeur : `${valeur}.`;
+  }
 }
 
-/** L'ACCUSÉ de la réponse — court, la valeur redite : « Noté, PDF. » ; si le travail change, on le dit. */
-export function accuseDeReponse(valeur: string, change: boolean): string {
-  return change
-    ? `Dis en quelques mots « Noté, ${valeur} » et que le travail en tient compte — sans résultat inventé.`
-    : `Dis en trois mots « Noté${valeur ? `, ${valeur}` : ""} » — sans résultat inventé.`;
-}
-
-// ─── UNE AUTRE DEMANDE PENDANT LE TRAVAIL ─────────────────────────────────────────────────
-
-const AMORCE_PRECISION = /^(plutot|et aussi|aussi|en fait|seulement|juste|uniquement|surtout|sauf|sans|avec|mais|non|enfin|precise|ajoute|rajoute|pour|sur|en|a partir|depuis|et pour|et sur|et en|et le|et la|et les)\b/;
-const DEMANDE = /\b(donne|donne-moi|montre|affiche|dis-moi|combien|est-ce que|quel|quelle|quels|quelles|qui|ou en est|fais|fait|prepare|redige|envoie|cherche|trouve|calcule|compare|liste|cree|ajoute une?|programme|rappelle|planifie|ouvre|resume|explique|traduis|lance|verifie|regarde)\b/;
-
-/**
- * Une NOUVELLE demande (à traiter en parallèle) ou une PRÉCISION du travail en cours ? Déterministe : une phrase qui
- * commence comme un complément (« plutôt sur 2025 », « et aussi Oran ») ou très courte (≤ 4 mots) précise ; une phrase
- * qui demande quelque chose (verbe d'action, question) est une autre demande.
- */
-export function estNouvelleDemande(texte: string): boolean {
-  const t = sansAccents(texte).replace(/[.!?,;]+/g, " ").replace(/\s+/g, " ").trim();
-  if (!t) return false;
-  if (AMORCE_PRECISION.test(t)) return false;
-  if (t.split(" ").length <= 4 && !t.includes("?") && !/\b(combien|quel|quelle|qui|ou en est)\b/.test(t)) return false;
-  return DEMANDE.test(t) || /\?\s*$/.test(texte.trim());
-}
-
-/** Au-delà, un tour en cours est un « travail long » : la conversation ne l'attend plus (écrit). */
-export const TRAVAIL_LONG_MS = 8_000;
-
-/**
- * LA VOIE D'UN MESSAGE ÉCRIT déposé pendant qu'un tour tourne :
- *   • `reponse` — une question de l'agenda attend sa réponse et ce n'est pas une autre demande ;
- *   • `parallele` — un travail LONG tourne et c'est une autre demande : elle n'attend pas derrière lui ;
- *   • `suite` — sinon, la file habituelle (le deuxième message attend le premier et voit sa réponse).
- */
-export function voieDuMessage(d: { texte: string; questionEnAttente: boolean; travailEnCoursDepuisMs: number | null }): "reponse" | "parallele" | "suite" {
-  const autre = estNouvelleDemande(d.texte);
-  if (d.questionEnAttente && !autre) return "reponse";
-  if (d.travailEnCoursDepuisMs != null && d.travailEnCoursDepuisMs >= TRAVAIL_LONG_MS && autre) return "parallele";
-  return "suite";
+/** L'ACCUSÉ — court, la valeur redite : « Noté, PDF. » ; majeur : le travail en tient compte ; mineur : le rendu. */
+export function accuseDeReponse(valeur: string, impact: Impact | null): string {
+  if (impact === "majeur") return `Dis en quelques mots « Noté, ${valeur} » et que le travail en tient compte — sans résultat inventé.`;
+  if (impact === "mineur") return `Dis en quelques mots « Noté, ${valeur} » : le résultat te sera rendu ainsi — sans résultat inventé.`;
+  return `Dis en trois mots « Noté${valeur ? `, ${valeur}` : ""} » — sans résultat inventé.`;
 }
 
 // ─── L'AVANCEMENT ─────────────────────────────────────────────────────────────────────────
@@ -179,7 +189,9 @@ export interface OrchestrationFil {
 }
 
 /** Une précision transmise au travail, telle que l'écran la montre : sa première ligne, sans le préfixe. */
-export function precisionAffichee(contenu: string): string | null {
-  if (!contenu.startsWith(PREFIXE_PRECISION_ECRITE)) return null;
-  return contenu.slice(PREFIXE_PRECISION_ECRITE.length).split("\n")[0].trim();
+export function precisionAffichee(contenu: string): { quoi: string; texte: string } | null {
+  for (const [prefixe, quoi] of [[PREFIXE_PRECISION_ECRITE, "Précision transmise au travail en cours"], [PREFIXE_MISE_EN_FORME, "Mise en forme demandée, d'après le résultat prêt"]] as const) {
+    if (contenu.startsWith(prefixe)) return { quoi, texte: contenu.slice(prefixe.length).split("\n")[0].trim() };
+  }
+  return null;
 }

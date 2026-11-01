@@ -37,6 +37,23 @@ export interface ElementAgenda {
   choix?: string[];
 }
 
+/**
+ * CE QUE LE SERVEUR REND À L'ORCHESTRATEUR avec l'accusé d'une parole (la délégation vocale) — lu par le navigateur
+ * pour enchaîner sans couper ni attendre.
+ */
+export interface RetourOrchestre {
+  /** Ce que la voix va dire POSE une question (carte orale, « laquelle ? ») : rien ne s'y colle. */
+  questionPosee?: boolean;
+  /** C'était la réponse à cet élément d'agenda. */
+  repondA?: string;
+  /** Précision MAJEURE : le résultat en attente de ce travail est caduc ; `nouveau` : le travail ajusté qu'on suit. */
+  change?: { travail: string; nouveau?: string };
+  /** Un travail est né : son agenda, dérivé de la demande. */
+  lance?: { id: string; agenda: ElementAgenda[] };
+  /** Précision MINEURE de texte sur un résultat déjà là (tenu) : il est dit ainsi, sans relance. */
+  miseEnForme?: { travail: string; consigne: string };
+}
+
 export interface Annonce {
   travail: string;
   nature: "resultat" | "echec";
@@ -97,14 +114,19 @@ export type Evenement =
    * Le serveur a pris en compte ce que la personne a dit. `accuse` : ce que la voix en dit (« Noté, PDF ») ;
    * `questionPosee` : l'accusé POSE lui-même une question (carte orale, « laquelle ? ») — rien ne s'y colle ;
    * `repondA` : l'élément d'agenda auquel c'était la réponse ; `change` : la réponse a changé ce travail (son résultat
-   * en attente est caduc ; `nouveau` : l'identifiant du travail ajusté, s'il en a changé) ; `lance` : un travail né.
+   * en attente est caduc ; `nouveau` : l'identifiant du travail ajusté, s'il en a changé) — une précision MAJEURE ;
+   * `miseEnForme` : une précision MINEURE sur un résultat déjà là — il n'est PAS caduc, il sera dit ainsi ; `lance` : un
+   * travail né.
    */
   | {
     type: "reponse_prise_en_compte"; ms: number; accuse: string; delegationId?: string | null; questionPosee?: boolean;
     element?: ElementAgenda | null; repondA?: string | null; change?: { travail: string; nouveau?: string } | null;
+    miseEnForme?: { travail: string; consigne: string } | null;
     lance?: { id: string; agenda?: ElementAgenda[]; avancement?: string | null } | null; silencieux?: boolean;
   }
   | { type: "agenda"; travail: string; elements: ElementAgenda[] }
+  /** Un travail né hors d'une réponse de la personne (la mise en forme d'un résultat, par exemple) : il est suivi. */
+  | { type: "travail"; ms: number; id: string; agenda?: ElementAgenda[]; delegationId?: string | null }
   | { type: "avancement"; travail: string; texte: string }
   | { type: "resultat"; ms: number; travail: string; contenu: string; echec?: boolean; brut?: boolean }
   | { type: "remplace"; ancien: string; nouveau: string }
@@ -185,6 +207,11 @@ export function transition(e: EtatConversation, ev: Evenement): EtatConversation
         // Le résultat ajusté se dira sous la DERNIÈRE délégation qui concerne ce travail (K9).
         s = majTravail(s, ancien, (t) => ({ ...t, id: nouveau, etat: "ajuste", avancementDit: false, delegationId: ev.delegationId ?? t.delegationId, agenda: t.agenda.map((x) => ({ ...x, travail: nouveau })) }));
       }
+      if (ev.miseEnForme) {
+        // MINEURE : le résultat tenu reste valable — il sera dit en tenant compte de la forme demandée.
+        const m = ev.miseEnForme;
+        s = { ...s, annonces: s.annonces.map((a) => (a.travail === m.travail ? { ...a, contenu: `${a.contenu} (Dis-le en tenant compte de ce que la personne a demandé pour la forme : ${m.consigne})` } : a)) };
+      }
       if (ev.lance && !travailDe(s, ev.lance.id)) {
         s = {
           ...s,
@@ -198,6 +225,9 @@ export function transition(e: EtatConversation, ev: Evenement): EtatConversation
       if (ev.silencieux) return s;
       return { ...s, accuse: { contenu: ev.accuse, delegationId: ev.delegationId ?? null, questionPosee: ev.questionPosee === true, element: ev.element?.id ?? null } };
     }
+    case "travail":
+      if (travailDe(e, ev.id)) return e;
+      return { ...e, travaux: [...e.travaux, { id: ev.id, lanceMs: ev.ms, etat: "en_cours", agenda: ev.agenda ?? [], avancement: null, avancementDit: false, delegationId: ev.delegationId ?? null }] };
     case "agenda": {
       const t = travailDe(e, ev.travail);
       if (!t) return e;

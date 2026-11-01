@@ -166,7 +166,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
         if (precision != null) {
           return (
             <p key={m.id} className="text-right text-[11px] text-slate-500 dark:text-zinc-400" data-testid="precision-transmise">
-              Précision transmise au travail en cours : {precision}
+              {precision.quoi} : {precision.texte}
             </p>
           );
         }
