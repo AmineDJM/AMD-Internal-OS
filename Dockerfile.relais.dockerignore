@@ -1,0 +1,3 @@
+# Le contexte du relais : SON script, rien d'autre (ni le code de l'ERP, ni .env, ni node_modules).
+*
+!scripts/relais-claude.ts

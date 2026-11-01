@@ -13,7 +13,7 @@ import type { NomDepot } from "./ports";
  *            (`trig_…`), CLAUDE_ROUTINE_<ALIAS>_TOKEN (`sk-ant-oat01-…`, affiché une fois), CLAUDE_ROUTINE_<ALIAS>_DEPOT.
  *            ANTHROPIC_ROUTINES_URL (défaut https://api.anthropic.com) ne sert qu'aux bancs.
  *   MiMo     `mimo` (déjà posée sur Render ; MIMO_API_KEY accepté), MIMO_BASE_URL (défaut l'ancien point de l'ERP).
- *   Relais   CLAUDE_RELAIS_TOKEN : le jeton que le relais CLI (machine de la Direction) présente pour tirer ses ordres.
+ *   Relais   CLAUDE_RELAIS_TOKEN : le jeton que le relais CLI (service Render `claude-relais`) présente pour tirer ses ordres.
  *
  * Aucun identifiant claude.ai d'abonnement (OAuth, `claude setup-token`) n'est lu ici : les conditions d'Anthropic
  * l'interdisent côté serveur (décision 0043). Le jeton d'une routine n'est pas un identifiant de compte : il ne fait

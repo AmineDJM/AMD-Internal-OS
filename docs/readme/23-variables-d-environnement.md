@@ -112,7 +112,7 @@ Toutes **côté serveur** (service de l'ERP sur Render), jamais lues par un mod�
 | `CLAUDE_ROUTINE_<ALIAS>_TOKEN` | jeton de la routine (`sk-ant-oat01-…`, affiché une fois) — ne déclenche que CETTE routine |
 | `CLAUDE_ROUTINE_<ALIAS>_DEPOT` | le dépôt de la routine (« proprio/nom ») |
 | `mimo` (ou `MIMO_API_KEY`), `MIMO_BASE_URL` | MiMo : clé déjà posée ; base par défaut `https://token-plan-ams.xiaomimimo.com/v1` (sonde `GET /models`) |
-| `CLAUDE_RELAIS_TOKEN` | jeton du **relais CLI** (`scripts/relais-claude.ts`, sur une machine de la Direction connectée par `claude auth login`) ; aléatoire, ≥ 24 caractères ; sans lui `/api/dev/relais/ordres` est fermée (503). Côté relais : `RELAIS_ERP_URL`, `RELAIS_JETON` (même valeur), `RELAIS_DOSSIER`, `RELAIS_CLAUDE`, `RELAIS_GIT` — installation launchd/systemd dans la décision 0043 § 3 bis |
+| `CLAUDE_RELAIS_TOKEN` | jeton du **relais Claude Code** (service Render `claude-relais`, background worker Docker + disque `/var/data`) ; aléatoire, ≥ 24 caractères ; à poser IDENTIQUE sur `amd-internal-os` et sur `claude-relais` ; sans lui `/api/dev/relais/ordres` est fermée (503). Côté `claude-relais` aussi : `GITHUB_TOKEN` (Contents R/W, pour pousser la branche réservée), `ERP_URL`, `CLAUDE_CONFIG_DIR=/var/data/claude` (la connexion claude.ai faite par la Direction dans le Shell du service y vit), `RELAIS_DOSSIER=/var/data/depots`. Pas à pas : décision 0043 § 3 bis |
 | `GITHUB_API_URL`, `RENDER_API_URL`, `ANTHROPIC_ROUTINES_URL` | bancs seulement (faux serveur) |
 
 **Jamais** d'identifiant claude.ai d'abonnement sur le serveur (ni OAuth, ni `claude setup-token`) : interdit par les

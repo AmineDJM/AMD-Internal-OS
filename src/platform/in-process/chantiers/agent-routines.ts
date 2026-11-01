@@ -99,6 +99,7 @@ export function creerAgentDeveloppeur(opts: OptionsAgent = {}): AgentDeveloppeur
     if (!d.cleIdempotence.trim()) return echec("INVALIDE", "clé d'idempotence requise");
     const r = await etatDuRelais();
     if (!r.vivant) return echec("INDISPONIBLE", "relais CLI hors ligne (pas de tirage depuis 2 min) : rien n'a été enfilé", true);
+    if (r.connecte === false) return echec("INDISPONIBLE", "relais CLI non connecté à claude.ai (Render › claude-relais › Shell › claude auth login) : rien n'a été enfilé", true);
     if (noterEffetExterne({ acte: "ECRITURE_EXTERNE", cible: `Claude Code (CLI) : ${cible}`.slice(0, 200), apercu: d.texte.slice(0, 160), origine: "chantiers" })) {
       return echec("SIMULE", "simulation : l'ordre n'a pas été enfilé pour le relais");
     }

@@ -6,9 +6,9 @@ import { createHash, timingSafeEqual } from "node:crypto";
  *
  * La CLI `claude` connectée au compte claude.ai de la Direction (`claude auth login`) est la seule à pouvoir parler à
  * une session cloud EXISTANTE (`claude -p "…" --cloud <id>`). Les conditions d'Anthropic interdisent d'en mettre les
- * identifiants sur le serveur de l'ERP : la CLI tourne donc sur UNE MACHINE DE LA DIRECTION (`scripts/relais-claude.ts`),
+ * identifiants sur le serveur de l'ERP : la CLI tourne donc dans un SERVICE À PART, `claude-relais` (Render, `scripts/relais-claude.ts`),
  * qui TIRE les ordres de l'ERP en HTTPS avec son jeton de relais, les exécute, et rend le résultat. L'ERP ne voit jamais
- * un identifiant claude.ai ; le relais ne voit jamais un secret de l'ERP (seulement son propre jeton).
+ * un identifiant claude.ai ; le relais ne voit aucun secret de l'ERP (seulement son jeton et le jeton GitHub qui pousse la branche réservée).
  *
  * Commandes (vérifiées le 01/11/2026 sur code.claude.com/docs/en/claude-code-on-the-web et /cli-reference) :
  *   CREER    `claude --cloud "<tâche>"` depuis une copie du dépôt sur la branche réservée, POUSSÉE (le VM clone la
