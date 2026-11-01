@@ -27,6 +27,9 @@ const a = process.argv.slice(2);
 const noter = (o) => fs.appendFileSync(process.env.FAUX_JOURNAL, JSON.stringify(o) + "\\n");
 if (a[0] === "-v") { console.log("2.1.316 (Claude Code)"); process.exit(0); }
 if (a[0] === "auth" && a[1] === "status") { console.log(JSON.stringify({ loggedIn: true, authMethod: "claude.ai" })); process.exit(0); }
+// Un refus SANS lire l'entrée (comme une erreur de configuration) : l'enfant ferme son entrée et vit encore 300 ms — la
+// fin de l'écriture du relais tombe sur un tuyau fermé (EPIPE) pendant que l'enfant est vivant.
+if (a[2] === "session_01SORTIEIMMEDIATE") { fs.closeSync(0); setTimeout(() => { console.error("Error: Cloud sessions are disabled by your organization's policy."); process.exit(3); }, 300); return; }
 let entree = ""; process.stdin.on("data", (d) => { entree += d; });
 process.stdin.on("end", () => {
   noter({ args: a, entree, cwd: process.cwd(), jetonRelais: process.env.CLAUDE_RELAIS_TOKEN ?? null, jetonGithub: process.env.GITHUB_TOKEN ?? null, config: process.env.CLAUDE_CONFIG_DIR ?? null });
@@ -73,14 +76,19 @@ afterAll(async () => {
   rmSync(dossier, { recursive: true, force: true });
 });
 
-const attendre = async (cond: () => boolean, ms = 20_000) => {
+const attendre = async (cond: () => boolean, ms: number, etat: () => string) => {
   const fin = Date.now() + ms;
-  while (!cond()) { if (Date.now() > fin) throw new Error("délai dépassé"); await new Promise((r) => setTimeout(r, 100)); }
+  while (!cond()) { if (Date.now() > fin) throw new Error(`délai dépassé — ${etat()}`); await new Promise((r) => setTimeout(r, 100)); }
 };
 
 describe("le script du relais", () => {
-  it("MESSAGE puis CREER : bonnes commandes, texte sur stdin, branche poussée, aucun jeton transmis à claude", async () => {
+  it("un refus sans lecture de l'entrée est rendu et le relais continue ; MESSAGE puis CREER : bonnes commandes, texte sur stdin, branche poussée, aucun jeton transmis à claude", async () => {
     ordres.push(
+      // Un `claude` qui refuse SANS lire son entrée (texte plus gros qu'un tampon de tuyau) : le refus est rendu, et le relais
+      // continue. La panne d'origine (01/11/2026, trace sous charge : « write EPIPE … Unhandled 'error' event » au
+      // `stdin.end("")` d'un `git` déjà sorti) dépend de l'ordonnanceur et ne se force pas : elle est fermée à la source
+      // (aucun tuyau d'entrée sans texte à donner, et un gestionnaire d'erreur sur celui qui reste).
+      { id: "o-epipe", type: "MESSAGE", depot: null, branche: null, sessionId: "session_01SORTIEIMMEDIATE", texte: "é".repeat(60_000) },
       { id: "o-msg", type: "MESSAGE", depot: null, branche: null, sessionId: "session_01EXISTANTE00", texte: "corrige le test X" },
       { id: "o-creer", type: "CREER", depot: "adventum/banc", branche: "claude/banc-relais", sessionId: null, texte: "ajoute banc.md" },
     );
@@ -97,12 +105,20 @@ describe("le script du relais", () => {
     let sortie = "";
     enfant.stdout?.on("data", (d) => { sortie += d; });
     enfant.stderr?.on("data", (d) => { sortie += d; });
-    await attendre(() => rendus.length >= 2);
+    const t0 = Date.now();
+    await attendre(() => rendus.length >= 3, 18_000, () => {
+      let appelsClaude = "";
+      try { appelsClaude = readFileSync(join(dossier, "journal.jsonl"), "utf8"); } catch { appelsClaude = "(aucun)"; }
+      return `après ${Date.now() - t0} ms : ${tirages.length} tirage(s), ${rendus.length} rendu(s), sortie du relais : ${sortie.slice(-1500)} | appels du faux claude : ${appelsClaude.slice(-800)} | code de sortie : ${String(enfant.exitCode)}`;
+    });
 
-    expect(rendus[0]).toMatchObject({ id: "o-msg", code: 0, delaiDepasse: false });
-    expect(String(rendus[0]!.stdout)).toContain('"session_id":"session_01EXISTANTE00"');
-    expect(rendus[1]).toMatchObject({ id: "o-creer", code: 0 });
-    expect(String(rendus[1]!.stdout)).toContain("session_01FAKECREATE000");
+    expect(rendus[0]).toMatchObject({ id: "o-epipe", code: 3, delaiDepasse: false });
+    expect(String(rendus[0]!.stderr)).toContain("disabled by your organization");
+    expect(rendus[1]).toMatchObject({ id: "o-msg", code: 0, delaiDepasse: false });
+    expect(String(rendus[1]!.stdout)).toContain('"session_id":"session_01EXISTANTE00"');
+    expect(rendus[2]).toMatchObject({ id: "o-creer", code: 0 });
+    expect(String(rendus[2]!.stdout)).toContain("session_01FAKECREATE000");
+    expect(enfant.exitCode, "le relais est toujours vivant après les trois ordres").toBeNull();
 
     const appels = readFileSync(join(dossier, "journal.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l) as { args: string[]; entree: string; cwd: string; jetonRelais: string | null; jetonGithub: string | null; config: string | null });
     expect(appels[0]!.args).toEqual(["-p", "--cloud", "session_01EXISTANTE00", "--output-format", "json"]);
