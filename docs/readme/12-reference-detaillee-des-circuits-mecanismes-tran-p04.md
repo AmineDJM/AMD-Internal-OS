@@ -898,10 +898,10 @@ Code : `src/lib/missions/chantiers/` (moteur), `src/platform/dev/ports.ts` (cont
   (dollars par chantier et par jour, lancements, déploiements, tentatives, parallélisme) → pause `BUDGET_HOLD` et reprise seule.
 - **Validation de la Direction** (carte du tableau, ou « valide » à l'écrit comme à l'oral dans la conversation) :
   production, fusion sur main, rollback de production.
-- **Conversation** (Adventum IA et Adam — `chantiers/outils.ts`, `lib/assistant/chantier-tools.ts`) : `lancer_un_chantier`,
+- **Conversation** (Adventum IA et Adam — `chantiers/outils.ts`, `platform/in-process/chantiers/outils-adam.ts`) : `lancer_un_chantier`,
   `ou_en_est_chantier`, `valider_chantier` (« vas-y » après relecture vocale), `annuler_chantier` (dont `annulerFusion`).
 - **Réversible** : annuler la validation (`validerMonChantier`, journal J7) retire la carte, ou compense une fusion faite par
-  une **PR de revert** (`lib/chantiers-compensation.ts`) — jamais un force-push.
+  une **PR de revert** (`platform/in-process/chantiers/compensation.ts`) — jamais un force-push.
 - **Réveil** : un `BusinessEvent` `DEV_*` / `RENDER_*` (webhooks C2) réveille le chantier concerné (`chantiers/reveil.ts`).
 - **Rapport** : Word au Drive (« Travaux »), aux livrables, et dans la conversation qui l'a lancé (synthèse K3, avec le lien).
 - **Mémoire technique** `MemoireTechnique` (dépôts, services, branches, incidents) : extraits ≤ 2 k jetons dans la consigne.

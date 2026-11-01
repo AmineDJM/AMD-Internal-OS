@@ -33,7 +33,7 @@ import { MONDE_TOOLS } from "@/lib/assistant/monde-tools";
 import { VERITE_TOOLS } from "@/lib/assistant/verite-tools";
 import { OBJECTIF_TOOLS } from "@/lib/assistant/objectif-tools";
 import { ANNULATION_TOOLS } from "@/lib/assistant/annulation-tools";
-import { CHANTIER_TOOLS } from "@/lib/assistant/chantier-tools";
+import { CHANTIER_TOOLS } from "@/platform/in-process/chantiers/outils-adam";
 import { VERIFICATION_TOOLS } from "@/lib/assistant/verification-tools";
 import { PLANCHE_TOOLS } from "@/lib/assistant/planche-tools";
 import { executerOutilDynamique, labelsDynamiques, outilsDynamiquesPour } from "@/platform/in-process/skills";

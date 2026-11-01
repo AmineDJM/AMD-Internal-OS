@@ -6,7 +6,8 @@ import { OUTILS_CHANTIER } from "@/lib/missions/chantiers/outils";
  * LES CHANTIERS DE DÉVELOPPEMENT CHEZ ADAM (C1, décision 0042) — les MÊMES quatre outils que l'Assistant IA (une seule
  * définition, `lib/missions/chantiers/outils.ts`) : lancer un chantier, où en est, valider (écrit ou oral), annuler ou
  * compenser une fusion. Fermés par une RÈGLE et non par un module : réservés au Super Admin, comme les missions d'Adam ;
- * le service relit le rôle à chaque geste.
+ * le service relit le rôle à chaque geste. Au PONT (`platform/in-process/`) : Adam n'importe pas l'ERP lui-même
+ * (frontière Adam ↔ ERP, `platform/boundary.test.ts`), et le socle IA de l'Assistant n'y gagne rien (`SOCLE_IA_CEILING`).
  */
 export const CHANTIER_TOOLS: PowerTool[] = OUTILS_CHANTIER.map((o) => ({
   def: o.def,

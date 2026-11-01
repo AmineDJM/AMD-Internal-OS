@@ -5,7 +5,7 @@ import {
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LES OUTILS DE CONVERSATION DES CHANTIERS (C1, décision 0042) — une seule définition, offerte à l'Assistant IA
- * (`modules/assistant-ia/infra/chantiers.ts`) ET à Adam (`lib/assistant/chantier-tools.ts`), au Super Admin seul (le
+ * (`modules/assistant-ia/infra/chantiers.ts`) ET à Adam (`platform/in-process/chantiers/outils-adam.ts`), au Super Admin seul (le
  * service relit le rôle à chaque geste) :
  *
  *   lancer_un_chantier   Terra (le modèle de la conversation) rédige la consigne technique ; la demande de la Direction

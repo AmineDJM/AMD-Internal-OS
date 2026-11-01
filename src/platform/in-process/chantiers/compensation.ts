@@ -16,7 +16,8 @@ import { demanderRevertFusion } from "@/lib/missions/chantiers/service";
  *     repasse par la validation ;
  *   • un déploiement ou un rollback de PRODUCTION a eu lieu → IMPOSSIBLE ici, dit avec le geste qui reste (rollback,
  *     nouveau chantier) — un « tout ou rien » refuse alors l'annulation entière, la liste à l'appui.
- * Hors carte comme `lib/suppression/coeur` : le socle `effets/` l'importe tard, sans tirer le moteur.
+ * Au PONT (`platform/in-process/`, la seule couche du socle qui connaît l'ERP) : le socle `effets/` l'importe tard, sans
+ * tirer le moteur des chantiers, et sans fichier hors carte.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 

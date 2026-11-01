@@ -475,11 +475,11 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   405 protected → clear refusal; method `CHANTIERS_METHODE_FUSION` or repo setting) → base CI on the merge commit (red → blocage,
   nothing deployed) → `vert` = merge commit, deploys follow (prod has its own card). A fusion plan deploys nothing until the
   fusion succeeded; `jugerPreuves` requires `dossier.fusion`. Reversible: `validerMonChantier` under `actionReversible`, metier
-  inverse `src/lib/chantiers-compensation.ts` (not acted → validation removed; merged → `demanderRevertFusion` → `conduite.ts
+  inverse `src/platform/in-process/chantiers/compensation.ts` (not acted → validation removed; merged → `demanderRevertFusion` → `conduite.ts
   traiterRevert` → `forge.proposerRevert` (GraphQL `revertPullRequest`), receipt `…|revert|<pr>`; prod deploy done → IMPOSSIBLE).
   Webhook wake: `events/ledger.ts` consequence → `chantiers/reveil.ts reveillerChantiersSurFait` (DEV_*/RENDER_* refs vs dossier) →
   WAITING worker steps READY + `reveilDemandeLe`. Tools moved to `chantiers/outils.ts`; Assistant IA wraps them, Adam gets them as
-  PowerTools (`lib/assistant/chantier-tools.ts`, `SOCLE_IA_CEILING` unchanged). Final report deposited to Drive « Travaux » as
+  PowerTools (`platform/in-process/chantiers/outils-adam.ts`, `SOCLE_IA_CEILING` unchanged). Final report deposited to Drive « Travaux » as
   Word (`DeposerRapport`, composed in `scheduled.ts depsFinChantier` from `PERSONA_ASSISTANT_IA.deposerLivrable`), added to
   `carnet.livrables`; chantiers launched in a conversation join `travauxLances` and `conclureTour` (kinds TRAVAIL+CHANTIER) posts
   the synthesis with the link.

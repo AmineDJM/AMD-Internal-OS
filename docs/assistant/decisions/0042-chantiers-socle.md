@@ -181,7 +181,7 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
   carte** (« déployer X en PRODUCTION (SHA vérifié …) »). Un plan qui fusionne ne déploie rien tant que la fusion n'a pas
   abouti ; le juge des preuves refuse « terminé » sans fusion.
 - **Réversible (décisions 0040-0044)** : `validerMonChantier` est enveloppée par `actionReversible` et déclarée
-  (`effets/declarations/metiers.ts`) ; son inverse métier `lib/chantiers-compensation.ts` : le geste n'a pas encore agi →
+  (`effets/declarations/metiers.ts`) ; son inverse métier `platform/in-process/chantiers/compensation.ts` : le geste n'a pas encore agi →
   la validation est retirée (ANNULÉ) ; **la fusion a eu lieu → COMPENSÉE par une PR de revert ouverte et proposée**
   (`proposerRevert` du connecteur : mutation GraphQL `revertPullRequest`) — **jamais un force-push** ; sa fusion repasse
   par la validation ; un déploiement / rollback de production fait → IMPOSSIBLE, dit avec le geste qui reste. La même
@@ -193,7 +193,7 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
   repartir aussitôt, et la boucle courte (10 s) les conduit. Le sondage à pas croissant reste en secours.
 - **Les outils chez Adam aussi** : les quatre outils vivent désormais dans `lib/missions/chantiers/outils.ts` (socle) ;
   l'Assistant IA les enveloppe (`infra/chantiers.ts`, une seule arête de dette, celle d'avant), Adam les reçoit en
-  `PowerTool` (`lib/assistant/chantier-tools.ts`, `allowed: peutPiloterMissionsAdam`, Super Admin relu par le service).
+  `PowerTool` par le PONT (`platform/in-process/chantiers/outils-adam.ts`, `allowed: peutPiloterMissionsAdam`, Super Admin relu par le service).
   **`SOCLE_IA_CEILING` n'est pas relevé** : Adam n'est pas du socle IA de l'Assistant, et le module n'y gagne aucun import.
 - **Le rapport final au Drive (dossier « Travaux »)** : à la fin, le rapport est déposé en VRAI document Word par la
   persona de l'Assistant IA (`deposerLivrable`, reçu `…|rapport|document`, reprise sans doublon), inscrit aux livrables
