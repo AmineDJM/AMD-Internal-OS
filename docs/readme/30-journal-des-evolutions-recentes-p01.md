@@ -29,6 +29,17 @@ mission en pause », « reprends », « arrête », « stop », « plus court »
 WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
 et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
 
+### L'ARGENT RÉVERSIBLE — « Annuler » sur toute action d'argent (K10a, 2026-10-31)
+
+« Toute action qui a été faite peut être réversible » (Direction). Les 62 actions d'argent classées « sans annulation »
+(finance, trésorerie, paiements, caisse, paie, factures, budgets, fournisseurs) — et 45 autres des mêmes fichiers — se
+défont désormais d'un geste : le journal des effets J7 s'ouvre aux actions faites à l'écran (`annulable` sur `gesteReversible`
+de K10b), la barre « Annuler » de K10b les propose (puis l'historique de la fiche), et le compte rendu dit effet par
+effet ce qui est défait, compensé ou impossible. **Rien ne s'efface dans le livre** : une écriture réalisée est
+contre-passée (montant opposé, datée, liée), un paiement parti laisse une écriture « à récupérer », l'ordre redevient
+dû ; l'annulation se rétablit. Migration `20270217120000_k10a_compensation_ecritures`. Décision
+[0041](../assistant/decisions/0041-argent-reversible.md).
+
 ### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
 
 Lot K8 — `docs/assistant/decisions/0035-consommation.md`. **Écran « Consommation »** dans les Réglages d'Adventum IA (et

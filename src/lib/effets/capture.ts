@@ -216,8 +216,10 @@ async function capturer(
               const avant = serialiserLigne(l, garder);
               const relue = parId.get(id) ?? null;
               const apres = serialiserLigne(relue ? { ...relue, ...pose } : null, garder);
+              // K10a : la ligne est notée même si la relecture ne voit rien encore (`finaliserCapture` la relit engagée).
+              const ecrits = Object.keys((a.data as object) ?? {}).filter((c) => garder.has(c));
               const champs = champsChanges(avant, apres);
-              if (champs.length) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs });
+              if (champs.length || ecrits.length) noter({ modele: model, operation: "UPDATE", id, avant, apres, champs: champs.length ? champs : ecrits });
             }
             return r;
           }

@@ -1,3 +1,4 @@
+import { DECLARATIONS_ARGENT } from "./declarations/argent";
 import { DECLARATIONS_COMMUNICATIONS } from "./declarations/communications";
 
 /**
@@ -33,6 +34,7 @@ export interface DeclarationAnnulation {
 
 export const ANNULATIONS_DECLAREES: Readonly<Record<string, DeclarationAnnulation>> = {
   ...DECLARATIONS_COMMUNICATIONS,
+  ...DECLARATIONS_ARGENT,
 };
 
 /** Le port du registre (`PortsRegistre.annulationDeclaree`). */

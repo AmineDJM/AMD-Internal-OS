@@ -5935,6 +5935,15 @@ model FinanceTransaction {
   /// Règlement de facture dont ce mouvement est l'écriture (relation inverse).
   settledInvoice LegalDocument? @relation("LegalSettlement")
 
+  /// K10a (décision 0040) — UNE ÉCRITURE NE S'EFFACE JAMAIS : annuler l'écriture qui l'a posée la COMPENSE.
+  /// `CONTRE_PASSATION` : même sens, montant opposé, datée du jour (le solde revient, les deux lignes restent) ;
+  /// `A_RECUPERER` : un décaissement réellement parti — un encaissement prévu, à recouvrer (ou à réaliser s'il
+  /// n'était pas parti : il le neutralise). Nul pour toute autre écriture.
+  compensationDeId String?
+  compensationDe   FinanceTransaction?  @relation("CompensationEcriture", fields: [compensationDeId], references: [id], onDelete: SetNull)
+  compensations    FinanceTransaction[] @relation("CompensationEcriture")
+  compensation     String?
+
   @@index([date])
   @@index([direction])
   @@index([category])
@@ -5942,6 +5951,7 @@ model FinanceTransaction {
   @@index([account])
   @@index([budgetCategoryId])
   @@index([treasuryAccountId])
+  @@index([compensationDeId])
 }
 
 /// UN PAPIER EN-TÊTE — le modèle Office qu'on ouvre au lieu d'une page blanche.
