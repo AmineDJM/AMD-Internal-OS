@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { COOKIE_GESTE_ANNULABLE, lireGesteAnnulable, type GesteAnnulable } from "@/lib/effets/ecran-ui";
 import { annulerMonGeste } from "@/modules/assistant-ia/actions-gestes";
 
@@ -17,7 +17,7 @@ const oublier = () => { document.cookie = `${COOKIE_GESTE_ANNULABLE}=; max-age=0
  * — jamais un « annulé » de façade — et « Rétablir » défait l'annulation. Lit un témoin court posé par l'action.
  */
 export function GesteAnnulable() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [geste, setGeste] = React.useState<GesteAnnulable | null>(null);
   const [compte, setCompte] = React.useState<Compte | null>(null);
   const [erreur, setErreur] = React.useState<string | null>(null);
@@ -39,12 +39,17 @@ export function GesteAnnulable() {
   const defaire = async (id: string) => {
     setEnCours(true);
     setErreur(null);
-    const r = await annulerMonGeste(id).catch(() => ({ ok: false as const, error: "L'annulation n'a pas abouti — rien n'a été écrit." }));
+    let r: Awaited<ReturnType<typeof annulerMonGeste>>;
+    try {
+      r = await annulerMonGeste(id);
+    } catch {
+      r = { ok: false, error: "L'annulation n'a pas abouti (réseau ou serveur) — réessayez depuis l'historique." };
+    }
     setEnCours(false);
     oublier();
     if (!r.ok) { setErreur(r.error); return; }
     setCompte(r.compte);
-    router.refresh();
+    rafraichir();
   };
 
   if (!geste) return null;
