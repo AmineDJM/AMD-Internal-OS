@@ -8,12 +8,27 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { nomComplet } from "../personas";
-import { tache as t, type Tache } from "./types";
+import { prisma } from "@/lib/prisma";
+import type { Titulaire } from "../personas";
+import { tache as t, type ContexteVerification, type Tache } from "./types";
 
 /** Les catégories du socle — chacune représentée (vérifié par la suite). */
 export const CATEGORIES_TACHE = [
   "tache", "message", "mail", "adpro", "bc", "export", "analyse", "recherche", "note", "mission", "pilotage", "annulation", "soi",
 ] as const;
+
+/** L'annulation est DITE (« rien n'a été créé », « je l'écarte ») — le compteur seul passerait sur une réponse vide. */
+const ANNULE = /annul|rien n|pas (été )?(cr|envoy)|aucun|abandon|[ée]cart|ne (le |la )?(confirm|cr[ée]|envoi)/i;
+
+/**
+ * La mission visée a CHANGÉ (arrêtée, mise en pause) — ou une carte le propose. Sans cela, « arrête la mission » réussirait
+ * en ne faisant rien (le banc à vide le prouve).
+ */
+const missionTouchee = (qui: Titulaire, titre: string) => async (c: ContexteVerification): Promise<string[]> => {
+  if (c.carte) return [];
+  const m = await prisma.mission.findFirst({ where: { ownerId: c.users[qui], title: { startsWith: titre } }, select: { status: true } });
+  return m && m.status !== "RUNNING" ? [] : [`la mission « ${titre} » est toujours ${m?.status ?? "introuvable"} et aucune carte ne le propose`];
+};
 
 const RADIA = nomComplet("commercial");
 const YANIS = nomComplet("delegue");
@@ -102,15 +117,15 @@ export const TACHES_SOCLE: Tache[] = [
 
   // ── Piloter ses missions : lister, fusionner, arrêter ──
   t("PI-01-lister", "pilotage", "kam", "Liste mes missions en cours.", { contient: [/QZ-MISSION-SOF-2638|mission/i] }),
-  t("PI-02-fusionner", "pilotage", "kam", "Fusionne mes deux missions en cours en une seule.", { pasPlusDe: "mission", interdit: [] }),
-  t("PI-03-arreter", "pilotage", "kam", "Arrête la mission « Veille concurrentielle oncologie ».", { pasPlusDe: "mission" }),
+  t("PI-02-fusionner", "pilotage", "kam", "Fusionne mes deux missions en cours en une seule.", { pasPlusDe: "mission", contient: [/mission/i] }),
+  t("PI-03-arreter", "pilotage", "kam", "Arrête la mission « Veille concurrentielle oncologie ».", { pasPlusDe: "mission" }, { verifier: missionTouchee("kam", "Veille concurrentielle") }),
   t("PI-04-lister-sa", "pilotage", "superadmin", "Où en sont mes missions ?", { contient: [/mission/i] }),
-  t("PI-05-pause", "pilotage", "manager", "Mets en pause ma mission en cours.", { pasPlusDe: "mission" }),
+  t("PI-05-pause", "pilotage", "manager", "Mets en pause ma mission en cours.", { pasPlusDe: "mission" }, { verifier: missionTouchee("manager", "Suivi") }),
 
   // ── Annuler une action ──
-  t("AN-ANNULER-01", "annulation", "commercial", ["Crée une tâche : appeler le grossiste de Médéa demain.", "Finalement non, annule."], { pasPlusDe: "tache", sansConfirmer: true }),
-  t("AN-ANNULER-02", "annulation", "delegue", ["Envoie un message à Radia KEBIR : je serai en retard demain.", "Laisse tomber, n'envoie rien."], { pasPlusDe: "message", sansConfirmer: true }),
-  t("AN-ANNULER-03", "annulation", "kam", ["Crée une demande Ad & Pro « autre » : 20 cartes de visite, 8 000 DZD.", "Annule cette demande."], { pasPlusDe: "validation", sansConfirmer: true }),
+  t("AN-ANNULER-01", "annulation", "commercial", ["Crée une tâche : appeler le grossiste de Médéa demain.", "Finalement non, annule."], { pasPlusDe: "tache", sansConfirmer: true, contient: [ANNULE] }),
+  t("AN-ANNULER-02", "annulation", "delegue", ["Envoie un message à Radia KEBIR : je serai en retard demain.", "Laisse tomber, n'envoie rien."], { pasPlusDe: "message", sansConfirmer: true, contient: [ANNULE] }),
+  t("AN-ANNULER-03", "annulation", "kam", ["Crée une demande Ad & Pro « autre » : 20 cartes de visite, 8 000 DZD.", "Annule cette demande."], { pasPlusDe: "validation", sansConfirmer: true, contient: [ANNULE] }),
 
   // ── Soi : son propre salaire, sa fiche ──
   t("SO-01-mon-salaire", "soi", "commercial", "Quel est mon salaire ?", { contient: [/147[\s  .]?351|113[\s  .]?829/] }),
