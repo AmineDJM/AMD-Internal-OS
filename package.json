@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "build:render": "NODE_OPTIONS=--max-old-space-size=3072 next lint && NODE_OPTIONS=--max-old-space-size=5120 tsc --noEmit -p tsconfig.build.json && TYPECHECK_SEPARE=1 NODE_OPTIONS=--max-old-space-size=3584 next build",
+    "build:render": "NODE_OPTIONS=--max-old-space-size=3072 next lint && NODE_OPTIONS=--max-old-space-size=7168 tsc --noEmit -p tsconfig.build.json && TYPECHECK_SEPARE=1 NODE_OPTIONS=--max-old-space-size=3584 next build",
     "build:measure": "bash scripts/build-memory.sh",
     "bundle:plafond": "node scripts/mesure-bundle.mjs --plafond",
     "adam:doctor": "tsx scripts/adam-doctor.ts",
