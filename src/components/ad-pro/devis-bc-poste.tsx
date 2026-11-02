@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Eye, FileText, FileDown, FileCheck, Wand2, Pencil, ScanText, CheckCircle2, AlertTriangle, Paperclip, Clock, Circle, XCircle } from "lucide-react";
+import { Loader2, FileText, FileDown, FileCheck, Wand2, Pencil, ScanText, CheckCircle2, AlertTriangle, Paperclip, Clock, Circle, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -10,13 +10,12 @@ import type { BcDePoste } from "@/lib/ad-pro/pieces-poste";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { refusMontantDesDevis } from "@/lib/ad-pro/devis-poste";
 import {
-  validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, modifierBcDuPoste,
-  previsualiserBcDuPoste,
+  validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, modifierBcDuPoste,
+  previsualiserBcDuPoste, preparerBrouillonExcelPoste, deposerBcSignePoste,
 } from "@/lib/actions/ad-pro-item-actions";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
 import { ModifierNumeroBc } from "@/components/references/modifier-numero-bc";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
-import { ApercuBonDeCommande } from "@/components/ad-pro/apercu-bc-poste";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -24,14 +23,13 @@ import { ApercuBonDeCommande } from "@/components/ad-pro/apercu-bc-poste";
  *
  * Deux morceaux de la carte d'un poste :
  *
- *   • `BlocBonDeCommande` — le contenu de la case « Bon de commande » : les BC du poste (un PAR DEVIS quand ils sont
- *     générés), chacun avec son Word et son PDF, et les deux gestes — « Générer » avec un petit CTA, ou « Joindre un
- *     BC existant » (la demande à l'assistante, qui l'uploade). Il ne propose QUE ce que l'action acceptera (§118.83) :
- *     la même règle (`refusGenerationBC`, `refusMontantDesDevis`) est lue ici et par l'action. Le geste « Générer le bon de
- *     commande » est TOUJOURS là dès qu'un devis qui compte a des lignes validées (Direction, 10/2026 : « des fois il n'y a
- *     pas où générer le BC ») : quand il ne peut pas aboutir, il reste visible, inactif, avec la raison et le geste qui la
- *     lève (réviser le poste, décocher une ligne) — jamais une case sans geste (§118.83). Une copie de la même pièce, ou
- *     une proposition écartée d'un voyageur, se lit avec ce qui la met à part et ne compte pas (`devisMisAPart`).
+ *   • `BlocBonDeCommande` — le contenu de la case « Bon de commande » : les BC du poste (un PAR DEVIS), et, pour chaque
+ *     devis validé sans BC, son BROUILLON EXCEL (Direction, 11/2026 — né de la validation, numéro réservé, pas encore dans
+ *     Legal) : on le télécharge, on le fait signer, on dépose la version signée, qui fait naître le BC signé au registre.
+ *     « Préparer le brouillon » reste là quand un brouillon manque, inactif avec sa raison s'il ne peut pas aboutir — la
+ *     même règle (`refusGenerationBC`, `refusMontantDesDevis`) que l'action (§118.83). « Joindre un BC existant » demande
+ *     le BC à l'assistante. Une copie de la même pièce, ou une proposition écartée d'un voyageur, ne compte pas
+ *     (`devisMisAPart`).
  *   • `PanneauLignesDevis` — les lignes d'UN devis : référence ou désignation, unité, quantité, prix unitaire, total ;
  *     une case « validée » par ligne (« S'il oublie une référence, il peut juste la cocher »), la correction à la main,
  *     et la relecture du fichier. Une ligne lue par Luna est une PROPOSITION : elle ne se valide que complète, et après
@@ -67,6 +65,10 @@ function NomDuDevis({ d }: { d: Pick<DevisDePosteVue, "reference" | "titre" | "f
 }
 
 function phraseEtat(d: DevisDePosteVue): { texte: string; ton: "ok" | "attente" | "alerte" } | null {
+  // Le brouillon Excel (numéro réservé) : à signer et à déposer — ou à refaire si les lignes validées ont changé.
+  if (d.brouillon?.excel && d.etat === "A_GENERER") {
+    return { texte: d.brouillon.excelPerime ? "Brouillon à refaire" : `Brouillon ${d.brouillon.excel.numero} — à signer`, ton: "attente" };
+  }
   // Un aperçu préparé mais pas encore validé : « Brouillon — à vérifier par le demandeur » (rien n'est numéroté ni envoyé).
   if (d.brouillon && (d.etat === "A_GENERER" || d.etat === "A_REGENERER")) return { texte: ETIQUETTE_BROUILLON, ton: "attente" };
   switch (d.etat) {
@@ -166,16 +168,15 @@ function FriseBC({ bc }: { bc: BcDePoste }) {
   );
 }
 
-export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutGenerer, peutValider, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, repli }: {
+export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutTraiter, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, repli }: {
   itemId: string;
   bcs: BcDePoste[];
   devis: DevisDePosteVue[];
   accorde: number | null;
-  /** Pourquoi la génération n'est pas ouverte (`refusGenerationBC`) — `null` : elle l'est. Seul le demandeur la voit. */
+  /** Pourquoi le brouillon ne peut pas naître (`refusGenerationBC`) — `null` : il le peut. */
   refusGeneration: string | null;
-  peutGenerer: boolean;
-  /** Valider l'aperçu et l'envoyer aux Finances : le demandeur de la demande, ou le Super Admin (jamais qui n'a fait que préparer). */
-  peutValider: boolean;
+  /** Préparer le brouillon et déposer la version signée : qui traite les devis du poste (le droit de les valider). */
+  peutTraiter: boolean;
   peutJoindre: boolean;
   /** Le demandeur peut-il modifier le BC généré (« Modifier le BC », tant qu'il n'est pas signé) ? */
   peutModifier: boolean;
@@ -188,42 +189,23 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
   repli: React.ReactNode;
 }) {
   const vivants = devis.filter((d) => !d.annule);
-  // GÉNÉRER = préparer l'APERÇU (un brouillon, sans numéro) ; le BC n'existe qu'une fois l'aperçu validé par le demandeur.
-  const aFaireTous = vivants.filter((d) => d.etat === "A_GENERER" || d.etat === "A_REGENERER");
-  const aFaire = aFaireTous.filter((d) => !d.brouillon);
-  const [apercuOuvert, setApercuOuvert] = React.useState<string | null>(null);
-  const devisDeLApercu = apercuOuvert ? vivants.find((d) => d.pieceId === apercuOuvert) ?? null : null;
+  // LE BROUILLON EXCEL NAÎT DE LA VALIDATION (Direction, 11/2026) : chaque devis à lignes validées sans BC a le sien — ou l'aura.
+  const aSigner = vivants.filter((d) => d.etat === "A_GENERER");
   // LE PLAFOND SUR LES DEVIS QUI COMPTENT — une copie de la même pièce, une proposition écartée n'y entrent pas (§118.5 :
   // le même calcul que l'action, `refusMontantDuPoste`).
   const depasse = refusMontantDesDevis(vivants, accorde);
-  const enCours = busy !== null && busy.startsWith("gen:") && busy.endsWith(`:${itemId}`);
-  const formulaire = (pieceId: string | null) => {
-    const fd = new FormData();
-    fd.set("id", itemId);
-    if (pieceId) fd.set("pieceId", pieceId);
-    return fd;
-  };
-  /**
-   * GÉNÉRER = L'APERÇU, OBLIGATOIREMENT (Direction, 14/10/2026 — « Je veux l'aperçu obligatoire ») : le clic dépose le brouillon
-   * (sans numéro) et OUVRE AUSSITÔT l'aperçu dans le composeur, prêt à relire et à corriger — pas de geste intermédiaire. Le BC
-   * n'est émis que par « Valider et envoyer aux Finances », depuis l'aperçu. Il n'y a plus de génération « en un clic ».
-   */
-  const generer = (pieceId: string | null) => {
-    const cible = pieceId ?? aFaire[0]?.pieceId ?? null;
-    void run(`gen:${pieceId ?? "tous"}:${itemId}`, async () => {
-      const r = await genererBonDeCommandePoste(formulaire(pieceId));
-      if (r.ok && cible) setApercuOuvert(cible);
-      return r;
-    }, "Aperçu du bon de commande prêt — à vérifier par le demandeur.");
-  };
-  const ouverte = peutGenerer && refusGeneration === null && !depasse;
-  // POURQUOI LE BOUTON NE PEUT PAS ABOUTIR — dit À CÔTÉ de lui, jamais à sa place (§118.83).
   const pourquoiPas = refusGeneration ?? depasse;
   const figes = vivants.filter((d) => (d.etat === "FIGE" || d.etat === "A_ANNULER") && d.refus);
+  const preparer = () => {
+    const fd = new FormData();
+    fd.set("id", itemId);
+    void run(`brw:${itemId}`, () => preparerBrouillonExcelPoste(fd), "Brouillon du bon de commande prêt.");
+  };
+  const enPreparation = busy === `brw:${itemId}`;
 
   return (
     <>
-      {bcs.length === 0 ? repli : bcs.map((bc) => {
+      {bcs.length === 0 && aSigner.length === 0 ? repli : bcs.map((bc) => {
         const source = vivants.find((d) => d.bc?.id === bc.id);
         return (
           <div key={bc.id} className="min-w-0 space-y-2 rounded-lg border border-border bg-card p-3 text-sm">
@@ -242,34 +224,20 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
         );
       })}
 
-      {vivants.some((d) => d.structure && (d.nbValidees > 0 || d.bc)) && (
+      {aSigner.map((d) => (
+        <BrouillonDuDevis key={d.pieceId} d={d} itemId={itemId} peutTraiter={peutTraiter} busy={busy} run={run} />
+      ))}
+
+      {vivants.some((d) => d.structure && d.bc && d.etat !== "A_JOUR") && (
         <ul className="space-y-0.5 border-t border-border/60 pt-1">
-          {vivants.filter((d) => d.structure && (d.nbValidees > 0 || d.bc)).map((d) => {
+          {vivants.filter((d) => d.structure && d.bc && d.etat !== "A_JOUR").map((d) => {
             const e = phraseEtat(d);
-            const actionnable = ouverte && (d.etat === "A_GENERER" || d.etat === "A_REGENERER") && !d.brouillon;
-            const aPart = d.miseAPart && d.etat === "MIS_A_PART" ? d.miseAPart.phrase : null;
             return (
               <li key={d.pieceId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span className="min-w-0 flex-1 basis-48 [overflow-wrap:anywhere] sm:truncate" title={d.titre}>
-                  <NomDuDevis d={d} /> — {d.nbValidees} ligne{d.nbValidees > 1 ? "s" : ""} validée{d.nbValidees > 1 ? "s" : ""} · <span className="tabular-nums">{d.entete.tvaRate === null ? `${dzd(d.totalValideHt)} · sans TVA (aucune sur le devis)` : `${dzd(d.totalValideTtc)} TTC`}</span>
+                  <NomDuDevis d={d} /> — {d.nbValidees} ligne{d.nbValidees > 1 ? "s" : ""} validée{d.nbValidees > 1 ? "s" : ""}
                 </span>
-                {e && !aPart && !(actionnable && aFaire.length === 1) && <span className={e.ton === "ok" ? "text-success" : e.ton === "alerte" ? "text-destructive" : "text-warning"}>{e.texte}</span>}
-                {aPart && <span className="basis-full text-xs text-muted-foreground">{aPart}</span>}
-                {!aPart && d.doublonProbableDe && (
-                  <span className="basis-full text-xs text-warning">
-                    Mêmes lignes et même fournisseur que « {d.doublonProbableDe} » : si c&apos;est la même pièce, retirez cette copie (case « Devis ») — sinon elle se commande en plus.
-                  </span>
-                )}
-                {actionnable && aFaire.length > 1 && (
-                  <button type="button" onClick={() => generer(d.pieceId)} disabled={enCours} className="min-h-9 text-primary hover:underline disabled:opacity-50 sm:min-h-0">
-                    {d.etat === "A_REGENERER" ? "Régénérer" : "Générer"}
-                  </button>
-                )}
-                {d.brouillon && (peutGenerer || peutValider) && (
-                  <button type="button" onClick={() => setApercuOuvert(d.pieceId)} className="inline-flex min-h-9 items-center gap-1 font-medium text-primary hover:underline sm:min-h-0">
-                    <Eye className="h-3 w-3" /> Voir l&apos;aperçu{peutValider ? " et valider" : ""}
-                  </button>
-                )}
+                {e && <span className={e.ton === "ok" ? "text-success" : e.ton === "alerte" ? "text-destructive" : "text-warning"}>{e.texte}</span>}
               </li>
             );
           })}
@@ -277,32 +245,20 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
       )}
 
       {figes.map((d) => <p key={d.pieceId} className="flex gap-1 text-destructive"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {d.refus}</p>)}
-      {depasse && aFaire.length > 0 && <p className="flex gap-1 text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {depasse}</p>}
-      {peutGenerer && aFaire.length > 0 && refusGeneration && <p className="text-muted-foreground">{refusGeneration}</p>}
-      {!peutGenerer && aFaire.length > 0 && <p className="text-muted-foreground">Le demandeur génère le bon de commande d&apos;ici, d&apos;après les lignes validées.</p>}
-
-      {apercuOuvert && (
-        <ApercuBonDeCommande
-          itemId={itemId} pieceId={apercuOuvert} nomDevis={devisDeLApercu ? devisDeLApercu.reference ?? devisDeLApercu.titre : "devis"}
-          peutEditer={peutGenerer} peutValider={peutValider} run={run}
-          onClose={() => setApercuOuvert(null)}
-        />
+      {aSigner.some((d) => !d.brouillon?.excel || d.brouillon.excelPerime) && pourquoiPas && (
+        <p className="flex gap-1 text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {pourquoiPas}</p>
       )}
 
-      {(peutGenerer && aFaire.length > 0) || peutJoindre ? (
+      {(peutTraiter && aSigner.some((d) => !d.brouillon?.excel || d.brouillon.excelPerime)) || peutJoindre ? (
         <div className="flex flex-wrap items-center gap-2 pt-0.5">
-          {/* LE GESTE EST TOUJOURS LÀ dès qu'il y a quelque chose à générer : inactif, il porte sa raison (title) et la
-              raison est écrite au-dessus ; le geste qui la lève (révision) est à côté. */}
-          {peutGenerer && aFaire.length > 0 && (
-            <Button
-              size="sm" onClick={() => generer(aFaire.length === 1 ? aFaire[0].pieceId : null)} disabled={enCours || !ouverte}
-              title={!ouverte && pourquoiPas ? pourquoiPas : undefined}
-            >
-              {enCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              {libelleGeneration(aFaire.length, aFaire.every((d) => d.etat === "A_REGENERER"), peutValider)}
+          {/* LE GESTE EST TOUJOURS LÀ quand un brouillon manque : inactif, il porte sa raison (écrite au-dessus) — §118.83. */}
+          {peutTraiter && aSigner.some((d) => !d.brouillon?.excel || d.brouillon.excelPerime) && (
+            <Button size="sm" onClick={preparer} disabled={enPreparation || Boolean(pourquoiPas)} title={pourquoiPas ?? undefined}>
+              {enPreparation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+              Préparer le brouillon
             </Button>
           )}
-          {peutGenerer && aFaire.length > 0 && depasse && onReviser && (
+          {peutTraiter && depasse && onReviser && (
             <button type="button" onClick={onReviser} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline sm:min-h-0">
               Demander une révision du poste
             </button>
@@ -319,13 +275,79 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
 }
 
 /**
- * Le libellé du geste. Le demandeur (qui valide) « génère » : le clic ouvre l'aperçu, d'où il valide et envoie. Qui prépare pour
- * lui « prépare » l'aperçu, que le demandeur validera. Dans les deux cas, aucun BC n'existe avant la validation de l'aperçu.
+ * LE BROUILLON EXCEL D'UN DEVIS, ET LE DÉPÔT DE SA VERSION SIGNÉE (Direction, 11/2026). Le fichier Excel se télécharge, s'imprime, se
+ * complète ou se signe ; la version signée (scan ou photo) se dépose ici avec le nom du signataire. Luna y cherche la
+ * signature et le numéro du brouillon ; accepté, le BC entre dans Legal déjà signé et la case Facture s'ouvre.
  */
-function libelleGeneration(n: number, regenerer: boolean, valide: boolean): string {
-  if (!valide) return n > 1 ? `Préparer les BC (${n}) — aperçus` : regenerer ? "Régénérer le BC (aperçu)" : "Préparer le BC (aperçu)";
-  if (n > 1) return `Générer les bons de commande (${n})`;
-  return regenerer ? "Régénérer le bon de commande" : "Générer le bon de commande";
+function BrouillonDuDevis({ d, itemId, peutTraiter, busy, run }: {
+  d: DevisDePosteVue; itemId: string; peutTraiter: boolean; busy: string | null; run: Run;
+}) {
+  const [ouvert, setOuvert] = React.useState(false);
+  const excel = d.brouillon?.excel && !d.brouillon.excelPerime ? d.brouillon.excel : null;
+  const cle = `sig:${d.pieceId}`;
+  const total = d.entete.tvaRate === null ? `${dzd(d.totalValideHt)} · sans TVA` : `${dzd(d.totalValideTtc)} TTC`;
+  const deposer = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
+    fd.set("id", itemId);
+    fd.set("pieceId", d.pieceId);
+    void run(cle, async () => {
+      const r = await deposerBcSignePoste(fd);
+      if (r.ok) setOuvert(false);
+      return r;
+    }, "Bon de commande signé enregistré dans Legal.");
+  };
+  return (
+    <div className="min-w-0 space-y-2 rounded-lg border border-dashed border-border bg-card p-3 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <span className="inline-flex min-w-0 items-center gap-1.5 font-medium">
+          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
+          {excel ? `BC ${excel.numero}` : "Bon de commande"}
+          <span className="rounded-full border border-dashed border-border px-2 text-[0.6875rem] font-normal text-muted-foreground">Brouillon</span>
+        </span>
+        <span className="tabular-nums text-muted-foreground">{total} <span className="text-xs">· d&apos;après <NomDuDevis d={d} /></span></span>
+      </div>
+      {excel ? (
+        <>
+          <p className="text-muted-foreground">
+            Pas encore dans Legal. Téléchargez le fichier Excel, complétez-le, imprimez-le ou faites-le signer, puis déposez la version signée : c&apos;est elle qui
+            entre dans Legal, déjà signée.
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <a href={`/api/documents/${excel.documentId}?dl=1`} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline sm:min-h-0" aria-label={`Télécharger le brouillon Excel du BC ${excel.numero}`}>
+              <FileDown className="h-3.5 w-3.5" /> Télécharger le fichier Excel
+            </a>
+            {peutTraiter && !ouvert && (
+              <Button size="sm" onClick={() => setOuvert(true)}><FileCheck className="h-3.5 w-3.5" /> Déposer la version signée</Button>
+            )}
+          </div>
+          {peutTraiter && ouvert && (
+            <form onSubmit={deposer} className="space-y-2 rounded-md border border-border bg-background p-2.5">
+              <label className="block space-y-0.5 text-xs" htmlFor={`copie-${d.pieceId}`}>
+                Bon de commande signé (PDF ou photo de la page signée)
+                <input id={`copie-${d.pieceId}`} name="copieSignee" type="file" required accept=".pdf,.png,.jpg,.jpeg,.webp" className="block w-full text-sm" />
+              </label>
+              <label className="block space-y-0.5 text-xs" htmlFor={`signataire-${d.pieceId}`}>
+                Signé par
+                <input id={`signataire-${d.pieceId}`} name="signataire" required maxLength={120} placeholder="Nom et qualité du signataire" className={champ} />
+              </label>
+              <p className="text-xs text-muted-foreground">Luna vérifie que la page porte une signature et le numéro {excel.numero} avant d&apos;enregistrer.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" type="submit" disabled={busy === cle}>
+                  {busy === cle ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck className="h-3.5 w-3.5" />} Déposer la version finale
+                </Button>
+                <Button size="sm" type="button" variant="ghost" onClick={() => setOuvert(false)}>Annuler</Button>
+              </div>
+            </form>
+          )}
+        </>
+      ) : (
+        <p className="text-muted-foreground">
+          {d.brouillon?.excel ? `Les lignes validées ont changé depuis le brouillon ${d.brouillon.excel.numero} : il se refait sous le même numéro.` : "Le brouillon Excel se prépare à la validation des lignes."}
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ───────────────────────── Les lignes d'un devis ─────────────────────────
@@ -338,6 +360,20 @@ const saisieDe = (l: DevisDePosteVue["lignes"][number]): LigneSaisie => ({
 
 const champ = "w-full rounded border border-border bg-background px-1.5 py-2 text-xs outline-none focus:border-primary/60 sm:py-1";
 
+/** Une ligne qui PEUT être validée pour ce poste : complète, sans réserve de lecture, libre ailleurs. */
+const validable = (l: DevisDePosteVue["lignes"][number]): boolean =>
+  !l.refusValidation && !l.valideeAilleurs && !l.aVerifier && l.quantity != null && l.unitPrice != null;
+
+/**
+ * LES CASES COCHÉES À L'OUVERTURE (Direction, 11/2026) : les lignes déjà validées ; et, tant que rien ne l'est ni qu'aucun BC ne
+ * porte le devis, les lignes BIEN LUES — proposées, pas validées : la validation reste un geste (elle fait naître le brouillon).
+ */
+function cochesInitiales(devis: DevisDePosteVue): Set<string> {
+  const validees = devis.lignes.filter((l) => l.validee);
+  if (validees.length > 0 || devis.bc) return new Set(validees.map((l) => l.id));
+  return new Set(devis.lignes.filter((l) => l.lue !== null && validable(l)).map((l) => l.id));
+}
+
 export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClose }: {
   itemId: string;
   devis: DevisDePosteVue;
@@ -346,7 +382,7 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
   run: Run;
   onClose: () => void;
 }) {
-  const [coches, setCoches] = React.useState<Set<string>>(() => new Set(devis.lignes.filter((l) => l.validee).map((l) => l.id)));
+  const [coches, setCoches] = React.useState<Set<string>>(() => cochesInitiales(devis));
   const [compare, setCompare] = React.useState(false);
   const [edition, setEdition] = React.useState(false);
   const [rows, setRows] = React.useState<LigneSaisie[]>(() => devis.lignes.map(saisieDe));
@@ -358,7 +394,7 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
   // L'état se recale sur le devis rechargé : une validation faite ailleurs ne reste pas affichée comme cochée ici.
   const signature = devis.lignes.map((l) => `${l.id}:${l.validee ? 1 : 0}:${l.quantity}:${l.unitPrice}`).join("|");
   React.useEffect(() => {
-    setCoches(new Set(devis.lignes.filter((l) => l.validee).map((l) => l.id)));
+    setCoches(cochesInitiales(devis));
     setRows(devis.lignes.map(saisieDe));
     setCompare(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -369,6 +405,10 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
   const dejaValidees = new Set(devis.lignes.filter((l) => l.validee).map((l) => l.id));
   const changees = devis.lignes.some((l) => coches.has(l.id) !== dejaValidees.has(l.id));
   const nouvellesLues = devis.lignes.some((l) => coches.has(l.id) && !dejaValidees.has(l.id) && l.lue !== null);
+  // « TOUT VALIDER » (Direction, 11/2026) : chaque ligne validable du devis, en un clic — un devis qui ne sert qu'à ce poste.
+  const toutes = devis.lignes.filter((l) => validable(l) || dejaValidees.has(l.id)).map((l) => l.id);
+  const toutDejaValide = toutes.every((lid) => dejaValidees.has(lid));
+  const toutLues = devis.lignes.some((l) => toutes.includes(l.id) && !dejaValidees.has(l.id) && l.lue !== null);
   const occupe = busy !== null && busy.endsWith(`:${devis.pieceId}`);
 
   const fd = (extra: Record<string, string> = {}) => {
@@ -378,11 +418,16 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
     for (const [k, v] of Object.entries(extra)) f.set(k, v);
     return f;
   };
-  const valider = () => {
+  const valider = (ids: ReadonlySet<string> = coches) => {
     const f = fd();
-    for (const l of devis.lignes) if (coches.has(l.id)) f.append("ligneId", l.id);
+    for (const l of devis.lignes) if (ids.has(l.id)) f.append("ligneId", l.id);
     if (compare) f.set("compare", "1");
     void run(`val:${devis.pieceId}`, () => validerLignesDuDevis(f), "Lignes validées.");
+  };
+  const toutValider = () => {
+    const ids = new Set(toutes);
+    setCoches(ids);
+    valider(ids);
   };
   const enregistrer = () => {
     const f = fd({ tvaRate: tva, extraTaxLabel: taxeLibelle, extraTaxRate: taxeTaux, announcedTotal: totalImprime });
@@ -414,7 +459,7 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
       {devis.entete.lectureNote && (
         <p className="text-muted-foreground">
           Lignes lues par la plateforme — {devis.entete.lectureNote}
-          {devis.lignes.every((l) => l.validee) ? " Toutes validées automatiquement." : " Certaines sont à vérifier : comparez-les au devis avant de les valider."}
+          {devis.lignes.some((l) => l.validee) ? "" : " Les lignes bien lues sont cochées : comparez-les au devis, puis validez — la validation prépare le brouillon du bon de commande."}
         </p>
       )}
 
@@ -518,7 +563,7 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
             </p>
           )}
           {gele && devis.refus && <p className="text-destructive">{devis.refus}</p>}
-          {nouvellesLues && (
+          {(nouvellesLues || toutLues) && !gele && (
             <label className="flex items-start gap-1.5 py-1 sm:py-0">
               <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="mt-0.5 shrink-0 max-sm:h-5 max-sm:w-5" />
               <span>J&apos;ai comparé ces lignes au devis (elles viennent de la lecture du fichier).</span>
@@ -533,8 +578,14 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
               chose à valider — un devis bien lu est déjà validé d'office, et la carte ne propose alors que
               « Générer le BC ». */}
           {!edition && devis.structure && changees && (
-            <Button size="sm" onClick={valider} disabled={occupe || !changees || gele || (nouvellesLues && !compare)}>
+            <Button size="sm" onClick={() => valider()} disabled={occupe || !changees || gele || (nouvellesLues && !compare)}>
               {busy === `val:${devis.pieceId}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Valider les lignes cochées
+            </Button>
+          )}
+          {!edition && devis.structure && !gele && !toutDejaValide && toutes.length > 0 && (
+            <Button size="sm" variant={changees ? "outline" : "primary"} onClick={toutValider} disabled={occupe || (toutLues && !compare)}
+              title={toutLues && !compare ? "Cochez d'abord « J'ai comparé ces lignes au devis »." : undefined}>
+              <CheckCircle2 className="h-3.5 w-3.5" /> Tout valider ({toutes.length})
             </Button>
           )}
           {edition ? (

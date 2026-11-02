@@ -1001,6 +1001,16 @@ export interface OptionsEmission {
    * de déclarer sans mentir.
    */
   canal?: "ADAM" | null;
+  /**
+   * LE NUMÉRO RÉSERVÉ PAR UN BROUILLON (`reserverNumeroDePiece`, Direction 11/2026) : l'entrée du registre déjà prise pour
+   * cette pièce. Elle est REPRISE si elle porte le numéro choisi (`numeroChoisi`), au lieu d'en attribuer un autre.
+   */
+  reservation?: { entreeRegistre: string | null } | null;
+  /**
+   * UNE PIÈCE QUI NAÎT SIGNÉE (Direction, 11/2026) — le BC d'un poste déposé dans sa version signée : la signature est posée
+   * dans la même écriture que la pièce, si bien que l'aiguillage la lit signée et ne l'envoie pas à la file des Finances.
+   */
+  signee?: { parId: string; nom: string; verification: unknown } | null;
 }
 
 const ARTICLE_TYPE: Record<TypeDocumentCommercial, string> = { DEVIS: "un devis", BON_DE_COMMANDE: "un bon de commande", FACTURE: "une facture", AVOIR: "un avoir" };
@@ -1223,7 +1233,14 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
     }
     let numero: string;
     let entreeRegistre: string | null = null;
-    if (registre) {
+    // LE NUMÉRO RÉSERVÉ PAR LE BROUILLON est repris tel quel : l'entrée existe déjà, à ce numéro-là.
+    const reservee = registre && saisie && opts.reservation?.entreeRegistre
+      ? await tx.documentReference.findUnique({ where: { id: opts.reservation.entreeRegistre }, select: { id: true, reference: true, companyId: true, entityType: true } })
+      : null;
+    if (reservee && reservee.companyId === profil.societe.id && reservee.entityType !== "LEGAL_DOCUMENT" && nettoyerNumero(reservee.reference) === nettoyerNumero(saisie)) {
+      numero = reservee.reference;
+      entreeRegistre = reservee.id;
+    } else if (registre) {
       const r = await attribuerReference(magasinPrisma(tx), {
         companyId: profil.societe.id, annee, plancher: registre.plancher, largeur: registre.largeur,
         docType: type, entityType: "LEGAL_DOCUMENT", entityId: null, createdById: user.id, saisie,
@@ -1263,6 +1280,9 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
         notes: `${LIBELLE_TYPE[type]} émis${type === "FACTURE" ? "e" : ""} ${parQui(user, opts.canal)} — TTC ${formaterDzd(totaux.totalTtc)}.`,
         createdById: user.id, updatedById: user.id,
         ...(demande.prevalidation && type === "BON_DE_COMMANDE" ? { bcPrevalidationAt: new Date() } : {}),
+        ...(opts.signee && type === "BON_DE_COMMANDE"
+          ? { signedAt: new Date(), signedById: opts.signee.parId, signedByName: opts.signee.nom.slice(0, 120), signatureCheck: opts.signee.verification as Prisma.InputJsonValue }
+          : {}),
         custom: { fabrique } as unknown as Prisma.InputJsonValue,
       },
       select: { id: true },
@@ -1360,6 +1380,45 @@ export interface ApercuDocument {
   pdfErreur?: string;
   /** Ce que la société émettrice imprime par défaut (siège, téléphone, e-mail) — ce que l'écran pré-remplit. */
   coordonneesSociete: { adresse: string | null; telephone: string | null; email: string | null };
+}
+
+/**
+ * RÉSERVER LE NUMÉRO D'UNE PIÈCE AVANT SON ÉMISSION (Direction, 11/2026) — pour le brouillon Excel d'un BC de poste, qui doit
+ * porter le numéro que la personne signera. Le numéro est PRIS, comme à l'émission : au registre commun de la société quand
+ * elle le tient (l'entrée vise la `cible`, et l'émission la reprend par `OptionsEmission.reservation`), sinon dans la série
+ * de la fabrique (l'émission le reçoit alors comme numéro choisi). Un brouillon abandonné laisse ce numéro inemployé : un
+ * numéro du registre ne se réutilise jamais.
+ */
+export async function reserverNumeroDePiece(
+  user: CurrentUser, demande: DemandeDocument, cible: { entityType: string; entityId: string },
+): Promise<{ ok: true; numero: string; entreeRegistre: string | null } | EchecFabrique> {
+  const type = demande.type;
+  if (!TYPES_DOCUMENT.includes(type)) return echec("MISSING_INPUT", `Type de document inconnu : « ${String(type)} ».`);
+  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null, type });
+  if (!p.ok) return p;
+  const { profil } = p;
+  const base = specDepuisDemande(demande, profil);
+  const lue = Number(base.date.slice(0, 4));
+  const annee = Number.isFinite(lue) ? lue : new Date().getUTCFullYear();
+  const kind = NATURE_LEGALE[type];
+  const registre = registreDeLaPiece(type, profil, annee);
+  try {
+    return await prisma.$transaction(async (tx) => {
+      if (registre) {
+        const r = await attribuerReference(magasinPrisma(tx), {
+          companyId: profil.societe.id, annee, plancher: registre.plancher, largeur: registre.largeur,
+          docType: type, entityType: cible.entityType, entityId: cible.entityId, createdById: user.id,
+        });
+        if (!r.ok) throw new ReferenceRefusee(r.motif);
+        return { ok: true as const, numero: r.reference, entreeRegistre: r.id };
+      }
+      const seq = await attribuerNumero(tx, profil.societe.id, kind, annee, departDe(profil.reglages.numerotationDepart, type, annee));
+      return { ok: true as const, numero: formaterNumero(prefixeDe(type, profil), annee, seq, profil.reglages.numerotation[type] ?? null), entreeRegistre: null };
+    });
+  } catch (e) {
+    if (e instanceof ReferenceRefusee) return echec("MISSING_INPUT", e.message);
+    throw e;
+  }
 }
 
 /**

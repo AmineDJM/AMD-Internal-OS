@@ -9,7 +9,7 @@ import {
 } from "@/lib/ad-pro/devis-poste";
 import { IDENTITE_VIDE, identiteUtilisable, type IdentiteEmetteur } from "@/lib/pieces-lues/emetteur";
 import { montantLu } from "@/lib/pieces-lues/montants";
-import { brouillonPerime, lireBrouillon, lignesEffectives, type BrouillonBc } from "@/lib/bons-de-commande/brouillon";
+import { brouillonPerime, brouillonExcelPerime, lireBrouillon, lignesEffectives, type BrouillonBc } from "@/lib/bons-de-commande/brouillon";
 import type { LigneCommerciale } from "@/lib/artifact/factory/commercial";
 
 /** L'identité gardée en base (JSON) → sa forme typée, ou `null` si elle ne nomme personne. */
@@ -87,7 +87,7 @@ export interface DevisDePosteVue {
    * LE BROUILLON DU BC (« à vérifier par le demandeur ») de CE poste, s'il y en a un : aucun numéro n'est encore attribué. Ses lignes
    * sont celles qu'il imprimera (corrigées, ou celles des lignes validées).
    */
-  brouillon: (BrouillonBc & { perime: boolean; lignesBc: LigneCommerciale[] }) | null;
+  brouillon: (BrouillonBc & { perime: boolean; lignesBc: LigneCommerciale[]; excelPerime: boolean }) | null;
   /**
    * NE COMPTE PAS (sans BC) : la copie d'une pièce déjà comptée, ou une proposition d'un voyageur qui n'est pas la retenue
    * (`devisMisAPart`). Ses lignes validées restent lisibles ; elles n'entrent ni dans le plafond, ni dans un BC.
@@ -267,7 +267,10 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
     const brut = lireBrouillon(entreeBase?.bcBrouillon);
     if (brut && brut.itemId === lien.itemId && (decision.etat === "A_GENERER" || decision.etat === "A_REGENERER")) {
       const lignesBc = lignesDuBon(entete, lignes, lien.itemId);
-      vue.brouillon = { ...brut, perime: brouillonPerime(brut, lignesBc), lignesBc: lignesEffectives(brut, lignesBc) };
+      vue.brouillon = {
+        ...brut, perime: brouillonPerime(brut, lignesBc), lignesBc: lignesEffectives(brut, lignesBc),
+        excelPerime: brut.excel ? brouillonExcelPerime(brut.excel, lignesBc, { tvaRate: entete.tvaRate, extraTaxRate: entete.extraTaxRate }) : false,
+      };
     }
     res.get(lien.itemId)?.push(vue);
   }

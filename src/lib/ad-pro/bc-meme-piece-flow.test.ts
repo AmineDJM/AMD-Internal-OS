@@ -44,6 +44,7 @@ import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "@/lib/actions/sponsoring-actions";
 import {
   addAdProItem, ajouterVoyageur, ajouterDevisVoyageur, ajouterDevisPoste, genererBonDeCommandePoste, apercuBcPoste, validerEtEnvoyerBcPoste,
+  validerLignesDuDevis,
 } from "@/lib/actions/ad-pro-item-actions";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
 import { loadAdProItems } from "@/lib/queries/ad-pro-items";
@@ -231,7 +232,13 @@ suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée un
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     const r1 = await deposerPour(voyageurs[0]!);
     piece = r1.id!;
-    expect(r1.message, "les lignes lues sont validées d'office").toMatch(/3 lignes validées automatiquement/);
+    // Les lignes lues sont PROPOSÉES — plus validées d'office (Direction, 11/2026) : une personne les valide.
+    expect(r1.message).toMatch(/3 lignes proposées/);
+    const lues = await prisma.adProDevisLigne.findMany({ where: { devis: { legalDocumentId: piece } }, select: { id: true } });
+    const v = fd({ id: posteId, pieceId: piece, compare: "1" });
+    for (const l of lues) v.append("ligneId", l.id);
+    const valide = await validerLignesDuDevis(v);
+    expect(valide.ok, valide.ok ? "" : valide.error).toBe(true);
     const r2 = await deposerPour(voyageurs[1]!, false);
     expect(r2.id, "la pièce désignée est celle déjà déposée").toBe(piece);
     expect(r2.message).toMatch(/déjà déposée sur le poste pour Dr Amel Haddad .* n'est pas enregistrée une seconde fois/);
@@ -295,7 +302,7 @@ suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée un
     expect(refusMontantDuPoste(d, 124_750), "sous les 124 750 accordés : rien ne bloque").toBeNull();
     // LA CARTE DU POSTE propose UN geste de génération, et le total des devis retenus côté voyageurs ne compte la pièce qu'une fois.
     const ligne = (await loadAdProItems("SPONSORING", spoId)).find((r) => r.id === posteId)!;
-    expect(prochainPas(faitsDuPoste(ligne), REGARD_DEMANDEUR).geste).toMatchObject({ cle: "GENERER_BC", libelle: "Générer le BC" });
+    expect(prochainPas(faitsDuPoste(ligne), REGARD_DEMANDEUR).geste).toMatchObject({ cle: "GENERER_BC", libelle: "Déposer le BC signé" });
     const copiesVues = ligne.voyageurs.flatMap((v) => v.devis).filter((x) => x.copieDe === piece);
     expect(copiesVues.map((x) => x.id).sort()).toEqual([...copies].sort());
   });
@@ -305,7 +312,8 @@ suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée un
     const bcsDuPoste = () => prisma.legalDocument.count({ where: { kind: "PURCHASE_ORDER", sourceType: "AD_PRO_ITEM", sourceId: posteId } });
     const apercu = await genererBonDeCommandePoste(fd({ id: posteId }));
     expect(apercu.ok, apercu.ok ? "" : apercu.error).toBe(true);
-    expect(apercu.message).toMatch(/Brouillon — à vérifier par le demandeur — 1 aperçu prêt/);
+    // La validation des lignes a pu déjà poser le brouillon (Word, Direction 11/2026) : l'aperçu se relit alors, sans rien émettre.
+    expect(apercu.message).toMatch(/Brouillon — à vérifier par le demandeur/);
     expect(await bcsDuPoste(), "le clic n'émet RIEN : aucun bon de commande numéroté").toBe(0);
     expect((await prisma.adProDevis.findFirstOrThrow({ where: { legalDocumentId: piece }, select: { bcBrouillon: true } })).bcBrouillon, "l'aperçu est posé sur la pièce comptée").not.toBeNull();
     // L'aperçu s'ouvre PRÊT À RELIRE : le composeur pré-rempli de la pièce telle qu'elle serait émise — toujours sans numéro.

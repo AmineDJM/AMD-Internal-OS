@@ -441,8 +441,11 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
 
 const capitale = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-/** Le geste de génération : « Générer le BC » pour un devis, « Générer les BC (N) » pour plusieurs. */
-const gesteGenerer = (n: number): Geste => ({ cle: "GENERER_BC", libelle: n > 1 ? `Générer les BC (${n})` : "Générer le BC" });
+/**
+ * Le geste qui suit la validation des lignes (Direction, 11/2026) : le brouillon Excel est né avec elle — il reste à le faire
+ * signer et à DÉPOSER la version signée. « Déposer le BC signé » pour un devis, « Déposer les BC signés (N) » pour plusieurs.
+ */
+const gesteGenerer = (n: number): Geste => ({ cle: "GENERER_BC", libelle: n > 1 ? `Déposer les BC signés (${n})` : "Déposer le BC signé" });
 
 /**
  * LES POSTES REGROUPÉS PAR RÉPARTITION — dans l'ordre où ils apparaissent. Un poste né d'une

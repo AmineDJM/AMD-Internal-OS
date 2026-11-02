@@ -4,13 +4,14 @@ import { identiteEmetteurDuTexte, identiteUtilisable } from "@/lib/pieces-lues/e
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import {
-  apercuPourEcran, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reviserDocumentDrive,
-  type ApercuDocument, type ApercuPiece, type DemandeDocument, type ModificationsDocument,
+  apercuPourEcran, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reserverNumeroDePiece, reviserDocumentDrive,
+  type ApercuDocument, type ApercuPiece, type DemandeDocument, type ModificationsDocument, type OptionsEmission,
 } from "@/platform/in-process/artifact/factory";
 import { valeursDeLaSpec, type ValeursComposables } from "@/lib/legal/piece-emise";
+import { construireXlsxCommercial } from "@/lib/artifact/factory/xlsx";
 import { calculerTotaux, type LigneCommerciale, type PartieCommerciale } from "@/lib/artifact/factory/commercial";
 import {
-  appliquerCorrections, brouillonPerime, correctionsDuBrouillon, lignesEffectives, type BrouillonBc,
+  appliquerCorrections, brouillonPerime, correctionsDuBrouillon, empreinteDuBrouillonExcel, lignesEffectives, type BrouillonBc,
 } from "@/lib/bons-de-commande/brouillon";
 import { devisDesPostes, type DevisDePosteVue } from "@/lib/queries/ad-pro-devis-poste";
 import { rattacherPieceAuPoste } from "@/lib/ad-pro/pieces-poste";
@@ -332,6 +333,60 @@ export async function apercuDuBC(
   };
 }
 
+/** Le brouillon Excel composé : le classeur, son nom, le numéro réservé (et son entrée au registre), le TTC et l'empreinte. */
+export interface BrouillonExcelCompose {
+  ok: true;
+  xlsx: Buffer;
+  nomFichier: string;
+  numero: string;
+  entreeRegistre: string | null;
+  totalTtc: number;
+  signature: string;
+  fournisseur: string;
+}
+
+/**
+ * LE BROUILLON EXCEL DU BC D'UN DEVIS (Direction, 11/2026 — « le BC doit être en Excel, pas en Word ») — composé par la
+ * FABRIQUE comme l'aperçu (même demande, mêmes règles), rendu en CLASSEUR À FORMULES (`construireXlsxCommercial`, le même
+ * que l'export Excel d'une pièce de Legal, contrôlé au centime) et avec un VRAI numéro : celui que le brouillon portait déjà
+ * s'il est refait, sinon un numéro RÉSERVÉ maintenant (`reserverNumeroDePiece`) — la personne signe le papier qui le porte, et le BC le reprendra au dépôt. Rien n'est
+ * écrit au registre Legal : l'appelant range le fichier sur le poste.
+ */
+export async function composerBrouillonExcel(
+  user: CurrentUser, poste: PosteAGenerer, d: DevisDePosteVue, brouillon: BrouillonBc,
+): Promise<BrouillonExcelCompose | { ok: false; error: string }> {
+  const lignesDevis = lignesDuBCDuDevis(d, poste.item.id);
+  if (lignesDevis.length === 0) return { ok: false, error: "Aucune ligne n'est validée pour ce devis." };
+  // Des lignes corrigées sur une autre base que les lignes validées d'aujourd'hui ne s'impriment pas : on repart du devis.
+  const lignes = brouillon.lignes && !brouillonPerime(brouillon, lignesDevis) ? brouillon.lignes : lignesDevis;
+  const corrections = correctionsDuBrouillon(brouillon);
+  const t = await tiersDuDevis(d, poste.item.supplier);
+  if (!t.ok && !corrections.tiers?.nom) return { ok: false, error: t.error };
+  const demande = demandeDuBC(poste, d, t.ok ? t.tiers : { nom: "" }, lignes, { ...brouillon, numeroChoisi: null });
+  const nom = d.reference?.trim() || d.titre;
+  const delegation = `${poste.ref} — poste « ${poste.item.label} » : brouillon du bon de commande du devis « ${nom} », lignes validées`;
+  let numero = brouillon.excel?.numero ?? null;
+  let entreeRegistre = brouillon.excel?.entreeRegistre ?? null;
+  if (!numero) {
+    const r = await reserverNumeroDePiece(user, demande, { entityType: "AD_PRO_ITEM", entityId: poste.item.id });
+    if (!r.ok) return { ok: false, error: r.motif };
+    numero = r.numero;
+    entreeRegistre = r.entreeRegistre;
+  }
+  const a = await previsualiserDocument(user, demande, { delegation, numeroAffiche: numero });
+  if (!a.ok) return { ok: false, error: a.motif };
+  if (a.bloquants.length > 0) return { ok: false, error: a.bloquants.slice(0, 3).join(" ; ") };
+  // LE CLASSEUR qui ne retombe pas sur les totaux de la pièce n'est pas livré : la règle de l'export Excel de Legal.
+  const classeur = await construireXlsxCommercial(a.spec);
+  if (!classeur.verification.ok) {
+    return { ok: false, error: `le classeur Excel du brouillon n'a pas pu être composé (${classeur.verification.bloquants.slice(0, 3).join(" ; ")})` };
+  }
+  return {
+    ok: true, xlsx: classeur.octets, nomFichier: classeur.nom, numero, entreeRegistre, totalTtc: a.totaux?.totalTtc ?? 0,
+    signature: empreinteDuBrouillonExcel(lignesDevis, { tvaRate: d.entete.tvaRate, extraTaxRate: d.entete.extraTaxRate }), fournisseur: a.spec.tiers.nom,
+  };
+}
+
 /**
  * GÉNÈRE (ou RÉVISE) le bon de commande de chaque devis demandé. Chaque devis passe par SA file (un geste à la fois
  * sur ses lignes) et est RELU dans la file : ce que la carte avait vu a pu changer — une ligne décochée, un BC annulé
@@ -343,6 +398,11 @@ export async function genererLesBCsDuPoste(
   user: CurrentUser, poste: PosteAGenerer, pieceIds: readonly string[],
   /** Les brouillons VALIDÉS par le demandeur, par devis : leurs corrections remplacent ce que le devis donne. */
   brouillons: ReadonlyMap<string, BrouillonBc> = new Map(),
+  /**
+   * LE BC DÉPOSÉ DANS SA VERSION SIGNÉE (Direction, 11/2026) : le numéro réservé par le brouillon Excel (son entrée au
+   * registre, par devis) et la signature, posée dans la même écriture que la pièce.
+   */
+  depot: { reservations?: ReadonlyMap<string, string | null>; signee?: OptionsEmission["signee"] } = {},
 ): Promise<BilanGeneration> {
   const bilan: BilanGeneration = { bcs: [], echecs: [] };
   for (const pieceId of pieceIds) {
@@ -377,7 +437,11 @@ export async function genererLesBCsDuPoste(
       const t = await tiersDuDevis(d, poste.item.supplier);
       // Un fournisseur que le demandeur a NOMMÉ dans l'aperçu suffit, même quand le devis ne le nommait pas.
       if (!t.ok && !(brouillon && correctionsDuBrouillon(brouillon).tiers?.nom)) { bilan.echecs.push(`${nom} : ${t.error}`); return; }
-      const r = await emettreDocumentDrive(user, demandeDuBC(poste, d, t.ok ? t.tiers : { nom: "" }, lignes, brouillon), { source: { type: "AD_PRO_ITEM", id: poste.item.id }, delegation });
+      const r = await emettreDocumentDrive(user, demandeDuBC(poste, d, t.ok ? t.tiers : { nom: "" }, lignes, brouillon), {
+        source: { type: "AD_PRO_ITEM", id: poste.item.id }, delegation,
+        ...(depot.reservations?.has(pieceId) ? { reservation: { entreeRegistre: depot.reservations.get(pieceId) ?? null } } : {}),
+        ...(depot.signee ? { signee: depot.signee } : {}),
+      });
       if (!r.ok) { bilan.echecs.push(`${nom} : ${r.motif}`); return; }
       await rattacherPieceAuPoste({ itemId: poste.item.id, legalDocumentId: r.legalDocumentId, nature: "BON_DE_COMMANDE", acteurId: user.id });
       await lierLesLignes(d.pieceId, poste.item.id, r.legalDocumentId);

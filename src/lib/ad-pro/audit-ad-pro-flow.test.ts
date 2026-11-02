@@ -271,12 +271,16 @@ suite("Audit Ad & Pro — devis multiples lus en natif, TVA jamais inventée, fa
     expect((await prisma.legalDocument.findUniqueOrThrow({ where: { id: devB } })).counterparty).toBe(HOTEL);
   });
 
-  it("DEVIS PROPRE (TVA 19 % IMPRIMÉE) : ses lignes sont validées d'office, la TVA est reprise, aucun doute", async () => {
+  it("DEVIS PROPRE (TVA 19 % IMPRIMÉE) : la TVA est reprise, aucun doute — ses lignes arrivent PROPOSÉES et une personne les valide (plus de validation d'office, Direction 11/2026)", async () => {
     const a = (await devisDuPoste(p)).find((d) => d.pieceId === devA)!;
     expect(a.entete.tvaRate).toBe(19);
-    expect(a.lignes.every((l) => l.validee), "lecture sans doute : validée d'office").toBe(true);
+    expect(a.lignes.some((l) => l.validee), "valider fait naître le brouillon du BC : c'est un geste, jamais la lecture").toBe(false);
     expect(a.entete.lectureNote ?? "").not.toMatch(/À VÉRIFIER/);
-    expect(a.totalValideTtc).toBe(142_800);
+    await comme("kam");
+    const v = fd({ id: p, pieceId: devA, compare: "1" });
+    for (const l of a.lignes) v.append("ligneId", l.id);
+    ok(await validerLignesDuDevis(v));
+    expect((await devisDuPoste(p)).find((d) => d.pieceId === devA)!.totalValideTtc).toBe(142_800);
   });
 
   it("TVA INVENTÉE PAR LE MODÈLE : le devis reste SANS TVA, le doute est GARDÉ avec lui, et rien n'est validé d'office", async () => {

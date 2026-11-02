@@ -159,14 +159,14 @@ describe("le geste suivant d'un poste", () => {
     expect(LIBELLE_JUSTIFICATIF_DIRECT).toBe("Proforma / lettre de demande de sponsoring");
   });
 
-  it("DES LIGNES DE DEVIS VALIDÉES : le geste est « Générer le BC » (« les BC (N) » pour plusieurs devis), jamais « demander » — et il cède à une demande déjà chez l'assistante (§118.206)", () => {
+  it("DES LIGNES DE DEVIS VALIDÉES : le brouillon Word est né, le geste est « Déposer le BC signé » (« les BC signés (N) » pour plusieurs devis, Direction 11/2026), jamais « demander » — et il cède à une demande déjà chez l'assistante (§118.206)", () => {
     const avec = (n: number, extra = {}) => faitsDuPoste({
       kind: "PRINTING", status: "APPROVED", amountEstimated: 10, amountGranted: 9, budgetCategoryId: "b", orderStage: "NONE",
       expenseOrderId: null, expenseOrder: null, lignesStock: [], orderSansCentre: false, opsDecidedAt: "2026-10-01", demandeBC: null,
       devisLignes: Array.from({ length: n }, () => ({ etat: "A_GENERER" })), ...extra,
     });
-    expect(prochainPas(avec(1), DEMANDEUR).geste).toEqual({ cle: "GENERER_BC", libelle: "Générer le BC" });
-    expect(prochainPas(avec(3), DEMANDEUR).geste).toEqual({ cle: "GENERER_BC", libelle: "Générer les BC (3)" });
+    expect(prochainPas(avec(1), DEMANDEUR).geste).toEqual({ cle: "GENERER_BC", libelle: "Déposer le BC signé" });
+    expect(prochainPas(avec(3), DEMANDEUR).geste).toEqual({ cle: "GENERER_BC", libelle: "Déposer les BC signés (3)" });
     // Aucun devis à générer (aucune ligne validée, ou tous à jour) : le geste d'avant, demander le BC.
     expect(prochainPas(avec(0), DEMANDEUR).geste?.cle).toBe("DEMANDER_BC");
     expect(prochainPas(avec(0, { devisLignes: [{ etat: "A_JOUR" }, { etat: "AUCUNE_LIGNE" }] }), DEMANDEUR).geste?.cle).toBe("DEMANDER_BC");

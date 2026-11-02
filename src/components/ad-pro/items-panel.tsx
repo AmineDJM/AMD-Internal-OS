@@ -25,7 +25,7 @@ import {
   submitAdProItem, decideAdProItem, setAdProItemBudget,
   demanderPieceSecretariat, requestAdProItemOrder, approveAdProItemOrder,
   retirerDemandeBC, modifierDemandeBC, annulerOrdrePoste, demanderRevisionPoste,
-  ajouterDevisPoste, retirerDevisDuPoste, demanderPaiementPoste, genererBonDeCommandePoste, genererDemandeDevisPoste,
+  ajouterDevisPoste, retirerDevisDuPoste, demanderPaiementPoste, genererDemandeDevisPoste,
   referenceDemandeDevisPoste,
 } from "@/lib/actions/ad-pro-item-actions";
 import { ChampReference } from "@/components/references/champ-reference";
@@ -557,6 +557,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
   const fermer = () => setPanneau(null);
   const basculer = (p: Panneau) => setPanneau((cur) => (cur === p ? null : p));
 
+  const [ongletDemande, setOngletDemande] = React.useState<{ cle: string; n: number } | null>(null);
   /** Le geste principal — un formulaire qui s'ouvre, ou une action qui part. */
   const agir = (cle: CleGeste) => {
     if (GESTES_A_FORMULAIRE.includes(cle)) {
@@ -564,8 +565,9 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
       return;
     }
     if (cle === "SOUMETTRE") void run(`submit:${item.id}`, () => submitAdProItem(undefined, fdOf()), "Poste soumis pour validation.");
-    // « Générer le BC » : un BC par devis, d'après les lignes validées (§118.206) — la même action que le CTA de la case.
-    if (cle === "GENERER_BC") void run(`gen:tous:${item.id}`, () => genererBonDeCommandePoste(fdOf()), "Aperçu du bon de commande prêt — à vérifier par le demandeur.");
+    // « Déposer le BC signé » (Direction, 11/2026) : le brouillon Excel est né avec la validation des lignes — le geste ouvre la
+    // case « Bon de commande », où il se télécharge et où sa version signée se dépose.
+    if (cle === "GENERER_BC") setOngletDemande((d) => ({ cle: "bc", n: (d?.n ?? 0) + 1 }));
   };
 
   // ── LE MENU « ⋯ » — ce qui ne crie pas, mais reste là. Chaque entrée n'apparaît que si
@@ -672,7 +674,8 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
   // facture du premier signé sans attendre le second ; le paiement, lui, attend que tout soit signé et facturé.
   const factureOuverte = !direct && (regard.canEdit || regard.canAllocate) && !item.expenseOrderId && bcsSansFacture(item.pieces.bcs, item.pieces.factures).length > 0;
   // LA GÉNÉRATION DU BC (§118.206) : la même règle que l'action (`refusGenerationBC`), jamais une copie.
-  const peutGenerer = regard.canEdit && !stock && !direct && item.orderStage !== "ISSUED" && !item.expenseOrderId;
+  // LE BROUILLON EXCEL ET SA VERSION SIGNÉE (Direction, 11/2026) : qui traite les devis du poste — le droit même de les valider.
+  const peutTraiterBC = peutDeposerDevis && !direct && item.orderStage !== "ISSUED";
   const refusGeneration = refusGenerationBC({
     status: item.status, amountGranted: item.amountGranted, budgetCategoryId: item.budgetCategoryId, orderStage: item.orderStage,
     expenseOrderId: item.expenseOrderId, demandeChez: item.demandeBC?.assistante ?? null, demandeOuverte: item.demandeBC !== null,
@@ -1184,8 +1187,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
                   devis={item.devisLignes}
                   accorde={item.amountGranted}
                   refusGeneration={refusGeneration}
-                  peutGenerer={peutGenerer}
-                  peutValider={regard.peutValiderBc === true && !stock && !direct && item.orderStage !== "ISSUED" && !item.expenseOrderId}
+                  peutTraiter={peutTraiterBC}
                   peutJoindre={peutJoindreBC}
                   peutModifier={regard.canEdit && !regard.fige && !item.expenseOrderId}
                   busy={busy}
@@ -1246,7 +1248,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
             </CasePiece>
           ),
         });
-        return <ChaineDuPoste onglets={onglets} />;
+        return <ChaineDuPoste onglets={onglets} demande={ongletDemande} />;
       })()}    </li>
   );
 }
@@ -1322,6 +1324,7 @@ function LignePiece({ piece, retirer }: { piece: PieceDePoste; retirer?: () => v
           {piece.fichiers > 0 && <> · <Paperclip className="inline h-3 w-3" /> {piece.fichiers}</>}
           {piece.annulee && " · annulée"}
         </p>
+        {piece.nonRetenu && <p className="text-muted-foreground"><span className="rounded-full border border-border px-1.5 py-px text-[0.6875rem]">{piece.nonRetenu}</span></p>}
         {piece.aussiPour.length > 0 && <p className="truncate text-muted-foreground" title={piece.aussiPour.join(", ")}>Couvre aussi : {piece.aussiPour.join(", ")}</p>}
         {/* TOUS LES FICHIERS DE LA PIÈCE (Direction, 07/10) — le titre ouvre le premier ; les autres se listent ici. */}
         {piece.fichiersListe.length > 1 && (
@@ -1419,11 +1422,13 @@ interface OngletChaine { cle: string; libelle: string; court?: string; etat: Eta
  * Elle s'ouvre sur l'étape en cours (ou refusée), à défaut sur la dernière faite : quatre colonnes serrées obligeaient
  * à tout lire pour trouver la seule qui comptait.
  */
-function ChaineDuPoste({ onglets }: { onglets: OngletChaine[] }) {
+function ChaineDuPoste({ onglets, demande = null }: { onglets: OngletChaine[]; demande?: { cle: string; n: number } | null }) {
   const parDefaut = (onglets.find((o) => o.etat === "EN_COURS" || o.etat === "REFUSE")
     ?? [...onglets].reverse().find((o) => o.etat === "FAIT")
     ?? onglets[0]).cle;
   const [choisi, setChoisi] = React.useState<string | null>(null);
+  // UN GESTE DU POSTE QUI MÈNE À UNE CASE (« Déposer le BC signé ») l'ouvre — chaque clic compte (`n`).
+  React.useEffect(() => { if (demande) setChoisi(demande.cle); }, [demande]);
   const actif = onglets.find((o) => o.cle === choisi) ?? onglets.find((o) => o.cle === parDefaut) ?? onglets[0];
   return (
     <div className="space-y-2 border-t border-border/70 pt-2.5">

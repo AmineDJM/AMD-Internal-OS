@@ -53,6 +53,8 @@ export interface LegalListRow {
   expenseOrderId: string | null;
   /** Le total des avoirs ACTIFS d'une facture (§118.195) — absent : aucun avoir. */
   avoirs?: number;
+  /** UN DEVIS D'AD & PRO NON RETENU (Direction, 11/2026) : la phrase à afficher — absent : retenu, ou pas un devis de poste. */
+  nonRetenu?: string | null;
 }
 
 /** Les niveaux d'échéance qui méritent qu'on s'en occupe — le filtre « à surveiller ». */

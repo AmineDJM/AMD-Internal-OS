@@ -416,6 +416,11 @@ signer de leur part. Si un BC se retrouve là-bas, c'est qu'il doit être signé
   `peutSignerBC` : par défaut Direction, Directeur Général et Finances ; le Directeur des Opérations a « Voir »). Les
   BC encore au centre y sont COMPTÉS, pas listés. Sont prévenus à l'ENTRÉE d'un BC dans la file (jamais à chaque
   relecture) les Finances, dont c'est le métier, et les personnes que la console désigne pour signer.
+- **LE BC D'UN POSTE AD & PRO NAÎT SIGNÉ** (Direction, 02/11/2026) : valider les lignes d'un devis fait naître son
+  brouillon Excel (numéro réservé, sur le poste, rien au registre) ; la personne le fait signer et dépose la version signée
+  (`deposerBcSignePoste`, Luna lit signature et numéro) ; le BC naît alors au registre sous ce numéro, signé dans la même
+  écriture — il n'entre pas dans la file des Finances. Le centre Ad & Pro vise toujours au-dessus du seuil (le dépôt
+  l'attend). Les devis du poste sans ligne validée sont marqués « non retenus ».
 - **LA SIGNATURE EST UNE ATTESTATION** (`signerBonDeCommande`) : un clic dans une vraie session, jamais
   Adam ni le chemin générique (`SURFACES_HUMAINES`, parité EXCLUDED). Trois gardes : le droit, la
   lecture (la portée de l'écran Legal) et l'étape — et le verrou porte sur la DERNIÈRE ÉCRITURE de la

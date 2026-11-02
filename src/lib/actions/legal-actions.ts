@@ -33,6 +33,7 @@ import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { memeNumero, nettoyerNumero, resumeChangementNumero } from "@/lib/bons-de-commande/numero-reference";
 import { champsDifferents, MENTION_NUMERO_SEUL } from "@/lib/bons-de-commande/numero-seul";
 import { inscrireNumeroBcDepose, refusNumeroBcDepose } from "@/lib/bons-de-commande/numero-depose";
+import { effacerNonRetenusDuBC } from "@/lib/bons-de-commande/non-retenus";
 import {
   reserveBC, reserveSansPorte, reserveEtapeBC, PHRASE_SIGNATURE_RETIREE,
   LIBELLE_CENTRE_BC, LIBELLE_ETAT_BC, CHEMIN_CENTRE_BC,
@@ -736,8 +737,12 @@ export async function cancelLegalDocument(formData: FormData): Promise<ActionRes
     field: "status", oldValue: doc.status, newValue: "CANCELLED",
     summary: `Annulation de « ${doc.title} » — motif : ${reason}`,
   });
-  // Un BC annulé n'a plus rien à faire valider : sa porte en attente quitte le centre.
-  if (doc.kind === "PURCHASE_ORDER") await aiguillerBC(id, { acteurId: user.id });
+  // Un BC annulé n'a plus rien à faire valider : sa porte en attente quitte le centre. Les devis que son dépôt avait écartés
+  // (« non retenus », Direction 11/2026) redeviennent des offres à comparer.
+  if (doc.kind === "PURCHASE_ORDER") {
+    await aiguillerBC(id, { acteurId: user.id });
+    await effacerNonRetenusDuBC(id).catch(() => undefined);
+  }
   revalidatePath("/legal");
   revalidatePath(`/legal/${id}`);
   return ordreAnnule
@@ -791,7 +796,10 @@ export async function deleteLegalDocument(formData: FormData): Promise<ActionRes
 
   // AVANT la suppression : une validation qui attend au centre sur une pièce qui n'existe plus
   // serait un arbitrage à rendre sur rien, et le clic échouerait après coup.
-  if (doc.kind === "PURCHASE_ORDER") await retirerPortesEnAttente(id, user.id);
+  if (doc.kind === "PURCHASE_ORDER") {
+    await retirerPortesEnAttente(id, user.id);
+    await effacerNonRetenusDuBC(id).catch(() => undefined);
+  }
   await prisma.legalDocument.delete({ where: { id } });
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Legal",
