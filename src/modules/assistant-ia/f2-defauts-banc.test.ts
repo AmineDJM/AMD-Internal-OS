@@ -28,6 +28,8 @@ import { lirePlan } from "@/lib/missions/travaux/plan";
 import { PERSONA_ASSISTANT_IA } from "./infra/travaux";
 import { deposerMessage, ETAT, traiterFil } from "./infra/fil/service";
 import { messageDEchec } from "./infra/fil/tour";
+import { retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
+import { estQuestionOuRappel } from "@/platform/ia/intentions/proposition-perimee";
 import { porteUneConsigne, separerDitEtConsigne, sortieOrale } from "@/platform/ia/voix/dit-et-consigne";
 
 let dbOk = false;
@@ -290,5 +292,49 @@ suite("F2 · MG-10 — le fil REPREND une demande dont le modèle n'a pas répon
     expect(rep.etat, rep.contenu).toBe(ETAT.TERMINE);
     expect(rep.contenu).toContain("Le rapprochement est prêt.");
     expect(await prisma.assistantIaTour.count({ where: { repondA: d.tour.id, role: "assistant" } })).toBe(1);
+  });
+});
+
+suite("F2 · TR-LO-01 — deux cartes indépendantes coexistent ; seule une carte remplacée devient caduque (base réelle)", () => {
+  let sofiane: CurrentUser;
+  beforeAll(async () => { sofiane = await compte("Sofiane", "SUPER_ADMIN"); });
+  afterAll(async () => {
+    await prisma.task.deleteMany({ where: { OR: [{ title: { contains: TAG } }, { description: { contains: TAG } }] } }).catch(() => {});
+    await prisma.assistantActionIntent.deleteMany({ where: { userId: sofiane?.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Sofiane` } } }).catch(() => {});
+  });
+  const tache = async (entree: Record<string, unknown>) => {
+    const props: PropositionPreparee[] = [];
+    const o = outilsV1(sofiane, props, [], [], null, await accesAssistantIa(sofiane), { capacites: true }).find((t) => t.def.name === "task__createTask")!;
+    expect(JSON.parse(await o.run(entree, sofiane)).statut).toBe("EN_ATTENTE_DE_CONFIRMATION");
+    return props[0]!.intentId;
+  };
+  const statut = async (id: string) => (await prisma.assistantActionIntent.findUniqueOrThrow({ where: { id } })).status;
+
+  it("le scénario du banc : deux tâches préparées, puis « rappelle-moi… » — les deux cartes restent, les deux se confirment", async () => {
+    ACTEUR = sofiane;
+    // (L'étiquette du test va dans la description : dans les deux titres, elle ferait elle-même un mot commun.)
+    const a = await tache({ title: "Envoyer les échantillons — appel d'offres oncologie CHU Mustapha", description: `Envoyer les échantillons dans le cadre de l'appel d'offres oncologie du CHU Mustapha. ${TAG}`, dueDate: "2026-11-14" });
+    const b = await tache({ title: "Relancer le pharmacien chef du CHU Mustapha", description: `Relancer le pharmacien chef au sujet de l'appel d'offres oncologie du CHU Mustapha. ${TAG}`, dueDate: "2026-11-20" });
+    expect(await statut(a)).toBe("PROPOSED");
+    expect(await retirerCaduquesAvantLeTour(sofiane.id, "Rappelle-moi ce qu'on vient de préparer pour cet appel d'offres.")).toEqual([]);
+    expect([await statut(a), await statut(b)]).toEqual(["PROPOSED", "PROPOSED"]);
+    for (const id of [a, b]) expect((await confirmerIntentionAssistantIA(id)).ok).toBe(true);
+    expect(await prisma.task.count({ where: { description: { contains: TAG } } })).toBe(2);
+  });
+
+  it("une carte RÉELLEMENT remplacée (même objet, nouvelle échéance) devient caduque", async () => {
+    ACTEUR = sofiane;
+    const titre = `Préparer le dossier technique Daclavir ${TAG}`;
+    const a = await tache({ title: titre, description: "Pour l'appel d'offres.", dueDate: "2026-11-14" });
+    const b = await tache({ title: titre, description: "Pour l'appel d'offres.", dueDate: "2026-11-12" });
+    expect([await statut(a), await statut(b)]).toEqual(["CANCELLED", "PROPOSED"]);
+  });
+
+  it("l'acte de parole : une question ou un rappel ne corrige rien ; une correction, si", () => {
+    expect(estQuestionOuRappel("Rappelle-moi ce qu'on vient de préparer pour cet appel d'offres.")).toBe(true);
+    expect(estQuestionOuRappel("Et c'est pour quand déjà ?")).toBe(true);
+    expect(estQuestionOuRappel("Non, finalement pas Raihana : c'est Amel.")).toBe(false);
+    expect(estQuestionOuRappel("Et ajoute une deuxième tâche : relancer le pharmacien chef le 20.")).toBe(false);
   });
 });

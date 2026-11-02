@@ -49,6 +49,28 @@ export interface PropositionComparable {
   title: string;
   /** Le résumé mémorisable (cible + objet), quand il existe : il porte souvent le sujet mieux que le titre. */
   summary?: string | null;
+  /**
+   * F2 (banc réel du 02/11, TR-LO-01) — L'OBJET de la carte, quand la charge le nomme (le titre d'une tâche, l'objet d'un
+   * mail) : il identifie la chose MIEUX que le résumé, qui recopie le contexte de la conversation. Mesuré : « Envoyer les
+   * échantillons — AO oncologie CHU Mustapha » et « Relancer le pharmacien chef du CHU Mustapha » partageaient, par leur
+   * DESCRIPTION, « appel d'offres oncologie CHU Mustapha » — la seconde retirait la première, toujours valable.
+   */
+  objet?: string | null;
+}
+
+/** Les champs d'une charge qui NOMMENT son objet (dans l'entrée d'une capacité, ou la charge elle-même). */
+const CHAMPS_OBJET = ["title", "titre", "objet", "subject", "sujet", "name", "nom", "libelle"] as const;
+
+/** L'objet d'une carte, lu sur sa charge — `null` si elle ne le nomme pas (le résumé décide alors, comme avant). */
+export function objetDeLaCharge(payload: unknown): string | null {
+  const o = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : null;
+  if (!o) return null;
+  for (const lieu of [o.entree, o]) {
+    const l = lieu && typeof lieu === "object" ? (lieu as Record<string, unknown>) : null;
+    const v = l ? CHAMPS_OBJET.map((k) => l[k]).find((x) => typeof x === "string" && x.trim()) : undefined;
+    if (typeof v === "string") return v.trim().slice(0, 300);
+  }
+  return null;
 }
 
 /**
@@ -72,8 +94,8 @@ export const MOTS_COMMUNS_MIN = 2;
 const ETIQUETTE_MAIGRE = 2;
 
 /** Le sujet d\'une proposition : titre et résumé confondus, réduits à ce qui identifie. */
-export function sujetDe(p: PropositionComparable): string[] {
-  return motsDistinctifs(`${p.title} ${p.summary ?? ""}`);
+export function sujetDe(p: PropositionComparable, parObjet = true): string[] {
+  return motsDistinctifs(parObjet && p.objet?.trim() ? p.objet : `${p.title} ${p.summary ?? ""}`);
 }
 
 /**
@@ -119,9 +141,24 @@ export function propositionsPerimees(
  * (audit 27/10, IA-ASSISTANT-10).
  */
 export function natureComparable(kind: string, payload: unknown): string {
-  if (kind !== "assistant_ia_op") return kind;
-  const op = (payload as { op?: unknown } | null)?.op;
-  return typeof op === "string" && op ? `${kind}:${op}` : kind;
+  // F2 : toutes les CAPACITÉS (J6) partagent aussi un `kind` — leur nature est l'action qu'elles portent (`payload.id`).
+  const cle = kind === "assistant_ia_op" ? "op" : kind === "assistant_ia_capacite" ? "id" : null;
+  if (!cle) return kind;
+  const v = (payload as Record<string, unknown> | null)?.[cle];
+  return typeof v === "string" && v ? `${kind}:${v}` : kind;
+}
+
+/**
+ * F2 (TR-LO-01) — UNE QUESTION SUR UNE CARTE NE LA CHANGE PAS. « Rappelle-moi ce qu'on vient de préparer pour cet appel
+ * d'offres » reprenait le sujet des deux cartes en attente : elles étaient retirées avant même que le modèle réponde, et
+ * le clic « Confirmer » tombait sur « annulée ». On ne lit pas ici des mots de correction : on reconnaît l'ACTE de parole —
+ * une question (« ? », mot interrogatif en tête) ou un rappel (« rappelle-moi », « résume », « montre ») ne corrige rien.
+ */
+export function estQuestionOuRappel(message: string): boolean {
+  const t = (message ?? "").trim();
+  if (/\?\s*$/.test(t)) return true;
+  const n = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/^(?:et|alors|au fait|dis|bon)[\s,]+/, "");
+  return /^(?:rappelle|redis|repete|resume|recapitule|montre|affiche|liste|relis|dis[- ]moi|qu['’ ]|quel|quand|ou en|ou est|comment|combien|pourquoi|qui |est[- ]ce|c['’ ]est quoi|a quoi)/.test(n);
 }
 
 /** L\'échappatoire d\'exploitation, comme pour les autres règles d\'écriture (§2 : la limite porte sa raison). */
@@ -154,7 +191,9 @@ export function retraitDesPerimeesDesactive(env: NodeJS.ProcessEnv = process.env
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 export function messageRendCaduque(enAttente: PropositionComparable, message: string): boolean {
-  const sujet = sujetDe(enAttente);
+  if (estQuestionOuRappel(message)) return false;
+  // Le MESSAGE se juge sur tout ce que la carte affiche (la personne corrige souvent un destinataire, une date du résumé).
+  const sujet = sujetDe(enAttente, false);
   if (sujet.length === 0) return false; // une carte sans sujet identifiable ne se juge pas ainsi
   const mots = motsDistinctifs(message);
   const communs = sujet.filter((m) => mots.includes(m)).length;
