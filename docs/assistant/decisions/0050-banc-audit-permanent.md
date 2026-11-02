@@ -178,3 +178,14 @@ carte), EX-02 (aucune demande Ad & Pro du KAM au semis — limite du banc), EX-0
 de l'équipe illisibles), AN-05 / NO-02 (une question), MI-02 (« rapport en tâche de fond » → plafond de 150 000 jetons d'un
 tour atteint). AN-ANNULER-03 était un faux positif du verdict « c'est fait » (« si elle a été créée »), corrigé.
 Rapports : `preuves/audit/` (final), `preuves/audit/apres-s1-b1/`, `preuves/audit/avant-integration/`.
+
+## 11. Des tâches de tout genre, par domaine (Direction, 02/11)
+
+« Je veux qu'on augmente bien les tâches réussies et qu'elles soient de tout tout genre (…) beaucoup plus de fond, profond
+et diversifié. » Le banc accueille désormais des DOMAINES de tâches, un fichier chacun sous `infra/testing/audit/taches/`
+(socle 65 ; documents T1 ; annuaire-marketing T2 ; dossiers-mg-adpro T3 ; mails P1 bis ; transverse Q1, 39 tâches : RH côté
+salarié, finances selon les droits, congrès, réglementaire, routines, notes, enchaînements inter-modules, questions précises,
+conversation longue avec reprise, voix). Contrat commun (`types.ts`) : `piece` (clé d'une pièce semée), `verifier` (motifs
+d'échec lus en base), `SemisDeDomaine` ; aides partagées (`aides.ts`) ; trois personas de plus (juriste, responsable des moyens
+généraux, responsable marketing) et trois attaques qui les visent (LD-14..16). Le rapport donne la réussite PAR DOMAINE ;
+`AUDIT_DOMAINES` restreint un passage. Le semis du transverse donne au KAM ses demandes Ad & Pro (EX-02 n'avait rien à exporter).
