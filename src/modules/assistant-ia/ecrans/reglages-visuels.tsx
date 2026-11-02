@@ -58,7 +58,7 @@ export function ReglagesVisuelsForm({ initial, depenseImagesUsd, depenseVideosUs
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-sm font-medium">Images générées et modifiées</p>
-              <p className="text-xs text-muted-foreground">Une image demandée à l&apos;Assistant IA (ou retouchée depuis une pièce jointe) — environ 0,01 à 0,05 $ l&apos;image. Jamais de donnée confidentielle dans la description (filtrée).</p>
+              <p className="text-xs text-muted-foreground">Une image demandée à Adam (ou retouchée depuis une pièce jointe) — environ 0,01 à 0,05 $ l&apos;image. Jamais de donnée confidentielle dans la description (filtrée).</p>
             </div>
             <Bascule coche={r.imagesActives} onClick={() => poser("imagesActives", !r.imagesActives)} libelle="Images générées" />
           </div>

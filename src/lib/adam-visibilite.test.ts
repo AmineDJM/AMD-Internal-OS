@@ -65,12 +65,17 @@ describe("les portes d'Adam lisent la règle (points d'appel, §118.49)", () => 
     const assistant = sansCommentaires(lire("src/app/(app)/assistant/page.tsx"));
     const garde = assistant.indexOf("if (!peutUtiliserAssistantIA(user)) notFound();");
     expect(garde, "/assistant doit refuser qui n'a pas l'Assistant IA").toBeGreaterThan(0);
-    expect(assistant).not.toContain("peutVoirAdam(");
+    // La règle d'Adam n'y ouvre RIEN : elle ne décide que des onglets de l'ex-« My Chief of Staff », au Super Admin seul
+    // (02/11/2026) — c'est sa SEULE occurrence.
+    expect(assistant.match(/peutVoirAdam\(/g)?.length ?? 0).toBe(1);
+    expect(assistant).toContain("{peutVoirAdam(user) ? <OngletsAdam /> : null}");
     // Le brief est payé par un modèle : s'il est chargé, c'est APRÈS la garde. L'interface actuelle
     // n'en charge pas — la garde reste exigée, l'ordre n'a alors rien à protéger.
     const brief = assistant.indexOf("getDailyBrief(");
     if (brief >= 0) expect(garde, "la garde passe AVANT le brief (payé par un modèle)").toBeLessThan(brief);
-    expect(sansCommentaires(lire("src/app/(app)/chief-of-staff/page.tsx"))).toContain("if (!peutVoirAdam(user)) notFound();");
+    // Le bureau a déménagé dans l'onglet « Bureau d'Adam » (02/11/2026) : sa garde l'a suivi, et son segment a la sienne.
+    expect(sansCommentaires(lire("src/app/(app)/adam/bureau/page.tsx"))).toContain("if (!peutVoirAdam(user)) notFound();");
+    expect(sansCommentaires(lire("src/app/(app)/adam/layout.tsx")).indexOf("await exigerAdamVisible();")).toBeGreaterThan(0);
     // Le SEGMENT passe par la porte du PONT (la règle lue en direct coûtait deux franchissements
     // de frontière) : on exige l'APPEL dans le gabarit ET la garde dans la porte — vérifier l'un
     // sans l'autre ne prouverait rien (§118.49).

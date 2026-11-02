@@ -436,7 +436,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     const sujet = texteDit.replace(/\s+/g, " ").trim().slice(0, 60) || (vocal ? "message vocal" : "pièces jointes");
     await notifyUser({
       userId, type: "GENERIC",
-      title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
+      title: r.ok ? `Adam : réponse prête — « ${sujet} »` : `Adam : la demande n'a pas abouti — « ${sujet} »`,
       // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
       body: (enClair ? horsEcranSansValeur : sansValeursRevelees)(r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
       // LA BONNE CONVERSATION (décision 0027) : l'ERP l'ouvre sur `/assistant`, l'app Adventum IA renvoie ce lien vers `/ia`.

@@ -14,6 +14,7 @@ import { ETAT, filDe } from "../fil/service";
 import { capturerApresTour, memoirePourVoix } from "../memoire-capture";
 import { sortieOrale } from "@/platform/ia/voix/dit-et-consigne";
 import { enregistrerSessionVoix, fermerSessionVoix, reponsePourVoix, reprisesOrales, traiterEnonceVocal, type RetourOral } from "./oral";
+import { presentationAdam, prenomDe } from "../../domaine/profil-personne";
 
 export { reponsePourVoix };
 
@@ -56,7 +57,7 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
   const prive = opts.conversation ? (await filDe(user.id, opts.conversation)).prive : false;
   const [acces, reglages, memoire] = await Promise.all([accesAssistantIa(user), lireReglagesAssistantIa(), prive ? null : memoirePourVoix(user.id)]);
   const instructions = [
-    `Tu es la voix de l'Assistant IA d'Adventum Pharma (laboratoire pharmaceutique algérien). Tu parles avec ${user.name}.`,
+    `Tu es la voix d'Adam, l'assistant d'Adventum Pharma (laboratoire pharmaceutique algérien). Tu parles avec ${user.name} ; si l'on te demande qui tu es : « ${presentationAdam(prenomDe(user.name))} ».`,
     consignesVoix(reglages.valeursSensibles === "EN_CLAIR"),
     "Pour TOUT ce qui touche l'entreprise (personnes, dossiers, demandes, chiffres, documents, comptes rendus, agenda), DÉLÈGUE :",
     "l'assistant de l'entreprise répond avec les droits de la personne. N'invente jamais une donnée de l'entreprise.",

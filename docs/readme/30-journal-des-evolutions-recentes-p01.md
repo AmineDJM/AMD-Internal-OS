@@ -27,6 +27,27 @@ Adam, lui seul. Inventaire fonction par fonction : `docs/assistant/adam-inventai
 - **Sélection** : fiche courte et rang 0,7 dans `trouver_outil` — rappel@5 des 300 demandes ERP inchangé (95,0 %).
 - **Preuves** : `porte-assistant-ia.test.ts`, `adam-super-admin.test.ts` (vraie base), banc Q1 : 13 attaques `ADAM-SA-*`.
 
+### UN SEUL ASSISTANT : ADAM — LE NOM, LE MENU, LES ROUTES, LES MISSIONS (2026-11-02, lot A1, décision 0056)
+
+Décidé par la Direction le 02/11 (« l'assistant IA de la plateforme, c'est Adam »). Aucune migration, aucun droit modifié.
+- **Le nom** : « Assistant IA » → **« Adam »** au menu, dans la console des accès (libellé du module `ASSISTANT_IA`, clé
+  inchangée), à l'accueil (« Je suis Adam, l'assistant de <prénom> » — prénom du compte, `presentationAdam`), dans la consigne
+  (`identiteDuModele`, préfixe stable) et la voix, les notifications (« Adam : réponse prête… »), l'app Adventum IA (`/ia`).
+- **« My Chief of Staff »** quitte le menu (entrée `masque`, clé gardée). `/chief-of-staff` → `/assistant` (ou `/adam/bureau`
+  avec `?q=`/`?ref=`/`?call=`), `/inbox` → `/adam/boite`, `/reglages` → `/adam/reglages` (`versEcranAdam`). Le Super Admin
+  SEUL a, sur `/assistant` et `/adam/*`, les onglets Conversation · Boîte de réception · Réglages d'Adam · Bureau d'Adam
+  (l'ancien bureau, déplacé par `git mv`, intact). Un autre compte : même refus qu'avant.
+- **« Missions d'Adam »** (`/centre-de-missions`) suit le module `ASSISTANT_IA` : chacun y lit SES missions (pause, reprise,
+  arrêt selon l'état) ; le Super Admin a en plus la vue globale (`vueGlobaleDesMissions`), l'interrupteur, les accords et les
+  gestes de masse. `/missions/<id>` : propriétaire et Super Admin seuls (`proprietaireDeMission`, lecture seule pour autrui).
+  Le tableau des missions de l'assistant pointe vers cet écran.
+- **« Missions terrain »** : l'ex-onglet « Mes missions » de Mon espace (missions d'équipe) — libellés et notifications.
+- Code : `lib/labels/{navigation,onglets}.ts`, `lib/nav-access.ts`, `app/(app)/adam/*`, `app/(app)/chief-of-staff/*`
+  (redirections), `components/shared/onglets-adam.tsx`, `app/(app)/centre-de-missions/page.tsx`,
+  `modules/assistant-ia/ecrans/missions/liste-missions-adam.tsx`, `lib/missions/view/{control,workspace}.ts`.
+  Bancs : `modules/assistant-ia/a1-adam-nom-menu.test.ts`, `app/(app)/adam/redirections.test.ts`. Preuves :
+  `docs/assistant/preuves/a1/`.
+
 ### « RECETTES » SE MASQUE ET SE GÈRE DANS LA CONSOLE (2026-11-02, lot R1, décision 0054)
 
 Demandé par la Direction le 02/11 : « permets-moi de masquer ou gérer les accès au module 'Recettes' ». Recettes devient le

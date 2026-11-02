@@ -116,8 +116,9 @@ describe("le profil de la personne (pur)", () => {
     expect(prenomDe("")).toBe("");
   });
   it("l'accueil suit l'adresse choisie", () => {
-    expect(accueilPour("Radia", "TU")).toMatch(/^Bonjour Radia 👋[\s\S]*ton assistant/);
-    expect(accueilPour("Radia", "VOUS")).toMatch(/votre assistant/);
+    expect(accueilPour("Radia", "TU")).toMatch(/^Bonjour Radia 👋[\s\S]*Je suis Adam, l'assistant de Radia\. Je lis ce que tes accès/);
+    expect(accueilPour("Radia", "VOUS")).toMatch(/Je suis Adam, l'assistant de Radia\. Je lis ce que vos accès/);
+    expect(accueilPour("", "VOUS")).toMatch(/Je suis Adam, votre assistant\./);
   });
   it("la section dit à qui il parle, interdit un autre prénom, et dit l'absence de fiche sans rien ouvrir", () => {
     const t = sectionProfil({ userId: "u", nom: "Radia KEBIR", prenom: "Radia", adresse: "VOUS", role: "Assistante de Direction", roleSecondaire: null, fiche: null, famillesOuvertes: [], perimetres: [] });

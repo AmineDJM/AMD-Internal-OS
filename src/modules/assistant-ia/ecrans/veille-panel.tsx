@@ -65,7 +65,7 @@ export function VeillePanel({ ouvert, onFermer }: { ouvert: boolean; onFermer: (
 
   return (
     <PanneauLateral
-      etiquette="Ma veille" titre="Ce que mon assistant surveille" icone={<Radar className="h-4 w-4 text-violet-600" />} onFermer={onFermer}
+      etiquette="Ma veille" titre="Ce qu'Adam surveille" icone={<Radar className="h-4 w-4 text-violet-600" />} onFermer={onFermer}
       pied={<>Les veilleurs sont des règles : le modèle ne décide pas de vous déranger. Au plus {veille?.preferences.interruptionsMax ?? 5} interruptions par jour, jamais aux heures calmes (heure d&apos;Alger, week-end vendredi-samedi).</>}
     >
       {erreur && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 dark:bg-red-950/40 dark:text-red-400">{erreur}</p>}

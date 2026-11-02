@@ -273,7 +273,7 @@ export function PiecesDuMessage({ pieces, lectures, onOuvrir }: { pieces: PieceO
 export function PiecesRendues({ pieces, onOuvrir }: { pieces: PieceOuvrable[]; onOuvrir: (p: PieceOuvrable) => void }) {
   if (!pieces.length) return null;
   return (
-    <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Fichiers renvoyés par l'assistant">
+    <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Fichiers renvoyés par Adam">
       {pieces.map((p) => (
         <button key={p.id} type="button" onClick={() => onOuvrir(p)} className={pastille} aria-label={`Ouvrir l'aperçu de ${p.nom}`} data-testid="piece-rendue">
           <IconePiece nom={p.nom} className="h-3 w-3" />

@@ -23,7 +23,7 @@ export default async function AdventumIaPage() {
       <main className="grid min-h-dvh place-items-center bg-[#f5f8fc] p-6 text-center text-[#0f1b2d]">
         <div className="max-w-sm space-y-2">
           <h1 className="text-xl font-semibold">Adventum IA</h1>
-          <p className="text-sm text-[#5b6b82]">L&apos;assistant ne vous est pas encore ouvert. Demandez à la Direction de l&apos;activer pour votre compte.</p>
+          <p className="text-sm text-[#5b6b82]">Adam ne vous est pas encore ouvert. Demandez à la Direction de l&apos;activer pour votre compte.</p>
         </div>
       </main>
     );

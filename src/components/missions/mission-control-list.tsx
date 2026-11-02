@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, CheckCircle2, FileSpreadsheet, Flag, Pause } from "lucide-react";
-import type { LigneMission } from "@/lib/missions/view/control";
+import type { LigneGlobale, LigneMission } from "@/lib/missions/view/control";
 import { depuis } from "@/lib/missions/view/duree";
 
 /**
@@ -153,5 +153,41 @@ export function MissionsCloses({ lignes, maintenant }: { lignes: LigneMission[];
         ))}
       </ul>
     </details>
+  );
+}
+
+const GENRE: Record<string, string> = { RUNTIME: "exécution", TRAVAIL: "travail de l'assistant", WATCH: "surveillance", COORDINATION: "coordination" };
+
+/**
+ * LA VUE GLOBALE DU SUPER ADMIN (Direction, 02/11/2026) — le parc de TOUTES les personnes, le propriétaire nommé sur
+ * chaque ligne. Lecture : chaque ligne mène à la fiche, que le Super Admin lit (en lecture seule si elle n'est pas à
+ * lui). La page ne rend ce bloc qu'au Super Admin ; ce composant n'accorde rien.
+ */
+export function VueGlobaleMissions({ vue, maintenant, moi }: {
+  vue: { lignes: LigneGlobale[]; vivantes: number; personnes: number }; maintenant: Date; moi: string;
+}) {
+  return (
+    <section className="space-y-2" data-testid="vue-globale-missions" aria-labelledby="vue-globale-titre">
+      <h2 id="vue-globale-titre" className="text-sm font-semibold text-foreground">Vue globale — toutes les personnes</h2>
+      <p className="text-xs text-slate-500">
+        {vue.vivantes} mission(s) en vie, confiées par {vue.personnes} personne(s). Les plus récentes d&apos;abord.
+      </p>
+      {vue.lignes.length === 0 ? (
+        <p className="text-sm text-slate-500">Aucune mission sur la plateforme.</p>
+      ) : (
+        <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 bg-white">
+          {vue.lignes.map((l) => (
+            <li key={l.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-3 py-2 text-sm" data-mission={l.id} data-proprietaire={l.proprietaire.id}>
+              <Link href={`/missions/${l.id}`} className="min-w-0 break-words font-medium text-slate-900 hover:underline">{l.titre}</Link>
+              <span className="text-xs text-slate-600">{l.etat}</span>
+              <span className="text-xs text-slate-500">{GENRE[l.genre] ?? l.genre}</span>
+              <span className="ml-auto text-xs text-slate-600">
+                {l.proprietaire.id === moi ? "vous" : l.proprietaire.nom} · {depuis(l.majLe, maintenant)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

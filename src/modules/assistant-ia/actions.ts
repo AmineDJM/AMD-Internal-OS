@@ -240,7 +240,7 @@ export async function confirmerCarteTerrain(intentId: string): Promise<ResultatE
     const executeur = async (stored: unknown) =>
       estChargeOperationIA(stored) && stored.op.startsWith("terrain_")
         ? executerOperationJournalisee(user, stored, { origine: "carte", cle: intentId })
-        : { ok: false, error: "Cette carte ne se confirme pas depuis le terrain : ouvrez l'Assistant IA." };
+        : { ok: false, error: "Cette carte ne se confirme pas depuis le terrain : ouvrez Adam." };
     return (await executerIntention(user, intentId, undefined, executeur)) ?? { ok: false, error: "Action introuvable." };
   } catch (err) {
     console.error("[assistant-ia] confirmerCarteTerrain", err);

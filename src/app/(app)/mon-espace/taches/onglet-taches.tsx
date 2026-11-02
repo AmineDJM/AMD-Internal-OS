@@ -140,7 +140,7 @@ function AAccepter({ lignes, missions, ouvrir }: { lignes: LigneTache[]; mission
         <h2 className="text-sm font-semibold">À accepter <span className="ml-1 text-muted-foreground">{lignes.length + missions.length}</span></h2>
         <InfoBulle label="À accepter">
           On vous demande ces tâches. En acceptant, elles passent dans « À faire » ; refuser se fait avec un motif court, facultatif.
-          {missions.length > 0 && <> Les invitations à une mission et les ordres de mission de votre équipe y figurent aussi : ce ne sont pas des tâches, leur réponse est celle de « Mes missions ».</>}
+          {missions.length > 0 && <> Les invitations à une mission et les ordres de mission de votre équipe y figurent aussi : ce ne sont pas des tâches, leur réponse est celle de « Missions terrain ».</>}
         </InfoBulle>
       </header>
       <ul className="divide-y divide-border">

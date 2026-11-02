@@ -75,7 +75,7 @@ export { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 export { PERSONA_ASSISTANT_IA } from "./infra/travaux";
 // P1 (décision 0047) : qui conduit les missions (Administration › IA), piloter ses missions (la voix et l'écrit).
 export { executantsPourAdministration } from "./infra/missions/executants";
-export { mesMissions, piloterMission } from "./infra/missions/pilotage";
+export { mesMissions, piloterMission, type MissionLue } from "./infra/missions/pilotage";
 // ── J8 (décision 0023) : délégation (demandes reçues), priorité, vue d'un responsable sur son équipe (console + audit)
 export {
   declinerDemande, equipeVisible, lireTravailEquipe, listerDemandesRecues, listerTravauxEquipe, PIECES_TRAVAUX, reglerPrioriteTravail, repondreDemande,

@@ -9,7 +9,7 @@ import { useModuleDiffere } from "@/components/ui/differe";
  * `amd:open-palette` (la loupe de la barre du haut). La fenêtre (`command-palette-fenetre.tsx`) se
  * télécharge au premier moment libre ; ouverte avant, elle s'affiche dès qu'elle arrive.
  */
-export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
+export function CommandPalette({ navItems, bureauAdam = false }: { navItems: NavItem[]; bureauAdam?: boolean }) {
   const [open, setOpen] = React.useState(false);
   const { module: fenetre, charger } = useModuleDiffere(() => import("./command-palette-fenetre"));
 
@@ -36,5 +36,5 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
   }, [charger]);
 
   if (!open || !fenetre) return null;
-  return <fenetre.FenetrePalette navItems={navItems} onFermer={() => setOpen(false)} />;
+  return <fenetre.FenetrePalette navItems={navItems} bureauAdam={bureauAdam} onFermer={() => setOpen(false)} />;
 }
