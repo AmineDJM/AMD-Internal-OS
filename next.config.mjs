@@ -15,9 +15,17 @@ import { fileURLToPath } from "node:url";
  * erreur de type ARRÊTE le build. Seul `next build` sur Render (variable `RENDER`) le fait : un build
  * local garde le typecheck intégré, et `next start` ne le déclenche jamais (autre phase).
  * `TYPECHECK_SEPARE` évite de le refaire dans les processus fils de la compilation.
+ *
+ * 11/2026 — JAMAIS sous `next lint` (le relèvement à 7 Go de db0f7c31 est remplacé, à la fusion du lot M2, par le
+ * typecheck par tranches à 4 300 Mo chacune : voir plus bas et scripts/typecheck-production.mjs). Mesuré (`--extendedDiagnostics`, tsconfig.build.json) : 5,98 Go —
+ * le client Prisma généré a doublé (1,19 M lignes de définitions) ; le déploiement de e585a014 est mort à 5 Go.
+ * `next lint` charge AUSSI ce fichier en phase de build : sur Render, le typecheck tournait donc une première fois
+ * dans le lint, puis une seconde fois à l'étape `tsc` de `build:render` — deux passes de 2 min pour une seule
+ * vérification. Le lint ne type pas : il ne le déclenche plus.
  */
 function typecheckSepare(phase) {
   if (process.env.TYPECHECK_SEPARE === "1") return true;
+  if (process.argv.slice(2).includes("lint")) return false;
   if (phase !== "phase-production-build" || !process.env.RENDER) return false;
   // Lot M2 (02/11/2026) : plus un tsc d'un seul tenant (tas 5 Go, mort une fois à 5 027 Mo) mais le
   // typecheck PAR TRANCHES à tas borné (4 300 Mo chacune) — mêmes fichiers, mêmes diagnostics, pic
@@ -250,7 +258,7 @@ function plafondDuBuild(phase) {
 }
 
 export default (phase) => {
-  // Le typecheck séparé fixe son propre tas (5 Go) en argument : il passe AVANT le plafond.
+  // Le typecheck séparé fixe son propre tas (4 300 Mo par tranche) en argument : il passe AVANT le plafond.
   const ignoreBuildErrors = typecheckSepare(phase);
   plafondDuBuild(phase);
   return { ...nextConfig, typescript: { ignoreBuildErrors } };
