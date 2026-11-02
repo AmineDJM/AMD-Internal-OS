@@ -77,7 +77,8 @@ export type ResultatDuTour =
     /** K3 (décision 0033) : les sous-missions lancées pendant ce tour (la carte qui se met à jour). */
     travaux: string[];
   }
-  | { ok: false; error: string };
+  /** F2 (MG-10) : `transitoire` — le modèle n'a pas répondu (délai, réseau) : le fil REPREND la demande, une fois. */
+  | { ok: false; error: string; transitoire?: boolean };
 
 export interface DemandeDuTour {
   texte: string;
@@ -349,8 +350,16 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     if (/insufficient_quota|credit_balance_exhausted|no credits remaining|exceeded your current quota/i.test(String((e as Error)?.message ?? e))) {
       return { ok: false, error: "L'assistant est indisponible : le crédit du compte OpenAI est épuisé. L'administrateur doit le recharger (platform.openai.com › Billing).", message };
     }
-    return { ok: false, error: "L'assistant n'a pas pu répondre. Réessayez dans un instant.", message };
+    // F2 (banc réel, MG-10) : un message HONNÊTE — ce qui s'est passé (délai dépassé, ou modèle muet) ; le fil reprend.
+    return { ok: false, error: messageDEchec(e), message, transitoire: true };
   }
+}
+
+/** Ce que la personne lit quand le modèle n'a pas répondu : la cause, dite simplement. */
+export function messageDEchec(e: unknown): string {
+  const m = /délai dépassé \((\d+) ms\)/.exec(String((e as Error)?.message ?? e));
+  if (m) return `L'assistant n'a pas pu terminer : la réponse a dépassé le délai (${Math.round(Number(m[1]) / 60_000) || 1} min) et a été interrompue. Aucune action n'a été confirmée.`;
+  return "L'assistant n'a pas pu répondre : le modèle n'a pas répondu (incident passager). Aucune action n'a été confirmée.";
 }
 
 // La révélation vit avec les accès (`role-config.ts`) : la carte et la confirmation la consultent aussi.

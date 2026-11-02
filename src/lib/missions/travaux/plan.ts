@@ -148,7 +148,20 @@ export interface PlanTravail {
 export interface CatalogueTravail {
   lectures: { nom: string; libelle: string }[];
   gestes: { nom: string; libelle: string; famille: string; libelleFamille: string }[];
+  /**
+   * F2 (banc réel du 02/11, MI-01) — RÉSOUDRE une étape dont l'outil n'est pas un nom du catalogue : le modèle écrivait
+   * « trouver_outil » (la lecture Ad & Pro n'était pas active dans SON tour) ou un nom approchant, et le plan était
+   * refusé. La persona rend le nom d'une lecture (ou d'un geste) DE CE CATALOGUE qui couvre l'indice (outil, titre,
+   * consigne de l'étape) — ou `null`. Jamais hors catalogue : la résolution ne donne aucun droit.
+   */
+  resoudreLecture?: (indice: string) => string | null;
+  resoudreGeste?: (indice: string) => string | null;
 }
+
+/** Les noms ouverts, dits au modèle quand une étape reste introuvable — il corrige au lieu de deviner. */
+const nomsOuverts = (xs: readonly { nom: string }[]): string => xs.slice(0, 40).map((x) => x.nom).join(", ") || "aucun";
+const indiceDe = (outil: string, e: Record<string, unknown>): string =>
+  [/^(trouver_outil|recherche|lecture|lire)$/i.test(outil) ? "" : outil.replace(/[_-]+/g, " "), txt(e.titre, 200), txt(e.consigne, 400)].join(" ").trim();
 
 /** Un geste approuvé avec le plan : la liste que la carte montre et que le moteur relit avant chaque écriture. */
 export interface GesteAutorise {
@@ -223,14 +236,18 @@ export function lirePlan(brut: unknown, catalogue: CatalogueTravail): { ok: true
 
     switch (type) {
       case "LECTURE": {
-        const outil = txt(e.outil, 80);
-        if (!lectures.has(outil)) fautes.push(`${nom} : lecture « ${outil} » inconnue ou non ouverte à cette personne.`);
+        const brut = txt(e.outil, 80);
+        const resolu = lectures.has(brut) ? brut : catalogue.resoudreLecture?.(indiceDe(brut, e)) ?? null;
+        const outil = resolu && lectures.has(resolu) ? resolu : brut;
+        if (!lectures.has(outil)) fautes.push(`${nom} : lecture « ${brut} » inconnue ou non ouverte à cette personne (lectures ouvertes : ${nomsOuverts(catalogue.lectures)}).`);
         etape.outil = outil;
         break;
       }
       case "GESTE": {
-        const outil = txt(e.outil, 80);
-        if (!gestesCat.has(outil)) fautes.push(`${nom} : geste « ${outil} » inconnu ou fermé à cette personne (familles de la console).`);
+        const brut = txt(e.outil, 80);
+        const resolu = gestesCat.has(brut) ? brut : catalogue.resoudreGeste?.(indiceDe(brut, e)) ?? null;
+        const outil = resolu && gestesCat.has(resolu) ? resolu : brut;
+        if (!gestesCat.has(outil)) fautes.push(`${nom} : geste « ${brut} » inconnu ou fermé à cette personne (familles de la console ; gestes ouverts : ${nomsOuverts(catalogue.gestes)}).`);
         etape.outil = outil;
         break;
       }

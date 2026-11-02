@@ -24,6 +24,10 @@ import { remplacerModelesPourTests } from "./infra/generer";
 import { modeleFactice } from "./infra/testing/modele-factice";
 import { deleguerALaVoix } from "./infra/voix/temps-reel";
 import { enregistrerSessionVoix } from "./infra/voix/oral";
+import { lirePlan } from "@/lib/missions/travaux/plan";
+import { PERSONA_ASSISTANT_IA } from "./infra/travaux";
+import { deposerMessage, ETAT, traiterFil } from "./infra/fil/service";
+import { messageDEchec } from "./infra/fil/tour";
 import { porteUneConsigne, separerDitEtConsigne, sortieOrale } from "@/platform/ia/voix/dit-et-consigne";
 
 let dbOk = false;
@@ -197,5 +201,94 @@ suite("F2 · TR-VX-02 — « combien de jours de congé il me reste ? » à la v
     const stop = await deleguerALaVoix(u, "stop", { session: S, delegationId: "d2", parole: "stop" });
     expect(stop).toMatchObject({ pourVoix: "", commande: "stop" });
     expect(stop.consigne).toContain("tais-toi");
+  });
+});
+
+/** Le plan EXACT que le modèle a écrit au banc réel (MI-01, 02/11) : l'étape de lecture désignait « trouver_outil ». */
+const PLAN_MI01 = {
+  titre: "Analyse de mes demandes Ad & Pro — 2026", objectif: "Analyser toutes les demandes Ad & Pro de l'année et produire un rapport Word.", priorite: "NORMALE",
+  etapes: [
+    { cle: "rechercher-lecture", titre: "Identifier la lecture des demandes Ad & Pro", type: "LECTURE", outil: "trouver_outil", apres: [], entree: {} },
+    { cle: "analyser-demandes", titre: "Lire et analyser les demandes de 2026", type: "ANALYSE", apres: ["rechercher-lecture"], consigne: "Analyser leur répartition, leurs statuts." },
+    { cle: "rapport-word", titre: "Produire le rapport Word", type: "LIVRABLE", apres: ["analyser-demandes"], consigne: "Rédiger un rapport Word.", format: "docx" },
+  ],
+};
+
+describe("F2 · MI-01/DOC-11 — le compilateur de plan résout les lectures du catalogue (pur)", () => {
+  const catalogue = { lectures: [{ nom: "demandes_adpro", libelle: "Demandes Ad & Pro consultées" }, { nom: "directory_lookup", libelle: "Annuaire consulté" }], gestes: [] };
+  it("sans résolveur : refusé, et la faute LISTE les lectures ouvertes (le modèle corrige au lieu de deviner)", () => {
+    const r = lirePlan(PLAN_MI01, catalogue);
+    expect(r.ok).toBe(false);
+    expect(JSON.stringify(r)).toContain("lectures ouvertes : demandes_adpro, directory_lookup");
+  });
+  it("avec le résolveur de la persona : l'étape désigne la lecture du catalogue ; jamais un nom hors catalogue", () => {
+    const r = lirePlan(PLAN_MI01, { ...catalogue, resoudreLecture: (i) => (/ad & pro/i.test(i) ? "demandes_adpro" : null) });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.plan.etapes[0]!.outil).toBe("demandes_adpro");
+    const hors = lirePlan(PLAN_MI01, { ...catalogue, resoudreLecture: () => "requete_sql" });
+    expect(hors.ok).toBe(false);
+  });
+});
+
+suite("F2 · MI-01 — le plan du banc, relu par la persona réelle d'un KAM (base réelle)", () => {
+  let kam: CurrentUser;
+  beforeAll(async () => {
+    kam = await compte("Kam", "BUSINESS_DEVELOPMENT_MANAGER");
+    for (const module of ["SPONSORING", "EVENTS", "AD_PRO_OTHER", "VALIDATIONS"]) {
+      await prisma.userAccess.create({ data: { userId: kam.id, module: module as never, canView: true, canCreate: true, scope: "ASSIGNED" } }).catch(() => {});
+    }
+  });
+  afterAll(async () => {
+    await prisma.userAccess.deleteMany({ where: { userId: kam?.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Kam` } } }).catch(() => {});
+  });
+
+  it("« trouver_outil » est résolu en la lecture des demandes Ad & Pro ouverte à la personne ; le plan passe", async () => {
+    const cat = await PERSONA_ASSISTANT_IA.catalogue(kam.id);
+    expect(cat.lectures.map((l) => l.nom)).toContain("demandes_adpro");
+    const r = lirePlan(PLAN_MI01, cat);
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    if (r.ok) expect(r.plan.etapes[0]!.outil).toBe("demandes_adpro");
+  });
+});
+
+describe("F2 · MG-10 — un tour sans réponse du modèle : message honnête (pur)", () => {
+  it("le délai dépassé est dit comme tel ; une panne aussi — jamais « réessayez » seul", () => {
+    expect(messageDEchec(new Error("délai dépassé (240000 ms)"))).toMatch(/dépassé le délai \(4 min\)/);
+    expect(messageDEchec(new Error("fetch failed"))).toMatch(/le modèle n'a pas répondu/);
+  });
+});
+
+suite("F2 · MG-10 — le fil REPREND une demande dont le modèle n'a pas répondu (base réelle)", () => {
+  let u: CurrentUser;
+  const cle = process.env.OPENAI_API_KEY;
+  beforeAll(async () => {
+    process.env.OPENAI_API_KEY = "cle-de-banc";
+    remplacerLecteurInterrupteurIaPourTests(async () => false);
+    u = await compte("Reprise", "SALES_USER");
+  });
+  afterAll(async () => {
+    if (cle === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = cle;
+    remplacerLecteurInterrupteurIaPourTests(null);
+    remplacerModelesPourTests(null);
+    await prisma.assistantIaFil.deleteMany({ where: { userId: u?.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Reprise` } } }).catch(() => {});
+  });
+
+  it("premier appel en panne → la cause est dite, la demande est rejouée, la réponse arrive", async () => {
+    let appels = 0;
+    remplacerModelesPourTests([modeleFactice([(prompt) => {
+      appels++;
+      if (appels === 1) throw new Error("fetch failed");
+      return { texte: JSON.stringify({ message: prompt.includes("caisse") ? "Le rapprochement est prêt." : "Titre", components: [] }) };
+    }]).modele as never]);
+    const d = await deposerMessage(u.id, "Fais le rapprochement de la caisse d'avance du mois.", [], null, null);
+    expect(d.ok).toBe(true);
+    if (!d.ok) return;
+    await traiterFil(u.id, d.conversation);
+    const rep = await prisma.assistantIaTour.findFirstOrThrow({ where: { repondA: d.tour.id, role: "assistant" }, orderBy: { createdAt: "desc" } });
+    expect(rep.etat, rep.contenu).toBe(ETAT.TERMINE);
+    expect(rep.contenu).toContain("Le rapprochement est prêt.");
+    expect(await prisma.assistantIaTour.count({ where: { repondA: d.tour.id, role: "assistant" } })).toBe(1);
   });
 });
