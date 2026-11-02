@@ -328,16 +328,6 @@
   "annulation": "compensation",
   "appelable": true
  },
- "ad-pro-item-actions:deposerBcSignePoste": {
-  "risque": "R4",
-  "familles": [
-   "AD_PRO",
-   "ECRITURES"
-  ],
-  "simulable": "oui",
-  "annulation": "retour",
-  "appelable": true
- },
  "ad-pro-item-actions:deposerFacturePoste": {
   "risque": "R1",
   "familles": [
@@ -376,6 +366,16 @@
   ],
   "simulable": "oui",
   "annulation": "compensation",
+  "appelable": true
+ },
+ "ad-pro-item-actions:historiqueBrouillonBcPoste": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
   "appelable": true
  },
  "ad-pro-item-actions:imprimerApercuBcPoste": {
@@ -457,7 +457,7 @@
   "annulation": "retour",
   "appelable": true
  },
- "ad-pro-item-actions:preparerBrouillonExcelPoste": {
+ "ad-pro-item-actions:preparerBrouillonPoste": {
   "risque": "R1",
   "familles": [
    "AD_PRO",
