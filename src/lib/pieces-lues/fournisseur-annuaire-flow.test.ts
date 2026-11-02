@@ -4,7 +4,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import { prisma } from "@/lib/prisma";
 import { IDENTITE_VIDE, type IdentiteEmetteur } from "./emetteur";
-import { fournisseurDuDevisDansLAnnuaire } from "./fournisseur-annuaire";
+import { fournisseurDuDevisDansLAnnuaire } from "./devis-poste-lecture";
 
 /**
  * LE FOURNISSEUR D'UN DEVIS DÉPOSÉ ENTRE DANS L'ANNUAIRE (Direction, 02/11/2026) — sur une vraie base.

@@ -15,12 +15,11 @@ import {
   canRenew, canCancel, canRestore, statutRetabli, validateDates, proposeRenewalDates,
 } from "@/lib/legal/lifecycle";
 import { canAccessEntity } from "@/lib/entity-access";
-import { lecteursDeLaSuite } from "@/lib/lecteurs/legal";
+import { lecteursDeLaSuite, normalizeReaderIds, canManageLegalReaders } from "@/lib/lecteurs/legal";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFormFiles } from "@/lib/documents";
 import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
 import { createExpenseOrder, syncInvoiceSettlement, annulerOrdreNonRegle } from "@/modules/finances/api";
-import { normalizeReaderIds, canManageLegalReaders } from "@/lib/lecteurs/legal";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { PHRASE_PREVALIDATION } from "@/lib/bons-de-commande/prevalidation";
 import { libererPrevalidation, retenueOrpheline, effacerNonRetenusDuBC } from "@/lib/bons-de-commande/retenue-bc";
@@ -39,8 +38,8 @@ import { sansBloquer } from "@/lib/journal";
 import { checkChainFrom, parseKind, peutEcrire } from "@/lib/actions/internes/legal/regles";
 import { phraseAiguillage } from "@/lib/actions/internes/legal/phrases";
 import { actionReversible } from "@/lib/effets/reversible";
-import { fournisseurDuDevisDepose } from "@/lib/pieces-lues/fournisseur-annuaire";
-import { phraseFournisseurAuto } from "@/lib/pieces-lues/fournisseur-auto";
+import { fournisseurDuDevisDepose } from "@/lib/pieces-lues/devis-poste-lecture";
+import { phraseFournisseurAuto } from "@/lib/pieces-lues/fournisseur";
 // Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/legal/{regles,phrases}` — les actions restent ici (leur clé de contrat).
 
 /**

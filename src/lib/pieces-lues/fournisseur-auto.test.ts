@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   GENRE_FOURNISSEUR, decisionFournisseurAuto, identiteLocaleDuDevis, noteFicheAutomatique, phraseFournisseurAuto,
-} from "./fournisseur-auto";
+} from "./fournisseur";
 import { IDENTITE_VIDE, type IdentiteEmetteur } from "./emetteur";
 
 /**
