@@ -514,3 +514,18 @@ const ART_DIRECTION_PAR_DEFAUT: Partial<Record<UserRole, Action[]>> = {
 for (const [role, actions] of Object.entries(ART_DIRECTION_PAR_DEFAUT) as [UserRole, Action[]][]) {
   if (!PERMISSIONS[role].ART_DIRECTION) PERMISSIONS[role].ART_DIRECTION = [...actions];
 }
+
+/**
+ * « RECETTES » PAR DÉFAUT (lot R1, décision 0054) — SANS RUPTURE. Hier, l'écran était ouvert à TOUS les rôles sous la règle
+ * dérivée (la Direction, un responsable désigné — qui peut être n'importe quel rôle ou n'importe quelle personne —, ou qui
+ * voit le circuit d'une recette proposée / validée). Le module est donc accordé par défaut à TOUS les rôles :
+ *   • Voir + Valider pour chacun (Valider ne suffit pas seul : il faut AUSSI être le responsable désigné du processus) ;
+ *   • Voir + Modifier + Valider pour la Direction (Modifier = désigner, qui reste en plus réservé à `peutDesigner`) ;
+ *   • le Super Admin a tout (comme partout).
+ * Masquer : Administration › Accès › Recettes, « Bloqué » sur la personne (un geste, réversible : « Par défaut » rétablit) ;
+ * pour tout le monde : Administration › Réglages, modules masqués.
+ */
+const RECETTES_PAR_DEFAUT: Action[] = ["VIEW", "VALIDATE"];
+for (const role of Object.keys(PERMISSIONS) as UserRole[]) {
+  if (!PERMISSIONS[role].RECETTES) PERMISSIONS[role].RECETTES = role === "DIRECTION" ? ["VIEW", "UPDATE", "VALIDATE"] : [...RECETTES_PAR_DEFAUT];
+}

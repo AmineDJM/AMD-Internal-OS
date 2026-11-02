@@ -1,12 +1,17 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
-import { processusExclusPar, recettePour } from "@/modules/recettes/api";
+import { ouvreLesRecettes, processusExclusPar, recettePour } from "@/modules/recettes/api";
 
 /**
  * L'OUTIL `recette_pour` (J10, décision 0028) — « comment on fait ça chez nous ? » : la recette VALIDÉE d'un processus
  * (jamais une proposition), le plan de travail qui en est tiré, la phrase « selon la recette validée par X le … » et les
  * écarts de la demande (seuil franchi, délai court) ou d'un plan déjà préparé. Les droits : la recette d'un circuit dont
  * la personne ne voit pas l'écran n'existe pas pour elle ; une famille FERMÉE de la console retire ses processus.
+ *
+ * LA FRONTIÈRE (lot R1, décision 0054) : l'outil n'est OFFERT qu'à qui a le module `RECETTES` (Voir) — c'est la même
+ * porte que l'écran. Sans le module, l'assistant travaille comme avant J10 (il prépare son plan lui-même) : il ne lit
+ * ni ne cite aucune recette, et aucun usage n'est compté. L'usage interne (l'extraction de fond, les plans tirés des
+ * recettes validées pour qui a le module) ne change pas.
  */
 export function outilRecettePour(user: CurrentUser, famillesFermees: readonly string[]): PowerTool {
   const exclus = processusExclusPar(famillesFermees);
@@ -27,7 +32,7 @@ export function outilRecettePour(user: CurrentUser, famillesFermees: readonly st
         required: ["intention"],
       },
     },
-    allowed: (u) => u.id === user.id,
+    allowed: (u) => u.id === user.id && ouvreLesRecettes(u),
     label: "Recettes de la maison",
     run: async (entree, u) => {
       const intention = typeof entree.intention === "string" ? entree.intention.trim().slice(0, 1000) : "";
