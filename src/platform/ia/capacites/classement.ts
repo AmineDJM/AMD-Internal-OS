@@ -88,7 +88,9 @@ const REGLES_FAMILLE: readonly { famille: FamilleIa; fichier: RegExp; modele?: R
   { famille: "CONTRATS_RH", fichier: /(hr-document|contrat-rh)/, modele: /^(employeeDocument|hrContract|amendment)/ },
   { famille: "FICHES", fichier: /^(hr|rh|employee|leave|conge|my-team|training|onboarding|recruitment|recrutement|candidatures|offres-emploi|coaching|org-actions|department-actions|interim)/ },
   { famille: "BUDGETS", fichier: /(budget|finance|expense|invoice|payment|petty|treasury|doublons-factures|repartition-couts|actualisation-soldes|caisse|reglement|relance-paiement|consommation|purchase)/ },
-  { famille: "REGLEMENTAIRE", fichier: /(regulatory|pharmacovigilance|^dossier|produit-canonique|ctd)/ },
+  // `dossier-actions` est le SUIVI DE DOSSIERS (sujets DOS-…, module DOSSIERS, ouvert à tout salarié) — pas un dossier
+  // réglementaire : rangé ici par `^dossier`, il fermait « mets à jour ce dossier » à qui n'a pas le Réglementaire (banc T3).
+  { famille: "REGLEMENTAIRE", fichier: /(regulatory|pharmacovigilance|produit-canonique|ctd)/ },
   { famille: "AD_PRO", fichier: /(ad-pro|^care|congress|sponsoring|^event|^promo|integration-adpro|rapprochement-adpro|^workflow|^validation|secretariat-devis|reservation-fiche|porte-dg|fabrique|^mission-actions|bc-)/ },
   { famille: "DRIVE", fichier: /(drive|^document|partage|bibliotheque|knowledge|letterhead)/ },
 ];

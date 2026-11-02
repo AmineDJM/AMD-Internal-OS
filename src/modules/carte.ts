@@ -45,7 +45,7 @@ export const CARTE = {
    * confirmées, la console d'accès. Lit Ad & Pro (ses créations, par les actions de l'écran) et le coffre (ce qui
    * ne déchiffre pas). La Bibliothèque lit sa règle de confidentialité (ce qui ne part jamais à un modèle).
    */
-  "assistant-ia": ["ad-pro", "coffre", "recettes"],
+  "assistant-ia": ["ad-pro", "coffre", "recettes", "moyens-generaux", "suivi-dossiers"],
   /**
    * Graphe de l'entreprise (J9, décision 0021) : une VUE sur les fiches canoniques et les arêtes déjà écrites, faits
    * datés. Lit les référentiels (normaliser un nom) et la Bibliothèque (la règle d'ouverture d'une pièce et d'un fait).
@@ -56,6 +56,10 @@ export const CARTE = {
    * processus. Lue par l'Assistant IA (`recette_pour`, la version validée seulement).
    */
   recettes: [],
+  /** Registre des moyens généraux (T3, décision 0051) : véhicules, assurances, contrats, entretiens, salles, échéances, réservations. */
+  "moyens-generaux": [],
+  /** Suivi de dossiers (T3, décision 0051) : la mise à jour EN LOT depuis un tableau (rapprochement contrôlé, plan). */
+  "suivi-dossiers": [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

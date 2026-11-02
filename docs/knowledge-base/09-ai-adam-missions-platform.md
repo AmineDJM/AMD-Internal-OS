@@ -884,3 +884,20 @@ Gotchas [V]:
   order's `missionId`. Agent port: `lancerParCli`, `envoyerMessage`, `ordreCli`, `relais()`. Managed Agents: not coded.
 - Auto-fix: `ConsigneDev.autoFix` asks the session to turn on native PR auto-fix (Claude GitHub App required);
   `apresEchec()` in `sondage.ts` shows a new push after a red verdict.
+
+## T3 (2026-11-02) — dossiers depuis un Excel, registre des moyens généraux, fiches Ad & Pro [V]
+
+- New typed operations (`src/modules/assistant-ia/infra/operations/`): `maj_dossiers_depuis_tableau` (xlsx/csv → batch of
+  dossier changes; pure matching in `src/lib/dossiers/maj-lot.ts`; applied by the new server action
+  `dossier-actions:mettreAJourDossiersEnLot`, all-or-nothing, stale rows skipped, ONE reversible geste),
+  `enregistrer_moyen_general`, `reserver_moyen_general`, `preparer_fiches_hotellerie_voyage`. Reads:
+  `lire_dossiers_suivi`, `lire_moyens_generaux` (`infra/lectures-dossiers-mg.ts`).
+- New models `MoyenGeneral` / `MoyenGeneralReservation` (migration `20270225100000_registre_moyens_generaux`), actions
+  `src/modules/moyens-generaux/actions.ts` (GENERAL_MEANS; each `actionReversible` + declared in
+  `src/lib/effets/declarations/metiers.ts`), screen `/moyens-generaux/registre`.
+- **Classification fix**: `classement.ts` no longer files `dossier-actions` (Suivi de dossiers, module DOSSIERS, open to
+  every employee) under the REGLEMENTAIRE family (`^dossier` matched it) — it was closing dossier gestures to anyone
+  without the regulatory family.
+- Bench: tasks/attacks can now carry a deterministic DB `verifier`, a named Drive piece (`pieceDrive`) and attack `secrets`
+  (`taches.ts`, `attaques.ts`, runner `scripts/bench/audit-assistant/jouer.ts`); domain file
+  `infra/testing/audit/taches/dossiers-mg-adpro.ts`.
