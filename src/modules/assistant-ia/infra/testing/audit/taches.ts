@@ -63,7 +63,8 @@ const YANIS = nomComplet("delegue");
 const NADIR = nomComplet("manager");
 const CARTE_TACHE = /t[âa]che/i;
 const CARTE_MESSAGE = /message|r[ée]ponse/i;
-const CARTE_MAIL = /mail|courri|message/i;
+// P1 : la carte s'intitule « Envoyer par l'envoi de l'ERP ».
+const CARTE_MAIL = /mail|courri|message|envoi/i;
 
 export const TACHES: Tache[] = [
   // ── Tâches ──
