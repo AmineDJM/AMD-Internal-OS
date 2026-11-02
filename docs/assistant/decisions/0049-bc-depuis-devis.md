@@ -145,6 +145,10 @@ pièces par l'IA » (positions, locales) ; un scan, si.
   Budgets ne bloque plus la carte — l'enveloppe est gardée telle que dite, « à confirmer à la validation »
   (`custom.bcAssistant.enveloppe` sans identifiant, note de la pièce).
 
+Rejeu réel du banc Q1 (`AUDIT_SEULEMENT=BC- npm run audit:assistant`, modèle de production, 02/11) : **BC-01** devis
+(assistante) réussi, 0 question, 8,5 s ; **BC-02** devis imputé « Marketing » (KAM) réussi, 0 question, 5,7 s ; **BC-03**
+BC dicté sans pièce (KAM) réussi, 0 question, 4,5 s — 3/3 (avant : 1/3), 0,07 $.
+
 ### 5. La carte : un résumé, le détail au panneau, chaque chose dite une fois
 
 Résumé : fournisseur (NIF, annuaire ou fiche créée), société (« client du devis »), devis, nombre de lignes, HT, TVA et
