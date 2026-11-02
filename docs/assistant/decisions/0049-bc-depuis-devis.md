@@ -126,6 +126,14 @@ dit **en une phrase** l'écart et les lignes douteuses NOMMÉES (`phraseReconcil
 - **Réversible** (K10b) : annuler « Créer le BC (PDF) » passe la pièce à ANNULÉE — numéro consommé, fichiers au Drive
   comme trace — par le journal des effets des cartes ; rétablir lui rend son statut.
 
+### 4 bis. Qui y a accès (audit Q1, 02/11)
+
+Les trois opérations de BC (`preparer_bon_de_commande`, `preparer_bc_depuis_devis`, `envoyer_bc_en_validation`) ne sont
+plus dans la famille IA « Ad & Pro » : un BC se crée aussi aux Finances et au Legal, et la famille exigée en plus fermait
+l'outil à qui peut le faire à l'écran. La porte est celle du geste (`ouverte` : VALIDATIONS + droit de créer un BC),
+la famille celle des écritures. La lecture des lignes d'un PDF à couche texte ne dépend plus de la bascule « lecture des
+pièces par l'IA » (positions, locales) ; un scan, si.
+
 ### 5. La carte : un résumé, le détail au panneau, chaque chose dite une fois
 
 Résumé : fournisseur (NIF, annuaire ou fiche créée), société (« client du devis »), devis, nombre de lignes, HT, TVA et
