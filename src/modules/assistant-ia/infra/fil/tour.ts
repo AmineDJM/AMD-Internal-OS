@@ -1,3 +1,4 @@
+import { adamOuvert, CONSIGNE_ADAM_SA } from "../adam/outils-adam";
 import type { CurrentUser } from "@/lib/session";
 import { compileContext, CONSIGNE_MEMOIRE_A_LA_CARTE } from "../contexte";
 import { profilDeLaPersonne } from "../profil-personne";
@@ -276,7 +277,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const { section: profil } = await profilDeLaPersonne(user, acces);
     instructions = (await compileContext({
       user, profil, consignesRole: resoudreConsignesRole(config),
-      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, canalAdamOuvert(user) ? CONSIGNE_BOITE_ADAM : null, d.consigne, fond ? CONSIGNE_FOND : null]),
+      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, canalAdamOuvert(user) ? CONSIGNE_BOITE_ADAM : null, adamOuvert(user) ? CONSIGNE_ADAM_SA : null, d.consigne, fond ? CONSIGNE_FOND : null]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
       sectionsDuTour: sauf([noteAnnulee, consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),

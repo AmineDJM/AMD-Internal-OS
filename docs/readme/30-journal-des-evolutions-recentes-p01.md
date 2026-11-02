@@ -15,6 +15,17 @@ Passage réel du 02/11 au soir (224/250, 110/110 attaques bloquées) : les défa
 - **BU** désignée par son nom (entité `business_unit`). **Mail** préparé avec « À » à compléter. **Matériel promo** :
   un article hors catalogue part en « Autre article » dès la création (`lib/promo-material/article-hors-catalogue.ts`).
 - Preuves : `src/modules/assistant-ia/f2-defauts-banc.test.ts` (base réelle), rejeu ciblé `docs/assistant/preuves/audit/f2/`.
+### ADAM COMPLET POUR LE SUPER ADMIN, DANS LE MOTEUR DE L'ASSISTANT IA (2026-11-02, lot A2, décision 0055)
+
+Décision de la Direction du 02/11 — « un seul assistant : Adam » ; le Super Admin garde **toutes** les fonctions de l'ancien
+Adam, lui seul. Inventaire fonction par fonction : `docs/assistant/adam-inventaire.md` (a/b/c, tenu exhaustif par un test).
+- **Une porte** : `src/platform/in-process/porte-assistant-ia.ts` classe les 138 outils d'Adam — 32 déjà couverts, 70 lectures
+  + la boîte de réception (vague 1), 32 écritures par carte (vague 2), 4 restent au « Bureau d'Adam ». Lue par **un seul
+  fichier** du module (`infra/adam/outils-adam.ts`) : un résidu nommé dans `platform/ia/frontieres.test.ts` (0013 révisée).
+- **Réservé par l'architecture** : Super Admin en rôle principal, hors Vue exacte — outil, nom, consigne et exécution ;
+  refus sans nommer la fonction. Écritures : carte `adam_sa_op`, exécution à la confirmation sous le journal des effets (K10).
+- **Sélection** : fiche courte et rang 0,7 dans `trouver_outil` — rappel@5 des 300 demandes ERP inchangé (95,0 %).
+- **Preuves** : `porte-assistant-ia.test.ts`, `adam-super-admin.test.ts` (vraie base), banc Q1 : 13 attaques `ADAM-SA-*`.
 
 ### « RECETTES » SE MASQUE ET SE GÈRE DANS LA CONSOLE (2026-11-02, lot R1, décision 0054)
 
