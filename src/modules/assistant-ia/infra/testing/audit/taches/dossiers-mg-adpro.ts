@@ -112,12 +112,14 @@ export const SEMIS_DOSSIERS_MG_ADPRO: SemisDeDomaine = async ({ etiquette, users
   const a1 = await remise(50_000, mois(-1), "RECEIVED", 35);
   const a2 = await remise(40_000, mois(0), "RECEIVED", 5);
   await remise(15_000, mois(0), "ALLOTTED", 1);
-  const DEPENSES: [string, number, string, number, boolean][] = [
-    ["Café et eau — mois précédent", 18_000, a1.id, 30, true], ["Fournitures de bureau", 22_000, a1.id, 25, true], ["Taxi rendez-vous ANPP", 4_500, a1.id, 20, false],
-    ["Réparation imprimante", 26_000, a2.id, 4, true], ["Timbres et envois", 3_500, a2.id, 3, false], ["Gâteaux réunion d'équipe", 6_000, a2.id, 2, true],
+  // Les dates sont posées DANS le mois (précédent : les 10, 15, 20 ; courant : le 1er, à 9 h, 10 h, 11 h) — « il y a trois
+  // jours » tombe le mois d'avant quand on joue le 2 du mois (mesuré au rejeu du 02/11 : « ce mois-ci » ne les voyait pas).
+  const dans = (decalage: number, jourDuMois: number, heure: number) => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + decalage, jourDuMois, heure)); };
+  const DEPENSES: [string, number, string, Date, boolean][] = [
+    ["Café et eau — mois précédent", 18_000, a1.id, dans(-1, 10, 9), true], ["Fournitures de bureau", 22_000, a1.id, dans(-1, 15, 9), true], ["Taxi rendez-vous ANPP", 4_500, a1.id, dans(-1, 20, 9), false],
+    ["Réparation imprimante", 26_000, a2.id, dans(0, 1, 8), true], ["Timbres et envois", 3_500, a2.id, dans(0, 1, 9), false], ["Gâteaux réunion d'équipe", 6_000, a2.id, dans(0, 1, 10), true],
   ];
-  for (const [label, amount, pettyCashId, ilYa, avecPiece] of DEPENSES) {
-    const date = jours(-ilYa);
+  for (const [label, amount, pettyCashId, date, avecPiece] of DEPENSES) {
     const x = await prisma.departmentBudgetExpense.create({ data: { departmentId: dep.id, year: date.getUTCFullYear(), kind: "OPERATING", label, amount, date, pettyCashId, createdById: u.assistante }, select: { id: true } });
     if (avecPiece) await prisma.document.create({ data: { name: `Ticket ${label}.pdf`, entityType: "DEPARTMENT_EXPENSE", entityId: x.id, mimeType: "application/pdf", uploadedById: u.assistante } as never });
   }
