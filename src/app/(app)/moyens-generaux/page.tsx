@@ -206,6 +206,8 @@ export default async function MoyensGenerauxPage(props: { searchParams: Promise<
         )}
         {canManageCatalog && <EnteteMenu articles={catalogRows} peutModifier />}
       </PageHeader>
+      {/* T3 : le registre (véhicules, assurances, contrats, salles) et ses échéances — sous l'en-tête, qui garde UN geste. */}
+      <p className="text-sm"><Link href="/moyens-generaux/registre" className="font-medium text-primary hover:underline">Registre des moyens généraux et échéances</Link></p>
 
       {/* QUEL DÉPARTEMENT TIENT LES MOYENS GÉNÉRAUX DE LA SOCIÉTÉ — le réglage qui décide où tout le
           monde atterrit. Il n'appartient qu'au Super Admin, et il n'ouvre la caisse d'aucun autre

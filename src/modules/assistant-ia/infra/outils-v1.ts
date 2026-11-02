@@ -18,6 +18,7 @@ import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
 import { lectureDossierDepose } from "./lecture-dossier";
+import { lecturesDossiersEtMoyens } from "./lectures-dossiers-mg";
 import { lectureDemandesRecues } from "./operations/delegation";
 import { rechercheWeb } from "./recherche-web";
 import { outilsConnaissance } from "@/platform/ia/lectures/connaissance";
@@ -76,6 +77,8 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   // porte est celle du geste (`ouverte` : VALIDATIONS + droit de créer un BC), la famille celle des écritures.
   preparer_bon_de_commande: ["ECRITURES"], preparer_bc_depuis_devis: ["ECRITURES"], composer_bon_de_commande: ["ECRITURES"], envoyer_bc_en_validation: ["ECRITURES"],
   preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
+  // T3 : les fiches hôtellerie et voyage d'une demande Ad & Pro ; le tableau des dossiers est lu dans le Drive.
+  preparer_fiches_hotellerie_voyage: ["AD_PRO", "ECRITURES"], maj_dossiers_depuis_tableau: ["DRIVE", "ECRITURES"],
   // J3 — l'Atelier : ouvrir, modifier en place (rien n'est enregistré sans la personne), convertir.
   ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],
   // K7 (décision 0037) — les exports de l'ERP : déposés dans le Drive de la personne, et la famille de leur domaine.
@@ -297,7 +300,7 @@ export function outilsV1(
 
   const lectures = [
     ...lecturesPower, ...propres, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
-    lectureFormulaire(user), lectureRoutines(user), lectureDossierDepose(user), lectureDemandesRecues(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
+    lectureFormulaire(user), lectureRoutines(user), lectureDossierDepose(user), lectureDemandesRecues(user), ...lecturesDossiersEtMoyens(user).map(sousVue), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
     // J9 — le graphe : une famille FERMÉE retire ses types du parcours (dossiers, demandes, documents), sans fermer l'outil.
     ...outilsGraphe(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
     // J10 — les recettes : seulement la version VALIDÉE ; une famille FERMÉE retire les recettes de ses processus.

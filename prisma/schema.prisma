@@ -19124,3 +19124,86 @@ model ClaudeRelaisEtat {
   connecte   Boolean?
   updatedAt  DateTime @default(now()) @updatedAt
 }
+
+/// LE REGISTRE DES MOYENS GÉNÉRAUX (lot T3, 02/11/2026) — « suivi des moyens généraux » (Direction) : ce que la maison
+/// possède, loue ou assure, et ses ÉCHÉANCES. Les DÉPENSES restent dans l'écran existant (`/moyens-generaux`, caisse et
+/// notes de dépenses) ; ici, la fiche de chaque bien ou contrat : un véhicule, son assurance, son entretien, un contrat
+/// de prestataire (ménage, gardiennage, maintenance), une salle, un équipement, un poste de fournitures. Un entretien ou
+/// une assurance se RATTACHE à son véhicule (`parentId`). L'échéance (fin de contrat, contrôle technique, prochain
+/// entretien) alerte `rappelJours` jours avant. Personnes en identifiants simples (pas de relation inverse à `User`).
+enum MoyenGeneralType {
+  VEHICULE
+  ASSURANCE
+  CONTRAT_PRESTATAIRE
+  ENTRETIEN
+  FOURNITURE
+  SALLE
+  EQUIPEMENT
+  AUTRE
+}
+
+enum MoyenGeneralStatut {
+  ACTIF
+  ARCHIVE
+}
+
+model MoyenGeneral {
+  id            String                    @id @default(cuid())
+  /// MG-AAAA-NNN
+  reference     String                    @unique
+  type          MoyenGeneralType
+  libelle       String
+  description   String?
+  /// Le prestataire, l'assureur, le loueur, le garage.
+  prestataire   String?
+  /// L'immatriculation d'un véhicule, le numéro de police, de contrat ou de série.
+  identifiant   String?
+  /// Montant en DZD (prime, loyer, coût d'entretien, valeur) et sa périodicité libre (mensuel, annuel, ponctuel).
+  montant       Decimal?                  @db.Decimal(14, 2)
+  periodicite   String?
+  dateDebut     DateTime?
+  /// La prochaine échéance : fin de contrat, renouvellement, contrôle, prochain entretien.
+  echeance      DateTime?
+  rappelJours   Int                       @default(30)
+  /// Une salle : sa capacité (places).
+  capacite      Int?
+  statut        MoyenGeneralStatut        @default(ACTIF)
+  responsableId String?
+  parentId      String?
+  parent        MoyenGeneral?             @relation("MoyenGeneralRattachement", fields: [parentId], references: [id], onDelete: SetNull)
+  rattaches     MoyenGeneral[]            @relation("MoyenGeneralRattachement")
+  companyId     String?
+  notes         String?
+  createdById   String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+  reservations  MoyenGeneralReservation[]
+
+  @@index([type, statut])
+  @@index([echeance])
+  @@index([parentId])
+}
+
+enum MoyenGeneralReservationStatut {
+  CONFIRMEE
+  ANNULEE
+}
+
+/// LA RÉSERVATION D'UNE SALLE OU D'UN VÉHICULE (lot T3) — un créneau ; deux réservations CONFIRMÉES d'un même moyen
+/// ne se chevauchent jamais (contrôle à l'écriture, `moyens-generaux-registre-actions`).
+model MoyenGeneralReservation {
+  id           String                        @id @default(cuid())
+  moyenId      String
+  moyen        MoyenGeneral                  @relation(fields: [moyenId], references: [id], onDelete: Cascade)
+  debut        DateTime
+  fin          DateTime
+  objet        String
+  participants Int?
+  reserveParId String
+  statut       MoyenGeneralReservationStatut @default(CONFIRMEE)
+  createdAt    DateTime                      @default(now())
+  updatedAt    DateTime                      @updatedAt
+
+  @@index([moyenId, debut])
+  @@index([reserveParId])
+}
