@@ -32,6 +32,13 @@ const EXCEPTIONS: Record<string, { raison: string; litLeLieu?: true }> = {
   "src/lib/medical/profil-rapide.ts": { raison: "crée un profil praticien depuis un bénéficiaire : nom et établissement, aucun lieu" },
   "src/lib/medical/rattachement-auto.ts": { raison: "pose établissement et service ; LIT la wilaya sans l'écrire", litLeLieu: true },
   "src/lib/quality/fix.ts": { raison: "corrige un e-mail" },
+  // Lot T2 (décision 0051) — le banc d'audit de l'Assistant IA.
+  "src/modules/assistant-ia/infra/testing/audit/taches/annuaire-marketing-semis.ts": {
+    raison: "semis du banc (base locale) : écrit la wilaya ET son code officiel (`wilayaCode`) ensemble, à la création", litLeLieu: true,
+  },
+  "src/modules/assistant-ia/infra/testing/audit/taches/annuaire-marketing.ts": {
+    raison: "remet les fiches du banc à leur état initial (téléphone, adresse, actif, nom) ; LIT la wilaya dans ses vérificateurs", litLeLieu: true,
+  },
 };
 
 function fichiers(dir: string): string[] {

@@ -24,6 +24,8 @@ import { REPONSE_DEMANDE } from "./delegation";
 import { OPERATIONS_TERRAIN } from "./terrain";
 import { FUSION_MISSIONS } from "./missions-fusion";
 import { ENVOI_GMAIL } from "./envoi-gmail";
+import { OPERATIONS_ANNUAIRE } from "./annuaire";
+import { DEMANDER_AU_TERRAIN } from "./demandes-terrain";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
 
@@ -41,6 +43,8 @@ export const OPERATIONS_IA: OperationIA[] = [
   ...OPERATIONS_TERRAIN,
   // P1 (décision 0047) : fusionner ses missions en une ; envoyer un mail par sa boîte Gmail reliée (fenêtre d'annulation).
   FUSION_MISSIONS, ENVOI_GMAIL,
+  // T2 (décision 0051) : tenir l'annuaire — mise à jour en lot (Excel), fusion des doublons, annuler la dernière action.
+  ...OPERATIONS_ANNUAIRE, DEMANDER_AU_TERRAIN,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));

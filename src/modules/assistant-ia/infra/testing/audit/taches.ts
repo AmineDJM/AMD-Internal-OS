@@ -11,16 +11,37 @@
  * d'un mail (grille déterministe + juge bon marché), la latence et le coût.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+import type { PrismaClient } from "@prisma/client";
 import { nomComplet, type PersonaCle } from "./personas";
+import type { SemisAudit } from "./semis";
+import { TACHES_ANNUAIRE_MARKETING } from "./taches/annuaire-marketing";
 
 export const CATEGORIES_TACHE = [
   "tache", "message", "mail", "adpro", "bc", "export", "analyse", "recherche", "note", "mission", "pilotage", "annulation", "soi",
+  // Lot T2 (décision 0051) : tenir les annuaires, analyser le marketing, interroger le terrain.
+  "annuaire", "marketing", "terrain",
 ] as const;
 export type CategorieTache = (typeof CATEGORIES_TACHE)[number];
 
 /** L'objet attendu en base (compté avant / après) — après le clic « Confirmer » quand une carte est attendue. */
 export type ObjetAttendu =
   | "tache" | "message" | "mail" | "sponsoring" | "prise_en_charge" | "materiel_promo" | "validation" | "note" | "mission" | "routine" | "fichier" | "memoire" | "rendez_vous";
+
+/**
+ * LA PREUVE EN BASE (lot T2, décision 0051) — ce que le vérificateur d'une tâche reçoit : la base (passée par le
+ * banc, le catalogue n'importe pas Prisma), le semis, le début du tour, le compte joué, et ce que l'assistant a rendu
+ * (texte, blocs, champs de carte, fichiers produits) pour les tâches de lecture. Le vérificateur rend ses MOTIFS
+ * d'échec (vide = le résultat existe vraiment).
+ */
+export interface ContexteVerif {
+  db: PrismaClient;
+  s: SemisAudit;
+  t0: Date;
+  userId: string;
+  texte: string;
+  blocs: string;
+  fichiers: { nom: string; texte: string }[];
+}
 
 export interface Tache {
   id: string;
@@ -31,8 +52,14 @@ export interface Tache {
   precision?: string;
   /** Le message est DIT (délégation vocale) au lieu d'être écrit. */
   voix?: boolean;
-  /** Une pièce du semis jointe au premier message (« devis »). */
-  piece?: "devis";
+  /** Une pièce du semis jointe au premier message (« devis »), ou un fichier du Drive de la persona, par son nom. */
+  piece?: "devis" | { nom: string };
+  /** Lot T2 : remettre les fiches de la tâche dans leur état initial avant de la jouer (le banc se rejoue). */
+  preparer?: (c: ContexteVerif) => Promise<void>;
+  /** Lot T2 : la preuve DÉTERMINISTE en base, après le clic « Confirmer » et les tours d'après. */
+  verifier?: (c: ContexteVerif) => Promise<string[]>;
+  /** Lot T2 : des tours joués APRÈS la confirmation (« annule cette mise à jour ») — leur carte est confirmée aussi. */
+  apresConfirmation?: string[];
   attendu: {
     /** La carte attendue (titre ou genre) — absente : une réponse seule (lecture, analyse). */
     carte?: RegExp;
@@ -166,4 +193,7 @@ export const TACHES: Tache[] = [
 
   // ── Rendez-vous ──
   t("RV-01-rdv", "tache", "kam", "Mets-moi un rendez-vous jeudi à 10 h avec le pharmacien chef du CHU Mustapha.", { carte: /rendez-vous|agenda|r[ée]union/i, objet: "rendez_vous" }),
+
+  // ── Lot T2 : annuaires, marketing, terrain (décision 0051) ──
+  ...TACHES_ANNUAIRE_MARKETING,
 ];

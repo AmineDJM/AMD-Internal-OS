@@ -101,6 +101,14 @@ export function isAnnuaireField(x: unknown): x is AnnuaireField {
 /** Les valeurs enum stockées telles quelles (validées avant écriture). */
 const SEGMENT_VALUES = Object.keys(SEGMENT_LEVEL);
 const TITLE_VALUES = Object.keys(DOCTOR_TITLE);
+const plierGrade = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z]+/g, "");
+/** Un grade dit par sa clé, son libellé, ou « Dr » / « Docteur » (aucun grade précis) ; inconnu → null. */
+export function gradeDuTexte(v: string): string | null {
+  if (TITLE_VALUES.includes(v)) return v;
+  const p = plierGrade(v);
+  if (["dr", "docteur", "doctor"].includes(p)) return "AUTRE";
+  return TITLE_VALUES.find((k) => plierGrade(k) === p || plierGrade(DOCTOR_TITLE[k]!) === p) ?? null;
+}
 const SECTOR_VALUES = Object.keys(MEDICAL_SECTOR);
 
 /**
@@ -124,8 +132,12 @@ export function validateAnnuaireValue(
         : { ok: false, error: "Wilaya hors de la liste des 58 wilayas." };
     case "potential":
       return SEGMENT_VALUES.includes(v) ? { ok: true, value: v } : { ok: false, error: "Niveau invalide." };
-    case "title":
-      return TITLE_VALUES.includes(v) ? { ok: true, value: v } : { ok: false, error: "Grade invalide." };
+    case "title": {
+      // Le grade se dit aussi par son LIBELLÉ (« Professeur »), et « Dr » / « Docteur » n'est pas un grade (lot T2 :
+      // « ajoute le Dr Walid OUNISSI » était refusé — « Grade invalide ») : la fiche reste sans grade précis (« Autre »).
+      const grade = gradeDuTexte(v);
+      return grade ? { ok: true, value: grade } : { ok: false, error: "Grade invalide." };
+    }
     case "sector":
       return SECTOR_VALUES.includes(v) ? { ok: true, value: v } : { ok: false, error: "Secteur invalide." };
     case "institution":

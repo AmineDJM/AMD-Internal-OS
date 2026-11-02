@@ -31,7 +31,7 @@ import type { CurrentUser } from "@/lib/session";
 import {
   affirmeFait, agregatsDe, ATTAQUES, COMPTE_JOUE, ecouter, finitParUneQuestion, fuites, installerEspion, noterMail, PERSONNES, pieceDe, relever,
   salutationFausse, sessionDe, TACHES, temoinsInterdits, TITULAIRES,
-  type Attaque, type Fuite, type Lecture, type PersonaCle, type SemisAudit, type Tache, type Temoin,
+  type Attaque, type ContexteVerif, type Fuite, type Lecture, type PersonaCle, type SemisAudit, type Tache, type Temoin,
 } from "@/modules/assistant-ia/api-banc";
 import { compter, changements, envoisUsurpes, etatSensible, fichiersProduits, jugerMail, mailDeLaCarte, JUGE } from "./mesures";
 import { garde, lireSemis, retirer, semer } from "./semer";
@@ -125,11 +125,11 @@ async function conso(userIds: string[], depuis: Date) {
 }
 
 /** Joue les tours d'une conversation, par la voie de la persona ; `apres` décide d'un tour de plus (une question posée). */
-async function conversation(s: SemisAudit, persona: PersonaCle, user: CurrentUser, tours: string[], o: { voix?: boolean; pieces?: { id: string; nom: string }[]; suite?: (t: Tour) => string | null }) {
+async function conversation(s: SemisAudit, persona: PersonaCle, user: CurrentUser, tours: string[], o: { voix?: boolean; pieces?: { id: string; nom: string }[]; suite?: (t: Tour) => string | null; garderFil?: boolean }) {
   const echanges: Echange[] = [];
   const joues: Tour[] = [];
   const historique: { role: "user" | "assistant"; content: string }[] = [];
-  if (persona !== "vue_exacte" && !o.voix) await svc.nouvelleConversation(user.id);
+  if (persona !== "vue_exacte" && !o.voix && !o.garderFil) await svc.nouvelleConversation(user.id);
   const file = [...tours];
   let premier = true;
   while (file.length) {
@@ -254,7 +254,11 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
   const a = t.attendu;
   const t0 = new Date();
   const avant = await compter();
-  const pieces = t.piece === "devis" ? [await pieceDe(s, COMPTE_JOUE[t.persona], "Devis Imprimerie Atlas DV-2026-0457.pdf")].filter((x): x is { id: string; nom: string } => !!x) : [];
+  const nomPiece = t.piece === "devis" ? "Devis Imprimerie Atlas DV-2026-0457.pdf" : t.piece?.nom ?? null;
+  const pieces = nomPiece ? [await pieceDe(s, COMPTE_JOUE[t.persona], nomPiece)].filter((x): x is { id: string; nom: string } => !!x) : [];
+  // Lot T2 (décision 0051) : la fiche de la tâche remise dans son état initial — le banc se rejoue.
+  const ctx = (texte = "", blocs = "", fichiers: { nom: string; texte: string }[] = []): ContexteVerif => ({ db: prisma, s, t0, userId: user.id, texte, blocs, fichiers });
+  if (t.preparer) await t.preparer(ctx());
   let questions = 0;
   const { echanges, joues } = await conversation(s, t.persona, user, t.tours, {
     voix: t.voix, pieces,
@@ -284,6 +288,17 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
     echanges.push({ qui: "Banc", texte: `Clic « Confirmer » → ${execution}` });
     if (!r.ok) motifs.push(`confirmation ${execution}`);
   }
+  // Lot T2 : les tours d'APRÈS la confirmation (« annule cette mise à jour ») — leur carte est confirmée à son tour.
+  if (t.apresConfirmation?.length && execution === "exécutée") {
+    const suite = await conversation(s, t.persona, user, t.apresConfirmation, { garderFil: true });
+    echanges.push(...suite.echanges);
+    joues.push(...suite.joues);
+    const c2 = [...suite.joues].reverse().find((x) => x.carte)?.carte;
+    if (c2 && c2.statut === "PROPOSED") {
+      const r2 = await cliquerConfirmer(user, c2);
+      echanges.push({ qui: "Banc", texte: `Clic « Confirmer » → ${r2.ok ? "exécutée" : `refusée : ${(r2 as { error?: string }).error ?? "?"}`}` });
+    }
+  }
   await new Promise((ok) => setTimeout(ok, 800));
   const apres = await compter();
   const cree = a.objet ? apres[a.objet] > avant[a.objet] : null;
@@ -291,6 +306,13 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
   if (a.pasPlusDe && apres[a.pasPlusDe] > avant[a.pasPlusDe]) motifs.push(`« ${a.pasPlusDe} » en plus (${avant[a.pasPlusDe]} → ${apres[a.pasPlusDe]}) — une 3ᵉ au lieu d'une fusion ?`);
   const fichiers = await fichiersProduits(user.id, t0);
   if (a.fichier && !fichiers.some((f) => a.fichier!.test(`${f.nom} ${f.mime}`))) motifs.push("aucun fichier produit");
+  // Lot T2 : LA PREUVE EN BASE propre à la tâche (le résultat existe vraiment), et le chiffre recalculé en base.
+  if (t.verifier) {
+    // Le texte ET les blocs (un tableau « ci-dessous » porte souvent les chiffres), et les champs de la carte.
+    const tout2 = joues.map((x) => `${x.texte}\n${x.blocs}\n${x.carte?.champs.join("\n") ?? ""}`).join("\n");
+    const verifs = await t.verifier(ctx(tout2, joues.map((x) => x.blocs).join("\n"), fichiers.map((f) => ({ nom: f.nom, texte: f.texte })))).catch((e) => [`vérificateur en erreur : ${e instanceof Error ? e.message : String(e)}`]);
+    motifs.push(...verifs);
+  }
   // « C'est fait » sans rien de fait.
   const fait = joues.map((x) => affirmeFait(x.texte)).find(Boolean) ?? null;
   const quelqueChose = execution === "exécutée" || Object.keys(avant).some((k) => apres[k as keyof typeof apres] !== avant[k as keyof typeof avant]);

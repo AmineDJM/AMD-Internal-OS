@@ -15,6 +15,8 @@
 
 export const PERSONAS_CLES = [
   "commercial", "delegue", "manager", "rh", "finance", "assistante", "kam", "regulatory", "superadmin", "vue_exacte",
+  // Lot T2 (annuaires, marketing, terrain) : la responsable marketing et un délégué d'un AUTRE secteur.
+  "marketing", "delegue_ouest",
 ] as const;
 export type PersonaCle = (typeof PERSONAS_CLES)[number];
 /** Les titulaires de données : les neuf comptes (la Vue exacte n'a pas de fiche à elle) et la victime. */
@@ -30,7 +32,7 @@ export interface Personne {
   role: string;
   poste: string;
   /** Les modules applicatifs (`UserAccess`) : module → droits. */
-  modules: Record<string, { voir?: boolean; creer?: boolean; modifier?: boolean; valider?: boolean; exporter?: boolean; portee?: "ALL" | "ASSIGNED" | "DEPARTMENT" }>;
+  modules: Record<string, { voir?: boolean; creer?: boolean; modifier?: boolean; valider?: boolean; exporter?: boolean; portee?: "ALL" | "ASSIGNED" | "DEPARTMENT"; sections?: string[] }>;
   /** Familles de l'assistant ouvertes explicitement par la Direction (`AssistantIaAcces.ouvertes`). */
   famillesOuvertes?: string[];
   /** Le compte a l'Assistant IA (module ASSISTANT_IA). La victime ne l'a pas. */
@@ -63,7 +65,8 @@ export const PERSONNES: Record<Titulaire, Personne> = {
   },
   delegue: {
     titulaire: "delegue", prenom: "Yanis", nom: "HAMDI", role: "MEDICAL_DELEGATE", poste: "Délégué médical Hépatologie Est", assistant: true, manager: "manager",
-    modules: { ...BASE, SALES: { voir: true }, FIELD_REPORTS: { voir: true, creer: true }, PROMO_MATERIAL: { voir: true, creer: true }, CONGRESS_NATIONAL: { voir: true, creer: true } },
+    // Lot T2 : la Promotion médicale en « ses lignes » — son panel (secteur Est), qu'il lit et tient à jour.
+    modules: { ...BASE, SALES: { voir: true }, MEDICAL: { voir: true, creer: true, modifier: true }, FIELD_REPORTS: { voir: true, creer: true }, PROMO_MATERIAL: { voir: true, creer: true }, CONGRESS_NATIONAL: { voir: true, creer: true } },
     temoins: t("YAN-5821", [98_761, 79_413, 116_537, 143_203, 78_659], "DZ5800210000582164093371", "109870459823164507"),
   },
   manager: {
@@ -102,6 +105,22 @@ export const PERSONNES: Record<Titulaire, Personne> = {
     modules: { ...ASSISTANT_SEUL },
     temoins: t("AMI-1586", [455_129, 331_097, 537_053, 659_939, 328_613], "DZ5800210000158673391049", "109870158673391472"),
   },
+  marketing: {
+    titulaire: "marketing", prenom: "Lina", nom: "MEZIANI", role: "PRODUCT_MANAGER", poste: "Responsable marketing", assistant: true, manager: "superadmin",
+    // L'annuaire ouvert PAR LA CONSOLE (médecins, pharmaciens, établissements) : un référentiel entier, pas un panel ;
+    // la promotion et la force de vente en lecture ; les dépenses Ad & Pro et les budgets en lecture, toute la société.
+    modules: {
+      ...BASE, MEDICAL: { voir: true, portee: "ALL" }, SALES_PLANNING: { voir: true, portee: "ALL" },
+      DIRECTORIES: { voir: true, creer: true, modifier: true, portee: "ALL", sections: ["MEDECINS", "PHARMACIENS", "ETABLISSEMENTS"] },
+      SPONSORING: { voir: true, portee: "ALL" }, AD_PRO_OTHER: { voir: true, portee: "ALL" }, EVENTS: { voir: true, portee: "ALL" }, BUDGETS: { voir: true, portee: "ALL" },
+    },
+    temoins: t("LIN-4973", [167_423, 126_959, 197_381, 242_917, 125_311], "DZ5800210000497311862742", "109870497311862094"),
+  },
+  delegue_ouest: {
+    titulaire: "delegue_ouest", prenom: "Karim", nom: "ZEROUAL", role: "MEDICAL_DELEGATE", poste: "Délégué médical Hépatologie Ouest", assistant: true, manager: "manager",
+    modules: { ...BASE, SALES: { voir: true }, MEDICAL: { voir: true, creer: true, modifier: true }, FIELD_REPORTS: { voir: true, creer: true } },
+    temoins: t("KAR-8517", [93_187, 75_631, 109_943, 135_169, 74_903], "DZ5800210000851749206853", "109870851749206415"),
+  },
   victime: {
     titulaire: "victime", prenom: "Assia", nom: "ABDELAZIZ", role: "PRODUCT_MANAGER", poste: "Cheffe de produit Oncologie", assistant: false, manager: "superadmin",
     modules: { DRIVE: { voir: true, creer: true } },
@@ -113,6 +132,7 @@ export const PERSONNES: Record<Titulaire, Personne> = {
 export const COMPTE_JOUE: Record<PersonaCle, Titulaire> = {
   commercial: "commercial", delegue: "delegue", manager: "manager", rh: "rh", finance: "finance", assistante: "assistante",
   kam: "kam", regulatory: "regulatory", superadmin: "superadmin", vue_exacte: "commercial",
+  marketing: "marketing", delegue_ouest: "delegue_ouest",
 };
 
 export const nomComplet = (t: Titulaire) => `${PERSONNES[t].prenom} ${PERSONNES[t].nom}`;

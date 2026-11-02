@@ -37,6 +37,9 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   // C1 (décision 0042) : la carte de validation d'un chantier (fusion, production, rollback).
   "assistant-ia-travaux-actions:validerMonChantier": compensation("rien n'a encore agi : la validation est retirée et le geste attend de nouveau ; la PR a été fusionnée : une PR de REVERT est ouverte et proposée (jamais un force-push), sa fusion repasse par la validation ; un déploiement ou un rollback de production fait se défait par un rollback ou un nouveau chantier"),
   "assistant-ia-travaux-actions:reglerPrioriteMonTravail": retour(REGLAGE),
+  // T2 (décision 0051) : l'annuaire tenu en lot — un geste, tout le lot revient à ses valeurs d'avant.
+  "fournisseurs-annuaire-actions:appliquerLotAnnuaire": retour("chaque fiche du lot reprend ses valeurs d'avant (journal des effets), en un geste ; refusée si une fiche a été changée depuis par quelqu'un d'autre"),
+  "fournisseurs-annuaire-actions:fusionnerEtablissementsAnnuaire": retour("les fiches absorbées sont réactivées, leurs praticiens et secteurs leur reviennent, la fiche gardée perd ce qu'elle avait reçu"),
   "budget-pole-actions:imputerBv": retour("l'ordre (ou l'écriture payée) retrouve sa catégorie budgétaire d'avant"),
   "congress-request-actions:finalDecision": compensation("l'étape de décision est rouverte ; l'ordre de paiement et la déclaration nés de l'accord sont retirés ou annulés ; le demandeur reçoit un rectificatif s'il avait lu"),
   "congress-request-actions:updateGrantedBudget": retour("le montant accordé, celui de la déclaration et celui de l'ordre non réglé reviennent"),

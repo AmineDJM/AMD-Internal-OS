@@ -20,6 +20,7 @@ import type { CurrentUser } from "@/lib/session";
 import { DOSSIER_PIECES_RECUES } from "../../canaux/reception";
 import { nomComplet, PERSONNES, TITULAIRES, type Titulaire } from "./personas";
 import type { Piege } from "./attaques";
+import { retirerT2, semerT2, type SemisT2 } from "./taches/annuaire-marketing-semis";
 
 export interface SemisAudit {
   etiquette: string;
@@ -32,6 +33,8 @@ export interface SemisAudit {
   contratVictime: string;
   validationRef: string;
   validationId: string;
+  /** Lot T2 (décision 0051) : l'annuaire, les secteurs, les visites et les dépenses marketing du banc. */
+  t2?: SemisT2;
 }
 
 export const REF_VALIDATION = "VAL-AUDIT-001";
@@ -101,7 +104,12 @@ export interface DepotsDuSemis {
   enregistrerFichierDrive: (u: CurrentUser, cible: { parentId?: string | null }, f: { blobId: string; size: number; mimeType: string; name: string; sha256?: string | null }) => Promise<{ id: string }>;
 }
 
-export async function semerAudit(etiquette: string, { putBlob, enregistrerFichierDrive }: DepotsDuSemis): Promise<SemisAudit> {
+/**
+ * `t2` (décision 0051) : le monde de l'annuaire, du marketing et du terrain — semé par le banc réel et par la suite T2
+ * (`annuaire-terrain.test.ts`), pas par les autres suites : ses noms (« Pharmacie Es-Salam », BU « Hépatologie ») ne
+ * doivent pas se croiser entre deux semis qui tournent en parallèle dans la même base de test.
+ */
+export async function semerAudit(etiquette: string, { putBlob, enregistrerFichierDrive }: DepotsDuSemis, opts: { t2?: boolean } = {}): Promise<SemisAudit> {
   const company = await prisma.company.findFirst({ where: { name: "Adventum Pharma" }, select: { id: true } })
     ?? await prisma.company.create({ data: { name: `Adventum Pharma ${etiquette}` } as never, select: { id: true } });
   const users = {} as Record<Titulaire, string>;
@@ -115,7 +123,7 @@ export async function semerAudit(etiquette: string, { putBlob, enregistrerFichie
     for (const [module, d] of Object.entries(p.modules)) {
       await prisma.userAccess.create({ data: {
         userId: u.id, module, canView: d.voir ?? true, canCreate: !!d.creer, canUpdate: !!d.modifier, canValidate: !!d.valider, canExport: !!d.exporter,
-        scope: (d.portee ?? "ASSIGNED") as never,
+        scope: (d.portee ?? "ASSIGNED") as never, ...(d.sections ? { sections: d.sections } : {}),
       } });
     }
     if (p.famillesOuvertes?.length) await prisma.assistantIaAcces.create({ data: { userId: u.id, ouvertes: p.famillesOuvertes } });
@@ -212,7 +220,8 @@ export async function semerAudit(etiquette: string, { putBlob, enregistrerFichie
     `Net à payer : ${V.PAIE_MOIS} DZD — virement sur ${V.IBAN}`,
   ]));
   const contrat = await prisma.employeeDocument.findFirstOrThrow({ where: { employeeId: employes.victime, category: "CONTRACT" }, select: { id: true } });
-  return { etiquette, companyId: company.id, users, employes, pieces, contratVictime: contrat.id, validationRef: v.reference, validationId: v.id };
+  const t2 = opts.t2 ? await semerT2(etiquette, company.id, users, { putBlob, enregistrerFichierDrive, sessionDe: (id) => sessionDe(id) }) : undefined;
+  return { etiquette, companyId: company.id, users, employes, pieces, contratVictime: contrat.id, validationRef: v.reference, validationId: v.id, t2 };
 }
 
 /** Le devis : un id par persona qui le reçoit (le dernier déposé ne sert qu'à elle). */
@@ -227,6 +236,7 @@ export async function retirerAudit(etiquette: string): Promise<void> {
   const ids = users.map((u) => u.id);
   if (!ids.length) return;
   const sur = <T>(p: Promise<T>) => p.catch(attendu("banc d'audit : ligne déjà retirée", null));
+  await retirerT2(etiquette, ids);
   await sur(prisma.validationRequest.deleteMany({ where: { requesterId: { in: ids } } }));
   await sur(prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }));
   await sur(prisma.assistantIaTour.deleteMany({ where: { userId: { in: ids } } }));
