@@ -33,10 +33,9 @@
     "!src/lib/derive-schema/**!",
     "!src/modules/finances/domaine/invariants-argent.ts!",
     "!src/modules/carte.ts!",
-    "!src/platform/{couverture,demenagements,domains,source}.ts!",
-    "!src/**/*.d.json.ts!"
+    "!src/platform/{couverture,demenagements,domains,source}.ts!"
   ],
-  "ignore": [],
+  "ignore": ["src/**/*.d.json.ts"],
   "ignoreExportsUsedInFile": true,
   "playwright": {
     "config": [
