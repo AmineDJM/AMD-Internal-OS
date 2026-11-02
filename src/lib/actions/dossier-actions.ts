@@ -37,6 +37,12 @@ function isManager(user: SessionUser, d: DossierMembers): boolean {
   return hasGlobalView(user.role) || d.createdById === user.id || d.assignedToId === user.id;
 }
 
+/** Le sujet est-il dans la portée du module pour cette personne (`scopeDossiers`) ? */
+async function dossierVisible(user: SessionUser, id: string): Promise<boolean> {
+  // La Direction (vue globale) garde la main sur tout sujet, comme `isManager` le lui accorde.
+  return hasGlobalView(user.role) || (await prisma.dossier.count({ where: { AND: [{ id }, scopeDossiers(user)] } })) > 0;
+}
+
 export async function createDossier(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!userCan(user, "DOSSIERS", "CREATE")) return { ok: false, error: "Non autorisé." };
@@ -73,7 +79,8 @@ export async function updateDossierStatus(formData: FormData): Promise<ActionRes
   const status = fdStr(formData, "status") as DossierStatus | null;
   if (!id || !status || !STATUSES.includes(status)) return { ok: false, error: "Paramètres invalides." };
   const d = await prisma.dossier.findUnique({ where: { id }, select: { createdById: true, assignedToId: true, participantIds: true, reference: true } });
-  if (!d) return { ok: false, error: "Sujet introuvable." };
+  // Hors de la portée du module : la même phrase que l'absence — jamais « réservé à… » sur un sujet qu'on ne voit pas (T3).
+  if (!d || !(await dossierVisible(user, id))) return { ok: false, error: "Sujet introuvable." };
   if (!isManager(user, d)) return { ok: false, error: "Réservé au créateur, au responsable ou à la Direction." };
   await prisma.dossier.update({ where: { id }, data: { status } });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Sujets", entityType: "DOSSIER", entityId: id, summary: `Statut → ${status} (${d.reference})` });
@@ -86,7 +93,8 @@ export async function assignDossier(formData: FormData): Promise<ActionResult> {
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Sujet manquant." };
   const d = await prisma.dossier.findUnique({ where: { id }, select: { createdById: true, assignedToId: true, participantIds: true, reference: true, title: true } });
-  if (!d) return { ok: false, error: "Sujet introuvable." };
+  // Hors de la portée du module : la même phrase que l'absence — jamais « réservé à… » sur un sujet qu'on ne voit pas (T3).
+  if (!d || !(await dossierVisible(user, id))) return { ok: false, error: "Sujet introuvable." };
   if (!isManager(user, d)) return { ok: false, error: "Réservé au créateur, au responsable ou à la Direction." };
 
   const newAssignee = fdStr(formData, "assignedToId");
@@ -263,7 +271,8 @@ export async function archiveDossier(formData: FormData): Promise<ActionResult> 
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Sujet manquant." };
   const d = await prisma.dossier.findUnique({ where: { id }, select: { createdById: true, assignedToId: true, participantIds: true, reference: true } });
-  if (!d) return { ok: false, error: "Sujet introuvable." };
+  // Hors de la portée du module : la même phrase que l'absence — jamais « réservé à… » sur un sujet qu'on ne voit pas (T3).
+  if (!d || !(await dossierVisible(user, id))) return { ok: false, error: "Sujet introuvable." };
   if (!isManager(user, d)) return { ok: false, error: "Réservé au créateur, au responsable ou à la Direction." };
   await prisma.dossier.update({ where: { id }, data: { status: "ARCHIVED" } });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Sujets", entityType: "DOSSIER", entityId: id, summary: `Sujet archivé (${d.reference})` });

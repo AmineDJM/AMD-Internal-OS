@@ -31,6 +31,7 @@ import { MOYEN_GENERAL_ENREGISTRER, MOYEN_GENERAL_RESERVER } from "./moyens-gene
 import { executerOperationJournalisee } from "./";
 import { lecturesDossiersEtMoyens } from "../lectures-dossiers-mg";
 import { reserverMoyenGeneral } from "@/modules/moyens-generaux/actions";
+import { updateDossierStatus } from "@/lib/actions/dossier-actions";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -167,6 +168,10 @@ suite("T3 — dossiers, moyens généraux et fiches Ad & Pro, exécutés puis an
     expect(f.r.ok).toBe(false);
     expect(f.r.error).not.toContain("confidentiel");
     expect((await prisma.dossier.findUniqueOrThrow({ where: { id: dossiers.cache! } })).status).toBe("OPEN");
+    // L'action unitaire de l'écran non plus ne confirme pas l'existence d'un sujet hors portée.
+    const fdc = new FormData(); fdc.set("id", dossiers.cache!); fdc.set("status", "DONE");
+    ACTOR = ASSISTANTE;
+    expect(await updateDossierStatus(fdc)).toEqual({ ok: false, error: "Sujet introuvable." });
   });
 
   it("lire le suivi : en retard, comptes par statut, refus propre sans le module", async () => {

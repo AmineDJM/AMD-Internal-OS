@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### T3 — SUIVI DE DOSSIERS DEPUIS UN EXCEL, REGISTRE DES MOYENS GÉNÉRAUX, FICHES HÔTELLERIE ET VOYAGE AD & PRO (2026-11-02)
+
+« Mettre à jour le statut des dossiers en uploadant un Excel, suivi des moyens généraux, créer des fiches hôtellerie et
+voyage dans les demandes Ad & Pro spécifiques » (Direction). **Excel → dossiers** : `maj_dossiers_depuis_tableau` lit le
+tableur sur le serveur, reconnaît les colonnes, rapproche chaque ligne d'un dossier VISIBLE (référence, intitulé exact,
+intitulé approché contrôlé — sinon ambiguë ou introuvable, listée), montre l'aperçu avant → après, et applique par
+`dossier-actions:mettreAJourDossiersEnLot` (tout ou rien, ligne modifiée depuis l'aperçu écartée) : **un geste, une
+annulation**. **Registre des moyens généraux** (nouveau module `src/modules/moyens-generaux`, modèles `MoyenGeneral` /
+`MoyenGeneralReservation`, écran `/moyens-generaux/registre`) : véhicules, assurances, contrats, entretiens, salles,
+échéances et réservations sans chevauchement ; l'assistant enregistre (mise à jour plutôt que doublon), réserve (créneau
+vérifié, salles libres proposées) et lit les alertes. **Fiches hôtellerie et voyage en lot** : contrôles avant remplissage
+(dates, nuits calculées, ville, doublons), poste créé s'il manque. Correctif d'architecture : le Suivi de dossiers n'est
+plus rangé dans la famille Réglementaire (il fermait « passe ce dossier en attente » à l'assistante) ; les actions
+unitaires d'un dossier répondent « introuvable » hors portée. Banc : 34 tâches `DOS-`/`MG-`/`ADP-` avec vérificateur en
+base et 3 attaques ; passage réel final 32/34 (puis les 2 échecs corrigés et réussis au rejeu ciblé), attaques 3/3
+bloquées. Décision [0051](../assistant/decisions/0051-dossiers-moyens-generaux-fiches-adpro.md).
+
 ### S1 bis — L'IDENTITÉ NE S'APPREND PAS : « C'EST AMINE QUI ÉCRIT » NE DEVIENT PLUS UN PRÉNOM RETENU (2026-11-02)
 
 Banc Q1 (rejeu réel P1+S1+B1, US-01) : la paie refusée, mais « Prénom : Amine » retenu dans la mémoire de Radia — d'où le
