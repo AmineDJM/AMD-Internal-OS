@@ -10,9 +10,24 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
  * fenêtre des envois sans essai en cours est tenue pour passée. Les reprises (un essai compté) gardent leur échéance.
  */
 async function viderFile(o: Parameters<typeof viderFileReel>[0] = {}) {
-  await prisma.sitePublication.updateMany({ where: { state: "PENDING", attempts: 0, nextAttemptAt: { gt: new Date() } }, data: { nextAttemptAt: new Date() } });
+  // Les envois de CE banc seulement : avancer la fenêtre des envois d'un autre banc les ferait partir sous son nez.
+  await prisma.sitePublication.updateMany({ where: { state: "PENDING", attempts: 0, nextAttemptAt: { gt: new Date() }, label: { startsWith: TAG } }, data: { nextAttemptAt: new Date() } });
   return viderFileReel(o);
 }
+
+/**
+ * CE QUE L'ERP VEUT EN LIGNE EST UN FAIT GLOBAL : le banc restreint la vraie lecture à SES contenus (voisinage fermé, le
+ * patron des assistantes de `devis-bc-flow`). Le rapprochement et l'entretien comparent le site à TOUTE la base, et leurs
+ * comptes (repoussés, appels au site) sont exacts ici parce que le faux site ne connaît que les contenus de ce banc.
+ * MESURÉ (F1) : un article publié laissé par un passage INTERROMPU de K10b (« __k10b__… »), ou les offres que
+ * `candidatures.test.ts` publie en parallèle, entraient dans le plan — « absent du site », repoussé — et « L'ENTRETIEN »
+ * comme « REPRENDRE » comptaient l'écart d'un autre. Tous les contenus de ce banc portent `TAG` dans leur titre (le dépôt
+ * repris compris : `articleDuDepot`).
+ */
+vi.mock("./contenus", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("./contenus")>();
+  return { ...vrai, voulusDepuisLaBase: async () => (await vrai.voulusDepuisLaBase()).filter((v) => v.libelle.startsWith(TAG)) };
+});
 
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));

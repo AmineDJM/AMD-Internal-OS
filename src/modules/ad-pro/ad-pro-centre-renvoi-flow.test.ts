@@ -24,7 +24,9 @@ let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
-const TAG = "__centrerenvoi__";
+// UN SUFFIXE PAR RUN (§118.136) : à étiquette fixe, un run INTERROMPU laissait ses comptes, et le suivant tombait sur
+// l'unicité de leur adresse en semant son décor (mesuré, F1 : « Unique constraint failed on the fields: (`email`) »).
+const TAG = `__centrerenvoi__${Date.now().toString(36)}`;
 
 const form = (fields: Record<string, string>): FormData => {
   const fd = new FormData();
