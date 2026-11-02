@@ -1,4 +1,5 @@
 import type { PowerTool } from "@/platform/ia/outil";
+import { estOutilAdam, FACTEUR_ADAM, FICHE_ADAM_CARACTERES } from "./adam/outils-adam";
 import type { CurrentUser } from "@/lib/session";
 import {
   classer, indexer, OUTIL_TROUVER, ordonnerActifs, preselectionner, TROUVES_MAX, type FicheOutil,
@@ -36,7 +37,10 @@ export function fichesOffertes(outils: readonly PowerTool[], user: CurrentUser, 
   const mots = motsDesCapacites();
   return outils
     .filter((o) => o.def.name !== OUTIL_TROUVER && o.allowed(user) && autoriseParLaConfig(o.def.name, autorises))
-    .map((o) => ({ nom: o.def.name, libelle: o.label, description: o.def.description, ...(mots.get(o.def.name) ?? MOTS_EXPORTS.get(o.def.name)) }));
+    .map((o) => (estOutilAdam(o.def.name)
+      // A2 (décision 0055) : une fonction d'Adam (Super Admin) — sa fiche est sa première phrase, et son rang est réduit.
+      ? { nom: o.def.name, libelle: o.label, description: o.def.description.slice(0, FICHE_ADAM_CARACTERES), facteur: FACTEUR_ADAM }
+      : { nom: o.def.name, libelle: o.label, description: o.def.description, ...(mots.get(o.def.name) ?? MOTS_EXPORTS.get(o.def.name)) }));
 }
 
 /** Le poids d'un outil envoyé au modèle, en jetons (÷ 3,2 : la calibration du banc J4) — calculé une fois par définition. */

@@ -27,6 +27,11 @@ export interface FicheOutil {
   mots?: string;
   /** Son contexte (fichier, champs) — pesé comme une description : il départage, il ne désigne pas. */
   contexte?: string;
+  /**
+   * A2 (décision 0055) : un facteur de RANG (< 1) — les fonctions d'Adam du Super Admin (~100 outils aux descriptions
+   * riches) ne passent devant un outil de l'ERP que si la demande les vise nettement. Absent : 1.
+   */
+  facteur?: number;
 }
 
 export interface OutilClasse {
@@ -218,7 +223,7 @@ const estGeste = (nom: string) => /^(preparer_|create_|update_|send_|assign_|set
 
 interface Index {
   /** `tete` : le premier mot du libellé — le verbe d'une capacité (« Créer », « Supprimer »). */
-  fiches: { nom: string; poids: Map<string, number>; tete: string | undefined }[];
+  fiches: { nom: string; poids: Map<string, number>; tete: string | undefined; facteur: number }[];
   idf: Map<string, number>;
 }
 
@@ -255,7 +260,7 @@ export function indexer(fiches: readonly FicheOutil[]): Index {
   const out = fiches.map((f) => {
     const { poids, tete } = poidsDe(f);
     for (const m of poids.keys()) df.set(m, (df.get(m) ?? 0) + 1);
-    return { nom: f.nom, poids, tete };
+    return { nom: f.nom, poids, tete, facteur: f.facteur ?? 1 };
   });
   const n = Math.max(1, fiches.length);
   const idf = new Map([...df].map(([m, d]) => [m, Math.log(1 + n / d)]));
@@ -279,6 +284,7 @@ export function classer(demande: string, fiches: readonly FicheOutil[] | Index, 
       if (s > 0 && f.tete && f.tete === premier) s *= MEME_VERBE;
       if (s > 0 && geste && estGeste(f.nom)) s *= 1.35;
       if (s > 0 && !geste && estGeste(f.nom)) s *= 0.8;
+      s *= f.facteur;
       return { nom: f.nom, score: Math.round(s * 100) / 100 };
     })
     .filter((x) => x.score > 0)

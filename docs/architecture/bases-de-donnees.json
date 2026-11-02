@@ -1,0 +1,5987 @@
+{
+ "schemaModeles": 515,
+ "bases": [
+  {
+   "cle": "personnel",
+   "nom": "Personnel & dossiers RH",
+   "nature": "metier",
+   "raison": "Qui travaille chez nous, à quel poste, sous quel contrat, avec quels congés, formations et pièces RH.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Ressources humaines (`src/modules/rh/`, écrans RH, Mon espace, Mon équipe)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "RH",
+      "libelle": "Ressources humaines"
+     },
+     {
+      "cle": "EMPLOYEES",
+      "libelle": "Employés"
+     },
+     {
+      "cle": "HR_REQUESTS",
+      "libelle": "Demandes RH"
+     },
+     {
+      "cle": "TRAINING",
+      "libelle": "Formations"
+     },
+     {
+      "cle": "MY_TEAM",
+      "libelle": "Mon Équipe"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER"
+    ],
+    "famillesIa": [
+     "FICHES",
+     "CONTRATS_RH"
+    ],
+    "mecanismes": [
+     "Périmètre d'entité (`UserCompanyAccess`) : une fiche ne se lit que dans les sociétés permises",
+     "Portée du module (`ASSIGNED` / `ALL`) et accès ligne à ligne (`RowGrant`, type EMPLOYEE / LEAVE_REQUEST)",
+     "Mon dossier : chacun lit SA fiche liée (`Employee.userId`), jamais celle d'autrui",
+     "Coffre : IBAN, NIN et salaires de la fiche ne se lisent en clair que par la porte de lecture du coffre (journalisée)",
+     "Assistant : FICHES suit les droits ; CONTRATS_RH fermée par défaut, ouverte nominativement (avenant `DELEGATION`, droit daté)"
+    ]
+   },
+   "nombreTables": 8,
+   "tables": [
+    {
+     "modele": "Employee",
+     "libelle": "Fiche salarié",
+     "sensibilite": "secret",
+     "pourquoi": "IBAN, NIN, n° CNAS, date de naissance, salaires (base, brut, net, coût employeur)",
+     "ecritePar": [
+      "assistant-actions",
+      "custom-field-actions",
+      "department-actions",
+      "finance-actions",
+      "hr-actions",
+      "hr-document-actions",
+      "org-actions",
+      "org-coherence-actions",
+      "payroll-hr-actions",
+      "recruitment-actions"
+     ]
+    },
+    {
+     "modele": "EmployeeDocument",
+     "libelle": "Pièce du dossier RH (contrat, attestation, fiche de paie)",
+     "sensibilite": "secret",
+     "pourquoi": "contrats et fiches de paie en pièce jointe",
+     "ecritePar": [
+      "hr-document-actions",
+      "payroll-hr-actions"
+     ]
+    },
+    {
+     "modele": "AvenantContrat",
+     "libelle": "Avenant au contrat (fonction, délégation, entité)",
+     "sensibilite": "secret",
+     "pourquoi": "les délégations ouvrent la paie d'autrui à l'assistant (S1)",
+     "ecritePar": [
+      "assistant-ia-consommation-actions"
+     ]
+    },
+    {
+     "modele": "HrDocumentRequest",
+     "libelle": "Demande de document RH",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "assistant-actions",
+      "hr-document-actions",
+      "mission-actions"
+     ]
+    },
+    {
+     "modele": "LeaveRequest",
+     "libelle": "Demande de congé",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "custom-field-actions",
+      "hr-actions",
+      "stand-in-actions"
+     ]
+    },
+    {
+     "modele": "LeaveEscalation",
+     "libelle": "Relance d'une demande de congé",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "hr-actions"
+     ]
+    },
+    {
+     "modele": "Training",
+     "libelle": "Formation",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "training-actions"
+     ]
+    },
+    {
+     "modele": "TrainingParticipant",
+     "libelle": "Participant à une formation",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "training-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "paie",
+   "nom": "Paie & rémunérations",
+   "nature": "metier",
+   "raison": "Ce que chaque salarié gagne, mois par mois, les virements de paie et les avances sur salaire.",
+   "sensibilite": "secret",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Ressources humaines — paie (`src/modules/rh/actions-paie.ts`, écran RH › Paie)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "RH",
+      "libelle": "Ressources humaines"
+     }
+    ],
+    "lectureExige": "UPDATE",
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER"
+    ],
+    "famillesIa": [
+     "SALAIRES"
+    ],
+    "mecanismes": [
+     "Écran et actions de paie : module RH en MODIFICATION (`userCan(user, \"RH\", \"UPDATE\")`), pas la simple lecture",
+     "Périmètre d'entité (`UserCompanyAccess`)",
+     "Chacun voit SA paie (Mon dossier) ; autrui seulement par droit RH réel, avenant `DELEGATION` ou droit daté (S1, décision 0048)",
+     "Assistant : SALAIRES fermée par défaut, jamais ouverte sur autrui par un réglage de rôle ; filtre de confidentialité avant tout modèle"
+    ]
+   },
+   "nombreTables": 3,
+   "tables": [
+    {
+     "modele": "PayrollEntry",
+     "libelle": "Ligne de paie mensuelle d'un salarié",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "finance-actions",
+      "payroll-hr-actions"
+     ]
+    },
+    {
+     "modele": "PayrollWire",
+     "libelle": "Virement de paie groupé",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "expense-actions",
+      "payroll-hr-actions"
+     ]
+    },
+    {
+     "modele": "SalaryAdvance",
+     "libelle": "Avance sur salaire",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "custom-field-actions",
+      "expense-actions",
+      "hr-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "recrutement",
+   "nom": "Recrutement",
+   "nature": "metier",
+   "raison": "Les postes ouverts, leurs approbations, les candidats et leurs candidatures (dont celles reçues par le site).",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Recrutement (`src/lib/recruitment/`, écran Recrutement) ; le site web dépose les candidatures",
+   "acces": {
+    "modules": [
+     {
+      "cle": "RECRUITMENT",
+      "libelle": "Recrutement"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER"
+    ],
+    "famillesIa": [
+     "FICHES"
+    ],
+    "mecanismes": [
+     "Suiveurs d'une demande (`RecruitmentFollower`) et approbateurs nommés",
+     "Portée du module (`ASSIGNED` / `ALL`)"
+    ]
+   },
+   "nombreTables": 8,
+   "tables": [
+    {
+     "modele": "RecruitmentRequest",
+     "libelle": "Demande de recrutement",
+     "sensibilite": "secret",
+     "pourquoi": "fourchette de salaire du poste (`salaryMin`, `salaryMax`)",
+     "ecritePar": [
+      "recruitment-actions"
+     ]
+    },
+    {
+     "modele": "RecruitmentApproval",
+     "libelle": "Approbation d'une demande de recrutement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "recruitment-actions"
+     ]
+    },
+    {
+     "modele": "RecruitmentInfoRequest",
+     "libelle": "Demande de complément sur un recrutement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "recruitment-actions"
+     ]
+    },
+    {
+     "modele": "RecruitmentCandidate",
+     "libelle": "Candidat",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "candidatures-site-actions",
+      "recruitment-actions"
+     ]
+    },
+    {
+     "modele": "RecruitmentFollower",
+     "libelle": "Suiveur d'une demande de recrutement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "recruitment-actions"
+     ]
+    },
+    {
+     "modele": "RecruitmentChannelPost",
+     "libelle": "Diffusion d'une offre sur un canal",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "recrutement-diffusion-actions"
+     ]
+    },
+    {
+     "modele": "JobPosting",
+     "libelle": "Offre d'emploi",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "offres-emploi-actions",
+      "recrutement-diffusion-actions"
+     ]
+    },
+    {
+     "modele": "SiteCandidature",
+     "libelle": "Candidature reçue par le site web",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "candidatures-site-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "finances",
+   "nom": "Finances, paiements & trésorerie",
+   "nature": "metier",
+   "raison": "Les demandes de paiement, ordres de dépense, mouvements, comptes de trésorerie et le centre de paiement.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Finances (`src/modules/finances/`, écrans Finances, Centre de paiement, Demandes de paiement)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "FINANCES",
+      "libelle": "Finances"
+     },
+     {
+      "cle": "PAYMENT_CENTRE",
+      "libelle": "Centre de paiement"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "famillesIa": [
+     "BUDGETS"
+    ],
+    "mecanismes": [
+     "Centre de paiement : siège réservé (`PaymentCentreSeat`, règle `sitsOnPaymentCentre`)",
+     "Seuils de paiement (`PaymentThreshold`) : qui signe au-delà de quel montant",
+     "Périmètre d'entité (`UserCompanyAccess`) ; accès ligne à ligne (`RowGrant`, FINANCE_TRANSACTION / EXPENSE_ORDER)"
+    ]
+   },
+   "nombreTables": 12,
+   "tables": [
+    {
+     "modele": "PaymentRequest",
+     "libelle": "Demande de paiement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "expense-actions",
+      "medical-info-actions",
+      "payment-request-actions"
+     ]
+    },
+    {
+     "modele": "PaymentPiece",
+     "libelle": "Pièce d'une demande de paiement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "medical-info-actions",
+      "payment-request-actions"
+     ]
+    },
+    {
+     "modele": "PaymentRequestEvent",
+     "libelle": "Événement d'une demande de paiement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "budget-depense-poste-actions",
+      "expense-actions",
+      "invoice-actions",
+      "legal-actions",
+      "payment-request-actions",
+      "relance-paiement-actions"
+     ]
+    },
+    {
+     "modele": "ExpenseOrder",
+     "libelle": "Ordre de dépense",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "admin-request-actions",
+      "budget-depense-poste-actions",
+      "budget-envelope-actions",
+      "budget-pole-actions",
+      "care-actions",
+      "congress-request-actions",
+      "custom-field-actions",
+      "expense-actions",
+      "hr-actions",
+      "invoice-actions",
+      "legal-actions",
+      "medical-info-actions",
+      "payment-centre-actions",
+      "payment-request-actions",
+      "payroll-hr-actions",
+      "petty-cash-actions",
+      "promo-budget-actions",
+      "promo-execution-actions",
+      "promo-material-actions",
+      "regulatory-actions",
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "FinanceTransaction",
+     "libelle": "Mouvement financier (encaissement, décaissement)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-depense-poste-actions",
+      "budget-envelope-actions",
+      "budget-pole-actions",
+      "custom-field-actions",
+      "expense-actions",
+      "finance-actions",
+      "invoice-actions",
+      "legal-actions",
+      "payment-centre-actions",
+      "payroll-hr-actions",
+      "promo-budget-actions"
+     ]
+    },
+    {
+     "modele": "TreasuryAccount",
+     "libelle": "Compte de trésorerie (banque, caisse)",
+     "sensibilite": "secret",
+     "pourquoi": "banque et RIB des comptes de la société",
+     "ecritePar": [
+      "actualisation-soldes-actions",
+      "finance-actions"
+     ]
+    },
+    {
+     "modele": "DemandeActualisationSoldes",
+     "libelle": "Demande d'actualisation des soldes",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "actualisation-soldes-actions",
+      "finance-actions"
+     ]
+    },
+    {
+     "modele": "LigneActualisationSoldes",
+     "libelle": "Solde déclaré pour un compte",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "actualisation-soldes-actions"
+     ]
+    },
+    {
+     "modele": "PaymentCentreSeat",
+     "libelle": "Siège au centre de paiement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "payment-centre-seat-actions"
+     ]
+    },
+    {
+     "modele": "PaymentCentreMessage",
+     "libelle": "Message du centre de paiement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "congress-request-actions",
+      "payment-centre-actions",
+      "payment-request-actions",
+      "relance-paiement-actions"
+     ]
+    },
+    {
+     "modele": "PaymentThreshold",
+     "libelle": "Seuil de signature d'un paiement",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "DocumentRequest",
+     "libelle": "Demande de pièce justificative",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "document-request-actions",
+      "hr-document-actions",
+      "reservation-fiche-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "budgets",
+   "nom": "Budgets & caisses",
+   "nature": "metier",
+   "raison": "Les enveloppes, lignes et campagnes budgétaires, les budgets de département et les caisses d'avance.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Budgets (`src/lib/budget/`, écrans Budgets, Campagne budgétaire, Budget marketing / réglementaire / opérations)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "BUDGETS",
+      "libelle": "Budgets"
+     },
+     {
+      "cle": "BUDGET_MARKETING",
+      "libelle": "Budget Marketing"
+     },
+     {
+      "cle": "BUDGET_REGULATORY",
+      "libelle": "Budget Regulatory"
+     },
+     {
+      "cle": "BUDGET_OPERATIONS",
+      "libelle": "Budget Operations & Sales"
+     },
+     {
+      "cle": "BUDGET_CAMPAIGN",
+      "libelle": "Campagne budgétaire"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "PRODUCT_MANAGER",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "PRODUCT_MANAGER",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "famillesIa": [
+     "BUDGETS"
+    ],
+    "mecanismes": [
+     "Accès d'un responsable à SON budget de département (`DepartmentBudgetAccess`)",
+     "Caisse d'avance : titulaire du plan (`PettyCashPlan`)",
+     "Périmètre d'entité (`UserCompanyAccess`)"
+    ]
+   },
+   "nombreTables": 19,
+   "tables": [
+    {
+     "modele": "BudgetLine",
+     "libelle": "Ligne budgétaire",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-actions",
+      "custom-field-actions"
+     ]
+    },
+    {
+     "modele": "BudgetEnvelope",
+     "libelle": "Enveloppe budgétaire",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions",
+      "budget-envelope-actions",
+      "budget-pole-actions"
+     ]
+    },
+    {
+     "modele": "BudgetCategoryLine",
+     "libelle": "Ligne par catégorie budgétaire",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions",
+      "budget-envelope-actions",
+      "budget-pole-actions",
+      "integration-adpro-actions",
+      "natures-moyens-generaux-actions"
+     ]
+    },
+    {
+     "modele": "BudgetExpenseLine",
+     "libelle": "Dépense imputée au budget",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-envelope-actions",
+      "budget-pole-actions",
+      "mission-actions"
+     ]
+    },
+    {
+     "modele": "BudgetCampaign",
+     "libelle": "Campagne budgétaire",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions"
+     ]
+    },
+    {
+     "modele": "BudgetProposal",
+     "libelle": "Proposition de budget",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions"
+     ]
+    },
+    {
+     "modele": "BudgetProposalVersion",
+     "libelle": "Version d'une proposition de budget",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions"
+     ]
+    },
+    {
+     "modele": "BudgetProposalLine",
+     "libelle": "Ligne d'une proposition de budget",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions"
+     ]
+    },
+    {
+     "modele": "BudgetProposalComment",
+     "libelle": "Commentaire sur une proposition de budget",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions"
+     ]
+    },
+    {
+     "modele": "BudgetProposalVote",
+     "libelle": "Avis sur une proposition de budget",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "budget-campagne-actions"
+     ]
+    },
+    {
+     "modele": "DepartmentBudget",
+     "libelle": "Budget de département",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "department-budget-actions"
+     ]
+    },
+    {
+     "modele": "DepartmentBudgetAccess",
+     "libelle": "Accès d'un responsable au budget de son département",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "department-budget-actions"
+     ]
+    },
+    {
+     "modele": "DepartmentBudgetRequest",
+     "libelle": "Demande sur un budget de département",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "department-budget-actions"
+     ]
+    },
+    {
+     "modele": "DepartmentBudgetExpense",
+     "libelle": "Dépense d'un budget de département",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "admin-request-actions",
+      "department-budget-actions",
+      "natures-moyens-generaux-actions",
+      "petty-cash-actions"
+     ]
+    },
+    {
+     "modele": "DepartmentExpenseLine",
+     "libelle": "Ligne de dépense de département",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "department-budget-actions",
+      "natures-moyens-generaux-actions",
+      "petty-cash-actions"
+     ]
+    },
+    {
+     "modele": "PettyCashPlan",
+     "libelle": "Plan de caisse d'avance",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "petty-cash-actions"
+     ]
+    },
+    {
+     "modele": "PettyCashTopUpRequest",
+     "libelle": "Demande de réapprovisionnement de caisse",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "petty-cash-actions"
+     ]
+    },
+    {
+     "modele": "PettyCashAllotment",
+     "libelle": "Dotation de caisse d'avance",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "expense-actions",
+      "payment-centre-actions",
+      "petty-cash-actions"
+     ]
+    },
+    {
+     "modele": "CoutRepartitionBu",
+     "libelle": "Répartition d'un coût entre business units",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "repartition-couts-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "juridique",
+   "nom": "Juridique, contrats & courriers",
+   "nature": "metier",
+   "raison": "Les contrats, bons de commande, factures et devis (documents légaux) et le registre des courriers entrants et sortants.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Juridique (`src/lib/legal/`, écran Legal), Bons de commande, Registre des courriers (`src/lib/mail-register/`)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "LEGAL",
+      "libelle": "Legal"
+     },
+     {
+      "cle": "MAIL_REGISTER",
+      "libelle": "Courriers"
+     },
+     {
+      "cle": "PURCHASE_ORDERS",
+      "libelle": "Bons de commande"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "FINANCE_BUDGET_MANAGER",
+     "DIRECTION_ASSISTANT"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "FINANCE_BUDGET_MANAGER",
+     "DIRECTION_ASSISTANT"
+    ],
+    "famillesIa": [
+     "AD_PRO"
+    ],
+    "mecanismes": [
+     "Lecteurs nommés d'un document légal (`LegalDocumentReader`)",
+     "Signataires et lecteurs des bons de commande (gestes `BC_SIGNATAIRE` / `BC_LECTEUR`)",
+     "Périmètre d'entité (`UserCompanyAccess`)"
+    ]
+   },
+   "nombreTables": 8,
+   "tables": [
+    {
+     "modele": "LegalDocument",
+     "libelle": "Document légal (contrat, bon de commande, facture, devis, avoir)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "ad-pro-rattacher-legal",
+      "bc-signature-actions",
+      "budget-depense-poste-actions",
+      "fabrique-actions",
+      "invoice-actions",
+      "legal-actions",
+      "legal-folder-actions",
+      "payment-request-actions",
+      "pch-market-actions",
+      "promo-execution-actions",
+      "secretariat-devis-actions",
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "LegalFolder",
+     "libelle": "Dossier juridique",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "legal-folder-actions"
+     ]
+    },
+    {
+     "modele": "LegalDocumentReader",
+     "libelle": "Lecteur autorisé d'un document légal",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "legal-actions"
+     ]
+    },
+    {
+     "modele": "BcBrouillonVersion",
+     "libelle": "Version du brouillon d'un bon de commande",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions"
+     ]
+    },
+    {
+     "modele": "MailPartner",
+     "libelle": "Correspondant du registre des courriers",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "mail-partner-actions"
+     ]
+    },
+    {
+     "modele": "MailEntry",
+     "libelle": "Courrier enregistré (arrivée / départ)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "mail-folder-actions",
+      "mail-register-actions"
+     ]
+    },
+    {
+     "modele": "MailEntryPiece",
+     "libelle": "Pièce d'un courrier",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "mail-piece-actions"
+     ]
+    },
+    {
+     "modele": "MailEntryFolder",
+     "libelle": "Classeur du registre des courriers",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "mail-folder-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "societes",
+   "nom": "Sociétés du groupe & organisation interne",
+   "nature": "metier",
+   "raison": "Les entités du groupe (Adventum, Pharmagène…), leur identité légale, leurs départements, business units et délégations de pouvoir.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Administration (Sociétés, Organigramme) et Business units",
+   "acces": {
+    "modules": [
+     {
+      "cle": "ADMIN",
+      "libelle": "Administration"
+     },
+     {
+      "cle": "BUSINESS_UNITS",
+      "libelle": "Business Units"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "MEDICAL_PROMOTION_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "MEDICAL_PROMOTION_MANAGER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "La liste des sociétés est lue partout (choix d'entité) ; sa modification est réservée à l'Administration",
+     "Coffre : le RIB et l'IBAN de la société ne se lisent en clair que par la porte de lecture du coffre"
+    ]
+   },
+   "nombreTables": 5,
+   "tables": [
+    {
+     "modele": "Company",
+     "libelle": "Société du groupe (entité)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "company-actions"
+     ]
+    },
+    {
+     "modele": "CompanyLegalIdentity",
+     "libelle": "Identité légale d'une société (NIF, RC, banque)",
+     "sensibilite": "secret",
+     "pourquoi": "banque, agence, RIB et IBAN de la société",
+     "ecritePar": [
+      "company-identity-actions"
+     ]
+    },
+    {
+     "modele": "Department",
+     "libelle": "Département",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "department-actions",
+      "org-coherence-actions",
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "BusinessUnit",
+     "libelle": "Business unit",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "org-coherence-actions",
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "AuthorityHolder",
+     "libelle": "Titulaire d'un pouvoir (signature, délégation)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "coffre",
+   "nom": "Coffre des données sensibles",
+   "nature": "metier",
+   "raison": "La copie chiffrée des IBAN, RIB, NIN et salaires, et le journal de qui les a lus, quand et pourquoi.",
+   "sensibilite": "secret",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Module Coffre (`src/modules/coffre/`) — double écriture depuis chaque écrivain d'une colonne sensible",
+   "acces": {
+    "modules": [
+     {
+      "cle": "ADMIN",
+      "libelle": "Administration"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Chiffrement AES-256-GCM avec une clé dédiée ; la lecture en clair passe par la politique `peutLire` et est journalisée",
+     "Deux portes serveur : l'écriture (`api.ts`) ne déchiffre jamais ; la lecture (`api-lecture.ts`) est interdite à l'assistant (test de frontière)",
+     "Interrupteurs `coffreEcriture` / `coffreLecture` réservés au Super Admin",
+     "Aucun modèle d'IA ne lit jamais le coffre (décision de la Direction ; `ia-jamais.test.ts`)"
+    ]
+   },
+   "nombreTables": 2,
+   "tables": [
+    {
+     "modele": "DonneeSensible",
+     "libelle": "Donnée sensible chiffrée (IBAN, RIB, NIN, salaire)",
+     "sensibilite": "secret",
+     "ecritePar": []
+    },
+    {
+     "modele": "AccesDonneeSensible",
+     "libelle": "Journal des lectures d'une donnée sensible",
+     "sensibilite": "secret",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "annuaires",
+   "nom": "Annuaires, personnes & organisations",
+   "nature": "metier",
+   "raison": "Le référentiel unique des personnes et organisations réelles (médecins, fournisseurs, partenaires), leurs adresses et contacts, et les annuaires.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Référentiels (`src/modules/referentiels/`, `src/modules/lieux/`) et Annuaires (`src/lib/directory/`)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "DIRECTORIES",
+      "libelle": "Annuaires"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Accès par annuaire (`MedicalDirectoryAccess`) et sections du module Annuaires (`UserAccess.sections`)",
+     "L'extraction du registre complet par l'assistant se juge sur le droit RÉEL de la personne (S1, `directory_list`)",
+     "Coffre : le RIB d'un partenaire ne se lit en clair que par la porte de lecture du coffre"
+    ]
+   },
+   "nombreTables": 20,
+   "tables": [
+    {
+     "modele": "Personne",
+     "libelle": "Personne réelle (référentiel unique)",
+     "sensibilite": "confidentiel",
+     "pourquoi": "date de naissance et identité civile",
+     "ecritePar": []
+    },
+    {
+     "modele": "PersonneRole",
+     "libelle": "Rôle daté d'une personne",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "DoublonPersonne",
+     "libelle": "Doublon de personne proposé",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "Organisation",
+     "libelle": "Organisation réelle (référentiel unique)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "organisation-actions"
+     ]
+    },
+    {
+     "modele": "OrganisationRole",
+     "libelle": "Rôle daté d'une organisation",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "OrganisationIdentifiant",
+     "libelle": "Identifiant officiel d'une organisation (NIF, RC…)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "PropositionDoublonOrganisation",
+     "libelle": "Doublon d'organisation proposé",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "organisation-actions"
+     ]
+    },
+    {
+     "modele": "Affiliation",
+     "libelle": "Rattachement d'une personne à une organisation",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "Adresse",
+     "libelle": "Adresse d'une personne ou d'une organisation",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "PointDeContact",
+     "libelle": "Téléphone ou courriel d'une personne ou d'une organisation",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "Wilaya",
+     "libelle": "Wilaya (découpage administratif officiel)",
+     "sensibilite": "public-interne",
+     "pourquoi": "donnée officielle publique",
+     "ecritePar": []
+    },
+    {
+     "modele": "Commune",
+     "libelle": "Commune (découpage administratif officiel)",
+     "sensibilite": "public-interne",
+     "pourquoi": "donnée officielle publique",
+     "ecritePar": []
+    },
+    {
+     "modele": "MedicalDirectory",
+     "libelle": "Annuaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "medical-directory-crud-actions",
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "MedicalDirectoryColumn",
+     "libelle": "Colonne d'un annuaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "medical-directory-crud-actions"
+     ]
+    },
+    {
+     "modele": "MedicalDirectoryAccess",
+     "libelle": "Accès d'une personne à un annuaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "medical-directory-crud-actions"
+     ]
+    },
+    {
+     "modele": "DirectoryEntry",
+     "libelle": "Entrée d'annuaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "directory-actions"
+     ]
+    },
+    {
+     "modele": "DirectoryCellStyle",
+     "libelle": "Mise en forme d'une cellule d'annuaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "annuaire-couleurs-actions"
+     ]
+    },
+    {
+     "modele": "DirectoryEndpoint",
+     "libelle": "Point de diffusion d'un annuaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "directory-actions"
+     ]
+    },
+    {
+     "modele": "CompanyContact",
+     "libelle": "Contact d'un partenaire",
+     "sensibilite": "secret",
+     "pourquoi": "RIB du partenaire (copié au coffre)",
+     "ecritePar": [
+      "company-contact-actions"
+     ]
+    },
+    {
+     "modele": "Supplier",
+     "libelle": "Fournisseur",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "fournisseurs-annuaire-actions",
+      "regulatory-actions",
+      "supplier-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "ad-pro",
+   "nom": "Ad & Pro, congrès & événements",
+   "nature": "metier",
+   "raison": "Les dépenses de promotion auprès des professionnels de santé : sponsoring, congrès, prises en charge, voyages, devis et événements.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Ad & Pro (`src/modules/ad-pro/`, écrans Ad & Pro, Congrès, Sponsoring, Événements, Centre de validation Ad & Pro)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "SPONSORING",
+      "libelle": "Sponsoring"
+     },
+     {
+      "cle": "CONGRESS_INTERNATIONAL",
+      "libelle": "Prises en charge Internationales"
+     },
+     {
+      "cle": "CONGRESS_NATIONAL",
+      "libelle": "Prises en charge Nationales"
+     },
+     {
+      "cle": "EVENTS",
+      "libelle": "Événements"
+     },
+     {
+      "cle": "CONSULTING",
+      "libelle": "Consulting"
+     },
+     {
+      "cle": "AD_PRO_OTHER",
+      "libelle": "Ad & Pro — autres demandes"
+     },
+     {
+      "cle": "AD_PRO_CENTRE",
+      "libelle": "Centre de validation Ad & Pro"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER"
+    ],
+    "famillesIa": [
+     "AD_PRO"
+    ],
+    "mecanismes": [
+     "Visas de porte (`AdProGateVisa`) et porte du DG sur le total d'une demande (`AdProPorteDg`)",
+     "Référents marketing par business unit (`BusinessUnitMarketingReferent`)",
+     "Portée du module et accès ligne à ligne (`RowGrant`, SPONSORING / CONGRESS_*)"
+    ]
+   },
+   "nombreTables": 36,
+   "tables": [
+    {
+     "modele": "AdProItem",
+     "libelle": "Demande Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "budget-depense-poste-actions",
+      "document-request-actions",
+      "integration-adpro-actions"
+     ]
+    },
+    {
+     "modele": "AdProItemPiece",
+     "libelle": "Pièce d'une demande Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "budget-depense-poste-actions"
+     ]
+    },
+    {
+     "modele": "AdProItemDecision",
+     "libelle": "Décision sur une demande Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AdProVoyageur",
+     "libelle": "Voyageur d'une demande Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions"
+     ]
+    },
+    {
+     "modele": "AdProVoyageurDevis",
+     "libelle": "Devis de voyage d'un voyageur",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions"
+     ]
+    },
+    {
+     "modele": "AdProHebergement",
+     "libelle": "Hébergement d'une demande Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions"
+     ]
+    },
+    {
+     "modele": "AdProMedecin",
+     "libelle": "Médecin bénéficiaire d'une demande Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-medecins-actions"
+     ]
+    },
+    {
+     "modele": "AdProDevis",
+     "libelle": "Devis Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions"
+     ]
+    },
+    {
+     "modele": "AdProDevisLigne",
+     "libelle": "Ligne d'un devis Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions"
+     ]
+    },
+    {
+     "modele": "AdProGateVisa",
+     "libelle": "Visa d'une porte Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-centre-actions",
+      "ad-pro-edit-actions",
+      "ad-pro-item-actions",
+      "ad-pro-other-actions",
+      "ad-pro-rattacher-legal",
+      "consulting-actions",
+      "legal-actions",
+      "promo-execution-actions",
+      "secretariat-devis-actions"
+     ]
+    },
+    {
+     "modele": "AdProPorteDg",
+     "libelle": "Porte du DG sur le total d'une demande",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "care-actions",
+      "porte-dg-actions"
+     ]
+    },
+    {
+     "modele": "AdProIntegrationLot",
+     "libelle": "Lot d'intégration budgétaire Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "integration-adpro-actions"
+     ]
+    },
+    {
+     "modele": "AdProIntegrationDemande",
+     "libelle": "Demande intégrée au budget",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "integration-adpro-actions",
+      "rapprochement-adpro-actions"
+     ]
+    },
+    {
+     "modele": "AdProIntegrationDecision",
+     "libelle": "Décision d'intégration budgétaire",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "integration-adpro-actions"
+     ]
+    },
+    {
+     "modele": "AdProRapprochement",
+     "libelle": "Rapprochement Ad & Pro / budget",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "rapprochement-adpro-actions"
+     ]
+    },
+    {
+     "modele": "AdProRapprochementLecture",
+     "libelle": "Lecture d'un rapprochement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "rapprochement-adpro-actions"
+     ]
+    },
+    {
+     "modele": "AdProOtherRequest",
+     "libelle": "Autre demande Ad & Pro",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-centre-actions",
+      "ad-pro-other-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "AdProProductAllocation",
+     "libelle": "Répartition d'une demande par produit",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AdProStockLine",
+     "libelle": "Ligne de stock consommée par une demande",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions"
+     ]
+    },
+    {
+     "modele": "DemandeReservation",
+     "libelle": "Demande de réservation (voyage, hôtel)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "care-actions",
+      "reservation-fiche-actions"
+     ]
+    },
+    {
+     "modele": "SponsoringRequest",
+     "libelle": "Demande de sponsoring",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "custom-field-actions",
+      "expense-actions",
+      "medical-info-actions",
+      "sponsoring-actions"
+     ]
+    },
+    {
+     "modele": "CongressInternational",
+     "libelle": "Congrès international",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions",
+      "congress-request-actions",
+      "custom-field-actions",
+      "medical-info-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "CongressNational",
+     "libelle": "Congrès national",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions",
+      "congress-request-actions",
+      "custom-field-actions",
+      "medical-info-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "CareBeneficiary",
+     "libelle": "Bénéficiaire d'une prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions",
+      "congress-beneficiary-actions",
+      "congress-request-actions"
+     ]
+    },
+    {
+     "modele": "CareCell",
+     "libelle": "Cellule de prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions",
+      "congress-beneficiary-actions",
+      "congress-request-actions",
+      "reservation-fiche-actions"
+     ]
+    },
+    {
+     "modele": "CareQuote",
+     "libelle": "Devis de prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions",
+      "reservation-fiche-actions"
+     ]
+    },
+    {
+     "modele": "CareQuoteCell",
+     "libelle": "Cellule d'un devis de prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "CareGroupPoste",
+     "libelle": "Poste d'un groupe de prise en charge",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "care-actions"
+     ]
+    },
+    {
+     "modele": "ConsultingContract",
+     "libelle": "Contrat de consulting",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-centre-actions",
+      "consulting-actions"
+     ]
+    },
+    {
+     "modele": "ConsultingTask",
+     "libelle": "Tâche de consulting",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "consulting-actions"
+     ]
+    },
+    {
+     "modele": "BusinessUnitMarketingReferent",
+     "libelle": "Référent marketing d'une business unit",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "Event",
+     "libelle": "Événement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "event-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "EventRegistration",
+     "libelle": "Inscription à un événement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "event-actions"
+     ]
+    },
+    {
+     "modele": "MissionAssignment",
+     "libelle": "Mission terrain d'un événement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "hr-document-actions",
+      "mission-actions"
+     ]
+    },
+    {
+     "modele": "MissionParticipationVersion",
+     "libelle": "Version de la participation à une mission",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "mission-actions"
+     ]
+    },
+    {
+     "modele": "MissionExpenseLine",
+     "libelle": "Frais d'une mission terrain",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "mission-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "materiel-promo",
+   "nom": "Matériel promotionnel",
+   "nature": "metier",
+   "raison": "Le matériel promotionnel : catalogue, devis et factures fournisseurs, stock par lot, mouvements, transferts et inventaires.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "restreint",
+   "ecritPar": "Matériel promotionnel & stock promo (`src/lib/promo/`, `src/lib/promo-material/`, écrans Stock promotionnel, Catalogue)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "PROMO_MATERIAL",
+      "libelle": "Matériel promotionnel"
+     },
+     {
+      "cle": "PROMO_STOCK",
+      "libelle": "Stock promotionnel"
+     },
+     {
+      "cle": "PROMO_CATALOG",
+      "libelle": "Catalogue promotionnel"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "famillesIa": [
+     "AD_PRO"
+    ],
+    "mecanismes": [
+     "Règle propre du stock promotionnel (`src/lib/promo/stock-acces.ts`) : quelles équipes voient quel stock"
+    ]
+   },
+   "nombreTables": 19,
+   "tables": [
+    {
+     "modele": "PromoMaterial",
+     "libelle": "Article de matériel promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "expense-actions",
+      "medical-info-actions",
+      "promo-budget-actions",
+      "promo-circuit-actions",
+      "promo-demande-actions",
+      "promo-devis-actions",
+      "promo-execution-actions",
+      "promo-material-actions"
+     ]
+    },
+    {
+     "modele": "PromoCatalogueArticle",
+     "libelle": "Article du catalogue promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-catalogue-actions",
+      "promo-demande-actions"
+     ]
+    },
+    {
+     "modele": "PromoQuote",
+     "libelle": "Devis de matériel promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-circuit-actions",
+      "promo-devis-actions",
+      "promo-execution-actions"
+     ]
+    },
+    {
+     "modele": "PromoQuoteLine",
+     "libelle": "Ligne d'un devis de matériel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-devis-actions"
+     ]
+    },
+    {
+     "modele": "PromoRequestItem",
+     "libelle": "Demande de matériel promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-demande-actions"
+     ]
+    },
+    {
+     "modele": "PromoRequestItemProduct",
+     "libelle": "Produit concerné par une demande de matériel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-demande-actions"
+     ]
+    },
+    {
+     "modele": "PromoFacture",
+     "libelle": "Facture fournisseur de matériel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-execution-actions"
+     ]
+    },
+    {
+     "modele": "PromoFactureLigne",
+     "libelle": "Ligne d'une facture de matériel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-execution-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockItem",
+     "libelle": "Article en stock promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-execution-actions",
+      "promo-stock-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockItemProduct",
+     "libelle": "Produit associé à un article en stock",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "PromoStockLot",
+     "libelle": "Lot de stock promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-execution-actions",
+      "promo-stock-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockMovement",
+     "libelle": "Mouvement de stock promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "promo-execution-actions",
+      "promo-stock-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockTransfer",
+     "libelle": "Transfert de stock promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-stock-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockRequest",
+     "libelle": "Demande de sortie de stock promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "mission-actions",
+      "promo-stock-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockComptage",
+     "libelle": "Inventaire du stock promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-comptage-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockComptageLigne",
+     "libelle": "Ligne d'inventaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-comptage-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockComptageRecurrence",
+     "libelle": "Récurrence d'inventaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-comptage-actions"
+     ]
+    },
+    {
+     "modele": "PromoStockAlerte",
+     "libelle": "Alerte de stock promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "PromoStockRefonte",
+     "libelle": "Reprise du stock promotionnel (refonte)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-comptage-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "reglementaire",
+   "nom": "Réglementaire",
+   "nature": "metier",
+   "raison": "Les produits enregistrés, dossiers d'AMM et leurs versions, réserves ANPP, sources réglementaires, obligations et études de cas.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "restreint",
+   "ecritPar": "Réglementaire (`src/lib/regulatory/`, écrans Regulatory, Pipeline réglementaire, Regulatory Intelligence)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "REGULATORY",
+      "libelle": "Regulatory"
+     },
+     {
+      "cle": "REGULATORY_PIPELINE",
+      "libelle": "Pipeline réglementaire"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT"
+    ],
+    "famillesIa": [
+     "REGLEMENTAIRE"
+    ],
+    "mecanismes": [
+     "Accès par fonctionnalité du Regulatory Intelligence OS (`RegulatoryFeatureAccess`)",
+     "Pipeline réglementaire (droit `REGULATORY_PIPELINE`) ; accès ligne à ligne (`RowGrant`, REGULATORY_PRODUCT / STEP)"
+    ]
+   },
+   "nombreTables": 44,
+   "tables": [
+    {
+     "modele": "RegulatoryProduct",
+     "libelle": "Produit enregistré (réglementaire)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-actions",
+      "custom-field-actions",
+      "expense-actions",
+      "product-range-actions",
+      "produit-canonique-actions",
+      "regulatory-actions",
+      "sales-planning-actions",
+      "supplier-actions"
+     ]
+    },
+    {
+     "modele": "RegulatoryVariation",
+     "libelle": "Variation d'un enregistrement",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "regulatory-actions"
+     ]
+    },
+    {
+     "modele": "RegulatoryUpdateReminder",
+     "libelle": "Rappel de mise à jour réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "regulatory-reminder-actions"
+     ]
+    },
+    {
+     "modele": "RegulatoryStep",
+     "libelle": "Étape réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "regulatory-actions"
+     ]
+    },
+    {
+     "modele": "RegulatoryDossierStep",
+     "libelle": "Étape d'un dossier réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "regulatory-timeline-actions"
+     ]
+    },
+    {
+     "modele": "RegulatoryRequest",
+     "libelle": "Demande au pôle réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryRequestMessage",
+     "libelle": "Message d'une demande réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryFeatureAccess",
+     "libelle": "Accès à une fonctionnalité réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryDossier",
+     "libelle": "Dossier réglementaire (AMM)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryDossierVersion",
+     "libelle": "Version d'un dossier réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryDocument",
+     "libelle": "Document d'un dossier réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryExtraction",
+     "libelle": "Extraction d'un document réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryFinding",
+     "libelle": "Constat sur un dossier",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatorySource",
+     "libelle": "Source réglementaire (texte, guide)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatorySourceVersion",
+     "libelle": "Version d'une source réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatorySourceSection",
+     "libelle": "Section d'une source réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryCorpusApproval",
+     "libelle": "Approbation d'une source du corpus",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryFact",
+     "libelle": "Fait réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryFactOccurrence",
+     "libelle": "Occurrence d'un fait réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryConflict",
+     "libelle": "Contradiction entre sources",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryAssessment",
+     "libelle": "Évaluation d'un dossier",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryJob",
+     "libelle": "Traitement réglementaire en file",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryAuditLog",
+     "libelle": "Journal du Regulatory Intelligence OS",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryRulePack",
+     "libelle": "Jeu de règles réglementaires",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryRule",
+     "libelle": "Règle réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryUploadSession",
+     "libelle": "Dépôt réglementaire en cours",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryUploadPart",
+     "libelle": "Morceau d'un dépôt réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryGeneratedDoc",
+     "libelle": "Document réglementaire généré",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryDossierChatMessage",
+     "libelle": "Échange sur un dossier réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryReserveCycle",
+     "libelle": "Cycle de réserves",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryReservePoint",
+     "libelle": "Point de réserve",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryAiCall",
+     "libelle": "Appel IA du réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryAiBatch",
+     "libelle": "Lot d'appels IA du réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryAiCache",
+     "libelle": "Cache des réponses IA du réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AnppReserveBatch",
+     "libelle": "Lot de réserves ANPP",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AnppReserve",
+     "libelle": "Réserve ANPP",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AnppDerivedRule",
+     "libelle": "Règle tirée des réserves ANPP",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatorySimulation",
+     "libelle": "Simulation réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatorySupplierRequest",
+     "libelle": "Demande au fournisseur (réglementaire)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatorySupplierQuestion",
+     "libelle": "Question au fournisseur",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryLifecycleEvent",
+     "libelle": "Événement du cycle de vie d'un produit",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryObligation",
+     "libelle": "Obligation réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryCaseStudy",
+     "libelle": "Étude de cas réglementaire",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RegulatoryCaseDoc",
+     "libelle": "Document d'une étude de cas",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "produits",
+   "nom": "Produits & gammes",
+   "nature": "metier",
+   "raison": "Le catalogue des produits du groupe : fiche produit unique, gammes, prix, noms alternatifs et affectations.",
+   "sensibilite": "public-interne",
+   "sensibiliteMax": "restreint",
+   "ecritPar": "Produits 360 (`src/lib/products/`, écrans Produits, Explorateur produits)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "PRODUCTS",
+      "libelle": "Produits"
+     },
+     {
+      "cle": "PRODUCT_EXPLORER",
+      "libelle": "Explorateur produits"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Gammes attribuées à une personne (`UserProductRange`) : filtre des écrans terrain et marketing"
+    ]
+   },
+   "nombreTables": 6,
+   "tables": [
+    {
+     "modele": "Product",
+     "libelle": "Produit (fiche unique)",
+     "sensibilite": "public-interne",
+     "ecritePar": [
+      "produit-canonique-actions",
+      "regulatory-actions",
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "ProductAlias",
+     "libelle": "Nom alternatif d'un produit",
+     "sensibilite": "public-interne",
+     "ecritePar": [
+      "produit-canonique-actions"
+     ]
+    },
+    {
+     "modele": "ProductPrice",
+     "libelle": "Prix d'un produit",
+     "sensibilite": "restreint",
+     "pourquoi": "prix et conditions commerciales",
+     "ecritePar": [
+      "prix-produit-actions"
+     ]
+    },
+    {
+     "modele": "ProductRange",
+     "libelle": "Gamme de produits",
+     "sensibilite": "public-interne",
+     "ecritePar": [
+      "product-range-actions"
+     ]
+    },
+    {
+     "modele": "UserProductRange",
+     "libelle": "Gamme attribuée à une personne",
+     "sensibilite": "public-interne",
+     "ecritePar": [
+      "product-range-actions"
+     ]
+    },
+    {
+     "modele": "ProductAssignment",
+     "libelle": "Affectation d'un produit",
+     "sensibilite": "public-interne",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "developpement",
+   "nom": "Développement & études de marché",
+   "nature": "metier",
+   "raison": "Les opportunités et projets de développement (nouvelles gammes, nouveaux produits) et les études de marché.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Business Development (actions `bd-project-actions`, `market-research-actions` ; écrans Business Development, Projets BD, Études de marché)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "BUSINESS_DEVELOPMENT",
+      "libelle": "Market Intelligence"
+     },
+     {
+      "cle": "BD_PROJECTS",
+      "libelle": "Projets"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "BUSINESS_DEVELOPMENT_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Accès ligne à ligne (`RowGrant`, BD_OPPORTUNITY / BD_PROJECT)"
+    ]
+   },
+   "nombreTables": 9,
+   "tables": [
+    {
+     "modele": "BusinessDevelopmentOpportunity",
+     "libelle": "Opportunité de développement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "bd-actions",
+      "custom-field-actions"
+     ]
+    },
+    {
+     "modele": "BdProject",
+     "libelle": "Projet de développement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "bd-project-actions"
+     ]
+    },
+    {
+     "modele": "BdRange",
+     "libelle": "Gamme d'un projet de développement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "bd-project-actions"
+     ]
+    },
+    {
+     "modele": "BdProduct",
+     "libelle": "Produit d'un projet de développement",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "bd-project-actions",
+      "product-catalog-actions"
+     ]
+    },
+    {
+     "modele": "MarketResearch",
+     "libelle": "Étude de marché",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "market-research-actions"
+     ]
+    },
+    {
+     "modele": "MarketResearchRow",
+     "libelle": "Ligne d'une étude de marché",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "market-research-actions"
+     ]
+    },
+    {
+     "modele": "MarketResearchPlayer",
+     "libelle": "Acteur d'un marché étudié",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "market-research-actions"
+     ]
+    },
+    {
+     "modele": "MarketResearchPresentation",
+     "libelle": "Présentation d'une étude de marché",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "market-presentation-actions"
+     ]
+    },
+    {
+     "modele": "MarketResearchPresentationVersion",
+     "libelle": "Version d'une présentation d'étude",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "market-presentation-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "ventes",
+   "nom": "Marchés publics, ventes & logistique",
+   "nature": "metier",
+   "raison": "Les appels d'offres et commandes de la PCH, les livraisons, réclamations, ventes et imports de ventes.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "restreint",
+   "ecritPar": "PCH & ventes (écrans PCH, Ventes PCH, Ventes, Logistique)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "PCH",
+      "libelle": "Marchés PCH"
+     },
+     {
+      "cle": "PCH_VENTES",
+      "libelle": "Ventes PCH"
+     },
+     {
+      "cle": "SALES",
+      "libelle": "Ventes"
+     },
+     {
+      "cle": "LOGISTICS",
+      "libelle": "Logistique"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Portée du module et accès ligne à ligne (`RowGrant`, SALE / LOGISTICS)",
+     "Business units attribuées (lignes d'appel d'offres par BU)"
+    ]
+   },
+   "nombreTables": 20,
+   "tables": [
+    {
+     "modele": "PchTender",
+     "libelle": "Appel d'offres PCH",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-actions",
+      "pch-market-actions"
+     ]
+    },
+    {
+     "modele": "PchTenderLine",
+     "libelle": "Ligne d'un appel d'offres",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-market-actions",
+      "pch-tender-line-actions"
+     ]
+    },
+    {
+     "modele": "PchTenderLineBusinessUnit",
+     "libelle": "Business unit d'une ligne d'appel d'offres",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-tender-line-actions"
+     ]
+    },
+    {
+     "modele": "PchTenderExtraction",
+     "libelle": "Lecture automatique d'un appel d'offres",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-tender-line-actions"
+     ]
+    },
+    {
+     "modele": "PchSubmission",
+     "libelle": "Soumission à un appel d'offres",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-market-actions"
+     ]
+    },
+    {
+     "modele": "PchContractLine",
+     "libelle": "Ligne d'un marché attribué",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-market-actions"
+     ]
+    },
+    {
+     "modele": "PchOrder",
+     "libelle": "Commande PCH",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-actions",
+      "pch-tender-line-actions"
+     ]
+    },
+    {
+     "modele": "PchOrderLine",
+     "libelle": "Ligne d'une commande PCH",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-market-actions"
+     ]
+    },
+    {
+     "modele": "PchDelivery",
+     "libelle": "Livraison PCH",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-market-actions"
+     ]
+    },
+    {
+     "modele": "PchDeliveryLine",
+     "libelle": "Ligne d'une livraison",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-market-actions"
+     ]
+    },
+    {
+     "modele": "PchReceptionLigne",
+     "libelle": "Ligne de réception",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ventes-pch-actions"
+     ]
+    },
+    {
+     "modele": "PchPoste",
+     "libelle": "Poste PCH",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ventes-pch-actions"
+     ]
+    },
+    {
+     "modele": "PchEtablissementMemoire",
+     "libelle": "Établissement connu (rapprochement des ventes)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ventes-pch-actions"
+     ]
+    },
+    {
+     "modele": "PchDirectionRegionale",
+     "libelle": "Direction régionale PCH",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ventes-pch-actions"
+     ]
+    },
+    {
+     "modele": "PchFournisseurProduit",
+     "libelle": "Produit d'un fournisseur PCH",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ventes-pch-actions"
+     ]
+    },
+    {
+     "modele": "PchVenteImport",
+     "libelle": "Import de ventes PCH",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ventes-pch-actions"
+     ]
+    },
+    {
+     "modele": "PchVenteLigne",
+     "libelle": "Ligne de ventes importée",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ventes-pch-actions"
+     ]
+    },
+    {
+     "modele": "Sale",
+     "libelle": "Vente",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "custom-field-actions",
+      "sales-actions"
+     ]
+    },
+    {
+     "modele": "LogisticsOrder",
+     "libelle": "Ordre logistique",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "custom-field-actions",
+      "logistics-actions"
+     ]
+    },
+    {
+     "modele": "Reclamation",
+     "libelle": "Réclamation",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "stocks",
+   "nom": "Stocks",
+   "nature": "metier",
+   "raison": "Les états de stock datés chez les établissements, les niveaux d'ouverture, mouvements et demandes d'inventaire.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "restreint",
+   "ecritPar": "Stocks (écran Stocks, demandes d'inventaire aux établissements)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "STOCKS",
+      "libelle": "Stocks PCH"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "FINANCE_BUDGET_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_SALES",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Destinataires nommés d'une demande d'inventaire (`StockCountRequestRecipient`)"
+    ]
+   },
+   "nombreTables": 10,
+   "tables": [
+    {
+     "modele": "StockSnapshot",
+     "libelle": "État de stock daté",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "demande-stocks-actions",
+      "stock-pch-actions",
+      "stock-snapshot-actions"
+     ]
+    },
+    {
+     "modele": "StockOpeningLevel",
+     "libelle": "Niveau de stock d'ouverture",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "StockMovement",
+     "libelle": "Mouvement de stock",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-market-actions"
+     ]
+    },
+    {
+     "modele": "StockAnnex",
+     "libelle": "Annexe d'un état de stock",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "demande-stocks-actions",
+      "medical-actions",
+      "stock-snapshot-actions"
+     ]
+    },
+    {
+     "modele": "StockCountRequest",
+     "libelle": "Demande d'inventaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "demande-stocks-actions"
+     ]
+    },
+    {
+     "modele": "StockCountRequestHospital",
+     "libelle": "Établissement d'une demande d'inventaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "demande-stocks-actions"
+     ]
+    },
+    {
+     "modele": "StockCountRequestLine",
+     "libelle": "Ligne d'une demande d'inventaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "demande-stocks-actions"
+     ]
+    },
+    {
+     "modele": "StockCountRequestRecipient",
+     "libelle": "Destinataire d'une demande d'inventaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "demande-stocks-actions"
+     ]
+    },
+    {
+     "modele": "StockRequestRecurrence",
+     "libelle": "Récurrence d'une demande d'inventaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "stock-recurrence-actions"
+     ]
+    },
+    {
+     "modele": "StockRequestRecurrenceHospital",
+     "libelle": "Établissement d'une récurrence d'inventaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "stock-recurrence-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "terrain",
+   "nom": "Force de vente, médecins & segmentation",
+   "nature": "metier",
+   "raison": "Les médecins et établissements visités, les visites, plans de tournée, secteurs, rapports terrain, coaching, segmentation et consommation.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Promotion médicale & segmentation (`src/lib/medical/`, `src/modules/consommation/`, écrans Médical, Rapports terrain, Planification, Segmentation, Consommation)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "MEDICAL",
+      "libelle": "Promotion médicale"
+     },
+     {
+      "cle": "FIELD_REPORTS",
+      "libelle": "Rapports terrain"
+     },
+     {
+      "cle": "SALES_PLANNING",
+      "libelle": "Prévisions & Force de vente"
+     },
+     {
+      "cle": "SEGMENTATION",
+      "libelle": "Segmentation Studio"
+     },
+     {
+      "cle": "SEGMENTATION_POTENTIEL",
+      "libelle": "Segmentation — potentiel forcé à la main"
+     },
+     {
+      "cle": "CONSUMPTION",
+      "libelle": "Consumption Intelligence"
+     },
+     {
+      "cle": "MARKETING_COCKPIT",
+      "libelle": "Marketing cockpit"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_SALES",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "MEDICAL_INFO_PHARMACIST"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Le délégué voit SON secteur (`SalesSectorRep`) ; le responsable son équipe ; accès ligne à ligne (`RowGrant`, DOCTOR / VISIT / DELEGATE_PLAN)",
+     "Gammes attribuées (`UserProductRange`)"
+    ]
+   },
+   "nombreTables": 44,
+   "tables": [
+    {
+     "modele": "MedicalSpecialty",
+     "libelle": "Spécialité médicale",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "medical-actions",
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "MedicalDoctor",
+     "libelle": "Médecin (professionnel de santé)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "care-actions",
+      "custom-field-actions",
+      "force-de-vente-actions",
+      "fournisseurs-annuaire-actions",
+      "medical-actions",
+      "medical-directory-actions",
+      "medical-directory-crud-actions",
+      "segmentation-actions",
+      "tour-visit-actions"
+     ]
+    },
+    {
+     "modele": "MedicalInstitution",
+     "libelle": "Établissement de santé",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "fournisseurs-annuaire-actions",
+      "medical-actions",
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "MedicalInstitutionService",
+     "libelle": "Service d'un établissement",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "etablissement-services-actions"
+     ]
+    },
+    {
+     "modele": "MedicalVisit",
+     "libelle": "Visite médicale",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "custom-field-actions",
+      "medical-actions",
+      "tour-plan-actions",
+      "tour-visit-actions"
+     ]
+    },
+    {
+     "modele": "MedicalVisitProduct",
+     "libelle": "Produit présenté en visite",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "tour-visit-actions"
+     ]
+    },
+    {
+     "modele": "MedicalVisitMessage",
+     "libelle": "Message promotionnel délivré en visite",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "tour-visit-actions"
+     ]
+    },
+    {
+     "modele": "MedicalVisitSupportNumerique",
+     "libelle": "Support numérique utilisé en visite",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "field-report-actions",
+      "medical-actions",
+      "tour-visit-actions"
+     ]
+    },
+    {
+     "modele": "MedicalDelegatePlan",
+     "libelle": "Plan de visite d'un délégué",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "delegate-plan-actions"
+     ]
+    },
+    {
+     "modele": "FieldReport",
+     "libelle": "Rapport terrain",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "field-report-actions",
+      "tour-visit-actions"
+     ]
+    },
+    {
+     "modele": "FieldReportAttachment",
+     "libelle": "Pièce d'un rapport terrain",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "field-report-actions"
+     ]
+    },
+    {
+     "modele": "BusinessUnitSpecialty",
+     "libelle": "Spécialité ciblée par une business unit",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "medical-actions",
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "PromoProduct",
+     "libelle": "Produit promu",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "pch-tender-line-actions",
+      "product-catalog-actions",
+      "sales-planning-actions",
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "PromoProductSpecialite",
+     "libelle": "Spécialité ciblée par un produit promu",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "medical-actions",
+      "sales-planning-actions",
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "PromoCycle",
+     "libelle": "Cycle promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "PromoMessage",
+     "libelle": "Message promotionnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-message-actions"
+     ]
+    },
+    {
+     "modele": "PromotionAssignment",
+     "libelle": "Affectation promotionnelle",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "ProductForecast",
+     "libelle": "Prévision de ventes d'un produit",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "SfeSettings",
+     "libelle": "Réglages de la force de vente",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "SalesRepProfile",
+     "libelle": "Profil d'un délégué",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "SalesSector",
+     "libelle": "Secteur de vente",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "SalesSectorInstitution",
+     "libelle": "Établissement d'un secteur",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "fournisseurs-annuaire-actions",
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "SalesSectorInstitutionService",
+     "libelle": "Service d'établissement d'un secteur",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "SalesSectorRep",
+     "libelle": "Délégué affecté à un secteur",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "sales-planning-actions"
+     ]
+    },
+    {
+     "modele": "TourPlan",
+     "libelle": "Plan de tournée",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "tour-plan-actions"
+     ]
+    },
+    {
+     "modele": "CoachingGrid",
+     "libelle": "Grille de coaching",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "coaching-actions"
+     ]
+    },
+    {
+     "modele": "CoachingSheet",
+     "libelle": "Fiche de coaching d'un délégué",
+     "sensibilite": "confidentiel",
+     "pourquoi": "évaluation individuelle d'un délégué",
+     "ecritePar": [
+      "coaching-actions"
+     ]
+    },
+    {
+     "modele": "SalesRepMonthlyKpi",
+     "libelle": "Indicateurs mensuels d'un délégué",
+     "sensibilite": "confidentiel",
+     "pourquoi": "performance individuelle d'un délégué",
+     "ecritePar": []
+    },
+    {
+     "modele": "SegmentationStrategie",
+     "libelle": "Stratégie de segmentation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "SegmentationStrategieProduit",
+     "libelle": "Produit d'une stratégie de segmentation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "SegmentationRegle",
+     "libelle": "Règle de segmentation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "SegmentationFiche",
+     "libelle": "Fiche de segmentation d'un médecin",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "SegmentationDerogation",
+     "libelle": "Dérogation de segmentation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "SegmentationImport",
+     "libelle": "Import de segmentation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "SegmentationCycle",
+     "libelle": "Cycle de segmentation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "segmentation-actions"
+     ]
+    },
+    {
+     "modele": "HcpObservation",
+     "libelle": "Observation sur un médecin",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "segmentation-actions",
+      "tour-visit-actions"
+     ]
+    },
+    {
+     "modele": "ConsommationImport",
+     "libelle": "Import de consommation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "consommation-actions"
+     ]
+    },
+    {
+     "modele": "ConsommationLigne",
+     "libelle": "Ligne de consommation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "consommation-actions"
+     ]
+    },
+    {
+     "modele": "ConsommationMemoire",
+     "libelle": "Rapprochement de consommation retenu",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "consommation-actions"
+     ]
+    },
+    {
+     "modele": "AffiniteConfig",
+     "libelle": "Réglage des affinités",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "consommation-actions"
+     ]
+    },
+    {
+     "modele": "VoixTerrainCache",
+     "libelle": "Synthèse de la voix du terrain (cache)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "PraticienRelation",
+     "libelle": "Relation entre praticiens",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "intelligence-terrain-actions"
+     ]
+    },
+    {
+     "modele": "InfluenceScore",
+     "libelle": "Score d'influence d'un praticien",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "intelligence-terrain-actions"
+     ]
+    },
+    {
+     "modele": "AnalyseWatermark",
+     "libelle": "Repère d'avancement des analyses terrain",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "intelligence-terrain-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "info-medicale",
+   "nom": "Information médicale & pharmacovigilance",
+   "nature": "metier",
+   "raison": "Les questions d'information médicale reçues et les cas de pharmacovigilance (effets indésirables déclarés).",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Information médicale & Pharmacovigilance (écrans Information médicale, Pharmacovigilance)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "MEDICAL_INFO",
+      "libelle": "Information médicale"
+     },
+     {
+      "cle": "PHARMACOVIGILANCE",
+      "libelle": "Pharmacovigilance"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Participants nommés d'un cas (`PharmacovigilanceParticipant`) ; pharmacien responsable (rôle `MEDICAL_INFO_PHARMACIST`)"
+    ]
+   },
+   "nombreTables": 5,
+   "tables": [
+    {
+     "modele": "MedicalInfoDeclaration",
+     "libelle": "Déclaration d'information médicale",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "congress-request-actions",
+      "medical-info-actions",
+      "promo-execution-actions"
+     ]
+    },
+    {
+     "modele": "MedicalInfoSlip",
+     "libelle": "Fiche d'information médicale",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "medical-info-actions"
+     ]
+    },
+    {
+     "modele": "MedicalInfoDocRequest",
+     "libelle": "Demande de document d'information médicale",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "medical-info-actions"
+     ]
+    },
+    {
+     "modele": "PharmacovigilanceCase",
+     "libelle": "Cas de pharmacovigilance",
+     "sensibilite": "secret",
+     "pourquoi": "donnée de santé d'un patient (âge, sexe, effet indésirable)",
+     "ecritePar": [
+      "pharmacovigilance-actions"
+     ]
+    },
+    {
+     "modele": "PharmacovigilanceParticipant",
+     "libelle": "Participant à un cas de pharmacovigilance",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "pharmacovigilance-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "documents",
+   "nom": "Drive & documents",
+   "nature": "metier",
+   "raison": "Les fichiers de l'entreprise : Drive, versions, partages, pièces classées et leurs faits lus, bibliothèque, numérotation et en-têtes.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Drive & documents (`src/lib/drive/`, `src/lib/files/`, `src/modules/bibliotheque/`, écrans Drive, Documents)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "DRIVE",
+      "libelle": "Drive"
+     },
+     {
+      "cle": "DOCUMENTS",
+      "libelle": "Documents"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR"
+    ],
+    "famillesIa": [
+     "DRIVE"
+    ],
+    "mecanismes": [
+     "Droits par fichier et par espace (`DriveShare`, `DriveSpace`) ; la confidentialité d'une pièce (`Piece`) borne sa lecture",
+     "Une pièce rattachée à un sujet (RH, paie…) hérite des droits de ce sujet"
+    ]
+   },
+   "nombreTables": 27,
+   "tables": [
+    {
+     "modele": "DriveSpace",
+     "libelle": "Espace du Drive",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "drive-space-actions"
+     ]
+    },
+    {
+     "modele": "DriveNode",
+     "libelle": "Dossier ou fichier du Drive",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "custom-field-actions",
+      "database-admin-actions",
+      "drive-actions",
+      "fabrique-actions",
+      "medical-info-actions",
+      "messaging-actions",
+      "microsoft-mail-actions",
+      "promo-execution-actions"
+     ]
+    },
+    {
+     "modele": "DriveShare",
+     "libelle": "Partage d'un élément du Drive",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "drive-actions"
+     ]
+    },
+    {
+     "modele": "DriveComment",
+     "libelle": "Commentaire sur un fichier",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "drive-comment-actions"
+     ]
+    },
+    {
+     "modele": "DriveTextIndex",
+     "libelle": "Index de recherche plein texte du Drive",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "FileVersion",
+     "libelle": "Version d'un fichier",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "drive-actions"
+     ]
+    },
+    {
+     "modele": "FileBlob",
+     "libelle": "Contenu d'un fichier",
+     "sensibilite": "confidentiel",
+     "pourquoi": "contenu brut de TOUS les fichiers, contrats et fiches de paie compris",
+     "ecritePar": []
+    },
+    {
+     "modele": "FileBlobChunk",
+     "libelle": "Morceau du contenu d'un fichier",
+     "sensibilite": "confidentiel",
+     "pourquoi": "contenu brut de tous les fichiers",
+     "ecritePar": []
+    },
+    {
+     "modele": "StoredFile",
+     "libelle": "Fichier stocké",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-pieces-actions",
+      "admin-delete-actions",
+      "care-actions",
+      "database-admin-actions",
+      "department-budget-actions",
+      "document-actions",
+      "mail-register-actions",
+      "medical-info-actions",
+      "petty-cash-actions",
+      "regulatory-actions"
+     ]
+    },
+    {
+     "modele": "DirectUpload",
+     "libelle": "Dépôt de fichier en cours",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "Document",
+     "libelle": "Document",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-discussion-actions",
+      "ad-pro-item-actions",
+      "ad-pro-other-actions",
+      "ad-pro-pieces-actions",
+      "ad-pro-transfer-actions",
+      "admin-delete-actions",
+      "admin-request-actions",
+      "bc-signature-actions",
+      "bd-project-actions",
+      "budget-campagne-actions",
+      "budget-depense-poste-actions",
+      "candidatures-site-actions",
+      "care-actions",
+      "comment-actions",
+      "congress-request-actions",
+      "consulting-actions",
+      "database-admin-actions",
+      "department-budget-actions",
+      "directive-actions",
+      "document-actions",
+      "drive-actions",
+      "event-actions",
+      "expense-actions",
+      "field-report-actions",
+      "hr-actions",
+      "integration-adpro-actions",
+      "invoice-actions",
+      "legal-actions",
+      "mail-register-actions",
+      "medical-actions",
+      "medical-info-actions",
+      "payment-request-actions",
+      "pch-actions",
+      "pch-tender-line-actions",
+      "petty-cash-actions",
+      "pharmacovigilance-actions",
+      "promo-devis-actions",
+      "promo-execution-actions",
+      "promo-material-actions",
+      "regulatory-actions",
+      "regulatory-ctd-actions",
+      "reservation-fiche-actions",
+      "secretariat-devis-actions",
+      "sponsoring-actions",
+      "stock-pch-actions",
+      "task-actions",
+      "validation-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "EntityMention",
+     "libelle": "Mention d'un sujet dans un document",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "Piece",
+     "libelle": "Pièce (fichier classé, une fois pour toutes)",
+     "sensibilite": "confidentiel",
+     "pourquoi": "pièces d'identité, passeports, RIB classés",
+     "ecritePar": [
+      "feedback-actions",
+      "kpi-actions",
+      "messaging-actions"
+     ]
+    },
+    {
+     "modele": "PieceLien",
+     "libelle": "Rattachement d'une pièce à un sujet",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "feedback-actions",
+      "kpi-actions",
+      "messaging-actions"
+     ]
+    },
+    {
+     "modele": "LecturePiece",
+     "libelle": "Lecture automatique d'une pièce",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "LecturePieceConfirmation",
+     "libelle": "Confirmation d'une lecture de pièce",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "promo-devis-actions",
+      "promo-execution-actions"
+     ]
+    },
+    {
+     "modele": "Extraction",
+     "libelle": "Passage d'un extracteur sur une pièce",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "FaitPropose",
+     "libelle": "Fait lu sur une pièce (proposition)",
+     "sensibilite": "confidentiel",
+     "pourquoi": "valeurs lues sur des pièces d'identité ou bancaires",
+     "ecritePar": [
+      "enrichissement-actions"
+     ]
+    },
+    {
+     "modele": "FaitConfirme",
+     "libelle": "Fait confirmé sur une fiche",
+     "sensibilite": "confidentiel",
+     "pourquoi": "valeurs confirmées sur une fiche (identité, coordonnées)",
+     "ecritePar": []
+    },
+    {
+     "modele": "ConflitDeFait",
+     "libelle": "Désaccord entre une fiche et une pièce",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "enrichissement-actions"
+     ]
+    },
+    {
+     "modele": "BibliothequeFiche",
+     "libelle": "Fiche de bibliothèque d'une pièce",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "bibliotheque-actions",
+      "feedback-actions",
+      "kpi-actions",
+      "messaging-actions"
+     ]
+    },
+    {
+     "modele": "BibliothequePassage",
+     "libelle": "Passage indexé d'une pièce",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "OfficeLetterhead",
+     "libelle": "En-tête de document",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "direction-artistique-actions",
+      "letterhead-actions"
+     ]
+    },
+    {
+     "modele": "CompanyDocumentProfile",
+     "libelle": "Profil documentaire d'une société",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "brand-actions",
+      "direction-artistique-actions",
+      "fabrique-actions"
+     ]
+    },
+    {
+     "modele": "DocumentSequence",
+     "libelle": "Séquence de numérotation",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "DocumentReference",
+     "libelle": "Référence de document attribuée",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "legal-actions",
+      "secretariat-devis-actions"
+     ]
+    },
+    {
+     "modele": "SerieReference",
+     "libelle": "Compteur de numérotation des pièces émises",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "communication",
+   "nom": "Messagerie, courriels & agenda",
+   "nature": "metier",
+   "raison": "Les conversations internes, les courriels envoyés et reçus, les réunions, l'agenda, les rappels et les notifications.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Messagerie (`src/lib/comms/`), Courriels (`src/lib/mail/`), Réunions et Agenda, Notifications",
+   "acces": {
+    "modules": [
+     {
+      "cle": "MESSAGING",
+      "libelle": "Messagerie"
+     },
+     {
+      "cle": "WORKSPACE",
+      "libelle": "Espace de travail"
+     },
+     {
+      "cle": "NOTIFICATIONS",
+      "libelle": "Notifications"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Membres d'une conversation (`ConversationMember`) ; participants d'une réunion (`MeetingParticipant`)",
+     "Une boîte de courriel n'est lue que par son titulaire ; une notification par son destinataire"
+    ]
+   },
+   "nombreTables": 22,
+   "tables": [
+    {
+     "modele": "Conversation",
+     "libelle": "Conversation",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "meeting-actions",
+      "messaging-actions",
+      "partage-actions"
+     ]
+    },
+    {
+     "modele": "ConversationMember",
+     "libelle": "Membre d'une conversation",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "meeting-actions",
+      "messaging-actions",
+      "partage-actions"
+     ]
+    },
+    {
+     "modele": "Message",
+     "libelle": "Message",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "meeting-actions",
+      "messaging-actions",
+      "partage-actions"
+     ]
+    },
+    {
+     "modele": "MessageReaction",
+     "libelle": "Réaction à un message",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "messaging-actions"
+     ]
+    },
+    {
+     "modele": "MessageAttachment",
+     "libelle": "Pièce jointe d'un message",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "MessageMention",
+     "libelle": "Mention dans un message",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "MessageBookmark",
+     "libelle": "Message marqué",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "messaging-actions"
+     ]
+    },
+    {
+     "modele": "OutboundEmail",
+     "libelle": "Courriel envoyé",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "smart-mail-actions"
+     ]
+    },
+    {
+     "modele": "InboundEmail",
+     "libelle": "Courriel reçu",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "MailLink",
+     "libelle": "Lien entre un courriel et un sujet",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "microsoft-mail-actions"
+     ]
+    },
+    {
+     "modele": "EmailRecord",
+     "libelle": "Courriel archivé",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "EmailAttachmentRecord",
+     "libelle": "Pièce jointe d'un courriel archivé",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "OutboundMailIntent",
+     "libelle": "Courriel préparé à confirmer",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "Meeting",
+     "libelle": "Réunion",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "meeting-actions"
+     ]
+    },
+    {
+     "modele": "MeetingParticipant",
+     "libelle": "Participant à une réunion",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "meeting-actions"
+     ]
+    },
+    {
+     "modele": "MeetingMessage",
+     "libelle": "Message d'une réunion",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "meeting-actions"
+     ]
+    },
+    {
+     "modele": "MeetingMessageAttachment",
+     "libelle": "Pièce jointe d'un message de réunion",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "meeting-actions"
+     ]
+    },
+    {
+     "modele": "MeetingTaskProposal",
+     "libelle": "Tâche proposée en réunion",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "meeting-actions"
+     ]
+    },
+    {
+     "modele": "CalendarEvent",
+     "libelle": "Événement d'agenda",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "calendar-actions",
+      "hr-document-actions"
+     ]
+    },
+    {
+     "modele": "CalendarInvite",
+     "libelle": "Invitation d'agenda",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "calendar-actions"
+     ]
+    },
+    {
+     "modele": "Reminder",
+     "libelle": "Rappel",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "reminder-actions"
+     ]
+    },
+    {
+     "modele": "Notification",
+     "libelle": "Notification",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "actualisation-soldes-actions",
+      "ad-pro-centre-actions",
+      "ad-pro-edit-actions",
+      "ad-pro-item-actions",
+      "ad-pro-transfer-actions",
+      "admin-request-actions",
+      "adventum-actions",
+      "bc-signature-actions",
+      "budget-actions",
+      "calendar-actions",
+      "care-actions",
+      "coaching-actions",
+      "conge-discussion-actions",
+      "congress-request-actions",
+      "consulting-actions",
+      "demande-stocks-actions",
+      "department-budget-actions",
+      "directive-actions",
+      "document-request-actions",
+      "dossier-actions",
+      "drive-actions",
+      "drive-comment-actions",
+      "expense-actions",
+      "feedback-actions",
+      "field-report-actions",
+      "finance-actions",
+      "hr-actions",
+      "hr-document-actions",
+      "kpi-actions",
+      "medical-info-actions",
+      "meeting-actions",
+      "mission-actions",
+      "notification-actions",
+      "payment-centre-actions",
+      "payment-centre-seat-actions",
+      "payment-request-actions",
+      "petty-cash-actions",
+      "pharmacovigilance-actions",
+      "promo-circuit-actions",
+      "promo-comptage-actions",
+      "promo-demande-actions",
+      "promo-devis-actions",
+      "promo-execution-actions",
+      "promo-material-actions",
+      "purchase-request-actions",
+      "recruitment-actions",
+      "regulatory-actions",
+      "regulatory-reminder-actions",
+      "relance-paiement-actions",
+      "secretariat-devis-actions",
+      "sponsoring-actions",
+      "stand-in-actions",
+      "support-actions",
+      "task-actions",
+      "tour-plan-actions",
+      "tour-visit-actions",
+      "training-actions",
+      "validation-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "travail",
+   "nom": "Tâches, demandes internes & validations",
+   "nature": "metier",
+   "raison": "Les tâches, directives, demandes de support, dossiers suivis et les circuits de validation et de workflow.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "restreint",
+   "ecritPar": "Espace de travail (`src/lib/tasks/`, `src/lib/workflow/`, `src/lib/validations/`, `src/modules/suivi-dossiers/`)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "WORKSPACE",
+      "libelle": "Espace de travail"
+     },
+     {
+      "cle": "DIRECTIVES",
+      "libelle": "Directives"
+     },
+     {
+      "cle": "SUPPORT",
+      "libelle": "Demandes de support"
+     },
+     {
+      "cle": "DOSSIERS",
+      "libelle": "Sujets"
+     },
+     {
+      "cle": "VALIDATIONS",
+      "libelle": "Demandes de validations"
+     },
+     {
+      "cle": "VALIDATION_CENTRE",
+      "libelle": "Centre de validations"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "famillesIa": [
+     "ECRITURES"
+    ],
+    "mecanismes": [
+     "Assigné, créateur et participants nommés ; accès ligne à ligne (`RowGrant`, TASK / DIRECTIVE / DOSSIER / VALIDATION_REQUEST)"
+    ]
+   },
+   "nombreTables": 19,
+   "tables": [
+    {
+     "modele": "Task",
+     "libelle": "Tâche",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-actions",
+      "custom-field-actions",
+      "meeting-actions",
+      "stock-snapshot-actions",
+      "task-actions"
+     ]
+    },
+    {
+     "modele": "TaskComment",
+     "libelle": "Commentaire sur une tâche",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-actions",
+      "task-actions"
+     ]
+    },
+    {
+     "modele": "Directive",
+     "libelle": "Directive",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "directive-actions"
+     ]
+    },
+    {
+     "modele": "DirectiveMessage",
+     "libelle": "Message d'une directive",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "directive-actions"
+     ]
+    },
+    {
+     "modele": "SupportRequest",
+     "libelle": "Demande de support",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "support-actions"
+     ]
+    },
+    {
+     "modele": "SupportMessage",
+     "libelle": "Message d'une demande de support",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "support-actions"
+     ]
+    },
+    {
+     "modele": "Dossier",
+     "libelle": "Dossier suivi",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "dossier-actions",
+      "reservation-fiche-actions"
+     ]
+    },
+    {
+     "modele": "DossierMessage",
+     "libelle": "Message d'un dossier suivi",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "dossier-actions",
+      "reservation-fiche-actions"
+     ]
+    },
+    {
+     "modele": "DossierMessageAttachment",
+     "libelle": "Pièce jointe d'un message de dossier",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "dossier-actions"
+     ]
+    },
+    {
+     "modele": "ValidationRule",
+     "libelle": "Règle de validation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "ValidationRequest",
+     "libelle": "Demande de validation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "ad-pro-rattacher-legal",
+      "admin-request-actions",
+      "legal-actions",
+      "medical-info-actions",
+      "promo-devis-actions",
+      "promo-execution-actions",
+      "promo-material-actions",
+      "purchase-request-actions",
+      "secretariat-devis-actions",
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "ValidationParticipant",
+     "libelle": "Participant à une validation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "ValidationStep",
+     "libelle": "Étape de validation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "ValidationItemDecision",
+     "libelle": "Décision par élément d'une validation",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "WorkflowDefinition",
+     "libelle": "Circuit (définition)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "WorkflowDefinitionVersion",
+     "libelle": "Version d'un circuit",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "WorkflowStep",
+     "libelle": "Étape d'un circuit",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "WorkflowInstance",
+     "libelle": "Circuit en cours",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-edit-actions",
+      "ad-pro-other-actions",
+      "ad-pro-transfer-actions",
+      "event-actions",
+      "sponsoring-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "WorkflowStepEvent",
+     "libelle": "Événement d'une étape de circuit",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-other-actions",
+      "ad-pro-transfer-actions",
+      "porte-dg-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "moyens-generaux",
+   "nom": "Moyens généraux & demandes administratives",
+   "nature": "metier",
+   "raison": "Les demandes administratives et d'achats, fournitures, missions de chauffeur, salles et véhicules et leurs réservations.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "restreint",
+   "ecritPar": "Demandes administratives & Moyens généraux (`src/lib/general-means/`, `src/modules/salles/`)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "ADMIN_REQUESTS",
+      "libelle": "Bureau du secrétariat"
+     },
+     {
+      "cle": "GENERAL_MEANS",
+      "libelle": "Moyens généraux"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Demandeur, approbateurs et assistante de direction ; accès ligne à ligne (`RowGrant`, ADMIN_REQUEST / DRIVER_MISSION)"
+    ]
+   },
+   "nombreTables": 9,
+   "tables": [
+    {
+     "modele": "AdministrativeRequest",
+     "libelle": "Demande administrative",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "admin-request-actions",
+      "assistant-actions",
+      "custom-field-actions",
+      "expense-actions",
+      "mission-actions",
+      "promo-circuit-actions",
+      "promo-demande-actions",
+      "promo-devis-actions",
+      "promo-material-actions",
+      "purchase-request-actions",
+      "validation-actions"
+     ]
+    },
+    {
+     "modele": "AdminApproval",
+     "libelle": "Approbation d'une demande administrative",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "admin-request-actions",
+      "promo-devis-actions",
+      "promo-material-actions",
+      "purchase-request-actions"
+     ]
+    },
+    {
+     "modele": "OfficeSupplyArticle",
+     "libelle": "Article de fourniture de bureau",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "office-supply-actions"
+     ]
+    },
+    {
+     "modele": "PurchaseRequestLogEntry",
+     "libelle": "Journal d'une demande d'achat",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "admin-request-actions",
+      "purchase-request-actions"
+     ]
+    },
+    {
+     "modele": "BesoinAnnuelService",
+     "libelle": "Besoin annuel d'un service",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "besoins-services-actions"
+     ]
+    },
+    {
+     "modele": "DriverMission",
+     "libelle": "Mission de chauffeur",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "admin-request-actions"
+     ]
+    },
+    {
+     "modele": "DriverMissionStop",
+     "libelle": "Étape d'une mission de chauffeur",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "admin-request-actions"
+     ]
+    },
+    {
+     "modele": "MoyenGeneral",
+     "libelle": "Moyen général (salle, véhicule)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "moyens-generaux-registre-actions"
+     ]
+    },
+    {
+     "modele": "MoyenGeneralReservation",
+     "libelle": "Réservation d'une salle ou d'un véhicule",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "moyens-generaux-registre-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "pilotage",
+   "nom": "Pilotage, KPI & intelligence de direction",
+   "nature": "metier",
+   "raison": "Les indicateurs et leurs évaluations, les risques, l'adoption, les décisions, objectifs et engagements de la Direction.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "secret",
+   "ecritPar": "KPI (écran KPI), Adventum Brain, Process Intelligence, Cockpit opérations, My Chief of Staff",
+   "acces": {
+    "modules": [
+     {
+      "cle": "KPI",
+      "libelle": "KPI & bilans"
+     },
+     {
+      "cle": "ADVENTUM_BRAIN",
+      "libelle": "Adventum Brain"
+     },
+     {
+      "cle": "PROCESS_INTELLIGENCE",
+      "libelle": "Process Intelligence"
+     },
+     {
+      "cle": "COCKPIT_OPERATIONS",
+      "libelle": "Cockpit Opérations"
+     },
+     {
+      "cle": "CHIEF_OF_STAFF",
+      "libelle": "My Chief of Staff"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Adventum Brain et Process Intelligence réservés au Super Admin ; My Chief of Staff au cercle du centre de paiement",
+     "KPI : chacun ses indicateurs (`KpiAssignment`), le responsable son équipe"
+    ]
+   },
+   "nombreTables": 20,
+   "tables": [
+    {
+     "modele": "KpiDefinition",
+     "libelle": "Indicateur (définition)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "kpi-actions"
+     ]
+    },
+    {
+     "modele": "KpiAssignment",
+     "libelle": "Indicateur attribué à une personne",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "kpi-actions"
+     ]
+    },
+    {
+     "modele": "KpiValue",
+     "libelle": "Valeur d'un indicateur",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "kpi-actions"
+     ]
+    },
+    {
+     "modele": "KpiDeclaration",
+     "libelle": "Déclaration d'une valeur d'indicateur",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "kpi-actions"
+     ]
+    },
+    {
+     "modele": "KpiImport",
+     "libelle": "Import de valeurs d'indicateurs",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "kpi-actions"
+     ]
+    },
+    {
+     "modele": "KpiEvaluation",
+     "libelle": "Évaluation sur indicateurs",
+     "sensibilite": "secret",
+     "pourquoi": "évaluation individuelle de performance",
+     "ecritePar": [
+      "kpi-actions"
+     ]
+    },
+    {
+     "modele": "KpiReview",
+     "libelle": "Revue de performance",
+     "sensibilite": "secret",
+     "pourquoi": "revue individuelle de performance",
+     "ecritePar": [
+      "kpi-actions"
+     ]
+    },
+    {
+     "modele": "KpiReviewSetting",
+     "libelle": "Réglage des revues de performance",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "kpi-actions"
+     ]
+    },
+    {
+     "modele": "RiskSetting",
+     "libelle": "Réglage des risques",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "adventum-actions"
+     ]
+    },
+    {
+     "modele": "BrainRisk",
+     "libelle": "Risque détecté",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "adventum-actions"
+     ]
+    },
+    {
+     "modele": "BrainBriefing",
+     "libelle": "Note de synthèse de direction",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "adventum-actions"
+     ]
+    },
+    {
+     "modele": "BrainQuestion",
+     "libelle": "Question posée à Adventum Brain",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "adventum-actions"
+     ]
+    },
+    {
+     "modele": "IntelligenceSnapshot",
+     "libelle": "Instantané d'intelligence de direction",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "ProcessStepSla",
+     "libelle": "Délai cible d'une étape de processus",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "process-intelligence-actions"
+     ]
+    },
+    {
+     "modele": "AdoptionSetting",
+     "libelle": "Réglage du suivi d'adoption",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "adoption-actions"
+     ]
+    },
+    {
+     "modele": "AdoptionSnapshot",
+     "libelle": "Mesure d'adoption de l'ERP",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "ExecutiveDecision",
+     "libelle": "Décision de direction",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "ExecutiveObjective",
+     "libelle": "Objectif de direction",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "ExecutiveCommitment",
+     "libelle": "Engagement de direction",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "DailyBrief",
+     "libelle": "Brief quotidien de la Direction",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "assistant-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "site-web",
+   "nom": "Site web public",
+   "nature": "metier",
+   "raison": "Ce que le site public d'Adventum publie (articles, pages reprises) et la mesure de son audience.",
+   "sensibilite": "public-interne",
+   "sensibiliteMax": "public-interne",
+   "ecritPar": "Site web (écran Site web, publication vers le site)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "SITE_WEB",
+      "libelle": "Site web"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "PRODUCT_MANAGER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "PRODUCT_MANAGER"
+    ],
+    "famillesIa": [],
+    "mecanismes": []
+   },
+   "nombreTables": 6,
+   "tables": [
+    {
+     "modele": "BlogArticle",
+     "libelle": "Article du blog",
+     "sensibilite": "public-interne",
+     "ecritePar": [
+      "site-web-actions"
+     ]
+    },
+    {
+     "modele": "SiteReprise",
+     "libelle": "Contenu repris de l'ancien site",
+     "sensibilite": "public-interne",
+     "ecritePar": []
+    },
+    {
+     "modele": "SitePublication",
+     "libelle": "Publication vers le site",
+     "sensibilite": "public-interne",
+     "ecritePar": [
+      "site-web-actions"
+     ]
+    },
+    {
+     "modele": "SitePushAttempt",
+     "libelle": "Tentative de publication",
+     "sensibilite": "public-interne",
+     "ecritePar": []
+    },
+    {
+     "modele": "SiteReconciliation",
+     "libelle": "Rapprochement du site publié",
+     "sensibilite": "public-interne",
+     "ecritePar": [
+      "site-web-actions"
+     ]
+    },
+    {
+     "modele": "SiteAnalyticsEvent",
+     "libelle": "Mesure d'audience du site",
+     "sensibilite": "public-interne",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "comptes-et-droits",
+   "nom": "Comptes, connexions & droits d'accès",
+   "nature": "technique",
+   "raison": "Qui peut se connecter, avec quels droits, sur quelles sociétés, et les connexions aux services externes (courriel, Google, API).",
+   "sensibilite": "secret",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Administration › Accès (`src/lib/rbac/`, `src/lib/session.ts`), connexion, Contrôle de l'IA",
+   "acces": {
+    "modules": [
+     {
+      "cle": "ADMIN",
+      "libelle": "Administration"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Réservé au Super Admin (Administration) ; chacun lit son propre compte",
+     "Mots de passe hachés, jetons de connexion chiffrés ; jamais exposés à l'assistant"
+    ]
+   },
+   "nombreTables": 17,
+   "tables": [
+    {
+     "modele": "User",
+     "libelle": "Compte utilisateur",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "access-actions",
+      "admin-actions",
+      "adoption-actions",
+      "auth-actions",
+      "department-actions",
+      "feature-actions",
+      "hr-actions",
+      "messaging-actions",
+      "onboarding-actions",
+      "org-coherence-actions"
+     ]
+    },
+    {
+     "modele": "UserInvite",
+     "libelle": "Invitation à créer un compte",
+     "sensibilite": "secret",
+     "ecritePar": []
+    },
+    {
+     "modele": "UserSession",
+     "libelle": "Session de connexion",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "access-actions",
+      "assistant-ia-conversations-actions",
+      "auth-actions",
+      "hr-actions"
+     ]
+    },
+    {
+     "modele": "LoginAttempt",
+     "libelle": "Tentative de connexion",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "access-actions",
+      "auth-actions",
+      "supplier-portal-actions"
+     ]
+    },
+    {
+     "modele": "UserAccess",
+     "libelle": "Droit sur un module (surcharge de la matrice des rôles)",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "access-actions"
+     ]
+    },
+    {
+     "modele": "UserCompanyAccess",
+     "libelle": "Accès d'une personne à une société",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "company-access-actions"
+     ]
+    },
+    {
+     "modele": "RowGrant",
+     "libelle": "Accès à une ligne précise",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "access-actions"
+     ]
+    },
+    {
+     "modele": "AssistantIaAcces",
+     "libelle": "Familles de l'assistant ouvertes ou fermées (rôle ou personne)",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "assistant-ia-consommation-actions"
+     ]
+    },
+    {
+     "modele": "AssistantIaDroitDate",
+     "libelle": "Droit daté de l'assistant sur une famille sensible",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "assistant-ia-consommation-actions"
+     ]
+    },
+    {
+     "modele": "SupplierUser",
+     "libelle": "Compte du portail fournisseur",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "supplier-actions",
+      "supplier-portal-actions"
+     ]
+    },
+    {
+     "modele": "ApiClient",
+     "libelle": "Client de l'API externe",
+     "sensibilite": "secret",
+     "ecritePar": []
+    },
+    {
+     "modele": "MailAccount",
+     "libelle": "Boîte de courriel connectée",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "mail-actions"
+     ]
+    },
+    {
+     "modele": "MailConnection",
+     "libelle": "Connexion à une messagerie (jetons)",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "microsoft-mail-actions"
+     ]
+    },
+    {
+     "modele": "MailFolderState",
+     "libelle": "État de synchronisation d'un dossier de courriel",
+     "sensibilite": "secret",
+     "ecritePar": []
+    },
+    {
+     "modele": "GoogleConnection",
+     "libelle": "Connexion Google (jetons)",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "adam-settings-actions"
+     ]
+    },
+    {
+     "modele": "GmailIngestionState",
+     "libelle": "État de lecture d'une boîte Gmail",
+     "sensibilite": "secret",
+     "ecritePar": []
+    },
+    {
+     "modele": "SiteWebCle",
+     "libelle": "Clé de publication du site web",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "site-web-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "ia-conversations",
+   "nom": "Assistant IA — conversations, notes & mémoire personnelles",
+   "nature": "technique",
+   "raison": "Ce que chaque personne dit à son assistant et ce qu'il retient d'elle : fils, messages, notes, dossiers, voix, visuels, routines et veilles.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Assistant IA (`src/modules/assistant-ia/`, écran Assistant) et Adam (`src/lib/assistant/`)",
+   "acces": {
+    "modules": [
+     {
+      "cle": "ASSISTANT_IA",
+      "libelle": "Assistant IA"
+     },
+     {
+      "cle": "CHIEF_OF_STAFF",
+      "libelle": "My Chief of Staff"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "STRICTEMENT PERSONNEL : toute lecture filtre `userId` de la session ; rien d'une autre personne n'y entre (S1, décision 0048)",
+     "Fermé en Vue exacte ; le filtre de confidentialité retire paie, IBAN et pièces d'identité avant tout modèle"
+    ]
+   },
+   "nombreTables": 31,
+   "tables": [
+    {
+     "modele": "AssistantThread",
+     "libelle": "Fil de conversation avec Adam",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "assistant-actions"
+     ]
+    },
+    {
+     "modele": "AssistantMessage",
+     "libelle": "Message d'un fil d'Adam",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "assistant-actions"
+     ]
+    },
+    {
+     "modele": "AssistantEpisode",
+     "libelle": "Épisode mémorisé",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantMemory",
+     "libelle": "Mémoire distillée d'une personne",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "assistant-actions"
+     ]
+    },
+    {
+     "modele": "AssistantMemoryItem",
+     "libelle": "Souvenir typé",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "assistant-actions",
+      "assistant-ia-actions"
+     ]
+    },
+    {
+     "modele": "AssistantHotState",
+     "libelle": "État courant de la conversation",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantArtifact",
+     "libelle": "Document produit par l'assistant",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantReminder",
+     "libelle": "Rappel posé par l'assistant",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaFil",
+     "libelle": "Fil de l'Assistant IA (une conversation par personne)",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaTour",
+     "libelle": "Tour du fil (message ou réponse)",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaAttentePieces",
+     "libelle": "Pièces attendues dans un fil",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaDossier",
+     "libelle": "Dossier de conversations",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaReception",
+     "libelle": "Pièce reçue par WhatsApp ou courriel",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaPreference",
+     "libelle": "Préférences personnelles de l'assistant",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "assistant-ia-actions"
+     ]
+    },
+    {
+     "modele": "AssistantIaNotePage",
+     "libelle": "Page de notes",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaNoteVersion",
+     "libelle": "Historique d'une page de notes",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaNoteCorbeille",
+     "libelle": "Ligne de notes supprimée",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaNoteProposition",
+     "libelle": "Modification de notes proposée par l'IA",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaDepotDossier",
+     "libelle": "Dépôt dans un dossier de conversations",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaTerrainCapture",
+     "libelle": "Captation de terrain (vocal, photo)",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "field-report-actions"
+     ]
+    },
+    {
+     "modele": "AssistantIaVisuel",
+     "libelle": "Image ou vidéo générée",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaVoixSession",
+     "libelle": "Session vocale",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaVoixTravail",
+     "libelle": "Travail délégué par la voix",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaAgenda",
+     "libelle": "Précision donnée pendant un travail",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantRoutine",
+     "libelle": "Routine programmée",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantRoutineRun",
+     "libelle": "Passage d'une routine",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantVeille",
+     "libelle": "Veille d'une personne",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantVeilleur",
+     "libelle": "Veilleur d'une personne",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantSignal",
+     "libelle": "Constat d'un veilleur",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "MediaTranscript",
+     "libelle": "Transcription d'un média",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "VoiceTurnLog",
+     "libelle": "Journal d'un tour vocal",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "ia-moteur",
+   "nom": "IA — moteur, missions, connaissances & réglages",
+   "nature": "technique",
+   "raison": "Ce qui fait tourner l'IA : réglages et plafonds, missions et travaux, gestes et leurs effets, base de connaissances, consommation, banc d'essai.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "confidentiel",
+   "ecritPar": "Adam & Assistant IA (`src/lib/assistant/`, `src/modules/assistant-ia/`, `src/modules/recettes/`, `src/platform/ia/`), Administration › Contrôle de l'IA",
+   "acces": {
+    "modules": [
+     {
+      "cle": "ADMIN",
+      "libelle": "Administration"
+     },
+     {
+      "cle": "ASSISTANT_IA",
+      "libelle": "Assistant IA"
+     },
+     {
+      "cle": "RECETTES",
+      "libelle": "Recettes"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Réglages réservés au Super Admin (Administration › IA) ; missions et travaux visibles de leur auteur et participants"
+    ]
+   },
+   "nombreTables": 56,
+   "tables": [
+    {
+     "modele": "AssistantActionIntent",
+     "libelle": "Action proposée par l'assistant (à confirmer)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-actions"
+     ]
+    },
+    {
+     "modele": "AssistantProvenance",
+     "libelle": "Provenance d'une réponse",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantRoleConfig",
+     "libelle": "Réglage de l'assistant par rôle",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantRoleConfigAudit",
+     "libelle": "Historique des réglages par rôle",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaReglage",
+     "libelle": "Bornes globales de l'assistant",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-ia-consommation-actions"
+     ]
+    },
+    {
+     "modele": "AssistantIaPlafondAtteint",
+     "libelle": "Plafond du jour franchi",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaModeleRole",
+     "libelle": "Modèle choisi par rôle de l'IA",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-ia-qualite-actions"
+     ]
+    },
+    {
+     "modele": "AssistantIaTrace",
+     "libelle": "Trace rejouable d'un tour",
+     "sensibilite": "confidentiel",
+     "pourquoi": "copie intégrale de ce que le modèle a reçu (consigne, messages, résultats d'outils)",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantIaBancReglage",
+     "libelle": "Calendrier du banc d'essai",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-ia-qualite-actions"
+     ]
+    },
+    {
+     "modele": "AssistantIaBancPassage",
+     "libelle": "Passage du banc d'essai",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-ia-qualite-actions"
+     ]
+    },
+    {
+     "modele": "AssistantIaBancScenario",
+     "libelle": "Résultat d'un scénario du banc",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "BancBaseEssai",
+     "libelle": "Marqueur d'une base d'essai",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantMandat",
+     "libelle": "Mandat (approbation durable)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantMandatGeste",
+     "libelle": "Geste fait sous mandat",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantGesteJournal",
+     "libelle": "Journal des gestes d'agent",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AssistantEffet",
+     "libelle": "Effet d'un geste (écriture, envoi)",
+     "sensibilite": "confidentiel",
+     "pourquoi": "valeurs AVANT / APRÈS de chaque écriture d'un geste",
+     "ecritePar": []
+    },
+    {
+     "modele": "EffetSortantDiffere",
+     "libelle": "Envoi différé (fenêtre d'annulation)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "TravailEcriture",
+     "libelle": "Reçu d'un geste écrit par un travail",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "TravailDemande",
+     "libelle": "Travail demandé à une autre personne",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AtelierConversion",
+     "libelle": "Opération de l'Atelier (conversion de fichier)",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AdamRule",
+     "libelle": "Règle enseignée à Adam",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AdamSkill",
+     "libelle": "Compétence d'Adam",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AdamWatch",
+     "libelle": "Surveillance programmée par Adam",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "CommunicationPolicy",
+     "libelle": "Politique de communication d'Adam",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "adam-settings-actions"
+     ]
+    },
+    {
+     "modele": "IngestedEvent",
+     "libelle": "Événement reçu par Adam",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "BusinessEvent",
+     "libelle": "Événement métier",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "consulting-actions"
+     ]
+    },
+    {
+     "modele": "AiSetting",
+     "libelle": "Réglage de l'IA",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ai-settings-actions"
+     ]
+    },
+    {
+     "modele": "AiHealthCheck",
+     "libelle": "Contrôle de santé de l'IA",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "AiUsageLog",
+     "libelle": "Consommation de l'IA",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "adventum-actions",
+      "assistant-actions",
+      "field-report-actions"
+     ]
+    },
+    {
+     "modele": "ModelCallLog",
+     "libelle": "Appel d'un modèle d'IA",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "Mission",
+     "libelle": "Mission d'agent",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "mission-runtime-actions"
+     ]
+    },
+    {
+     "modele": "MissionStep",
+     "libelle": "Étape d'une mission",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "mission-runtime-actions"
+     ]
+    },
+    {
+     "modele": "MissionStepDep",
+     "libelle": "Dépendance entre étapes",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "MissionPlanPattern",
+     "libelle": "Modèle de plan de mission",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "MissionMilestone",
+     "libelle": "Jalon d'une mission",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "mission-runtime-actions"
+     ]
+    },
+    {
+     "modele": "MissionInput",
+     "libelle": "Entrée d'une mission",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "MissionWorkerRun",
+     "libelle": "Exécution d'une étape de mission",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "MissionArtifact",
+     "libelle": "Livrable d'une mission",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "MissionApproval",
+     "libelle": "Approbation d'une mission",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "mission-runtime-actions"
+     ]
+    },
+    {
+     "modele": "MissionParticipant",
+     "libelle": "Participant à une mission",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "MissionEvent",
+     "libelle": "Événement d'une mission",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "OperationalTemplate",
+     "libelle": "Modèle opérationnel",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "mission-runtime-actions"
+     ]
+    },
+    {
+     "modele": "ScheduledWorkflow",
+     "libelle": "Travail programmé",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "WorkflowRun",
+     "libelle": "Exécution d'un travail programmé",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "ArtifactSession",
+     "libelle": "Session d'édition d'un document",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "ArtifactOperation",
+     "libelle": "Opération d'édition d'un document",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "KnowledgeItem",
+     "libelle": "Élément de la base de connaissances",
+     "sensibilite": "confidentiel",
+     "pourquoi": "documents ingérés de toutes les bases",
+     "ecritePar": []
+    },
+    {
+     "modele": "KnowledgeChunk",
+     "libelle": "Passage indexé de la base de connaissances",
+     "sensibilite": "confidentiel",
+     "pourquoi": "texte indexé de documents de toutes les bases",
+     "ecritePar": []
+    },
+    {
+     "modele": "KnowledgeJob",
+     "libelle": "Traitement de la base de connaissances",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "KnowledgeLink",
+     "libelle": "Lien de la base de connaissances",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "KnowledgeEntity",
+     "libelle": "Entité de la base de connaissances",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "KnowledgeAlias",
+     "libelle": "Nom alternatif d'une entité",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "Recette",
+     "libelle": "Recette (circuit appris)",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "recettes-actions"
+     ]
+    },
+    {
+     "modele": "RecetteVersion",
+     "libelle": "Version d'une recette",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "recettes-actions"
+     ]
+    },
+    {
+     "modele": "RecetteUsage",
+     "libelle": "Usage d'une recette par l'assistant",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "RecetteResponsable",
+     "libelle": "Responsable d'un processus",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "recettes-actions"
+     ]
+    }
+   ]
+  },
+  {
+   "cle": "journaux",
+   "nom": "Journaux & traçabilité",
+   "nature": "technique",
+   "raison": "Qui a fait quoi et quand : journal d'audit, activité, corbeille, appels d'API, incidents et qualité des données.",
+   "sensibilite": "confidentiel",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Socle (`src/lib/audit.ts`, `src/lib/journal.ts`, corbeille) — écrit par toutes les actions",
+   "acces": {
+    "modules": [
+     {
+      "cle": "ADMIN",
+      "libelle": "Administration"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Lecture réservée au Super Admin (Administration › Journal, Corbeille) ; l'activité d'un sujet se lit sur sa fiche selon les droits du sujet"
+    ]
+   },
+   "nombreTables": 8,
+   "tables": [
+    {
+     "modele": "AuditLog",
+     "libelle": "Journal d'audit",
+     "sensibilite": "secret",
+     "pourquoi": "les valeurs avant / après de toute écriture, paie comprise",
+     "ecritePar": [
+      "access-actions",
+      "actualisation-soldes-actions",
+      "ad-pro-centre-actions",
+      "ad-pro-edit-actions",
+      "ad-pro-item-actions",
+      "ad-pro-medecins-actions",
+      "ad-pro-pieces-actions",
+      "ad-pro-rattacher-legal",
+      "ad-pro-transfer-actions",
+      "adam-settings-actions",
+      "admin-actions",
+      "admin-delete-actions",
+      "admin-request-actions",
+      "adoption-actions",
+      "adventum-actions",
+      "ai-settings-actions",
+      "assistant-ia-consommation-actions",
+      "assistant-ia-proactivite-actions",
+      "assistant-ia-qualite-actions",
+      "auth-actions",
+      "bc-signature-actions",
+      "bd-actions",
+      "bd-project-actions",
+      "besoins-services-actions",
+      "bibliotheque-actions",
+      "budget-actions",
+      "budget-campagne-actions",
+      "budget-envelope-actions",
+      "budget-pole-actions",
+      "calendar-actions",
+      "care-actions",
+      "coaching-actions",
+      "coffre-actions",
+      "comment-actions",
+      "company-access-actions",
+      "company-actions",
+      "company-contact-actions",
+      "company-identity-actions",
+      "congress-request-actions",
+      "consommation-actions",
+      "consulting-actions",
+      "custom-field-actions",
+      "database-admin-actions",
+      "delegate-plan-actions",
+      "demande-stocks-actions",
+      "department-actions",
+      "department-budget-actions",
+      "directive-actions",
+      "directory-actions",
+      "document-actions",
+      "document-request-actions",
+      "dossier-actions",
+      "doublons-factures-actions",
+      "drive-actions",
+      "drive-space-actions",
+      "enrichissement-actions",
+      "entity-attach-actions",
+      "etablissement-services-actions",
+      "event-actions",
+      "expense-actions",
+      "feature-actions",
+      "feedback-actions",
+      "field-report-actions",
+      "finance-actions",
+      "force-de-vente-actions",
+      "fournisseurs-annuaire-actions",
+      "general-means-service-actions",
+      "hr-actions",
+      "hr-document-actions",
+      "impersonation-actions",
+      "integration-adpro-actions",
+      "intelligence-terrain-actions",
+      "invoice-actions",
+      "knowledge-actions",
+      "kpi-actions",
+      "legal-actions",
+      "legal-folder-actions",
+      "letterhead-actions",
+      "lieux-actions",
+      "logistics-actions",
+      "mail-actions",
+      "mail-folder-actions",
+      "mail-partner-actions",
+      "mail-piece-actions",
+      "mail-register-actions",
+      "market-presentation-actions",
+      "market-research-actions",
+      "medical-actions",
+      "medical-directory-actions",
+      "medical-directory-crud-actions",
+      "medical-info-actions",
+      "meeting-actions",
+      "microsoft-mail-actions",
+      "mission-actions",
+      "moyens-generaux-registre-actions",
+      "natures-moyens-generaux-actions",
+      "notification-actions",
+      "office-supply-actions",
+      "offres-emploi-actions",
+      "onboarding-actions",
+      "org-actions",
+      "org-coherence-actions",
+      "organisation-actions",
+      "payment-centre-actions",
+      "payment-centre-seat-actions",
+      "payment-request-actions",
+      "payroll-hr-actions",
+      "pch-actions",
+      "pch-market-actions",
+      "pch-tender-line-actions",
+      "personnes-actions",
+      "petty-cash-actions",
+      "pharmacovigilance-actions",
+      "platform-audit-actions",
+      "prix-produit-actions",
+      "process-intelligence-actions",
+      "product-range-actions",
+      "produit-canonique-actions",
+      "promo-budget-actions",
+      "promo-catalogue-actions",
+      "promo-circuit-actions",
+      "promo-comptage-actions",
+      "promo-demande-actions",
+      "promo-message-actions",
+      "promo-stock-actions",
+      "purchase-request-actions",
+      "recettes-actions",
+      "recruitment-actions",
+      "recrutement-diffusion-actions",
+      "refonte-reprise-actions",
+      "regulatory-actions",
+      "regulatory-drive-actions",
+      "regulatory-reminder-actions",
+      "regulatory-timeline-actions",
+      "relance-paiement-actions",
+      "reminder-actions",
+      "repartition-couts-actions",
+      "sales-actions",
+      "sales-planning-actions",
+      "secretariat-devis-actions",
+      "segmentation-actions",
+      "settings-actions",
+      "site-web-actions",
+      "sponsoring-actions",
+      "stand-in-actions",
+      "stock-pch-actions",
+      "stock-recurrence-actions",
+      "stock-snapshot-actions",
+      "supplier-actions",
+      "supplier-portal-actions",
+      "support-actions",
+      "task-actions",
+      "tour-plan-actions",
+      "tour-visit-actions",
+      "training-actions",
+      "validation-actions",
+      "ventes-pch-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "ActivityLog",
+     "libelle": "Journal d'activité",
+     "sensibilite": "confidentiel",
+     "ecritePar": [
+      "adoption-actions"
+     ]
+    },
+    {
+     "modele": "SessionEvent",
+     "libelle": "Événement de session",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "DeletedRecord",
+     "libelle": "Élément en corbeille",
+     "sensibilite": "secret",
+     "pourquoi": "copie complète de chaque ligne supprimée, de toutes les bases",
+     "ecritePar": [
+      "ad-pro-item-actions",
+      "ad-pro-pieces-actions",
+      "admin-delete-actions",
+      "bd-project-actions",
+      "drive-actions",
+      "event-actions",
+      "field-report-actions",
+      "medical-actions",
+      "payment-request-actions",
+      "pch-actions",
+      "pch-tender-line-actions",
+      "regulatory-ctd-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "ApiCall",
+     "libelle": "Appel de l'API externe",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "IncidentRepete",
+     "libelle": "Incident répété",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "DataQualityFinding",
+     "libelle": "Anomalie de qualité des données",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "DataQualitySweep",
+     "libelle": "Passage de contrôle de qualité des données",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    }
+   ]
+  },
+  {
+   "cle": "plateforme",
+   "nom": "Plateforme, réglages, files & intégrations",
+   "nature": "technique",
+   "raison": "Les réglages de l'application, les champs personnalisés, les tâches de fond, webhooks, notifications poussées, le centre de test et les chantiers de développement.",
+   "sensibilite": "restreint",
+   "sensibiliteMax": "secret",
+   "ecritPar": "Administration (réglages), ordonnanceur (`src/lib/scheduler/`), centre de test, chantiers",
+   "acces": {
+    "modules": [
+     {
+      "cle": "ADMIN",
+      "libelle": "Administration"
+     },
+     {
+      "cle": "FEEDBACK",
+      "libelle": "Feedback"
+     }
+    ],
+    "rolesLectureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "rolesEcritureParDefaut": [
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
+    ],
+    "famillesIa": [],
+    "mecanismes": [
+     "Réglages réservés au Super Admin ; retours (Feedback) lus par leur auteur et l'Administration"
+    ]
+   },
+   "nombreTables": 22,
+   "tables": [
+    {
+     "modele": "AppSetting",
+     "libelle": "Réglage de l'application",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "assistant-actions",
+      "assistant-ia-consommation-actions",
+      "budget-envelope-actions",
+      "coffre-actions",
+      "enrichissement-actions",
+      "general-means-service-actions",
+      "lieux-actions",
+      "organisation-actions",
+      "personnes-actions",
+      "settings-actions",
+      "site-web-actions"
+     ]
+    },
+    {
+     "modele": "FeatureFlag",
+     "libelle": "Interrupteur de fonctionnalité",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "feature-actions"
+     ]
+    },
+    {
+     "modele": "CustomFieldDef",
+     "libelle": "Champ personnalisé",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "custom-field-actions"
+     ]
+    },
+    {
+     "modele": "EntityLink",
+     "libelle": "Lien entre deux sujets",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "link-actions",
+      "pch-actions"
+     ]
+    },
+    {
+     "modele": "Comment",
+     "libelle": "Commentaire",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "ad-pro-discussion-actions",
+      "ad-pro-item-actions",
+      "ad-pro-other-actions",
+      "ad-pro-pieces-actions",
+      "admin-delete-actions",
+      "admin-request-actions",
+      "bd-project-actions",
+      "comment-actions",
+      "conge-discussion-actions",
+      "consulting-actions",
+      "drive-actions",
+      "event-actions",
+      "field-report-actions",
+      "hr-document-actions",
+      "medical-actions",
+      "medical-info-actions",
+      "mission-actions",
+      "payment-request-actions",
+      "pch-actions",
+      "pch-tender-line-actions",
+      "pharmacovigilance-actions",
+      "promo-circuit-actions",
+      "promo-demande-actions",
+      "promo-devis-actions",
+      "promo-material-actions",
+      "purchase-request-actions",
+      "recruitment-actions",
+      "regulatory-actions",
+      "task-actions",
+      "validation-actions",
+      "workflow-actions"
+     ]
+    },
+    {
+     "modele": "Feedback",
+     "libelle": "Retour d'un utilisateur",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "feedback-actions"
+     ]
+    },
+    {
+     "modele": "FeedbackAttachment",
+     "libelle": "Pièce jointe d'un retour",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "feedback-actions"
+     ]
+    },
+    {
+     "modele": "PushSubscription",
+     "libelle": "Abonnement aux notifications poussées",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "ApiIdempotencyKey",
+     "libelle": "Clé d'idempotence de l'API",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "WebhookEndpoint",
+     "libelle": "Point de réception d'un webhook",
+     "sensibilite": "secret",
+     "pourquoi": "secret de signature des webhooks",
+     "ecritePar": []
+    },
+    {
+     "modele": "WebhookDelivery",
+     "libelle": "Envoi d'un webhook",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "ControleWorker",
+     "libelle": "Bail d'une tâche de fond",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "TacheDeFond",
+     "libelle": "Tâche de fond",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "TacheEnrichissement",
+     "libelle": "File d'enrichissement des pièces",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "enrichissement-actions"
+     ]
+    },
+    {
+     "modele": "TestRun",
+     "libelle": "Passage du centre de test",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "test-center-actions"
+     ]
+    },
+    {
+     "modele": "TestArtifact",
+     "libelle": "Pièce d'un passage de test",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "TestFinding",
+     "libelle": "Constat d'un passage de test",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "ChantierReservation",
+     "libelle": "Réservation d'une ressource par un chantier",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "MemoireTechnique",
+     "libelle": "Mémoire technique des chantiers",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "DevLancement",
+     "libelle": "Lancement de Claude Code",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "ClaudeRelaisOrdre",
+     "libelle": "Ordre pour le relais Claude Code",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "ClaudeRelaisEtat",
+     "libelle": "État du relais Claude Code",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    }
+   ]
+  }
+ ]
+}

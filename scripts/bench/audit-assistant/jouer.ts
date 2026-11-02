@@ -398,24 +398,40 @@ async function main() {
   const ra: ResultatAttaque[] = [];
   const rt: ResultatTache[] = [];
   let budgetAtteint = false;
+  // CRÉDIT ÉPUISÉ / PANNE DU FOURNISSEUR → ARRÊT NET (consigne de la Direction, 02/11) : on ne rejoue pas, on ne réessaie pas.
+  // Trois conversations de suite sans AUCUN appel de modèle abouti (hors Vue exacte), ou une erreur qui nomme le crédit, le
+  // quota ou l'autorisation du fournisseur, arrêtent le passage ; ce qui a été joué est compté (ERREUR), le reste « non joué ».
+  let arret: string | null = null;
+  let pannes = 0;
+  const surveiller = (r: { appels: number; persona: string; erreur?: string | null }) => {
+    const e = r.erreur ?? "";
+    if (/quota|insufficient|billing|cr[ée]dit|\b(401|402|429)\b|rate.?limit|invalid.?api.?key/i.test(e)) arret = `erreur du fournisseur : ${e.slice(0, 160)}`;
+    pannes = r.appels === 0 && r.persona !== "vue_exacte" ? pannes + 1 : 0;
+    if (!arret && pannes >= 3) arret = "trois conversations de suite sans aucun appel de modèle abouti (panne ou crédit du fournisseur)";
+  };
   for (const a of attaques) {
+    if (arret) break;
     if ((await depense()) > BUDGET * 0.92) { budgetAtteint = true; break; }
     const r = await jouerAttaque(s, a, sessions, agr).catch((e) => ({ id: a.id, categorie: a.categorie, persona: a.persona, voie: "écrit", piege: a.piege ?? null, verdict: "ERREUR" as const, fuites: [], lectures: [], actes: [], salutation: null, echanges: [], ms: 0, coutUsd: 0, appels: 0, erreur: e instanceof Error ? e.message : String(e) }));
     ra.push(r);
+    surveiller(r);
     console.log(`${r.verdict === "BLOQUÉE" ? "✓" : r.verdict === "LUE" ? "◐" : "✗"} ${r.id} [${r.persona}/${r.voie}] ${r.verdict}${r.fuites.length ? ` — ${r.fuites.map((f) => `${f.temoin.libelle} (${f.ou})`).join(", ")}` : ""}${r.actes.length ? ` — ACTES : ${r.actes.join(" ; ")}` : ""}${r.lectures.length ? ` — lu : ${r.lectures.map((l) => `${l.modele}.${l.operation}→${l.nature}`).join(", ")}` : ""}${r.salutation ? ` — salué « ${r.salutation} »` : ""} · ${(r.ms / 1000).toFixed(1)} s · ${r.coutUsd.toFixed(4)} $`);
   }
   for (const t of budgetAtteint ? [] : taches) {
+    if (arret) break;
     if ((await depense()) > BUDGET * 0.92) { budgetAtteint = true; break; }
     const r = await jouerTache(s, t, sessions, agr).catch((e) => ({ id: t.id, domaine: t.domaine ?? "socle", categorie: t.categorie, persona: t.persona, verdict: "ERREUR" as const, motifs: [e instanceof Error ? e.message : String(e)], questions: 0, carte: null, objetCree: null, fichiers: [], mail: null, fauxFait: null, fuites: [], echanges: [], ms: 0, coutUsd: 0, appels: 0, erreur: String(e) }));
     rt.push(r);
+    surveiller(r);
     console.log(`${r.verdict === "RÉUSSIE" ? "✓" : "✗"} ${r.id} [${r.persona}] ${r.verdict} · ${r.questions} question(s)${r.motifs.length ? ` — ${r.motifs.join(" ; ")}` : ""}${r.mail ? ` · mail ${r.mail.grille.note}/${r.mail.grille.sur}, juge ${r.mail.juge.note ?? "—"}/5` : ""} · ${(r.ms / 1000).toFixed(1)} s · ${r.coutUsd.toFixed(4)} $`);
   }
   const passage: Passage = {
-    quand: new Date().toISOString(), modele, juge: JUGE.modele, budgetUsd: BUDGET, budgetAtteint, depenseUsd: await depense(),
+    quand: new Date().toISOString(), modele, juge: JUGE.modele, budgetUsd: BUDGET, budgetAtteint, arret, depenseUsd: await depense(),
     jugeUsd: rt.reduce((x, r) => x + (r.mail?.juge.coutUsd ?? 0), 0), attaques: ra, taches: rt,
     nonJouees: [...attaques.filter((a) => !ra.some((r) => r.id === a.id)).map((a) => a.id), ...taches.filter((t) => !rt.some((r) => r.id === t.id)).map((t) => t.id)],
   };
   const fichiers = ecrireRapport(passage, process.env.AUDIT_RAPPORT_DIR ?? path.join(process.cwd(), "docs", "assistant", "preuves", "audit"));
+  if (arret) console.log(`ARRÊT NET — ${arret}`);
   console.log(`Rapport : ${fichiers.join(", ")}`);
   // Le résultat NORMALISÉ que relit le banc programmé (une attaque passée = « FUITE », un défaut bloquant).
   if (process.env.BANC_SORTIE) {

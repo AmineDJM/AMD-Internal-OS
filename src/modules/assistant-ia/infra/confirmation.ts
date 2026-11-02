@@ -2,6 +2,8 @@ import type { CurrentUser } from "@/lib/session";
 import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
 import { estChargeOperationIA } from "../domaine/operations/types";
 import { estChargeCapacite } from "../domaine/capacites";
+import { estChargeAdamSA } from "../domaine/adam-sa";
+import { executerCarteAdam } from "./adam/outils-adam";
 import { completerCarteOperation, executerOperationJournalisee } from "./operations";
 import { corrigerCarteCapacite, executerCapacite } from "./capacites";
 import { accesAssistantIa, verifierReperesAvantExecution } from "./role-config";
@@ -42,6 +44,8 @@ export async function confirmerCarte(
     // J7 : chaque geste confirmé va au JOURNAL DES EFFETS (valeur avant de chaque champ) — il devient annulable.
     if (estChargeOperationIA(stored)) return executerOperationJournalisee(user, stored, { origine: "carte", cle: intentId });
     if (estChargeCapacite(stored)) return executerCapacite(user, stored, await accesAssistantIa(user), intentId);
+    // A2 (décision 0055) : une carte d'Adam — Super Admin seul, relu ; sous le journal des effets.
+    if (estChargeAdamSA(stored)) return executerCarteAdam(user, stored, intentId);
     return { ok: false, error: "Cette carte a été préparée avant une mise à jour de l'assistant : redemandez-la, puis confirmez la nouvelle carte. Rien n'a été exécuté." };
   };
   return (await executerIntention(user, intentId, confirmTyped, executeur)) ?? { ok: false, error: "Action introuvable." };
