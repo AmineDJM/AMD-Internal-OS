@@ -4277,7 +4277,6 @@
  "dossier-actions:archiveDossier": {
   "risque": "R1",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -4287,7 +4286,6 @@
  "dossier-actions:assignDossier": {
   "risque": "R2",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -4297,7 +4295,6 @@
  "dossier-actions:createDossier": {
   "risque": "R1",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -4307,7 +4304,6 @@
  "dossier-actions:createDossierFromTask": {
   "risque": "R1",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -4317,7 +4313,6 @@
  "dossier-actions:deleteDossierMessage": {
   "risque": "R4",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -4327,7 +4322,6 @@
  "dossier-actions:editDossierMessage": {
   "risque": "R1",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -4337,7 +4331,6 @@
  "dossier-actions:linkEmailToDossier": {
   "risque": "R3",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -4346,17 +4339,23 @@
  },
  "dossier-actions:listLinkableDossiers": {
   "risque": "R0",
-  "familles": [
-   "REGLEMENTAIRE"
-  ],
+  "familles": [],
   "simulable": "oui",
   "annulation": "aucune",
+  "appelable": true
+ },
+ "dossier-actions:mettreAJourDossiersEnLot": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
   "appelable": true
  },
  "dossier-actions:postDossierMessage": {
   "risque": "R2",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -4366,7 +4365,6 @@
  "dossier-actions:updateDossierStatus": {
   "risque": "R1",
   "familles": [
-   "REGLEMENTAIRE",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -7726,6 +7724,51 @@
   "simulable": "inconnu",
   "annulation": "retour",
   "appelable": false
+ },
+ "moyens-generaux-registre-actions:annulerReservationMoyenGeneral": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "moyens-generaux-registre-actions:archiverMoyenGeneral": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "moyens-generaux-registre-actions:creerMoyenGeneral": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "moyens-generaux-registre-actions:modifierMoyenGeneral": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "moyens-generaux-registre-actions:reserverMoyenGeneral": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
  },
  "my-team-actions:teamMemberKpis": {
   "risque": "R0",

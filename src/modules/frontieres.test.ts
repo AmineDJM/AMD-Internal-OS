@@ -611,6 +611,11 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // L'accès OpenAI (clé) : passerelle `lib/models`, socle IA à terme.
     "src/modules/assistant-ia/infra/modele.ts → src/lib/models/openai-acces",
   ],
+  "moyens-generaux": [
+    // T3 (décision 0051) : la numérotation des références (MG-AAAA-NNN) passe par la série partagée de toute l'application
+    // (`referenceDeSerie`, comme les demandes Ad & Pro) — primitive transverse, cible : le socle.
+    "src/modules/moyens-generaux/actions.ts → src/lib/refs",
+  ],
 };
 
 /** Le socle : ce qu'un module a le droit de lire sans que ce soit une dette. */

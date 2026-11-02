@@ -33,7 +33,9 @@ export const LIBELLE_FAMILLE: Record<FamilleIa, string> = {
 
 export const AIDE_FAMILLE: Record<FamilleIa, string> = {
   SALAIRES: "Salaire de base, brut, net, coût employeur, masse salariale. Ouverte, l'assistant les donne à la personne (au modèle en clair ou en repères : réglage « Valeurs sensibles »).",
-  BUDGETS: "Enveloppes, consommé, restant, agrégats financiers.",
+  // T3 (banc DOS/MG) : « combien coûtent les contrats des moyens généraux » était refusé SANS appel d'outil, rangé ici par
+  // « agrégats financiers ». Le périmètre dit aussi ce qui n'en relève pas : ces outils jugent eux-mêmes.
+  BUDGETS: "Enveloppes budgétaires (alloué, consommé, restant) et agrégats des Finances. N'en relèvent pas : le registre des moyens généraux (contrats, primes, échéances), le suivi de dossiers, les fiches et postes d'une demande Ad & Pro — leurs outils jugent.",
   CONTRATS_RH: "Contrats, avenants, attestations et autres pièces du dossier RH d'autrui : lien de téléchargement et lecture.",
   FICHES: "Fiche RH d'un collaborateur (poste, contrat, congés) et situation RH.",
   DRIVE: "Recherche dans le Drive et dans tout l'ERP, gestes Drive ; l'Atelier : ouvrir, modifier en place et convertir un fichier du Drive ou une pièce jointe (même un contrat ou une lettre) — les droits du fichier décident.",
