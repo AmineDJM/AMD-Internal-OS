@@ -328,6 +328,16 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "ad-pro-item-actions:deposerBcSignePoste": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "ad-pro-item-actions:deposerFacturePoste": {
   "risque": "R1",
   "familles": [
@@ -444,6 +454,16 @@
    "ECRITURES"
   ],
   "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-item-actions:preparerBrouillonExcelPoste": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": true
  },

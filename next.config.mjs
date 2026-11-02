@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 /**
  * LE TYPECHECK DU DÉPLOIEMENT VIT DANS SON PROPRE PROCESSUS — quelle que soit la commande de build.
@@ -11,7 +11,7 @@ import { createRequire } from "node:module";
  * donc ICI, là où `next build` passe forcément.
  *
  * PAS un contournement : tsc tourne sur la PRODUCTION (`tsconfig.build.json`, sans les fichiers de
- * test — `npm run typecheck` les vérifie tous) avec un tas de 5 Go, AVANT la compilation ; la moindre
+ * test — `npm run typecheck` les vérifie tous) par tranches à tas borné (lot M2), AVANT la compilation ; la moindre
  * erreur de type ARRÊTE le build. Seul `next build` sur Render (variable `RENDER`) le fait : un build
  * local garde le typecheck intégré, et `next start` ne le déclenche jamais (autre phase).
  * `TYPECHECK_SEPARE` évite de le refaire dans les processus fils de la compilation.
@@ -19,10 +19,12 @@ import { createRequire } from "node:module";
 function typecheckSepare(phase) {
   if (process.env.TYPECHECK_SEPARE === "1") return true;
   if (phase !== "phase-production-build" || !process.env.RENDER) return false;
-  const tsc = createRequire(import.meta.url).resolve("typescript/bin/tsc");
-  console.log("[build] Typecheck de la production dans son propre processus (tas : 5 Go)…");
+  // Lot M2 (02/11/2026) : plus un tsc d'un seul tenant (tas 5 Go, mort une fois à 5 027 Mo) mais le
+  // typecheck PAR TRANCHES à tas borné (4 300 Mo chacune) — mêmes fichiers, mêmes diagnostics, pic
+  // ≈ 3,5 Go. Pourquoi et comment : scripts/typecheck-production.mjs.
+  console.log("[build] Typecheck de la production par tranches, chacune dans son processus…");
   try {
-    execFileSync(process.execPath, ["--max-old-space-size=5120", tsc, "--noEmit", "-p", "tsconfig.build.json"], { stdio: "inherit" });
+    execFileSync(process.execPath, [fileURLToPath(new URL("./scripts/typecheck-production.mjs", import.meta.url))], { stdio: "inherit" });
   } catch {
     throw new Error("Typecheck en échec : le build est arrêté (les erreurs de type sont affichées ci-dessus).");
   }
