@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, MessageSquare } from "lucide-react";
-import { requireModule } from "@/lib/session";
-import { peutPiloterMissionsAdam } from "@/lib/rbac";
-import { vueMission } from "@/lib/missions/view/workspace";
+import { requireUser } from "@/lib/session";
+import { peutPiloterMissionsAdam, peutUtiliserAssistantIA } from "@/lib/rbac";
+import { proprietaireDeMission, vueMission } from "@/lib/missions/view/workspace";
 import { MissionRuntimePanel } from "@/components/missions/mission-runtime-panel";
 
 /**
@@ -38,11 +38,15 @@ export const dynamic = "force-dynamic";
 
 export default async function MissionRuntimePage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
-  const user = await requireModule("WORKSPACE");
-  // RÉSERVÉ AU SUPER ADMIN (§118.136) — même page qu'une mission inexistante, pour la même
-  // raison que le filtre par propriétaire ci-dessus : on ne révèle rien par la différence.
-  if (!peutPiloterMissionsAdam(user)) notFound();
-  const vue = await vueMission(params.id, user.id);
+  const user = await requireUser();
+  // LE PROPRIÉTAIRE ET LE SUPER ADMIN, PERSONNE D'AUTRE (Direction, 02/11/2026 : « tout le monde verra les missions
+  // d'Adam, chacun selon les missions qu'il lui a données »). Qui a Adam lit SA mission — `vueMission` filtre par SON
+  // identifiant : la mission d'un collègue rend la même page qu'une mission inexistante. Le Super Admin garde la vue
+  // globale : il lit la mission de quiconque, en lecture seule quand elle n'est pas la sienne.
+  const superAdmin = peutPiloterMissionsAdam(user);
+  if (!superAdmin && !peutUtiliserAssistantIA(user)) notFound();
+  const proprietaireId = superAdmin ? (await proprietaireDeMission(params.id)) ?? user.id : user.id;
+  const vue = await vueMission(params.id, proprietaireId);
   if (!vue) notFound();
 
   return (
@@ -54,7 +58,7 @@ export default async function MissionRuntimePage(props: { params: Promise<{ id: 
         <ArrowLeft className="h-4 w-4" aria-hidden /> Toutes les missions d&apos;Adam
       </Link>
 
-      <MissionRuntimePanel user={user} missionId={params.id} />
+      <MissionRuntimePanel user={user} missionId={params.id} proprietaireId={proprietaireId} />
 
       <Link
         href={`/assistant?q=${encodeURIComponent(`Où en est la mission « ${vue.title} » ?`)}`}

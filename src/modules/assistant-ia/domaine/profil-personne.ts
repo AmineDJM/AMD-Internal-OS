@@ -64,6 +64,7 @@ export function sectionProfil(p: ProfilPersonne, entites: ReadonlyMap<string, st
     "### INTERLOCUTEUR (profil construit par le serveur à partir de SON compte et de SA fiche RH — la seule source sur la personne)",
     `Tu parles à : ${p.nom}. Adresse-toi à cette personne par son prénom « ${p.prenom || p.nom} » — JAMAIS par un autre prénom, `
       + "même si la mémoire, l'historique ou un document en cite un autre.",
+    `Ta présentation : « ${presentationAdam(p.prenom || p.nom)} ».`,
     p.adresse === "TU" ? "Adresse : tutoiement (la personne l'a choisi)." : "Adresse : vouvoiement.",
     `Rôle : ${p.role}${p.roleSecondaire ? ` (rôle secondaire : ${p.roleSecondaire})` : ""}`,
   ];
@@ -90,12 +91,38 @@ export function sectionProfil(p: ProfilPersonne, entites: ReadonlyMap<string, st
   return l.join("\n");
 }
 
+/**
+ * LE NOM DE L'ASSISTANT — « Adam », pour tout le monde (décision de la Direction, 02/11/2026 : « l'assistant IA de tous
+ * s'appellera dorénavant Adam »). Le NOM seulement : la clé de module `ASSISTANT_IA`, les droits et le moteur ne changent pas.
+ */
+export const NOM_ASSISTANT = "Adam";
+
+/** « Je suis Adam, l'assistant de Radia » — l'identité vient du COMPTE (le prénom de la session), jamais du modèle. */
+export function presentationAdam(prenom: string): string {
+  if (!prenom) return `Je suis ${NOM_ASSISTANT}, ton assistant`;
+  // L'élision : « l'assistant d'Amina », « de Radia ».
+  return `Je suis ${NOM_ASSISTANT}, l'assistant ${/^[aeiouyhàâäéèêëîïôöùûü]/i.test(prenom) ? "d'" : "de "}${prenom}`;
+}
+
+/**
+ * La ligne d'identité qui OUVRE la consigne du modèle. Elle ne nomme personne : elle fait partie du préfixe stable,
+ * identique d'une personne à l'autre (mis en cache par le fournisseur, J4). Le prénom, lui, vient du COMPTE de la
+ * session, par la section « INTERLOCUTEUR » — le modèle ne le devine pas.
+ */
+export function identiteDuModele(): string {
+  return `Tu t'appelles « ${NOM_ASSISTANT} » : tu es l'assistant interne d'Adventum Pharma, un laboratoire pharmaceutique algérien, `
+    + "au service de la personne décrite dans la section INTERLOCUTEUR. Si l'on te demande ton nom ou qui tu es, présente-toi ainsi : "
+    + `« ${NOM_ASSISTANT}, l'assistant de <son prénom> » (ex. « ${presentationAdam("Radia")} »). `
+    + "Tu réponds en français, avec rigueur et clarté, en t'appuyant uniquement sur les données de l'entreprise que te donnent tes outils.";
+}
+
 /** L'accueil de l'écran, au prénom et dans l'adresse choisie. */
 export function accueilPour(prenom: string, adresse: Adresse): string {
   const salut = `Bonjour${prenom ? ` ${prenom}` : ""} 👋`;
+  const moi = presentationAdam(prenom);
   return adresse === "TU"
-    ? `${salut}\n\nJe suis ton assistant interne. Je lis ce que tes accès te permettent de voir — rien de plus, rien d'un collègue — et je prépare tes demandes (sponsoring, prise en charge, événement, matériel promotionnel…), tâches et messages : rien ne part sans ta confirmation.\n\nNotre conversation est gardée : tu peux quitter cet écran pendant que je travaille, je te préviens quand c'est prêt. Tu peux aussi m'écrire plusieurs messages d'affilée — je les traite dans l'ordre.\n\nQu'est-ce que je peux faire pour toi ?`
-    : `${salut}\n\nJe suis votre assistant interne. Je lis ce que vos accès vous permettent de voir — rien de plus, rien d'un collègue — et je prépare vos demandes (sponsoring, prise en charge, événement, matériel promotionnel…), tâches et messages : rien ne part sans votre confirmation.\n\nNotre conversation est gardée : vous pouvez quitter cet écran pendant que je travaille, je vous préviens quand c'est prêt. Vous pouvez aussi m'écrire plusieurs messages d'affilée — je les traite dans l'ordre, sans en perdre aucun.\n\nComment puis-je vous aider ?`;
+    ? `${salut}\n\n${prenom ? moi : `Je suis ${NOM_ASSISTANT}, ton assistant`}. Je lis ce que tes accès te permettent de voir — rien de plus, rien d'un collègue — et je prépare tes demandes (sponsoring, prise en charge, événement, matériel promotionnel…), tâches et messages : rien ne part sans ta confirmation.\n\nNotre conversation est gardée : tu peux quitter cet écran pendant que je travaille, je te préviens quand c'est prêt. Tu peux aussi m'écrire plusieurs messages d'affilée — je les traite dans l'ordre.\n\nQu'est-ce que je peux faire pour toi ?`
+    : `${salut}\n\n${prenom ? moi : `Je suis ${NOM_ASSISTANT}, votre assistant`}. Je lis ce que vos accès vous permettent de voir — rien de plus, rien d'un collègue — et je prépare vos demandes (sponsoring, prise en charge, événement, matériel promotionnel…), tâches et messages : rien ne part sans votre confirmation.\n\nNotre conversation est gardée : vous pouvez quitter cet écran pendant que je travaille, je vous préviens quand c'est prêt. Vous pouvez aussi m'écrire plusieurs messages d'affilée — je les traite dans l'ordre, sans en perdre aucun.\n\nComment puis-je vous aider ?`;
 }
 
 /** S1 — « Ce que son assistant voit » (console `/admin/ai/acces`) : le profil, la consigne exacte, l'historique des droits. */

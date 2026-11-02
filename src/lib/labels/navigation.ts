@@ -55,6 +55,12 @@ export interface NavItem {
   groupe?: boolean;
   /** Préfixes de chemin additionnels qui activent l'entrée (pour les entrées fusionnées). */
   match?: string[];
+  /**
+   * ENTRÉE MISE DE CÔTÉ — retirée du menu pour tout le monde, Super Admin compris, sans rien supprimer : la clé de
+   * module, la route et les droits restent. La valeur dit POURQUOI ; la rétablir = retirer ce champ (« My Chief of
+   * Staff », Direction 02/11/2026 : « un seul assistant : Adam »).
+   */
+  masque?: string;
 }
 
 /**
@@ -123,8 +129,11 @@ export const MODULE_LABELS: Record<Module, string> = {
   DRIVE: "Drive",
   ADMIN_REQUESTS: "Bureau du secrétariat",
   PAYMENT_CENTRE: "Centre de paiement",
-  CHIEF_OF_STAFF: "My Chief of Staff",
-  ASSISTANT_IA: "Assistant IA",
+  // « My Chief of Staff » n'a plus d'entrée de menu (02/11/2026) : son bureau est un onglet d'Adam, au Super Admin.
+  CHIEF_OF_STAFF: "My Chief of Staff (bureau d'Adam)",
+  // « ADAM » — le NOM de l'assistant de tous (Direction, 02/11/2026). La CLÉ reste `ASSISTANT_IA` : aucun droit ne bouge,
+  // la console règle toujours, personne par personne, qui a Adam.
+  ASSISTANT_IA: "Adam",
   NOTIFICATIONS: "Notifications",
   PROCESS_INTELLIGENCE: "Process Intelligence",
   ADVENTUM_BRAIN: "Adventum Brain",
@@ -176,9 +185,10 @@ export const NAVIGATION: NavItem[] = [
   // (onglets). `match` couvre ces routes pour l'état actif de la barre latérale. Les Directives n'en font plus partie (07/10).
   { module: "WORKSPACE", label: "Mon espace", href: "/mon-espace", icon: "LayoutGrid", group: "Pilotage", tabs: WORKSPACE_TABS, match: ["/mon-travail", "/mon-dossier", "/missions", "/pieces"] },
   { module: "WORKSPACE", label: "Agenda", href: "/calendar", icon: "CalendarDays", group: "Pilotage", tabs: AGENDA_TABS, match: ["/meetings"] },
-  // Assistant IA : MODULE À PART ENTIÈRE (`ASSISTANT_IA`), distinct d'Adam — le Super Admin l'a,
-  // et l'ouvre à qui il veut dans Administration › Accès. L'entrée suit le module, comme les autres.
-  { module: "ASSISTANT_IA", label: "Assistant IA", href: "/assistant", icon: "Sparkles", group: "Pilotage" },
+  // ADAM — l'assistant de tous (Direction, 02/11/2026 : « l'assistant IA de la plateforme, c'est Adam »). Module
+  // `ASSISTANT_IA` : le Super Admin l'a, et l'ouvre à qui il veut dans Administration › Accès. L'entrée suit le module.
+  // `/chief-of-staff` y mène le Super Admin (onglets Boîte de réception, Réglages et Bureau d'Adam).
+  { module: "ASSISTANT_IA", label: "Adam", href: "/assistant", icon: "Sparkles", group: "Pilotage", match: ["/adam"] },
   // LES RECETTES (J10, décision 0028) : le savoir-faire de la maison, tiré des circuits réels. MODULE du contrôle d'accès
   // (`RECETTES`, lot R1) : l'entrée suit le module (console, masquage) ET la garde `recettes` (`nav-access.ts`) — la
   // Direction, un responsable de processus, ou qui voit un circuit qui a une recette (jamais une page vide).
@@ -188,14 +198,18 @@ export const NAVIGATION: NavItem[] = [
   // journal), et la ranger dans la conversation ferait dépendre son écran de l'assistant, ce
   // que le cliquet de frontière mesure et fait baisser lot après lot. `/missions/<id>` — où
   // pointent toutes ses notifications — reste son adresse ; ceci en est la liste, qui manquait.
-  // RÉSERVÉ AU SUPER ADMIN (décision de la Direction, 09/2026) : la garde `adamMissions` lit
-  // `peutPiloterMissionsAdam` dans `nav-access.ts` — l'entrée n'est pas envoyée aux autres.
-  { module: "WORKSPACE", label: "Missions d'Adam", href: "/centre-de-missions", icon: "Radar", group: "Pilotage", match: ["/centre-de-missions"], gate: "adamMissions" },
+  // OUVERT À QUI A ADAM (Direction, 02/11/2026 : « tout le monde verra les missions d'Adam, chacun selon les missions
+  // qu'il lui a données ») : l'entrée suit le module `ASSISTANT_IA`. Chacun y lit SES missions (`Mission.ownerId`) ; la
+  // vue globale, l'interrupteur et les gestes de masse restent au Super Admin (`peutPiloterMissionsAdam`, dans l'écran).
+  // La garde `adamMissions` existe toujours : la remettre ici rétablit l'entrée « Super Admin seul ».
+  { module: "ASSISTANT_IA", label: "Missions d'Adam", href: "/centre-de-missions", icon: "Radar", group: "Pilotage", match: ["/centre-de-missions"] },
   // « MY CHIEF OF STAFF » — l'interface exécutive de pilotage, réservée au PDG et au Super
   // Admin (module CHIEF_OF_STAFF). Même moteur que l'assistant, mais les outils d'un chef de
   // cabinet : histoire complète d'un dossier, lecture des documents, bilans, rappels planifiés,
   // décisions du centre de paiement.
-  { module: "CHIEF_OF_STAFF", label: "My Chief of Staff", href: "/chief-of-staff", icon: "Crown", group: "Pilotage", gate: "adam" },
+  // MIS DE CÔTÉ (Direction, 02/11/2026 : « dans l'ERP, tu enlèves my chief of staff ») — rien n'est supprimé : la clé,
+  // la route et les droits restent ; `/chief-of-staff` redirige le Super Admin vers l'écran d'Adam (onglets).
+  { module: "CHIEF_OF_STAFF", label: "My Chief of Staff", href: "/chief-of-staff", icon: "Crown", group: "Pilotage", gate: "adam", masque: "un seul assistant : Adam (Direction, 02/11/2026)" },
   { module: "DOSSIERS", label: "Sujets", href: "/dossiers", icon: "ClipboardList", group: "Pilotage" },
   // Messagerie Microsoft 365 — sous le module MESSAGING (droit déjà existant) ; l'ouverture réelle
   // dépend en plus du drapeau MICROSOFT_MAIL et de la liste pilote, vérifiés dans l'écran.

@@ -10,7 +10,7 @@ import { ConsoleProactivite } from "@/modules/assistant-ia/ecrans/console-proact
 import { AccesAssistantIaForm, type LignePersonne, type LigneRole } from "./acces-form";
 import { AssistantDeLaPersonne } from "./assistant-de-la-personne";
 
-export const metadata = { title: "Assistant IA — accès — AMD Internal OS" };
+export const metadata = { title: "Adam — accès — AMD Internal OS" };
 export const dynamic = "force-dynamic";
 
 /**
@@ -26,7 +26,7 @@ export default async function AccesAssistantIaPage() {
     return (
       <div className="space-y-5">
         {tabs}
-        <p className="text-sm text-muted-foreground">Les accès de l&apos;Assistant IA sont réglés par le Super Admin.</p>
+        <p className="text-sm text-muted-foreground">Les accès d&apos;Adam sont réglés par le Super Admin.</p>
       </div>
     );
   }
@@ -43,7 +43,7 @@ export default async function AccesAssistantIaPage() {
       <div className="flex items-center gap-3">
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><KeyRound className="h-6 w-6" /></span>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Assistant IA — accès</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Adam — accès</h1>
           <p className="text-sm text-muted-foreground">
             Ce que l&apos;Assistant IA peut lire et préparer pour chacun. Le Super Admin a tout, toujours. Pour les autres, chaque famille
             suit par défaut les droits de la personne dans l&apos;application — sauf <strong>Salaires &amp; paie</strong> et{" "}

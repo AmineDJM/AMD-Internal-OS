@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 // sous leur identifiant brut). Les journaux portent aussi des fonctions hors de cette liste : elles gardent
 // leur nom tel quel.
 const FEATURE_LABEL: Record<AiFeature, string> = {
-  assistant: "Assistant IA",
+  assistant: "Adam",
   nudge: "Suggestions proactives",
   brain: "Adventum Brain",
   briefing: "Briefing direction",
@@ -153,9 +153,9 @@ export default async function AiControlCenterPage() {
           <h1 className="text-2xl font-semibold tracking-tight">Centre de contrôle IA</h1>
           <p className="text-sm text-muted-foreground">
             Activez ou coupez l'IA par fonction, et suivez son usage. Réservé au Super Admin.{" "}
-            <Link href="/admin/ai/consommation" className="underline">Consommation IA de l'Assistant IA — plafonds par personne</Link>
+            <Link href="/admin/ai/consommation" className="underline">Consommation IA d'Adam — plafonds par personne</Link>
             {" · "}
-            <Link href="/admin/ai/acces" className="underline">Assistant IA — accès (salaires, contrats, budgets… par rôle et par personne)</Link>
+            <Link href="/admin/ai/acces" className="underline">Adam — accès (salaires, contrats, budgets… par rôle et par personne)</Link>
             {" · "}
             <Link href="/admin/ai/qualite" className="underline">Qualité IA — banc programmé, modèles par rôle</Link>
           </p>
@@ -165,7 +165,7 @@ export default async function AiControlCenterPage() {
       {/* P1 (décision 0047) : qui conduit les missions — une mission que personne ne conduit reste à 0 %. */}
       {executants && (
         <Card id="missions-executants" data-testid="admin-executants">
-          <CardHeader><CardTitle>Missions de l&apos;Assistant IA — qui les conduit</CardTitle></CardHeader>
+          <CardHeader><CardTitle>Missions d&apos;Adam — qui les conduit</CardTitle></CardHeader>
           <CardContent className="space-y-1 text-sm">
             <p>Dernier passage effectif des travaux : <strong>{executants.dernierPassage ? formatDateTime(new Date(executants.dernierPassage)) : "jamais"}</strong>
               {" · "}dernier battement du worker : <strong>{executants.workerVu ? formatDateTime(new Date(executants.workerVu)) : "jamais vu"}</strong>

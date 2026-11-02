@@ -178,7 +178,7 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
 
   async lire(principalId, outil, entree) {
     const p = await personne(principalId);
-    if (!p) return { ok: false, erreur: "La personne n'a plus accès à l'Assistant IA.", reessayable: false };
+    if (!p) return { ok: false, erreur: "La personne n'a plus accès à Adam.", reessayable: false };
     const o = lecturesDe(p).find((x) => x.def.name === outil);
     if (!o) return { ok: false, erreur: `La lecture « ${outil} » n'est plus ouverte à cette personne.`, reessayable: false };
     try {
@@ -192,7 +192,7 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
 
   async refusGeste(principalId, geste) {
     const p = await personne(principalId);
-    if (!p) return "La personne n'a plus accès à l'Assistant IA.";
+    if (!p) return "La personne n'a plus accès à Adam.";
     const o = GESTES_TRAVAIL.find((x) => x.nom === geste);
     if (!o) return `« ${geste} » n'est pas un geste de travail.`;
     const famille = refusFamilleGeste(geste, p.acces);
@@ -202,7 +202,7 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
 
   async ecrire(principalId, geste, entree, contexte) {
     const p = await personne(principalId);
-    if (!p) return { ok: false, erreur: "La personne n'a plus accès à l'Assistant IA." };
+    if (!p) return { ok: false, erreur: "La personne n'a plus accès à Adam." };
     const o = GESTES_TRAVAIL.find((x) => x.nom === geste);
     if (!o) return { ok: false, erreur: `« ${geste} » n'est pas un geste de travail.` };
     // LES CONTRÔLES DE L'ÉCRAN D'ABORD (doublons, pièces, seuils) — puis l'action métier, qui revérifie tout.

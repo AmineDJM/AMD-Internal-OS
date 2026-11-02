@@ -196,7 +196,7 @@ suite("K6 — pièces reçues par WhatsApp et par mail, dans le contexte de la c
     const noeud = await prisma.driveNode.findUnique({ where: { id: pieces[0]!.id }, include: { parent: { select: { name: true } } } });
     expect(noeud?.ownerId).toBe(dirigeant.id);
     expect(noeud?.parent?.name).toBe("Assistant IA — pièces reçues");
-    expect(envoyes.at(-1)).toEqual({ a: NUMERO, texte: "Bien reçu — la pièce est dans votre conversation avec l'Assistant IA." });
+    expect(envoyes.at(-1)).toEqual({ a: NUMERO, texte: "Bien reçu — la pièce est dans votre conversation avec Adam." });
     expect(await prisma.notification.count({ where: { userId: dirigeant.id, title: { contains: "pièce reçue par WhatsApp" } } })).toBe(1);
     const journal = await prisma.assistantIaReception.findUnique({ where: { canal_idExterne: { canal: "WHATSAPP", idExterne: n.id } } });
     expect(journal).toMatchObject({ issue: "RECUE", userId: dirigeant.id, filId: conversation, intentId: intent.id });
@@ -305,7 +305,7 @@ suite("K6 — pièces reçues par WhatsApp et par mail, dans le contexte de la c
     expect((await poster(corps, null)).status).toBe(401);
     const r = await (await poster(corps, signe(corps))).json();
     expect(r.issues).toEqual(["RECUE"]);
-    expect(r.reponses[0]).toEqual({ a: "213555987654", texte: "Bien reçu — la pièce est dans votre conversation avec l'Assistant IA." });
+    expect(r.reponses[0]).toEqual({ a: "213555987654", texte: "Bien reçu — la pièce est dans votre conversation avec Adam." });
     expect(await (await poster(corps, signe(corps))).json()).toMatchObject({ issues: ["DOUBLON"], reponses: [] });
     const interne = JSON.stringify({ id: `${TAG}relais-2`, de: "213555987654", pieces: [{ nom: "x.pdf", url: "https://127.0.0.1/secret" }] });
     expect((await (await poster(interne, signe(interne))).json()).issues).toEqual(["REFUS_TAILLE"]);

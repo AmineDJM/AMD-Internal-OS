@@ -127,8 +127,8 @@ export const familleNominative = (a: AccesIa, f: FamilleIa, companyId?: string |
 
 /** Le refus, dit tel quel par l'assistant : quelle famille, et qui l'ouvre. */
 export function refusFamille(f: FamilleIa): string {
-  return `La famille « ${LIBELLE_FAMILLE[f]} » est fermée à l'Assistant IA pour vous. C'est la Direction qui l'ouvre, dans la console : `
-    + "Administration › Contrôle de l'IA › Assistant IA — accès.";
+  return `La famille « ${LIBELLE_FAMILLE[f]} » est fermée à Adam pour vous. C'est la Direction qui l'ouvre, dans la console : `
+    + "Administration › Contrôle de l'IA › Adam — accès.";
 }
 
 /**
@@ -148,7 +148,7 @@ export function consigneFamilles(a: AccesIa): string | null {
     "Une demande qui relève d'une famille OUVERTE : appelle l'outil (un salaire relève de « Salaires & paie », une pièce du DOSSIER RH d'autrui de "
       + "« Contrats & documents RH », même si « Fiches collaborateurs » est fermée ; un fichier joint ou du Drive à ouvrir ou modifier — même un contrat — "
       + "de « Drive & documents », les droits du fichier décident). Une demande d'une famille FERMÉE : dis-le directement, "
-      + "en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Assistant IA — accès.",
+      + "en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Adam — accès.",
     // Lot Q1 (décision 0050) : mesuré par le banc d'audit, « Quel est mon salaire ? » était refusé SANS appel d'outil
     // (« Salaires & paie » fermée) — alors que l'outil rend toujours sa propre paie à la personne dont la fiche est liée.
     "SON PROPRE DOSSIER reste toujours ouvert à la personne, quelles que soient les familles : « mon salaire », « ma fiche », "
@@ -168,7 +168,7 @@ export function consigneFamilles(a: AccesIa): string | null {
 export function refusAssistantVueExacte(nomVisualise?: string | null): string {
   const qui = nomVisualise?.trim() ? ` de ${nomVisualise.trim()}` : "";
   return `L'assistant est fermé en « Vue exacte » : il répondrait avec votre identité et vos droits de Super Admin, pas avec ceux${qui}. `
-    + "Pour vérifier ce que son assistant voit (profil, familles, périmètres) : Administration › Contrôle de l'IA › Assistant IA — accès.";
+    + "Pour vérifier ce que son assistant voit (profil, familles, périmètres) : Administration › Contrôle de l'IA › Adam — accès.";
 }
 
 /** Une identité « vue » (impersonation honorée) ou un Super Admin qui en visualise une autre : l'assistant ne joue pas. */

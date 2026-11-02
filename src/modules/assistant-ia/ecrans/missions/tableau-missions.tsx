@@ -312,13 +312,18 @@ export function TableauMissions({ ouvert, onFermer, missionInitiale, onOuvrirLiv
         <header className="flex items-center gap-2 border-b border-[var(--aia-filet)] bg-[var(--aia-panneau)] px-3.5 py-2.5">
           <Rocket aria-hidden className="h-5 w-5 text-[var(--aia-accent)]" />
           <div className="min-w-0 flex-1">
-            <h2 className="text-[16px] font-semibold leading-tight">Missions</h2>
+            <h2 className="text-[16px] font-semibold leading-tight">Missions d&apos;Adam</h2>
             <p className="flex items-center gap-1 text-[11.5px] text-[var(--aia-discret)]" aria-live="polite" data-testid="mode-flux" data-mode={mode}>
               <Radio aria-hidden className={`h-3 w-3 ${mode === "direct" ? "text-[var(--aia-voix)]" : ""}`} />
               {MODE_FLUX[mode]}
               {recuLe && mode !== "direct" ? ` · lu à ${new Date(recuLe).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}
             </p>
           </div>
+          {/* « MISSIONS D'ADAM » — l'écran de l'ERP où chacun retrouve toutes SES missions (Direction, 02/11/2026). Un lien
+              ordinaire : depuis l'app Adventum IA, l'adresse de l'ERP est renvoyée vers l'ERP par le serveur. */}
+          <a href="/centre-de-missions" className={lien} data-testid="vers-missions-adam">
+            <ExternalLink aria-hidden className="h-3.5 w-3.5" /> Missions d&apos;Adam
+          </a>
           <button type="button" onClick={onFermer} aria-label="Fermer" className="flex h-11 w-11 items-center justify-center rounded-[10px] hover:bg-[var(--aia-survol)] sm:h-9 sm:w-9"><X className="h-5 w-5" /></button>
         </header>
 
@@ -343,7 +348,7 @@ export function TableauMissions({ ouvert, onFermer, missionInitiale, onOuvrirLiv
           {!tableau && <p className="flex items-center gap-2 px-1 py-6 text-[13.5px] text-[var(--aia-discret)]"><Loader2 aria-hidden className="h-4 w-4 animate-spin" /> Chargement des missions…</p>}
           {tableau && !visibles.length && (
             <p className="px-1 py-6 text-[13.5px] text-[var(--aia-discret)]" data-testid="missions-vide">
-              {onglet === "EN_COURS" ? "Aucune mission en cours. Confiez une tâche longue à l'assistant : elle tourne en arrière-plan, et vous continuez de discuter."
+              {onglet === "EN_COURS" ? "Aucune mission en cours. Confiez une tâche longue à Adam : elle tourne en arrière-plan, et vous continuez de discuter."
                 : onglet === "A_APPROUVER" ? "Aucun plan n'attend votre accord." : "Aucune mission terminée ces trois derniers jours."}
             </p>
           )}

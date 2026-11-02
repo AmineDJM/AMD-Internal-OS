@@ -5,6 +5,26 @@
 > Tests were NOT run (the vitest `globalSetup` touches Postgres); test outcomes below are derived
 > statically from the test source plus a read-only run of the boundary scanner (`scripts/adam-boundary.ts`).
 
+> **Update 2026-11-02 — lot A1, « un seul assistant : Adam » — name, menu, routes, missions** (decision record
+> `docs/assistant/decisions/0056-adam-nom-menu-missions.md`, which REVISES decision 0013 on naming and screens) [V]:
+> - **Name**: module `ASSISTANT_IA` keeps its key; label "Adam" (`MODULE_LABELS`, nav entry `/assistant`, console
+>   `/admin/ai/acces`). Identity is pure and from the ACCOUNT: `presentationAdam(prenom)`, `identiteDuModele()` (first line of
+>   the stable prompt prefix in `infra/contexte.ts`), "Ta présentation" line in `sectionProfil`, voice instructions
+>   (`infra/voix/temps-reel.ts`). Notification titles "Adam : …". Engine/tools untouched (lot A2 plugs old-Adam capabilities).
+> - **Menu**: `NavItem.masque` (new) hides an entry for everyone incl. Super Admin (`navigationFor`, onboarding); used on
+>   `CHIEF_OF_STAFF`. "Missions d'Adam" now `module: "ASSISTANT_IA"`, no gate (gate `adamMissions` still resolved in
+>   `nav-access.ts`). Palette "Demander à Adam" gets `bureauAdam = peutVoirAdam(user)` from the layout.
+> - **Routes**: old bodies of `/chief-of-staff`, `/inbox`, `/reglages` moved (`git mv`) to `app/(app)/adam/{bureau,boite,
+>   reglages}/page.tsx` (segment guard `exigerAdamVisible` in `adam/layout.tsx`, tab bar `OngletsAdam`, CSS `.adam-corps`).
+>   `chief-of-staff/*` pages now `redirect(versEcranAdam(...))` (pure, `lib/labels/onglets.ts`, re-exported by the bridge
+>   `platform/in-process/visibilite-adam.ts` to keep the boundary count). `app/(app)/adam/` added to ADAM perimeters
+>   (`boundary-scan.ts`, `frontieres.test.ts`). `/assistant` shows `OngletsAdam` iff `peutVoirAdam(user)`.
+> - **Missions**: `/centre-de-missions` = `peutUtiliserAssistantIA || SA`; everyone: `mesMissions(user.id)` (TRAVAIL, client
+>   list `ecrans/missions/liste-missions-adam.tsx`, gestures by `gestesPermis`) + own RUNTIME (`centreDeMissions(user.id)`);
+>   SA only: accords, bulk, kill switch, `vueGlobaleDesMissions()` (`lib/missions/view/control.ts`, no owner filter — caller
+>   guards). `/missions/<id>`: owner, or SA via `proprietaireDeMission` (read-only panel when not owner: `pilotable` prop of
+>   `MissionRuntimePanel`). Team missions tab renamed "Missions terrain" (labels/notifications only).
+
 > **Update 2026-11-02 — lot T1, documents / juridique / Drive** (decision record
 > `docs/assistant/decisions/0053-documents-juridique-drive.md`) [V]:
 > - **Operations** (`src/modules/assistant-ia/infra/operations/juridique.ts`, in `OPERATIONS_IA`, journaled J7 like every

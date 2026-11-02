@@ -197,7 +197,7 @@ async function retirer(a: { id: string; userId: string; entityType: EntityType; 
   }
   const parent = await parentMission(a.entityType, a.entityId);
   if (a.userId !== actor.id) {
-    await notifyUser({ userId: a.userId, type: "GENERIC", title: "Mission retirée", body: `${parent.label} — ${motif}`, link: MES_MISSIONS }).catch(sansBloquer("mission-actions.retirer.notifyUser"));
+    await notifyUser({ userId: a.userId, type: "GENERIC", title: "Mission terrain retirée", body: `${parent.label} — ${motif}`, link: MES_MISSIONS }).catch(sansBloquer("mission-actions.retirer.notifyUser"));
   }
   await recordAudit({ actorId: actor.id, action: souple ? "UPDATE" : "DELETE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Mission retirée (${souple ? "archivée" : "effacée"}) — ${parent.label}` });
   return souple ? "archivee" : "effacee";
