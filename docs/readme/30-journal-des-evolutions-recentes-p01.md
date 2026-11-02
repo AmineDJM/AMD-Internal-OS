@@ -18,7 +18,8 @@ compléter** (champs manquants en formulaire, revérifiée à la signature) — 
 titre et action proposés, article hors catalogue nommé. **ML-04** : « toute la direction » se résout par l'annuaire.
 **EX-03** : `lire_paie { liste }` pour l'export RH. **AN-04** : `taches_equipe` (retards de l'équipe de « Mon Équipe »).
 **Canal d'Adam réservé au Super Admin** (`domaine/mails/canal.ts`) : ni outil, ni état, ni mot pour les autres ;
-pièces jointes du Drive (jointes par le canal d'Adam, dites par l'envoi de l'ERP) ; banc `taches/mails.ts` (32 tâches dont ML-ADAM-).
+garde de sortie serveur (`taireCanalAdam`) ; pièces jointes du Drive (jointes par le canal d'Adam, dites par l'envoi de
+l'ERP) ; banc : domaine `taches/mails.ts` (28 tâches + semis `ml-`) et 6 attaques ML-ADAM- (`attaques.ts`).
 
 ### P1 — L'ASSISTANT PILOTE VRAIMENT SES MISSIONS ET SES MAILS, ET NE DIT JAMAIS AVOIR FAIT CE QU'IL N'A PAS FAIT (2026-11-02)
 
