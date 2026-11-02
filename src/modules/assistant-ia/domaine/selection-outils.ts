@@ -131,6 +131,7 @@ const MOTS_CLES: Record<string, string> = {
   ou_en_est_chantier: "ou en est chantier avancement developpement claude code deploiement ci checks pr statut",
   valider_chantier: "valide valider accorde autorise deploie deployer production fusionne fusion main rollback refuse chantier",
   annuler_chantier: "annule arrete stoppe suspend pause chantier developpement",
+  consigne_chantier: "consigne dis lui demande change approche fais plutot attends encore pousse corrige chantier claude session",
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",

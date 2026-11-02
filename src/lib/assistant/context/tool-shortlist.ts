@@ -152,6 +152,7 @@ export const TOOL_DOMAINS: Record<string, Domain[]> = {
   ou_en_est_chantier: ["MISSION"],
   valider_chantier: ["MISSION"],
   annuler_chantier: ["MISSION"],
+  consigne_chantier: ["MISSION"],
   list_commitments: ["MISSION"],
   record_commitment: ["MISSION"],
   close_commitment: ["MISSION"],

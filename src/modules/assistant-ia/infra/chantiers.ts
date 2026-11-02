@@ -14,6 +14,7 @@ import { etatMimo, lireReglagesChantiers, lireReglagesConsole, OUTILS_CHANTIER, 
  *   valider_chantier        « valide » / « refuse » / « déploie » — SEULEMENT sur les mots explicites de la Direction,
  *                           à l'écrit comme à l'oral ; seule une validation ATTENDUE peut être donnée ;
  *   annuler_chantier        arrêter (annuler) ou suspendre.
+ *   consigne_chantier       « dis-lui de … », « change d'approche » — à la MÊME session ; reprend un chantier qui attend ses consignes (décision 0058).
  *
  * Le RAPPORT final (SHA, checks verts, statut live, santé, coût) revient par notification et par `ou_en_est_chantier` ;
  * le transmettre par WhatsApp passe par l'outil des canaux (K6) sur demande — ce module n'envoie rien lui-même.

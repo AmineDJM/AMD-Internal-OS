@@ -955,3 +955,8 @@ would collide across parallel suites in the test DB.
   `reglagesDuPlan` = stricter of plan budget and console; destructive SQL migrations in the diff (read with
   `ForgeGit.fichier` → C2 `contenuFichier`) are stated on the merge card and require a card before deploying an
   unmerged branch (`DEPLOIEMENT_MIGRATION`).
+- Decision 0058 (02/11): commit wait 24 h (`attenteCommitHeures`), "where are you?" to the same session every 4 h
+  (`relancer({ sansNouvelleSession })` never opens a new session), dead session (relay "archived/not found") relaunched; at 24 h,
+  pause `ATTEND_CONSIGNES` (no hard failure). `deciderAntiBoucle` → CORRIGER | ESCALADER_SOL | CONSIGNES with `alerte` at the
+  3rd red (`prevenir`), `correctionsMax` 8. Reservations of a live chantier never expire (`STATUTS_VIVANTS`). Tool
+  `consigne_chantier` → `donnerConsigneChantier` (same session / PR thread / new session with history; resets tours).

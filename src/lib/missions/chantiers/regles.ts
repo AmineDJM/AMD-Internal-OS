@@ -8,6 +8,12 @@
 
 /** Le préfixe du motif de pause « plafond » — le même que les travaux (`travaux/regles.ts`), l'état affiché suit. */
 export const MOTIF_BUDGET_CHANTIER = "BUDGET_HOLD";
+/**
+ * Le préfixe du motif de pause « attend tes consignes » (Direction, 02/11) : jamais d'échec sec quand Adam ne sait plus
+ * avancer seul (24 h sans commit, plafond de corrections, même panne après Sol). La branche reste réservée ; une
+ * consigne de la Direction (`consigne_chantier`) la transmet à la session et reprend le chantier.
+ */
+export const MOTIF_CONSIGNES_CHANTIER = "ATTEND_CONSIGNES";
 
 /** Les réglages de la console (Administration › IA › Chantiers) — défauts quand elle n'en dit rien. */
 export interface ReglagesChantiers {
@@ -29,16 +35,27 @@ export interface ReglagesChantiers {
    * de la session (Auto-fix de la PR) pousse un commit — gratuit — avant de relancer quoi que ce soit. 0 = coupé.
    */
   autofixMinutes: number;
+  /** Heures sans commit avant de demander les consignes de la Direction (Direction, 02/11 : 24 h, l'ERP est gros). */
+  attenteCommitHeures: number;
+  /** Toutes les N heures sans commit : « où en es-tu ? » à la MÊME session ; sans réponse au tour suivant, relance. */
+  relanceSansCommitHeures: number;
+  /** Corrections (relances sur un rouge) au plus ; au-delà : pause « attend tes consignes », jamais un échec silencieux. */
+  correctionsMax: number;
+  /** Au N-ième rouge, la Direction est PRÉVENUE (ce qui casse, ce qui a été essayé, ce qui va l'être) — sans arrêt. */
+  alerteApresEchecs: number;
 }
 
 export const REGLAGES_CHANTIERS_DEFAUT: ReglagesChantiers = {
-  plafondUsd: 5, lancementsMax: 4, deploiementsMax: 4, tentativesMax: 3,
+  // `lancementsMax` 12 : huit corrections et les relances d'une longue attente tiennent dans le budget d'un chantier.
+  plafondUsd: 5, lancementsMax: 12, deploiementsMax: 4, tentativesMax: 3,
   jourUsdMax: 20, jourLancementsMax: 20, jourDeploiementsMax: 12, enParallele: 3, autofixMinutes: 15,
+  attenteCommitHeures: 24, relanceSansCommitHeures: 4, correctionsMax: 8, alerteApresEchecs: 3,
 };
 
 const BORNES: Record<keyof ReglagesChantiers, [number, number]> = {
-  plafondUsd: [0.1, 200], lancementsMax: [1, 20], deploiementsMax: [0, 20], tentativesMax: [1, 5],
+  plafondUsd: [0.1, 200], lancementsMax: [1, 40], deploiementsMax: [0, 20], tentativesMax: [1, 5],
   jourUsdMax: [0.5, 1000], jourLancementsMax: [1, 100], jourDeploiementsMax: [0, 100], enParallele: [1, 10], autofixMinutes: [0, 120],
+  attenteCommitHeures: [6, 72], relanceSansCommitHeures: [1, 24], correctionsMax: [3, 30], alerteApresEchecs: [1, 10],
 };
 
 /** Des réglages lus de la base (ou d'un formulaire) — chaque valeur bornée, l'absente prend le défaut. */
@@ -82,6 +99,7 @@ export function reglagesDuPlan(r: ReglagesChantiers, b: { usd?: number; lancemen
     lancementsMax: min(r.lancementsMax, b?.lancements),
     deploiementsMax: min(r.deploiementsMax, b?.deploiements),
     tentativesMax: min(r.tentativesMax, b?.tentatives),
+    correctionsMax: min(r.correctionsMax, b?.tentatives),
   };
 }
 
@@ -126,27 +144,31 @@ export function signatureEchec(d: { etape: string; check?: string | null; erreur
 }
 
 export type DecisionAntiBoucle =
-  | { action: "CORRIGER"; occurrences: number }
-  /** Même signature DEUX fois : Sol, une fois, pour comprendre ce qu'on rate. */
-  | { action: "ESCALADER_SOL"; occurrences: number }
-  /** TROIS fois, ou les tentatives épuisées : blocage RÉEL — on s'arrête et on le dit. */
-  | { action: "BLOQUER"; occurrences: number; raison: string };
+  | { action: "CORRIGER"; occurrences: number; alerte: boolean }
+  /** Même signature DEUX fois : Sol, une fois, pour changer d'approche. */
+  | { action: "ESCALADER_SOL"; occurrences: number; alerte: boolean }
+  /** Plafond de corrections, ou même panne APRÈS Sol : pause « attend tes consignes » (jamais un échec sec). */
+  | { action: "CONSIGNES"; occurrences: number; raison: string };
 
 /**
- * L'ANTI-BOUCLE — sur l'historique des signatures DÉJÀ vues (sans la nouvelle) et le nombre de tours faits.
- * 1ʳᵉ occurrence → corriger ; 2ᵉ → Sol une fois (si Sol a déjà vu CETTE signature : bloquer) ; 3ᵉ → bloquer.
+ * L'ANTI-BOUCLE (Direction, 02/11 : « autonome, réessayer si c'est rouge, me prévenir au bout de la 3, suivre mes
+ * consignes ») — sur l'historique des signatures DÉJÀ vues (sans la nouvelle) et le nombre de corrections faites :
+ *   • la boucle CONTINUE seule : 1ʳᵉ occurrence d'une panne → corriger ; 2ᵉ → Sol, une fois, pour changer d'approche ;
+ *   • `alerte` au N-ième rouge (défaut 3ᵉ) : la Direction est prévenue, la boucle continue ;
+ *   • CONSIGNES : la même panne revient APRÈS Sol (l'approche ne marche pas), ou le plafond de corrections est atteint.
  */
 export function deciderAntiBoucle(d: {
-  historique: readonly string[]; nouvelle: string; tours: number; tentativesMax: number; solDejaPour?: readonly string[];
+  historique: readonly string[]; nouvelle: string; tours: number; correctionsMax: number; alerteApresEchecs?: number; solDejaPour?: readonly string[];
 }): DecisionAntiBoucle {
   const occurrences = d.historique.filter((s) => s === d.nouvelle).length + 1;
-  if (occurrences >= 3) return { action: "BLOQUER", occurrences, raison: `le même échec s'est produit ${occurrences} fois (${d.nouvelle.split("|").slice(1).join(" — ")})` };
-  if (d.tours >= d.tentativesMax) return { action: "BLOQUER", occurrences, raison: `${d.tours} tours de correction sur ${d.tentativesMax} permis, toujours rouge` };
-  if (occurrences === 2) {
-    if (d.solDejaPour?.includes(d.nouvelle)) return { action: "BLOQUER", occurrences, raison: "Sol a déjà été consulté sur cet échec, sans effet" };
-    return { action: "ESCALADER_SOL", occurrences };
+  if (d.tours >= d.correctionsMax) return { action: "CONSIGNES", occurrences, raison: `${d.tours} corrections sur ${d.correctionsMax} permises, toujours rouge` };
+  if (occurrences >= 2 && d.solDejaPour?.includes(d.nouvelle)) {
+    return { action: "CONSIGNES", occurrences, raison: `le même échec revient après l'analyse de Sol (${occurrences} fois : ${d.nouvelle.split("|").slice(1).join(" — ")}) — il faut changer d'approche` };
   }
-  return { action: "CORRIGER", occurrences };
+  // Le N-ième ROUGE : le premier contrôle (tour 0) puis chaque correction ratée.
+  const alerte = d.tours + 1 === (d.alerteApresEchecs ?? 3);
+  if (occurrences >= 2) return { action: "ESCALADER_SOL", occurrences, alerte };
+  return { action: "CORRIGER", occurrences, alerte };
 }
 
 /** Les mots qui disent qu'une migration DÉTRUIT (validation de la Direction exigée). */

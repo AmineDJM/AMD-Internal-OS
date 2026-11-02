@@ -134,7 +134,7 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
     const seules = a.routines();
     return routineDuDepot(nom(d), env)?.alias ?? (seules.length === 1 ? seules[0]! : null);
   };
-  const ordre = (o: C2.OrdreCli, cle: string) => ({ sessionId: o.sessionId ?? `ordre-${o.ordreId}`, url: o.sessionUrl ?? "", lanceeLe: new Date().toISOString(), moyen: "relais-cli" as const, cle });
+  const ordre = (o: C2.OrdreCli, cle: string) => ({ sessionId: o.sessionId ?? `ordre-${o.ordreId}`, url: o.sessionUrl ?? "", lanceeLe: new Date().toISOString(), moyen: "relais-cli" as const, cle, ordreId: o.ordreId });
   const session = (s: C2.SessionLancee, moyen: "routine" | "commentaire-pr") => ({
     sessionId: s.sessionId ?? (s.commentaireId ? `commentaire-${s.commentaireId}` : s.cleIdempotence), url: s.sessionUrl ?? s.commentaireUrl ?? "",
     lanceeLe: new Date().toISOString(), moyen,
@@ -175,6 +175,7 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
       return { ok: false, raison, moyens: ["commentaire-pr"] };
     },
     lancer,
+    ordre: async (id) => vers(await a.ordreCli(id), (o) => ({ statut: o.statut, erreur: o.erreur })),
     relancer: async (c, cle) => {
       // ORDRE DE LA DIRECTION (01/11) : la MÊME session par le relais (contexte gardé), puis le fil de la PR, puis une neuve.
       const meme = await sessionReelle(c.session);
@@ -182,6 +183,7 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
         return vers(await a.envoyerMessage({ sessionId: meme, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
       }
       if (c.pr) return vers(await a.relancerDansPr({ depot: nom(c.depot), numeroPr: c.pr, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "commentaire-pr"));
+      if (c.sansNouvelleSession) return { ok: false, erreur: "session injoignable (pas de relais vers elle, pas de PR) : aucune session neuve n'est ouverte pour une question", definitif: true };
       return lancer({ ...c, contexte: [c.contexte, `## Problème à corriger\n${c.probleme}`].filter(Boolean).join("\n\n") }, cle);
     },
   };

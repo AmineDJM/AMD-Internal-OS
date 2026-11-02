@@ -95,13 +95,16 @@ describe("anti-boucle, délai croissant, budgets", () => {
     expect(signatureEchec({ etape: "verifier", check: "tests", erreur: "Type error in b.ts" })).not.toBe(sig);
   });
 
-  it("1ʳᵉ fois : corriger ; 2ᵉ : Sol une fois ; 3ᵉ : blocage réel ; tentatives épuisées : blocage", () => {
-    expect(deciderAntiBoucle({ historique: [], nouvelle: sig, tours: 0, tentativesMax: 3 }).action).toBe("CORRIGER");
-    expect(deciderAntiBoucle({ historique: [sig], nouvelle: sig, tours: 1, tentativesMax: 3 }).action).toBe("ESCALADER_SOL");
-    expect(deciderAntiBoucle({ historique: [sig], nouvelle: sig, tours: 1, tentativesMax: 3, solDejaPour: [sig] }).action).toBe("BLOQUER");
-    const trois = deciderAntiBoucle({ historique: [sig, sig], nouvelle: sig, tours: 2, tentativesMax: 5 });
-    expect(trois).toMatchObject({ action: "BLOQUER", occurrences: 3 });
-    expect(deciderAntiBoucle({ historique: ["a", "b", "c"], nouvelle: "d", tours: 3, tentativesMax: 3 }).action).toBe("BLOQUER");
+  it("ROUGE AUTONOME (Direction, 02/11) : corriger, Sol à la 2ᵉ même panne, alerte au 3ᵉ rouge SANS arrêt ; consignes au plafond ou si Sol n'a rien changé", () => {
+    expect(deciderAntiBoucle({ historique: [], nouvelle: sig, tours: 0, correctionsMax: 8 })).toEqual({ action: "CORRIGER", occurrences: 1, alerte: false });
+    expect(deciderAntiBoucle({ historique: [sig], nouvelle: sig, tours: 1, correctionsMax: 8 })).toMatchObject({ action: "ESCALADER_SOL", alerte: false });
+    // Le 3ᵉ ROUGE (deux corrections ratées) : la Direction est prévenue, la boucle CONTINUE.
+    expect(deciderAntiBoucle({ historique: ["a", "b"], nouvelle: "c", tours: 2, correctionsMax: 8 })).toEqual({ action: "CORRIGER", occurrences: 1, alerte: true });
+    expect(deciderAntiBoucle({ historique: ["a", "b"], nouvelle: "c", tours: 2, correctionsMax: 8, alerteApresEchecs: 5 })).toMatchObject({ alerte: false });
+    // Ni un 3ᵉ, ni un 5ᵉ rouge n'arrêtent : seul le plafond (8) ou la même panne APRÈS Sol demandent les consignes.
+    expect(deciderAntiBoucle({ historique: ["a", "b", "c", "d"], nouvelle: "e", tours: 4, correctionsMax: 8 }).action).toBe("CORRIGER");
+    expect(deciderAntiBoucle({ historique: [sig, sig], nouvelle: sig, tours: 2, correctionsMax: 8, solDejaPour: [sig] })).toMatchObject({ action: "CONSIGNES", occurrences: 3 });
+    expect(deciderAntiBoucle({ historique: ["a", "b", "c", "d", "e", "f", "g", "h"], nouvelle: "i", tours: 8, correctionsMax: 8 })).toMatchObject({ action: "CONSIGNES", raison: expect.stringMatching(/8 corrections sur 8/) });
   });
 
   it("le délai croît : 1, 2, 4, 8 min… plafonné", () => {
