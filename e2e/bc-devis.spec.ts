@@ -15,7 +15,8 @@ import { E2E } from "./global-setup";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const ENV = { ...process.env };
+// Même secret que le serveur du banc : la clé de chiffrement des fichiers du Drive en est dérivée.
+const ENV = { ...process.env, NEXTAUTH_SECRET: E2E.authSecret };
 const decor = (...args: string[]) => execFileSync("npx", ["tsx", "scripts/e2e/carte-bc-devis.ts", ...args], { encoding: "utf8", env: ENV }).trim();
 
 async function login(page: Page) {
@@ -36,7 +37,7 @@ for (const ecran of ECRANS) {
     decor("seed", E2E.superAdminEmail);
     await page.setViewportSize({ width: ecran.largeur, height: ecran.hauteur });
     await login(page);
-    await page.goto("/ia");
+    await page.goto("/assistant");
 
     const carte = page.locator('[data-glass="true"]').filter({ hasText: "Bon de commande — INSIGNE" }).last();
     await expect(carte).toBeVisible({ timeout: 30_000 });
@@ -57,7 +58,7 @@ for (const ecran of ECRANS) {
     await expect(detail.locator("li")).toHaveCount(27);
     await expect(detail).toContainText("2. Conception ADV — 1 × 145");
     await page.screenshot({ path: `test-results/b1-${ecran.nom}-2-detail.png` });
-    await page.keyboard.press("Escape");
+    await page.getByRole("dialog", { name: "Détail des lignes" }).getByRole("button", { name: "Fermer" }).last().click();
     await expect(detail).toHaveCount(0);
 
     // Le geste principal.

@@ -147,6 +147,13 @@ papier (`phraseTaxes` : rien quand elles concordent), un dépassement d'envelopp
   02/11 et l'annuaire contenant Adventum avec son NIF → fournisseur INSIGNE, société Adventum (client du devis), 27 lignes
   justes, 794 500 HT / 961 345 TTC, enveloppe Marketing (pas Regulatory), un seul avertissement, **aucune question** ;
   « Créer le BC (PDF) » → BC numéroté en brouillon, PDF au Drive, fiche INSIGNE créée avec SON NIF ; annulé → ANNULÉ.
+- Playwright, serveur de production (`e2e/bc-devis.spec.ts`, décor `scripts/e2e/carte-bc-devis.ts` : vrai PDF au Drive,
+  carte préparée par l'outil réel sans validateur ni société), bureau 1440 px et iPhone 13 : carte « Bon de commande —
+  INSIGNE → Adventum Pharma », lecture « fiable », 27 lignes au panneau, aucun « seuil », aucune « Regulatory » ;
+  « Créer le BC (PDF) » → « BC 040/DG/2026 créé en brouillon sur le papier de Adventum Pharma (961 345 DZD TTC) — PDF
+  déposé au Drive », « Ouvrir le PDF » sert `application/pdf`, barre « Annuler » ; aucun défilement horizontal. 2/2.
+- Suite complète (`npm test`) : 16 901 tests ; les 11 échecs de la passe parallèle (dont 2 cliquets et 1 test de lecture
+  promo rattrapés par ce lot) repassent tous isolément ; `build:render` sur `.next` vide : OK.
 
 Code : `src/lib/pieces-lues/{positions,tableau,tableau-piece,emetteur-destinataire,vision-lignes}.ts`, `service.ts`
 (étages positions → modèle → vision), `src/modules/assistant-ia/infra/operations/{devis-lu,bc-depuis-devis}.ts`,
