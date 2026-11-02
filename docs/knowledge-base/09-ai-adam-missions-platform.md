@@ -939,3 +939,11 @@ LIVRABLE; card confirmation = plan approval). **Blast radius**: `lib/cibles/reso
 (shared with Adam's generic action path) and the entity registry gained `institution` (also exposed by `/api/v1`).
 Gotcha: the T2 seed is only sown with `semerAudit(…, { t2: true })` (real bench + `annuaire-terrain.test.ts`) — its names
 would collide across parallel suites in the test DB.
+
+- **Revision (Direction, 02/11)**: « moyens généraux » at Adventum = the **petty cash** (caisse d'avance) held by the
+  executive assistant (`petty-cash-actions`). The `MoyenGeneral` registry (vehicles, insurance, contracts) was removed
+  from the assistant, bench and screens (tables kept, inert); the module is now `src/modules/salles` (meeting rooms only,
+  booking open to every employee, screen `/salles`). New: `lire_caisse_avance`, `depenser_caisse_avance` (with receipt
+  file), `demander_rallonge_caisse`, `confirmer_reception_caisse`, `reserver_salle`, `declarer_salle`, `lire_salles`.
+  `classement.ts` no longer files `petty-cash-actions` under BUDGETS (`SANS_FAMILLE_METIER`): it closed the cash box to its
+  own holder.

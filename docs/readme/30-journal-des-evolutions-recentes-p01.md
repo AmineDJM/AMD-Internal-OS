@@ -61,6 +61,11 @@ plus rangé dans la famille Réglementaire (il fermait « passe ce dossier en at
 unitaires d'un dossier répondent « introuvable » hors portée. Banc : 34 tâches `DOS-`/`MG-`/`ADP-` avec vérificateur en
 base et 3 attaques ; passage réel final 32/34 (puis les 2 échecs corrigés et réussis au rejeu ciblé), attaques 3/3
 bloquées. Décision [0051](../assistant/decisions/0051-dossiers-moyens-generaux-fiches-adpro.md).
+**Révision (Direction, 02/11) :** « moyens généraux » = la **caisse d'avance** de l'assistante — l'assistant lit le solde,
+les mouvements, les justificatifs manquants et l'alerte de solde bas, enregistre une dépense AVEC son ticket, confirme une
+réception, demande une rallonge (actions existantes, réversibles) ; la caisse n'est plus fermée à sa détentrice par la
+famille « Budgets ». Le registre véhicules / assurances / contrats est retiré (tables inertes) ; seules restent les
+**salles de réunion** (`/salles`), réservables par **tous les employés**.
 
 ### T2 — ADVENTUM IA TIENT LES ANNUAIRES, ANALYSE LE MARKETING ET INTERROGE LE TERRAIN (2026-11-02)
 

@@ -95,7 +95,16 @@ const REGLES_FAMILLE: readonly { famille: FamilleIa; fichier: RegExp; modele?: R
   { famille: "DRIVE", fichier: /(drive|^document|partage|bibliotheque|knowledge|letterhead)/ },
 ];
 
+/**
+ * LA CAISSE D'AVANCE (« moyens généraux » chez Adventum, Direction 02/11/2026) est le module de l'assistante de direction
+ * (`GENERAL_MEANS`), pas un écran de qui ALLOUE les budgets : rangée sous « Budgets & finances » par `petty`, elle était
+ * fermée à la personne même qui la tient. Ses actions gardent leurs gardes (détentrice, administration) ; la famille ne
+ * double pas le droit de module.
+ */
+const SANS_FAMILLE_METIER = /^petty-cash-actions$/;
+
 export function famillesDeLAction(c: ContratLu, ecriture: boolean): FamilleIa[] {
+  if (SANS_FAMILLE_METIER.test(c.fichier)) return ecriture ? ["ECRITURES"] : [];
   const regle = REGLES_FAMILLE.find((r) => r.fichier.test(c.fichier) || (r.modele && c.modelesEcrits.some((m) => r.modele!.test(m))));
   const out: FamilleIa[] = regle ? [regle.famille] : [];
   if (ecriture) out.push("ECRITURES");

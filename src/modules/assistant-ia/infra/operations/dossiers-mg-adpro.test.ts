@@ -27,10 +27,11 @@ import { enregistrerFichierDrive } from "@/lib/drive/depot";
 import { annulerGeste } from "@/lib/effets/annulation";
 import { DOSSIERS_EXCEL } from "./dossiers-excel";
 import { FICHES_VOYAGE } from "./adpro-fiches-voyage";
-import { MOYEN_GENERAL_ENREGISTRER, MOYEN_GENERAL_RESERVER } from "./moyens-generaux";
+import { DECLARER_SALLE, RESERVER_SALLE } from "./salles";
+import { DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE } from "./caisse-avance";
 import { executerOperationJournalisee } from "./";
 import { lecturesDossiersEtMoyens } from "../lectures-dossiers-mg";
-import { reserverMoyenGeneral } from "@/modules/moyens-generaux/actions";
+import { creerMoyenGeneral } from "@/modules/salles/actions";
 import { updateDossierStatus } from "@/lib/actions/dossier-actions";
 
 let dbOk = false;
@@ -57,6 +58,13 @@ async function deposerExcel(u: CurrentUser, nom: string, lignes: unknown[][]): P
   const b = await putBlob(octets);
   const { id } = await enregistrerFichierDrive(u, { parentId: null }, { blobId: b.blobId, size: b.size, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name: nom, sha256: b.sha256 });
   return id;
+}
+
+const lecture = (u: CurrentUser, nom: string) => lecturesDossiersEtMoyens(u).find((o) => o.def.name === nom)!;
+
+async function deposerFichier(u: CurrentUser, nom: string, octets: Buffer, mime: string): Promise<string> {
+  const b = await putBlob(octets);
+  return (await enregistrerFichierDrive(u, { parentId: null }, { blobId: b.blobId, size: b.size, mimeType: mime, name: nom, sha256: b.sha256 })).id;
 }
 
 /** Confirmer une carte comme l'écran : sous le journal des effets ; rend le geste inscrit. */
@@ -99,6 +107,10 @@ suite("T3 — dossiers, moyens généraux et fiches Ad & Pro, exécutés puis an
     const ids = [ASSISTANTE, AUTRE, SANS_DROIT, KAM].filter(Boolean).map((u) => u.id);
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(() => undefined);
     await prisma.moyenGeneral.deleteMany({ where: { libelle: { contains: TAG } } }).catch(() => undefined);
+    const deps = await prisma.department.findMany({ where: { name: { contains: TAG } }, select: { id: true } });
+    const xs = await prisma.departmentBudgetExpense.findMany({ where: { departmentId: { in: deps.map((d) => d.id) } }, select: { id: true } });
+    await prisma.document.deleteMany({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: xs.map((x) => x.id) } } }).catch(() => undefined);
+    await prisma.department.deleteMany({ where: { id: { in: deps.map((d) => d.id) } } }).catch(() => undefined);
     const items = await prisma.adProItem.findMany({ where: { congressNationalId: { in: [congres, congresAutrui] } }, select: { id: true, reservationDossierId: true } });
     await prisma.adProItem.deleteMany({ where: { id: { in: items.map((i) => i.id) } } }).catch(() => undefined);
     await prisma.congressNational.deleteMany({ where: { id: { in: [congres, congresAutrui] } } }).catch(() => undefined);
@@ -175,77 +187,93 @@ suite("T3 — dossiers, moyens généraux et fiches Ad & Pro, exécutés puis an
   });
 
   it("lire le suivi : en retard, comptes par statut, refus propre sans le module", async () => {
-    const [lire] = lecturesDossiersEtMoyens(ASSISTANTE);
-    const out = JSON.parse(await lire!.run({ filtre: "en_retard" }, ASSISTANTE)) as { total: number; dossiers: { intitule: string; retard_jours?: number }[] };
+    const lire = lecture(ASSISTANTE, "lire_dossiers_suivi");
+    const out = JSON.parse(await lire.run({ filtre: "en_retard" }, ASSISTANTE)) as { total: number; dossiers: { intitule: string; retard_jours?: number }[] };
     expect(out.dossiers.some((d) => d.intitule.includes("hôtels") && (d.retard_jours ?? 0) >= 5)).toBe(true);
     expect(JSON.stringify(out)).not.toContain("confidentiel");
-    // Le suivi de dossiers est ouvert à tout salarié (DOSSIERS_USER) — ses propres sujets ; le registre des moyens généraux, non.
-    expect(lecturesDossiersEtMoyens(SANS_DROIT)[1]!.allowed(SANS_DROIT)).toBe(false);
+    // Le suivi de dossiers est ouvert à tout salarié (DOSSIERS_USER) : ses propres sujets seulement.
+    expect(lecture(SANS_DROIT, "lire_dossiers_suivi").allowed(SANS_DROIT)).toBe(true);
   });
 
-  it("moyens généraux : créer, mettre à jour SANS doublon, alertes d'échéance, puis annuler", async () => {
-    const p = await MOYEN_GENERAL_ENREGISTRER.proposer({ type: "véhicule", libelle: `Renault Kangoo ${TAG}`, identifiant: `12345-116-16${TAG}`, echeance: "20/11/2026", responsable: "moi" }, ASSISTANTE);
-    if (!("carte" in p)) throw new Error(JSON.stringify(p));
-    expect(p.carte.title).toMatch(/Nouvelle fiche — Véhicule/);
-    const c = await confirmer(ASSISTANTE, MOYEN_GENERAL_ENREGISTRER.nom, p.args);
-    expect(c.r.ok, c.r.error).toBe(true);
-    const v = await prisma.moyenGeneral.findFirstOrThrow({ where: { libelle: `Renault Kangoo ${TAG}` } });
-    expect(v.reference).toMatch(/^MG-\d{4}-\d{3,}$/);
-    // L'assurance du véhicule, rattachée par l'immatriculation.
-    const pa = await MOYEN_GENERAL_ENREGISTRER.proposer({ type: "assurance", libelle: `Assurance Kangoo ${TAG}`, prestataire: "SAA", montant: 85_000, periodicite: "annuel", echeance: `${ANNEE}-01-10`, rattacheA: `12345-116-16${TAG}` }, ASSISTANTE);
-    if (!("carte" in pa)) throw new Error(JSON.stringify(pa));
-    expect(pa.carte.warnings.join(" ")).toMatch(/dépassée/);
-    expect((await confirmer(ASSISTANTE, MOYEN_GENERAL_ENREGISTRER.nom, pa.args)).r.ok).toBe(true);
-    // « Enregistre le Kangoo » une seconde fois avec une nouvelle échéance : MISE À JOUR, pas un doublon.
-    const pm = await MOYEN_GENERAL_ENREGISTRER.proposer({ type: "véhicule", libelle: `Renault Kangoo ${TAG}`, identifiant: `12345-116-16${TAG}`, echeance: "2026-12-31" }, ASSISTANTE);
-    if (!("carte" in pm)) throw new Error(JSON.stringify(pm));
-    expect(pm.carte.title).toMatch(/Mise à jour de MG-/);
-    expect(JSON.stringify(pm.carte.fields)).toMatch(/20\/11\/2026 → 31\/12\/2026/);
-    const m = await confirmer(ASSISTANTE, MOYEN_GENERAL_ENREGISTRER.nom, pm.args);
-    expect(m.r.ok, m.r.error).toBe(true);
-    expect(await prisma.moyenGeneral.count({ where: { libelle: `Renault Kangoo ${TAG}` } })).toBe(1);
-    expect((await prisma.moyenGeneral.findUniqueOrThrow({ where: { id: v.id } })).echeance?.toISOString().slice(0, 10)).toBe("2026-12-31");
-    // Les alertes : l'assurance dépassée y est, avec son rattachement.
-    const lire = lecturesDossiersEtMoyens(ASSISTANTE)[1]!;
-    const al = JSON.parse(await lire.run({ vue: "alertes" }, ASSISTANTE)) as { fiches: { libelle: string; etat: string; rattache_a: string | null }[] };
-    expect(al.fiches.find((f) => f.libelle === `Assurance Kangoo ${TAG}`)?.etat).toBe("Dépassée");
-    // Annuler la mise à jour : l'échéance d'avant revient.
-    expect("refus" in (await annulerGeste(m.gesteId, ASSISTANTE))).toBe(false);
-    expect((await prisma.moyenGeneral.findUniqueOrThrow({ where: { id: v.id } })).echeance?.toISOString().slice(0, 10)).toBe("2026-11-20");
-  });
-
-  it("réserver une salle : libre → réservée ; prise → refus qui propose les salles libres ; annulation libère le créneau", async () => {
-    for (const [libelle, capacite] of [[`Salle du conseil ${TAG}`, 14], [`Salle Atlas ${TAG}`, 8], [`Salle Tassili ${TAG}`, 20]] as const) {
-      const p = await MOYEN_GENERAL_ENREGISTRER.proposer({ type: "salle", libelle, capacite }, ASSISTANTE);
-      if (!("carte" in p)) throw new Error(JSON.stringify(p));
-      expect((await confirmer(ASSISTANTE, MOYEN_GENERAL_ENREGISTRER.nom, p.args)).r.ok).toBe(true);
+  it("caisse d'avance (« moyens généraux ») : solde, justificatifs manquants, dépense AVEC ticket, réception, rallonge — puis annulées", async () => {
+    // La caisse de l'assistante : reçu 50 000, dépensé 42 000 (dont 4 500 sans pièce), 15 000 à confirmer.
+    const dep = await prisma.department.create({ data: { name: `Administration ${TAG}`, code: `${TAG}MG`.toUpperCase() } as never, select: { id: true } });
+    const a1 = await prisma.pettyCashAllotment.create({ data: { departmentId: dep.id, period: "2026-10", amount: 50_000, status: "RECEIVED", receivedAt: new Date(), holderId: ASSISTANTE.id } });
+    await prisma.pettyCashAllotment.create({ data: { departmentId: dep.id, period: "2026-11", amount: 15_000, status: "ALLOTTED", holderId: ASSISTANTE.id } });
+    const annee = new Date().getFullYear();
+    for (const [label, amount, piece] of [["Café et eau", 37_500, true], ["Taxi ANPP", 4_500, false]] as const) {
+      const x = await prisma.departmentBudgetExpense.create({ data: { departmentId: dep.id, year: annee, label, amount, pettyCashId: a1.id, createdById: ASSISTANTE.id } });
+      if (piece) await prisma.document.create({ data: { name: "ticket.pdf", entityType: "DEPARTMENT_EXPENSE", entityId: x.id } as never });
     }
-    const p = await MOYEN_GENERAL_RESERVER.proposer({ moyen: `Salle du conseil ${TAG}`, debut: "2027-03-12T10:00", fin: "12:00", objet: "Comité de direction", participants: 12 }, ASSISTANTE);
+    const lire = lecture(ASSISTANTE, "lire_caisse_avance");
+    const synthese = JSON.parse(await lire.run({}, ASSISTANTE)) as { solde_en_main_dzd: number; a_confirmer_dzd: number; solde_bas: boolean; depenses: { sans_justificatif: number } };
+    expect(synthese).toMatchObject({ solde_en_main_dzd: 8_000, a_confirmer_dzd: 15_000, solde_bas: true, depenses: { sans_justificatif: 1 } });
+    expect(await lire.run({ vue: "sans_justificatif" }, ASSISTANTE)).toContain("Taxi ANPP");
+    // Un salarié sans le module : refus propre, aucun chiffre ; les gestes ne lui sont pas offerts.
+    const refus = await lecture(SANS_DROIT, "lire_caisse_avance").run({}, SANS_DROIT);
+    expect(refus).toMatch(/REFUS/);
+    expect(refus).not.toMatch(/8000|8 000/);
+    expect([DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE].some((o) => o.ouverte(SANS_DROIT))).toBe(false);
+
+    // La dépense AVEC son justificatif (le ticket du Drive) : le fond contrôlé avant la carte, le solde après montré.
+    const trop = await DEPENSE_CAISSE.proposer({ justificatif: "x.pdf", libelle: "Imprimante", montant: 9_000 }, ASSISTANTE);
+    expect("erreur" in trop && trop.erreur).toMatch(/Il ne reste que 8000 DZD/);
+    const ticket = await deposerFichier(ASSISTANTE, `Ticket papeterie ${TAG}.pdf`, Buffer.from("%PDF-1.4\n% ticket 3 200 DZD\n"), "application/pdf");
+    const p = await DEPENSE_CAISSE.proposer({ justificatif: ticket, libelle: "Ramettes et stylos", montant: 3_200 }, ASSISTANTE);
+    if (!("carte" in p)) throw new Error(JSON.stringify(p));
+    expect(JSON.stringify(p.carte.fields)).toMatch(/8.000 DZD → 4.800 DZD/);
+    const d = await confirmer(ASSISTANTE, DEPENSE_CAISSE.nom, p.args);
+    expect(d.r.ok, d.r.error).toBe(true);
+    const x = await prisma.departmentBudgetExpense.findFirstOrThrow({ where: { departmentId: dep.id, label: "Ramettes et stylos" } });
+    expect(await prisma.document.count({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: x.id } })).toBe(1);
+    expect("refus" in (await annulerGeste(d.gesteId, ASSISTANTE))).toBe(false);
+    expect(await prisma.departmentBudgetExpense.count({ where: { id: x.id } })).toBe(0);
+
+    // La réception des 15 000, puis la rallonge.
+    const rc = await RECEPTION_CAISSE.proposer({}, ASSISTANTE);
+    if (!("carte" in rc)) throw new Error(JSON.stringify(rc));
+    expect((await confirmer(ASSISTANTE, RECEPTION_CAISSE.nom, rc.args)).r.ok).toBe(true);
+    expect((await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: dep.id, amount: 15_000 } })).status).toBe("RECEIVED");
+    const ra = await RALLONGE_CAISSE.proposer({ montant: 30_000, motif: "Séminaire" }, ASSISTANTE);
+    if (!("carte" in ra)) throw new Error(JSON.stringify(ra));
+    const g = await confirmer(ASSISTANTE, RALLONGE_CAISSE.nom, ra.args);
+    expect(g.r.ok, g.r.error).toBe(true);
+    expect(await prisma.pettyCashTopUpRequest.count({ where: { allotment: { departmentId: dep.id }, status: "PENDING" } })).toBe(1);
+    const encore = await RALLONGE_CAISSE.proposer({ montant: 10_000 }, ASSISTANTE);
+    expect("erreur" in encore && encore.erreur).toMatch(/attend déjà/);
+    expect("refus" in (await annulerGeste(g.gesteId, ASSISTANTE))).toBe(false);
+    expect(await prisma.pettyCashTopUpRequest.count({ where: { allotment: { departmentId: dep.id }, status: "PENDING" } })).toBe(0);
+  });
+
+  it("salles : déclarées par l'assistante ; réservées par TOUT employé ; prise → salles libres proposées ; annulation libère le créneau", async () => {
+    expect(DECLARER_SALLE.ouverte(SANS_DROIT)).toBe(false);
+    for (const [nom, capacite] of [[`Salle du conseil ${TAG}`, 14], [`Salle Atlas ${TAG}`, 8], [`Salle Tassili ${TAG}`, 20]] as const) {
+      const p = await DECLARER_SALLE.proposer({ nom, capacite }, ASSISTANTE);
+      if (!("carte" in p)) throw new Error(JSON.stringify(p));
+      expect((await confirmer(ASSISTANTE, DECLARER_SALLE.nom, p.args)).r.ok).toBe(true);
+    }
+    // Un salarié SANS le module réserve (Direction, 02/11/2026).
+    expect(RESERVER_SALLE.ouverte(SANS_DROIT)).toBe(true);
+    const p = await RESERVER_SALLE.proposer({ salle: `conseil ${TAG}`, debut: "2027-03-12T10:00", fin: "12:00", objet: "Rendez-vous client", participants: 12 }, SANS_DROIT);
     if (!("carte" in p)) throw new Error(JSON.stringify(p));
     expect(JSON.stringify(p.carte.fields)).toMatch(/12\/03\/2027 10:00 → 12\/03\/2027 12:00/);
-    const c = await confirmer(ASSISTANTE, MOYEN_GENERAL_RESERVER.nom, p.args);
+    const c = await confirmer(SANS_DROIT, RESERVER_SALLE.nom, p.args);
     expect(c.r.ok, c.r.error).toBe(true);
-    const deux = await MOYEN_GENERAL_RESERVER.proposer({ moyen: `Salle du conseil ${TAG}`, debut: "2027-03-12T11:00", fin: "13:00", objet: "Point RH", participants: 10 }, ASSISTANTE);
-    expect("erreur" in deux && deux.erreur).toMatch(/déjà réservé[\s\S]*Libres sur ce créneau : [\s\S]*Tassili/);
+    const deux = await RESERVER_SALLE.proposer({ salle: `Salle du conseil ${TAG}`, debut: "2027-03-12T11:00", fin: "13:00", objet: "Point RH", participants: 10 }, ASSISTANTE);
+    expect("erreur" in deux && deux.erreur).toMatch(/déjà réservée[\s\S]*Libres sur ce créneau : [\s\S]*Tassili/);
     expect("erreur" in deux && deux.erreur).not.toMatch(/Atlas/);
-    // Sans salle désignée : la plus petite salle libre assez grande.
-    const auto = await MOYEN_GENERAL_RESERVER.proposer({ debut: "2027-03-12T11:00", fin: "12:00", objet: "Point RH", participants: 6 }, ASSISTANTE);
+    const auto = await RESERVER_SALLE.proposer({ debut: "2027-03-12T11:00", fin: "12:00", objet: "Point RH", participants: 6 }, ASSISTANTE);
     if (!("carte" in auto)) throw new Error(JSON.stringify(auto));
     expect(auto.carte.title).toContain("Atlas");
-    expect("refus" in (await annulerGeste(c.gesteId, ASSISTANTE))).toBe(false);
+    const libres = JSON.parse(await lecture(SANS_DROIT, "lire_salles").run({ debut: "2027-03-12T10:30", fin: "11:30" }, SANS_DROIT)) as { salles_libres: string[] };
+    expect(libres.salles_libres.some((x) => x.includes("Atlas"))).toBe(true);
+    expect(libres.salles_libres.some((x) => x.includes(`conseil ${TAG}`))).toBe(false);
+    expect("refus" in (await annulerGeste(c.gesteId, SANS_DROIT))).toBe(false);
     expect(await prisma.moyenGeneralReservation.count({ where: { moyen: { libelle: `Salle du conseil ${TAG}` }, statut: "CONFIRMEE" } })).toBe(0);
-  });
-
-  it("un salarié sans le module : les gestes ne lui sont pas offerts et l'action refuse", async () => {
-    expect(MOYEN_GENERAL_ENREGISTRER.ouverte(SANS_DROIT)).toBe(false);
-    expect(MOYEN_GENERAL_RESERVER.ouverte(SANS_DROIT)).toBe(false);
-    const salle = await prisma.moyenGeneral.findFirstOrThrow({ where: { libelle: `Salle Atlas ${TAG}` } });
-    ACTOR = SANS_DROIT;
-    const fd = new FormData();
-    fd.set("moyenId", salle.id); fd.set("debut", "2027-04-01T09:00"); fd.set("objet", "test");
-    const r = await reserverMoyenGeneral(undefined, fd);
-    expect(r.ok).toBe(false);
-    expect(await prisma.moyenGeneralReservation.count({ where: { moyenId: salle.id } })).toBe(0);
+    // Le premier registre est retiré : on ne déclare plus un véhicule.
+    ACTOR = ASSISTANTE;
+    const fd = new FormData(); fd.set("type", "VEHICULE"); fd.set("libelle", `Kangoo ${TAG}`);
+    expect((await creerMoyenGeneral(undefined, fd)).ok).toBe(false);
   });
 
   it("fiches hôtellerie et voyage : contrôles, nuits calculées, poste hôtellerie créé, puis annulation", async () => {

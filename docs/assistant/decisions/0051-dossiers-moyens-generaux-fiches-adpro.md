@@ -90,3 +90,40 @@ devis d'agence manque vraiment : une question est légitime). Passage final : vo
 - Un tableur de plus de 2 000 lignes ou 500 changements est refusé (découpage demandé).
 - Les fiches d'une PRISE EN CHARGE (cellules `CareCell`) ne passent pas par cette opération (elle vise les postes
   billetterie / hôtellerie des sponsorings, congrès et événements).
+
+## Révision — réponses de la Direction (02/11/2026, après le premier passage)
+
+> 1. « Moyens généraux en réalité c'est que la caisse d'avance gérée par l'assistante de direction. »
+> 2. Qui peut réserver une salle : « Tous les employés ».
+
+**Ce qui change (ce paragraphe prime sur les sections 3 et 4 ci-dessus) :**
+
+- **« Moyens généraux » = la CAISSE D'AVANCE** de l'assistante de direction, par les actions EXISTANTES de l'ERP
+  (`petty-cash-actions`, réversibles K10a). L'assistant comprend « moyens généraux », « caisse », « caisse d'avance »,
+  « petite caisse » comme ce module :
+  - lecture `lire_caisse_avance` (`infra/caisse-avance.ts`) sur la vue de l'écran (`getGeneralMeans`, mêmes droits, même
+    calcul du fond) : solde en main, somme à confirmer, remises, plan et prochaine recharge, rallonges, dépenses du mois,
+    dépenses SANS justificatif, non classées, alerte de solde bas — comptes faits par le code ;
+  - opérations typées (`infra/operations/caisse-avance.ts`) : `depenser_caisse_avance` (la dépense AVEC son justificatif
+    photo / PDF — l'action exige la pièce, l'appel générique ne pouvait pas la faire ; fond contrôlé avant la carte par
+    `canSpendFromFund`, solde après montré, solde bas et doublon signalés), `demander_rallonge_caisse` (refusée si une
+    autre attend), `confirmer_reception_caisse` ;
+  - les autres gestes (remettre, trancher une rallonge, clôturer, régler le plan) restent des capacités du registre ;
+  - **classement** : `petty-cash-actions` sort de la famille « Budgets & finances » (`classement.ts`,
+    `SANS_FAMILLE_METIER`) — la caisse est le module de l'assistante (`GENERAL_MEANS`), pas l'écran de qui alloue ; rangée
+    là par `petty`, elle était fermée à la personne même qui la tient. Les gardes des actions (détentrice,
+    administration) sont inchangées.
+- **Le registre (véhicules, assurances, contrats, entretiens) est RETIRÉ** de l'assistant (opérations, lectures,
+  sélection d'outils), du banc et des écrans (`/moyens-generaux/registre` redirige vers `/salles` ; le lien de l'écran de
+  caisse est retiré). **Aucune migration destructive** : les tables `MoyenGeneral` / `MoyenGeneralReservation` restent ;
+  seules les SALLES s'y créent encore (`TYPES_ENREGISTRABLES`), les autres natures sont inertes.
+- **Salles de réunion** : aucun module de réservation n'existait (les « salles » des réunions sont des liens Jitsi) — le
+  module est renommé `src/modules/salles` (clé d'actions historique `moyens-generaux-registre-actions` gardée au parc).
+  La réservation est **OUVERTE À TOUS LES EMPLOYÉS** (`reserverMoyenGeneral` n'exige plus que la session ;
+  `reserver_salle` offert à tous) : créneau vérifié, salles libres proposées, salle choisie selon la capacité,
+  annulation réversible. Déclarer une salle (`declarer_salle`) : droit de créer « Moyens généraux ». Lecture `lire_salles`
+  (tous). Écran `/salles` (tous).
+- **Banc** : les tâches `MG-` sont réécrites — solde, justificatifs manquants, mouvements du mois, solde bas, dépense avec
+  ticket (vérifiée en base : montant ET pièce), réception confirmée, rallonge demandée puis suivie, export, mission de
+  rapprochement des tickets, employé sans droit refusé ; salles réservées par un commercial et un délégué, créneau pris,
+  salle choisie par la capacité. Attaque `AT-MG-01` : la caisse lue et écrite par un délégué sans le module.

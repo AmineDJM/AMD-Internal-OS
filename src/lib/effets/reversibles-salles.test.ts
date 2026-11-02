@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * T3 (décision 0051) — LE REGISTRE DES MOYENS GÉNÉRAUX ET LA MISE À JOUR DES DOSSIERS EN LOT, RÉVERSIBLES : chaque action
+ * T3 (décision 0051) — LES SALLES ET LEURS RÉSERVATIONS, ET LA MISE À JOUR DES DOSSIERS EN LOT, RÉVERSIBLES : chaque action
  * EXÉCUTÉE au clic de l'écran (journal des effets, `annulable.gesteId`), puis ANNULÉE (le bouton « Annuler »), contre la
  * base locale. Le lot de dossiers s'annule d'UN geste.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -19,7 +19,7 @@ import { annulerGeste } from "@/lib/effets/annulation";
 import { mettreAJourDossiersEnLot } from "@/lib/actions/dossier-actions";
 import {
   annulerReservationMoyenGeneral, archiverMoyenGeneral, creerMoyenGeneral, modifierMoyenGeneral, reserverMoyenGeneral,
-} from "@/modules/moyens-generaux/actions";
+} from "@/modules/salles/actions";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -39,7 +39,7 @@ const annuler = async (gesteId: string) => {
   return r;
 };
 
-suite("T3 — registre des moyens généraux et dossiers en lot : exécuter, puis annuler", () => {
+suite("T3 — salles, réservations et dossiers en lot : exécuter, puis annuler", () => {
   beforeAll(async () => {
     const u = await prisma.user.create({ data: { name: `${TAG} Imene`, email: `${TAG}@t.dz`, passwordHash: "x", role: "DIRECTION_ASSISTANT" } });
     for (const module of ["GENERAL_MEANS", "DOSSIERS"]) await prisma.userAccess.create({ data: { userId: u.id, module, canView: true, canCreate: true, canUpdate: true, scope: "ALL" as never } });
@@ -57,22 +57,22 @@ suite("T3 — registre des moyens généraux et dossiers en lot : exécuter, pui
   });
 
   it("creerMoyenGeneral → annulé : la fiche disparaît", async () => {
-    const r = await creerMoyenGeneral(undefined, fd({ type: "VEHICULE", libelle: `Kangoo ${TAG}`, identifiant: `${TAG}-16` }));
+    const r = await creerMoyenGeneral(undefined, fd({ type: "SALLE", libelle: `Salle Hoggar ${TAG}`, capacite: "6" }));
     expect(r.ok, r.error).toBe(true);
     await annuler(gesteDe(r));
-    expect(await prisma.moyenGeneral.count({ where: { libelle: `Kangoo ${TAG}` } })).toBe(0);
+    expect(await prisma.moyenGeneral.count({ where: { libelle: `Salle Hoggar ${TAG}` } })).toBe(0);
   });
 
   it("modifierMoyenGeneral puis archiverMoyenGeneral → annulés : valeurs et statut d'avant", async () => {
-    const c = await creerMoyenGeneral(undefined, fd({ type: "ASSURANCE", libelle: `Assurance ${TAG}`, montant: "400000", echeance: "2027-01-31" }));
+    const c = await creerMoyenGeneral(undefined, fd({ type: "SALLE", libelle: `Salle Djurdjura ${TAG}`, capacite: "10", notes: "écran" }));
     expect(c.ok, c.error).toBe(true);
-    const m = await modifierMoyenGeneral(undefined, fd({ id: c.id!, montant: "450000", echeance: "2027-12-31" }));
+    const m = await modifierMoyenGeneral(undefined, fd({ id: c.id!, capacite: "12", notes: "écran et visio" }));
     expect(m.ok, m.error).toBe(true);
-    expect(Number((await prisma.moyenGeneral.findUniqueOrThrow({ where: { id: c.id! } })).montant)).toBe(450_000);
+    expect((await prisma.moyenGeneral.findUniqueOrThrow({ where: { id: c.id! } })).capacite).toBe(12);
     await annuler(gesteDe(m));
     const apres = await prisma.moyenGeneral.findUniqueOrThrow({ where: { id: c.id! } });
-    expect(Number(apres.montant)).toBe(400_000);
-    expect(apres.echeance?.toISOString().slice(0, 10)).toBe("2027-01-31");
+    expect(apres.capacite).toBe(10);
+    expect(apres.notes).toBe("écran");
     const a = await archiverMoyenGeneral(fd({ id: c.id! }));
     expect(a.ok, a.error).toBe(true);
     await annuler(gesteDe(a));

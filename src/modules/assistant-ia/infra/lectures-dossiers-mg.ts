@@ -4,7 +4,9 @@ import type { CurrentUser } from "@/lib/session";
 import { scopeDossiers, userCan } from "@/lib/rbac";
 import { resultatVide } from "@/platform/ia/lectures/empty-result";
 import { LIBELLE_PRIORITE_DOSSIER, LIBELLE_STATUT_DOSSIER, lireStatutDossier, replierTexte, type PrioriteDossier, type StatutDossier } from "@/modules/suivi-dossiers/partage";
-import { etatEcheance, joursAvant, LIBELLE_ETAT_ECHEANCE, LIBELLE_TYPE_MOYEN, libelleInstant, lireTypeMoyen, type TypeMoyen } from "@/modules/moyens-generaux/partage";
+import { libelleInstant, lireCreneau } from "@/modules/salles/partage";
+import { conflitsDeReservation } from "@/modules/salles/api";
+import { lectureCaisseAvance } from "./caisse-avance";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -13,9 +15,8 @@ import { etatEcheance, joursAvant, LIBELLE_ETAT_ECHEANCE, LIBELLE_TYPE_MOYEN, li
  *   • `lire_dossiers_suivi` — les dossiers que la personne voit (`scopeDossiers`) : en retard (échéance passée, non
  *     abouti), à relancer (sans mouvement depuis N jours), par statut, responsable, catégorie, mot ; les COMPTES par
  *     statut et par responsable sont faits par le code (le modèle ne compte pas) ;
- *   • `lire_moyens_generaux` — le registre (véhicules, assurances, contrats, entretiens, salles…) sous le droit de VOIR
- *     « Moyens généraux » : les ÉCHÉANCES dépassées et proches (alertes), une nature, une recherche, et les
- *     réservations d'une période (qui a pris quelle salle, quand).
+ *   • `lire_caisse_avance` — la caisse d'avance (« moyens généraux » chez Adventum, Direction 02/11/2026), `./caisse-avance.ts` ;
+ *   • `lire_salles` — les salles de réunion, leurs réservations et les salles libres d'un créneau (tous les employés).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -28,10 +29,11 @@ const ymd = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : 
 const OUVERTS: StatutDossier[] = ["OPEN", "IN_PROGRESS", "ON_HOLD"];
 
 export const OUTIL_DOSSIERS_SUIVI = "lire_dossiers_suivi";
-export const OUTIL_MOYENS_GENERAUX = "lire_moyens_generaux";
+export const OUTIL_SALLES = "lire_salles";
 
 export function lecturesDossiersEtMoyens(user: CurrentUser): PowerTool[] {
   return [
+    lectureCaisseAvance(user),
     {
       def: {
         name: OUTIL_DOSSIERS_SUIVI,
@@ -109,61 +111,37 @@ export function lecturesDossiersEtMoyens(user: CurrentUser): PowerTool[] {
     },
     {
       def: {
-        name: OUTIL_MOYENS_GENERAUX,
-        description: "Lit le REGISTRE DES MOYENS GÉNÉRAUX : véhicules, assurances, contrats de prestataires, entretiens, salles, équipements, fournitures. "
-          + "`vue` = alertes (échéances dépassées et proches — à renouveler), registre (les fiches, filtrées par `type` ou `q`), reservations (les réservations de salles et véhicules entre `du` et `au`, AAAA-MM-JJ). "
-          + "Rend référence, nature, libellé, prestataire, identifiant, montant, échéance, jours restants, état, et les totaux.",
+        name: OUTIL_SALLES,
+        description: "Lit les SALLES DE RÉUNION et leurs réservations (ouvert à tous les employés) : chaque salle et sa capacité, les réservations entre `du` et `au` (AAAA-MM-JJ, 7 jours par défaut), "
+          + "et, avec `debut`/`fin` (AAAA-MM-JJTHH:MM), les salles LIBRES sur ce créneau.",
         input_schema: {
           type: "object",
-          properties: {
-            vue: { type: "string", enum: ["alertes", "registre", "reservations"] }, type: { type: "string" }, q: { type: "string" },
-            dans_jours: { type: "number", description: "Alertes : échéances dans les N prochains jours (sinon le rappel de chaque fiche)." },
-            du: { type: "string" }, au: { type: "string" },
-          },
+          properties: { du: { type: "string" }, au: { type: "string" }, debut: { type: "string" }, fin: { type: "string" }, participants: { type: "number" } },
         },
       } as PowerTool["def"],
-      label: "Moyens généraux consultés",
-      allowed: (u) => u.id === user.id && userCan(u, "GENERAL_MEANS", "VIEW"),
+      label: "Salles consultées",
+      allowed: (u) => u.id === user.id,
       run: async (e) => {
-        const vue = texte(e, "vue") || "alertes";
         const maintenant = new Date();
-        if (vue === "reservations") {
-          const jour = (s: string, defaut: Date) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00+01:00`) : defaut);
-          const du = jour(texte(e, "du"), new Date(maintenant.getTime() - 3_600_000));
-          const au = new Date(jour(texte(e, "au"), new Date(du.getTime() + 7 * 86_400_000)).getTime() + (texte(e, "au") ? 86_400_000 : 0));
-          const rs = await prisma.moyenGeneralReservation.findMany({
-            where: { statut: "CONFIRMEE", debut: { lt: au }, fin: { gt: du } }, orderBy: { debut: "asc" }, take: 200,
-            select: { debut: true, fin: true, objet: true, participants: true, reserveParId: true, moyen: { select: { reference: true, libelle: true, type: true } } },
-          });
-          if (!rs.length) return resultatVide("Aucune réservation sur cette période.");
-          const noms = new Map((await prisma.user.findMany({ where: { id: { in: [...new Set(rs.map((r) => r.reserveParId))] } }, select: { id: true, name: true } })).map((x) => [x.id, x.name]));
-          return JSON.stringify({ total: rs.length, reservations: rs.map((r) => ({ moyen: `${r.moyen.libelle} (${r.moyen.reference})`, debut: libelleInstant(r.debut), fin: libelleInstant(r.fin), objet: r.objet, participants: r.participants, reserve_par: noms.get(r.reserveParId) ?? null })) });
-        }
-        const typeBrut = texte(e, "type");
-        const type: TypeMoyen | null = typeBrut ? lireTypeMoyen(typeBrut) : null;
-        const q = texte(e, "q");
-        const ms = await prisma.moyenGeneral.findMany({
-          where: { statut: "ACTIF", ...(type ? { type } : {}), ...(q ? { OR: [{ libelle: { contains: q, mode: "insensitive" } }, { identifiant: { contains: q, mode: "insensitive" } }, { prestataire: { contains: q, mode: "insensitive" } }, { reference: { contains: q, mode: "insensitive" } }] } : {}) },
-          orderBy: [{ echeance: "asc" }, { libelle: "asc" }], take: 500,
-          select: { reference: true, type: true, libelle: true, prestataire: true, identifiant: true, montant: true, periodicite: true, echeance: true, rappelJours: true, capacite: true, parent: { select: { reference: true, libelle: true } } },
+        const salles = await prisma.moyenGeneral.findMany({ where: { statut: "ACTIF", type: "SALLE" }, orderBy: [{ capacite: "asc" }, { libelle: "asc" }], select: { id: true, libelle: true, capacite: true } });
+        if (!salles.length) return resultatVide("Aucune salle de réunion n'est déclarée.");
+        const jour = (s: string, defaut: Date) => (/^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00+01:00`) : defaut);
+        const du = jour(texte(e, "du"), new Date(maintenant.getTime() - 3_600_000));
+        const au = new Date(jour(texte(e, "au"), new Date(du.getTime() + 7 * 86_400_000)).getTime() + (texte(e, "au") ? 86_400_000 : 0));
+        const rs = await prisma.moyenGeneralReservation.findMany({
+          where: { statut: "CONFIRMEE", moyenId: { in: salles.map((x) => x.id) }, debut: { lt: au }, fin: { gt: du } }, orderBy: { debut: "asc" }, take: 200,
+          select: { moyenId: true, debut: true, fin: true, objet: true, participants: true, reserveParId: true },
         });
-        const dans = typeof e.dans_jours === "number" || texte(e, "dans_jours") ? nombre(e, "dans_jours", 30, 730) : null;
-        const lignes = ms.map((m) => {
-          const etat = dans !== null ? (m.echeance ? (joursAvant(m.echeance, maintenant) < 0 ? "depassee" : joursAvant(m.echeance, maintenant) <= dans ? "proche" : "a_venir") : null) : etatEcheance(m.echeance, m.rappelJours, maintenant);
-          return {
-            reference: m.reference, nature: LIBELLE_TYPE_MOYEN[m.type as TypeMoyen], libelle: m.libelle, prestataire: m.prestataire, identifiant: m.identifiant,
-            montant_dzd: m.montant != null ? Number(m.montant) : null, periodicite: m.periodicite, capacite: m.capacite, rattache_a: m.parent ? `${m.parent.libelle} (${m.parent.reference})` : null,
-            echeance: ymd(m.echeance), jours_restants: m.echeance ? joursAvant(m.echeance, maintenant) : null, etat: etat ? LIBELLE_ETAT_ECHEANCE[etat] : null,
-          };
-        });
-        const retenues = vue === "alertes" ? lignes.filter((l) => l.etat === "Dépassée" || l.etat === "Proche") : lignes;
-        if (!retenues.length) return resultatVide(vue === "alertes" ? "Aucune échéance dépassée ni proche dans le registre des moyens généraux." : "Aucune fiche du registre ne correspond.");
-        const parNature: Record<string, number> = {};
-        for (const l of retenues) parNature[l.nature] = (parNature[l.nature] ?? 0) + 1;
+        const noms = new Map((await prisma.user.findMany({ where: { id: { in: [...new Set(rs.map((r) => r.reserveParId))] } }, select: { id: true, name: true } })).map((x) => [x.id, x.name]));
+        const nomSalle = new Map(salles.map((x) => [x.id, x.libelle]));
+        const creneau = texte(e, "debut") ? lireCreneau(texte(e, "debut"), texte(e, "fin") || null) : null;
+        const participants = typeof e.participants === "number" ? e.participants : null;
+        const libres = creneau ? [] as string[] : null;
+        if (creneau && libres) for (const x of salles) if ((!participants || !x.capacite || x.capacite >= participants) && !(await conflitsDeReservation(x.id, creneau)).length) libres.push(`${x.libelle}${x.capacite ? ` (${x.capacite} places)` : ""}`);
         return JSON.stringify({
-          vue, total: retenues.length, par_nature: parNature,
-          ...(vue === "alertes" ? { depassees: retenues.filter((l) => l.etat === "Dépassée").length, proches: retenues.filter((l) => l.etat === "Proche").length } : {}),
-          montant_total_dzd: retenues.reduce((s, l) => s + (l.montant_dzd ?? 0), 0), fiches: retenues.slice(0, 60),
+          salles: salles.map((x) => ({ salle: x.libelle, capacite: x.capacite })),
+          reservations: rs.map((r) => ({ salle: nomSalle.get(r.moyenId), debut: libelleInstant(r.debut), fin: libelleInstant(r.fin), objet: r.objet, participants: r.participants, reserve_par: noms.get(r.reserveParId) ?? null })),
+          ...(creneau ? { creneau: `${libelleInstant(creneau.debut)} → ${libelleInstant(creneau.fin)}`, salles_libres: libres } : {}),
         });
       },
     },
