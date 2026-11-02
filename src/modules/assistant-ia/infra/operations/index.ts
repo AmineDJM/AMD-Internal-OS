@@ -80,6 +80,20 @@ export const REFUS_SECONDE_CARTE = JSON.stringify({
   consigne: "Ne prépare rien d'autre maintenant. Résume la carte affichée, puis dis que l'autre demande sera préparée dès que celle-ci sera confirmée ou écartée.",
 });
 
+/** Les questions déjà posées par geste et par personne (15 min) — le processus web les tient ; un redémarrage les oublie. */
+const QUESTIONS = new Map<string, number>();
+const QUESTION_TTL_MS = 15 * 60_000;
+const MEME_TOUR_MS = 20_000;
+export function questionDejaPosee(userId: string, op: string, champ: string, maintenant = Date.now()): boolean {
+  for (const [k, t] of QUESTIONS) if (maintenant - t > QUESTION_TTL_MS) QUESTIONS.delete(k);
+  const cle = `${userId}\u0000${op}\u0000${champ.slice(0, 120)}`;
+  const avant = QUESTIONS.get(cle);
+  // Une reprise DANS le même tour (le modèle rappelle l'outil) n'est pas une question reposée : la personne ne l'a pas vue.
+  if (avant !== undefined && maintenant - avant < MEME_TOUR_MS) return false;
+  QUESTIONS.set(cle, maintenant);
+  return avant !== undefined;
+}
+
 /**
  * Les opérations offertes à CETTE personne, en outils. Une opération que son rôle ne permet pas
  * n'est pas même offerte ; celle qui l'est revérifie tout à l'exécution (action métier).
@@ -93,6 +107,16 @@ export function outilsOperations(user: CurrentUser, propositions: PropositionCar
       if (propositions.length > 0) return REFUS_SECONDE_CARTE;
       const p = await o.proposer(entree ?? {}, u);
       if ("manque" in p) {
+        // P1 (décision 0047, banc d'audit Q1 AP-01…05) : LA MÊME QUESTION NE SE POSE PAS DEUX FOIS. Le même champ déjà
+        // demandé par ce geste dans les 15 dernières minutes, et toujours absent : on ne le redemande pas — on le dit.
+        const deja = questionDejaPosee(u.id, o.nom, p.manque[0] ?? "");
+        if (deja) {
+          return JSON.stringify({
+            statut: "BLOQUE",
+            manque: p.manque,
+            consigne: `Tu as DÉJÀ demandé « ${p.manque[0]} » et la personne ne l'a pas donné. NE REPOSE PAS la question. Dis en une phrase que ce champ est obligatoire pour ce geste, que rien n'est créé, et qu'elle peut le donner quand elle veut (ou compléter à l'écran).`,
+          });
+        }
         return JSON.stringify({
           statut: "INCOMPLET",
           manque: p.manque,

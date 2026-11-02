@@ -124,6 +124,19 @@ il doit faire de BEAUX mails. »
 - Limite dite : le logo n'est pas encore incrusté (une image intégrée demande une partie MIME `cid:` que le transport
   Gmail ne porte pas encore) — le bandeau porte le nom de la société à sa couleur.
 
+## 5 ter. Ce que le banc d'audit Q1 a relevé (02/11, passage réel) — traité ici
+
+| Cas | Constat | Traitement |
+|---|---|---|
+| ML-04, ML-05 | mail écrit en texte dans la réponse, aucune carte (assistante, KAM) | hors Direction, `envoyer_mail` part par la boîte de la personne ou l'envoi de l'ERP — carte + gabarit (§ 5 bis) |
+| ML-06 | ni politesse ni signature ; corps en Markdown, tableau « à pipes » | contenu structuré obligatoire (salutation, clôture), signature du gabarit, version texte sans pipes |
+| PI-01, PI-04 | « liste mes missions » lisait les TÂCHES | présélection : `mes_missions` en tête dès que la demande parle de missions ; consigne |
+| PI-02 | réponse honnête mais aucun outil de fusion | `fusionner_missions` (§ 3) |
+| AP-01, 02, 03, 05 | la même question reposée trois fois | garde serveur (`operations/index.ts questionDejaPosee`) : le même champ, le même geste, déjà demandé à un tour précédent (15 min) → BLOQUÉ, l'assistant dit ce qui manque au lieu de reposer |
+| TA-05 | « rappelle-moi lundi » → routine qui exige l'heure, 3 fois | présélection de la TÂCHE datée (`task__createTask`) ; un passage unique de routine sans heure prend 9 h, dit sur la carte |
+| EX-03 | un export Excel simple devenait un plan de travail à approuver | présélection d'`exporter_donnees` ; consigne : lecture puis export, jamais un travail de fond |
+| MI-01, MI-02 | travail créé puis tour en échec après ~4 min | **non reproduit ici** (le lancement d'une mission en tour réel a abouti au banc de ce lot) — à rejouer par Q1 sur cette branche |
+
 ## 6. Le libellé « aucune donnée »
 
 Un calcul en code sans source lue (le rétroplanning de ses dates) disait « aucune donnée (paramètres de la demande

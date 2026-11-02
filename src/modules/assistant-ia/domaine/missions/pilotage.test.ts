@@ -109,3 +109,12 @@ describe("P1 — un mail ne déclenche AUCUNE question d'agenda (mesuré au banc
     expect(construireAgenda("Prépare un rapport des ventes")).not.toEqual([]);
   });
 });
+
+describe("P1 — banc d'audit Q1 : rappels, exports, missions (présélection)", () => {
+  it("« rappelle-moi lundi » → la tâche datée ; « exporte… en Excel » → l'export ; « liste mes missions » → mes_missions", () => {
+    expect(outilsPilotageVoulus("Rappelle-moi lundi d'appeler le CHU Mustapha pour l'appel d'offres oncologie.")).toContain("task__createTask");
+    expect(outilsPilotageVoulus("Exporte la liste des salariés avec leur salaire de base en Excel.")).toContain("exporter_donnees");
+    expect(outilsPilotageVoulus("Liste mes missions en cours.")[0]).toBe("mes_missions");
+    expect(outilsPilotageVoulus("Où en sont mes missions ?")[0]).toBe("mes_missions");
+  });
+});

@@ -167,6 +167,10 @@ export function noteActionsNonVerifiees(message: string, outilsReussis: readonly
 
 const MISSIONS = /\b(missions?|taches? de fond|travaux|travail en cours|en cours|fusionn\w*|merg\w*|regroup\w*|arrete\w*|stoppe\w*|reprend\w*|met\w* en pause|renomm\w*|0 ?%|n avance\w* pas|bloque\w*)\b/;
 const MAIL = /\b(mails?|e-?mails?|courriels?|gmail|outlook|boite|boites|envoie\w*|envoyer|brouillons?)\b/;
+/** Banc d'audit Q1 (TA-05) : « rappelle-moi lundi d'appeler… » est une TÂCHE datée, pas une routine qui exige l'heure. */
+const RAPPEL = /\b(rappelle[- ]moi|rappel(le)?r? de|pense a|n oublie pas|note[- ]moi de)\b/;
+/** Banc d'audit Q1 (EX-03) : « exporte la liste… en Excel » se fait directement (lecture puis export), pas en travail de fond. */
+const EXPORT = /\b(export\w*|en excel|en xlsx|en csv|fichier excel|tableur)\b/;
 
 /** Les outils à mettre EN TÊTE de la présélection quand la demande parle de ses missions ou de ses mails. */
 export function outilsPilotageVoulus(demande: string): string[] {
@@ -174,6 +178,8 @@ export function outilsPilotageVoulus(demande: string): string[] {
   return [
     ...(MISSIONS.test(q) ? ["mes_missions", "piloter_mission", "fusionner_missions"] : []),
     ...(MAIL.test(q) ? ["mes_boites_mail", "envoyer_mail"] : []),
+    ...(RAPPEL.test(q) ? ["task__createTask"] : []),
+    ...(EXPORT.test(q) ? ["exporter_donnees"] : []),
   ];
 }
 
@@ -183,5 +189,7 @@ export const CONSIGNE_MISSIONS = [
   "- Pause, reprise, arrêt, renommage : `piloter_mission` (par identifiant ou par nom). « Fusionne-les », « mets-les dans un seul tableau » : `fusionner_missions` — JAMAIS une nouvelle mission de plus par `lancer_un_travail` quand des missions sur le même sujet existent.",
   "- Une mission qui n'avance pas : dis EXACTEMENT ce que `mes_missions` rapporte (« en attente du worker », « attend ton approbation », « plafond », « bloquée : … ») — jamais « elle tourne ».",
   "- Mails : ta boîte, c'est le Gmail d'ADAM ; `mes_boites_mail` lit son état réel (réponds à « as-tu accès à ta boîte / à Gmail ? » en le LISANT). « Envoie un mail à Redouane et Nesrine avec leur planning » → `envoyer_mail` TOUT DE SUITE, sans question : destinataires par leurs noms (l'annuaire les résout), objet, ton et signature choisis par toi, contenu tiré de la conversation, un mail par personne quand il lui est propre, en CONTENU STRUCTURÉ (salutation au prénom, paragraphes courts, tableau pour un planning, **échéances en gras**). Une question SEULEMENT si un destinataire est introuvable ou ambigu. La personne corrige sur la carte. Microsoft ou SMTP de la personne seulement si elle le demande ; brouillon seulement sur demande.",
+  "- « Rappelle-moi lundi d'appeler X » : une TÂCHE datée (task__createTask, échéance = ce jour, que tu calcules depuis la date du jour) — pas une routine, aucune question sur l'heure. « Exporte la liste … en Excel » : lis les données puis `exporter_donnees`, tout de suite — jamais un travail de fond pour un export simple.",
+  "- Une question déjà posée et restée sans réponse ne se repose pas : dis ce qui manque (champ obligatoire) et que la carte ou l'écran le complète.",
   "- N'écris JAMAIS « c'est fait », « j'ai fusionné », « c'est envoyé », « c'est enregistré », « j'ai pris en compte » sans l'outil réussi qui le prouve dans CE tour. Une carte affichée n'est pas une action faite : dis qu'elle attend sa confirmation.",
 ].join("\n");

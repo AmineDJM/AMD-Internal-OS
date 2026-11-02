@@ -196,13 +196,15 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     const r = await sendBroadcast(fd({ title: `${TAG} réunion`, body: "Salle B", audience: "USERS", userIds: autres }));
     expect((r as { message?: string }).message).toMatch(/Annuler/);
     const g = gesteDe(r);
-    expect(await prisma.notification.count({ where: { userId: { in: autres } } })).toBe(0);
+    // Les notifications DE CETTE diffusion (son titre porte le TAG) : d'autres bancs, en parallèle, notifient aussi les
+    // assistantes de direction — compter toutes leurs notifications rendait ce test dépendant de l'ordre des fichiers.
+    expect(await prisma.notification.count({ where: { userId: { in: autres }, title: { contains: TAG } } })).toBe(0);
     await prisma.effetSortantDiffere.updateMany({ where: { id: { in: await envoisDe(g) } }, data: { executeLe: new Date(Date.now() + 10 * 365 * 86_400_000) } });
     const c = await annuler(g);
     expect(c.details.some((d) => /rien n'est parti/.test(d.pourquoi))).toBe(true);
     // La fenêtre se ferme : il n'y a plus rien à expédier.
     await executerEffetsSortantsDus({ maintenant: new Date(Date.now() + 3_600_000), ids: await envoisDe(g) });
-    expect(await prisma.notification.count({ where: { userId: { in: autres } } })).toBe(0);
+    expect(await prisma.notification.count({ where: { userId: { in: autres }, title: { contains: TAG } } })).toBe(0);
     await traceeDe(g);
   });
 
