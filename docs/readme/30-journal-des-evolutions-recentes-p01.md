@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### S1 — UN ASSISTANT PAR EMPLOYÉ, QUI SAIT À QUI IL PARLE ET NE VOIT QUE SES DROITS (2026-11-02)
+
+Constat de la Direction (02/11) : depuis le compte de Radia ouvert en **Vue exacte**, l'assistant répondait « Salut Amine »
+et donnait la paie de Radia et d'Assia. Cause : le message part par une action serveur, dont le corps porte le Super
+Admin réel (§118.184) — le tour se jouait avec l'identité, la mémoire et les droits du Super Admin. **Corrigé** :
+l'assistant est fermé en Vue exacte (actions, `jouerTour` en échec fermé, accès vide), l'accueil le dit. Un réglage de
+**rôle** de la console n'ouvre plus jamais la paie ou le dossier RH d'**autrui** : seulement le droit applicatif RH, un
+**avenant** de délégation daté sur une entité (`AvenantContrat`, contrat en vigueur) ou un **droit daté** nominatif
+(`AssistantIaDroitDate`), chaque lecture auditée avec son motif. Chaque tour porte le **profil de la personne** construit
+par le serveur (nom, prénom, poste, entité, responsable, contrat, avenants, rôle, périmètres — jamais un autre prénom),
+tutoiement ou vouvoiement au choix. Administration › IA › Accès montre « **Ce que son assistant voit** ». Décision
+[0048](../assistant/decisions/0048-acces-personnels.md), audit `docs/assistant/preuves/s1/`. Migration
+`20270221000000_s1_acces_personnels`.
+
 ### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
 
 Direction, 01/11 : « l'export des demandes de paiement, oui. Enfin, l'export de tout, quoi. » Décision 0037, § 7.

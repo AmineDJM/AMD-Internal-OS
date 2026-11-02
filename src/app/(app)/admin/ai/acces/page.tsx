@@ -8,6 +8,7 @@ import { ADMIN_TABS, ROLE_LABELS } from "@/lib/labels";
 import { chargerConsoleAccesIa } from "@/modules/assistant-ia/api";
 import { ConsoleProactivite } from "@/modules/assistant-ia/ecrans/console-proactivite";
 import { AccesAssistantIaForm, type LignePersonne, type LigneRole } from "./acces-form";
+import { AssistantDeLaPersonne } from "./assistant-de-la-personne";
 
 export const metadata = { title: "Assistant IA — accès — AMD Internal OS" };
 export const dynamic = "force-dynamic";
@@ -46,13 +47,16 @@ export default async function AccesAssistantIaPage() {
           <p className="text-sm text-muted-foreground">
             Ce que l&apos;Assistant IA peut lire et préparer pour chacun. Le Super Admin a tout, toujours. Pour les autres, chaque famille
             suit par défaut les droits de la personne dans l&apos;application — sauf <strong>Salaires &amp; paie</strong> et{" "}
-            <strong>Contrats &amp; documents RH</strong>, fermées tant que vous ne les ouvrez pas. Ouvrir une famille peut donner à
-            l&apos;assistant plus que les droits de la personne : c&apos;est votre décision, et elle est journalisée.{" "}
+            <strong>Contrats &amp; documents RH</strong>, fermées tant que vous ne les ouvrez pas. Chacun voit toujours ses propres
+            données ; celles d&apos;<strong>autrui</strong> (paie, dossier RH) ne s&apos;ouvrent que par le droit de son rôle dans
+            l&apos;application, un avenant de délégation daté, ou un droit daté accordé nommément — jamais par le réglage d&apos;un rôle.
+            Chaque lecture est journalisée avec son motif.{" "}
             <Link href="/admin/ai" className="underline">Centre de contrôle IA</Link>
           </p>
         </div>
       </div>
       <AccesAssistantIaForm roles={roles} personnes={personnes} plafondsGlobaux={plafondsGlobaux} managerVoitEquipe={managerVoitEquipe} retentionEffetsJours={retentionEffetsJours} fenetreAnnulationSecondes={fenetreAnnulationSecondes} valeursSensibles={valeursSensibles} />
+      <AssistantDeLaPersonne personnes={personnes} />
       <ConsoleProactivite />
     </div>
   );

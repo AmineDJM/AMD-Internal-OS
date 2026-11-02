@@ -5,7 +5,7 @@ import { requireUser, type CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import {
   ajouterMemoire, annulerSouvenir, effacerMemoire, estChargeOperationIA, executerOperationJournalisee, jetonsDeLaMemoire, listerMemoire, lireReglagesAssistantIa, memoireAutoActive,
-  modifierMemoire, reglerMemoireAuto, toutEffacerMemoire,
+  adresseDeLaPersonne, modifierMemoire, reglerMemoireAuto, toutEffacerMemoire,
   type ElementMemoire, type PieceDuTour,
 } from "@/modules/assistant-ia/api";
 import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
@@ -25,11 +25,13 @@ import { actionReversible } from "@/lib/effets/reversible";
  */
 
 
-export async function listerMaMemoire(): Promise<{ ok: true; elements: ElementMemoire[]; auto: boolean; jetons: number; budget: number } | { ok: false; erreur: string }> {
+export async function listerMaMemoire(): Promise<{ ok: true; elements: ElementMemoire[]; auto: boolean; jetons: number; budget: number; adresse: "TU" | "VOUS" } | { ok: false; erreur: string }> {
   const p = await porte(false);
   if (!p.ok) return p;
-  const [elements, auto, jetons, reglages] = await Promise.all([listerMemoire(p.user.id), memoireAutoActive(p.user.id), jetonsDeLaMemoire(p.user.id), lireReglagesAssistantIa()]);
-  return { ok: true, elements, auto, jetons, budget: reglages.memoireJetonsBudget };
+  const [elements, auto, jetons, reglages, adresse] = await Promise.all([
+    listerMemoire(p.user.id), memoireAutoActive(p.user.id), jetonsDeLaMemoire(p.user.id), lireReglagesAssistantIa(), adresseDeLaPersonne(p.user.id),
+  ]);
+  return { ok: true, elements, auto, jetons, budget: reglages.memoireJetonsBudget, adresse };
 }
 
 /** Retenir — le geste de CONFIRMATION d'une mémoire proposée (`propose`), ou un ajout à la main (`manuel`). */
@@ -160,6 +162,18 @@ export async function repartirDeZero() {
   if (!p.ok) return p;
   const { nouvelleConversation } = await import("@/modules/assistant-ia/api");
   return nouvelleConversation(p.user.id);
+}
+
+/** S1 (décision 0048) : « tutoiement / vouvoiement » — l'accueil et les réponses de SON assistant (défaut : vous). */
+export async function reglerMonAdresse(adresse: "TU" | "VOUS") {
+  return actionReversible("assistant-ia-actions:reglerMonAdresse", "Réglage du tutoiement", async () => {
+    const p = await porte(true);
+    if (!p.ok) return p;
+    const { reglerAdresse } = await import("@/modules/assistant-ia/api");
+    const a = adresse === "TU" ? "TU" : "VOUS";
+    await reglerAdresse(p.user.id, a);
+    return { ok: true as const, adresse: a };
+  });
 }
 
 /** L'option « réponse vocale » : chaque réponse de l'assistant est aussi dite à voix haute (fichier audio du Drive). */

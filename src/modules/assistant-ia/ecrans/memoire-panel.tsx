@@ -4,7 +4,7 @@ import { actionFailureMessage } from "@/lib/action-outcome";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Brain, Check, Loader2, MessageSquare, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import {
-  corrigerMemoire, effacerElementMemoire, effacerToutMaMemoire, listerMaMemoire, reglerMaMemoireAuto, retenirMemoire,
+  corrigerMemoire, effacerElementMemoire, effacerToutMaMemoire, listerMaMemoire, reglerMaMemoireAuto, reglerMonAdresse, retenirMemoire,
 } from "@/modules/assistant-ia/actions";
 import {
   GROUPES_MEMOIRE, LIBELLE_ORIGINE, LIBELLE_SORTE, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, estSorteMemoire,
@@ -32,6 +32,7 @@ export function MemoirePanel({ ouvert, onFermer, onOuvrirConversation }: {
 }) {
   const [elements, setElements] = useState<ElementMemoire[] | null>(null);
   const [auto, setAuto] = useState(true);
+  const [tutoie, setTutoie] = useState(false);
   const [occupation, setOccupation] = useState<{ jetons: number; budget: number } | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
   const [edition, setEdition] = useState<{ id: string; texte: string } | null>(null);
@@ -43,7 +44,7 @@ export function MemoirePanel({ ouvert, onFermer, onOuvrirConversation }: {
   const charger = useCallback(async () => {
     try {
       const r = await listerMaMemoire();
-      if (r.ok) { setElements(r.elements); setAuto(r.auto); setOccupation({ jetons: r.jetons, budget: r.budget }); setErreur(null); } else setErreur(r.erreur);
+      if (r.ok) { setElements(r.elements); setAuto(r.auto); setTutoie(r.adresse === "TU"); setOccupation({ jetons: r.jetons, budget: r.budget }); setErreur(null); } else setErreur(r.erreur);
     } catch {
       setErreur("La mémoire n'a pas pu être chargée (connexion ou serveur).");
     }
@@ -166,6 +167,15 @@ export function MemoirePanel({ ouvert, onFermer, onOuvrirConversation }: {
             </span>
             <input type="checkbox" role="switch" aria-label="Mémoire automatique" checked={auto} disabled={occupe}
               onChange={(ev) => { const v = ev.target.checked; setAuto(v); void agir(() => reglerMaMemoireAuto(v)); }}
+              className="h-5 w-9 cursor-pointer accent-violet-600" />
+          </label>
+          <label className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2.5 text-[13px] dark:bg-zinc-900">
+            <span className="text-slate-800 dark:text-zinc-200">
+              Tutoiement
+              <span className="block text-[11px] text-slate-500">{tutoie ? "Il vous tutoie." : "Il vous vouvoie."}</span>
+            </span>
+            <input type="checkbox" role="switch" aria-label="Tutoiement" checked={tutoie} disabled={occupe}
+              onChange={(ev) => { const v = ev.target.checked; setTutoie(v); void agir(() => reglerMonAdresse(v ? "TU" : "VOUS")); }}
               className="h-5 w-9 cursor-pointer accent-violet-600" />
           </label>
           {occupation && (

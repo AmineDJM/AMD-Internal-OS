@@ -30,6 +30,8 @@ export interface ContextePage {
 
 export interface OptionsContexte {
   user: CurrentUser;
+  /** S1 (décision 0048) : la section « INTERLOCUTEUR » construite par le serveur (`profilDeLaPersonne`). */
+  profil?: string;
   threadId?: string;
   page?: ContextePage;
   consignesRole?: string;
@@ -187,6 +189,7 @@ export async function compileContext({
   question,
   sansMemoire = false,
   valeursEnClair = false,
+  profil,
 }: OptionsContexte): Promise<ContexteCompile> {
   let censureGlobale = false;
 
@@ -214,7 +217,8 @@ export async function compileContext({
     `### RÈGLES FONDAMENTALES\n${reglesPour(outilsActifs, valeursEnClair).map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
     `### PRÉSENTATION (UI générative)\n${CONSIGNE_COMPOSANTS}`,
     ...consignesGenerales.filter(Boolean),
-    `### INTERLOCUTEUR\nNom : ${user.name}\nRôle : ${roleLabel}${user.secondaryRole ? ` (rôle secondaire : ${ROLE_LABELS[user.secondaryRole] ?? user.secondaryRole})` : ""}`,
+    // S1 (décision 0048) : le PROFIL de la personne, construit par le serveur (compte de la session + fiche liée).
+    profil ?? `### INTERLOCUTEUR\nNom : ${user.name}\nRôle : ${roleLabel}${user.secondaryRole ? ` (rôle secondaire : ${ROLE_LABELS[user.secondaryRole] ?? user.secondaryRole})` : ""}`,
     `### PÉRIMÈTRE D'ACCÈS (RBAC)\nModules ouverts à cet utilisateur :\n- ${modulesAccessibles.join("\n- ")}\nHors de ce périmètre, tu indiques avec courtoisie que le module ne lui est pas ouvert.`,
   ];
 

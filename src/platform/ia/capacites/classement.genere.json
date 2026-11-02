@@ -1461,6 +1461,15 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-actions:reglerMonAdresse": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-actions:repartirDeZero": {
   "risque": "R1",
   "familles": [
@@ -1572,7 +1581,36 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:accorderDroitDateIa": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-consommation-actions:apercuAssistantDe": {
+  "risque": "R0",
+  "familles": [
+   "BUDGETS"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
  "assistant-ia-consommation-actions:enregistrerAccesAssistantIa": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-consommation-actions:enregistrerAvenantIa": {
   "risque": "R1",
   "familles": [
    "BUDGETS",
@@ -1669,6 +1707,26 @@
   ],
   "simulable": "oui",
   "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-consommation-actions:revoquerAvenantIa": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-consommation-actions:revoquerDroitDateIa": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
   "appelable": false
  },
  "assistant-ia-conversations-actions:ajouterDocumentsAuDossier": {

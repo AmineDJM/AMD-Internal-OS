@@ -88,3 +88,18 @@ test("S1 — Vue exacte sur Radia : l'assistant est FERMÉ — ni « Salut » au
   await expect(page.getByText(/Vous voyez l.interface de/)).toHaveCount(0, { timeout: 15_000 });
   expect(erreurs).toEqual([]);
 });
+
+test("S1 — Administration › IA › Accès : « Ce que son assistant voit » montre le profil de Radia et ses familles", async ({ page }) => {
+  const erreurs: string[] = [];
+  page.on("console", (m) => { if (m.type() === "error") erreurs.push(m.text()); });
+  await login(page, E2E.superAdminEmail);
+  await page.goto("/admin/ai/acces");
+  await page.waitForLoadState("networkidle");
+  const carte = page.getByTestId("assistant-de-la-personne");
+  await carte.getByLabel("Personne").selectOption(radiaId);
+  await expect(carte.getByTestId("consigne-profil")).toContainText(`Tu parles à : ${NOM}`, { timeout: 20_000 });
+  await expect(carte.getByTestId("consigne-profil")).toContainText("Assistante de direction");
+  await expect(carte.getByText(/AUCUN périmètre nominatif|Aucun — hors droit applicatif/).first()).toBeVisible();
+  expect(await sansDefilementHorizontal(page)).toBe(true);
+  expect(erreurs).toEqual([]);
+});

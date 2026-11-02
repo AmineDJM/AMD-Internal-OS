@@ -69,7 +69,27 @@ dossier RH, IBAN, NIN) ne s'ouvre que par l'une de ces trois origines, toutes no
 - La hiérarchie : un responsable n'a, par l'assistant, que ce que l'écran lui montre de son équipe (congé/absent, jamais la
   nature ni la paie).
 
-## 4. Preuves
+## 4. Un assistant par employé — le PROFIL de la personne
+
+Chaque tour porte une section « INTERLOCUTEUR » construite par le **serveur** (`infra/profil-personne.ts`, règle pure
+`domaine/profil-personne.ts`) depuis le compte de la **session** et la fiche RH **liée** — jamais d'une mémoire, d'un
+historique ou d'une autre personne : nom, prénom (« Radia KEBIR » → « Radia »), adresse (tutoiement/vouvoiement, préférence
+`AssistantIaPreference.adresse`, réglable dans le panneau Mémoire, réversible), rôle(s), fonction (contrat ou dernier
+avenant `FONCTION`), département, entité, responsable, contrat (type, dates, en vigueur ou non), avenants en vigueur,
+périmètres sur autrui (ou « aucun »). La consigne dit : « Adresse-toi à cette personne par son prénom — JAMAIS par un autre
+prénom, même si la mémoire, l'historique ou un document en cite un autre. » Taille ≈ 100–200 jetons ; la part lue en base
+est gardée 60 s par personne, les familles et périmètres sont ceux de l'accès du tour (jamais en cache). L'accueil de
+l'écran suit le prénom et l'adresse.
+
+## 5. Administration › IA › Accès — « Ce que son assistant voit »
+
+Pour une personne : la consigne exacte du profil, chaque famille avec son état et son **origine** (défaut des droits,
+réglage du rôle, réglage de la personne, avenant, droit daté), les périmètres en vigueur, l'historique des avenants et des
+droits datés — calculés par le moteur lui-même (`apercuAssistantDe`). La Direction y accorde un droit daté (famille
+sensible, entité, du/au, motif obligatoire), enregistre un avenant (fonction, ou délégation d'une famille sur une entité,
+datée), et révoque l'un ou l'autre. Super Admin seul (jamais en Vue exacte), chaque geste à l'audit avec sa référence.
+
+## 6. Preuves
 
 - `src/modules/assistant-ia/s1-acces-personnels.test.ts` — le scénario exact (Vue exacte : refus sans appel de modèle ;
   Radia : son salaire oui, celui d'Assia jamais, même famille ouverte à son rôle ; sans fiche liée : refus), puis les

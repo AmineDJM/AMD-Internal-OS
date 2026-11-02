@@ -33,6 +33,7 @@ import { AlarmClock, Brain, Briefcase, MessagesSquare, History, MoreHorizontal, 
 import { listerMesRoutines, listerMesTravaux } from "@/modules/assistant-ia/actions";
 import { confirmerActionBeta, envoyerMessageBeta } from "@/app/(app)/assistant/beta/actions";
 import { refusAssistantVueExacte } from "../domaine/acces-regles";
+import { accueilPour, prenomDe, type Adresse } from "../domaine/profil-personne";
 import type { KpiData } from "./kpi-glass-strip";
 import { sansBloquer } from "@/lib/journal";
 
@@ -49,16 +50,17 @@ export interface AssistantWorkspaceProps {
   initialKpiData?: KpiData;
   userName?: string;
   userRole?: string;
+  /** S1 : tutoiement / vouvoiement choisi par la personne (défaut : vous). */
+  adresse?: Adresse;
 }
 
-/** L'accueil, au prénom de la personne : l'assistant travaille pour ELLE, avec SES droits. */
-function accueil(userName?: string): string {
-  const prenom = (userName ?? "").trim().split(/\s+/)[0];
-  return `Bonjour${prenom ? ` ${prenom}` : ""} 👋\n\nJe suis votre assistant interne. Je lis ce que vos accès vous permettent de voir, et je prépare vos demandes (sponsoring, prise en charge, événement, matériel promotionnel…), tâches et messages — rien ne part sans votre confirmation.\n\nNotre conversation est gardée : vous pouvez quitter cet écran pendant que je travaille, je vous préviens quand c'est prêt. Vous pouvez aussi m'écrire plusieurs messages d'affilée — je les traite dans l'ordre, sans en perdre aucun.\n\nComment puis-je vous aider ?`;
+/** L'accueil, au prénom de la personne et dans SON adresse (S1, décision 0048) : l'assistant travaille pour ELLE, avec SES droits. */
+function accueil(userName?: string, adresse: Adresse = "VOUS"): string {
+  return accueilPour(prenomDe(userName), adresse);
 }
 
-export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
-  const bienvenue: ChatMessage = { id: "welcome-1", role: "assistant", content: accueil(userName) };
+export function AssistantWorkspace({ userName, adresse }: AssistantWorkspaceProps) {
+  const bienvenue: ChatMessage = { id: "welcome-1", role: "assistant", content: accueil(userName, adresse) };
   const [memoireOuverte, setMemoireOuverte] = useState(false);
   // « Mes notes » : le panneau à côté de la conversation (plein écran sur téléphone).
   const [notesOuvertes, setNotesOuvertes] = useState(false);

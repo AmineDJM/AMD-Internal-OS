@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/session";
+import { requireUser, type CurrentUser } from "@/lib/session";
 import { enLecture } from "@/lib/vue-lecture";
-import { userCan } from "@/lib/rbac";
+import { getAccess, peutUtiliserAssistantIA, userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdBool, type ActionResult } from "@/lib/actions/types";
@@ -12,8 +12,9 @@ import { ROLE_LABELS } from "@/lib/labels";
 import {
   FAMILLES_SENSIBLES, LIBELLE_FAMILLE, LIBELLE_VALEURS_SENSIBLES, lireConsommation, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglageFamilles, normaliserReglages,
   normaliserReglagesVisuels, type FamilleIa,
+  accesAssistantIa, estFamilleIa, oublierProfil, profilDeLaPersonne,
 } from "@/modules/assistant-ia/api";
-import type { VueConsommation } from "@/modules/assistant-ia/partage";
+import type { ApercuAssistant, VueConsommation } from "@/modules/assistant-ia/partage";
 
 /**
  * LES BORNES DE L'ASSISTANT IA — enregistrées par le Super Admin (Administration › Consommation IA,
@@ -352,4 +353,132 @@ export async function lireConsommationIa(p: { perimetre: "moi" | "entreprise"; d
     personne: typeof p.personne === "string" ? p.personne : null,
   });
   return "refus" in r ? { ok: false, erreur: r.refus } : { ok: true, vue: r };
+}
+
+// ─────────────────────────────── S1 (décision 0048) : l'assistant D'UNE PERSONNE ───────────────────────────────
+//
+// Les droits explicites et DATÉS sur les données d'autrui (famille sensible, entité, du → au, motif) et les AVENANTS
+// structurés (fonction, délégation d'une famille sur une entité) — Super Admin seul, chaque geste à l'audit. Et la vue
+// « Ce que son assistant voit » : profil, familles, périmètres et leur origine, recalculés par le MÊME moteur.
+
+// Hors Vue exacte (refusée ici) : le corps porte le Super Admin réel, qui seul règle ces droits.
+const exigerSuperAdmin = (): Promise<CurrentUser | null> => requireUser().then((admin) =>
+  (userCan(admin, "ADMIN", "UPDATE") && admin.role === "SUPER_ADMIN" && !admin.impersonatedBy && !admin.visualise ? admin : null));
+const dateDe = (v: FormDataEntryValue | null): Date | null => {
+  const t = String(v ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;
+  const d = new Date(`${t}T00:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+const MOTIF_REQUIS = "Le motif est obligatoire (au moins 5 caractères) : il est écrit au journal à chaque lecture.";
+
+export async function accorderDroitDateIa(formData: FormData): Promise<ActionResult> {
+  const admin = await exigerSuperAdmin();
+  if (!admin) return { ok: false, error: "Réservé au Super Admin." };
+  const userId = String(formData.get("userId") ?? "");
+  const famille = String(formData.get("famille") ?? "");
+  const companyId = String(formData.get("companyId") ?? "").trim() || null;
+  const du = dateDe(formData.get("du"));
+  const au = dateDe(formData.get("au"));
+  const motif = String(formData.get("motif") ?? "").trim().slice(0, 500);
+  if (!FAMILLES_SENSIBLES.has(famille as FamilleIa)) return { ok: false, error: "Un droit daté vise une famille sensible (« Salaires & paie » ou « Contrats & documents RH »)." };
+  if (!du) return { ok: false, error: "La date de début est obligatoire (AAAA-MM-JJ)." };
+  if (au && au < du) return { ok: false, error: "La date de fin précède la date de début." };
+  if (motif.length < 5) return { ok: false, error: MOTIF_REQUIS };
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, role: true } });
+  if (!u) return { ok: false, error: "Personne introuvable." };
+  if (u.role === "SUPER_ADMIN") return { ok: false, error: "Le Super Admin a tout, toujours : aucun droit ne le vise." };
+  if (companyId && !(await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } }))) return { ok: false, error: "Entité introuvable." };
+  const d = await prisma.assistantIaDroitDate.create({ data: { userId: u.id, famille, companyId, du, au, motif, accordeParId: admin.id } });
+  await recordAudit({
+    actorId: admin.id, action: "CREATE", module: "Centre de contrôle IA", field: "Assistant IA — droit daté",
+    summary: `Droit daté accordé à ${u.name} : « ${LIBELLE_FAMILLE[famille as FamilleIa]} »${companyId ? ` sur l'entité ${companyId}` : " (entités ouvertes)"} du ${du.toISOString().slice(0, 10)}${au ? ` au ${au.toISOString().slice(0, 10)}` : ", sans fin"} — motif : ${motif} (réf. ${d.id})`,
+  });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+export async function revoquerDroitDateIa(id: string): Promise<ActionResult> {
+  const admin = await exigerSuperAdmin();
+  if (!admin) return { ok: false, error: "Réservé au Super Admin." };
+  const d = typeof id === "string" && id ? await prisma.assistantIaDroitDate.findUnique({ where: { id } }) : null;
+  if (!d || d.revoqueLe) return { ok: false, error: "Droit introuvable ou déjà révoqué." };
+  await prisma.assistantIaDroitDate.update({ where: { id }, data: { revoqueLe: new Date() } });
+  await recordAudit({ actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Assistant IA — droit daté", summary: `Droit daté révoqué (réf. ${id}, « ${d.famille} », motif d'origine : ${d.motif})` });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+export async function enregistrerAvenantIa(formData: FormData): Promise<ActionResult> {
+  const admin = await exigerSuperAdmin();
+  if (!admin) return { ok: false, error: "Réservé au Super Admin." };
+  const userId = String(formData.get("userId") ?? "");
+  const objet = String(formData.get("objet") ?? "");
+  const effetLe = dateDe(formData.get("effetLe"));
+  const finLe = dateDe(formData.get("finLe"));
+  const motif = String(formData.get("motif") ?? "").trim().slice(0, 500);
+  const fonction = String(formData.get("fonction") ?? "").trim().slice(0, 200) || null;
+  const famille = String(formData.get("famille") ?? "").trim() || null;
+  const companyId = String(formData.get("companyId") ?? "").trim() || null;
+  if (objet !== "FONCTION" && objet !== "DELEGATION") return { ok: false, error: "Objet d'avenant inconnu (changement de fonction ou délégation)." };
+  if (!effetLe) return { ok: false, error: "La date d'effet est obligatoire (AAAA-MM-JJ)." };
+  if (finLe && finLe < effetLe) return { ok: false, error: "La date de fin précède la date d'effet." };
+  if (motif.length < 5) return { ok: false, error: MOTIF_REQUIS };
+  if (objet === "FONCTION" && !fonction) return { ok: false, error: "Un changement de fonction nomme la nouvelle fonction." };
+  if (objet === "DELEGATION" && (!famille || !estFamilleIa(famille))) return { ok: false, error: "Une délégation nomme la famille déléguée." };
+  if (objet === "DELEGATION" && !companyId) return { ok: false, error: "Une délégation vise UNE entité : un avenant ne délègue jamais « tout »." };
+  if (companyId && !(await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } }))) return { ok: false, error: "Entité introuvable." };
+  const fiche = await prisma.employee.findUnique({ where: { userId }, select: { id: true, fullName: true } });
+  if (!fiche) return { ok: false, error: "Aucune fiche RH n'est liée à ce compte : liez-la d'abord (un avenant suit un contrat)." };
+  const a = await prisma.avenantContrat.create({
+    data: { employeeId: fiche.id, objet, fonction: objet === "FONCTION" ? fonction : null, famille: objet === "DELEGATION" ? famille : null, companyId: objet === "DELEGATION" ? companyId : null, effetLe, finLe, motif, creeParId: admin.id },
+  });
+  oublierProfil(userId);
+  await recordAudit({
+    actorId: admin.id, action: "CREATE", module: "Centre de contrôle IA", field: "Assistant IA — avenant",
+    summary: `Avenant enregistré pour ${fiche.fullName} : ${objet === "FONCTION" ? `fonction « ${fonction} »` : `délégation « ${LIBELLE_FAMILLE[famille as FamilleIa]} » sur l'entité ${companyId}`} du ${effetLe.toISOString().slice(0, 10)}${finLe ? ` au ${finLe.toISOString().slice(0, 10)}` : ""} — motif : ${motif} (réf. ${a.id})`,
+  });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+export async function revoquerAvenantIa(id: string): Promise<ActionResult> {
+  const admin = await exigerSuperAdmin();
+  if (!admin) return { ok: false, error: "Réservé au Super Admin." };
+  const a = typeof id === "string" && id ? await prisma.avenantContrat.findUnique({ where: { id }, select: { id: true, revoqueLe: true, motif: true, employee: { select: { userId: true } } } }) : null;
+  if (!a || a.revoqueLe) return { ok: false, error: "Avenant introuvable ou déjà révoqué." };
+  await prisma.avenantContrat.update({ where: { id }, data: { revoqueLe: new Date() } });
+  if (a.employee.userId) oublierProfil(a.employee.userId);
+  await recordAudit({ actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Assistant IA — avenant", summary: `Avenant révoqué (réf. ${id}, motif d'origine : ${a.motif})` });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}
+
+/** Ce que l'assistant de la personne VOIT — calculé par le moteur lui-même (profil, accès, périmètres), sans rien lui écrire. */
+export async function apercuAssistantDe(personneId: string): Promise<{ ok: true; apercu: ApercuAssistant } | { ok: false; error: string }> {
+  const admin = await exigerSuperAdmin();
+  if (!admin) return { ok: false, error: "Réservé au Super Admin." };
+  const c = typeof personneId === "string" && personneId
+    ? await prisma.user.findUnique({ where: { id: personneId }, select: { id: true, name: true, email: true, role: true, isActive: true } })
+    : null;
+  if (!c) return { ok: false, error: "Personne introuvable." };
+  const access = await getAccess(c.id, c.role);
+  const personne = { id: c.id, name: c.name, email: c.email, role: access.role ?? c.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
+  const [acces, avenantsBruts, droits, societes] = await Promise.all([
+    accesAssistantIa(personne),
+    prisma.avenantContrat.findMany({ where: { employee: { userId: c.id } }, orderBy: { effetLe: "desc" }, take: 30 }),
+    prisma.assistantIaDroitDate.findMany({ where: { userId: c.id }, orderBy: { du: "desc" }, take: 30 }),
+    prisma.company.findMany({ where: { isActive: true }, select: { id: true, shortName: true, name: true }, orderBy: { sortOrder: "asc" } }),
+  ]);
+  const { profil, section } = await profilDeLaPersonne(personne, acces);
+  const j = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
+  return {
+    ok: true,
+    apercu: {
+      profil, consigne: section, assistantOuvert: peutUtiliserAssistantIA(personne),
+      entites: societes.map((s) => ({ id: s.id, nom: s.shortName ?? s.name })),
+      avenants: avenantsBruts.map((a) => ({ id: a.id, objet: a.objet, fonction: a.fonction, famille: a.famille, companyId: a.companyId, effetLe: j(a.effetLe)!, finLe: j(a.finLe), motif: a.motif, revoqueLe: j(a.revoqueLe) })),
+      droits: droits.map((d) => ({ id: d.id, famille: d.famille, companyId: d.companyId, du: j(d.du)!, au: j(d.au), motif: d.motif, revoqueLe: j(d.revoqueLe) })),
+    },
+  };
 }
