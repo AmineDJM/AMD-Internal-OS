@@ -8573,7 +8573,6 @@
  "petty-cash-actions:allotPettyCash": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -8583,7 +8582,6 @@
  "petty-cash-actions:annulerRallongeCaisse": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -8593,7 +8591,6 @@
  "petty-cash-actions:closePettyCash": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -8603,7 +8600,6 @@
  "petty-cash-actions:confirmPettyCashReceipt": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -8613,7 +8609,6 @@
  "petty-cash-actions:decidePettyCashTopUp": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -8623,7 +8618,6 @@
  "petty-cash-actions:nextRechargeFor": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "inconnu",
@@ -8633,7 +8627,6 @@
  "petty-cash-actions:requestPettyCashTopUp": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -8643,7 +8636,6 @@
  "petty-cash-actions:runPettyCashRechargeReminders": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -8653,7 +8645,6 @@
  "petty-cash-actions:setPettyCashPlan": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",
@@ -8663,7 +8654,6 @@
  "petty-cash-actions:spendFromPettyCash": {
   "risque": "R4",
   "familles": [
-   "BUDGETS",
    "ECRITURES"
   ],
   "simulable": "oui",

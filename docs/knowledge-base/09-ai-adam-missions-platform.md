@@ -901,3 +901,10 @@ Gotchas [V]:
 - Bench: tasks/attacks can now carry a deterministic DB `verifier`, a named Drive piece (`pieceDrive`) and attack `secrets`
   (`taches.ts`, `attaques.ts`, runner `scripts/bench/audit-assistant/jouer.ts`); domain file
   `infra/testing/audit/taches/dossiers-mg-adpro.ts`.
+- **Revision (Direction, 02/11)**: « moyens généraux » at Adventum = the **petty cash** (caisse d'avance) held by the
+  executive assistant (`petty-cash-actions`). The `MoyenGeneral` registry (vehicles, insurance, contracts) was removed
+  from the assistant, bench and screens (tables kept, inert); the module is now `src/modules/salles` (meeting rooms only,
+  booking open to every employee, screen `/salles`). New: `lire_caisse_avance`, `depenser_caisse_avance` (with receipt
+  file), `demander_rallonge_caisse`, `confirmer_reception_caisse`, `reserver_salle`, `declarer_salle`, `lire_salles`.
+  `classement.ts` no longer files `petty-cash-actions` under BUDGETS (`SANS_FAMILLE_METIER`): it closed the cash box to its
+  own holder.

@@ -26,7 +26,8 @@ import { FUSION_MISSIONS } from "./missions-fusion";
 import { ENVOI_GMAIL } from "./envoi-gmail";
 import { DOSSIERS_EXCEL } from "./dossiers-excel";
 import { FICHES_VOYAGE } from "./adpro-fiches-voyage";
-import { MOYEN_GENERAL_ENREGISTRER, MOYEN_GENERAL_RESERVER } from "./moyens-generaux";
+import { DECLARER_SALLE, RESERVER_SALLE } from "./salles";
+import { DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE } from "./caisse-avance";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
 
@@ -44,8 +45,9 @@ export const OPERATIONS_IA: OperationIA[] = [
   ...OPERATIONS_TERRAIN,
   // P1 (décision 0047) : fusionner ses missions en une ; envoyer un mail par sa boîte Gmail reliée (fenêtre d'annulation).
   FUSION_MISSIONS, ENVOI_GMAIL,
-  // T3 : le suivi de dossiers depuis un tableau, les fiches hôtellerie et voyage d'une demande Ad & Pro, le registre des moyens généraux.
-  DOSSIERS_EXCEL, FICHES_VOYAGE, MOYEN_GENERAL_ENREGISTRER, MOYEN_GENERAL_RESERVER,
+  // T3 (décision 0051) : le suivi de dossiers depuis un tableau, les fiches hôtellerie et voyage d'une demande Ad & Pro, la caisse
+  // d'avance (« moyens généraux ») de l'assistante, les salles de réunion (réservation ouverte à tous).
+  DOSSIERS_EXCEL, FICHES_VOYAGE, DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE, RESERVER_SALLE, DECLARER_SALLE,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));

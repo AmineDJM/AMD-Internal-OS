@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chevauche, etatEcheance, libelleInstant, lireCreneau, lireTypeMoyen } from "./registre";
+import { chevauche, libelleInstant, lireCreneau, lireTypeMoyen } from "./registre";
 
 describe("registre des moyens généraux — règles pures", () => {
   it("la nature d'un moyen se lit en français", () => {
@@ -10,14 +10,6 @@ describe("registre des moyens généraux — règles pures", () => {
     expect(lireTypeMoyen("salle du conseil")).toBe("SALLE");
     expect(lireTypeMoyen("SALLE")).toBe("SALLE");
     expect(lireTypeMoyen("xyz")).toBeNull();
-  });
-
-  it("échéance : dépassée, proche (dans le rappel), à venir", () => {
-    const j = new Date("2026-11-02T10:00:00Z");
-    expect(etatEcheance(new Date("2026-11-01"), 30, j)).toBe("depassee");
-    expect(etatEcheance(new Date("2026-11-20"), 30, j)).toBe("proche");
-    expect(etatEcheance(new Date("2027-01-20"), 30, j)).toBe("a_venir");
-    expect(etatEcheance(null, 30, j)).toBeNull();
   });
 
   it("créneaux en heure d'Algérie ; chevauchement strict (bout à bout libre)", () => {

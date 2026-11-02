@@ -174,7 +174,7 @@ export function classerTrous(): void {
   ]);
   // T3 (décision 0051) : portés par l'Assistant IA (Adventum IA) — `maj_dossiers_depuis_tableau`, `enregistrer_moyen_general`,
   // `reserver_moyen_general` ; Adam (Super Admin, en pause) ne les a pas.
-  X("hors d'Adam : l'Assistant IA (Adventum IA) les porte en opérations typées — dossiers mis à jour en lot depuis un tableau, registre des moyens généraux et ses réservations", [
+  X("hors d'Adam : l'Assistant IA (Adventum IA) les porte en opérations typées — dossiers mis à jour en lot depuis un tableau, salles et leurs réservations (premier registre des moyens généraux retiré, décision 0051)", [
     "dossier-actions:mettreAJourDossiersEnLot",
     "moyens-generaux-registre-actions:creerMoyenGeneral", "moyens-generaux-registre-actions:modifierMoyenGeneral",
     "moyens-generaux-registre-actions:archiverMoyenGeneral", "moyens-generaux-registre-actions:reserverMoyenGeneral",
