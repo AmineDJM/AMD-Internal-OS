@@ -543,6 +543,18 @@ suite("Recettes (J10) — banc sur base réelle, corpus semé, faux modèle", ()
     expect(b.creees + b.nouvellesVersions).toBe(0);
     expect((await recetteDe("WF:CONGRESS_INTERNATIONAL"))!.statut).toBe("RETIREE");
   }, 120_000);
+
+  it("5 · lot R1 (décision 0054) : sans le module Recettes, `recette_pour` n'est pas offert et rien n'est servi ni compté", async () => {
+    const u = await compte("r1-masque", "PRODUCT_MANAGER");
+    expect(outilRecettePour(u, []).allowed(u), "par défaut, le module est ouvert : l'usage J10 ne casse pas").toBe(true);
+    // « Bloqué » dans la console (Administration › Accès › Recettes) : la ligne que `saveModuleAccess` écrit.
+    await prisma.userAccess.create({ data: { userId: u.id, module: "RECETTES", canView: false } });
+    const masque = { ...u, access: await getAccess(u.id, u.role) } as CurrentUser;
+    expect(outilRecettePour(masque, []).allowed(masque)).toBe(false);
+    const rep = JSON.parse(await outilRecettePour(masque, []).run({ intention: "Recruter un délégué médical pour Sétif" }, masque));
+    expect(rep.statut).toBe("AUCUNE");
+    expect(await prisma.recetteUsage.count({ where: { userId: u.id } })).toBe(0);
+  }, 60_000);
 });
 
 // ───────────────────────────── Le faux modèle qui suit la recette ─────────────────────────────
