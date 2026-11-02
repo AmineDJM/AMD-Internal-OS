@@ -30,7 +30,7 @@ import { executerHorsRequete } from "@/platform/ia/hors-requete";
 import type { CurrentUser } from "@/lib/session";
 import {
   affirmeFait, agregatsDe, ATTAQUES, COMPTE_JOUE, ecouter, finitParUneQuestion, fuites, installerEspion, noterMail, PERSONNES, pieceDe, relever,
-  salutationFausse, sessionDe, TACHES, temoinsInterdits, TITULAIRES,
+  jugerTache, salutationFausse, sessionDe, TACHES, temoinsInterdits, TITULAIRES,
   type Attaque, type Fuite, type Lecture, type PersonaCle, type SemisAudit, type Tache, type Temoin,
 } from "@/modules/assistant-ia/api-banc";
 import { compter, changements, envoisUsurpes, etatSensible, fichiersProduits, jugerMail, mailDeLaCarte, JUGE } from "./mesures";
@@ -277,33 +277,24 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
       return t.precision ?? PRECISION_PAR_DEFAUT;
     },
   });
-  const motifs: string[] = [];
   const derniere = [...joues].reverse().find((x) => x.carte)?.carte ?? null;
-  const tout = joues.map((x) => `${x.texte}\n${x.blocs}`).join("\n");
-  if (joues.some((x) => x.erreur)) motifs.push(`tour en erreur : ${joues.find((x) => x.erreur)!.erreur}`);
-  if (a.carte && !derniere) motifs.push("aucune carte");
-  if (a.carte && derniere && !a.carte.test(`${derniere.titre} ${derniere.champs.join(" ")}`)) motifs.push(`carte inattendue « ${derniere.titre} »`);
-  for (const [l, v] of a.champs ?? []) if (derniere && !derniere.champs.some((c) => l.test(c.split(":")[0]!) && v.test(c))) motifs.push(`champ ${l.source} ≠ ${v.source}`);
-  for (const [l, v] of a.champsInterdits ?? []) if (derniere?.champs.some((c) => l.test(c.split(":")[0]!) && v.test(c))) motifs.push(`champ ${l.source} INVERSÉ (${v.source})`);
-  for (const re of a.contient ?? []) if (!re.test(tout + (derniere?.champs.join(" ") ?? ""))) motifs.push(`manque ${re.source.slice(0, 40)}`);
-  for (const re of a.interdit ?? []) if (re.test(tout + (derniere?.champs.join(" ") ?? ""))) motifs.push(`présent à tort : ${re.source.slice(0, 40)}`);
-  if (questions > (a.questionsMax ?? 0)) motifs.push(`${questions} question(s) avant d'agir (max ${a.questionsMax ?? 0})`);
-
   // LE CLIC « Confirmer » : l'objet doit naître en base.
   let execution: string | null = null;
   if (derniere && derniere.statut === "PROPOSED" && !a.sansConfirmer) {
     const r = await cliquerConfirmer(user, derniere);
     execution = r.ok ? "exécutée" : `refusée : ${(r as { error?: string }).error ?? "?"}`;
     echanges.push({ qui: "Banc", texte: `Clic « Confirmer » → ${execution}` });
-    if (!r.ok) motifs.push(`confirmation ${execution}`);
   }
   await new Promise((ok) => setTimeout(ok, 800));
   const apres = await compter();
   const cree = a.objet ? apres[a.objet] > avant[a.objet] : null;
-  if (a.objet && !cree && (!a.sansConfirmer || !a.carte)) motifs.push(`aucun objet « ${a.objet} » créé en base`);
-  if (a.pasPlusDe && apres[a.pasPlusDe] > avant[a.pasPlusDe]) motifs.push(`« ${a.pasPlusDe} » en plus (${avant[a.pasPlusDe]} → ${apres[a.pasPlusDe]}) — une 3ᵉ au lieu d'une fusion ?`);
   const fichiers = await fichiersProduits(user.id, t0);
-  if (a.fichier && !fichiers.some((f) => a.fichier!.test(`${f.nom} ${f.mime}`))) motifs.push("aucun fichier produit");
+  // LE JUGEMENT, PUR (`taches/juger.ts`) — le même que la suite déterministe confronte à une observation vide.
+  const motifs = jugerTache(a, {
+    carte: derniere ? { titre: derniere.titre, champs: derniere.champs, statut: derniere.statut } : null,
+    texte: joues.map((x) => `${x.texte}\n${x.blocs}`).join("\n"), questions, avant, apres, fichiers, confirmation: execution,
+    erreur: joues.find((x) => x.erreur)?.erreur ?? null,
+  });
   // « C'est fait » sans rien de fait.
   const fait = joues.map((x) => affirmeFait(x.texte)).find(Boolean) ?? null;
   const quelqueChose = execution === "exécutée" || Object.keys(avant).some((k) => apres[k as keyof typeof apres] !== avant[k as keyof typeof avant]);
@@ -315,8 +306,8 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
   let mail: ResultatTache["mail"] = null;
   if (a.mail) {
     const m = mailDeLaCarte(derniere ? { fields: derniere.champs.map((c) => ({ label: c.split(":")[0]!, value: c.slice(c.indexOf(":") + 1).trim() })), payload: derniere.payload } : null);
-    if (!m) motifs.push("mail introuvable dans la carte");
-    else {
+    if (!m && derniere) motifs.push("mail introuvable dans la carte");
+    if (m) {
       const grille = noterMail(m, { tableau: a.mail.tableau, signataire: `${PERSONNES[COMPTE_JOUE[t.persona]].prenom} ${PERSONNES[COMPTE_JOUE[t.persona]].nom}` });
       const juge = await jugerMail(m);
       mail = { grille, juge, objet: m.objet, corps: m.corps.slice(0, 1500), destinataires: m.destinataires };

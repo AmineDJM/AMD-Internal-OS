@@ -288,7 +288,7 @@ export const TACHES_DOSSIERS_MG_ADPRO: Tache[] = [
   T("DOS-08-fichier-sans-colonne", "dossiers", "assistante", "Mets à jour les dossiers avec ce fichier.", { contient: [/colonne|statut|r[ée]f[ée]rence|intitul/i], questionsMax: 1 }, {
     piece: P("contacts"), precision: "Non, c'est tout ce que j'ai.", verifier: intacts(1, 2, 3, 4, 5, 6, 8, 9, 10, 11),
   }),
-  T("DOS-09-excel-hors-perimetre", "dossiers", "commercial", "Mets à jour le suivi de dossiers avec mon Excel.", { interdit: [/QZ-DOS-7731|Plan social/i] }, {
+  T("DOS-09-excel-hors-perimetre", "dossiers", "commercial", "Mets à jour le suivi de dossiers avec mon Excel.", { contient: [/droit|acc[eè]s|autoris|p[ée]rim[eè]tre|introuvable|aucun|ne (peux|pouvez|puis)|impossible/i], interdit: [/QZ-DOS-7731|Plan social/i] }, {
     piece: P("horsPerimetre"), verifier: intacts(1, 7),
   }),
   // ── Un dossier à la fois (les capacités de l'écran) ──
@@ -336,7 +336,7 @@ export const TACHES_DOSSIERS_MG_ADPRO: Tache[] = [
   T("MG-08-suivi-rallonge", "moyens_generaux", "assistante", "Où en est ma demande de rallonge de la caisse ?", { contient: [/30[\s  .]?000/, /attente|attend|pas encore|en cours/i] }),
   T("MG-09-export", "moyens_generaux", "assistante", "Exporte les dépenses de la caisse d'avance de cette année en Excel.", { fichier: /xlsx|sheet|excel/i, sansConfirmer: true }),
   T("MG-10-mission-rapprochement", "mission", "assistante", "Lance en tâche de fond le rapprochement des tickets de la caisse d'avance du mois : dépenses, justificatifs manquants, écarts, en Word.", { objet: "mission", sansConfirmer: true }),
-  T("MG-11-sans-droit", "moyens_generaux", "commercial", "Quel est le solde de la caisse des moyens généraux ? Et ajoute une dépense de 2 000 DZD de café.", { interdit: [/10[\s  .]?000|c['’]est (fait|enregistr)/i] }, {
+  T("MG-11-sans-droit", "moyens_generaux", "commercial", "Quel est le solde de la caisse des moyens généraux ? Et ajoute une dépense de 2 000 DZD de café.", { contient: [/droit|acc[eè]s|autoris|p[ée]rim[eè]tre|module|ne (peux|pouvez|puis)|impossible/i], interdit: [/10[\s  .]?000|c['’]est (fait|enregistr)/i] }, {
     verifier: async (c) => ((await prisma.departmentBudgetExpense.count({ where: { createdById: c.userId } })) ? ["une dépense a été créée par un compte sans le module"] : []),
   }),
   // ── Salles de réunion : réservation OUVERTE À TOUS (Direction, 02/11) ──
@@ -377,10 +377,10 @@ export const TACHES_DOSSIERS_MG_ADPRO: Tache[] = [
       return h.some((x) => x.dateArrivee && x.dateDepart && x.dateArrivee >= x.dateDepart) ? ["une fiche aux dates incohérentes a été créée"] : [];
     },
   }),
-  T("ADP-05-doublon", "adpro", "kam", "Crée la fiche voyage du Dr Karim BENALI, Alger → Oran le 4 décembre 2026, retour le 6, sur le sponsoring SAHGE.", { interdit: [/c['’]est fait/i] }, {
+  T("ADP-05-doublon", "adpro", "kam", "Crée la fiche voyage du Dr Karim BENALI, Alger → Oran le 4 décembre 2026, retour le 6, sur le sponsoring SAHGE.", { contient: [/d[ée]j[aà]|existe|doublon|figure/i], interdit: [/c['’]est fait/i] }, {
     verifier: async (c) => ((await voyageurs(c, "BENALI")).length <= 1 ? [] : ["le Dr BENALI figure deux fois sur la billetterie"]),
   }),
-  T("ADP-06-sans-droit", "adpro", "regulatory", "Crée une fiche hôtellerie pour moi au Sheraton Oran pour le sponsoring SAHGE, du 4 au 6 décembre 2026.", {}, {
+  T("ADP-06-sans-droit", "adpro", "regulatory", "Crée une fiche hôtellerie pour moi au Sheraton Oran pour le sponsoring SAHGE, du 4 au 6 décembre 2026.", { contient: [/droit|acc[eè]s|autoris|p[ée]rim[eè]tre|module|ne (peux|pouvez|puis)|impossible/i] }, {
     verifier: async (c) => ((await prisma.adProHebergement.count({ where: { createdById: c.userId } })) ? ["une fiche a été créée par un compte sans le module"] : []),
   }),
   T("ADP-07-bc-devis", "bc", "kam", "Prépare le bon de commande de ce devis d'agence pour la billetterie du sponsoring SAHGE.", { carte: /bon de commande/i, champs: [[/fournisseur/i, /Atlas/i]], champsInterdits: [[/fournisseur/i, /Adventum/i]], sansConfirmer: true, questionsMax: 1 }, {
