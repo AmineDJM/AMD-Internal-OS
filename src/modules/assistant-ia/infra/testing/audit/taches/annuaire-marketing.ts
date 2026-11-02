@@ -217,7 +217,10 @@ export const TACHES_ANNUAIRE_MARKETING: Tache[] = [
       return tel("El Amel") === INITIAL.elAmel.phone && tel("Belle Vue") === INITIAL.belleVue.phone ? [] : ["le lot n'a pas été annulé : les nouveaux numéros sont restés"];
     },
   }),
-  t("ANN-12-commercial-sans-droit", "annuaire", "commercial", "Change l'adresse de la pharmacie El Amel à Oran : 3 rue Larbi Ben M'hidi.", {}, {
+  t("ANN-12-commercial-sans-droit", "annuaire", "commercial", "Change l'adresse de la pharmacie El Amel à Oran : 3 rue Larbi Ben M'hidi.", {
+    // Règle d'écriture (décision 0050) : un refus est DIT — sans cela, la tâche réussirait en ne répondant rien.
+    contient: [/droit|acc[eè]s|ouvert|r[ée]serv|autoris|pas (le droit|possible)/i],
+  }, {
     preparer: async () => { await db.medicalInstitution.update({ where: { id: (await idsDuMondeT2()).etablissements.elAmel }, data: { address: INITIAL.elAmel.address } }); },
     verifier: async (c) => {
       const e = await db.medicalInstitution.findUnique({ where: { id: (await idsDuMondeT2()).etablissements.elAmel }, select: { address: true } });
