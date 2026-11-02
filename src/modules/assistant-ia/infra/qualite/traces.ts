@@ -161,6 +161,14 @@ interface ModeleV2 {
   doStream: (o: never) => PromiseLike<{ stream: ReadableStream<unknown> } & Record<string, unknown>>;
 }
 
+/**
+ * Le routeur de Mastra, vu par sa seule forme utile ici. Son constructeur se type par l'union des
+ * ≈ 8 900 identifiants de modèles connus de Mastra : `new` sur la classe telle quelle fait résoudre
+ * cette union à tsc (≈ 25 000 types, le 3ᵉ fichier le plus coûteux du programme — lot M2, mémoire du
+ * build) pour un argument qu'on passe de toute façon en `never`. Même objet à l'exécution.
+ */
+const Routeur = ModelRouterLanguageModel as unknown as new (config: unknown) => ModeleV2;
+
 const estModele = (m: unknown): m is ModeleV2 => typeof m === "object" && m !== null && typeof (m as ModeleV2).doStream === "function";
 
 /**
@@ -174,7 +182,7 @@ export function modeleTrace(defaut: unknown, nature: NatureAppel): unknown {
   const base = estModele(defaut)
     ? defaut
     : typeof defaut === "object" && defaut && "id" in defaut
-      ? (new ModelRouterLanguageModel(defaut as never) as unknown as ModeleV2)
+      ? new Routeur(defaut)
       : null;
   return base ? enregistreur(base, nature, c.trace) : defaut;
 }

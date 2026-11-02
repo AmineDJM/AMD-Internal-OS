@@ -36,7 +36,7 @@
     "!src/modules/carte.ts!",
     "!src/platform/{couverture,demenagements,domains,source}.ts!"
   ],
-  "ignore": [],
+  "ignore": ["src/**/*.d.json.ts"],
   "ignoreExportsUsedInFile": true,
   "playwright": {
     "config": [

@@ -92,8 +92,10 @@ jobs:
       # Tas mesuré le 30/10 : 6,45 Go pour le typecheck complet (6 144 Mo ne suffisaient plus) — runner à 16 Go.
       - run: npm run typecheck
         env: { NODE_OPTIONS: --max-old-space-size=8192 }
-      - run: npx tsc --noEmit -p tsconfig.build.json
-        env: { NODE_OPTIONS: --max-old-space-size=8192 }
+      # Celui de la production, PAR TRANCHES à tas borné (4 300 Mo chacune) : la configuration exacte
+      # du déploiement (build:render, next.config.mjs) — une tranche qui ne tient plus fait échouer ICI
+      # avant de faire mourir Render au hasard (lot M2, scripts/typecheck-production.mjs).
+      - run: npm run typecheck:production
       # Render lance `next lint` AVANT le build (build:render) : une erreur bloque le déploiement.
       - run: npx next lint
         env: { NODE_OPTIONS: --max-old-space-size=3072 }
