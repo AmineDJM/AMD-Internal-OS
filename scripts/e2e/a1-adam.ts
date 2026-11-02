@@ -12,7 +12,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import bcrypt from "bcryptjs";
-import { chromium, devices, type Browser, type Page } from "playwright";
+import { chromium, devices, type Browser, type Page } from "@playwright/test";
 import { prisma } from "@/lib/prisma";
 import { proposerTravail } from "@/lib/missions/travaux/service";
 import { PERSONA_ASSISTANT_IA } from "@/modules/assistant-ia/api";
@@ -196,7 +196,8 @@ async function parcours(browser: Browser, ids: Record<string, { id: string; miss
 async function main() {
   mkdirSync(SORTIE, { recursive: true });
   const ids = await semer();
-  const browser = await chromium.launch();
+  // Le Chromium préinstallé du conteneur quand la version de Playwright du projet n'a pas le sien (`PW_CHROMIUM`).
+  const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {});
   try {
     await parcours(browser, ids, "bureau");
     await parcours(browser, ids, "iphone");

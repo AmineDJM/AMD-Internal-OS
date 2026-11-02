@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { ArrowRight, Pause, Play, Square } from "lucide-react";
 import type { MissionLue } from "@/modules/assistant-ia/api";
 import { gestesPermis } from "../../domaine/sous-missions";
@@ -19,8 +19,8 @@ import { useGestesMission } from "./tableau-missions";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 export function ListeMissionsAdam({ missions }: { missions: MissionLue[] }) {
-  const router = useRouter();
-  const gestes = useGestesMission(async () => router.refresh());
+  const { rafraichir } = useRafraichir();
+  const gestes = useGestesMission(async () => rafraichir());
   const bouton = "inline-flex h-11 items-center gap-1.5 rounded-md border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:h-8";
 
   if (missions.length === 0) {
@@ -45,8 +45,9 @@ export function ListeMissionsAdam({ missions }: { missions: MissionLue[] }) {
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{m.libelle}</span>
               </div>
               <p className="mt-1 text-xs text-slate-500">
-                {m.etapes.faites}/{m.etapes.total} étape(s){m.etapes.enEchec ? ` · ${m.etapes.enEchec} en échec` : ""}
-                {" · "}mise à jour le {new Date(m.majLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Africa/Algiers" })}
+                {/* Un plan pas encore approuvé n'a pas d'étapes : « 0/0 » ne dirait rien — l'état le dit déjà. */}
+                {m.etapes.total > 0 ? `${m.etapes.faites}/${m.etapes.total} étape(s)${m.etapes.enEchec ? ` · ${m.etapes.enEchec} en échec` : ""} · ` : ""}
+                mise à jour le {new Date(m.majLe).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Africa/Algiers" })}
               </p>
               {m.diagnostic.phrase ? <p className="mt-1 text-sm text-slate-700">{m.diagnostic.phrase}</p> : null}
               <div className="mt-2 flex flex-wrap gap-2">
