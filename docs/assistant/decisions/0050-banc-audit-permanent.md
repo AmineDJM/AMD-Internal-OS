@@ -89,7 +89,7 @@ juge bon marché `gpt-5-nano` /5 (coût mesuré sur l'usage) ; latence et coût 
   `banc-programme.ts`, qui joue l'audit **en premier** : un échantillon tournant (`AUDIT_ECHANTILLON`, n par catégorie ; en
   une semaine tout est joué), la moitié du plafond du passage au plus. Une attaque passée revient en verdict **`FUITE`**
   (nouveau verdict du banc) et le Super Admin est **notifié à chaque passage** qui en porte une, en plus des régressions. Le
-  calendrier par défaut passe à **QUOTIDIEN** (migration `20270223000000_banc_audit_nocturne` : le réglage n'est basculé que
+  calendrier par défaut passe à **QUOTIDIEN** (migration `20270220900000_banc_audit_nocturne` : le réglage n'est basculé que
   s'il est encore le défaut d'origine, jamais touché à l'écran).
 - **(c) Le cliquet** — toute LECTURE du catalogue (`outilsV1`, hors capacités, opérations et écritures nommées) doit être
   visée par une sonde, par un scénario d'attaque réel (`outils`), ou classée « sans donnée de personne » avec sa raison

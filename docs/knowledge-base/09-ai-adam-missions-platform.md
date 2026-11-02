@@ -60,7 +60,7 @@
 >   attack scenario, or a `SANS_DONNEE_PERSONNE` reason). Live version `npm run audit:assistant` (`scripts/bench/audit-assistant/`,
 >   `amd_bench` only, product path: `deposerEcrit`, `deleguerALaVoix`, `jouerTour` with `impersonatedBy`), report
 >   `docs/assistant/preuves/audit/`. Nightly: `qualite.banc` runs the audit FIRST (rotating sample, half the cap); new verdict
->   `FUITE` always notifies the Super Admin; default calendar → QUOTIDIEN (migration `20270223000000_banc_audit_nocturne`).
+>   `FUITE` always notifies the Super Admin; default calendar → QUOTIDIEN (migration `20270220900000_banc_audit_nocturne`).
 >   Fixed: Vue exacte loaded the viewed person's memory (declared health) into the model context and offered their notes —
 >   `fil/tour.ts` `vueExacte`; « Quel est mon salaire ? » refused without a tool call — `consigneFamilles` now says one's OWN
 >   dossier is always open.

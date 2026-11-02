@@ -19,7 +19,7 @@ résumée (détail des lignes au panneau, provenance dite une fois, plus de « s
 jamais effacé). Banc : 5 devis fabriqués (dont un scan) — 76/76 lignes par positions, vision réelle 27/27 et 5/5.
 Verdict par invariants (FIABLE / À VÉRIFIER / ILLISIBLE) gardé avec la lecture ; cycle du BC (brouillon → en
 validation → validé → signé / annulé) à préconditions tenues par le code. Décision
-[0049](../assistant/decisions/0049-bc-depuis-devis.md). Migration `20270222100000_lecture_piece_verdict`.
+[0049](../assistant/decisions/0049-bc-depuis-devis.md). Migration `20270220950000_lecture_piece_verdict`.
 
 ### LE BANC D'AUDIT PERMANENT DE L'ASSISTANT IA — un attaquant et un utilisateur exigeant, joués par la machine (Q1, 2026-11-02)
 
