@@ -29,7 +29,7 @@ import { lirePieces, type DependancesLecture } from "../lecture/pieces";
 import { ProvenanceDuTour } from "../provenance";
 import { JeuxDuTour } from "../analyse/outils";
 import { noteChiffresNonSources } from "../../domaine/analyse/chiffres";
-import { CONSIGNE_BOITE_ADAM, canalAdamOuvert } from "../../domaine/mails/canal";
+import { CONSIGNE_BOITE_ADAM, canalAdamOuvert, taireCanalAdam } from "../../domaine/mails/canal";
 import { CONSIGNE_FOND, CONSIGNE_MISSIONS, demandeDeFond, ETAPES_DE_FOND, noteActionsNonVerifiees, OUTILS_DE_FOND, outilsPilotageVoulus } from "../../domaine/missions/pilotage";
 import { outilsMissions } from "../missions/pilotage";
 import { outilsMails } from "../mails/boites";
@@ -175,6 +175,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const texteSaisi = saisie.texte;
   // P1 bis (MI-02) : « en tâche de fond », ou la bascule décidée par le serveur — le tour pose une mission.
   const fond = d.modeFond === true || demandeDeFond(texteSaisi);
+  // P1 bis : le canal d'Adam n'existe que pour le Super Admin — pour tout autre, la réponse ne le nomme jamais (garde serveur).
+  const sortieDuCanal = (t: string) => (canalAdamOuvert(user) ? t : taireCanalAdam(t));
   const dit = d.vocal && texteSaisi ? `[Message vocal, transcrit automatiquement — un nom propre peut y être écorché]\n${texteSaisi}` : texteSaisi;
   if (!dit && !pieces.length) return { ok: false, error: "Message vide.", message: dit };
 
@@ -289,7 +291,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       propositionsFaites: () => propositions.length,
       maxEtapes: fond ? Math.min(d.maxEtapes ?? ETAPES_DE_FOND, ETAPES_DE_FOND) : d.maxEtapes,
       // En flux, un repère n'est pas encore jugé : il s'affiche « ••• » jusqu'à la réponse finale.
-      surTexte: d.surTexte ? (brut) => d.surTexte!(masquerReperesPartiels(brut)) : undefined,
+      surTexte: d.surTexte ? (brut) => d.surTexte!(sortieDuCanal(masquerReperesPartiels(brut))) : undefined,
       // `trouver_outil` est de la cuisine du tour : la personne ne lit que ce qui a été CONSULTÉ.
       surOutil: d.surOutil ? (nom) => { if (nom !== OUTIL_TROUVER) d.surOutil!(libelles.get(nom) ?? nom); } : undefined,
     });
@@ -314,8 +316,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     return {
       ok: true,
       message,
-      content: await revelateur.texte([ui.message || "Je n'ai pas de réponse à afficher.", note?.texte, nonVerifie?.texte].filter(Boolean).join("\n\n")),
-      blocs: [...visuels, ...(await revelateur.objet([...ui.blocs, ...blocsCalcules]))],
+      content: sortieDuCanal(await revelateur.texte([ui.message || "Je n'ai pas de réponse à afficher.", note?.texte, nonVerifie?.texte].filter(Boolean).join("\n\n"))),
+      blocs: [...visuels, ...(JSON.parse(sortieDuCanal(JSON.stringify(await revelateur.objet([...ui.blocs, ...blocsCalcules])))) as typeof ui.blocs)],
       memoireProposee: d.prive || vueExacte ? null : memoires[0] ?? null,
       notesProposees: [...notesProposees],
       travaux: [...travauxLances],

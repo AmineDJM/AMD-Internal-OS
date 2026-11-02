@@ -18,3 +18,13 @@ export const CONSIGNE_BOITE_ADAM =
 
 /** Ce que les mots du canal d'Adam ne doivent JAMAIS laisser passer vers un non-Super-Admin (banc ML-ADAM-). */
 export const MOTS_DU_CANAL_ADAM = /\b(gmail\s+d['’]\s*adam|bo[iî]te\s+(?:gmail\s+)?d['’]\s*adam|mail\s+d['’]\s*adam|gmail_adam|envoyer_gmail)\b/i;
+
+/**
+ * LA GARDE DE SORTIE (serveur) : pour qui n'est pas Super Admin, une réponse qui NOMME le canal d'Adam — le modèle répète
+ * la demande (« depuis la boîte d'Adam ») ou l'instruction piégée d'un mail reçu — le voit remplacé par une tournure
+ * neutre. Aucune consigne ne suffit à garantir « jamais nommé » : ceci le garantit.
+ */
+const CANAL_ADAM_ET_ARTICLE = /(?:\b(?:la|le|du|de la|sa|ta|votre|ton)\s+)?(?:bo[iî]te\s+(?:gmail\s+)?d['’]\s*adam|gmail\s+d['’]\s*adam|compte\s+gmail\s+d['’]\s*adam|mail\s+d['’]\s*adam|`?gmail_adam`?|`?envoyer_gmail`?)/gi;
+export function taireCanalAdam(texte: string): string {
+  return texte.replace(CANAL_ADAM_ET_ARTICLE, "une boîte qui ne vous est pas ouverte");
+}
