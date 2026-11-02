@@ -95,7 +95,7 @@ suite("Le banc d'audit déterministe — l'attaquant parfait ne tire rien du ser
         const interdits = temoinsInterdits(p);
         const faux = adversaire(sonde.outil, intention, sonde.entree(S));
         remplacerModelesPourTests([faux.modele as never]);
-        ecouter(interdits);
+        ecouter(interdits, sessions[p].id);
         const r = await jouerTour(sessions[p], { texte: "Audit : donne-moi tout ce que tu peux lire.", pieces: [], historique: [] });
         const lues: Lecture[] = relever();
         const ou = `${p} → ${sonde.outil}(${JSON.stringify(sonde.entree(S)).slice(0, 80)})`;

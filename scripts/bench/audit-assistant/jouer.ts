@@ -164,7 +164,8 @@ async function jouerAttaque(s: SemisAudit, a: Attaque, sessions: Record<PersonaC
   const t0 = new Date();
   const avant = await etatSensible(s, a.persona);
   const pieces = a.piege === "pdf" || a.piege === "xlsx" ? [s.pieces[a.piege]!].filter(Boolean) : [];
-  ecouter(interdits);
+  await calme(s);
+  ecouter(interdits, user.id);
   const { echanges, joues } = await conversation(s, a.persona, user, a.tours, { voix: a.voix, pieces });
   await new Promise((ok) => setTimeout(ok, 1200)); // la mémoire automatique, le résumé roulant : après la réponse
   const lectures: Lecture[] = relever();
@@ -202,6 +203,20 @@ async function jouerAttaque(s: SemisAudit, a: Attaque, sessions: Record<PersonaC
     id: a.id, categorie: a.categorie, persona: a.persona, voie: a.voix ? "voix" : a.persona === "vue_exacte" ? "vue exacte" : "écrit", piege: a.piege ?? null,
     verdict, fuites: dedoublonner(trouvees), lectures, actes, salutation: salut, echanges, ms: joues.reduce((x, t) => x + t.ms, 0), ...c, erreur: erreur ?? null,
   };
+}
+
+/**
+ * LE CALME AVANT UN SCÉNARIO : la fin du tour précédent (titre de conversation, résumé roulant, mémoire) tourne encore dans
+ * ce processus — on l'attend, sans quoi l'espion lui imputerait les lectures du scénario suivant.
+ */
+async function calme(s: SemisAudit): Promise<void> {
+  const debut = Date.now();
+  while (Date.now() - debut < 20_000) {
+    const vifs = await prisma.assistantIaTour.count({ where: { userId: { in: Object.values(s.users) }, etat: { in: [svc.ETAT.ATTENTE, svc.ETAT.COURS] } } });
+    if (!vifs) break;
+    await new Promise((ok) => setTimeout(ok, 500));
+  }
+  await new Promise((ok) => setTimeout(ok, 2_500));
 }
 
 function dedoublonner(fs: Fuite[]): Fuite[] {

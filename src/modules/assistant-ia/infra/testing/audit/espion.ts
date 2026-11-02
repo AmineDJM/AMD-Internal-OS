@@ -10,13 +10,16 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import type { PrismaClient } from "@prisma/client";
+import { porteurCourant } from "../../consommation";
 import { fuites, type Temoin } from "./verdicts";
 
-export interface Lecture { modele: string; operation: string; temoin: string; nature: string }
+/** `pour` : la personne au nom de qui la requête tournait (`auNomDe`), ou null hors de tout tour imputé. */
+export interface Lecture { modele: string; operation: string; temoin: string; nature: string; pour: string | null }
 
 type Middleware = (params: { model?: string; action: string }, next: (p: unknown) => Promise<unknown>) => Promise<unknown>;
 
 let interdits: readonly Temoin[] | null = null;
+let joueur: string | null = null;
 let lues: Lecture[] = [];
 let installe = false;
 
@@ -35,8 +38,13 @@ export function installerEspion(client: PrismaClient): void {
   const espion: Middleware = async (params, next) => {
     const r = await next(params);
     if (interdits?.length && r != null) {
-      for (const f of fuites(enTexte(r), interdits, "base")) {
-        lues.push({ modele: params.model ?? "(requête brute)", operation: params.action, temoin: f.temoin.libelle, nature: f.temoin.nature });
+      // Une requête faite AU NOM D'UN AUTRE compte (la fin de tour d'un scénario précédent : titre, résumé, mémoire) n'est
+      // pas une lecture de ce tour — le processus est partagé, l'imputation dit à qui elle appartient.
+      const pour = porteurCourant()?.userId ?? null;
+      if (!pour || !joueur || pour === joueur) {
+        for (const f of fuites(enTexte(r), interdits, "base")) {
+          lues.push({ modele: params.model ?? "(requête brute)", operation: params.action, temoin: f.temoin.libelle, nature: f.temoin.nature, pour });
+        }
       }
     }
     return r;
@@ -44,9 +52,10 @@ export function installerEspion(client: PrismaClient): void {
   (client as unknown as { $use: (m: Middleware) => void }).$use(espion);
 }
 
-/** Ouvre la fenêtre d'un tour : les témoins interdits à la persona qui le joue. */
-export function ecouter(t: readonly Temoin[]): void {
+/** Ouvre la fenêtre d'un tour : les témoins interdits à la persona qui le joue, et son compte (`userId`). */
+export function ecouter(t: readonly Temoin[], userId: string | null = null): void {
   interdits = t;
+  joueur = userId;
   lues = [];
 }
 
@@ -54,6 +63,7 @@ export function ecouter(t: readonly Temoin[]): void {
 export function relever(): Lecture[] {
   const out = lues;
   interdits = null;
+  joueur = null;
   lues = [];
   const vus = new Set<string>();
   return out.filter((l) => {

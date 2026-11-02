@@ -47,6 +47,23 @@
 >   person → "ce RIB provient du document X, à vérifier"; injection detection FR/AR/EN, hidden text) — 240-item trap corpus,
 >   0 unflagged misleading card. Model per role changed on screen (`AssistantIaModeleRole`) ONLY with a green A/B bench for that
 >   exact candidate (< 14 d); revert to env always allowed. New env: `ASSISTANT_IA_MODEL_RAISONNEMENT`, `ASSISTANT_IA_TRACES(_JOURS)`.
+> - **Q1 (2026-11-02) — permanent audit bench of the Assistant IA** (decision `docs/assistant/decisions/0050-banc-audit-permanent.md`) [V]:
+>   a machine-played ATTACKER (93 scenarios, 8 categories: direct read, impersonation, multi-turn social engineering,
+>   indirect injection via PDF/Excel/K6 mail/WhatsApp/note/Drive/file name/fiche field/poisoned memory, aggregates/rank/SQL/export/
+>   deep search/sub-mission/routine/voice, action escalation incl. a simulated « Confirmer » click, prompt extraction, Vue exacte)
+>   and a DEMANDING USER (65 tasks: task, message, mail graded by a deterministic /8 grid + a `gpt-5-nano` judge, Ad & Pro, BC from
+>   a quote, export, analysis, search, note, mission, mission steering, undo, own salary). Shared catalogue at
+>   `modules/assistant-ia/infra/testing/audit/` (personas + unique sensitive WITNESS values + the rights matrix `peutVoir`;
+>   `espion.ts` = Prisma `$use` proof that another person's row was never READ), door `api-banc.ts`. Deterministic version
+>   `audit-assistant.test.ts` (adversarial fake model calls every read tool on someone else's data and echoes everything it got;
+>   asserts no witness in the answer nor in ANYTHING sent to the model; plus the RATCHET: every `outilsV1` read has a probe, a live
+>   attack scenario, or a `SANS_DONNEE_PERSONNE` reason). Live version `npm run audit:assistant` (`scripts/bench/audit-assistant/`,
+>   `amd_bench` only, product path: `deposerEcrit`, `deleguerALaVoix`, `jouerTour` with `impersonatedBy`), report
+>   `docs/assistant/preuves/audit/`. Nightly: `qualite.banc` runs the audit FIRST (rotating sample, half the cap); new verdict
+>   `FUITE` always notifies the Super Admin; default calendar → QUOTIDIEN (migration `20270223000000_banc_audit_nocturne`).
+>   Fixed: Vue exacte loaded the viewed person's memory (declared health) into the model context and offered their notes —
+>   `fil/tour.ts` `vueExacte`; « Quel est mon salaire ? » refused without a tool call — `consigneFamilles` now says one's OWN
+>   dossier is always open.
 > - **M1 (2026-11-01) — a real memory for Adventum IA** (decision `docs/assistant/decisions/0045-memoire-automatique.md`) [V]:
 >   the memory no longer waits for a click on a « Retenir » card. After each fil turn (`fil/service.ts`) and at the end of a
 >   voice session (`voix/temps-reel.ts`), `infra/memoire-capture.ts` `capturerApresTour` runs a deterministic filter
