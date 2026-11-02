@@ -11,18 +11,26 @@ import { createRequire } from "node:module";
  * donc ICI, là où `next build` passe forcément.
  *
  * PAS un contournement : tsc tourne sur la PRODUCTION (`tsconfig.build.json`, sans les fichiers de
- * test — `npm run typecheck` les vérifie tous) avec un tas de 5 Go, AVANT la compilation ; la moindre
+ * test — `npm run typecheck` les vérifie tous) avec un tas de 7 Go, AVANT la compilation ; la moindre
  * erreur de type ARRÊTE le build. Seul `next build` sur Render (variable `RENDER`) le fait : un build
  * local garde le typecheck intégré, et `next start` ne le déclenche jamais (autre phase).
  * `TYPECHECK_SEPARE` évite de le refaire dans les processus fils de la compilation.
+ *
+ * 11/2026 — 7 Go, et JAMAIS sous `next lint`. Mesuré (`--extendedDiagnostics`, tsconfig.build.json) : 5,98 Go —
+ * le client Prisma généré a doublé (1,19 M lignes de définitions) ; le déploiement de e585a014 est mort à 5 Go.
+ * `next lint` charge AUSSI ce fichier en phase de build : sur Render, le typecheck tournait donc une première fois
+ * dans le lint, puis une seconde fois à l'étape `tsc` de `build:render` — deux passes de 2 min pour une seule
+ * vérification. Le lint ne type pas : il ne le déclenche plus. Le tas reste sous la ligne des 8 Go du builder
+ * (tsc tourne seul, aucune autre phase en même temps).
  */
 function typecheckSepare(phase) {
   if (process.env.TYPECHECK_SEPARE === "1") return true;
+  if (process.argv.slice(2).includes("lint")) return false;
   if (phase !== "phase-production-build" || !process.env.RENDER) return false;
   const tsc = createRequire(import.meta.url).resolve("typescript/bin/tsc");
-  console.log("[build] Typecheck de la production dans son propre processus (tas : 5 Go)…");
+  console.log("[build] Typecheck de la production dans son propre processus (tas : 7 Go)…");
   try {
-    execFileSync(process.execPath, ["--max-old-space-size=5120", tsc, "--noEmit", "-p", "tsconfig.build.json"], { stdio: "inherit" });
+    execFileSync(process.execPath, ["--max-old-space-size=7168", tsc, "--noEmit", "-p", "tsconfig.build.json"], { stdio: "inherit" });
   } catch {
     throw new Error("Typecheck en échec : le build est arrêté (les erreurs de type sont affichées ci-dessus).");
   }
@@ -248,7 +256,7 @@ function plafondDuBuild(phase) {
 }
 
 export default (phase) => {
-  // Le typecheck séparé fixe son propre tas (5 Go) en argument : il passe AVANT le plafond.
+  // Le typecheck séparé fixe son propre tas (7 Go) en argument : il passe AVANT le plafond.
   const ignoreBuildErrors = typecheckSepare(phase);
   plafondDuBuild(phase);
   return { ...nextConfig, typescript: { ignoreBuildErrors } };
