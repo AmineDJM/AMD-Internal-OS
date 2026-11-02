@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { METADONNEES_ADVENTUM_IA } from "./metadonnees";
+import { BarreAnnulation } from "@/modules/assistant-ia/ecrans/barre-annulation";
 
 /**
  * ADVENTUM IA — l'app installable (décision 0027, point 11). Sur `adventum-ia.onrender.com` (APP_MODE=adventum-ia),
@@ -24,6 +25,15 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * P1 (décision 0047) : « Annuler l'envoi » DANS l'app — mesuré au banc réel : la barre de la fenêtre d'annulation n'était
+ * montée que dans l'ERP ; un mail confirmé dans Adventum IA partait sans que la personne voie de quoi l'arrêter.
+ */
 export default function AdventumIaLayout({ children }: { children: React.ReactNode }) {
-  return children;
+  return (
+    <>
+      {children}
+      <BarreAnnulation />
+    </>
+  );
 }

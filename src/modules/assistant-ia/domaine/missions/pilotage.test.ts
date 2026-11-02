@@ -101,3 +101,11 @@ describe("P1 — présélection et ressaisie", () => {
     expect(niveauDeCarte("R4", "retour")).toBe("CRITICAL");
   });
 });
+
+describe("P1 — un mail ne déclenche AUCUNE question d'agenda (mesuré au banc réel : « Excel ou PDF ? » tenait la carte)", () => {
+  it("la demande de la Direction n'ouvre aucun élément d'agenda", async () => {
+    const { construireAgenda } = await import("../conversation/agenda");
+    expect(construireAgenda("Tu as accès à ton Gmail ? Si oui, envoie un mail à Redouane et à Nesrine avec leur planning du 2 au 8 novembre : Nesrine prépare la synthèse vendredi.")).toEqual([]);
+    expect(construireAgenda("Prépare un rapport des ventes")).not.toEqual([]);
+  });
+});

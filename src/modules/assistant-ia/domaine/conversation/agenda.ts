@@ -57,6 +57,8 @@ const PERIODE_DITE = /\b(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septem
 const ANALYSE = /\b(rapport|synthese|analyse|bilan|etude|recherche|veille|audit)\b/;
 const DETAIL_DIT = /\b(bref|court|resume|detaill\w*|complet|exhaustif|grandes lignes|en une phrase|rapide\w*|en gros|precis\w*)\b/;
 const ENVOI_DIT = /\b(envoie|envoyer|transmets?|transmettre|partage|partager|mail|courriel|whatsapp|pour (le|la|les|mon|ma|mes) \w+|a l'equipe)\b/;
+/** P1 (décision 0047) : écrire un MAIL n'est pas un livrable à cadrer — la carte « Envoyer » part sans question (Direction, 02/11). */
+const MAIL = /\b(e-?mails?|mails?|courriels?|gmail)\b/;
 const COMPARAISON_DITE = /\b(compar\w*|evolution|vs|versus|par rapport|n-1|l'an dernier|annee derniere)\b/;
 const VENTILATION_DITE = /\bpar (produit|produits|wilaya|wilayas|region|regions|client|clients|delegue|delegues|mois|gamme|famille|commercial|depot)\b/;
 const VIGILANCE_DITE = /\b(risques?|vigilance|alertes?|anomalies?|ecarts?|problemes?)\b/;
@@ -68,6 +70,9 @@ const VIGILANCE_DITE = /\b(risques?|vigilance|alertes?|anomalies?|ecarts?|proble
  */
 export function construireAgenda(demande: string): GabaritAgenda[] {
   const d = sansAccents(demande);
+  // « Envoie un mail à Redouane et Nesrine avec leur planning » : les mots du contenu (synthèse, planning) ne font pas une
+  // demande de livrable — aucune question d'agenda, la carte d'envoi suffit (la personne corrige sur la carte).
+  if (MAIL.test(d)) return [];
   const livrable = LIVRABLE.test(d);
   const datees = DONNEES_DATEES.test(d);
   const out: GabaritAgenda[] = [];
