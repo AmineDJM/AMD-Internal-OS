@@ -162,6 +162,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   COCKPIT_OPERATIONS: "Cockpit Opérations",
   BUDGET_CAMPAIGN: "Campagne budgétaire",
   ART_DIRECTION: "Direction artistique",
+  RECETTES: "Recettes",
 };
 
 /**
@@ -188,9 +189,10 @@ export const NAVIGATION: NavItem[] = [
   // `ASSISTANT_IA` : le Super Admin l'a, et l'ouvre à qui il veut dans Administration › Accès. L'entrée suit le module.
   // `/chief-of-staff` y mène le Super Admin (onglets Boîte de réception, Réglages et Bureau d'Adam).
   { module: "ASSISTANT_IA", label: "Adam", href: "/assistant", icon: "Sparkles", group: "Pilotage", match: ["/adam"] },
-  // LES RECETTES (J10, décision 0028) : le savoir-faire de la maison, tiré des circuits réels. L'entrée suit la garde
-  // `recettes` (`nav-access.ts`) : la Direction, un responsable de processus, ou qui voit un circuit qui a une recette.
-  { module: "WORKSPACE", label: "Recettes", href: "/recettes", icon: "ListChecks", group: "Pilotage", gate: "recettes" },
+  // LES RECETTES (J10, décision 0028) : le savoir-faire de la maison, tiré des circuits réels. MODULE du contrôle d'accès
+  // (`RECETTES`, lot R1) : l'entrée suit le module (console, masquage) ET la garde `recettes` (`nav-access.ts`) — la
+  // Direction, un responsable de processus, ou qui voit un circuit qui a une recette (jamais une page vide).
+  { module: "RECETTES", label: "Recettes", href: "/recettes", icon: "ListChecks", group: "Pilotage", gate: "recettes" },
   // LE CENTRE DE MISSIONS — le PARC de ce qu'Adam exécute. Il vit à côté de l'assistant et pas
   // dedans : une mission est un objet de l'ERP (identifiant, propriétaire, étapes, livrables,
   // journal), et la ranger dans la conversation ferait dépendre son écran de l'assistant, ce

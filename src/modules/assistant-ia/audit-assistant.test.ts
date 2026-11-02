@@ -186,9 +186,14 @@ suite("Le banc d'audit déterministe — l'attaquant parfait ne tire rien du ser
     for (const t of TACHES) {
       const motifs = jugerTache(t.attendu, OBSERVATION_VIDE);
       if (t.verifier) {
+        // Le monde de la tâche remis à son état INITIAL (`preparer`, comme le banc réel le fait avant de jouer) : le
+        // vérificateur juge alors « rien n'a été fait », quel que soit l'état laissé par un autre fichier ou un passage.
+        if (t.preparer) await t.preparer().catch(() => undefined);
         motifs.push(...await t.verifier({
           userId: S.users[COMPTE_JOUE[t.persona]], users: S.users, pieces: S.pieces, t0: new Date(), carte: null, reponses: [], fichiers: [], executee: false,
-        }).catch((e) => [`vérificateur en erreur : ${String(e)}`]));
+        // Un vérificateur qui LÈVE (son monde n'est pas semé par ce fichier) ne compte pas comme un échec : le jugement à
+        // vide ne doit dépendre ni de l'ordre des fichiers ni d'un monde semé ailleurs (signalé sous test:architecture, 02/11).
+        }).catch(() => []));
       }
       if (!motifs.length) vides.push(`${t.id} (${t.domaine})`);
     }
