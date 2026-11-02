@@ -15,7 +15,8 @@ export const COMPTEURS: Record<ObjetAttendu, () => Promise<number>> = {
   prise_en_charge: async () => (await prisma.congressNational.count()) + (await prisma.congressInternational.count()),
   materiel_promo: () => prisma.promoMaterial.count(),
   validation: () => prisma.validationRequest.count(),
-  note: async () => (await prisma.assistantIaNoteVersion.count()) + (await prisma.assistantIaNotePage.count()),
+  // Une note se PROPOSE (la personne l'accepte sur sa carte de notes) : la proposition compte, comme la page écrite.
+  note: async () => (await prisma.assistantIaNoteProposition.count()) + (await prisma.assistantIaNoteVersion.count()) + (await prisma.assistantIaNotePage.count()),
   mission: () => prisma.mission.count({ where: { kind: "TRAVAIL", status: { notIn: ["CANCELLED", "COMPLETED", "FAILED"] } } as never }),
   routine: () => prisma.assistantRoutine.count(),
   fichier: () => prisma.driveNode.count({ where: { type: "FILE" } }),

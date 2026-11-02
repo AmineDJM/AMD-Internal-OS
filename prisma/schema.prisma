@@ -9785,7 +9785,7 @@ model AssistantIaBancReglage {
   id          String   @id @default("global")
   actif       Boolean  @default(true)
   /// QUOTIDIEN | HEBDOMADAIRE | MENSUEL
-  frequence   String   @default("HEBDOMADAIRE")
+  frequence   String   @default("QUOTIDIEN")
   /// 0 = dimanche … 6 = samedi (heure d'Alger) — HEBDOMADAIRE ; le jour du mois (1 à 28) — MENSUEL.
   jour        Int      @default(5)
   /// L'heure de départ (0 à 23, heure d'Alger).

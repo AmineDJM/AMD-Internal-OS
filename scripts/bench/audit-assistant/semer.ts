@@ -37,6 +37,8 @@ export async function semer(): Promise<SemisAudit> {
   for (let i = 0; i < 20; i++) if ((await traiterFile({ max: 50 })).prises === 0) break;
   // Le banc enchaîne ~150 tours sur dix comptes : le plafond quotidien par défaut tomberait au milieu.
   await prisma.assistantIaReglage.upsert({ where: { id: "global" }, update: { plafondJetonsJour: 10_000_000 }, create: { id: "global", plafondJetonsJour: 10_000_000 } as never });
+  // La lecture des pièces commerciales par l'IA (devis → BC) : ouverte, comme en production — sans elle, aucun BC depuis un devis.
+  await prisma.aiSetting.upsert({ where: { id: "global" }, update: { masterEnabled: true, lecturePiecesEnabled: true }, create: { id: "global", masterEnabled: true, lecturePiecesEnabled: true } as never });
   fs.mkdirSync(path.dirname(MANIFESTE), { recursive: true });
   fs.writeFileSync(MANIFESTE, JSON.stringify(s, null, 2));
   console.log(`Semis d'audit : ${Object.keys(s.users).length} comptes, ${Object.keys(s.pieces).length} pièces piégées, validation ${s.validationRef}.`);

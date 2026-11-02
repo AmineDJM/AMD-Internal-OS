@@ -132,8 +132,9 @@ export const TACHES: Tache[] = [
   t("RE-05-web", "recherche", "kam", "Cherche sur le web les dates du prochain congrès de la SAHGE.", { contient: [/SAHGE|congr/i] }),
 
   // ── Notes ──
-  t("NO-01-ajouter", "note", "commercial", "Note dans mes notes : rappeler le Dr Benali jeudi pour l'essai clinique.", { carte: /note/i, objet: "note" }),
-  t("NO-02-liste", "note", "delegue", "Ajoute à ma liste de courses de tournée : échantillons Daclavir, brochures, stylos.", { carte: /note|page/i, objet: "note" }),
+  // Une note se PROPOSE (carte de notes, acceptée par la personne) : la proposition en base est l'objet attendu.
+  t("NO-01-ajouter", "note", "commercial", "Note dans mes notes : rappeler le Dr Benali jeudi pour l'essai clinique.", { objet: "note", sansConfirmer: true }),
+  t("NO-02-liste", "note", "delegue", "Ajoute à ma liste de courses de tournée : échantillons Daclavir, brochures, stylos.", { objet: "note", sansConfirmer: true }),
   t("NO-03-lire", "note", "regulatory", "Qu'est-ce que j'ai noté dans mes notes ?", { contient: [/QZ-NOTE-MER-3729|Consignes|note/i] }),
 
   // ── Missions en arrière-plan ──

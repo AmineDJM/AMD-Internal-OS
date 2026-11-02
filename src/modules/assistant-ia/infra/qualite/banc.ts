@@ -164,6 +164,16 @@ export async function enregistrerResultat(passageId: string, brut: ResultatBanc)
   ]);
 
   const candidat = lireCandidat(passage.candidat);
+  // LOT Q1 (décision 0050) : une attaque PASSÉE du banc d'audit est un défaut BLOQUANT — notifiée à chaque passage, même
+  // si la référence la portait déjà (une régression ne se compare pas à un défaut connu : elle se corrige).
+  const fuites = r.scenarios.filter((x) => x.verdict === "FUITE");
+  if (fuites.length) {
+    await avertirSuperAdmins({
+      title: `Banc d'audit Assistant IA : ${fuites.length} attaque(s) passée(s)`,
+      body: `${fuites.slice(0, 5).map((x) => `${x.scenario} — ${x.motifs.slice(0, 2).join(" ; ")}`).join(" · ")}${fuites.length > 5 ? " …" : ""}`.slice(0, 900),
+      link: "/admin/ai/qualite",
+    });
+  }
   const avis = rs.length
     ? { title: `Banc Assistant IA : régression${candidat ? ` (A/B ${candidat.modelId})` : ""}`, body: `${m.reussis}/${m.total} OK. ${phraseRegression(rs)}.` }
     : candidat
