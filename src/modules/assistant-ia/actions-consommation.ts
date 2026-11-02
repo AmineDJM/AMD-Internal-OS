@@ -10,7 +10,7 @@ import { fdBool, type ActionResult } from "@/lib/actions/types";
 import { UserRole } from "@prisma/client";
 import { ROLE_LABELS } from "@/lib/labels";
 import {
-  LIBELLE_FAMILLE, LIBELLE_VALEURS_SENSIBLES, lireConsommation, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglageFamilles, normaliserReglages,
+  FAMILLES_SENSIBLES, LIBELLE_FAMILLE, LIBELLE_VALEURS_SENSIBLES, lireConsommation, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglageFamilles, normaliserReglages,
   normaliserReglagesVisuels, type FamilleIa,
 } from "@/modules/assistant-ia/api";
 import type { VueConsommation } from "@/modules/assistant-ia/partage";
@@ -76,6 +76,9 @@ export async function enregistrerAccesAssistantIa(formData: FormData): Promise<A
     const data = { ouvertes: r.ouvertes, fermees: r.fermees, updatedById: admin.id };
     await prisma.assistantIaAcces.upsert({ where: ou as never, create: { ...ou, ...data }, update: data });
   }
+  // S1 (décision 0048) : pour AUTRUI, une famille sensible ne s'ouvre que par un droit EXPLICITE ET DATÉ. Cocher « ouverte »
+  // pour une PERSONNE l'inscrit (aujourd'hui, sans fin, motif dit) ; la décocher le révoque. Un rôle n'en reçoit jamais.
+  if ("userId" in ou) await synchroniserDroitsDatesDeConsole(ou.userId, r.ouvertes, admin.id, String(formData.get("motif") ?? "").trim());
   await recordAudit({
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Assistant IA — accès",
     oldValue: dire(avant), newValue: dire(r),
@@ -83,6 +86,25 @@ export async function enregistrerAccesAssistantIa(formData: FormData): Promise<A
   });
   revalidatePath("/admin/ai/acces");
   return { ok: true };
+}
+
+const MOTIF_CONSOLE = "Ouverture nominative dans la console de l'Assistant IA";
+
+async function synchroniserDroitsDatesDeConsole(userId: string, ouvertes: FamilleIa[], adminId: string, motif: string): Promise<void> {
+  for (const famille of FAMILLES_SENSIBLES) {
+    const actifs = await prisma.assistantIaDroitDate.findMany({
+      where: { userId, famille, companyId: null, au: null, revoqueLe: null, motif: { startsWith: MOTIF_CONSOLE } },
+    });
+    if (ouvertes.includes(famille)) {
+      if (!actifs.length) {
+        await prisma.assistantIaDroitDate.create({
+          data: { userId, famille, du: new Date(), motif: motif ? `${MOTIF_CONSOLE} — ${motif.slice(0, 300)}` : MOTIF_CONSOLE, accordeParId: adminId },
+        });
+      }
+    } else if (actifs.length) {
+      await prisma.assistantIaDroitDate.updateMany({ where: { id: { in: actifs.map((a) => a.id) } }, data: { revoqueLe: new Date() } });
+    }
+  }
 }
 
 /** La cible d'un réglage de la console : un rôle (hors Super Admin) ou une personne (hors Super Admin). */

@@ -16,6 +16,7 @@
 
 // La liste des familles vit au socle (J6, décision 0020) : le registre des capacités y range chaque action.
 import { estFamilleIa, FAMILLES_IA, type FamilleIa } from "@/platform/ia/capacites/familles";
+import { perimetreEnVigueur, perimetreQuiCouvre, type PerimetreSensible } from "./perimetres";
 export { estFamilleIa, FAMILLES_IA, type FamilleIa };
 
 export const LIBELLE_FAMILLE: Record<FamilleIa, string> = {
@@ -58,6 +59,13 @@ export interface AccesIa {
   ouvertes: FamilleIa[];
   /** Ouvertes par un réglage de la Direction (rôle ou personne) — au-delà, au besoin, des droits applicatifs. */
   explicites: FamilleIa[];
+  /**
+   * S1 (décision 0048) : les PÉRIMÈTRES sur les valeurs sensibles d'AUTRUI (paie, dossier RH) — avenant de délégation
+   * ou droit daté de la console, nommément à la personne, en vigueur CE tour. Seuls eux (ou le droit applicatif) vont
+   * au-delà de « ses propres données » : un réglage de rôle, large par nature, ne les ouvre jamais (02/11 : « Salaires
+   * & paie » ouverte au rôle d'une assistante de direction lui rendait la paie de tous). Absents : aucun.
+   */
+  perimetres?: PerimetreSensible[];
 }
 
 /** Un réglage lu (base, formulaire) ramené à des familles connues ; une famille ouverte ET fermée reste au défaut. */
@@ -77,10 +85,14 @@ export function resoudreAccesIa(d: {
   droits: Record<FamilleIa, boolean>;
   role?: ReglageFamilles | null;
   personne?: ReglageFamilles | null;
+  /** S1 : avenants de délégation et droits datés de la console, nommément à la personne. */
+  perimetres?: PerimetreSensible[];
+  maintenant?: Date;
 }): AccesIa {
-  if (d.superAdmin) return { superAdmin: true, ouvertes: [...FAMILLES_IA], explicites: [...FAMILLES_IA] };
+  if (d.superAdmin) return { superAdmin: true, ouvertes: [...FAMILLES_IA], explicites: [...FAMILLES_IA], perimetres: [] };
   const ouvertes: FamilleIa[] = [];
   const explicites: FamilleIa[] = [];
+  const perimetres = (d.perimetres ?? []).filter((p) => perimetreEnVigueur(p, d.maintenant));
   for (const f of FAMILLES_IA) {
     let ouverte = FAMILLES_SENSIBLES.has(f) ? false : d.droits[f];
     let explicite = false;
@@ -89,14 +101,27 @@ export function resoudreAccesIa(d: {
       if (r.fermees.includes(f)) { ouverte = false; explicite = false; }
       if (r.ouvertes.includes(f)) { ouverte = true; explicite = true; }
     }
+    // Un périmètre en vigueur (avenant, droit daté) ouvre sa famille — sauf fermeture NOMINATIVE, qui prime toujours.
+    if (!ouverte && perimetres.some((p) => p.famille === f) && !d.personne?.fermees.includes(f)) ouverte = true;
     if (ouverte) ouvertes.push(f);
     if (explicite) explicites.push(f);
   }
-  return { superAdmin: false, ouvertes, explicites };
+  return { superAdmin: false, ouvertes, explicites, perimetres: perimetres.filter((p) => !d.personne?.fermees.includes(p.famille)) };
 }
 
 export const familleOuverte = (a: AccesIa, f: FamilleIa): boolean => a.superAdmin || a.ouvertes.includes(f);
 export const familleExplicite = (a: AccesIa, f: FamilleIa): boolean => a.superAdmin || a.explicites.includes(f);
+/**
+ * S1 : un périmètre (avenant, droit daté) couvre-t-il `f` sur l'entité `companyId` ? Sans entité (`undefined`) : un
+ * périmètre quelconque de la famille suffit — à réserver à un juge qui restreint ensuite lui-même aux entités couvertes.
+ */
+export function perimetreCouvrant(a: AccesIa, f: FamilleIa, companyId?: string | null): PerimetreSensible | null {
+  if (a.superAdmin) return { famille: f, companyId: null, du: null, au: null, origine: "ROLE", ref: null, motif: "Super Admin" };
+  if (companyId === undefined) return (a.perimetres ?? []).find((p) => p.famille === f && perimetreEnVigueur(p)) ?? null;
+  return perimetreQuiCouvre(a.perimetres, f, companyId);
+}
+/** S1 : un périmètre nominatif quelconque sur `f` (jamais un réglage de rôle). */
+export const familleNominative = (a: AccesIa, f: FamilleIa, companyId?: string | null): boolean => perimetreCouvrant(a, f, companyId) !== null;
 
 /** Le refus, dit tel quel par l'assistant : quelle famille, et qui l'ouvre. */
 export function refusFamille(f: FamilleIa): string {
@@ -124,3 +149,21 @@ export function consigneFamilles(a: AccesIa): string | null {
       + "en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Assistant IA — accès.",
   ].join("\n");
 }
+
+/**
+ * S1 (décision 0048) — « VUE EXACTE » : L'ASSISTANT EST FERMÉ. Mesuré en production le 02/11 : la Direction ouvre le
+ * compte de Radia en Vue exacte ; l'écran (un RENDU) dit « Bonjour Radia », mais le message part par une ACTION
+ * SERVEUR, dont le corps s'exécute au nom du Super Admin réel (§118.184) — l'assistant répondait « Salut Amine », avec
+ * la mémoire et les droits du Super Admin (paie de Radia, d'Assia…). Le jouer « comme Radia » exigerait de garantir
+ * qu'aucun outil n'écrit (sous-missions, chantiers, notes, mémoire automatique, visuels payants) : la voie sûre est la
+ * fermeture, comme la voix, les gestes et les notes. Ce que l'assistant de la personne voit se vérifie dans
+ * Administration › IA › Accès (« Ce que son assistant voit »).
+ */
+export function refusAssistantVueExacte(nomVisualise?: string | null): string {
+  const qui = nomVisualise?.trim() ? ` de ${nomVisualise.trim()}` : "";
+  return `L'assistant est fermé en « Vue exacte » : il répondrait avec votre identité et vos droits de Super Admin, pas avec ceux${qui}. `
+    + "Pour vérifier ce que son assistant voit (profil, familles, périmètres) : Administration › Contrôle de l'IA › Assistant IA — accès.";
+}
+
+/** Une identité « vue » (impersonation honorée) ou un Super Admin qui en visualise une autre : l'assistant ne joue pas. */
+export const enVueExacteIa = (u: { impersonatedBy?: unknown; visualise?: unknown }): boolean => Boolean(u.impersonatedBy || u.visualise);
