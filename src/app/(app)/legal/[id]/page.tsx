@@ -59,6 +59,7 @@ import { netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { avalActif, avoirsDeLaFacture } from "@/lib/legal/aval";
 import { nonRetenusDesPieces } from "@/lib/bons-de-commande/non-retenus";
 import { libelleNonRetenu } from "@/lib/bons-de-commande/devis-non-retenus";
+import { AnnonceDeCreation } from "@/components/shared/annonce-de-creation";
 
 export const dynamic = "force-dynamic";
 
@@ -339,6 +340,7 @@ export default async function LegalDocumentPage(
       <BackLink href="/legal">
         <ArrowLeft className="h-4 w-4" /> Retour aux engagements
       </BackLink>
+      <AnnonceDeCreation cle={`legal:${doc.id}`} />
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">

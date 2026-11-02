@@ -1,5 +1,25 @@
 ## 🧾 Journal des évolutions récentes
 
+### LE FOURNISSEUR D'UN DEVIS DÉPOSÉ ENTRE DANS L'ANNUAIRE (2026-11-02)
+
+Décidé par la Direction le 02/11. Au dépôt d'un devis — **poste Ad & Pro** (lecture `ingererDevisDuPoste`) et **« Nouveau
+document » de Legal** de nature devis sans partie choisie (`createLegalDocument`) — son fournisseur est cherché dans
+l'annuaire **entier** (pas seulement la part visible : une fiche d'une autre société recréée serait un doublon) :
+- même **NIF** ou même **RC** qu'une seule fiche → rattaché (« Fournisseur reconnu dans l'annuaire ») ;
+- le **nom seul** → rattaché à la fiche existante et **dit** (« par son nom seul … vérifiez ») — jamais un quasi-doublon ;
+- plusieurs fiches à égalité → rien de choisi ni de créé, et c'est dit ;
+- **inconnu avec un nom imprimé** → fiche créée : genre « Fournisseur », sphère privée, NIF, RC, adresse, téléphone, e-mail et
+  RIB lus ; note « Ajouté automatiquement à l'annuaire depuis le devis « … », déposé le … par … » ; journal d'audit. Sans
+  droit d'écriture dans l'annuaire : c'est un geste automatique, rien ne vient d'un champ de formulaire ;
+- **pas de nom** (ou un nom tiré du seul nom du fichier, ou celui d'une société du groupe) → rien, et c'est dit.
+Le devis est rattaché à la fiche (`counterpartyIds`, et `AdProDevis.supplierId` sur un poste) s'il n'avait aucune partie.
+Deux dépôts simultanés ne font qu'**une** fiche (verrou `pg_advisory_xact_lock`, annuaire relu dans la transaction). Un
+devis confidentiel est relu **localement** (lecture gardée par l'empreinte, sans modèle). Pas de reprise des devis
+anciens. Les autres circuits (Bureau du secrétariat, matériel promotionnel) gardent « à créer par une personne ».
+La phrase du dépôt Legal s'affiche sur la fiche ouverte après la création (`components/shared/annonce-de-creation.tsx`).
+- Règle pure : `lib/pieces-lues/fournisseur-auto.ts` (+ `.test.ts`). Écriture : `lib/pieces-lues/fournisseur-annuaire.ts`
+  (`fournisseurDuDevisDansLAnnuaire`, `fournisseurDuDevisDepose`). Banc : `fournisseur-annuaire-flow.test.ts`.
+
 ### AD & PRO : LE BC DU DEVIS VALIDÉ — MODIFIÉ DANS L'APPLICATION, VALIDÉ PAR LE DÉPOSANT, SIGNÉ, PUIS DANS LEGAL (2026-11-02)
 
 Migrations `20270130100000_devis_non_retenu` (deux colonnes sur `AdProItemPiece`) et `20270226100000_bc_brouillon_versions`
