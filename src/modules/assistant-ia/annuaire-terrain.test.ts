@@ -182,8 +182,14 @@ suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis a
     expect(sansTel).not.toMatch(/TOUATI/);
     // Hors secteur : ni la fiche, ni la visite (ni son compte rendu) d'un autre panel.
     expect(JSON.stringify(await lire("annuaire_terrain", u.delegue_ouest, { nom: "MANSOURI" }))).not.toMatch(/0661/);
-    const visitesOuest = JSON.stringify(await lire("visites_terrain", u.delegue_ouest, { medecin: "MANSOURI", jours: 365 }));
+    const visitesOuest = JSON.stringify(await lire("visites_terrain", u.delegue_ouest, { delegue: "Yanis HAMDI", jours: 365 }));
     expect(visitesOuest).not.toContain(TEMOIN_VISITE);
+    // Régression du banc réel (MKT-07) : « moi », son propre nom, une date illisible — jamais un zéro silencieux.
+    for (const e of [{ delegue: "moi" }, { delegue: "Yanis HAMDI", jours: 30 }, { depuis: "03/10", jours: 30 }]) {
+      expect((await lire("visites_terrain", u.delegue, e)).totalVisites, JSON.stringify(e)).toBe(4);
+    }
+    expect((await lire("visites_terrain", u.delegue, { delegue: "Personne INCONNUE" })).statut).toBe("INTROUVABLE");
+    expect((await lire("visites_terrain", u.delegue_ouest, { medecin: "Rachid MANSOURI" })).statut).toBe("INTROUVABLE");
     const derniere = await lire("visites_terrain", u.superadmin, { medecin: "Rachid MANSOURI", jours: 365 });
     expect(JSON.stringify(derniere.parMedecin)).toMatch(/Yanis HAMDI/);
     expect(lecture("visites_terrain").allowed(u.commercial)).toBe(false);

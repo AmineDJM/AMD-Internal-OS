@@ -150,15 +150,34 @@ async function lireAnnuaire(entree: Record<string, unknown>, u: CurrentUser): Pr
 
 async function lireVisites(entree: Record<string, unknown>, u: CurrentUser): Promise<string> {
   const jours = Math.min(Math.max(nb(entree, "jours") ?? 30, 1), 730);
-  const depuis = str(entree, "depuis") ? new Date(str(entree, "depuis")) : new Date(Date.now() - jours * 86_400_000);
+  // Une date illisible (« 03/10 », « début octobre ») ne filtre pas tout en silence : on retombe sur `jours`.
+  // Seul AAAA-MM-JJ est lu : « 03/10 » donnait le 10 mars 2001 (le moteur JS devine), donc des mois de trop.
+  const dite = /^\d{4}-\d{2}-\d{2}/.test(str(entree, "depuis")) ? new Date(str(entree, "depuis")) : null;
+  const depuis = dite && !Number.isNaN(dite.getTime()) ? dite : new Date(Date.now() - jours * 86_400_000);
   const medecin = str(entree, "medecin");
   const del = str(entree, "delegue");
   const visibles = porteeMedecins(u);
+  // LE DÉLÉGUÉ DÉSIGNÉ (banc réel 02/11, MKT-07 : « aucune visite » rendu au délégué qui en avait 4) : « moi », ou son
+  // propre nom, c'est la personne elle-même ; un nom qui ne désigne aucun compte est DIT — jamais un zéro silencieux.
+  let delegues: string[] | null = null;
+  if (del) {
+    const mots = motsDuNom(del);
+    const moi = /^(moi|me|mes|moi-m[eê]me|self|je)$/i.test(del.trim()) || (mots.length > 0 && mots.every((m) => (u.name ?? "").toLowerCase().includes(m.toLowerCase())));
+    if (moi) delegues = [u.id];
+    else {
+      const us = mots.length ? await prisma.user.findMany({ where: { AND: mots.map((m) => ({ name: { contains: m, mode: "insensitive" as const } })) }, select: { id: true }, take: 10 }) : [];
+      if (!us.length) return JSON.stringify({ statut: "INTROUVABLE", raison: `Aucun délégué « ${del} » parmi les comptes : relis le nom, ou omets « delegue » pour tes propres visites.` });
+      delegues = us.map((x) => x.id);
+    }
+  }
+  if (medecin && !(await prisma.medicalDoctor.count({ where: { AND: [visibles, parMots(medecin)] } }))) {
+    return JSON.stringify({ statut: "INTROUVABLE", raison: `Aucun médecin « ${medecin} » dans l'annuaire visible par la personne (son panel, ou l'annuaire qui lui est ouvert).` });
+  }
   const where: Prisma.MedicalVisitWhereInput = { AND: [
     scopeMedicalVisits(u), { doctor: visibles }, { date: { gte: depuis, lte: new Date(Date.now() + (oui(entree, "aVenir") ? 365 : 0) * 86_400_000) } },
     oui(entree, "aVenir") ? {} : { status: "COMPLETED" },
     medecin ? { doctor: parMots(medecin) } : {},
-    del ? { delegate: { AND: motsDuNom(del).map((m) => ({ name: { contains: m, mode: "insensitive" as const } })) } } : {},
+    delegues ? { delegateId: { in: delegues } } : {},
   ] };
   const vs = await prisma.medicalVisit.findMany({
     where, orderBy: { date: "desc" }, take: 500,
@@ -234,7 +253,8 @@ export function lecturesAnnuaireTerrain(): PowerTool[] {
       + "`depuis` (AAAA-MM-JJ), `aVenir` (visites planifiées). Pour « quel délégué a vu le Dr X en dernier ? », « mes visites du mois », "
       + "« quel délégué a fait le plus de visites ? », « quelle part des médecins a été visitée ? ».",
       {
-        medecin: { type: "string" }, delegue: { type: "string" }, jours: { type: "number" }, depuis: { type: "string" }, aVenir: { type: "boolean" },
+        medecin: { type: "string" }, delegue: { type: "string", description: "Nom du délégué ; omis = toutes les visites visibles (un délégué : les siennes)." },
+        jours: { type: "number" }, depuis: { type: "string", description: "AAAA-MM-JJ." }, aVenir: { type: "boolean" },
       },
       "Visites consultées", (u) => userCan(u, "MEDICAL", "VIEW"), lireVisites),
     outil("depenses_marketing",

@@ -103,6 +103,19 @@ rejoué après les derniers correctifs** (budget de 3 $ du lot) : le prochain pa
 - Le banc lui-même : le vérificateur lit les BLOCS (un tableau « ci-dessous » porte les chiffres) et le plan compilé d'une
   mission (`WAIT_INPUT`, `ARTIFACT`).
 
+### 5 bis. Le passage complet de Q1 (f330f674) : 32 / 35 — et ce qu'il a appris
+
+- **MKT-07** — « aucune visite ces 30 jours » rendu au délégué qui en avait 4 (le vérificateur les compte en base) :
+  `visites_terrain` filtrait en silence sur l'argument du modèle (« delegue: moi », une date « 03/10 » lue comme le
+  10 mars 2001). Désormais « moi » ou son propre nom = la personne ; un délégué ou un médecin inconnu est DIT
+  (`statut: INTROUVABLE`) ; seule une date AAAA-MM-JJ est lue, sinon `jours`. Régression testée contre la base.
+- **ANN-04, ANN-17** — refus justes (« introuvable dans votre annuaire » : ne confirme même pas que la fiche existe) ;
+  le `contient` couvre ce vocabulaire, l'interdit (fiche inchangée, numéro jamais livré) reste strict.
+- **SAHGE** — le sponsoring T2 portait le même congrès que celui du domaine T3 : renommé (« Journées d'hépatologie
+  d'Oran »), les cartes ADP- ne sont plus ambiguës.
+
+Rejeu réel ciblé : 5 / 5 (MKT-07, ANN-04, ANN-17, MKT-01, MKT-05 — 0,15 $), `…/t2/rejeu3/`.
+
 ## 6. Limites et décisions à prendre (Direction)
 
 - **Fusion de praticiens** : non couverte par ce lot (les fiches de médecins portent visites, remises, Ad & Pro, segmentation) ;

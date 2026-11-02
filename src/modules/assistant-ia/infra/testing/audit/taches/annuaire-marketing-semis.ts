@@ -110,7 +110,8 @@ export const SEMIS_T2: SemisDeDomaine = async ({ etiquette, users, companyId }):
   // ── Les dépenses Ad & Pro (montants demandés, aucun accordé : une seule base de calcul, dite) ──
   const depenses: [string, "hepato" | "onco", string, number, number][] = [
     // [titre, BU, produit, montant, mois en arrière]
-    ["Congrès SAHGE — stand", "hepato", "Daclavir", 640_000, 0],
+    // Pas « SAHGE » : le domaine T3 sème déjà un sponsoring de ce congrès — deux homonymes rendaient ses cartes ambiguës.
+    ["Journées d'hépatologie d'Oran — stand", "hepato", "Daclavir", 640_000, 0],
     ["Journée hépatologie Sétif", "hepato", "Daclavir", 215_000, 1],
     ["Symposium oncologie Alger", "onco", "Nivolumab", 480_000, 0],
     ["Atelier immunothérapie Oran", "onco", "Nivolumab", 330_000, 1],
