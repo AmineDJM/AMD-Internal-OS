@@ -1,5 +1,5 @@
 /**
- * L'ANNUAIRE TENU EN LOT (lot T2, décision 0051) — la forme PURE d'un lot, partagée par l'action de l'ERP
+ * L'ANNUAIRE TENU EN LOT (lot T2, décision 0052) — la forme PURE d'un lot, partagée par l'action de l'ERP
  * (`lib/actions/fournisseurs-annuaire-actions.ts`, « use server » : il n'exporte que ses actions) et par l'Assistant IA qui le
  * prépare. Aucun import.
  */

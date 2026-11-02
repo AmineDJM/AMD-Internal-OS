@@ -423,4 +423,4 @@ Site web: RecruitmentRequest / blog posts ─► SitePublication queue ─► ad
 fails on « nom obligatoire ») ; `createInstitution` infers the type from the name (« Pharmacie … » → `PHARMACIE`) and the
 wilaya from the address when absent ; the doctor grade accepts its label and treats « Dr / Docteur » as no specific grade
 (`gradeDuTexte`, `lib/medical/directory-grid.ts`). Batch updates / establishment merges: `lib/actions/fournisseurs-annuaire-actions.ts`
-(decision [0051](../assistant/decisions/0051-annuaires-marketing-terrain.md)).
+(decision [0052](../assistant/decisions/0052-annuaires-marketing-terrain.md)).

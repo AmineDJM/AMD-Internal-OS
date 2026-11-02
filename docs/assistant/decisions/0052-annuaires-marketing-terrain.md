@@ -1,4 +1,4 @@
-# 0051 — Adventum IA tient les annuaires, analyse le marketing et interroge le terrain (lot T2, 02/11/2026)
+# 0052 — Adventum IA tient les annuaires, analyse le marketing et interroge le terrain (lot T2, 02/11/2026)
 
 > Construit sur le registre des capacités (J6, [0020](0020-capacites.md)), la simulation et le journal des effets
 > (J7, [0029](0029-simulation-annulation.md)), la réversibilité des actions métier (K10c, [0044](0044-actions-reversibles-metiers.md)),

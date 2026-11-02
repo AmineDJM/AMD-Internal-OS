@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE BANC D'AUDIT — LE SEMIS DU LOT T2 (annuaires, marketing, terrain), décision 0051.
+ * LE BANC D'AUDIT — LE SEMIS DU LOT T2 (annuaires, marketing, terrain), décision 0052.
  *
  * Un petit monde réaliste, étiqueté et retirable, posé APRÈS les personas (`semerAudit`) :
  *   • deux BU (Hépatologie, Oncologie), deux secteurs — Est (Constantine, Yanis HAMDI) et Ouest (Oran, Farid ZEROUAL) ;

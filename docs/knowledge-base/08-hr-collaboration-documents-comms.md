@@ -239,6 +239,8 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 
 ### 4.12 Legal register
 
+- **Update 2026-11-02 (lot T1, decision 0053)** [V]: the AI assistant files Drive documents into the register in one card (`ranger_au_juridique`), edits a row (`modifier_fiche_juridique`), reads it (`registre_juridique`, same reader / company gate as the list) and checks the Drive (`bilan_drive`) — see chapter 09.
+
 - `LegalDocument` (13110), `LegalFolder` (13281), `LegalDocumentReader` (13301) [V].
 - Readers rule `canReadLegalDocument` (`lecteurs/legal.ts:49`): Super Admin; depositor; designated readers; **no readers ⇒ open to module** (historical default). Additive to entity scoping. `legalViewScope` narrows Finances/BC viewers to purchase-chain kinds (`:153-201`) [V].
 - Expiry: `lifecycle.ts` (90 d "soon", 30 d "imminent"), `runLegalExpirySweep` (`expiry-sweep.ts:40-136`) aligns ACTIVE→EXPIRED, claims `lastRemindedAt` atomically, notifies `LEGAL:UPDATE` holders who can read the doc **and** whose company predicate allows it, plus the depositor; link `/legal?echeances=1` [V].

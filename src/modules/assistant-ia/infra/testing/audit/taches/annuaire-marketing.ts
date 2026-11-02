@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE BANC D'AUDIT — LES TÂCHES DU LOT T2 : ANNUAIRES (ANN-), MARKETING (MKT-), TERRAIN (TER-). Décision 0051.
+ * LE BANC D'AUDIT — LES TÂCHES DU LOT T2 : ANNUAIRES (ANN-), MARKETING (MKT-), TERRAIN (TER-). Décision 0052.
  *
  * « Il faut aussi qu'il soit capable d'analyser le marketing, modifier les annuaires, il peut avoir des tâches longues
  * à faire sur l'annuaire, il peut demander aux délégués ou à des gens les stocks etc. et des trucs précis de tout

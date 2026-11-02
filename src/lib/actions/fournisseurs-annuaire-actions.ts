@@ -104,7 +104,7 @@ export async function retirerFournisseurAnnuaire(fd: FormData): Promise<ActionRe
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * L'ANNUAIRE TENU EN LOT (lot T2, décision 0051) — rangé ici, avec les actions des annuaires, pour ne pas ajouter un fichier
+ * L'ANNUAIRE TENU EN LOT (lot T2, décision 0052) — rangé ici, avec les actions des annuaires, pour ne pas ajouter un fichier
  * d'actions hors carte (cliquet `platform/couverture.test.ts`) — « mets à jour 300 fiches depuis cet Excel », « nettoie les doublons
  * des pharmacies d'Oran ». Deux actions de l'ERP, chacune UN SEUL GESTE réversible (`actionReversible`) : le lot entier
  * s'annule d'un coup, et chaque ligne passe par L'ACTION DE L'ÉCRAN qui la garde (`updateDoctor` : la portée du délégué,

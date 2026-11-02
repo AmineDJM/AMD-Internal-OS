@@ -1,5 +1,6 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
+import { resoudrePiece } from "../operations/pieces";
 import { ongletDesigne } from "@/platform/ia/artifact/store";
 import { SCHEMA_GESTE, type GesteAtelier } from "@/platform/ia/artifact/atelier/gestes";
 import { structurePourModele } from "@/platform/ia/artifact/atelier/structure";
@@ -159,9 +160,11 @@ export function outilsAtelier(user: CurrentUser): PowerTool[] {
         const ref = texteDe(e, "document").trim();
         const r = await resoudre(u, ref);
         if (!r.ok) {
-          // Une IMAGE ne s'ouvre pas dans l'Atelier : désignée par son identifiant Drive, elle se convertit directement.
-          if (!RE_ID.test(ref)) return r.sortie;
-          const c = await demanderConversion(u, ref, vers, null, { vision: fabriqueVisionOcr });
+          // Une IMAGE ne s'ouvre pas dans l'Atelier : désignée par son identifiant Drive — ou par son NOM, résolu sous les
+          // droits de la personne (banc T1, DOC-19 : « mon scan du cachet ») —, elle se convertit directement.
+          const id = RE_ID.test(ref) ? ref : await (async () => { const p = await resoudrePiece(u, ref); return "erreur" in p ? null : p.id; })();
+          if (!id) return r.sortie;
+          const c = await demanderConversion(u, id, vers, null, { vision: fabriqueVisionOcr });
           return !c.ok && !c.id ? r.sortie : reponseConversion(c, false);
         }
         const vue = r.o?.vue ?? (await vueAtelier(u, r.sessionId));

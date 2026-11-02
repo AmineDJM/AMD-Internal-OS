@@ -1,5 +1,5 @@
 /**
- * DEMANDER AU TERRAIN — le PLAN de mission, construit par le code (lot T2, décision 0051). Pur.
+ * DEMANDER AU TERRAIN — le PLAN de mission, construit par le code (lot T2, décision 0052). Pur.
  *
  * Une étape DEMANDE par personne (échéance, relance avant l'échéance, abandon 5 jours après), puis un LIVRABLE qui
  * consolide les réponses. Les délais sont relatifs au dépôt des demandes (règle J8 du moteur des travaux).

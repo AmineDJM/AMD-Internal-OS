@@ -379,7 +379,7 @@ et `lire_moyens_generaux` (`infra/lectures-dossiers-mg.ts`). Fiches hôtellerie 
 poste créé s'il manque). Banc du domaine : `infra/testing/audit/taches/dossiers-mg-adpro.ts` (tâches `DOS-`, `MG-`, `ADP-`
 avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `infra/operations/dossiers-mg-adpro.test.ts`.
 
-## Annuaires, marketing et terrain (lot T2, décision 0051)
+## Annuaires, marketing et terrain (lot T2, décision 0052)
 
 - **Lectures typées** (`infra/annuaire/lectures.ts`, règles pures `domaine/annuaire/analyse.ts`) :
   `annuaire_terrain` (médecins, pharmacies, établissements : coordonnées, spécialité, délégué, secteur, **qui couvre**,
@@ -400,3 +400,19 @@ avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `i
 - **Banc** : `infra/testing/audit/taches/annuaire-marketing.ts` (domaine « annuaire-marketing » du banc par domaine : 35 tâches ANN-/MKT-/TER-, vérificateurs en base),
   semis `annuaire-marketing-semis.ts` ; personas `marketing` (Nesrine BOUDIAF) et `delegue_ouest` (Farid ZEROUAL, hors
   secteur). Suite exécutée contre la base : `annuaire-terrain.test.ts`.
+
+## Documents, juridique et Drive (lot T1, décision 0053)
+
+« Ranger parfaitement les documents à leur place, convertir, modifier, checker le Drive, nous donner des documents. »
+- **Ranger** : `ranger_au_juridique` (`infra/operations/juridique.ts`) — 1 à 12 pièces en UNE carte ; nature et dossier
+  canoniques (`domaine/juridique/classement.ts`, pur), dates lues sur la pièce si le modèle ne les a pas, partie résolue à
+  l'annuaire (la société elle-même pour les statuts et PV), entité, lecteurs ; au-delà, une mission (le geste est offert
+  aux travaux). `modifier_fiche_juridique` : échéance, notes, dossier… seuls les champs donnés changent. Exécution par les
+  actions de l'écran, journal J7 (annulable ; une pièce du registre passe ANNULÉE, règle K10b).
+- **Lire et donner** : `registre_juridique` et `bilan_drive` (`infra/juridique/outils.ts`) — porte de l'écran (module,
+  entité, lecteurs désignés : une pièce restreinte n'est jamais nommée) ; le fichier est remis par son lien `/drive/<id>`.
+- **Assembler** : `assembler_pdf` (fusion, extraction de pages — `domaine/juridique/pdf.ts` —, images → PDF), nouveau
+  fichier sous journal J7. Convertir et modifier en place restent l'Atelier (J3).
+- **Banc** : 36 tâches `DOC-` à vérificateur déterministe (`infra/testing/audit/taches/documents.ts`), 5 attaques
+  `DOC-ATK-` (`attaques-documents.ts`), le semis (`semis-documents.ts`), la persona « juriste ». Exécuté puis annulé contre
+  la base : `documents-t1.test.ts`.

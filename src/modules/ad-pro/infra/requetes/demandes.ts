@@ -272,7 +272,7 @@ export async function getAdProCreateData(userId: string, kinds: readonly AdProKi
 }
 
 /**
- * LES DÉPENSES AD & PRO D'UNE PÉRIODE, ligne à ligne (lot T2, décision 0051) — la matière des analyses marketing
+ * LES DÉPENSES AD & PRO D'UNE PÉRIODE, ligne à ligne (lot T2, décision 0052) — la matière des analyses marketing
  * (par BU, produit, nature, mois, demandeur) de l'Assistant IA. MÊMES DROITS que la liste unifiée (`demandes.ts`) :
  * chaque nature n'est lue que si la personne a son module, sous la portée de ses lignes et la portée d'entité.
  * Montant retenu : accordé, sinon proposé, sinon demandé (sponsoring) ; final, sinon estimé (congrès national).

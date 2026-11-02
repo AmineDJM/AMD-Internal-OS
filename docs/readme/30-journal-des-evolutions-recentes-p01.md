@@ -22,7 +22,7 @@ bloquées. Décision [0051](../assistant/decisions/0051-dossiers-moyens-generaux
 Direction, 02/11 : « analyser le marketing, modifier les annuaires, des tâches longues sur l'annuaire, demander aux délégués
 les stocks… ». Banc réel de 35 tâches nouvelles (`ANN-`, `MKT-`, `TER-`), chacune prouvée EN BASE par un vérificateur :
 **avant 2 réussies sur 19 jouées** (plafond atteint), **après 27 / 35** au passage complet, puis les 8 échecs corrigés dans
-le code et réussis au rejeu ciblé (35 / 35 au moins une fois ; un passage complet reste à rejouer). Décision [0051](../assistant/decisions/0051-annuaires-marketing-terrain.md). **Lectures** : `annuaire_terrain`
+le code et réussis au rejeu ciblé (35 / 35 au moins une fois ; un passage complet reste à rejouer). Décision [0052](../assistant/decisions/0052-annuaires-marketing-terrain.md). **Lectures** : `annuaire_terrain`
 (qui couvre une pharmacie, panel sans téléphone, comptes exacts), `visites_terrain` (qui a vu qui, quand, couverture en %),
 `depenses_marketing` (Ad & Pro par BU / produit / mois, comparaison, graphique et Excel par K1 ; lue par le module `ad-pro`).
 **Gestes** : `maj_annuaire` (une ou N fiches, depuis un Excel, avant → après), `fusionner_doublons_annuaire` (toute une
@@ -33,6 +33,18 @@ registre ; résolution des noms par mots (« Dr Karima BENSALEM ») ; **défauts
 e-mail, secteur, société et délégué absents du formulaire ; l'ajout d'une ligne d'annuaire perdait le téléphone ; `modifierFournisseurAnnuaire` remplaçait la fiche entière ;
 `createInstitution` rangeait « Pharmacie … » en « Autre » ; le grade « Dr » était refusé. RBAC inchangé ; un délégué hors
 secteur ne voit ni ne modifie la fiche ni la visite d'un autre panel (testé au banc et contre la base).
+
+### T1 — ADVENTUM IA RANGE, CONVERTIT, MODIFIE, RETROUVE ET DONNE LES DOCUMENTS, À LEUR PLACE (2026-11-02)
+
+« Ranger des documents dans légal, convertir, modifier, checker le drive, nous donner des documents » (Direction, 02/11).
+**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 12 pièces ou un dossier du Drive ; nature et dossier
+canoniques, dates lues sur la pièce, partie de l'annuaire, avenant créé sur son contrat) et **mettre à jour une fiche**
+(`modifier_fiche_juridique`) — par les actions de l'écran, annulables (J7/K10b). **Lire et donner** : `registre_juridique`
+(« le dernier contrat de X », échéances, dossiers ; le fichier remis par son lien, pièce restreinte jamais nommée) et
+`bilan_drive` (doublons, vrac, pièces à ranger, expirées, non classées). **Assembler** : `assembler_pdf` (fusion, extraction
+de pages, images → PDF). Conversions de secours sans worker (PDF → Excel, image → PDF), fichier désigné par ses mots.
+Banc `DOC-` : 36 tâches à vérificateur déterministe + 5 attaques, persona « juriste » — rejeu réel 2,53 $ : 19/30 au premier
+passage, 36/36 au dernier, 5/5 attaques bloquées. Décision [0053](../assistant/decisions/0053-documents-juridique-drive.md).
 
 ### S1 bis — L'IDENTITÉ NE S'APPREND PAS : « C'EST AMINE QUI ÉCRIT » NE DEVIENT PLUS UN PRÉNOM RETENU (2026-11-02)
 

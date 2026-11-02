@@ -1,5 +1,5 @@
 /**
- * LE BANC D'AUDIT — LOT T2 (décision 0051) : les constantes PURES partagées par le semis (`annuaire-marketing-semis.ts`,
+ * LE BANC D'AUDIT — LOT T2 (décision 0052) : les constantes PURES partagées par le semis (`annuaire-marketing-semis.ts`,
  * qui écrit en base) et le catalogue des tâches (`annuaire-marketing.ts`, pur) — aucun import.
  */
 export const TEMOIN_VISITE = "QZ-VISITE-YAN-7731";

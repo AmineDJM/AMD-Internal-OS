@@ -17,7 +17,7 @@ export const PERSONAS_CLES = [
   "commercial", "delegue", "manager", "rh", "finance", "assistante", "kam", "regulatory", "superadmin", "vue_exacte",
   // Les tâches de domaine (lots T1–T3, 02/11) : la juriste, le responsable des moyens généraux, la responsable marketing.
   "juriste", "moyens_generaux", "marketing",
-  // Lot T2 (annuaires, marketing, terrain — décision 0051) : un délégué d'un AUTRE secteur (refus hors secteur).
+  // Lot T2 (annuaires, marketing, terrain — décision 0052) : un délégué d'un AUTRE secteur (refus hors secteur).
   "delegue_ouest",
 ] as const;
 export type PersonaCle = (typeof PERSONAS_CLES)[number];

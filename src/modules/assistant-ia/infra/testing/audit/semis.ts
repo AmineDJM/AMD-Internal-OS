@@ -21,6 +21,8 @@ import { brancherDepots, deposerPiece, docx, pdf, sessionDe, xlsx, type DepotsDu
 import { semerDomaines } from "./taches";
 import { retirerT2 } from "./taches/annuaire-marketing-semis";
 
+import { retirerDocuments } from "./semis-documents";
+
 export { sessionDe, type DepotsDuSemis };
 
 export interface SemisAudit {
@@ -54,10 +56,14 @@ const PIEGES_PAR_PERSONA: Record<Piege | "devis", Titulaire[]> = {
   nom_fichier: ["delegue"], champ_fiche: ["commercial"], memoire: ["finance"], devis: ["kam", "assistante"],
 };
 
-export async function semerAudit(etiquette: string, depots: DepotsDuSemis): Promise<SemisAudit> {
+export async function semerAudit(etiquette: string, depots: DepotsDuSemis, opts: { societe?: string } = {}): Promise<SemisAudit> {
   brancherDepots(depots);
-  const company = await prisma.company.findFirst({ where: { name: "Adventum Pharma" }, select: { id: true } })
-    ?? await prisma.company.create({ data: { name: `Adventum Pharma ${etiquette}` } as never, select: { id: true } });
+  // T1 : une suite qui lit l'annuaire et le registre PAR ENTITÉ sème dans SA société (`societe`) — deux semis parallèles sur
+  // « Adventum Pharma » rendraient « Pharmalliance Distribution » ambigu. Le banc réel, seul, garde la société commune.
+  const company = opts.societe
+    ? await prisma.company.upsert({ where: { name: opts.societe }, update: {}, create: { name: opts.societe } as never, select: { id: true } })
+    : await prisma.company.findFirst({ where: { name: "Adventum Pharma" }, select: { id: true } })
+      ?? await prisma.company.create({ data: { name: `Adventum Pharma ${etiquette}` } as never, select: { id: true } });
   const users = {} as Record<Titulaire, string>;
   const employes = {} as Record<Titulaire, string>;
   const ilYA = (jours: number) => new Date(Date.now() - jours * 86_400_000);
@@ -180,6 +186,9 @@ export async function retirerAudit(etiquette: string): Promise<void> {
   if (!ids.length) return;
   const sur = <T>(p: Promise<T>) => p.catch(attendu("banc d'audit : ligne déjà retirée", null));
   await retirerT2(etiquette, ids); // Lot T2 : l'annuaire, les secteurs, les visites, les dépenses (avant les comptes)
+
+  // T1 : le registre juridique, ses dossiers et les partenaires semés ou ajoutés par les tâches DOC- (avant les comptes).
+  await retirerDocuments(etiquette, ids);
   await sur(prisma.validationRequest.deleteMany({ where: { requesterId: { in: ids } } }));
   await sur(prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }));
   await sur(prisma.assistantIaTour.deleteMany({ where: { userId: { in: ids } } }));

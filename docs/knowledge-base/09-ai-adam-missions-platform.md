@@ -5,6 +5,28 @@
 > Tests were NOT run (the vitest `globalSetup` touches Postgres); test outcomes below are derived
 > statically from the test source plus a read-only run of the boundary scanner (`scripts/adam-boundary.ts`).
 
+> **Update 2026-11-02 — lot T1, documents / juridique / Drive** (decision record
+> `docs/assistant/decisions/0053-documents-juridique-drive.md`) [V]:
+> - **Operations** (`src/modules/assistant-ia/infra/operations/juridique.ts`, in `OPERATIONS_IA`, journaled J7 like every
+>   operation): `ranger_au_juridique` (1–12 Drive files or a whole Drive folder → `LegalDocument` rows in ONE card; kind and
+>   folder from the pure `domaine/juridique/classement.ts`; dates read locally from the file when the model gave none;
+>   party resolved in the directory — the group company itself for statutes / minutes; executes the screen actions
+>   `createLegalFolder` / `createCompanyContact` / `createLegalDocument` / `moveLegalDocuments`) and `modifier_fiche_juridique`
+>   (full-form `updateLegalDocument`, only the given fields change). Undo follows K10b: created legal rows become CANCELLED.
+> - **Tools** (`infra/juridique/outils.ts`): `registre_juridique` (legal register search / expiries / `dernier`, gate =
+>   `legalReaderWhere` + company scope + `accesAuxPiecesLegal(VIEW)`; returns `/drive/<id>` links only when the file is
+>   Drive-readable), `bilan_drive` (duplicates by blob, root clutter, legal-looking files not filed, expired / expiring /
+>   unfiled legal rows), `assembler_pdf` (mupdf graft merge / page extraction, pdfkit images → PDF, under `journaliserGeste`,
+>   excluded from routines and missions via `ECRITURES_DU_MOTEUR`).
+> - **Capability offer**: `capacitesOffertes` now drops `legal-actions:attachDriveNodeToLegal` and
+>   `legal-folder-actions:moveLegalDocuments` when `ranger_au_juridique` is open to the person (`SUPPLANTEES`, `infra/capacites.ts`).
+> - **Shared resolution**: `resolveDriveFile` (`src/platform/ia/drive.ts`) also matches a name without its extension and,
+>   as a last resort, by all significant words (accent-insensitive) among own + shared files. `ENREGISTRER_ATELIER` takes the
+>   only dirty Atelier tab when no document is named. Conversion PDF → XLSX has a MAISON fallback (`pdfEnClasseur`,
+>   `src/lib/office/conversions-atelier.ts`) when no engine runs.
+> - **Bench**: 36 `DOC-` tasks with deterministic `verifier` (new `Tache` field, run by `scripts/bench/audit-assistant/jouer.ts`),
+>   5 `DOC-ATK-` attacks, `semis-documents.ts`, new persona `juriste`; executed + undone against the DB in `documents-t1.test.ts`.
+
 > **Update 2026-10-29 — lot J0, Adam / Assistant IA / AI socle separation** (decision record
 > `docs/assistant/decisions/0013-jarvis-architecture.md`, map `docs/architecture/MODULES.md` §7) [V]:
 > - **Three perimeters.** *Adam* = `src/lib/assistant.ts`, `src/lib/assistant/**`, `src/lib/assistant-*.ts`, the bridge
@@ -905,7 +927,7 @@ Gotchas [V]:
 
 ## T2 (2026-11-02) — annuaires, marketing et terrain par l'Assistant IA [V]
 
-Decision [0051](../assistant/decisions/0051-annuaires-marketing-terrain.md). **Reads** (`modules/assistant-ia/infra/annuaire/lectures.ts`):
+Decision [0052](../assistant/decisions/0052-annuaires-marketing-terrain.md). **Reads** (`modules/assistant-ia/infra/annuaire/lectures.ts`):
 `annuaire_terrain` (doctors under `scopeMedicalDoctors` or the console-opened directory; institutions under `peutAnnuaire`;
 coverage = `SalesSectorInstitution` → `SalesSectorRep`), `visites_terrain` (`scopeMedicalVisits`), `depenses_marketing`
 (Ad & Pro per BU / product / nature / month, each nature behind its module + row scope, like `getAdProRequests`).

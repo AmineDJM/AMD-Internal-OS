@@ -53,12 +53,14 @@ describe("outils V1", () => {
       "taches_equipe",
       // J4 : la connaissance de l'entreprise (Bibliothèque, faits confirmés — `platform/ia/lectures/connaissance.ts`).
       "chercher_documents", "ouvrir_documents", "faits_confirmes",
-      // T2 (décision 0051) : l'annuaire médical et sa couverture, les visites, les dépenses marketing.
+      // T2 (décision 0052) : l'annuaire médical et sa couverture, les visites, les dépenses marketing.
       "annuaire_terrain", "visites_terrain", "depenses_marketing",
       // J9 : le graphe de l'entreprise et les faits datés (`platform/ia/lectures/graphe.ts`).
       "explorer_relations", "etat_a_une_date", "d_ou_vient", "recette_pour",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
+      // T1 (décision 0053) — le registre juridique, le bilan du Drive, l'assemblage de PDF.
+      "registre_juridique", "bilan_drive", "assembler_pdf",
       // J8 — les demandes reçues du travail d'un collègue (la réponse est une opération, `preparer_reponse_demande`).
       "mes_demandes_recues",
       // « Mes notes » (décision 0026) : lire, et PROPOSER des modifications que la personne accepte.

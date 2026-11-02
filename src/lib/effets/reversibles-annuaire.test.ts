@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LOT T2 (décision 0051) — L'ANNUAIRE TENU EN LOT, RÉVERSIBLE : `appliquerLotAnnuaire` et
+ * LOT T2 (décision 0052) — L'ANNUAIRE TENU EN LOT, RÉVERSIBLE : `appliquerLotAnnuaire` et
  * `fusionnerEtablissementsAnnuaire` EXÉCUTÉES au clic de l'écran (`actionReversible`), puis ANNULÉES contre la base locale
  * — tout le lot d'un coup — puis RÉTABLIES.
  * ═══════════════════════════════════════════════════════════════════════════════════════════

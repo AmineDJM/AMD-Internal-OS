@@ -144,7 +144,7 @@ export function classerExclusionsCircuits(): void {
     "fournisseurs-annuaire-actions:creerFournisseurAnnuaire", "fournisseurs-annuaire-actions:modifierFournisseurAnnuaire",
     "fournisseurs-annuaire-actions:retirerFournisseurAnnuaire", "directory-actions:updateDirectoryEndpoint",
   ]);
-  X("L'ANNUAIRE TENU EN LOT (lot T2, décision 0051) : mettre à jour N fiches, fusionner des doublons d'établissements. "
+  X("L'ANNUAIRE TENU EN LOT (lot T2, décision 0052) : mettre à jour N fiches, fusionner des doublons d'établissements. "
     + "C'est l'Assistant IA (Adventum IA) qui les prépare — carte « avant → après », un geste annulable d'un coup — et "
     + "chaque ligne repasse par l'action de l'écran qui la garde. Adam est en pause de développement (Super Admin seul).", [
     "fournisseurs-annuaire-actions:appliquerLotAnnuaire", "fournisseurs-annuaire-actions:fusionnerEtablissementsAnnuaire",

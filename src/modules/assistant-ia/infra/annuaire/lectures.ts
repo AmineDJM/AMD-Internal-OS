@@ -12,7 +12,7 @@ import {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * L'ANNUAIRE, LE TERRAIN ET LE MARKETING, LUS PAR L'ASSISTANT (lot T2, décision 0051).
+ * L'ANNUAIRE, LE TERRAIN ET LE MARKETING, LUS PAR L'ASSISTANT (lot T2, décision 0052).
  *
  * Mesuré au banc (02/11) : « qui couvre la pharmacie Ibn Sina ? », « quel délégué a vu le Dr Mansouri en dernier ? »,
  * « nos dépenses Ad & Pro par BU » restaient sans réponse — aucune lecture ne portait la COUVERTURE (secteur → délégués),

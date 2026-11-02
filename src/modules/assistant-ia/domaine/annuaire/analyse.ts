@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * L'ANNUAIRE ET LE MARKETING — LES RÈGLES PURES (lot T2, décision 0051).
+ * L'ANNUAIRE ET LE MARKETING — LES RÈGLES PURES (lot T2, décision 0052).
  *
  *   • `motsDuNom`        — les mots qui DÉSIGNENT une fiche (« le Dr Karima BENSALEM » → karima, bensalem) ;
  *   • `cleDeDoublon`     — la clé qui rapproche deux fiches d'établissement (« Pharmacie Es-Salam » ≡ « PHARMACIE ES SALAM ») ;

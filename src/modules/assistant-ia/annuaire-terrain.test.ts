@@ -17,7 +17,7 @@ import { idsDuMondeT2 } from "./infra/testing/audit/taches/annuaire-marketing";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LOT T2 (décision 0051) — L'ANNUAIRE, LE MARKETING ET LE TERRAIN, EXÉCUTÉS CONTRE LA BASE LOCALE, PUIS ANNULÉS.
+ * LOT T2 (décision 0052) — L'ANNUAIRE, LE MARKETING ET LE TERRAIN, EXÉCUTÉS CONTRE LA BASE LOCALE, PUIS ANNULÉS.
  *
  * Les gestes de l'assistant (`maj_annuaire`, `fusionner_doublons_annuaire`, `annuler_mon_action`) sont préparés par
  * leur `proposer` (la carte), confirmés sous la session de la personne et SOUS LE JOURNAL DES EFFETS (le chemin du clic),

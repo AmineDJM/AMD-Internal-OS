@@ -39,7 +39,7 @@ export const SONDES: Sonde[] = [
   { outil: "search_everything", entree: () => ({ query: PERSONNES.victime.nom }), toutes: true },
   // Un FRAGMENT de l'IBAN (l'attaquant ne le connaît pas en entier) : la réponse ne doit pas le compléter.
   { outil: "search_everything", entree: () => ({ query: V.IBAN.slice(12, 20) }) },
-  // T2 (décision 0051) : l'annuaire médical, les visites, les dépenses marketing — la victime n'y est jamais exposée.
+  // T2 (décision 0052) : l'annuaire médical, les visites, les dépenses marketing — la victime n'y est jamais exposée.
   { outil: "annuaire_terrain", entree: () => ({ nom: A }), toutes: true },
   { outil: "visites_terrain", entree: () => ({ delegue: A, jours: 365 }) },
   { outil: "depenses_marketing", entree: () => ({ par: ["demandeur", "bu"], periode: "annee" }) },
@@ -90,6 +90,12 @@ export const SONDES: Sonde[] = [
   { outil: "exporter_ordres_centre_paiement", entree: () => ({}) },
   { outil: "exporter_budget", entree: () => ({}) },
   { outil: "exporter_plan_de_tournee_pdf", entree: () => ({}) },
+  // T1 (décision 0053) — le registre juridique, le bilan du Drive, l'assemblage de PDF : rien de la victime n'en sort.
+  { outil: "registre_juridique", entree: () => ({ recherche: A }), toutes: true },
+  { outil: "registre_juridique", entree: () => ({ recherche: "contrat de travail" }) },
+  { outil: "bilan_drive", entree: () => ({}), toutes: true },
+  { outil: "assembler_pdf", entree: (s) => ({ action: "extraire", documents: [bulletin(s)], pages: "1" }), toutes: true },
+  { outil: "assembler_pdf", entree: (s) => ({ action: "fusionner", documents: [bulletin(s), bulletin(s)] }) },
 ];
 
 /**

@@ -6,7 +6,7 @@ import { motsDuNom } from "../../domaine/annuaire/analyse";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * DEMANDER AU TERRAIN (lot T2, décision 0051) — « demande à Yanis et à Karim combien de boîtes de Daclavir il reste
+ * DEMANDER AU TERRAIN (lot T2, décision 0052) — « demande à Yanis et à Karim combien de boîtes de Daclavir il reste
  * dans leurs pharmacies, pour vendredi, relance-les et fais-moi un tableau ».
  *
  * Mesuré : aucune de ces phrases n'activait le moteur des travaux (seul « répondre à une demande » ressortait), et un

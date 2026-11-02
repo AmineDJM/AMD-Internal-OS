@@ -280,7 +280,7 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
   // La pièce jointe : le devis du socle (celui de la persona), ou une pièce semée par un domaine (clé de `s.pieces`).
   const piece = t.piece === "devis" ? await pieceDe(s, COMPTE_JOUE[t.persona], "Devis Imprimerie Atlas DV-2026-0457.pdf") : t.piece ? s.pieces[t.piece] ?? null : null;
   const pieces = piece ? [piece] : [];
-  // Lot T2 (décision 0051) : les fiches de la tâche remises dans leur état initial — le banc se rejoue.
+  // Lot T2 (décision 0052) : les fiches de la tâche remises dans leur état initial — le banc se rejoue.
   if (t.preparer) await t.preparer();
   let questions = 0;
   const { echanges, joues } = await conversation(s, t.persona, user, t.tours, {

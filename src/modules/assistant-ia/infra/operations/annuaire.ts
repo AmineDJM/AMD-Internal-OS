@@ -11,7 +11,7 @@ import { porteeMedecins, voitAnnuaire, voitEtablissements } from "../annuaire/le
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * TENIR L'ANNUAIRE (lot T2, décision 0051) — trois gestes typés, une carte chacun, exécutés par l'ERP.
+ * TENIR L'ANNUAIRE (lot T2, décision 0052) — trois gestes typés, une carte chacun, exécutés par l'ERP.
  *
  * Mesuré au banc (02/11, 2 tâches réussies sur 19) : « mets à jour le téléphone du Dr Karima BENSALEM » finissait sur
  * « Dr Karima BENSALEM n'est pas dans votre périmètre » (le nom entier ne se trouvait pas), « l'adresse de la pharmacie
