@@ -196,6 +196,8 @@ export function lirePlan(brut: unknown, catalogue: CatalogueTravail): { ok: true
 
   const lectures = new Set(catalogue.lectures.map((l) => l.nom));
   const gestesCat = new Map(catalogue.gestes.map((g) => [g.nom, g]));
+  /** Les noms ouverts, bornés — pour qu'une faute d'outil se corrige sans deviner. */
+  const noms = (xs: ReadonlySet<string> | ReadonlyMap<string, unknown>) => { const l = [...xs.keys()].sort(); return l.length > 60 ? `${l.slice(0, 60).join(", ")}…` : l.join(", ") || "aucun"; };
   const etapes: EtapeTravail[] = [];
   const vues = new Set<string>();
 
@@ -224,13 +226,15 @@ export function lirePlan(brut: unknown, catalogue: CatalogueTravail): { ok: true
     switch (type) {
       case "LECTURE": {
         const outil = txt(e.outil, 80);
-        if (!lectures.has(outil)) fautes.push(`${nom} : lecture « ${outil} » inconnue ou non ouverte à cette personne.`);
+        // L'outil manquant ou inconnu se corrige par les NOMS ouverts (banc T1, DOC-11 : un plan aux étapes sans outil était
+        // refusé sans dire lesquels existent, et le modèle abandonnait au lieu de le corriger).
+        if (!lectures.has(outil)) fautes.push(`${nom} : lecture « ${outil} » ${outil ? "inconnue ou non ouverte à cette personne" : "manquante (champ « outil »)"} — lectures ouvertes : ${noms(lectures)}.`);
         etape.outil = outil;
         break;
       }
       case "GESTE": {
         const outil = txt(e.outil, 80);
-        if (!gestesCat.has(outil)) fautes.push(`${nom} : geste « ${outil} » inconnu ou fermé à cette personne (familles de la console).`);
+        if (!gestesCat.has(outil)) fautes.push(`${nom} : geste « ${outil} » ${outil ? "inconnu ou fermé à cette personne (familles de la console)" : "manquant (champ « outil »)"} — gestes ouverts : ${noms(gestesCat)}.`);
         etape.outil = outil;
         break;
       }

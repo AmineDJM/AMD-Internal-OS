@@ -38,9 +38,9 @@ import { resoudrePiece } from "./pieces";
 const MOTS_VIDES = new Set(["les", "des", "une", "pour", "avec", "dans", "sur", "fiche", "piece", "document", "juridique", "registre", "mon", "mes", "son", "ses"]);
 
 /** Au-delà, la carte deviendrait illisible : le reste se range en mission (lot). */
-export const PIECES_PAR_CARTE = 12;
+export const PIECES_PAR_CARTE = 30;
 /** La lecture des pièces sans dates données coûte : bornée par carte. */
-const LECTURES_MAX = 8;
+const LECTURES_MAX = 30;
 
 interface PieceARanger {
   driveNodeId: string;
@@ -113,7 +113,7 @@ async function entiteDe(user: CurrentUser, nom: string): Promise<{ id: string; n
 }
 
 /**
- * UN DOSSIER DU DRIVE, rangé d'un coup (banc DOC-10 : « toutes les pièces de mon dossier À classer ») : ses fichiers (≤ 12,
+ * UN DOSSIER DU DRIVE, rangé d'un coup (banc DOC-10 : « toutes les pièces de mon dossier À classer ») : ses fichiers (≤ 30,
  * sous-dossiers exclus) deviennent les pièces du lot — un dossier de la personne ou partagé avec elle, droits revérifiés
  * pièce par pièce par `resoudrePiece`.
  */
@@ -141,7 +141,17 @@ async function fichiersDuDossierDrive(user: CurrentUser, nom: string, explicite:
  */
 async function pieceDesignee(user: CurrentUser, ref: string, nature: string): Promise<{ id: string; nom: string; hypothese?: string } | { erreur: string }> {
   const p = await resoudrePiece(user, ref);
-  if (!("erreur" in p) || !/Plusieurs/.test(p.erreur)) return p;
+  if (!("erreur" in p)) return p;
+  // UNE PIÈCE DÉJÀ AU REGISTRE, désignée par SON TITRE (banc DOC-14 : « la police d'assurance flotte automobile », dont le
+  // fichier s'appelle « Police flotte automobile SAA.pdf ») : la fiche lisible, et son fichier s'il se voit au Drive.
+  if (!/Plusieurs/.test(p.erreur)) {
+    const f = await ficheJuridique(user, ref);
+    if ("erreur" in f) return p;
+    if (!f.fiche.driveNodeId) return { erreur: `la fiche « ${f.fiche.title} » est au registre sans fichier : pour la classer, modifier_fiche_juridique avec son nouveau \`dossier\`.` };
+    const n = await resoudrePiece(user, f.fiche.driveNodeId);
+    return "erreur" in n ? { erreur: `la fiche « ${f.fiche.title} » est au registre, mais son fichier ne vous est pas lisible au Drive : modifier_fiche_juridique la classe sans lui.` }
+      : { ...n, hypothese: `« ${ref} » : la pièce du registre « ${f.fiche.title} » (fichier « ${n.nom} »).` };
+  }
   const voulu = familleDe(nature, ref);
   let c = await candidatsParLesMots(user, ref);
   if (voulu) c = c.filter((x) => (familleDe(x.name) ?? FAMILLE_PAR_DEFAUT).cle === voulu.cle);
@@ -372,10 +382,10 @@ export const RANGER_JURIDIQUE: OperationIA = {
   libelle: "Rangement juridique préparé",
   description:
     "RANGE une ou plusieurs pièces du Drive (ou glissées dans la conversation) AU REGISTRE JURIDIQUE, à leur place : contrat, avenant, "
-    + "statuts, PV, agrément, AMM, licence, assurance, bail, convention, NDA, devis, attestation. Une SEULE carte pour tout le lot (≤ 12) : "
+    + "statuts, PV, agrément, AMM, licence, assurance, bail, convention, NDA, devis, attestation. Une SEULE carte pour tout le lot (≤ 30), aussi en GESTE d'une mission : "
     + "nature et dossier canoniques, dates (donne-les si tu les as lues ; sinon elles sont lues sur la pièce), partie résolue à l'annuaire, "
     + "entité. Un dossier entier du Drive : `dossierDrive`. Le fichier reste dans le Drive. N'invente aucune date : laisse vide ce que tu n'as pas lu. "
-    + "Plus de 12 pièces seulement : une mission.",
+    + "Plus de 30 pièces : une mission par paquets.",
   schema: {
     type: "object",
     properties: {
@@ -399,7 +409,7 @@ export const RANGER_JURIDIQUE: OperationIA = {
           required: ["fichier"],
         },
       },
-      dossierDrive: { type: "string", description: "Un DOSSIER du Drive dont toutes les pièces (≤ 12) sont à ranger d'un coup — en UNE carte, sans mission." },
+      dossierDrive: { type: "string", description: "Un DOSSIER du Drive dont toutes les pièces (≤ 30) sont à ranger d'un coup — en UNE carte." },
       dossier: { type: "string", description: "Un dossier de classement Juridique commun à toutes les pièces (facultatif)." },
       entite: { type: "string", description: "La société du groupe concernée (facultatif, sinon celle de la personne)." },
       lecteurs: { type: "string", description: "Restreindre la lecture à ces collègues (noms, séparés par des virgules) — facultatif." },
@@ -413,7 +423,7 @@ export const RANGER_JURIDIQUE: OperationIA = {
 // ───────────────────────────── Mettre à jour une fiche juridique ─────────────────────────────
 
 interface FicheLue {
-  id: string; title: string; kind: string; reference: string | null; counterpartyIds: string[]; startDate: Date | null; endDate: Date | null;
+  id: string; title: string; driveNodeId: string | null; kind: string; reference: string | null; counterpartyIds: string[]; startDate: Date | null; endDate: Date | null;
   notes: string | null; amount: unknown; folderId: string | null; chainFromId: string | null; direction: string | null; paidDate: Date | null;
 }
 

@@ -404,7 +404,7 @@ avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `i
 ## Documents, juridique et Drive (lot T1, décision 0053)
 
 « Ranger parfaitement les documents à leur place, convertir, modifier, checker le Drive, nous donner des documents. »
-- **Ranger** : `ranger_au_juridique` (`infra/operations/juridique.ts`) — 1 à 12 pièces en UNE carte ; nature et dossier
+- **Ranger** : `ranger_au_juridique` (`infra/operations/juridique.ts`) — 1 à 30 pièces en UNE carte ; nature et dossier
   canoniques (`domaine/juridique/classement.ts`, pur), dates lues sur la pièce si le modèle ne les a pas, partie résolue à
   l'annuaire (la société elle-même pour les statuts et PV), entité, lecteurs ; au-delà, une mission (le geste est offert
   aux travaux). `modifier_fiche_juridique` : échéance, notes, dossier… seuls les champs donnés changent. Exécution par les
