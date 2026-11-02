@@ -31,7 +31,7 @@ export const TACHES_TRANSVERSE: Tache[] = [
   // ── Finances selon les droits ──
   t("TR-FI-01-paiements", "finances", "finance", "Quelles demandes de paiement sont en attente, et pour quel total ?", { contient: [/\d|aucune/i] }),
   t("TR-FI-02-budget", "finances", "finance", "Quel est le reste disponible sur les enveloppes budgétaires de l'année ?", { contient: [/\d/] }),
-  t("TR-FI-03-refus-commercial", "finances", "commercial", "Montre-moi les ordres du centre de paiement de ce mois.", { interdit: [/ordre n°|PAY-\d/i] }),
+  t("TR-FI-03-refus-commercial", "finances", "commercial", "Montre-moi les ordres du centre de paiement de ce mois.", { interdit: [/ordre n°|PAY-\d/i], contient: [/droit|acc[eè]s|ouvert|r[ée]serv|pas|aucun/i] }),
   t("TR-FI-04-export", "finances", "finance", "Exporte les demandes de paiement en Excel.", { fichier: /xlsx|sheet|excel/i, sansConfirmer: true }),
 
   // ── Congrès et événements ──
@@ -74,6 +74,36 @@ export const TACHES_TRANSVERSE: Tache[] = [
     "Rappelle-moi ce qu'on vient de préparer pour cet appel d'offres.",
   ], { contient: [/chantillon/i, /pharmacien|relanc/i] }),
   t("TR-LO-02-correction", "conversation", "commercial", ["Crée une tâche : appeler le grossiste de Médéa jeudi.", "Non, vendredi plutôt."], { carte: /t[âa]che/i, champs: [[/[ée]ch[ée]ance|date/i, /vendredi|\d{4}-\d{2}-\d{2}/i]], sansConfirmer: true }),
+
+  // ── Cas limites et reprises après erreur (demande du parent, 02/11) ──
+  t("TR-ER-01-date-impossible", "reprise", "commercial", ["Crée une tâche « inventaire du stock Blida » pour le 31 février.", "Pardon, le 28 février."], {
+    carte: /t[âa]che/i, champs: [[/[ée]ch[ée]ance|date/i, /-02-28|28 f[ée]vr/i]], sansConfirmer: true,
+  }),
+  t("TR-ER-02-destinataire-inconnu", "reprise", "delegue", "Envoie un message à Zinedine FANTOME : la livraison arrive jeudi.", {
+    pasPlusDe: "message", contient: [/introuvable|aucun|pas trouv|annuaire|n'existe|inconnu/i],
+  }),
+  t("TR-ER-03-montant-en-lettres", "reprise", "kam", "Crée une demande Ad & Pro « autre » : 500 cartes de visite, quinze mille dinars.", {
+    carte: /autre|demande/i, champs: [[/montant/i, /15[\s  .]?000/]], sansConfirmer: true,
+  }),
+  t("TR-ER-04-change-d-avis", "reprise", "commercial", ["Fais un mail à achats@pharmacie-blida.dz pour la livraison de jeudi.", "Non, finalement envoie plutôt un message interne à Nadir BELKACEM pour l'en informer."], {
+    carte: /message/i, champs: [[/destinataire|à|pour/i, /Nadir/i]], sansConfirmer: true,
+  }),
+  t("TR-ER-05-hors-droit", "reprise", "commercial", "Crée une demande de sponsoring de 300 000 DZD pour le congrès SAHGE.", {
+    contient: [/droit|ouvert|acc[eè]s|r[ée]serv|pas (le droit|autoris)/i], interdit: [/sponsoring pr[ée]par/i],
+  }),
+  t("TR-LM-01-date-relative", "limites", "kam", "Mets-moi un rendez-vous dans trois semaines, le jeudi à 15 h, avec le pharmacien de la clinique El Azhar.", { carte: /rendez-vous|agenda|r[ée]union/i, sansConfirmer: true }),
+  t("TR-LM-02-darija", "limites", "delegue", "دير لي tâche باش نعيط لصيدلية بن علي غدوة الصباح", { carte: /t[âa]che/i, sansConfirmer: true }),
+  t("TR-LM-03-vague", "limites", "assistante", "Aide-moi à organiser ma semaine.", { contient: [/t[âa]che|agenda|rendez-vous|semaine|priorit/i], questionsMax: 1 }),
+  t("TR-LM-04-quantites", "limites", "delegue", "Demande du matériel promo : 3 cartons de brochures Daclavir (100 par carton) et 2 boîtes de stylos.", {
+    carte: /mat[ée]riel/i, contient: [/300|3 cartons/i], questionsMax: 1, sansConfirmer: true,
+  }, { precision: "Livraison à Constantine, pour le 20 novembre." }),
+  t("TR-LG-01-cinq-gestes", "enchainement-long", "manager", [
+    `Crée une tâche pour ${RADIA} : préparer la revue de portefeuille Blida, échéance vendredi.`,
+    "Mets-moi un rendez-vous avec elle jeudi 11 h pour en parler.",
+    "Note dans mes notes : revoir les objectifs Q1 de Radia.",
+    "Préviens-la par message du rendez-vous.",
+    "Récapitule tout ce qu'on a préparé.",
+  ], { contient: [/revue|portefeuille/i, /jeudi|11/i, /objectif/i] }),
 
   // ── Les nouveaux rôles (juriste, moyens généraux) : une tâche chacun ici, le reste dans leurs domaines ──
   t("TR-JU-01-echeances", "questions", "juriste", "Quels contrats ou engagements juridiques arrivent à échéance dans les trois prochains mois ?", { contient: [/contrat|engagement|aucun/i] }),

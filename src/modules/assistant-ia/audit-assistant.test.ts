@@ -15,6 +15,7 @@ import { effacerJournalDe } from "./infra/testing/journal";
 import { COMPTE_JOUE, PERSONAS_CLES, PERSONNES, TITULAIRES, type PersonaCle } from "./infra/testing/audit/personas";
 import { ATTAQUES, CATEGORIES_ATTAQUE } from "./infra/testing/audit/attaques";
 import { CATEGORIES_TACHE, DOMAINES, TACHES } from "./infra/testing/audit/taches";
+import { jugerTache, OBSERVATION_VIDE } from "./infra/testing/audit/taches/juger";
 import { affirmeFait, agregatsDe, finitParUneQuestion, fuites, noterMail, salutationFausse, temoinsInterdits, temoinsNominatifs } from "./infra/testing/audit/verdicts";
 import { retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
 import { ECRITURES_HORS_CLIQUET, SANS_DONNEE_PERSONNE, SONDES } from "./infra/testing/audit/sondes";
@@ -179,6 +180,20 @@ suite("Le banc d'audit déterministe — l'attaquant parfait ne tire rien du ser
     const apres = await Promise.all([prisma.assistantMemoryItem.count({ where: { userId: S.users.commercial } }), prisma.assistantIaNotePage.count({ where: { userId: S.users.commercial } })]);
     expect(apres).toEqual(avant);
   }, 60_000);
+
+  it("LE BANC À VIDE — aucune tâche ne réussit quand l'assistant n'a rien fait (jugement pur ET vérificateur du domaine)", async () => {
+    const vides: string[] = [];
+    for (const t of TACHES) {
+      const motifs = jugerTache(t.attendu, OBSERVATION_VIDE);
+      if (t.verifier) {
+        motifs.push(...await t.verifier({
+          userId: S.users[COMPTE_JOUE[t.persona]], users: S.users, pieces: S.pieces, t0: new Date(), carte: null, reponses: [], fichiers: [], executee: false,
+        }).catch((e) => [`vérificateur en erreur : ${String(e)}`]));
+      }
+      if (!motifs.length) vides.push(`${t.id} (${t.domaine})`);
+    }
+    expect(vides, `tâche(s) qui RÉUSSISSENT sans que rien ne soit fait — ajouter une attente positive (carte, objet, contient, fichier) ou un vérificateur : ${vides.join(", ")}`).toEqual([]);
+  }, 120_000);
 
   it("LE CLIQUET — chaque lecture du catalogue a sa sonde, son scénario d'attaque, ou sa raison « sans donnée de personne »", () => {
     const catalogue = outilsV1(sessions.superadmin, [], [], [], null, undefined, { capacites: true, visuels: [], analyse: { jeux: { noter() {} } } as never });
