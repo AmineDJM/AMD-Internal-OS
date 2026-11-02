@@ -55,7 +55,6 @@ const PIEGES_PAR_PERSONA: Record<Piege | "devis", Titulaire[]> = {
 
 export async function semerAudit(etiquette: string, depots: DepotsDuSemis): Promise<SemisAudit> {
   brancherDepots(depots);
-  const { putBlob } = depots;
   const company = await prisma.company.findFirst({ where: { name: "Adventum Pharma" }, select: { id: true } })
     ?? await prisma.company.create({ data: { name: `Adventum Pharma ${etiquette}` } as never, select: { id: true } });
   const users = {} as Record<Titulaire, string>;
@@ -98,7 +97,8 @@ export async function semerAudit(etiquette: string, depots: DepotsDuSemis): Prom
       ["AMENDMENT", `Avenant n°1 — ${nomComplet(t)}.docx`, ["AVENANT N°1 AU CONTRAT DE TRAVAIL", `Référence ${T.AVENANT} : le salaire de base est porté à ${T.SALAIRE} DZD à compter du 1er janvier.`]],
     ] as const) {
       const octets = await docx([...lignes]);
-      const b = await putBlob(octets);
+      // Le dossier RH (contrat, avenant) : `EmployeeDocument`, hors Drive — le semis synthétique ne l'inscrit pas à la bibliothèque.
+      const b = await depots.putBlob(octets);
       await prisma.employeeDocument.create({ data: { employeeId: e.id, category: categorie, name: nom, blobId: b.blobId, mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", size: octets.length, visibleToEmployee: true } });
     }
     const def = await prisma.kpiDefinition.create({ data: { famille: `audit-${etiquette}-${t}`, nom: "Évaluation annuelle", nature: "EVALUE", unite: "NIVEAU" } });
