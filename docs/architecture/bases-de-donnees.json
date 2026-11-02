@@ -5033,13 +5033,53 @@
      {
       "cle": "ASSISTANT_IA",
       "libelle": "Assistant IA"
+     },
+     {
+      "cle": "RECETTES",
+      "libelle": "Recettes"
      }
     ],
     "rolesLectureParDefaut": [
-     "SUPER_ADMIN"
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
     ],
     "rolesEcritureParDefaut": [
-     "SUPER_ADMIN"
+     "SUPER_ADMIN",
+     "DIRECTION",
+     "GENERAL_MANAGER",
+     "OPERATIONS_DIRECTOR",
+     "HEAD_OF_REGULATORY",
+     "REGULATORY_ASSISTANT",
+     "HEAD_OF_SALES",
+     "SALES_USER",
+     "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
+     "MEDICAL_DELEGATE",
+     "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
+     "BUSINESS_DEVELOPMENT_MANAGER",
+     "FINANCE_BUDGET_MANAGER",
+     "MEDICAL_INFO_PHARMACIST",
+     "DIRECTION_ASSISTANT",
+     "COORDINATOR",
+     "VIEWER"
     ],
     "famillesIa": [],
     "mecanismes": [

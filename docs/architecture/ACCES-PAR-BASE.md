@@ -8,7 +8,7 @@
 
 > « […] en plus des accès qu'on a normal, un accès par database. »
 
-Aujourd'hui, tous les accès se règlent **module par module** (70 modules, 7 gestes) et **ligne par ligne**. Pour
+Aujourd'hui, tous les accès se règlent **module par module** (71 modules, 7 gestes) et **ligne par ligne**. Pour
 fermer « tout ce qui touche à la paie » à quelqu'un, il faut savoir quels modules, quelles sections, quelles familles
 de l'assistant y mènent — et espérer n'en avoir oublié aucun. Un module comme « Ressources humaines » mène à la fois au
 personnel et à la paie ; à l'inverse, la paie se lit par l'écran RH, par Mon dossier, par l'assistant, par les exports

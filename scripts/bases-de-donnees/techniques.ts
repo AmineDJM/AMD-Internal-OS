@@ -93,7 +93,7 @@ export const BASES_TECHNIQUES: BaseDef[] = [
     raison: "Ce qui fait tourner l'IA : réglages et plafonds, missions et travaux, gestes et leurs effets, base de connaissances, consommation, banc d'essai.",
     sensibilite: "restreint",
     ecritPar: "Adam & Assistant IA (`src/lib/assistant/`, `src/modules/assistant-ia/`, `src/modules/recettes/`, `src/platform/ia/`), Administration › Contrôle de l'IA",
-    modules: ["ADMIN", "ASSISTANT_IA"],
+    modules: ["ADMIN", "ASSISTANT_IA", "RECETTES"],
     famillesIa: [],
     mecanismes: ["Réglages réservés au Super Admin (Administration › IA) ; missions et travaux visibles de leur auteur et participants"],
     tables: {

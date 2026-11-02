@@ -55,7 +55,7 @@ Décompte : **35 tables secrètes**, 188 confidentielles, 279 restreintes, 13 pu
 Une lecture, aujourd'hui, est bornée par une **superposition** de mécanismes, tous **par module ou par ligne**, aucun
 par base :
 
-1. **Modules RBAC** — 70 modules × 7 gestes (voir, créer, modifier, supprimer, valider, exporter, déposer), une matrice
+1. **Modules RBAC** — 71 modules × 7 gestes (voir, créer, modifier, supprimer, valider, exporter, déposer), une matrice
    par rôle (`src/lib/rbac/permissions.ts`), surchargée personne par personne (`UserAccess`, avec une portée
    `ASSIGNED` / `ALL` et des sections), console Administration › Accès.
 2. **Périmètre d'entité** — `UserCompanyAccess` : les sociétés du groupe qu'une personne voit.
@@ -106,7 +106,7 @@ _Généré par `npm run bases:generer` — 515 tables, 29 bases. Ne pas éditer 
 |---|---:|---|---|
 | Comptes, connexions & droits d'accès (`comptes-et-droits`) | 17 | Secret | Administration |
 | Assistant IA — conversations, notes & mémoire personnelles (`ia-conversations`) | 31 | Confidentiel | Assistant IA, My Chief of Staff |
-| IA — moteur, missions, connaissances & réglages (`ia-moteur`) | 56 | Restreint (jusqu'à confidentiel) | Administration, Assistant IA |
+| IA — moteur, missions, connaissances & réglages (`ia-moteur`) | 56 | Restreint (jusqu'à confidentiel) | Administration, Assistant IA, Recettes |
 | Journaux & traçabilité (`journaux`) | 8 | Confidentiel (jusqu'à secret) | Administration |
 | Plateforme, réglages, files & intégrations (`plateforme`) | 22 | Restreint (jusqu'à secret) | Administration, Feedback |
 
@@ -924,9 +924,9 @@ Ce que chaque personne dit à son assistant et ce qu'il retient d'elle : fils, m
 Ce qui fait tourner l'IA : réglages et plafonds, missions et travaux, gestes et leurs effets, base de connaissances, consommation, banc d'essai.
 
 - **Écrite par** : Adam & Assistant IA (`src/lib/assistant/`, `src/modules/assistant-ia/`, `src/modules/recettes/`, `src/platform/ia/`), Administration › Contrôle de l'IA
-- **Modules** : Administration (`ADMIN`), Assistant IA (`ASSISTANT_IA`)
-- **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin
-- **Écriture par défaut** : Super Admin
+- **Modules** : Administration (`ADMIN`), Assistant IA (`ASSISTANT_IA`), Recettes (`RECETTES`)
+- **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Réglementaire, Assistante Réglementaire, Responsable Ventes, Commercial, Responsable Logistique, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Manager Business Development, Responsable Finance / Budget, Pharmacien resp. information médicale, Assistante de Direction, Coordination / Coursier, Lecteur
+- **Écriture par défaut** : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Réglementaire, Assistante Réglementaire, Responsable Ventes, Commercial, Responsable Logistique, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Manager Business Development, Responsable Finance / Budget, Pharmacien resp. information médicale, Assistante de Direction, Coordination / Coursier, Lecteur
 - Réglages réservés au Super Admin (Administration › IA) ; missions et travaux visibles de leur auteur et participants
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
