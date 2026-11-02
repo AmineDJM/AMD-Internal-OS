@@ -1,4 +1,4 @@
-import { classify, G } from "./classement";
+import { classify, G, X } from "./classement";
 
 /**
  * GAP — les actions d'écran RECONNUES, pas encore proposables par le Chief (le catalogue d'ops en
@@ -171,6 +171,14 @@ export function classerTrous(): void {
     "dossier-actions:updateDossierStatus", "dossier-actions:assignDossier", "dossier-actions:postDossierMessage",
     "dossier-actions:linkEmailToDossier", "dossier-actions:createDossierFromTask",
     "dossier-actions:archiveDossier", "dossier-actions:deleteDossierMessage", "dossier-actions:editDossierMessage",
+  ]);
+  // T3 (décision 0051) : portés par l'Assistant IA (Adventum IA) — `maj_dossiers_depuis_tableau`, `enregistrer_moyen_general`,
+  // `reserver_moyen_general` ; Adam (Super Admin, en pause) ne les a pas.
+  X("hors d'Adam : l'Assistant IA (Adventum IA) les porte en opérations typées — dossiers mis à jour en lot depuis un tableau, registre des moyens généraux et ses réservations", [
+    "dossier-actions:mettreAJourDossiersEnLot",
+    "moyens-generaux-registre-actions:creerMoyenGeneral", "moyens-generaux-registre-actions:modifierMoyenGeneral",
+    "moyens-generaux-registre-actions:archiverMoyenGeneral", "moyens-generaux-registre-actions:reserverMoyenGeneral",
+    "moyens-generaux-registre-actions:annulerReservationMoyenGeneral",
   ]);
   G("tâches : répondre/faire/valider POUR SOI (accepter la tâche, déposer le travail)", [
     "task-actions:respondTaskRequest", "task-actions:submitTaskWork", "task-actions:reopenTaskWork",

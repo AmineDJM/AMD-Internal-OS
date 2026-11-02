@@ -129,10 +129,23 @@ export async function demandeParId(user: CurrentUser, nature: NatureDemande, id:
   }
 }
 
+const MOTS_VIDES = new Set(["sponsoring", "congres", "demande", "prise", "charge", "pour", "evenement", "national", "nationale", "international", "internationale", "dans", "fiche", "fiches", "avec"]);
+
 /** UNE demande, ou ce qu'il faut demander : jamais un choix silencieux, jamais un nom invisible. */
 export async function trouverDemande(user: CurrentUser, q: string, nature: string): Promise<DemandeVisible | { manque: string }> {
   if (!q.trim()) return { manque: "la demande visée (sa référence ou son nom)" };
-  const hits = await demandesVisibles(user, q, naturesVoulues(nature));
+  const natures = naturesVoulues(nature);
+  let hits = await demandesVisibles(user, q, natures);
+  // « le sponsoring SAHGE d'Oran » ne se trouve pas d'un bloc : MOT À MOT (lot T3), parmi les mêmes demandes visibles —
+  // celles qui portent TOUS les mots significatifs, sinon celles qui en portent le plus (une seule, ou la question).
+  if (!hits.length) {
+    const mots = [...new Set(replier(q).split(/\s+/).filter((m) => m.length >= 4 && !MOTS_VIDES.has(m)))].slice(0, 5);
+    const pool = new Map<string, DemandeVisible>();
+    for (const m of mots) for (const h of await demandesVisibles(user, m, natures)) pool.set(`${h.nature}:${h.id}`, h);
+    const notes = [...pool.values()].map((h) => ({ h, n: mots.filter((m) => replier(h.libelle).includes(m)).length }));
+    const meilleur = Math.max(0, ...notes.map((x) => x.n));
+    hits = meilleur > 0 ? notes.filter((x) => x.n === meilleur).map((x) => x.h) : [];
+  }
   const exacts = hits.filter((h) => replier(h.libelle).startsWith(replier(q)) || replier(h.libelle).includes(` ${replier(q)}`) || replier(h.libelle) === replier(q));
   if (hits.length === 1) return hits[0]!;
   if (exacts.length === 1) return exacts[0]!;

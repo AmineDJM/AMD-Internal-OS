@@ -1,7 +1,7 @@
 // ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. Voir `npm run actions:contrat`.
 //
 // Chaque entrée est un spécificateur LITTÉRAL : l'empaqueteur les voit tous, et rien n'est
-// chargé avant l'appel. `executer.test.ts` résout les 1304 actions et échoue en
+// chargé avant l'appel. `executer.test.ts` résout les 1310 actions et échoue en
 // nommant celle qui a disparu — c'est le contrôle d'appelant que le compilateur ne fait pas ici.
 
 /** Les exports des morceaux d'une clé découpée, réunis (exports nommés et objet `default` de l'interop CommonJS). */
@@ -140,6 +140,7 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "microsoft-mail-actions": () => import("./microsoft-mail-actions") as unknown as Promise<Record<string, unknown>>,
   "mission-actions": () => import("./mission-actions") as unknown as Promise<Record<string, unknown>>,
   "mission-runtime-actions": () => import("./mission-runtime-actions") as unknown as Promise<Record<string, unknown>>,
+  "moyens-generaux-registre-actions": () => import("@/modules/moyens-generaux/actions") as unknown as Promise<Record<string, unknown>>,
   "my-team-actions": () => import("./my-team-actions") as unknown as Promise<Record<string, unknown>>,
   "natures-moyens-generaux-actions": () => import("./natures-moyens-generaux-actions") as unknown as Promise<Record<string, unknown>>,
   "notification-actions": () => import("./notification-actions") as unknown as Promise<Record<string, unknown>>,

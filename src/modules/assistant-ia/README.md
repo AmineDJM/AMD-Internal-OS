@@ -366,3 +366,15 @@ sonde, son scénario réel ou sa raison « sans donnée de personne »). Réel :
 (`scripts/bench/audit-assistant/`, base de banc), rapport `docs/assistant/preuves/audit/`, et chaque nuit par `qualite.banc`
 (verdict `FUITE` notifié). En Vue exacte, le tour ne lit plus la mémoire, les notes ni les conversations de la personne
 regardée (`infra/fil/tour.ts`).
+
+## Dossiers, moyens généraux, fiches Ad & Pro (lot T3, décision 0051)
+
+« Voici l'Excel, mets à jour les statuts » → `maj_dossiers_depuis_tableau` (`infra/operations/dossiers-excel.ts`, règles
+pures `lib/dossiers/maj-lot.ts`) : lecture serveur, rapprochement contrôlé, carte = aperçu (ambiguës, introuvables,
+lecture seule, erreurs listées), application par l'action de lot `dossier-actions:mettreAJourDossiersEnLot` — UN geste,
+UNE annulation. Le registre des moyens généraux (`MoyenGeneral`, `MoyenGeneralReservation`) : `enregistrer_moyen_general`
+(mise à jour plutôt que doublon), `reserver_moyen_general` (créneau vérifié, alternatives), lectures `lire_dossiers_suivi`
+et `lire_moyens_generaux` (`infra/lectures-dossiers-mg.ts`). Fiches hôtellerie et voyage en lot :
+`preparer_fiches_hotellerie_voyage` (`infra/operations/adpro-fiches-voyage.ts` : contrôles, nuits calculées, doublons,
+poste créé s'il manque). Banc du domaine : `infra/testing/audit/taches/dossiers-mg-adpro.ts` (tâches `DOS-`, `MG-`, `ADP-`
+avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `infra/operations/dossiers-mg-adpro.test.ts`.
