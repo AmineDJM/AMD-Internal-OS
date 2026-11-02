@@ -1,5 +1,21 @@
 ## 🧾 Journal des évolutions récentes
 
+### NEUF DÉFAUTS DU BANC RÉEL CORRIGÉS PAR L'ARCHITECTURE (2026-11-02, lot F2, décision 0057)
+
+Passage réel du 02/11 au soir (224/250, 110/110 attaques bloquées) : les défauts restants venaient du produit.
+- **Voix** : ce qui est DIT et la CONSIGNE au modèle vocal sont deux champs (`pourVoix` / `consigne`). La garde de
+  sortie `sortieOrale` (`platform/ia/voix/dit-et-consigne.ts`) est appliquée au serveur et au navigateur. La consigne
+  part en contexte silencieux, jamais prononcée ni affichée.
+- **RH pour soi** : congé, absence, avance et attestation ne se jugent plus sur les familles RH quand aucun champ ne
+  désigne autrui (`GESTES_POUR_SOI`). Le montant d'une avance n'est plus masqué comme un salaire.
+- **Missions** : le compilateur de plan résout une lecture ou un geste sur le catalogue de la personne (index J4).
+  Une faute liste les noms ouverts. Un tour sans réponse du modèle dit la cause et reprend une fois.
+- **Cartes** : deux cartes indépendantes coexistent (objet comparé, nature = action). Une question ne rend rien caduc.
+  « Annule cette demande » retire la carte non confirmée.
+- **BU** désignée par son nom (entité `business_unit`). **Mail** préparé avec « À » à compléter. **Matériel promo** :
+  un article hors catalogue part en « Autre article » dès la création (`lib/promo-material/article-hors-catalogue.ts`).
+- Preuves : `src/modules/assistant-ia/f2-defauts-banc.test.ts` (base réelle), rejeu ciblé `docs/assistant/preuves/audit/f2/`.
+
 ### « RECETTES » SE MASQUE ET SE GÈRE DANS LA CONSOLE (2026-11-02, lot R1, décision 0054)
 
 Demandé par la Direction le 02/11 : « permets-moi de masquer ou gérer les accès au module 'Recettes' ». Recettes devient le
