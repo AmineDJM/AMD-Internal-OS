@@ -10,6 +10,7 @@ import { canOpenModule } from "./modules-visibility";
 import { lireSessionRevocable, vueDemandee, type CompteDeSession, type OptionsDeSession } from "./session-compte";
 // J8 : un geste métier exécuté HORS requête (worker) porte la personne du geste — consultée AVANT le cookie.
 import { utilisateurDuGeste } from "./effets/geste";
+import { poserIdentiteDonnees } from "@/platform/donnees/contexte";
 
 /**
  * Nom du cookie de « Vue exacte » (impersonation), honoré uniquement pour un Super Admin. Défini dans
@@ -62,7 +63,7 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
   else if (vue) {
     const target = vue.cible;
     const targetAccess = await getAccess(target.id, target.role);
-    return {
+    return noterIdentite({
       id: target.id,
       name: target.name,
       email: target.email,
@@ -72,11 +73,11 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
       sid,
       mustChangePassword: false,
       impersonatedBy: { id: session.user.id, name: session.user.name ?? "Administrateur" },
-    };
+    });
   }
 
   const access = await getAccess(session.user.id, session.user.role);
-  return {
+  return noterIdentite({
     id: session.user.id,
     name: session.user.name ?? "",
     email: session.user.email ?? "",
@@ -90,7 +91,21 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
     sid,
     mustChangePassword: session.user.mustChangePassword ?? false,
     ...(visualise ? { visualise } : {}),
-  };
+  });
+}
+
+/**
+ * D3 (décision 0057) : la personne résolue est aussi celle que la GARDE DES DONNÉES juge pour le reste de la requête
+ * (la personne visualisée pendant un rendu en Vue exacte, le Super Admin réel dans le corps d'une écriture — la même
+ * règle que l'écran). Ses droits de module déjà résolus suffisent : la garde ne relit rien.
+ */
+function noterIdentite(u: CurrentUser): CurrentUser {
+  poserIdentiteDonnees({
+    userId: u.id,
+    roles: [u.role, u.secondaryRole],
+    peut: (module, geste) => u.access.modules.get(module as Module)?.actions.has(geste as Action) ?? false,
+  });
+  return u;
 }
 
 /**

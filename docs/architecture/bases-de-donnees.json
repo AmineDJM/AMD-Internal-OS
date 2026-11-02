@@ -1,5 +1,5 @@
 {
- "schemaModeles": 517,
+ "schemaModeles": 518,
  "bases": [
   {
    "cle": "personnel",
@@ -5508,7 +5508,7 @@
      "Lecture réservée au Super Admin (Administration › Journal, Corbeille) ; l'activité d'un sujet se lit sur sa fiche selon les droits du sujet"
     ]
    },
-   "nombreTables": 8,
+   "nombreTables": 9,
    "tables": [
     {
      "modele": "AuditLog",
@@ -5721,6 +5721,12 @@
     {
      "modele": "IncidentRepete",
      "libelle": "Incident répété",
+     "sensibilite": "confidentiel",
+     "ecritePar": []
+    },
+    {
+     "modele": "ObservationAccesBase",
+     "libelle": "Ce que la garde de l'accès par base aurait refusé (observation)",
      "sensibilite": "confidentiel",
      "ecritePar": []
     },

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { estUnBancDeMesure } from "@/lib/sortie/garde";
+import { extensionGarde } from "@/platform/donnees/garde";
 import { etatDuGeste } from "@/lib/effets/magasin";
 
 /**
@@ -230,10 +231,20 @@ async function transactionEnPlace(tx: Record<string | symbol, unknown>, arg: unk
   return out;
 }
 
+/**
+ * LE CLIENT GARDÉ (D3, décision 0057) — le client de base, plus la garde de l'accès par base. Construit une fois, à la
+ * première requête. Sans évaluateur branché (aucun module ne s'est inscrit : tests, scripts), la garde ne fait
+ * qu'appeler la requête. Pendant un geste d'agent, c'est le client du geste qui parle, comme avant.
+ */
+let garde: PrismaClient | null = null;
+function clientGarde(): PrismaClient {
+  return (garde ??= prismaBrut.$extends(extensionGarde()) as unknown as PrismaClient);
+}
+
 export const prisma: PrismaClient = new Proxy(prismaBrut, {
   get(cible, prop) {
     const geste = clientDuGeste();
-    const source = (geste && prop in geste ? geste : cible) as Record<string | symbol, unknown>;
+    const source = (geste && prop in geste ? geste : clientGarde()) as Record<string | symbol, unknown>;
     if (geste && prop === "$transaction" && typeof geste.$transaction !== "function") {
       return (arg: unknown) => transactionEnPlace(geste, arg);
     }

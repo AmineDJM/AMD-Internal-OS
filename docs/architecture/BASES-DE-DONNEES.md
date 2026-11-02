@@ -69,7 +69,7 @@ par base :
    du coffre et est journalisée (`AccesDonneeSensible`) ; aucun modèle d'IA ne le lit jamais.
 
 <!-- BASES:DEBUT -->
-_Généré par `npm run bases:generer` — 517 tables, 29 bases. Ne pas éditer à la main._
+_Généré par `npm run bases:generer` — 518 tables, 29 bases. Ne pas éditer à la main._
 
 ### Bases métier (381 tables)
 
@@ -100,14 +100,14 @@ _Généré par `npm run bases:generer` — 517 tables, 29 bases. Ne pas éditer 
 | Pilotage, KPI & intelligence de direction (`pilotage`) | 20 | Confidentiel (jusqu'à secret) | KPI & bilans, Adventum Brain, Process Intelligence, Cockpit Opérations, My Chief of Staff |
 | Site web public (`site-web`) | 6 | Public interne | Site web |
 
-### Bases techniques (136 tables)
+### Bases techniques (137 tables)
 
 | Base | Tables | Sensibilité | Modules qui l'ouvrent aujourd'hui |
 |---|---:|---|---|
 | Comptes, connexions & droits d'accès (`comptes-et-droits`) | 19 | Secret | Administration |
 | Assistant IA — conversations, notes & mémoire personnelles (`ia-conversations`) | 31 | Confidentiel | Assistant IA, My Chief of Staff |
 | IA — moteur, missions, connaissances & réglages (`ia-moteur`) | 56 | Restreint (jusqu'à confidentiel) | Administration, Assistant IA, Recettes |
-| Journaux & traçabilité (`journaux`) | 8 | Confidentiel (jusqu'à secret) | Administration |
+| Journaux & traçabilité (`journaux`) | 9 | Confidentiel (jusqu'à secret) | Administration |
 | Plateforme, réglages, files & intégrations (`plateforme`) | 22 | Restreint (jusqu'à secret) | Administration, Feedback |
 
 ### Détail, base par base
@@ -990,7 +990,7 @@ Ce qui fait tourner l'IA : réglages et plafonds, missions et travaux, gestes et
 | `RecetteUsage` | Usage d'une recette par l'assistant | Restreint | — |
 | `RecetteResponsable` | Responsable d'un processus | Restreint | recettes-actions |
 
-#### Journaux & traçabilité — `journaux` (8 tables, confidentiel)
+#### Journaux & traçabilité — `journaux` (9 tables, confidentiel)
 
 Qui a fait quoi et quand : journal d'audit, activité, corbeille, appels d'API, incidents et qualité des données.
 
@@ -1008,6 +1008,7 @@ Qui a fait quoi et quand : journal d'audit, activité, corbeille, appels d'API, 
 | `DeletedRecord` | Élément en corbeille | Secret — copie complète de chaque ligne supprimée, de toutes les bases | ad-pro-item-actions, ad-pro-pieces-actions, admin-delete-actions, bd-project-actions +9 |
 | `ApiCall` | Appel de l'API externe | Confidentiel | — |
 | `IncidentRepete` | Incident répété | Confidentiel | — |
+| `ObservationAccesBase` | Ce que la garde de l'accès par base aurait refusé (observation) | Confidentiel | — |
 | `DataQualityFinding` | Anomalie de qualité des données | Confidentiel | — |
 | `DataQualitySweep` | Passage de contrôle de qualité des données | Confidentiel | — |
 

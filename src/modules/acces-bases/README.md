@@ -16,3 +16,7 @@ anti-verrouillage sur « Comptes & droits ».
 - **Catalogue** : généré par `npm run bases:generer` depuis `scripts/bases-de-donnees/` ; le cliquet
   `src/platform/bases-de-donnees.test.ts` exige que chaque table du schéma soit rangée exactement une fois.
 - **Une IA ne règle jamais les accès** : `accesBase` et `accesBaseParametre` sont des modèles interdits au chemin générique.
+- **La garde (D3)** : `infra/garde.ts` (évaluateur synchrone, branché au démarrage par `src/instrumentation.ts`) sur le
+  port du socle `src/platform/donnees/` (contexte de la requête, extension Prisma posée dans `src/lib/prisma.ts`).
+  En OBSERVATION : elle compte ce qu'elle aurait refusé (`ObservationAccesBase`, `infra/observations.ts`), ne refuse rien.
+- **SQL brut** : cliquet `sql-brut.test.ts` — la liste des fichiers qui touchent une base métier hors de la garde rétrécit.
