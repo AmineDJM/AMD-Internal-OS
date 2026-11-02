@@ -215,7 +215,7 @@ async function conclureTour(tour: { id: string; filId: string; userId: string; t
   const faites = issues.filter((i) => i.statut === "COMPLETED").length;
   const ecrite = await deposerSynthese({
     syntheseDe: tour.id, filId: tour.filId, userId: tour.userId, contenu, travaux: ids,
-    titre: `Assistant IA : ${issues.length > 1 ? `${faites}/${issues.length} sous-missions terminées` : `mission terminée — « ${issues[0]!.titre} »`}`,
+    titre: `Adam : ${issues.length > 1 ? `${faites}/${issues.length} sous-missions terminées` : `mission terminée — « ${issues[0]!.titre} »`}`,
     corps: (enBref ?? issues.map((i) => i.titre).join(" · ")).replace(/[#*_`>]/g, ""),
   });
   if (!ecrite) return "rien";

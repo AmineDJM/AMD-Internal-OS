@@ -86,7 +86,7 @@ suite("le menu d'un employé ordinaire ne promet que ce qui s'ouvre", () => {
     expect((rh?.children ?? []).map((c) => c.href)).toContain("/recrutement");
   });
 
-  it("Adam (assistant ET chief of staff) n'est PAS au menu de la Direction — qui a pourtant les deux modules", async () => {
+  it("Adam (assistant ET chief of staff) n'est PAS au menu de la Direction — qui n'a pas le module ASSISTANT_IA", async () => {
     const dir = await acteur(u.dir, "DIRECTION");
     // PRÉMISSES : les modules sont là ; sans elles, l'absence viendrait du module, pas de la règle.
     expect(userCan(dir, "WORKSPACE", "VIEW")).toBe(true);
@@ -99,7 +99,11 @@ suite("le menu d'un employé ordinaire ne promet que ce qui s'ouvre", () => {
 
   it("… et il y est pour le Super Admin — la garde ne ferme que ce qu'elle doit", async () => {
     const sa = await acteur(u.sa, "SUPER_ADMIN");
-    expect(destinations(await navigationFor(sa))).toEqual(expect.arrayContaining(["/assistant", "/chief-of-staff"]));
+    // « My Chief of Staff » est mis de côté pour TOUT LE MONDE, Super Admin compris (02/11/2026) : son bureau est un
+    // onglet d'Adam. Adam et ses missions restent au menu.
+    const d = destinations(await navigationFor(sa));
+    expect(d).toEqual(expect.arrayContaining(["/assistant", "/centre-de-missions"]));
+    expect(d).not.toContain("/chief-of-staff");
   });
 
   it("… et le recrutement est un sous-module des Ressources humaines, une seule fois dans le menu", async () => {

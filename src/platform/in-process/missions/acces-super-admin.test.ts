@@ -204,25 +204,37 @@ suite("§118.136 — l'autorité relue : ce qui tournait pour quelqu'un qui perd
 });
 
 describe("§118.136 — les POINTS D'APPEL : la garde est là où l'on décide, pas seulement où on l'a écrite", () => {
-  it("le menu : l'entrée du Centre porte la garde `adamMissions`, résolue sur le prédicat", () => {
+  it("le menu : « Missions d'Adam » suit le module ASSISTANT_IA (02/11/2026) — la garde `adamMissions` reste disponible", () => {
+    // Direction, 02/11/2026 : « tout le monde verra les missions d'Adam, chacun selon les missions qu'il lui a données ».
+    // L'entrée suit donc le module d'Adam ; ce qui reste au Super Admin est DANS l'écran (vue globale, interrupteur,
+    // accords, gestes de masse). La garde existe toujours, résolue sur le prédicat : la remettre rétablit l'ancienne règle.
     const labels = lire("lib/labels/navigation.ts");
     const ligne = labels.split("\n").find((l) => l.includes('href: "/centre-de-missions"') && l.includes("module:"));
     expect(ligne, "l'entrée de navigation du Centre de missions").toBeDefined();
-    expect(ligne).toContain('gate: "adamMissions"');
+    expect(ligne).toContain('module: "ASSISTANT_IA"');
+    expect(ligne).not.toContain("gate:");
     expect(labels).toMatch(/gate\?: [^;]*"adamMissions"/);
     expect(lire("lib/nav-access.ts")).toContain("adamMissions: peutPiloterMissionsAdam(user)");
   });
 
-  it("les deux pages refusent AVANT de charger quoi que ce soit", () => {
+  it("les deux pages refusent qui n'a pas Adam AVANT de charger ; le Super Admin seul charge la vue globale et les gestes de masse", () => {
     for (const [page, chargement] of [
       ["app/(app)/centre-de-missions/page.tsx", "centreDeMissions(user.id)"],
-      ["app/(app)/missions/[id]/page.tsx", "vueMission(params.id, user.id)"],
+      ["app/(app)/missions/[id]/page.tsx", "vueMission(params.id, proprietaireId)"],
     ] as const) {
       const src = lire(page);
-      const garde = src.indexOf("if (!peutPiloterMissionsAdam(user)) notFound();");
+      const garde = src.indexOf("if (!superAdmin && !peutUtiliserAssistantIA(user)) notFound();");
       expect(garde, `${page} : la garde manque`).toBeGreaterThan(0);
       expect(garde, `${page} : la garde doit précéder le chargement`).toBeLessThan(src.indexOf(chargement));
+      expect(src).toContain("const superAdmin = peutPiloterMissionsAdam(user);");
     }
+    const centre = lire("app/(app)/centre-de-missions/page.tsx");
+    const sa = centre.indexOf("const [accords, masse, globale] = superAdmin");
+    expect(sa, "accords, gestes de masse et vue globale sous le prédicat").toBeGreaterThan(0);
+    expect(centre.indexOf("vueGlobaleDesMissions()")).toBeGreaterThan(sa);
+    expect(centre.indexOf("compterPourLesGestesDeMasse(user.id)")).toBeGreaterThan(sa);
+    // La fiche : le propriétaire lit SA mission ; seul le Super Admin résout le propriétaire d'une autre.
+    expect(lire("app/(app)/missions/[id]/page.tsx")).toContain("const proprietaireId = superAdmin ? (await proprietaireDeMission(params.id)) ?? user.id : user.id;");
   });
 
   it("CHAQUE action serveur du runtime commence par le prédicat — plus aucune ne s'ouvre sur le module WORKSPACE", () => {

@@ -328,7 +328,7 @@ export default function PanneauNotes({ onFermer, travaille, onEnAttente }: {
           </div>
 
           {enAttente.length > 0 && (
-            <section aria-label="Modifications proposées par l'assistant" data-testid="notes-propositions" className="border-b border-amber-200 bg-amber-50/70 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20">
+            <section aria-label="Modifications proposées par Adam" data-testid="notes-propositions" className="border-b border-amber-200 bg-amber-50/70 px-3 py-2 dark:border-amber-900/50 dark:bg-amber-950/20">
               <div className="flex items-center gap-2">
                 <p className="flex-1 text-[13px] font-medium text-amber-900 dark:text-amber-200">
                   L&apos;assistant propose {enAttente.length > 1 ? `${enAttente.length} modifications` : "une modification"}
@@ -372,7 +372,7 @@ export default function PanneauNotes({ onFermer, travaille, onEnAttente }: {
           </div>
 
           {acceptees.length > 0 && (
-            <ul aria-label="Modifications de l'assistant acceptées" className="space-y-1 border-t border-slate-200 px-3 py-2 dark:border-zinc-800">
+            <ul aria-label="Modifications d'Adam acceptées" className="space-y-1 border-t border-slate-200 px-3 py-2 dark:border-zinc-800">
               {acceptees.map((p) => (
                 <li key={p.id} data-testid="note-acceptee" className="flex items-center gap-2 text-[12px] text-slate-500 dark:text-zinc-400">
                   <Check className="h-3 w-3 shrink-0 text-emerald-600" />

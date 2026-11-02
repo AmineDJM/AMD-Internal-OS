@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { requireUser } from "@/lib/session";
 import { MARQUE_VUE_COOKIE } from "@/lib/vue-exacte-ui";
 import { IdentiteProvider, GardeIdentite } from "@/components/layout/identite-vue";
-import { peutUtiliserAssistantIA, userCan } from "@/lib/rbac";
+import { peutUtiliserAssistantIA, peutVoirAdam, userCan } from "@/lib/rbac";
 import { moduleForPath } from "@/lib/labels";
 import { reécriteLienNotification } from "@/lib/notifications/lien-actuel";
 import { navigationFor } from "@/lib/nav-access";
@@ -129,7 +129,8 @@ export default async function AppLayout({
           la page précédente au lieu de renvoyer à la racine du module. */}
       <NavDepthTracker />
       <ScreenGuard />
-      <CommandPalette navItems={navItems} />
+      {/* « Demander à Adam » (ex-Chief of Staff) : l'entrée de menu est mise de côté, la question reste au Super Admin. */}
+      <CommandPalette navItems={navItems} bureauAdam={peutVoirAdam(user)} />
       <Sidebar items={navItems} messagingUnread={messagingUnread} moduleBadges={moduleBadges} />
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Tout ce qui surmonte la zone de contenu est MESURÉ ensemble : les bandeaux passent à

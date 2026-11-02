@@ -13,7 +13,7 @@ type Item = { kind: "nav"; label: string; href: string; icon: string } | ({ kind
  * LA FENÊTRE DE LA PALETTE (⌘K) — chargée après la page par `command-palette.tsx`, qui ne garde dans la
  * coque que l'écoute du raccourci : la recherche, sa liste et ses icônes ne servent qu'à l'ouverture.
  */
-export function FenetrePalette({ navItems, onFermer }: { navItems: NavItem[]; onFermer: () => void }) {
+export function FenetrePalette({ navItems, bureauAdam = false, onFermer }: { navItems: NavItem[]; bureauAdam?: boolean; onFermer: () => void }) {
   const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [results, setResults] = React.useState<SearchResult[]>([]);
@@ -46,20 +46,19 @@ export function FenetrePalette({ navItems, onFermer }: { navItems: NavItem[]; on
     return items.slice(0, q ? 5 : 12);
   }, [query, navItems]);
 
-  // « DEMANDER AU CHIEF OF STAFF » : la palette route la QUESTION telle quelle vers /chief-of-staff
-  // (pré-remplie, jamais envoyée seule). Visible seulement si le module est ouvert à cette personne
-  // (présent dans SA navigation) — la palette n'accorde rien.
-  const chiefNav = React.useMemo(() => navItems.find((n) => n.href === "/chief-of-staff") ?? null, [navItems]);
+  // « DEMANDER À ADAM » (ex-« Demander au Chief of Staff ») : la palette route la QUESTION telle quelle vers le bureau
+  // d'Adam (pré-remplie, jamais envoyée seule). L'entrée « My Chief of Staff » a quitté le menu (02/11/2026) : c'est le
+  // serveur qui dit si le bureau est ouvert à cette personne (`peutVoirAdam`, Super Admin) — la palette n'accorde rien.
   const askChief: Item | null = React.useMemo(() => {
     const q = query.trim();
-    if (!chiefNav || q.length < 3) return null;
+    if (!bureauAdam || q.length < 3) return null;
     return {
       kind: "nav" as const,
-      label: `Demander au Chief of Staff : « ${q.slice(0, 80)} »`,
-      href: `/chief-of-staff?q=${encodeURIComponent(q.slice(0, 400))}`,
-      icon: chiefNav.icon,
+      label: `Demander à Adam : « ${q.slice(0, 80)} »`,
+      href: `/adam/bureau?q=${encodeURIComponent(q.slice(0, 400))}`,
+      icon: "Sparkles",
     };
-  }, [chiefNav, query]);
+  }, [bureauAdam, query]);
 
   const items: Item[] = React.useMemo(() => [
     ...(askChief ? [askChief] : []),

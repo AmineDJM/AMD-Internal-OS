@@ -50,6 +50,9 @@ export const ADAM_PATHS = [
   // l'Assistant IA, qui n'est pas Adam ; l'écran de conversation d'Adam a déménagé dans
   // `src/components/chief/` (déjà du périmètre).
   "src/app/(app)/chief-of-staff/",
+  // Le corps des pages de `/chief-of-staff` a déménagé dans les onglets d'Adam du Super Admin (02/11/2026) : même
+  // périmètre, même dette comptée — seule l'adresse change.
+  "src/app/(app)/adam/",
   "src/app/api/assistant/",
 ] as const;
 

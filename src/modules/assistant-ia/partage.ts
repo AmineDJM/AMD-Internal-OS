@@ -16,7 +16,7 @@ export {
 
 // ── S1 (décision 0048) : l'assistant d'une personne — profil, périmètres datés, leur origine
 export { contratEnVigueur, LIBELLE_ORIGINE, perimetreEnVigueur, type OriginePerimetre, type PerimetreSensible } from "./domaine/perimetres";
-export { accueilPour, adresseDe, prenomDe, type Adresse, type ApercuAssistant, type ProfilPersonne } from "./domaine/profil-personne";
+export { accueilPour, adresseDe, NOM_ASSISTANT, prenomDe, presentationAdam, type Adresse, type ApercuAssistant, type ProfilPersonne } from "./domaine/profil-personne";
 
 // ── Consommation : les plafonds par tour, par personne, par jour (console `/admin/ai/consommation`)
 export {

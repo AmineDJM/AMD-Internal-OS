@@ -22,8 +22,8 @@ export function SuggestionsDossier({ entiteType, entiteId }: { entiteType: strin
     void jugerConstat(id, retour).catch(sansBloquer("suggestions-dossier.juger"));
   };
   return (
-    <aside aria-label="Votre assistant a remarqué" className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-900 dark:bg-violet-950/30">
-      <p className="flex items-center gap-1.5 text-[12px] font-semibold text-violet-800 dark:text-violet-300"><Radar className="h-3.5 w-3.5" /> Votre assistant a remarqué</p>
+    <aside aria-label="Adam a remarqué" className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 dark:border-violet-900 dark:bg-violet-950/30">
+      <p className="flex items-center gap-1.5 text-[12px] font-semibold text-violet-800 dark:text-violet-300"><Radar className="h-3.5 w-3.5" /> Adam a remarqué</p>
       <ul className="mt-1.5 space-y-1.5">
         {liste.map((s) => (
           <li key={s.id} className="flex flex-wrap items-center gap-2 text-[13px] text-slate-800 dark:text-zinc-200">

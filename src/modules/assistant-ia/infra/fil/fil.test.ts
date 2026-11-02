@@ -82,7 +82,7 @@ suite("Assistant IA — le fil gardé, joué en arrière-plan", () => {
     await prisma.assistantIaFil.updateMany({ where: { userId: assistante.id }, data: { consulteLe: new Date(Date.now() - 60_000) } });
     await traiterFil(assistante.id);
     const notes = await prisma.notification.findMany({ where: { userId: assistante.id } });
-    expect(notes.map((n) => n.title)).toEqual([expect.stringMatching(/Assistant IA : réponse prête/)]);
+    expect(notes.map((n) => n.title)).toEqual([expect.stringMatching(/Adam : réponse prête/)]);
     // Décision 0027 : la notification ouvre LA conversation (l'app Adventum IA renvoie ce lien vers `/ia`).
     expect(notes[0].link).toMatch(/^\/assistant\?c=c[a-z0-9]+$/);
 
