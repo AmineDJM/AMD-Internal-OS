@@ -168,6 +168,16 @@ const ETAT_JALON: Record<string, "fait" | "en-cours" | "a-faire" | "echec"> = {
 };
 
 /**
+ * LE PROPRIÉTAIRE D'UNE MISSION — pour la vue du SUPER ADMIN seulement (Direction, 02/11/2026 : il garde la vue globale).
+ * L'appelant décide du droit (`peutPiloterMissionsAdam`) ; un employé ne passe JAMAIS par ici — sa lecture reste
+ * filtrée par SON identifiant dans chaque `where`, et la mission d'un autre lui rend la même page qu'une absente.
+ */
+export async function proprietaireDeMission(missionId: string): Promise<string | null> {
+  const m = await prisma.mission.findUnique({ where: { id: missionId }, select: { ownerId: true } });
+  return m?.ownerId ?? null;
+}
+
+/**
  * L'ÉTAT COMPLET D'UNE MISSION, prêt à afficher.
  *
  * ── LE REGROUPEMENT DES ÉVENTAILS ────────────────────────────────────────────────────────

@@ -56,6 +56,7 @@ export default async function OnboardingPage() {
   // Plan de l'espace : on reprend la même résolution que la barre latérale (un
   // onglet est visible si l'utilisateur a accès à au moins un de ses sous-onglets).
   const guide: GuideEntry[] = NAVIGATION.reduce<GuideEntry[]>((acc, n) => {
+    if (n.masque) return acc; // une entrée mise de côté n'est pas une destination à présenter
     const visible = n.tabs ? n.tabs.some((t) => modules.includes(t.module)) : modules.includes(n.module);
     if (!visible) return acc;
     const href = n.tabs ? (n.tabs.find((t) => modules.includes(t.module))?.href ?? n.href) : n.href;

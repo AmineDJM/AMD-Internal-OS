@@ -29,6 +29,8 @@ import { cibleInterne, specificateurs } from "@/platform/imports";
 const ADAM = [
   "src/lib/assistant/", "src/lib/assistant.ts", "src/lib/assistant-",
   "src/components/chief/", "src/app/(app)/chief-of-staff/", "src/app/api/assistant/",
+  // Les onglets d'Adam du Super Admin (boîte, réglages, bureau), déplacés de `/chief-of-staff` le 02/11/2026.
+  "src/app/(app)/adam/",
   "src/platform/in-process/",
   // Le fichier d'actions serveur d'Adam (cartes, mémoire, pièces jointes de sa conversation).
   "src/lib/actions/assistant-actions.ts",

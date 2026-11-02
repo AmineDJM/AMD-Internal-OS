@@ -97,7 +97,7 @@ export function AssistantWorkspace({ userName, adresse }: AssistantWorkspaceProp
     return () => clearInterval(t);
   }, []);
 
-  // J12 : « Ce que mon assistant surveille » — une notification de veilleur mène ici (« ?veille=1 »).
+  // J12 : « Ce qu'Adam surveille » — une notification de veilleur mène ici (« ?veille=1 »).
   const [veilleOuverte, setVeilleOuverte] = useState(false);
   useEffect(() => { if (new URLSearchParams(window.location.search).get("veille")) setVeilleOuverte(true); }, []);
   // M1 : « voir » sous une ligne « Retenu : … » ouvre « Ce qu'il retient ».
@@ -291,7 +291,7 @@ export function AssistantWorkspace({ userName, adresse }: AssistantWorkspaceProp
               {prive && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11.5px] text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">Conversation privée</span>}
               {nouvelle && (
                 <button type="button" aria-pressed={nouvelle.prive} onClick={() => setNouvelle({ ...nouvelle, prive: !nouvelle.prive })}
-                  title="Conversation privée : l'assistant n'utilise pas votre mémoire et ne retient rien ; elle est supprimée après 30 jours."
+                  title="Conversation privée : Adam n'utilise pas votre mémoire et ne retient rien ; elle est supprimée après 30 jours."
                   className="shrink-0 rounded-lg border border-slate-200 px-2.5 py-1 text-[12.5px] text-slate-600 hover:bg-slate-100 aria-pressed:border-amber-300 aria-pressed:bg-amber-50 aria-pressed:text-amber-800 dark:border-zinc-700 dark:text-zinc-300">
                   {nouvelle.prive ? "Privée ✓" : "Rendre privée"}
                 </button>
@@ -431,8 +431,8 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille
         <button type="button" onClick={onMemoire} aria-label="Ma mémoire" title="Ma mémoire" className={bouton}><Brain className="h-4 w-4" /></button>
         <button type="button" onClick={onRoutines} aria-label={libelleRoutines} title="Mes routines" className={bouton}><AlarmClock className="h-4 w-4" />{point}</button>
         <button type="button" onClick={onTravaux} aria-label={libelleTravaux} title="Mes travaux" className={bouton}><Briefcase className="h-4 w-4" />{pointTravaux}</button>
-        <button type="button" onClick={onVeille} aria-label="Ce que mon assistant surveille" title="Ce que mon assistant surveille" className={bouton}><Radar className="h-4 w-4" /></button>
-        <a href="/assistant/gestes" aria-label="Ce que l'assistant a fait" title="Ce que l'assistant a fait" className={bouton}><History className="h-4 w-4" /></a>
+        <button type="button" onClick={onVeille} aria-label="Ce qu'Adam surveille" title="Ce qu'Adam surveille" className={bouton}><Radar className="h-4 w-4" /></button>
+        <a href="/assistant/gestes" aria-label="Ce qu'Adam a fait" title="Ce qu'Adam a fait" className={bouton}><History className="h-4 w-4" /></a>
         {!vueExacte && <button type="button" onClick={onAtelier} aria-pressed={atelierOuvert} aria-label="Atelier — documents" title="Atelier — documents" className={`${bouton} ${atelierOuvert ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300" : ""}`}><Sparkles className="h-4 w-4" /></button>}
         {!vueExacte && (
           <button type="button" onClick={onReponseVocale} aria-pressed={reponseVocale} aria-label={libelleVoix} title={libelleVoix}
@@ -457,10 +457,10 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille
               <Briefcase className="h-4 w-4" /> {libelleTravaux}
             </button>
             <button type="button" role="menuitem" onClick={onVeille} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-              <Radar className="h-4 w-4" /> Ce que mon assistant surveille
+              <Radar className="h-4 w-4" /> Ce qu'Adam surveille
             </button>
             <a role="menuitem" href="/assistant/gestes" className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-              <History className="h-4 w-4" /> Ce que l&apos;assistant a fait
+              <History className="h-4 w-4" /> Ce qu&apos;Adam a fait
             </a>
             {!vueExacte && (
               <button type="button" role="menuitem" onClick={onAtelier} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">

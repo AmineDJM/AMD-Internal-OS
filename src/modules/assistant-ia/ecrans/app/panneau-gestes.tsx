@@ -33,12 +33,12 @@ export function PanneauGestes({ ouvert, onFermer, superAdmin }: { ouvert: boolea
 
   if (!ouvert) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-stretch sm:justify-end" role="dialog" aria-modal="true" aria-label="Ce que l'assistant a fait">
+    <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-stretch sm:justify-end" role="dialog" aria-modal="true" aria-label="Ce qu'Adam a fait">
       <button type="button" aria-label="Fermer" onClick={onFermer} className="absolute inset-0 bg-slate-950/40" />
       <div className="relative flex max-h-[88dvh] w-full flex-col rounded-t-2xl bg-[var(--aia-panneau)] text-[var(--aia-texte)] shadow-2xl sm:max-h-none sm:w-[480px] sm:rounded-none">
         <header className="flex items-center gap-2 border-b border-[var(--aia-filet)] px-4 py-3">
           <History className="h-4 w-4" aria-hidden />
-          <h2 className="flex-1 text-[15px] font-semibold">Ce que l&apos;assistant a fait</h2>
+          <h2 className="flex-1 text-[15px] font-semibold">Ce qu&apos;Adam a fait</h2>
           <button type="button" onClick={onFermer} aria-label="Fermer le panneau" className="flex h-10 w-10 items-center justify-center rounded-lg hover:bg-[var(--aia-survol)]">
             <X className="h-4 w-4" />
           </button>

@@ -77,7 +77,7 @@ export default async function ConsommationIaPage() {
       <Card>
         <CardHeader><CardTitle>Par personne — {c.jours} jours</CardTitle></CardHeader>
         <CardContent>
-          {c.parPersonne.length === 0 ? <p className="text-sm text-muted-foreground">Aucun appel de l&apos;Assistant IA sur la période.</p> : (
+          {c.parPersonne.length === 0 ? <p className="text-sm text-muted-foreground">Aucun appel d&apos;Adam sur la période.</p> : (
             <Table mobileCards>
               <TableHeader><TableRow>
                 <TableHead>Personne</TableHead><TableHead>Aujourd&apos;hui</TableHead><TableHead>7 jours</TableHead>

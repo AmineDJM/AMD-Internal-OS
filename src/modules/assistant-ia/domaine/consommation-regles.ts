@@ -155,7 +155,7 @@ const fmt = (n: number) => n.toLocaleString("fr-FR").replace(/ | /g, " ");
 export const ECRAN_CONSOMMATION = "Administration › Contrôle de l'IA › Consommation IA";
 
 export function refusPlafondJour(plafond: number): string {
-  return `Vous avez atteint votre plafond quotidien d'Assistant IA (${fmt(plafond)} jetons) : aucun appel n'est parti. `
+  return `Vous avez atteint votre plafond quotidien d'Adam (${fmt(plafond)} jetons) : aucun appel n'est parti. `
     + `Il se réinitialise à minuit (heure d'Alger) ; le Super Admin peut le relever dans ${ECRAN_CONSOMMATION}.`;
 }
 

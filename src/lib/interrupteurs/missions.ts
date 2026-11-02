@@ -95,7 +95,7 @@ export async function lireInterrupteurMissions(client: ClientReglages = prisma):
 }
 
 /** L'écran depuis lequel la suspension se LÈVE — nommé dans chaque refus (§118.30). */
-export const ECRAN_REGLAGES_ADAM = "/chief-of-staff/reglages";
+export const ECRAN_REGLAGES_ADAM = "/adam/reglages";
 
 const dateFr = (d: Date): string =>
   new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Africa/Algiers" }).format(d);

@@ -15,10 +15,10 @@ export const MODULES_PILOTAGE_ET_MARKETING: readonly ModulePlateforme[] = [
       { label: "Lignes « À corriger »", qui: "Tout demandeur", effet: "Ce qu'un circuit lui a renvoyé (Ad & Pro, consulting, paiement, recrutement, plan de tournée) : il corrige et resoumet." },
       { label: "Ajouter une note de frais", qui: "Tout employé", effet: "Crée la demande RH « note de frais » (mois, montant, justificatif exigés) — même circuit que depuis Mon dossier RH." },
       { label: "Demande de formation", qui: "Tout employé", effet: "Ouvre une demande de formation validée N+1 → RH → DG." },
-      { label: "Onglet Mes missions", qui: "Personne invitée sur une demande Ad & Pro", effet: "Confirmer ou décliner l'invitation ; l'ordre de mission passe par le N+1 puis les RH." },
+      { label: "Onglet Missions terrain", qui: "Personne invitée sur une demande Ad & Pro", effet: "Confirmer ou décliner l'invitation ; l'ordre de mission passe par le N+1 puis les RH." },
     ],
     regles: [
-      "Onglets : Aujourd'hui · Mon espace · Tâches · Mes missions · Mon dossier RH · Mon bilan.",
+      "Onglets : Aujourd'hui · Mon espace · Tâches · Missions terrain · Mon dossier RH · Mon bilan.",
       "« À valider » compte exactement les lignes des deux blocs de décision — rien de plus.",
       "Les achats ne se demandent plus ici : ils passent par le Bureau du secrétariat.",
     ],

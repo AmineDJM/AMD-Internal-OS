@@ -7,6 +7,7 @@ import { censurerTexte } from "../domaine/filtre-confidentialite";
 import { CONSIGNE_COMPOSANTS } from "../domaine/ui/composants";
 import { rappelDuTour } from "./memoire-capture";
 import { REGLE_NOTES } from "../domaine/notes/regles";
+import { identiteDuModele } from "../domaine/profil-personne";
 
 /**
  * COUCHE DE CONTEXTE (Q9, Q11, Q14, Q17, C10).
@@ -213,7 +214,8 @@ export async function compileContext({
   // la consigne — le fournisseur le garde en cache (≈ 10 % du tarif, et plus vite). L'heure, qui change chaque
   // minute, la ferme : placée en tête, elle invalidait le cache de tout ce qui la suivait.
   const sections: string[] = [
-    "Tu es l'assistant interne d'Adventum Pharma, un laboratoire pharmaceutique algérien. Tu réponds en français, avec rigueur et clarté, en t'appuyant uniquement sur les données de l'entreprise que te donnent tes outils.",
+    // « Adam » pour tout le monde (Direction, 02/11/2026) — la ligne reste identique d'une personne à l'autre (cache).
+    identiteDuModele(),
     `### RÈGLES FONDAMENTALES\n${reglesPour(outilsActifs, valeursEnClair).map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
     `### PRÉSENTATION (UI générative)\n${CONSIGNE_COMPOSANTS}`,
     ...consignesGenerales.filter(Boolean),

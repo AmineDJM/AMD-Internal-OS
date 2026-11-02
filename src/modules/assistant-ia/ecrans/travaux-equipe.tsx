@@ -44,7 +44,7 @@ export function TravauxEquipe({ onVisible, libelles }: { onVisible?: (v: boolean
 
   if (erreur) return <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 dark:bg-red-950/40 dark:text-red-400">{erreur}</p>;
   if (!liste) return <div className="flex items-center gap-2 py-6 text-[13px] text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Chargement…</div>;
-  if (!liste.visible) return <p className="py-6 text-center text-[13px] text-slate-500">La console de l&apos;Assistant IA ne permet pas aux responsables de voir les travaux de leur équipe.</p>;
+  if (!liste.visible) return <p className="py-6 text-center text-[13px] text-slate-500">La console d&apos;Adam ne permet pas aux responsables de voir les travaux de leur équipe.</p>;
 
   const resume = (t: Travail) => (
     <>
