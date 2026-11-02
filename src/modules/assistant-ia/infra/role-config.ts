@@ -363,7 +363,10 @@ export async function peutVoirLaValeur(e: EntreeJeton, user: CurrentUser, acces:
   const lecteur = lecteurDepuisSession(user);
   const politique = peutLire(lecteur, e.nature, { genre: "PERSONNE", userId: e.titulaireUserId });
   const libelleGeste = `${geste}${e.outil ? ` — outil ${e.outil}` : ""}`;
-  let accorde = !ferme && politique.autorise;
+  // S1 (décision 0048) : la coordonnée bancaire ou la pièce d'identité PERSONNELLE d'autrui ne sort par l'assistant que pour
+  // qui gère les RH (ou le Super Admin) — la politique du coffre l'ouvre à la finance pour ses ÉCRANS de paiement, pas ici.
+  const personnelAutrui = !!e.titulaireUserId && !soi && e.nature !== "SALAIRE";
+  let accorde = !ferme && politique.autorise && (!personnelAutrui || acces.superAdmin || voitLesSalaires(user));
   if (e.origine) {
     // Le contrôle du coffre journalise (interrupteur `coffreLecture` ouvert) ; fermé, il rend la colonne sans
     // juger — la politique ci-dessus reste donc la condition, toujours.

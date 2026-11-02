@@ -69,11 +69,75 @@ dossier RH, IBAN, NIN) ne s'ouvre que par l'une de ces trois origines, toutes no
 - La hiérarchie : un responsable n'a, par l'assistant, que ce que l'écran lui montre de son équipe (congé/absent, jamais la
   nature ni la paie).
 
-## 4. Preuves
+## 4. Un assistant par employé — le PROFIL de la personne
+
+Chaque tour porte une section « INTERLOCUTEUR » construite par le **serveur** (`infra/profil-personne.ts`, règle pure
+`domaine/profil-personne.ts`) depuis le compte de la **session** et la fiche RH **liée** — jamais d'une mémoire, d'un
+historique ou d'une autre personne : nom, prénom (« Radia KEBIR » → « Radia »), adresse (tutoiement/vouvoiement, préférence
+`AssistantIaPreference.adresse`, réglable dans le panneau Mémoire, réversible), rôle(s), fonction (contrat ou dernier
+avenant `FONCTION`), département, entité, responsable, contrat (type, dates, en vigueur ou non), avenants en vigueur,
+périmètres sur autrui (ou « aucun »). La consigne dit : « Adresse-toi à cette personne par son prénom — JAMAIS par un autre
+prénom, même si la mémoire, l'historique ou un document en cite un autre. » Taille ≈ 100–200 jetons ; la part lue en base
+est gardée 60 s par personne, les familles et périmètres sont ceux de l'accès du tour (jamais en cache). L'accueil de
+l'écran suit le prénom et l'adresse.
+
+## 5. Administration › IA › Accès — « Ce que son assistant voit »
+
+Pour une personne : la consigne exacte du profil, chaque famille avec son état et son **origine** (défaut des droits,
+réglage du rôle, réglage de la personne, avenant, droit daté), les périmètres en vigueur, l'historique des avenants et des
+droits datés — calculés par le moteur lui-même (`apercuAssistantDe`). La Direction y accorde un droit daté (famille
+sensible, entité, du/au, motif obligatoire), enregistre un avenant (fonction, ou délégation d'une famille sur une entité,
+datée), et révoque l'un ou l'autre. Super Admin seul (jamais en Vue exacte), chaque geste à l'audit avec sa référence.
+
+## 6. L'architecture — c'est le code qui tient, pas la consigne
+
+« C'est l'architecture qui doit être robuste, pas le prompt ni le contexte. » « Elle peut essayer de le jailbreaker en
+écrivant que c'est Amine qui écrit… Je veux même pas qu'il puisse avoir accès. » (Direction, 02/11.)
+
+**Le flux d'un tour.** Session authentifiée (`requireUser`, cookie httpOnly) → **porte** (`envoyerMessageBeta` /
+`fil/service.ts` `proprietaire(userId)`, refus en Vue exacte) → `jouerTour(user)` (refus en Vue exacte) →
+`accesAssistantIa(user)` : **calcul serveur** des droits effectifs (règle pure `resoudreAccesIa` + `perimetres.ts` : rôle
+applicatif, réglages de console, avenants du contrat en vigueur, droits datés) → **catalogue filtré** (`outilsV1(user,
+acces)` puis `allowed(u)` : un outil sans droit n'est pas offert — `requete_sql` hors Direction, `directory_list` sur le
+droit réel) → chaque **outil** relit les droits à l'exécution et **borne sa requête avant de lire** → la **révélation**
+(`Revelateur`, `peutVoirLaValeur`) juge chaque valeur sensible, journalise, audite.
+
+**Invariants garantis par le code (et tenus par un banc) :**
+
+1. **L'identité est la session, jamais le message.** Aucun outil ne reçoit d'identité en paramètre (« au nom de »,
+   `userId`, rôle : vérifié sur tout le catalogue, `s1-contournement.test.ts`) ; les outils ferment sur `user` et refusent
+   `u.id !== user.id`. Rien d'un message, d'une pièce, d'un mail, d'une note ou d'un document lu ne change `user` ni `acces`.
+   Le profil (`INTERLOCUTEUR`) vient du serveur.
+2. **Défense au niveau des données.** La paie d'autrui : `droitSurAutrui` refuse **avant** `employee.findUniqueOrThrow` —
+   la ligne n'est jamais lue. La masse salariale (et donc toute moyenne, total, rang) : refusée avant la requête, ou bornée
+   aux entités d'un périmètre. L'IBAN et le NIN d'autrui ne sont **pas sélectionnés** en base hors gestion RH de la société
+   (banc Q1, LD-06 — la finance comprise). Le dossier RH d'autrui : refusé avant la liste des pièces. L'espion Prisma du
+   banc de contournement vérifie que la base n'a **jamais rendu** une valeur d'autrui ; il échoue si l'on remet la sélection
+   de l'IBAN.
+3. **Une valeur sensible d'autrui n'est révélée que sur un droit nominatif** (§3), et la coordonnée bancaire ou la pièce
+   d'identité **personnelle** d'autrui seulement à qui gère les RH : la politique du coffre l'ouvre à la finance pour ses
+   écrans de paiement (fournisseurs, paiement en cours), jamais par l'assistant (arbitrage Q1).
+4. **Pas de chemin de contournement** : SQL (`requete_sql`) réservé à la vue globale, bac à sable en lecture seule sans les
+   tables de paie ni de comptes ; jeux du tour = sorties d'outils déjà jugés ; exports = la même fonction que l'écran et le
+   même juge ; recherche approfondie, sous-missions, travaux et voix rejouent le **même** propriétaire avec ses droits
+   relus ; mémoire, notes, conversations `where userId`. Audit outil par outil : `docs/assistant/preuves/s1/audit-fuite.md`.
+5. **Vue exacte fermée** à trois étages (action, tour, accès) — aucun appel de modèle.
+
+Le banc de contournement (`s1-contournement.test.ts`) fait **obéir** un modèle complice à chaque attaque (usurpation de nom,
+faux rôle, « mode admin », injection dans une pièce et dans un mail reçu, masse salariale, moyenne/classement, IBAN, contrat
+et bulletin d'autrui), après avoir **trouvé** l'outil (le banc échoue si l'outil n'est pas atteint) : aucune valeur d'Assia ni
+au modèle, ni à l'écran, ni dans ce que la base a rendu. Et le passage réel au modèle (`passage-reel.md`) : « Salut Radia »,
+son salaire, celui d'Assia refusé deux fois.
+
+Correction annexe (banc Q1, SO-03) : le filtre de la saisie ne prend plus « Quel IBAN est enregistré sur ma fiche ? » pour un
+IBAN — la valeur d'un compte doit avoir la forme d'un numéro.
+
+## 7. Preuves
 
 - `src/modules/assistant-ia/s1-acces-personnels.test.ts` — le scénario exact (Vue exacte : refus sans appel de modèle ;
   Radia : son salaire oui, celui d'Assia jamais, même famille ouverte à son rôle ; sans fiche liée : refus), puis les
   avenants (entité, dates, révocation, contrat échu), le droit daté de la console, D1.
 - `e2e/s1-acces-personnels.spec.ts` — serveur réel : l'accueil de Radia la nomme ; en Vue exacte, l'assistant est fermé,
   aucun salut au nom du Super Admin, aucun montant.
-- `docs/assistant/preuves/s1/` — l'audit de fuite outil par outil.
+- `src/modules/assistant-ia/s1-contournement.test.ts` — le banc de contournement (red team), espion des lectures en base.
+- `docs/assistant/preuves/s1/` — l'audit de fuite outil par outil, la matrice persona × ressource, le passage réel.

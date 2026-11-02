@@ -18,7 +18,7 @@ import { getAccess } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { executerEffetsSortantsDus } from "@/lib/effets/fenetre";
-import { reglerMaMemoireAuto, reglerMaReponseVocale } from "@/modules/assistant-ia/actions";
+import { reglerMaMemoireAuto, reglerMaReponseVocale, reglerMonAdresse } from "@/modules/assistant-ia/actions";
 import { reglerMaConversationPrivee } from "@/modules/assistant-ia/actions-conversations";
 import { reglerConsoleProactivite, reglerMaVeille, reglerMonVeilleur } from "@/modules/assistant-ia/actions-proactivite";
 import { reglerMaPreferenceDOffice, reglerPrioriteMonTravail } from "@/modules/assistant-ia/actions-travaux";
@@ -137,6 +137,12 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     const gm = gesteDe(await reglerMaMemoireAuto(false));
     expect((await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } }))?.memoireAuto).toBe(false);
     await annuler(gm);
+    expect(await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } })).toBeNull();
+
+    // S1 (décision 0048) : « tutoiement » se défait — la préférence née du geste est retirée (défaut : vous).
+    const ga = gesteDe(await reglerMonAdresse("TU"));
+    expect((await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } }))?.adresse).toBe("TU");
+    await annuler(ga);
     expect(await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } })).toBeNull();
 
     const fil = await prisma.assistantIaFil.create({ data: { userId: moi.id } });

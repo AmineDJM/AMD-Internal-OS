@@ -10,9 +10,13 @@
 
 // ── Accès : les familles que la Direction ouvre ou ferme (décision 0012, console `/admin/ai/acces`)
 export {
-  AIDE_FAMILLE, enVueExacteIa, FAMILLES_IA, FAMILLES_SENSIBLES, familleExplicite, familleNominative, LIBELLE_FAMILLE, normaliserReglageFamilles,
+  AIDE_FAMILLE, enVueExacteIa, estFamilleIa, FAMILLES_IA, FAMILLES_SENSIBLES, familleExplicite, familleNominative, LIBELLE_FAMILLE, normaliserReglageFamilles,
   refusAssistantVueExacte, resoudreAccesIa, type FamilleIa, type ReglageFamilles,
 } from "./domaine/acces-regles";
+
+// ── S1 (décision 0048) : l'assistant d'une personne — profil, périmètres datés, leur origine
+export { contratEnVigueur, LIBELLE_ORIGINE, perimetreEnVigueur, type OriginePerimetre, type PerimetreSensible } from "./domaine/perimetres";
+export { accueilPour, adresseDe, prenomDe, type Adresse, type ApercuAssistant, type ProfilPersonne } from "./domaine/profil-personne";
 
 // ── Consommation : les plafonds par tour, par personne, par jour (console `/admin/ai/consommation`)
 export {

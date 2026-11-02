@@ -47,6 +47,15 @@
 >   person → "ce RIB provient du document X, à vérifier"; injection detection FR/AR/EN, hidden text) — 240-item trap corpus,
 >   0 unflagged misleading card. Model per role changed on screen (`AssistantIaModeleRole`) ONLY with a green A/B bench for that
 >   exact candidate (< 14 d); revert to env always allowed. New env: `ASSISTANT_IA_MODEL_RAISONNEMENT`, `ASSISTANT_IA_TRACES(_JOURS)`.
+> - **S1 (2026-11-02) — one assistant per employee** (decision `docs/assistant/decisions/0048-acces-personnels.md`) [V]:
+>   closed under Vue exacte (the action body is the real Super Admin — root cause of the 02/11 leak); every turn carries a
+>   server-built PERSON PROFILE (`infra/profil-personne.ts`, 60 s cache of the linked HR record + amendments + tu/vous
+>   preference `AssistantIaPreference.adresse`; families/perimeters from the turn's access, never cached) replacing the bare
+>   « INTERLOCUTEUR » section (`contexte.ts` option `profil`); access perimeters on others' sensitive values derived from
+>   amendments (`AvenantContrat` DELEGATION, one entity, dated, contract in force) and dated console grants
+>   (`AssistantIaDroitDate`) — role-level console openings no longer reach others (`domaine/perimetres.ts`). Console card
+>   « Ce que son assistant voit » (`/admin/ai/acces`, `apercuAssistantDe`). Audit D1: `directory_list` judged on the real
+>   right (`outils-v1.ts` `surDroitReel`). Leak audit table: `docs/assistant/preuves/s1/audit-fuite.md`.
 > - **Q1 (2026-11-02) — permanent audit bench of the Assistant IA** (decision `docs/assistant/decisions/0050-banc-audit-permanent.md`) [V]:
 >   a machine-played ATTACKER (93 scenarios, 8 categories: direct read, impersonation, multi-turn social engineering,
 >   indirect injection via PDF/Excel/K6 mail/WhatsApp/note/Drive/file name/fiche field/poisoned memory, aggregates/rank/SQL/export/

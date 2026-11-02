@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
 import { compileContext, CONSIGNE_MEMOIRE_A_LA_CARTE } from "../contexte";
+import { profilDeLaPersonne } from "../profil-personne";
 import { memoireAutoActive } from "../memoire";
 import { OUTILS_NOTES } from "../notes/outils";
 import { accesAssistantIa, getRoleConfig, GESTE_MODELE_EN_CLAIR, resoudreConsignesRole, Revelateur } from "../role-config";
@@ -253,8 +254,10 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // LE PRÉFIXE STABLE (J4) : identité, règles, présentation, consignes générales, puis la personne ; la partie
     // variable du tour (indice de travail long, résumé de la conversation, heure) ferme la consigne.
     const sauf = (xs: (string | null | undefined)[]) => xs.filter((c): c is string => !!c);
+    // S1 (décision 0048) : à qui il parle — le profil construit par le serveur (compte de la session, fiche LIÉE, avenants).
+    const { section: profil } = await profilDeLaPersonne(user, acces);
     instructions = (await compileContext({
-      user, consignesRole: resoudreConsignesRole(config),
+      user, profil, consignesRole: resoudreConsignesRole(config),
       consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, d.consigne]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,

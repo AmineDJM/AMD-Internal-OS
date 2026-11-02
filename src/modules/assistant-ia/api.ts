@@ -60,7 +60,9 @@ export { capacitesOffertes, chercherReferenceDeCarte, corrigerCarteCapacite, exe
 export { estChargeCapacite } from "./domaine/capacites";
 export { cloreLotDossier, etatDesLots, lotDesigne, ouvrirLotDossier, piecesDuLot } from "./infra/depot-dossier";
 export { lectureDossierDepose } from "./infra/lecture-dossier";
-export { accesAssistantIa, chargerConsoleAccesIa, verifierReperesAvantExecution } from "./infra/role-config";
+export { accesAssistantIa, chargerConsoleAccesIa, ficheEtAvenantsDe, verifierReperesAvantExecution } from "./infra/role-config";
+// S1 (décision 0048) : le profil de la personne (à qui l'assistant parle) et sa préférence d'adresse.
+export { adresseDeLaPersonne, oublierProfil, profilDeLaPersonne, reglerAdresse } from "./infra/profil-personne";
 
 // ── Consommation (budget par tour, plafonds, tableau de bord) et moteur
 export { auNomDe, lireReglagesAssistantIa, tarifPose } from "./infra/consommation";
