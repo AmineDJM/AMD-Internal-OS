@@ -556,6 +556,11 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 - **Invariants**: nothing proposed below the threshold; only the VALIDATED version is served; only the designated process owner who
   can see the circuit's screen decides; content carries roles, frequencies, durations and rounded thresholds — never a case id,
   a person's name or a case amount (`seuilRond`, `motifMontrable`).
+- **Access (lot R1, decision 0054)**: Recipes is RBAC module `RECETTES` (default: every role VIEW+VALIDATE, DIRECTION
+  +UPDATE, SUPER_ADMIN all — same population as before). Gate `ouvreLesRecettes(user, geste)` runs BEFORE the derived rule in
+  the page (`requireModule("RECETTES")`), every action (`userCan` first), the service and `voitDesRecettes`; `recette_pour` is
+  not offered without VIEW and `recettePour` answers `AUCUNE` (no usage logged). Blocking a person in Administration › Accès
+  hides menu, page, gestures and assistant recipes; "Par défaut" restores. Background extraction is not gated.
 - **Blast radius**: changing `WorkflowStep.actorRoles`/`autoSkipMaxAmount`, the validation/recruitment journals, `Mission.carnet.plan`
   shape (J2 `lirePlan`), or RBAC module VIEW rights changes what recipes say or who sees them. A new workflow category needs a
   line in `domaine/processus.ts`.

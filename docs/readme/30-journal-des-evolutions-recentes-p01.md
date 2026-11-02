@@ -1,5 +1,18 @@
 ## 🧾 Journal des évolutions récentes
 
+### « RECETTES » SE MASQUE ET SE GÈRE DANS LA CONSOLE (2026-11-02, lot R1, décision 0054)
+
+Demandé par la Direction le 02/11 : « permets-moi de masquer ou gérer les accès au module 'Recettes' ». Recettes devient le
+module **`RECETTES`** du contrôle d'accès standard (catalogue `rbac/modules.ts`, défauts `rbac/permissions.ts`, console
+Administration › Accès, masquage Réglages) — aucun second système, aucune migration.
+- **Gestes** : Voir = écran, menu, outil `recette_pour` de l'Assistant IA ; Valider = trancher (si responsable désigné) ;
+  Modifier = désigner (si Direction, `peutDesigner`). La règle dérivée (circuit visible) reste derrière la porte.
+- **Défauts sans rupture** : tous les rôles Voir + Valider, la Direction + Modifier, le Super Admin tout — ceux qui voyaient
+  Recettes hier le voient encore.
+- **Serveur** : `requireModule("RECETTES")` sur `/recettes`, `userCan` en tête de chaque action, rejugé dans le service
+  (`ouvreLesRecettes`). Bloqué : ni menu, ni page, ni geste, ni recette servie à l'assistant (`AUCUNE`, aucun usage compté).
+- Banc : `src/modules/recettes/acces.test.ts` (console réelle : bloquer, rétablir, ouvrir en lecture seule).
+
 ### LE FOURNISSEUR D'UN DEVIS DÉPOSÉ ENTRE DANS L'ANNUAIRE (2026-11-02)
 
 Décidé par la Direction le 02/11. Au dépôt d'un devis — **poste Ad & Pro** (lecture `ingererDevisDuPoste`) et **« Nouveau

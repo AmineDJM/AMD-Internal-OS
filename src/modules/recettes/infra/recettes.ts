@@ -24,6 +24,19 @@ const MODULES_CONNUS = new Set<string>(MODULES);
 type Lecteur = Pick<CurrentUser, "id" | "role" | "secondaryRole" | "access">;
 const libelleRole = (r: string) => ROLE_LABELS[r] ?? r;
 
+/**
+ * LA PORTE DU MODULE (lot R1, décision 0054) — le module `RECETTES` du contrôle d'accès standard (rôle, console
+ * Administration › Accès), jugée AVANT la règle dérivée, à chaque lecture et à chaque geste :
+ *   • `VIEW` — l'écran, l'entrée de menu, l'outil `recette_pour` de l'Assistant IA ;
+ *   • `VALIDATE` — trancher (valider, corriger, rejeter, retirer), EN PLUS d'être le responsable désigné du processus ;
+ *   • `UPDATE` — désigner les responsables, EN PLUS de `peutDesigner` (la Direction).
+ * Masqué (bloqué dans la console, ou module masqué pour tous), rien ne se lit ni ne se tranche — l'extraction de fond,
+ * elle, continue : elle ne sert personne, elle propose.
+ */
+export function ouvreLesRecettes(user: Lecteur, geste: "VIEW" | "VALIDATE" | "UPDATE" = "VIEW"): boolean {
+  return userCan(user, "RECETTES", "VIEW") && userCan(user, "RECETTES", geste);
+}
+
 /** La règle de visibilité d'une recette : voir au moins un des modules qui servent les dossiers de son circuit. */
 export function voitLeCircuit(user: Lecteur, circuit: string): boolean {
   const d = decrireCircuit(circuit);
@@ -47,10 +60,11 @@ async function nomsDe(ids: readonly (string | null | undefined)[]): Promise<Map<
 }
 
 /**
- * L'ENTRÉE « RECETTES » DU MENU : la Direction (qui désigne), un responsable désigné, ou qui voit au moins un circuit
+ * L'ENTRÉE « RECETTES » DU MENU : le module `RECETTES` d'abord (lot R1), puis la Direction (qui désigne), un responsable désigné, ou qui voit au moins un circuit
  * ayant une recette. Une entrée qui ouvrirait une page vide n'est pas envoyée.
  */
 export async function voitDesRecettes(user: Lecteur): Promise<boolean> {
+  if (!ouvreLesRecettes(user)) return false;
   if (peutDesigner(user)) return true;
   const designations = await designationsParProcessus();
   if ([...designations.values()].some((d) => estResponsable(user, d))) return true;
@@ -156,6 +170,9 @@ export interface EcranRecettes {
 }
 
 export async function lireEcranRecettes(user: CurrentUser): Promise<EcranRecettes> {
+  // Défense en profondeur : la page passe déjà par `requireModule("RECETTES")` ; sans le module, l'écran est VIDE.
+  if (!ouvreLesRecettes(user)) return { recettes: [], designations: [], peutDesigner: false };
+  const tranche = ouvreLesRecettes(user, "VALIDATE");
   const [lignes, designations] = await Promise.all([
     prisma.recette.findMany({
       orderBy: [{ processus: "asc" }, { titre: "asc" }],
@@ -183,7 +200,7 @@ export async function lireEcranRecettes(user: CurrentUser): Promise<EcranRecette
         validee: versions.find((v) => v.id === r.versionValideeId) ?? null,
         proposition: versions.find((v) => v.statut === "PROPOSEE") ?? null,
         versions,
-        responsable: estResponsable(user, designations.get(processus)),
+        responsable: tranche && estResponsable(user, designations.get(processus)),
         stats: stats.get(r.id)!,
       };
     }),
@@ -191,10 +208,10 @@ export async function lireEcranRecettes(user: CurrentUser): Promise<EcranRecette
       const d = designations.get(p);
       return {
         processus: p, libelle: LIBELLE_PROCESSUS[p], role: d?.role ?? null, libelleRole: d?.role ? libelleRole(d.role) : null,
-        personne: d?.userId ? noms.get(d.userId) ?? null : null, seuil: d?.seuilOccurrences ?? null, moi: estResponsable(user, d),
+        personne: d?.userId ? noms.get(d.userId) ?? null : null, seuil: d?.seuilOccurrences ?? null, moi: tranche && estResponsable(user, d),
       };
     }),
-    peutDesigner: peutDesigner(user),
+    peutDesigner: peutDesigner(user) && ouvreLesRecettes(user, "UPDATE"),
   };
 }
 
@@ -203,6 +220,8 @@ export async function lireEcranRecettes(user: CurrentUser): Promise<EcranRecette
 export type Issue = { ok: true; message: string; recetteId: string } | { ok: false; erreur: string };
 
 async function versionPourResponsable(user: CurrentUser, versionId: string): Promise<{ erreur: string } | { v: NonNullable<Awaited<ReturnType<typeof lireVersion>>> }> {
+  if (!ouvreLesRecettes(user)) return { erreur: "Le module Recettes ne vous est pas ouvert." };
+  if (!ouvreLesRecettes(user, "VALIDATE")) return { erreur: "Trancher une recette ne vous est pas ouvert (module Recettes, « Valider »)." };
   const v = await lireVersion(versionId);
   if (!v || !voitLeCircuit(user, v.recette.circuit)) return { erreur: "Recette introuvable." };
   const designations = await designationsParProcessus();
@@ -299,6 +318,7 @@ export async function designerResponsable(
   user: CurrentUser, processus: string, d: { role?: string | null; userId?: string | null; seuil?: number | null },
 ): Promise<{ ok: true } | { ok: false; erreur: string }> {
   if (!peutDesigner(user)) return { ok: false, erreur: "Réservé à la Direction." };
+  if (!ouvreLesRecettes(user, "UPDATE")) return { ok: false, erreur: "Désigner ne vous est pas ouvert (module Recettes, « Modifier »)." };
   if (!estProcessus(processus)) return { ok: false, erreur: "Processus inconnu." };
   const role = d.role && d.role in ROLE_LABELS ? d.role : null;
   const userId = d.userId ? (await prisma.user.findUnique({ where: { id: d.userId }, select: { id: true } }))?.id ?? null : null;
@@ -331,6 +351,8 @@ export type ReponseRecette =
  * personne (familles). `plan` : un plan déjà préparé, à comparer au gabarit (les écarts sont rendus, rien n'est noté).
  */
 export async function recettePour(user: CurrentUser, intention: string, opts: { exclus?: readonly string[]; plan?: unknown } = {}): Promise<ReponseRecette> {
+  // Sans le module (lot R1) : aucune recette n'existe pour cette personne — ni lue, ni comptée en usage.
+  if (!ouvreLesRecettes(user)) return { statut: "AUCUNE", note: "Le module Recettes ne vous est pas ouvert : aucune recette de la maison à citer. Préparez le plan sans « selon la recette »." };
   const exclus = new Set(opts.exclus ?? []);
   const lignes = await prisma.recette.findMany({
     where: { statut: "VALIDEE", versionValideeId: { not: null } },

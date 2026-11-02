@@ -783,6 +783,8 @@ and the scheduler; the Mission Runtime (`src/lib/missions`) itself only depends 
   J2 work plan (ANALYSE → LIVRABLE → ATTENTE timer → LIVRABLE) valid against any persona catalogue; `RecetteUsage` + the TRAVAIL
   mission launched afterwards measure "accepted unchanged". `MissionPlanPattern` VALIDATED shapes become Super-Admin-only recipe
   cards (no plan): a pattern validated by repetition is still only a PROPOSAL until a human process owner validates it.
+- Lot R1 (decision 0054): `recette_pour` is offered only to people holding RBAC module `RECETTES` (VIEW, default for every
+  role); without it the assistant plans as before J10, never cites a recipe, and no `RecetteUsage` is written.
 
 ## 8. Invariants, gotchas, doctrine rules
 

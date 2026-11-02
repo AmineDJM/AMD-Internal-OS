@@ -124,7 +124,7 @@ const PREFIXES: readonly [RegExp, readonly string[]][] = [
   [/^market/, ["PRODUCT_EXPLORER", "MARKETING_COCKPIT"]], [/^(product|produit|prix-produit)/, ["PRODUCTS", "REGULATORY"]],
   [/^(general-means|office-supply|natures-moyens-generaux|besoins-services)/, ["GENERAL_MEANS"]],
   [/^(direction-artistique|brand|letterhead)/, ["ART_DIRECTION"]], [/^consommation/, ["CONSUMPTION"]],
-  [/^process-intelligence/, ["PROCESS_INTELLIGENCE"]], [/^logistics/, ["LOGISTICS"]], [/^supplier/, ["FINANCES", "DIRECTORIES"]],
+  [/^recettes/, ["RECETTES"]], [/^process-intelligence/, ["PROCESS_INTELLIGENCE"]], [/^logistics/, ["LOGISTICS"]], [/^supplier/, ["FINANCES", "DIRECTORIES"]],
   [/^(purchase-request|bc-)/, ["PURCHASE_ORDERS", ...AD_PRO]], [/^adventum/, ["ADVENTUM_BRAIN"]], [/^coffre/, RH],
   [/^(department|org|company|settings|custom-field|registre-references|refonte|adoption|enrichissement|admin-actions)/, ["ADMIN"]],
 ];

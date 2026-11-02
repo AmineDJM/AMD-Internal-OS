@@ -2,6 +2,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * MODULE RECETTES — LA PORTE SERVEUR (J10, décision 0028) : la mémoire procédurale de la maison.
  *
+ *   • `ouvreLesRecettes` — LA PORTE DU MODULE `RECETTES` (lot R1, décision 0054), jugée avant toute règle dérivée ;
  *   • `proposerLesRecettes` — lit les circuits réels, PROPOSE (jamais sous le seuil d'occurrences) ;
  *   • `lireEcranRecettes` — l'écran « Recettes », sous la règle de visibilité du circuit ;
  *   • `validerVersion`, `corrigerEtValider`, `rejeterVersion`, `retirerRecette` — le responsable du processus seul ;
@@ -15,7 +16,7 @@ import { proposerLesRecettes } from "./infra/extraction";
 export * from "./partage";
 export { proposerLesRecettes, type BilanExtraction } from "./infra/extraction";
 export {
-  corrigerEtValider, designerResponsable, lireEcranRecettes, recettePour, rejeterVersion, retirerRecette, statsUsages, validerVersion, voitDesRecettes, voitLeCircuit,
+  corrigerEtValider, designerResponsable, lireEcranRecettes, ouvreLesRecettes, recettePour, rejeterVersion, retirerRecette, statsUsages, validerVersion, voitDesRecettes, voitLeCircuit,
   type EcranRecettes, type RecetteLue, type ReponseRecette, type StatsUsage, type VersionLue,
 } from "./infra/recettes";
 
