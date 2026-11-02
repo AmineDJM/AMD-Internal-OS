@@ -202,3 +202,14 @@ export function legalWriteAllowed(input: { onLegal: boolean; onFinances: boolean
   if (input.onLegal) return true;
   return input.onFinances && (isInvoice(input.kind) || PURCHASE_CHAIN_KINDS.includes(input.kind));
 }
+
+/**
+ * LE BC D'UN POSTE AD & PRO N'ENTRE DANS LEGAL QU'UNE FOIS SIGNÉ (Direction, 11/2026). Avant la signature, il vit sur le poste
+ * et sur la page Bons de commande : seuls ceux qui le SIGNENT (et le Super Admin) l'ouvrent au registre. La clause écarte ces
+ * pièces pour les autres ; `bcDePosteAvantSignature` dit la même chose d'une pièce déjà lue.
+ */
+export const BC_DE_POSTE_NON_SIGNE = { kind: "PURCHASE_ORDER", sourceType: "AD_PRO_ITEM", signedAt: null } as const;
+
+export function bcDePosteAvantSignature(doc: { kind: string; sourceType: string | null; signedAt: Date | string | null }): boolean {
+  return doc.kind === "PURCHASE_ORDER" && doc.sourceType === "AD_PRO_ITEM" && doc.signedAt === null;
+}

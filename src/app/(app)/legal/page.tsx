@@ -21,7 +21,7 @@ import { legalReaderWhere } from "@/lib/lecteurs/legal";
 import { natureFromParam, invoiceTally, PURCHASE_CHAIN_KINDS } from "@/lib/legal/invoices";
 import { totauxAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import { nonRetenusDesPieces } from "@/lib/bons-de-commande/non-retenus";
-import { libelleNonRetenu } from "@/lib/bons-de-commande/version-signee";
+import { libelleNonRetenu } from "@/lib/bons-de-commande/devis-non-retenus";
 import { perimetreLegal } from "@/lib/queries/visibilite-listes";
 import { ComposerPieceButton, type TypePieceComposable } from "@/components/pieces/composer-piece";
 import { compositionDesPieces } from "@/lib/queries/composition-pieces";

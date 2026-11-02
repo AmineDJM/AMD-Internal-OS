@@ -179,9 +179,10 @@ function LigneASigner({ ligne: l, peutSigner }: { ligne: LigneBCFinances; peutSi
         {/* LIRE AVANT DE SIGNER. Le fichier émis vit dans le Drive personnel de celui qui a émis le
             BC : l'ouvrir par le Drive répondait 403 aux Finances. Il s'ouvre sous la porte de la
             PIÈCE ; un fichier rattaché à la main garde la porte du Drive (§118.152). */}
-        {l.fichiers.pdf || l.fichiers.docx ? (
-          <a href={lienFichierEmis(l.id, l.fichiers.pdf ? "pdf" : "docx")} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-sm hover:bg-secondary">
-            Lire la pièce
+        {/* LE PDF, ET LUI SEUL (Direction, 11/2026) : le signataire télécharge le BC en PDF, le signe et dépose la version signée. */}
+        {l.fichiers.pdf ? (
+          <a href={lienFichierEmis(l.id, "pdf", true)} className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-sm hover:bg-secondary">
+            Télécharger le PDF
           </a>
         ) : l.driveNodeId ? (
           <a href={`/api/drive/${l.driveNodeId}/raw`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 rounded-md border border-border bg-card px-3 py-1.5 text-sm hover:bg-secondary">

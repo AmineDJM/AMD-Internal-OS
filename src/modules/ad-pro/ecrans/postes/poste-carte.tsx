@@ -134,7 +134,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
       return;
     }
     if (cle === "SOUMETTRE") void run(`submit:${item.id}`, () => submitAdProItem(undefined, fdOf()), "Poste soumis pour validation.");
-    // « Déposer le BC signé » (Direction, 11/2026) : le brouillon Excel est né avec la validation des lignes — le geste ouvre la
+    // « Vérifier et valider le BC » (Direction, 11/2026) : le BC est né avec la validation des lignes — le geste ouvre la
     // case « Bon de commande », où il se télécharge et où sa version signée se dépose.
     if (cle === "GENERER_BC") setOngletDemande((d) => ({ cle: "bc", n: (d?.n ?? 0) + 1 }));
   };
@@ -757,6 +757,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                   accorde={item.amountGranted}
                   refusGeneration={refusGeneration}
                   peutTraiter={peutTraiterBC}
+                  moi={{ id: regard.moiId ?? "", superAdmin: regard.superAdmin === true }}
                   peutJoindre={peutJoindreBC}
                   peutModifier={regard.canEdit && !regard.fige && !item.expenseOrderId}
                   busy={busy}

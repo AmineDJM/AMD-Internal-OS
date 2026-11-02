@@ -5,7 +5,7 @@ import { companyScopedWhere, ficheScopedWhere, platformScope } from "@/lib/compa
 import {
   hasGlobalView, scopeAdminRequests, scopeCongressIntl, scopeCongressNational, scopeSales, scopeSponsoring, userCan, type SessionUser,
 } from "@/lib/rbac";
-import { legalReaderWhere, legalViewScope, PURCHASE_CHAIN_KINDS, type LegalViewScope } from "@/lib/lecteurs/legal";
+import { BC_DE_POSTE_NON_SIGNE, legalReaderWhere, legalViewScope, PURCHASE_CHAIN_KINDS, type LegalViewScope } from "@/lib/lecteurs/legal";
 import type { LegalDocKind } from "@prisma/client";
 
 /**
@@ -187,8 +187,10 @@ export async function perimetreLegal(user: SessionUser): Promise<{ portee: Legal
   const nature: Prisma.LegalDocumentWhereInput = portee === "PURCHASE_CHAIN"
     ? { kind: { in: [...PURCHASE_CHAIN_KINDS] as LegalDocKind[] } }
     : {};
+  // LE BC D'UN POSTE AVANT SA SIGNATURE (Direction, 11/2026) : au registre, seuls ses signataires (et le Super Admin) le voient.
+  const signataire = user.role === "SUPER_ADMIN" || user.secondaryRole === "SUPER_ADMIN" || userCan(user, "PURCHASE_ORDERS", "UPDATE");
   const where = await companyScopedWhere<Prisma.LegalDocumentWhereInput>(user.id, {
-    AND: [nature, ...(lecteurs ? [lecteurs as Prisma.LegalDocumentWhereInput] : [])],
+    AND: [nature, ...(lecteurs ? [lecteurs as Prisma.LegalDocumentWhereInput] : []), ...(signataire ? [] : [{ NOT: BC_DE_POSTE_NON_SIGNE }])],
   });
   return { portee, where };
 }

@@ -39,7 +39,7 @@
 export { resoudreSociete, manquesDIdentite, profilDocumentaire, definirProfilDocumentaire, type EchecFabrique, type ReglagesDocumentaires, type ProfilDocumentaire, type Habillage, type ModificationsProfil } from "./factory/profil";
 export { coordonneesParDefaut, specDepuisDemandePourTest, type DemandeDocument, type MethodePdf, type DocumentEmis } from "./factory/demande";
 export { estRevisionDeNumeroSeul, verifierNumeroDeLaPiece } from "./factory/numerotation";
-export { emettreDocumentDrive, reserverNumeroDePiece, type OptionsEmission } from "./factory/emission";
+export { emettreDocumentDrive, type OptionsEmission } from "./factory/emission";
 export { previsualiserDocument, type ApercuDocument } from "./factory/apercu";
 export { reviserDocumentDrive, apercuPourEcran, previsualiserRevision, type ModificationsDocument, type ApercuPiece } from "./factory/revision";
 export { construireDossierDrive, type DossierEmis } from "./factory/dossier";

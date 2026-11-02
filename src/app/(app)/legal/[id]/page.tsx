@@ -8,6 +8,7 @@ import { userCan, peutVoirAdam } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { canEditCompanyId, companyScopedWhere } from "@/lib/company";
 import { legalKindVisible, legalViewScope, legalWriteAllowed } from "@/lib/legal/invoices";
+import { bcDePosteAvantSignature } from "@/lib/lecteurs/legal";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ApercuPieceEmise } from "@/components/legal/apercu-piece-emise";
@@ -57,7 +58,7 @@ const LIBELLE_PIECE_EMISE: Record<TypePieceEmise, string> = {
 import { netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { avalActif, avoirsDeLaFacture } from "@/lib/legal/aval";
 import { nonRetenusDesPieces } from "@/lib/bons-de-commande/non-retenus";
-import { libelleNonRetenu } from "@/lib/bons-de-commande/version-signee";
+import { libelleNonRetenu } from "@/lib/bons-de-commande/devis-non-retenus";
 
 export const dynamic = "force-dynamic";
 
@@ -132,6 +133,9 @@ export default async function LegalDocumentPage(
   // La pièce est-elle DANS la portée de cette personne ? Un refus rend 404, comme les autres :
   // dire qu'un document existe, c'est déjà en dire trop.
   if (!legalKindVisible(portee, String(doc.kind))) notFound();
+  // LE BC D'UN POSTE AVANT SA SIGNATURE n'est pas encore au registre : ses signataires (et le Super Admin) seuls l'ouvrent ici.
+  if (bcDePosteAvantSignature({ kind: String(doc.kind), sourceType: doc.sourceType, signedAt: doc.signedAt })
+    && !(user.role === "SUPER_ADMIN" || user.secondaryRole === "SUPER_ADMIN" || userCan(user, "PURCHASE_ORDERS", "UPDATE"))) notFound();
 
   // UN DEVIS D'AD & PRO NON RETENU (Direction, 11/2026) : écarté au dépôt du BC signé de son poste.
   const nonRetenuLu = doc.kind === "QUOTE" ? (await nonRetenusDesPieces([doc.id])).get(doc.id) ?? null : null;
