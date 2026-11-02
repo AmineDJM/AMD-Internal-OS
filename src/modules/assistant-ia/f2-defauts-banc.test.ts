@@ -338,3 +338,32 @@ suite("F2 · TR-LO-01 — deux cartes indépendantes coexistent ; seule une cart
     expect(estQuestionOuRappel("Et ajoute une deuxième tâche : relancer le pharmacien chef le 20.")).toBe(false);
   });
 });
+
+suite("F2 · TR-EV-01 — la BU se désigne par son nom (base réelle)", () => {
+  let nesrine: CurrentUser;
+  let bu: { id: string };
+  const nom = `Hépatologie F2${Date.now().toString(36)}`;
+  beforeAll(async () => {
+    nesrine = await compte("Nesrine", "MEDICAL_PROMOTION_MANAGER");
+    await prisma.userAccess.create({ data: { userId: nesrine.id, module: "CONGRESS_NATIONAL", canView: true, canCreate: true, scope: "ALL" } });
+    nesrine = { ...nesrine, access: await getAccess(nesrine.id, nesrine.role) } as CurrentUser;
+    bu = await prisma.businessUnit.create({ data: { name: nom } });
+  });
+  afterAll(async () => {
+    await prisma.assistantActionIntent.deleteMany({ where: { userId: nesrine?.id } }).catch(() => {});
+    await prisma.businessUnit.deleteMany({ where: { name: nom } }).catch(() => {});
+    await prisma.userAccess.deleteMany({ where: { userId: nesrine?.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Nesrine` } } }).catch(() => {});
+  });
+
+  it("« BU Hépatologie » dans la demande de congrès : résolue en la gamme, jamais « quel est l'identifiant de la BU ? »", async () => {
+    ACTEUR = nesrine;
+    const props: PropositionPreparee[] = [];
+    const o = outilsV1(nesrine, props, [], [], null, await accesAssistantIa(nesrine), { capacites: true }).find((t) => t.def.name === "congress-request__createCongressRequest");
+    expect(o, "la capacité congrès n'est pas offerte").toBeTruthy();
+    const sortie = JSON.parse(await o!.run({ name: "Congrès national d'hépatologie d'Alger", businessUnitId: `BU ${nom}`, date: "2026-12-05", endDate: "2026-12-06", estimatedBudget: 120000 }, nesrine));
+    expect(JSON.stringify(sortie)).not.toMatch(/identifiant/i);
+    expect(sortie.statut, JSON.stringify(sortie)).toBe("EN_ATTENTE_DE_CONFIRMATION");
+    expect(props[0]!.proposition.payload).toMatchObject({ entree: { businessUnitId: bu.id } });
+  });
+});
