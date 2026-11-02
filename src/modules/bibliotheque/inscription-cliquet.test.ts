@@ -20,6 +20,10 @@ import { fichierDuSymbole } from "@/platform/source";
  */
 
 const EXCEPTIONS: Record<string, { ecritures: number; raison: string }> = {
+  "src/modules/assistant-ia/infra/testing/audit/semis.ts": {
+    ecritures: 1,
+    raison: "Semis SYNTHÉTIQUE du banc d'audit (décision 0050), base de banc ou de test : le contrat et l'avenant des personas (`EmployeeDocument`, dossier RH hors Drive) portent des témoins, ils n'ont rien à faire à la bibliothèque.",
+  },
   "src/lib/drive-storage.ts": { ecritures: 0, raison: "Le coffre lui-même : `putBlob` y est défini, pas appelé pour une pièce." },
   "src/app/api/messaging/upload/route.ts": {
     ecritures: 1,

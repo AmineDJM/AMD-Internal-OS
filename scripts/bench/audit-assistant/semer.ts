@@ -13,7 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { prisma, estUneBaseDeBancOuDEssai } from "@/lib/prisma";
-import { retirerAudit, retirerDossiersMgAdpro, semerAudit, semerDossiersMgAdpro, type SemisAudit } from "@/modules/assistant-ia/api-banc";
+import { retirerAudit, semerAudit, type SemisAudit } from "@/modules/assistant-ia/api-banc";
 
 export const MANIFESTE = path.join(process.cwd(), "bench-out", "audit-assistant-semis.json");
 export const ETIQUETTE = "-q1";
@@ -29,13 +29,10 @@ export function lireSemis(): SemisAudit | null {
 export async function semer(): Promise<SemisAudit> {
   garde();
   if (process.env.BENCH_SEED_ALLOW !== "1") throw new Error("Refus : BENCH_SEED_ALLOW=1 est exigé pour semer.");
-  await retirerDossiersMgAdpro(ETIQUETTE);
   await retirerAudit(ETIQUETTE);
   const { putBlob } = await import("@/lib/drive-storage");
   const { enregistrerFichierDrive } = await import("@/lib/drive/depot");
   const s = await semerAudit(ETIQUETTE, { putBlob, enregistrerFichierDrive });
-  // T3 : les dossiers, le registre des moyens généraux, les demandes Ad & Pro et les tableurs du domaine.
-  await semerDossiersMgAdpro(s, { putBlob, enregistrerFichierDrive });
   // La Bibliothèque lit les pièces déposées (le dépôt les a inscrites), comme la file de fond en production.
   const { rattraper, traiterFile } = await import("@/modules/bibliotheque/api");
   await rattraper({ lot: 500 });
@@ -52,7 +49,6 @@ export async function semer(): Promise<SemisAudit> {
 
 export async function retirer(): Promise<void> {
   garde();
-  await retirerDossiersMgAdpro(ETIQUETTE);
   await retirerAudit(ETIQUETTE);
   fs.rmSync(MANIFESTE, { force: true });
   console.log("Semis d'audit retiré.");
