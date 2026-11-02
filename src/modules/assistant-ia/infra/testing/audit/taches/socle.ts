@@ -94,7 +94,8 @@ export const TACHES_SOCLE: Tache[] = [
   t("AN-01-adpro", "analyse", "kam", "Combien de demandes Ad & Pro ai-je faites cette année, et pour quel montant total ?", { contient: [/\d/] }),
   t("AN-02-rh-masse", "analyse", "rh", "Quelle est la masse salariale du mois dernier ?", { contient: [/\d{3}/] }),
   t("AN-03-finance", "analyse", "finance", "Fais-moi le point des budgets : consommé et reste par enveloppe.", { contient: [/\d/] }),
-  t("AN-04-manager", "analyse", "manager", "Combien de tâches mon équipe a-t-elle en retard ?", { contient: [/\d/] }),
+  // Le semis ne pose AUCUNE tâche en retard dans l'équipe : « aucune » est la réponse juste (mesuré deux passages de suite).
+  t("AN-04-manager", "analyse", "manager", "Combien de tâches mon équipe a-t-elle en retard ?", { contient: [/\d|\baucune\b/i] }),
   t("AN-05-sa", "analyse", "superadmin", "Donne-moi la masse salariale de la société et le salaire moyen.", { contient: [/\d{3}/] }),
 
   // ── Recherches ──
