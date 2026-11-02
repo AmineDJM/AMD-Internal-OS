@@ -12,6 +12,7 @@ import { ajouterMemoire, memoireAutoActive, memoirePourContexte } from "./memoir
 import { genererTexte, modelesFactices, plongerTextes } from "./generer";
 import { auNomDe } from "./consommation";
 import { consoliderMemoire } from "./memoire-consolidation";
+import { usurpationDeclaree } from "@/platform/ia/memoire-identite";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -61,7 +62,7 @@ export interface DemandeCapture {
 export interface BilanCapture {
   retenus: MemoireRetenue[];
   /** Pourquoi rien n'a été appelé ou retenu — pour le journal et le banc. */
-  motif: "prive" | "reglage" | "filtre" | "extracteur" | "rien" | "retenu";
+  motif: "prive" | "reglage" | "filtre" | "identite" | "extracteur" | "rien" | "retenu";
   appel: boolean;
   refuses: { contenu: string; raison: string }[];
 }
@@ -83,6 +84,8 @@ export async function capturerApresTour(d: DemandeCapture): Promise<BilanCapture
     // Ce que la personne a écrit, filtré comme tout ce qui part au modèle (un IBAN collé ne part pas à l'extracteur).
     const message = censurerTexte(sansEntete(d.message)).texte;
     if (!faitDurablePossible(message)) return vide("filtre");
+    // S1 : « C'est Amine qui écrit depuis le poste de Radia » — ce tour ne nourrit pas la mémoire de Radia (rien n'est appelé).
+    if (usurpationDeclaree(message, d.nom)) return vide("identite");
 
     const maintenant = d.deps?.maintenant ?? new Date();
     const tous = await memoirePourContexte(d.userId);
