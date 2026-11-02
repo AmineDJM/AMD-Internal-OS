@@ -179,6 +179,7 @@ export function outilsPilotageVoulus(demande: string): string[] {
     ...(MISSIONS.test(q) ? ["mes_missions", "piloter_mission", "fusionner_missions"] : []),
     ...(MAIL.test(q) ? ["mes_boites_mail", "envoyer_mail"] : []),
     ...(RAPPEL.test(q) ? ["task__createTask"] : []),
+    ...(EXPORT.test(q) && /\b(salaires?|salaries?|paie|remunerations?)\b/.test(q) ? ["lire_paie"] : []),
     ...(EXPORT.test(q) ? ["exporter_donnees"] : []),
   ];
 }
@@ -188,8 +189,27 @@ export const CONSIGNE_MISSIONS = [
   "- Tes missions (tâches de fond), tu les LIS avec `mes_missions` : titre, état, étapes, coût, ce qui bloque. Ne demande JAMAIS à la personne le titre ou l'état d'une mission : lis-les. « Je vois 3 missions » → appelle `mes_missions` et réponds avec ce que tu lis.",
   "- Pause, reprise, arrêt, renommage : `piloter_mission` (par identifiant ou par nom). « Fusionne-les », « mets-les dans un seul tableau » : `fusionner_missions` — JAMAIS une nouvelle mission de plus par `lancer_un_travail` quand des missions sur le même sujet existent.",
   "- Une mission qui n'avance pas : dis EXACTEMENT ce que `mes_missions` rapporte (« en attente du worker », « attend ton approbation », « plafond », « bloquée : … ») — jamais « elle tourne ».",
-  "- Mails : ta boîte, c'est le Gmail d'ADAM ; `mes_boites_mail` lit son état réel (réponds à « as-tu accès à ta boîte / à Gmail ? » en le LISANT). « Envoie un mail à Redouane et Nesrine avec leur planning » → `envoyer_mail` TOUT DE SUITE, sans question : destinataires par leurs noms (l'annuaire les résout), objet, ton et signature choisis par toi, contenu tiré de la conversation, un mail par personne quand il lui est propre, en CONTENU STRUCTURÉ (salutation au prénom, paragraphes courts, tableau pour un planning, **échéances en gras**). Une question SEULEMENT si un destinataire est introuvable ou ambigu. La personne corrige sur la carte. Microsoft ou SMTP de la personne seulement si elle le demande ; brouillon seulement sur demande.",
-  "- « Rappelle-moi lundi d'appeler X » : une TÂCHE datée (task__createTask, échéance = ce jour, que tu calcules depuis la date du jour) — pas une routine, aucune question sur l'heure. « Exporte la liste … en Excel » : lis les données puis `exporter_donnees`, tout de suite — jamais un travail de fond pour un export simple.",
+  "- Mails : `mes_boites_mail` lit l'état réel des boîtes par lesquelles tu peux envoyer (réponds à « as-tu accès à ta boîte ? » en le LISANT ; ne cite AUCUNE boîte que l'outil ne rend pas). « Envoie un mail à Redouane et Nesrine avec leur planning » → `envoyer_mail` TOUT DE SUITE, sans question : destinataires par leurs noms (l'annuaire les résout), objet, ton et signature choisis par toi, contenu tiré de la conversation, un mail par personne quand il lui est propre, en CONTENU STRUCTURÉ (salutation au prénom, paragraphes courts, tableau pour un planning, **échéances en gras**). Une question SEULEMENT si un destinataire est introuvable ou ambigu. La personne corrige sur la carte. La boîte qu'emploie `envoyer_mail` est celle que l'outil choisit : une boîte réclamée que `mes_boites_mail` ne rend pas, prépare QUAND MÊME la carte par `envoyer_mail` et ne nomme pas la boîte réclamée ; brouillon seulement sur demande.",
+  "- « Rédige / écris / fais un mail » : `envoyer_mail` — la CARTE est la rédaction (aperçu mis en page, la personne corrige et signe) ; jamais le mail en texte dans la réponse. Une PIÈCE JOINTE nommée (un BC, une facture, une attestation, un fichier de son Drive) : son nom dans `pieces`, sans la chercher d'abord — l'outil la retrouve dans le Drive et le dit s'il ne la trouve pas.",
+  "- « Rappelle-moi lundi d'appeler X » : une TÂCHE datée (task__createTask, échéance = ce jour, que tu calcules depuis la date du jour) — pas une routine, aucune question sur l'heure. « Exporte la liste … en Excel » : lis les données puis `exporter_donnees`, tout de suite — jamais un travail de fond pour un export simple (la liste des salariés et de leur salaire de base : `lire_paie` avec `liste: true`).",
+  "- Une HYPOTHÈSE RAISONNABLE vaut mieux qu'une question (banc d'audit Q1 AN-05, NO-02) : une période non dite = le dernier mois disponible ; une liste de notes introuvable = la créer ; dis l'hypothèse en une phrase, la personne corrige. Ne pose une question que si rien de raisonnable ne s'impose.",
   "- Une question déjà posée et restée sans réponse ne se repose pas : dis ce qui manque (champ obligatoire) et que la carte ou l'écran le complète.",
   "- N'écris JAMAIS « c'est fait », « j'ai fusionné », « c'est envoyé », « c'est enregistré », « j'ai pris en compte » sans l'outil réussi qui le prouve dans CE tour. Une carte affichée n'est pas une action faite : dis qu'elle attend sa confirmation.",
+].join("\n");
+
+// ─────────────────────────────── 5. Les demandes de fond (P1 bis, banc d'audit Q1 MI-02) ───────────────────────────────
+
+/** « Prépare en tâche de fond… », « en arrière-plan » : la personne demande une MISSION, pas une réponse dans le tour. */
+export function demandeDeFond(demande: string): boolean {
+  return /\b(en )?taches? de fond\b|\ben arriere[- ]plan\b|\btravail de fond\b|\ben background\b|\bpendant que je\b/.test(plier(demande));
+}
+
+/** En mode « fond », le tour ne LIT rien lui-même : il pose le plan (les étapes LECTURE de la mission liront). */
+export const OUTILS_DE_FOND: readonly string[] = ["lancer_un_travail", "recherche_approfondie", "mes_missions", "piloter_mission"];
+/** Assez pour poser le plan, le corriger si le moteur rend des fautes, et le dire (banc réel : 4 ne suffisaient pas). */
+export const ETAPES_DE_FOND = 8;
+
+export const CONSIGNE_FOND = [
+  "### DEMANDE DE FOND — LANCE UNE MISSION, NE LA JOUE PAS DANS CE TOUR",
+  "Cette demande se fait EN ARRIÈRE-PLAN : appelle `lancer_un_travail` TOUT DE SUITE avec un plan (étapes LECTURE avec tes outils de lecture du catalogue, ANALYSE, puis un LIVRABLE). Ne lis aucune donnée toi-même dans ce tour : la mission le fera. Puis dis en une phrase que la mission est lancée (ou attend son approbation) et que le résultat reviendra dans la conversation.",
 ].join("\n");

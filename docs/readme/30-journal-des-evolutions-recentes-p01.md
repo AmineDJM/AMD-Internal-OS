@@ -42,6 +42,35 @@ unitaires d'un dossier répondent « introuvable » hors portée. Banc : 34 tâc
 base et 3 attaques ; passage réel final 32/34 (puis les 2 échecs corrigés et réussis au rejeu ciblé), attaques 3/3
 bloquées. Décision [0051](../assistant/decisions/0051-dossiers-moyens-generaux-fiches-adpro.md).
 
+### T2 — ADVENTUM IA TIENT LES ANNUAIRES, ANALYSE LE MARKETING ET INTERROGE LE TERRAIN (2026-11-02)
+
+Direction, 02/11 : « analyser le marketing, modifier les annuaires, des tâches longues sur l'annuaire, demander aux délégués
+les stocks… ». Banc réel de 35 tâches nouvelles (`ANN-`, `MKT-`, `TER-`), chacune prouvée EN BASE par un vérificateur :
+**avant 2 réussies sur 19 jouées** (plafond atteint), **après 27 / 35** au passage complet, puis les 8 échecs corrigés dans
+le code et réussis au rejeu ciblé (35 / 35 au moins une fois ; un passage complet reste à rejouer). Décision [0052](../assistant/decisions/0052-annuaires-marketing-terrain.md). **Lectures** : `annuaire_terrain`
+(qui couvre une pharmacie, panel sans téléphone, comptes exacts), `visites_terrain` (qui a vu qui, quand, couverture en %),
+`depenses_marketing` (Ad & Pro par BU / produit / mois, comparaison, graphique et Excel par K1 ; lue par le module `ad-pro`).
+**Gestes** : `maj_annuaire` (une ou N fiches, depuis un Excel, avant → après), `fusionner_doublons_annuaire` (toute une
+wilaya en une carte), `annuler_mon_action` (le lot entier revient d'un coup), `demander_au_terrain` (une mission construite
+par le code : une demande par personne, relance, tableau consolidé — canal interne). **ERP** : actions `appliquerLotAnnuaire`
+et `fusionnerEtablissementsAnnuaire` (réversibles, déclarées, banc exécuté-annulé-rétabli) ; entité `institution` au
+registre ; résolution des noms par mots (« Dr Karima BENSALEM ») ; **défauts corrigés** : `updateDoctor` effaçait téléphone,
+e-mail, secteur, société et délégué absents du formulaire ; l'ajout d'une ligne d'annuaire perdait le téléphone ; `modifierFournisseurAnnuaire` remplaçait la fiche entière ;
+`createInstitution` rangeait « Pharmacie … » en « Autre » ; le grade « Dr » était refusé. RBAC inchangé ; un délégué hors
+secteur ne voit ni ne modifie la fiche ni la visite d'un autre panel (testé au banc et contre la base).
+
+### T1 — ADVENTUM IA RANGE, CONVERTIT, MODIFIE, RETROUVE ET DONNE LES DOCUMENTS, À LEUR PLACE (2026-11-02)
+
+« Ranger des documents dans légal, convertir, modifier, checker le drive, nous donner des documents » (Direction, 02/11).
+**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 12 pièces ou un dossier du Drive ; nature et dossier
+canoniques, dates lues sur la pièce, partie de l'annuaire, avenant créé sur son contrat) et **mettre à jour une fiche**
+(`modifier_fiche_juridique`) — par les actions de l'écran, annulables (J7/K10b). **Lire et donner** : `registre_juridique`
+(« le dernier contrat de X », échéances, dossiers ; le fichier remis par son lien, pièce restreinte jamais nommée) et
+`bilan_drive` (doublons, vrac, pièces à ranger, expirées, non classées). **Assembler** : `assembler_pdf` (fusion, extraction
+de pages, images → PDF). Conversions de secours sans worker (PDF → Excel, image → PDF), fichier désigné par ses mots.
+Banc `DOC-` : 36 tâches à vérificateur déterministe + 5 attaques, persona « juriste » — rejeu réel 2,53 $ : 19/30 au premier
+passage, 36/36 au dernier, 5/5 attaques bloquées. Décision [0053](../assistant/decisions/0053-documents-juridique-drive.md).
+
 ### S1 bis — L'IDENTITÉ NE S'APPREND PAS : « C'EST AMINE QUI ÉCRIT » NE DEVIENT PLUS UN PRÉNOM RETENU (2026-11-02)
 
 Banc Q1 (rejeu réel P1+S1+B1, US-01) : la paie refusée, mais « Prénom : Amine » retenu dans la mémoire de Radia — d'où le
@@ -49,6 +78,19 @@ Banc Q1 (rejeu réel P1+S1+B1, US-01) : la paie refusée, mais « Prénom : Amin
 ne nourrit pas la mémoire ; aucun souvenir d'identité ne s'écrit (capture, voix, consolidation, main, carte, modification)
 ni ne se relit (rappel, voix, ancien contexte) — ceux déjà en base sont neutralisés. Décision
 [0048 §6 bis](../assistant/decisions/0048-acces-personnels.md) ; `src/platform/ia/memoire-identite.ts` (socle commun, Adam compris).
+
+### P1 bis — LE BANC RÉEL Q1, SUITE : REPLI D'ENVOI, MISSIONS DE FOND, CARTES À COMPLÉTER (2026-11-02)
+
+Décision [0047](../assistant/decisions/0047-pilotage-missions-mails-verite.md) § P1 bis. **ML-09** : sans Gmail d'Adam
+relié, la carte « Envoyer par l'envoi de l'ERP » est préparée quand même (gabarit, fenêtre d'annulation) et une phrase dit
+où relier la boîte d'Adam. **MI-02** : « en arrière-plan / rapport long » lance une mission dès le début du tour ; un tour
+qui atteint son plafond bascule en mission. **AP-01/02/03/05** : après une question restée sans réponse, la **carte à
+compléter** (champs manquants en formulaire, revérifiée à la signature) — jamais « aucune carte » ; matériel promo :
+titre et action proposés, article hors catalogue nommé. **ML-04** : « toute la direction » se résout par l'annuaire.
+**EX-03** : `lire_paie { liste }` pour l'export RH. **AN-04** : `taches_equipe` (retards de l'équipe de « Mon Équipe »).
+**Canal d'Adam réservé au Super Admin** (`domaine/mails/canal.ts`) : ni outil, ni état, ni mot pour les autres ;
+garde de sortie serveur (`taireCanalAdam`) ; pièces jointes du Drive (jointes par le canal d'Adam, dites par l'envoi de
+l'ERP) ; banc : domaine `taches/mails.ts` (28 tâches + semis `ml-`) et 6 attaques ML-ADAM- (`attaques.ts`).
 
 ### P1 — L'ASSISTANT PILOTE VRAIMENT SES MISSIONS ET SES MAILS, ET NE DIT JAMAIS AVOIR FAIT CE QU'IL N'A PAS FAIT (2026-11-02)
 

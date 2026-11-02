@@ -71,6 +71,10 @@ export interface Tache {
   };
   /** Le vérificateur du domaine : les motifs d'échec (vide = réussi), lus EN BASE après la tâche. */
   verifier?: (c: ContexteVerification) => Promise<string[]>;
+  /** Lot T2 : remettre les fiches de la tâche dans leur état initial AVANT de la jouer (le banc se rejoue). */
+  preparer?: () => Promise<void>;
+  /** Lot T2 : des tours joués APRÈS la confirmation (« annule cette mise à jour ») — leur carte est confirmée aussi. */
+  apresConfirmation?: string[];
 }
 
 /** L'aide d'écriture d'une tâche (même ordre partout : id, catégorie, persona, tours, attendu, options). */

@@ -1,4 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
+import { prisma } from "@/lib/prisma";
+import { fold } from "@/platform/ia/outils/arguments";
 import { ongletDesigne } from "@/platform/ia/artifact/store";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { documentSensible, droitsSurDocument, enregistrerAtelier, PREFIXE_ATELIER } from "@/platform/ia/artifact/atelier/service";
@@ -17,10 +19,26 @@ import { champs, texte, type ChargeOperationIA, type OperationIA, type Propositi
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const onglet = (userId: string, ref: string) => ongletDesigne(userId, PREFIXE_ATELIER, ref);
+/** L'onglet désigné par sa référence, son nœud — ou son NOM (le modèle dit « le contrat de prestation Atlas »). */
+async function onglet(userId: string, ref: string) {
+  const direct = await ongletDesigne(userId, PREFIXE_ATELIER, ref);
+  if (direct) return direct;
+  const q = fold(ref.replace(/\.[a-z0-9]{2,5}$/i, ""));
+  if (!q) return null;
+  const ouverts = await prisma.artifactSession.findMany({ where: { userId, blockId: { startsWith: PREFIXE_ATELIER }, state: { not: "CLOSED" } }, select: { id: true, name: true }, orderBy: { updatedAt: "desc" }, take: 20 });
+  const hits = ouverts.filter((o) => fold(o.name).includes(q));
+  return hits.length === 1 ? ongletDesigne(userId, PREFIXE_ATELIER, hits[0]!.id) : null;
+}
+
+/** L'UNIQUE document modifié et non enregistré de la personne dans l'Atelier — `null` s'il y en a zéro ou plusieurs. */
+async function seulDocumentModifie(userId: string): Promise<string | null> {
+  const s = await prisma.artifactSession.findMany({ where: { userId, blockId: { startsWith: PREFIXE_ATELIER }, state: { not: "CLOSED" }, dirty: true }, select: { id: true }, take: 2 });
+  return s.length === 1 ? s[0]!.id : null;
+}
 
 async function proposer(e: Record<string, unknown>, user: CurrentUser): Promise<PropositionOperation> {
-  const ref = texte(e, "document");
+  // « Enregistre » sans dire lequel (banc T1, DOC-22) : l'UNIQUE document modifié et non enregistré de la personne — sinon on demande.
+  const ref = texte(e, "document") || (await seulDocumentModifie(user.id)) || "";
   if (!ref) return { manque: ["le document à enregistrer"] };
   const s = await onglet(user.id, ref);
   if (!s) return { erreur: "Ce document n'est pas ouvert dans l'Atelier." };

@@ -29,7 +29,8 @@ import { lirePieces, type DependancesLecture } from "../lecture/pieces";
 import { ProvenanceDuTour } from "../provenance";
 import { JeuxDuTour } from "../analyse/outils";
 import { noteChiffresNonSources } from "../../domaine/analyse/chiffres";
-import { CONSIGNE_MISSIONS, noteActionsNonVerifiees, outilsPilotageVoulus } from "../../domaine/missions/pilotage";
+import { CONSIGNE_BOITE_ADAM, canalAdamOuvert, taireCanalAdam } from "../../domaine/mails/canal";
+import { CONSIGNE_FOND, CONSIGNE_MISSIONS, demandeDeFond, ETAPES_DE_FOND, noteActionsNonVerifiees, OUTILS_DE_FOND, outilsPilotageVoulus } from "../../domaine/missions/pilotage";
 import { outilsMissions } from "../missions/pilotage";
 import { outilsMails } from "../mails/boites";
 import type { PowerTool } from "@/platform/ia/outil";
@@ -107,6 +108,11 @@ export interface DemandeDuTour {
   prive?: boolean;
   /** Décision 0027 : la section du DOSSIER de la conversation (consignes, documents encore ouvrables). */
   sectionDossier?: string | null;
+  /**
+   * P1 bis (décision 0047, banc d'audit Q1 MI-02) : le tour POSE UNE MISSION au lieu de faire le travail — demandé
+   * (« en tâche de fond ») ou décidé par le serveur quand un tour a atteint son plafond de jetons.
+   */
+  modeFond?: boolean;
   /** K6 (décision 0036) : les PIÈCES ATTENDUES (WhatsApp, mail) — absente tant qu'aucune attente n'est ouverte. */
   sectionAttentes?: string | null;
 }
@@ -167,6 +173,10 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const enClair = reglages.valeursSensibles === "EN_CLAIR";
   const saisie = filtrerSaisie((d.texte ?? "").trim(), d.historique, reglages.censurerSaisie, enClair);
   const texteSaisi = saisie.texte;
+  // P1 bis (MI-02) : « en tâche de fond », ou la bascule décidée par le serveur — le tour pose une mission.
+  const fond = d.modeFond === true || demandeDeFond(texteSaisi);
+  // P1 bis : le canal d'Adam n'existe que pour le Super Admin — pour tout autre, la réponse ne le nomme jamais (garde serveur).
+  const sortieDuCanal = (t: string) => (canalAdamOuvert(user) ? t : taireCanalAdam(t));
   const dit = d.vocal && texteSaisi ? `[Message vocal, transcrit automatiquement — un nom propre peut y être écorché]\n${texteSaisi}` : texteSaisi;
   if (!dit && !pieces.length) return { ok: false, error: "Message vide.", message: dit };
 
@@ -249,7 +259,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     outils.push(outilAttendrePieces(user, d.conversation ?? null, d.vocal || texteSaisi.startsWith("[Conversation vocale]") ? "VOIX" : "ECRIT"));
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
-    selection = selectionDuTour(outils, user, message, config, precedente, [...outilsPilotageVoulus(texteSaisi), ...outilsDAnalyseVoulus(texteSaisi, analyse.pieces)]);
+    // P1 bis (MI-02) : une demande DE FOND ne se joue pas dans le tour — seuls les outils qui POSENT la mission sont offerts.
+    if (fond) outils = outils.filter((o) => OUTILS_DE_FOND.includes(o.def.name));
+    selection = selectionDuTour(outils, user, message, config, precedente, fond ? [...OUTILS_DE_FOND] : [...outilsPilotageVoulus(texteSaisi), ...outilsDAnalyseVoulus(texteSaisi, analyse.pieces)]);
     outils.push(selection.outil);
     // LE PRÉFIXE STABLE (J4) : identité, règles, présentation, consignes générales, puis la personne ; la partie
     // variable du tour (indice de travail long, résumé de la conversation, heure) ferme la consigne.
@@ -258,7 +270,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const { section: profil } = await profilDeLaPersonne(user, acces);
     instructions = (await compileContext({
       user, profil, consignesRole: resoudreConsignesRole(config),
-      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, d.consigne]),
+      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, canalAdamOuvert(user) ? CONSIGNE_BOITE_ADAM : null, d.consigne, fond ? CONSIGNE_FOND : null]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
       sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
@@ -277,9 +289,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       outils, modeles, delaiMs: d.delaiMs ?? DELAI_MODELE_MS, config,
       actifs: selection.actifs, cleCache: `assistant-ia:${user.id}`,
       propositionsFaites: () => propositions.length,
-      maxEtapes: d.maxEtapes,
+      maxEtapes: fond ? Math.min(d.maxEtapes ?? ETAPES_DE_FOND, ETAPES_DE_FOND) : d.maxEtapes,
       // En flux, un repère n'est pas encore jugé : il s'affiche « ••• » jusqu'à la réponse finale.
-      surTexte: d.surTexte ? (brut) => d.surTexte!(masquerReperesPartiels(brut)) : undefined,
+      surTexte: d.surTexte ? (brut) => d.surTexte!(sortieDuCanal(masquerReperesPartiels(brut))) : undefined,
       // `trouver_outil` est de la cuisine du tour : la personne ne lit que ce qui a été CONSULTÉ.
       surOutil: d.surOutil ? (nom) => { if (nom !== OUTIL_TROUVER) d.surOutil!(libelles.get(nom) ?? nom); } : undefined,
     });
@@ -304,8 +316,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     return {
       ok: true,
       message,
-      content: await revelateur.texte([ui.message || "Je n'ai pas de réponse à afficher.", note?.texte, nonVerifie?.texte].filter(Boolean).join("\n\n")),
-      blocs: [...visuels, ...(await revelateur.objet([...ui.blocs, ...blocsCalcules]))],
+      content: sortieDuCanal(await revelateur.texte([ui.message || "Je n'ai pas de réponse à afficher.", note?.texte, nonVerifie?.texte].filter(Boolean).join("\n\n"))),
+      blocs: [...visuels, ...(JSON.parse(sortieDuCanal(JSON.stringify(await revelateur.objet([...ui.blocs, ...blocsCalcules])))) as typeof ui.blocs)],
       memoireProposee: d.prive || vueExacte ? null : memoires[0] ?? null,
       notesProposees: [...notesProposees],
       travaux: [...travauxLances],
@@ -323,6 +335,13 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       } : null,
     };
   } catch (e) {
+    // P1 bis (MI-02) : LE PLAFOND D'UN TOUR atteint ne s'arrête plus sur un refus — le travail BASCULE en mission (une fois) :
+    // un tour court pose le plan, la mission lit et rédige en arrière-plan. Le plafond du JOUR, lui, reste un arrêt.
+    if (e instanceof PlafondIaAtteint && !d.modeFond && /plafond d'un tour/.test(e.message)) {
+      console.warn("[assistant] plafond d'un tour atteint : bascule en mission");
+      const r = await tourAuNomDe(user, { ...d, modeFond: true });
+      return r.ok ? { ...r, content: `Cette demande dépassait ce qu'un tour peut faire : je l'ai confiée à une mission en arrière-plan.\n\n${r.content}` } : r;
+    }
     if (e instanceof IaCoupee || e instanceof PlafondIaAtteint) return { ok: false, error: e.message, message };
     console.error("[assistant] aucun modèle n'a répondu", e);
     // Le fournisseur REFUSE faute de crédit (31/10/2026 : « insufficient_quota ») : le dire, sinon la personne réessaie

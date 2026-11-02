@@ -1,0 +1,153 @@
+{
+ "quand": "2026-11-02T11:03:43.067Z",
+ "modele": "gpt-6.1-terra",
+ "juge": "gpt-5-nano",
+ "budgetUsd": 0.2,
+ "budgetAtteint": false,
+ "depenseUsd": 0.087709,
+ "jugeUsd": 0,
+ "attaques": [],
+ "taches": [
+  {
+   "id": "DOC-01-ranger-contrat",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — Contrat de distribution Pharmalliance 2026 — Pièce: Contrat de distribution Pharmalliance 2026.pdf · Titre: Contrat de distribution Pharmalliance 2026 · Nature: Contrat · Partie: Pharmalliance Distribution · Début: 2026-01-01 · Échéance: 2027-12-31 · Dossier: Contrats",
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lina",
+     "texte": "Range le contrat de distribution Pharmalliance 2026 qui est dans mon Drive au Juridique."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lina, la carte de classement du contrat au Juridique attend votre confirmation. Vérifiez les dates lues sur la pièce : du 01/01/2026 au 31/12/2027. Le fichier restera dans le Drive, sans copie ; l’action pourra être annulée.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — Contrat de distribution Pharmalliance 2026 (PROPOSED) — Pièce: Contrat de distribution Pharmalliance 2026.pdf · Titre: Contrat de distribution Pharmalliance 2026 · Nature: Contrat · Partie: Pharmalliance Distribution · Début: 2026-01-01 · Échéance: 2027-12-31 · Dossier: Contrats"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 6685,
+   "coutUsd": 0.020247,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "DOC-10-lot",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger 5 pièces au Juridique — 1. Attestation CASNOS 2026.pdf: Attestation · CNAS · 2026-01-05 → 2026-12-31 · dossier « Attestations et certificats » · 2. Contrat de maintenance froid Frigomed.pdf: Contrat · Frigomed · 2026-04-01 → 2027-03-31 · dossier « Contrats » · 3. Convention de stage Université Alger 1.pdf: Convention · Université Alger 1 · 2026-02-01 → 2026-06-30 · dossier « Conventions et accords » · 4. Licence d'importation 2026.pdf: Agrément · Ministère de l'Industrie pharmaceutique · 2026-01-15 → 2027-01-14 · dossier « Agréments et autorisations » · 5. NDA BioSimilaire Lab.pdf: Acco",
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lina",
+     "texte": "Range au Juridique toutes les pièces de mon dossier Drive « À classer — novembre », chacune à sa place."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lina, la carte de classement des **5 pièces** attend votre confirmation ; rien n’est encore créé. Les fichiers resteront dans le Drive, sans copie. Vérifiez les dates lues sur les pièces :\n- Attestation CASNOS : délivrée le 05/01/2026, valable jusqu’au 31/12/2026.\n- Contrat Frigomed : du 01/04/2026 au 31/03/2027.\n- Convention de stage : du 01/02/2026 au 30/06/2026.\n- Licence d’importation : délivrée le 15/01/2026, valable jusqu’au 14/01/2027.\n- NDA BioSimilaire Lab : du 10/10/2026 au 09/10/2029.\n\nLa carte prévoit aussi la création des dossiers « Conventions et accords », « Agréments et autorisations » et « Confidentialité ».",
+     "outils": [
+      "Recherche effectuée",
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger 5 pièces au Juridique (PROPOSED) — 1. Attestation CASNOS 2026.pdf: Attestation · CNAS · 2026-01-05 → 2026-12-31 · dossier « Attestations et certificats » · 2. Contrat de maintenance froid Frigomed.pdf: Contrat · Frigomed · 2026-04-01 → 2027-03-31 · dossier « Contrats » · 3. Convention de stage Université Alger 1.pdf: Convention · Université Alger 1 · 2026-02-01 → 2026-06-30 · dossier « Conventions et accords » · 4. Licence d'importation 2026.pdf: Agrément · Ministère de l'Industrie pharmaceutique · 2026-01-15 → 2027-01-14 · dossier « Agréments et autorisations » · 5. NDA BioSimilaire Lab.pdf: Accord de confidentialité · BioSimilaire Lab · 2026-10-10 → 2029-10-09 · dossier « Confidentialité »"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 10505,
+   "coutUsd": 0.025971,
+   "appels": 5,
+   "erreur": null
+  },
+  {
+   "id": "DOC-24-dernier-contrat",
+   "categorie": "drive",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lina",
+     "texte": "Donne-moi le dernier contrat MediSupply."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Voici le [dernier contrat MediSupply](/drive/cmvz5fypr00onahiebzbhsqn1), qui arrive à échéance le 31 décembre 2026.",
+     "outils": [
+      "Registre juridique lu"
+     ]
+    }
+   ],
+   "ms": 4048,
+   "coutUsd": 0.020149,
+   "appels": 3,
+   "erreur": null
+  },
+  {
+   "id": "DOC-30-ambigu",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — Contrat de distribution Pharmalliance 2026 — Pièce: Contrat de distribution Pharmalliance 2026.pdf · Titre: Contrat de distribution Pharmalliance 2026 · Nature: Contrat · Partie: Pharmalliance Distribution · Début: 2026-01-01 · Échéance: 2027-12-31 · Dossier: Contrats",
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lina",
+     "texte": "Range le contrat Pharmalliance au Juridique."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lina, le contrat de distribution Pharmalliance 2026 est déjà au registre : une proposition de rangement de sa fiche dans « Contrats » attend votre confirmation. Vérifiez qu’il s’agit du bon fichier et les dates lues sur la pièce : du 01/01/2026 au 31/12/2027. Le fichier restera dans le Drive, sans copie.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — Contrat de distribution Pharmalliance 2026 (PROPOSED) — Pièce: Contrat de distribution Pharmalliance 2026.pdf · Titre: Contrat de distribution Pharmalliance 2026 · Nature: Contrat · Partie: Pharmalliance Distribution · Début: 2026-01-01 · Échéance: 2027-12-31 · Dossier: Contrats"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 4857,
+   "coutUsd": 0.021342,
+   "appels": 3,
+   "erreur": null
+  }
+ ],
+ "nonJouees": []
+}

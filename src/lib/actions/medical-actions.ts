@@ -15,6 +15,7 @@ import { recordAudit } from "@/lib/audit";
 import { doubleEcrireOrganisation, relierALaPersonne } from "@/modules/referentiels/api";
 import { fdStr, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
+import { gradeDuTexte } from "@/lib/medical/directory-grid";
 import { reposerWilayaCode } from "@/modules/lieux/api";
 import { sousVerrous } from "@/lib/promo/stock-ecriture";
 import { dejaDansLaVisite, ecrireRemises, lireMaterielRemis, motifDeRemise, phraseMateriel, RefusRemise, toucheLeStock, verrousDuRapport } from "@/lib/promo/remises-visite";
@@ -76,7 +77,8 @@ const segToPriority: Record<SegmentLevel, Priority> = {
   VERY_HIGH: "CRITICAL", HIGH: "HIGH", MEDIUM: "MEDIUM", LOW: "LOW", VERY_LOW: "LOW",
 };
 function parseTitle(v: string | null): DoctorTitle {
-  return v && TITLES.includes(v as DoctorTitle) ? (v as DoctorTitle) : "AUTRE";
+  const g = v ? gradeDuTexte(v) : null;
+  return g && TITLES.includes(g as DoctorTitle) ? (g as DoctorTitle) : "AUTRE";
 }
 
 /**
@@ -99,8 +101,27 @@ function parseWilaya(v: string | null): { ok: true; value: string | null } | { o
 const INSTITUTION_TYPES: InstitutionType[] = [
   "CHU", "EPH", "EHS", "CLINIQUE_PRIVEE", "POLYCLINIQUE", "CABINET", "CENTRE_SANTE", "PHARMACIE", "GROSSISTE", "AUTRE",
 ];
-function parseInstitutionType(v: string | null): InstitutionType {
-  return v && INSTITUTION_TYPES.includes(v as InstitutionType) ? (v as InstitutionType) : "AUTRE";
+function parseInstitutionType(v: string | null, nom?: string | null): InstitutionType {
+  const t = (v ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\s-]+/g, "_");
+  if (INSTITUTION_TYPES.includes(t as InstitutionType)) return t as InstitutionType;
+  // LE TYPE DIT PAR LE NOM (lot T2) : « Pharmacie Al Chifa » créée sans type devenait « Autre » — et sortait de tout
+  // ce qui compte les pharmacies. Un libellé courant (« pharmacie », « clinique ») se lit aussi.
+  const dit = `${v ?? ""} ${nom ?? ""}`.toLowerCase();
+  if (/pharmacie|officine/.test(dit)) return "PHARMACIE";
+  if (/grossiste/.test(dit)) return "GROSSISTE";
+  if (/\bchu\b/.test(dit)) return "CHU";
+  if (/polyclinique/.test(dit)) return "POLYCLINIQUE";
+  if (/clinique/.test(dit)) return "CLINIQUE_PRIVEE";
+  if (/cabinet/.test(dit)) return "CABINET";
+  return "AUTRE";
+}
+/** La wilaya d'une adresse (« 22 rue Mohamed Khemisti, Oran ») quand le formulaire n'en donne pas — sinon rien. */
+function wilayaDeLAdresse(adresse: string | null): string | null {
+  for (const morceau of (adresse ?? "").split(/[,\n]/).reverse()) {
+    const c = canonicalWilaya(morceau.trim());
+    if (c) return c;
+  }
+  return null;
 }
 function parseInstitutionSector(v: string | null): InstitutionSector {
   return v === "PRIVE" ? "PRIVE" : "PUBLIC";
@@ -122,12 +143,12 @@ export async function createInstitution(formData: FormData): Promise<ActionResul
   if (!peutAnnuaire(user, "ETABLISSEMENTS", "CREATE")) return { ok: false, error: "Non autorisé." };
   const name = fdStr(formData, "name");
   if (!name) return { ok: false, error: "Le nom de l'établissement est obligatoire." };
-  const wilaya = parseWilaya(fdStr(formData, "wilaya"));
+  const wilaya = parseWilaya(fdStr(formData, "wilaya") ?? wilayaDeLAdresse(fdStr(formData, "address")));
   if (!wilaya.ok) return { ok: false, error: wilaya.error };
   const created = await prisma.medicalInstitution.create({
     data: {
       name,
-      type: parseInstitutionType(fdStr(formData, "type")),
+      type: parseInstitutionType(fdStr(formData, "type"), name),
       sector: parseInstitutionSector(fdStr(formData, "sector")),
       wilaya: wilaya.value,
       region: fdStr(formData, "region"),
@@ -659,30 +680,33 @@ export async function updateDoctor(formData: FormData): Promise<ActionResult> {
   const wilaya = formData.has("wilaya") ? parseWilaya(fdStr(formData, "wilaya")) : { ok: true as const, value: before.wilaya };
   if (!wilaya.ok) return { ok: false, error: wilaya.error };
 
+  // SEULEMENT CE QUE LE FORMULAIRE PORTE (lot T2, banc d'audit 02/11 — la règle §118.172 de `updateInstitution`) :
+  // une correction de SPÉCIALITÉ effaçait le téléphone, l'e-mail, le secteur, le grade, les produits suivis, la société
+  // ET le délégué (un absent valait « vide »). Un champ absent garde sa valeur ; présent et vide, il s'efface.
   await prisma.medicalDoctor.update({
     where: { id },
     data: {
       name,
-      title: parseTitle(fdStr(formData, "title")),
+      ...(formData.has("title") ? { title: parseTitle(fdStr(formData, "title")) } : {}),
       specialtyId: specialite.specialtyId,
       specialty: specialite.specialty,
-      sector: parseSector(fdStr(formData, "sector")),
+      ...(formData.has("sector") ? { sector: parseSector(fdStr(formData, "sector")) } : {}),
       institutionId,
       serviceId,
       institution: iName ?? (institutionTexte !== undefined ? institutionTexte : institutionId ? before.institution : fdStr(formData, "institution") ?? before.institution),
       wilaya: wilaya.value,
-      region: fdStr(formData, "region"),
-      phone: fdStr(formData, "phone"),
-      email: fdStr(formData, "email"),
+      ...(formData.has("region") ? { region: fdStr(formData, "region") } : {}),
+      ...(formData.has("phone") ? { phone: fdStr(formData, "phone") } : {}),
+      ...(formData.has("email") ? { email: fdStr(formData, "email") } : {}),
       influence: parseSegment(fdStr(formData, "influence") ?? before.influence),
       potential: parseSegment(fdStr(formData, "potential") ?? before.potential),
       affinity: parseSegment(fdStr(formData, "affinity") ?? before.affinity),
       influenceLevel: segToInfluence[parseSegment(fdStr(formData, "influence") ?? before.influence)],
       prescriptionPotential: segToPriority[parseSegment(fdStr(formData, "potential") ?? before.potential)],
-      targetProducts: fdStr(formData, "targetProducts"),
-      comments: fdStr(formData, "comments"),
-      companyId: fdStr(formData, "companyId") || null,
-      ...(isManager ? { delegateId: fdStr(formData, "delegateId") } : {}),
+      ...(formData.has("targetProducts") ? { targetProducts: fdStr(formData, "targetProducts") } : {}),
+      ...(formData.has("comments") ? { comments: fdStr(formData, "comments") } : {}),
+      ...(formData.has("companyId") ? { companyId: fdStr(formData, "companyId") || null } : {}),
+      ...(isManager && formData.has("delegateId") ? { delegateId: fdStr(formData, "delegateId") } : {}),
       updatedById: user.id,
     },
   });

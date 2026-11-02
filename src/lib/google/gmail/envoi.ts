@@ -26,7 +26,11 @@ import { approveOutboundIntent, cancelOutboundIntent, checkRateLimits, createOut
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export interface MessageGmail { to: string[]; cc?: string[]; subject: string; text: string; /** Le rendu du gabarit (multipart text + html). */ html?: string | null }
+export interface MessageGmail {
+  to: string[]; cc?: string[]; subject: string; text: string; /** Le rendu du gabarit (multipart text + html). */ html?: string | null;
+  /** Pièces jointes : des RÉFÉRENCES de fichiers du Drive (le transport relit les octets au départ). */
+  attachments?: { driveNodeId: string; filename: string; mimeType?: string | null; sizeBytes?: number }[];
+}
 type Charge = { outboundId: string };
 
 /** LA BOÎTE GMAIL D'ADAM, telle qu'elle peut servir à ENVOYER — sans jeton. `null` : aucune connexion Google. */
@@ -65,7 +69,7 @@ export async function preparerMailAdam(message: MessageGmail, preparePour: { id:
   if (!boite?.envoi) throw new Error(boite?.raison ?? "la boîte Gmail d'Adam n'est pas reliée");
   const i = await createOutboundIntent({
     connectionId: boite.connectionId, userId: boite.proprietaireId, recipients: message.to, cc: message.cc ?? [],
-    subject: message.subject, bodyText: message.text, bodyHtml: message.html ?? null, generatedBy: "assistant-ia", reason: `Préparé par l'Assistant IA pour ${preparePour.name} (${preparePour.id})`,
+    subject: message.subject, bodyText: message.text, bodyHtml: message.html ?? null, attachments: message.attachments ?? [], generatedBy: "assistant-ia", reason: `Préparé par l'Assistant IA pour ${preparePour.name} (${preparePour.id})`,
   });
   return { outboundId: i.id, statut: i.status, address: boite.address };
 }

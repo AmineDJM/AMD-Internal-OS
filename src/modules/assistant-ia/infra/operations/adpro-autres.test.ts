@@ -70,9 +70,10 @@ suite("Assistant IA — les autres natures Ad & Pro", () => {
     expect(ev.requestStatus).not.toBeNull();
   });
 
-  it("matériel promotionnel : l'article se cherche au catalogue ; la ligne sans action est demandée", async () => {
-    const incomplet = await MATERIEL_PROMO_CREATION.proposer({ titre: `${TAG}Campagne hiver`, articles: [{ article: `${TAG}Kakémono`, quantite: "4" }] }, admin);
-    expect("manque" in incomplet && incomplet.manque[0]).toMatch(/ce qu'on attend du fournisseur/);
+  it("matériel promotionnel : l'article se cherche au catalogue ; la ligne sans action reçoit l'action PROBABLE, dite sur la carte (P1 bis)", async () => {
+    const supposee = await MATERIEL_PROMO_CREATION.proposer({ titre: `${TAG}Campagne hiver`, articles: [{ article: `${TAG}Kakémono`, quantite: "4" }] }, admin);
+    if (!("carte" in supposee)) throw new Error(JSON.stringify(supposee));
+    expect(supposee.carte.warnings.join(" ")).toMatch(/retenue comme action du fournisseur/);
     const p = await MATERIEL_PROMO_CREATION.proposer({ titre: `${TAG}Campagne hiver`, articles: [{ article: `${TAG}KAK-01`, quantite: "4", actions: ["conception", "impression"] }] }, admin);
     if (!("carte" in p)) throw new Error(JSON.stringify(p));
     ACTOR = admin;
