@@ -11,6 +11,7 @@ import { carteOraleEnAttente, direLaCarte, ouvrirCarteOrale, traiterParoleSurCar
 import { deposerMessage, ETAT, traiterFil } from "../fil/service";
 import type { ElementAgenda, RetourOrchestre } from "@/platform/ia/conversation/orchestrateur";
 import { accuseDeReponse } from "../../domaine/conversation/agenda";
+import { sortieOrale } from "@/platform/ia/voix/dit-et-consigne";
 import type { Classement } from "../../domaine/conversation/classement";
 import {
   appliquerPrecisions, avancementDuTravail, elementOuvert, enregistrerPrecision, ouvrirAgenda, partielsDuTravail, questionDeLElement, racineDe,
@@ -46,8 +47,10 @@ const ANNULATION_MS = 30 * 60_000;
 
 /** O1 (décision 0046) : avec les champs que l'orchestrateur du navigateur lit (`RetourOrchestre`). */
 export interface RetourOral extends RetourOrchestre {
-  /** Ce que la voix dit (elle paraphrase) — jamais une valeur que la personne n'a pas le droit d'entendre. */
+  /** Ce que la voix DIT (elle paraphrase) — jamais une valeur que la personne n'a pas le droit d'entendre, jamais une consigne. */
   pourVoix: string;
+  /** F2 (TR-VX-02) : ce qu'on demande au modèle vocal — envoyé en contexte silencieux, jamais prononcé ni affiché. */
+  consigne?: string;
   /** Un travail lancé : le navigateur le suit et la voix annoncera son résultat. */
   travail?: string;
   carte?: Record<string, unknown> & { intentId: string };
@@ -61,7 +64,7 @@ export interface RetourOral extends RetourOrchestre {
 export type SuiviOral =
   | { etat: "en_cours"; etapes: string[]; agenda?: ElementAgenda[]; avancement?: string | null }
   | ({ etat: "pret" } & RetourOral)
-  | { etat: "echec"; pourVoix: string }
+  | { etat: "echec"; pourVoix: string; consigne?: string }
   | { etat: "remplace"; par: string }
   | { etat: "inconnu" };
 
@@ -93,7 +96,7 @@ export async function fermerSessionVoix(userId: string, id: unknown): Promise<vo
   await prisma.assistantIaVoixSession.updateMany({ where: { id, userId, fermeeLe: null }, data: { fermeeLe: new Date() } });
 }
 
-const HORS_SESSION: RetourOral = { pourVoix: "La session vocale n'est plus reconnue par le serveur : dis-le et propose de raccrocher puis de rappeler." };
+const HORS_SESSION: RetourOral = { pourVoix: "La session vocale n'est plus reconnue par le serveur : raccrochez puis rappelez.", consigne: "Dis-le simplement." };
 
 // ─── LE TRAVAIL DÉLÉGUÉ, ASYNCHRONE ────────────────────────────────────────────────────────
 
@@ -101,7 +104,9 @@ const HORS_SESSION: RetourOral = { pourVoix: "La session vocale n'est plus recon
  * O1 (décision 0046) : plus de « pose une question pour affiner » laissée au hasard du modèle vocal — la question utile,
  * s'il y en a une, vient de l'AGENDA du travail (dérivé de la demande) et l'orchestrateur la colle à cet accusé.
  */
-const LANCE = "Le travail est lancé, il n'y a pas encore de résultat. Dis en quelques mots que tu regardes et que tu préviens dès que c'est prêt. N'invente aucun résultat et ne pose pas de question de toi-même.";
+// F2 (banc réel, TR-VX-02) : la phrase DITE et la CONSIGNE au modèle vocal sont deux champs — la consigne d'attente
+// sortait telle quelle à l'oreille et dans la transcription (« Dis en quelques mots que tu regardes… N'invente… »).
+const LANCE = { dit: "Je regarde, je vous préviens dès que c'est prêt.", consigne: "Le travail est lancé, il n'y a pas encore de résultat : dis-le en quelques mots. N'invente aucun résultat et ne pose pas de question de toi-même." };
 
 /** Les éléments d'agenda d'un travail vocal — rattachés au TRAVAIL suivi par le navigateur (pas au message). */
 const pourTravail = (travail: string, xs: ElementAgenda[]): ElementAgenda[] => xs.map((x) => ({ ...x, travail }));
@@ -118,7 +123,8 @@ async function lancerTravail(user: CurrentUser, session: { id: string; conversat
   const agenda = carte ? [] : (await ouvrirAgenda(user.id, d.conversation, d.tour.id, demande)).map(versElement);
   return {
     travail: w.id, lance: { id: w.id, agenda: pourTravail(w.id, agenda) },
-    pourVoix: parallele ? `${LANCE} C'est une deuxième demande, menée en parallèle de la première : dis-le en trois mots.` : LANCE,
+    pourVoix: parallele ? `${LANCE.dit} Je mène cette deuxième demande en parallèle de la première.` : LANCE.dit,
+    consigne: parallele ? `${LANCE.consigne} C'est une deuxième demande, menée en parallèle : dis-le en trois mots.` : LANCE.consigne,
   };
 }
 
@@ -230,11 +236,11 @@ export async function suivreTravailVocal(user: CurrentUser, sessionId: unknown, 
       miseEnForme.miseEnForme ? `Dis-le en tenant compte de ce que la personne a demandé pour la forme : ${miseEnForme.miseEnForme.consigne}` : "",
       miseEnForme.lance ? "La version demandée (fichier, ou carte d'envoi) se prépare à partir de ce résultat, sans refaire la recherche : dis qu'elle suit." : "",
     ].filter(Boolean).join(" ");
-    return { etat: "pret", ...dit, pourVoix: [dit.pourVoix, consignes].filter(Boolean).join(" — ").slice(0, 1_800), ...(miseEnForme.lance ? { lance: miseEnForme.lance, travail: miseEnForme.travail } : {}) };
+    return sortieOrale({ etat: "pret" as const, ...dit, pourVoix: dit.pourVoix.slice(0, 1_800), ...(consignes ? { consigne: consignes } : {}), ...(miseEnForme.lance ? { lance: miseEnForme.lance, travail: miseEnForme.travail } : {}) });
   }
   if (rep?.etat === ETAT.ECHEC || q?.etat === ETAT.ECHEC) {
     await prisma.assistantIaVoixTravail.updateMany({ where: { id: w.id, annonceLe: null }, data: { annonceLe: new Date() } });
-    return { etat: "echec", pourVoix: `L'assistant n'a pas pu répondre : ${(rep?.contenu || rep?.erreur || "erreur").slice(0, 200)}. Dis-le simplement et propose de réessayer.` };
+    return sortieOrale({ etat: "echec" as const, pourVoix: `L'assistant n'a pas pu répondre : ${(rep?.contenu || rep?.erreur || "erreur").slice(0, 200)}. Vous pouvez réessayer.`, consigne: "Dis-le simplement." });
   }
   // O1 : ce que l'orchestrateur peut dire pendant l'attente — les partiels neufs, l'avancement réel.
   const [partiels, avancement] = await Promise.all([partielsDuTravail(user.id, w.tourId), avancementDuTravail(user.id, w.tourId)]);
@@ -259,7 +265,7 @@ export async function reprisesOrales(user: CurrentUser, sessionId: string): Prom
     if (!rep) continue;
     const n = await prisma.assistantIaVoixTravail.updateMany({ where: { id: w.id, annonceLe: null }, data: { annonceLe: new Date(), session: sessionId } });
     if (n.count !== 1 || dits.length >= 3) continue;
-    dits.push((await pourVoixDuTour(user, rep)).pourVoix);
+    dits.push(sortieOrale(await pourVoixDuTour(user, rep)).pourVoix);
   }
   return dits;
 }
@@ -290,8 +296,9 @@ export async function annoncesEnAppel(user: CurrentUser, sessionId: unknown): Pr
     const lot = recues.filter((r) => r.tourId === tour);
     const quoi = lot.map((r) => `« ${(r.nom ?? "une pièce").slice(0, 60)} »`).join(", ");
     const rep = tour ? await prisma.assistantIaTour.findFirst({ where: { id: tour, userId: user.id }, select: { contenu: true, blocs: true, intent: true } }) : null;
-    const suite = rep ? (await pourVoixDuTour(user, rep)).pourVoix : "";
-    dits.push(`Interromps-toi poliment : une pièce vient d'arriver par ${LIBELLE_CANAL[lot[0].canal] ?? lot[0].canal} — ${quoi}. ${suite}`.trim().slice(0, 1_800));
+    const suite = rep ? sortieOrale(await pourVoixDuTour(user, rep)).pourVoix : "";
+    // F2 : une annonce est DITE — l'orchestrateur la place au prochain point de rupture (jamais par-dessus une parole).
+    dits.push(`Une pièce vient d'arriver par ${LIBELLE_CANAL[lot[0].canal] ?? lot[0].canal} — ${quoi}. ${suite}`.trim().slice(0, 1_800));
   }
   return dits;
 }
@@ -312,29 +319,29 @@ async function annulerDerniere(user: CurrentUser): Promise<RetourOral> {
   if (e && (!g || new Date(e.creeLe) > new Date(g.quand))) {
     (await import("../operations/envoi-gmail")).enregistrerExecuteurGmail();
     const r = await annulerEffetSortant(e.id, user);
-    return { pourVoix: `${r.message} Dis-le en une phrase.` };
+    return { pourVoix: r.message, consigne: "Dis-le en une phrase." };
   }
-  if (!g) return { pourVoix: "Il n'y a pas d'action récente de l'assistant à annuler. Dis-le simplement." };
+  if (!g) return { pourVoix: "Il n'y a pas d'action récente de l'assistant à annuler." };
   const r = await annulerGeste(g.id, user);
   if ("refus" in r) return { pourVoix: r.refus };
-  return { pourVoix: `${phraseAnnulation(g.libelle, r.details)} Dis-le tel quel, sans enjoliver ; elle peut dire « rétablis » si elle change d'avis.` };
+  return { pourVoix: `${phraseAnnulation(g.libelle, r.details)} Vous pouvez dire « rétablis » si vous changez d'avis.`, consigne: "Dis-le tel quel, sans enjoliver." };
 }
 
 /** « RÉTABLIS » — la dernière annulation (< 30 min) s'annule : ce qui a bougé depuis est dit, jamais écrasé (K10b). */
 async function retablirDerniere(user: CurrentUser): Promise<RetourOral> {
   const g = (await gestesDeLAssistant(user, { limite: 10 })).find((x) => x.annuleLe && Date.now() - new Date(x.annuleLe).getTime() < ANNULATION_MS);
-  if (!g) return { pourVoix: "Il n'y a pas d'annulation récente à rétablir. Dis-le simplement." };
+  if (!g) return { pourVoix: "Il n'y a pas d'annulation récente à rétablir." };
   const r = await retablirGeste(g.id, user);
   if ("refus" in r) return { pourVoix: r.refus };
-  return { pourVoix: `${phraseAnnulation(g.libelle, r.details, true)} Dis-le tel quel.` };
+  return { pourVoix: phraseAnnulation(g.libelle, r.details, true), consigne: "Dis-le tel quel." };
 }
 
 async function commandeMission(user: CurrentUser, nature: "pause_mission" | "reprendre_mission" | "arreter_mission", texte: string): Promise<RetourOral> {
   // P1 (décision 0047) : la MÊME porte que l'écrit (`piloter_mission`) — désignation par le nom, arrêt réversible.
   const action = nature === "pause_mission" ? "pause" : nature === "reprendre_mission" ? "reprendre" : "arreter";
   const r = await piloterMission(user, { action, mission: texte });
-  if (r.ok) return { pourVoix: `${r.message} Dis-le en une phrase.` };
-  if (r.ambigu && r.candidates?.length) return { pourVoix: `${r.erreur} Demande laquelle, en citant leurs titres.`, questionPosee: true };
+  if (r.ok) return { pourVoix: r.message, consigne: "Dis-le en une phrase." };
+  if (r.ambigu && r.candidates?.length) return { pourVoix: r.erreur, consigne: "Demande laquelle, en citant leurs titres.", questionPosee: true };
   return { pourVoix: r.erreur };
 }
 
@@ -356,16 +363,16 @@ export async function traiterEnonceVocal(user: CurrentUser, d: { session: unknow
   if (commande === "annuler_derniere") return annulerDerniere(user);
   if (commande === "retablir_derniere") return retablirDerniere(user);
   if (commande === "pause_mission" || commande === "reprendre_mission" || commande === "arreter_mission") return commandeMission(user, commande, parole);
-  if (commande === "stop") return { pourVoix: "La personne a dit stop : tais-toi et attends qu'elle reparle.", commande };
-  if (commande === "plus_court") return { pourVoix: "La personne veut plus court : désormais, une phrase par réponse.", commande };
+  if (commande === "stop") return { pourVoix: "", consigne: "La personne a dit stop : tais-toi et attends qu'elle reparle.", commande };
+  if (commande === "plus_court") return { pourVoix: "D'accord, je serai plus bref.", consigne: "La personne veut plus court : désormais, une phrase par réponse.", commande };
   if (carte) {
     // K9 : la question « tu confirmes ? » est posée et RIEN de neuf n'a été entendu — on ne relance pas la demande précédente.
-    if (carte.questionPosee && !parole) return { pourVoix: "Je n'ai pas entendu sa réponse : redemande-lui simplement si c'est bon. Rien n'est fait." };
-    if (commande === "attendre") return { pourVoix: "Rien n'est fait : la carte attend. Dis en trois mots que tu attends son feu vert." };
+    if (carte.questionPosee && !parole) return { pourVoix: "Je n'ai pas entendu votre réponse : c'est bon pour vous ? Rien n'est fait.", consigne: "Redemande-lui simplement si c'est bon." };
+    if (commande === "attendre") return { pourVoix: "Rien n'est fait : j'attends votre feu vert.", consigne: "Dis-le en trois mots." };
     const issue = await traiterParoleSurCarte(user, carte, parole);
     if (issue.suite === "repondu") {
       return {
-        pourVoix: issue.pourVoix.slice(0, 1_800),
+        pourVoix: issue.pourVoix.slice(0, 1_800), ...(issue.consigne ? { consigne: issue.consigne } : {}),
         ...(issue.execute ? { etatCarte: { intentId: carte.id, status: "EXECUTED" as const } } : {}),
         // O1 : la carte attend encore (un champ, « tu confirmes ? ») — la voix pose une question, rien ne s'y colle.
         ...(!issue.execute && (await carteOraleEnAttente(user)) ? { questionPosee: true } : {}),
@@ -386,5 +393,5 @@ export async function traiterEnonceVocal(user: CurrentUser, d: { session: unknow
   if (c.nature === "precision") return preciserVocal(user, s, c, el, racine, parole || texte, delegationId);
   if (c.nature === "autre_demande") return lancerTravail(user, s, texte, delegationId, null, true);
   const ou = await avancementDuTravail(user.id, (w ? w.tourId : racine));
-  return { pourVoix: `C'est de la conversation pendant que le travail tourne, pas une demande : réponds-y naturellement, en une ou deux phrases, sans rien lancer.${ou ? ` Si elle demande où ça en est : ${ou}` : ""}` };
+  return { pourVoix: "", consigne: `C'est de la conversation pendant que le travail tourne, pas une demande : réponds-y naturellement, en une ou deux phrases, sans rien lancer.${ou ? ` Si elle demande où ça en est : ${ou}` : ""}` };
 }

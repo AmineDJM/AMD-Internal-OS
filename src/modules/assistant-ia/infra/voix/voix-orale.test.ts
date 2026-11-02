@@ -54,6 +54,9 @@ async function deleguerALaVoix(u: CurrentUser, demande: string, _conversation: n
 
 const reponse = (message: string) => ({ texte: JSON.stringify({ message, components: [] }) });
 
+/** F2 : ce que la voix reçoit, les deux canaux — le texte DIT et la consigne silencieuse. */
+const tout = (r: { pourVoix: string; consigne?: string }) => [r.pourVoix, r.consigne].filter(Boolean).join(" ");
+
 describe("les mots de la personne (pur)", () => {
   it("un « oui » explicite, sans réserve", () => {
     for (const p of ["Oui", "oui, je confirme", "Ouais vas-y", "Je confirme.", "C'est bon, envoie", "d'accord", "OK"]) expect(estOuiExplicite(p), p).toBe(true);
@@ -135,15 +138,18 @@ suite("la carte à l'oral, contre la base", () => {
     const a = await deleguerALaVoix(kam, "prépare le compte rendu de ma visite chez le docteur Inconnu", null, "prépare le compte rendu de ma visite chez le docteur Inconnu");
     expect(a.carte?.intentId).toBeTruthy();
     // Un résumé à dire, et les facultatifs proposés — pas encore de confirmation demandée.
-    expect(a.pourVoix).toContain("ne lis pas une liste");
-    expect(a.pourVoix).toMatch(/Ne demande PAS encore de confirmer|Tu confirmes \?/);
+    expect(tout(a)).toContain("ne lis pas une liste");
+    // F2 (TR-VX-02) : la manière (« ne lis pas une liste », « Ne demande PAS ») est une CONSIGNE — jamais dite.
+    expect(a.pourVoix).not.toMatch(/ne lis pas une liste|Ne demande PAS|Dis-le/);
+    expect(a.consigne).toContain("ne lis pas une liste");
+    expect(tout(a)).toMatch(/Ne demande PAS encore de confirmer|Tu confirmes \?/);
     const id = a.carte!.intentId;
 
     // « non, c'est tout » aux facultatifs : le récit et la question, SANS appel de modèle.
-    if (/Ne demande PAS encore/.test(a.pourVoix)) {
+    if (/Ne demande PAS encore/.test(tout(a))) {
       remplacerModelesPourTests([]);
       const b = await deleguerALaVoix(kam, "non c'est tout", null, "non c'est tout");
-      expect(b.pourVoix).toContain("Tu confirmes ?");
+      expect(tout(b)).toContain("Tu confirmes ?");
     }
     // Un « oui » RÉPÉTÉ (aucune parole neuve) n'est pas entendu.
     remplacerModelesPourTests([modeleFactice([reponse("Tu veux confirmer ?")]).modele as never]);
@@ -151,7 +157,7 @@ suite("la carte à l'oral, contre la base", () => {
     expect((await derniereCarte(kam))?.status).toBe("PROPOSED");
     // Une parole qui n'est pas un oui : rien ne s'exécute.
     const c = await deleguerALaVoix(kam, "euh je sais pas", null, "euh je sais pas");
-    expect(c.pourVoix).not.toMatch(/C'est fait/);
+    expect(tout(c)).not.toMatch(/C'est fait/);
     expect(await prisma.fieldReport.count({ where: { delegateId: kam.id } })).toBe(0);
 
     // Le récit est reposé (l'assistant a répondu) : la question est de nouveau la dernière étape.
@@ -160,7 +166,7 @@ suite("la carte à l'oral, contre la base", () => {
     // « oui, je confirme » : la garde du bouton exécute.
     remplacerModelesPourTests([]);
     const d = await deleguerALaVoix(kam, "oui je confirme", null, "oui, je confirme");
-    expect(d.pourVoix).toMatch(/C'est fait/);
+    expect(tout(d)).toMatch(/C'est fait/);
     expect((await prisma.assistantActionIntent.findUnique({ where: { id }, select: { status: true } }))?.status).toBe("EXECUTED");
     expect(await prisma.fieldReport.count({ where: { delegateId: kam.id } })).toBe(1);
     const audit = await prisma.auditLog.findFirst({ where: { actorId: kam.id, summary: { contains: "confirmée à l'oral" } }, select: { summary: true } });
@@ -177,12 +183,12 @@ suite("la carte à l'oral, contre la base", () => {
     // La carte devient CRITIQUE (comme une capacité R3/R4) : l'élément clé est le montant.
     await prisma.assistantActionIntent.update({ where: { id }, data: { level: "CRITICAL", confirmText: "150000" } });
     remplacerModelesPourTests([]);
-    const q = /Ne demande PAS encore/.test(a.pourVoix) ? await deleguerALaVoix(kam, "non rien", null, "non rien") : a;
-    if (/Ne demande PAS encore/.test(a.pourVoix)) expect(q.pourVoix).toContain("RELIS clairement « 150000 »");
+    const q = /Ne demande PAS encore/.test(tout(a)) ? await deleguerALaVoix(kam, "non rien", null, "non rien") : a;
+    if (/Ne demande PAS encore/.test(tout(a))) expect(tout(q)).toContain("RELIS clairement « 150000 »");
     const flou = await deleguerALaVoix(kam, "oui mais cent mille", null, "oui mais cent mille");
-    expect(flou.pourVoix).not.toMatch(/C'est fait/);
+    expect(tout(flou)).not.toMatch(/C'est fait/);
     const avec = await deleguerALaVoix(kam, "vas-y", null, "vas-y");
-    expect(avec.pourVoix).toMatch(/C'est fait/);
+    expect(tout(avec)).toMatch(/C'est fait/);
     expect((await prisma.assistantActionIntent.findUnique({ where: { id }, select: { status: true } }))?.status).toBe("EXECUTED");
   });
 
@@ -195,7 +201,7 @@ suite("la carte à l'oral, contre la base", () => {
     await prisma.assistantActionIntent.update({ where: { id }, data: { events: (i!.events as { etape?: string }[]).filter((e) => e.etape !== "QUESTION") as object[] } });
     remplacerModelesPourTests([modeleFactice([reponse("D'accord, autre chose ?")]).modele as never]);
     const r = await deleguerALaVoix(kam, "oui", null, "oui");
-    expect(r.pourVoix).not.toMatch(/C'est fait/);
+    expect(tout(r)).not.toMatch(/C'est fait/);
     expect((await prisma.assistantActionIntent.findUnique({ where: { id }, select: { status: true } }))?.status).toBe("PROPOSED");
   });
 
@@ -204,9 +210,9 @@ suite("la carte à l'oral, contre la base", () => {
     const a = await deleguerALaVoix(kam, "encore un compte rendu", null, "encore un compte rendu");
     remplacerModelesPourTests([]);
     // (La carte hérite des facultatifs déjà proposés pour la précédente : elle peut arriver directement à la question.)
-    if (/Ne demande PAS encore/.test(a.pourVoix)) await deleguerALaVoix(kam, "non c'est tout", null, "non c'est tout");
+    if (/Ne demande PAS encore/.test(tout(a))) await deleguerALaVoix(kam, "non c'est tout", null, "non c'est tout");
     const r = await deleguerALaVoix(kam, "non annule", null, "non, annule");
-    expect(r.pourVoix).toContain("rien n'est envoyé");
+    expect(tout(r)).toContain("rien n'est envoyé");
     expect((await prisma.assistantActionIntent.findUnique({ where: { id: a.carte!.intentId }, select: { status: true } }))?.status).toBe("PROPOSED");
   });
 

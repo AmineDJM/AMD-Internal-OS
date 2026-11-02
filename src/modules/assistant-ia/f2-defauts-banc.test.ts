@@ -19,6 +19,12 @@ import { accesAssistantIa } from "./infra/role-config";
 import { familleOuverte, famillesAJuger, gestePourSoi } from "./domaine/acces-regles";
 import { censurerTexte } from "./domaine/filtre-confidentialite";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
+import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
+import { remplacerModelesPourTests } from "./infra/generer";
+import { modeleFactice } from "./infra/testing/modele-factice";
+import { deleguerALaVoix } from "./infra/voix/temps-reel";
+import { enregistrerSessionVoix } from "./infra/voix/oral";
+import { porteUneConsigne, separerDitEtConsigne, sortieOrale } from "@/platform/ia/voix/dit-et-consigne";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -137,5 +143,59 @@ suite("F2 · TR-RH-01/02/04/06 — son congé, son absence, son avance, son atte
     const r = await confirmerIntentionAssistantIA(props[0]!.intentId);
     expect(r.ok, JSON.stringify(r)).toBe(true);
     expect(await prisma.hrDocumentRequest.count({ where: { employeeId: ficheRadia.id, type: "WORK_CERTIFICATE" } })).toBe(1);
+  });
+});
+
+describe("F2 · TR-VX-02 — ce qui est dit ne porte jamais une consigne (règle pure)", () => {
+  it("la consigne d'attente du banc : rien n'en est dit", () => {
+    const brut = "Le travail est lancé, il n'y a pas encore de résultat. Dis en quelques mots que tu regardes et que tu préviens dès que c'est prêt. N'invente aucun résultat et ne pose pas de question de toi-même.";
+    expect(separerDitEtConsigne(brut).dit).toBe("");
+    expect(separerDitEtConsigne(brut).consigne).toContain("N'invente aucun résultat");
+    expect(porteUneConsigne("Dis-le simplement.")).toBe(true);
+    expect(porteUneConsigne("Radia, il vous reste 30 jours de congé.")).toBe(false);
+  });
+
+  it("une réponse est dite telle quelle ; une parole citée reste dite ; la consigne passe au canal silencieux", () => {
+    expect(separerDitEtConsigne("Le mail est prêt : il part à 10 h ; la Direction est en copie.")).toEqual({ dit: "Le mail est prêt : il part à 10 h ; la Direction est en copie.", consigne: "" });
+    const r = sortieOrale({ pourVoix: "C'est fait : Tâche créée. Annonce-le simplement, en une phrase.", consigne: "Sois bref." });
+    expect(r.pourVoix).toBe("C'est fait : Tâche créée.");
+    expect(r.consigne).toBe("Sois bref. Annonce-le simplement, en une phrase.");
+    expect(separerDitEtConsigne("Dis en quelques mots « Noté, en PDF » et que le travail en tient compte — sans résultat inventé.").dit).toBe("Noté, en PDF.");
+    expect(separerDitEtConsigne("Récapitule la demande — Créer tâche : titre Relancer. Termine par « Tu confirmes ? ».").dit).toBe("Créer tâche : titre Relancer. Tu confirmes ?");
+  });
+});
+
+suite("F2 · TR-VX-02 — « combien de jours de congé il me reste ? » à la voix (base réelle)", () => {
+  let u: CurrentUser;
+  const S = `live_${TAG}voix`;
+  const cle = process.env.OPENAI_API_KEY;
+  beforeAll(async () => {
+    process.env.OPENAI_API_KEY = "cle-de-banc";
+    remplacerLecteurInterrupteurIaPourTests(async () => false);
+    remplacerModelesPourTests([modeleFactice([{ texte: JSON.stringify({ message: "Il vous reste 30 jours de congé.", components: [] }) }]).modele as never]);
+    u = await compte("Voix", "SALES_USER");
+    await enregistrerSessionVoix(u.id, S, null);
+  });
+  afterAll(async () => {
+    if (cle === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = cle;
+    remplacerLecteurInterrupteurIaPourTests(null);
+    remplacerModelesPourTests(null);
+    await new Promise((ok) => setTimeout(ok, 300));
+    await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: u?.id } }).catch(() => {});
+    await prisma.assistantIaVoixSession.deleteMany({ where: { userId: u?.id } }).catch(() => {});
+    await prisma.assistantIaFil.deleteMany({ where: { userId: u?.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Voix` } } }).catch(() => {});
+  });
+
+  it("le travail est lancé : la voix DIT « je regarde » ; la consigne d'attente est à part, jamais dans ce qui est dit", async () => {
+    const r = await deleguerALaVoix(u, "Combien de jours de congé il me reste ?", { session: S, delegationId: "d1" });
+    expect(r.travail).toBeTruthy();
+    expect(r.pourVoix).toMatch(/je regarde/i);
+    expect(r.pourVoix).not.toMatch(/Dis |N'invente|ne pose pas de question|de toi-même|pas encore de résultat/);
+    expect(r.consigne).toContain("N'invente aucun résultat");
+    // « stop » : rien n'est dit, la consigne seule part.
+    const stop = await deleguerALaVoix(u, "stop", { session: S, delegationId: "d2", parole: "stop" });
+    expect(stop).toMatchObject({ pourVoix: "", commande: "stop" });
+    expect(stop.consigne).toContain("tais-toi");
   });
 });
