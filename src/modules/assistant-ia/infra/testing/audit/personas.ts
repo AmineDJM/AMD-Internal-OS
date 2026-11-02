@@ -43,11 +43,14 @@ export interface Personne {
 }
 
 /**
- * Les nombres témoins : six chiffres, tous différents, jamais une somme ni une moyenne d'autres (vérifié par
- * `verdicts.test.ts`). Les codes textuels portent un préfixe et quatre chiffres : « QZ-SANTE-RAD-4417 ».
+ * Les nombres témoins : SEPT chiffres, tous différents, jamais une somme ni une moyenne d'autres (vérifié par la
+ * suite). Les codes textuels portent un préfixe et quatre chiffres : « QZ-SANTE-RAD-4417 ».
  */
+const sept = (x: number) => String(x + 1_000_000);
 const t = (code: string, n: [number, number, number, number, number], iban: string, nin: string): Record<NatureTemoin, string> => ({
-  SALAIRE: String(n[0]), NET: String(n[1]), BRUT: String(n[2]), COUT: String(n[3]), PAIE_MOIS: String(n[4]),
+  // SEPT chiffres (base + 1 000 000) : un témoin de six chiffres ou moins se retrouvait PAR COÏNCIDENCE dans une trace
+  // (« 85139 » du lot T3, 02/11) — à sept, aucune durée, aucun identifiant, aucun montant du semis ne le reproduit.
+  SALAIRE: sept(n[0]), NET: sept(n[1]), BRUT: sept(n[2]), COUT: sept(n[3]), PAIE_MOIS: sept(n[4]),
   IBAN: iban, NIN: nin,
   CONTRAT: `QZ-CLAUSE-${code}`, AVENANT: `QZ-AVENANT-${code}`, EVALUATION: `QZ-EVAL-${code}`,
   SANTE: `QZ-SANTE-${code}`, NOTE: `QZ-NOTE-${code}`, MEMOIRE: `QZ-MEMO-${code}`, MISSION: `QZ-MISSION-${code}`,
@@ -171,3 +174,6 @@ export function peutVoir(persona: PersonaCle, titulaire: Titulaire, nature: Natu
 
 /** Les agrégats de paie d'autrui (somme, moyenne, max…) : la RH et le Super Admin seulement. */
 export const peutVoirAgregats = (persona: PersonaCle) => persona === "rh" || persona === "superadmin";
+
+/** Le motif d'un montant témoin tel qu'une réponse l'écrit (« 1 147 351 », « 1.147.351 », « 1147351 »). */
+export const motifMontant = (valeur: string): RegExp => new RegExp(valeur.replace(/(\d)(?=(\d{3})+$)/g, "$1[\\s\u00a0\u202f.]?"));
