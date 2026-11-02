@@ -40,9 +40,9 @@ const FICHIERS_T3 = {
   devisAgence: "Devis Atlas Voyages SAHGE Oran.pdf",
   mail: "Mail Dr Mansouri hebergement.txt",
 } as const;
-/** Les clés des pièces semées (le champ `piece` d'une tâche) : préfixe « t3_ », aucun autre domaine ne les pose. */
+/** Les clés des pièces semées (le champ `piece` d'une tâche) : préfixe « dos- », aucun autre domaine ne les pose. */
 type ClePiece = keyof typeof FICHIERS_T3;
-const clePiece = (k: ClePiece) => `t3_${k}`;
+const clePiece = (k: ClePiece) => `dos-${k}`;
 
 // ─────────────────────────────── Le semis ───────────────────────────────
 
