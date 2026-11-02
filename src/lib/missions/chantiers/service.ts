@@ -47,7 +47,8 @@ export async function proposerChantier(principalId: string, brut: unknown, opts:
   const lu = lirePlanChantier(brut);
   if (!lu.ok) return lu;
   const reglages = await lireReglagesConsole();
-  const plafondUsd = lu.plan.budget.usd ?? reglages.plafondUsd;
+  // Le plus strict du plan et de la console (un plan ne relâche jamais un plafond).
+  const plafondUsd = Math.min(lu.plan.budget.usd ?? reglages.plafondUsd, reglages.plafondUsd);
   const critiques = gestesCritiques(lu.plan);
   const m = await prisma.mission.create({
     data: {

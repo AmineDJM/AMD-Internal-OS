@@ -58,6 +58,18 @@ export function dossierInitial(plan: PlanChantier): DossierChantier {
   };
 }
 
+/**
+ * LA VRAIE SESSION D'UN ORDRE DU RELAIS (C2, décision 0043 § 3 bis) : à l'enfilement, le dossier ne connaît que
+ * `ordre-<id>` ; le fait `DEV_SESSION` apporte l'identifiant `session_…` et son lien. Rend VRAI si le dossier a changé.
+ * Idempotent (un second passage du même fait ne change rien), pur.
+ */
+export function adopterSessionDuRelais(d: DossierChantier, ordreId: string, sessionId: string, url: string | null): boolean {
+  const i = d.sessions.findIndex((x) => x.sessionId === `ordre-${ordreId}`);
+  if (i < 0 || !/^(session|cse)_[A-Za-z0-9]+$/.test(sessionId)) return false;
+  d.sessions[i] = { ...d.sessions[i]!, sessionId, url: url || d.sessions[i]!.url };
+  return true;
+}
+
 /** Le dossier lu d'un carnet — `null` si ce n'est pas celui d'un chantier. Tolérant : un champ absent prend son défaut. */
 export function lireDossier(carnet: unknown): DossierChantier | null {
   const c = carnet && typeof carnet === "object" ? (carnet as { chantier?: unknown }).chantier : null;

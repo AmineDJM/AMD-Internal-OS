@@ -6,7 +6,7 @@ import { cloreEcriture, reclamerEcriture } from "@/lib/missions/travaux/ecriture
 import type { AgentDeveloppeur, ConsigneDev, ForgeGit, Hebergeur, Resultat } from "@/lib/missions/chantiers/ports-moteur";
 import type { ServiceChantier, TypeEtapeChantier } from "@/lib/missions/chantiers/plan";
 import { court, jugerPreuves, composerRapport, type DossierChantier, type PreuveDeploiement } from "@/lib/missions/chantiers/dossier";
-import { deciderAntiBoucle, delaiCroissantMs, motifBudgetChantier, signatureEchec, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
+import { deciderAntiBoucle, delaiCroissantMs, estMigrationSql, gesteDestructif, motifBudgetChantier, signatureEchec, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
 import { horsPerimetre } from "@/lib/missions/chantiers/perimetre";
 import { routerModele } from "@/lib/missions/chantiers/routeur";
 import type { CerveauChantier } from "@/lib/missions/chantiers/cerveau";
@@ -356,6 +356,33 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
   return attendre(ctx, "reprise de la boucle de correction", 60_000, etat);
 }
 
+// ─────────────────────────────── LES MIGRATIONS À RISQUE ───────────────────────────────
+
+/**
+ * LES MIGRATIONS DU DIFF, LUES AVANT DE FUSIONNER OU DE DÉPLOYER (`gestesCritiques` : « destructive refusée sans
+ * validation »). Chaque fichier SQL de migration touché par la branche (par rapport à la base) est lu au SHA vérifié :
+ * un geste destructeur (DROP, TRUNCATE, DELETE FROM, ALTER … DROP / TYPE) — ou un fichier ILLISIBLE, par prudence — est
+ * un risque, dit sur la carte de validation. Le résultat est gardé dans l'état de l'étape (une seule lecture).
+ */
+async function migrationsARisque(ctx: ContexteEtape, sha: string, etat: Etat): Promise<{ risques: string[]; etat: Etat } | StepOutcome> {
+  if (Array.isArray(etat.migrationsRisque)) return { risques: etat.migrationsRisque as string[], etat };
+  const p = (await ctx.dossier()).plan;
+  const b = await ctx.ports.forge.branche(p.depot, p.branche, p.brancheBase);
+  if (!b.ok) return apresEchecPort(ctx, "Lecture des fichiers de la branche", b, etat);
+  const risques: string[] = [];
+  for (const f of b.valeur.fichiers.filter(estMigrationSql).slice(0, 20)) {
+    const r = await ctx.ports.forge.fichier(p.depot, sha, f);
+    const geste = r.ok ? gesteDestructif(r.valeur.octets.toString("utf8")) : null;
+    if (!r.ok) risques.push(`${f} (illisible : ${r.erreur.slice(0, 120)})`);
+    else if (geste) risques.push(`${f} (${geste})`);
+  }
+  if (risques.length) await ctx.journal("CHANTIER_MIGRATION_DESTRUCTIVE", `Migration à risque dans ${p.branche} : ${risques.join(" ; ")} — validation de la Direction exigée.`, { risques });
+  return { risques, etat: { ...etat, migrationsRisque: risques } };
+}
+
+const avertissementMigrations = (risques: readonly string[]): string =>
+  risques.length ? ` — ⚠ MIGRATION DESTRUCTIVE : ${risques.join(" ; ")} (votre accord vaut aussi pour elle)` : "";
+
 // ─────────────────────────────── DEV_FUSIONNER ───────────────────────────────
 
 /**
@@ -384,7 +411,11 @@ async function devFusionner(ctx: ContexteEtape): Promise<StepOutcome> {
     } else {
       if (pr.mergeable === false) return echoue(`la PR #${pr.numero} est en conflit avec ${p.brancheBase} : rien n'est fusionné`);
       if (d.shaVu && d.shaVu !== d.vert.sha) return echoue(`la tête de ${p.branche} (${court(d.shaVu)}) n'est plus celle vérifiée (${court(d.vert.sha)})`);
-      const v = await validation(ctx, "FUSION", `Fusionner la PR #${pr.numero}${pr.titre ? ` (« ${pr.titre} »)` : ""} dans ${p.brancheBase} — SHA vérifié ${court(d.vert.sha)}`, etat);
+      // Une migration destructive dans le diff est DITE sur la carte : l'accord de la Direction la couvre en connaissance.
+      const m = await migrationsARisque(ctx, d.vert.sha, etat);
+      if ("status" in m) return m;
+      etat = m.etat;
+      const v = await validation(ctx, "FUSION", `Fusionner la PR #${pr.numero}${pr.titre ? ` (« ${pr.titre} »)` : ""} dans ${p.brancheBase} — SHA vérifié ${court(d.vert.sha)}${avertissementMigrations(m.risques)}`, etat);
       if (v !== "ACCORDEE") return v;
       const f = await sousRecu(ctx, "fusion", () => ctx.ports.forge.fusionnerPr(p.depot, pr.numero, d.vert!.sha));
       if (f.etat === "INTERROMPU") return echoue("fusion interrompue par un redémarrage : vérifiez la PR avant de relancer (elle n'est pas rejouée)");
@@ -462,9 +493,19 @@ async function renderDeployer(ctx: ContexteEtape): Promise<StepOutcome> {
     }
     etat = { ...etat, shaIntegre: tete };
   }
-  if (s.production) {
+  // UNE BRANCHE DÉPLOYÉE SANS FUSION applique ses migrations telles quelles : une migration destructive exige la carte,
+  // même hors production (après une fusion, la carte de la fusion l'a déjà dite).
+  let risques: string[] = [];
+  if (!d.fusion && !etat.deployId) {
+    const m = await migrationsARisque(ctx, (etat.shaIntegre as string | undefined) ?? d.vert!.sha, etat);
+    if ("status" in m) return m;
+    etat = m.etat;
+    risques = m.risques;
+  }
+  if (s.production || risques.length) {
     const sha0 = (etat.shaIntegre as string | undefined) ?? d.vert!.sha;
-    const v = await validation(ctx, "DEPLOIEMENT_PRODUCTION", `déployer ${s.nom} en PRODUCTION (SHA vérifié ${court(sha0)})`, etat);
+    const v = await validation(ctx, s.production ? "DEPLOIEMENT_PRODUCTION" : "DEPLOIEMENT_MIGRATION",
+      `déployer ${s.nom}${s.production ? " en PRODUCTION" : ""} (SHA vérifié ${court(sha0)})${avertissementMigrations(risques)}`, etat);
     if (v !== "ACCORDEE") return v;
   }
   const sha = (etat.shaIntegre as string | undefined) ?? d.vert!.sha;

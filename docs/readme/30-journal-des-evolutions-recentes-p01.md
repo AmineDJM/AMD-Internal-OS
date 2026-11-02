@@ -322,6 +322,14 @@ SHA vert, déploiements, essais, carte Valider/Refuser). **Conversation** (Adven
 production : validation de la Direction au moment d'agir. Aucune réussite sans preuve : le juge des preuves refuse la
 conclusion. Migration additive `20270218100000_chantiers_socle`. Tâche de fond `chantiers.balayage`.
 
+### C2 (suite) : RELAIS SEUL, VRAIE SESSION, BUDGET DU PLAN, MIGRATIONS DESTRUCTIVES (2026-11-02)
+
+Quatre défauts du moteur des chantiers corrigés (décision 0042, § correctifs du 02/11), chacun avec un banc qui l'aurait vu :
+lancement possible avec le **seul relais** (zéro routine) ; la session créée par le relais prend sa **vraie identité** au
+fait `DEV_SESSION` (la correction parle à la MÊME session) ; le **budget du plan** resserre la console ; une **migration
+destructive** du diff est dite sur la carte de fusion, et exige une carte avant de déployer une branche non fusionnée.
+Connecteur GitHub : `contenuFichier` (texte d'un fichier à un SHA).
+
 ### C2 : LES CONNECTEURS DES CHANTIERS — CLAUDE CODE (ROUTINES, `@claude`), GITHUB, RENDER (2026-11-01)
 
 Lot C2 — `docs/assistant/decisions/0043-connecteurs-chantiers.md`, architecture `docs/architecture/CHANTIERS-DEV.md`.

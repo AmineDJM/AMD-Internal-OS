@@ -11,6 +11,7 @@ import type { PortsDev } from "@/lib/missions/chantiers/etapes";
  * Elle reçoit les trois connecteurs (`platform/in-process/chantiers/connecteurs.ts`, composés par `scheduled.ts`) et
  * rend le contrat du moteur (`ports-moteur.ts`). Ce que le moteur demande et que les connecteurs n'ont pas est dit :
  *   • ouvrir une PR : Claude Code l'ouvre (sa consigne le dit) — refus « non pris en charge », le moteur continue ;
+ *   • lire un fichier : son TEXTE au SHA donné (le SQL des migrations, avant la fusion) ;
  *   • fusionner : APRÈS la carte de validation, au SHA vérifié (`fusionnerPr` du connecteur, décision 0042) ;
  *   • la santé d'un service : un GET de son URL publique (`fetch` injecté, délai borné), rien d'autre.
  * Relancer suit l'ordre de la Direction : message à la MÊME session par le relais CLI (s'il est vivant), sinon commentaire
@@ -66,7 +67,12 @@ function forgeDe(f: C2.ForgeGit): ForgeGit {
     // La fusion VALIDÉE, au SHA vérifié (GitHub refuse si la tête a bougé) ; sa compensation, une PR de revert.
     fusionnerPr: async (d, numero, shaAttendu) => vers(await f.fusionnerPr(nom(d), numero, { shaAttendu }), (x) => ({ sha: x.sha })),
     proposerRevert: async (d, numero, titre, corps) => vers(await f.proposerRevert(nom(d), numero, { titre, corps }), (x) => x),
-    fichier: async () => nonPrisEnCharge("lire un fichier"),
+    // Le texte d'un fichier au SHA donné (le SQL d'une migration, lu avant la fusion) ; absent à ce SHA = erreur définitive.
+    fichier: async (d, sha, chemin) => {
+      const r = await f.contenuFichier(nom(d), chemin, sha);
+      if (!r.ok) return erreur(r.erreur);
+      return r.valeur === null ? { ok: false, erreur: `${chemin} absent à ${sha.slice(0, 7)}`, definitif: true } : { ok: true, valeur: { octets: Buffer.from(r.valeur, "utf8"), mime: "text/plain" } };
+    },
   };
 }
 
@@ -133,27 +139,47 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
     sessionId: s.sessionId ?? (s.commentaireId ? `commentaire-${s.commentaireId}` : s.cleIdempotence), url: s.sessionUrl ?? s.commentaireUrl ?? "",
     lanceeLe: new Date().toISOString(), moyen,
   });
-  const relaisVivant = async () => (await a.relais()).vivant;
+  /** Le relais peut prendre un ordre : vivant (a tiré depuis 2 min) ET pas déclaré déconnecté de claude.ai. */
+  const relaisVivant = async () => { const r = await a.relais(); return r.vivant && r.connecte !== false; };
+  /**
+   * LA VRAIE SESSION d'un lancement par le relais : à l'enfilement, le dossier ne connaît que `ordre-<id>` (l'identifiant
+   * `session_…` n'existe qu'une fois `claude --cloud` passé). Le fait `DEV_SESSION` réécrit le dossier (`reveil.ts`) ;
+   * s'il s'est perdu, on relit l'ordre ici. Ni l'un ni l'autre : `null` (pas de message à une session inconnue).
+   */
+  const sessionReelle = async (s: string | undefined): Promise<string | null> => {
+    if (!s) return null;
+    if (!s.startsWith("ordre-")) return s;
+    const o = await a.ordreCli(s.slice("ordre-".length));
+    return o.ok && o.valeur.statut === "FAIT" && o.valeur.sessionId ? o.valeur.sessionId : null;
+  };
   const lancer: AgentDeveloppeur["lancer"] = async (c, cle) => {
     const texte = construireConsigne({ depot: nom(c.depot), branche: c.branche, objectif: c.objectif, perimetre: c.perimetre, criteres: c.criteres, commandes: c.commandesVerif, contexte: c.contexte ?? null, autoFix: true });
     const a2 = alias(c.depot);
     if (a2) return vers(await a.lancer({ alias: a2, texte, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "routine"));
     // SANS ROUTINE pour ce dépôt : le relais CLI de la Direction (`claude --cloud`), s'il est vivant.
     if (await relaisVivant()) return vers(await a.lancerParCli({ depot: nom(c.depot), branche: c.branche, texte, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
-    // Le relais peut être HORS LIGNE (machine de la Direction éteinte) : on attend, sans basculer en échec définitif.
-    if (a.routines().length === 0 && (await a.relais()).configure) return { ok: false, erreur: "relais CLI hors ligne : le lancement attend la machine de la Direction", reessayerApresMs: 5 * 60_000 };
+    // Le relais peut être HORS LIGNE ou DÉCONNECTÉ (service claude-relais arrêté, connexion claude.ai expirée) : on attend.
+    if (a.routines().length === 0 && (await a.relais()).configure) return { ok: false, erreur: "relais CLI hors ligne ou non connecté à claude.ai : le lancement attend", reessayerApresMs: 5 * 60_000 };
     return { ok: false, erreur: `aucune routine Claude Code pour ${nom(c.depot)} (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN / _DEPOT) et relais CLI absent`, definitif: true };
   };
   return {
+    // UN MOYEN DE LANCER suffit : une routine, OU le relais CLI vivant et connecté (Direction, 01/11 : « Routines + CLI »).
     disponible: async () => {
-      const routines = a.routines();
-      return routines.length ? { ok: true, moyens: ["routine", "commentaire-pr"] } : { ok: false, raison: "aucune routine Claude Code configurée (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN)", moyens: ["commentaire-pr"] };
+      const r = await a.relais();
+      const relais = r.vivant && r.connecte !== false;
+      if (a.routines().length) return { ok: true, moyens: ["routine", "commentaire-pr", ...(relais ? ["relais-cli" as const] : [])] };
+      if (relais) return { ok: true, moyens: ["relais-cli", "commentaire-pr"] };
+      const raison = !r.configure ? "aucune routine Claude Code (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN) et relais CLI non configuré (CLAUDE_RELAIS_TOKEN)"
+        : !r.vivant ? "aucune routine Claude Code et relais CLI hors ligne (service claude-relais arrêté ?)"
+          : "aucune routine Claude Code et relais CLI non connecté à claude.ai (Render › claude-relais › Shell › claude auth login)";
+      return { ok: false, raison, moyens: ["commentaire-pr"] };
     },
     lancer,
     relancer: async (c, cle) => {
       // ORDRE DE LA DIRECTION (01/11) : la MÊME session par le relais (contexte gardé), puis le fil de la PR, puis une neuve.
-      if (c.session && !c.session.startsWith("ordre-") && (await relaisVivant())) {
-        return vers(await a.envoyerMessage({ sessionId: c.session, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
+      const meme = await sessionReelle(c.session);
+      if (meme && (await relaisVivant())) {
+        return vers(await a.envoyerMessage({ sessionId: meme, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
       }
       if (c.pr) return vers(await a.relancerDansPr({ depot: nom(c.depot), numeroPr: c.pr, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "commentaire-pr"));
       return lancer({ ...c, contexte: [c.contexte, `## Problème à corriger\n${c.probleme}`].filter(Boolean).join("\n\n") }, cle);

@@ -11,7 +11,7 @@ import type { JugeObjectif } from "@/lib/missions/goal/evaluate";
 import { signalerUneFois } from "@/lib/missions/travaux/signaux";
 import { TYPES_ETAPE_CHANTIER, type TypeEtapeChantier } from "@/lib/missions/chantiers/plan";
 import { jugerPreuves, lireDossier, type DossierChantier } from "@/lib/missions/chantiers/dossier";
-import { MOTIF_BUDGET_CHANTIER, lireReglagesChantiers, motifBudgetChantier, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
+import { MOTIF_BUDGET_CHANTIER, lireReglagesChantiers, motifBudgetChantier, reglagesDuPlan, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
 import { executerEtape, rapporter, type ContexteEtape, type DeposerRapport, type PortsDev } from "@/lib/missions/chantiers/etapes";
 import { cerveauReel, type CerveauChantier } from "@/lib/missions/chantiers/cerveau";
 import { portsDevBranches } from "@/lib/missions/chantiers/ports-dev";
@@ -148,8 +148,9 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
   await traiterRevert(chantierId, m.principalId, m.title, deps.ports === undefined ? portsDevBranches() : deps.ports, clock);
   if (TERMINAUX.has(m.status)) return bilan;
   const principalId = m.principalId;
-  const reglages = deps.reglages ?? (await lireReglagesConsole());
   let d = await lireLeDossier(chantierId);
+  // LE PLUS STRICT du budget du plan et des réglages : lancements, déploiements, tentatives, dollars.
+  const reglages = reglagesDuPlan(deps.reglages ?? (await lireReglagesConsole()), d.plan.budget);
 
   const motifBudget = async (prochain?: "lancement" | "deploiement") =>
     motifBudgetChantier(await consommation(chantierId, d, clock.now()), reglages, m.plafondUsd, prochain);

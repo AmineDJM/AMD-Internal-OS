@@ -9,6 +9,8 @@ import { lireCarnet } from "@/lib/missions/travaux/carnet";
 import { lireDossier } from "@/lib/missions/chantiers/dossier";
 import { REGLAGES_CHANTIERS_DEFAUT, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
 import { fauxPortsDev, type FauxPorts, type ScenarioDev } from "@/lib/missions/chantiers/faux-test-outils";
+import { portsDepuisConnecteurs } from "@/lib/missions/chantiers/adaptateur-c2";
+import type * as C2 from "@/platform/dev/ports";
 import type { CerveauChantier } from "@/lib/missions/chantiers/cerveau";
 import { extraitMemoire } from "@/lib/missions/chantiers/memoire";
 import { tableauDesTravaux } from "@/lib/missions/travaux/tableau";
@@ -378,5 +380,109 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     expect((await annulerChantier(id, admin)).ok).toBe(true);
     expect(await reservations(id)).toBe(0);
     expect((await dossier(id)).rapport?.issue).toBe("ANNULE");
+  });
+
+  // ─────────── C2 (décision 0043) : le relais seul, le budget du plan, les migrations destructives ───────────
+
+  it("RELAIS SEUL (zéro routine) : le lancement part par le relais ; la vraie session arrive par DEV_SESSION ; la correction va à la MÊME session", async () => {
+    const faux = fauxPortsDev();
+    const p = plan();
+    const ordres: { quoi: string; d: Record<string, unknown> }[] = [];
+    // Le connecteur C2 tel que le relais le présente : AUCUNE routine, relais vivant et connecté.
+    const agentC2: C2.AgentDeveloppeur = {
+      routines: () => [],
+      relais: async () => ({ configure: true, vivant: true, connecte: true, vuIlYaMs: 1_000 }),
+      lancer: async () => { throw new Error("aucune routine : jamais appelé"); },
+      relancerDansPr: async () => { throw new Error("la MÊME session d'abord : jamais appelé"); },
+      lancerParCli: async (d) => { ordres.push({ quoi: "CREER", d: d as never }); return { ok: true, valeur: { ordreId: `o-${TAG}`, type: "CREER", statut: "EN_ATTENTE", sessionId: null, sessionUrl: null, erreur: null, deja: false } }; },
+      envoyerMessage: async (d) => {
+        ordres.push({ quoi: "MESSAGE", d: d as never });
+        faux.pousser(p.branche as string, "cdcd000000000002", "vert");
+        return { ok: true, valeur: { ordreId: `m-${TAG}`, type: "MESSAGE", statut: "EN_ATTENTE", sessionId: d.sessionId, sessionUrl: null, erreur: null, deja: false } };
+      },
+      // L'ordre ne se relit pas : seul le fait DEV_SESSION peut apprendre la vraie session au dossier.
+      ordreCli: async () => ({ ok: false, erreur: { code: "INCONNU", message: "non relu", reessayable: false } }),
+    };
+    const adapte = portsDepuisConnecteurs({ agent: agentC2, forge: {} as C2.ForgeGit, hebergeur: null }, { env: {} })!;
+    const ports: FauxPorts = { ...faux, agent: adapte.agent };
+    const id = await lancer(p);
+    const h = new Horloge();
+    await jusquAuBout(id, ports, { max: 1, horloge: h, reglages: { ...REGLAGES_BANC, autofixMinutes: 0 } });
+    expect(ordres.map((o) => o.quoi)).toEqual(["CREER"]);
+    expect((await dossier(id)).sessions[0]).toMatchObject({ sessionId: `ordre-o-${TAG}`, moyen: "relais-cli" });
+    // Le relais rend l'ordre : DEV_SESSION (références ORDRE:/SESSION:) réveille le chantier et lui donne la vraie session.
+    const sid = `session_01REL${Date.now()}`;
+    const r = await reveillerChantiersSurFait({ type: "DEV_SESSION", relatedRefs: [`ORDRE:o-${TAG}`, `SESSION:${sid}`], payload: { ordreId: `o-${TAG}`, statut: "FAIT", sessionId: sid, sessionUrl: `https://claude.ai/code/${sid}` } });
+    expect(r).toContain(id);
+    expect((await dossier(id)).sessions[0]).toMatchObject({ sessionId: sid, url: `https://claude.ai/code/${sid}` });
+    // La session pousse un rouge : la correction part par MESSAGE à CETTE session (contexte gardé), puis vert.
+    faux.pousser(p.branche as string, "cdcd000000000001", "rouge", "FAIL src/x.test.ts > attendu 200, reçu 500");
+    expect(await jusquAuBout(id, ports, { horloge: h, reglages: { ...REGLAGES_BANC, autofixMinutes: 0 } })).toBe("COMPLETED");
+    expect(ordres.map((o) => o.quoi)).toEqual(["CREER", "MESSAGE"]);
+    expect(ordres[1]!.d).toMatchObject({ sessionId: sid });
+    expect(String(ordres[1]!.d.texte)).toMatch(/attendu 200, reçu 500/);
+  });
+
+  it("RELAIS HORS LIGNE et zéro routine : le lancement ATTEND (dit), rien n'est enfilé", async () => {
+    const faux = fauxPortsDev();
+    let creer = 0;
+    const agentC2 = {
+      routines: () => [], relais: async () => ({ configure: true, vivant: false, connecte: null, vuIlYaMs: null }),
+      lancerParCli: async () => { creer += 1; return { ok: false, erreur: { code: "INDISPONIBLE", message: "x", reessayable: true } }; },
+    } as unknown as C2.AgentDeveloppeur;
+    const ports: FauxPorts = { ...faux, agent: portsDepuisConnecteurs({ agent: agentC2, forge: {} as C2.ForgeGit, hebergeur: null }, { env: {} })!.agent };
+    const id = await lancer(plan());
+    expect(await jusquAuBout(id, ports, { max: 2 })).not.toBe("COMPLETED");
+    expect(creer).toBe(0);
+    const e = await etapes(id);
+    expect(JSON.stringify(e.lancer?.result ?? "")).toMatch(/relais CLI hors ligne/);
+    expect((await annulerChantier(id, admin)).ok).toBe(true); // ses réservations ne gênent pas les bancs suivants
+  });
+
+  it("le budget DU PLAN resserre la console : budget.lancements = 1 → BUDGET_HOLD au 2ᵉ lancement, console à 4", async () => {
+    const ports = fauxPortsDev({ surSession: (k) => (k === 1 ? { sha: "efef000000000001", checks: "rouge", extrait: "Type error" } : { sha: "efef000000000002", checks: "vert" }) });
+    const id = await lancer(plan({ budget: { lancements: 1 } }));
+    expect(await jusquAuBout(id, ports, { reglages: { ...REGLAGES_BANC, lancementsMax: 4 } })).toBe("PAUSED");
+    const m = await prisma.mission.findUnique({ where: { id }, select: { pausedReason: true } });
+    expect(m?.pausedReason).toMatch(/^BUDGET_HOLD — 1 lancements de Claude Code sur 1/);
+    expect(ports.journal.filter((j) => j.quoi === "lancer" || j.quoi === "relancer" || j.quoi === "commenter")).toHaveLength(1);
+    expect((await annulerChantier(id, admin)).ok).toBe(true);
+  });
+
+  it("MIGRATION DESTRUCTIVE dans le diff : la carte de fusion la dit (et n'est accordée qu'en connaissance) ; une additive ne dit rien", async () => {
+    const mig = "prisma/migrations/20270301000000_x/migration.sql";
+    const ports = fauxPortsDev({
+      surSession: () => ({ sha: "dada000000000001", checks: "vert", fichiers: [mig, "src/lib/missions/chantiers/exemple.ts"] }),
+      contenus: { [mig]: 'ALTER TABLE "Mission" DROP COLUMN "carnet";' },
+    });
+    const id = await lancer(plan({ fusion: true, perimetre: ["src/lib/missions/chantiers/**", "prisma/migrations/**"] }));
+    const h = new Horloge();
+    expect(await jusquAuBout(id, ports, { max: 4, horloge: h })).not.toBe("COMPLETED");
+    const vue = (await ouEnEstChantier(admin, id))[0]!;
+    expect(vue.validationsAttendues[0]).toMatch(/Fusionner la PR #1 .* — ⚠ MIGRATION DESTRUCTIVE : prisma\/migrations\/20270301000000_x\/migration\.sql \(ALTER TABLE "MISSION" DROP\)/);
+    expect(ports.journal.some((j) => j.quoi === "fusionner")).toBe(false);
+    // Une migration ADDITIVE : carte de fusion ordinaire, sans avertissement. (Le premier chantier tient le périmètre
+    // `prisma/migrations/**` : annulé d'abord, sinon le second attendrait en file — c'est la règle des réservations.)
+    expect((await annulerChantier(id, admin)).ok).toBe(true);
+    const add = fauxPortsDev({ surSession: () => ({ sha: "dada000000000002", checks: "vert", fichiers: [mig] }), contenus: { [mig]: 'ALTER TABLE "Mission" ADD COLUMN IF NOT EXISTS "x" TEXT;' } });
+    const id2 = await lancer(plan({ fusion: true, perimetre: ["prisma/migrations/**"] }));
+    await jusquAuBout(id2, add, { max: 4, horloge: new Horloge() });
+    const carte = (await ouEnEstChantier(admin, id2))[0]!.validationsAttendues[0];
+    expect(carte).toMatch(/Fusionner la PR #1/);
+    expect(carte).not.toMatch(/MIGRATION/);
+    expect((await annulerChantier(id2, admin)).ok).toBe(true);
+  });
+
+  it("MIGRATION DESTRUCTIVE sans fusion : la préproduction (d'ordinaire autonome) exige la carte avant de déployer la branche", async () => {
+    const mig = "prisma/migrations/20270302000000_y/migration.sql";
+    const ports = fauxPortsDev({ surSession: () => ({ sha: "dbdb000000000001", checks: "vert", fichiers: [mig] }), contenus: { [mig]: 'DROP TABLE "Vieux";' } });
+    const id = await lancer(plan({ perimetre: ["prisma/migrations/**"] }));
+    const h = new Horloge();
+    expect(await jusquAuBout(id, ports, { max: 4, horloge: h })).not.toBe("COMPLETED");
+    expect(ports.journal.some((j) => j.quoi === "deployer")).toBe(false);
+    expect((await ouEnEstChantier(admin, id))[0]!.validationsAttendues[0]).toMatch(/déployer ERP \(SHA vérifié dbdb000\) — ⚠ MIGRATION DESTRUCTIVE : .*\(DROP TABLE\)/);
+    expect((await validerGesteChantier(id, admin, { decision: "ACCORDEE", canal: "ecrit" })).ok).toBe(true);
+    expect(await jusquAuBout(id, ports, { horloge: h })).toBe("COMPLETED");
+    expect(ports.journal.filter((j) => j.quoi === "deployer")).toHaveLength(1);
   });
 });

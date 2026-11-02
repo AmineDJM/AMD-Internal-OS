@@ -70,10 +70,26 @@ const usd = (n: number) => `${n.toFixed(2).replace(".", ",")} $`;
  * LE CHANTIER DOIT-IL DORMIR ? Rend le motif (dit à la Direction, avec les chiffres) ou `null`. `prochain` : le geste
  * qu'on s'apprête à faire — un lancement de plus, un déploiement de plus — compte AVANT d'être fait.
  */
+/**
+ * LE PLUS STRICT DU PLAN ET DE LA CONSOLE (C2) — le budget écrit dans le plan approuvé (`budget.usd`, `lancements`,
+ * `deploiements`, `tentatives`) ne peut que RESSERRER les réglages de la console, jamais les relâcher. Pur.
+ */
+export function reglagesDuPlan(r: ReglagesChantiers, b: { usd?: number; lancements?: number; deploiements?: number; tentatives?: number } | null | undefined): ReglagesChantiers {
+  const min = (x: number, y: number | undefined) => (typeof y === "number" && Number.isFinite(y) && y > 0 ? Math.min(x, y) : x);
+  return {
+    ...r,
+    plafondUsd: min(r.plafondUsd, b?.usd),
+    lancementsMax: min(r.lancementsMax, b?.lancements),
+    deploiementsMax: min(r.deploiementsMax, b?.deploiements),
+    tentativesMax: min(r.tentativesMax, b?.tentatives),
+  };
+}
+
 export function motifBudgetChantier(
   c: ConsommationChantier, r: ReglagesChantiers, plafondChantierUsd: number | null, prochain?: "lancement" | "deploiement",
 ): string | null {
-  const plafond = plafondChantierUsd ?? r.plafondUsd;
+  // Le plafond du chantier (fixé à la proposition) ne dépasse jamais celui des réglages en vigueur.
+  const plafond = Math.min(plafondChantierUsd ?? r.plafondUsd, r.plafondUsd);
   if (c.coutUsd >= plafond) return `plafond du chantier atteint (${usd(c.coutUsd)} sur ${usd(plafond)})`;
   if (c.jourUsd >= r.jourUsdMax) return `plafond du jour des chantiers atteint (${usd(c.jourUsd)} sur ${usd(r.jourUsdMax)})`;
   if (prochain === "lancement") {
@@ -136,3 +152,7 @@ export function deciderAntiBoucle(d: {
 /** Les mots qui disent qu'une migration DÉTRUIT (validation de la Direction exigée). */
 const DESTRUCTIF = /\b(drop\s+(table|column|index|schema|type)|truncate|delete\s+from|alter\s+table\s+\S+\s+drop|alter\s+column\s+\S+\s+type)\b/i;
 export const migrationDestructive = (sql: string): boolean => DESTRUCTIF.test(sql);
+/** Le premier geste destructeur d'un SQL (« DROP TABLE », « TRUNCATE »…), pour le dire sur la carte ; `null` sinon. */
+export const gesteDestructif = (sql: string): string | null => sql.match(DESTRUCTIF)?.[0]?.replace(/\s+/g, " ").toUpperCase() ?? null;
+/** Un fichier de migration SQL (Prisma : `prisma/migrations/<nom>/migration.sql`, et tout `migrations/…/*.sql`). */
+export const estMigrationSql = (chemin: string): boolean => /(^|\/)migrations?\/.+\.sql$/i.test(chemin);

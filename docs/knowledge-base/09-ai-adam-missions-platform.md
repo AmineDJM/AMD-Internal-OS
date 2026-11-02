@@ -949,3 +949,9 @@ would collide across parallel suites in the test DB.
   file), `demander_rallonge_caisse`, `confirmer_reception_caisse`, `reserver_salle`, `declarer_salle`, `lire_salles`.
   `classement.ts` no longer files `petty-cash-actions` under BUDGETS (`SANS_FAMILLE_METIER`): it closed the cash box to its
   own holder.
+- C2 fixes (02/11): `agentDe.disponible()` = routine OR relay alive & connected; `DEV_SESSION` wakes the chantier via
+  `ORDRE:`/`SESSION:` refs and `adopterSessionDuRelais` replaces `ordre-<id>` with the real `session_…` (ledger now
+  passes `payload` to `reveillerChantiersSurFait`; `relancer` re-reads the order if the event was lost);
+  `reglagesDuPlan` = stricter of plan budget and console; destructive SQL migrations in the diff (read with
+  `ForgeGit.fichier` → C2 `contenuFichier`) are stated on the merge card and require a card before deploying an
+  unmerged branch (`DEPLOIEMENT_MIGRATION`).

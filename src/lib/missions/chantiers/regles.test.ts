@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { compilerChantier, etapesParDefaut, gestesCritiques, lirePlanChantier } from "@/lib/missions/chantiers/plan";
-import { deciderAntiBoucle, delaiCroissantMs, lireReglagesChantiers, migrationDestructive, motifBudgetChantier, REGLAGES_CHANTIERS_DEFAUT, signatureEchec } from "@/lib/missions/chantiers/regles";
+import { deciderAntiBoucle, delaiCroissantMs, estMigrationSql, gesteDestructif, lireReglagesChantiers, migrationDestructive, motifBudgetChantier, reglagesDuPlan, REGLAGES_CHANTIERS_DEFAUT, signatureEchec } from "@/lib/missions/chantiers/regles";
 import { routerModele, SEUIL_LECTURE_SANS_MODELE } from "@/lib/missions/chantiers/routeur";
 import { correspond, globsSeRecouvrent, horsPerimetre, perimetresSeRecouvrent } from "@/lib/missions/chantiers/perimetre";
 import { composerRapport, dossierInitial, jugerPreuves } from "@/lib/missions/chantiers/dossier";
@@ -236,5 +236,20 @@ describe("adaptateur MiMo — OpenAI-compatible, par la passerelle, clé jamais 
     expect(await appelerMimo({ systeme: "s", texte: "t" }, { env: {} })).toMatchObject({ ok: false, configure: false });
     const f = (async () => new Response(JSON.stringify({ data: [{ id: "mimo-v2.6-pro" }, { id: "mimo-v2-flash" }] }), { status: 200 })) as unknown as typeof fetch;
     expect(await sonderMimo({ fetch: f, env: { mimo: "k" } })).toEqual({ ok: true, modeles: ["mimo-v2.6-pro", "mimo-v2-flash"], configure: "mimo-v2.6-pro", present: true });
+  });
+
+  it("le budget du plan ne fait que RESSERRER la console (C2) ; une migration se reconnaît, son geste destructeur se nomme", () => {
+    const r = reglagesDuPlan(REGLAGES_CHANTIERS_DEFAUT, { usd: 2, lancements: 1, deploiements: 9, tentatives: 2 });
+    expect([r.plafondUsd, r.lancementsMax, r.deploiementsMax, r.tentativesMax]).toEqual([2, 1, REGLAGES_CHANTIERS_DEFAUT.deploiementsMax, 2]);
+    expect(reglagesDuPlan(REGLAGES_CHANTIERS_DEFAUT, {})).toEqual(REGLAGES_CHANTIERS_DEFAUT);
+    expect(reglagesDuPlan(REGLAGES_CHANTIERS_DEFAUT, null)).toEqual(REGLAGES_CHANTIERS_DEFAUT);
+    // Le plafond du CHANTIER (fixé à la proposition) ne dépasse jamais celui de la console en vigueur.
+    const conso = { coutUsd: 6, jourUsd: 0, lancements: 0, jourLancements: 0, deploiements: 0, jourDeploiements: 0 };
+    expect(motifBudgetChantier(conso, REGLAGES_CHANTIERS_DEFAUT, 50)).toMatch(/plafond du chantier atteint/);
+    expect(estMigrationSql("prisma/migrations/20270301000000_x/migration.sql")).toBe(true);
+    expect(estMigrationSql("src/lib/migrations-appliquees.ts")).toBe(false);
+    expect(gesteDestructif('ALTER TABLE "X" DROP COLUMN "y";')).toBe('ALTER TABLE "X" DROP');
+    expect(gesteDestructif("truncate table x")).toBe("TRUNCATE");
+    expect(gesteDestructif('CREATE TABLE IF NOT EXISTS "Z" ("id" TEXT);')).toBeNull();
   });
 });
