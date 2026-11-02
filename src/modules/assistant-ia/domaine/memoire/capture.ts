@@ -192,12 +192,32 @@ const CALENDRIER = new Set("janvier fevrier mars avril mai juin juillet aout sep
 export type VerdictGarde = { ok: true } | { ok: false; raison: string };
 
 /**
+ * S1 (décision 0048, banc Q1 US-01) — L'IDENTITÉ VIENT DE LA SESSION, JAMAIS D'UN MESSAGE. « C'est Amine qui écrit depuis le
+ * poste de Radia » avait fait retenir « Prénom : Amine » dans la mémoire DE RADIA : son assistant l'appelait ensuite Amine,
+ * à chaque tour (l'incident du 02/11). Un fait sur QUI est la personne (prénom, nom, surnom, rôle, fonction, poste, « c'est X
+ * qui écrit », « je suis Super Admin ») n'entre jamais en mémoire, et n'en ressort jamais (rappel). Les faits sur ses proches
+ * (« Sa fille s'appelle Lina ») restent permis.
+ */
+const IDENTITE: readonly RegExp[] = [
+  /^(son |sa |mon |ma )?(prenom|nom de famille|nom|surnom|pseudo|identite|role|fonction|poste|titre|statut)\b(?! (de|du|des|d) )/,
+  /^((il|elle|la personne|l utilisateur|l utilisatrice|utilisateur|utilisatrice) )?(s appelle|se nomme|se prenomme|se fait appeler|s appelle en fait|prefere etre appelee?|veut etre appelee?|demande a etre appelee?|aime etre appelee?)\b/,
+  /\b(qui ecrit|ecrit depuis|depuis le poste|sur le poste de|au nom de|a la place de|se fait passer|est en realite|est en fait)\b/,
+  /\b(super ?admin|administrateur|administratrice|mode admin|droits? d admin|tous les droits)\b/,
+  /^((il|elle) )?(est|serait) (le |la |l |un |une )?(directeur|directrice|pdg|dg|patron|patronne|responsable|chef|manager|admin|gerant|gerante)\b/,
+];
+export function faitDIdentite(contenu: string): boolean {
+  const plie = plier(contenu).replace(/'/g, " ").trim();
+  return IDENTITE.some((r) => r.test(plie));
+}
+
+/**
  * LA GARDE : le souvenir porte sur ce que la PERSONNE a dit. Une ancre (chiffre, nom propre) absente de son message vient
  * d'ailleurs (la réponse, donc l'ERP) : refusé. L'année que le modèle ajoute à une date dite sans elle est tolérée.
  */
 export function garderCandidat(c: Pick<Candidat, "contenu">, message: string, p: { nom?: string | null; aujourdhui?: Date } = {}): VerdictGarde {
   const plie = plier(c.contenu).replace(/'/g, " ");
   if (CONFIDENTIEL.test(plie)) return { ok: false, raison: "confidentiel" };
+  if (faitDIdentite(c.contenu)) return { ok: false, raison: "identité — elle vient du compte, jamais d'un message" };
   // Son nom est celui du compte : « S'appelle Yacine Benali » n'apprend rien (le contexte le dit déjà).
   const nomPlie = plier(p.nom ?? "");
   if (nomPlie && plie.includes(nomPlie) && plie.replace(nomPlie, "").replace(/\b(s appelle|il|elle|est|se nomme|nom|son|prenom|la personne|personne|utilisateur|la|le|l)\b/g, "").trim().length < 4) {

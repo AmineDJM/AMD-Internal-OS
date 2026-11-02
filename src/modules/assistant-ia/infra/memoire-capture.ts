@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { attendu, sansBloquer } from "@/lib/journal";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {
-  CAPTURES_MAX_PAR_TOUR, CONSIGNE_EXTRACTEUR, entreeExtracteur, EXISTANTS_MAX, faitDurablePossible, garderCandidat, lireExtraction,
+  CAPTURES_MAX_PAR_TOUR, CONSIGNE_EXTRACTEUR, entreeExtracteur, EXISTANTS_MAX, faitDIdentite, faitDurablePossible, garderCandidat, lireExtraction,
   sansEntete,
 } from "../domaine/memoire/capture";
 import { choisirSouvenirs, cosinus, sectionDuRappel, texteIndexe, toutTient, type Rappel } from "../domaine/memoire/rappel";
@@ -140,7 +140,8 @@ export async function plongerSouvenirs(userId: string, ids: readonly string[], p
  * confidentialité y repasse (deuxième garde). `lastUsedAt` des souvenirs servis est noté, au mieux.
  */
 export async function rappelDuTour(userId: string, question: string, deps: { plonger?: Plongeur } = {}): Promise<{ section: string | null; rappel: Rappel; censure: boolean }> {
-  const tous = await memoirePourContexte(userId);
+  // S1 (US-01) : un souvenir d'IDENTITÉ (retenu avant la garde, ou saisi) ne ressort jamais — l'identité vient du compte.
+  const tous = (await memoirePourContexte(userId)).filter((s) => !faitDIdentite(s.contenu));
   const souvenirs = tous.map((s, rang) => ({ id: s.id, sorte: s.sorte, contenu: s.contenu, rang }));
   let similarites: Map<string, number> | undefined;
   // Le sens ne sert que si tout ne tient pas — et seulement si des souvenirs ont leur plongement.

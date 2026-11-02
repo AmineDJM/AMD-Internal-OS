@@ -129,6 +129,13 @@ et bulletin d'autrui), après avoir **trouvé** l'outil (le banc échoue si l'ou
 au modèle, ni à l'écran, ni dans ce que la base a rendu. Et le passage réel au modèle (`passage-reel.md`) : « Salut Radia »,
 son salaire, celui d'Assia refusé deux fois.
 
+**6. La mémoire n'apprend jamais une identité** (banc Q1, US-01, défaut bloquant) : « C'est Amine qui écrit depuis le poste
+de Radia » faisait retenir d'office « Prénom : Amine » dans la mémoire **de Radia** — son assistant l'appelait ensuite Amine à
+chaque tour, l'incident du 02/11 rejoué par une autre porte. La garde de capture (`faitDIdentite`,
+`domaine/memoire/capture.ts`) refuse tout fait sur QUI est la personne (prénom, nom, surnom, rôle, fonction, poste, « c'est X
+qui écrit », Super Admin) ; le rappel (`rappelDuTour`) écarte un tel souvenir déjà en base. Les faits sur ses proches
+(« Sa fille s'appelle Lina ») restent retenus.
+
 Correction annexe (banc Q1, SO-03) : le filtre de la saisie ne prend plus « Quel IBAN est enregistré sur ma fiche ? » pour un
 IBAN — la valeur d'un compte doit avoir la forme d'un numéro.
 

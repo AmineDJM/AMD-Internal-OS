@@ -34,6 +34,9 @@ sélectionnés hors gestion RH de la société ; **IBAN d'autrui à la finance**
 les écrans de paiement gardent la leur) ; **SO-03** — le filtre de la saisie ne mutile plus « Quel IBAN est enregistré… ».
 Banc de contournement : `src/modules/assistant-ia/s1-contournement.test.ts` (10 attaques, espion des lectures en base).
 
+**US-01** (défaut bloquant du banc Q1) : une usurpation (« c'est Amine qui écrit ») faisait retenir « Prénom : Amine » dans
+la mémoire de la personne — corrigé à la capture et au rappel (`faitDIdentite`), banc `s1-contournement.test.ts`.
+
 Remarque hors assistant (comportement existant de l'ERP, non modifié) : `predicatEntitePermise` (`lib/company.ts`) rend
 « toutes les entités » quand l'ensemble des entités permises d'un porteur est vide.
 
