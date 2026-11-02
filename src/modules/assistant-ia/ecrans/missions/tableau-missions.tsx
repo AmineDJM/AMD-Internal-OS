@@ -27,7 +27,7 @@ import { ReglageDOffice } from "./reglage-d-office";
  */
 
 type Onglet = "EN_COURS" | "A_APPROUVER" | "TERMINEES";
-const FINIS = ["TERMINE", "ANNULE", "ECHEC"];
+const FINIS = ["TERMINE", "ANNULE", "ECHEC", "ARRETE"];
 const ongletDe = (e: string): Onglet => (e === "A_APPROUVER" ? "A_APPROUVER" : FINIS.includes(e) ? "TERMINEES" : "EN_COURS");
 
 const PASTILLE: Record<string, string> = {
@@ -39,6 +39,7 @@ const PASTILLE: Record<string, string> = {
   BLOQUE: "bg-[var(--aia-cote)] text-[var(--aia-danger)]",
   TERMINE: "bg-[var(--aia-accent-doux)] text-[var(--aia-accent)]",
   ANNULE: "bg-[var(--aia-cote)] text-[var(--aia-discret)]",
+  ARRETE: "bg-[var(--aia-cote)] text-[var(--aia-discret)]",
   ECHEC: "bg-[var(--aia-cote)] text-[var(--aia-danger)]",
 };
 
@@ -146,7 +147,10 @@ function CarteMission({ m, ouverte, onBasculer, gestes, onOuvrirLivrable, onOuvr
   m: MissionDuTableau; ouverte: boolean; onBasculer: () => void; gestes: ReturnType<typeof useGestesMission>;
   onOuvrirLivrable?: (p: { id: string; nom: string }) => void; onOuvrirConversation?: (id: string) => void; maintenant: number;
 }) {
-  const vivante = missionVivante(m.etat);
+  // P1 (décision 0047) : une mission qu'aucun exécutant ne conduit ne « tourne » pas — l'écran dit ce qu'elle attend.
+  const bloquee = m.diagnostic?.code === "ATTENTE_EXECUTANT";
+  const vivante = missionVivante(m.etat) && !bloquee;
+  const ditDiagnostic = !!m.diagnostic && ["ATTENTE_EXECUTANT", "REESSAIE", "BLOQUEE", "PLAFOND", "ARRETEE", "ATTENTE"].includes(m.diagnostic.code);
   const part = m.etat === "TERMINE" ? 100 : avancement(m.etapes);
   const enCours = m.etapes.find((e) => e.etat === "EN_COURS");
   const [confirmer, setConfirmer] = useState(false);
@@ -156,13 +160,20 @@ function CarteMission({ m, ouverte, onBasculer, gestes, onOuvrirLivrable, onOuvr
         <div className="flex items-start gap-2">
           <span className="min-w-0 flex-1">
             <span className="block text-[14.5px] font-semibold leading-snug">{m.titre}</span>
-            <span className="mt-0.5 block truncate text-[12.5px] text-[var(--aia-discret)]">
-              {m.attente ?? (enCours ? `En cours : ${enCours.titre}` : m.etat === "A_APPROUVER" ? `${m.etapes.length} étapes à approuver` : m.objectif)}
-            </span>
+            {ditDiagnostic ? (
+              <span data-testid="diagnostic" data-code={m.diagnostic.code}
+                className={`mt-0.5 block text-[12.5px] ${["ATTENTE_EXECUTANT", "REESSAIE", "BLOQUEE"].includes(m.diagnostic.code) ? "text-[var(--aia-danger)]" : "text-[var(--aia-discret)]"}`}>
+                {m.diagnostic.phrase.charAt(0).toUpperCase() + m.diagnostic.phrase.slice(1)}
+              </span>
+            ) : (
+              <span className="mt-0.5 block truncate text-[12.5px] text-[var(--aia-discret)]">
+                {m.attente ?? (enCours ? `En cours : ${enCours.titre}` : m.etat === "A_APPROUVER" ? `${m.etapes.length} étapes à approuver` : m.objectif)}
+              </span>
+            )}
           </span>
           <span className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11.5px] font-medium ${PASTILLE[m.etat]}`}>
             {vivante && <span aria-hidden className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-current align-middle" />}
-            {LIBELLE_MISSION[m.etat] ?? m.etat}
+            {bloquee ? "En attente du worker" : (LIBELLE_MISSION[m.etat] ?? m.etat)}
           </span>
           <ChevronDown aria-hidden className={`mt-0.5 h-4 w-4 shrink-0 text-[var(--aia-discret)] transition-transform ${ouverte ? "rotate-180" : ""}`} />
         </div>
@@ -322,6 +333,12 @@ export function TableauMissions({ ouvert, onFermer, missionInitiale, onOuvrirLiv
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {tableau?.executants?.alerte && (
+            <p role="alert" data-testid="alerte-worker" className="mb-2 rounded-lg border border-[var(--aia-danger)] px-3 py-2 text-[13px] text-[var(--aia-danger)]">
+              {tableau.executants.alerte}
+              {tableau.executants.workerVu ? ` Dernier battement du worker : ${new Date(tableau.executants.workerVu).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Africa/Algiers" })}.` : " Le worker n'a jamais battu."}
+            </p>
+          )}
           {gestes.avis && <p role="status" className="mb-2 rounded-lg bg-[var(--aia-accent-doux)] px-3 py-2 text-[13px] text-[var(--aia-accent)]">{gestes.avis}</p>}
           {!tableau && <p className="flex items-center gap-2 px-1 py-6 text-[13.5px] text-[var(--aia-discret)]"><Loader2 aria-hidden className="h-4 w-4 animate-spin" /> Chargement des missions…</p>}
           {tableau && !visibles.length && (

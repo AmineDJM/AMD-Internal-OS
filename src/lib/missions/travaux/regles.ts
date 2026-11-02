@@ -9,14 +9,21 @@
 export const MOTIF_BUDGET = "BUDGET_HOLD";
 /** Le motif de pause posé quand la personne a perdu le droit de faire travailler l'assistant. */
 export const MOTIF_DROITS = "DROITS";
+/**
+ * P1 (décision 0047) : un travail ARRÊTÉ par l'assistant (« arrête la mission », ou fusionné dans une autre) — une pause
+ * d'un genre à part : il ne tourne plus, il se range avec les finis, et « reprendre » le relance là où il était (l'arrêt
+ * se défait ; l'annulation de l'écran, elle, reste définitive).
+ */
+export const MOTIF_ARRET = "ARRETE";
+export const MOTIF_FUSION = "ARRETE — fusionnée dans";
 
 /** L'état AFFICHÉ d'un travail — le statut du moteur, plus le cas du plafond (une pause d'un genre à part). */
 export type EtatTravail =
-  | "A_APPROUVER" | "EN_COURS" | "EN_ATTENTE" | "BUDGET_HOLD" | "EN_PAUSE" | "BLOQUE" | "TERMINE" | "ANNULE" | "ECHEC";
+  | "A_APPROUVER" | "EN_COURS" | "EN_ATTENTE" | "BUDGET_HOLD" | "EN_PAUSE" | "ARRETE" | "BLOQUE" | "TERMINE" | "ANNULE" | "ECHEC";
 
 export function etatTravail(status: string, pausedReason: string | null | undefined): EtatTravail {
   if (status === "AWAITING_APPROVAL") return "A_APPROUVER";
-  if (status === "PAUSED") return pausedReason?.startsWith(MOTIF_BUDGET) ? "BUDGET_HOLD" : "EN_PAUSE";
+  if (status === "PAUSED") return pausedReason?.startsWith(MOTIF_BUDGET) ? "BUDGET_HOLD" : pausedReason?.startsWith(MOTIF_ARRET) ? "ARRETE" : "EN_PAUSE";
   if (status === "COMPLETED") return "TERMINE";
   if (status === "CANCELLED") return "ANNULE";
   if (status === "FAILED") return "ECHEC";
@@ -31,6 +38,7 @@ export const LIBELLE_ETAT: Record<EtatTravail, string> = {
   EN_ATTENTE: "En attente",
   BUDGET_HOLD: "Plafond atteint",
   EN_PAUSE: "En pause",
+  ARRETE: "Arrêtée",
   BLOQUE: "Bloqué",
   TERMINE: "Terminé",
   ANNULE: "Annulé",
@@ -38,7 +46,7 @@ export const LIBELLE_ETAT: Record<EtatTravail, string> = {
 };
 
 export const peutPauser = (e: EtatTravail): boolean => e === "EN_COURS" || e === "EN_ATTENTE";
-export const peutReprendre = (e: EtatTravail): boolean => e === "EN_PAUSE" || e === "BUDGET_HOLD" || e === "BLOQUE";
+export const peutReprendre = (e: EtatTravail): boolean => e === "EN_PAUSE" || e === "BUDGET_HOLD" || e === "BLOQUE" || e === "ARRETE";
 export const peutAnnuler = (e: EtatTravail): boolean => !["TERMINE", "ANNULE"].includes(e);
 
 /** « 2 jours », « 3 h », « 12 min » — la durée d'une attente, telle que le panneau la dit. */

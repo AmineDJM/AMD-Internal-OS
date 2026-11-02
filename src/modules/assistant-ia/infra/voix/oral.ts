@@ -4,10 +4,9 @@ import type { CurrentUser } from "@/lib/session";
 import { annulerEffetSortant, annulerGeste, effetsSortantsDe, gestesDeLAssistant, retablirGeste } from "@/platform/ia/hors-requete";
 import { MASQUE_CONFIDENTIEL, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { DIT_A_L_ECRAN, NON_OUVERTE, pourLaVoix } from "../../domaine/terrain/voix";
-import { designesParNom, lireCommandeOrale, phraseAnnulation, PREFIXE_VOCAL, resumeOralBlocs } from "../../domaine/terrain/oral";
+import { lireCommandeOrale, phraseAnnulation, PREFIXE_VOCAL, resumeOralBlocs } from "../../domaine/terrain/oral";
+import { piloterMission } from "../missions/pilotage";
 import { lireReglagesAssistantIa } from "../consommation";
-import { annulerMissionEtSousMissions } from "../sous-missions";
-import { listerTravaux, pauserTravail, PERSONA_ASSISTANT_IA, reprendreMonTravail } from "../travaux";
 import { carteOraleEnAttente, direLaCarte, ouvrirCarteOrale, traiterParoleSurCarte } from "./carte-orale";
 import { deposerMessage, ETAT, traiterFil } from "../fil/service";
 import type { ElementAgenda, RetourOrchestre } from "@/platform/ia/conversation/orchestrateur";
@@ -330,18 +329,12 @@ async function retablirDerniere(user: CurrentUser): Promise<RetourOral> {
 }
 
 async function commandeMission(user: CurrentUser, nature: "pause_mission" | "reprendre_mission" | "arreter_mission", texte: string): Promise<RetourOral> {
-  const vivants = nature === "reprendre_mission" ? ["EN_PAUSE", "BLOQUE", "BUDGET_HOLD"] : nature === "pause_mission" ? ["EN_COURS", "EN_ATTENTE"] : ["EN_COURS", "EN_ATTENTE", "EN_PAUSE", "A_APPROUVER", "BLOQUE", "BUDGET_HOLD"];
-  const candidats = (await listerTravaux(user.id, 15)).filter((t) => vivants.includes(t.etat));
-  const quoi = nature === "reprendre_mission" ? "à reprendre" : nature === "pause_mission" ? "en cours" : "à arrêter";
-  if (!candidats.length) return { pourVoix: `Aucune mission ${quoi}.` };
-  const vises = designesParNom(candidats, texte);
-  if (vises.length > 1) return { pourVoix: `Il y a ${vises.length} missions ${quoi} : ${vises.slice(0, 3).map((t) => t.titre).join(", ")}. Demande laquelle.`, questionPosee: true };
-  const t = vises[0];
-  const r = nature === "pause_mission" ? await pauserTravail(t.id, user.id)
-    : nature === "reprendre_mission" ? await reprendreMonTravail(t.id, user.id, PERSONA_ASSISTANT_IA)
-      : await annulerMissionEtSousMissions(t.id, user.id);
-  if (!r.ok) return { pourVoix: r.erreur };
-  return { pourVoix: `${nature === "pause_mission" ? "Mise en pause" : nature === "reprendre_mission" ? "Reprise" : "Arrêtée"} : la mission « ${t.titre} ». Dis-le en une phrase.` };
+  // P1 (décision 0047) : la MÊME porte que l'écrit (`piloter_mission`) — désignation par le nom, arrêt réversible.
+  const action = nature === "pause_mission" ? "pause" : nature === "reprendre_mission" ? "reprendre" : "arreter";
+  const r = await piloterMission(user, { action, mission: texte });
+  if (r.ok) return { pourVoix: `${r.message} Dis-le en une phrase.` };
+  if (r.ambigu && r.candidates?.length) return { pourVoix: `${r.erreur} Demande laquelle, en citant leurs titres.`, questionPosee: true };
+  return { pourVoix: r.erreur };
 }
 
 // ─── L'AIGUILLAGE D'UN ÉNONCÉ ──────────────────────────────────────────────────────────────

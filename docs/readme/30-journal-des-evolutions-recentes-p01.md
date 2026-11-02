@@ -1,5 +1,20 @@
 ## 🧾 Journal des évolutions récentes
 
+### P1 — L'ASSISTANT PILOTE VRAIMENT SES MISSIONS ET SES MAILS, ET NE DIT JAMAIS AVOIR FAIT CE QU'IL N'A PAS FAIT (2026-11-02)
+
+Direction, 02/11 : trois missions « En cours · 0 % », une troisième lancée au lieu de fusionner, « je prends en compte la
+mission que tu as déjà fusionnée » sans rien avoir lu, des cartes à ressaisir « ENREGISTRER ». Décision
+[0047](../assistant/decisions/0047-pilotage-missions-mails-verite.md). **Cause des 0 %** : personne ne conduisait les
+missions — le battement du web ne s'armait qu'à la première requête qui importait `lib/scheduled.ts` (une page de l'ERP) ;
+il s'arme désormais au démarrage (`src/instrumentation.ts`). L'erreur d'un modèle en flux n'est plus avalée (« crédit
+OpenAI épuisé » au lieu de « aucune réponse »). **À l'écrit** : `mes_missions`, `piloter_mission` (pause, reprendre, arrêter
+— réversible —, renommer), carte `fusionner_missions` ; la voix passe par les mêmes fonctions. **État honnête** : « en
+attente du worker (aucun battement depuis N min) », « attend ton approbation », « plafond », « bloquée : … » au tableau
+« Missions », dans la conversation et dans Administration › IA. **Garde de vérité** serveur (`noteActionsNonVerifiees`).
+**Mails** : `mes_boites_mail` lit l'état (Gmail d'Adam, Microsoft, SMTP) ; `envoyer_mail` → carte « Envoyer » qui nomme la
+boîte ; le Gmail d'Adam passe par la fenêtre d'annulation (`courriel.gmail`). **R3 réversible : le bouton suffit** (plus de
+ressaisie) ; la ressaisie reste pour R4. Libellé « calculé à partir de tes dates » au lieu de « aucune donnée ».
+
 ### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
 
 Direction, 01/11 : « l'export des demandes de paiement, oui. Enfin, l'export de tout, quoi. » Décision 0037, § 7.

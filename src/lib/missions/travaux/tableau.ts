@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { lireCarnet } from "@/lib/missions/travaux/carnet";
-import { etatTravail, phraseAttente, type EtatTravail } from "@/lib/missions/travaux/regles";
+import { etatTravail, MOTIF_ARRET, phraseAttente, type EtatTravail } from "@/lib/missions/travaux/regles";
 import { prioriteDe, type PrioriteTravail } from "@/lib/missions/travaux/plan";
 import { lireDossier, vueDossier, type VueDossier } from "@/lib/missions/chantiers/dossier";
 
@@ -58,6 +58,8 @@ export interface MissionTableau {
   etat: EtatTravail;
   priorite: PrioriteTravail;
   attente: string | null;
+  /** P1 : le motif d'une pause (plafond, arrêt, fusion) — le diagnostic le dit. */
+  motifPause: string | null;
   coutUsd: number;
   plafondUsd: number | null;
   creeLe: string;
@@ -78,7 +80,7 @@ const TYPE: Record<string, string> = { CAPABILITY: "Lecture", WORKER: "Analyse",
 const FINIS = ["COMPLETED", "CANCELLED", "FAILED"];
 /** Les missions finies restent au tableau ce temps-là, puis n'y sont plus (elles restent au panneau « Travaux »). */
 export const RETENUE_FINIES_MS = 3 * 24 * 3600_000;
-const JOURNAL = ["TRAVAIL_PROPOSE", "TRAVAIL_APPROUVE", "TRAVAIL_DOFFICE", "TRAVAIL_REPRIS", "PAUSED", "RESUMED", "CLOSED", "LIVRABLE_DEPOSE", "GESTE_REFUSE", "STEP_RECLAIMED", "DEMANDE_DEPOSEE", "DEMANDE_REPONDUE",
+const JOURNAL = ["TRAVAIL_PROPOSE", "TRAVAIL_APPROUVE", "TRAVAIL_RENOMME", "TRAVAIL_DOFFICE", "TRAVAIL_REPRIS", "PAUSED", "RESUMED", "CLOSED", "LIVRABLE_DEPOSE", "GESTE_REFUSE", "STEP_RECLAIMED", "DEMANDE_DEPOSEE", "DEMANDE_REPONDUE",
   "CHANTIER_LANCEMENT", "CHANTIER_PR", "CHANTIER_VERT", "CHANTIER_ROUGE", "CHANTIER_BLOQUE", "CHANTIER_FUSION", "CHANTIER_DEPLOIEMENT", "CHANTIER_SAIN", "CHANTIER_MALSAIN",
   "CHANTIER_ROLLBACK", "CHANTIER_RAPPORT", "CHANTIER_AUTOFIX", "CHANTIER_VALIDATION_DEMANDEE", "CHANTIER_VALIDATION_ACCORDEE", "CHANTIER_VALIDATION_REFUSEE", "CHANTIER_ATTEND_RESERVATION",
   "CHANTIER_REVERT", "CHANTIER_REVERT_DEMANDE", "CHANTIER_REVERT_ECHEC"];
@@ -92,6 +94,8 @@ const TYPE_CHANTIER: Record<string, string> = {
 const ouVisible = (principalId: string, maintenant: Date) => ({
   kind: { in: FAMILLES }, principalId, ownerId: principalId,
   OR: [{ status: { notIn: FINIS as never[] } }, { updatedAt: { gte: new Date(maintenant.getTime() - RETENUE_FINIES_MS) } }],
+  // P1 (décision 0047) : un travail ARRÊTÉ (pause marquée) se range avec les finis — et quitte le tableau après la même retenue.
+  NOT: { status: "PAUSED" as never, pausedReason: { startsWith: MOTIF_ARRET }, updatedAt: { lt: new Date(maintenant.getTime() - RETENUE_FINIES_MS) } },
 });
 
 /**
@@ -139,7 +143,8 @@ export async function tableauDesTravaux(principalId: string, maintenant = new Da
         etat: etatEtape(s.status),
         debut: s.startedAt?.toISOString() ?? null,
         fin: s.completedAt?.toISOString() ?? (["DONE", "FAILED", "SKIPPED", "CANCELLED"].includes(s.status) ? s.updatedAt.toISOString() : null),
-        erreur: s.status === "FAILED" ? (s.error ?? "échec") : null,
+        // P1 : une étape qui RÉESSAIE (RETRYING, ou en file après un échec) dit sa dernière erreur — sinon « En cours » sans fin.
+        erreur: s.status === "FAILED" ? (s.error ?? "échec") : (s.error && ["RETRYING", "READY", "PENDING", "RUNNING"].includes(s.status) ? s.error : null),
         lots: s.forEach ? { faits: enfants.filter((x) => x.status === "DONE" || x.status === "SKIPPED").length, total: enfants.length } : null,
       };
     });
@@ -149,7 +154,7 @@ export async function tableauDesTravaux(principalId: string, maintenant = new Da
     const carnet = lireCarnet(m.carnet);
     return {
       id: m.id, parentId: m.parentMissionId, titre: m.title, objectif: m.objective,
-      etat: etatTravail(m.status, m.pausedReason), priorite: prioriteDe(m.priority),
+      etat: etatTravail(m.status, m.pausedReason), priorite: prioriteDe(m.priority), motifPause: m.status === "PAUSED" ? m.pausedReason : null,
       attente: attenteChantier ? String((attenteChantier.result as { attente?: string } | null)?.attente ?? phraseAttente(attenteChantier.title, attenteChantier.updatedAt, maintenant))
         : attente ? phraseAttente(attente.title, attente.updatedAt, maintenant) : null,
       coutUsd: Math.round(m.costUsd * 10_000) / 10_000, plafondUsd: m.plafondUsd,

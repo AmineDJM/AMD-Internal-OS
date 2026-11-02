@@ -317,7 +317,8 @@ function outilCalculer(user: CurrentUser, ctx: ContexteAnalyse): PowerTool {
       const params = parametresProuves(entree.params, ctx.question, code);
       if (!params.ok) return json({ ok: false, erreur: params.motif });
       let data: unknown = [];
-      let origine = "aucune donnée (paramètres de la demande seulement)";
+      // P1 (décision 0047) : « aucune donnée » déroutait la Direction (un rétroplanning calculé de SES dates) — dire d'où vient le calcul.
+      let origine = "calculé à partir de tes dates et paramètres (rien de lu dans l'ERP)";
       let masquees: string[] = [];
       const source = str(entree.source, 240);
       if (source) {

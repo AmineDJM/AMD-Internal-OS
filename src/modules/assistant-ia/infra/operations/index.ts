@@ -21,6 +21,8 @@ import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "./routines";
 import { ENREGISTRER_ATELIER } from "./atelier-enregistrer";
 import { REPONSE_DEMANDE } from "./delegation";
 import { OPERATIONS_TERRAIN } from "./terrain";
+import { FUSION_MISSIONS } from "./missions-fusion";
+import { ENVOI_GMAIL } from "./envoi-gmail";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
 
@@ -36,6 +38,8 @@ export const OPERATIONS_IA: OperationIA[] = [
   REPONSE_DEMANDE,
   // J13 (décision 0025) : le terrain — compte rendu pré-rempli, échantillons, tournée de demain, photo rattachée.
   ...OPERATIONS_TERRAIN,
+  // P1 (décision 0047) : fusionner ses missions en une ; envoyer un mail par sa boîte Gmail reliée (fenêtre d'annulation).
+  FUSION_MISSIONS, ENVOI_GMAIL,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));

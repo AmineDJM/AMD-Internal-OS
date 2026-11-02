@@ -113,14 +113,14 @@ export function avancement(etapes: readonly { etat: string; lots: { faits: numbe
 /** L'état d'une mission tel que le tableau de bord le dit (les états affichés du moteur des travaux). */
 export const LIBELLE_MISSION: Readonly<Record<string, string>> = {
   A_APPROUVER: "À approuver", EN_COURS: "En cours", EN_ATTENTE: "En attente", BUDGET_HOLD: "Plafond atteint", EN_PAUSE: "En pause",
-  BLOQUE: "Bloquée", TERMINE: "Terminée", ANNULE: "Annulée", ECHEC: "Échec",
+  ARRETE: "Arrêtée (reprenable)", BLOQUE: "Bloquée", TERMINE: "Terminée", ANNULE: "Annulée", ECHEC: "Échec",
 };
 
 /** Ce que la personne peut faire d'une mission dans cet état : la pause, la reprise, l'annulation. */
 export function gestesPermis(etat: string): { pause: boolean; reprise: boolean; annuler: boolean } {
   return {
     pause: etat === "EN_COURS" || etat === "EN_ATTENTE",
-    reprise: etat === "EN_PAUSE" || etat === "BUDGET_HOLD" || etat === "BLOQUE",
-    annuler: etat !== "TERMINE" && etat !== "ANNULE",
+    reprise: etat === "EN_PAUSE" || etat === "BUDGET_HOLD" || etat === "BLOQUE" || etat === "ARRETE",
+    annuler: etat !== "TERMINE" && etat !== "ANNULE" && etat !== "ARRETE",
   };
 }

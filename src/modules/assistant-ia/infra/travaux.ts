@@ -32,6 +32,8 @@ export {
   annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
   // K9 (décision 0039) : les commandes orales — mettre en pause, reprendre une mission dite par son nom.
   listerTravaux, pauserTravail, reprendreMonTravail,
+  // P1 (décision 0047) : piloter ses missions à l'écrit — arrêter (réversible), renommer.
+  arreterTravail, renommerTravail,
   type MissionTableau,
 } from "@/lib/missions/travaux/service";
 export type { PersonaTravaux } from "@/lib/missions/travaux/persona";
@@ -87,7 +89,8 @@ export const PIECES_TRAVAUX: PortPiecesTravail = {
  */
 
 // J8 : répondre à une demande est un geste de la personne SOLLICITÉE, dans sa conversation — jamais d'un travail.
-const GESTES_EXCLUS = new Set(["programmer_routine", "gerer_routine", "preparer_reponse_demande"]);
+// P1 (décision 0047) : une mission ne fusionne pas les missions de la personne, ni n'envoie de mail par sa boîte Gmail.
+const GESTES_EXCLUS = new Set(["programmer_routine", "gerer_routine", "preparer_reponse_demande", "fusionner_missions", "envoyer_gmail"]);
 const GESTES_TRAVAIL = OPERATIONS_IA.filter((o) => !GESTES_EXCLUS.has(o.nom));
 /** Ce qui n'est pas une LECTURE parmi les outils du tour : les gestes (cartes) et la mémoire proposée. */
 const PAS_UNE_LECTURE = new Set([...OPERATIONS_IA.map((o) => o.nom), ...ECRITURES_DU_MOTEUR, "proposer_memoire"]);
