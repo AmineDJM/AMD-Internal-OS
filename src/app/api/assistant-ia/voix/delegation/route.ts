@@ -18,11 +18,11 @@ export async function POST(req: Request) {
   if (!personne) return Response.json({ error: "Non authentifié." }, { status: 401 });
   let corps: { demande?: unknown; session?: unknown; delegationId?: unknown; enCours?: unknown; parole?: unknown; question?: unknown };
   try { corps = (await req.json()) as typeof corps; } catch { return Response.json({ error: "Requête invalide." }, { status: 400 }); }
-  const demande = typeof corps.demande === "string" ? corps.demande.slice(0, 4_000) : "";
+  const demande = typeof corps.demande === "string" ? corps.demande : "";
   return Response.json(await deleguerALaVoix(personne, demande, {
     session: court(corps.session, 120), delegationId: court(corps.delegationId, 120), enCours: court(corps.enCours, 64),
     // K4 : ce que la PERSONNE a dit depuis la délégation précédente (sa transcription) — seul juge d'un « oui ».
-    parole: typeof corps.parole === "string" ? corps.parole.slice(0, 2_000) : null,
+    parole: typeof corps.parole === "string" ? corps.parole : null,
     // O1 (décision 0046) : l'élément d'agenda que l'orchestrateur a fait poser — la parole y répond peut-être.
     question: court(corps.question, 64),
   }));

@@ -43,6 +43,10 @@ mémoire se gère en **jetons** (budget de stockage par personne, 8 000 ; consol
 mesuré : 892 → 467 jetons injectés par tour, 0,001 $ la consolidation ; « X jetons sur Y » dans le panneau), l'historique
 des faits remplacés est gardé **12 mois**, la santé déclarée est retenue d'office, et il n'y a **plus de plafond
 quotidien** de jetons par personne (le plafond par tour reste). Migration `20270219300000_memoire_jetons_sans_plafond`.
+Le 02/11 : **plus aucun texte coupé** — un message long part entier au modèle (jusqu'à 200 000 caractères), au-delà il
+devient une pièce lue, et le plafond par tour ne compte plus le message à chaque étape ; et la mémoire retient **un peu
+plus** (avis, priorités, échéances, lieux, vocabulaire) : 13 messages durables sur 15 retenus au lieu de 7, toujours 0 faux
+positif et 0 valeur interdite (décision 0045 § 5).
 
 ### O1 (suite) : C'EST À L'ASSISTANT D'ORCHESTRER — CLASSER CHAQUE PHRASE, PRÉCISION MAJEURE OU MINEURE, AGENDA SANS PLAFOND (2026-11-01)
 

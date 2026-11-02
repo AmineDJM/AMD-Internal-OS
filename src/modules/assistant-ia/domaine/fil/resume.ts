@@ -63,7 +63,10 @@ export const CONSIGNE_RESUME = [
 
 /** Le texte confié au modèle rapide — déjà filtré par l'appelant. */
 export function texteAResumer(precedent: string | null, tours: readonly TourResumable[]): string {
-  const echanges = tours.map((t) => `${t.role === "user" ? "PERSONNE" : "ASSISTANT"} : ${t.content.replace(/\s+/g, " ").trim().slice(0, 1_500)}`);
+  // Le texte de la PERSONNE entre en entier (Direction, 02/11/2026 : rien n'est coupé) ; la réponse de l'assistant, abrégée.
+  const echanges = tours.map((t) => (t.role === "user"
+    ? `PERSONNE : ${t.content.replace(/\s+/g, " ").trim()}`
+    : `ASSISTANT : ${t.content.replace(/\s+/g, " ").trim().slice(0, 1_500)}`));
   return `${precedent ? `RÉSUMÉ PRÉCÉDENT :\n${precedent}\n\n` : ""}ÉCHANGES À INTÉGRER :\n${echanges.join("\n")}`;
 }
 

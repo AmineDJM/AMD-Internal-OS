@@ -313,8 +313,8 @@ export class ClientVoixTempsReel {
       await new Promise((r) => setTimeout(r, 100));
     }
     // La demande : ce que la personne a dit depuis la délégation précédente (sinon sa dernière demande, reformulée).
-    const parole = this.demande.trim().slice(0, 2_000);
-    const demande = (parole || this.derniereDemande).slice(0, 4_000);
+    const parole = this.demande.trim();
+    const demande = parole || this.derniereDemande;
     this.demande = "";
     this.derniereDemande = demande;
     this.delegations += 1;

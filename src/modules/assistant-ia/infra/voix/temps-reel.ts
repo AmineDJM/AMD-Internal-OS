@@ -126,7 +126,7 @@ export async function journaliserVoix(user: CurrentUser, d: {
     .filter((l) => l && (l.qui === "personne" || l.qui === "assistant") && typeof l.texte === "string" && l.texte.trim())
     .slice(0, 400);
   if (lignes.length) {
-    const dit = (q: string) => lignes.filter((l) => l.qui === q).map((l) => l.texte.trim()).join("\n").slice(0, 7_900);
+    const dit = (q: string) => lignes.filter((l) => l.qui === q).map((l) => l.texte.trim()).join("\n");
     const fil = await filDe(user.id, d.conversation ?? null);
     await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { dernierLe: new Date() } });
     const question = await prisma.assistantIaTour.create({

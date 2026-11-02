@@ -111,7 +111,7 @@ async function lancerTravail(user: CurrentUser, session: { id: string; conversat
   const entete = carte
     ? `${PREFIXE_VOCAL.slice(0, -1)} — carte en attente « ${carte.titre} » : la personne la complète ou la corrige (corriger_carte, ou l'outil preparer_* rappelé avec toutes les valeurs) ; rien ne s'exécute]`
     : PREFIXE_VOCAL;
-  const d = await deposerMessage(user.id, `${entete} ${demande}`.slice(0, 8_000), [], null, session.conversation, { parallele });
+  const d = await deposerMessage(user.id, `${entete} ${demande}`, [], null, session.conversation, { parallele });
   if (!d.ok) return { pourVoix: d.erreur };
   void traiterFil(user.id, d.conversation);
   const w = await prisma.assistantIaVoixTravail.create({ data: { userId: user.id, session: session.id, delegationId, conversation: d.conversation, tourId: d.tour.id } });

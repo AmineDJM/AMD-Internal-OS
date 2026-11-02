@@ -199,6 +199,8 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   stockage `AssistantIaReglage.memoireJetonsBudget` (8 000), consolidation rare et réversible au modèle rapide
   (`domaine/memoire/consolidation.ts`, `infra/memoire-consolidation.ts`, `consolideDans`), historique purgé à 12 mois
   (`purgerHistoriqueMemoire`) — tâche `assistant.memoire`. Plafond quotidien : 0 = sans (défaut).
+- **Textes longs jamais coupés** (Direction 02/11) — `domaine/fil/texte-long.ts`, `infra/fil/texte-long.ts` (au-delà de
+  200 000 caractères : pièce `.txt` lue) ; `Budget.franchiseParAppel` (le plafond par tour compte le message une fois).
 - **Preuves** — `domaine/memoire/memoire.test.ts`, `infra/memoire-capture.test.ts`, `infra/memoire-consolidation.test.ts`, `infra/memoire.test.ts` ; audit sur
   serveur réel : `scripts/bench/m1-audit.ts` → `docs/assistant/preuves/m1/`.
 
