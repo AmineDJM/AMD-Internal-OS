@@ -52,6 +52,7 @@ export const NIVEAU_OPERATION: Readonly<Record<string, NiveauRisque>> = {
   preparer_poste: "R3",
   preparer_bon_de_commande: "R4",
   preparer_bc_depuis_devis: "R4",
+  envoyer_bc_en_validation: "R4",
 };
 
 export const niveauDe = (operation: string): NiveauRisque => NIVEAU_OPERATION[operation] ?? "R4";

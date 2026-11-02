@@ -4,6 +4,7 @@ import { requireUser, type CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { jouerTour, type MemoireProposee } from "@/modules/assistant-ia/api";
+import { enVueExacteIa, refusAssistantVueExacte } from "@/modules/assistant-ia/partage";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
 export interface ReponseBetaAction {
@@ -71,6 +72,8 @@ function historiqueSur(historique: unknown): Tour[] {
 export async function confirmerActionBeta(intentId: string, confirmTyped?: string, corrections?: Record<string, unknown>) {
   const user = await exigerAccesAssistant();
   if (!user) return { ok: false as const, error: REFUS };
+  // S1 (décision 0048) : en Vue exacte, rien ne se confirme — le corps de l'action porte le Super Admin réel.
+  if (enVueExacteIa(user)) return { ok: false as const, error: refusAssistantVueExacte(user.visualise?.name) };
   return confirmerIntentionAssistantIA(intentId, confirmTyped, corrections ? JSON.stringify(corrections) : undefined);
 }
 
@@ -88,6 +91,12 @@ export async function envoyerMessageBeta(
   const messageId = `msg-${Date.now()}`;
   const user = await exigerAccesAssistant();
   if (!user) return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: REFUS };
+  // S1 (décision 0048) — LA FUITE DU 02/11 : sous Vue exacte, le corps de cette action porte le Super Admin RÉEL (§118.184,
+  // `visualise` = la personne regardée). Le tour se jouait donc avec SON identité (« Salut Amine »), SA mémoire et SES droits
+  // (la paie de tous). L'assistant est fermé en Vue exacte ; `jouerTour` le refuse aussi, pour tout autre appelant.
+  if (enVueExacteIa(user)) {
+    return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: refusAssistantVueExacte(user.visualise?.name) };
+  }
   const r = await jouerTour(user, { texte: userPrompt, pieces: piecesJointes, historique: historiqueSur(historique) });
   if (!r.ok) return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: r.error };
   return {

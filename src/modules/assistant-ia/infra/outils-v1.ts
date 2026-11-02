@@ -72,7 +72,10 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   read_workflow: ["AD_PRO"],
   preparer_sponsoring: ["AD_PRO", "ECRITURES"], preparer_prise_en_charge: ["AD_PRO", "ECRITURES"], preparer_evenement: ["AD_PRO", "ECRITURES"],
   preparer_materiel_promo: ["AD_PRO", "ECRITURES"], preparer_demande_autre: ["AD_PRO", "ECRITURES"], preparer_poste: ["AD_PRO", "ECRITURES"],
-  preparer_bon_de_commande: ["AD_PRO", "ECRITURES"], preparer_bc_depuis_devis: ["AD_PRO", "ECRITURES"], preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
+  // LES BONS DE COMMANDE ne sont pas d'Ad & Pro seul (lot B1, audit Q1) : les Finances et le Legal en créent à l'écran. La
+  // porte est celle du geste (`ouverte` : VALIDATIONS + droit de créer un BC), la famille celle des écritures.
+  preparer_bon_de_commande: ["ECRITURES"], preparer_bc_depuis_devis: ["ECRITURES"], envoyer_bc_en_validation: ["ECRITURES"],
+  preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
   // J3 — l'Atelier : ouvrir, modifier en place (rien n'est enregistré sans la personne), convertir.
   ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],
   // K7 (décision 0037) — les exports de l'ERP : déposés dans le Drive de la personne, et la famille de leur domaine.
@@ -282,7 +285,10 @@ export function outilsV1(
   // LA VUE : la personne, plus en lecture les modules des familles que la Direction lui a ouvertes explicitement.
   const vue = vueDeLAssistant(user, acces);
   const sousVue = (o: PowerTool): PowerTool => ({ ...o, allowed: (u) => u.id === user.id && o.allowed(vue), run: (entree, u) => o.run(entree, u.id === user.id ? vue : u) });
-  const lecturesPower = [...DIRECTORY_TOOLS, ...REGULATORY_READ_TOOLS].filter((o) => LECTURES_POWER.has(o.def.name)).map(sousVue);
+  // S1 (décision 0048, audit D1) : EXTRAIRE le registre complet (`directory_list`, coordonnées de tous) se juge sur le DROIT
+  // RÉEL de la personne, jamais sur un module que la console ajoute à la vue de l'assistant.
+  const surDroitReel = (o: PowerTool): PowerTool => (o.def.name === "directory_list" ? { ...o, allowed: (u) => u.id === user.id && o.allowed(user), run: (entree, u) => o.run(entree, u) } : sousVue(o));
+  const lecturesPower = [...DIRECTORY_TOOLS, ...REGULATORY_READ_TOOLS].filter((o) => LECTURES_POWER.has(o.def.name)).map(surDroitReel);
   // LES LECTURES PROPRES AU MODULE (J6) : sous la vue, comme les lectures du moteur qu'elles remplacent.
   const situation = lecturesSituation(user).map((o) => (o.def.name === "read_hr_overview"
     ? { ...o, run: async (entree: Record<string, unknown>, u: CurrentUser) => situationRhSansMasse(await o.run(entree, u), u, coffret, acces) }

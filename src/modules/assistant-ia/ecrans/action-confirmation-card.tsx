@@ -8,7 +8,7 @@ import { texteARessaisir } from "../domaine/capacites";
 import { chercherReferenceCarteAssistantIA } from "../actions";
 import { FormulaireCarteCapacite } from "./formulaire-carte";
 import { PanneauLateral } from "./panneau-lateral";
-import { apercuChamps, avertissementsUniques, etatSimulationAffiche, libelleOuverture } from "../domaine/ui/carte-action";
+import { apercuChamps, avertissementsUniques, etatSimulationAffiche, libelleLienResultat, libelleOuverture, separerChampsLongs } from "../domaine/ui/carte-action";
 import type { VueSimulation } from "../domaine/simulation";
 
 export interface ActionIntentCardProps {
@@ -75,6 +75,9 @@ export function ActionConfirmationCard({
   // POINT 3 (31/10/2026) : une carte À FORMULAIRE se résume dans la conversation ; le formulaire s'ouvre dans un
   // panneau (à droite sur ordinateur, plein écran sur téléphone) — la conversation reste lisible et défile.
   const [panneau, setPanneau] = useState(false);
+  // Le DÉTAIL d'une carte sans formulaire (les lignes d'un BC) : résumé dans la conversation, détail au panneau.
+  const [detail, setDetail] = useState<{ label: string; value: string } | null>(null);
+  const champsSepares = useMemo(() => separerChampsLongs(fields), [fields]);
   const zone = useRef<HTMLDivElement>(null);
   const manquants = useMemo(
     () => (formulaire && verification ? formulaire.champs.filter((c) => verification.erreurs[c.nom]).map((c) => ({ nom: c.nom, libelle: c.libelle })) : []),
@@ -295,18 +298,38 @@ export function ActionConfirmationCard({
         {summary && <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">{summary}</p>}
       </div>
 
-      {/* Détails des champs */}
-      {fields.length > 0 && (
+      {/* Détails des champs — les champs LONGS (détail des lignes) s'ouvrent dans le panneau. */}
+      {champsSepares.courts.length > 0 && (
         <div className="mt-3 grid grid-cols-1 gap-2 rounded-xl bg-zinc-50/70 p-2.5 text-xs dark:bg-zinc-950/40 sm:grid-cols-2">
-          {fields.map((f, i) => (
-            <div key={i} className="flex flex-col">
+          {champsSepares.courts.map((f, i) => (
+            <div key={i} className="flex min-w-0 flex-col">
               <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
                 {f.label}
               </span>
-              <span className="font-medium text-zinc-800 dark:text-zinc-200">{f.value}</span>
+              <span className="whitespace-pre-line font-medium text-zinc-800 [overflow-wrap:anywhere] dark:text-zinc-200">{f.value}</span>
             </div>
           ))}
         </div>
+      )}
+      {champsSepares.longs.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {champsSepares.longs.map((f) => (
+            <button key={f.label} type="button" onClick={() => setDetail(f)} aria-haspopup="dialog" data-testid="carte-ouvrir-detail"
+              className="inline-flex min-h-[2.25rem] items-center gap-1.5 rounded-lg border border-zinc-200 bg-white/70 px-3 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-200">
+              <ArrowUpRight className="h-3.5 w-3.5" aria-hidden /> {f.label} ({f.value.split("\n").length})
+            </button>
+          ))}
+        </div>
+      )}
+      {detail && typeof document !== "undefined" && createPortal(
+        <PanneauLateral etiquette={detail.label} titre={`${detail.label} — ${title}`} pleinEcranMobile largeur="sm:w-[520px]"
+          icone={<span className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400"><ShieldAlert className="h-4 w-4" aria-hidden /></span>}
+          onFermer={() => setDetail(null)}>
+          <ol className="space-y-1.5 text-xs text-zinc-800 dark:text-zinc-200" data-testid="panneau-detail-carte">
+            {detail.value.split("\n").map((l, i) => <li key={i} className="rounded-lg bg-zinc-50/80 px-2.5 py-1.5 [overflow-wrap:anywhere] dark:bg-zinc-950/40">{l}</li>)}
+          </ol>
+        </PanneauLateral>,
+        document.body,
       )}
 
       {/* P1 — L'APERÇU RÉEL de chaque mail : le HTML que le gabarit a rendu côté serveur, isolé (aucun script, aucun lien actif). */}
@@ -352,9 +375,10 @@ export function ActionConfirmationCard({
             {link && (
               <a
                 href={link}
+                {...(libelleLienResultat(link) === "Ouvrir le PDF" ? { target: "_blank", rel: "noopener" } : {})}
                 className="inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
               >
-                Consulter <ArrowUpRight className="h-3 w-3" />
+                {libelleLienResultat(link)} <ArrowUpRight className="h-3 w-3" />
               </a>
             )}
           </div>

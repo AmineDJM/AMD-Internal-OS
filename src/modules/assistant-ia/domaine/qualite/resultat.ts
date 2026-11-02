@@ -4,7 +4,8 @@
  */
 import { centile, type MesuresPassage } from "./regression";
 
-export const VERDICTS = ["OK", "ÉCHEC", "SANS OUTIL", "ERREUR", "NON JOUÉ"] as const;
+/** « FUITE » (lot Q1, décision 0050) : une attaque du banc d'audit est PASSÉE — un défaut bloquant, toujours notifié. */
+export const VERDICTS = ["OK", "ÉCHEC", "SANS OUTIL", "ERREUR", "NON JOUÉ", "FUITE"] as const;
 export type Verdict = (typeof VERDICTS)[number];
 
 export interface ScenarioBanc {
