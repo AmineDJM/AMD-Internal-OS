@@ -1,6 +1,6 @@
 import { MODULES } from "@/lib/rbac";
 import { isHideable } from "@/lib/modules-visibility";
-import { COLONNES_REGULATORY, lireColonnesMasquees, enTeteColonne } from "@/lib/vues/colonnes-regulatory";
+import { COLONNES_REGULATORY, lireColonnesMasquees } from "@/lib/vues/colonnes-regulatory";
 
 /**
  * CE QUE L'ASSISTANT A LE DROIT D'ÉCRIRE — la liste blanche, et rien d'autre.

@@ -11,6 +11,7 @@ import { modeleDisponible } from "./disponibilite";
 import { draftFromDriveNode } from "./sources/drive";
 import { draftFromEmail, enqueueEmailBacklog } from "./sources/email";
 import { stageClassify, stageEntities, stageEmbed, stageEnrich, stageVision } from "./stages";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -122,7 +123,7 @@ export async function traiterJob(
 async function noterEchecSurElement(itemId: string, kind: JobKind, msg: string): Promise<void> {
   await prisma.knowledgeItem
     .update({ where: { id: itemId }, data: { error: `Étape « ${kind} » abandonnée : ${msg}`.slice(0, 300) } })
-    .catch(() => undefined);
+    .catch(sansBloquer("knowledge-worker.noterEchecSurElement.knowledgeItem"));
 }
 
 /**
@@ -139,7 +140,7 @@ export async function runKnowledgeSweep(batch = BATCH): Promise<SweepResult> {
     out.requeued = await requeueStale();
     // Les éléments que l'ancienne règle avait passés « en échec » retrouvent l'étape que leurs
     // faits disent — un petit lot par passage, idempotent (voir `rattrapage.ts`).
-    out.repaired = await reparerEtapesEnEchec().catch(() => 0);
+    out.repaired = await reparerEtapesEnEchec().catch(sansBloquer("knowledge-worker.runKnowledgeSweep.reparerEtapesEnEchec", 0));
 
     const modele = await modeleDisponible();
     const kinds = kindsReclamables(modele.ok);
@@ -287,13 +288,13 @@ export async function enqueueDriveBacklog(limit = 20): Promise<number> {
 export async function enqueueBacklogs(limit = 20): Promise<{ drive: number; email: number; vecteurs: number; visions: number }> {
   const actif = knowledgeWorkerEnabled();
   const [drive, email, vecteurs, visions] = await Promise.all([
-    enqueueDriveBacklog(limit).catch(() => 0),
-    actif ? enqueueEmailBacklog(limit).catch(() => 0) : Promise.resolve(0),
+    enqueueDriveBacklog(limit).catch(sansBloquer("knowledge-worker.enqueueBacklogs.enqueueDriveBacklog", 0)),
+    actif ? enqueueEmailBacklog(limit).catch(sansBloquer("knowledge-worker.enqueueBacklogs.enqueueEmailBacklog", 0)) : Promise.resolve(0),
     // LES VECTEURS ET LES LECTURES VISUELLES JAMAIS FAITS (voir `rattrapage.ts`). Bornés par
     // passage, et sans modèle disponible (clé, interrupteur) ils ne mettent rien en file. Le lot
     // grandit avec `limit` : le traitement planifiable « Rattrapage d'indexation » passe 60.
-    actif ? rattraperVecteurs(Math.max(1, Math.round(limit / 2))).catch(() => 0) : Promise.resolve(0),
-    actif ? rattraperVisions(Math.max(1, Math.round(limit / 6))).catch(() => 0) : Promise.resolve(0),
+    actif ? rattraperVecteurs(Math.max(1, Math.round(limit / 2))).catch(sansBloquer("knowledge-worker.enqueueBacklogs.rattraperVecteurs", 0)) : Promise.resolve(0),
+    actif ? rattraperVisions(Math.max(1, Math.round(limit / 6))).catch(sansBloquer("knowledge-worker.enqueueBacklogs.rattraperVisions", 0)) : Promise.resolve(0),
   ]);
   return { drive, email, vecteurs, visions };
 }
@@ -362,17 +363,17 @@ export async function refreshEntityIndex(force = false): Promise<boolean> {
 export async function knowledgeHealth() {
   const [queue, byStage, byExtraction, total, entities, aliases, links, chunks, embedded] = await Promise.all([
     queueHealth(),
-    prisma.knowledgeItem.groupBy({ by: ["stage"], _count: { _all: true } }).catch(() => []),
+    prisma.knowledgeItem.groupBy({ by: ["stage"], _count: { _all: true } }).catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeItem", [])),
     // La RÉPARTITION PAR MOYEN est le tableau de bord de la doctrine §2 : une dérive vers le haut
     // de l'échelle (moins de `native`, plus de `luna`) se voit ici, avant d'apparaître sur une
     // facture — et c'est la seule façon de vérifier que « le code d'abord » tient dans le temps.
-    prisma.knowledgeItem.groupBy({ by: ["extractedBy"], _count: { _all: true } }).catch(() => []),
-    prisma.knowledgeItem.count().catch(() => 0),
-    prisma.knowledgeEntity.count().catch(() => 0),
-    prisma.knowledgeAlias.count().catch(() => 0),
-    prisma.knowledgeLink.count().catch(() => 0),
-    prisma.knowledgeChunk.count().catch(() => 0),
-    prisma.knowledgeChunk.count({ where: { NOT: { embedding: { equals: Prisma.DbNull } } } }).catch(() => 0),
+    prisma.knowledgeItem.groupBy({ by: ["extractedBy"], _count: { _all: true } }).catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeItem", [])),
+    prisma.knowledgeItem.count().catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeItem", 0)),
+    prisma.knowledgeEntity.count().catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeEntity", 0)),
+    prisma.knowledgeAlias.count().catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeAlias", 0)),
+    prisma.knowledgeLink.count().catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeLink", 0)),
+    prisma.knowledgeChunk.count().catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeChunk", 0)),
+    prisma.knowledgeChunk.count({ where: { NOT: { embedding: { equals: Prisma.DbNull } } } }).catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeChunk", 0)),
   ]);
   const [retrouvables, courants, lunaNonLus, enrichDemandes, boiteMorte, vecteurs, pgvector, modele] = await Promise.all([
     // RETROUVABLE = ce que la recherche trouve VRAIMENT : la version courante, avec un texte (ou un
@@ -381,18 +382,18 @@ export async function knowledgeHealth() {
     // bien par leur texte.
     prisma.knowledgeItem
       .count({ where: { isCurrent: true, OR: [{ text: { not: null } }, { extractedBy: "metadata" }] } })
-      .catch(() => 0),
-    prisma.knowledgeItem.count({ where: { isCurrent: true } }).catch(() => 0),
+      .catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeItem", 0)),
+    prisma.knowledgeItem.count({ where: { isCurrent: true } }).catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeItem", 0)),
     // « Luna — vision » sans texte : routés vers la vision, jamais lus. Les compter avec les
     // documents lus aurait fait croire que Luna avait travaillé.
     prisma.knowledgeItem
       .count({ where: { isCurrent: true, text: null, extractedBy: { in: ["luna", "luna_vision"] } } })
-      .catch(() => 0),
-    prisma.knowledgeJob.count({ where: { kind: "enrich" } }).catch(() => 0),
-    chargerBoiteMorte().catch(() => ({ total: 0, groupes: [], tronque: false })),
-    etatVectorisation().catch(() => ({ restants: 0, coutEstimeUsd: 0 })),
+      .catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeItem", 0)),
+    prisma.knowledgeJob.count({ where: { kind: "enrich" } }).catch(sansBloquer("knowledge-worker.knowledgeHealth.knowledgeJob", 0)),
+    chargerBoiteMorte().catch(sansBloquer("knowledge-worker.knowledgeHealth.chargerBoiteMorte", { total: 0, groupes: [], tronque: false })),
+    etatVectorisation().catch(sansBloquer("knowledge-worker.knowledgeHealth.etatVectorisation", { restants: 0, coutEstimeUsd: 0 })),
     etatPgvector(),
-    modeleDisponible().catch(() => ({ ok: false, raison: "Disponibilité du modèle illisible." })),
+    modeleDisponible().catch(sansBloquer("knowledge-worker.knowledgeHealth.modeleDisponible", { ok: false as const, raison: "Disponibilité du modèle illisible." })),
   ]);
   return {
     queue,

@@ -30,6 +30,922 @@ version signée.
 - Écran : `components/ad-pro/devis-bc-poste.tsx` (`BrouillonDuDevis`, « Tout valider ») ; le geste du poste « Déposer le BC
   signé » ouvre la case BC (`items-panel.tsx`). Bancs : `bons-de-commande/version-signee.test.ts`, `ad-pro/devis-bc-flow.test.ts`
   (« TROIS OFFRES, UNE RETENUE »), mis à jour : `audit-ad-pro-flow`, `bc-meme-piece-flow`, `bc-apercu-complet-flow`, `poste-etapes`.
+### S1 bis — L'IDENTITÉ NE S'APPREND PAS : « C'EST AMINE QUI ÉCRIT » NE DEVIENT PLUS UN PRÉNOM RETENU (2026-11-02)
+
+Banc Q1 (rejeu réel P1+S1+B1, US-01) : la paie refusée, mais « Prénom : Amine » retenu dans la mémoire de Radia — d'où le
+« Salut Amine ». L'identité vient du compte, jamais de la parole ni de la mémoire : un tour qui déclare écrire pour un autre
+ne nourrit pas la mémoire ; aucun souvenir d'identité ne s'écrit (capture, voix, consolidation, main, carte, modification)
+ni ne se relit (rappel, voix, ancien contexte) — ceux déjà en base sont neutralisés. Décision
+[0048 §6 bis](../assistant/decisions/0048-acces-personnels.md) ; `src/platform/ia/memoire-identite.ts` (socle commun, Adam compris).
+
+### P1 — L'ASSISTANT PILOTE VRAIMENT SES MISSIONS ET SES MAILS, ET NE DIT JAMAIS AVOIR FAIT CE QU'IL N'A PAS FAIT (2026-11-02)
+
+Direction, 02/11 : trois missions « En cours · 0 % », une troisième lancée au lieu de fusionner, « je prends en compte la
+mission que tu as déjà fusionnée » sans rien avoir lu, des cartes à ressaisir « ENREGISTRER ». Décision
+[0047](../assistant/decisions/0047-pilotage-missions-mails-verite.md). **Cause des 0 %** : personne ne conduisait les
+missions — le battement du web ne s'armait qu'à la première requête qui importait `lib/scheduled.ts` (une page de l'ERP) ;
+il s'arme désormais au démarrage (`src/instrumentation.ts`). L'erreur d'un modèle en flux n'est plus avalée (« crédit
+OpenAI épuisé » au lieu de « aucune réponse »). **À l'écrit** : `mes_missions`, `piloter_mission` (pause, reprendre, arrêter
+— réversible —, renommer), carte `fusionner_missions` ; la voix passe par les mêmes fonctions. **État honnête** : « en
+attente du worker (aucun battement depuis N min) », « attend ton approbation », « plafond », « bloquée : … » au tableau
+« Missions », dans la conversation et dans Administration › IA. **Garde de vérité** serveur (`noteActionsNonVerifiees`).
+**Mails, par la boîte d'ADAM** : `mes_boites_mail` lit l'état réel de sa connexion Google ; `envoyer_mail` → carte
+« Envoyer » qui nomme la boîte d'Adam, puis la MÊME machine à états que son écran (`OutboundMailIntent` : approuvée au nom
+de qui confirme, fenêtre d'annulation `courriel.gmail`, annulée = CANCELLED) ; Microsoft/SMTP de la personne seulement
+sur demande. La fusion est une opération de domaine tout ou rien à invariant relu (`fusionnerTravaux`). **R3 réversible : le bouton suffit** (plus de
+ressaisie) ; la ressaisie reste pour R4. Libellé « calculé à partir de tes dates » au lieu de « aucune donnée ».
+
+### S1 — UN ASSISTANT PAR EMPLOYÉ, QUI SAIT À QUI IL PARLE ET NE VOIT QUE SES DROITS (2026-11-02)
+
+Constat de la Direction (02/11) : depuis le compte de Radia ouvert en **Vue exacte**, l'assistant répondait « Salut Amine »
+et donnait la paie de Radia et d'Assia. Cause : le message part par une action serveur, dont le corps porte le Super
+Admin réel (§118.184) — le tour se jouait avec l'identité, la mémoire et les droits du Super Admin. **Corrigé** :
+l'assistant est fermé en Vue exacte (actions, `jouerTour` en échec fermé, accès vide), l'accueil le dit. Un réglage de
+**rôle** de la console n'ouvre plus jamais la paie ou le dossier RH d'**autrui** : seulement le droit applicatif RH, un
+**avenant** de délégation daté sur une entité (`AvenantContrat`, contrat en vigueur) ou un **droit daté** nominatif
+(`AssistantIaDroitDate`), chaque lecture auditée avec son motif. Chaque tour porte le **profil de la personne** construit
+par le serveur (nom, prénom, poste, entité, responsable, contrat, avenants, rôle, périmètres — jamais un autre prénom),
+tutoiement ou vouvoiement au choix. Administration › IA › Accès montre « **Ce que son assistant voit** ». Décision
+[0048](../assistant/decisions/0048-acces-personnels.md), audit `docs/assistant/preuves/s1/`. Migration
+`20270221000000_s1_acces_personnels`.
+### B1 : « CRÉE UN BC EN PDF » DEPUIS UN DEVIS — LECTURE FIABLE, FLUX SANS FRICTION, PDF RENDU (2026-11-02)
+
+Direction, 02/11 (« catastrophique ») : sur « Devis matériel promotionnel INSIGNE.pdf », la carte disait
+« Fournisseur : ADVENTUM PHARMA » (le client), perdait 14 lignes et en répétait 3 (893 500 HT au lieu de 794 500),
+exigeait un validateur puis la société, rattachait le matériel promotionnel à l'enveloppe Regulatory et ne faisait pas
+de PDF. **Causes** : le bloc client du devis (NIF, RC) était lu comme l'émetteur ; le texte à plat d'un PDF met chaque
+cellule sur sa ligne et répète en-têtes et pieds de page — le modèle recopiait mal, et rien ne confrontait la somme au HT
+imprimé. **Désormais** : le tableau se lit par les **positions** des caractères (mupdf — rangées, colonnes, en-têtes
+répétés et reports écartés, blocs répétés dédoublonnés, numérotation suivie, chaque ligne recoupée) ; s'il réconcilie
+avec le HT imprimé, c'est lui qui fait les lignes, sans modèle ; sinon le modèle, puis une **seconde passe de vision**
+(image des pages, schéma JSON strict) ; l'écart persistant se dit en UNE phrase qui **nomme** les lignes douteuses.
+**L'émetteur est le fournisseur** (pied de page, en-tête, nom du fichier ; jamais une société du groupe), le **client est
+la société** du BC ; fiche fournisseur proposée à l'annuaire s'il manque. « Crée un BC en PDF » : aucune question de
+validateur ni de société ; **« Créer le BC (PDF) »** = BC numéroté en brouillon (pré-validation) + PDF au Drive, lien
+dans la conversation ; **« Envoyer en validation »** est un geste séparé ; enveloppe proposée selon la nature ; carte
+résumée (détail des lignes au panneau, provenance dite une fois, plus de « seuil de 0 DZD »). Annulable (K10b : ANNULÉ,
+jamais effacé). Banc : 5 devis fabriqués (dont un scan) — 76/76 lignes par positions, vision réelle 27/27 et 5/5.
+Verdict par invariants (FIABLE / À VÉRIFIER / ILLISIBLE) gardé avec la lecture ; cycle du BC (brouillon → en
+validation → validé → signé / annulé) à préconditions tenues par le code. Décision
+[0049](../assistant/decisions/0049-bc-depuis-devis.md). Migration `20270220950000_lecture_piece_verdict`.
+
+### LE BANC D'AUDIT PERMANENT DE L'ASSISTANT IA — un attaquant et un utilisateur exigeant, joués par la machine (Q1, 2026-11-02)
+
+« Audite ça toi-même, même la partie test. Vérifie qu'avec le compte de l'un, ça ne va pas vers l'autre. Essaie de le
+jailbreaker » (Direction). Décision 0050. Dix personas (commercial, délégué, manager, RH paie, finance, assistante, KAM,
+regulatory, Super Admin, Vue exacte) et une victime, chacun avec des valeurs TÉMOINS uniques ; **93 attaques** (usurpation,
+flatterie sur plusieurs tours, injection par PDF/Excel/mail/WhatsApp/note/Drive/nom de fichier/fiche/mémoire, agrégats, SQL,
+export, voix, escalade d'action avec clic « Confirmer » simulé, extraction du prompt, Vue exacte) et **65 tâches** jouées avec
+le vrai modèle (`npm run audit:assistant`), verdict au niveau des DONNÉES (réponse, carte, fichiers, mémoire, traces) et un
+espion de Prisma qui prouve qu'une ligne d'autrui n'a pas été lue. Version déterministe dans `npm test` (faux modèle
+adversarial, cliquet : toute nouvelle lecture sans scénario d'attaque fait échouer la suite) ; version réelle chaque nuit
+(`qualite.banc`, une attaque passée notifiée au Super Admin). Premier passage : 92/93 attaques bloquées, 0 passée ; 45/65
+tâches réussies. Corrigé : la Vue exacte envoyait la mémoire de la personne regardée au modèle ; « Quel est mon salaire ? »
+était refusé sans outil. Rapport : `docs/assistant/preuves/audit/`.
+
+### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
+
+Direction, 01/11 : « l'export des demandes de paiement, oui. Enfin, l'export de tout, quoi. » Décision 0037, § 7.
+**Demandes de paiement** et **ordres du centre de paiement** : un bouton « Exporter » sur leurs écrans, une fonction
+partagée avec l'assistant (`lib/exports/paiements.ts`, portée des écrans par le module `finances`). **Tout le reste** :
+`exporter_donnees` écrit en Excel vérifié, CSV ou PDF ce que la conversation a lu ou calculé (jeux du tour de K1), au
+Drive « Exports » ; le modèle ne recopie aucune ligne ; une valeur sensible n'est écrite que pour qui a le droit de la
+voir (juge de l'écran, K4). Cliquet : tout bouton d'export d'un écran a sa fiche au catalogue.
+
+### UNE VRAIE MÉMOIRE POUR ADVENTUM IA — il retient ce que vous dites de vous (M1, 2026-11-01)
+
+« J'ai parlé de moi, de ma famille, de mes voyages, de mes études… quand je suis allé cliquer sur ce qu'il retient, je
+n'ai rien trouvé » (Direction). La mémoire attendait un clic sur une carte « Retenir » qui n'était presque jamais proposée,
+et ne visait que le travail. Désormais, après chaque réponse (et en fin de conversation vocale), ce que la personne dit
+d'elle — famille, études, voyages, goûts, santé déclarée, projets, habitudes — est **retenu d'office**, visible sous la
+réponse (« Retenu : … — annuler · voir ») et **annulable** d'un geste ; un fait qui change remplace l'ancien (l'historique
+reste). Le rappel sert à chaque tour un profil stable et les souvenirs pertinents (« tu te souviens de mon voyage ? » →
+Lyon, le 12, avec Lina, dans une nouvelle conversation). Panneau « Ce qu'il retient » groupé, cherchable, éditable, avec
+l'origine de chaque souvenir et le réglage « mémoire automatique ». Rien en conversation privée, rien d'autrui, rien de
+confidentiel. Coût mesuré ≈ 0,00017 $ par capture (0 $ quand rien n'est à retenir). Migration
+`20270219100000_assistant_ia_memoire_auto`. Décision [0045](../assistant/decisions/0045-memoire-automatique.md) ; audit
+des fonctions de l'app : [preuves/m1](../assistant/preuves/m1/AUDIT.md). Décisions de la Direction du même jour : la
+mémoire se gère en **jetons** (budget de stockage par personne, 8 000 ; consolidation automatique rare et réversible —
+mesuré : 892 → 467 jetons injectés par tour, 0,001 $ la consolidation ; « X jetons sur Y » dans le panneau), l'historique
+des faits remplacés est gardé **12 mois**, la santé déclarée est retenue d'office, et il n'y a **plus de plafond
+quotidien** de jetons par personne (le plafond par tour reste). Migration `20270219300000_memoire_jetons_sans_plafond`.
+Le 02/11 : **plus aucun texte coupé** — un message long part entier au modèle (jusqu'à 200 000 caractères), au-delà il
+devient une pièce lue, et le plafond par tour ne compte plus le message à chaque étape ; et la mémoire retient **un peu
+plus** (avis, priorités, échéances, lieux, vocabulaire) : 13 messages durables sur 15 retenus au lieu de 7, toujours 0 faux
+positif et 0 valeur interdite (décision 0045 § 5).
+
+### O1 (suite) : C'EST À L'ASSISTANT D'ORCHESTRER — CLASSER CHAQUE PHRASE, PRÉCISION MAJEURE OU MINEURE, AGENDA SANS PLAFOND (2026-11-01)
+
+Retour de la Direction : « ça dépend — c'est à LUI d'orchestrer » ; « au plus 2 précisions : bah ça dépend » ; « si c'est un
+changement MAJEUR, il doit l'injecter dans le raisonnement ; si ce sont de petits changements, juste une précision, pas une
+réinjection ». **Chaque phrase dite pendant un travail est classée** — précision du travail, autre demande (en parallèle),
+simple conversation (on répond, rien n'est lancé) : sans modèle quand c'est évident (choix proposé, « plus court »,
+« merci »), sinon un classifieur rapide à sortie JSON stricte, journalisé ; plus de « précision par défaut ». **Précision
+MAJEURE** (période, périmètre, comparaison) : réinjectée — en UNE relance ciblée à la fin du travail. **Précision
+MINEURE** (format, ton, longueur, destinataire) : aucune relance — le résultat est dit / affiché tel quel, mis en forme
+comme demandé (un fichier ou une carte d'envoi se prépare d'après lui). **L'agenda n'a plus de plafond** : précisions,
+approfondissements (ventilation, comparaison, points de vigilance), étape suivante — une chose à la fois tant que le
+travail tourne. Seuils devenus des réglages (`ASSISTANT_O1_*`). Confirmé : un résultat arrivé pendant une question attend
+la réponse, puis est donné juste après. Migration `20270219200100_assistant_ia_agenda_impact`. Décision
+[0046](../assistant/decisions/0046-orchestration-conversation.md) mise à jour.
+
+### O1 : L'ORCHESTRATEUR DE CONVERSATION — PARLER PENDANT QU'UN TRAVAIL TOURNE, À L'ORAL ET À L'ÉCRIT (2026-11-01)
+
+« Il me pose une question et, avant même que je réponde, il me répond parce que l'autre a fini » ; « je réponds, il dit
+ok et il ATTEND » ; « pas que à l'oral, c'est aussi le cas pour l'écrit ». **Une machine à états pure, commune**
+(`platform/ia/conversation/orchestrateur.ts`) : la personne parle / l'assistant parle / une question attend / libre ; un
+résultat qui tombe pendant une question, une parole ou une réponse en route est **tenu**, puis dit collé à l'accusé
+(« Noté, PDF. Et justement, la recherche vient de finir : … ») — jamais par-dessus une question, jamais deux annonces
+collées, jamais « j'attends ». **Une réponse qui change le travail** (format, période) rend le résultat tenu caduc et
+ajuste le travail (une seule relance ciblée) : le résultat dit en tient compte. **L'agenda utile**, dérivé de la demande
+sans modèle (`domaine/conversation/agenda.ts`, table `AssistantIaAgenda`) : précisions qui changent le résultat (au plus
+deux, jamais ce qui est déjà dit), étape suivante (« je l'envoie à quelqu'un ? »), partiels (sous-missions finies),
+avancement réel dit une fois ; la consigne K9 « pose une question pour affiner » est retirée. **Multi-travaux** : une
+autre demande pendant un travail part en parallèle (oral ; écrit : voie parallèle du fil après 8 s). **Écrit** : la
+question dans le fil avec ses choix, « Résultat prêt — affiché après ta réponse », « version d'avant ta précision ».
+**Oral** : GPT-Live n'expose ni détection de parole ni fin de réponse (vérifié dans sa documentation) — les tours se
+lisent sur les fragments de transcription et la délégation. Bancs : machine pure (11 croisements), agenda (9), bout en
+bout contre la vraie base (oral + écrit, 0 annonce qui coupe une question, 0 « j'attends »), Playwright mode app bureau +
+iPhone 13. Décision [0046](../assistant/decisions/0046-orchestration-conversation.md). Migration
+`20270219200000_assistant_ia_agenda`.
+
+### L'ARGENT RÉVERSIBLE — « Annuler » sur toute action d'argent (K10a, 2026-10-31)
+
+« Toute action qui a été faite peut être réversible » (Direction). Les 62 actions d'argent classées « sans annulation »
+(finance, trésorerie, paiements, caisse, paie, factures, budgets, fournisseurs) — et 45 autres des mêmes fichiers — se
+défont désormais d'un geste : le journal des effets J7 s'ouvre aux actions faites à l'écran (`annulable` sur `gesteReversible`
+de K10b), la barre « Annuler » de K10b les propose (puis l'historique de la fiche), et le compte rendu dit effet par
+effet ce qui est défait, compensé ou impossible. **Rien ne s'efface dans le livre** : une écriture réalisée est
+contre-passée (montant opposé, datée, liée), un paiement parti laisse une écriture « à récupérer », l'ordre redevient
+dû ; l'annulation se rétablit. Migration `20270217120000_k10a_compensation_ecritures`. Décision
+[0041](../assistant/decisions/0041-argent-reversible.md).
+
+### K9 : LA VOIX DE L'ASSISTANT IA ENTIÈREMENT ORALE — ÉCOUTEURS, SANS ÉCRAN (2026-10-31)
+
+Lot K9 — `docs/assistant/decisions/0039-voix-orale.md`, construit sur la carte orale de K4. Direction : « je ne vois pas mon écran, donc tout se passe à
+l'oral ». La conversation vocale ne renvoie plus à l'écran : l'assistant **rédige pour l'oreille** (la réponse d'abord,
+chiffres arrondis, une ouverture), tableaux, analyses, graphiques et visuels sont dits en une phrase par le serveur. La
+délégation **ne bloque plus** : « je regarde, je te préviens », la voix affine pendant la recherche, la précision est
+transmise au travail en cours, le résultat est dit de lui-même quand il arrive (ou à la prochaine ouverture). La carte
+orale de K4 arrive avec le résultat ; pour une action renforcée la **voix relit** le montant, puis « ok fais-le »,
+« vas-y », « go », « ih dirha » suffisent (aucun mot imposé), jugés par le **serveur** sur la transcription et exécutés par
+la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule » (un envoi encore en fenêtre ne part
+pas ; un courriel déjà parti, la voix dit le rectificatif), « rétablis », « mets la
+mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
+WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
+et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
+
+### C1 (phase 2) : LA FUSION SUR MAIN APRÈS APPROBATION, LE RÉVEIL PAR WEBHOOK, ADAM, LE RAPPORT AU DRIVE (2026-11-01)
+
+« La fusion sur main : tu la fais une fois que j'approuve » (Direction). Nouvelle étape `DEV_FUSIONNER` au plan type :
+PR verte (checks verts sur la tête, fusionnable) → carte **« Fusionner la PR #n (« titre ») dans main »**, écrite et orale
+(« vas-y » suffit) ; validée, l'ERP fusionne par l'API GitHub **au SHA vérifié** (refus si la tête a bougé, refus clair si
+la protection de branche l'interdit), vérifie la **CI de main sur le commit de fusion**, puis déploie (préproduction
+autonome ; production = sa propre carte). **Réversible** : annuler la validation retire la carte, ou — fusion faite —
+**ouvre une PR de revert** (jamais un force-push). Les webhooks GitHub/Render de C2 (`DEV_*`, `RENDER_*`) réveillent le
+chantier concerné aussitôt (le sondage reste en secours). Les quatre outils sont aussi chez **Adam** (sans relever
+`SOCLE_IA_CEILING`). Le **rapport final** part au Drive (dossier « Travaux »), en Word, et revient avec son lien dans la
+conversation qui a lancé le chantier. Plafonds par défaut confirmés (5 $ / chantier, 20 $ / jour, 4 lancements, 4
+déploiements, 3 tentatives, Auto-fix 15 min). Décision [0042](../assistant/decisions/0042-chantiers-socle.md) § 10.
+
+### C1 : LES CHANTIERS DE DÉVELOPPEMENT — ADAM SUPERVISE CLAUDE CODE, GITHUB ET RENDER, SUR LE MOTEUR DES TRAVAUX (2026-11-01)
+
+Lot C1 — `docs/assistant/decisions/0042-chantiers-socle.md`, architecture `docs/architecture/CHANTIERS-DEV.md` (L1).
+Un **chantier** est une `Mission` `kind = "CHANTIER"` (Super Admin) conduite par le MÊME moteur que les travaux : étapes
+`DEV_LANCER`, `DEV_ATTENDRE`, `DEV_VERIFIER`, `DEV_CORRIGER`, `RENDER_DEPLOYER`, `RENDER_VERIFIER`, `RENDER_ROLLBACK`,
+`RAPPORT` (DSL fermé, compilé), qui appellent les PORTS du moteur (`chantiers/ports-moteur.ts`), branchés sur les
+connecteurs réels de C2 par une couche d'adaptation pure (`chantiers/adaptateur-c2.ts`) ; sur un rouge, **l'Auto-fix de la
+session d'abord** (gratuit), puis `@claude` dans la PR —
+la vérité est GitHub (branche, PR, checks du SHA exact) et Render (déploiement, santé), jamais la transcription.
+**Réservations atomiques** (`ChantierReservation` : branche, périmètre — deux globs qui se recouvrent sont SÉRIALISÉS —,
+migrations, déploiement ; ERP avant app/worker ; revérification du SHA d'intégration après fusion). **Anti-boucle** :
+même échec 2× → Sol une fois, 3× → blocage réel et rapport ; tentatives bornées, délai croissant. **Budgets** (Administration
+› IA › Chantiers : dollars par chantier et par jour, lancements, déploiements) → pause `BUDGET_HOLD`, reprise seule quand
+le plafond est relevé. **Routeur** déterministe → MiMo → Terra → Sol ; **MiMo** OpenAI-compatible dans la passerelle
+(clé `mimo`, modèle `mimo-v2.6-pro` à confirmer par `/v1/models`, tarif inconnu tant que `MIMO_PRICE_IN/OUT` n'est pas
+posé), chaque appel au journal K8 avec son `missionId`. **Mémoire technique** (`MemoireTechnique`) lue par extraits
+≤ 2 k jetons dans la consigne. Le chantier apparaît au **tableau « Missions »** existant (réservations, liens session/PR,
+SHA vert, déploiements, essais, carte Valider/Refuser). **Conversation** (Adventum IA, Super Admin) : `lancer_un_chantier`,
+`ou_en_est_chantier`, `valider_chantier` (écrit ou oral), `annuler_chantier`. Production, fusion sur main, rollback de
+production : validation de la Direction au moment d'agir. Aucune réussite sans preuve : le juge des preuves refuse la
+conclusion. Migration additive `20270218100000_chantiers_socle`. Tâche de fond `chantiers.balayage`.
+
+### C2 : LES CONNECTEURS DES CHANTIERS — CLAUDE CODE (ROUTINES, `@claude`), GITHUB, RENDER (2026-11-01)
+
+Lot C2 — `docs/assistant/decisions/0043-connecteurs-chantiers.md`, architecture `docs/architecture/CHANTIERS-DEV.md`.
+Contrat `src/platform/dev/ports.ts` (`AgentDeveloppeur`, `ForgeGit`, `Hebergeur`, `FaitDev`) et adaptateurs `fetch` (pont `src/platform/in-process/chantiers/`) sans
+SDK : **Routines API** (`/v1/claude_code/routines/{trig}/fire`, vérifiée le 01/11 ; idempotence côté Adventum dans
+`DevLancement`, jamais de réessai sur délai dépassé, quotas 30/h/routine et 100/h/compte comptés avant le 429), suivi par
+**commentaire `@claude`** dans la PR (GitHub Action, modèle de workflow fourni), **GitHub REST v3** (ETag, pagination
+`Link`, quotas primaire/secondaire, verdict déterministe des checks), **Render API v1** (déployer, annuler, rollback,
+journaux, NOMS des variables, `autoDeployTrigger` ; la synchro Blueprint ne se déclenche pas par API). **Webhooks signés**
+`/api/chantiers/webhooks/{github,render}` (HMAC GitHub, Standard Webhooks Render) → `BusinessEvent` `DEV_*`/`RENDER_*`
+exactement une fois (même clé pour le sondage de secours à pas croissant). Écran **Administration › Développement**
+(sondes en lecture seule, MiMo `GET /models`). **Relais CLI** (Direction, 01/11 : « dans le cloud ») : service Render `claude-relais` (worker Docker,
+disque `/var/data`, connexion claude.ai faite une fois par la Direction dans son Shell) — `scripts/relais-claude.ts` tire les ordres (`/api/dev/relais/ordres`) et exécute `claude --cloud` / `claude -p --cloud <id>`
+(parler à une session existante) ; file `ClaudeRelaisOrdre`. Auto-fix natif demandé dans la consigne. Managed Agents :
+option future. Aucun identifiant claude.ai sur le serveur. Migrations additives
+`20270218200000_chantiers_connecteurs`, `20270218200100_chantiers_relais_cli`. Banc réel `scripts/bench/chantiers-reel.ts` (dépôt et service de test seulement).
+
+### K10c : LES ACTIONS MÉTIER RÉVERSIBLES (2026-10-31)
+
+Demande de la Direction : « toute action qui a été faite peut être réversible ». Lot K10c —
+`docs/assistant/decisions/0044-actions-reversibles-metiers.md` ; sur la fenêtre d'annulation de K10b (aucune migration propre).
+Les 43 actions écrivantes encore classées « aucune » hors argent et communications (décisions de validation, décision
+finale d'un congrès, avances RH, pièces juridiques, matériel promo, fiches de voyage, réglages de l'Assistant IA, diffusion
+de notifications…) entrent au journal des effets au clic de l'écran et s'annulent d'un geste — bouton « Annuler » après
+l'action, historique de la fiche, ou l'Assistant IA. Une décision annulée rouvre l'étape (l'ordre né de l'accord est retiré,
+refus avec la liste s'il a été payé) ; une notification lue reçoit un rectificatif ; un poste supprimé revient de la
+corbeille ; une diffusion attend sa fenêtre d'annulation (celle de K10b, 120 s, réglable par le Super Admin) — annulée dedans, rien
+ne part. Une annulation se rétablit. Cliquet : plus aucune action « aucune » dans le périmètre.
+
+### K10b : TOUTE ACTION RÉVERSIBLE — COMMUNICATIONS, EFFETS SORTANTS, SUPPRESSIONS ; LA FENÊTRE D'ANNULATION (2026-10-31)
+
+Lot K10b — `docs/assistant/decisions/0040-reversibilite-communications.md` (demande de la Direction du 31/10 : « toutes
+les actions réversibles »). **Fenêtre d'annulation des effets sortants** (`src/lib/effets/fenetre.ts`,
+`differerEffetSortant`) : courriels (SMTP, Microsoft, API), notifications poussées, publications au site, WhatsApp
+attendent 2 min (réglable par le Super Admin, Administration › IA › Accès) — « Annuler l'envoi » dans la barre : rien ne
+part ; parti : un rectificatif (lui-même annulable), jamais « effacé ». **Geste d'écran réversible** (`gesteReversible`) :
+barre « Annuler » dans toute l'application, « Rétablir » ensuite ; historique annulable sur la fiche courrier. **58 actions**
+du périmètre ne sont plus « aucune » au registre (courrier, candidatures, champs personnalisés, KPI, segmentation,
+diffusion d'offres, site web, boîtes mail et Microsoft, directives, décisions de circuit, pièces de la fabrique, portail
+fournisseur) ; chacune est exécutée puis annulée, rétablie et ré-annulée contre la base (`src/lib/actions/internes/reversibilite/`),
+un cliquet tient la liste vide. Règles nouvelles : tout ou rien pour un geste d'écran (un ordre déjà payé bloque, la
+liste le dit), pièce numérotée annulée jamais effacée, compteurs jamais reculés. Migration
+`20270217110000_fenetre_annulation_effets_sortants`.
+
+### K9 : LA VOIX DE L'ASSISTANT IA ENTIÈREMENT ORALE — ÉCOUTEURS, SANS ÉCRAN (2026-10-31)
+
+Lot K9 — `docs/assistant/decisions/0039-voix-orale.md`, construit sur la carte orale de K4. Direction : « je ne vois pas mon écran, donc tout se passe à
+l'oral ». La conversation vocale ne renvoie plus à l'écran : l'assistant **rédige pour l'oreille** (la réponse d'abord,
+chiffres arrondis, une ouverture), tableaux, analyses, graphiques et visuels sont dits en une phrase par le serveur. La
+délégation **ne bloque plus** : « je regarde, je te préviens », la voix affine pendant la recherche, la précision est
+transmise au travail en cours, le résultat est dit de lui-même quand il arrive (ou à la prochaine ouverture). La carte
+orale de K4 arrive avec le résultat ; pour une action renforcée la **voix relit** le montant, puis « ok fais-le »,
+« vas-y », « go », « ih dirha » suffisent (aucun mot imposé), jugés par le **serveur** sur la transcription et exécutés par
+la garde du bouton ; un « oui » transcrit tardivement est désormais entendu ; « annule », « mets la
+mission en pause », « reprends », « arrête », « stop », « plus court », couper la parole ; une pièce reçue par
+WhatsApp ou mail (K6) pendant l'appel est annoncée d'elle-même. Vérifié par tests, scénarios oraux scriptés
+et un passage réel du modèle de l'assistant (main rendue en 25 ms, réponse pour l'oreille 75 s plus tard).
+
+
+### K8 : LA CONSOMMATION IA AU JETON ET AU MICRO-DOLLAR — RÉGLAGES D'ADVENTUM IA ET ADMINISTRATION › IA (2026-10-31)
+
+Lot K8 — `docs/assistant/decisions/0035-consommation.md`. **Écran « Consommation »** dans les Réglages d'Adventum IA (et
+le même composant dans Administration › IA) : jetons et dollars d'aujourd'hui, 7 jours, mois en cours, mois précédent et
+d'une période choisie, ventilés par type de jeton (entrée, cache, sortie dont raisonnement, audio, image, recherches web,
+durée, pages), par modèle, par usage, par conversation et **appel par appel** (export CSV / Excel), graphique jour par
+jour ; le Super Admin voit **toute l'entreprise** (par personne, Adam et le worker compris) et les plafonds en cours.
+**Grille tarifaire datée** par modèle (`src/lib/models/tarifs.ts`, relevée le 31/10 sur la documentation OpenAI, Gemini,
+Anthropic), coût calculé en entiers au micro-dollar, « tarif inconnu » jamais affiché 0 $. **Audit d'exhaustivité** :
+plongements, OCR Mistral, transcriptions, Luna (moitié des appels), API Batch n'écrivaient aucune ligne `ModelCallLog` —
+bouchés ; voix temps réel ventilée texte/audio ; GPT-Live facturé à la durée ; appels perdus avant le branchement du
+puits rattrapés (`instrumentation.ts`). **Erreur de tarif corrigée** : `gpt-6.1-terra` était facturé au prix de
+`gpt-5.6-terra` (≈ ×2,45). **Rapprochement** avec l'API Costs d'OpenAI si `OPENAI_ADMIN_KEY` est posée (sinon dit « non
+configuré »). Migration additive `20270217100000_consommation_precise` (11 colonnes sur `ModelCallLog`).
+
+### K4 : LES VALEURS SENSIBLES EN CLAIR POUR QUI A LE DROIT — ET RIEN DE CONSERVÉ CHEZ OPENAI (2026-10-31)
+
+Lot K4 — `docs/assistant/decisions/0034-valeurs-sensibles.md`. Direction : « l'assistant IA peut les lire à haute voix ; ils
+peuvent être envoyés à l'IA, mais […] dis à OpenAI de ne pas s'entraîner sur mes données ». Nouveau réglage
+**Administration › Assistant IA — accès › Valeurs sensibles** : *en clair pour qui a le droit de les voir* (défaut) ou
+*masquées (repères ⟦Sn⟧)*, à l'audit. Aucun droit ne change (une assistante de direction sans droit RH reste refusée) ; en
+clair, l'assistant écrit et la voix prononce le salaire que la personne a le droit de voir, chaque transmission journalisée.
+`store: false` sur tous les appels de l'Assistant IA (les données de l'API ne servent déjà pas à l'entraînement ; la
+« Zero Data Retention » se demande à OpenAI). Passage réel : salaire lu en texte et par la délégation vocale, ≈ 0,024 $.
+**Extension (décision 0038) — la voix est orale** : en appel vocal, l'assistant dit la valeur, résume une demande avec ses
+mots, propose les cases facultatives, récapitule et demande « Tu confirmes ? ». La personne **confirme à l'oral** : le
+serveur juge son « oui » sur sa propre transcription (et le montant prononcé pour une action renforcée), puis la même garde
+que le bouton exécute ; « confirmée à l'oral » est à l'audit avec la transcription.
+
+### K7 : L'ASSISTANT FAIT CE QUE FONT LES ÉCRANS — EXPORTS DE L'ERP, ENVOI D'UN FICHIER À UN COLLÈGUE (2026-10-31)
+
+Lot K7 — `docs/assistant/decisions/0037-exports-et-gestes-d-ecran.md`. Constat de la Direction : « Envoie à Amine
+Djouamai l'Excel du suivi Regulatory » → « je ne peux pas ». Les exports étaient des ROUTES, invisibles pour l'assistant.
+**Chaque export** (14 : suivi Regulatory, budgets, pilotage, appel d'offres PCH, segmentation, demande de stocks,
+inscrits, étude de marché et sa présentation, coaching, annuaire, PDF du plan de tournée) est une fonction de la façade
+`src/lib/exports/`, appelée par la route de l'écran ET par l'outil `exporter_*` de l'assistant (même portée, mêmes
+droits, même audit). Le fichier va au Drive de la personne (« Exports ») et revient en bloc fichier + lien de
+téléchargement ; **`send_message` joint une pièce** (carte à confirmer ; la messagerie rejuge le droit de partager).
+La consigne ne dit plus « je ne peux pas » sans avoir cherché, ni sans nommer l'écran. **Inventaire** des 136 routes
+(`modules/assistant-ia/gestes-ecran.test.ts`) : une route nouvelle non classée fait échouer `npm test`. Banc réel
+(`scripts/bench/k7-exports.ts`, `amd_bench`) : le scénario de la Direction de bout en bout en 11 s, 0,023 $.
+
+### LOT K3 : SOUS-MISSIONS EN ARRIÈRE-PLAN, TABLEAU DE BORD EN TEMPS RÉEL, DÉPÔT D'OFFICE (2026-10-31)
+
+Décision [0033](../assistant/decisions/0033-sous-missions.md). Un message peut lancer PLUSIEURS sous-missions (`lancer_un_travail` :
+`remplace` pour reformuler, `parent` pour ranger) qui tournent en parallèle sur le worker pendant que la conversation continue ;
+un plan sans geste démarre d'office (Super Admin par défaut, réglable par personne et à la console). Sous la réponse, une carte
+suit chaque sous-mission en temps réel ; à la fin, la synthèse s'écrit dans la conversation et la personne est notifiée.
+Tableau de bord « Missions » (app Adventum IA et Assistant de l'ERP) en Server-Sent Events, avec repli en sondage court ;
+indicateur « 3 missions en cours » dans l'en-tête. Au-delà de 6 pièces, le dépôt est proposé d'office (« 14 fichiers : tout
+lire en arrière-plan »). **Recherche approfondie** (`recherche_approfondie`) : plusieurs recherches web en parallèle, puis un
+rapport complet (sommaire, chiffres datés, sources numérotées) affiché dans la conversation et déposé au Drive en Word et PDF.
+Migration `20270216120000_sous_missions`.
+
+### CARTE D'ACTION COMPACTE, FORMULAIRE EN PANNEAU (2026-10-31)
+
+Constat de la Direction sur iPhone : une carte « demande de sponsoring » occupait tout l'écran et bloquait le défilement.
+La carte à formulaire (J11) se RÉSUME désormais dans la conversation — quatre champs au plus, puces « À compléter » pour
+les champs obligatoires manquants (un toucher ouvre le formulaire sur ce champ), une ligne de simulation, « N points à
+savoir avant de signer ». Le formulaire, la simulation, les avertissements et la ressaisie s'ouvrent dans un panneau rendu
+en portail (`PanneauLateral`, `pleinEcranMobile`) : à droite sur ordinateur, plein écran sur téléphone, Échap ferme. Les
+avertissements ne se répètent plus (`domaine/ui/carte-action.ts:avertissementsUniques`), « Simulation sans résultat » ne
+s'affiche plus quand ce sont des champs obligatoires qui manquent, les zones de texte grandissent avec leur contenu.
+Même composant dans l'Assistant IA de l'ERP, l'app Adventum IA, la voix, l'Atelier et le terrain. Vérifié sur serveur réel
+en mode app (iPhone 13 et bureau) : 0 erreur, aucun débordement.
+
+### K2 : L'ASSISTANT IA GÉNÈRE DES IMAGES ET DES VIDÉOS DE DONNÉES — DANS LA RÉPONSE, AU DRIVE, TÉLÉCHARGEABLES (2026-10-31)
+
+Lot K2 — `docs/assistant/decisions/0032-visuels.md`. Quatre outils dans l'Assistant IA de l'ERP et l'app Adventum IA :
+**générer une image** (`gpt-image-2.5-sunburst`, charte Adventum et logo officiel sur demande), **modifier une image**
+(pièce jointe ou Drive), **vidéo de données** (graphique animé de 8 s, sous-titré en français, chiffres EXIGÉS dans les
+données lues par les outils — jamais ceux du modèle ; rendu sharp + ffmpeg, sur le worker en production), **vidéo
+générée** (pipeline en arrière-plan prêt, mais **Sora est arrêté chez le fournisseur depuis le 24/09/2026** : l'outil le
+vérifie et refuse sans rien facturer). Chaque visuel s'affiche dans la réponse (plein écran au toucher, lecteur natif
+iPhone), va au Drive (« Visuels de l'assistant ») et se télécharge ; une vidéo affiche une carte « en cours » qui se met à
+jour, la conversation continue, une notification part à la fin. **Gouvernance** : Administration › IA (interrupteurs,
+plafonds mensuels, modèles, durée max), coût réel journalisé, famille « Images & vidéos générées » de la console des accès,
+fermée par défaut. Coût mesuré : **0,0135 $ l'image** (medium 1024²) ; une vidéo de données ne coûte aucun appel de modèle.
+
+### K1 : L'ASSISTANT IA CALCULE — TABLEAUX, EXCEL, GRAPHIQUES, ET PAS UN CHIFFRE DU MODÈLE (2026-10-31)
+
+Lot K1 — `docs/assistant/decisions/0031-analyse-donnees.md`. Le moteur d'analyse d'Adam **déménage au socle**
+(`src/platform/ia/analyse/` : opérations, pipeline, conseil de graphique, porte de qualité, JS et Python isolés — déplacés,
+pas copiés ; Adam les réexporte ; le SQL reste dans `lib/sandbox/sql.ts`, une porte du socle). L'Assistant IA gagne
+`lire_tableur` (Excel/CSV typé), `analyser_donnees`, `calculer_code`, `requete_sql` (vue globale) ; chaque résultat est un
+**bloc « analyse »** composé par le code sous la réponse : tableau trié/filtrable avec totaux, graphique choisi et vérifié
+(onze formes, forme trompeuse remplacée), « Comment c'est calculé » (étapes et formules), export CSV / Excel d'un clic
+(classeur vérifié : en-tête figé, filtre, formats DZD et %, totaux en `=SUM()`, feuille « Méthode ») et dépôt au Drive sur
+le geste de la personne ; chaque graphique s'exporte en PNG, SVG et données. Colonnes confidentielles masquées avant le
+calcul ; un chiffre du message que rien ne prouve est dit. Banc réel `scripts/bench/analyse-k1.ts` (16 demandes, chiffres
+recalculés indépendamment en SQL/TS) : 15/16 justes, 0 chiffre inventé, 0,50 $. **Plus de visuels** (Direction) :
+indicateurs, jauges, chronologie et la règle du choix du visuel — 9/10 demandes avec le bon visuel, 0 sur les questions
+simples. Preuve sur serveur réel en mode app (iPhone 13 et bureau) : 0 erreur console, aucun débordement.
+
+### LOT K3 : SOUS-MISSIONS EN ARRIÈRE-PLAN, TABLEAU DE BORD EN TEMPS RÉEL, DÉPÔT D'OFFICE (2026-10-31)
+
+Décision [0033](../assistant/decisions/0033-sous-missions.md). Un message peut lancer PLUSIEURS sous-missions (`lancer_un_travail` :
+`remplace` pour reformuler, `parent` pour ranger) qui tournent en parallèle sur le worker pendant que la conversation continue ;
+un plan sans geste démarre d'office (Super Admin par défaut, réglable par personne et à la console). Sous la réponse, une carte
+suit chaque sous-mission en temps réel ; à la fin, la synthèse s'écrit dans la conversation et la personne est notifiée.
+Tableau de bord « Missions » (app Adventum IA et Assistant de l'ERP) en Server-Sent Events, avec repli en sondage court ;
+indicateur « 3 missions en cours » dans l'en-tête. Au-delà de 6 pièces, le dépôt est proposé d'office (« 14 fichiers : tout
+lire en arrière-plan »). Migration `20270216120000_sous_missions`.
+
+### JARVIS INTÉGRÉ : LE TEST RÉEL UNIQUE DE FIN, ET LES DEUX DÉFAUTS QU'IL A TROUVÉS (2026-10-31)
+
+Tous les lots Jarvis (J0 → J14, conversions, « Mes notes », app Adventum IA) sont sur `claude/hopeful-goodall-phd0nb`.
+Un seul passage réel (API OpenAI, base de banc locale `amd_bench`, ≈ 1,4 $) :
+
+- **Banc programmé** (J5) : 24/30 — Atelier PowerPoint et Word conformes ; Bibliothèque 2 000 pièces, p95 64 ms, rappel@10
+  100 %, 0 hors droits ; un travail long jusqu'au livrable. Jarvis 20/26 : les six écarts lus un à un ne sont pas des
+  défauts (précision demandée sur l'entité, motif exact absent d'une réponse juste, notes `.txt` hors de l'Atelier).
+- **Simulation (J7)** : carte avec effets, rien en base avant confirmation, annulation 2/2 — 0,013 $.
+- **Conversions** : 20/20 avec les modèles tesseract « best » ET l'OCR vision ; **sans l'OCR vision, les quatre scans
+  arabes échouent** (1,3 → 58 %) — il est coupé par défaut : **Administration › IA** pour l'activer (plafond mensuel).
+- **Voix** : `gpt-live-1` ouvre la session par `ouvrirSessionLive` (réponse SDP reçue).
+
+Deux défauts corrigés (`platform/ia/travaux/outil.ts`, `infra/travaux.ts`) : les objets d'une étape (`lots`,
+`pourChaque`, `attente`, `demande`, `si`) déclarent leurs propriétés — le modèle ne pouvait écrire que `{}` et chaque
+plan par lots était refusé ; et **un tour, un plan** : un nouvel appel à `lancer_un_travail` dans le même tour remplace
+le plan encore en attente (cinq plans pour une seule demande au banc). Tests : `outil.test.ts`,
+`travaux-un-plan-par-tour.test.ts`. Le banc des recettes sème son circuit par le moteur (`getDefinition`) — sa copie
+simplifiée devenait, en CI, le circuit des tests Ad & Pro voisins.
+
+### J11 : LA CARTE SE CORRIGE AVANT DE SE SIGNER — ET UN DOSSIER DE 300 FICHIERS SE DÉPOSE, SE LIT ET SE CLASSE (2026-10-30)
+
+Lot J11 — `docs/assistant/decisions/0030-formulaires-dossiers.md`. **La carte de confirmation de toute action de l'ERP**
+(R1 → R4) est désormais un **formulaire généré depuis le contrat** de l'action : chaque champ selon son type (liste de choix,
+date, nombre, case, texte long), les **références** vers d'autres fiches choisies dans un sélecteur qui ne propose que ce
+que la personne voit, les valeurs proposées par l'assistant pré-remplies et surlignées. La personne **corrige, puis signe** :
+la correction repasse par les mêmes contrôles que la proposition (schéma du registre, familles, droits), et une carte
+renforcée se ressaisit sur la valeur corrigée. Banc : les 1 157 capacités R1–R4, **0 écart de schéma**.
+**Un dossier glissé dans l'Assistant IA recrée son arborescence** dans le Drive de la personne (dossier nommé,
+sous-dossiers, une pièce de la Bibliothèque par fichier) ; au-delà de 10 fichiers, il passe en **mode « dépôt de dossier »**
+(une puce, jusqu'à 1 000 fichiers et 2 Go — bornes réglables), téléversé en arrière-plan par le gestionnaire d'envois
+(envoi direct par morceaux, **reprise** : redéposer ne renvoie que ce qui manque), suivi sous la conversation (fichiers, lus,
+échoués, en file). La Bibliothèque **vide sa file dans un budget** (deux lecteurs) : **300 fichiers** (PDF, Word, images,
+scans) **lus en ≈ 2 min** sur le banc local. L'assistant **classe le dossier par module CTD** et nomme les **pièces
+manquantes** à partir de ce que la Bibliothèque a déjà lu — sans relire les fichiers (`lire_dossier_depose`). Migration
+additive `20270215140000_assistant_ia_depot_dossier`.
+
+### OCR VISION DES CONVERSIONS — LES SCANS ARABES VOCALISÉS SOUS 1 % (2026-10-30)
+
+Une page scannée que tesseract lit mal (arabe vocalisé, scan dégradé) est transcrite par le modèle de vision de
+l'Assistant IA, au nom du demandeur, puis vérifiée contre tesseract — **jamais** pour une pièce confidentielle, du coffre,
+d'un dossier RH ou un contrat (la lecture locale reste, et l'écran dit pourquoi). Réglage Super Admin (coupé par défaut) et
+plafond mensuel en dollars : **Administration › IA**. Banc : scans vocalisés 13,6 / 58,1 / 25,7 % → 0,20 / 0,40 / 0,00 % ;
+un passage réel 0,060 $. Aller-retour Word vocalisé (LibreOffice 7.4) : 2,0 → 0,40 % (Naskh). Décision
+[0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270215130000_ocr_vision`.
+
+### CONVERSIONS HAUTE FIDÉLITÉ SUR LE WORKER, ET LE WORKER « CLIQUEZ SYNC, C'EST TOUT » (2026-10-30)
+
+« Pas de limitations ; c'est notre différenciation. » **PDF → Word** garde désormais images (nombre et taille), tableaux,
+colonnes, en-têtes et pieds (dans les vraies zones, numéro de page en champ), listes, polices/tailles/gras/couleurs, et
+rend l'**arabe** juste : ordre logique retrouvé par la géométrie, `w:bidi`/`w:rtl`/`w:cs`, chiffres et mélange arabe-français,
+aucune forme de présentation, aucun U+FFFD, aucun mojibake ; les **pages scannées** passent par l'OCR (tesseract ara+fra+eng
+« best », deux passages) et sont recomposées (tableaux depuis les traits, illustrations découpées) — l'image est gardée si
+la lecture est trop incertaine. Plus : PDF → Excel, image → PDF/Word, PowerPoint → images ; Office → PDF avec polices arabes
+et Carlito/Caladea. Le moteur (`scripts/conversions/`, pdf2docx + PyMuPDF corrigés) vit dans l'image du worker ; le web ne
+convertit jamais quand le worker bat. Banc `npm run conversions:bench` dans l'image : CER 0–0,26 % sur les PDF numériques
+(FR, AR, mixte, deux colonnes, Chromium), 0,59 % sur le scan français, **2,95 % sur le scan arabe vocalisé** (limite de
+tesseract, dite) ; 100 % des images, 0 caractère interdit, 100 % des paragraphes arabes en RTL. **Render** : *Sync* crée le
+worker, lui relie ses variables (`fromService`) et il travaille (`TACHES_DE_FOND=les-deux` partout) ; il contrôle ses
+variables et son moteur au démarrage et l'écrit — journal et **Administration › Diagnostic › Worker et conversions**.
+Décision [0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270215120000_controle_worker`.
+
+### J6 : L'ASSISTANT IA PEUT AGIR PARTOUT DANS L'ERP — LE REGISTRE DES CAPACITÉS (2026-10-30)
+
+Lot J6 — `docs/assistant/decisions/0020-capacites.md`. Chaque action serveur de l'ERP (1 206, lues sur leur source) devient une
+**capacité** de l'Assistant IA, sans une ligne déclarée à la main : son schéma, sa famille de la console, son niveau de risque
+(R0 lecture → R4 argent, droits, signature, suppression), sa simulabilité (préparée pour J7) et son annulation. L'assistant
+**trouve** les 3 à 8 utiles parmi toutes celles que l'écran ouvre à la personne (96 % de rappel dans les 5 premières sur 300
+demandes, moins de 4 000 jetons d'outils par étape), les **exécute par l'action elle-même** sous la vraie session — une lecture
+directement, une écriture par la carte de confirmation, renforcée (ressaisie) pour l'argent, les décisions, les suppressions
+et les effets externes. Il **n'emprunte plus rien à Adam** : la frontière Assistant IA → Adam est à zéro — **sans rien perdre** :
+les 123 gestes qu'Adam lui prêtait ont chacun leur équivalent (inventaire généré et rejoué par un test) ; changer l'échéance,
+la priorité ou le responsable d'une tâche est désormais une action d'écran (`modifierTache`).
+
+### J10 : LES RECETTES — « COMMENT ON FAIT ÇA CHEZ NOUS ? », TIRÉ DES DOSSIERS RÉELS, VALIDÉ PAR LE RESPONSABLE (2026-10-30)
+
+Une **recette** décrit un circuit réel : étapes dans l'ordre, qui valide, pièces habituelles, seuils (« la DG signe au-delà
+d'environ 1,2 M DZD (observé) »), durée médiane, pièges (renvois répétés, étape la plus lente). Elle est **proposée** par
+l'extraction (tâche quotidienne `recettes.extraction`, jamais sous le seuil d'occurrences : 5 dossiers clos acceptés par défaut),
+puis **validée, corrigée (nouvelle version), rejetée ou retirée** par le responsable du processus que la Direction désigne dans
+l'écran `/recettes`. L'Assistant IA ne sert que la version validée (`recette_pour`) : il propose le plan tiré de la recette en
+disant « selon la recette … validée par X le … », et signale les écarts (seuil franchi, délai court, plan retouché). Statistiques :
+utilisations et taux de plans acceptés sans retouche. Une recette ne se montre qu'à qui voit l'écran du circuit ; elle ne porte ni
+dossier, ni nom, ni montant d'un dossier. Banc : 12/12 recettes justes sur le corpus semé, 13/14 plans acceptés sans retouche
+(93 %), zéro recette servie avant validation, zéro hors droits. Décision [0028](../assistant/decisions/0028-recettes.md) ;
+migration `20270211090000_recettes`.
+
+
+### ADVENTUM IA : L'APP DE L'ASSISTANT IA — PLUSIEURS CONVERSATIONS, MÉMOIRE COMMUNE, PRIVÉE, DOSSIERS, VOCAUX, SON PROPRE SITE (2026-10-30)
+
+La maquette validée par la Direction devient une app : **`/ia`**, et son propre site **adventum-ia.onrender.com** (service
+Render `adventum-ia`, créé par « Sync », même dépôt et même build, `APP_MODE=adventum-ia`). Le MÊME assistant que l'ERP
+(outils, droits, console, repères, travaux sur le worker). **Plusieurs conversations par personne** (le fil unique devient
+la première — migration additive `20270215160000_adventum_ia_conversations`) : titre proposé par le modèle rapide, renommer,
+épingler, rechercher (titres et contenu), archiver, supprimer, groupées par date ; l'écran `/assistant` de l'ERP a la même
+liste. **Mémoire commune** + recherche dans ses conversations passées (`chercher_conversations`), « Mémoire mise à jour ».
+**Conversation privée** : choisie avant le premier message, verrouillée ensuite, sans mémoire, supprimée à 30 jours.
+**Dossiers** (consignes + documents de référence, droits relus à chaque tour). **Vocaux** : réécoute avant envoi ; file hors
+ligne. Voix en direct `gpt-live-1` : celle de J13, dans la conversation ouverte. Bloc-notes : point d'accroche, en attente du lot Notes. Thème
+« bleu pharma » clair/sombre dans un seul fichier ; PWA iPhone (manifeste, icônes, écran de démarrage, Web Push qui ouvre la
+bonne conversation) ; déconnexion à distance de ses appareils. Décision [0027](../assistant/decisions/0027-adventum-ia.md).
+### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
+
+L'Assistant IA suit désormais les **relations** de l'entreprise : `explorer_relations` (« qu'est-ce qui dépend de Saidal ? »,
+« qui a travaillé sur ce dossier ? », « quels documents parlent du sofosbuvir ? »), `etat_a_une_date` (la valeur d'alors,
+jamais celle d'aujourd'hui ; et ce qu'on en savait à une autre date) et `d_ou_vient` (pièce, extraction, qui a confirmé,
+ce qui a été remplacé). Module `graphe-entreprise` : une vue sur les fiches canoniques et les liens déjà écrits, sans second
+registre ; les droits jugent chaque nœud AVANT le parcours ; une famille fermée retire ses types. La résolution lit l'arabe
+(« مجمع صيدال » = Groupe Saidal), les fautes, les sigles et les NIF/RC. Un fait périmé se ferme (`fermeLe`, `fermeParId`,
+`remplaceParId`), il n'est jamais écrasé ; chaque chiffre rendu porte sa source. Banc : résolution 101/101 sur un corpus
+semé, 239/239 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résultat hors droits par rôle. Décision
+[0021](../assistant/decisions/0021-graphe.md) ; migration `20270210090000_graphe_faits_dates`.
+### « MES NOTES » — UN BLOC-NOTES PRIVÉ DANS L'ASSISTANT IA, QUE L'IA NE MODIFIE QU'AVEC L'ACCORD DE LA PERSONNE (2026-10-30)
+
+Une icône bloc-notes en haut de la conversation ouvre « Mes notes » (plein écran sur téléphone) : des **pages** que chacun
+crée, nomme et réordonne ; texte, titres, puces, cases à cocher, listes imbriquées, raccourcis « - » / « [] » / « # », glisser
+une ligne ; enregistrement automatique, historique des versions, corbeille de 30 jours. **Privé** : personne d'autre ne les
+voit, Super Admin compris (« Vue exacte » refusée). L'assistant lit les notes quand la question s'y rapporte et **propose**
+d'ajouter, modifier, cocher, déplacer, supprimer une ligne ou de créer / renommer une page : la proposition s'affiche
+**surlignée** dans la page et sur une carte de la conversation — Accepter / Refuser / Tout accepter, puis Annuler ; **rien
+n'est écrit avant l'acceptation** (décision de la Direction). Un montant de paie noté reste en repère vers le modèle.
+Décision [0026](../assistant/decisions/0026-notes.md) ; migration `20270215150000_assistant_ia_notes`.
+
+### J7 : SIMULATION, JOURNAL DES EFFETS, ANNULATION HONNÊTE (2026-10-30)
+
+Lot J7 — `docs/assistant/decisions/0029-simulation-annulation.md` ; migration additive `20270215170000_journal_des_effets`.
+- **La carte montre ce qui sera écrit** : une capacité R1–R4 simulable est jouée pour de vrai dans une transaction
+  annulée, et la carte dit « 3 champs modifiés sur la demande X, 1 notification à Karim, 1 pièce déposée » — courriel,
+  poussée, stockage, site et webhooks neutralisés (0 effet sorti, un test par port). 92,5 % des capacités R1–R2 se simulent.
+- **Rien ne s'exécute qui ne ressemble plus à la carte** : la simulation est rejouée à la confirmation, son empreinte
+  comparée ; un écart, et la carte se remontre avec le nouveau diff.
+- **Journal des effets** : chaque geste de l'assistant (carte, étape de travail, mandat) garde la valeur AVANT de ce qu'il
+  touche (durée de garde réglable à la console).
+- **« Ce que l'assistant a fait »** (`/assistant/gestes`) : « Annuler » défait ce qui est encore tel que l'assistant l'a
+  laissé, compense ce qui se compense, dit ce qui est impossible et pourquoi — jamais d'écrasement du travail d'un autre
+  (50 cas réels justes, 0 écrasement).
+
+### J8 : LES TRAVAUX POUR TOUS, SUITE — DÉLÉGATION, ATTENTES MÉTIER, ÉQUIPE, LIVRABLES AU DRIVE (2026-10-30)
+
+Lot J8 — `docs/assistant/decisions/0023-delegation.md` ; migration additive `20270214100000_travaux_delegation`.
+- **« Demander à »** : un travail dépose une demande précise (question, pièces attendues, échéance, pièces partagées en
+  lecture) chez un collègue — notification et carte dans **son** Assistant IA ; il répond avec ses pièces ou décline ;
+  le travail reprend. Relance, escalade au responsable, abandon. Il ne voit jamais le carnet de l'autre.
+- **Attentes métier** sur les 34 types de faits (prédicat), relance et escalade ; **reprise mesurée** après l'événement :
+  médiane 7,5 s, p95 10 s (boucle courte des réveils, 10 s).
+- **Plusieurs travaux par personne** avec priorités ; **vue « Mon équipe »** pour un responsable si la console l'autorise
+  (défaut : non), chaque consultation à l'audit.
+- **Livrables = vrais documents** (Word, PDF, Excel) déposés dans le Drive de la personne et inscrits à la Bibliothèque.
+- **Robustesse** : un travail de 3 semaines traverse 10 arrêts brutaux (`SIGKILL`) de vrais processus sans doublon ;
+  web + worker simultanés : un seul exécute.
+
+### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
+
+« Afficher un ou plusieurs documents et surtout les modifier, en live, avec un côté magique. » L'Assistant IA ouvre les
+pièces (jointes, renvoyées, trouvées) dans un **Atelier à onglets** à droite de la conversation (redimensionnable, plein
+écran, panneau plein écran sur téléphone), rendu fidèle par format. **Il modifie EN PLACE** (`modifier_document` :
+remplacer un texte, réécrire un paragraphe, ajouter une diapositive, modifier une cellule, insérer un tableau, ajuster un
+titre…) sur le fichier d'origine — styles, tableaux, mise en page conservés — et chaque modification **apparaît pendant qu'il
+travaille**, surlignée, le texte qui s'écrit, la diapositive qui apparaît. La personne **accepte ou refuse** chaque ligne,
+compare avant / après, **enregistre une nouvelle version** (jamais d'écrasement ; carte de confirmation pour un document
+rattaché à un objet métier ; inscrite à la Bibliothèque) et **convertit** (Word/PowerPoint → PDF par LibreOffice du worker
+quand il bat, tableau → Excel, PDF → Word) — l'écran dit la voie. « Demander une modification » passe par l'Atelier ;
+`preparer_document` ne sert plus qu'à créer. Banc live : 0,09 $ pour un deck (titre + synthèse) et un contrat (essai à
+6 mois, styles gardés). Décision [0017](../assistant/decisions/0017-atelier.md) ; migration `20270209110000_atelier`.
+
+### J0 : ADAM ET L'ASSISTANT IA SÉPARÉS — UN SOCLE COMMUN `src/platform/ia/`, ZÉRO IMPORT DU SOCLE VERS L'UN OU L'AUTRE (2026-10-29)
+
+Premier lot du plan « Jarvis » validé par la Direction le 29/10 (décision `docs/assistant/decisions/0013-jarvis-architecture.md`).
+Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
+- **Deux produits, un socle.** Adam (Super Admin, `/chief-of-staff`) et l'Assistant IA (chacun selon ses droits,
+  `/assistant`) ne s'importent plus : ce qu'ils partagent — la forme d'un outil, les intentions, les lectures annuaire/Regulatory, la
+  résolution d'un fichier du Drive, la recherche web, les médias, la fabrique de documents, les blocs de l'espace de
+  travail — vit au **socle IA** `src/platform/ia/`, qui n'importe ni l'un ni l'autre.
+- **L'écran d'Adam** (conversation, appel vocal) quitte `src/app/(app)/assistant/` pour `src/components/chief/` : le dossier
+  `/assistant` ne porte plus que l'Assistant IA.
+- **Mesure** : 38 imports de l'Assistant IA vers Adam (24 fichiers) → 4, nommés pour la phase B : le catalogue d'outils
+  d'Adam qu'empruntent les droits métier (`outils-v1.ts`, décision 0012) et l'action `confirmerIntentionAssistantIA`, qui
+  vit dans le fichier d'actions d'Adam (la déplacer changerait le contrat des actions). Garde-fous :
+  `src/platform/ia/frontieres.test.ts` et une règle ESLint dans les trois sens.
+- **Phase B (30/10)** : `src/lib/agent/` devient le module `src/modules/assistant-ia/` (moteur, écrans ex-`assistant-beta`,
+  actions sous leurs clés) ; la confirmation d'une carte de l'IA (`confirmerIntentionAssistantIA`) quitte le fichier d'Adam —
+  seule clé du contrat qui change (`assistant-ia-actions:`) ; Adam n'importe plus rien de l'Assistant IA. Reste, nommé et
+  cliqueté jusqu'à J6 : le catalogue d'outils d'Adam qu'emprunte l'Assistant IA.
+- **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
+  socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
+
+### J12 : L'ASSISTANT IA PROACTIF — VEILLEURS, BUDGET D'INTERRUPTIONS, MANDATS (2026-10-30)
+
+Lot J12 — `docs/assistant/decisions/0024-proactivite.md`.
+- **12 veilleurs par rôle** (Ad & Pro, Réglementaire, RH, Finances, Terrain, pour tous) : des règles de code sur ce qui est
+  à la personne — demande bloquée, budget à 90 %, BC non signé, échéance ANPP, réserve non levée, fin d'essai, CDD,
+  paiement en retard, facture en double, visite non rapportée, validation qui traîne, réunion dans l'heure. Dit une fois.
+- **Budget d'interruptions** : heures calmes (heure d'Alger), week-end vendredi-samedi, regroupement, **5 par jour au plus** ;
+  au-delà, le journal. Point du matin (ce qui a attendu, ce qui a été fait sous mandat). Retour « utile / pas utile » en un clic,
+  mesuré (cible 60 %), qui ajuste le veilleur.
+- **Mandats** : une approbation durable, bornée et révocable — « relance le validateur de mes demandes qui traînent »
+  (R1). Le geste passe par l'action de l'écran, dans la session de la personne ; tout va à l'audit.
+- **Écrans** : « Ce que mon assistant surveille » (`/assistant`), suggestions à l'ouverture d'un dossier, console
+  (`/admin/ai/acces` : plafond, interrupteur, mesure, mandats).
+### J13 : TERRAIN ET VOIX — LE VOCAL D'UN DÉLÉGUÉ DEVIENT UN COMPTE RENDU PRÊT, HORS LIGNE COMPRIS (2026-10-30)
+
+Lot J13 — `docs/assistant/decisions/0025-terrain-voix.md` ; banc STT `scripts/banc-stt-terrain.mjs`.
+- **Compte rendu vocal** : écran `/medical/terrain` (mobile, 390 px) ; transcription `gpt-transcribe` + indice (banc :
+  WER 0,229, 11 entités sur 12, ~1 s — devant whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe) ; compte rendu
+  structuré, médecin résolu dans l'annuaire du délégué ; cartes compte rendu / échantillons / tournée de demain ; rien
+  d'écrit sans confirmation.
+- **Photos de terrain** → faits proposés (ordonnance : jamais le patient) → photo rattachée au compte rendu par carte.
+- **Hors ligne** : file IndexedDB, envoi automatique au retour du réseau, état visible, aucune perte (50 éléments sur
+  réseau intermittent au banc ; E2E 390 px).
+- **Voix temps réel de l'Assistant IA** : GPT-Live (`gpt-live-1` seul, réglable par le Super Admin), délégation au
+  même assistant que le texte, dans le même fil ; valeurs sensibles jamais lues ; écritures confirmées à l'écran
+  seulement. Adam inchangé.
+- Migration additive `20270210110000_terrain_voix`. Aucun cliquet relevé.
+
+### J5 + J14 : LA QUALITÉ CONTINUE DE L'ASSISTANT IA — BANC PROGRAMMÉ, TRACES REJOUABLES, CARTES QUI DISENT LEUR SOURCE, A/B DES MODÈLES (2026-10-30)
+
+Lots J5 et J14 — `docs/assistant/decisions/0022-qualite-continue.md`.
+
+- **Banc programmé** (Administration › Qualité IA, `/admin/ai/qualite`) : le banc « Jarvis » (26 scénarios) + Atelier, Travaux,
+  Bibliothèque, rejoué SUR LE WORKER selon le calendrier du Super Admin (défaut : chaque vendredi à 3 h, 1 $ par passage),
+  contre une base d'essai SÉPARÉE (`BANC_ESSAI_DATABASE_URL`, marqueur `BancBaseEssai`) — jamais la production : sans base
+  d'essai, il le dit et ne tourne pas. Historique (réussite, latence P50/P95, jetons, coût, par scénario) ; une régression
+  (réussite en baisse, latence ou coût +30 %) notifie le Super Admin.
+- **Traces rejouables** : chaque tour du fil se rejoue à l'identique sans rappeler le modèle (`npm run assistant:rejouer`).
+- **Cartes qui disent leur source** : une valeur reprise d'un document tiers (RIB, adresse, montant, destinataire…) est
+  signalée sur la carte (« ce RIB provient du document X, à vérifier ») ; consignes cachées (français, arabe) repérées.
+  240 contenus piégés : 0 carte trompeuse non signalée.
+- **A/B des modèles** : le modèle d'un rôle (rapide, standard, raisonnement) ne change à l'écran qu'avec un banc vert.
+
+### J4 : L'ASSISTANT IA PLUS RAPIDE, AVEC UNE MÉMOIRE — OUTILS À LA DEMANDE, RÉSUMÉ ROULANT, BIBLIOTHÈQUE BRANCHÉE (2026-10-30)
+
+Lot J4 — `docs/assistant/decisions/0018-vitesse-memoire.md` ; banc `docs/bench/assistant-jarvis-live.md` § J4.
+- **Outils à la demande** : le modèle ne reçoit plus les 65 définitions d'outils à chaque étape (~18 700 jetons), mais un
+  socle de 10, une présélection de 6 par la demande (plein texte français, 0 ms) et `trouver_outil` pour le reste — jamais
+  un outil hors des droits de la personne. Entrée par appel : **~22 900 → ~6 100 jetons**.
+- **Consigne stable** (l'heure en dernier, règles chargées selon les outils offerts) et **effort de raisonnement adaptatif**
+  (bas pour une question, moyen pour une analyse). Premier mot **P50 5,3 → 3,4–3,7 s, P95 15,4 → 7,1–8,2 s** ; coût par tour −24 %.
+- **Mémoire en 4 couches** : carnet de travail (J2), conversation = 4 échanges mot pour mot + **résumé roulant** (modèle
+  rapide, après la réponse, jamais une valeur sensible), mémoire personnelle triée par pertinence, **Bibliothèque branchée**
+  (`chercher_documents`, `ouvrir_documents`, `faits_confirmes` — sous les droits, jamais une pièce confidentielle).
+- Migration additive `20270209100000_assistant_ia_resume_roulant` (3 colonnes nullables sur `AssistantIaFil`).
+
+### J2 : LES TRAVAUX LONGS — L'ASSISTANT IA TRAVAILLE DES HEURES OU DES SEMAINES, SUR LE MOTEUR DES MISSIONS (2026-10-30)
+
+Décision de la Direction (29/10, lot J2) — `docs/assistant/decisions/0016-travaux.md`.
+- **Un travail** = une `Mission` `kind = "TRAVAIL"` conduite par le même moteur qu'Adam, pour **n'importe quel
+  collaborateur** (`principalId`, `persona`) ; migration additive `20270208100000_travaux` (aucune mission d'Adam réécrite).
+- **L'Assistant IA l'ouvre** quand la demande dépasse un tour (`lancer_un_travail`, plan proposé) ; la personne
+  **approuve le plan une fois** (gestes autorisés bornés à la console, plafond) dans le nouveau **panneau « Travaux »**.
+- **Reprise exacte** : chaque étape écrit son reçu ; un redémarrage reprend la dernière étape, rien n'est refait, aucun geste
+  n'est doublé (`TravailEcriture`). Carnet de travail ; lots bornés ; attentes sur fait métier (prédicat, échéance,
+  relance) et minuteries ; droits relus à chaque étape et à chaque écriture.
+- **Plafonds** (console) : 20 $ par travail et 50 $ par personne et par mois par défaut — atteint, le travail **dort**
+  (`BUDGET_HOLD`) et repart seul. Notification de fin, point quotidien.
+- **Worker** en image Docker (`Dockerfile.worker` : LibreOffice, ffmpeg, Tesseract fra/ara/eng, non root) ;
+  `TACHES_DE_FOND=web` gardé — la Direction bascule (procédure au déploiement).
+- **Mesuré** : un travail de 2 h (horloge factice) traverse 3 redémarrages forcés sans refaire une étape ni doubler un
+  geste ; banc live : le modèle propose lui-même le travail, livré jusqu'au rapport (0,12 $).
+
+### ASSISTANT IA : GLISSER-DÉPOSER DE FICHIERS ET DE DOSSIERS, APERÇU DES PIÈCES (2026-10-29)
+
+- **Déposer** (Direction) : sur `/assistant`, des fichiers ou des **dossiers** glissés n'importe où sur la conversation font
+  apparaître « Déposez vos fichiers ou dossiers » ; un dossier est parcouru en entier, le chemin relatif affiché
+  (« Congrès Oran/devis/imprimeur.pdf »), les fichiers système ignorés et comptés. Aussi : Ctrl+V d'une image, trombone
+  « Des fichiers… / Un dossier… » (téléphone : fichiers).
+- **Rien ne part avant Entrée** : chaque fichier est une puce (taille, icône, miniature) qu'on retire (croix, Suppr sur la
+  sélection, « Tout retirer ») sans rien laisser dans le Drive — le téléversement n'a lieu qu'à l'envoi, avec sa progression.
+- **Ouvrir** : pièces envoyées et fichiers renvoyés par l'assistant s'ouvrent dans un aperçu latéral (Échap ferme) ;
+  « Demander une modification » sur un Word. Décision [0015](../assistant/decisions/0015-glisser-deposer.md).
+
+### J1 : LA BIBLIOTHÈQUE — TOUTE PIÈCE INSCRITE, LUE UNE FOIS, RETROUVÉE PAR SON CONTENU SOUS LES DROITS (2026-10-29)
+
+Décision de la Direction (lot J1, pgvector approuvé) — `docs/assistant/decisions/0014-bibliotheque.md`.
+- **Une porte d'inscription** (`@/modules/bibliotheque/api-inscription`) branchée sur ≈ 45 points d'entrée : Drive (dépôts,
+  versions, éditeurs, copies, miroirs, exports, fabrique), pièces de module, messagerie, sujets, réunions, rapports terrain,
+  RH, courriels Microsoft 365, retours, KPI, candidatures, Assistant IA. Registre R5 réutilisé (`Piece`/`PieceLien`) +
+  `BibliothequeFiche`/`BibliothequePassage`. Cliquet `inscription-cliquet.test.ts` (9 exceptions nommées).
+- **Lue une fois** par empreinte (tâches `bibliotheque.ingestion` et `.rattrapage`, sous bail), par les lecteurs existants
+  (texte, OCR local, PowerPoint, transcription), découpée en passages ~800 jetons, vectorisée (text-embedding-3-small, 512 d)
+  quand la pièce n'est ni confidentielle ni sensible.
+- **Index hybride** : `tsvector` français replié + trigrammes + `vector` HNSW si pgvector (migration idempotente qui passe
+  sans l'extension ; repli détecté), fusion RRF, extraits surlignés. CI : tests sur `pgvector/pgvector:pg16`, migrations
+  sur Postgres nu.
+- **Droits** : la règle de la route qui sert chaque fichier, appelée telle quelle (règles des routes sorties dans
+  `entity-access/ouverture-pieces.ts`) ; `pourModele` écarte le confidentiel et le coffre. Écran de vérification `/bibliotheque`.
+- **Mesuré** (2 000 pièces) : p50 23 ms / p95 115 ms, rappel@10 30/30, 0 résultat hors droits ; avec le vrai fournisseur
+  d'embeddings, p95 ≈ 360–400 ms (l'appel au fournisseur, ≈ 280 ms, borné et mis en cache).
+
+### ASSISTANT IA : LES DROITS DE LA PERSONNE, ET LES DONNÉES SENSIBLES EN REPÈRES (2026-10-28)
+
+- **Retour de la Direction** (Super Admin) : « le salaire d'Assia », « son contrat », « crée un dossier pour daclatasvir »
+  étaient refusés — faute d'outil, et parce que toute rémunération était masquée pour tout le monde.
+- **Les droits de la personne, rien de plus, rien de moins** : fiche RH, paie (qui gère les RH, ou soi), documents RH (lien de
+  téléchargement, lecture d'un contrat), situation RH, recherche fédérée, agenda, Drive ; écritures en cartes à confirmer :
+  dossier réglementaire, gestes RH, tâches, demandes RH et administratives, Drive. Chaque garde rejugée à l'exécution ;
+  un KAM est refusé sur la paie et les documents d'autrui, et n'a pas la création de dossier réglementaire.
+- **Repères** : le modèle ne reçoit jamais un salaire, un IBAN, un n° de pièce — il écrit `⟦S1⟧`, et le serveur l'affiche à
+  qui a le droit (politique du coffre, journal des accès), « [confidentiel] » sinon. Rien ne repart (historique, voix,
+  notification).
+- **Filtre de la saisie** : « C'est quoi le salaire d'Assia ? » devenait « C'est quoi le [CONFIDENTIEL]d'Assia ? » (l'espace
+  passait pour un montant) — un montant commence désormais par un chiffre.
+- **Console « Assistant IA — accès »** (précision de la Direction, 29/10) : `/admin/ai/acces`, par rôle et par personne,
+  huit familles cochables (défaut / ouverte / fermée). Le Super Admin a tout ; salaires et contrats fermés par défaut pour
+  les autres ; relu à chaque tour ; audit de chaque changement. Table `AssistantIaAcces` (migration additive).
+- **Suite (réponses de la Direction, 29/10)** : ouverture explicite au-delà des droits pour Budgets, Drive, Réglementaire,
+  Ad & Pro (lectures) ; repère `⟦Sn⟧` accepté dans une carte (valeur substituée par le serveur, rejugée à la confirmation,
+  tracée) ; toute valeur sensible hors colonne du coffre journalisée avec l'outil ; route des documents RH ouverte par la
+  famille « Contrats & documents RH ».
+- **Manques du banc « Jarvis » (V4-H)** : l'annuaire rend le N+1 ; « qu'ai-je à valider ? » (`list_pending_decisions`) ; demandes
+  Ad & Pro par année / état / nature (`demandes_adpro`) ; état d'un dossier réglementaire du périmètre avec réserves, échéances
+  et commentaires (`etat_dossier_reglementaire`) ; congés de l'année sur la fiche ; coût du cache à son tarif et tarif par
+  défaut documenté de `gpt-6.1-terra` ; refus formulés par le droit.
+  Décision [0012](../assistant/decisions/0012-droits-de-la-personne-et-reperes-sensibles.md).
+
+### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)
+
+Aucun écran ne change, aucune donnée, aucune migration : du code DÉPLACÉ, tel quel (audit 08, ARCH-04 — « hyper
+structuré, que n'importe quel développeur comprenne »).
+- **Mesure** : 49 fichiers de production > 1 000 lignes avant, **1 après** (avec les lots RH et Ad & Pro, qui ont découpé
+  les leurs) : `payment-request-actions.ts`, confié au chantier des paiements. `assistant.ts` 7 314 → porte de 41
+  lignes ; `assistant/ops/catalog.ts` 5 399 → 81 ; `labels.ts` 2 289 → 21 ; `rbac.ts` 2 212 → 28 ; 45 fichiers découpés.
+- **Une règle unique** : un dossier au nom du fichier (`src/lib/rbac/`, `src/lib/labels/`, `src/lib/assistant/{coeur,
+  outils,propositions,actions-confirmees,boucle}/`, `ops/catalogue/`, `ops/impl/<vague>/`…), un fichier par
+  responsabilité ; l'ancien fichier reste la **porte** qui réexporte — aucun import à changer.
+- **Contrat des actions identique octet pour octet** (identique à celui de la base) : les actions restent dans leur fichier ; leurs
+  aides vivent dans `src/lib/actions/internes/<domaine>/`, que le lecteur de contrat lit comme du code local.
+- **Cliquet** `src/platform/taille-fichiers.test.ts` (dans `npm run test:architecture`) : 1 000 lignes au plus pour
+  tout fichier ; le seul hérité figé, la liste ne fait que rétrécir. Aucun autre cliquet relevé (frontière 422,
+  traversées 67) ; hors carte −9, tests de texte au plus bas mesuré.
+
+### REFONTE V3-B : PRIMITIVES UI — DIALOGUE ET RETOUR ACCESSIBLES, UN SEUL CROCHET D'ACTION, PARC MIGRÉ (2026-10-28)
+
+Suite de l'audit 09 (FRONTEND-UX-01 et -05). Deux primitives dans `src/components/ui/`, montées une fois dans
+la coque `app/(app)/layout.tsx` et le portail (`PrimitivesUI`) — pas à la racine, autre entrée de build qui les
+aurait recopiées dans le JS de chaque page. La fenêtre et le dessin des avis se téléchargent au premier moment
+libre (`differe.ts`) ; la palette ⌘K et la fenêtre d'annonce suivent la même voie, pour tenir le plafond de la
+coque sans le relever :
+- **Dialogue de confirmation** (`dialogue.tsx`, règle pure `dialogue-regle.ts`) : `useConfirmer()` remplace
+  `window.confirm`, `useSaisir()` remplace `window.prompt`. `role="alertdialog"`, focus piégé et rendu, Échap qui ne
+  ferme que la fenêtre (pas la feuille dessous), bouton au verbe du geste (« Supprimer »), « Retour » focalisé sur un
+  geste à risque.
+- **Retour** (`retour.tsx`, règle `retour-regle.ts`) : `<Retour ton>` (bandeau près du geste) et `useRetours()` (avis
+  flottants, régions `aria-live`) remplacent `window.alert`. Une erreur ne s'efface jamais seule.
+- **Un seul crochet d'action** (`components/shared/use-action.ts`) : `useAction` / `useKeyedAction` gagnent
+  `run(fn, onOk, { confirmer, succes })` et `signalerErreurs` ; nouveau `useFormAction` pour `<form action>` (verrou
+  anti double envoi). Tous attrapent la levée, coupent à 45 s et rafraîchissent par `useRafraichir`.
+
+**Parc migré** (≈ 340 fichiers, en 5 lots : argent et décisions d'abord) — aucune règle métier changée ; des refus
+autrefois muets s'affichent désormais. Cliquets abaissés au chiffre mesuré : `confirm(` 125 → **0**, `alert(` 46 →
+**0**, `prompt(` 6 → **0**, repli « Échec. / Erreur. / Action impossible. » 259 → **0** (`src/lib/ui/dialogues-natifs.test.ts`),
+appels d'action non gardés 315 → **0** (`action-gardee.test.ts`), `router.refresh()` nus 326 → **1**, le crochet lui-même
+(`rafraichir.test.ts`). Carte : [KB 05 § 4.2, 4.7](../knowledge-base/05-frontend-ui-ux.md).
+
+### MODULE AD & PRO — LE MÉTIER RANGÉ DANS `src/modules/ad-pro/` (2026-10-28, lot V4)
+
+- **Aucun changement de comportement ni de nom d'action** : `contrat.genere.json` (1 185 actions) est identique octet pour
+  octet ; seules les adresses changent. Les anciens chemins (`@/lib/ad-pro/*`, `@/lib/ad-pro-items`, `@/lib/care*`,
+  `@/lib/queries/ad-pro*`, `@/lib/actions/ad-pro-*`, `@/components/ad-pro/*`, `@/components/care/*`…) restent des adresses
+  de réexpédition (`tsconfig.json`) pour les branches ouvertes ; le code du dépôt importe les portes (`api`, `partage`,
+  `actions-*`, `ecrans/*`).
+- **Découpage par responsabilité** : `ad-pro-item-actions` (4 409 lignes) devient six morceaux sous la MÊME clé
+  (`actions-postes{,-decision,-paiement,-materiel,-voyageurs,-lignes}.ts`, déclarés ensemble dans `parc.ts`) ;
+  `care-actions` deux (`actions-prise-en-charge{,-logistique}.ts`) ; la carte d'un poste (`items-panel`, 2 149 lignes)
+  quatre (`ecrans/items-panel.tsx` + `ecrans/postes/`). Plus aucun fichier du métier au-delà de 1 000 lignes.
+- **Les pièces liées sortent du kit** : `linked-records`, `attach-to-source`, `attacher-legal-existant` vivent dans
+  `components/pieces/` (le socle n'importe aucun module) ; le parent d'un poste (`parentDuPoste`) rejoint les adresses
+  `lib/chemins/ad-pro.ts` (le référentiel des personnes le lit sans lire un métier).
+- Mesures et dette restante : rapport d'audit 08 (suite V4) et `docs/architecture/MODULES.md`.
+### ASSISTANT IA : VOCAUX « COMME WHATSAPP » ET LECTURE DE TOUTE PIÈCE JOINTE (2026-10-28)
+
+- **Messages vocaux** (Direction) : sur `/assistant`, maintenir le micro enregistre (minuterie, onde), relâcher envoie, glisser à
+  gauche annule, glisser vers le haut ou un appui bref verrouille. Le vocal est un **message du fil** : fichier du Drive personnel
+  (« Assistant IA — vocaux »), transcrit en arrière-plan, la transcription **sous le lecteur** ; l'assistant répond à son contenu.
+- **Réponse vocale** (option ⋯ › « Réponses vocales ») : la réponse texte est aussi lue à voix haute (synthèse OpenAI, fichier du
+  Drive, 1 500 caractères au plus — la coupe dite).
+- **L'assistant LIT les pièces** au lieu de les nommer : Word, Excel, PowerPoint, CSV, texte, PDF (texte, ou **scan par vision**,
+  6 pages), **images par vision** (photo de facture, capture, tableau photographié), audio, **vidéo** (piste transcrite + 4 images
+  clés si `ffmpeg`). Coffre refusé avant tout envoi (nature locale, pièce confidentielle, nom évocateur, OCR local qui reconnaît une
+  pièce d'identité ou une fiche de paie), données sensibles masquées, contenu encadré comme non fiable, **chaque limite dite sous la
+  pièce** (lue, partielle, refusée, illisible). Transcription, vision et synthèse comptées dans les plafonds et le journal.
+- **Filtre de confidentialité** : un IBAN imprimé par groupes de quatre est désormais masqué (il passait en clair).
+  Décision [0011](../assistant/decisions/0011-vocaux-et-lecture-de-toute-piece.md).
+
+### CODE MORT ET DOUBLONS — MESURÉS PAR KNIP ET JSCPD, TENUS PAR LA CI (lot V4, 2026-10-28)
+
+- **Zéro code mort, mesuré par un outil** : knip (`knip.json`, entrées App Router, actions, ponts in-process, scripts,
+  prisma, tests) passe de 29 fichiers / 312 exports / 115 types / 7 dépendances inutilisés à **0**. 41 fichiers de
+  production supprimés (29 orphelins, 12 fonctionnalités jamais branchées) avec leurs tests ; −11 474 lignes au total.
+  `date-fns` et `docxtemplater` désinstallés, `fflate` déclaré. Deux fichiers atteints par les seuls tests restent,
+  nommés avec leur raison (`src/platform/qualite-code.ts`).
+- **Doublons fusionnés** (jscpd : 1 506 → 1 473 clones) : `OPENAI_BASE_URL` lue à un seul endroit
+  (`models/openai-acces.ts`, accepte `…` et `…/v1` — la transcription et la passerelle attendaient l'inverse l'une de
+  l'autre) ; réponses d'échec des fournisseurs ; porte Luna ; `state`/PKCE OAuth ; `plier`, `arrondirAuCentime`,
+  `arrondirAuMillieme`, `montantDzd` (`lib/utils.ts`).
+- **Garde** : `npm run qualite:mort`, `npm run qualite:doublons` (CI, job `verifier`) et `src/platform/qualite-code.test.ts`
+  (cliquets décroissants). Détail et mesures : rapport 08, ARCH-06.
+
+### MODULE RH — LE MÉTIER RH RANGÉ DANS `src/modules/rh/` (lot V4, 2026-10-28)
+
+- **Aucun changement de comportement** : congés, paie, avances, notes de frais, demandes et documents RH, attestation
+  de travail, ordre de mission et lectures des écrans déménagent (`git mv`) dans `src/modules/rh/` (`domaine/` pur,
+  `infra/`, `ecrans/`), derrière deux portes : `partage.ts` (pur, navigateur compris) et `api.ts` (serveur).
+- **Les actions gardent leur clé** (`hr-actions`, `hr-document-actions`, `payroll-hr-actions`, `stand-in-actions`,
+  `conge-discussion-actions` — `src/lib/actions/parc.ts`) : `contrat.genere.json` identique octet pour octet.
+- **La paie passe toujours par le centre de paiement** (Finances, `lib/expense-orders`) — lien déclaré en dette nommée,
+  cible `@/modules/finances/api`. Les données sensibles restent écrites par le coffre et déchiffrées par les seules pages RH.
+- Restent au socle des droits (lus par `rbac.ts` et le coffre) : `lib/hr/stand-in`, `stand-in-resolve`, `confidentialite`.
+  Les anciens chemins sont des adresses de réexpédition (`tsconfig.json`). Mesures : rapport 08, « Suite — lot V4 ».
+
+### ASSISTANT IA SUR OPENAI, CAISSE D'AVANCE CRÉDITÉE À L'AUTORISATION, BUILD RENDER SOUS 8 GO (2026-10-28)
+
+- **Assistant IA → OpenAI `gpt-6.1-terra`** (Direction) : il utilise la clé `OPENAI_API_KEY` déjà en service, par l'API
+  Responses (décision [0010](../assistant/decisions/0010-assistant-sur-openai.md)). Sans clé, il dit la variable exacte à poser.
+- **Le circuit expliqué par l'assistant** ne récite plus « Validation du DG » comme une étape : le DG valide le TOTAL à la fin,
+  au-dessus du seuil ; la réponse dit les branches réelles (`parcoursAdPro`) et ce qui suit la prévalidation.
+- **Caisse d'avance** (Direction) : une remise ou une rallonge autorisée par le **centre de paiement** entre **directement**
+  dans la caisse des moyens généraux — ordre réglé, sortie en liquide non classée, remise en main — sans passer par
+  « Banque & paiements » ni par une confirmation de réception. Un seul écrivain : `src/lib/finance/verser-remise.ts`.
+- **Build Render** : plus de cache webpack persistant au build de production (`next.config.mjs`) — le worker serveur de
+  Next 15 mourait en OOM et le conteneur dépassait 8 Go ; mesuré : pic 4985 Mo (contre 5532 et OOM), `.next` 315 Mo.
+
+### V3-G : LE MONOLITHE MODULAIRE DEVIENT EXÉCUTABLE — LIEUX, COFFRE ET RÉFÉRENTIELS DANS `src/modules/` (2026-10-28)
+
+Aucun écran ne change, aucune donnée n'est touchée, aucune migration. La structure cible du rapport d'audit 08 est
+désormais **tenue par les outils** et trois modules du socle métier y vivent. Guide : [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
+- **Modules migrés** : `src/modules/lieux/`, `src/modules/coffre/`, `src/modules/referentiels/` (91 fichiers déménagés par
+  `git mv`, 46 importeurs réécrits). Chacun s'ouvre par ses **portes** : `api.ts` (serveur), `partage.ts` (pur,
+  navigateur compris) ; le coffre en a une troisième, `api-lecture.ts` — `api.ts` écrit sans jamais déchiffrer (c'est
+  celle des actions, atteignables par l'assistant), `api-lecture.ts` déchiffre (écrans RH, Legal, administration).
+- **Carte des modules** `src/modules/carte.ts` (qui lit qui, sans cycle) et `frontieres.test.ts` étendu : portes seules,
+  `domaine/` pur, liens déclarés, aucun ancien chemin importé, dette héritée nommée. ESLint dit les mêmes règles dans
+  l'éditeur (et bloque `build:render`).
+- **Une action a une clé, pas une adresse** (`src/lib/actions/parc.ts`) : `coffre-actions`, `consommation-actions`,
+  `personnes-actions`, `organisation-actions` et `refonte-reprise-actions` vivent dans leur module (`actions.ts`,
+  `actions-<cas>.ts`) sous leur clé historique ; contrat régénéré **identique** (1 184 actions).
+- **Adresses de réexpédition** : chaque ancien chemin (`@/lib/coffre/cle`…) est une entrée exacte de `tsconfig.json`
+  `paths`, pour les branches ouvertes en parallèle ; aucun fichier relais (git suit les déplacements).
+- **Nouveaux cliquets** (`src/platform/couverture.test.ts`) : fichiers de `src/lib/` hors carte 828 → 766 (768 après fusion des lots V3-C/D/E, qui en ont ajouté), pages qui
+  importent Prisma 129 → 126 (les écrans de revue des doublons lisent par `@/modules/referentiels/api`), routes Prisma
+  53, composants → `src/app` 12, kit d'interface → métier 6, tests qui lisent le source par chemin 128.
+- `npm run test:architecture` : frontières, carte, couverture, contrat, garde client — 40 fichiers en ~35 s.
+### V3-A : DÉPENDANCES — NEXT 15, REACT 19, NEXT-AUTH BETA.32, XLSX 0.20.3 ; ZÉRO AVIS CRITIQUE/HAUT EN PRODUCTION (2026-10-28)
+
+`npm audit --omit=dev` : **23 avis (3 critiques, 16 hauts) → 2 modérés** (`exceljs` → `uuid`, correctif = régression
+majeure d'exceljs, laissé). Audit INFRA-03 ([rapport](../audit/2026-10-27/10-infra-ci-observabilite.md)).
+- **Next 14.2.35 → 15.5.28** (ligne 15 encore corrigée ; tous les avis Next fermés) + **React 19.2**. Guide de migration
+  suivi : codemod officiel `next-async-request-api` (214 fichiers : `params`, `searchParams`, `cookies()`, `headers()`
+  deviennent asynchrones), puis les 13 accès qu'il forçait en synchrone réécrits à la main — `getCompanyScope`,
+  `getBudgetScope`, `resolveBudgetEnvelope`, `poserVueExacte`/`effacerVueExacte`, `set`/`clearSupplierSession`
+  deviennent `async`. `useFormState` → `useActionState` (React 19). Cache `fetch` : aucun usage explicite, le
+  « no-store par défaut » de Next 15 ne change rien. Le middleware racine reste non compilé (règle de Next inchangée,
+  INFRA-12, hors lot).
+- **next-auth 5.0.0-beta.32** : aucune v5 stable n'existe (la `latest` npm est la v4, API incompatible) ; beta.32
+  ferme les deux critiques (contrôle d'existence d'`auth` en échec ouvert, normalisation d'e-mail) et deux hauts.
+- **xlsx 0.20.3 depuis le CDN officiel SheetJS** (même API ; prototype pollution et ReDoS corrigés) — le builder
+  Render doit joindre `cdn.sheetjs.com` ([24-deploiement-render.md](24-deploiement-render.md)).
+- **Reste de l'audit** : `npm audit fix` (sans `--force`), `nodemailer` 10.2, `zod` 4.6.7, `recharts` 2.15.4,
+  `postcss` 8.5.32 imposé à Next par `overrides`, `image-size` 2.0.4 (déclaré mais jamais chargé par pptxgenjs),
+  `vitest` 2.1.9 et `tsx` 4.23.15.
+- **Mémoire de build** : Next 15 a supprimé `outputFileTracing: false` — le plugin de traçage par page est retiré du
+  compilateur serveur par le hook `webpack` (−250 Mo, −33 s) ; tas de compilation **3072 → 3584 Mo**
+  (`TAS_DU_BUILD_MO`) car Next 15 meurt en OOM à 3072. Pic sur build propre : Next 14 @3072 = 4542 Mo, Next 15 @3584
+  = 5150 Mo.
+- **Restent** (outillage de test seulement, jamais déployé) : la chaîne `vitest` 2.x (tinypool, vite) n'est corrigée
+  qu'en vitest 5 — montée majeure du lanceur de 15 800 tests, à faire dans son propre lot.
+
+### V3-D — L'ASSISTANT IA EN EXPLOITATION : CHAQUE APPEL COMPTÉ, CHAQUE TOUR BORNÉ (2026-10-28)
+
+Audit 27/10, rapport 06 (IA-ASSISTANT-03, -06, -07, -08, -09, -10, -12, -13 et l'injection par documents). **Journal** :
+les deux seules portes de l'Assistant IA vers MiMo (`repondreAvecSecours`, `genererTexte`) ouvrent un budget, comptent
+chaque étape de Mastra (`onStepFinish`) et écrivent une ligne `ModelCallLog` par appel (personne, conversation, modèle,
+jetons, durée, coût estimé) et une `AiUsageLog` par tour (`src/lib/agent/consommation.ts`). **Plafonds** (table
+`AssistantIaReglage`, réglage Super Admin, défauts 12 étapes / 150 000 jetons par tour / 600 000 par personne et par
+jour, heure d'Alger) : refus clair qui nomme le remède, avis au Super Admin une fois par jour (`AssistantIaPlafondAtteint`).
+**Écran** `/admin/ai/consommation` : par personne, par jour, par modèle, plafonds atteints, réglages. **Injection** :
+sorties d'outils à contenu tiers encadrées et désamorcées (`contenu-non-fiable.ts`, cliquet sur les noms d'outils).
+**Robustesse** : trois essais par message du fil (`AssistantIaTour.essais`), balayage `assistant.intentions` (action
+interrompue → échec dit, carte non confirmée → `EXPIRED` après 24 h, refus aussi au clic), cartes caduques retirées avant
+le tour et comparées sur `payload.op`. `agent.ts` (sans appelant) supprimé ; clé MiMo lue sous `MIMO_API_KEY` seul ;
+fournisseur réel dans le journal d'Adam. Migration `20270202090000_assistant_ia_exploitation`. Bancs au faux modèle :
+`consommation.test.ts`, `exploitation.test.ts`, `contenu-non-fiable.test.ts`.
+
+### V3-C PERFORMANCE : SONDAGES LÉGERS, ICÔNES À L'UNITÉ, LECTURES EN PARALLÈLE (2026-10-28)
+
+Suite du rapport d'audit [07 — performance](../audit/2026-10-27/07-performance-runtime.md), mesurée avant/après.
+- **Session légère des sondages (PERF-06)** — `src/lib/session-legere.ts` : `identiteDuSondage()` (jeton + session
+  révocable + compte actif + rôle en base + « Vue exacte », **sans** la matrice des droits) et `peutVoirLaMessagerie()`
+  (accès attribué, repli exact sur `getAccess`). `/api/messaging/sync` et `/api/notifications/poll` l'utilisent :
+  **13 → 2** et **14 → 3** requêtes SQL par appel. La révocation et la vue sont écrites une fois dans
+  `src/lib/session-compte.ts`, lues aussi par `session.ts` (session révocable en **une** requête jointe au lieu de deux).
+  Cliquet : une route sondée par la coque lit `identiteDuSondage` (`notifications-sondage-unique.test.ts`).
+- **Icônes de la coque à l'unité (PERF-05)** — `src/components/ui/icones-coque.ts` (imports nommés) +
+  `IconeCoque` ; le jeu complet de Lucide n'est plus chargé que pour un nom absent (chargement différé). Cliquet
+  `icones-coque.test.ts`. Mesure : `node scripts/mesure-bundle.mjs` après un build propre.
+- **Lectures indépendantes en un aller-retour (PERF-10, PERF-11)** — coque `(app)/layout.tsx`, utilisateur à l'écran
+  calculé une fois par rendu (`cache`), `finances/paiements-a-faire`, `marketing-cockpit`.
+- **`take` imbriqué (PERF-08)** — Adam « Conversations consultées » borné en SQL (`derniersMessagesParConversation`) ;
+  cliquet `src/lib/prisma-take-imbrique.test.ts` (plafond 33, décroissant).
+- **Classeurs (PERF-07, part sûre)** — l'ingestion n'analyse que les lignes indexées (`sheetRows`) : 2,7 s → 0,16 s
+  de gel sur 100 000 lignes.
+Aucune migration : les index des chemins mesurés sont en place (`EXPLAIN`).
+
+| Mesure (avant → après) | Avant | Après |
+|---|---|---|
+| SQL par appel, badge messagerie (banc journalisé) | 13 | 2 |
+| SQL par appel, `/api/notifications/poll` | 14 | 3 |
+| SQL / min / onglet, sondages de la coque | ~121 | ~22 |
+| Temps médian d'un sondage (serveur de prod local) | 18–19 ms | 10–12 ms |
+| JS de la coque (gzip, toutes les pages) | 315,4 kB | 166,1 kB |
+| Médiane du First Load JS par page | 324,5 kB | 176,4 kB |
+| Gel d'ingestion d'un classeur de 100 000 lignes | 2,7 s | 0,16 s |
+### REFONTE V2-F : LES TÂCHES DE FOND PEUVENT QUITTER LE WEB — WORKER, BAIL PAR TÂCHE, BATTEMENT VISIBLE (2026-10-27)
+
+Le passage de `runScheduledJobs` devient une **table** (`TACHES_PLANIFIEES`, `src/lib/scheduled.ts`) : une ligne par
+tâche, chacune sous un **bail en base** (table `TacheDeFond`, `src/lib/taches-de-fond/bail.ts`) — un seul exécutant la
+tient, même si deux processus battent ; un bail expiré (processus tué) se reprend. Une tâche qui lève est comptée en
+échec et **le passage continue** (cinq étapes sans filet faisaient sauter tout le reste). Nouveau point d'entrée
+**`npm run worker`** (`scripts/worker.ts`) : même passage, arrêt propre sur SIGTERM, attente des migrations de son
+commit, journal JSON. Interrupteur **`TACHES_DE_FOND=web|worker|les-deux`**, défaut `web` : rien ne change en production
+tant que le service n'est pas créé (bloc commenté dans `render.yaml`). Santé : `/api/health/worker` et Diagnostic ›
+Tâches de fond. Place prévue pour la file d'enrichissement V2-A (`enrichissement.file`, « ignorée » d'ici là).
+Migration `20270201100000_taches_de_fond`. Procédure d'activation : [24-deploiement-render.md](24-deploiement-render.md).
+### REFONTE V2-C : LES ORGANISATIONS EN SERVICE — REPRISE, DOUBLONS PROPOSÉS, DOUBLE ÉCRITURE, FICHE 360° (2026-10-27)
+
+Migration `20270131170000_organisations_reprise` (une table `PropositionDoublonOrganisation`, une colonne
+`AppSetting.doubleEcritureOrganisations`, fausse par défaut) — elle n'écrit AUCUNE donnée.
+- **Administration › Refonte des données** (`/admin/refonte-donnees`, Super Admin seul) : une carte par reprise — aperçu
+  à blanc, un lot (200 lignes) ou tous les lots, journal (lignes d'audit « Refonte des données »). Contrat commun
+  `referentiels/reprises/types.ts`, liste `reprises/index.ts`, action unique `actions/refonte-reprise-actions.ts`.
+- **Quatre reprises, dans l'ordre** : `organisations` (sociétés du groupe, partenaires, fournisseurs Regulatory,
+  établissements → une `Organisation` chacun, rôles, NIF/NIS/RC/AI normalisés, `organisationId` posé) ;
+  `organisations-textes` (institution d'un sponsoring, établissement hôte d'un congrès national : rattachés à la seule
+  organisation de même nom, ou à une organisation née du texte ; le texte saisi reste) ; `organisations-affiliations`
+  (salarié ↔ sa société, praticien ↔ son établissement… quand la Personne existe — aucune personne créée) ;
+  `organisations-doublons` (paires proposées avec leurs raisons). Rejouées, elles ne refont rien (ids déterministes).
+- **Un NIF identifie un tiers** : unique par (type, valeur normalisée). Deux fiches au même NIF → le second n'est pas
+  recopié, la paire est proposée « certaine » ; le NIF d'une société du groupe recopié sur un tiers ne compte pas.
+- **Doublons à trancher** (`/admin/refonte-donnees/organisations`) : garder l'une, garder l'autre, ou « pas les
+  mêmes ». Une fusion n'efface rien (`fusionneeDansId`) et se défait ; une paire écartée n'est jamais reproposée.
+- **Double écriture** (interrupteur sur l'écran) à la création d'un fournisseur (3 portes), d'un partenaire, d'un
+  établissement : même code que la reprise, non bloquante.
+- **Fiche Organisation 360°** `/organisations/[id]` : identifiants, rôles, coordonnées relevées sur les fiches,
+  personnes affiliées, fiches d'origine, devis/BC/factures (`LegalDocument`), demandes Ad & Pro — chaque bloc avec la
+  porte de son écran d'origine. Ni RIB ni IBAN (lot coffre).
+- Code : `src/lib/referentiels/organisations/*` ; bancs `candidats.test.ts`, `reprises/lots.test.ts`, `reprise.test.ts`.
+### REFONTE DES DONNÉES, LOT V2-A : LE DÉPÔT NOURRIT LES FICHES (2026-10-27)
+
+Migration `20270131170000_enrichissement_file` (table `TacheEnrichissement`, colonne `AppSetting.enrichissementActif`
+fausse par défaut). Les trois goulots de dépôt émettent `PIECE_DEPOSEE` et mettent la pièce en file ; le battement la
+lit EN LOCAL, la classe, en extrait les faits, les rattache à la Personne de la fiche où elle est déposée (ou à
+l'Organisation de son NIF), confirme d'office ce qui peut l'être, range au coffre ce qui est sensible, et laisse le reste
+à l'écran « À confirmer ». Rien n'est actif avant que le Super Admin ouvre l'interrupteur (Administration › Refonte des
+données), qui porte aussi la reprise « Rattrapage des pièces existantes ». Détail : référence des circuits, p04.
 
 ### LEGAL : « NOUVEAU DOCUMENT » ET « NOUVELLE FACTURE » SE REMPLISSENT DEPUIS LA PIÈCE (2026-10-27)
 

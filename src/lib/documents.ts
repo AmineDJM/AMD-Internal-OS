@@ -10,6 +10,9 @@ import { recordAudit } from "@/lib/audit";
 import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { mirrorRegulatoryUpload } from "@/lib/regulatory-drive-mirror";
 import { cheminSur, refusDepotCtd } from "@/lib/regulatory/ctd-initiale";
+import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
+import { inscrireDocument } from "@/modules/bibliotheque/api-inscription";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Chemin de dossier SÛR : jamais de « .. », jamais de chemin absolu, séparateur « / », borné.
@@ -78,8 +81,9 @@ export async function persistUploadedDocument(
   // d'écriture, créait la fiche quand même et l'écran disait « téléversé » : la personne
   // découvrait des semaines plus tard un document « indisponible », l'original jeté entre-temps.
   // Un échec d'écriture est DIT, et rien n'est créé — renvoyer le fichier suffit.
+  let ecrit: { blobId: string; sha256: string };
   try {
-    await saveFile(key, content);
+    ecrit = await saveFile(key, content);
   } catch (err) {
     console.error("[upload] écriture du fichier impossible — aucune fiche créée", err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -118,7 +122,7 @@ export async function persistUploadedDocument(
   } catch (err) {
     console.error("[upload] document.create failed", { name: file.name, entityType, entityId }, err);
     // Le fichier écrit n'a pas de fiche : on le rend, sinon il reste payé et invisible.
-    await deleteFileByKey(key).catch(() => undefined);
+    await deleteFileByKey(key).catch(sansBloquer("documents.persistUploadedDocument.deleteFileByKey"));
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `Enregistrement impossible : ${msg}` };
   }
@@ -131,6 +135,18 @@ export async function persistUploadedDocument(
     entityId,
     summary: `Document « ${folder ? `${folder}/` : ""}${file.name} » téléversé`,
   }).catch((e) => console.error("[upload] audit failed (non-bloquant)", e));
+
+  // LA PIÈCE NOURRIT LES FICHES (refonte, lot V2-A) : fait `PIECE_DEPOSEE` et mise en file de
+  // l'enrichissement, une fois le document acquis. Interrupteur fermé : rien. Ne lève jamais.
+  await signalerDocumentDepose({
+    documentId, entityType, entityId, category, confidentiality, blobId: ecrit.blobId, sha256: ecrit.sha256,
+    nom: file.name, mime: file.type || null, taille: file.size, deposeParId: userId,
+  });
+  // LA BIBLIOTHÈQUE (J1) : la pièce entre au registre, sous la clé du document, et en file de lecture. Ne lève jamais.
+  await inscrireDocument({
+    documentId, entityType, category, confidentiality, blobId: ecrit.blobId, sha256: ecrit.sha256,
+    nom: file.name, mime: file.type || null, taille: file.size, deposeParId: userId,
+  });
 
   // MIROIR DRIVE, en arrière-plan : le document est déjà enregistré, c'est ce que la personne
   // voit. La copie se termine côté serveur — on ne fait pas attendre un téléversement pour elle.
@@ -182,6 +198,19 @@ export async function inscrireDocumentDirect(
       actorId: userId, action: "UPLOAD", module: ENTITY_TYPE_LABELS[entityType] ?? ENTITY_MODULE[entityType], entityType, entityId,
       summary: `Document « ${folder ? `${folder}/` : ""}${name} » téléversé (envoi direct)`,
     }).catch((e) => console.error("[upload direct] audit failed (non-bloquant)", e));
+    // L'empreinte d'un envoi direct n'est pas calculée (`direct:…`) : la file la calculera avant d'émettre.
+    const blob = await prisma.fileBlob.findUnique({ where: { id: input.blobId }, select: { sha256: true } }).catch(sansBloquer("documents.inscrireDocumentDirect.fileBlob", null));
+    if (blob) {
+      await signalerDocumentDepose({
+        documentId: created.id, entityType, entityId, category: input.category, confidentiality: input.confidentiality, blobId: input.blobId,
+        sha256: blob.sha256, nom: name, mime: input.mimeType, taille: input.size, deposeParId: userId,
+      });
+    }
+    // LA BIBLIOTHÈQUE (J1) : l'empreinte manquante (`direct:…`) sera posée par l'ingestion, qui relit les octets.
+    await inscrireDocument({
+      documentId: created.id, entityType, category: input.category, confidentiality: input.confidentiality, blobId: input.blobId,
+      sha256: blob?.sha256 ?? null, nom: name, mime: input.mimeType, taille: input.size, deposeParId: userId,
+    });
     // REGULATORY (Direction, 06/10) : la pièce rejoint le dossier du produit dans la catégorie
     // « Regulatory » par RÉFÉRENCE à son blob — aucun octet relu, même pour plusieurs Go.
     if (entityType === "REGULATORY_PRODUCT") {
@@ -191,7 +220,7 @@ export async function inscrireDocumentDirect(
     return { documentId: created.id };
   } catch (e) {
     // Pas de correspondance sans fiche : la ligne `StoredFile` part, le blob reste à l'appelant.
-    await prisma.storedFile.delete({ where: { key } }).catch(() => undefined);
+    await prisma.storedFile.delete({ where: { key } }).catch(sansBloquer("documents.inscrireDocumentDirect.storedFile"));
     throw e;
   }
 }
@@ -257,7 +286,7 @@ export async function attachFormFiles(
       entityType, entityId, category: "OTHER", confidentiality: "INTERNAL", stepKey: null, file, maxUploadMb,
     });
     if (r.ok) attached += 1;
-    else failed.push({ name: file.name, error: r.error ?? "Échec." });
+    else failed.push({ name: file.name, error: r.error ?? "Fichier non joint." });
   }
   return { attached, failed };
 }

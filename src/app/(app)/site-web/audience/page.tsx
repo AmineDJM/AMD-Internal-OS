@@ -31,7 +31,8 @@ export const metadata = { title: "Audience du site — AMD Internal OS" };
  * module ; les chiffres viennent du script que le site inclut (`/api/site-web/v1/audience.js`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export default async function AudiencePage({ searchParams }: { searchParams: { p?: string | string[] } }) {
+export default async function AudiencePage(props: { searchParams: Promise<{ p?: string | string[] }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("SITE_WEB");
   const periode = lirePeriode(searchParams.p);
   const [t, onglets] = await Promise.all([tableauAudience(periode), visibleTabs(user, SITE_WEB_TABS)]);

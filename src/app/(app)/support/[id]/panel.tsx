@@ -1,12 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Send, HandHelping, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 import { takeSupportRequest, answerSupportRequest, updateSupportStatus } from "@/lib/actions/support-actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
-import type { ActionResult } from "@/lib/actions/types";
 import { useAction } from "@/components/shared/use-action";
 
 

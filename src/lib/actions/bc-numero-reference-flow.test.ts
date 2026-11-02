@@ -8,7 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { getAccess, type SessionUser } from "@/lib/rbac";
+import { getAccess } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
 import { pieceEmise, valeursComposables, type ValeursComposables } from "@/lib/legal/piece-emise";
 import { deleteFileByKey } from "@/lib/storage";

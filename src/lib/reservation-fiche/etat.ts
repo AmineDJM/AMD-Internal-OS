@@ -28,10 +28,6 @@ export type SourceFiche = "VOYAGEUR" | "HEBERGEMENT" | "CARE_CELL";
 export type EtatDemande =
   | "ENVOYEE" | "PRISE" | "DEVIS_RECU" | "RESERVEE" | "MANQUE_SIGNALE" | "MODIFIEE_APRES_ENVOI" | "RETIREE";
 
-export const ETATS_DEMANDE: readonly EtatDemande[] = [
-  "ENVOYEE", "PRISE", "DEVIS_RECU", "RESERVEE", "MANQUE_SIGNALE", "MODIFIEE_APRES_ENVOI", "RETIREE",
-];
-
 /** L'état AFFICHÉ d'une fiche : avant tout envoi, elle est un brouillon (il manque) ou prête. */
 export type EtatFiche = "BROUILLON" | "PRETE" | EtatDemande;
 

@@ -16,7 +16,8 @@ export const dynamic = "force-dynamic";
  * droits, eux, sont vérifiés exactement comme ailleurs — `buildEditorSetup` refuse sans accès
  * ÉDITEUR, quelle que soit la porte par laquelle on entre.
  */
-export default async function OfficeEmbedPage({ params }: { params: { id: string } }) {
+export default async function OfficeEmbedPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const setup = await buildEditorSetup(user, params.id);
   if (!setup.ok) {

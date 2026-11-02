@@ -3,6 +3,7 @@ import type { RelationPredicate } from "../contract";
 import { extractMentions, mentionConfidence } from "./extract";
 import { resolveEntity } from "./resolve";
 import { CONFIDENCE_VERIFY } from "../contract";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -46,7 +47,7 @@ export async function linkEntitiesForItem(itemId: string): Promise<LinkResult> {
 
   const item = await prisma.knowledgeItem
     .findUnique({ where: { id: itemId }, select: { id: true, text: true, title: true, companyId: true } })
-    .catch(() => null);
+    .catch(sansBloquer("link.linkEntitiesForItem.knowledgeItem", null));
   if (!item) return out;
 
   // Le TITRE compte double, littéralement : il est concaténé au texte, donc ses mentions sont vues
@@ -92,7 +93,7 @@ export async function linkEntitiesForItem(itemId: string): Promise<LinkResult> {
     // `skipDuplicates` plutôt qu'un vidage préalable : rejouer le tissage ne doit pas faire
     // clignoter les liens d'un document — un écran ouvert pendant le passage verrait un instant
     // un document relié à rien.
-    const written = await prisma.knowledgeLink.createMany({ data: rows, skipDuplicates: true }).catch(() => ({ count: 0 }));
+    const written = await prisma.knowledgeLink.createMany({ data: rows, skipDuplicates: true }).catch(sansBloquer("link.linkEntitiesForItem.knowledgeLink", { count: 0 }));
     out.written = written.count;
   }
   return out;
@@ -115,5 +116,5 @@ export async function itemsMentioning(entityId: string, limit = 20) {
         item: { select: { id: true, sourceType: true, sourceId: true, title: true, documentDate: true, stage: true } },
       },
     })
-    .catch(() => []);
+    .catch(sansBloquer("link.itemsMentioning.knowledgeLink", []));
 }

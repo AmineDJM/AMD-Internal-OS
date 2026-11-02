@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2, Loader2, UserPlus, ChevronRight } from "lucide-react";
 import { createDepartment, updateDepartment, deleteDepartment, assignEmployeeDepartment } from "@/lib/actions/department-actions";
 import { Button } from "@/components/ui/button";
@@ -13,6 +12,9 @@ import { InfoBulle } from "@/components/ui/info-bulle";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader } from "@/components/shared/page-header";
 import type { DepartmentNode, DepartmentOption } from "@/lib/departments";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 type Result = { ok: boolean; error?: string };
 type EmpOpt = { id: string; fullName: string; position: string | null };
@@ -22,14 +24,21 @@ type SheetState =
   | { mode: "edit"; node: DepartmentNode };
 
 function useRun() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const run = async (fn: () => Promise<Result>, onOk?: () => void) => {
     setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (r.ok) { onOk?.(); router.refresh(); } else setErr(r.error ?? "Erreur.");
+    let r: Result;
+    try {
+      r = await fn();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (r.ok) { onOk?.(); rafraichir(); } else setErr(r.error ?? "Le geste n'a pas abouti.");
   };
   return { busy, err, setErr, run };
 }
@@ -61,14 +70,15 @@ export function DepartmentsManager({
   companyScope: string | null;
 }) {
   const { run } = useRun();
+  const confirmer = useConfirmer();
   const [sheet, setSheet] = React.useState<SheetState | null>(null);
   const lignes = React.useMemo(() => aplatir(tree), [tree]);
 
-  const del = (node: DepartmentNode) => {
+  const del = async (node: DepartmentNode) => {
     const msg = node.children.length > 0
       ? `Supprimer « ${node.name} » ? Ses ${node.children.length} sous-département(s) remonteront d'un niveau et ses ${node.members} membre(s) directs repasseront « non affectés ».`
       : `Supprimer « ${node.name} » ? Ses ${node.members} membre(s) repasseront « non affectés ».`;
-    if (window.confirm(msg)) { const fd = new FormData(); fd.set("id", node.id); run(() => deleteDepartment(fd)); }
+    if (await confirmer(msg)) { const fd = new FormData(); fd.set("id", node.id); run(() => deleteDepartment(fd)); }
   };
 
   return (

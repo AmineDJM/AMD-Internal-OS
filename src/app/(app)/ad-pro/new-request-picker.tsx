@@ -6,15 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Icon } from "@/components/ui/icon";
 import { RecordForm } from "@/components/shared/create-record-button";
-import { createSponsoring } from "@/lib/actions/sponsoring-actions";
-import { DemandeMaterielForm } from "@/components/ad-pro/demande-materiel-form";
+import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
+import { DemandeMaterielForm } from "@/modules/ad-pro/ecrans/demande-materiel-form";
 import { createConsultingContract } from "@/lib/actions/consulting-actions";
-import { createAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
-import type { AdProKind, KindSpec } from "@/lib/ad-pro/unified";
+import { createAdProOtherRequest } from "@/modules/ad-pro/actions-autres";
+import type { AdProKind, KindSpec } from "@/modules/ad-pro/partage";
 import {
   sponsoringCreateFields, consultingCreateFields, adProOtherCreateFields,
   toPeople, type AdProCreateData,
-} from "@/lib/ad-pro/create-fields";
+} from "@/modules/ad-pro/partage";
 import { CongressRequestForm } from "../congress-international/congress-request-form";
 import { CreateEventForm } from "../events/event-form";
 

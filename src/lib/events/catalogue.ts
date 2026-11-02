@@ -25,6 +25,7 @@ export interface TypeFait {
 
 export const CATALOGUE: readonly TypeFait[] = [
   // ── L'ERP (l'audit devient un fait — `events/from-audit.ts`) ──
+  { type: "PIECE_DEPOSEE", libelle: "Pièce déposée (enrichissement)", sourceDomain: "ENRICHISSEMENT", sources: ["erp", "drive"], entites: ["DRIVE_NODE", "AD_PRO_ITEM", "EMPLOYEE", "LEGAL_DOCUMENT", "RECRUITMENT_CANDIDATE"], description: "Une pièce est entrée dans l'ERP par un goulot de dépôt : son empreinte, son blob et ses rattachements — jamais son contenu. Elle part en file d'enrichissement des fiches." },
   { type: "DOCUMENT_UPLOADED", libelle: "Pièce déposée", sourceDomain: "DRIVE", sources: ["erp", "drive"], entites: ["DRIVE_NODE", "LEGAL_DOCUMENT", "CONSULTING_CONTRACT"], description: "Une pièce a été déposée dans le Drive ou sur un dossier." },
   { type: "VALIDATION_REQUIRED", libelle: "Validation demandée", sourceDomain: "VALIDATIONS", sources: ["erp"], entites: ["VALIDATION_REQUEST"], description: "Un circuit de validation attend une décision." },
   { type: "VALIDATION_APPROVED", libelle: "Validation accordée", sourceDomain: "VALIDATIONS", sources: ["erp"], entites: ["VALIDATION_REQUEST", "EXPENSE_ORDER", "PAYMENT_REQUEST"], description: "Une demande a été validée." },
@@ -57,6 +58,18 @@ export const CATALOGUE: readonly TypeFait[] = [
   { type: "CRM_CONTACT_UPDATED", libelle: "Contact CRM mis à jour", sourceDomain: "SALES", sources: ["hubspot"], entites: ["PERSON", "COMPANY"], description: "Un contact HubSpot a été créé ou modifié." },
   { type: "MARKET_DATA_UPDATED", libelle: "Données de marché publiées", sourceDomain: "REGULATORY", sources: ["iqvia"], entites: ["PRODUCT"], description: "IQVIA a publié une nouvelle période de ventes de marché." },
   { type: "SUPPLIER_DELIVERY_UPDATED", libelle: "Livraison fournisseur mise à jour", sourceDomain: "LOGISTICS", sources: ["sap", "generic"], entites: ["SUPPLIER", "EXPENSE_ORDER"], description: "Un fournisseur a expédié, retardé ou livré." },
+  // ── Les travaux (J8, décision 0023) : la délégation d'un travail à une autre personne ──
+  { type: "DEMANDE_DEPOSEE", libelle: "Demande d'un travail déposée", sourceDomain: "TRAVAUX", sources: ["erp"], entites: ["TRAVAIL_DEMANDE", "USER"], description: "Le travail d'une personne a déposé une demande (question, pièces attendues, échéance) dans l'espace d'une autre." },
+  { type: "DEMANDE_REPONDUE", libelle: "Demande d'un travail répondue", sourceDomain: "TRAVAUX", sources: ["erp"], entites: ["TRAVAIL_DEMANDE", "USER"], description: "La personne sollicitée a répondu à la demande d'un travail (texte et pièces partagées) : le travail reprend." },
+  // ── Les chantiers de développement (C2, décision 0043 — `platform/dev/`, webhooks GitHub et Render, sondage de secours) ──
+  { type: "DEV_PUSH", libelle: "Commit poussé sur une branche", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Un commit nouveau sur une branche d'un dépôt suivi (références DEPOT:, BRANCHE:<dépôt>:<branche>, SHA:)." },
+  { type: "DEV_PR", libelle: "Pull request ouverte ou changée", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Une PR ouverte, mise à jour, fermée ou fusionnée (statut dans la charge : opened, synchronize, merged…)." },
+  { type: "DEV_CHECKS", libelle: "Checks terminés sur un commit", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Une suite de checks ou un check terminé sur un SHA ; le verdict global se relit sur GitHub." },
+  { type: "DEV_WORKFLOW", libelle: "Run GitHub Actions terminé", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Un run de workflow terminé (conclusion dans la charge)." },
+  { type: "DEV_COMMENTAIRE", libelle: "Commentaire sur une PR", sourceDomain: "DEV", sources: ["github"], entites: [], description: "Un commentaire posté sur une PR (réponse de Claude Code dans le fil, ou d'une personne)." },
+  { type: "RENDER_DEPLOIEMENT", libelle: "Déploiement Render", sourceDomain: "DEV", sources: ["render"], entites: [], description: "Un déploiement Render commencé ou terminé (succeeded, failed, canceled) ; références SERVICE:, DEPLOIEMENT:." },
+  { type: "RENDER_SERVICE", libelle: "Service Render tombé ou revenu", sourceDomain: "DEV", sources: ["render"], entites: [], description: "Un service Render indisponible, revenu, redémarré, suspendu ou repris." },
+  { type: "DEV_SESSION", libelle: "Ordre du relais Claude Code conclu", sourceDomain: "DEV", sources: ["relais"], entites: [], description: "Le relais CLI a créé une session Claude Code ou remis un message (statut FAIT, ECHEC ou INCERTAIN) ; références ORDRE:, SESSION:, missionId de l'ordre." },
   { type: "WEBHOOK_RECEIVED", libelle: "Fait externe (type non catalogué)", sourceDomain: "external", sources: ["generic"], entites: [], description: "Un système externe a envoyé un fait dont le type n'est pas au catalogue : il entre sous son nom brut." },
 ];
 

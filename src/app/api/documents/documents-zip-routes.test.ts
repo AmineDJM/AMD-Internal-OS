@@ -53,7 +53,7 @@ let docTexte = "";
 let cleDirecte = "";
 
 const req = (url: string) => new NextRequest(`http://localhost${url}`);
-const appel = (id: string) => ({ params: { id } });
+const appel = (id: string) => ({ params: Promise.resolve({ id }) });
 
 async function zip(): Promise<Buffer> {
   const z = new JSZip();

@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * BUDGET MARKETING › DEMANDES AD & PRO — UNE LIGNE PAR DEMANDE (maquette « onglets » validée, Direction 10/2026).
@@ -165,8 +166,6 @@ export function requeteDemandes(f: FiltresDemandes, extra: Record<string, string
   const s = q.toString();
   return s ? `?${s}` : "";
 }
-
-const plier = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Le texte où cherche la recherche : libellé, nature, lieu, demandeur, postes et leur imputation, lignes « L12 ». */
 function texteDe(d: DemandeVue): string {

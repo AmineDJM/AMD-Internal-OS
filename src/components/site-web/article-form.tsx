@@ -14,6 +14,8 @@ import {
 } from "@/lib/site-web/contrat";
 import { lecture, refusTitresNiveau1, sommaire } from "@/lib/site-web/markdown";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { ApercuMarkdown } from "@/components/site-web/apercu-markdown";
 import { EtatPublicationBadge, type EtatVisible } from "@/components/site-web/etat-badge";
@@ -64,6 +66,8 @@ export function ArticleForm({
   categories: string[];
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [v, setV] = React.useState<ArticleEdite>(article);
   const [onglet, setOnglet] = React.useState<"rediger" | "apercu">("rediger");
   const [enCours, setEnCours] = React.useState<Intention | "supprimer" | null>(null);
@@ -124,9 +128,9 @@ export function ArticleForm({
   const longueurDescription = v.description.trim().length;
 
   const agir = async (intention: Intention) => {
-    if (intention === "retirer" && !window.confirm(
+    if (intention === "retirer" && !(await confirmer(
       "Retirer l'article du site ?\n\nLe site le garde en brouillon, invisible du public : il reste republiable en un clic.",
-    )) return;
+    ))) return;
     setEnCours(intention); setRetour(null);
     const fd = new FormData();
     if (v.id) fd.set("id", v.id);
@@ -152,14 +156,14 @@ export function ArticleForm({
     }
     setRetour({ ok: true, texte: r.message ?? "Enregistré." });
     if (!v.id && r.id) router.replace(`/site-web/articles/${r.id}`);
-    else router.refresh();
+    else rafraichir();
   };
 
   const supprimer = async () => {
     if (!v.id) return;
-    if (!window.confirm(
+    if (!(await confirmer(
       "Supprimer définitivement cet article ?\n\nS'il est sur le site, sa page en est retirée. Pour le masquer sans le perdre, préférez « Retirer du site ».",
-    )) return;
+    ))) return;
     setEnCours("supprimer"); setRetour(null);
     const fd = new FormData();
     fd.set("id", v.id);
@@ -168,7 +172,7 @@ export function ArticleForm({
     setEnCours(null);
     if (!r.ok) { setRetour({ ok: false, texte: r.error ?? "Suppression impossible." }); return; }
     router.push("/site-web/articles");
-    router.refresh();
+    rafraichir();
   };
 
   const occupe = enCours !== null;

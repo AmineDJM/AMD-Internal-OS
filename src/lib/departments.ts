@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   resolveManager, managementChainOf,
   type DepartmentNodeLite, type EmployeeNode, type ManagerSource,
-} from "@/lib/hr/reporting-line";
+} from "@/modules/rh/partage";
 
 /**
  * DÉPARTEMENTS — structure de l'entreprise et hiérarchie réelle (N+1).
@@ -152,12 +152,6 @@ export async function getDepartmentMembers(
     select: { id: true, fullName: true, position: true, userId: true, departmentId: true },
     orderBy: { fullName: "asc" },
   });
-}
-
-/** Comptes applicatifs des membres d'un département (pour notifier / habiliter). */
-export async function getDepartmentUserIds(departmentId: string, includeSubDepartments = true): Promise<string[]> {
-  const members = await getDepartmentMembers(departmentId, { includeSubDepartments });
-  return members.map((m) => m.userId).filter((id): id is string => Boolean(id));
 }
 
 // ───────────────────────────── Hiérarchie réelle (N+1) ─────────────────────────────

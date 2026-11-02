@@ -1,9 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import {
-  addCareBeneficiary, setCareOpinion, decideCareBeneficiary, removeCareBeneficiary,
-  addCareCell, setCareCellStatus, removeCareCell, createCareQuote, decideCareQuote,
-  requestCareQuotes, sendCareToFinance, linkCareCellPromoMaterial,
-} from "@/lib/actions/care-actions";
+import { addCareBeneficiary, setCareOpinion, decideCareBeneficiary, removeCareBeneficiary, addCareCell, setCareCellStatus, removeCareCell, createCareQuote, decideCareQuote, requestCareQuotes, sendCareToFinance, linkCareCellPromoMaterial, marquerPriseEnChargeRealisee } from "@/modules/ad-pro/actions-prise-en-charge";
 import {
   submitQuotes, chooseAgency, submitBcForFinance, remindFinance, validateBc, confirmBcSent,
   initiatePayment, confirmPayment, submitMaterial, directionReview, confirmConformity,
@@ -362,7 +358,7 @@ export const CARE_OPS_IMPL: Record<string, OpImpl> = {
         warnings: decision === "ACCEPTED"
           ? ["D'UN BLOC (le fournisseur a chiffré un ensemble) — crée l'ORDRE DE DÉPENSE ; une case déjà couverte par un devis accepté fait REFUSER (anti double paiement)."]
           : ["Les cases couvertes repassent « demandées » : il faut un autre devis."],
-        args: { id: pick.id, decision, note: opStr(input, "note") || null },
+        args: { id: pick.id, decision, note: opStr(input, "note") || null, budgetCategoryId: opStr(input, "budgetCategoryId") || null },
         successMessage: `Devis ${pick.supplier} ${decision === "ACCEPTED" ? "ACCEPTÉ (ordre de dépense émis)" : "refusé"}.`,
         revalidate: ["/congress-national", "/congress-international", "/finances/paiements-a-faire"],
       };
@@ -400,6 +396,22 @@ export const CARE_OPS_IMPL: Record<string, OpImpl> = {
       };
     },
     execute: (args) => runFd2(sendCareToFinance, args, "L'envoi aux Finances a été refusé.", { revalidate: ["/congress-national"] }),
+  },
+
+  mark_care_completed: {
+    async propose(input): Promise<OpProposalDraft | { error: string }> {
+      const req = await resolveCareRequest(opStr(input, "kind"), opStr(input, "target"));
+      if ("error" in req) return req;
+      return {
+        title: `Marquer la prise en charge réalisée — ${req.label}`,
+        fields: [{ label: "Congrès", value: req.label }],
+        warnings: ["REFUSÉ tant que la prise en charge n'est pas validée ET transmise aux Finances ; réservé au demandeur ou à la Direction Marketing."],
+        args: { scope: req.scope, requestId: req.requestId },
+        successMessage: `Prise en charge marquée réalisée (${req.label}).`,
+        revalidate: ["/congress-national", "/congress-international"],
+      };
+    },
+    execute: (args) => runFd2(marquerPriseEnChargeRealisee, args, "Le marquage « réalisée » a été refusé.", { revalidate: ["/congress-national"] }),
   },
 
   link_care_promo: {

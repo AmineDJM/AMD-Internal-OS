@@ -3,6 +3,7 @@ import type { ContratAction, ChampAction } from "@/lib/actions/contrat";
 import { resoudreCible, direRefus, ressembleAUnId, type Cible } from "./resoudre";
 import { entiteDuModele } from "./modele-entite";
 import { findPeople } from "@/lib/directory/resolve";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -96,7 +97,7 @@ const porteUneReference = (ch: ChampAction): boolean =>
 const MODELE_PERSONNE = "User";
 
 async function designerUnePersonne(texte: string): Promise<{ retenu: Cible[]; candidats: Cible[] }> {
-  const trouves = await findPeople(texte, 6).catch(() => []);
+  const trouves = await findPeople(texte, 6).catch(sansBloquer("resoudre-entrees.designerUnePersonne.findPeople", []));
   // SANS COMPTE, PAS DE RÉFÉRENCE : l'annuaire connaît aussi des fiches RH et des contacts
   // externes, qui n'ont pas d'identifiant `User`. Les garder ferait proposer une personne qu'on
   // ne pourrait pas écrire dans le champ — et un candidat qu'on ne peut pas retenir n'aide pas.
@@ -215,4 +216,24 @@ export async function resoudreEntrees(
   }
 
   return { entree: sortie, substitutions, refus, nonResolus };
+}
+
+/**
+ * LES CANDIDATS D'UN CHAMP DE RÉFÉRENCE — le sélecteur du formulaire de carte (lot J11, décision 0030).
+ *
+ * La même porte que la résolution d'un nom : une PERSONNE par l'annuaire (avec un compte), toute autre fiche par
+ * `resoudreCible`, sous la portée de l'écran (`porteeEntite`). Ce que la personne ne voit pas n'est jamais proposé —
+ * et un objet sans portée déclarée ne se cherche pas (la liste reste vide : on saisit l'identifiant, l'action rejuge).
+ */
+export async function candidatsDuChamp(user: SessionUser, modele: string, texte: string): Promise<Cible[]> {
+  const q = (texte ?? "").trim().slice(0, 120);
+  if (q.length < 2) return [];
+  if (modele === MODELE_PERSONNE) {
+    const p = await designerUnePersonne(q);
+    return [...p.retenu, ...p.candidats];
+  }
+  const def = entiteDuModele(modele);
+  if (!def) return [];
+  const r = await resoudreCible(user, def.name, q);
+  return [...r.retenu, ...r.candidats];
 }

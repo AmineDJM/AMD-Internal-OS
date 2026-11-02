@@ -1,0 +1,262 @@
+import { CONSIGNE_CONTENU_NON_FIABLE } from "../domaine/contenu-non-fiable";
+import type { CurrentUser } from "@/lib/session";
+import { userCan, MODULES, type Module } from "@/lib/rbac";
+import { MODULE_LABELS, ROLE_LABELS } from "@/lib/labels";
+import { prisma } from "@/lib/prisma";
+import { censurerTexte } from "../domaine/filtre-confidentialite";
+import { CONSIGNE_COMPOSANTS } from "../domaine/ui/composants";
+import { rappelDuTour } from "./memoire-capture";
+import { REGLE_NOTES } from "../domaine/notes/regles";
+
+/**
+ * COUCHE DE CONTEXTE (Q9, Q11, Q14, Q17, C10).
+ *
+ * `compileContext` assemble, avant chaque tour, ce que le modèle sait de la situation :
+ *   1. l'interlocuteur et son périmètre RBAC (ses modules ouverts, rien d'autre) ;
+ *   2. l'heure d'Alger ;
+ *   3. la page ouverte — son ADRESSE seulement. Le contenu d'un objet ne vient JAMAIS d'ici :
+ *      l'agent le lit par un outil, qui applique le droit et les droits par ligne (Q11). Rien de
+ *      ce qu'envoie le navigateur n'entre dans le prompt ;
+ *   4. la mémoire active et l'historique du fil, filtrés (Q14) ;
+ *   5. les consignes du rôle et les règles fondamentales.
+ *
+ * ÉCHEC FERMÉ (Q17) : une erreur de base n'est plus avalée. Un contexte incomplet ferait répondre
+ * l'agent sans savoir qui lui parle ; l'appelant transforme l'erreur en « service indisponible ».
+ */
+
+export interface ContextePage {
+  pathname?: string;
+}
+
+export interface OptionsContexte {
+  user: CurrentUser;
+  /** S1 (décision 0048) : la section « INTERLOCUTEUR » construite par le serveur (`profilDeLaPersonne`). */
+  profil?: string;
+  threadId?: string;
+  page?: ContextePage;
+  consignesRole?: string;
+  maxMessagesHistorique?: number;
+  /**
+   * J4 : les outils offerts au DÉBUT du tour. Donnés, les règles propres à une famille d'outils (agir, documents,
+   * routines, web) ne sont dites que si l'un d'eux est offert — `trouver_outil` rend la règle des outils qu'il ajoute.
+   * Absents (routines, anciens appelants) : toutes les règles.
+   */
+  outilsActifs?: readonly string[];
+  /** J4 : consignes du PRODUIT, les mêmes pour tous (confidentialité, sélection d'outils, fond) — dans le préfixe stable. */
+  consignesGenerales?: readonly string[];
+  /** J4 : consignes propres à la personne (familles réglées, gestes fermés) — stables d'un tour à l'autre. */
+  consignesPersonne?: readonly string[];
+  /** J4 : la question du tour — l'assembleur y choisit les souvenirs pertinents, dans leur enveloppe. */
+  question?: string;
+  /** J4 : la partie VARIABLE du tour (mémoire assemblée, résumé de la conversation…), posée APRÈS le préfixe stable. */
+  sectionsDuTour?: readonly string[];
+  /** Décision 0027 : une conversation PRIVÉE ne lit pas la mémoire de la personne. */
+  sansMemoire?: boolean;
+  /** Décision 0034 : les valeurs sensibles arrivent en clair (règle 2 réécrite) — absent : en repères (décision 0012). */
+  valeursEnClair?: boolean;
+}
+
+export interface MessageHistorique {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ContexteCompile {
+  systemPrompt: string;
+  messages: MessageHistorique[];
+  tokensEstimes: { systemPrompt: number; messages: number; total: number };
+  provenance: {
+    userId: string;
+    role: string;
+    modulesCount: number;
+    threadId?: string;
+    pagePath?: string;
+    censureAppliquee: boolean;
+  };
+}
+
+/** Approximation déterministe : ~4 caractères par token pour le français. */
+function estimerTokens(texte: string): number {
+  return texte ? Math.ceil(texte.length / 4) : 0;
+}
+
+/** Une adresse de page, et rien d'autre : pas de requête, pas de fragment, longueur bornée. */
+function adresseSure(pathname?: string): string | null {
+  if (!pathname) return null;
+  const p = pathname.split(/[?#]/)[0].trim();
+  return /^\/[\w\-/[\]().]*$/.test(p) ? p.slice(0, 200) : null;
+}
+
+async function chargerMessagesConversation(
+  userId: string,
+  threadId: string | undefined,
+  limite: number,
+): Promise<{ messages: MessageHistorique[]; aCensure: boolean }> {
+  if (!threadId) return { messages: [], aCensure: false };
+  const raw = await prisma.assistantMessage.findMany({
+    where: { threadId, userId },
+    select: { role: true, content: true },
+    orderBy: { createdAt: "desc" },
+    take: limite,
+  });
+  let aCensure = false;
+  const messages = raw.reverse().map((m) => {
+    const { texte, censure } = censurerTexte(m.content);
+    if (censure) aCensure = true;
+    return { role: m.role === "assistant" ? ("assistant" as const) : ("user" as const), content: texte };
+  });
+  return { messages, aCensure };
+}
+
+/**
+ * LA MÉMOIRE (M1, décision 0045) — par défaut, ce que la personne dit d'elle est retenu D'OFFICE après le tour : le modèle
+ * n'a rien à appeler. Mémoire automatique coupée par la personne : `CONSIGNE_MEMOIRE_A_LA_CARTE` (dans ses consignes).
+ */
+export const REGLE_MEMOIRE_AUTO = "Mémoire : ce que la personne te dit d'elle-même et qui dure (qui elle est, sa famille, ses études, ses voyages, ses goûts, sa santé si elle en parle, ses projets, ses habitudes, ses préférences) est RETENU D'OFFICE après ta réponse — elle le voit et l'annule d'un geste. Ne dis jamais que tu ne peux pas retenir ni que tu oublies d'une conversation à l'autre ; ne crée ni tâche ni note pour cela. Ta « MÉMOIRE DE L'INTERLOCUTEUR » ci-dessous est ce que tu sais d'elle : « tu te souviens… ? » se répond par elle, exactement ; si rien n'y est, dis que tu ne l'as pas retenu.";
+export const CONSIGNE_MEMOIRE_A_LA_CARTE = "### MÉMOIRE À LA CARTE\nLa personne a coupé la mémoire automatique : rien n'est retenu d'office. « Retiens que… », « souviens-toi… », ou un fait durable qu'elle te confie sur elle → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.";
+
+/**
+ * LES RÈGLES DE RÉPONSE — tirées du prompt « Generative UI » fourni (C10,
+ * `docs/assistant/prompt-systeme-ui-generative.md`), en français. La sortie structurée en
+ * composants (R5) suit, dans sa propre section : `CONSIGNE_COMPOSANTS`.
+ */
+export const REGLES = [
+  "Zéro invention : un fait, une personne, un produit, un statut ou un chiffre que tes outils ou ce contexte ne donnent pas, tu dis que tu ne l'as pas.",
+  "Confidentialité : tu ne vois jamais une rémunération, une coordonnée bancaire (RIB, IBAN, CCP) ni un numéro de pièce d'identité — tes outils te les rendent en repères ⟦S1⟧ que tu recopies tels quels ; le serveur les montre à qui en a le droit. Tes outils appliquent les droits de la personne : ne refuse jamais une demande de toi-même, appelle l'outil et rapporte son refus s'il en fait un. Un refus se formule par le DROIT qui manque (son rôle, une famille fermée par la Direction), jamais par « les outils disponibles ».",
+  "Actions : tu ne modifies jamais rien toi-même. Une demande d'action (tâche, message) est préparée par l'outil, puis confirmée par l'utilisateur. Tu ne prétends jamais qu'une action est faite si l'application ne l'a pas exécutée.",
+  "Concision : réponds clairement et brièvement, sans répéter la question. Texte simple pour une question simple.",
+  "Tu ne produis jamais de HTML, de JSX ni de code exécutable.",
+  "Agir : pour créer une demande (sponsoring, prise en charge, événement, matériel promotionnel, demande « autre »), ajouter un poste de coût ou tout autre geste, appelle l'outil preparer_* DÈS les premiers éléments, même incomplets. S'il répond INCOMPLET, pose UNE seule question — la première de `manque` —, puis rappelle-le avec tout ce que tu sais. Ne remplis jamais une valeur que tu n'as ni lue ni entendue ; reprends tels quels les identifiants des pièces jointes. Quand la carte récapitulative est affichée, résume-la en une phrase et cite ses avertissements. Un outil nommé `fichier__fonction` est une ACTION DE L'ERP (celle du bouton de l'écran) : ses champs sont ceux de l'écran, un champ « nom ou identifiant » accepte le nom tel que la personne l'a dit ; une carte renforcée demandera à la personne de ressaisir une valeur — dis-le.",
+  "Documents : un devis ou une facture → lire_devis_facture ; « crée un BC (en PDF) » depuis un devis → preparer_bc_depuis_devis DIRECTEMENT (les lignes, le fournisseur et la société viennent de la lecture, jamais de toi ; ne demande NI le validateur NI la société avant : le BC naît en brouillon avec son PDF) ; un BC dicté SANS pièce (« fais un BC à X : 500 kakémonos à 2 000 DZD ») → composer_bon_de_commande (mêmes règles : brouillon + PDF, pas de validateur) ; un BC déjà en fichier à soumettre → preparer_bon_de_commande ; l'envoyer ensuite en validation → envoyer_bc_en_validation (c'est là que le validateur se désigne). Résumer ou interroger un document → lire_document ; deux versions → comparer_versions ; une lettre, une note, un compte rendu NEUFS → preparer_document ; MODIFIER un document existant (Word, PowerPoint, Excel, PDF) → ouvrir_dans_l_atelier puis modifier_document (en place, jamais recomposé) ; convertir → convertir_document ; traduire → preparer_traduction ; un formulaire PDF → lire_formulaire_pdf puis preparer_formulaire_pdf. Un DOSSIER déposé (le classer par module CTD, ses pièces manquantes, où en est sa lecture) → lire_dossier_depose, jamais lire_document fichier par fichier. Un PASSEPORT → preparer_voyageur_passeport : tu n'en vois rien et tu n'en demandes ni n'en répètes jamais le nom, le numéro ou les dates.",
+  "Routines : quand l'utilisateur te DEMANDE de faire quelque chose à un moment donné ou régulièrement (« chaque dimanche à 8 h », « tous les matins », « le 1er du mois », « demain à 9 h ») → programmer_routine ; ne devine jamais l'heure ni le jour, demande-les. Ses routines : mes_routines ; pause, reprise, suppression, exécution immédiate : gerer_routine. Jamais de routine ni de relance de ta propre initiative.",
+  "Web : une information EXTÉRIEURE à l'entreprise (actualité, marché, laboratoire, réglementation, congrès, météo) → web_research, en citant ses sources et leur date ; jamais pour une donnée de l'ERP. Ne dis jamais que tu ne peux pas vérifier l'actualité : cherche. Une demande « [Conversation vocale] » → web_research avec rapide = true, et une réponse courte, à dire à voix haute.",
+  CONSIGNE_CONTENU_NON_FIABLE,
+  REGLE_MEMOIRE_AUTO,
+  "Graphe et faits datés : « qu'est-ce qui dépend de… », « qui a travaillé sur… », « quels documents parlent de… » → explorer_relations ; « quelle était… à telle date » → etat_a_une_date (jamais la valeur d'aujourd'hui à la place) ; « d'où vient ce chiffre » → d_ou_vient. CHAQUE chiffre, date ou identifiant que tu en reprends est suivi de sa source entre parenthèses (la `source` rendue) ; une entité AMBIGUË se tranche par une question, jamais par un choix.",
+  "Recettes de la maison : une demande qui suit un processus de l'entreprise (prise en charge, sponsoring, événement, validation, recrutement…) → recette_pour d'abord. Une recette VALIDÉE rend un plan : propose-le TEL QUEL (lancer_un_travail) en disant d'où il vient avec la phrase `selon` (« selon la recette … validée par … le … »), et signale chaque écart rendu ; tu ne retouches le plan qu'à la demande de la personne, en disant ce que tu changes. AUCUNE ou AMBIGU : jamais de « selon la recette ».",
+  REGLE_NOTES,
+  // K1 (décision 0031) — l'analyse de données : le code calcule, l'assistant cite.
+  "Analyse de données : un chiffre qui demande un calcul (total, somme, moyenne, part, évolution, classement, comparaison, écart) se CALCULE, jamais de tête ; et dès que la réponse porte PLUSIEURS chiffres (un détail par poste, client, mois, état, département…), appelle analyser_donnees sur la lecture même si elle donne déjà un total — c'est ce qui affiche le tableau, le graphique et le calcul vérifiable. Lis d'abord (la lecture qui donne les lignes : read_budget, demandes…, ou lire_tableur pour un Excel/CSV joint ou du Drive), puis analyser_donnees avec source = le nom de cette lecture ou du jeu de la feuille, et les étapes (regrouper, serie, croissance…) ; calculer_code pour un calcul sur mesure ; requete_sql seulement si tu l'as (vue globale). Cite les chiffres EXACTEMENT comme l'outil les rend (déjà formatés : « 12 345 678 DZD », « 12,5 % ») — aucune somme, aucun pourcentage, aucun arrondi de ton fait. Le tableau, le graphique, « Comment c'est calculé » et l'export Excel s'affichent seuls sous ta réponse : ne les recopie pas et ne fais pas de composant table ni chart pour eux.",
+  // K7 (décision 0037) — « je croyais qu'il pouvait faire toutes les actions de l'ERP » : ce qu'un écran fait, l'assistant le cherche.
+  "Ce que font les écrans : tout ce qu'un écran de l'ERP permet (exporter un Excel, télécharger un PDF, envoyer un fichier à un collègue…), cherche-le avant de répondre — trouver_outil avec l'intention (« exporter le suivi Regulatory en Excel »). Un export (exporter_*) dépose le fichier dans le Drive de la personne (dossier « Exports ») : donne son lien. Une liste ou un tableau sans bouton d'export (ce que tu viens de lire ou de calculer : « exporte ça en PDF », « ce tableau en CSV ») → exporter_donnees avec la lecture du TOUR en source (si le tour ne l'a pas lue, relis-la d'abord) — tu ne recopies jamais une ligne ; pour l'envoyer à un collègue, send_message avec la pièce (son nodeId) — une carte à confirmer. S'il n'existe vraiment aucun outil, dis quel écran le fait, avec son lien direct : jamais « je ne peux pas » sans cela.",
+];
+
+/**
+ * LA RÈGLE 2 EN MODE « EN CLAIR » (décision 0034, Direction 31/10/2026) — elle remplace celle des repères : les DROITS
+ * sont les mêmes, seul le masquage vis-à-vis du modèle tombe pour ce que la personne a le droit de voir.
+ */
+export const REGLE_CONFIDENTIALITE_EN_CLAIR = "Confidentialité : une rémunération, une coordonnée bancaire (RIB, IBAN, CCP) ou un numéro de pièce d'identité que tes outils te rendent EN CLAIR est une valeur que la personne a le droit de voir — donne-la-lui quand elle la demande, à l'écrit comme à voix haute ; une valeur rendue « [confidentiel] » ne lui est pas ouverte. Tes outils appliquent les droits de la personne : ne refuse jamais une demande de toi-même, appelle l'outil et rapporte son refus s'il en fait un. Un refus se formule par le DROIT qui manque (son rôle, une famille fermée par la Direction), jamais par « les outils disponibles ».";
+const RANG_CONFIDENTIALITE = 1;
+
+/**
+ * LES RÈGLES D'UNE FAMILLE D'OUTILS (J4) — dites seulement quand l'un de ces outils est offert : un « bonjour » n'a
+ * pas à relire le mode d'emploi des formulaires PDF. Clé = rang dans `REGLES` ; valeur = l'outil qui la rend utile.
+ */
+const REGLE_SI_OUTIL: Record<number, (nom: string) => boolean> = {
+  // J6 : une CAPACITÉ de l'ERP (`fichier__fonction`) est un geste comme un autre.
+  5: (n) => /^(preparer_|create_|update_|send_message|assign_|set_regulatory|request_regulatory)|_operation$|__/.test(n),
+  6: (n) => /^(lire_devis_facture|preparer_bc_depuis_devis|composer_bon_de_commande|envoyer_bc_en_validation|lire_document|comparer_versions|preparer_document|preparer_traduction|lire_formulaire_pdf|preparer_formulaire_pdf|preparer_voyageur_passeport|lire_dossier_depose)$/.test(n),
+  7: (n) => /^(programmer_routine|mes_routines|gerer_routine)$/.test(n),
+  8: (n) => n === "web_research",
+  11: (n) => n === "explorer_relations" || n === "etat_a_une_date" || n === "d_ou_vient",
+  12: (n) => n === "recette_pour",
+  13: (n) => /^(lire_notes|ajouter_note|modifier_note|cocher_note|deplacer_note|supprimer_note|creer_page|renommer_page)$/.test(n),
+  14: (n) => /^(lire_tableur|analyser_donnees|calculer_code|requete_sql)$/.test(n),
+};
+
+/** Les règles à dire pour ces outils : toutes les règles générales, et celles des familles offertes. */
+export function reglesPour(outils?: readonly string[], enClair = false): string[] {
+  const regles = enClair ? REGLES.map((r, i) => (i === RANG_CONFIDENTIALITE ? REGLE_CONFIDENTIALITE_EN_CLAIR : r)) : REGLES;
+  if (!outils) return regles;
+  return regles.filter((_, i) => !REGLE_SI_OUTIL[i] || outils.some(REGLE_SI_OUTIL[i]));
+}
+
+/** Les règles qu'ajoutent des outils TROUVÉS en cours de tour (rendues par `trouver_outil`). */
+export function reglesAjoutees(dejaOfferts: readonly string[], trouves: readonly string[]): string[] {
+  return REGLES.filter((_, i) => REGLE_SI_OUTIL[i] && !dejaOfferts.some(REGLE_SI_OUTIL[i]) && trouves.some(REGLE_SI_OUTIL[i]));
+}
+
+export async function compileContext({
+  user,
+  threadId,
+  page,
+  consignesRole,
+  maxMessagesHistorique = 12,
+  outilsActifs,
+  sectionsDuTour = [],
+  consignesGenerales = [],
+  consignesPersonne = [],
+  question,
+  sansMemoire = false,
+  valeursEnClair = false,
+  profil,
+}: OptionsContexte): Promise<ContexteCompile> {
+  let censureGlobale = false;
+
+  const maintenant = new Date();
+  const dateLisible = maintenant.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Algiers" });
+  const heureLisible = maintenant.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Algiers" });
+
+  const roleLabel = ROLE_LABELS[user.role] ?? user.role;
+  const modulesAccessibles = (MODULES as readonly Module[])
+    .filter((m) => userCan(user, m, "VIEW"))
+    .map((m) => MODULE_LABELS[m] ?? m);
+
+  // M1 : le profil stable et les souvenirs PERTINENTS pour la question (décision 0045) — rien en conversation privée.
+  const [memoire, { messages, aCensure: censureMessages }] = await Promise.all([
+    sansMemoire ? Promise.resolve(null) : rappelDuTour(user.id, question ?? ""),
+    chargerMessagesConversation(user.id, threadId, maxMessagesHistorique),
+  ]);
+  if (censureMessages) censureGlobale = true;
+
+  // LE PRÉFIXE STABLE D'ABORD (J4) : ce qui ne change pas d'un tour à l'autre, ni d'une personne à l'autre, ouvre
+  // la consigne — le fournisseur le garde en cache (≈ 10 % du tarif, et plus vite). L'heure, qui change chaque
+  // minute, la ferme : placée en tête, elle invalidait le cache de tout ce qui la suivait.
+  const sections: string[] = [
+    "Tu es l'assistant interne d'Adventum Pharma, un laboratoire pharmaceutique algérien. Tu réponds en français, avec rigueur et clarté, en t'appuyant uniquement sur les données de l'entreprise que te donnent tes outils.",
+    `### RÈGLES FONDAMENTALES\n${reglesPour(outilsActifs, valeursEnClair).map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
+    `### PRÉSENTATION (UI générative)\n${CONSIGNE_COMPOSANTS}`,
+    ...consignesGenerales.filter(Boolean),
+    // S1 (décision 0048) : le PROFIL de la personne, construit par le serveur (compte de la session + fiche liée).
+    profil ?? `### INTERLOCUTEUR\nNom : ${user.name}\nRôle : ${roleLabel}${user.secondaryRole ? ` (rôle secondaire : ${ROLE_LABELS[user.secondaryRole] ?? user.secondaryRole})` : ""}`,
+    `### PÉRIMÈTRE D'ACCÈS (RBAC)\nModules ouverts à cet utilisateur :\n- ${modulesAccessibles.join("\n- ")}\nHors de ce périmètre, tu indiques avec courtoisie que le module ne lui est pas ouvert.`,
+  ];
+
+  if (consignesRole) {
+    const { texte, censure } = censurerTexte(consignesRole);
+    if (censure) censureGlobale = true;
+    sections.push(`### CONSIGNES DU RÔLE\n${texte}`);
+  }
+
+  sections.push(...consignesPersonne.filter(Boolean));
+
+  const adresse = adresseSure(page?.pathname);
+  if (adresse) sections.push(`### ÉCRAN OUVERT\nPage : ${adresse}. Pour en connaître le contenu, utilise tes outils de lecture.`);
+
+  // LA MÉMOIRE PERSONNELLE (couche c) : profil, puis souvenirs pertinents, chacun dans son enveloppe (filtrés à nouveau).
+  if (memoire?.section) {
+    if (memoire.censure) censureGlobale = true;
+    sections.push(memoire.section);
+  }
+
+  sections.push(...sectionsDuTour.filter(Boolean));
+  sections.push(`### HORODATAGE\nNous sommes le ${dateLisible}. Heure locale d'Alger : ${heureLisible}.`);
+
+  const systemPrompt = sections.join("\n\n");
+  const tokensSys = estimerTokens(systemPrompt);
+  const tokensMsg = messages.reduce((acc, m) => acc + estimerTokens(m.content), 0);
+
+  return {
+    systemPrompt,
+    messages,
+    tokensEstimes: { systemPrompt: tokensSys, messages: tokensMsg, total: tokensSys + tokensMsg },
+    provenance: {
+      userId: user.id,
+      role: user.role,
+      modulesCount: modulesAccessibles.length,
+      threadId,
+      pagePath: adresse ?? undefined,
+      censureAppliquee: censureGlobale,
+    },
+  };
+}

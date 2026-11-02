@@ -16,7 +16,7 @@ import { DocumentList, type DocItem } from "@/components/documents/document-list
 import { PIECE_REQUEST_STATUS, ENTITY_TYPE_LABELS } from "@/lib/labels";
 import { canSubmit, canDecide, canCancel, isLate, docRequestSummary, refusReaffectation } from "@/lib/doc-request";
 import { tientPourLaSollicitee } from "@/lib/doc-request-interim";
-import { assistantesDeDirection } from "@/lib/ad-pro/pieces-poste";
+import { assistantesDeDirection } from "@/modules/ad-pro/api";
 import { PIECE_KIND_LABEL, pieceKindOf } from "@/lib/legal/from-piece";
 import { RespondPanel } from "./respond-panel";
 import { ReaffecterPanel } from "./reaffecter-panel";
@@ -30,7 +30,8 @@ export const dynamic = "force-dynamic";
  * un collègue sans lui ouvrir tout le pôle Ad & Pro au passage. L'autorisation vient du fil —
  * on a demandé, ou on est celui à qui l'on demande.
  */
-export default async function DocumentRequestPage({ params }: { params: { id: string } }) {
+export default async function DocumentRequestPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const req = await prisma.documentRequest.findUnique({
     where: { id: params.id },

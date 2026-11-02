@@ -9,12 +9,12 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { activeStandInsFor, auNomDeQui } from "@/lib/hr/stand-in-resolve";
-import { decideLeave } from "@/lib/actions/hr-actions";
+import { decideLeave } from "@/modules/rh/actions";
 import { decideTraining } from "@/lib/actions/training-actions";
 import { decideApproval } from "@/lib/actions/admin-request-actions";
 import { deciderPlanTournee } from "@/lib/actions/tour-plan-actions";
 import { decideValidation } from "@/lib/actions/validation-actions";
-import { getLeavesToDecide } from "@/lib/queries/hr";
+import { getLeavesToDecide } from "@/modules/rh/api";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { getApprovals, clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { clauseFormationsVisibles } from "@/lib/queries/visibilite-listes";
@@ -242,7 +242,7 @@ suite("l'intérimaire tranche ce qui attend l'absent — et jamais sa propre dem
   });
 
   it("LES POINTS D'APPEL : chaque porte lit la même fonction (une recopie divergerait)", () => {
-    expect(readFileSync("src/lib/hr/leave-core.ts", "utf8")).toMatch(/auNomDeQui\(user\.id\)/);
+    expect(readFileSync("src/modules/rh/infra/leave-core.ts", "utf8")).toMatch(/auNomDeQui\(user\.id\)/);
     expect(readFileSync("src/lib/actions/training-actions.ts", "utf8")).toMatch(/auNomDeQui\(user\.id\)/);
     expect(readFileSync("src/app/(app)/formations/page.tsx", "utf8")).toMatch(/auNomDeQui\(user\.id\)/);
     expect(readFileSync("src/lib/actions/tour-plan-actions.ts", "utf8").match(/agitPour: await standInForUserIds\(user\.id\)/g)?.length).toBe(2);

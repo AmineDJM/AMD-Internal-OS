@@ -177,3 +177,91 @@ session, recevait `/login` ; ils sont exemptés (chemins exacts, jeton signé v�
   `src/lib/agent/routines/` (calendrier, passage, service), balayage dans `runScheduledJobs`, onglet « Routines ».
 - **Recherche web** (`web_research` de l'ERP) ouverte à l'assistant, question censurée.
 - Décision : `docs/assistant/decisions/0008-agent-qui-agit-memoire-documents-routines.md`.
+
+---
+
+### Ad & Pro — le circuit du 27/10/2026 : prévalidation, postes, le DG sur le TOTAL
+
+Décision de la Direction validée sur l'artefact « Circuits Ad & Pro » v3 — détail et table des 29 décisions :
+`docs/architecture/adpro-circuit-2026-10-27.md` ; vue d'ensemble : [workflows critiques](11-workflows-critiques.md).
+
+- **Prévalidation** (sponsoring, prises en charge, événements, « autre ») : délégué → National Sales → Directeur des
+  opérations (`OPERATIONS_DIRECTOR`) → Direction Marketing ; tout autre demandeur → Directeur des opérations → Direction
+  Marketing ; rang 3 → Direction Marketing ; Direction Marketing → prévalidée d'office. L'étape marketing ne fixe ni montant
+  ni catégorie. Le DG n'est plus une étape. À la création, tous les acteurs sont prévenus (`ouvrirLeCircuit`).
+- **Postes** : aucun avant la prévalidation ; un seul accord, la Direction Marketing (une autre personne sur sa demande).
+- **Porte du DG sur le total** (`AdProPorteDg`, `lib/ad-pro/porte-dg.ts`) : somme des postes non refusés + devis de
+  personnes retenus/acceptés d'une prise en charge ; au-dessus du seuil, ni BC, ni visa, ni paiement, ni acceptation de
+  devis sans « Valider le total » (DG, rôle principal ou secondaire, ou Super Admin) ; une rallonge rouvre la porte.
+- **Appel** pour toute nature refusée (`faireAppelAdPro`) ; **transfert** recalculé sur le créateur.
+- **Lots fusionnés** : devis/BC/ordre de PEC gardés (personnes « Accordées », catégorie sur l'ordre, DZD reste DZD,
+  USD × 240) ; « Marquer réalisée » et réservation par fiche seule ; événements externes (plus de capacité, liste d'attente,
+  inscription publique ; type + organisateur) ; catégorie budgétaire vérifiée (nature, exercice, BU) ; libellé « Paiement
+  demandé (ordre émis) » ; matériel promotionnel imputé au budget ; DG au centre de paiement ; rôle secondaire au centre Ad & Pro.
+- **Migrations** (additives) : `20270131110000_materiel_promo_budget`, `20270131120000_reservation_par_fiche_seule`,
+  `20270131130000_evenement_organisateur`, `20270131130500_adpro_circuit_prevalidation`, `20270131140000_adpro_porte_dg_total`,
+  `20270131150000_adpro_autre_postes`.
+- ⚠️ **À faire par l'administration** : attribuer le rôle `OPERATIONS_DIRECTOR` au Directeur des opérations, puis retirer
+  `DIRECTION` de l'étape « Validation (Directeur des opérations) » dans Administration › Circuits.
+
+### Refonte des données, vague 2 — lot V2-D « Lieux et coordonnées » (2026-10-27)
+
+« Par wilaya » se compte sans nettoyage manuel. Les fiches qui portent un lieu saisi à la main (praticiens,
+établissements, partenaires, fournisseurs, secteurs de vente) gagnent une colonne **`wilayaCode`** (FK → `Wilaya`, 69
+wilayas déjà chargées par la vague 1), **à côté** du texte, qui reste la saisie. Règle unique (`lib/lieux/rattachement.ts`) :
+la colonne wilaya prime, la ville puis la région parlent si elle est vide ; ambigu → nul et listé ; fournisseur étranger →
+pas de wilaya. **Administration › Refonte des données** (`/admin/refonte-donnees`, Super Admin) : une carte par reprise
+(aperçu à blanc, lots de 500, journal `AuditLog`, reprise au dernier curseur) — `lieux-wilaya`, `adresses`,
+`points-de-contact` (R3 depuis les fiches des Personnes / Organisations **déjà** créées, identifiants déterministes :
+rejouables après les lots V2-B / V2-C). **Double écriture** à chaque saisie (interrupteur `AppSetting.lieuxDoubleEcriture`,
+allumé), gardée par `lib/lieux/double-ecriture-garde.test.ts`. Premier écran lecteur : bandeau « Par wilaya » de
+**Annuaires › Établissements**. Communes : table laissée vide (aucune source officielle complète). Migration additive
+`20270131170000_lieux_wilaya_code`. Détail, activation et décisions : `docs/architecture/refonte-v2-lieux.md`.
+
+---
+
+### Refonte des données, vague 2 — lot V2-B « Personnes » (27/10/2026)
+
+Cadre : `docs/architecture/refonte-vague-2.md`. Rien ne tourne au déploiement ; tout est additif et réversible.
+
+- **Reprise R1** (`src/lib/referentiels/personnes/`) : une reprise par table (`User`, `Employee`, `MedicalDoctor`,
+  `CareBeneficiary`, `AdProVoyageur`, `AdProHebergement`, `RecruitmentCandidate`, `DirectoryEntry`, `SupplierUser`). Seuls
+  les liens que l'ERP porte déjà rapprochent d'office (compte ↔ salarié ↔ candidat embauché, praticien ↔ bénéficiaire tiré
+  de l'annuaire) ; identifiant de Personne déterministe ; rejouable. Aucune donnée sensible recopiée.
+- **Doublons PROPOSÉS** (reprise `personnes-doublons`, table `DoublonPersonne`), tranchés par le Super Admin dans
+  **Personnes › Doublons** (`/personnes/doublons`) : fusionner (tracé `fusionneeDansId`, réversible), écarter, défaire.
+- **Double écriture** derrière l'interrupteur `AppSetting.refontePersonnesDoubleEcriture` (éteint) : 12 écrivains de
+  création relient la Personne dans leur transaction.
+- **Fiche Personne 360°** `/personnes/[id]` (lien depuis `/praticiens/[id]` et `/rh/[id]`) : chaque ligne derrière la porte
+  de son écran d'origine ; 404 pour qui ne voit la personne nulle part.
+- **Écran commun** `Administration › Refonte des données` (`/admin/refonte-donnees`) : une carte par reprise (aperçu à
+  blanc, un lot, tout exécuter, journal), interrupteur de la double écriture.
+- Migration : `20270131170000_personnes_reprise`.
+### Refonte des données V2-E — le coffre en double lecture (2026-10-27)
+
+Les RIB / IBAN, NIN et salaires des salariés, le RIB des partenaires (fournisseurs) et les RIB / IBAN des sociétés sont
+**copiés chiffrés** au coffre (`src/lib/coffre/`) ; les colonnes en clair **restent** (P5 = accord de la Direction).
+**Reprise** « coffre » (`Administration › Refonte des données`, Super Admin : aperçu à blanc, lots, rejouable, rattache
+aux fiches Personne / Organisation) ; **double écriture** à chaque enregistrement (fiche RH, Finances, embauche, salaire
+par l'assistant, annuaire, identités légales) ; **double lecture** des fiches, de l'équipe, de la paie, des identités
+légales et des pièces générées (BC, factures : RIB reconnu au coffre par empreinte), avec **journal** de chaque accès,
+accordé ou refusé (`Administration › Accès aux données sensibles`). Politique : RH = salaires et NIN, Finances = RIB /
+IBAN, la personne = les siennes, une pièce officielle imprime le RIB d'une organisation ; **jamais un modèle d'IA**
+(propositions de l'assistant masquées, bac à sable SQL, filtre de confidentialité, frontière d'import). Une donnée masquée
+renvoyée par un formulaire reste en place : on écrit une fiche sans en lire les données sensibles. Deux interrupteurs
+fermés par défaut (`coffreEcriture`, `coffreLecture`) ; variable `COFFRE_KEY` à poser. Migration additive
+`20270131170000_coffre_double_lecture`. Détail, activation et procédure P5 : `docs/architecture/refonte-v2e-coffre.md`.
+### Fiabilité V3-E — plus d'erreur avalée sans trace (2026-10-28)
+
+Audit 27/10, INFRA-07 : **1 211** `.catch(() => valeur)` taisaient leur erreur — une base en panne se lisait « rien à
+faire » dans le centre de validation du DG. **Journal unique** `src/lib/journal.ts` (une ligne JSON par événement, anti-
+avalanche : la même erreur n'est réécrite qu'une fois par minute avec le nombre de répétitions tues) et deux `catch`
+nommés : `sansBloquer("nom", repli)` (panne tolérée — journalisée, comptée) et `attendu("raison", repli)` (rejet normal).
+Le parc est converti : **1 211 → 12** (2 exceptions serveur motivées, 10 écrans client qui affichent déjà l'échec) ; le
+comportement non bloquant est **inchangé** partout. Le journal des tâches de fond passe par le même journal. **Alertes** :
+chaque processus verse ses compteurs dans `IncidentRepete` (UPSERT additif) ; la tâche `observabilite.incidents` envoie
+au Super Admin **une** notification agrégée quand un événement échoue 5 fois dans l'heure, puis se tait 6 h ; carte
+**Erreurs rattrapées** au Diagnostic. **Sonde** `/api/health` : 503 si la base ne répond pas **ou** si une migration du
+dépôt manque en base ; `etat: "degrade"` (200) sur erreurs répétées. `render.yaml` : `healthCheckPath: /api/health`,
+`npm ci` ; `engines.node = 22.x` ; `src/app/global-error.tsx` en français. Cliquet `journal-catch-muets.test.ts`.
+Migration additive `20270205100000_incidents_repetes`.

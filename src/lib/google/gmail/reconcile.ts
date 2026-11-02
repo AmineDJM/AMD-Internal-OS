@@ -5,6 +5,7 @@ import { listHistory, addedMessageIds, startWatch, WATCH_RENEW_BEFORE_MS } from 
 import { ingestMessages } from "./ingest";
 import { resolveGoogleConfig } from "../config";
 import { getCommunicationPolicy } from "@/lib/comms/policy";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ADAM NE DEVIENT JAMAIS SOURD — reprise, réconciliation, renouvellement de la veille.
@@ -118,7 +119,7 @@ export async function reconcileInbox(connectionId: string, maxResults = 20): Pro
 
   const { ids } = await listMessageIds(active.accessToken, { labelIds: ["INBOX"], maxResults });
   const res = await ingestMessages(connectionId, ids.map((m) => m.id));
-  const profile = await getProfile(active.accessToken).catch(() => null);
+  const profile = await getProfile(active.accessToken).catch(sansBloquer("gmail-reconcile.reconcileInbox.getProfile", null));
   await upsertState(connectionId, {
     lastReconciledAt: new Date(),
     ...(profile?.historyId ? { lastHistoryId: profile.historyId } : {}),
@@ -183,7 +184,7 @@ export async function runAdamInboxSweep(opts: { reconcileEveryMs?: number; now?:
   // revérifie de son côté (c'est lui la vraie barrière, y compris pour le push), mais s'arrêter
   // seulement là consommerait quand même le quota Gmail à chaque battement. « Suspendre le
   // traitement de la boîte » doit vraiment tout arrêter, trafic réseau compris.
-  const policy = await getCommunicationPolicy().catch(() => null);
+  const policy = await getCommunicationPolicy().catch(sansBloquer("gmail-reconcile.runAdamInboxSweep.getCommunicationPolicy", null));
   if (policy?.inboundPaused) {
     return { ingested: 0, duplicates: 0, failed: 0, via: "skipped", reason: "traitement de la boîte suspendu" };
   }
@@ -191,7 +192,7 @@ export async function runAdamInboxSweep(opts: { reconcileEveryMs?: number; now?:
   const conn = await adamConnection();
   if (!conn) return { ingested: 0, duplicates: 0, failed: 0, via: "skipped", reason: "aucune connexion Google" };
 
-  const watch = await ensureWatch(conn.id, { now: opts.now }).catch(() => ({ renewed: false, expiresAt: null, reason: "veille indisponible" }));
+  const watch = await ensureWatch(conn.id, { now: opts.now }).catch(sansBloquer("gmail-reconcile.runAdamInboxSweep.ensureWatch", { renewed: false, expiresAt: null, reason: "veille indisponible" }));
 
   const now = opts.now ?? new Date();
   const lastReconciled = conn.gmail?.lastReconciledAt ?? null;

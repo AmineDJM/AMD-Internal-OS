@@ -9,6 +9,7 @@ import {
 import { relancerDemande } from "@/lib/actions/secretariat-devis-actions";
 import type { GesteSuivant } from "@/lib/secretariat/bureau";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
@@ -78,9 +79,14 @@ export function GestesEnTete({
   async function run(fd: FormData, action: (f: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>, apres?: () => void) {
     setBusy(true); setErr(null); setNote(null);
     fd.set("id", requestId);
-    const r = await action(fd);
-    setBusy(false);
-    if (r.ok) { setNote(r.message ?? null); apres?.(); rafraichir(); } else setErr(r.error ?? "Erreur.");
+    try {
+      const r = await action(fd);
+      if (r.ok) { setNote(r.message ?? null); apres?.(); rafraichir(); } else setErr(r.error ?? "La demande n'a pas été mise à jour.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
   const ouvrir = (f: typeof fenetre) => { setErr(null); setMenu(false); setFenetre(f); };
 

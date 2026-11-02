@@ -21,7 +21,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { creerObjectif, etatObjectif, listerObjectifs, majObjectif, simuler } from "@/platform/in-process/objectif";
 
 const str = (input: Record<string, unknown>, key: string): string => (typeof input[key] === "string" ? (input[key] as string).trim() : "");

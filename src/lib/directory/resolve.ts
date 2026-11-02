@@ -1,6 +1,7 @@
 import { DirectoryChannel, EndpointConfidence } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeName, rankEndpoints, type ResolvedEndpoint, type PersonMatch } from "./rank";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RETROUVER UNE PERSONNE, ET SON ADRESSE — dans l'ordre où l'entreprise fait autorité.
@@ -25,7 +26,7 @@ import { normalizeName, rankEndpoints, type ResolvedEndpoint, type PersonMatch }
  * teste sans base, et c'est là qu'est la logique délicate.
  */
 
-export type { ResolvedEndpoint, PersonMatch } from "./rank";
+export type { PersonMatch } from "./rank";
 
 const CONFIDENCE_OF_SOURCE: Record<string, EndpointConfidence> = {
   directory: EndpointConfidence.VERIFIED_INTERNAL,
@@ -50,7 +51,12 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
 
   const push = (key: string, base: Omit<PersonMatch, "endpoints">, endpoints: ResolvedEndpoint[]) => {
     const existing = byKey.get(key);
-    if (existing) { existing.endpoints.push(...endpoints); return; }
+    if (existing) {
+      existing.endpoints.push(...endpoints);
+      // La fiche RH COMPLÈTE le compte ERP trouvé avant elle (poste, entité, N+1, département) — sans rien écraser.
+      for (const k of ["jobTitle", "company", "employeeId", "manager", "department"] as const) if (existing[k] == null && base[k] != null) existing[k] = base[k] as never;
+      return;
+    }
     byKey.set(key, { ...base, endpoints: [...endpoints] });
   };
 
@@ -68,7 +74,7 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
       contact: { select: { id: true, name: true, email: true, phone: true } },
       company: { select: { shortName: true, name: true } },
     },
-  }).catch(() => []);
+  }).catch(sansBloquer("resolve.findPeople.directoryEntry", []));
 
   for (const e of entries) {
     const key = e.userId ?? e.employeeId ?? e.contactId ?? e.id;
@@ -91,12 +97,15 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
       where: { isActive: true, name: { contains: q, mode: "insensitive" } },
       take: limit * 2,
       select: { id: true, name: true, email: true, title: true, phone: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("resolve.findPeople.user", [])),
     prisma.employee.findMany({
       where: { isActive: true, fullName: { contains: q, mode: "insensitive" } },
       take: limit * 2,
-      select: { id: true, fullName: true, position: true, email: true, phone: true, userId: true, company: { select: { shortName: true, name: true } } },
-    }).catch(() => []),
+      select: {
+        id: true, fullName: true, position: true, email: true, phone: true, userId: true, company: { select: { shortName: true, name: true } },
+        manager: { select: { fullName: true } }, departmentRef: { select: { name: true } },
+      },
+    }).catch(sansBloquer("resolve.findPeople.employee", [])),
   ]);
 
   for (const u of users) {
@@ -116,6 +125,7 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
       key, name: e.fullName, jobTitle: e.position,
       company: e.company?.shortName ?? e.company?.name ?? null,
       userId: e.userId, employeeId: e.id, contactId: null, directoryEntryId: null,
+      manager: e.manager?.fullName ?? null, department: e.departmentRef?.name ?? null,
     }, endpoints);
   }
 
@@ -127,7 +137,7 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
     },
     take: limit,
     select: { id: true, name: true, contactName: true, email: true, phone: true, kind: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("resolve.findPeople.companyContact", []));
 
   for (const c of contacts) {
     const endpoints: ResolvedEndpoint[] = [];
@@ -145,7 +155,7 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
       where: { direction: "INBOUND", fromName: { contains: q, mode: "insensitive" } },
       orderBy: { sentAt: "desc" }, take: limit,
       select: { fromAddress: true, fromName: true, sentAt: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("resolve.findPeople.emailRecord", []));
     const uniques = new Map<string, { name: string | null; at: Date | null }>();
     for (const m of seen) if (!uniques.has(m.fromAddress)) uniques.set(m.fromAddress, { name: m.fromName, at: m.sentAt });
     for (const [address, meta] of uniques) {
@@ -162,13 +172,4 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
   return [...byKey.values()]
     .map((p) => ({ ...p, endpoints: rankEndpoints(p.endpoints) }))
     .slice(0, limit);
-}
-
-/** Les adresses d'une personne, déjà classées — la question « à quelle adresse lui écrire ? ». */
-export async function emailOptions(query: string): Promise<{ person: PersonMatch; addresses: ResolvedEndpoint[] }[]> {
-  const people = await findPeople(query);
-  return people.map((person) => ({
-    person,
-    addresses: person.endpoints.filter((e) => e.channel === DirectoryChannel.EMAIL),
-  }));
 }

@@ -5,7 +5,7 @@
 import { prisma } from "@/lib/prisma";
 import { DEFAULT_THRESHOLDS, type RiskThresholds } from "./risk-thresholds";
 
-export { DEFAULT_THRESHOLDS, THRESHOLD_FIELDS, type RiskThresholds, type ThresholdField } from "./risk-thresholds";
+export { DEFAULT_THRESHOLDS, THRESHOLD_FIELDS, type RiskThresholds } from "./risk-thresholds";
 
 /** Lit les seuils (frais ; valeurs par défaut si absent ou en cas de souci BDD). */
 export async function getRiskThresholds(): Promise<RiskThresholds> {

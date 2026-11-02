@@ -1,26 +1,19 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useFormAction } from "@/components/shared/use-action";
 import { saveDriveStorageSettings } from "@/lib/actions/settings-actions";
 
 /** Réglage (Super Admin) de la capacité globale du Drive et du quota par utilisateur. */
 export function DriveStorageSettings({ capacityGb, userQuotaGb }: { capacityGb: number; userQuotaGb: number }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { action, busy, err } = useFormAction(saveDriveStorageSettings);
 
   return (
     <form
-      action={async (fd) => {
-        setBusy(true); setErr(null);
-        const r = await saveDriveStorageSettings(fd);
-        setBusy(false);
-        if (!r.ok) setErr(r.error ?? "Échec."); else router.refresh();
-      }}
+      action={action}
       className="flex flex-wrap items-end gap-3"
     >
       <div className="space-y-1">
@@ -34,7 +27,7 @@ export function DriveStorageSettings({ capacityGb, userQuotaGb }: { capacityGb: 
       <Button type="submit" size="sm" disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Enregistrer
       </Button>
-      {err && <p className="basis-full text-xs text-destructive">{err}</p>}
+      <Retour ton="erreur" className="basis-full">{err}</Retour>
     </form>
   );
 }

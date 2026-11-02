@@ -9,7 +9,7 @@ vi.mock("@/lib/push", () => ({ sendPushToUser: async () => {} }));
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { partagerParMessagerie, listerDestinatairesPartage } from "./partage-actions";
-import { AD_PRO_ENTITY_TYPE } from "@/lib/ad-pro/unified";
+import { AD_PRO_ENTITY_TYPE } from "@/modules/ad-pro/partage";
 import { ENTITY_MODULE } from "@/lib/entity-access";
 
 let dbOk = false;

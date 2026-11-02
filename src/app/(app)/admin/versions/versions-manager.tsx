@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle2, FlaskConical, Undo2, PowerOff, Eye, EyeOff } from "lucide-react";
 import { setFeatureStage, toggleMyTestMode } from "@/lib/actions/feature-actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Retour } from "@/components/ui/retour";
+import { useKeyedAction } from "@/components/shared/use-action";
 import type { FeatureRow } from "@/lib/features";
 import { formatDateTime } from "@/lib/utils";
 
@@ -16,26 +17,26 @@ const STAGE: Record<FeatureRow["stage"], { label: string; tone: "success" | "war
 };
 
 export function VersionsManager({ rows, testMode }: { rows: FeatureRow[]; testMode: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  const geste = useKeyedAction();
+  const busy = geste.busy;
+  const err = geste.error;
 
   async function move(key: string, stage: FeatureRow["stage"]) {
-    setBusy(key); setErr(null);
     const fd = new FormData();
     fd.set("key", key); fd.set("stage", stage);
-    const r = await setFeatureStage(fd);
-    setBusy(null);
-    if (r.ok) router.refresh(); else setErr(r.error ?? "Action impossible.");
+    await geste.run(key, async () => {
+      const r = await setFeatureStage(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? "La fonctionnalité n'a pas changé d'étape." };
+    });
   }
 
   async function switchTestMode() {
-    setBusy("__mode"); setErr(null);
     const fd = new FormData();
     fd.set("on", testMode ? "false" : "true");
-    const r = await toggleMyTestMode(fd);
-    setBusy(null);
-    if (r.ok) router.refresh(); else setErr(r.error ?? "Action impossible.");
+    await geste.run("__mode", async () => {
+      const r = await toggleMyTestMode(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? "Le mode test n'a pas été basculé." };
+    });
   }
 
   const inTest = rows.filter((r) => r.stage === "TEST");
@@ -61,7 +62,7 @@ export function VersionsManager({ rows, testMode }: { rows: FeatureRow[]; testMo
         </Button>
       </section>
 
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
 
       <Group
         title={`En version de test (${inTest.length})`}

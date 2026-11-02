@@ -4,6 +4,10 @@
 > Tags: **[V]** = read in code (file:line cited) · **[U]** = inferred / not executed / not fully traced.
 > French domain terms are kept verbatim with a short gloss on first use.
 
+> **Update 2026-10-28 (lot V4):** the HR code now lives in the module `src/modules/rh/` (gates `api.ts` / `partage.ts` /
+> `actions*.ts`, see its `README.md`). Paths below were rewritten to the new locations; behaviour and action keys are unchanged.
+> Still in `src/lib/hr/` (rights socle read by `rbac.ts` and the vault): `stand-in`, `stand-in-resolve`, `confidentialite`.
+
 ---
 
 ## 1. Scope
@@ -24,7 +28,7 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 
 - **One encrypted vault, two backends**: every byte goes through `src/lib/drive-storage.ts` (`putBlob`/`getBlob`), AES-256-GCM, brotli-compressed *before* encryption when worthwhile, deduplicated by SHA-256 of the clear text, stored in an S3-compatible bucket if `S3_*` is set, otherwise in Postgres (`FileBlob.data` or `FileBlobChunk`). **Exception**: files ≥ `S3_DIRECT_THRESHOLD_MB` (20 MB default) go browser→bucket via presigned multipart and are stored **unencrypted by the app** (marked by an empty IV) [V].
 - **HR requests** are `HrDocumentRequest` rows created from `/mon-dossier` by `requestHrDocument`; leave-type requests are *re-routed* to the `LeaveRequest` circuit (N+1 → RH, DG step removed 06/10). RH processes in `/rh/demandes` (`processHrRequest`, `decideHrLeave`, `decideExpenseReport`), the employee is notified with `notifyUser` [V].
-- **Reporting line is a single pure cascade** (`resolveManager` in `src/lib/hr/reporting-line.ts`); `directReportsOf` and `subtreeOf` are defined *as its inverse*, so "Mon équipe" and request routing cannot diverge [V].
+- **Reporting line is a single pure cascade** (`resolveManager` in `src/modules/rh/domaine/reporting-line.ts`); `directReportsOf` and `subtreeOf` are defined *as its inverse*, so "Mon équipe" and request routing cannot diverge [V].
 - **Real-time = polling** (no SSE/WebSocket): `/api/messaging/sync` every 6 s in the messenger / 12 s for the topbar badge, thread poll 3.5 s, `/api/notifications/poll` every 15 s; in-memory "typing" registry (single instance assumption) [V]. The messaging sync route also kicks the **global scheduler** (`runScheduledJobs`) [V].
 - **Notifications**: `notifyUser` / `notifyRoles` / `broadcastNotification` write `Notification` rows and fire Web Push (VAPID auto-generated and persisted if env keys absent). **No e-mail channel exists for notifications** [V].
 - **OnlyOffice**: hand-rolled HS256 JWT; Document Server reads `/api/onlyoffice/file?token=…` and saves through `/api/onlyoffice/callback`. **Top risk**: the callback does not re-check write access and accepts unsigned bodies, while view-mode sessions still ship a write-capable token to the browser (§8, §10) [V].
@@ -44,6 +48,8 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 | `src/lib/storage/televersement-direct.ts` | Shared browser→bucket multipart engine (open / resume plan / finalize, injectable client). |
 | `src/lib/storage/envoi-direct-client.ts` | Import-free browser module that PUTs parts in parallel with progress/abort. |
 | `src/lib/storage/limites-blob.ts`, `phrases-stockage.ts` | Pure limits: 2 GB vault cap, 10 GB per-file cap, `MAX_DB_UPLOAD_MB` (default 100). |
+| `src/modules/bibliotheque/` | **Library (J1, 2026-10-29)**: single registration door `api-inscription.ts` (`inscrirePiece` & forms), ingestion/backfill (`infra/ingestion.ts`, `rattrapage.ts`), hybrid search + rights (`infra/recherche.ts`, `acces.ts`), screen `/bibliotheque`. See §4.1 ter. |
+| `src/lib/entity-access/ouverture-pieces.ts` | Opening rules extracted from the download routes (`peutOuvrirDocument`, `peutOuvrirPieceDeSujet`, `peutOuvrirDocumentRh`, `peutOuvrirPieceDeRapport`) — called by the routes AND the library search. |
 | `src/lib/drive.ts` | `resolveDriveAccess` (owner / share / space / module scope), `canCreateInSpace`, `effectiveSpaceId`. |
 | `src/lib/drive/depot.ts` | Single authorization (`refusDepotDrive`) + registration (`enregistrerFichierDrive`) shared by normal and direct upload paths. |
 | `src/lib/drive/depot-direct.ts` | Drive large-file direct upload sessions (`DirectUpload` model). |
@@ -56,9 +62,9 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 | `src/lib/print-document.ts` | Hidden same-origin iframe print, `window.open` fallback. |
 | `src/lib/compression/{politique,flux,reduction,reduction-cache,zip-ecriture}.ts` | Brotli-at-rest policy, "taille réduite" downloads, streaming ZIP writer. |
 | `src/lib/pdf/simple-pdf.ts`, `src/lib/payslip/to-pdf.ts` | Zero-dependency text PDF; DOCX→PDF via pdfkit (payslips etc.). |
-| `src/lib/actions/hr-document-actions.ts` | HR request lifecycle (create, edit expense, process, decide leave/expense, ack originals, HR interview, cancel, archive). |
-| `src/lib/actions/hr-actions.ts`, `src/lib/hr/leave-core.ts`, `src/lib/leave-workflow.ts`, `src/lib/approval-chain.ts` | Employees, leave circuit, advances. |
-| `src/lib/hr/reporting-line.ts`, `src/lib/hr/team-tree.ts`, `src/lib/departments.ts` | N+1 cascade, N-1 inverse, subtree; DB loader `loadReportingLine`. |
+| `src/modules/rh/actions-documents.ts` | HR request lifecycle (create, edit expense, process, decide leave/expense, ack originals, HR interview, cancel, archive). |
+| `src/modules/rh/actions.ts`, `src/modules/rh/infra/leave-core.ts`, `src/modules/rh/domaine/leave-workflow.ts`, `src/lib/approval-chain.ts` | Employees, leave circuit, advances. |
+| `src/modules/rh/domaine/reporting-line.ts`, `src/modules/rh/domaine/team-tree.ts`, `src/lib/departments.ts` | N+1 cascade, N-1 inverse, subtree; DB loader `loadReportingLine`. |
 | `src/lib/hr/confidentialite.ts` | `voitLesSalaires`, absence-nature masking. |
 | `src/lib/recruitment/request-flow.ts`, `src/lib/actions/recruitment-actions.ts` | Dynamic recruitment chain + candidate pipeline. |
 | `src/lib/actions/training-actions.ts` | Training requests (3-step chain N+1 → RH → DG). |
@@ -97,6 +103,55 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 - **Limits** (`src/lib/storage.ts:65-89`, `limites-blob.ts`): `validateUpload` default `MAX_UPLOAD_MB`=25, `validateDriveUpload` default `MAX_DRIVE_UPLOAD_MB`→`MAX_UPLOAD_MB`→100; runtime values come from `AppSettings` (`maxUploadMb`, `maxDriveUploadMb`) passed as arguments [V]. Vault cap `BLOB_MAX_BYTES`=2 147 483 647 (32-bit `size` legacy), per-file cap 10 GB, DB-only cap `MAX_DB_UPLOAD_MB` default 100 [V]. The browser learns them from `GET /api/uploads/limites` (`src/app/api/uploads/limites/route.ts:19-28`, `private, max-age=60`) [V].
 - **Policy on file types**: Drive and messaging refuse executables only (`src/lib/files/politique-televersement.ts`, `attachment-policy.ts`) [U: rule body not read; docs 18 assert it].
 
+### 4.1 bis Deposited pieces feed the records — enrichment (data overhaul, lot V2-A, 2026-10-27)
+
+- **Three choke points emit**: `persistUploadedDocument` / `inscrireDocumentDirect` (`src/lib/documents.ts`), `attachFiles` (`src/lib/attach-files.ts`), `enregistrerFichierDrive` (`src/lib/drive/depot.ts`; `/api/drive/upload` passes `putBlob().sha256`). Each calls `src/lib/enrichissement/signalement.ts` **after** the business write, outside any transaction; it never throws. `saveFile` now returns `{ blobId, sha256 }` (was `void`; callers that ignored it are unchanged).
+- **Switch** `AppSetting.enrichissementActif` (default **false**): closed ⇒ no `PIECE_DEPOSEE`, no queue row, no processing. Opened/closed by the Super Admin at `/admin/refonte-donnees` (audited).
+- **Outbox** `TacheEnrichissement` (one row per (sha256, rattachement), unique `cle`); a direct-to-bucket upload (`direct:` sha) enters without hash and the pass computes it before emitting. Module documents are queued twice: the business record (`AD_PRO_ITEM:id` role = category) and `DOCUMENT:id` (which receives `Document.pieceId`). Confidentiality for the registry/queue is raised for ID documents and HR (`confidentialitePourEnrichissement`): the file name is reduced to its extension; the document's own access is unchanged.
+- **Pass** `traiterLaFile({ max })` (`src/lib/enrichissement/traitement.ts`), called from `runScheduledJobs` (dynamic import) and from the admin button; `FOR UPDATE SKIP LOCKED` claim, stale lock 10 min, retries 1 min → 2 h, `ECHEC` after 5. Chain: `Piece`/`PieceLien` → text read **locally** (`lireFichierUneFois({ cloud: false })`, cached by sha) → `classerPiece` → `extraireParNature` (rules; quotes/invoices via `proposerLecture` with `sortieCloudPermise: false`) → `FaitPropose` (sensitive values never stored) → subject (`sujets.ts`: the person of the record where the piece was deposited — voyageur via `Document.stepKey`, employee, candidate — checked against identifiers' HMAC in the vault; an organisation only by NIF/NIS/RC/AI) → `deciderFait` → `FaitConfirme` / `ConflitDeFait` / vault.
+- **Vault access is write-only** through `src/lib/enrichissement/porte-coffre.ts` (deposit + HMAC, never read) on the real R6 tables (`src/modules/coffre/infra/depot-referentiel.ts`); `src/modules/coffre/frontiere.test.ts` stops the assistant reachability walk at that gate and checks it calls no read.
+- **Person creation**: a carrier record without `personneId` gets a `Personne` built from its OWN saisie (nom/prénom, never the piece's), linked conditionally — the R1 back-fill will find it linked.
+- **Human decision** `/a-confirmer` (`src/app/(app)/a-confirmer/`): facts EN_ATTENTE with a subject and open conflicts, scoped to pieces the user deposited (Super Admin: all); confirm / reject / settle (`src/lib/actions/enrichissement-actions.ts`, audited). Confirming writes `FaitConfirme` (previous value closed, never deleted) and the record column (Personne nom/prénoms/civilité/naissance; Organisation raison sociale/forme/site; NIF/NIS/RC/AI → `OrganisationIdentifiant`).
+- **Back-fill** of existing documents: reprise `rattrapage-pieces` (`src/modules/referentiels/infra/reprises/`), Super Admin, by batches.
+
+### 4.1 ter Every piece is registered, read once, found by its content — the library (lot J1, 2026-10-29)
+
+- **Registration** (never throws): every writer of the vault (`putBlob`/`saveFile`) calls, after its business write,
+  `inscrirePiece` or a form of it (`inscrireDocument`, `inscrireDocumentEcrit`, `inscrireDocumentExistant`,
+  `inscrireDocumentRh`, `inscrireFichierDrive`) from `@/modules/bibliotheque/api-inscription`; choke points
+  (`enregistrerFichierDrive`, `persistUploadedDocument`, `inscrireDocumentDirect`, `attachFiles`, `putDriveFile`) do it for
+  their callers. R5 registry reused: `Piece` id `piece_<sha256>` (same as enrichment) + `PieceLien` (ENTITE, `entityType` =
+  access family) + `BibliothequeFiche` (one per piece: `cles` access keys, `familles`, format, source, confidentiality —
+  strictest wins —, `sensible`, queue state) + `BibliothequePassage` (~800-token chunks). Ratchet
+  `src/modules/bibliotheque/inscription-cliquet.test.ts`: a vault write not followed by a registration fails `test:architecture`
+  unless named in its 9 justified exceptions (regulatory corpus → J2, letterhead/logo, KPI value import,
+  messaging upload registered at `sendMessage`).
+- **Access keys** `FAMILY:id` (11 families, `domaine/familles.ts`); EXCLUSIVE families (Drive node, `Document`, meeting/field
+  audio, KPI proof) move the key off the previous content (old versions stop matching).
+- **Ingestion** (`bibliotheque.ingestion`, leased `TacheDeFond`, `FOR UPDATE SKIP LOCKED`, stale lock 10 min, retries
+  1 min → 6 h, `ECHEC` at 6): existing readers only — `lireFichierUneFois` (native text then LOCAL OCR, sealed, shared with
+  enrichment), `parsePptx`, transcription (stored transcript of the meeting / field report if any, else `transcribeAudio`
+  under the "voice" switch, never for CONFIDENTIAL); local classification (`classerPiece`/`estNatureLocale`) marks
+  identity/payslip/RIB `sensible`; embeddings (`lunaEmbed`, 512 d, batches of 64) only if pgvector is present AND the piece
+  is neither CONFIDENTIAL nor sensible. Ignored with a reason: archive/unknown, > 40 MB (> 25 MB audio). Backfill
+  `bibliotheque.rattrapage`: 25 rows per family per pass. Kill switch `BIBLIOTHEQUE_INGESTION=off`.
+- **Index** (migration `20270207110000_bibliotheque`, idempotent): `recherche` generated tsvector with config
+  `bibliotheque_fr` (unaccent + french_stem) + GIN; GIN on `cles`/`familles`; trigram GIN on `titrePlie`; `vecteur vector(512)`
+  + HNSW **only if** pgvector is available (DO block; never fails without it). `infra/capacites.ts` detects and falls back
+  (full text + trigrams / folded LIKE).
+- **Search** `chercherDocuments(user, q, filters, { pourModele })`: three lists (FTS in OR mode, title trigrams, vector with
+  `SET LOCAL hnsw.ef_search = 480`, 50 neighbours within 0.1 of the best) fused by RRF (k=60); filters format, period, source,
+  object key, family; highlighted excerpt segments (no HTML). Each candidate piece is judged in rank order: kept only if the
+  user can open at least one of its places through **the very rule of the route serving that file** (`infra/acces.ts`:
+  `resolveDriveAccess` with exact shortcuts for Super Admin / scope ALL / owner, `peutOuvrirDocument`,
+  `canAccessConversation`, `canViewMeeting`, `peutOuvrirDocumentRh`, `peutOuvrirPieceDeRapport`, `peutOuvrirPieceDeSujet`,
+  `canReadFeedback`, `peutVoirBilan`); trashed nodes and vanished objects open nothing. `pourModele`: CONFIDENTIAL and
+  sensible excluded in SQL, excerpts through `censurerTexte`. `ouvrirDocuments(user, ids)` re-stitches the text, same rights;
+  "not found" and "forbidden" read the same.
+- **Not yet wired** into the AI Assistant nor Adam (other sessions own those tools).
+- **Measured** (`npm run bench:bibliotheque`, 2 000 pieces): p50 23 ms / p95 115 ms, recall@10 30/30, 0 out-of-rights;
+  live provider p95 ≈ 360–400 ms (query embedding ≈ 280 ms, bounded at 400 ms and cached).
+
 ### 4.2 Drive model & access
 
 - Models (`prisma/schema.prisma`): `DriveNode` (6322; tree via `parentId`, `spaceId` for shared categories, `size Float`, `isTrashed`), `FileVersion` (6423, `@@unique([nodeId, version])`), `FileBlob` (6388), `FileBlobChunk` (6412), `DriveShare` (6514, VIEW/EDIT per user), `DriveSpace` (6370), `DirectUpload` (15718) [V].
@@ -121,16 +176,16 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 - **Employee** `prisma/schema.prisma:5828-5922` [V]: `departmentId` is the source of truth, `department` a denormalised cache written by `org/source-unique.ts`; payroll elements `baseSalary, retSS9, retSS35*, tfp*, retIrg, expenseRefund, netToPay, grossSalary*, employerCost*` (* = confidential per schema comment); contract `contractType` (CDI/CDD/INTERIM/STAGE/FREELANCE/CONSULTING/OTHER), `contractStart/End`; probation `trialStart/End/Renewable/Renewed/RenewalStart/RenewalEnd`; `leaveBalanceDays` (default 30) + `leaveAccruedThrough` (2.5 d/month accrual, `accrueMonthlyLeave` in `scheduled.ts:104`); `managerId` explicit N+1; `orgX/orgY` org-chart map coordinates; `userId` link to the app account.
 - **Confidentiality** `src/lib/hr/confidentialite.ts:19-21`: `voitLesSalaires = RH:UPDATE || RH:VALIDATE` (§118.184). `/rh/[id]` hides base salary, NIN, CNAS and payroll cards behind it (`rh/[id]/page.tsx:48,222,306-313`) [V]. Absence nature masked for managers (« Congé » vs « Absent ») [V header].
 - **RBAC**: there is **no HR role** in `UserRole` (`schema.prisma:24-44`); HR is carried by module rights `RH`, and since 06/10 by sub-modules `EMPLOYEES`, `HR_REQUESTS`, `TRAINING` defaulting to each role's `RH` rights (`rbac.ts:153,663-670`) [V].
-- **HR requests** (`HrDocumentRequest`, `schema.prisma:5948`; types `HrRequestType` 5799 — certificates, mission order, expense report, exceptional exit, leaves, HR interview; statuses PENDING/IN_PROGRESS/READY/DELIVERED/APPROVED/REJECTED/CANCELLED) [V]. Nature split via `hrNature()` (`src/lib/hr-request-flow.ts`): DOCUMENT (prepare & deliver) vs APPROVAL (grant/refuse) [V import; U body].
-- **Leave** (`LeaveRequest` 6039 + `LeaveEscalation` 6108): created by `createLeaveRequest` (`hr/leave-core.ts:69-121`) — stage `MANAGER` if a N+1 with an account is resolved (`getManagerOf`), else straight to `HR`; N+1 notified by `notifyUser`, HR by `notifyRoles(stageNotifyRoles("HR"))` = `DIRECTION, GENERAL_MANAGER, SUPER_ADMIN` (`approval-chain.ts:121-127`) [V]. Circuit is **N+1 → RH** only (`leave-workflow.ts:1-3,39-41`, `sansDG: true`); a request already at DG stays decidable. DG (`isTopManagement`) may decide at any stage; nobody but DG decides their own (`approval-chain.ts:67-90`) [V]. Decider includes the N+1's stand-in (*intérimaire*, §118.185) (`leave-core.ts:156-175`) [V partial].
+- **HR requests** (`HrDocumentRequest`, `schema.prisma:5948`; types `HrRequestType` 5799 — certificates, mission order, expense report, exceptional exit, leaves, HR interview; statuses PENDING/IN_PROGRESS/READY/DELIVERED/APPROVED/REJECTED/CANCELLED) [V]. Nature split via `hrNature()` (`src/modules/rh/domaine/hr-request-flow.ts`): DOCUMENT (prepare & deliver) vs APPROVAL (grant/refuse) [V import; U body].
+- **Leave** (`LeaveRequest` 6039 + `LeaveEscalation` 6108): created by `createLeaveRequest` (`modules/rh/infra/leave-core.ts:69-121`) — stage `MANAGER` if a N+1 with an account is resolved (`getManagerOf`), else straight to `HR`; N+1 notified by `notifyUser`, HR by `notifyRoles(stageNotifyRoles("HR"))` = `DIRECTION, GENERAL_MANAGER, SUPER_ADMIN` (`approval-chain.ts:121-127`) [V]. Circuit is **N+1 → RH** only (`leave-workflow.ts:1-3,39-41`, `sansDG: true`); a request already at DG stays decidable. DG (`isTopManagement`) may decide at any stage; nobody but DG decides their own (`approval-chain.ts:67-90`) [V]. Decider includes the N+1's stand-in (*intérimaire*, §118.185) (`leave-core.ts:156-175`) [V partial].
 - **Trainings** share the same engine **with** the DG step: `nextChainStage(stage)` without `sansDG` (`approval-chain.ts:35-41`), `training-actions.ts:19,195,260` [V]. `isManager` is true for anyone in the requester's management chain, not only the N+1 (`training-actions.ts:218-230`) [V].
 - **Recruitment** (`RecruitmentRequest` 1915, stages `CHAIN/HR_REVIEW/INFO_REQUESTED/SOURCING/ONBOARDING/CLOSED/REJECTED/CANCELLED/RETURNED`, approvals incl. `SKIPPED`, candidate statuses `RECEIVED→SHORTLISTED→SELECTED→INTERVIEWED→HIRED|DECLINED`) [V]. Chain is **dynamic** (N+1 up to the CEO, frozen at submission); RH may loop "info requested"; requester shortlists, CEO picks; CONSULTING never becomes an `Employee` (`recruitment/request-flow.ts:1-33`) [V header].
-- **Expense notes**: `HrDocumentRequest` type `EXPENSE_REPORT` with `expenseMonth`, `expenseAmount`, mandatory receipt, 15-min self-edit window `editableUntil` (`hr-document-actions.ts:212-262`), RH can reopen; **RH decision blocked until the secretariat acknowledges originals** (`decideExpenseReport` `:640-645`, `ackExpenseOriginals` `:730`) [V].
+- **Expense notes**: `HrDocumentRequest` type `EXPENSE_REPORT` with `expenseMonth`, `expenseAmount`, mandatory receipt, 15-min self-edit window `editableUntil` (`modules/rh/actions-documents.ts:212-262`), RH can reopen; **RH decision blocked until the secretariat acknowledges originals** (`decideExpenseReport` `:640-645`, `ackExpenseOriginals` `:730`) [V].
 - **Org chart & N+1** — §4.5.
 
 ### 4.5 Reporting line: one cascade, both directions
 
-`resolveManager(employeeId, employees, departments)` `src/lib/hr/reporting-line.ts:74-108` [V]:
+`resolveManager(employeeId, employees, departments)` `src/modules/rh/domaine/reporting-line.ts:74-108` [V]:
 1. explicit `managerId` (if active and not self);
 2. head of own department — **unless the employee is that head**, then jump to the parent (deputy skipped);
 3. deputy of own department when head missing/inactive;
@@ -153,7 +208,7 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 ### 4.8 Calendar & meetings
 
 - Time zone: fixed offset Algiers (`ALGIERS_TZ = "Africa/Algiers"`, UTC+1, no DST) with manual shifting helpers `algiersInputToUtc`/`utcToAlgiersInput` (`calendar-tz.ts:8-36`) [V]. Server stores UTC.
-- `CalendarEvent`/`CalendarInvite` (`schema.prisma:9811,9835`); `createEventForUser` (`calendar.ts:174`) used e.g. when an HR interview is confirmed (`hr-document-actions.ts:14,797`) [V import].
+- `CalendarEvent`/`CalendarInvite` (`schema.prisma:9811,9835`); `createEventForUser` (`calendar.ts:174`) used e.g. when an HR interview is confirmed (`modules/rh/actions-documents.ts:14,797`) [V import].
 - Meetings: `Meeting` (9685) + participants, task proposals, chat. Jitsi rooms `AdventumOS-<slug>` on `JITSI_DOMAIN` (default `meet.jit.si`) (`lib/meetings.ts:13-30`); public guest link `/meet/[token]`; the internal page now shows a "Rejoindre" button with an organiser-editable link instead of the embed (`meetings/[id]/meet-join.tsx:12-13`) [V]. Gate: `MESSAGING` module (`meetings/page.tsx:27`) [V].
 - Transcription: `POST /api/meetings/[id]/recording` stores audio via `putBlob`, then `transcribeAudio` (OpenAI `STT_MODEL` default `whisper-1`) unless disabled in the AI control centre; stores `Meeting.transcript` (`recording/route.ts:18-54`) [V].
 - Meeting reminders run in `runScheduledJobs` (`scheduled.ts:101`) [V].
@@ -211,8 +266,8 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 
 ### 6.1 HR request: employee « Mon dossier RH » → RH → notification
 
-1. **UI** `/mon-dossier` (`app/(app)/mon-dossier/page.tsx`, `requireUser`) loads `getMyHrDossier(userId)` — employee identity, documents with `visibleToEmployee: true`, own requests + threads (`queries/hr-documents.ts:163-188`) [V]. "Nouvelle demande" (`request-controls.tsx:10,36`) posts a `FormData` to the server action `requestHrDocument` [V].
-2. **Action** `requestHrDocument` (`hr-document-actions.ts:199-282`) [V]:
+1. **UI** `/mon-dossier` (`app/(app)/mon-dossier/page.tsx`, `requireUser`) loads `getMyHrDossier(userId)` — employee identity, documents with `visibleToEmployee: true`, own requests + threads (`modules/rh/infra/requetes/hr-documents.ts:163-188`) [V]. "Nouvelle demande" (`request-controls.tsx:10,36`) posts a `FormData` to the server action `requestHrDocument` [V].
+2. **Action** `requestHrDocument` (`modules/rh/actions-documents.ts:199-282`) [V]:
    - resolves `Employee` by `userId` (no employee ⇒ refusal);
    - normalises `type` (unknown ⇒ `WORK_CERTIFICATE`);
    - **leave types** ⇒ `createLeaveFromHrForm` → `createLeaveRequest` (`LeaveRequest`, stage MANAGER/HR) + `attachLeaveFiles` — *no* `HrDocumentRequest` row (`:211`, `:137-160`);
@@ -221,7 +276,7 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
    - `hrDocumentRequest.create` → `attachRequestFiles` (each file `validateUpload` vs `maxUploadMb`, `saveFile("HR_REQUEST/<id>/<uuid>__name")` → `putBlob`; on storage failure the `Document` row is still created so the missing piece is visible, `:178-196`);
    - `recordAudit` → `notifyRoles(["DIRECTION","SUPER_ADMIN"], …link /rh/demandes?demande=<id>)` (`:263`) → `revalidatePath("/mon-dossier","/rh")`.
 3. **Notification fan-out**: `notifyRoles` reads active users holding either role (primary or secondary), `createMany`, Web Push to each subscription (`notify.ts:84-117`) [V].
-4. **RH queue** `/rh/demandes` (`requireModule("HR_REQUESTS")`) lists `getHrRequestQueue(perimeter)` — PENDING/IN_PROGRESS, excluding mission orders still gated at the N+1 (`managerGate`), oldest first, take 100 (`queries/hr-documents.ts:212-224`) [V]. Expense notes additionally require the secretariat's `ackExpenseOriginals` from `/demandes` [V].
+4. **RH queue** `/rh/demandes` (`requireModule("HR_REQUESTS")`) lists `getHrRequestQueue(perimeter)` — PENDING/IN_PROGRESS, excluding mission orders still gated at the N+1 (`managerGate`), oldest first, take 100 (`modules/rh/infra/requetes/hr-documents.ts:212-224`) [V]. Expense notes additionally require the secretariat's `ackExpenseOriginals` from `/demandes` [V].
 5. **Processing** (requires `HR_REQUESTS:UPDATE`):
    - document nature → `processHrRequest` (`:584-629`): refuse if mission order still at N+1; update status/hrNote/handledById; `marquerDemandeRhTraitee` (KPI timestamp, once); READY ⇒ legacy annual-leave debit + `synchroniserOrdreEmis`; certificates can be generated/attached (`genererAttestationDeTravail`, `genererOrdreDeMission`);
    - approval nature → `decideHrLeave` (`:680-726`); expense → `decideExpenseReport` (`:631-678`, APPROVE / APPROVE_NEXT month / REJECT).
@@ -241,6 +296,10 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 8. **Cleanup**: abandoned sessions (>7 days) are aborted by `nettoyerDepotsDirectsPerimes`, invoked from `runScheduledJobs` (`scheduled.ts:112`) [V].
    *Small files* (< 20 MB, or any size without bucket up to `MAX_DB_UPLOAD_MB`, and ≤ 2 GB) use `POST /api/drive/upload` (multipart form → `putBlob` → encrypted/compressed/deduped → `enregistrerFichierDrive`, with a timing breakdown returned and logged) (`api/drive/upload/route.ts:15-86`) [V].
 
+### 6.2b Folder dropped into the Assistant IA → Drive tree (J11, decision 0030)
+
+`POST /api/assistant-ia/depot-dossier` (paths + sizes only; `refusDepotDrive(user, {})` = personal-root upload right) → `ouvrirLotDossier` creates a named root folder in the personal Drive (`nomLibre`: « X (2) » if taken; several roots → « Dépôt du … ») and the sub-tree via `creerArborescenceDrive` (same loop as Drive import & messaging), returns `{lotId, racineId, map, deja}`. The browser then enqueues `envoiArborescenceDrive` (steps 2–6 above for big files; `POST /api/drive/upload` otherwise) → `enregistrerFichierDrive` → `inscrireFichierDrive` (one Bibliothèque piece per file). Resume: same fingerprint → same lot, `deja` lists files already under the root (same relative path and size), only the rest is re-sent. `PATCH /api/assistant-ia/depot-dossier/<id>` closes (TERMINE / ABANDONNE).
+
 ### 6.3 OnlyOffice edit/save
 
 `/drive/<id>` builds `sessionEditeur` → config `{document.url: /api/onlyoffice/file?token=<edit JWT>, editorConfig.callbackUrl (edit mode only), token: signJwt(config)}` sent to the browser → DS loads `api.js`, fetches the file server-to-server, user edits → DS POSTs `/api/onlyoffice/callback?id=<node>&token=<edit JWT>` with status 2/6 and a result `url` → route verifies our token (+ body JWT **if present**), `fetch(body.url)`, `putBlob`, creates `FileVersion` n+1, updates node size, audits; for `Document` targets: `saveFile` on same `fileKey`, `version++` (`callback/route.ts:16-80`) [V].
@@ -255,13 +314,13 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 | `storage.ts` (52 importers) | All module attachments (`Document` model), HR request pieces, directives, OnlyOffice `docedit`. |
 | `object-storage.ts` / `S3_*` | Bucket writes fail loudly (no DB fallback) → uploads 503; direct uploads unavailable (413) when unset. Existing bucket blobs unreadable if bucket creds removed (DB rows keep `storageKey`). |
 | `notify.ts` (107 importers) | Every module's notifications + push. Throwing here would break business writes (callers assume best-effort). |
-| `hr/reporting-line.ts` / `departments.ts` (33 importers) | Leave routing, training/recruitment chains, Mon équipe, KPI perimeter, promo-stock visibility, `isManagerOfUser` validations. Changing the cascade changes who decides — tests in `reporting-line`/leave circuit must stay green. |
+| `modules/rh/domaine/reporting-line.ts` / `departments.ts` (33 importers) | Leave routing, training/recruitment chains, Mon équipe, KPI perimeter, promo-stock visibility, `isManagerOfUser` validations. Changing the cascade changes who decides — tests in `reporting-line`/leave circuit must stay green. |
 | `approval-chain.ts` | Both leave (sansDG) and training; editing `chainNotifyRoles` changes who is told at HR/DG steps. |
 | `onlyoffice.ts` (31 importers) / `ONLYOFFICE_JWT_SECRET` | Rotating secret invalidates all open sessions and 24 h tokens; mismatch with DS `JWT_SECRET` ⇒ editor fails to load. |
 | `messaging.ts`/`/api/messaging/sync` | The sync route is one of only two callers of `runScheduledJobs` besides the heartbeat (`scheduled.ts:95`; regulatory progress route) — removing it slows scheduled tasks on hosts where the heartbeat is suspended. |
 | `calendar-tz.ts` (22 importers) | Every displayed date/time and leave day count. Fixed +01:00 — a DST reintroduction in Algeria would require code change. |
 | `lecteurs/legal.ts` | Legal list query (`legalReaderWhere`), file route, expiry sweep recipients. |
-| Prisma `HrRequestType`/`HrRequestStatus` | `REQUEST_TYPES`/`REQUEST_STATUSES` arrays in `hr-document-actions.ts:43-44`, labels, KPI "demandes traitées", archive. |
+| Prisma `HrRequestType`/`HrRequestStatus` | `REQUEST_TYPES`/`REQUEST_STATUSES` arrays in `modules/rh/actions-documents.ts:43-44`, labels, KPI "demandes traitées", archive. |
 
 ---
 
@@ -275,8 +334,8 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 6. **N+1 cascade invariants**: never self; inactive accounts skipped; deputy only for one's own department when the head is absent; Mon équipe ≡ inverse of routing (do not write a department-based team query) [V]. Complexity: `directReportsOf` rebuilds maps per employee → O(n²) per call, O(n³) worst case for `subtreeOf` — fine at current headcount, watch it [V by reading].
 7. **`resolveDriveAccess` with `DRIVE` scope ALL grants VIEW on every node, personal Drives included** (`drive.ts:17`) and costs one query per ancestor level [V].
 8. **Salary visibility vs edit form**: `/rh/[id]` renders `EmployeeForm` — whose props carry `baseSalary, grossSalary, retSS35, tfp, employerCost, nationalId, cnasNumber, iban` — whenever `EMPLOYEES:UPDATE` (`rh/[id]/page.tsx:32,68-100,203-204`), while the read-only gate is `voitLesSalaires` = `RH:UPDATE|VALIDATE`. Since sub-modules can now be granted independently (06/10), a person with `EMPLOYEES:UPDATE` but not `RH:UPDATE` receives salaries in the RSC payload [V code; U whether any role is configured that way] (§118.184 intent: "Modifier suffit parce que le formulaire porte ces montants" — but on the RH module).
-9. **HR request notifications target hard-coded roles**: creation/comment/HR-interview/ack notify `["DIRECTION","SUPER_ADMIN"]` (`hr-document-actions.ts:263,357,490,749,786,834`), whereas the HR step of leaves notifies `DIRECTION, GENERAL_MANAGER, SUPER_ADMIN` and cancellation notifies `rolesWithModule("HR_REQUESTS","UPDATE")` (`:881`). A General Manager or a role granted `HR_REQUESTS:UPDATE` via the console is not told about new requests [V].
-10. **`processHrRequest` does not re-check the entity perimeter** (`clauseSalariesVisibles` is applied by the queue page only) nor the current status — any `HR_REQUESTS:UPDATE` holder can move any request id to any of PENDING/IN_PROGRESS/READY/DELIVERED/REJECTED (`hr-document-actions.ts:584-605`) [V].
+9. **HR request notifications target hard-coded roles**: creation/comment/HR-interview/ack notify `["DIRECTION","SUPER_ADMIN"]` (`modules/rh/actions-documents.ts:263,357,490,749,786,834`), whereas the HR step of leaves notifies `DIRECTION, GENERAL_MANAGER, SUPER_ADMIN` and cancellation notifies `rolesWithModule("HR_REQUESTS","UPDATE")` (`:881`). A General Manager or a role granted `HR_REQUESTS:UPDATE` via the console is not told about new requests [V].
+10. **`processHrRequest` does not re-check the entity perimeter** (`clauseSalariesVisibles` is applied by the queue page only) nor the current status — any `HR_REQUESTS:UPDATE` holder can move any request id to any of PENDING/IN_PROGRESS/READY/DELIVERED/REJECTED (`modules/rh/actions-documents.ts:584-605`) [V].
 11. **Expense originals lock**: RH cannot decide before `originalsAckAt` (`:640-645`) — secretariat must act first [V].
 12. **Leave from Mon dossier is a `LeaveRequest`**, not an `HrDocumentRequest` (`:207-211`); `processHrRequest`'s READY annual-leave debit is a compat path only [V].
 13. **Legal sweep window**: loads `status ∈ {ACTIVE, EXPIRED}` with `endDate ≤ now+90 d`, `orderBy endDate asc`, `take 300` (`expiry-sweep.ts:46-58`). Expired documents never leave that set, so once >300 old EXPIRED documents exist, upcoming expiries are never loaded and reminders stop silently [V code; U actual counts].
@@ -296,13 +355,13 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 | Same doc: « Les seules URL présignées émises sont des PUT … jamais des URL de lecture » | `/api/drive/[id]/raw` issues a 900 s **presigned GET** for direct blobs (`raw/route.ts:72-74`); `presignGetUrl` exists (`object-storage.ts:101`). |
 | Same doc: browser→bucket direct path "pour les dossiers CTD" | Also used by Drive (`/api/drive/upload/direct`) and Documents (`/api/documents/upload/direct`) and messaging lots. |
 | Prisma `LeaveStage` comment (`schema.prisma:563-571`): three steps incl. DG; `approval-chain.ts` header "N+1 → RH → DG"; journal p04 "N+1 → RH → DG est prouvé" | Leave is **N+1 → RH** since 06/10 (`leave-workflow.ts:1-3`, `sansDG: true`). Only trainings keep DG (panorama line 68 is right for trainings). |
-| `docs/readme/12-…p01.md:1320`: leave types via `requestHrDocument` "exigent periodStart + periodEnd" (implying an `HrDocumentRequest`) | Leave types are forwarded to `createLeaveFromHrForm` → `LeaveRequest`; no HR request row (`hr-document-actions.ts:211`). |
-| Schema comment on `Employee` payroll fields: "visibles par le salarié SAUF brut, SS 35 %, TFP" | `getMyHrDossier` returns **no** payroll field to the employee at all (`queries/hr-documents.ts:175-187`); payslips reach them only as `EmployeeDocument` PDFs. |
+| `docs/readme/12-…p01.md:1320`: leave types via `requestHrDocument` "exigent periodStart + periodEnd" (implying an `HrDocumentRequest`) | Leave types are forwarded to `createLeaveFromHrForm` → `LeaveRequest`; no HR request row (`modules/rh/actions-documents.ts:211`). |
+| Schema comment on `Employee` payroll fields: "visibles par le salarié SAUF brut, SS 35 %, TFP" | `getMyHrDossier` returns **no** payroll field to the employee at all (`modules/rh/infra/requetes/hr-documents.ts:175-187`); payslips reach them only as `EmployeeDocument` PDFs. |
 | `src/app/(app)/courrier/page.tsx` comment: mail "se gère désormais dans l'app Infomaniak" | README §19 and code: replacement is **Microsoft 365** (`/messagerie`). |
 | `src/lib/pdf/simple-pdf.ts` header: « Aucune bibliothèque PDF n'est installée » | `pdfkit ^0.20.2` and `mupdf ^1.28.0` are dependencies and used (`payslip/to-pdf.ts`, `compression/reduction.ts`). |
 | `docs/readme/23-variables…` | Lists no `MICROSOFT_*`, `GOOGLE_*`, `JITSI_DOMAIN`, `VAPID_SUBJECT`, `S3_DIRECT_*`, `MAX_DB_UPLOAD_MB`, `SCHEDULER_*`, `STT_MODEL` variables that the code reads. |
 | README §20 "Inerte tant que les variables ne sont pas posées (aucun bouton « Éditer »)" | Mostly true; but a Drive page for an Office file shows an explicit "not configured" message (`drive/[id]/page.tsx:55-57`) rather than nothing. Minor. |
-| `approval-chain.ts:121-127` note "Qui porte réellement la fonction RH : la Direction et le DG" | HR notifications in `hr-document-actions.ts` omit `GENERAL_MANAGER` (see §8.9). Internal inconsistency rather than doc error. |
+| `approval-chain.ts:121-127` note "Qui porte réellement la fonction RH : la Direction et le DG" | HR notifications in `modules/rh/actions-documents.ts` omit `GENERAL_MANAGER` (see §8.9). Internal inconsistency rather than doc error. |
 
 ---
 

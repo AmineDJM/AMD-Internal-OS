@@ -40,7 +40,8 @@ export const metadata = { title: "Ma journée — AMD Internal OS" };
  * sur les jours ouvrés qui restent (semaine algérienne). Un cinquième ne serait plus lu. Ils ne
  * notent personne — ils disent à un homme où il en est de son propre mois.
  */
-export default async function MaJourneePage({ searchParams }: { searchParams?: { vue?: string } }) {
+export default async function MaJourneePage(props: { searchParams?: Promise<{ vue?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MEDICAL");
   const canLog = userCan(user, "MEDICAL", "CREATE");
   // LA VUE PAR DÉFAUT EST « AUJOURD'HUI » : c'est la question qu'un homme de terrain se pose en

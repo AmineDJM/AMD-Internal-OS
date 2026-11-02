@@ -7,6 +7,10 @@ import { createDriveSpace, updateDriveSpace, archiveDriveSpace, deleteDriveSpace
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { Retour } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ROLE_LABELS } from "@/lib/labels";
 
 type UserOpt = { id: string; name: string };
@@ -96,14 +100,19 @@ export function CreateSpaceButton({ users }: { users: UserOpt[] }) {
         <form
           action={async (fd) => {
             setSaving(true); setErr(null);
-            const r = await createDriveSpace(fd);
-            setSaving(false);
-            if (r.ok && r.id) { setOpen(false); router.push(`/drive/espace/${r.id}`); } else setErr(r.error ?? "Erreur.");
+            try {
+              const r = await createDriveSpace(fd);
+              if (r.ok && r.id) { setOpen(false); router.push(`/drive/espace/${r.id}`); } else setErr(r.error ?? "La catégorie n'a pas été créée.");
+            } catch {
+              setErr(actionFailureMessage("THROWN"));
+            } finally {
+              setSaving(false);
+            }
           }}
           className="space-y-4"
         >
           <AccessFields users={users} />
-          {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+          <Retour ton="erreur">{err}</Retour>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={saving}>Annuler</Button>
             <Button type="submit" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Créer</Button>
@@ -117,15 +126,22 @@ export function CreateSpaceButton({ users }: { users: UserOpt[] }) {
 /** Réglages d'une catégorie (nom, accès), archivage, et suppression (Super Admin). */
 export function SpaceSettingsButton({ space, users, canDelete }: { space: SpaceData; users: UserOpt[]; canDelete: boolean }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
   const run = async (fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) => {
     setSaving(true); setErr(null);
-    const r = await fn();
-    setSaving(false);
-    if (r.ok) { setOpen(false); after ? after() : router.refresh(); } else setErr(r.error ?? "Erreur.");
+    try {
+      const r = await fn();
+      if (r.ok) { setOpen(false); after ? after() : rafraichir(); } else setErr(r.error ?? "La catégorie n'a pas été modifiée.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -134,7 +150,7 @@ export function SpaceSettingsButton({ space, users, canDelete }: { space: SpaceD
       <Sheet open={open} onClose={() => !saving && setOpen(false)} title={`Catégorie « ${space.name} »`} description="Renommer, régler qui y a accès, archiver ou supprimer." width="lg">
         <form action={(fd) => run(() => { fd.set("id", space.id); return updateDriveSpace(fd); })} className="space-y-4">
           <AccessFields users={users} space={space} />
-          {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+          <Retour ton="erreur">{err}</Retour>
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
             <div className="flex flex-wrap gap-2">
               <Button type="button" variant="outline" size="sm" disabled={saving}
@@ -143,8 +159,8 @@ export function SpaceSettingsButton({ space, users, canDelete }: { space: SpaceD
               </Button>
               {canDelete && (
                 <Button type="button" variant="outline" size="sm" disabled={saving}
-                  onClick={() => {
-                    if (!window.confirm(`Supprimer définitivement « ${space.name} » et TOUT son contenu ? Action irréversible.`)) return;
+                  onClick={async () => {
+                    if (!(await confirmer(`Supprimer définitivement « ${space.name} » et TOUT son contenu ? Action irréversible.`))) return;
                     run(() => { const fd = new FormData(); fd.set("id", space.id); return deleteDriveSpace(fd); }, () => router.push("/drive"));
                   }}
                   className="text-destructive hover:bg-destructive/10">

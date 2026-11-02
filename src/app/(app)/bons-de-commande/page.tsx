@@ -26,7 +26,8 @@ export const metadata = { title: "Bons de commande à signer — AMD Internal OS
  * On ne COMPOSE plus de bon de commande ici (Direction, 10/2026) : cet écran est celui de la SIGNATURE. Un BC se compose
  * dans Legal, ou depuis « Demandes de validations » pour le faire pré-valider.
  */
-export default async function BonsDeCommandePage({ searchParams }: { searchParams: { bc?: string } }) {
+export default async function BonsDeCommandePage(props: { searchParams: Promise<{ bc?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PURCHASE_ORDERS");
   const file = await fileBonsDeCommande(user);
   if (!file) notFound();

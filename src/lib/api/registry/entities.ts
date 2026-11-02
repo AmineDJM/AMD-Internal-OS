@@ -56,10 +56,24 @@ export interface EntityDef {
   entityType?: string;
   /** Objets liés exposés par `/related` : nom → champ de relation Prisma. */
   related?: Record<string, string>;
+  /**
+   * LA PROJECTION D'UNE RELATION (audit 27/10, reste de SA-05) : les champs rendus pour chaque objet lié, quand
+   * l'objet lié porte des données personnelles. Sans elle, `/related` rendait la ligne entière — les membres d'un
+   * département arrivaient avec adresse et téléphone, que la fiche du salarié ne montre qu'aux RH.
+   */
+  champsRelation?: Record<string, string[]>;
   /** Tri par défaut. */
   orderBy?: Record<string, "asc" | "desc">;
   /** L'objet porte-t-il un circuit de validation exposé par `/workflow` ? */
   workflow?: "regulatory" | "adpro" | "leave" | "validation" | null;
+  /**
+   * LA PORTÉE D'API QUE L'OBJET EXIGE EN PLUS de la lecture (audit 27/10, SA-15). Les comptes et le journal d'audit
+   * sont des objets d'administration : le droit `ADMIN:VIEW` de la personne au nom de qui l'agent agit ne suffit pas,
+   * le CLIENT doit aussi porter `erp.admin` — sans quoi une clé `erp.read` listait comptes et journal. Lue par toutes
+   * les routes de lecture (`porteeManquante`). Le littéral, et non le type `Scope` : le registre est au socle, il
+   * n'importe pas la façade `api/scopes` (cliquet `platform/domains.test.ts`).
+   */
+  porteeRequise?: "erp.admin";
 }
 
 /** Portée « le module suffit » : l'objet n'a pas de filtre par ligne, seul le droit compte. */
@@ -122,6 +136,8 @@ export const ENTITIES: EntityDef[] = [
     listFields: ["id", "name", "code", "parentId", "companyId", "headId", "deputyId", "description"],
     searchFields: ["name", "code"],
     related: { children: "children", members: "members", budgets: "budgets", pettyCash: "pettyCash" },
+    // Les membres : ce que la LISTE des employés rend, pas leur fiche (adresse, téléphone, pièces d'identité).
+    champsRelation: { members: ["id", "fullName", "position", "departmentId", "companyId", "isActive", "hireDate", "contractType", "userId"] },
     orderBy: { name: "asc" },
   },
   {
@@ -411,6 +427,8 @@ export const ENTITIES: EntityDef[] = [
     module: "WORKSPACE",
     label: "Tâche",
     description: "Tâche assignée à une personne, éventuellement rattachée à un projet ou à un objet métier.",
+    // Le CERCLE de la tâche — le module WORKSPACE, que tout le monde a, ne suffit pas. La clause est
+    // celle du domaine `tasks` : posée par `portee.ts` (une façade), le socle ne connaît pas les domaines.
     scope: moduleOnly,
     listFields: ["id", "title", "status", "priority", "assignedToId", "createdById", "dueDate", "module", "relatedEntityType", "relatedEntityId", "createdAt"],
     searchFields: ["title", "description"],
@@ -436,6 +454,7 @@ export const ENTITIES: EntityDef[] = [
     label: "Compte utilisateur",
     description: "Compte de connexion, son rôle et ses droits. Objet d'administration : l'exposer demande la portée `erp.admin`.",
     scope: moduleOnly,
+    porteeRequise: "erp.admin",
     listFields: ["id", "name", "email", "role", "secondaryRole", "isActive", "departmentId", "title", "lastLoginAt", "createdAt"],
     searchFields: ["name", "email"],
     entityType: "USER",
@@ -446,8 +465,9 @@ export const ENTITIES: EntityDef[] = [
     model: "AuditLog",
     module: "ADMIN",
     label: "Entrée du journal d'audit",
-    description: "Trace d'une action humaine dans l'ERP : qui, quoi, sur quel objet, quand.",
+    description: "Trace d'une action humaine dans l'ERP : qui, quoi, sur quel objet, quand. Objet d'administration : l'exposer demande la portée `erp.admin`.",
     scope: moduleOnly,
+    porteeRequise: "erp.admin",
     listFields: ["id", "actorId", "action", "module", "entityType", "entityId", "field", "oldValue", "newValue", "summary", "createdAt"],
     searchFields: ["summary"],
     orderBy: { createdAt: "desc" },
@@ -458,7 +478,8 @@ export const ENTITIES: EntityDef[] = [
     module: "NOTIFICATIONS",
     label: "Notification",
     description: "Alerte adressée à une personne (assignation, validation attendue, échéance).",
-    scope: moduleOnly,
+    // Une notification n'est lue que par son destinataire — jamais par « qui a le module ».
+    scope: (user) => ({ userId: user.id }),
     listFields: ["id", "userId", "type", "title", "body", "link", "isRead", "createdAt"],
     searchFields: ["title", "body"],
     orderBy: { createdAt: "desc" },
@@ -477,10 +498,15 @@ export function entityNames(): string[] {
 
 /**
  * L'utilisateur peut-il lire cet objet ? La question est posée au RBAC de l'ERP, pas à l'API.
- * Un objet d'administration exige en plus la portée `erp.admin` côté route.
+ * Un objet d'administration exige en plus une portée du CLIENT (`porteeManquante`) côté route.
  */
 export function canReadEntity(user: SessionUser, def: EntityDef): boolean {
   return [def.module, ...(def.lisiblePar ?? [])].some((m) => userCan(user, m, "VIEW"));
+}
+
+/** La portée d'API que l'objet exige et que le client ne porte pas — `null` quand rien ne manque (SA-15). */
+export function porteeManquante(def: EntityDef, portees: readonly string[]): string | null {
+  return def.porteeRequise && !portees.includes(def.porteeRequise) ? def.porteeRequise : null;
 }
 
 /** Filtre Prisma correspondant à la portée de l'utilisateur sur cet objet. */

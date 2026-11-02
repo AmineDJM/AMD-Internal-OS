@@ -2,6 +2,7 @@ import { getActionCenter, type ActionItem } from "@/lib/queries/action-center";
 import { getCalendarEvents, type CalendarEventDTO } from "@/lib/calendar";
 import { algiersTodayYmd } from "@/lib/calendar-tz";
 import type { SessionUser } from "@/lib/rbac";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * « AUJOURD'HUI » — l'écran d'accueil qui répond à une seule question : *que dois-je faire
@@ -106,7 +107,7 @@ export async function getToday(user: SessionUser): Promise<TodayView> {
 
   const [center, agenda] = await Promise.all([
     getActionCenter(user),
-    getCalendarEvents(user, dayStart, dayEnd).catch(() => [] as CalendarEventDTO[]),
+    getCalendarEvents(user, dayStart, dayEnd).catch(sansBloquer("today.getToday.getCalendarEvents", [] as CalendarEventDTO[])),
   ]);
 
   const ranked = rankToday(center.items, now);

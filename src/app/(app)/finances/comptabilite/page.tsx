@@ -3,15 +3,13 @@ import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { companyScopedWhere } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
-import { getFinanceData, chargerTresorerie } from "@/lib/queries/finance";
-import { getComptaData, getResultatMensuel } from "@/lib/queries/compta";
-import { lirePeriode, moisAlger } from "@/lib/finance/resultat-mensuel";
+import { getFinanceData, chargerTresorerie, getComptaData, getResultatMensuel } from "@/modules/finances/api";
+import { lirePeriode, moisAlger, auditLedger, auditSummary } from "@/modules/finances/partage";
 import { ComptaCockpit } from "../compta-cockpit";
-import { auditLedger, auditSummary } from "@/lib/finance/ledger-audit";
 import { PageHeader } from "@/components/shared/page-header";
 import { CreateRecordButton } from "@/components/shared/create-record-button";
 import { optionsFromMap } from "@/components/shared/form-fields";
-import { createTransaction, createQuickIncome } from "@/lib/actions/finance-actions";
+import { createTransaction, createQuickIncome } from "@/modules/finances/actions-tresorerie";
 import { FINANCE_CATEGORY, FINANCE_DIRECTION, FINANCE_METHOD, FINANCE_STATUS } from "@/lib/labels";
 import { getMyCompanies, companyOptions } from "@/lib/company";
 import { LedgerTable } from "../ledger-table";
@@ -35,11 +33,12 @@ export const dynamic = "force-dynamic";
  * du travail de comptable, il est donc ICI, au-dessus du livre qu'il conduit à corriger. Le
  * reloger était le seul moyen de ne pas perdre une capacité qu'aucun autre écran ne portait.
  */
-export default async function ComptabilitePage({
-  searchParams,
-}: {
-  searchParams?: { periode?: string; du?: string; au?: string };
-}) {
+export default async function ComptabilitePage(
+  props: {
+    searchParams?: Promise<{ periode?: string; du?: string; au?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("FINANCES");
   // LA PÉRIODE DU RÉSULTAT MENSUEL — lue dans l'adresse, côté serveur : un lien la partage, un
   // rechargement la garde. Illisible, elle retombe sur 6 mois en le disant (`lirePeriode`).

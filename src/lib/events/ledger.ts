@@ -4,6 +4,7 @@ import { EXPECTED_EVENTS, matchEvent, type BusinessEventLike, type TaskLike } fr
 import { reveillerMissions } from "@/lib/missions/events/router";
 import { satisfaireEngagements } from "@/lib/missions/commitments/satisfy";
 import { invaliderEtatsChauds } from "@/lib/fabric";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -151,11 +152,19 @@ export async function recordEvent(input: RecordEventInput): Promise<string | nul
           console.error("[events] réveil de surveillance impossible", evt.type, err);
         }),
 
+      // C1 (décision 0042) : un fait de la forge ou de l'hébergeur (webhook C2) réveille les chantiers qu'il concerne — le
+      // sondage à pas croissant reste en secours. Import différé : le registre ne tire le moteur qu'à ce moment.
+      ...(/^(DEV|RENDER)_/.test(evt.type) ? [
+        import("@/lib/missions/chantiers/reveil")
+          .then((m) => m.reveillerChantiersSurFait({ type: evt.type, relatedRefs: input.relatedRefs ?? [] }))
+          .catch(sansBloquer("events-ledger.recordEvent.reveillerChantiers")),
+      ] : []),
+
       // LES ÉTATS CHAUDS DÉMENTIS (fabric F5) : les signaux exécutifs précalculés AVANT ce fait
       // ne peuvent plus être servis tels quels. On MARQUE — le prochain lecteur ou le battement
       // paie le recalcul —, et l'invalidation ne touche que les lignes pas encore marquées :
       // idempotente, une requête indexée, jamais bloquante.
-      invaliderEtatsChauds("alertes-executives").catch(() => undefined),
+      invaliderEtatsChauds("alertes-executives").catch(sansBloquer("events-ledger.recordEvent.invaliderEtatsChauds")),
     ];
     await Promise.allSettled(consequences);
 

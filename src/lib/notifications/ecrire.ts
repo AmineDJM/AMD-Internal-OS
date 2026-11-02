@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * REJOUER LIGNE À LIGNE UN LOT DE NOTIFICATIONS REFUSÉ — pour ne pas perdre les 199 autres
@@ -64,7 +65,7 @@ export async function rejouerNotifications(
     const ok = await prisma.notification
       .create({ data: ligne })
       .then(() => true)
-      .catch(() => false);
+      .catch(sansBloquer("ecrire.rejouerNotifications.notification", false));
     if (ok) ecrites += 1;
   }
   if (ecrites < lignes.length) {

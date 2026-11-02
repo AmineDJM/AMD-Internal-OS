@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { Copy, Check, Pencil, Loader2, ClipboardList, Paperclip } from "lucide-react";
 import { saveCompanyIdentity } from "@/lib/actions/company-identity-actions";
 import { identityBlock, filledCount, type IdentitySection } from "@/lib/legal/identity";
@@ -181,18 +181,13 @@ function IdentitySheet({
   sections: IdentitySection[];
   onClose: () => void;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, run } = useAction();
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.set("companyId", company.id);
-    setBusy(true); setErr(null);
-    const r = await saveCompanyIdentity(fd);
-    setBusy(false);
-    if (r.ok) { onClose(); router.refresh(); } else setErr(r.error ?? "Échec.");
+    await run(() => saveCompanyIdentity(fd), onClose);
   }
 
   return (

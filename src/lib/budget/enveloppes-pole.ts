@@ -7,6 +7,7 @@ import { DOMAINES, bornesAnnee, type DomainePole } from "@/lib/budget/domaines";
 import { CATEGORIES_AD_PRO } from "@/lib/budget-marketing/domaine";
 import { CATEGORIES_BV } from "@/lib/budget-regulatory/bv";
 import { CATEGORIES_OPERATIONS, CLE_MASSE_SALARIALE } from "@/lib/budget-operations/force-de-vente";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -120,7 +121,7 @@ async function ouvrirEnveloppeAnnuelle(
     await recordAudit({
       actorId, action: "CREATE", module: DOMAINES[pole].titre, entityId: cree.id,
       summary: `Enveloppe de l'année « ${nom} » ouverte d'office avec ${n} catégorie(s) (masse salariale d'abord) — montants à saisir`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("enveloppes-pole.ouvrirEnveloppeAnnuelle.recordAudit"));
     return { id: cree.id, creee: true };
   });
 }

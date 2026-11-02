@@ -36,8 +36,6 @@ export function libelleFormats(): string {
   return CORPUS_IMPORT_EXTS.map((e) => e.toUpperCase()).join(", ");
 }
 
-export type CorpusImportExt = (typeof CORPUS_IMPORT_EXTS)[number];
-
 export type FileIngestStatus = "INGESTED" | "UNCHANGED" | "FAILED";
 
 export interface FileIngestResult {

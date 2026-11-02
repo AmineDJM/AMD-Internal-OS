@@ -1,0 +1,345 @@
+{
+  "base": "http://localhost:3100",
+  "compte": "yacine.benali@adventum-bench.dz",
+  "debut": "2026-11-01T13:27:38.236Z",
+  "le": "2026-11-02T00:43:26.356Z",
+  "lignes": [
+    {
+      "fonction": "Conversation privée — rien n'est retenu",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "souvenirs créés : 0 ; réponse « Enchanté d’en savoir un peu plus sur Sarah ! »",
+      "captures": [
+        "iphone-06-privee.jpg"
+      ]
+    },
+    {
+      "fonction": "Réglages (thème, voix, missions, notifications, appareils, consommation)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "consommation : « Consommation Vos jetons et leur coût en dollars, au micro-dollar près : par jour, par modèle, par usage, par conversation, appel par appel. Voir la consommation » ; appareils affichés : true",
+      "captures": [
+        "iphone-16-reglages.jpg",
+        "iphone-17-consommation.jpg"
+      ]
+    },
+    {
+      "fonction": "Dossiers de conversations",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "bouton « Nouveau dossier » : true",
+      "captures": [
+        "iphone-18-dossiers.jpg"
+      ]
+    },
+    {
+      "fonction": "Analyse de données (tableau, calcul, export Excel)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "outils : Recherche effectuée, Requête SQL en lecture seule, Analyse calculée ; blocs : [{\"kind\":\"analyse\",\"title\":\"Structure des demandes de paiement\",\"total\":1,\"lignes\":[[\"cmvxswcq7002ms79bdqgd3lqb\",\"PAY-2026-041\",\"Règlement facture Hikma — lot 2",
+      "captures": [
+        "iphone-09-analyse.jpg"
+      ]
+    },
+    {
+      "fonction": "Exports (fichier Excel dans le Drive)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "fichiers créés : 1 ; outils : Exporter le suivi Regulatory (Excel) ; « Le suivi Regulatory est exporté en Excel et contient 8 dossiers. Il est enregistré dans Drive › Exports.\n\n[Télécharger le fichier](/api/drive/cmvxvc1mi00h48i32m »",
+      "captures": [
+        "iphone-10-export.jpg"
+      ]
+    },
+    {
+      "fonction": "Recherche web (sources datées)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "outils : Recherche web effectuée ; « Les dernières publications visibles de l’ANPP, datées du **28 octobre 2026**, annoncent la prorogation de deux consultations pour l’achat de pièces de laboratoire et de réactifs chimiques. Leur ordre  »",
+      "captures": [
+        "iphone-11-web.jpg"
+      ]
+    },
+    {
+      "fonction": "Missions — sous-missions, tableau temps réel, synthèse",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "sous-missions : 2 ; synthèse : TERMINE « **Les sous-missions sont finies** — 2/2 terminées, coût total 0,03 $.\n\nEn bref : Les tâches recensées dans « mes-taches » sont toutes non te »",
+      "captures": [
+        "iphone-12a-missions-a-approuver.jpg",
+        "iphone-12-missions.jpg"
+      ]
+    },
+    {
+      "fonction": "Recherche approfondie (mission, rapport sourcé)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "mission : 1 ; rapport : 24424 car., 104 appels de source ; « **La mission « Biosimilaires en Algérie en 2026 : réglementation et prix » est terminée** — coût 0,11 $.\n\n---\n\n# Marché des biosimilaires en Algérie en 2026\n\nRe »",
+      "captures": [
+        "iphone-13a-recherche-approfondie.jpg"
+      ]
+    },
+    {
+      "fonction": "Pièces jointes (dépôt, lecture)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "« Le lancement de Cardiofix est reporté à janvier 2027, faute d’enregistrement auprès de l’ANPP. »",
+      "captures": [
+        "iphone-13-piece.jpg"
+      ]
+    },
+    {
+      "fonction": "Images (génération)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "AssistantIaVisuel : cmvxvmb3700yd8i32g45zv0rr ; « L’image est prête et enregistrée dans votre Drive. »",
+      "captures": [
+        "iphone-14-image.jpg"
+      ]
+    },
+    {
+      "fonction": "Mes notes — proposition de l'assistant, acceptation, onglet",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "propositions : 1, acceptée : true, pages : 1",
+      "captures": [
+        "iphone-07-notes-proposees.jpg",
+        "iphone-08-onglet-notes.jpg"
+      ]
+    },
+    {
+      "fonction": "Mémoire — capture automatique",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "3 souvenir(s) en base (AssistantMemoryItem, origine « auto ») : [VOYAGES] Part à Lyon le 12 novembre 2026 avec sa fille Lina | [ETUDES_PARCOURS] A fait ses études à l’École nationale polytechnique d’Alger | [GOUTS_LOISIRS] Adore le café noir le matin",
+      "captures": [
+        "iphone-01-capture-retenu.jpg"
+      ],
+      "detail": {
+        "reponse": "Bonjour Yacine ! Bon voyage à Lyon avec Lina le 12 novembre. J’ai bien noté vos études à l’École nationale polytechnique d’Alger et votre goût pour le café noir le matin.",
+        "memoiresRetenues": [
+          {
+            "id": "cmvy0gljd000jz2yd7w1ck50s",
+            "geste": "ajoute",
+            "sorte": "VOYAGES",
+            "contenu": "Part à Lyon le 12 novembre 2026 avec sa fille Lina"
+          },
+          {
+            "id": "cmvy0gljl000mz2ydmniadfel",
+            "geste": "ajoute",
+            "sorte": "ETUDES_PARCOURS",
+            "contenu": "A fait ses études à l’École nationale polytechnique d’Alger"
+          },
+          {
+            "id": "cmvy0gljq000pz2yd4vqz23ff",
+            "geste": "ajoute",
+            "sorte": "GOUTS_LOISIRS",
+            "contenu": "Adore le café noir le matin"
+          }
+        ]
+      }
+    },
+    {
+      "fonction": "Conversations — création et titre",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "AssistantIaFil cmvy0gf880007z2yden774i8z : titre « Voyage à Lyon avec Lina » (auto)",
+      "captures": []
+    },
+    {
+      "fonction": "Mémoire — « annuler » un souvenir",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "souvenirs actifs : 3 → 2",
+      "captures": [
+        "iphone-02-annule.jpg"
+      ]
+    },
+    {
+      "fonction": "Mémoire — rappel dans une NOUVELLE conversation",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "réponse : « Oui : tu pars à Lyon le 12 novembre 2026 avec ta fille Lina. »",
+      "captures": [
+        "iphone-03-rappel-voyage.jpg"
+      ]
+    },
+    {
+      "fonction": "Mémoire — panneau « Ce qu'il retient » (groupes, édition, origine, compteur)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "2 souvenir(s) affiché(s), édition écrite en base : true",
+      "captures": [
+        "iphone-04-panneau.jpg",
+        "iphone-05-panneau-edite.jpg"
+      ]
+    },
+    {
+      "fonction": "Voix — session (porte), fin de conversation : transcription + mémoire",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "session : HTTP 502 ; journal : HTTP 200 ; souvenir vocal : [FAMILLE] Fils : Adam ; commence l’université à Constantine en septembre 2027.",
+      "captures": [
+        "iphone-15-voix-transcription.jpg"
+      ]
+    },
+    {
+      "fonction": "Routines — créer (carte), lancer, résultat, non-lus",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "routine : créée (« Confirmez la carte pour programmer le point sur vos tâches en retard chaque lundi à 8 h, heure d’Alg ») ; passage : SUCCES, lu",
+      "captures": [
+        "iphone-19-routine-carte.jpg",
+        "iphone-20-routines-panneau.jpg"
+      ]
+    },
+    {
+      "fonction": "Veille (ce que l'assistant surveille)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "panneau ouvert : true",
+      "captures": [
+        "iphone-21-veille.jpg"
+      ]
+    },
+    {
+      "fonction": "« Ce que l'assistant a fait » (journal des gestes, Annuler) — écart ERP corrigé",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "panneau ouvert dans l'app, 2 geste(s) listé(s)",
+      "captures": [
+        "iphone-22-gestes.jpg"
+      ]
+    },
+    {
+      "fonction": "Documents (tiroir) et Atelier",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "onglet Documents puis Atelier ouverts",
+      "captures": [
+        "iphone-23-documents.jpg",
+        "iphone-24-atelier.jpg"
+      ]
+    },
+    {
+      "fonction": "Dépôt de dossier",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "« Le dossier contient une lettre de demande d’AMM pour Cardiofix 10 mg adressée à l’ANPP le 2 octobre 2026, un résumé des caractéristiques du produit indiquant l’hypertension artérielle et une étude de stabilité sur 24 moi »",
+      "captures": [
+        "iphone-25-depot-dossier.jpg"
+      ]
+    },
+    {
+      "fonction": "Bureau — Routines, Veille, « Ce que l'assistant a fait », Documents",
+      "ecran": "bureau 1440",
+      "verdict": "marche",
+      "preuve": "quatre panneaux ouverts depuis la liste et le tiroir",
+      "captures": [
+        "bureau-03-routines.jpg",
+        "bureau-04-veille.jpg",
+        "bureau-05-gestes.jpg",
+        "bureau-06-documents.jpg"
+      ]
+    },
+    {
+      "fonction": "Voix — ouvrir, appeler, raccrocher/annuler, fermer (au pouce)",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "session gpt-live ouverte par le serveur ; état : « Connexion… » (WebRTC sans UDP dans le banc) ; « Annuler » à y=592, « Fermer » à y=592 (écran 664) ; panneau refermé : true",
+      "captures": [
+        "iphone-26a-voix-pret.jpg",
+        "iphone-26b-voix-en-appel.jpg",
+        "iphone-26c-voix-raccroche.jpg"
+      ]
+    },
+    {
+      "fonction": "Texte collé de 60 000 caractères — envoyé ENTIER",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "message en base : 60075 caractères sur 60075 ; réponse : « La réunion a validé les étapes 0 à 986. Le texte fourni se termine abruptement par « Po FIN-COLLEE » après le point 986. »",
+      "captures": [
+        "iphone-27-texte-60000.jpg"
+      ]
+    },
+    {
+      "fonction": "Texte collé de 600 000 caractères — devenu une pièce lue",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "pièce « Texte collé — 02-11-2026 01h41 (600 041 caractères).txt » (628720 octets, texte 628720 octets) ; réponse : « Le compte rendu indique que la réunion a validé des milliers d’étapes numérotées, mais la lecture initiale de la pièce était partielle et la lecture par parties ne confirme pas certaines validations a »",
+      "captures": [
+        "iphone-28-texte-600000-piece.jpg"
+      ]
+    },
+    {
+      "fonction": "Bureau — ligne « Retenu » et panneau",
+      "ecran": "bureau 1440",
+      "verdict": "marche",
+      "preuve": "conversation et panneau affichés",
+      "captures": [
+        "bureau-01-conversation-retenu.jpg",
+        "bureau-02-panneau.jpg"
+      ]
+    },
+    {
+      "fonction": "Bureau — texte collé de 60 000 caractères envoyé ENTIER",
+      "ecran": "bureau 1440",
+      "verdict": "marche",
+      "preuve": "message en base : 60083 sur 60083 ; réponse : « 986 »",
+      "captures": [
+        "bureau-07-texte-60000.jpg"
+      ]
+    }
+  ],
+  "couts": {
+    "fil · gpt-6.1-terra": {
+      "appels": 75,
+      "entree": 701958,
+      "sortie": 10042,
+      "usd": 0.5213059999999999
+    },
+    "memoire · gpt-6-luna": {
+      "appels": 7,
+      "entree": 8238,
+      "sortie": 2222,
+      "usd": 0.001936
+    },
+    "memoire · text-embedding-3-small": {
+      "appels": 6,
+      "entree": 445,
+      "sortie": 0,
+      "usd": 0.000009
+    },
+    "redaction · gpt-6-luna": {
+      "appels": 25,
+      "entree": 5481,
+      "sortie": 1600,
+      "usd": 0.0013490000000000002
+    },
+    "worker · gpt-5.6-terra": {
+      "appels": 1,
+      "entree": 36405,
+      "sortie": 1611,
+      "usd": 0.132142
+    },
+    "redaction · gpt-6.1-terra": {
+      "appels": 47,
+      "entree": 220215,
+      "sortie": 13865,
+      "usd": 0.2895399999999999
+    },
+    "image · gpt-image-2.5-sunburst": {
+      "appels": 1,
+      "entree": 28,
+      "sortie": 439,
+      "usd": 0.01331
+    },
+    "routine · gpt-6.1-terra": {
+      "appels": 2,
+      "entree": 19818,
+      "sortie": 175,
+      "usd": 0.011596
+    }
+  },
+  "toursRepondus": 37,
+  "erreursConsole": []
+}

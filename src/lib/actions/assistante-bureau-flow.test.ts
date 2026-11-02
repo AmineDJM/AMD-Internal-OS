@@ -12,7 +12,7 @@ import { getRequestList } from "@/lib/queries/admin-requests";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
 import { getActionCenter } from "@/lib/queries/action-center";
 import { createRequest, decideApproval } from "./admin-request-actions";
-import { peutLirePasseportDuSujet } from "@/lib/ad-pro/passeport-acces";
+import { peutLirePasseportDuSujet } from "@/modules/ad-pro/api";
 import { canAccessEntity } from "@/lib/entity-access";
 
 /**
@@ -147,7 +147,10 @@ suite("le bureau de l'assistante : tout ce qui est ouvert, ce que personne n'a p
   });
 
   it("LE POINT D'APPEL : le téléchargement d'une pièce lit cette porte, après celle de l'enregistrement", () => {
+    // La règle est sortie de la route pour être partagée avec la recherche de la bibliothèque (J1).
     const route = readFileSync("src/app/api/documents/[id]/route.ts", "utf8");
-    expect(route).toMatch(/await canAccessEntity\(user, doc\.entityType, doc\.entityId, "VIEW"\)\)\s*\|\|\s*\(await peutLirePasseportDuSujet\(user\.id, doc\)\)/);
+    expect(route).toMatch(/await peutOuvrirDocument\(user, doc\)/);
+    const regle = readFileSync("src/lib/entity-access/ouverture-pieces.ts", "utf8");
+    expect(regle).toMatch(/await canAccessEntity\(user, doc\.entityType, doc\.entityId, "VIEW"\)\)\s*\|\|\s*\(await peutLirePasseportDuSujet\(user\.id, doc\)\)/);
   });
 });

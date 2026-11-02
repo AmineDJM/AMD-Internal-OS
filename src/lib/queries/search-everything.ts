@@ -2,13 +2,14 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/rbac";
 import { userCan, hasGlobalView } from "@/lib/rbac";
-import { sitsOnPaymentCentre } from "@/lib/payments/authorization";
+import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { platformScope } from "@/lib/company";
 import { globalSearch } from "@/lib/queries/search";
 import { toNumber } from "@/lib/utils";
 import { emptySearchNote } from "@/lib/queries/search-redirect";
 import { invoiceSettlementState, INVOICE_SETTLEMENT } from "@/lib/labels";
 import { libelleEtape, type PromoState } from "@/lib/promo-material/circuit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RECHERCHE FÉDÉRÉE « search_everything » — le geste réflexe du Chief of Staff.
@@ -94,16 +95,11 @@ let sqlCaps: { unaccent: boolean; trgm: boolean } | null = null;
 async function capabilities(): Promise<{ unaccent: boolean; trgm: boolean }> {
   if (sqlCaps) return sqlCaps;
   const [unaccent, trgm] = await Promise.all([
-    prisma.$queryRaw`SELECT unaccent('é')`.then(() => true).catch(() => false),
-    prisma.$queryRaw`SELECT similarity('a','a')`.then(() => true).catch(() => false),
+    prisma.$queryRaw`SELECT unaccent('é')`.then(() => true).catch(sansBloquer("search-everything.capabilities", false)),
+    prisma.$queryRaw`SELECT similarity('a','a')`.then(() => true).catch(sansBloquer("search-everything.capabilities", false)),
   ]);
   sqlCaps = { unaccent, trgm };
   return sqlCaps;
-}
-
-/** Réinitialise la sonde (tests uniquement). */
-export function resetSearchCapabilitiesProbe(): void {
-  sqlCaps = null;
 }
 
 /**
@@ -212,14 +208,14 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
     payments, orders, legal, mails, invoices, suppliers, institutions, annexes, promos, projets, calendar, people,
   ] = await Promise.all([
     // 1) La recherche globale EXISTANTE (Regulatory, Drive, RH, tâches, congrès, discussions…).
-    globalSearch(user, q, take).catch(() => []),
+    globalSearch(user, q, take).catch(sansBloquer("search-everything.searchEverythingStrict.globalSearch", [])),
 
     // 2) Demandes de paiement.
     prisma.paymentRequest.findMany({
       where: wPayments as Prisma.PaymentRequestWhereInput,
       select: { id: true, reference: true, title: true, payee: true, status: true, amount: true, createdAt: true },
       take, orderBy: { createdAt: "desc" },
-    }).catch(() => []),
+    }).catch(sansBloquer("search-everything.searchEverythingStrict.paymentRequest", [])),
 
     // 3) Règlements (ordres de dépense) — Finances ou siège du centre.
     canPayments
@@ -227,7 +223,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           where: wOrders as Prisma.ExpenseOrderWhereInput,
           select: { id: true, reference: true, label: true, beneficiary: true, status: true, centralStatus: true, amount: true, createdAt: true },
           take, orderBy: { createdAt: "desc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.expenseOrder", []))
       : [],
 
     // 4) Legal.
@@ -236,7 +232,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           where: wLegal as Prisma.LegalDocumentWhereInput,
           select: { id: true, reference: true, title: true, kind: true, counterparty: true, status: true, amount: true, endDate: true },
           take, orderBy: { createdAt: "desc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.legalDocument", []))
       : [],
 
     // 5) Courriers (registre).
@@ -245,7 +241,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           where: wMails as Prisma.MailEntryWhereInput,
           select: { id: true, reference: true, title: true, direction: true, sender: true, recipient: true, sentAt: true, receivedAt: true },
           take, orderBy: { createdAt: "desc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.mailEntry", []))
       : [],
 
     // 6) Factures — des documents légaux de nature « facture ». La COMPTABILITÉ les cherche
@@ -255,7 +251,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           where: wInvoices as Prisma.LegalDocumentWhereInput,
           select: { id: true, reference: true, title: true, amount: true, endDate: true, paidDate: true, expenseOrderId: true, kind: true },
           take, orderBy: { createdAt: "desc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.legalDocument", []))
       : [],
 
     // 7) Fournisseurs (référentiel PCH / logistique).
@@ -264,7 +260,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           where: { AND: matchOf(terms, ["name", "country", "contactEmail"]) } as Prisma.SupplierWhereInput,
           select: { id: true, name: true, country: true, active: true },
           take, orderBy: { name: "asc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.supplier", []))
       : [],
 
     // 8) Établissements médicaux (annuaire).
@@ -273,7 +269,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           where: wInstitutions as Prisma.MedicalInstitutionWhereInput,
           select: { id: true, name: true, type: true, city: true, wilaya: true },
           take, orderBy: { name: "asc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.medicalInstitution", []))
       : [],
 
     // 9) Lieux de stock (hôpitaux / annexes PCH du module Stocks).
@@ -282,7 +278,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           where: { AND: matchOf(terms, ["name"]) } as Prisma.StockAnnexWhereInput,
           select: { id: true, name: true, kind: true },
           take, orderBy: { name: "asc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.stockAnnex", []))
       : [],
 
     // 10) Matériel promotionnel.
@@ -291,7 +287,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           where: { AND: [entity as Where, ...matchOf(terms, ["title", "reference", "chosenAgency"])] } as Prisma.PromoMaterialWhereInput,
           select: { id: true, reference: true, title: true, status: true, circuitState: true, circuitVersion: true },
           take, orderBy: { createdAt: "desc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.promoMaterial", []))
       : [],
 
     // 11) Projets (dossiers délégués) — participants seulement, sauf vue globale.
@@ -307,7 +303,7 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
           } as Prisma.DossierWhereInput,
           select: { id: true, reference: true, title: true, status: true, assignedTo: { select: { name: true } } },
           take, orderBy: { createdAt: "desc" },
-        }).catch(() => [])
+        }).catch(sansBloquer("search-everything.searchEverythingStrict.dossier", []))
       : [],
 
     // 12) Calendrier — ses rendez-vous (organisés ou invités) ; tout, en vue globale.
@@ -320,14 +316,14 @@ export async function searchEverythingStrict(user: SessionUser, q: string, take 
       } as Prisma.CalendarEventWhereInput,
       select: { id: true, title: true, startAt: true, location: true, organizer: { select: { name: true } } },
       take, orderBy: { startAt: "desc" },
-    }).catch(() => []),
+    }).catch(sansBloquer("search-everything.searchEverythingStrict.calendarEvent", [])),
 
     // 13) Les personnes (annuaire interne) — par nom OU par fonction.
     prisma.user.findMany({
       where: { AND: [{ isActive: true }, ...matchOf(terms, ["name", "title"])] } as Prisma.UserWhereInput,
       select: { id: true, name: true, title: true, department: { select: { name: true } } },
       take, orderBy: { name: "asc" },
-    }).catch(() => []),
+    }).catch(sansBloquer("search-everything.searchEverythingStrict.user", [])),
   ]);
 
   const hits: EverythingHit[] = [];
@@ -459,7 +455,7 @@ export async function searchEverything(user: SessionUser, q: string, take = 6): 
   if (termes.length < 2) return strict;
   const porteurs = [...new Set(termes.map(significatif).filter(Boolean))].slice(0, 3);
   if (porteurs.length === 0) return strict;
-  const partiels = await Promise.all(porteurs.map((t) => searchEverythingStrict(user, t, Math.min(take, 4)).catch(() => null)));
+  const partiels = await Promise.all(porteurs.map((t) => searchEverythingStrict(user, t, Math.min(take, 4)).catch(sansBloquer("search-everything.searchEverything.searchEverythingStrict", null))));
   const vus = new Set<string>();
   const resultats: EverythingHit[] = [];
   const trouves: string[] = [];

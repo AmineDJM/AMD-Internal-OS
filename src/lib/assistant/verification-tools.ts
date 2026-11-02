@@ -21,7 +21,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import {
   apprendreDesEchecs, conclureVerification, planifierVerification,
   FICHES, SENS_ACTION, type Methode, type Resultat,

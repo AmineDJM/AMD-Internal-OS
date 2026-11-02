@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { inProcessPlatform, principalOf, peutPiloterMissionsAdam, REFUS_MISSIONS_ADAM } from "@/platform/in-process/adapter";
 
 /**

@@ -13,6 +13,8 @@ import {
   MAX_ATTACHMENTS_PER_FEEDBACK,
 } from "@/lib/files/attachment-policy";
 import { canRemoveFeedbackAttachment } from "@/lib/feedback/access";
+import { sansBloquer } from "@/lib/journal";
+import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
 
 const STATUSES: FeedbackStatus[] = ["NEW", "SEEN", "IN_PROGRESS", "DONE"];
 
@@ -38,7 +40,7 @@ async function prepareAttachments(files: File[]): Promise<
   const prepared: { blobId: string; name: string; mime: string; size: number }[] = [];
   /** Ce qui a déjà été écrit — à rendre si la suite échoue. */
   const rollback = async () => {
-    for (const p of prepared) await releaseBlob(p.blobId).catch(() => undefined);
+    for (const p of prepared) await releaseBlob(p.blobId).catch(sansBloquer("feedback-actions.rollback.releaseBlob"));
   };
 
   for (const f of files) {
@@ -93,10 +95,20 @@ export async function submitFeedback(
     });
   } catch {
     // La transaction a échoué : les octets déjà écrits n'appartiennent à personne, on les rend.
-    for (const p of att.prepared) await releaseBlob(p.blobId).catch(() => undefined);
+    for (const p of att.prepared) await releaseBlob(p.blobId).catch(sansBloquer("feedback-actions.submitFeedback.releaseBlob"));
     return { ok: false, error: "L'enregistrement du retour a échoué. Rien n'a été conservé." };
   }
 
+  // Les pièces du retour entrent à la bibliothèque (J1), ouvertes par la règle des retours (auteur, Super Admin).
+  if (att.prepared.length > 0) {
+    const jointes = await prisma.feedbackAttachment.findMany({ where: { feedbackId: created.id }, select: { id: true, blobId: true, name: true, mime: true, size: true } });
+    for (const j of jointes) {
+      await inscrirePiece({
+        blobId: j.blobId, nom: j.name, mime: j.mime, taille: j.size, source: "AUTRE",
+        objet: { famille: "RETOUR_PIECE", id: j.id }, proprietaireId: user.id, role: "piece-jointe",
+      });
+    }
+  }
   await notifyRoles(["SUPER_ADMIN"], {
     type: "GENERIC",
     title: "Nouveau feedback",
@@ -167,7 +179,7 @@ export async function removeFeedbackAttachment(formData: FormData): Promise<Acti
   if (!canRemoveFeedbackAttachment(user, att.feedback)) return { ok: false, error: "Non autorisé." };
 
   await prisma.feedbackAttachment.delete({ where: { id } });
-  await releaseBlob(att.blobId).catch(() => undefined);
+  await releaseBlob(att.blobId).catch(sansBloquer("feedback-actions.removeFeedbackAttachment.releaseBlob"));
 
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Feedback",

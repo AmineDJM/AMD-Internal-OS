@@ -5,6 +5,8 @@ import { Plus, Pencil, Trash2, Search, Mail, Phone, Globe, MapPin } from "lucide
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { creerFournisseurAnnuaire, modifierFournisseurAnnuaire, retirerFournisseurAnnuaire } from "@/lib/actions/fournisseurs-annuaire-actions";
 
 export interface FournisseurVue {
@@ -23,6 +25,7 @@ const CHAMPS: { name: keyof FournisseurVue; label: string }[] = [
 /** L'annuaire des fournisseurs Regulatory — chercher, ajouter, corriger, retirer. */
 export function FournisseursBoard({ fournisseurs, canCreate, canEdit, canDelete }: { fournisseurs: FournisseurVue[]; canCreate: boolean; canEdit: boolean; canDelete: boolean }) {
   const { enCours, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [q, setQ] = React.useState("");
   const [edition, setEdition] = React.useState<FournisseurVue | "nouveau" | null>(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -32,12 +35,17 @@ export function FournisseursBoard({ fournisseurs, canCreate, canEdit, canDelete 
 
   async function agir(f: () => Promise<{ ok: boolean; error?: string; message?: string }>, apres?: () => void) {
     setEnvoi(true); setMsg(null);
-    const r = await f();
-    setEnvoi(false);
-    if (!r.ok) { setMsg({ ok: false, text: r.error ?? "Échec." }); return; }
-    if (r.message) setMsg({ ok: true, text: r.message });
-    apres?.();
-    rafraichir();
+    try {
+      const r = await f();
+      if (!r.ok) { setMsg({ ok: false, text: r.error ?? "Le fournisseur n'a pas été modifié." }); return; }
+      if (r.message) setMsg({ ok: true, text: r.message });
+      apres?.();
+      rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   return (
@@ -98,8 +106,8 @@ export function FournisseursBoard({ fournisseurs, canCreate, canEdit, canDelete 
                   {canEdit && <button type="button" title="Modifier" disabled={occupe} onClick={() => { setMsg(null); setEdition(f); }} aria-label={`Modifier ${f.name}`} className="rounded p-2 text-muted-foreground hover:text-foreground sm:p-1"><Pencil className="h-3.5 w-3.5" /></button>}
                   {canDelete && (
                     <button type="button" title="Retirer" disabled={occupe}
-                      onClick={() => {
-                        if (!window.confirm(`Retirer « ${f.name} » de l'annuaire ?${f.dossiers + f.comptes > 0 ? "\n\nIl porte des dossiers ou des comptes du portail : il sera désactivé, pas supprimé." : ""}`)) return;
+                      onClick={async () => {
+                        if (!(await confirmer(`Retirer « ${f.name} » de l'annuaire ?${f.dossiers + f.comptes > 0 ? "\n\nIl porte des dossiers ou des comptes du portail : il sera désactivé, pas supprimé." : ""}`))) return;
                         const fd = new FormData(); fd.set("id", f.id);
                         void agir(() => retirerFournisseurAnnuaire(fd));
                       }}

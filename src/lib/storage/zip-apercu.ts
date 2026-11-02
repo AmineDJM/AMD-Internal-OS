@@ -2,6 +2,7 @@ import { fluxEntreeZip, ErreurZip, type EntreeZip, type SourceZip } from "@/lib/
 import { dispositionPourBucket } from "@/lib/http/types-actifs";
 import { headObjectSize, presignGetUrl, putObjectStream } from "@/lib/storage/object-storage";
 import { contentDisposition } from "@/lib/http/content-disposition";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -62,7 +63,7 @@ function lancer(cle: string, source: SourceZip, entree: EntreeZip, type: string)
   if (deja) return deja;
   const ex: Extraction = { promesse: Promise.resolve(), octets: 0, total: entree.taille };
   ex.promesse = (async () => {
-    if ((await headObjectSize(cle).catch(() => null)) === entree.taille) { ex.octets = entree.taille; return; }
+    if ((await headObjectSize(cle).catch(sansBloquer("zip-apercu.lancer.headObjectSize", null))) === entree.taille) { ex.octets = entree.taille; return; }
     await prendre();
     try {
       const flux = await fluxEntreeZip(source, entree);
@@ -103,7 +104,7 @@ export async function etatApercu(cle: string, source: SourceZip, entree: EntreeZ
   const ex = lancer(cle, source, entree, type);
   if (!ex.echec) {
     let minuteur: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([ex.promesse.catch(() => undefined), new Promise<void>((r) => { minuteur = setTimeout(r, attenteMs); })]);
+    await Promise.race([ex.promesse.catch(sansBloquer("zip-apercu.etatApercu")), new Promise<void>((r) => { minuteur = setTimeout(r, attenteMs); })]);
     clearTimeout(minuteur);
   }
   if (ex.echec) return { pret: false, octets: ex.octets, total: ex.total, echec: ex.echec };
@@ -113,7 +114,7 @@ export async function etatApercu(cle: string, source: SourceZip, entree: EntreeZ
 /** Déjà extraite ? (sans rien démarrer) — pour un téléchargement, qu'on ne fait pas attendre. */
 export async function apercuDisponible(cle: string, taille: number): Promise<boolean> {
   if (prets.has(cle)) return true;
-  if ((await headObjectSize(cle).catch(() => null)) !== taille) return false;
+  if ((await headObjectSize(cle).catch(sansBloquer("zip-apercu.apercuDisponible.headObjectSize", null))) !== taille) return false;
   marquerPret(cle);
   return true;
 }

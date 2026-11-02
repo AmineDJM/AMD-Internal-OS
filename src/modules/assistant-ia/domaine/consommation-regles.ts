@@ -1,0 +1,168 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LES RÈGLES DE CONSOMMATION DE L'ASSISTANT IA — PURES (aucun import) : l'écran du Super Admin
+ * (composant client) et le moteur (`consommation.ts`, serveur) lisent les MÊMES défauts, bornes et
+ * phrases. Lot V3-D, audit 27/10 rapport 06 (IA-ASSISTANT-03).
+ *
+ * ── POURQUOI DES JETONS, ET PAS DES DOLLARS ──────────────────────────────────────────────
+ *
+ * Le plafond se compte en JETONS (entrée + sortie), pas en coût : le tarif de MiMo n'est pas inscrit
+ * dans le code (il se pose dans l'environnement, `ASSISTANT_IA_PRICE_IN` / `ASSISTANT_IA_PRICE_OUT`), et un plafond
+ * qui ne tiendrait plus le jour où le tarif manque ne serait pas un plafond. Le coût, lui, est
+ * ESTIMÉ et affiché quand le tarif est connu — « inconnu » sinon, jamais zéro.
+ *
+ * ── LES DÉFAUTS, MESURÉS ─────────────────────────────────────────────────────────────────
+ *
+ * Mesure du rapport 06 : ≈ 9 000 jetons d'entrée FIXES renvoyés à chaque étape (38 outils, prompt
+ * système). Une question ordinaire (2 à 3 étapes) coûte donc 20 à 30 k jetons ; le pire tour d'avant
+ * (arrière-plan, 24 étapes) ≥ 216 k.
+ *   • 12 étapes au plus par tour (la conversation en demande 8 ; l'arrière-plan en avait 24).
+ *   • 150 000 jetons par tour : 12 étapes pleines, ou un long résumé de document.
+ *   • SANS plafond par personne et par jour (Direction, 01/11/2026 : « pas de plafond tout court ») — `0` = sans ;
+ *     réglable en console si un jour on le veut. Le plafond PAR TOUR reste : il arrête une boucle.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+export interface ReglagesAssistantIa {
+  plafondJetonsJour: number;
+  /** M1 : budget de STOCKAGE de la mémoire de chaque personne, en jetons (consolidation au-delà de 85 %). */
+  memoireJetonsBudget: number;
+  plafondJetonsTour: number;
+  etapesMaxTour: number;
+  /** Décision IA-ASSISTANT-09 (option prudente) : le message saisi et l'historique sont filtrés. */
+  censurerSaisie: boolean;
+  /** Décision IA-ASSISTANT-10 (option prudente) : une carte dont on reparle est retirée avant le tour. */
+  retirerCartesCaduques: boolean;
+  /** IA-ASSISTANT-07 : une carte jamais confirmée expire après ce délai. */
+  expirationCartesHeures: number;
+  /** J13 (décision 0025) : le modèle de la voix temps réel ; vide = la variable d'environnement, sinon `gpt-live-1`. */
+  modeleVoix: string;
+  /** Décision 0034 (Direction, 31/10/2026) : les valeurs sensibles vont au modèle EN CLAIR pour qui a le droit de les voir, ou en repères. */
+  valeursSensibles: ModeValeursSensibles;
+}
+
+/**
+ * LES VALEURS SENSIBLES ET LE MODÈLE (décision 0034) — salaire, net, coût employeur, IBAN / RIB / CCP, n° de pièce
+ * d'identité. Les DROITS ne changent pas d'un mode à l'autre (RBAC, familles de la console, politique du coffre) :
+ * seul change ce que le MODÈLE reçoit de ce que la personne a le droit de voir.
+ *   • EN_CLAIR (défaut, Direction 31/10/2026 : « l'assistant IA peut les lire à haute voix ; ils peuvent être envoyés
+ *     à l'IA ») — l'outil rend la valeur au modèle, qui l'écrit ; la voix la prononce.
+ *   • MASQUEES — le comportement de la décision 0012 : repères ⟦Sn⟧, la valeur ne part jamais au modèle.
+ */
+export type ModeValeursSensibles = "EN_CLAIR" | "MASQUEES";
+export const MODES_VALEURS_SENSIBLES: readonly ModeValeursSensibles[] = ["EN_CLAIR", "MASQUEES"];
+export const LIBELLE_VALEURS_SENSIBLES: Record<ModeValeursSensibles, string> = {
+  EN_CLAIR: "En clair, pour qui a le droit de les voir",
+  MASQUEES: "Masquées (repères ⟦Sn⟧)",
+};
+export const modeValeursSensibles = (v: unknown): ModeValeursSensibles =>
+  (MODES_VALEURS_SENSIBLES as readonly unknown[]).includes(v) ? (v as ModeValeursSensibles) : "EN_CLAIR";
+
+export const REGLAGES_PAR_DEFAUT: ReglagesAssistantIa = {
+  plafondJetonsJour: 0,
+  memoireJetonsBudget: 8_000,
+  plafondJetonsTour: 150_000,
+  etapesMaxTour: 12,
+  censurerSaisie: true,
+  retirerCartesCaduques: true,
+  expirationCartesHeures: 24,
+  modeleVoix: "",
+  valeursSensibles: "EN_CLAIR",
+};
+
+/** Un nom de modèle tel que l'API les écrit (« gpt-live-1 ») — tout autre texte est ignoré, jamais transmis. */
+export const nomDeModeleValide = (v: unknown): string => {
+  const t = typeof v === "string" ? v.trim() : "";
+  return /^[a-z0-9][a-z0-9.\-]{1,63}$/i.test(t) ? t : "";
+};
+
+/** Les bornes de l'écran : un réglage hors bornes est ramené dedans, jamais refusé en silence. */
+export const BORNES = {
+  // 0 = sans plafond (défaut, Direction 01/11/2026) ; sinon au moins 10 000.
+  plafondJetonsJour: { min: 0, max: 50_000_000 },
+  plafondJetonsTour: { min: 5_000, max: 2_000_000 },
+  memoireJetonsBudget: { min: 1_000, max: 100_000 },
+  etapesMaxTour: { min: 1, max: 24 },
+  expirationCartesHeures: { min: 1, max: 24 * 30 },
+} as const;
+
+type CleNombre = keyof typeof BORNES;
+
+export function borner(cle: CleNombre, v: unknown): number {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return REGLAGES_PAR_DEFAUT[cle];
+  if (cle === "plafondJetonsJour" && n <= 0) return 0;
+  return Math.min(BORNES[cle].max, Math.max(cle === "plafondJetonsJour" ? 10_000 : BORNES[cle].min, n));
+}
+
+/** Le plafond du jour s'applique-t-il ? `0` = sans plafond (défaut). */
+export const plafondJourActif = (r: Pick<ReglagesAssistantIa, "plafondJetonsJour">): boolean => r.plafondJetonsJour > 0;
+
+/** Une ligne lue (ou saisie) ramenée à des réglages valides — les booléens absents gardent le défaut. */
+export function normaliserReglages(r: Partial<Record<keyof ReglagesAssistantIa, unknown>> | null | undefined): ReglagesAssistantIa {
+  const b = (v: unknown, d: boolean) => (typeof v === "boolean" ? v : d);
+  return {
+    plafondJetonsJour: r?.plafondJetonsJour == null ? REGLAGES_PAR_DEFAUT.plafondJetonsJour : borner("plafondJetonsJour", r.plafondJetonsJour),
+    memoireJetonsBudget: r?.memoireJetonsBudget == null ? REGLAGES_PAR_DEFAUT.memoireJetonsBudget : borner("memoireJetonsBudget", r.memoireJetonsBudget),
+    plafondJetonsTour: r?.plafondJetonsTour == null ? REGLAGES_PAR_DEFAUT.plafondJetonsTour : borner("plafondJetonsTour", r.plafondJetonsTour),
+    etapesMaxTour: r?.etapesMaxTour == null ? REGLAGES_PAR_DEFAUT.etapesMaxTour : borner("etapesMaxTour", r.etapesMaxTour),
+    expirationCartesHeures: r?.expirationCartesHeures == null ? REGLAGES_PAR_DEFAUT.expirationCartesHeures : borner("expirationCartesHeures", r.expirationCartesHeures),
+    censurerSaisie: b(r?.censurerSaisie, REGLAGES_PAR_DEFAUT.censurerSaisie),
+    retirerCartesCaduques: b(r?.retirerCartesCaduques, REGLAGES_PAR_DEFAUT.retirerCartesCaduques),
+    modeleVoix: nomDeModeleValide(r?.modeleVoix),
+    valeursSensibles: modeValeursSensibles(r?.valeursSensibles),
+  };
+}
+
+/**
+ * LE JOUR, HEURE D'ALGER — l'Algérie est à UTC+1 toute l'année (pas d'heure d'été) : minuit à Alger
+ * est 23 h UTC la veille. Un plafond « par jour » qui basculerait à 1 h du matin surprendrait.
+ */
+const DECALAGE_ALGER_MS = 60 * 60 * 1000;
+
+export function debutJourAlger(now: Date = new Date()): Date {
+  const local = new Date(now.getTime() + DECALAGE_ALGER_MS);
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()) - DECALAGE_ALGER_MS);
+}
+
+/** La date (sans heure) du jour d'Alger — la clé de `AssistantIaPlafondAtteint`. */
+export function jourAlger(now: Date = new Date()): Date {
+  const local = new Date(now.getTime() + DECALAGE_ALGER_MS);
+  return new Date(Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate()));
+}
+
+/** Le tarif d'un modèle, en dollars par MILLION de jetons. */
+/**
+ * Un tarif, en dollars par million de jetons. `cacheParM` : l'entrée LUE EN CACHE (le prompt système et l'historique
+ * renvoyés à chaque étape — 88 % de l'entrée mesurés par le banc V4-H) ; absente, elle est facturée au tarif d'entrée.
+ */
+export interface Tarif { entreeParM: number; sortieParM: number; cacheParM?: number }
+
+/**
+ * Coût ESTIMÉ d'un appel : `null` quand le tarif est inconnu — un coût inconnu n'est jamais zéro. `cache` : la part
+ * de `entree` lue en cache, facturée à `cacheParM` (mesuré : la facturer au plein tarif quadruplait le coût).
+ */
+export function coutEstimeUsd(entree: number, sortie: number, tarif: Tarif | null, cache = 0): number | null {
+  if (!tarif) return null;
+  const enCache = Math.min(Math.max(cache, 0), entree);
+  const usd = (entree - enCache) * tarif.entreeParM + enCache * (tarif.cacheParM ?? tarif.entreeParM) + sortie * tarif.sortieParM;
+  return Math.round((usd / 1_000_000) * 1_000_000) / 1_000_000;
+}
+
+const fmt = (n: number) => n.toLocaleString("fr-FR").replace(/ | /g, " ");
+
+/** OÙ SE RÈGLE LE PLAFOND — nommé dans chaque refus (§118.30 : un refus nomme son remède). */
+export const ECRAN_CONSOMMATION = "Administration › Contrôle de l'IA › Consommation IA";
+
+export function refusPlafondJour(plafond: number): string {
+  return `Vous avez atteint votre plafond quotidien d'Assistant IA (${fmt(plafond)} jetons) : aucun appel n'est parti. `
+    + `Il se réinitialise à minuit (heure d'Alger) ; le Super Admin peut le relever dans ${ECRAN_CONSOMMATION}.`;
+}
+
+export function refusPlafondTour(plafond: number, parJour: boolean): string {
+  return parJour
+    ? `L'assistant s'est arrêté avant de finir : cette demande aurait dépassé votre plafond quotidien (${fmt(plafond)} jetons restants). `
+      + `Il se réinitialise à minuit (heure d'Alger) ; le Super Admin peut le relever dans ${ECRAN_CONSOMMATION}.`
+    : `L'assistant s'est arrêté avant de finir : cette demande a atteint le plafond d'un tour (${fmt(plafond)} jetons). `
+      + `Découpez-la en demandes plus courtes ; le Super Admin peut relever ce plafond dans ${ECRAN_CONSOMMATION}.`;
+}

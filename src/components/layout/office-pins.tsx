@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Icon } from "@/components/ui/icon";
+import { IconeCoque } from "@/components/ui/icone-coque";
 import { cn } from "@/lib/utils";
 import { OFFICE_PINS_KEY, parsePinned, pinnedApps, officeHref, type OfficeAppKey } from "@/lib/office/apps";
 import { lireStockagePersonnel, useIdentiteEcran } from "@/components/layout/identite-vue";
@@ -59,7 +59,7 @@ export function OfficePins() {
                 onOffice ? "bg-sidebar-active text-white" : "text-sidebar-muted hover:bg-sidebar-active/60 hover:text-white",
               )}
             >
-              <Icon name={a.icon} className="h-4 w-4 shrink-0" />
+              <IconeCoque name={a.icon} className="h-4 w-4 shrink-0" />
               <span className="truncate">{a.label}</span>
             </Link>
           </li>

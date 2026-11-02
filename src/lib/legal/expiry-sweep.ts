@@ -4,6 +4,7 @@ import { anyRoleFilter, rolesWithModule } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { predicatEntitePermise } from "@/lib/company";
 import { expiryLevel, daysLeft, shouldRemind, expiryMessage, REMIND_SOON_DAYS } from "./lifecycle";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE BALAYAGE DES ÉCHÉANCES — ce qui fait que la règle sert à quelque chose.
@@ -116,7 +117,7 @@ export async function runLegalExpirySweep(now: Date = new Date()): Promise<Legal
           // Le module n'a pas (encore) de fiche par document : on renvoie sur la liste, avec le
           // filtre « échéances » déjà posé. Mieux vaut une destination qui existe qu'un lien mort.
           link: "/legal?echeances=1",
-        }).catch(() => undefined);
+        }).catch(sansBloquer("expiry-sweep.runLegalExpirySweep.notifyUser"));
         out.notified++;
       }
     }

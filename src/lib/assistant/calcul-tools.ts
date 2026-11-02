@@ -21,9 +21,9 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { blocTableau, chargerLignes } from "@/lib/assistant/sandbox-tools";
-import { construireViz } from "@/lib/assistant/workspace/viz-block";
+import { construireViz } from "@/platform/ia/workspace/viz-block";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";
 import {
   type ContrainteCsp, type Loi, type ModeleMonteCarlo, type Programme, type ProblemeCsp, type Projet, type Rigueur,

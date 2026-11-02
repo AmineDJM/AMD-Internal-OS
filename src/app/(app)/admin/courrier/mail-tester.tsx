@@ -5,6 +5,7 @@ import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { sendMail } from "@/lib/actions/smart-mail-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * Envoi de test : la seule façon honnête de savoir si la chaîne fonctionne de bout en bout.
@@ -29,7 +30,9 @@ export function MailTester({ configured }: { configured: boolean }) {
         subject: "Test d'envoi — AMD Internal OS",
         body: "Ce message confirme que l'envoi de courrier fonctionne (API HTTPS, sans SMTP).",
       });
-      setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Message envoyé.") : (r.error ?? "Échec.") });
+      setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Message envoyé.") : (r.error ?? "Le message de test n'a pas été envoyé.") });
+    } catch {
+      setResult({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setBusy(false);
       lock.current = false;

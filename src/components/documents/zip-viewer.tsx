@@ -4,6 +4,7 @@ import * as React from "react";
 import { Download, FileArchive, File as FileIcon, Folder, Loader2, AlertCircle, Search, Eye, ChevronRight, House, Maximize2, Minimize2, ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { natureApercu } from "@/lib/formats/apercu";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * VISIONNEUSE D'ARCHIVE ZIP — dans le Drive, on ouvre un .zip et on le PARCOURT comme un vrai
@@ -80,8 +81,8 @@ export function ZipViewer({ id, name, zipUrl, downloadUrl }: { id: string; name:
     return () => document.removeEventListener("fullscreenchange", suivre);
   }, []);
   const basculerPlein = () => {
-    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
-    else void apercuRef.current?.requestFullscreen?.().catch(() => undefined);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(sansBloquer("zip-viewer.basculerPlein.exitFullscreen"));
+    else void apercuRef.current?.requestFullscreen?.().catch(sansBloquer("zip-viewer.basculerPlein.requestFullscreen"));
   };
 
   React.useEffect(() => {
@@ -137,7 +138,7 @@ export function ZipViewer({ id, name, zipUrl, downloadUrl }: { id: string; name:
     if (p === sel || s.faits.has(p) || s.faits.size >= MAX_PRECHAUFFAGES_SURVOL || !aPreparer(p)) return;
     s.minuteur = setTimeout(() => {
       s.faits.add(p);
-      void fetch(urlPrechauffage(p), { cache: "no-store" }).catch(() => undefined);
+      void fetch(urlPrechauffage(p), { cache: "no-store" }).catch(sansBloquer("zip-viewer.survolerEntree.fetch"));
     }, DELAI_SURVOL_MS);
   };
   const quitterEntree = () => clearTimeout(survol.current.minuteur);

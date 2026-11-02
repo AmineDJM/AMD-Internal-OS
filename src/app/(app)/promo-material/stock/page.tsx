@@ -10,6 +10,7 @@ import { lienStockPromo, vueStockPromo } from "@/lib/chemins/stock-promo";
  * meurt fait chercher un écran supprimé et conclure que le module a disparu. Elle conduit donc là
  * où le travail se fait, la vue demandée comprise — et seulement une vue que l'écran connaît.
  */
-export default function AncienStockPromo({ searchParams }: { searchParams?: { vue?: string } }) {
-  redirect(lienStockPromo(vueStockPromo(searchParams?.vue)));
+export default async function AncienStockPromo(props: { searchParams?: Promise<{ vue?: string }> }) {
+ const searchParams = await props.searchParams;
+ redirect(lienStockPromo(vueStockPromo(searchParams?.vue)));
 }

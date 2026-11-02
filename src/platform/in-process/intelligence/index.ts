@@ -20,14 +20,14 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { ordresAvecFacture } from "@/lib/finance/facture-ordre";
+import { ordresAvecFacture } from "@/modules/finances/api";
 import { userCan, type SessionUser } from "@/lib/rbac";
 import { companyScopedWhere } from "@/lib/company";
 import { legalReaderWhere } from "@/lib/lecteurs/legal";
 import { expiryLevel, type LegalStatus } from "@/lib/legal/lifecycle";
 import { amountDrift } from "@/lib/legal/chain";
 import { comparerClauses, extraireClauses, obligationsDe, risquesDe, LIBELLE_CLAUSE, type Clause } from "@/lib/legal/clauses";
-import { echeancesPaiement, justificatifsManquants, signauxBudget, type EnveloppeLue } from "@/lib/finance/intelligence";
+import { echeancesPaiement, justificatifsManquants, signauxBudget, type EnveloppeLue } from "@/modules/finances/partage";
 import { getBudgetOverview, getEnvelopes } from "@/lib/queries/budget";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
 import { submissionReadiness } from "@/lib/regulatory/intelligence/lifecycle";
@@ -35,6 +35,7 @@ import { enabledRegCompanyIds, regCan } from "@/lib/regulatory/intelligence/acce
 import { toNumber, formatMontant } from "@/lib/utils";
 import type { PaymentRequestStatus, RegDossierStatus } from "@prisma/client";
 import { graviteParJours, isoJour, joursEntre, resumerSignaux, trierSignaux, type DomaineSignal, type Gravite, type Signal } from "@/lib/utils/signaux";
+import { sansBloquer } from "@/lib/journal";
 
 // Le PONT réexporte le vocabulaire du socle pour qu'Adam le consomme sans traverser la
 // frontière — `gesteDuTour` et `isoJour` rejoignent la liste pour le prochain geste (§118.126) :
@@ -230,14 +231,14 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
   const now = opts.maintenant ?? new Date();
   const horizon = Math.max(1, Math.min(180, opts.horizonJours ?? 30));
   const signaux: Signal[] = [];
-  const portee: Record<string, number> = {};
+  const lus: Record<string, number> = {};
   const notes: string[] = [];
 
   const budgets = userCan(user, "BUDGETS", "VIEW")
     ? (async () => {
       const enveloppes = (await getEnvelopes(user)).slice(0, opts.leger ? 3 : ENVELOPPES_MAX);
-      portee.enveloppes = enveloppes.length;
-      const vues = await Promise.all(enveloppes.map((e) => getBudgetOverview(user, e.id).catch(() => null)));
+      lus.enveloppes = enveloppes.length;
+      const vues = await Promise.all(enveloppes.map((e) => getBudgetOverview(user, e.id).catch(sansBloquer("intelligence.signauxFinance.getBudgetOverview", null))));
       for (const v of vues) {
         if (!v) continue;
         const lue: EnveloppeLue = {
@@ -281,7 +282,7 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
           select: { id: true, reference: true, title: true, amount: true, counterparty: true, chainFrom: { select: { id: true, reference: true, kind: true, amount: true } } }, take: 300, orderBy: { createdAt: "desc" },
         }),
       ]);
-      portee.ordresDeDepense = ordres.length; portee.demandesDePaiement = demandes.length; portee.facturesChainees = facturesChainees.length;
+      lus.ordresDeDepense = ordres.length; lus.demandesDePaiement = demandes.length; lus.facturesChainees = facturesChainees.length;
       // La MÊME règle que le règlement (`finance/facture-ordre.ts`, §118.185) : ce signal ne lisait que
       // le registre Legal et criait « justificatif manquant » sur un ordre dont la facture était jointe.
       const liees = await ordresAvecFacture(ordres.filter((o) => o.requiresInvoice));
@@ -310,7 +311,7 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
 
   await Promise.all([budgets, finances]);
   const tries = trierSignaux(signaux);
-  return { domaine: "FINANCE", signaux: tries, resume: resumerSignaux(tries), portee: { ...portee, horizonJours: horizon }, notes, calculeLe: now.toISOString(), ms: Date.now() - t0 };
+  return { domaine: "FINANCE", signaux: tries, resume: resumerSignaux(tries), portee: { ...lus, horizonJours: horizon }, notes, calculeLe: now.toISOString(), ms: Date.now() - t0 };
 }
 
 // ═══════════════════════════════ REGULATORY ═══════════════════════════════
@@ -404,7 +405,7 @@ export async function signauxRegulatory(user: SessionUser, opts: { horizonJours?
         orderBy: { updatedAt: "asc" }, take: 100,
       });
       dossiersLus = dossiers.length;
-      const readiness = await Promise.all(dossiers.filter((d) => ["ANALYSING", "IN_REVIEW", "SUPPLIER_LOOP", "READY_FOR_REVIEW"].includes(d.status)).slice(0, opts.leger ? 5 : DOSSIERS_READINESS_MAX).map(async (d) => [d.id, await submissionReadiness(d.id).catch(() => null)] as const));
+      const readiness = await Promise.all(dossiers.filter((d) => ["ANALYSING", "IN_REVIEW", "SUPPLIER_LOOP", "READY_FOR_REVIEW"].includes(d.status)).slice(0, opts.leger ? 5 : DOSSIERS_READINESS_MAX).map(async (d) => [d.id, await submissionReadiness(d.id).catch(sansBloquer("intelligence.signauxRegulatory.submissionReadiness", null))] as const));
       const pret = new Map(readiness);
       for (const d of dossiers) {
         const nom = `${d.reference} — ${d.title}`;

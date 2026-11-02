@@ -15,10 +15,3 @@ export function lienPropositionPole(proposalId: string): string {
 export function lienExamenProposition(proposalId: string): string {
   return `${CHEMIN_CAMPAGNE_BUDGETAIRE}?examen=${encodeURIComponent(proposalId)}`;
 }
-
-/** Les réglages d'une campagne. */
-export function lienReglagesCampagne(campaignId?: string | null): string {
-  return campaignId
-    ? `${CHEMIN_CAMPAGNE_BUDGETAIRE}?vue=reglages&campagne=${encodeURIComponent(campaignId)}`
-    : `${CHEMIN_CAMPAGNE_BUDGETAIRE}?vue=reglages`;
-}

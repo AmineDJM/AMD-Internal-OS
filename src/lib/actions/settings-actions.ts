@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO } from "@/lib/ad-pro/centre";
+import { siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO } from "@/modules/ad-pro/partage";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { DEFAULT_APP_SETTINGS } from "@/lib/settings";
@@ -174,6 +174,33 @@ async function reglerSeuilBC(adminId: string, brut: number | null, centre: Centr
       // posée ou retirée, ce que sa prochaine modification fera.
       + (bilan.tronque ? " Seuls les 500 plus anciens bons de commande en cours ont été réaiguillés ; les suivants le seront à leur prochaine modification — la file des Finances applique déjà le nouveau seuil." : ""),
   };
+}
+
+/**
+ * LA SÉPARATION DES TÂCHES AU CENTRE DE PAIEMENT (audit 27/10, ARGENT-06). **Super Admin uniquement.**
+ *
+ * Active par défaut : qui demande un paiement ne l'autorise pas, qui le demande ou l'autorise ne le règle pas
+ * (`modules/finances/domaine/separation.ts`). La suspendre est un geste de gouvernance — le temps de nommer un second siège,
+ * par exemple — : il est journalisé avec son auteur, et l'écran dit ce qu'il ouvre.
+ */
+export async function setSeparationTachesPaiement(active: boolean): Promise<ActionResult> {
+  const admin = await requireUser();
+  if (admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  const separationTachesPaiement = active === true;
+  await prisma.appSetting.upsert({
+    where: { id: "global" },
+    create: { id: "global", separationTachesPaiement, updatedById: admin.id },
+    update: { separationTachesPaiement, updatedById: admin.id },
+  });
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Administration", field: "separationTachesPaiement",
+    newValue: String(separationTachesPaiement),
+    summary: separationTachesPaiement
+      ? "Séparation des tâches au centre de paiement RÉTABLIE — qui demande n'autorise pas, qui demande ou autorise ne règle pas"
+      : "Séparation des tâches au centre de paiement SUSPENDUE — un même compte peut demander, autoriser et régler",
+  });
+  revalidatePath("/admin/settings");
+  return { ok: true, message: separationTachesPaiement ? "Séparation des tâches rétablie." : "Séparation des tâches suspendue." };
 }
 
 /** Débloque / masque l'onglet Regulatory « Enregistrement » (analyseur CTD). **Super Admin uniquement.** */

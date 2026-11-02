@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Send, Loader2, Pencil, Trash2, Check, X, Paperclip } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,10 @@ import { formatDateTime } from "@/lib/utils";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { ChoixFichiers } from "@/components/shared/choix-fichiers";
 import { messageRecevable } from "@/lib/fil-pieces";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export interface CommentItem {
   id: string;
@@ -47,7 +50,9 @@ interface CommentThreadProps {
 export function CommentThread({
   comments, action, hiddenFields, currentUserId, canModerate = false, updateAction, deleteAction, path, piecesJointes = false,
 }: CommentThreadProps) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [pending, setPending] = React.useState(false);
   const [editing, setEditing] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -62,19 +67,33 @@ export function CommentThread({
     if (!updateAction || !body.trim()) { setEditing(null); return; }
     setBusy(id);
     const fd = new FormData(); fd.set("id", id); fd.set("body", body); if (path) fd.set("path", path);
-    await updateAction(fd);
-    setBusy(null); setEditing(null); router.refresh();
+    try {
+      const r = await updateAction(fd);
+      if (!r.ok) retours.erreur(r.error ?? "Le commentaire n'a pas été modifié.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
+    setEditing(null); rafraichir();
   }
   async function remove(id: string, nbPieces: number) {
     // SUPPRIMER UN MESSAGE EMPORTE SES PIÈCES : la question le dit, rien ne disparaît en silence.
     const question = nbPieces > 0
       ? `Supprimer ce commentaire et ${nbPieces > 1 ? `ses ${nbPieces} pièces jointes` : "sa pièce jointe"} ?`
       : "Supprimer ce commentaire ?";
-    if (!deleteAction || !window.confirm(question)) return;
+    if (!deleteAction || !(await confirmer(question))) return;
     setBusy(id);
     const fd = new FormData(); fd.set("id", id); if (path) fd.set("path", path);
-    await deleteAction(fd);
-    setBusy(null); router.refresh();
+    try {
+      const r = await deleteAction(fd);
+      if (!r.ok) retours.erreur(r.error ?? "Le commentaire n'a pas été supprimé.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
+    rafraichir();
   }
 
   async function publier(fd: FormData) {
@@ -82,8 +101,15 @@ export function CommentThread({
     setPending(true);
     setRetour(null);
     for (const f of fichiers) fd.append("files", f);
-    const r = await action(fd);
-    setPending(false);
+    let r: { ok: boolean; error?: string; message?: string };
+    try {
+      r = await action(fd);
+    } catch {
+      setRetour({ ok: false, texte: actionFailureMessage("THROWN") });
+      return;
+    } finally {
+      setPending(false);
+    }
     // UN REFUS GARDE LA SAISIE : le texte et les fichiers choisis restent, la phrase du serveur s'affiche.
     if (!r.ok) { setRetour({ ok: false, texte: r.error ?? "Le message n'a pas pu être publié." }); return; }
     if (r.message) setRetour({ ok: true, texte: r.message });
@@ -91,7 +117,7 @@ export function CommentThread({
     formRef.current?.reset();
     setTexte("");
     setFichiers([]);
-    if (avecPieces) router.refresh();
+    if (avecPieces) rafraichir();
   }
 
   return (

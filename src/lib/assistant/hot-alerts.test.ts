@@ -91,6 +91,6 @@ suite("assistant/hot-alerts — les signaux précalculés, branchés partout", (
 
   it("SABOTAGE — le réchauffage est appelé par le battement (scheduled.ts), pas seulement par ses tests", () => {
     const src = readFileSync("src/lib/scheduled.ts", "utf8");
-    expect(src).toMatch(/rechaufferAlertes\(\)/);
+    expect(src).toMatch(/executer:\s*rechaufferAlertes\b/); // une ligne de la table des tâches (V2-F)
   });
 });

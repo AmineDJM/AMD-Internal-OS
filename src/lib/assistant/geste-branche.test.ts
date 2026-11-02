@@ -25,7 +25,8 @@ import { join } from "node:path";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const SRC = readFileSync(join(process.cwd(), "src/lib/assistant.ts"), "utf8");
+// `assistant.ts` découpé (lot V4) : les deux tours (`boucle/tour.ts`, `boucle/flux.ts`) et la carte (`boucle/sources.ts`).
+const SRC = ["tour", "flux", "sources"].map((f) => readFileSync(join(process.cwd(), `src/lib/assistant/boucle/${f}.ts`), "utf8")).join("\n");
 // Les commentaires sont RETIRÉS avant lecture : trois fois dans ce dépôt, un cliquet s'est
 // accroché à la prose qui DÉCRIT la forme qu'il cherche (§118.79d, §118.88, §118.112b) — et
 // cette fonction-là est justement précédée de vingt lignes qui la nomment.

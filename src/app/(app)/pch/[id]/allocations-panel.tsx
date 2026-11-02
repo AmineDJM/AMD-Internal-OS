@@ -1,7 +1,6 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { Loader2, Users } from "lucide-react";
 import { setTenderLineBusinessUnits } from "@/lib/actions/pch-tender-line-actions";
 import { needsAllocation, allocationNotice } from "@/lib/pch/bu-allocation";
@@ -50,9 +49,7 @@ export function AllocationsPanel({
   businessUnits: AllocBu[];
   canEdit: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, error: err, run } = useKeyedAction();
 
   const gagnes = lines.filter((l) => l.status === "WON").length;
   const orphelins = lines.filter((l) => needsAllocation(l.status, l.businessUnitIds.length)).length;
@@ -60,17 +57,16 @@ export function AllocationsPanel({
 
   async function toggle(line: AllocLine, buId: string, checked: boolean) {
     if (busy) return;
-    setBusy(line.id); setErr(null);
     const voulu = checked
       ? [...new Set([...line.businessUnitIds, buId])]
       : line.businessUnitIds.filter((v) => v !== buId);
     const fd = new FormData();
     fd.set("id", line.id); fd.set("tenderId", tenderId);
     for (const v of voulu) fd.append("businessUnitId", v);
-    const r = await setTenderLineBusinessUnits(fd);
-    setBusy(null);
-    if (!r.ok) { setErr(r.error ?? "Affectation impossible."); return; }
-    router.refresh();
+    await run(line.id, async () => {
+      const r = await setTenderLineBusinessUnits(fd);
+      return r.ok ? r : { ...r, error: r.error ?? "Affectation impossible." };
+    });
   }
 
   if (businessUnits.length === 0) {

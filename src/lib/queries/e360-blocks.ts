@@ -1,7 +1,7 @@
 import type { Produit360 } from "./product-360";
 import type { Pch360 } from "./pch-360";
 import type { MetricValue } from "@/lib/metrics/catalog";
-import { intentFor } from "@/lib/assistant/workspace/direct-intents";
+import { intentFor } from "@/platform/ia/workspace/direct-intents";
 import { PAYMENT_STATUS, PCH_TENDER_STATUS, REGULATORY_STATUS } from "@/lib/labels";
 
 /**

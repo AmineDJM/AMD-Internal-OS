@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, UploadCloud, CheckCircle2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { updateReservePoint, approveReservePoint, deleteReserveCycle } from "@/lib/regulatory/intelligence/reserves/actions";
 import { ReserveLetterButton } from "./report-buttons";
+import { Retour } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 interface Point { id: string; ordinal: number; category: string; sectionCode: string | null; subject: string | null; verbatim: string; proposedResponse: string | null; finalResponse: string | null; status: string }
 interface Cycle { id: string; cycle: number; reserveType: string | null; letterFilename: string; ocrConfidence: number | null; ocrNeedsReview: boolean; status: string; points: Point[] }
@@ -27,7 +30,7 @@ const RESERVE_TYPES: Record<string, { label: string; cls: string }> = {
  * proposée puis approuvée. Le texte des réserves est conservé mot à mot (aucune reformulation).
  */
 export function ReservesPanel({ dossierId, cycles, canManage }: { dossierId: string; cycles: Cycle[]; canManage: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
@@ -38,17 +41,22 @@ export function ReservesPanel({ dossierId, cycles, canManage }: { dossierId: str
     try {
       const r = await fetch("/api/regulatory/intelligence/reserves/upload", { method: "POST", body: fd });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error ?? "Échec.");
-      router.refresh();
+      if (!r.ok) throw new Error(data.error ?? "La lettre de réserves n'a pas été déposée.");
+      rafraichir();
     } catch (e) { setError(e instanceof Error ? e.message : "Échec du dépôt."); }
     setBusy(null);
   }
 
   async function run(key: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(key); setError(null);
-    const r = await fn();
-    setBusy(null);
-    if (r.ok) router.refresh(); else setError(r.error ?? "Échec.");
+    try {
+      const r = await fn();
+      if (r.ok) rafraichir(); else setError(r.error ?? "La modification n'a pas été enregistrée.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -62,7 +70,7 @@ export function ReservesPanel({ dossierId, cycles, canManage }: { dossierId: str
           <p className="mt-1 text-xs text-muted-foreground">La lettre est océrisée (OCR réel) et décomposée en points ; le texte est conservé <strong>mot à mot</strong>.</p>
         </div>
       )}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
 
       {cycles.map((c) => (
         <div key={c.id} className="rounded-xl border border-border p-3">

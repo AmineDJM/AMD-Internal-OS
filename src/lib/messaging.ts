@@ -3,10 +3,11 @@ import type { ConversationMember, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { shouldTouch } from "./touch-throttle";
 import { emettreMessageRecu } from "./events/messaging-events";
+import { sansBloquer } from "@/lib/journal";
 
 // LA PART PURE vit dans `messaging-ui.ts` (importable par le navigateur) ; le serveur la retrouve ici.
-export { presenceOf, PRESENCE_LABEL, CHAT_STATUSES, CHAT_STATUS_LABEL, normalizeChatStatus, preview, peutGererLaConversation, peutRetirerUnMessage } from "./messaging-ui";
-export type { Presence, ChatStatus, RoleConversation } from "./messaging-ui";
+export { presenceOf, CHAT_STATUS_LABEL, normalizeChatStatus, preview, peutGererLaConversation, peutRetirerUnMessage } from "./messaging-ui";
+export type { Presence, ChatStatus } from "./messaging-ui";
 
 /**
  * Cœur de la messagerie interne — règles d'accès & présence. MODULE SERVEUR : il lit la base
@@ -65,7 +66,7 @@ export async function envoyerMessageDirect(opts: {
   await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: msg.createdAt } });
   await prisma.conversationMember.updateMany({
     where: { conversationId, userId: opts.senderId }, data: { lastReadAt: msg.createdAt },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("messaging.envoyerMessageDirect.conversationMember"));
   await emettreMessageRecu({
     conversationId, messageId: msg.id, senderId: opts.senderId, senderName: opts.senderName ?? undefined,
     senderEmail: opts.senderEmail ?? undefined, body: opts.body, recipientIds: [opts.recipientId],
@@ -133,7 +134,7 @@ export async function touchPresence(userId: string): Promise<void> {
   if (!shouldTouch(`pres:${userId}`, 45_000)) return;
   await prisma.user
     .update({ where: { id: userId }, data: { lastSeenAt: new Date() } })
-    .catch(() => undefined);
+    .catch(sansBloquer("messaging.touchPresence.user"));
 }
 
 

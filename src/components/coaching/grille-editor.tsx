@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Loader2, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { enregistrerGrilleCoaching } from "@/lib/actions/coaching-actions";
 import {
   cleProvisoire, GRILLE_PAR_DEFAUT, LIMITES_GRILLE, NOMBRE_NIVEAUX, validerGrille, type GrilleCoaching,
 } from "@/lib/coaching/grille";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { tonsDuNiveau } from "./fiche-grille";
 import { cn } from "@/lib/utils";
 import { InfoBulle } from "@/components/ui/info-bulle";
@@ -27,7 +29,8 @@ import { EntreeMenu, MenuPlus } from "@/app/(app)/medical/menu-plus";
  */
 
 export function EditeurGrille({ initiale, version }: { initiale: GrilleCoaching; version: number }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [grille, setGrille] = React.useState<GrilleCoaching>(initiale);
   const [note, setNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -50,9 +53,9 @@ export function EditeurGrille({ initiale, version }: { initiale: GrilleCoaching;
     [g.axes[i], g.axes[j]] = [g.axes[j]!, g.axes[i]!];
     return g;
   });
-  const retirer = (i: number) => {
+  const retirer = async (i: number) => {
     const axe = grille.axes[i];
-    if (!window.confirm(`Retirer l'axe « ${axe?.titre || `n° ${i + 1}`} » ? Les fiches déjà remplies le gardent ; les prochaines ne l'auront plus.`)) return;
+    if (!(await confirmer(`Retirer l'axe « ${axe?.titre || `n° ${i + 1}`} » ? Les fiches déjà remplies le gardent ; les prochaines ne l'auront plus.`))) return;
     maj((g) => { g.axes.splice(i, 1); return g; });
   };
 
@@ -62,10 +65,15 @@ export function EditeurGrille({ initiale, version }: { initiale: GrilleCoaching;
     const fd = new FormData();
     fd.set("grille", JSON.stringify(grille));
     if (note.trim()) fd.set("note", note.trim());
-    const r = await enregistrerGrilleCoaching(fd);
-    setBusy(false);
-    setMessage({ ok: r.ok, texte: r.ok ? (r.message ?? "Grille publiée.") : (r.error ?? "Publication impossible.") });
-    if (r.ok) { setNote(""); router.refresh(); }
+    try {
+      const r = await enregistrerGrilleCoaching(fd);
+      setMessage({ ok: r.ok, texte: r.ok ? (r.message ?? "Grille publiée.") : (r.error ?? "Publication impossible.") });
+      if (r.ok) { setNote(""); rafraichir(); }
+    } catch {
+      setMessage({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
   };
 
   // 16 px au téléphone : en dessous, iOS zoome sur le champ touché.

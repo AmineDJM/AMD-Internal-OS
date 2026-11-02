@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -43,8 +44,11 @@ function useGeste() {
     setBusy(true); setErr(null);
     try {
       const r = await fn();
-      if (r.ok) { apres?.(); rafraichir(); } else setErr(r.error ?? "Échec.");
+      if (r.ok) { apres?.(); rafraichir(); } else setErr(r.error ?? "La tâche n'a pas été mise à jour.");
       return r.ok;
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return false;
     } finally {
       setBusy(false);
     }

@@ -50,7 +50,10 @@ function exceptionDuSecteur(p: RegleProduit | undefined, s: { id: string; nom: s
  * lettre (H, A, B, C, D, NA, non ciblé) se CALCULE depuis Q1, Q2, le statut et les règles, secteur par secteur de la
  * BU. Forcer une lettre est un droit que le Super Admin accorde personne par personne (motif obligatoire, historisé).
  */
-export default async function SegmentationPage({ searchParams }: { searchParams?: { s?: string; vue?: string; spe?: string; cycle?: string; bu?: string } & Record<string, string | string[] | undefined> }) {
+export default async function SegmentationPage(
+  props: { searchParams?: Promise<{ s?: string; vue?: string; spe?: string; cycle?: string; bu?: string } & Record<string, string | string[] | undefined>> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("SEGMENTATION");
   const droits = droitsSegmentation(user);
   const portee = porteeSegmentation(user);

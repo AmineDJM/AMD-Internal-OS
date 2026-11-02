@@ -17,7 +17,6 @@ import {
   commenterDemandeRecrutement,
 } from "@/lib/actions/recruitment-actions";
 import { RECRUITMENT_CONTRACTS, CONTRACT_LABEL } from "@/lib/recruitment/request-flow";
-import type { ActionResult } from "@/lib/actions/types";
 import { useKeyedAction as useAction } from "@/components/shared/use-action";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { InfoBulle } from "@/components/ui/info-bulle";

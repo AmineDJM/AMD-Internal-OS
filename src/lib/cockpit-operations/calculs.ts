@@ -12,8 +12,6 @@ import { SEUIL_RUPTURE_MOIS, couvertureEnMois, estPerime, niveauCouverture, stoc
 export type Ton = "ko" | "w" | "i";
 const RANG_TON: Record<Ton, number> = { ko: 0, w: 1, i: 2 };
 
-export interface BuRef { id: string; nom: string }
-
 /** Un objet rattaché à des BU est-il dans la BU choisie ? Aucune BU choisie : oui. */
 export const dansLaBu = (bus: readonly { id: string }[], buId: string | null): boolean => !buId || bus.some((b) => b.id === buId);
 

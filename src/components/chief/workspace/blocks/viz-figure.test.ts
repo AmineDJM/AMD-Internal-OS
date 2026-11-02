@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { VIZ_TYPES, type WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
+import { VIZ_TYPES, type WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import { consignerMesure } from "@/lib/evals/registre";
 import { PLANCHE_VIZ } from "../planche-viz";
-import { VizFigure } from "./viz-figure";
+import { VizFigure } from "@/platform/ia/ecrans/blocks/viz-figure";
 
 /**
  * LE DESSIN (§35) — la figure générique rend les dix-sept formes de la planche sans un composant

@@ -18,13 +18,14 @@ import { createValidationFromRules, createDirectValidation, notifyValidator, joi
 import { issueDeLaDecision, motifExige, MOTIF_EXIGE, repriseApresCorrection, resoumissionSurPlace, cheminsDeLObjetLie, unSeulSuffit, type DecisionEtape } from "@/lib/validations/decision";
 import { lireCircuit } from "@/lib/validations/lecture-circuit";
 import { refusDuRetraitValidation, retraitEfface, validateursSollicites } from "@/lib/validations/retrait";
-import { createExpenseOrder } from "@/lib/expense-orders";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
 import { toNumber } from "@/lib/utils";
 import { fdStr, fdNum, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity, lecteurDeLaDemandeDeValidation } from "@/lib/entity-access";
 import { lienEtapeAValider } from "@/lib/chemins/validations";
+import { sansBloquer } from "@/lib/journal";
+import { actionReversible } from "@/lib/effets/reversible";
 
 const ROLES: UserRole[] = [
   "SUPER_ADMIN", "DIRECTION", "HEAD_OF_REGULATORY", "REGULATORY_ASSISTANT", "HEAD_OF_SALES",
@@ -256,7 +257,7 @@ async function creerPrevalidationBC(
   if (!retenu.ok) {
     // Une demande qui ne retient pas son BC le laisserait partir au centre pendant qu'on recueille des avis : on la
     // ferme aussitôt, en disant pourquoi.
-    await prisma.validationRequest.update({ where: { id: res.requestId }, data: { status: "CANCELLED", decidedAt: new Date() } }).catch(() => undefined);
+    await prisma.validationRequest.update({ where: { id: res.requestId }, data: { status: "CANCELLED", decidedAt: new Date() } }).catch(sansBloquer("validation-actions.creerPrevalidationBC.validationRequest"));
     return { ok: false, error: retenu.error };
   }
   if (files.length) await joindrePiecesValidation(res.requestId, files, user.id);
@@ -337,236 +338,238 @@ async function droitSurLEtape(
 }
 
 export async function decideValidation(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const stepId = fdStr(formData, "stepId");
-  const decision = fdStr(formData, "decision") as ValidationStepState | null;
-  const reason = fdStr(formData, "reason");
-  if (!stepId || !decision || !["APPROVED", "REJECTED", "CHANGES_REQUESTED"].includes(decision)) {
-    return { ok: false, error: "Décision invalide." };
-  }
-
-  // REFUSER OU RENVOYER SANS DIRE POURQUOI (audit 360°, R08 et R17) laisse le demandeur deviner ce
-  // qu'il doit corriger, et l'historique muet sur ce qui a arrêté la demande. L'accord reste sans motif.
-  // `=== null` et non `!reason` : la dérivation des contrats lit un `!v` comme « champ obligatoire »,
-  // et le motif ne l'est QUE pour renvoyer ou refuser — valider sans commentaire reste possible (§118.138).
-  if (motifExige(decision as DecisionEtape) && reason === null) return { ok: false, error: MOTIF_EXIGE };
-
-  const step = await prisma.validationStep.findUnique({
-    where: { id: stepId },
-    include: { request: { include: { steps: true } } },
-  });
-  if (!step) return { ok: false, error: "Étape introuvable." };
-  // L'INTÉRIMAIRE D'UN CONGÉ décide à la place de l'absent. C'est tout l'objet de l'intérim :
-  // sans cela, les validations s'empilent trois semaines et l'on découvre au retour qu'une
-  // demande attendait depuis quinze jours. La délégation est validée par les RH et s'éteint
-  // seule à la fin du congé — voir `lib/hr/stand-in.ts`. Jamais sur sa propre demande (I18).
-  const droit = await droitSurLEtape(user, step.validatorId, step.request.requesterId);
-  if (!droit) {
-    return { ok: false, error: "Vous n'êtes pas le validateur de cette étape." };
-  }
-  const asStandIn = droit === "INTERIM";
-  if (step.status !== "PENDING") return { ok: false, error: "Étape déjà traitée." };
-
-  const req = step.request;
-  if (req.status === "CHANGES_REQUESTED") {
-    return { ok: false, error: "Cette demande a été renvoyée pour correction : elle reviendra vers vous quand son demandeur l'aura resoumise." };
-  }
-  if (req.status !== "PENDING") return { ok: false, error: "Demande déjà clôturée." };
-  if (req.mode === "SEQUENTIAL" && step.order !== req.currentOrder) return { ok: false, error: "Ce n'est pas encore votre tour." };
-
-  // UN GESTE À LA FOIS (audit 360°, lot C3). La décision se prend SOUS LE VERROU de la demande, sur
-  // ses étapes RELUES : deux validateurs d'un circuit parallèle qui approuvaient à la même seconde
-  // voyaient chacun l'autre « en attente », aucun ne finalisait, et la demande restait en attente
-  // pour toujours sans que plus personne puisse la trancher ; un double clic sur la dernière étape
-  // émettait DEUX ordres de dépense. L'écriture de l'étape est conditionnelle (encore en attente),
-  // et seule la décision qui FINALISE ici déclenche ce qui suit.
-  const issue = await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT id FROM "ValidationRequest" WHERE id = ${req.id} FOR UPDATE`;
-    const frais = await tx.validationRequest.findUnique({
-      where: { id: req.id },
-      select: { status: true, mode: true, currentOrder: true, steps: { select: { id: true, order: true, status: true, validatorId: true } } },
-    });
-    if (!frais || frais.status !== "PENDING") {
-      return { ok: false as const, error: "Cette demande vient d'être tranchée par un autre validateur : rouvrez-la pour voir où elle en est." };
+  return actionReversible("validation-actions:decideValidation", "Décision de validation", async () => {
+    const user = await requireUser();
+    const stepId = fdStr(formData, "stepId");
+    const decision = fdStr(formData, "decision") as ValidationStepState | null;
+    const reason = fdStr(formData, "reason");
+    if (!stepId || !decision || !["APPROVED", "REJECTED", "CHANGES_REQUESTED"].includes(decision)) {
+      return { ok: false, error: "Décision invalide." };
     }
-    if (frais.mode === "SEQUENTIAL" && step.order !== frais.currentOrder) return { ok: false as const, error: "Ce n'est pas encore votre tour." };
-    const ecrite = await tx.validationStep.updateMany({
-      where: { id: stepId, status: "PENDING" },
-      data: { status: decision, reason, decidedAt: new Date() },
+
+    // REFUSER OU RENVOYER SANS DIRE POURQUOI (audit 360°, R08 et R17) laisse le demandeur deviner ce
+    // qu'il doit corriger, et l'historique muet sur ce qui a arrêté la demande. L'accord reste sans motif.
+    // `=== null` et non `!reason` : la dérivation des contrats lit un `!v` comme « champ obligatoire »,
+    // et le motif ne l'est QUE pour renvoyer ou refuser — valider sans commentaire reste possible (§118.138).
+    if (motifExige(decision as DecisionEtape) && reason === null) return { ok: false, error: MOTIF_EXIGE };
+
+    const step = await prisma.validationStep.findUnique({
+      where: { id: stepId },
+      include: { request: { include: { steps: true } } },
     });
-    if (ecrite.count === 0) return { ok: false as const, error: "Étape déjà traitée." };
-    const etapes = frais.steps.map((e) => (e.id === stepId ? { ...e, status: decision } : e));
-    const unSeul = unSeulSuffit(req.objectType);
-    const r = issueDeLaDecision({ mode: frais.mode, currentOrder: frais.currentOrder, steps: etapes, unSeulSuffit: unSeul }, stepId, decision as DecisionEtape);
-    const finalisee = r.status !== "PENDING";
-    await tx.validationRequest.update({
-      where: { id: req.id },
-      data: { status: r.status, currentOrder: r.currentOrder, decidedAt: finalisee ? new Date() : null },
-    });
-    // UN SEUL A TRANCHÉ POUR TOUS : les autres saisis n'ont plus rien à décider — leur étape se clôt
-    // (« sans objet »), sans quoi elle resterait « à valider » dans leur file pour une demande close.
-    if (unSeul && finalisee) {
-      await tx.validationStep.updateMany({ where: { requestId: req.id, status: "PENDING", id: { not: stepId } }, data: { status: "SKIPPED" } });
+    if (!step) return { ok: false, error: "Étape introuvable." };
+    // L'INTÉRIMAIRE D'UN CONGÉ décide à la place de l'absent. C'est tout l'objet de l'intérim :
+    // sans cela, les validations s'empilent trois semaines et l'on découvre au retour qu'une
+    // demande attendait depuis quinze jours. La délégation est validée par les RH et s'éteint
+    // seule à la fin du congé — voir `lib/hr/stand-in.ts`. Jamais sur sa propre demande (I18).
+    const droit = await droitSurLEtape(user, step.validatorId, step.request.requesterId);
+    if (!droit) {
+      return { ok: false, error: "Vous n'êtes pas le validateur de cette étape." };
     }
-    const suivante = r.suivanteId ? etapes.find((e) => e.id === r.suivanteId) ?? null : null;
-    return { ok: true as const, status: r.status, finalisee, currentOrder: r.currentOrder, suivanteValidatorId: suivante?.validatorId ?? null, suivanteStepId: suivante?.id ?? null };
-  });
-  if (!issue.ok) return { ok: false, error: issue.error };
-  const newStatus: ValidationStatus = issue.status;
-  const finalized = issue.finalisee;
-  if (issue.suivanteValidatorId) await notifyValidator(issue.suivanteValidatorId, req, issue.suivanteStepId);
+    const asStandIn = droit === "INTERIM";
+    if (step.status !== "PENDING") return { ok: false, error: "Étape déjà traitée." };
 
-  if (finalized && req.requesterId !== user.id) {
-    // UNE DÉCISION SUR UNE PIÈCE N'EST PAS UNE DÉCISION SUR LA DEMANDE. « Validation acceptée »
-    // sur la facture d'une demande qui en compte quatre laissait croire que tout était tranché.
-    // On nomme donc l'objet de la décision, et on dit ce qu'il reste à attendre.
-    const onPiece = Boolean(req.documentId);
-    const pieceName = onPiece
-      ? (await prisma.document.findUnique({ where: { id: req.documentId! }, select: { name: true } }))?.name ?? "Pièce jointe"
-      : null;
-    const stillPending = onPiece && req.entityType && req.entityId
-      ? await prisma.validationRequest.count({
-          where: { entityType: req.entityType, entityId: req.entityId, status: "PENDING", id: { not: req.id } },
-        })
-      : 0;
-    const label = newStatus === "APPROVED" ? "acceptée" : newStatus === "REJECTED" ? "refusée" : "à corriger";
-    // LE MOTIF VOYAGE AVEC LA DÉCISION, et le lien mène à LA demande (audit 360°, R08) : « à corriger »
-    // sans dire quoi, vers la liste de toutes les validations, faisait chercher deux fois.
-    const motif = reason ? ` Motif : « ${reason} ».` : "";
-    const suite = newStatus === "CHANGES_REQUESTED"
-      ? (resoumissionSurPlace(req)
-        ? " Corrigez-la puis « Resoumettre » sur la demande : elle reviendra à la même étape."
-        : " Corrigez depuis l'objet d'origine, puis renvoyez-la depuis lui.")
-      // LA PRÉ-VALIDATION D'UN BC ACQUISE : le geste suivant est au demandeur, et la notification le nomme.
-      : newStatus === "APPROVED" && req.objectType === OBJET_PREVALIDATION_BC
-        ? " Tous les validateurs ont donné leur accord : demandez maintenant la validation finale du bon de commande."
-        : "";
-    await notifyUser({
-      userId: req.requesterId,
-      type: "GENERIC",
-      title: onPiece ? `Pièce ${label} — ${pieceName}` : `Validation ${label}`,
-      body: onPiece
-        ? `${req.reference} · cette décision porte sur cette pièce seule.${stillPending > 0 ? ` ${stillPending} autre${stillPending > 1 ? "s" : ""} pièce${stillPending > 1 ? "s" : ""} de la même demande attend${stillPending > 1 ? "ent" : ""} encore.` : " Toutes les pièces de la demande sont désormais tranchées."}${motif}${suite}`
-        : `${req.reference} — ${req.title}.${motif}${suite}`,
-      link: `/validations/${req.id}`,
-    });
-  } else if (!finalized && req.requesterId !== user.id) {
-    // UN ACCORD QUI NE CLÔT PAS LE CIRCUIT SE DIT AUSSI (Direction, 06/10). Le premier de deux validateurs
-    // validait, la demande passait au second — et le demandeur n'en savait rien : sur son écran, « En
-    // attente » sous un « Je valide… » sans auteur. On lui dit qui a validé, ce qu'il a écrit, et qui reste.
-    const etapes = await prisma.validationStep.findMany({
-      where: { requestId: req.id },
-      select: { order: true, status: true, reason: true, decidedAt: true, validator: { select: { name: true } } },
-    });
-    const { resume } = lireCircuit({
-      status: newStatus, mode: req.mode, currentOrder: issue.currentOrder,
-      steps: etapes.map((e) => ({ order: e.order, status: e.status, validateur: e.validator?.name ?? "—", motif: e.reason, decideeLe: e.decidedAt })),
-    });
-    await notifyUser({
-      userId: req.requesterId,
-      type: "GENERIC",
-      title: `Validation partielle — ${req.reference}`,
-      body: `${req.title}. ${resume}${reason ? ` Note de ${user.name} : « ${reason} ».` : ""}`,
-      link: req.link || `/validations/${req.id}`,
-    });
-  }
-  await recordAudit({
-    actorId: user.id, action: decision === "REJECTED" ? "REFUSE" : "VALIDATE", module: "Validations",
-    entityType: "VALIDATION_REQUEST", entityId: req.id, field: "decision", newValue: decision,
-    // Le journal DIT que la décision a été prise au titre d'un intérim. Sans cette mention, on
-    // relirait « Untel a validé » sans comprendre pourquoi ce n'est pas le validateur désigné.
-    summary: `${req.reference} → ${decision}${asStandIn ? " (par l'intérimaire du validateur, congé en cours)" : ""}${reason ? ` — ${reason}` : ""}`,
-  });
+    const req = step.request;
+    if (req.status === "CHANGES_REQUESTED") {
+      return { ok: false, error: "Cette demande a été renvoyée pour correction : elle reviendra vers vous quand son demandeur l'aura resoumise." };
+    }
+    if (req.status !== "PENDING") return { ok: false, error: "Demande déjà clôturée." };
+    if (req.mode === "SEQUENTIAL" && step.order !== req.currentOrder) return { ok: false, error: "Ce n'est pas encore votre tour." };
 
-  // PIÈCE JOINTE APPROUVÉE + MONTANT SAISI À LA SOUMISSION → la suite est FINANCIÈRE : un ordre
-  // de dépense part automatiquement aux Finances (notifiées), catégorisé (catégorie choisie à la
-  // soumission, sinon « Autre ») et rattaché à la demande d'origine — au règlement, la dépense
-  // rejoint le budget par le circuit habituel des ordres. Sans montant, rien n'est payable :
-  // l'approbation reste un simple avis sur la pièce.
-  //
-  // UNE DEMANDE ANNULÉE NE REÇOIT PAS DE PAIEMENT (vague « restes 2 ») — la règle de `decideApproval`
-  // (§118.197d), que cette émission n'appliquait pas. La décision ci-dessus juge la PIÈCE, sous le verrou
-  // de la validation ; elle ne relisait pas la DEMANDE au secrétariat. L'annulation de la demande
-  // (`annulerDemandeSecretariat`) relit ses ordres APRÈS sa propre écriture : elle rattrape un ordre né
-  // AVANT elle, jamais un ordre né après. Joué : la décision écrit APPROVED, l'annulation passe et ne
-  // trouve aucun ordre, puis l'ordre naît — payable au centre pour une demande annulée, sans un mot.
-  // Deux lectures, donc : AVANT d'émettre (une demande déjà annulée ou supprimée n'en reçoit aucun, et le
-  // centre n'est pas sollicité pour rien) ; APRÈS l'émission (une annulation passée entre les deux voit
-  // l'ordre qu'elle ne pouvait pas voir annulé par la porte unique, conditionnelle — un ordre réglé n'est
-  // jamais défait). L'une ou l'autre voit l'annulation : chacun écrit avant de relire l'autre. L'accord sur
-  // la pièce, lui, reste enregistré — et la phrase le DIT.
-  let paiementRetire: string | null = null;
-  if (newStatus === "APPROVED" && req.documentId && req.entityType === "ADMIN_REQUEST" && req.entityId) {
-    const amt = req.amount === null ? 0 : toNumber(req.amount);
-    if (amt > 0) {
-      const demandeId = req.entityId;
-      const avant = await prisma.administrativeRequest.findUnique({ where: { id: demandeId }, select: { reference: true, status: true, deletedAt: true } });
-      if (demandeSansPaiement(avant)) {
-        paiementRetire = `La demande ${avant?.reference ?? "au secrétariat"} a été annulée ou supprimée : votre accord sur la pièce est enregistré, mais aucun paiement n'a été émis — rechargez la page.`;
-      } else {
-        let ordre: { id: string; reference: string } | null = null;
-        try {
-          ordre = await createExpenseOrder({
-            label: req.title,
-            amount: amt,
-            category: (req.category as Parameters<typeof createExpenseOrder>[0]["category"]) ?? "AUTRE",
-            sourceType: "ADMIN_REQUEST",
-            sourceId: demandeId,
-            requestedById: req.requesterId,
-            notes: `Pièce validée (${req.reference})${req.description ? ` — ${req.description}` : ""}`,
-          });
-          revalidatePath("/finances/paiements-a-faire");
-        } catch (err) {
-          // L'ordre raté ne doit pas annuler la décision déjà enregistrée — on trace et on continue.
-          console.error("[validations] ordre de dépense post-approbation échoué :", err);
-        }
-        if (ordre) {
-          const apres = await prisma.administrativeRequest.findUnique({ where: { id: demandeId }, select: { reference: true, status: true, deletedAt: true } });
-          if (demandeSansPaiement(apres)) {
-            const ref = apres?.reference ?? avant?.reference ?? "au secrétariat";
-            const retrait = await annulerOrdreNonRegle(ordre.id, { acteurId: user.id, motif: `demande ${ref} annulée pendant la décision sur la pièce ${req.reference}` });
-            paiementRetire = retrait.ok
-              ? `La demande ${ref} vient d'être annulée pendant votre décision : votre accord sur la pièce est enregistré, mais le paiement ${ordre.reference} qu'il émettait a été annulé — rechargez la page.`
-              : `La demande ${ref} vient d'être annulée pendant votre décision, et le paiement ${ordre.reference} qu'il émettait n'a pas pu être annulé : ${retrait.error}`;
+    // UN GESTE À LA FOIS (audit 360°, lot C3). La décision se prend SOUS LE VERROU de la demande, sur
+    // ses étapes RELUES : deux validateurs d'un circuit parallèle qui approuvaient à la même seconde
+    // voyaient chacun l'autre « en attente », aucun ne finalisait, et la demande restait en attente
+    // pour toujours sans que plus personne puisse la trancher ; un double clic sur la dernière étape
+    // émettait DEUX ordres de dépense. L'écriture de l'étape est conditionnelle (encore en attente),
+    // et seule la décision qui FINALISE ici déclenche ce qui suit.
+    const issue = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "ValidationRequest" WHERE id = ${req.id} FOR UPDATE`;
+      const frais = await tx.validationRequest.findUnique({
+        where: { id: req.id },
+        select: { status: true, mode: true, currentOrder: true, steps: { select: { id: true, order: true, status: true, validatorId: true } } },
+      });
+      if (!frais || frais.status !== "PENDING") {
+        return { ok: false as const, error: "Cette demande vient d'être tranchée par un autre validateur : rouvrez-la pour voir où elle en est." };
+      }
+      if (frais.mode === "SEQUENTIAL" && step.order !== frais.currentOrder) return { ok: false as const, error: "Ce n'est pas encore votre tour." };
+      const ecrite = await tx.validationStep.updateMany({
+        where: { id: stepId, status: "PENDING" },
+        data: { status: decision, reason, decidedAt: new Date() },
+      });
+      if (ecrite.count === 0) return { ok: false as const, error: "Étape déjà traitée." };
+      const etapes = frais.steps.map((e) => (e.id === stepId ? { ...e, status: decision } : e));
+      const unSeul = unSeulSuffit(req.objectType);
+      const r = issueDeLaDecision({ mode: frais.mode, currentOrder: frais.currentOrder, steps: etapes, unSeulSuffit: unSeul }, stepId, decision as DecisionEtape);
+      const finalisee = r.status !== "PENDING";
+      await tx.validationRequest.update({
+        where: { id: req.id },
+        data: { status: r.status, currentOrder: r.currentOrder, decidedAt: finalisee ? new Date() : null },
+      });
+      // UN SEUL A TRANCHÉ POUR TOUS : les autres saisis n'ont plus rien à décider — leur étape se clôt
+      // (« sans objet »), sans quoi elle resterait « à valider » dans leur file pour une demande close.
+      if (unSeul && finalisee) {
+        await tx.validationStep.updateMany({ where: { requestId: req.id, status: "PENDING", id: { not: stepId } }, data: { status: "SKIPPED" } });
+      }
+      const suivante = r.suivanteId ? etapes.find((e) => e.id === r.suivanteId) ?? null : null;
+      return { ok: true as const, status: r.status, finalisee, currentOrder: r.currentOrder, suivanteValidatorId: suivante?.validatorId ?? null, suivanteStepId: suivante?.id ?? null };
+    });
+    if (!issue.ok) return { ok: false, error: issue.error };
+    const newStatus: ValidationStatus = issue.status;
+    const finalized = issue.finalisee;
+    if (issue.suivanteValidatorId) await notifyValidator(issue.suivanteValidatorId, req, issue.suivanteStepId);
+
+    if (finalized && req.requesterId !== user.id) {
+      // UNE DÉCISION SUR UNE PIÈCE N'EST PAS UNE DÉCISION SUR LA DEMANDE. « Validation acceptée »
+      // sur la facture d'une demande qui en compte quatre laissait croire que tout était tranché.
+      // On nomme donc l'objet de la décision, et on dit ce qu'il reste à attendre.
+      const onPiece = Boolean(req.documentId);
+      const pieceName = onPiece
+        ? (await prisma.document.findUnique({ where: { id: req.documentId! }, select: { name: true } }))?.name ?? "Pièce jointe"
+        : null;
+      const stillPending = onPiece && req.entityType && req.entityId
+        ? await prisma.validationRequest.count({
+            where: { entityType: req.entityType, entityId: req.entityId, status: "PENDING", id: { not: req.id } },
+          })
+        : 0;
+      const label = newStatus === "APPROVED" ? "acceptée" : newStatus === "REJECTED" ? "refusée" : "à corriger";
+      // LE MOTIF VOYAGE AVEC LA DÉCISION, et le lien mène à LA demande (audit 360°, R08) : « à corriger »
+      // sans dire quoi, vers la liste de toutes les validations, faisait chercher deux fois.
+      const motif = reason ? ` Motif : « ${reason} ».` : "";
+      const suite = newStatus === "CHANGES_REQUESTED"
+        ? (resoumissionSurPlace(req)
+          ? " Corrigez-la puis « Resoumettre » sur la demande : elle reviendra à la même étape."
+          : " Corrigez depuis l'objet d'origine, puis renvoyez-la depuis lui.")
+        // LA PRÉ-VALIDATION D'UN BC ACQUISE : le geste suivant est au demandeur, et la notification le nomme.
+        : newStatus === "APPROVED" && req.objectType === OBJET_PREVALIDATION_BC
+          ? " Tous les validateurs ont donné leur accord : demandez maintenant la validation finale du bon de commande."
+          : "";
+      await notifyUser({
+        userId: req.requesterId,
+        type: "GENERIC",
+        title: onPiece ? `Pièce ${label} — ${pieceName}` : `Validation ${label}`,
+        body: onPiece
+          ? `${req.reference} · cette décision porte sur cette pièce seule.${stillPending > 0 ? ` ${stillPending} autre${stillPending > 1 ? "s" : ""} pièce${stillPending > 1 ? "s" : ""} de la même demande attend${stillPending > 1 ? "ent" : ""} encore.` : " Toutes les pièces de la demande sont désormais tranchées."}${motif}${suite}`
+          : `${req.reference} — ${req.title}.${motif}${suite}`,
+        link: `/validations/${req.id}`,
+      });
+    } else if (!finalized && req.requesterId !== user.id) {
+      // UN ACCORD QUI NE CLÔT PAS LE CIRCUIT SE DIT AUSSI (Direction, 06/10). Le premier de deux validateurs
+      // validait, la demande passait au second — et le demandeur n'en savait rien : sur son écran, « En
+      // attente » sous un « Je valide… » sans auteur. On lui dit qui a validé, ce qu'il a écrit, et qui reste.
+      const etapes = await prisma.validationStep.findMany({
+        where: { requestId: req.id },
+        select: { order: true, status: true, reason: true, decidedAt: true, validator: { select: { name: true } } },
+      });
+      const { resume } = lireCircuit({
+        status: newStatus, mode: req.mode, currentOrder: issue.currentOrder,
+        steps: etapes.map((e) => ({ order: e.order, status: e.status, validateur: e.validator?.name ?? "—", motif: e.reason, decideeLe: e.decidedAt })),
+      });
+      await notifyUser({
+        userId: req.requesterId,
+        type: "GENERIC",
+        title: `Validation partielle — ${req.reference}`,
+        body: `${req.title}. ${resume}${reason ? ` Note de ${user.name} : « ${reason} ».` : ""}`,
+        link: req.link || `/validations/${req.id}`,
+      });
+    }
+    await recordAudit({
+      actorId: user.id, action: decision === "REJECTED" ? "REFUSE" : "VALIDATE", module: "Validations",
+      entityType: "VALIDATION_REQUEST", entityId: req.id, field: "decision", newValue: decision,
+      // Le journal DIT que la décision a été prise au titre d'un intérim. Sans cette mention, on
+      // relirait « Untel a validé » sans comprendre pourquoi ce n'est pas le validateur désigné.
+      summary: `${req.reference} → ${decision}${asStandIn ? " (par l'intérimaire du validateur, congé en cours)" : ""}${reason ? ` — ${reason}` : ""}`,
+    });
+
+    // PIÈCE JOINTE APPROUVÉE + MONTANT SAISI À LA SOUMISSION → la suite est FINANCIÈRE : un ordre
+    // de dépense part automatiquement aux Finances (notifiées), catégorisé (catégorie choisie à la
+    // soumission, sinon « Autre ») et rattaché à la demande d'origine — au règlement, la dépense
+    // rejoint le budget par le circuit habituel des ordres. Sans montant, rien n'est payable :
+    // l'approbation reste un simple avis sur la pièce.
+    //
+    // UNE DEMANDE ANNULÉE NE REÇOIT PAS DE PAIEMENT (vague « restes 2 ») — la règle de `decideApproval`
+    // (§118.197d), que cette émission n'appliquait pas. La décision ci-dessus juge la PIÈCE, sous le verrou
+    // de la validation ; elle ne relisait pas la DEMANDE au secrétariat. L'annulation de la demande
+    // (`annulerDemandeSecretariat`) relit ses ordres APRÈS sa propre écriture : elle rattrape un ordre né
+    // AVANT elle, jamais un ordre né après. Joué : la décision écrit APPROVED, l'annulation passe et ne
+    // trouve aucun ordre, puis l'ordre naît — payable au centre pour une demande annulée, sans un mot.
+    // Deux lectures, donc : AVANT d'émettre (une demande déjà annulée ou supprimée n'en reçoit aucun, et le
+    // centre n'est pas sollicité pour rien) ; APRÈS l'émission (une annulation passée entre les deux voit
+    // l'ordre qu'elle ne pouvait pas voir annulé par la porte unique, conditionnelle — un ordre réglé n'est
+    // jamais défait). L'une ou l'autre voit l'annulation : chacun écrit avant de relire l'autre. L'accord sur
+    // la pièce, lui, reste enregistré — et la phrase le DIT.
+    let paiementRetire: string | null = null;
+    if (newStatus === "APPROVED" && req.documentId && req.entityType === "ADMIN_REQUEST" && req.entityId) {
+      const amt = req.amount === null ? 0 : toNumber(req.amount);
+      if (amt > 0) {
+        const demandeId = req.entityId;
+        const avant = await prisma.administrativeRequest.findUnique({ where: { id: demandeId }, select: { reference: true, status: true, deletedAt: true } });
+        if (demandeSansPaiement(avant)) {
+          paiementRetire = `La demande ${avant?.reference ?? "au secrétariat"} a été annulée ou supprimée : votre accord sur la pièce est enregistré, mais aucun paiement n'a été émis — rechargez la page.`;
+        } else {
+          let ordre: { id: string; reference: string } | null = null;
+          try {
+            ordre = await createExpenseOrder({
+              label: req.title,
+              amount: amt,
+              category: (req.category as Parameters<typeof createExpenseOrder>[0]["category"]) ?? "AUTRE",
+              sourceType: "ADMIN_REQUEST",
+              sourceId: demandeId,
+              requestedById: req.requesterId,
+              notes: `Pièce validée (${req.reference})${req.description ? ` — ${req.description}` : ""}`,
+            });
+            revalidatePath("/finances/paiements-a-faire");
+          } catch (err) {
+            // L'ordre raté ne doit pas annuler la décision déjà enregistrée — on trace et on continue.
+            console.error("[validations] ordre de dépense post-approbation échoué :", err);
+          }
+          if (ordre) {
+            const apres = await prisma.administrativeRequest.findUnique({ where: { id: demandeId }, select: { reference: true, status: true, deletedAt: true } });
+            if (demandeSansPaiement(apres)) {
+              const ref = apres?.reference ?? avant?.reference ?? "au secrétariat";
+              const retrait = await annulerOrdreNonRegle(ordre.id, { acteurId: user.id, motif: `demande ${ref} annulée pendant la décision sur la pièce ${req.reference}` });
+              paiementRetire = retrait.ok
+                ? `La demande ${ref} vient d'être annulée pendant votre décision : votre accord sur la pièce est enregistré, mais le paiement ${ordre.reference} qu'il émettait a été annulé — rechargez la page.`
+                : `La demande ${ref} vient d'être annulée pendant votre décision, et le paiement ${ordre.reference} qu'il émettait n'a pas pu être annulé : ${retrait.error}`;
+            }
           }
         }
       }
     }
-  }
 
-  // Reflet sur la demande administrative liée : une fois la validation finalisée,
-  // la demande repasse « en cours » pour que l'assistante poursuive (ou retravaille
-  // en cas de refus / modification demandée — le va-et-vient du flux achat).
-  // Une validation de PIÈCE JOINTE (documentId) est un avis sur cette pièce : elle ne fait pas
-  // repartir le flux de la demande — sinon valider une facture ressusciterait une demande close.
-  if (finalized && req.entityType === "ADMIN_REQUEST" && req.entityId && !req.documentId) {
-    // Jamais une demande TERMINÉE ou ANNULÉE (§118.187) : depuis qu'un demandeur annule au-delà de
-    // trente minutes, la demande reste visible au lieu d'être effacée — une validation tranchée après
-    // coup ne doit pas la ressusciter « en cours ».
-    await prisma.administrativeRequest.updateMany({ where: { id: req.entityId, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } }, data: { status: "IN_PROGRESS" } });
-    revalidatePath("/demandes");
-    revalidatePath("/demandes/assistant");
-  }
-  // CHAQUE DÉCISION, pas seulement la dernière (Direction, 06/10) : la fiche d'origine montre ce que
-  // chaque validateur a dit — le premier accord d'un circuit à deux doit s'y lire aussi.
-  for (const chemin of cheminsDeLObjetLie(req)) revalidatePath(chemin);
+    // Reflet sur la demande administrative liée : une fois la validation finalisée,
+    // la demande repasse « en cours » pour que l'assistante poursuive (ou retravaille
+    // en cas de refus / modification demandée — le va-et-vient du flux achat).
+    // Une validation de PIÈCE JOINTE (documentId) est un avis sur cette pièce : elle ne fait pas
+    // repartir le flux de la demande — sinon valider une facture ressusciterait une demande close.
+    if (finalized && req.entityType === "ADMIN_REQUEST" && req.entityId && !req.documentId) {
+      // Jamais une demande TERMINÉE ou ANNULÉE (§118.187) : depuis qu'un demandeur annule au-delà de
+      // trente minutes, la demande reste visible au lieu d'être effacée — une validation tranchée après
+      // coup ne doit pas la ressusciter « en cours ».
+      await prisma.administrativeRequest.updateMany({ where: { id: req.entityId, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } }, data: { status: "IN_PROGRESS" } });
+      revalidatePath("/demandes");
+      revalidatePath("/demandes/assistant");
+    }
+    // CHAQUE DÉCISION, pas seulement la dernière (Direction, 06/10) : la fiche d'origine montre ce que
+    // chaque validateur a dit — le premier accord d'un circuit à deux doit s'y lire aussi.
+    for (const chemin of cheminsDeLObjetLie(req)) revalidatePath(chemin);
 
-  // UN BON DE COMMANDE VALIDÉ PASSE À LA SIGNATURE DES FINANCES (§118.149) — elles en sont
-  // prévenues, sans quoi la file « à signer » se remplirait en silence. Relu, jamais supposé :
-  // un BC annulé ou déjà signé entre-temps ne prévient personne.
-  if (newStatus === "APPROVED" && req.entityType === "LEGAL_DOCUMENT" && req.objectType === OBJET_BC && req.entityId) {
-    await signalerSiASigner(req.entityId).catch(() => undefined);
-    revalidatePath(CHEMIN_BC_A_SIGNER);
-    revalidatePath(`/legal/${req.entityId}`);
-  }
+    // UN BON DE COMMANDE VALIDÉ PASSE À LA SIGNATURE DES FINANCES (§118.149) — elles en sont
+    // prévenues, sans quoi la file « à signer » se remplirait en silence. Relu, jamais supposé :
+    // un BC annulé ou déjà signé entre-temps ne prévient personne.
+    if (newStatus === "APPROVED" && req.entityType === "LEGAL_DOCUMENT" && req.objectType === OBJET_BC && req.entityId) {
+      await signalerSiASigner(req.entityId).catch(sansBloquer("validation-actions.decideValidation.signalerSiASigner"));
+      revalidatePath(CHEMIN_BC_A_SIGNER);
+      revalidatePath(`/legal/${req.entityId}`);
+    }
 
-  revalidatePath("/validations");
-  revalidatePath("/admin/validations");
-  revalidatePath("/mon-travail");
-  // L'accord est enregistré, le paiement n'est pas parti (ou a été retiré) : on le DIT, comme
-  // `decideApproval` — une décision « réussie » sur un paiement annulé serait une phrase fausse.
-  if (paiementRetire) return { ok: false, error: paiementRetire };
-  return { ok: true };
+    revalidatePath("/validations");
+    revalidatePath("/admin/validations");
+    revalidatePath("/mon-travail");
+    // L'accord est enregistré, le paiement n'est pas parti (ou a été retiré) : on le DIT, comme
+    // `decideApproval` — une décision « réussie » sur un paiement annulé serait une phrase fausse.
+    if (paiementRetire) return { ok: false, error: paiementRetire };
+    return { ok: true };
+  });
 }
 
 /**
@@ -680,7 +683,7 @@ export async function clearValidationItem(formData: FormData): Promise<ActionRes
  */
 async function rendreLeBCAuCircuit(req: { id: string; reference: string; objectType: string | null; entityId: string | null }, acteurId: string): Promise<void> {
   if (req.objectType !== OBJET_PREVALIDATION_BC || !req.entityId) return;
-  await libererPrevalidation(req.entityId, req.id, acteurId, `pré-validation ${req.reference} retirée — le bon de commande retourne au circuit ordinaire.`).catch(() => undefined);
+  await libererPrevalidation(req.entityId, req.id, acteurId, `pré-validation ${req.reference} retirée — le bon de commande retourne au circuit ordinaire.`).catch(sansBloquer("validation-actions.rendreLeBCAuCircuit.libererPrevalidation"));
 }
 
 export async function deleteMyValidationRequest(formData: FormData): Promise<ActionResult> {
@@ -717,7 +720,7 @@ export async function deleteMyValidationRequest(formData: FormData): Promise<Act
     await rendreLeBCAuCircuit(req, user.id);
     if (req.status === "PENDING") {
       for (const v of validateursSollicites(req, user.id)) {
-        await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur, il n'y a plus rien à trancher.`, link: `/validations/${id}` }).catch(() => undefined);
+        await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur, il n'y a plus rien à trancher.`, link: `/validations/${id}` }).catch(sansBloquer("validation-actions.deleteMyValidationRequest.notifyUser"));
       }
     }
     await recordAudit({
@@ -738,7 +741,7 @@ export async function deleteMyValidationRequest(formData: FormData): Promise<Act
   if (efface.count === 0) return { ok: false, error: "Cette demande vient de changer : rouvrez-la pour voir où elle en est." };
   await rendreLeBCAuCircuit(req, user.id);
   for (const v of validateursSollicites(req, user.id)) {
-    await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur.`, link: "/validations" }).catch(() => undefined);
+    await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur.`, link: "/validations" }).catch(sansBloquer("validation-actions.deleteMyValidationRequest.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Validations",
@@ -838,7 +841,7 @@ export async function resoumettreValidation(formData: FormData): Promise<ActionR
       title: "Demande resoumise après correction",
       body: `${req.reference} — ${req.title} (version ${version}). Ce qui a été corrigé : « ${note} ».`,
       link: lienEtapeAValider(e.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("validation-actions.resoumettreValidation.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Validations", entityType: "VALIDATION_REQUEST", entityId: id,
@@ -911,7 +914,7 @@ export async function commenterValidation(formData: FormData): Promise<ActionRes
   await prisma.comment.create({ data: { entityType: "VALIDATION_REQUEST", entityId: id, body: body.trim(), authorId: user.id } });
   for (const uid of suiveursDe(d)) {
     if (uid !== user.id) {
-      await notifyUser({ userId: uid, type: "GENERIC", title: `Nouveau message — ${d.reference}`, body: body.trim().slice(0, 120), link: `/validations/${id}` }).catch(() => undefined);
+      await notifyUser({ userId: uid, type: "GENERIC", title: `Nouveau message — ${d.reference}`, body: body.trim().slice(0, 120), link: `/validations/${id}` }).catch(sansBloquer("validation-actions.commenterValidation.notifyUser"));
     }
   }
   revalidatePath(`/validations/${id}`);
@@ -943,7 +946,7 @@ export async function ajouterParticipantsValidation(formData: FormData): Promise
   // LA TRACE dans le fil : qui a été ajouté, par qui.
   await prisma.comment.create({ data: { entityType: "VALIDATION_REQUEST", entityId: id, body: `A ajouté à la discussion : ${noms}.`, authorId: user.id } });
   for (const u of actifs) {
-    await notifyUser({ userId: u.id, type: "GENERIC", title: `Ajouté à une demande de validation`, body: `${d.reference} — ${d.title}`, link: `/validations/${id}` }).catch(() => undefined);
+    await notifyUser({ userId: u.id, type: "GENERIC", title: `Ajouté à une demande de validation`, body: `${d.reference} — ${d.title}`, link: `/validations/${id}` }).catch(sansBloquer("validation-actions.ajouterParticipantsValidation.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Validations", entityType: "VALIDATION_REQUEST", entityId: id, summary: `Participants ajoutés à ${d.reference} : ${noms}` });
   revalidatePath(`/validations/${id}`);

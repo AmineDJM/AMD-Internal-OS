@@ -14,6 +14,8 @@ import { algiersInputToUtc } from "@/lib/calendar-tz";
 import { fdStr, fdBool, fdDate, type ActionResult } from "@/lib/actions/types";
 import type { CalendarInviteStatus } from "@prisma/client";
 import { lienTache } from "@/lib/chemins/espace";
+import { sansBloquer } from "@/lib/journal";
+import { inscrirePieceJointe } from "@/modules/bibliotheque/api-inscription";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 const MAX_MSG_ATTACHMENT = 25 * 1024 * 1024; // 25 Mo par pièce jointe du fil de réunion
@@ -137,7 +139,7 @@ export async function respondToMeetingInvite(formData: FormData): Promise<Action
   await notifyUser({
     userId: part.meeting.organizerId, type: "GENERIC",
     title: "Réponse à une invitation", body: `${user.name} ${verb} « ${part.meeting.title} »`, link: `/meetings/${meetingId}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("meeting-actions.respondToMeetingInvite.notifyUser"));
   revalidatePath(`/meetings/${meetingId}`);
   return { ok: true };
 }
@@ -349,7 +351,7 @@ export async function deleteMeeting(formData: FormData): Promise<ActionResult> {
   if ("error" in res) return { ok: false, error: res.error };
   const full = await prisma.meeting.findUnique({ where: { id: res.meeting.id }, select: { audioBlobId: true, title: true } });
   await prisma.meeting.delete({ where: { id: res.meeting.id } });
-  if (full?.audioBlobId) await releaseBlob(full.audioBlobId).catch(() => {});
+  if (full?.audioBlobId) await releaseBlob(full.audioBlobId).catch(sansBloquer("meeting-actions.deleteMeeting.releaseBlob"));
   await recordAudit({ actorId: res.user.id, action: "DELETE", module: "Réunions", entityId: res.meeting.id, summary: `Réunion « ${full?.title ?? ""} » supprimée` });
   revalidatePath("/meetings");
   return { ok: true };
@@ -381,10 +383,13 @@ export async function postMeetingMessage(formData: FormData): Promise<ActionResu
   for (const f of files) {
     if (f.size > MAX_MSG_ATTACHMENT) continue;
     const buf = Buffer.from(await f.arrayBuffer());
-    const { blobId, size } = await putBlob(buf);
-    await prisma.meetingMessageAttachment.create({
-      data: { messageId: msg.id, blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size },
+    const ecrit = await putBlob(buf);
+    const pj = await prisma.meetingMessageAttachment.create({
+      data: { messageId: msg.id, blobId: ecrit.blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size: ecrit.size },
+      select: { id: true, name: true, mime: true },
     });
+    // La pièce entre à la bibliothèque (J1), ouverte par la règle de sa famille. Ne lève jamais.
+    await inscrirePieceJointe("REUNION_PIECE", pj, ecrit, { source: "CONVERSATION", proprietaireId: user.id });
   }
 
   // Notifie les autres membres (organisateur + participants).
@@ -396,7 +401,7 @@ export async function postMeetingMessage(formData: FormData): Promise<ActionResu
       title: "Nouveau message sur une réunion",
       body: `${meeting.title}${body ? ` — ${body.slice(0, 80)}` : " — pièce jointe"}`,
       link: `/meetings/${id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("meeting-actions.postMeetingMessage.notifyUser"));
   }
   revalidatePath(`/meetings/${id}`);
   return { ok: true };
@@ -415,7 +420,7 @@ export async function deleteMeetingMessage(formData: FormData): Promise<ActionRe
   const allowed = msg.authorId === user.id || canManageMeeting(user, msg.meeting);
   if (!allowed) return { ok: false, error: "Suppression non autorisée." };
   await prisma.meetingMessage.delete({ where: { id } }); // pièces jointes supprimées en cascade
-  for (const a of msg.attachments) await releaseBlob(a.blobId).catch(() => undefined); // libère le stockage
+  for (const a of msg.attachments) await releaseBlob(a.blobId).catch(sansBloquer("meeting-actions.deleteMeetingMessage.releaseBlob")); // libère le stockage
   revalidatePath(`/meetings/${msg.meetingId}`);
   return { ok: true };
 }

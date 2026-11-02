@@ -91,6 +91,8 @@ export interface AiSettingsView {
   siteWebAiEnabled: boolean;
   lecturePiecesEnabled: boolean;
   conseilPiecesEnabled: boolean;
+  /** OCR vision des conversions (décision 0019) — COUPÉ par défaut, comme sa colonne. */
+  ocrVisionEnabled: boolean;
 }
 
 const DEFAULTS: AiSettingsView = {
@@ -109,6 +111,7 @@ const DEFAULTS: AiSettingsView = {
   // Le conseil de rangement n'écrit rien et ne fait que conseiller : allumé, comme sa colonne
   // (`@default(true)`, migration `20270106100000_conseil_pieces`).
   conseilPiecesEnabled: true,
+  ocrVisionEnabled: false,
 };
 
 /** Quelle bascule gouverne quelle fonction. */
@@ -156,6 +159,7 @@ export async function getAiSettings(): Promise<AiSettingsView> {
       siteWebAiEnabled: row.siteWebAiEnabled,
       lecturePiecesEnabled: row.lecturePiecesEnabled,
       conseilPiecesEnabled: row.conseilPiecesEnabled,
+      ocrVisionEnabled: row.ocrVisionEnabled,
     };
   } catch {
     return DEFAULTS;
@@ -208,7 +212,8 @@ export async function aiFeatureEnabled(feature: AiFeature): Promise<boolean> {
  * Luna de l'intelligence réglementaire (`callLuna`, `submitBatch`, `lunaEmbed`) et la transcription
  * des médias du Drive (`media/stt.ts`) lisent l'interrupteur depuis le lot D1 (§118.196) ; lire l'état
  * d'un lot déjà déposé reste ouvert, exprès. La sonde de santé (`aiSelfTest`) aussi : son commentaire
- * dit pourquoi.
+ * dit pourquoi. L'Assistant IA (Mastra sur MiMo, `lib/agent/`) le lit dans ses deux seules portes vers le
+ * modèle, `repondreAvecSecours` et `genererTexte` (audit 27/10, cliquet `agent/interrupteur.test.ts`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -252,9 +257,18 @@ export function remplacerLecteurInterrupteurIaPourTests(lecteur: LecteurInterrup
   lecteurInterrupteurIa = lecteur ?? iaCoupeeGlobalement;
 }
 
+/**
+ * LES FONCTIONS JOURNALISÉES SANS BASCULE À ELLES — l'Assistant IA (MiMo, `lib/agent/`) n'a pas de
+ * bascule dans `AiSetting` : il est tenu par l'interrupteur GÉNÉRAL et par ses propres plafonds
+ * (`AssistantIaReglage`, écran Consommation IA). Le lui donner dans `AiFeature` aurait promis une
+ * bascule que rien ne lit (§118.17).
+ */
+export type AiFeatureJournalisee = AiFeature | "assistant_ia";
+
 export interface AiUsageInput {
-  feature: AiFeature;
-  provider?: "anthropic" | "openai";
+  feature: AiFeatureJournalisee;
+  /** Le fournisseur RÉELLEMENT appelé (`anthropic`, `openai`, `mimo`…) — jamais un nom gravé. */
+  provider?: string;
   model?: string | null;
   userId?: string | null;
   ok: boolean;

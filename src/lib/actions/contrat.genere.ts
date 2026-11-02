@@ -1,5 +1,6 @@
 // ⚠️  Module de CHARGEMENT — les données vivent dans `contrat.genere.json`, produit par
-// `npm run actions:contrat` depuis la SOURCE de src/lib/actions/. Le cliquet
+// `npm run actions:contrat` depuis la SOURCE du parc (src/lib/actions/ et
+// les actions.ts des modules, voir parc.ts). Le cliquet
 // `contrat.test.ts` redérive et compare : toute dérive échoue.
 //
 // Pourquoi du JSON et non du TypeScript : 715 littéraux d'objet en `.ts` faisaient BLOQUER

@@ -109,20 +109,3 @@ export function ancetres(nodes: readonly GraphNode[], key: string): Set<string> 
   }
   return vus;
 }
-
-/**
- * LES ÉTAPES PRÊTES À PARTIR : celles dont toutes les dépendances sont TERMINÉES.
- *
- * « Terminée » inclut délibérément `SKIPPED` : une branche écartée ne doit pas retenir le reste
- * du graphe en otage. C'est le pendant d'exécution de §37 — sans cela, une étape sautée
- * transformerait sa descendance en morts-vivants qu'aucun événement ne réveillerait.
- */
-export function pretes(
-  nodes: readonly GraphNode[],
-  etat: ReadonlyMap<string, string>,
-  termine: ReadonlySet<string>,
-): string[] {
-  return nodes
-    .filter((n) => etat.get(n.key) === "PENDING" && n.dependsOn.every((d) => termine.has(etat.get(d) ?? "")))
-    .map((n) => n.key);
-}

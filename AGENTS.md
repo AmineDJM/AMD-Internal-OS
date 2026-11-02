@@ -30,10 +30,10 @@ npx next lint
 ## Assistant IA — chantier en cours
 
 - Le cadrage et toutes les décisions sont dans `docs/assistant/decisions/` : **les lire avant de toucher
-  à `src/lib/agent/` ou `src/app/(app)/assistant/`**. Elles font office de spécification.
-- Le faux modèle (`src/lib/agent/testing/`) sert **uniquement aux tests**, jamais à une réponse réelle.
+  à `src/modules/assistant-ia/` (ex-`src/lib/agent/`) ou `src/app/(app)/assistant/`**. Elles font office de spécification.
+- Le faux modèle (`src/modules/assistant-ia/infra/testing/`) sert **uniquement aux tests**, jamais à une réponse réelle.
 - Tout ce qui part au modèle (MiMo ou autre) passe par le filtre de confidentialité
-  (`src/lib/agent/filtre-confidentialite.ts`) : aucune rémunération, coordonnée bancaire ni pièce d'identité.
+  (`src/modules/assistant-ia/domaine/filtre-confidentialite.ts`) : aucune rémunération, coordonnée bancaire ni pièce d'identité.
 - Aucune écriture en base depuis le modèle : un outil prépare une intention, l'utilisateur confirme,
   l'action métier existante l'exécute. Le RBAC est le plafond.
 - Ne pas modifier une migration déjà appliquée : en ajouter une nouvelle, idempotente.

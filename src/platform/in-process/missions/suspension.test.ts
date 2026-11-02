@@ -153,7 +153,7 @@ suite("l'interrupteur global : quatre lecteurs, un fait", () => {
     const engine = lire("src/lib/missions/runtime/engine.ts");
     const sweep = lire("src/platform/in-process/missions/sweep.ts");
     const horizon = lire("src/platform/in-process/missions/horizon.ts");
-    const runtime = lire("src/platform/in-process/missions/runtime.ts");
+    const runtime = lire("src/platform/in-process/missions/runtime/lancement.ts");
 
     // Le moteur : le contrôle est DANS la boucle de tours, avant que quoi que ce soit ne démarre.
     expect(engine).toMatch(/deps\.interrupteur \?\? lireInterrupteurMissions/);

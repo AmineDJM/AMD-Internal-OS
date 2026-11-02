@@ -7,6 +7,8 @@ import { superAdminDelete, apercuDeSuppression } from "@/lib/actions/admin-delet
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * Bouton « Supprimer définitivement » réservé au Super Admin (n'est rendu que si `enabled`) :
@@ -54,6 +56,7 @@ export function SuperAdminDeleteButton({
   stay?: boolean;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
 
   if (!enabled) return null;
@@ -85,7 +88,7 @@ export function SuperAdminDeleteButton({
         onSupprime={(r) => {
           setOpen(false);
           if (!stay) router.push(r.redirect ?? "/mon-espace");
-          router.refresh();
+          rafraichir();
         }}
       />
     </>
@@ -167,12 +170,17 @@ export function ConfirmationSuppression({
     const fd = new FormData();
     fd.set("kind", kind);
     fd.set("id", id);
-    const r = await executer(fd);
-    if (r.ok) {
-      onSupprime(r);
-    } else {
+    try {
+      const r = await executer(fd);
+      if (r.ok) {
+        onSupprime(r);
+      } else {
+        setBusy(false);
+        setError(r.error ?? "Suppression impossible.");
+      }
+    } catch {
       setBusy(false);
-      setError(r.error ?? "Suppression impossible.");
+      setError(actionFailureMessage("THROWN"));
     }
   }
 

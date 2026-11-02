@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ajouterAuChoix, clePieceMessage, messageDeLaPiece, messageRecevable, piecesParMessage, PREFIXE_PIECE_MESSAGE } from "@/lib/fil-pieces";
-import { etatApresRetrait, fichiersDeLaCase, phraseDepot, principalApresDepot } from "@/lib/care-pieces";
-import { prefixeFiche, prefixesRecus, refusDeFiche, FICHES_MAX } from "@/lib/ad-pro/fiches-saisie";
+import { etatApresRetrait, fichiersDeLaCase, phraseDepot, principalApresDepot, prefixeFiche, prefixesRecus, refusDeFiche, FICHES_MAX } from "@/modules/ad-pro/partage";
 
 describe("Pièces jointes d'un message de fil — la clé", () => {
   it("la clé se lit dans les deux sens, et rien d'autre n'est pris pour une pièce de fil", () => {

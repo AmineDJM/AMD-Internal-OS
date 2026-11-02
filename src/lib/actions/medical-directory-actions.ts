@@ -17,6 +17,7 @@ import { cleDeService } from "@/lib/annuaires/services";
 import { ecritureDeSpecialite, indexerSpecialites, lienDeSpecialiteValide } from "@/lib/annuaires/specialites";
 import { unresolvedHint } from "@/lib/medical/wilaya";
 import { inferWilayas } from "@/lib/medical/wilaya-ai";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import {
   isAnnuaireField, validateAnnuaireValue, composeDoctorName, type AnnuaireField,
 } from "@/lib/medical/directory-grid";
@@ -26,6 +27,7 @@ import {
   type HeaderProposal, type TargetColumn, type ColumnKind,
 } from "@/lib/medical/directory-mapping";
 import type { ActionResult } from "@/lib/actions/types";
+import { relierALaPersonne } from "@/modules/referentiels/api";
 
 /**
  * IMPORT D'UN ANNUAIRE — n'importe quel fichier, restructuré à notre format.
@@ -354,6 +356,9 @@ export async function importDirectorySheet(formData: FormData): Promise<ActionRe
   // LE RATTACHEMENT AUTOMATIQUE (Direction, 06/10) : une fiche importée sans établissement reçoit celui que sa
   // wilaya et sa spécialité désignent à coup sûr, et son service = sa spécialité ; « à trancher » n'écrit rien.
   const auto = await completerRattachement([...modifiables], user.id);
+  // DOUBLE ÉCRITURE DES LIEUX (refonte V2-D) : les wilayas importées (ou complétées par l'établissement) deviennent
+  // aussi le code officiel. Après le rattachement : il a pu poser la wilaya d'une fiche qui n'en avait pas.
+  await reposerWilayaCode("MedicalDoctor", [...modifiables]);
 
   // Avec une correspondance explicite, il n'y a plus de « colonne non reconnue » : ce qui n'est
   // pas rattaché l'a été SCIEMMENT. Ne le rapporter que sur le chemin automatique évite un
@@ -561,6 +566,8 @@ export async function saveDirectoryCell(input: { id: string; field: string; valu
   // LE RATTACHEMENT AUTOMATIQUE suit chaque geste qui le nourrit : une wilaya ou une spécialité posée sur une fiche
   // sans établissement, un établissement choisi sans service (service = spécialité).
   if (field === "wilaya" || field === "specialty" || field === "institution") await completerRattachement([id], user.id);
+  // DOUBLE ÉCRITURE DES LIEUX (refonte V2-D) : la cellule wilaya — ou l'établissement qui l'a complétée — pose le code.
+  if (field === "wilaya" || field === "institution") await reposerWilayaCode("MedicalDoctor", id);
   revalidatePath("/medical/annuaire");
   revalidatePath("/annuaires");
   revalidatePath("/medical");
@@ -859,18 +866,24 @@ export async function addDirectoryDoctor(input: {
   const delegateId = user.role === "MEDICAL_DELEGATE" ? user.id : null;
   const companyId = await companyIdForNew(user.id);
 
-  const created = await prisma.medicalDoctor.create({
-    data: {
-      name, lastName: lastName || null, firstName: firstName || null,
-      specialty: specialite.specialty, specialtyId: specialite.specialtyId, wilaya: wilaya.value, delegateId, companyId, directoryId,
-      institutionId, institution, serviceId,
-      ...(title && title.ok && title.value ? { title: title.value as never } : {}),
-      createdById: user.id, updatedById: user.id,
-    },
-    select: { id: true },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const created = await prisma.$transaction(async (tx) => {
+    const ligne = await tx.medicalDoctor.create({
+      data: {
+        name, lastName: lastName || null, firstName: firstName || null,
+        specialty: specialite.specialty, specialtyId: specialite.specialtyId, wilaya: wilaya.value, delegateId, companyId, directoryId,
+        institutionId, institution, serviceId,
+        ...(title && title.ok && title.value ? { title: title.value as never } : {}),
+        createdById: user.id, updatedById: user.id,
+      },
+      select: { id: true },
+    });
+    await relierALaPersonne(tx, "MedicalDoctor", ligne.id, user.id);
+    return ligne;
   });
   // Établissement déduit de la wilaya et de la spécialité, service = spécialité (Direction, 06/10).
   await completerRattachement([created.id], user.id);
+  await reposerWilayaCode("MedicalDoctor", created.id); // double écriture des lieux (V2-D)
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Promotion médicale",
     entityType: "DOCTOR", entityId: created.id, summary: `Annuaire — fiche « ${name} »`,

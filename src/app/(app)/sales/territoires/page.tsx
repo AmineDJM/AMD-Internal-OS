@@ -51,7 +51,8 @@ function TableTerritoires({ titre, lignes, lienDe }: { titre: string; lignes: Li
  * VENTES PCH — PAR DR, WILAYA ET ÉTABLISSEMENT : où nos molécules sont distribuées, où les hôpitaux demandent sans
  * obtenir. Un clic sur un établissement ouvre sa série mensuelle (12 mois).
  */
-export default async function TerritoiresVentesPchPage({ searchParams }: { searchParams: ParamsVentesPch }) {
+export default async function TerritoiresVentesPchPage(props: { searchParams: Promise<ParamsVentesPch> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PCH_VENTES");
   const ctx = await contexteVentesPch(searchParams);
   const sp: ParamsVentesPch = { bu: searchParams.bu, p: searchParams.p, m: searchParams.m, dr: searchParams.dr, produit: searchParams.produit };

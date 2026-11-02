@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { dejaPorteParSaFiche, TYPES_ENTITE_AD_PRO, AD_PRO_ENTITY_TYPE } from "@/lib/ad-pro/unified";
+import { dejaPorteParSaFiche, TYPES_ENTITE_AD_PRO, AD_PRO_ENTITY_TYPE } from "@/modules/ad-pro/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -80,7 +80,7 @@ describe("les lecteurs de contrats de consulting (§118.150)", () => {
     // Un consultant passé aux RH se paie sur une enveloppe RH : l'écran propose et l'action
     // classe. Deux lectures différentes feraient proposer une catégorie que l'action ne retient
     // pas (§118.5). On cherche le POINT D'APPEL, pas le corps (§118.49).
-    const action = sansCommentaires(fs.readFileSync("src/lib/actions/expense-actions.ts", "utf8"));
+    const action = sansCommentaires(fs.readFileSync("src/modules/finances/actions-depenses.ts", "utf8"));
     expect(action).toMatch(/moduleDeLEntite\(\s*order\.sourceType\s*,\s*order\.sourceId\s*\)/);
     const ecran = sansCommentaires(fs.readFileSync("src/app/(app)/finances/paiements-a-faire/page.tsx", "utf8"));
     expect(ecran).toMatch(/modulesDesEntites\(/);
@@ -104,7 +104,7 @@ describe("les lecteurs de contrats de consulting (§118.150)", () => {
   });
 
   it("la garde par enregistrement lit le module de la LIGNE, pas la table écrite à la main", () => {
-    const garde = sansCommentaires(fs.readFileSync("src/lib/entity-access.ts", "utf8"));
+    const garde = sansCommentaires(fs.readFileSync("src/lib/entity-access/acces-entite.ts", "utf8"));
     const corps = garde.slice(garde.indexOf("export async function canAccessEntity"));
     expect(corps).toMatch(/const module = await moduleDeLEntite\(entityType, entityId\)/);
     expect(corps).not.toMatch(/const module = ENTITY_MODULE\[entityType\]/);
@@ -115,7 +115,7 @@ describe("les lecteurs de contrats de consulting (§118.150)", () => {
     // sur une simple panne, le contrat d'un consultant RH. Une garde ne se trompe que dans le sens
     // qui FERME : l'erreur remonte et l'appelant refuse. (L'aiguillage des BC garde, lui, son repli :
     // les deux centres valident, se tromper de centre coûte un transfert, jamais une lecture.)
-    const garde = sansCommentaires(fs.readFileSync("src/lib/entity-access.ts", "utf8"));
+    const garde = sansCommentaires(fs.readFileSync("src/lib/entity-access/modules.ts", "utf8"));
     const debut = garde.indexOf("export async function modulesDesEntites");
     expect(debut, "le lecteur en lot a disparu").toBeGreaterThan(-1);
     const corps = garde.slice(debut, garde.indexOf("\n}\n", debut));

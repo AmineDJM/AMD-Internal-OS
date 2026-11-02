@@ -3,8 +3,7 @@ import { CalendarOff, PlaneTakeoff, CheckCheck, AlarmClock } from "lucide-react"
 import { requireModule } from "@/lib/session";
 import { userCan, estPrete } from "@/lib/rbac";
 import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
-import { getRhData } from "@/lib/queries/hr";
-import { getHrPulse } from "@/lib/queries/hr-pulse";
+import { getRhData, getHrPulse } from "@/modules/rh/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { visibleTabs } from "@/lib/nav-tabs";

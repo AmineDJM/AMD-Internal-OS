@@ -13,7 +13,8 @@ import { CalendarView } from "./calendar-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function CalendarPage({ searchParams }: { searchParams: { y?: string; m?: string } }) {
+export default async function CalendarPage(props: { searchParams: Promise<{ y?: string; m?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("WORKSPACE");
 
   const [ty, tm] = algiersTodayYmd().split("-").map(Number);

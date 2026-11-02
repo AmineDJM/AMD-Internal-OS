@@ -1,6 +1,6 @@
 import type { RegProcedureType } from "@prisma/client";
 import { requirementsFor, REGISTRATION_ADMIN_DOCS } from "../rules/requirements";
-import { sectionByCode, CTD_SECTIONS, type CtdModule } from "../ctd/taxonomy";
+import { sectionByCode } from "../ctd/taxonomy";
 
 /**
  * JUMEAU NUMÉRIQUE (vue) — Phase 4. Représentation structurée du dossier pour l'UI :
@@ -58,21 +58,3 @@ export function buildRegistrationDocs(docs: TwinDocLite[]): RegistrationDocRow[]
   return REGISTRATION_ADMIN_DOCS.map((d) => ({ code: d.code, label: d.label, present: coveredBy(d.code, docs).length > 0 }));
 }
 
-export interface TwinModuleGroup {
-  module: CtdModule;
-  title: string;
-  documents: TwinDocLite[];
-}
-
-/** Documents regroupés par module CTD (M1→M5) + non classés. */
-export function groupByModule(docs: TwinDocLite[]): { modules: TwinModuleGroup[]; unclassified: TwinDocLite[] } {
-  const modules: TwinModuleGroup[] = (["M1", "M2", "M3", "M4", "M5"] as CtdModule[]).map((m) => ({
-    module: m,
-    title: `Module ${m.slice(1)}`,
-    documents: docs.filter((d) => d.ctdModule === m),
-  })).filter((g) => g.documents.length > 0);
-  const unclassified = docs.filter((d) => !d.ctdModule);
-  return { modules, unclassified };
-}
-
-export const ALL_CTD_CODES = CTD_SECTIONS.map((s) => s.code);

@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog,Gauge, Globe2, HardDrive, History, Layers, Library, Mail, Map as MapIcon, MessageSquare, MessagesSquare, Network, Radar, Rocket, Settings2, ShieldCheck, Trash2, Workflow, ScanSearch, ScrollText } from "lucide-react";
+import {
+  Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog, Gauge, Globe2, HardDrive,
+  History, Layers, Library, Mail, Map as MapIcon, MessageSquare, MessagesSquare, Network, Radar, Rocket,
+  Settings2, ShieldCheck, LockKeyhole, Trash2, Workflow, ScanSearch, ScrollText,
+} from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -80,6 +84,10 @@ export default async function AdminPage() {
             <Link href="/admin/qualite">
               <Button variant="outline"><ScanSearch className="h-4 w-4" /> Qualité des données</Button>
             </Link>
+            {/* LA REFONTE DES DONNÉES (vague 2) : les reprises des référentiels, lancées ici et nulle part ailleurs. */}
+            <Link href="/admin/refonte-donnees">
+              <Button variant="outline"><Database className="h-4 w-4" /> Refonte des données</Button>
+            </Link>
             <Link href="/admin/marque">
               <Button variant="outline"><Palette className="h-4 w-4" /> Marque & modèles</Button>
             </Link>
@@ -156,6 +164,13 @@ export default async function AdminPage() {
             </Link>
             <Link href="/admin/bases">
               <Button variant="outline"><Database className="h-4 w-4" /> Bases de données</Button>
+            </Link>
+            {/* La refonte des données (vague 2) : reprises par lots, interrupteurs du coffre, journal des lectures. */}
+            <Link href="/admin/refonte-donnees">
+              <Button variant="outline"><Database className="h-4 w-4" /> Refonte des données</Button>
+            </Link>
+            <Link href="/admin/acces-donnees-sensibles">
+              <Button variant="outline"><LockKeyhole className="h-4 w-4" /> Accès aux données sensibles</Button>
             </Link>
           </>
         )}

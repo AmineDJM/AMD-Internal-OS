@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { cibleInterne } from "./imports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -45,8 +46,10 @@ export const ADAM_PATHS = [
   "src/components/chief/",
   // Adam n'a plus de groupe de routes à lui : il est un MODULE, dans la coque de l'ERP
   // (§118.100). Sa page reste du périmètre ADAM et sa dette continue d'être comptée ici.
+  // `src/app/(app)/assistant/` n'y est plus (lot J0, décision 0013) : ce dossier ne porte que
+  // l'Assistant IA, qui n'est pas Adam ; l'écran de conversation d'Adam a déménagé dans
+  // `src/components/chief/` (déjà du périmètre).
   "src/app/(app)/chief-of-staff/",
-  "src/app/(app)/assistant/",
   "src/app/api/assistant/",
 ] as const;
 
@@ -73,6 +76,22 @@ export const ADAM_PATHS = [
  */
 export const BRIDGE_PATHS = ["src/platform/in-process/"] as const;
 
+/**
+ * LE SOCLE IA — `src/platform/ia/` (lot J0, décision 0013 de l'Assistant IA).
+ *
+ * Deux produits : Adam (le Chief of Staff du Super Admin) et l'Assistant IA (tout le monde, selon ses
+ * droits). Le second importait le premier à 38 endroits pour réutiliser ce que les deux font : la forme
+ * d'un outil, des outils, les intentions, la fabrique de documents, les médias. Ce code est au socle,
+ * qu'aucun des deux ne possède et qui n'importe ni l'un ni l'autre.
+ *
+ * Il CONNAÎT l'ERP — c'est son travail, comme celui du pont. Ses imports vers l'ERP sont donc comptés,
+ * mais À PART de la dette d'Adam : le code venu d'Adam emporte sa dette avec lui (elle ne disparaît pas,
+ * elle change de colonne), et le code venu du pont y est compté pour la première fois. Plafond propre,
+ * qui ne peut que baisser (`SOCLE_IA_CEILING`, `boundary.test.ts`).
+ */
+export const SOCLE_IA_PATHS = ["src/platform/ia/"] as const;
+export const estSocleIA = (f: string): boolean => SOCLE_IA_PATHS.some((p) => f.startsWith(p));
+
 /** Ce qui n'est PAS l'ERP : les paquets externes, et Adam lui-même. */
 const isAdam = (f: string) => ADAM_PATHS.some((p) => f.startsWith(p));
 const isBridge = (f: string) => BRIDGE_PATHS.some((p) => f.startsWith(p));
@@ -88,6 +107,14 @@ const isBridge = (f: string) => BRIDGE_PATHS.some((p) => f.startsWith(p));
 export const NEUTRAL = new Set([
   "src/lib/utils",
   "src/lib/labels",
+  // `journal` (lot V3-E « Fiabilité ») écrit une ligne JSON et rend le repli d'un `catch` NOMMÉ
+  // (`sansBloquer`, `attendu`). Zéro import, sans base, sans règle métier — son seul état est un
+  // compteur d'erreurs par nom d'événement, en mémoire du processus. Il est ici parce que la règle
+  // « un `catch` ne tait pas son erreur » vaut des DEUX côtés : Adam et l'ERP avalaient chacun
+  // leurs pannes en silence ; le ranger d'un côté forcerait l'autre à écrire un second journal,
+  // au format qui divergerait — et la remontée au Super Admin ne verrait que la moitié des pannes.
+  // Le versement en base et l'alerte vivent à côté (`incidents-repetes.ts`) : eux ne sont PAS neutres.
+  "src/lib/journal",
   // `ai-text` est un ASSAINISSEUR de trois expressions régulières, sans état, sans base et sans
   // règle métier — sa propre en-tête dit qu'il est « à part, SANS dépendance » précisément pour
   // que les deux fournisseurs puissent l'utiliser sans se tirer l'un l'autre. Il satisfait le
@@ -152,6 +179,29 @@ export const NEUTRAL = new Set([
   // tables séparées auraient divergé, et le jour où l'une dit 24 h et l'autre 72, personne ne
   // saurait laquelle fait foi (§118.5).
   "src/lib/fraicheur/ages",
+  // LES PRIMITIVES D'INTERACTION (V3-B, 28/10/2026) — le dialogue de confirmation, le retour d'un geste
+  // (bandeau, avis), la phrase d'une panne d'action et le rafraîchissement suivi. Aucune ne connaît
+  // l'ERP : pas de base, pas de règle métier, pas de donnée — une fenêtre, une région `aria-live`, une
+  // phrase, un `router.refresh()` en transition. Elles sont la doctrine d'accessibilité commune
+  // (`confirm()`/`alert()` interdits, cliquet `dialogues-natifs.test.ts`) : les écrans d'Adam la
+  // suivent comme ceux de l'ERP. Les compter ici aurait obligé Adam à garder les boîtes du navigateur
+  // ou à recopier les primitives — deux façons de les voir diverger.
+  "src/components/ui/dialogue",
+  "src/components/ui/dialogue-fenetre",
+  "src/components/ui/retour",
+  "src/components/ui/retours-porteur",
+  "src/components/ui/retours-pile",
+  "src/components/ui/retour-style",
+  "src/components/ui/differe",
+  "src/lib/action-outcome",
+  "src/components/shared/use-rafraichir",
+  // … et ce dont elles sont faites, vérifié par le même portillon (`boundary.test.ts`) : le bouton du kit
+  // (React + `cn`), le verrou de défilement, et trois règles pures sans import (focus, dialogue, retour).
+  "src/components/ui/button",
+  "src/lib/use-scroll-lock",
+  "src/components/ui/sheet-focus-regle",
+  "src/components/ui/dialogue-regle",
+  "src/components/ui/retour-regle",
   // `grille/selection` et `grille/couleurs` : l'arithmétique d'une sélection de cellules et la
   // palette FERMÉE des couleurs d'annuaire (§118.133). Zéro import, sans état, sans base, sans
   // règle métier. Les DEUX côtés en ont besoin et n'ont pas le droit de se parler : les feuilles
@@ -304,9 +354,8 @@ export function scanBoundary(root = process.cwd()): BoundaryReport {
 
       for (const spec of specs) {
         // `@prisma/client` est la dépendance la plus profonde à l'ERP : le schéma lui-même.
-        const target = spec === "@prisma/client" ? "@prisma/client"
-          : spec.startsWith("@/") ? spec.replace("@/", "src/")
-            : null;
+        // `@/…` ET relatif (`../finance/x`) : voir `imports.ts` — un `./` ne contourne pas le cliquet.
+        const target = spec === "@prisma/client" ? "@prisma/client" : cibleInterne(spec, file);
         if (!target) continue;
         if (target !== "@prisma/client" && (isAdam(target) || isAdam(`${target}/`))) continue;
         if (NEUTRAL.has(target)) continue;

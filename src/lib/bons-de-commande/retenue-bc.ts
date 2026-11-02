@@ -6,6 +6,7 @@ import { perimetreLegal } from "@/lib/queries/visibilite-listes";
 import { legalKindVisible } from "@/lib/lecteurs/legal";
 import { aiguillerBC, porteDuBC, retirerEnAttente, type ResultatAiguillage } from "./aiguillage";
 import { OBJET_PREVALIDATION_BC, refusSoumissionBC, type BCASoumettre } from "./prevalidation";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -67,7 +68,7 @@ export async function retenirPourPrevalidation(docId: string, demandeId: string,
   await recordAudit({
     actorId: acteurId, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: docId,
     summary: `Bon de commande soumis à pré-validation${retires > 0 ? " — sa validation en attente au centre est retirée, la validation finale la reposera" : ""}.`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("retenue-bc.retenirPourPrevalidation.recordAudit"));
   return { ok: true };
 }
 
@@ -84,7 +85,7 @@ export async function libererPrevalidation(docId: string, demandeId: string | nu
   await recordAudit({
     actorId: acteurId, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: docId,
     summary: `Bon de commande — ${motif}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("retenue-bc.libererPrevalidation.recordAudit"));
   return { libere: true, aiguillage: await aiguillerBC(docId, { acteurId }) };
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Mails, Loader2, Check } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Input, Label, Select } from "@/components/ui/input";
 import { MAIL_DIRECTION } from "@/lib/labels";
 import { attachDriveNodeToMail } from "@/lib/actions/mail-register-actions";
@@ -28,7 +29,7 @@ export function SendToMailSheet({
   name: string;
   onClose: () => void;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [saving, setSaving] = React.useState(false);
   const [done, setDone] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -39,20 +40,25 @@ export function SendToMailSheet({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setSaving(true); setErr(null);
-    const r = await attachDriveNodeToMail({
-      driveNodeId: nodeId,
-      title: String(fd.get("title") ?? ""),
-      direction: String(fd.get("direction") ?? "OUTGOING"),
-      sender: String(fd.get("sender") ?? ""),
-      recipient: String(fd.get("recipient") ?? ""),
-      reference: String(fd.get("reference") ?? ""),
-    });
-    setSaving(false);
-    if (r.ok) {
-      setDone(true);
-      setTimeout(() => { onClose(); setDone(false); router.refresh(); }, 900);
-    } else {
-      setErr(r.error ?? "Échec.");
+    try {
+      const r = await attachDriveNodeToMail({
+        driveNodeId: nodeId,
+        title: String(fd.get("title") ?? ""),
+        direction: String(fd.get("direction") ?? "OUTGOING"),
+        sender: String(fd.get("sender") ?? ""),
+        recipient: String(fd.get("recipient") ?? ""),
+        reference: String(fd.get("reference") ?? ""),
+      });
+      if (r.ok) {
+        setDone(true);
+        setTimeout(() => { onClose(); setDone(false); rafraichir(); }, 900);
+      } else {
+        setErr(r.error ?? "Le document n'a pas été classé en courrier.");
+      }
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
     }
   };
 

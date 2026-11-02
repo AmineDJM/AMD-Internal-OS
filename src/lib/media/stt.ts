@@ -23,9 +23,15 @@ export const DELAI_STT_MS = 120_000;
  * pour ne pas casser les appelants existants — une seconde table divergerait au premier format
  * ajouté (§118.5).
  */
-export { MIMES_MEDIA, EXTENSIONS_VIDEO, extensionDe, estMedia, estVideo } from "./formats";
+export { estMedia, estVideo } from "./formats";
 import { MIMES_MEDIA, extensionDe } from "./formats";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "../ai-settings";
+import { attendu } from "@/lib/journal";
+import { cleOpenAI, urlOpenAI } from "../models/openai-acces";
+import { recordProviderCall } from "../models/telemetry";
+import { usageTranscription } from "../models/tarifs";
+
+export type UsageStt = ReturnType<typeof usageTranscription>;
 
 export interface OptionsStt {
   /** `fr` par défaut ; `auto` laisse le moteur détecter. */
@@ -35,21 +41,23 @@ export interface OptionsStt {
   env?: Record<string, string | undefined>;
   /** Un indice de vocabulaire (noms des participants, produits) — améliore la reconnaissance, n'invente rien. */
   indice?: string | null;
+  /** Journaliser l'appel (`ModelCallLog`) ici — `false` quand l'appelant le compte lui-même (le budget de l'Assistant IA). */
+  journaliser?: boolean;
 }
 
 export type ResultatStt =
-  | { ok: true; texte: string; langue: string | null; dureeS: number | null; segments: Segment[]; modele: string; ms: number; horodate: boolean }
+  | { ok: true; texte: string; langue: string | null; dureeS: number | null; segments: Segment[]; modele: string; ms: number; horodate: boolean; usage?: UsageStt }
   | { ok: false; configured: boolean; erreur: string; limite?: "RESSOURCE" };
 
-/** Les modèles qui ne rendent pas `verbose_json` : un seul segment, sans horodatage — dit dans `horodate: false`. */
-const SANS_SEGMENTS = /^gpt-4o/i;
+/** Les modèles qui ne rendent pas `verbose_json` (`gpt-4o-*-transcribe`, `gpt-transcribe`) : un seul segment, sans horodatage — dit dans `horodate: false`. */
+const SANS_SEGMENTS = /^gpt-/i;
 
 export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: OptionsStt = {}): Promise<ResultatStt> {
   // Un enregistrement envoyé au moteur de transcription est un appel d'IA comme un autre : la lecture
   // des médias du Drive ne passe pas par `lib/ai.ts`, donc l'interrupteur se lit ICI, avant la clé (§118.196).
   if (await interrupteurIaCoupe()) return { ok: false, configured: true, erreur: REFUS_IA_COUPEE };
   const env = opts.env ?? process.env;
-  const key = env.OPENAI_API_KEY;
+  const key = cleOpenAI(env);
   if (!key) return { ok: false, configured: false, erreur: "Clé OPENAI_API_KEY non configurée : la transcription est indisponible." };
   const ext = extensionDe(nom);
   const mime = MIMES_MEDIA[ext];
@@ -57,7 +65,6 @@ export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: 
   if (buffer.length > TAILLE_MAX_STT) {
     return { ok: false, configured: true, limite: "RESSOURCE", erreur: `Fichier de ${(buffer.length / 1048576).toFixed(1)} Mo : le moteur accepte ${TAILLE_MAX_STT / 1048576} Mo au plus, et ce serveur n'a pas ffmpeg pour découper — compresser ou découper le média avant de le déposer.` };
   }
-  const base = (env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
   const modele = (opts.modele ?? env.STT_MODEL ?? "whisper-1").trim();
   const horodate = !SANS_SEGMENTS.test(modele);
   const f = opts.fetchImpl ?? fetch;
@@ -73,17 +80,22 @@ export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: 
       if (opts.indice?.trim()) form.append("prompt", opts.indice.trim().slice(0, 800));
       form.append("response_format", horodate ? "verbose_json" : "json");
       if (horodate) form.append("timestamp_granularities[]", "segment");
-      const res = await f(`${base}/audio/transcriptions`, { method: "POST", headers: { authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(DELAI_STT_MS) });
+      const res = await f(urlOpenAI("/audio/transcriptions", env), { method: "POST", headers: { authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(DELAI_STT_MS) });
       if (res.ok) {
         const data = (await res.json()) as { text?: string; language?: string; duration?: number; segments?: unknown };
+        // L'usage RENDU par l'API (jetons audio/texte pour `gpt-*-transcribe`, durée pour Whisper) — audit K8, G3/E1.
+        const usage = usageTranscription(data);
+        if (opts.journaliser !== false) {
+          recordProviderCall({ role: "stt", provider: "openai", model: modele, cachedInputTokens: 0, ...usage, ms: Date.now() - t0, attempts: tentative });
+        }
         const fournis = horodate ? normaliserSegments(data.segments) : [];
         const texte = (data.text ?? "").trim();
         const dureeS = typeof data.duration === "number" && Number.isFinite(data.duration) ? Math.round(data.duration) : null;
         // Sans segments du moteur, un seul segment porte le texte — et `horodate: false` le DIT.
         const segments = fournis.length ? fournis : texte ? [{ debut: 0, fin: dureeS ?? 0, texte, locuteur: null }] : [];
-        return { ok: true, texte, langue: typeof data.language === "string" ? data.language : null, dureeS, segments, modele, ms: Date.now() - t0, horodate: fournis.length > 0 };
+        return { ok: true, texte, langue: typeof data.language === "string" ? data.language : null, dureeS, segments, modele, ms: Date.now() - t0, horodate: fournis.length > 0, usage };
       }
-      const corps = await res.text().catch(() => "");
+      const corps = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       if (res.status === 429) {
         const quota = /quota|billing|insufficient/i.test(corps);
         derniere = quota ? "Transcription indisponible : quota du fournisseur épuisé." : "Limite de débit du fournisseur atteinte : réessayer dans un instant.";

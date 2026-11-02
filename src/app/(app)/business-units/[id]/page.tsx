@@ -21,7 +21,11 @@ const dzd = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} DZD`;
  * spécialités, équipe, cibles H et A/B/C/D par produit, priorités, visites requises et réalisées du cycle ouvert,
  * capacité, appels d'offres, dépenses Ad&Pro accordées. Filtrable par spécialité : mêmes indicateurs, une spécialité.
  */
-export default async function BusinessUnit360Page({ params, searchParams }: { params: { id: string }; searchParams?: { spe?: string } }) {
+export default async function BusinessUnit360Page(
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ spe?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireUser();
   const voit = sections360(user);
   const pleineVue = voit.forceDeVente || user.access.modules.get("SEGMENTATION")?.scope === "ALL";

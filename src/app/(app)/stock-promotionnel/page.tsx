@@ -20,7 +20,8 @@ export const dynamic = "force-dynamic";
  * par la même somme que celle qui garde les sorties. Le chiffre affiché et le chiffre qui autorise
  * une dotation ne peuvent donc pas diverger.
  */
-export default async function PromoStockPage({ searchParams }: { searchParams?: { vue?: string } }) {
+export default async function PromoStockPage(props: { searchParams?: Promise<{ vue?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PROMO_STOCK");
   const [page, tabs] = await Promise.all([chargerPageStock(user), visibleTabs(user, STOCK_PROMO_TABS)]);
   return (

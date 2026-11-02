@@ -18,8 +18,8 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   AD_PRO_DOC_CATEGORIES, PROMO_MATERIAL_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, natureDeLaCategorie, naturesDEngagement,
-} from "@/lib/ad-pro/doc-categories";
-import { contextePiecesLiees } from "@/lib/ad-pro/pieces-liees";
+} from "@/modules/ad-pro/partage";
+import { contextePiecesLiees } from "@/modules/ad-pro/api";
 import { rangerPiece } from "@/lib/legal/adoption";
 import { createLegalDocument } from "@/lib/actions/legal-actions";
 import { createInvoice } from "@/lib/actions/invoice-actions";
@@ -78,7 +78,7 @@ describe("le classement — le BC quitte les engagements, rien ne disparaît", (
     // …et les deux lecteurs LISENT cette règle au lieu de la réécrire (§118.49 : le point
     // d'appel, pas le corps). Le code est lu sans ses commentaires, qui la citent forcément.
     const code = (rel: string) => fs.readFileSync(path.join(process.cwd(), rel), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");
-    const formulaire = code("src/components/shared/attach-to-source.tsx");
+    const formulaire = code("src/components/pieces/attach-to-source.tsx");
     expect(formulaire, "le formulaire doit lire la règle partagée").toMatch(/naturesDEngagement\(\)/);
     expect(formulaire, "le formulaire réécrit sa propre liste de la chaîne").not.toMatch(/new Set\(\s*\[\s*"QUOTE"/);
     const chargeur = code("src/lib/queries/chaine-des-pieces.ts");

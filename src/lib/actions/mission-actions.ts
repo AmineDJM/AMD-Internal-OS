@@ -11,28 +11,37 @@ import { rolesWithModule } from "@/lib/rbac";
 import { getManagerOf, getManagementChain } from "@/lib/departments";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { refusRetraitOrdreMission, refusAnnulationDemandeRh } from "@/lib/annulations/regles";
-import { requestHrDocument } from "@/lib/actions/hr-document-actions";
+import { requestHrDocument } from "@/modules/rh/actions-documents";
 import { createRequest } from "@/lib/actions/admin-request-actions";
 import { demanderMateriel } from "@/lib/actions/promo-stock-actions";
-import { MES_MISSIONS, PARENT_TYPES, parentPath, parentMission, rolesDe, organisateursDe } from "@/lib/missions-equipe/serveur";
-import { assurerImputationEquipe, categorieEquipePour, categorieEquipeValide } from "@/lib/missions-equipe/imputation-serveur";
+import {
+  MES_MISSIONS, PARENT_TYPES, parentPath, parentMission, rolesDe, organisateursDe,
+} from "@/lib/missions-equipe/serveur";
+import {
+  assurerImputationEquipe, categorieEquipePour, categorieEquipeValide,
+} from "@/lib/missions-equipe/imputation-serveur";
 import {
   refusReponse, peutRelancerInvitation, retraitSouple, refusAjoutEtape, etatOrdreMission, peutDemanderOrdre,
-  peutRetirerOrdre, marcheInitiale, refusDecisionN1, noteFraisOuverte, jourIso, objetOrdreMission,
-  refusMontantFrais, demandeRelancable, SOUS_TYPE_SECRETARIAT, LIBELLE_ETAPE,
-  type HrStatut, type GateN1, type ReponseMission,
+  peutRetirerOrdre, marcheInitiale, refusDecisionN1, noteFraisOuverte, jourIso, objetOrdreMission, refusMontantFrais,
+  demandeRelancable, SOUS_TYPE_SECRETARIAT, LIBELLE_ETAPE, type HrStatut, type GateN1, type ReponseMission,
 } from "@/lib/missions-equipe/etat";
 import {
-  lireFiche, ficheStockee, etapeParticipation, estArbitre, coteDe, refusProposition, refusDecision, natureNouvelleVersion,
-  peutDemanderOmParticipation, datesConvenues, destinationConvenue, hebergementPourOm, peutDeposerReservation,
-  peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture, refusModifFrais, refusDecisionN1NoteFrais,
-  moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE, TRAJETS_BILLET,
-  type Cote, type NatureFrais,
+  lireFiche, ficheStockee, refusProposition, refusDecision, natureNouvelleVersion, datesConvenues, destinationConvenue,
+  hebergementPourOm, peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture,
+  refusDecisionN1NoteFrais, moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE,
+  TRAJETS_BILLET, type NatureFrais,
 } from "@/lib/missions-equipe/participation";
-import { lireDetailsTrajets } from "@/lib/care-fiches";
-import { persistUploadedDocument } from "@/lib/documents";
+import { lireDetailsTrajets } from "@/modules/ad-pro/partage";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import { toNumber } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
+import {
+  chargerAssignation, dates, dernierOrdre, maMissionConfirmee, revalider, tracesDe,
+} from "@/lib/actions/internes/mission/assignation";
+import {
+  contexteParticipation, deposerPiece, porteFrais, porteReservation, prevenirAutreCote,
+} from "@/lib/actions/internes/mission/participation";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/mission/{assignation,participation}` — les actions restent ici (leur clé de contrat).
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -47,16 +56,6 @@ import { toNumber } from "@/lib/utils";
  */
 
 const MISSION_ROLES: MissionRole[] = ["ACCOMPAGNANT", "DELEGATE_REFERENCE"];
-
-function revalider(entityType: EntityType, entityId: string): void {
-  revalidatePath(parentPath(entityType, entityId));
-  revalidatePath(MES_MISSIONS);
-  revalidatePath(`${MES_MISSIONS}/[id]`, "page");
-  revalidatePath("/missions");
-}
-
-const dates = (d: Date | null, f: Date | null) =>
-  d ? ` · ${d.toLocaleDateString("fr-FR")}${f && f.getTime() !== d.getTime() ? ` → ${f.toLocaleDateString("fr-FR")}` : ""}` : "";
 
 /**
  * INVITER — créer l'assignation, ou rouvrir celle d'une personne qui avait décliné ou été retirée
@@ -99,7 +98,7 @@ async function inviter(
       title: role === "DELEGATE_REFERENCE" ? "Demande de participation — délégué de référence" : "Demande de participation — accompagnant",
       body: `${parent.label}${ville ? ` · ${ville}` : ""}${dates(dateDepart, dateRetour)} — par ${actor.name}. Remplissez votre fiche ou déclinez.`,
       link: lienMission(a.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("mission-actions.inviter.notifyUser"));
   }
   // LES FRAIS DE L'ÉQUIPE VONT AU BUDGET OPERATIONS & SALES (Direction, 10/2026) : l'imputation par défaut est posée dès
   // l'invitation — enveloppe de l'année ouverte d'office, catégorie « Frais de déplacement terrain » ; la Direction la change.
@@ -126,11 +125,6 @@ export async function assignMission(formData: FormData): Promise<ActionResult> {
   });
   revalider(entityType, entityId);
   return r;
-}
-
-async function chargerAssignation(id: string | null) {
-  if (!id) return null;
-  return prisma.missionAssignment.findUnique({ where: { id } });
 }
 
 /** « Je confirme » / « Je décline » — la personne invitée ; décliner porte un motif et prévient l'organisateur. */
@@ -160,7 +154,7 @@ export async function repondreMission(formData: FormData): Promise<ActionResult>
       title: decision === "CONFIRMER" ? "Mission confirmée" : "Mission déclinée",
       body: decision === "CONFIRMER" ? `${user.name} — ${parent.label}` : `${user.name} — ${parent.label} : « ${motif} ». Remplacez-le depuis la demande.`,
       link: parentPath(a.entityType, a.entityId),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("mission-actions.repondreMission.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id,
@@ -187,25 +181,10 @@ export async function relancerMission(formData: FormData): Promise<ActionResult>
     title: rang <= 1 ? "Relance — invitation à une mission" : `Relance (${rang}ᵉ) — invitation à une mission`,
     body: `${parent.label} — ${user.name} attend votre fiche de participation.`, link: lienMission(a.id),
     push: { requireInteraction: true },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("mission-actions.relancerMission.notifyUser"));
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, field: "relance", newValue: String(rang), summary: `Relance ${rang} — ${parent.label}` });
   revalider(a.entityType, a.entityId);
   return { ok: true, message: "Relance envoyée." };
-}
-
-/** Les traces qui interdisent l'effacement : pièces, fil, demandes reliées. */
-async function tracesDe(id: string) {
-  const [documents, commentaires, rh, secretariat, materiel, versions, frais] = await Promise.all([
-    prisma.document.count({ where: { entityType: "MISSION_ASSIGNMENT", entityId: id } }),
-    prisma.comment.count({ where: { entityType: "MISSION_ASSIGNMENT", entityId: id } }),
-    prisma.hrDocumentRequest.count({ where: { missionAssignmentId: id } }),
-    prisma.administrativeRequest.count({ where: { linkedEntityType: "MISSION_ASSIGNMENT", linkedEntityId: id } }),
-    prisma.promoStockRequest.count({ where: { missionAssignmentId: id } }),
-    // Une fiche envoyée ou une dépense saisie est une trace : la négociation et les frais restent, archivés.
-    prisma.missionParticipationVersion.count({ where: { assignmentId: id } }),
-    prisma.missionExpenseLine.count({ where: { assignmentId: id } }),
-  ]);
-  return { documents, commentaires, demandes: rh + secretariat + materiel + versions + frais };
 }
 
 /** Retirer sans effacer ce qui a eu lieu : archive si traces, effacement sinon. */
@@ -218,7 +197,7 @@ async function retirer(a: { id: string; userId: string; entityType: EntityType; 
   }
   const parent = await parentMission(a.entityType, a.entityId);
   if (a.userId !== actor.id) {
-    await notifyUser({ userId: a.userId, type: "GENERIC", title: "Mission retirée", body: `${parent.label} — ${motif}`, link: MES_MISSIONS }).catch(() => undefined);
+    await notifyUser({ userId: a.userId, type: "GENERIC", title: "Mission retirée", body: `${parent.label} — ${motif}`, link: MES_MISSIONS }).catch(sansBloquer("mission-actions.retirer.notifyUser"));
   }
   await recordAudit({ actorId: actor.id, action: souple ? "UPDATE" : "DELETE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Mission retirée (${souple ? "archivée" : "effacée"}) — ${parent.label}` });
   return souple ? "archivee" : "effacee";
@@ -298,14 +277,6 @@ export async function retirerEtapeMission(formData: FormData): Promise<ActionRes
 
 // ─────────────────────────────── L'ordre de mission (N+1 → RH) ───────────────────────────────
 
-async function dernierOrdre(assignmentId: string) {
-  return prisma.hrDocumentRequest.findFirst({
-    where: { missionAssignmentId: assignmentId, type: "MISSION_ORDER" },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, status: true, managerGate: true, managerUserId: true },
-  });
-}
-
 /**
  * « Demander l'ordre de mission » — UNE demande RH (MISSION_ORDER), pré-remplie depuis la mission,
  * qui monte d'abord au N+1 (organigramme) puis aux RH, où le générateur existant produit le PDF.
@@ -322,7 +293,7 @@ export async function requestMissionOrder(formData: FormData): Promise<ActionRes
 
   const employee = await prisma.employee.findUnique({ where: { userId: user.id }, select: { id: true, fullName: true } });
   if (!employee) return { ok: false, error: "Aucun dossier RH n'est lié à votre compte : les RH ne peuvent pas établir l'ordre. Contactez-les." };
-  const manager = await getManagerOf(employee.id).catch(() => null);
+  const manager = await getManagerOf(employee.id).catch(sansBloquer("mission-actions.requestMissionOrder.getManagerOf", null));
   const marche = marcheInitiale(manager?.userId ?? null, user.id);
 
   const parent = await parentMission(a.entityType, a.entityId);
@@ -356,9 +327,9 @@ export async function requestMissionOrder(formData: FormData): Promise<ActionRes
   await prisma.missionAssignment.update({ where: { id: a.id }, data: { orderStatus: "REQUESTED", requestedAt: new Date() } });
 
   if (marche.gate === "PENDING" && manager?.userId) {
-    await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Ordre de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label}${dates(depart, retour)}`, link: LIEN_MISSIONS_A_VALIDER }).catch(() => undefined);
+    await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Ordre de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label}${dates(depart, retour)}`, link: LIEN_MISSIONS_A_VALIDER }).catch(sansBloquer("mission-actions.requestMissionOrder.notifyUser"));
   } else {
-    await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Ordre de mission à établir", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${created.id}` }).catch(() => undefined);
+    await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Ordre de mission à établir", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${created.id}` }).catch(sansBloquer("mission-actions.requestMissionOrder.notifyRoles"));
   }
   await recordAudit({ actorId: user.id, action: "CREATE", module: "RH", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Ordre de mission demandé — ${parent.label}${marche.gate ? " (N+1 puis RH)" : " (directement aux RH)"}` });
   revalider(a.entityType, a.entityId);
@@ -385,7 +356,7 @@ export async function retirerDemandeOrdreMission(formData: FormData): Promise<Ac
     const pris = await prisma.hrDocumentRequest.updateMany({ where: { id: req.id, status: { in: ["PENDING", "IN_PROGRESS"] } }, data: { status: "CANCELLED", hrNote: "Retirée par le salarié depuis « Mes missions »." } });
     if (pris.count === 0) return { ok: false, error: "L'ordre de mission vient d'être traité — rechargez la page." };
     if (req.managerGate === "PENDING" && req.managerUserId) {
-      await notifyUser({ userId: req.managerUserId, type: "GENERIC", title: "Ordre de mission retiré", body: `${user.name} a retiré sa demande : plus rien à valider.`, link: MES_MISSIONS }).catch(() => undefined);
+      await notifyUser({ userId: req.managerUserId, type: "GENERIC", title: "Ordre de mission retiré", body: `${user.name} a retiré sa demande : plus rien à valider.`, link: MES_MISSIONS }).catch(sansBloquer("mission-actions.retirerDemandeOrdreMission.notifyUser"));
     }
   } else {
     const refus = refusRetraitOrdreMission(a.orderStatus);
@@ -418,7 +389,7 @@ export async function deciderOrdreMissionN1(formData: FormData): Promise<ActionR
   if (!req) return { ok: false, error: "Demande introuvable." };
   let estN1 = req.managerUserId === user.id;
   if (!estN1) {
-    const chaine = await getManagementChain(req.employeeId).catch(() => []);
+    const chaine = await getManagementChain(req.employeeId).catch(sansBloquer("mission-actions.deciderOrdreMissionN1.getManagementChain", []));
     estN1 = chaine.some((m) => m.userId === user.id) && req.employee.userId !== user.id;
   }
   const decision = fdStr(formData, "decision") === "REFUSER" ? "REFUSER" : "VALIDER";
@@ -452,13 +423,13 @@ export async function deciderOrdreMissionN1(formData: FormData): Promise<ActionR
       title: `${quoi} ${decision === "VALIDER" ? "validé(e)" : "refusé(e)"} par votre N+1`,
       body: decision === "VALIDER" ? "Elle part aux RH." : noteFrais ? `Motif : ${motif} — corrigez vos dépenses et clôturez de nouveau.` : `Motif : ${motif}`,
       link: req.missionAssignmentId ? lienMission(req.missionAssignmentId, noteFrais ? "frais" : undefined) : MES_MISSIONS,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("mission-actions.deciderOrdreMissionN1.notifyUser"));
   }
   if (decision === "VALIDER") {
     await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), {
       type: "GENERIC", title: noteFrais ? "Note de frais de mission à traiter" : "Ordre de mission à établir",
       body: `${req.employee.fullName} — validé par le N+1`, link: `/rh/demandes?demande=${id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("mission-actions.deciderOrdreMissionN1.notifyRoles"));
   }
   await recordAudit({
     actorId: user.id, action: decision === "VALIDER" ? "VALIDATE" : "REFUSE", module: "RH", entityType: "EMPLOYEE", entityId: req.employeeId,
@@ -492,15 +463,6 @@ export async function issueMissionOrder(formData: FormData): Promise<ActionResul
 }
 
 // ─────────────────────────────── Les étapes facultatives, dans leurs circuits ───────────────────────────────
-
-/** Une mission confirmée, la sienne, active — la porte de toutes les étapes. */
-async function maMissionConfirmee(id: string | null, userId: string) {
-  const a = await chargerAssignation(id);
-  if (!a || a.archivedAt) return { erreur: "Mission introuvable." } as const;
-  if (a.userId !== userId) return { erreur: "Seule la personne en mission fait ses demandes." } as const;
-  if (a.response !== "CONFIRMEE") return { erreur: "Confirmez d'abord la mission." } as const;
-  return { a } as const;
-}
 
 /**
  * TRANSPORT / HÉBERGEMENT — une demande « Déplacement / Hôtel / Billet » au Bureau du secrétariat, la
@@ -671,7 +633,7 @@ export async function addMissionComment(formData: FormData): Promise<ActionResul
     const destinataires = new Set([a.userId, ...organisateursDe(a, parent)]);
     destinataires.delete(user.id);
     for (const d of destinataires) {
-      await notifyUser({ userId: d, type: "GENERIC", title: `Commentaire — ${parent.label}`, body: `${user.name} : ${body.slice(0, 120)}`, link: lienMission(id, "fil") }).catch(() => undefined);
+      await notifyUser({ userId: d, type: "GENERIC", title: `Commentaire — ${parent.label}`, body: `${user.name} : ${body.slice(0, 120)}`, link: lienMission(id, "fil") }).catch(sansBloquer("mission-actions.addMissionComment.notifyUser"));
     }
     revalider(a.entityType, a.entityId);
   }
@@ -682,38 +644,6 @@ export async function addMissionComment(formData: FormData): Promise<ActionResul
 // LA DEMANDE DE PARTICIPATION, LA MISSION ET SA CLÔTURE (Direction, 10/2026) — règles dans
 // `missions-equipe/participation.ts`.
 // ═══════════════════════════════════════════════════════════════════════════════════════════
-
-type Assignation = NonNullable<Awaited<ReturnType<typeof chargerAssignation>>>;
-
-/** Les versions de l'invitation EN COURS (une réinvitation repart à zéro), de la plus ancienne à la plus récente. */
-async function versionsCourantes(a: { id: string; createdAt: Date }) {
-  return prisma.missionParticipationVersion.findMany({
-    where: { assignmentId: a.id, createdAt: { gte: a.createdAt } },
-    orderBy: { numero: "asc" },
-  });
-}
-
-/** Le contexte d'une participation pour l'acteur : demande parente, organisateurs, son côté, l'état. */
-async function contexteParticipation(a: Assignation, user: { id: string; role: string; secondaryRole?: string | null }) {
-  const parent = await parentMission(a.entityType, a.entityId);
-  const organisateurs = organisateursDe(a, parent);
-  const roles = rolesDe(user);
-  const arbitre = estArbitre({ id: user.id, roles }, organisateurs);
-  const cote = coteDe(user.id, a.userId, arbitre);
-  const versions = await versionsCourantes(a);
-  const derniere = versions.length ? versions[versions.length - 1]! : null;
-  const etape = etapeParticipation(a, derniere ? versionLite(derniere) : null);
-  return { parent, organisateurs, roles, arbitre, cote, versions, derniere, etape };
-}
-
-/** Prévenir l'autre côté : la personne, ou les organisateurs (hors soi). */
-async function prevenirAutreCote(a: Assignation, cote: Cote, acteurId: string, organisateurs: string[], titre: string, corps: string, ancre?: "fil") {
-  const cibles = cote === "PERSONNE" ? organisateurs : [a.userId];
-  for (const c of new Set(cibles)) {
-    if (c === acteurId) continue;
-    await notifyUser({ userId: c, type: "ASSIGNMENT", title: titre, body: corps, link: lienMission(a.id, ancre) }).catch(() => undefined);
-  }
-}
 
 /**
  * ENVOYER SA FICHE / « MODIFIER ET CONTRE-PROPOSER » — une nouvelle VERSION de la fiche. La personne ouvre ;
@@ -809,24 +739,6 @@ export async function deciderParticipation(formData: FormData): Promise<ActionRe
   return { ok: true, message: decision === "ACCEPTER" ? "Accord trouvé : l'ordre de mission peut être demandé." : "Refus envoyé : l'autre partie peut reproposer." };
 }
 
-/** La porte des dépôts de la plateforme (billet, hôtel) : assistante de direction, organisateurs, Direction Marketing, Super Admin. */
-async function porteReservation(id: string | null, user: { id: string; role: string; secondaryRole?: string | null }) {
-  const a = await chargerAssignation(id);
-  if (!a || a.archivedAt) return { erreur: "Mission introuvable." } as const;
-  const parent = await parentMission(a.entityType, a.entityId);
-  if (!peutDeposerReservation({ id: user.id, roles: rolesDe(user) }, organisateursDe(a, parent))) {
-    return { erreur: "Le billet émis et la confirmation d'hôtel se déposent par l'assistante de direction, l'organisateur, la Direction Marketing ou le Super Admin." } as const;
-  }
-  return { a, parent } as const;
-}
-
-async function deposerPiece(userId: string, assignmentId: string, f: FormDataEntryValue | null, stepKey: "BILLET" | "HOTEL" | "FRAIS"): Promise<{ ok: true; id: string | undefined } | { ok: false; error: string }> {
-  if (!(f instanceof File) || f.size === 0) return { ok: true, id: undefined };
-  const r = await persistUploadedDocument(userId, { entityType: "MISSION_ASSIGNMENT", entityId: assignmentId, category: "SUPPORTING_DOC", confidentiality: "INTERNAL", stepKey, file: f });
-  if (!r.ok || !r.documentId) return { ok: false, error: r.error ?? "Le fichier n'a pas pu être enregistré." };
-  return { ok: true, id: r.documentId };
-}
-
 /**
  * LE BILLET ÉMIS d'un membre de l'équipe (Adventum réserve) — l'e-billet, le PNR et, pour l'aller puis le retour,
  * le n° de vol / train et les heures : la même structure que le billet émis d'une fiche voyageur.
@@ -856,7 +768,7 @@ export async function enregistrerBilletMission(formData: FormData): Promise<Acti
     },
   });
   if (a.userId !== user.id && piece.id) {
-    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre billet est émis", body: parent.label, link: lienMission(a.id, "reservation") }).catch(() => undefined);
+    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre billet est émis", body: parent.label, link: lienMission(a.id, "reservation") }).catch(sansBloquer("mission-actions.enregistrerBilletMission.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Billet émis ${piece.id ? "déposé" : "mis à jour"}${billetReference ? ` (PNR ${billetReference})` : ""} — ${parent.label}` });
   revalider(a.entityType, a.entityId);
@@ -884,7 +796,7 @@ export async function enregistrerHotelMission(formData: FormData): Promise<Actio
     },
   });
   if (a.userId !== user.id && (piece.id || hotelConfirmation)) {
-    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre hôtel est confirmé", body: `${parent.label}${hotelNom ? ` — ${hotelNom}` : ""}`, link: lienMission(a.id, "reservation") }).catch(() => undefined);
+    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre hôtel est confirmé", body: `${parent.label}${hotelNom ? ` — ${hotelNom}` : ""}`, link: lienMission(a.id, "reservation") }).catch(sansBloquer("mission-actions.enregistrerHotelMission.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Confirmation d'hôtel ${piece.id ? "déposée" : "mise à jour"}${hotelConfirmation ? ` (n° ${hotelConfirmation})` : ""} — ${parent.label}` });
   revalider(a.entityType, a.entityId);
@@ -919,17 +831,6 @@ export async function choisirBudgetMission(formData: FormData): Promise<ActionRe
   revalider(a.entityType, a.entityId);
   revalidatePath("/budget-operations");
   return { ok: true, message: `Imputé à ${libelle}.` };
-}
-
-/** La porte des dépenses : la personne, sa mission ouverte (OM émis), pas encore clôturée. */
-async function porteFrais(id: string | null, userId: string) {
-  const a = await chargerAssignation(id);
-  if (!a || a.archivedAt) return { erreur: "Mission introuvable." } as const;
-  const om = await dernierOrdre(a.id);
-  const etatOm = etatOrdreMission(om ? { status: om.status as HrStatut, managerGate: (om.managerGate ?? null) as GateN1 | null } : null, a.orderStatus);
-  const refus = refusModifFrais({ cloturee: Boolean(a.clotureLe), omEmis: etatOm === "EMIS" }, a.userId === userId);
-  if (refus) return { erreur: refus } as const;
-  return { a, etatOm } as const;
 }
 
 /** AJOUTER UNE DÉPENSE — date, nature, détail, montant (USD à l'international hors billet), justificatif. */
@@ -1043,7 +944,7 @@ export async function cloturerMission(formData: FormData): Promise<ActionResult>
       budget?.ok ? `Imputation (budget Operations & Sales) : ${budget.libelle}.` : "Imputation : budget Operations & Sales, catégorie à choisir.",
       `Mission : ${lienMission(a.id, "frais")}`,
     ].filter(Boolean).join("\n");
-    const manager = await getManagerOf(employee.id).catch(() => null);
+    const manager = await getManagerOf(employee.id).catch(sansBloquer("mission-actions.cloturerMission.getManagerOf", null));
     const marche = marcheInitiale(manager?.userId ?? null, user.id);
     const retour = jourIso(a.dateRetour ?? parent.fin) || null;
     const cree = await prisma.hrDocumentRequest.create({
@@ -1056,10 +957,10 @@ export async function cloturerMission(formData: FormData): Promise<ActionResult>
     });
     noteFraisRequestId = cree.id;
     if (marche.gate === "PENDING" && manager?.userId) {
-      await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Note de frais de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label} : ${total.totalDzd.toLocaleString("fr-FR")} DZD`, link: LIEN_MISSIONS_A_VALIDER }).catch(() => undefined);
+      await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Note de frais de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label} : ${total.totalDzd.toLocaleString("fr-FR")} DZD`, link: LIEN_MISSIONS_A_VALIDER }).catch(sansBloquer("mission-actions.cloturerMission.notifyUser"));
       message = "Mission clôturée : la note de frais part à votre N+1 puis aux RH, le rapport à l'organisateur.";
     } else {
-      await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Note de frais de mission à traiter", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${cree.id}` }).catch(() => undefined);
+      await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Note de frais de mission à traiter", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${cree.id}` }).catch(sansBloquer("mission-actions.cloturerMission.notifyRoles"));
       message = "Mission clôturée : la note de frais part aux RH (aucun N+1 rattaché), le rapport à l'organisateur.";
     }
   }
@@ -1070,7 +971,7 @@ export async function cloturerMission(formData: FormData): Promise<ActionResult>
   if (pris.count === 0) return { ok: false, error: "La mission vient d'être clôturée — rechargez la page." };
   for (const o of new Set(organisateursDe(a, parent))) {
     if (o === user.id) continue;
-    await notifyUser({ userId: o, type: "GENERIC", title: `Rapport de mission — ${user.name}`, body: `${parent.label}${rapportRedige(rapport) ? ` : ${(rapport.deroule ?? "").slice(0, 100)}` : ""}`, link: lienMission(a.id, "rapport") }).catch(() => undefined);
+    await notifyUser({ userId: o, type: "GENERIC", title: `Rapport de mission — ${user.name}`, body: `${parent.label}${rapportRedige(rapport) ? ` : ${(rapport.deroule ?? "").slice(0, 100)}` : ""}`, link: lienMission(a.id, "rapport") }).catch(sansBloquer("mission-actions.cloturerMission.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Mission clôturée — ${parent.label}${noteFraisRequestId ? " (note de frais au circuit N+1 / RH)" : " (sans dépense)"}` });
   revalider(a.entityType, a.entityId);

@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { setMessagingStatus } from "@/lib/actions/messaging-actions";
 import { CHAT_STATUS_LABEL, CHAT_STATUSES, type ChatStatus } from "@/lib/messaging-ui";
 import { Input } from "@/components/ui/input";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 const DOT: Record<ChatStatus, string> = {
   AVAILABLE: "bg-emerald-500",
@@ -22,7 +24,8 @@ const DOT: Record<ChatStatus, string> = {
  * repasse en présence automatique (selon l'activité).
  */
 export function MyStatus({ name, status, message }: { name: string; status: string | null; message: string | null }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [draft, setDraft] = React.useState(message ?? "");
@@ -33,8 +36,15 @@ export function MyStatus({ name, status, message }: { name: string; status: stri
     const fd = new FormData();
     if (next) fd.set("status", next);
     fd.set("message", msg);
-    await setMessagingStatus(fd);
-    setBusy(false); setOpen(false); router.refresh();
+    try {
+      await setMessagingStatus(fd);
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    setOpen(false); rafraichir();
   }
 
   return (

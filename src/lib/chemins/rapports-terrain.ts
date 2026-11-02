@@ -51,6 +51,3 @@ export function lienCasPvKam(id: string): string {
 export function lienSignalerPv(praticienId?: string | null): string {
   return praticienId ? `${CHEMIN_PV_KAM}/nouveau?praticien=${encodeURIComponent(praticienId)}` : `${CHEMIN_PV_KAM}/nouveau`;
 }
-
-/** Le chemin du MENU, tel qu'une phrase le nomme. */
-export const MENU_RAPPORTS_TERRAIN = "Sales & Marketing › Promotion médicale › Rapports";

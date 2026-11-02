@@ -6,7 +6,7 @@ import type { Reasoner, ReasonRequest, ReasonResult } from "@/lib/missions/ports
 import { trancher, type Candidat } from "@/lib/fabric";
 import { calibrer, type FaitCalibrable } from "@/lib/assistant/confidence/calibrate";
 import { detecter } from "@/lib/quality/rules";
-import { enseigner, politiquesPourMission, reglesEnVigueurPour } from "@/platform/in-process/teach/store";
+import { enseigner, politiquesPourMission, reglesEnVigueurPour } from "@/platform/ia/teach/store";
 import { executeReadTool } from "@/lib/assistant";
 import { estPanneTransitoire, lancerMission } from "@/platform/in-process/missions/runtime";
 import { RaisonneurScripte, planScripte, pour } from "@/platform/in-process/missions/fake-reasoner";

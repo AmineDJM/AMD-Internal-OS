@@ -533,8 +533,6 @@ export function isOutboundMail(text: string): boolean {
 export function routeVoiceUtterance(raw: string, ctx: VoiceContext = {}): VoiceRoute {
   const text = normalizeUtterance(raw);
   if (!text) return { kind: "DELEGATE", tool: null, args: {}, fast: false, reason: "vide" };
-  const words = text.split(" ");
-
   // ── 0. LE RISQUE FERME TOUS LES RACCOURCIS ──────────────────────────────────────────────
   // Une phrase qui touche à l'argent, aux droits ou à une suppression traverse le chemin
   // complet : cartes, confirmations, vérifications. On ne gagne pas une seconde là-dessus.

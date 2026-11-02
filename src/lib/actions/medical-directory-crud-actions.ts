@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
+import { userCan, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { getMyCompanies } from "@/lib/company";
+import { ouvreAnnuaireNomme } from "@/lib/queries/annuaires";
 import { uniqueColumnKey } from "@/lib/medical/directory-mapping";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 
@@ -27,6 +28,24 @@ async function companyAllowed(userId: string, companyId: string | null): Promise
   if (!companyId) return true;
   const mine = await getMyCompanies(userId);
   return mine.some((c) => c.id === companyId);
+}
+
+/**
+ * L'ANNUAIRE, SEULEMENT S'IL EST OUVERT À CETTE PERSONNE (audit sécurité 27/10, SECURITE-ACCES-08).
+ *
+ * Les écritures ne relisaient que le droit « Modifier » du module : qui n'était PAS sur la liste d'un
+ * annuaire fermé (« Infectiologues », réservé à trois personnes) envoyait une liste vide — la restriction
+ * tombait et il lisait tous ses praticiens — ou sa seule personne, et fermait l'annuaire aux autres. Toute
+ * écriture passe donc par la règle de LECTURE de la feuille (`ouvreAnnuaireNomme`) et par l'entité.
+ * Non exporté : dans un fichier `"use server"`, un export devient une action appelable.
+ */
+async function annuaireOuvert(user: SessionUser, id: string): Promise<{ name: string } | null> {
+  const d = await prisma.medicalDirectory.findUnique({
+    where: { id },
+    select: { name: true, companyId: true, createdById: true, access: { select: { userId: true } } },
+  });
+  if (!d || !ouvreAnnuaireNomme(user)(d) || !(await companyAllowed(user.id, d.companyId))) return null;
+  return { name: d.name };
 }
 
 export async function createMedicalDirectory(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
@@ -56,7 +75,7 @@ export async function updateMedicalDirectory(formData: FormData): Promise<Action
   if (!userCan(user, "MEDICAL", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Annuaire introuvable." };
-  const existing = await prisma.medicalDirectory.findUnique({ where: { id }, select: { name: true } });
+  const existing = await annuaireOuvert(user, id);
   if (!existing) return { ok: false, error: "Annuaire introuvable." };
 
   const companyRaw = formData.get("companyId");
@@ -91,7 +110,7 @@ export async function deleteMedicalDirectory(formData: FormData): Promise<Action
   if (!userCan(user, "MEDICAL", "DELETE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Annuaire introuvable." };
-  const existing = await prisma.medicalDirectory.findUnique({ where: { id }, select: { name: true } });
+  const existing = await annuaireOuvert(user, id);
   if (!existing) return { ok: false, error: "Annuaire introuvable." };
 
   const count = await prisma.medicalDoctor.count({ where: { directoryId: id } });
@@ -114,7 +133,7 @@ export async function moveDoctorsToDirectory(formData: FormData): Promise<Action
   const directoryId = fdStr(formData, "directoryId");
   let directoryName = "Annuaire général";
   if (directoryId) {
-    const d = await prisma.medicalDirectory.findUnique({ where: { id: directoryId }, select: { name: true } });
+    const d = await annuaireOuvert(user, directoryId);
     if (!d) return { ok: false, error: "Annuaire introuvable." };
     directoryName = d.name;
   }
@@ -151,7 +170,7 @@ export async function setDirectoryAccess(formData: FormData): Promise<ActionResu
   if (!userCan(user, "MEDICAL", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Annuaire introuvable." };
-  const dir = await prisma.medicalDirectory.findUnique({ where: { id }, select: { name: true } });
+  const dir = await annuaireOuvert(user, id);
   if (!dir) return { ok: false, error: "Annuaire introuvable." };
 
   const wanted = [...new Set(formData.getAll("userId").map(String).filter(Boolean))];
@@ -203,7 +222,7 @@ export async function createDirectoryColumn(formData: FormData): Promise<ActionR
   if (!directoryId) return { ok: false, error: "Colonne à ajouter : annuaire non précisé." };
   if (!label) return { ok: false, error: "Donnez un nom à la colonne." };
 
-  const dir = await prisma.medicalDirectory.findUnique({ where: { id: directoryId }, select: { name: true } });
+  const dir = await annuaireOuvert(user, directoryId);
   if (!dir) return { ok: false, error: "Annuaire introuvable." };
 
   const kindRaw = fdStr(formData, "kind") || "TEXT";
@@ -241,7 +260,7 @@ export async function updateDirectoryColumn(formData: FormData): Promise<ActionR
   const col = await prisma.medicalDirectoryColumn.findUnique({
     where: { id }, select: { label: true, directoryId: true, kind: true },
   });
-  if (!col) return { ok: false, error: "Colonne introuvable." };
+  if (!col || !(await annuaireOuvert(user, col.directoryId))) return { ok: false, error: "Colonne introuvable." };
 
   const label = fdStr(formData, "label") || col.label;
   const kindRaw = fdStr(formData, "kind") || col.kind;
@@ -277,7 +296,7 @@ export async function deleteDirectoryColumn(formData: FormData): Promise<ActionR
   const col = await prisma.medicalDirectoryColumn.findUnique({
     where: { id }, select: { label: true, directoryId: true },
   });
-  if (!col) return { ok: false, error: "Colonne introuvable." };
+  if (!col || !(await annuaireOuvert(user, col.directoryId))) return { ok: false, error: "Colonne introuvable." };
 
   await prisma.medicalDirectoryColumn.delete({ where: { id } });
   await recordAudit({

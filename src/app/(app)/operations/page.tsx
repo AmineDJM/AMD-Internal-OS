@@ -32,7 +32,8 @@ const TON = { ok: "text-success", w: "text-warning", ko: "text-destructive" } as
 const montant = (c: CumulLivre) => (c.valorise ? `${formatCompact(c.valeur)} DZD` : `${formatNumber(c.boites)} bt`);
 const signe = (v: number) => `${v > 0 ? "+" : ""}${v.toLocaleString("fr-FR")} %`;
 
-export default async function CockpitOperationsPage({ searchParams }: { searchParams?: { bu?: string } }) {
+export default async function CockpitOperationsPage(props: { searchParams?: Promise<{ bu?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("COCKPIT_OPERATIONS");
   const c = await chargerCockpitOperations(user, searchParams?.bu ?? null);
   const lienBu = (id: string | null) => (id ? `/operations?bu=${encodeURIComponent(id)}` : "/operations");

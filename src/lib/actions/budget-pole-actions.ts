@@ -13,6 +13,8 @@ import { completerCategoriesDuPole as completer } from "@/lib/budget/enveloppes-
 import { CLE_DE_LA_NATURE, natureDuLibelle, type NatureBv } from "@/lib/budget-regulatory/bv";
 import { arbreCategories, refusReallocation } from "@/lib/budget/marketing-vue";
 import { getBudgetOverview } from "@/lib/queries/budget";
+import { supprimerSousGarde } from "@/lib/budget/suppression-garde";
+import { actionReversible } from "@/lib/effets/reversible";
 
 /**
  * LES BUDGETS DES PÔLES — les gestes de chaque pôle sur SES enveloppes (Direction, 08/10).
@@ -123,8 +125,10 @@ export async function deletePoleEnvelope(formData: FormData): Promise<ActionResu
   if (!env) return { ok: false, error: "Enveloppe introuvable." };
   const pole = poleDe(env);
   if (!pole || !canGovernPoleEnvelope(user, pole, "DELETE", env)) return pole ? refus(pole) : { ok: false, error: "Enveloppe générale : elle se retire dans Budgets." };
-  // Les dépenses imputées repassent en « à imputer » (clé étrangère SetNull) ; les catégories partent avec l'enveloppe.
-  await prisma.budgetEnvelope.delete({ where: { id } });
+  // Les écritures imputées repassent en « à imputer » (clé étrangère SetNull) ; les catégories partent avec
+  // l'enveloppe — refusé tant qu'une dépense budgétaire vit dessous (`budget/suppression-garde.ts`).
+  const fait = await supprimerSousGarde({ envelopeId: id });
+  if (!fait.ok) return fait;
   await recordAudit({ actorId: user.id, action: "DELETE", module: DOMAINES[pole].titre, entityId: id, summary: `Enveloppe ${DOMAINES[pole].court} « ${env.name} » supprimée` });
   revalider(pole);
   return { ok: true };
@@ -267,27 +271,29 @@ export async function saisirBvManuel(formData: FormData): Promise<ActionResult> 
  * d'un BV PAYÉ y est ré-imputée. La catégorie suit la nature lue sur l'ordre (25 % ou 75 %), jamais un choix libre.
  */
 export async function imputerBv(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const env = await enveloppeDuPole(fdStr(formData, "envelopeId"), "REGULATORY");
-  if (!env || !canManageEnvelope(user, env)) return refus("REGULATORY");
-  const orderId = fdStr(formData, "orderId");
-  if (!orderId) return { ok: false, error: "Ordre manquant." };
-  const ordre = await prisma.expenseOrder.findUnique({ where: { id: orderId }, select: { id: true, reference: true, label: true, status: true, sourceType: true, transactionId: true } });
-  if (!ordre || ordre.sourceType !== "REGULATORY_PRODUCT") return { ok: false, error: "Ce n'est pas un BV de dossier." };
-  const nature = natureDuLibelle(ordre.label);
-  if (!nature) return { ok: false, error: "Ce BV ne dit pas sa part (25 % ou 75 %) : rangez-le depuis l'onglet Dépenses." };
-  const categoryId = await categorieBv(env.id, nature);
-  if (!categoryId) return { ok: false, error: `L'enveloppe n'a pas de catégorie « BV ${nature} % » : ajoutez les catégories d'office.` };
+  return actionReversible("budget-pole-actions:imputerBv", "Imputation d'un BV sur une enveloppe", async () => {
+    const user = await requireUser();
+    const env = await enveloppeDuPole(fdStr(formData, "envelopeId"), "REGULATORY");
+    if (!env || !canManageEnvelope(user, env)) return refus("REGULATORY");
+    const orderId = fdStr(formData, "orderId");
+    if (!orderId) return { ok: false, error: "Ordre manquant." };
+    const ordre = await prisma.expenseOrder.findUnique({ where: { id: orderId }, select: { id: true, reference: true, label: true, status: true, sourceType: true, transactionId: true } });
+    if (!ordre || ordre.sourceType !== "REGULATORY_PRODUCT") return { ok: false, error: "Ce n'est pas un BV de dossier." };
+    const nature = natureDuLibelle(ordre.label);
+    if (!nature) return { ok: false, error: "Ce BV ne dit pas sa part (25 % ou 75 %) : rangez-le depuis l'onglet Dépenses." };
+    const categoryId = await categorieBv(env.id, nature);
+    if (!categoryId) return { ok: false, error: `L'enveloppe n'a pas de catégorie « BV ${nature} % » : ajoutez les catégories d'office.` };
 
-  if (ordre.status === "PAID") {
-    if (!ordre.transactionId) return { ok: false, error: "Ce BV payé n'a pas d'écriture à ranger." };
-    await prisma.financeTransaction.update({ where: { id: ordre.transactionId }, data: { budgetCategoryId: categoryId } });
-  } else if (ordre.status === "PENDING" || ordre.status === "REVISION_REQUESTED") {
-    await prisma.expenseOrder.update({ where: { id: ordre.id }, data: { budgetCategoryId: categoryId } });
-  } else {
-    return { ok: false, error: "Cet ordre est annulé." };
-  }
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: DOMAINES.REGULATORY.titre, entityType: "EXPENSE_ORDER", entityId: ordre.id, summary: `${ordre.reference} rangé dans « ${env.name} » (BV ${nature} %)` });
-  revalider("REGULATORY");
-  return { ok: true };
+    if (ordre.status === "PAID") {
+      if (!ordre.transactionId) return { ok: false, error: "Ce BV payé n'a pas d'écriture à ranger." };
+      await prisma.financeTransaction.update({ where: { id: ordre.transactionId }, data: { budgetCategoryId: categoryId } });
+    } else if (ordre.status === "PENDING" || ordre.status === "REVISION_REQUESTED") {
+      await prisma.expenseOrder.update({ where: { id: ordre.id }, data: { budgetCategoryId: categoryId } });
+    } else {
+      return { ok: false, error: "Cet ordre est annulé." };
+    }
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: DOMAINES.REGULATORY.titre, entityType: "EXPENSE_ORDER", entityId: ordre.id, summary: `${ordre.reference} rangé dans « ${env.name} » (BV ${nature} %)` });
+    revalider("REGULATORY");
+    return { ok: true };
+  });
 }

@@ -1,3 +1,4 @@
+import { et } from "@/lib/acces/compose";
 import { prisma } from "@/lib/prisma";
 import { companyScopedWhere } from "@/lib/company";
 import type { PartyOption } from "@/lib/contacts/parties";
@@ -18,8 +19,8 @@ export async function listPartyOptions(userId: string, opts: { includeIds?: stri
   const garder = opts.includeIds?.filter(Boolean) ?? [];
   const rows = await prisma.companyContact.findMany({
     where: garder.length > 0
-      ? { OR: [{ ...scope, isActive: true }, { id: { in: garder } }] }
-      : { ...scope, isActive: true },
+      ? { OR: [et(scope, { isActive: true }), { id: { in: garder } }] }
+      : et(scope, { isActive: true }),
     orderBy: [{ name: "asc" }],
     select: {
       id: true, name: true, kind: true, contactName: true, email: true,
@@ -52,7 +53,7 @@ export async function resolveParties(
   if (demandes.length === 0) return { ok: true, ids: [], text: "" };
   const scope = await companyScopedWhere(userId, {});
   const rows = await prisma.companyContact.findMany({
-    where: { ...scope, id: { in: demandes } },
+    where: et(scope, { id: { in: demandes } }),
     select: { id: true, name: true },
   });
   const byId = new Map(rows.map((r) => [r.id, r.name]));
@@ -84,14 +85,14 @@ export async function findPartyByName(
   if (!q) return { ok: false, error: "Aucun nom de partie fourni." };
   const scope = await companyScopedWhere(userId, {});
   const rows = await prisma.companyContact.findMany({
-    where: { ...scope, isActive: true, name: { equals: q, mode: "insensitive" } },
+    where: et(scope, { isActive: true, name: { equals: q, mode: "insensitive" } }),
     select: { id: true, name: true },
     take: 5,
   });
   if (rows.length === 1) return { ok: true, id: rows[0].id, name: rows[0].name };
   if (rows.length === 0) {
     const proches = await prisma.companyContact.findMany({
-      where: { ...scope, isActive: true, name: { contains: q, mode: "insensitive" } },
+      where: et(scope, { isActive: true, name: { contains: q, mode: "insensitive" } }),
       select: { id: true, name: true },
       take: 5,
     });

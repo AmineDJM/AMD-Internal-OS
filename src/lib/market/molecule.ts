@@ -26,14 +26,11 @@
  */
 import { getMarketData, DZD_PER_USD, type IqviaRow, type PchRow, type NomRow } from "./data";
 import { normText } from "./text";
-import {
-  moleculeStem, moleculeMatches, canonicalForm, extractDosage, dosageMatches,
-  GALENIC_FORMS, FORM_LABEL, type GalenicForm,
-} from "./galenic";
+import { moleculeStem, moleculeMatches, canonicalForm, extractDosage, dosageMatches, GALENIC_FORMS, type GalenicForm } from "./galenic";
 
 export {
   moleculeStem, moleculeMatches, canonicalForm, extractDosage, dosageMatches,
-  GALENIC_FORMS, FORM_LABEL, type GalenicForm,
+  GALENIC_FORMS, type GalenicForm,
 };
 
 // ───────────────────────────── Analyse concurrentielle ─────────────────────────────

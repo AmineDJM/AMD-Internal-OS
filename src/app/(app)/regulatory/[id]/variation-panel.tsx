@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { GitBranch, Plus, Loader2, Check, X, Trash2 } from "lucide-react";
 import { createVariation, setVariationStatus, deleteVariation } from "@/lib/actions/regulatory-actions";
 import { MANUFACTURING_STATUS, VARIATION_STATUS, VARIATION_TARGETS } from "@/lib/labels";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { formatDate } from "@/lib/utils";
+import { useAction } from "@/components/shared/use-action";
 
 interface VariationDTO {
   id: string;
@@ -31,17 +32,9 @@ export function VariationPanel({
   variations: VariationDTO[];
   canEdit: boolean;
 }) {
-  const router = useRouter();
   const [adding, setAdding] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-
-  async function run(fn: () => Promise<{ ok: boolean; error?: string }>, after?: () => void) {
-    setBusy(true);
-    const r = await fn();
-    setBusy(false);
-    if (!r.ok) { window.alert(r.error ?? "Action impossible."); return; }
-    after?.(); router.refresh();
-  }
+  // Les boutons d'une variation n'ont pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
 
   async function submitNew(fd: FormData) {
     fd.set("productId", productId);
@@ -130,7 +123,7 @@ export function VariationPanel({
                       </button>
                     </>
                   )}
-                  <button type="button" disabled={busy} onClick={() => { if (window.confirm("Supprimer cette variation ?")) run(() => { const fd = new FormData(); fd.set("id", v.id); return deleteVariation(fd); }); }}
+                  <button type="button" disabled={busy} onClick={() => void run(() => { const fd = new FormData(); fd.set("id", v.id); return deleteVariation(fd); }, undefined, { confirmer: "Supprimer cette variation ?" })}
                     className="inline-flex items-center gap-1 rounded-md px-2.5 py-2 text-xs font-medium text-destructive sm:px-2 sm:py-1 hover:bg-destructive/10">
                     <Trash2 className="h-3.5 w-3.5" /> Supprimer
                   </button>

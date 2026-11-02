@@ -7,7 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { ajouterVoyageur, modifierVoyageur, ajouterHebergement } from "@/lib/actions/ad-pro-item-actions";
+import { ajouterVoyageur, modifierVoyageur, ajouterHebergement } from "@/modules/ad-pro/actions-postes-voyageurs";
 import {
   envoyerFiche, envoyerFichesPretes, relancerFiche, retirerFiche, prendreFiche, signalerManque, deposerBillet, joindreDevisAgence,
 } from "@/lib/actions/reservation-fiche-actions";

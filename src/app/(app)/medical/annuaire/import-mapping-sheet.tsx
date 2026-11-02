@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, ArrowRight, Check, Loader2, Upload } from "lucide-react";
+import { AlertTriangle, ArrowRight, Loader2, Upload } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -149,14 +149,5 @@ export function ImportMappingSheet({
         </div>
       </div>
     </Sheet>
-  );
-}
-
-/** Une pastille de confirmation réutilisable — l'import réussi mérite mieux qu'un texte gris. */
-export function ImportDone({ text }: { text: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
-      <Check className="h-3.5 w-3.5" /> {text}
-    </span>
   );
 }

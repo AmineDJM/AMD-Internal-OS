@@ -7,6 +7,7 @@
  * tarif existent (§78 — un total partiel se lit comme un total).
  */
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 export interface CoutParCle {
   cle: string;
@@ -50,7 +51,7 @@ async function agreger(colonne: "model" | "feature" | "userId", depuis: Date, li
      FROM "ModelCallLog" WHERE "at" >= $1
      GROUP BY COALESCE("${col}", '—') ORDER BY "cout" DESC LIMIT $2`,
     depuis, limite,
-  ).catch(() => [] as Ligne[]);
+  ).catch(sansBloquer("usage-stats.agreger.$queryRawUnsafe", [] as Ligne[]));
   return rows.map(ligneVersCle);
 }
 
@@ -59,7 +60,7 @@ async function totalDepuis(depuis: Date): Promise<CoutParCle> {
     SELECT 'total' AS "cle", COUNT(*) AS "appels",
            SUM("inputTokens") AS "entree", SUM("outputTokens") AS "sortie", SUM("cachedInputTokens") AS "cache",
            SUM(COALESCE("costUsd", 0)) AS "cout", SUM(CASE WHEN "costUsd" IS NULL THEN 1 ELSE 0 END) AS "sansTarif"
-    FROM "ModelCallLog" WHERE "at" >= ${depuis}`.catch(() => [] as Ligne[]);
+    FROM "ModelCallLog" WHERE "at" >= ${depuis}`.catch(sansBloquer("usage-stats.totalDepuis", [] as Ligne[]));
   return rows[0] ? ligneVersCle(rows[0]) : { cle: "total", appels: 0, entree: 0, sortie: 0, cache: 0, coutUsd: 0, sansTarif: 0 };
 }
 
@@ -79,11 +80,11 @@ export async function statistiquesCout(jours = 30): Promise<StatistiquesCout> {
              percentile_cont(0.95) WITHIN GROUP (ORDER BY "costUsd") AS "p95",
              SUM(CASE WHEN "costUsd" IS NULL AND "llmCalls" > 0 THEN 1 ELSE 0 END) AS "sansTarif",
              SUM("inputTokens") AS "entree", SUM("cachedInputTokens") AS "cache"
-      FROM "AiUsageLog" WHERE "createdAt" >= ${depuis} AND "feature" = 'assistant' AND "llmCalls" IS NOT NULL`.catch(() => []),
+      FROM "AiUsageLog" WHERE "createdAt" >= ${depuis} AND "feature" = 'assistant' AND "llmCalls" IS NOT NULL`.catch(sansBloquer("usage-stats.statistiquesCout", [])),
     prisma.$queryRaw<{ missions: bigint; cout: unknown; sansTarif: bigint }[]>`
       SELECT COUNT(DISTINCT "missionId") AS "missions", SUM(COALESCE("costUsd", 0)) AS "cout",
              SUM(CASE WHEN "costUsd" IS NULL THEN 1 ELSE 0 END) AS "sansTarif"
-      FROM "ModelCallLog" WHERE "at" >= ${depuis} AND "missionId" IS NOT NULL`.catch(() => []),
+      FROM "ModelCallLog" WHERE "at" >= ${depuis} AND "missionId" IS NOT NULL`.catch(sansBloquer("usage-stats.statistiquesCout", [])),
   ]);
   const t = tour[0];
   const entreeTours = n(t?.entree);

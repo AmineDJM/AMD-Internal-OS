@@ -31,7 +31,8 @@ export const dynamic = "force-dynamic";
  * ce qu'on répond. Et la validation reste modifiable — on valide en fin de journée, on retrouve
  * une pièce le lendemain.
  */
-export default async function TaskDossierPage({ params }: { params: { id: string } }) {
+export default async function TaskDossierPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("WORKSPACE");
 
   const task = await prisma.task.findUnique({

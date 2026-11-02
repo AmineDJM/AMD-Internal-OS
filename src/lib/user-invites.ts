@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * CRÉATION DE COMPTE PAR LIEN D'INVITATION — le chemin SANS mot de passe.
@@ -110,6 +111,6 @@ export async function redeemInvite(token: string, password: string): Promise<{ o
   await recordAudit({
     actorId: invite.userId, action: "UPDATE", module: "Administration",
     summary: "Mot de passe défini via le lien d'invitation (première activation du compte)",
-  }).catch(() => {});
+  }).catch(sansBloquer("user-invites.redeemInvite.recordAudit"));
   return { ok: true };
 }

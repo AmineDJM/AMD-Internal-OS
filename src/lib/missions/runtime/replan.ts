@@ -35,7 +35,6 @@
 
 /** Les états d'où une replanification a un sens. Ailleurs, il n'y a rien à replanifier. */
 export const ETATS_REPLANIFIABLES = ["FAILED", "BLOCKED", "PARTIAL"] as const;
-export type EtatReplanifiable = (typeof ETATS_REPLANIFIABLES)[number];
 
 export const estReplanifiable = (statut: string): boolean =>
   (ETATS_REPLANIFIABLES as readonly string[]).includes(statut);

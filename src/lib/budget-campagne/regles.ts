@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LA CAMPAGNE BUDGÉTAIRE — LES RÈGLES (Budgets 2027, Direction 10/2026, maquette validée).
@@ -417,11 +418,9 @@ export function peutVoirProposition(e: EntreeDroits, departmentId: string | null
 
 // ─────────────────────────────── Pôles et domaines ───────────────────────────────
 
-const plat = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
 /** Le domaine des enveloppes d'un pôle, deviné de son nom (modifiable dans les réglages). */
 export function domaineParDefaut(nom: string, code?: string | null): DomaineCampagne {
-  const t = plat(`${nom} ${code ?? ""}`);
+  const t = plier(`${nom} ${code ?? ""}`);
   if (t.includes("marketing")) return "MARKETING";
   if (t.includes("regul")) return "REGULATORY";
   if (/operation|commercial|sales|vente/.test(t)) return "OPERATIONS";
@@ -511,7 +510,7 @@ export function planEnveloppe(
     const trouvee =
       (l.categoryLineId ? tete.find((c) => c.id === l.categoryLineId && libre(c)) : undefined)
       ?? (cle ? tete.find((c) => c.cle === cle && libre(c)) : undefined)
-      ?? tete.find((c) => plat(c.name) === plat(l.label) && libre(c));
+      ?? tete.find((c) => plier(c.name) === plier(l.label) && libre(c));
     if (trouvee) {
       prises.add(trouvee.id);
       if (trouvee.allocated !== montant) plan.majCategories.push({ categoryId: trouvee.id, key: l.key, nom: trouvee.name, de: trouvee.allocated, a: montant });

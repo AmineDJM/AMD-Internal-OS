@@ -12,6 +12,7 @@ import { linkEntitiesForItem } from "./entities/link";
 import { decideRoute } from "./route";
 import { lireOctetsDrive } from "./sources/drive";
 import { rasterizePages } from "@/lib/storage/raster";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -157,7 +158,7 @@ export async function stageEmbed(itemId: string): Promise<boolean> {
   await Promise.all(
     chunks.map((c, i) =>
       vectors[i]
-        ? prisma.knowledgeChunk.update({ where: { id: c.id }, data: { embedding: vectors[i] } }).catch(() => undefined)
+        ? prisma.knowledgeChunk.update({ where: { id: c.id }, data: { embedding: vectors[i] } }).catch(sansBloquer("stages.stageEmbed.knowledgeChunk"))
         : Promise.resolve(undefined),
     ),
   );

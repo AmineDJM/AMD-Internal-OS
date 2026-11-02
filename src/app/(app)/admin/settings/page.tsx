@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, SlidersHorizontal, Megaphone, MailWarning, FileCheck2, ScanSearch, ShieldCheck, MessageSquarePlus, FolderPlus, BarChart3, Network, Layers, LayoutGrid, Lock } from "lucide-react";
 import { requireModule } from "@/lib/session";
@@ -7,6 +6,7 @@ import { getAppSettings } from "@/lib/settings";
 import { ROLE_LABELS } from "@/lib/labels";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminLimitsForm, AdProDgThresholdForm, BroadcastComposer, MailDiagnosticPanel, RegEnrollmentToggle, RegIntelligenceToggles, RegulatorySupervisorForm, RegulatoryTherapeuticSegmentsForm, RegulatoryHiddenColumnsForm, DriveSpaceCreatorForm, FieldReportsOverviewForm, PromoMessageAuthorsForm, OrgChartViewersForm, HiddenModulesForm, PipelineAccessForm, DirectiveAccessForm } from "./admin-settings-forms";
+import { SeparationTachesToggle } from "./separation-taches-toggle";
 import { MODULES } from "@/lib/rbac";
 import { MODULE_LABELS } from "@/lib/labels";
 import { isHideable } from "@/lib/modules-visibility";
@@ -59,6 +59,16 @@ export default async function AdminSettingsPage() {
         </CardHeader>
         <CardContent>
           <AdProDgThresholdForm settings={settings} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" /> Centre de paiement — séparation des tâches</CardTitle>
+          <p className="text-sm text-muted-foreground">Celui qui demande un paiement ne l&apos;autorise pas lui-même ; celui qui l&apos;a demandé ou autorisé ne le règle pas. Active par défaut ; chaque changement est journalisé.</p>
+        </CardHeader>
+        <CardContent>
+          <SeparationTachesToggle active={settings.separationTachesPaiement} />
         </CardContent>
       </Card>
 

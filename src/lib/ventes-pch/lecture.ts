@@ -21,14 +21,6 @@ export type NatureFichier = "VENTES_DR" | "RECEPTIONS";
 /** Ce qu'une ligne de vente DIT de la demande de l'hôpital. */
 export type StatutLigne = "SERVIE" | "PARTIELLE" | "NON_SERVIE" | "RETOUR" | "NULLE";
 
-export const LIBELLE_STATUT: Record<StatutLigne, string> = {
-  SERVIE: "Servie",
-  PARTIELLE: "Servie en partie",
-  NON_SERVIE: "Non servie",
-  RETOUR: "Retour",
-  NULLE: "Vide",
-};
-
 // ─────────────────────────── En-têtes ───────────────────────────
 
 /** Une écriture d'en-tête comparable : « QTÉ_COMMANDÉE » → « QTE_COMMANDEE », « ROUND(P.COUT_UNIT_ACHAT,2) » → « ROUND_P_COUT_UNIT_ACHAT_2 ». */

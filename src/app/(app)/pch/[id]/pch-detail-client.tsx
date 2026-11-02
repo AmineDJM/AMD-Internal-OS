@@ -2,6 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { updateTender, deleteTender, createOrder, updateOrder, deleteOrder } from "@/lib/actions/pch-actions";
 import { Button } from "@/components/ui/button";
@@ -15,6 +19,7 @@ import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import type { PchTenderDTO, PchOrderDTO } from "@/lib/queries/pch";
 import type { Market360 } from "@/lib/queries/market-360";
 import { OrderExecution } from "./order-execution";
+import { journal } from "@/lib/journal";
 
 type Action = (fd: FormData) => Promise<{ ok: boolean; error?: string }>;
 
@@ -23,14 +28,9 @@ function W({ label, children, full }: { label: string; children: React.ReactNode
 }
 
 function useSubmit() {
-  const router = useRouter();
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy: saving, err, setErr, run } = useAction();
   const submit = async (action: Action, fd: FormData, onOk: () => void) => {
-    setSaving(true); setErr(null);
-    const r = await action(fd);
-    setSaving(false);
-    if (r.ok) { onOk(); router.refresh(); } else setErr(r.error ?? "Erreur.");
+    await run(() => action(fd), onOk);
   };
   return { saving, err, setErr, submit };
 }
@@ -41,6 +41,8 @@ export function EditTenderButton({ tender, canDelete, users = [], businessUnits 
   businessUnits?: { id: string; name: string }[];
 }) {
   const router = useRouter();
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [open, setOpen] = React.useState(false);
   const { saving, err, setErr, submit } = useSubmit();
   const t = tender;
@@ -88,7 +90,7 @@ export function EditTenderButton({ tender, canDelete, users = [], businessUnits 
           {err && <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="h-4 w-4" /> {err}</div>}
           <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
             {canDelete ? (
-              <Button type="button" variant="ghost" className="w-full text-destructive sm:w-auto" onClick={() => { if (window.confirm("Supprimer cet appel d'offres ? Il part à la corbeille avec ses lots, ses bons de commande et leurs livraisons — le Super Admin peut tout restaurer.")) { const fd = new FormData(); fd.set("id", t.id); deleteTender(fd).then((r) => { if (r.ok) router.push("/pch"); else window.alert(r.error); }); } }}>
+              <Button type="button" variant="ghost" className="w-full text-destructive sm:w-auto" onClick={async () => { if (await confirmer("Supprimer cet appel d'offres ? Il part à la corbeille avec ses lots, ses bons de commande et leurs livraisons — le Super Admin peut tout restaurer.")) { const fd = new FormData(); fd.set("id", t.id); deleteTender(fd).then((r) => { if (r.ok) router.push("/pch"); else retours.erreur(r.error ?? "L'appel d'offres n'a pas été supprimé."); }).catch((e: unknown) => { journal.erreur("pch-detail-client.deleteTender", {}, e); retours.erreur(actionFailureMessage("THROWN")); }); } }}>
                 <Trash2 className="h-4 w-4" /> Supprimer
               </Button>
             ) : <span className="hidden sm:block" />}
@@ -111,7 +113,8 @@ export function OrdersManager({ tenderId, orders, canEdit, canDelete, canInvoice
   details?: Market360["bons"];
   contrats?: Market360["contrats"];
 }) {
-  const router = useRouter();
+  // L'icône « supprimer » d'une ligne n'a pas de place pour parler : un refus part en avis flottant.
+  const suppression = useAction({ signalerErreurs: true });
   const [editing, setEditing] = React.useState<PchOrderDTO | null>(null);
   const [adding, setAdding] = React.useState(false);
   // LE BON DÉPLIÉ : ses lignes, ses livraisons, ses factures. Un seul à la fois — la table
@@ -157,7 +160,7 @@ export function OrdersManager({ tenderId, orders, canEdit, canDelete, canInvoice
                   <TableCell>
                     <div className="flex items-center justify-end gap-0.5">
                       {canEdit && <button aria-label="Modifier le bon" onClick={(e) => { e.stopPropagation(); setErr(null); setEditing(ord); }} className="rounded p-2.5 text-muted-foreground hover:bg-secondary hover:text-foreground sm:p-1.5"><Pencil className="h-4 w-4" /></button>}
-                      {canDelete && <button aria-label="Supprimer le bon" onClick={(e) => { e.stopPropagation(); if (window.confirm("Supprimer ce bon de commande ?")) { const fd = new FormData(); fd.set("id", ord.id); deleteOrder(fd).then(() => router.refresh()); } }} className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5"><Trash2 className="h-4 w-4" /></button>}
+                      {canDelete && <button aria-label="Supprimer le bon" onClick={(e) => { e.stopPropagation(); const fd = new FormData(); fd.set("id", ord.id); void suppression.run(() => deleteOrder(fd), undefined, { confirmer: "Supprimer ce bon de commande ?" }); }} disabled={suppression.busy} className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5"><Trash2 className="h-4 w-4" /></button>}
                     </div>
                   </TableCell>
                 </TableRow>

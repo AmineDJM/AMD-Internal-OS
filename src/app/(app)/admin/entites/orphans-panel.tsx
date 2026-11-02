@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { attachOrphansToCompany } from "@/lib/actions/entity-attach-actions";
 import type { UnattachedGroup } from "@/lib/queries/unattached";
 
@@ -26,7 +27,7 @@ export function OrphansPanel({
   total: number;
   companies: { id: string; name: string }[];
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [target, setTarget] = React.useState<Record<string, string>>({});
@@ -40,18 +41,22 @@ export function OrphansPanel({
     );
   }
 
-  const attach = (model: string) => {
+  const attach = async (model: string) => {
     const companyId = target[model];
     if (!companyId) { setMsg({ ok: false, text: "Choisissez l'entité de rattachement." }); return; }
     const fd = new FormData();
     fd.set("model", model);
     fd.set("companyId", companyId);
     setBusy(model); setMsg(null);
-    void attachOrphansToCompany(fd).then((r) => {
+    try {
+      const r = await attachOrphansToCompany(fd);
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattaché.") : (r.error ?? "Les enregistrements n'ont pas été rattachés.") });
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
       setBusy(null);
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattaché.") : (r.error ?? "Échec.") });
-      if (r.ok) router.refresh();
-    });
+    }
   };
 
   return (
@@ -89,7 +94,7 @@ export function OrphansPanel({
               <option value="">— Entité —</option>
               {companies.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
             </Select>
-            <Button size="sm" variant="outline" disabled={busy === g.model} onClick={() => attach(g.model)}>
+            <Button size="sm" variant="outline" disabled={busy === g.model} onClick={() => void attach(g.model)}>
               {busy === g.model ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Rattacher
             </Button>
           </li>

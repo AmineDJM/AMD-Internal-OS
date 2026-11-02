@@ -6,6 +6,7 @@ import { Input, Label } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { verifierReferenceRegistre } from "@/lib/actions/registre-references-actions";
 import { lireReference, type ReferenceProchaine } from "@/lib/references/registre";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -100,7 +101,7 @@ export function ChampReference({
       fd.set("societeId", societeId);
       fd.set("reference", v);
       if (annee) fd.set("annee", String(annee));
-      const r = await verifierReferenceRegistre(fd).catch(() => null);
+      const r = await verifierReferenceRegistre(fd).catch(sansBloquer("champ-reference.ChampReference.verifierReferenceRegistre", null));
       if (!vivant) return;
       setVerification(false);
       setErreur(r && !r.ok ? r.error : null);

@@ -16,7 +16,7 @@ import { Loader2 } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PiecesHistorique } from "@/components/ad-pro/pieces-historique";
+import { PiecesHistorique } from "@/modules/ad-pro/ecrans/pieces-historique";
 import { ficheHistoriqueIntegration } from "@/lib/actions/integration-adpro-actions";
 import type { BlocHistorique } from "@/lib/budget-marketing/integration-serveur";
 import { LIBELLE_STATUT_DEMANDE, type DemandeVue } from "@/lib/budget-marketing/demandes-vue";

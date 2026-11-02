@@ -5,6 +5,8 @@ import { Check, Loader2, RefreshCw, X } from "lucide-react";
 import { relancerAnalyseInfluence, deciderLienInfluence } from "@/lib/actions/intelligence-terrain-actions";
 import { Button } from "@/components/ui/button";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /** « Relancer l'analyse » — structure, nouveaux rapports (Luna), scores. Le bilan s'affiche en une ligne. */
 export function RelancerAnalyse() {
@@ -13,12 +15,17 @@ export function RelancerAnalyse() {
   const [msg, setMsg] = React.useState<string | null>(null);
   const lancer = async () => {
     setBusy(true); setMsg(null);
-    const r = await relancerAnalyseInfluence();
-    setBusy(false);
-    if (!r.ok) { setMsg(r.error ?? "Analyse impossible."); return; }
-    const b = r.bilan;
-    if (b) setMsg(`${b.rapportsLus} rapport(s) lu(s) · ${b.liensProposes} lien(s) proposé(s)${b.luna === "INDISPONIBLE" ? " · Luna indisponible" : b.luna === "ECHEC" ? " · Luna n'a pas répondu" : ""}${b.resteALire ? " · reste à lire" : ""}`);
-    rafraichir();
+    try {
+      const r = await relancerAnalyseInfluence();
+      if (!r.ok) { setMsg(r.error ?? "L'analyse n'a pas été relancée."); return; }
+      const b = r.bilan;
+      if (b) setMsg(`${b.rapportsLus} rapport(s) lu(s) · ${b.liensProposes} lien(s) proposé(s)${b.luna === "INDISPONIBLE" ? " · Luna indisponible" : b.luna === "ECHEC" ? " · Luna n'a pas répondu" : ""}${b.resteALire ? " · reste à lire" : ""}`);
+      rafraichir();
+    } catch {
+      setMsg(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -32,18 +39,15 @@ export function RelancerAnalyse() {
 
 /** Confirmer / rejeter un lien proposé par Luna. */
 export function DecisionLien({ relationId }: { relationId: string }) {
-  const { rafraichir } = useRafraichir();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, run } = useAction();
   const decider = async (decision: "CONFIRMEE" | "REJETEE") => {
-    setBusy(true); setErr(null);
     const fd = new FormData();
     fd.set("relationId", relationId);
     fd.set("decision", decision);
-    const r = await deciderLienInfluence(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Action impossible."); return; }
-    rafraichir();
+    await run(async () => {
+      const r = await deciderLienInfluence(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? (decision === "CONFIRMEE" ? "Le lien n'a pas été confirmé." : "Le lien n'a pas été rejeté.") };
+    });
   };
   return (
     <div className="flex items-center gap-1.5">

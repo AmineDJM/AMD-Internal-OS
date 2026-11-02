@@ -9,8 +9,10 @@ import {
   type ModelToolDef,
   type ModelTurn,
   costOf,
-  emptyUsage,
+  reponseEnEchec,
+  reponseSansCle,
 } from "./contract";
+import { attendu } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -133,14 +135,7 @@ const headers = (key: string) => ({
 const baseUrl = () => (process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com").replace(/\/$/, "");
 
 function notConfigured(binding: ModelBinding): ModelReply {
-  return {
-    ok: false,
-    configured: false,
-    stop: "error",
-    blocks: [],
-    usage: emptyUsage(binding.role, binding.model, "anthropic"),
-    error: "Clé ANTHROPIC_API_KEY non configurée.",
-  };
+  return reponseSansCle(binding, "anthropic", "ANTHROPIC_API_KEY");
 }
 
 export async function callAnthropic(
@@ -169,10 +164,12 @@ export async function callAnthropic(
         const data = (await res.json()) as {
           content?: AnthropicBlock[];
           stop_reason?: string;
-          usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number };
+          usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
         };
         const blocks = fromAnthropicBlocks(data.content);
-        const inputTokens = data.usage?.input_tokens ?? 0;
+        // Anthropic compte la lecture et l'écriture de cache HORS de `input_tokens` (audit K8, E8) : le total de
+        // l'entrée les rajoute, pour que `cachedInputTokens` en soit bien une PART (convention du journal).
+        const inputTokens = (data.usage?.input_tokens ?? 0) + (data.usage?.cache_read_input_tokens ?? 0) + (data.usage?.cache_creation_input_tokens ?? 0);
         const outputTokens = data.usage?.output_tokens ?? 0;
         return {
           ok: true,
@@ -193,7 +190,7 @@ export async function callAnthropic(
         };
       }
 
-      const body = await res.text().catch(() => "");
+      const body = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] anthropic error", binding.role, res.status, body.slice(0, 300));
       lastError = providerErrorMessage(res.status, body);
       if (!isRetryableStatus(res.status) || attempt === MAX_ATTEMPTS) break;
@@ -209,14 +206,7 @@ export async function callAnthropic(
     await new Promise((r) => setTimeout(r, 600 * attempt));
   }
 
-  return {
-    ok: false,
-    configured: true,
-    stop: "error",
-    blocks: [],
-    usage: { ...emptyUsage(binding.role, binding.model, "anthropic"), ms: Date.now() - started },
-    error: lastError,
-  };
+  return reponseEnEchec(binding, "anthropic", started, lastError);
 }
 
 /**
@@ -274,7 +264,7 @@ export async function streamAnthropic(
     });
 
     if (!res.ok || !res.body) {
-      const body = await res.text().catch(() => "");
+      const body = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] anthropic stream error", binding.role, res.status, body.slice(0, 300));
       return finish(false, providerErrorMessage(res.status, body));
     }
@@ -305,8 +295,11 @@ export async function streamAnthropic(
         const index = typeof evt.index === "number" ? evt.index : 0;
 
         if (type === "message_start") {
-          const msg = evt.message as { usage?: { input_tokens?: number; cache_read_input_tokens?: number } } | undefined;
-          inputTokens = msg?.usage?.input_tokens ?? inputTokens;
+          const msg = evt.message as { usage?: { input_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number } } | undefined;
+          // Même total que l'appel non diffusé : lecture et écriture de cache comprises (audit K8, E8).
+          inputTokens = msg?.usage?.input_tokens != null
+            ? msg.usage.input_tokens + (msg.usage.cache_read_input_tokens ?? 0) + (msg.usage.cache_creation_input_tokens ?? 0)
+            : inputTokens;
           cachedInputTokens = msg?.usage?.cache_read_input_tokens ?? cachedInputTokens;
         } else if (type === "content_block_start") {
           const block = evt.content_block as AnthropicBlock | undefined;

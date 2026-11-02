@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Upload, Loader2, CheckCircle2, XCircle, MinusCircle, FileText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -54,7 +54,7 @@ const CATEGORIES = [
 ] as const;
 
 export function CorpusImport() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [rows, setRows] = React.useState<Row[]>([]);
   const [authority, setAuthority] = React.useState<string>("ANPP");
   const [jurisdiction, setJurisdiction] = React.useState("DZ");
@@ -104,7 +104,7 @@ export function CorpusImport() {
 
     await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, worker));
     setRunning(false);
-    router.refresh(); // la liste « Textes utilisés » reflète l'import
+    rafraichir(); // la liste « Textes utilisés » reflète l'import
   };
 
   // DÉPOSER SUFFIT : l'import démarre dès la sélection — pas de second bouton à trouver.

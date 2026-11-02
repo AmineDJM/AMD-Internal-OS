@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { callLuna, lunaModel, type LunaCallInput, type LunaResult, type LunaUsage } from "@/lib/openai-luna";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE REGISTRE DES COÛTS — « combien coûte ce dossier, et à cause de quoi ? »
@@ -114,7 +115,7 @@ export async function trackedLuna<T = unknown>(ctx: CallContext, input: LunaCall
       await prisma.regulatoryAiCache.update({
         where: { id: hit.id },
         data: { hits: { increment: 1 }, lastHitAt: new Date() },
-      }).catch(() => {});
+      }).catch(sansBloquer("cost-ledger.trackedLuna.regulatoryAiCache"));
       await record(ctx, { model, usage: ZERO_USAGE, ok: true, cacheKey: key, fromCache: true, latencyMs: 0 });
       let data: T | undefined;
       if (input.jsonSchema) { try { data = JSON.parse(hit.payload) as T; } catch { /* payload non JSON */ } }
@@ -149,7 +150,7 @@ export async function trackedLuna<T = unknown>(ctx: CallContext, input: LunaCall
   if (res.ok && res.text) {
     await prisma.regulatoryAiCache.create({
       data: { cacheKey: key, step: ctx.step, model, payload: res.text },
-    }).catch(() => { /* concurrence : une autre requête a déjà écrit la même clé */ });
+    }).catch(sansBloquer("cost-ledger.trackedLuna.regulatoryAiCache"));
   }
 
   return { ...res, cached: false };
@@ -194,72 +195,6 @@ export interface CostBreakdownRow {
   inputTokens: number;
   outputTokens: number;
   cachedCalls: number;
-}
-
-export interface DossierCost {
-  totalUsd: number;
-  calls: number;
-  cachedCalls: number;
-  /** Économie réalisée grâce au cache, estimée au coût moyen d'un appel réel. */
-  savedUsd: number;
-  byStep: CostBreakdownRow[];
-  byModel: CostBreakdownRow[];
-  byDocument: CostBreakdownRow[];
-  budget: BudgetState;
-}
-
-/** Le détail des coûts d'un dossier : par étape, par modèle, par fichier. */
-export async function dossierCost(dossierId: string): Promise<DossierCost> {
-  const [calls, budget] = await Promise.all([
-    prisma.regulatoryAiCall.findMany({
-      where: { dossierId },
-      select: { step: true, model: true, documentId: true, costUsd: true, inputTokens: true, outputTokens: true, fromCache: true },
-    }),
-    budgetState(dossierId),
-  ]);
-
-  const group = (pick: (c: (typeof calls)[number]) => string | null): CostBreakdownRow[] => {
-    const m = new Map<string, CostBreakdownRow>();
-    for (const c of calls) {
-      const key = pick(c) ?? "—";
-      const row = m.get(key) ?? { key, label: key, calls: 0, costUsd: 0, inputTokens: 0, outputTokens: 0, cachedCalls: 0 };
-      row.calls += 1;
-      row.costUsd += toNumber(c.costUsd);
-      row.inputTokens += c.inputTokens;
-      row.outputTokens += c.outputTokens;
-      if (c.fromCache) row.cachedCalls += 1;
-      m.set(key, row);
-    }
-    return [...m.values()].sort((a, b) => b.costUsd - a.costUsd);
-  };
-
-  const totalUsd = calls.reduce((s, c) => s + toNumber(c.costUsd), 0);
-  const paid = calls.filter((c) => !c.fromCache);
-  const cachedCalls = calls.length - paid.length;
-  const avgPaid = paid.length > 0 ? totalUsd / paid.length : 0;
-
-  // Documents : on ne résout les noms que pour ceux qui ont réellement coûté.
-  const byDocument = group((c) => c.documentId);
-  const docIds = byDocument.map((r) => r.key).filter((k) => k !== "—");
-  if (docIds.length > 0) {
-    const docs = await prisma.regulatoryDocument.findMany({
-      where: { id: { in: docIds } },
-      select: { id: true, originalFilename: true },
-    }).catch(() => []);
-    const names = new Map(docs.map((d) => [d.id, d.originalFilename]));
-    for (const row of byDocument) row.label = names.get(row.key) ?? row.key;
-  }
-
-  return {
-    totalUsd,
-    calls: calls.length,
-    cachedCalls,
-    savedUsd: Math.round(cachedCalls * avgPaid * 1e6) / 1e6,
-    byStep: group((c) => c.step),
-    byModel: group((c) => c.model),
-    byDocument,
-    budget,
-  };
 }
 
 // ─────────────────── Vue TRANSVERSE : le coût de l'IA sur TOUS les dossiers ───────────────────
@@ -329,7 +264,7 @@ export async function regulatoryAiSpend(companyId?: string | null): Promise<Regu
     ? await prisma.regulatoryDossier.findMany({
         where: { id: { in: ids } },
         select: { id: true, reference: true, title: true, status: true, aiBudgetUsd: true },
-      }).catch(() => [])
+      }).catch(sansBloquer("cost-ledger.regulatoryAiSpend.regulatoryDossier", []))
     : [];
   const meta = new Map(dossiers.map((d) => [d.id, d]));
   const byDossier: DossierCostRow[] = byDossierRaw

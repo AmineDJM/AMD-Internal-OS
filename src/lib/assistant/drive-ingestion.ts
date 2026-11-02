@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ensureNodeIndexed } from "@/lib/assistant/document-discovery";
 import { embedDriveBacklog } from "@/lib/assistant/semantic-drive";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * INGESTION DRIVE EXHAUSTIVE — l'index textuel n'attend plus qu'un fichier soit LU.
@@ -48,7 +49,7 @@ export async function runDriveIngestionSweep(batch = SWEEP_BATCH): Promise<{ ind
       take: batch,
     });
     for (const c of candidates) {
-      const ok = await ensureNodeIndexed(c.id).catch(() => false);
+      const ok = await ensureNodeIndexed(c.id).catch(sansBloquer("drive-ingestion.runDriveIngestionSweep.ensureNodeIndexed", false));
       if (ok) indexed += 1;
     }
 
@@ -65,16 +66,16 @@ export async function runDriveIngestionSweep(batch = SWEEP_BATCH): Promise<{ ind
         where: { nodeId: s.nodeId }, orderBy: { version: "desc" }, select: { id: true },
       });
       if (latest && latest.id !== s.versionId) {
-        const ok = await ensureNodeIndexed(s.nodeId).catch(() => false);
+        const ok = await ensureNodeIndexed(s.nodeId).catch(sansBloquer("drive-ingestion.runDriveIngestionSweep.ensureNodeIndexed", false));
         if (ok) refreshed += 1;
       } else {
-        await prisma.driveTextIndex.update({ where: { nodeId: s.nodeId }, data: { updatedAt: new Date() } }).catch(() => undefined);
+        await prisma.driveTextIndex.update({ where: { nodeId: s.nodeId }, data: { updatedAt: new Date() } }).catch(sansBloquer("drive-ingestion.runDriveIngestionSweep.driveTextIndex"));
       }
     }
 
     // Phase 3 — VECTORISATION de rattrapage (bornée) : les entrées d'index sans vecteur
     // gagnent leur embedding sémantique. Jamais bloquant : sans clé, zéro travail.
-    const embedded = await embedDriveBacklog().catch(() => 0);
+    const embedded = await embedDriveBacklog().catch(sansBloquer("drive-ingestion.runDriveIngestionSweep.embedDriveBacklog", 0));
 
     if (indexed > 0 || refreshed > 0 || embedded > 0) {
       console.info("[assistant] drive_ingestion_sweep", { indexed, refreshed, embedded });

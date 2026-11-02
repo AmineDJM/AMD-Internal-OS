@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notifyRoles } from "@/lib/notify";
 import { aiSelfTest, type AiHealthResult } from "@/lib/ai";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * SANTÉ DE L'API IA (chatbot). Point unique qui exécute la sonde, la JOURNALISE
@@ -48,7 +49,7 @@ export async function performAiHealthCheck(
       body: `Test ${opts.force ? "" : "quotidien "}de l'API IA (${r.model}) ÉCHOUÉ — ${r.error} Le chatbot et les fonctions IA resteront hors service tant que ce n'est pas corrigé.`,
       link: "/admin/ai",
     });
-    await prisma.aiHealthCheck.update({ where: { id: record.id }, data: { notifiedAt: new Date() } }).catch(() => {});
+    await prisma.aiHealthCheck.update({ where: { id: record.id }, data: { notifiedAt: new Date() } }).catch(sansBloquer("ai-health.performAiHealthCheck.aiHealthCheck"));
   } else if (!wasOk) {
     await notifyRoles(["SUPER_ADMIN"], {
       type: "GENERIC",

@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Search, Plus, Pencil, Trash2, Loader2, Phone, Mail, Globe, MapPin, Copy, Check } from "lucide-react";
 import {
   createCompanyContact, updateCompanyContact, deleteCompanyContact,
 } from "@/lib/actions/company-contact-actions";
 import { CONTACT_KIND_SUGGESTIONS, groupContactsByKind, matchesContact } from "@/lib/contacts/kinds";
 import { Button } from "@/components/ui/button";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -41,13 +42,16 @@ export function ContactsBoard({
   canEdit: boolean;
   canDelete: boolean;
 }) {
-  const router = useRouter();
   const [query, setQuery] = React.useState("");
   const [showInactive, setShowInactive] = React.useState(false);
   const [adding, setAdding] = React.useState(false);
   const [editing, setEditing] = React.useState<ContactRow | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  // Les fiches disent leur erreur dans la fiche ; la corbeille d'une ligne n'a pas de place pour
+  // parler : son refus part en avis flottant (il partait en `alert`).
+  const fiche = useAction();
+  const suppression = useAction({ signalerErreurs: true });
+  const busy = fiche.busy || suppression.busy;
+  const { err, setErr, run } = fiche;
 
   const visible = React.useMemo(
     () => contacts.filter((c) => (showInactive || c.isActive) && matchesContact(c, query)),
@@ -57,13 +61,10 @@ export function ContactsBoard({
   const inactiveCount = contacts.filter((c) => !c.isActive).length;
 
   const remove = async (c: ContactRow) => {
-    if (!window.confirm(`Retirer « ${c.name} » de l'annuaire ?\n\nPour simplement le mettre de côté, décochez « actif » à la modification.`)) return;
-    setBusy(true);
     const fd = new FormData(); fd.set("id", c.id);
-    const r = await deleteCompanyContact(fd);
-    setBusy(false);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    else router.refresh();
+    await suppression.run(() => deleteCompanyContact(fd), undefined, {
+      confirmer: `Retirer « ${c.name} » de l'annuaire ?\n\nPour simplement le mettre de côté, décochez « actif » à la modification.`,
+    });
   };
 
   return (
@@ -156,11 +157,8 @@ export function ContactsBoard({
           title={sphere === "PUBLIC" ? "Nouveau partenaire public" : "Nouveau contact"} companies={companies} defaults={{}} busy={busy} err={err} sphere={sphere}
           onClose={() => setAdding(false)}
           onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
             fd.set("sphere", sphere);
-            const r = await createCompanyContact(undefined, fd);
-            setBusy(false);
-            if (r.ok) { setAdding(false); router.refresh(); } else setErr(r.error ?? "Échec.");
+            await run(() => createCompanyContact(undefined, fd), () => setAdding(false));
           }}
         />
       )}
@@ -170,11 +168,8 @@ export function ContactsBoard({
           title={editing.name} companies={companies} defaults={editing} busy={busy} err={err} showActive sphere={sphere}
           onClose={() => setEditing(null)}
           onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
             fd.set("id", editing.id);
-            const r = await updateCompanyContact(fd);
-            setBusy(false);
-            if (r.ok) { setEditing(null); router.refresh(); } else setErr(r.error ?? "Échec.");
+            await run(() => updateCompanyContact(fd), () => setEditing(null));
           }}
         />
       )}
@@ -280,7 +275,7 @@ function ContactSheet({
           </label>
         )}
 
-        {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+        <Retour ton="erreur">{err}</Retour>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Annuler</Button>
           <Button type="submit" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button>

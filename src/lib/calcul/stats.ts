@@ -16,7 +16,7 @@
  */
 
 import { betaIncompleteReguliere, logGamma, phi } from "./alea";
-import { type Rigueur, arrondi, ecartType, mediane, moyenne, pearson, percentile, rangs, rigueurVide, spearman, trie, variance } from "./rigueur";
+import { type Rigueur, arrondi, ecartType, mediane, moyenne, pearson, percentile, rangs, rigueurVide, spearman, variance } from "./rigueur";
 
 export const OBSERVATIONS_MIN = 3;
 export const OBSERVATIONS_MAX = 200_000;

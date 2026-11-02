@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { MODULES, PERMISSIONS, can, hasGlobalView, anyRoleFilter, type Module } from "@/lib/rbac";
-import { NAVIGATION, MODULE_LABELS, ROLE_LABELS } from "@/lib/labels";
+import { NAVIGATION, ROLE_LABELS } from "@/lib/labels";
 import { validateUpload, validateDriveUpload, validateDocumentUpload } from "@/lib/storage";
 import { aiConfigured, sttConfigured, aiModel, cleModeleRequise } from "@/lib/ai";
 import type { UserRole } from "@prisma/client";

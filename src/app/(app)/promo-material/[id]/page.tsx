@@ -1,11 +1,11 @@
-import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
+import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
 import { demandeurAfficheDe } from "@/lib/budget-marketing/integration-serveur";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, Megaphone, Scale } from "lucide-react";
 import { requireUser, safeLanding } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
-import { peutDaterLeReglement } from "@/lib/finances/settlement";
+import { peutDaterLeReglement, etatDeLOrdre, LIBELLE_ETAT_REGLEMENT } from "@/modules/finances/partage";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/settings";
 import { canOpenModule } from "@/lib/modules-visibility";
@@ -22,9 +22,9 @@ import { ACTION_LABEL } from "@/lib/promo-material/actions-fournisseur";
 import { libellesPromusDeLArticle } from "@/lib/promo-material/achats";
 import { toNumber, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
-import { AdProEditButton } from "@/components/ad-pro/edit-request-button";
-import { canEditAdProRequest, isAdProDecided } from "@/lib/ad-pro-edit";
-import { adProEditValues } from "@/lib/queries/ad-pro-edit";
+import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
+import { canEditAdProRequest, isAdProDecided, PROMO_MATERIAL_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, natureDeLaCategorie, ETAPE_DEMANDE_DEVIS, canAttachToAdPro, attachHint, siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
+import { adProEditValues, accesPiecesLiees, contextePiecesLiees, peutSupprimerUneDemandeAdPro } from "@/modules/ad-pro/api";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { InfoBulle } from "@/components/ui/info-bulle";
@@ -32,16 +32,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DocumentList, type DocItem } from "@/components/documents/document-list";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { DocumentUpload } from "@/components/documents/document-upload";
-import { PROMO_MATERIAL_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, natureDeLaCategorie } from "@/lib/ad-pro/doc-categories";
-import { accesPiecesLiees, contextePiecesLiees } from "@/lib/ad-pro/pieces-liees";
-import { LinkedRecords } from "@/components/shared/linked-records";
+import { LinkedRecords } from "@/components/pieces/linked-records";
 import { chargerPiecesLiees } from "@/lib/queries/chaine-des-pieces";
-import { ETAPE_DEMANDE_DEVIS } from "@/lib/ad-pro/demande-devis-lettre";
-import { canAttachToAdPro, attachHint } from "@/lib/ad-pro/attachments";
-import { AdProDiscussionCard } from "@/components/ad-pro/discussion-card";
-import { MedecinsConcernes } from "@/components/ad-pro/medecins-concernes";
-import { SupprimerDemandeAdPro } from "@/components/ad-pro/supprimer-demande";
-import { peutSupprimerUneDemandeAdPro } from "@/lib/queries/ad-pro-suppression";
+import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
+import { MedecinsConcernes } from "@/modules/ad-pro/ecrans/medecins-concernes";
+import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { PROMO_MATERIAL_STATUS } from "@/lib/labels";
 import {
@@ -66,18 +61,21 @@ import { DateBesoin } from "./date-besoin";
 import { materielLivre } from "@/lib/promo-material/date-besoin";
 import type { GenerationLettre } from "./demande-devis-card";
 import { MenuDossier } from "@/components/shared/menu-dossier";
-import { AttachToSourceButtons, type NaturePieceLiee } from "@/components/shared/attach-to-source";
+import { AttachToSourceButtons, type NaturePieceLiee } from "@/components/pieces/attach-to-source";
 import { articlesDemandesDuDossier, optionsDesArticlesDemandes } from "@/lib/queries/promo-achats";
 import { etatReception, lignesAReceptionner, natureDeReception, peutReceptionner, resteAFacturer } from "@/lib/promo-material/achats";
 import { libelleArticleStock } from "@/lib/promo/stock";
 import { BackLink } from "@/components/shared/back-link";
-import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
-import { etatDeLOrdre, LIBELLE_ETAT_REGLEMENT } from "@/lib/payments/reglement";
+import { HistoriqueAnnulable } from "@/modules/assistant-ia/ecrans/barre-annulation";
+import { BudgetPromoCard } from "./budget-promo";
+import { peutImputerMaterielPromo } from "@/lib/promo-material/budget";
+import { getBudgetCategoryOptions } from "@/lib/queries/budget";
 
 export const dynamic = "force-dynamic";
 
 
-export default async function PromoMaterialDetailPage({ params }: { params: { id: string } }) {
+export default async function PromoMaterialDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   // LA PORTE DE LA FICHE EST CELLE DU DOSSIER, PAS SEULEMENT CELLE DU MODULE (§118.152). Le
   // circuit adresse des gestes à des personnes qui n'ont PAS le module Matériel promotionnel : le
   // N+1 d'un délégué qui valide sa demande, l'assistante de direction qui retranscrit les devis, le
@@ -428,6 +426,15 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
   // ═══════════════════════ CIRCUIT 2 — LA FICHE DE LA MAQUETTE VALIDÉE (Direction, 10/2026) ═══════════════════════
   if (v2 && circuitState) {
     const bu = pm.businessUnitId ? await prisma.businessUnit.findUnique({ where: { id: pm.businessUnitId }, select: { name: true } }) : null;
+    // LE BUDGET DU DOSSIER (point 21) : la Direction Marketing l'impute, les autres le lisent.
+    const peutImputer = peutImputerMaterielPromo(user) && pm.status !== "CANCELLED" && circuitState !== "REFUSED";
+    const [budgetActuel, optionsBudget] = await Promise.all([
+      pm.budgetCategoryId
+        ? prisma.budgetCategoryLine.findUnique({ where: { id: pm.budgetCategoryId }, select: { name: true, parent: { select: { name: true } }, envelope: { select: { name: true } } } })
+        : Promise.resolve(null),
+      peutImputer ? getBudgetCategoryOptions("PROMO_MATERIAL", user) : Promise.resolve(null),
+    ]);
+    const libelleBudget = budgetActuel ? `${budgetActuel.envelope.name} › ${budgetActuel.parent ? `${budgetActuel.parent.name} › ` : ""}${budgetActuel.name}` : null;
     const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
     const bcs: BcFaits[] = retenues.map((e) => ({
       quoteId: e.quoteId, fournisseur: e.fournisseur, reference: e.bc?.reference ?? null,
@@ -514,6 +521,14 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
           manques={canTranscribe ? manquesDeRetranscription(devis) : []}
           chantiersOuverts={PROMO_TRACKS.filter((t) => !tracksDone.includes(t))}
         />
+
+        {/* K10c : mes gestes réversibles sur ce dossier (imputation, annulation, paiement, règlement) — « Annuler ». */}
+        <HistoriqueAnnulable modele="PromoMaterial" id={pm.id} titre="Mes gestes sur ce dossier — annuler" />
+
+        {(libelleBudget || peutImputer) && (
+          <BudgetPromoCard promoMaterialId={pm.id} actuelle={libelleBudget} peutImputer={peutImputer}
+            options={optionsBudget ? optionsBudget.map((o) => ({ id: o.id, label: o.label })) : null} />
+        )}
 
         {/* LES ARTICLES DEMANDÉS — le fil conducteur : prestations couvertes ou non, fournisseur et coût retenus. */}
         <PromoArticlesCard

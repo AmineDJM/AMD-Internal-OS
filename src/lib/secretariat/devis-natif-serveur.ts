@@ -5,7 +5,7 @@ import { recordAudit } from "@/lib/audit";
 import { moneyEntityOf } from "@/lib/company";
 import { enSerie } from "@/lib/refs";
 import { etatsDesBC, type EtatBC } from "@/lib/bons-de-commande/etat";
-import { emettreDocumentDrive, previsualiserDocument, type ApercuDocument, type DemandeDocument } from "@/platform/in-process/artifact/factory";
+import { emettreDocumentDrive, previsualiserDocument, type ApercuDocument, type DemandeDocument } from "@/platform/ia/artifact/factory";
 import { appliquerCorrections, type SaisieBc } from "@/lib/bons-de-commande/brouillon";
 import { prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import {

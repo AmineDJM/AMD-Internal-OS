@@ -107,25 +107,6 @@ export async function findSimilarReserves(text: string, filters: SimilarFilters 
     .filter((r) => r.score > 0.02); // en dessous, ce n'est plus de la similarité mais du bruit
 }
 
-/**
- * La MEILLEURE réponse historique à une réserve donnée : celle qui a réellement permis la
- * clôture. Une réponse RÉITÉRÉE par l'ANPP est un contre-exemple — on la renvoie aussi, mais
- * étiquetée comme telle, parce que savoir ce qui n'a PAS marché vaut autant.
- */
-export interface BestResponse {
-  accepted: SimilarReserve | null;
-  rejected: SimilarReserve | null;
-}
-
-export async function bestHistoricalResponse(text: string, filters: SimilarFilters = {}): Promise<BestResponse> {
-  const similar = await findSimilarReserves(text, { ...filters, limit: 30 });
-  const withResponse = similar.filter((r) => r.response && r.response.trim().length > 0);
-  return {
-    accepted: withResponse.find((r) => r.status === "ACCEPTED" || r.status === "CLOSED") ?? null,
-    rejected: withResponse.find((r) => r.status === "REITERATED") ?? null,
-  };
-}
-
 // ───────────────────────────── Probabilité de réserve ─────────────────────────────
 
 export interface ReserveRisk {
@@ -321,12 +302,4 @@ export async function proposeRules(minOccurrences = 3): Promise<RuleProposal[]> 
   }
 
   return proposals.sort((a, b) => b.confidence - a.confidence);
-}
-
-/** Règles réellement OPPOSABLES : uniquement celles qu'un humain a validées. */
-export async function activeDerivedRules() {
-  return prisma.anppDerivedRule.findMany({
-    where: { status: "VALIDATED" },
-    orderBy: [{ confidence: "desc" }, { occurrences: "desc" }],
-  });
 }

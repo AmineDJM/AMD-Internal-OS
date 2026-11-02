@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api/http";
 import { errors } from "@/lib/api/errors";
-import { getEntity, canReadEntity } from "@/lib/api/registry/entities";
+import { getEntity } from "@/lib/api/registry/entities";
+import { exigerLectureEntite } from "@/lib/api/acces-entite";
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { parsePage, parseSort, parseFilters, textSearchWhere, serialize, listResult, selectOf } from "@/lib/api/query";
 
@@ -20,16 +21,20 @@ export const GET = handle<{ entity: string }>(
   async ({ req, ctx, params, mark }) => {
     const def = getEntity(params.entity);
     if (!def) throw errors.notFound("Objet");
-    if (!canReadEntity(ctx.user, def)) throw errors.forbidden(`Le module ${def.module} n'est pas accessible à cette identité.`);
+    exigerLectureEntite(ctx, def);
     mark({ operationId: `list_${def.name}`, entityType: def.entityType ?? def.model });
 
     const sp = req.nextUrl.searchParams;
     const page = parsePage(sp);
     const allowed = new Set([...def.listFields, ...def.searchFields, ...(def.statusField ? [def.statusField] : [])]);
+    // `AND`, jamais l'étalement : la portée « mes lignes » est un `{ OR }`, la recherche aussi —
+    // étalées, la seconde écrasait la première et `?q=` rendait les lignes de tout le monde.
     const where = {
-      ...(await porteeEntite(ctx.user, def)),
-      ...parseFilters(sp, allowed, RESERVED),
-      ...textSearchWhere(def, sp.get("q") ?? ""),
+      AND: [
+        await porteeEntite(ctx.user, def),
+        parseFilters(sp, allowed, RESERVED),
+        textSearchWhere(def, sp.get("q") ?? ""),
+      ],
     };
     const orderBy = parseSort(sp.get("sort"), def, allowed);
 

@@ -16,7 +16,8 @@ export const dynamic = "force-dynamic";
  * produit (P1 / P2 / P3), « Reprendre le mois précédent », et — pour qui configure — les prévisions de la Direction
  * (ETP, couverture, budget par produit), repliées en dessous.
  */
-export default async function ProduitsPage({ searchParams }: { searchParams?: { bu?: string; y?: string; m?: string } }) {
+export default async function ProduitsPage(props: { searchParams?: Promise<{ bu?: string; y?: string; m?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("SALES_PLANNING");
   const scope = await resolveRepScope(user);
   const bus = await busDuPerimetre(scope, user.id);

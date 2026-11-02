@@ -4,6 +4,7 @@ import { getToday } from "@/lib/queries/today";
 import { getMemory } from "@/lib/assistant-memory";
 import { algiersTodayYmd } from "@/lib/calendar-tz";
 import type { SessionUser } from "@/lib/rbac";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE POINT DU MATIN — l'assistant parle en premier.
@@ -62,7 +63,7 @@ export async function getDailyBrief(user: SessionUser & { name?: string }, refre
   if (today.restCount > 0) lines.push(`Et ${today.restCount} autre(s) action(s) en attente.`);
   for (const e of today.agenda) lines.push(`Agenda ${e.allDay ? "(journée)" : e.timeLabel} : ${e.title}${e.location ? ` — ${e.location}` : ""}.`);
 
-  const memory = await getMemory(user.id).catch(() => null);
+  const memory = await getMemory(user.id).catch(sansBloquer("daily-brief.getDailyBrief.getMemory", null));
 
   const res = await askClaudeCheap(
     `${memory ? `CE QUE TU SAIS DE CETTE PERSONNE :\n${memory}\n\n` : ""}` +
@@ -85,7 +86,7 @@ export async function getDailyBrief(user: SessionUser & { name?: string }, refre
     where: { userId_day: { userId: user.id, day } },
     create: { userId: user.id, day, text },
     update: { text },
-  }).catch(() => {}); // le cache est un confort, jamais un point de rupture
+  }).catch(sansBloquer("daily-brief.getDailyBrief.dailyBrief")); // le cache est un confort, jamais un point de rupture
 
   return { text, cached: false, pending: today.counts.total };
 }

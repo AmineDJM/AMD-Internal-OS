@@ -1,7 +1,5 @@
 import { requireUser } from "@/lib/session";
-import { getMyHrDossier } from "@/lib/queries/hr-documents";
-import { getMyLeaveRequests } from "@/lib/queries/hr";
-import { discussionsDesConges } from "@/lib/queries/conges-discussion";
+import { getMyHrDossier, getMyLeaveRequests, discussionsDesConges, leaveFormContext } from "@/modules/rh/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -15,15 +13,14 @@ import { formatDate, formatDateTime, formatMonth, formatCurrency } from "@/lib/u
 import { NewRequestButton, CancelRequestButton } from "./request-controls";
 import { refusAnnulationDemandeRh } from "@/lib/annulations/regles";
 import { LeaveRequestButton } from "@/components/hr/leave-request-button";
-import { leaveFormContext } from "@/lib/hr/leave-form-context";
 import { MyLeaves } from "@/components/hr/my-leaves";
 import { ExpenseClaimEdit } from "@/components/hr/expense-claim-edit";
 import { prisma } from "@/lib/prisma";
 import { MODULE_LABELS } from "@/lib/labels";
 import { modulesPretables, congeTermine } from "@/lib/hr/stand-in";
 import { detenteurPourInterim } from "@/lib/hr/stand-in-resolve";
-import { MeetingControls } from "@/components/shared/hr-meeting-controls";
-import { HrRequestThread } from "@/components/shared/hr-request-thread";
+import { MeetingControls } from "@/modules/rh/ecrans/hr-meeting-controls";
+import { HrRequestThread } from "@/modules/rh/ecrans/hr-request-thread";
 import { ANCRE_MES_CONGES, ANCRE_MES_DEMANDES_RH, ancreDemandeRh } from "@/lib/chemins/rh";
 
 export const dynamic = "force-dynamic";

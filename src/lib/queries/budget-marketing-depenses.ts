@@ -66,7 +66,7 @@ export interface DonneesDepensesPostes {
 const SELECT_POSTE = {
   id: true, label: true, status: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true,
   depenseImputeeLe: true, depenseAnnuleeLe: true, depenseAnnulationMotif: true,
-  sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true,
+  sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, trainingId: true,
   promoMaterialParentId: true, declarationInfoMedId: true,
   montantPayeHistorique: true, historiqueLigne: true, historiquePayeLe: true,
 } as const;

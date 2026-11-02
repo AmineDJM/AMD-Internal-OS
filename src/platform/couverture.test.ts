@@ -1,0 +1,82 @@
+import { describe, expect, it } from "vitest";
+import { mesurerCouverture } from "./couverture";
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LES CLIQUETS QUI MESURENT CE QUE LES AUTRES NE VOIENT PAS — rapport d'audit 08, ARCH-02 / ARCH-05.
+ *
+ * `domains.test.ts` et `boundary.test.ts` comptent les imports ENTRE couches de `src/lib/`. Ils
+ * ne disent rien des fichiers rangés dans aucune couche, ni de `src/app/`, ni de `src/components/`.
+ * Ces six chiffres, si : chacun est un PLAFOND mesuré, qui ne peut que BAISSER.
+ *
+ * ⚠ UN PLAFOND NE SE RELÈVE JAMAIS. Un chiffre qui dépasse veut dire qu'un fichier neuf a pris le
+ * mauvais chemin : le ranger (domaine, socle, module), lire par une porte, déplacer le composant.
+ * Un chiffre qui baisse grâce à vous : abaisser le plafond au chiffre mesuré, dans le même commit.
+ *
+ * Mesures au 28/10/2026 (lot V3-G, migration des référentiels vers `src/modules/`) :
+ *   hors carte 828 → 766 · pages Prisma 129 → 126 · routes Prisma 53 · composants → app 12 ·
+ *   kit d'interface → métier 6 · tests qui lisent le source par chemin 128.
+ * Lot V4 (28/10/2026, migration des Finances vers `src/modules/finances/`) : hors carte 768 → 760 ·
+ *   kit d'interface → métier 6 → 5 · tests qui lisent le source par chemin 128 → 122.
+ * Fusion des lots V4 `rh` et `finances` (la paie versée passe à `finances`) : hors carte 748 (746 avec le lot sécurité & argent) · kit → métier 5 ·
+ *   tests de texte 119.
+ * Fusion avec le module `ad-pro` (29/10/2026) : hors carte 714 · tests de texte 103.
+ *
+ * Point de départ RECALÉ à la fusion de la base `bf7a907` (lots V3-C/D/E), et seulement là : ces lots ont
+ * ajouté 9 fichiers hors carte (`lib/agent/consommation*.ts`, `contenu-non-fiable.ts`, `testing/journal.ts`,
+ * `actions/assistant-ia-consommation-actions.ts`, `journal.ts`, `incidents-repetes.ts`,
+ * `migrations-appliquees.ts`) avant que ce cliquet existe dans la base — et en ont retiré un (`agent/agent.ts`).
+ * `journal` et `migrations-appliquees` ont été rangés au socle ; reste 768. Désormais, chaque fichier neuf hors
+ * carte se range avant fusion.
+ *
+ * −2 (28/10/2026, décision 0011 — vocaux et lecture des pièces de l'Assistant IA ; 756 → 754 après le module
+ * `rh`) : deux fichiers
+ * serveur neufs (`agent/lecture/pieces.ts`, `voix.ts`), et cinq fichiers PURS de l'Assistant IA, zéro import,
+ * rangés au socle (`lecture/regles`, `consommation-regles`, `contenu-non-fiable`, `memoire-ui`, `fil/partiel`).
+ *
+ * Lot V4 (découpage des fichiers géants, 28/10/2026) : hors carte −9 (mesuré 714 après fusion des lots code mort, primitives UI et module Ad & Pro) — les dossiers découpés sont rangés
+ * dans une couche : `payslip/` → office, `carte-plateforme/` → couche `carte`, `admin-delete-registry`,
+ * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle ; tests de texte mesurés 107 après fusion.
+ *
+ * Lot J0 (séparation Adam / Assistant IA, 29/10/2026) : hors carte −1 (706 → 705 après fusion de la base b42a952c) (`lib/assistant-files.ts` rangé au socle IA,
+ * `src/platform/ia/media/`) ; composants → `src/app/` −3 : l'écran de conversation d'Adam quitte
+ * `src/app/(app)/assistant/` pour `src/components/chief/`, et ceux qui l'importaient (`chief-workspace`, la
+ * barre d'appel de `layout/call-provider`) n'importent plus une page.
+ * Phase B du lot J0 (30/10/2026) : hors carte 705 → 656 — `src/lib/agent/` (49 fichiers de production, dont 42 hors
+ * carte) devient le module `src/modules/assistant-ia/`, mesuré par `src/modules/frontieres.test.ts`.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+const PLAFONDS = {
+  /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
+  horsCarte: 656,
+  /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
+  pagesPrisma: 126,
+  /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
+  routesPrisma: 52,
+  /** Imports `src/components/` (et des `ecrans/` de modules) → `src/app/` : un composant partagé ne dépend pas d'une page. */
+  composantsVersApp: 7,
+  /** Imports du kit d'interface du socle (`components/ui`, `components/shared`) vers un métier. */
+  kitVersMetier: 2,
+  /**
+   * Tests (hors `src/platform/` et `src/modules/`) qui lisent le source par un chemin `src/…` : ils
+   * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
+   * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
+   */
+  testsDeTexte: 101,
+} as const;
+
+const mesure = mesurerCouverture();
+
+describe("couverture des cliquets — ce qui échappait à la mesure ne grossit plus", () => {
+  for (const [cle, plafond] of Object.entries(PLAFONDS) as [keyof typeof PLAFONDS, number][]) {
+    it(`${cle} ≤ ${plafond}`, () => {
+      const liste = mesure[cle];
+      expect(liste.length, `${cle} : ${liste.length} > ${plafond}. Les derniers :\n${liste.slice(-10).join("\n")}`).toBeLessThanOrEqual(plafond);
+    });
+  }
+
+  it("la mesure n'est pas vide (le cliquet n'est pas désarmé)", () => {
+    expect(mesure.horsCarte.length).toBeGreaterThan(0);
+    expect(mesure.pagesPrisma.length).toBeGreaterThan(0);
+  });
+});

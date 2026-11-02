@@ -14,6 +14,7 @@ import { computeCertification } from "./certify";
 import { buildEvidence, fingerprintFindings } from "./evidence";
 import { differential, type Metrics } from "./differential";
 import { redact } from "./redact";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Orchestrateur d'un run (phase 1). Cycle : préflight → (identités synthétiques) → smoke
@@ -173,7 +174,7 @@ export async function executeRun(opts: { mode: TestRunMode; initiatedById: strin
     await prisma.testRun.update({
       where: { id: runId },
       data: { status: cleanupStatus === "INCOMPLETE" ? "CLEANUP_INCOMPLETE" : "FAILED", cleanupStatus, finishedAt: new Date(), step: "erreur", certification: cleanupStatus === "INCOMPLETE" ? "BLOCKED" : "INCONCLUSIVE", summary: redact({ error: (e as Error).message }) as object },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("test-center-runner.executeRun.testRun"));
     return { ok: false, runId, error: (e as Error).message };
   }
 }

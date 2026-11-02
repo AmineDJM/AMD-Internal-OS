@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { CheckCheck } from "lucide-react";
 import { markNotificationRead, markAllNotificationsRead } from "@/lib/actions/notification-actions";
 import { reécriteLienNotification } from "@/lib/notifications/lien-actuel";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { NOTIFICATION_TYPE } from "@/lib/labels";
 import { formatDateTime, cn } from "@/lib/utils";
 
@@ -23,7 +23,7 @@ export interface NotificationItem {
 }
 
 export function NotificationsList({ items }: { items: NotificationItem[] }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   // Marquées lues localement (optimiste) pour retirer la pastille dès le clic.
   const [readIds, setReadIds] = React.useState<Set<string>>(new Set());
   const isRead = (n: NotificationItem) => n.isRead || readIds.has(n.id);
@@ -33,7 +33,7 @@ export function NotificationsList({ items }: { items: NotificationItem[] }) {
   const markRead = (id: string, alreadyRead: boolean, refresh: boolean) => {
     if (alreadyRead) return;
     setReadIds((s) => new Set(s).add(id));
-    void markNotificationRead(id).then(() => { if (refresh) router.refresh(); });
+    void markNotificationRead(id).then(() => { if (refresh) rafraichir(); }, () => undefined);
   };
 
   return (

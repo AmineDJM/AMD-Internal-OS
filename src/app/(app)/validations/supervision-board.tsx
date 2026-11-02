@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { Search, ExternalLink, BellRing, Loader2, ChevronDown, ChevronRight, Clock, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -36,11 +36,11 @@ import {
 export function SupervisionBoard({
   rows, isSuperAdmin,
 }: { rows: SupervisedValidationItem[]; isSuperAdmin: boolean }) {
-  const router = useRouter();
   const [filter, setFilter] = React.useState<SupervisionFilter>("ALL");
   const [query, setQuery] = React.useState("");
   const [open, setOpen] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState<string | null>(null);
+  // Le bouton « Relancer » d'une ligne n'a pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useKeyedAction({ signalerErreurs: true });
   const [sent, setSent] = React.useState<Set<string>>(new Set());
 
   // `now` figé au montage : recalculé à chaque rendu, un compteur pourrait changer de catégorie
@@ -50,14 +50,10 @@ export function SupervisionBoard({
   const shown = React.useMemo(() => filterSupervised(rows, now, filter, query), [rows, now, filter, query]);
 
   const relance = async (stepId: string) => {
-    setBusy(stepId);
     const fd = new FormData();
     fd.set("stepId", stepId);
-    const r = await remindValidator(fd);
-    setBusy(null);
-    if (r.ok) {
+    if (await run(stepId, () => remindValidator(fd))) {
       setSent((prev) => new Set(prev).add(stepId));
-      router.refresh();
     }
   };
 

@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { UploadCloud, Loader2, CheckCircle2, AlertCircle, X, ChevronDown, Ban } from "lucide-react";
 import {
   envoyerParties, EnvoiAnnule, Debitmetre, debitLisible, resteLisible, type PlanClient,
 } from "@/lib/storage/envoi-direct-client";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * GESTIONNAIRE D'ENVOIS GÉNÉRIQUE, GLOBAL — n'importe quel téléversement de la plateforme
@@ -141,7 +142,8 @@ function postFormXhr(
 }
 
 export function BackgroundUploadProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  // Fin de lot en tâche de fond : `enCours` n'est lu nulle part — aucun geste n'est bloqué.
+  const { rafraichir } = useRafraichir();
   const [jobs, setJobs] = React.useState<BgJob[]>([]);
   // L'état de chaque fichier, tenu AUSSI hors de React : le bilan de fin de lot (`onJobDone`) se lit
   // ici, de façon synchrone — l'état React n'est pas lisible depuis la boucle d'envoi.
@@ -150,9 +152,6 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
   const patchFile = React.useCallback((jobId: string, idx: number, p: Partial<BgFile>) => {
     if (p.status) { const s = statuts.current.get(jobId); if (s) s[idx] = p.status; }
     setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, files: j.files.map((f, i) => (i === idx ? { ...f, ...p } : f)) } : j)));
-  }, []);
-  const patchJob = React.useCallback((jobId: string, p: Partial<BgJob>) => {
-    setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, ...p } : j)));
   }, []);
   const dismiss = React.useCallback((jobId: string) => { statuts.current.delete(jobId); setJobs((js) => js.filter((j) => j.id !== jobId)); }, []);
 
@@ -346,8 +345,8 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
         annules: s.filter((st) => st === "cancelled").length,
       });
     } catch { /* l'écran qui écoutait a pu disparaître */ }
-    router.refresh();
-  }, [patchFile, router, track, noterOctets]);
+    rafraichir();
+  }, [patchFile, rafraichir, track, noterOctets]);
 
   /**
    * ANNULER UN LOT EN COURS.
@@ -363,7 +362,7 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
     // Les envois directs : les parties en vol sont coupées, et celles déjà reçues par le bucket
     // sont LIBÉRÉES — un envoi annulé à 80 % ne doit pas rester payé et invisible.
     controllers.current.get(jobId)?.abort();
-    for (const [sessionId, d] of directSessions.current.get(jobId) ?? []) void d.abandonner(sessionId).catch(() => undefined);
+    for (const [sessionId, d] of directSessions.current.get(jobId) ?? []) void d.abandonner(sessionId).catch(sansBloquer("background-upload.BackgroundUploadProvider.abandonner"));
     directSessions.current.delete(jobId);
     setJobs((js) => js.map((j) => (j.id === jobId
       ? { ...j, phase: "cancelled", files: j.files.map((f) => (f.status === "done" || f.status === "error" ? f : { ...f, status: "cancelled" as FileStatus, progress: 0 })) }

@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -35,7 +34,7 @@ vi.mock("next/headers", () => ({
   cookies: () => ({ get: (n: string) => (n === "amd_impersonate" && ETAT.cookie ? { value: ETAT.cookie } : undefined) }),
   headers: () => new Headers(),
 }));
-vi.mock("next/dist/client/components/action-async-storage.external", async () => {
+vi.mock("next/dist/server/app-render/action-async-storage.external", async () => {
   const { AsyncLocalStorage: ALS } = await import("node:async_hooks");
   const store = new ALS<{ isAction: boolean }>();
   ETAT.action = store as never;
@@ -172,7 +171,7 @@ describe("la coque est celle de la personne visualisée — et d'elle seule", ()
   it("la coque monte la garde d'identité et range les données navigateur par personne effective", () => {
     expect(layout).toMatch(/<IdentiteProvider id=\{user\.id\}/);
     expect(layout).toMatch(/<GardeIdentite marque=\{marqueVue\}/);
-    expect(layout).toMatch(/cookies\(\)\.get\(MARQUE_VUE_COOKIE\)/);
+    expect(layout).toMatch(/\(await cookies\(\)\)\.get\(MARQUE_VUE_COOKIE\)/);
   });
 
   it("la barre du haut reçoit la personne à l'écran champ par champ — jamais l'objet de session (sid, droits)", () => {
@@ -211,10 +210,12 @@ describe("la vue se pose, s'efface et ne survit pas à la session", () => {
     const actions = lire("src/lib/actions/impersonation-actions.ts");
     expect(actions).toContain("poserVueExacte(targetId)");
     expect(actions).toContain("effacerVueExacte()");
-    expect(actions).not.toMatch(/cookies\(\)\.set/);
+    expect(actions).not.toMatch(/cookies\(\)\)?\.set/);
     const ve = lire("src/lib/vue-exacte.ts");
-    expect(ve).toMatch(/cookies\(\)\.set\(MARQUE_VUE_COOKIE, targetId/);
-    expect(ve).toMatch(/cookies\(\)\.set\(MARQUE_VUE_COOKIE, "", \{ httpOnly: false/);
+    // Next 15 : `cookies()` est asynchrone — chaque fonction lit le pot UNE fois (`const jar = await cookies()`).
+    expect(ve.match(/const jar = await cookies\(\);/g)).toHaveLength(2);
+    expect(ve).toMatch(/jar\.set\(MARQUE_VUE_COOKIE, targetId/);
+    expect(ve).toMatch(/jar\.set\(MARQUE_VUE_COOKIE, "", \{ httpOnly: false/);
   });
 
   it("se connecter et se déconnecter ferment la vue", () => {
@@ -228,7 +229,8 @@ describe("la vue se pose, s'efface et ne survit pas à la session", () => {
 describe("les données navigateur personnelles sont rangées par personne", () => {
   // Préférences d'AFFICHAGE de l'appareil (largeur, colonnes, pôles ouverts, couleur) : elles ne disent rien de la
   // personne et restent communes. Tout le reste passe par `cleParPersonne` / `useCleParPersonne` / `lireStockagePersonnel`.
-  const PREFERENCES_APPAREIL = new Set(["OPEN_POLES_KEY", "WIDE_KEY", "HIDDEN_COLS_KEY", '"ik-mail-accent"']);
+  // `CLE_THEME` : le thème clair / sombre d'Adventum IA (décision 0027) — un réglage d'affichage de l'appareil.
+  const PREFERENCES_APPAREIL = new Set(["OPEN_POLES_KEY", "WIDE_KEY", "HIDDEN_COLS_KEY", '"ik-mail-accent"', "CLE_THEME"]);
   // Variables qui portent déjà une clé rangée par personne (vérifié ci-dessous à leur définition).
   const PERSONNELLES = new Set(["draftKey", "cleClip"]);
 
@@ -252,7 +254,6 @@ describe("les données navigateur personnelles sont rangées par personne", () =
     expect(lire("src/app/(app)/messages/composer.tsx")).toMatch(/const draftKey = cleParPersonne\(`amd-msg-draft-\$\{conversationId\}`, selfId\)/);
     expect(lire("src/app/(app)/drive/drive-table.tsx")).toMatch(/const cleClip = useCleParPersonne\(CLIPBOARD_KEY\)/);
     expect(lire("src/components/layout/office-pins.tsx")).toContain("lireStockagePersonnel(OFFICE_PINS_KEY, ident)");
-    expect(lire("src/app/(app)/office/office-launcher.tsx")).toContain("lireStockagePersonnel(OFFICE_PINS_KEY, ident)");
   });
 });
 
@@ -265,13 +266,14 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
     "src/lib/actions/drive-comment-actions.ts": ["listDriveComments"],
     "src/lib/regulatory/intelligence/knowledge/actions.ts": ["loadDossierChatAction"],
     "src/lib/actions/market-actions.ts": ["searchMarketProducts", "marketSuggestions"],
-    "src/lib/actions/congress-beneficiary-actions.ts": ["listBeneficiaryRefs"],
+    "src/modules/ad-pro/actions-congres-beneficiaires.ts": ["listBeneficiaryRefs"],
     "src/lib/actions/document-request-actions.ts": ["askablePeople"],
     "src/lib/actions/link-actions.ts": ["linkCandidatesFor"],
     "src/lib/actions/my-team-actions.ts": ["teamMemberKpis"],
     "src/lib/actions/regulatory-actions.ts": ["checkDciDuplicate"],
-    "src/lib/actions/ad-pro-medecins-actions.ts": ["chercherMedecinsAnnuaire"],
+    "src/modules/ad-pro/actions-medecins.ts": ["chercherMedecinsAnnuaire"],
     "src/lib/actions/assistant-actions.ts": ["listAssistantFiles", "myAssistantThreads", "myAssistantThread", "refreshMyBrief"],
+    "src/modules/assistant-ia/actions-consommation.ts": ["lireConsommationIa"], // K8 : « ma consommation » est celle de la personne visualisée
   };
   // Lectures VOLONTAIREMENT au nom du Super Admin réel : aperçus d'une écriture qui suivra en son nom, lectures
   // OCR qui préparent une saisie, outils réservés au Super Admin.
@@ -282,11 +284,16 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
     "apercuBcPromo", // le même aperçu, pour le BC d'un devis de matériel promotionnel (validé ensuite par le demandeur, en son nom)
     "apercuRegles", "apercuImportSegmentation", // aperçu d'un import / d'une règle
     "lireLesLignesDuDevis", "lireScanDevisPromo", "lireFacturePromo", // lecture OCR qui prépare une saisie
+    "lireDocumentLegalPourSaisie", // la même lecture, pour une pièce Legal saisie ensuite par la personne (en son nom)
     // L'intégration Ad & Pro 2026 (be70d5ee) : lire le fichier puis l'aperçu avant → après préparent `validerIntegrationAdPro`,
     // qui écrit au nom de l'administrateur — lus pour la vue, ils proposeraient les enveloppes de la personne visualisée
     // et le lot partirait sur celles de l'administrateur. Lire une tranche de pièces du rapprochement ÉCRIT (empreintes, lectures Luna).
     "lireFichierIntegrationAdPro", "apercuIntegrationAdPro", "lireTranchePiecesRapprochement",
     "searchRelations", "compterDossiersNonEntames", "searchCorpusAction", // réservés au Super Admin
+    // J11 : le sélecteur d'une référence du formulaire de carte — la carte se signe ensuite au nom de la session réelle
+    // (`confirmerIntentionAssistantIA`, `requireUser`) ; ses options doivent être celles de qui signe.
+    "chercherReferenceCarteAssistantIA",
+    "apercuReprise", // l'aperçu à blanc d'une reprise de la refonte des données — Super Admin seul, qui exécute ensuite en son nom
   ]);
   const corpsDe = (src: string, nom: string) => src.slice(src.indexOf(`export async function ${nom}(`)).split(/\nexport /)[0];
 
@@ -331,16 +338,24 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
 
 describe("chaque route d'API résout l'identité par la session partagée", () => {
   // Routes SANS session d'utilisateur : clés d'API (v1), webhooks signés, jetons publics, OnlyOffice (JWT), ou
-  // télémétrie du VRAI poste (activité, rejeu, capture d'écran : c'est l'administrateur qui est devant l'écran).
+  // télémétrie du VRAI poste (activité, rejeu, capture d'écran : c'est l'administrateur qui est devant l'écran), ou
+  // la sonde de santé de l'hébergeur (`SELECT 1`, ne lit aucune identité).
   const SANS_SESSION = [
     /api[\\/]auth[\\/]/, /api[\\/]v1[\\/]/, /api[\\/]site-web[\\/]v1[\\/]/, /api[\\/]events[\\/]inbound[\\/]/, /api[\\/]events[\\/]qr[\\/]/,
     /api[\\/]google[\\/]pubsub[\\/]/, /api[\\/]mail[\\/]inbound[\\/]/, /api[\\/]onlyoffice[\\/]/, /api[\\/]push[\\/]key[\\/]/,
     /api[\\/]activity[\\/]/, /api[\\/]replay[\\/]/, /api[\\/]security[\\/]screenshot-attempt[\\/]/,
+    /api[\\/]health[\\/]/,
+    // K6 (décision 0036) : le webhook WhatsApp de Meta — signé (X-Hub-Signature-256), la personne reconnue par son numéro.
+    /api[\\/]canaux[\\/]whatsapp[\\/]/, /api[\\/]canaux[\\/]relais[\\/]/,
+    // C2 (décision 0043) : webhooks GitHub / Render signés, et le relais CLI de la Direction (jeton `CLAUDE_RELAIS_TOKEN`).
+    /api[\\/]chantiers[\\/]webhooks[\\/]/, /api[\\/]dev[\\/]relais[\\/]/,
   ];
   it("aucune route ne lit l'identité ailleurs que dans `@/lib/session` (hors routes sans session, nommées)", () => {
     const fautes = fichiers("src/app/api", (n) => n === "route.ts")
       .filter((f) => !SANS_SESSION.some((r) => r.test(f)))
-      .filter((f) => !readFileSync(f, "utf8").includes('"@/lib/session"'));
+      // `@/lib/session-legere` (sondages de la coque, PERF-06) applique la MÊME vue (`vueDemandee`,
+      // session-compte.ts) — vérifié par `session-vue-exacte.test.ts` et `session-legere.test.ts`.
+      .filter((f) => !/"@\/lib\/session(-legere)?"/.test(readFileSync(f, "utf8")));
     expect(fautes).toEqual([]);
   });
   it("les routes de télémétrie qui lisent `auth()` directement restent celles nommées", () => {

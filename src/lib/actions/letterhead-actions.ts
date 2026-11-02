@@ -8,6 +8,7 @@ import { releaseBlob } from "@/lib/drive-storage";
 import { peutGererDirectionArtistique } from "@/lib/direction-artistique/droits";
 import { deposerPapier, papierDansPerimetre, MODULE_AUDIT } from "@/lib/direction-artistique/serveur";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES PAPIERS EN-TÊTE — la papeterie de la société, tenue par l'assistante de direction.
@@ -86,7 +87,7 @@ export async function deleteLetterhead(formData: FormData): Promise<ActionResult
   if (!existing || !(await papierDansPerimetre(user.id, existing.companyId))) return { ok: false, error: "En-tête introuvable." };
 
   await prisma.officeLetterhead.delete({ where: { id } });
-  await releaseBlob(existing.blobId).catch(() => undefined);
+  await releaseBlob(existing.blobId).catch(sansBloquer("letterhead-actions.deleteLetterhead.releaseBlob"));
   await recordAudit({
     actorId: user.id, action: "DELETE", module: MODULE_AUDIT,
     summary: `Papier en-tête supprimé : ${existing.name}`,

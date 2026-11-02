@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
-import type { SessionUser } from "@/lib/rbac";
+import { hasGlobalView, type SessionUser } from "@/lib/rbac";
+import { clauseTachesVisibles } from "@/lib/tasks/request-flow";
 import { companyScopedWhere } from "@/lib/company";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
 import { entityScopeWhere, type EntityDef } from "./entities";
@@ -66,6 +67,9 @@ const PORTEES_D_ECRAN: Record<string, (user: SessionUser) => Promise<Record<stri
   // Regulatory compose TROIS choses : le verrou du pipeline, le cloisonnement par entité, et
   // le filtre de GAMME — avec « être nommé sur un dossier » qui passe avant la gamme.
   regulatory_dossier: regulatoryVisibleWhere as (user: SessionUser) => Promise<Record<string, unknown>>,
+  // Une tâche se lit dans son CERCLE (assigné, demandeur, participants, lecteurs) : la clause de la recherche
+  // globale, jumelle de `canSee` (audit sécurité 27/10 — l'API rendait les tâches de toute l'entreprise).
+  task: async (user) => clauseTachesVisibles(user.id, hasGlobalView(user.role)),
 };
 
 /**

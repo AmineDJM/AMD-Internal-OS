@@ -57,12 +57,21 @@ const TAG = "__sortiestest__";
 let acteur: CurrentUser | null = null;
 
 beforeAll(async () => {
-  const admin = await prisma.user.findFirst({
-    where: { role: "SUPER_ADMIN", isActive: true },
+  // SON PROPRE Super Admin : le banc ne dépend pas d'un compte qu'une base fraîche (CI) n'a pas, ni de l'ordre
+  // dans lequel les autres bancs en créent et en effacent.
+  const admin = await prisma.user.create({
+    data: { name: `${TAG}admin`, email: `${TAG}${Date.now().toString(36)}@t.dz`, role: "SUPER_ADMIN", passwordHash: "x", isActive: true },
     select: { id: true, name: true, email: true, role: true },
   });
-  if (admin) acteur = { ...admin, access: await getAccess(admin.id, admin.role) } as unknown as CurrentUser;
+  acteur = { ...admin, access: await getAccess(admin.id, admin.role) } as unknown as CurrentUser;
 });
+
+/**
+ * UN SERVICE EXTERNE ABSENT ICI n'est pas une fiche « non exercée » : la capacité a répondu, en français, que son
+ * fournisseur n'est pas branché sur cette base (Gmail d'Adam en CI). Elle se vérifie là où il l'est ; elle ne doit
+ * ni faire tomber ce banc sur une base fraîche, ni consommer le plafond qui garde les fiches sans moyen de preuve.
+ */
+const SERVICE_ABSENT = /n'est pas connecté|non configuré|pas configuré/i;
 
 afterAll(async () => {
   await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
@@ -106,12 +115,16 @@ describe("les fiches de sortie écrites à la main disent la vérité", () => {
     expect(acteur, "aucun SUPER_ADMIN en base : le test ne peut rien exercer").toBeTruthy();
     const menteuses: string[] = [];
     const nonExercees: string[] = [];
+    const absentsIci: string[] = [];
 
     for (const [cap, declaration] of Object.entries(SORTIES)) {
       const brut = await executePowerTool(cap, ENTREES[cap] ?? {}, acteur!).catch((e) => `ERREUR ${(e as Error).message}`);
       if (brut === null) { nonExercees.push(`${cap} (hors POWER_TOOLS)`); continue; }
       let reel: unknown;
-      try { reel = JSON.parse(String(brut)); } catch { nonExercees.push(`${cap} (sortie non JSON : ${String(brut).slice(0, 70)})`); continue; }
+      try { reel = JSON.parse(String(brut)); } catch {
+        if (SERVICE_ABSENT.test(String(brut))) { absentsIci.push(cap); continue; }
+        nonExercees.push(`${cap} (sortie non JSON : ${String(brut).slice(0, 70)})`); continue;
+      }
 
       const { racine, listeRacine } = champsPromis(declaration);
       if (listeRacine) {
@@ -130,6 +143,7 @@ describe("les fiches de sortie écrites à la main disent la vérité", () => {
     }
 
     if (nonExercees.length) console.log(`   · fiches non exercées ici : ${nonExercees.join(" ; ")}`);
+    if (absentsIci.length) console.log(`   · service externe non connecté sur cette base : ${absentsIci.join(", ")}`);
     expect(nonExercees.length, `fiches non exercées : ${nonExercees.join(" ; ")}`).toBeLessThanOrEqual(PLAFOND_NON_EXERCEES);
     expect(menteuses, `fiche(s) qui promettent un champ inexistant :\n  ${menteuses.join("\n  ")}`).toEqual([]);
   }, 60_000);

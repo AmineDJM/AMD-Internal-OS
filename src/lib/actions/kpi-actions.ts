@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import * as XLSX from "xlsx";
 import { requireUser } from "@/lib/session";
@@ -25,6 +26,8 @@ import {
 import { proposerCibles, proposerDefinitions, proposerNiveau, redigerCommentaire } from "@/lib/kpi-luna";
 import type { ApercuKpi, BilanKpi, LigneDetail } from "@/lib/kpi/types";
 import type { HorsBriques } from "@/lib/kpi/luna-pur";
+import { sansBloquer } from "@/lib/journal";
+import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -211,44 +214,46 @@ export async function archiverKpi(formData: FormData): Promise<ActionResult> {
 /** Poser ou régler une affectation (et son poids). ROLE : Super Admin ; EQUIPE : à mon nom ; PERSONNE : mon équipe. */
 export async function reglerAffectationKpi(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const { faits } = await faitsKpi(user);
-  const famille = fdStr(formData, "famille");
-  const cible = fdStr(formData, "cible") ?? "EQUIPE";
-  const role = fdStr(formData, "role");
-  const cibleUserId = fdStr(formData, "userId");
-  const poids = fdNum(formData, "poids");
-  const assignmentId = fdStr(formData, "assignmentId");
-  if (poids === null || poids < 0 || poids > 100) return { ok: false, error: "Poids de 0 à 100." };
-  // RÉGLER LE POIDS d'une affectation existante — sans en créer une autre à mon nom.
-  if (assignmentId) {
-    const a = await prisma.kpiAssignment.findUnique({ where: { id: assignmentId } });
-    if (!a) return { ok: false, error: "Affectation introuvable." };
-    const permis = faits.superAdmin
-      || (a.cible === "EQUIPE" && a.managerUserId === user.id && faits.gestes.creer)
-      || (a.cible === "PERSONNE" && !!a.userId && peutGererPersonne(faits, a.userId));
-    if (!permis) return { ok: false, error: "Cette affectation n'est pas la vôtre." };
-    await prisma.kpiAssignment.update({ where: { id: a.id }, data: { poids } });
+  return gesteReversible(user, { capaciteId: "kpi-actions:reglerAffectationKpi", libelle: "Affectation de KPI réglée" }, async () => {
+    const { faits } = await faitsKpi(user);
+    const famille = fdStr(formData, "famille");
+    const cible = fdStr(formData, "cible") ?? "EQUIPE";
+    const role = fdStr(formData, "role");
+    const cibleUserId = fdStr(formData, "userId");
+    const poids = fdNum(formData, "poids");
+    const assignmentId = fdStr(formData, "assignmentId");
+    if (poids === null || poids < 0 || poids > 100) return { ok: false, error: "Poids de 0 à 100." };
+    // RÉGLER LE POIDS d'une affectation existante — sans en créer une autre à mon nom.
+    if (assignmentId) {
+      const a = await prisma.kpiAssignment.findUnique({ where: { id: assignmentId } });
+      if (!a) return { ok: false, error: "Affectation introuvable." };
+      const permis = faits.superAdmin
+        || (a.cible === "EQUIPE" && a.managerUserId === user.id && faits.gestes.creer)
+        || (a.cible === "PERSONNE" && !!a.userId && peutGererPersonne(faits, a.userId));
+      if (!permis) return { ok: false, error: "Cette affectation n'est pas la vôtre." };
+      await prisma.kpiAssignment.update({ where: { id: a.id }, data: { poids } });
+      revalider();
+      return { ok: true, message: "Poids enregistré." };
+    }
+    if (!famille) return { ok: false, error: "KPI introuvable." };
+    if (!(await prisma.kpiDefinition.findFirst({ where: { famille, statut: "ACTIF" }, select: { id: true } }))) return { ok: false, error: "KPI introuvable." };
+    let where: { famille: string; cible: string; role?: string | null; managerUserId?: string | null; userId?: string | null };
+    if (cible === "ROLE") {
+      if (!peutGererCatalogue(faits) || !role) return { ok: false, error: "Les modèles par rôle sont tenus par le Super Admin." };
+      where = { famille, cible, role };
+    } else if (cible === "PERSONNE") {
+      if (!cibleUserId || !peutGererPersonne(faits, cibleUserId)) return { ok: false, error: "Cette personne n'est pas dans votre équipe." };
+      where = { famille, cible, userId: cibleUserId };
+    } else {
+      if (!peutCreerPourEquipe(faits)) return { ok: false, error: "Réservé à qui encadre une équipe." };
+      where = { famille, cible: "EQUIPE", managerUserId: user.id };
+    }
+    const existe = await prisma.kpiAssignment.findFirst({ where, select: { id: true } });
+    if (existe) await prisma.kpiAssignment.update({ where: { id: existe.id }, data: { poids } });
+    else await prisma.kpiAssignment.create({ data: { ...where, poids, createdById: user.id } });
     revalider();
-    return { ok: true, message: "Poids enregistré." };
-  }
-  if (!famille) return { ok: false, error: "KPI introuvable." };
-  if (!(await prisma.kpiDefinition.findFirst({ where: { famille, statut: "ACTIF" }, select: { id: true } }))) return { ok: false, error: "KPI introuvable." };
-  let where: { famille: string; cible: string; role?: string | null; managerUserId?: string | null; userId?: string | null };
-  if (cible === "ROLE") {
-    if (!peutGererCatalogue(faits) || !role) return { ok: false, error: "Les modèles par rôle sont tenus par le Super Admin." };
-    where = { famille, cible, role };
-  } else if (cible === "PERSONNE") {
-    if (!cibleUserId || !peutGererPersonne(faits, cibleUserId)) return { ok: false, error: "Cette personne n'est pas dans votre équipe." };
-    where = { famille, cible, userId: cibleUserId };
-  } else {
-    if (!peutCreerPourEquipe(faits)) return { ok: false, error: "Réservé à qui encadre une équipe." };
-    where = { famille, cible: "EQUIPE", managerUserId: user.id };
-  }
-  const existe = await prisma.kpiAssignment.findFirst({ where, select: { id: true } });
-  if (existe) await prisma.kpiAssignment.update({ where: { id: existe.id }, data: { poids } });
-  else await prisma.kpiAssignment.create({ data: { ...where, poids, createdById: user.id } });
-  revalider();
-  return { ok: true, message: "Affectation enregistrée." };
+    return { ok: true, message: "Affectation enregistrée." };
+  });
 }
 
 export async function retirerAffectationKpi(formData: FormData): Promise<ActionResult> {
@@ -269,13 +274,15 @@ export async function retirerAffectationKpi(formData: FormData): Promise<ActionR
 /** La fréquence de revue de MON équipe (Direction, 08/10 : « revue au choix du manager »). */
 export async function reglerFrequenceRevue(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  const { faits } = await faitsKpi(user);
-  if (!faits.superAdmin && !(faits.gestes.valider && faits.equipe.size > 0)) return { ok: false, error: "Réservé à qui encadre une équipe." };
-  const frequence = fdStr(formData, "frequence");
-  if (!frequence || !(FREQUENCES as readonly string[]).includes(frequence)) return { ok: false, error: "Fréquence inconnue." };
-  await prisma.kpiReviewSetting.upsert({ where: { managerUserId: user.id }, create: { managerUserId: user.id, frequence }, update: { frequence } });
-  revalider();
-  return { ok: true, message: "Fréquence de revue enregistrée." };
+  return gesteReversible(user, { capaciteId: "kpi-actions:reglerFrequenceRevue", libelle: "Fréquence de revue réglée" }, async () => {
+    const { faits } = await faitsKpi(user);
+    if (!faits.superAdmin && !(faits.gestes.valider && faits.equipe.size > 0)) return { ok: false, error: "Réservé à qui encadre une équipe." };
+    const frequence = fdStr(formData, "frequence");
+    if (!frequence || !(FREQUENCES as readonly string[]).includes(frequence)) return { ok: false, error: "Fréquence inconnue." };
+    await prisma.kpiReviewSetting.upsert({ where: { managerUserId: user.id }, create: { managerUserId: user.id, frequence }, update: { frequence } });
+    revalider();
+    return { ok: true, message: "Fréquence de revue enregistrée." };
+  });
 }
 
 // ── Évalué ───────────────────────────────────────────────────────────────────────────────────
@@ -342,17 +349,24 @@ export async function declarerKpi(formData: FormData): Promise<ActionResult> {
   if (!libelle) return { ok: false, error: "Dites ce que vous déclarez (« Formation pharmacovigilance, 12/10 »)." };
   if (valeur <= 0 || valeur > 1000) return { ok: false, error: "Valeur invalide." };
   const fichier = formData.get("piece");
-  let piece: { pieceBlobId: string; pieceNom: string; pieceMime: string } | null = null;
+  let piece: { pieceBlobId: string; pieceNom: string; pieceMime: string; empreinte: string; taille: number } | null = null;
   if (fichier instanceof File && fichier.size > 0) {
     const bytes = Buffer.from(await fichier.arrayBuffer());
     const v = checkAttachment(fichier.name, bytes, fichier.type);
     if (!v.ok) return { ok: false, error: rejectionMessage(v.reason!, v.safeName) };
-    const { blobId } = await putBlob(bytes);
-    piece = { pieceBlobId: blobId, pieceNom: v.safeName, pieceMime: v.mime };
+    const { blobId, sha256 } = await putBlob(bytes);
+    piece = { pieceBlobId: blobId, pieceNom: v.safeName, pieceMime: v.mime, empreinte: sha256, taille: bytes.length };
   }
   if (!piece) return { ok: false, error: "Joignez la pièce qui le prouve (attestation, programme…)." };
-  const cree = await prisma.kpiDeclaration.create({ data: { definitionId: d.id, userId: user.id, periode: f.cle, libelle: libelle.slice(0, 200), valeur, ...piece } });
-  const n1 =await getManagerOfUser(user.id).catch(() => null);
+  const cree = await prisma.kpiDeclaration.create({
+    data: { definitionId: d.id, userId: user.id, periode: f.cle, libelle: libelle.slice(0, 200), valeur, pieceBlobId: piece.pieceBlobId, pieceNom: piece.pieceNom, pieceMime: piece.pieceMime },
+  });
+  // La pièce qui prouve la déclaration entre à la bibliothèque (J1), ouverte par la règle du bilan KPI.
+  await inscrirePiece({
+    blobId: piece.pieceBlobId, empreinte: piece.empreinte, nom: piece.pieceNom, mime: piece.pieceMime, taille: piece.taille, source: "AUTRE",
+    objet: { famille: "KPI_PIECE", id: cree.id }, proprietaireId: user.id, role: "justificatif",
+  });
+  const n1 =await getManagerOfUser(user.id).catch(sansBloquer("kpi-actions.declarerKpi.getManagerOfUser", null));
   if (n1?.userId) {
     await notifyUser({ userId: n1.userId, type: "GENERIC", title: "Déclaration à valider", body: `${user.name} — ${d.def.nom} : ${libelle.slice(0, 80)}`, link: lienKpiEquipe(f.cle) });
   }

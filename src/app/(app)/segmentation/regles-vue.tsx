@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { type CleFrequence, type ExceptionZone, type Grille, type Regles, type RegleProduit, type Capacite } from "@/lib/segmentation/regles";
 import { PROPOSITION } from "@/lib/segmentation/charge";
 import { apercuRegles, publierRegles, type ApercuRegles } from "@/lib/actions/segmentation-actions";
@@ -67,19 +68,29 @@ export function ReglesVue({ strategieId, produits, version, contenu, secteurs, p
     setErreur(null);
     const contenuJson = JSON.stringify({ ...r, h: { ...r.h, frequence: grille.defaut.H_IN } });
     setEnvoi(true);
-    const res = await apercuRegles(strategieId, contenuJson);
-    setEnvoi(false);
-    if (!res.ok) { setErreur(res.error); return; }
-    setImpact(res.apercu);
+    try {
+      const res = await apercuRegles(strategieId, contenuJson);
+      if (!res.ok) { setErreur(res.error); return; }
+      setImpact(res.apercu);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
   async function publier() {
     setErreur(null);
     setEnvoi(true);
-    const res = await publierRegles(strategieId, JSON.stringify({ ...r, h: { ...r.h, frequence: grille.defaut.H_IN } }), "");
-    setEnvoi(false);
-    if (!res.ok) { setErreur(res.error); return; }
-    setImpact(null);
-    rafraichir();
+    try {
+      const res = await publierRegles(strategieId, JSON.stringify({ ...r, h: { ...r.h, frequence: grille.defaut.H_IN } }), "");
+      if (!res.ok) { setErreur(res.error); return; }
+      setImpact(null);
+      rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   return (

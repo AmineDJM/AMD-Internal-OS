@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  *   • **pas encore connecté** — un seul bouton, et l'explication de ce qui va se passer ;
  *   • **connecté** — la messagerie.
  */
-export default async function MessageriePage({ searchParams }: { searchParams: { erreur?: string; connecte?: string } }) {
+export default async function MessageriePage(props: { searchParams: Promise<{ erreur?: string; connecte?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const env = process.env as Record<string, string | undefined>;
   const access = mailAccess(user as never, env);

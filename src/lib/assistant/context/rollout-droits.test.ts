@@ -72,7 +72,8 @@ describe("§118.153 — le chemin rapide ne lit pas avec un outil que la personn
 
   it("les DEUX tours d'Adam passent les outils permis à la décision (point d'appel, §118.49)", async () => {
     const { readFileSync } = await import("node:fs");
-    const source = readFileSync("src/lib/assistant.ts", "utf8");
+    // `assistant.ts` découpé (lot V4) : ses deux tours vivent dans `boucle/tour.ts` et `boucle/flux.ts`.
+    const source = ["src/lib/assistant/boucle/tour.ts", "src/lib/assistant/boucle/flux.ts"].map((f) => readFileSync(f, "utf8")).join("\n");
     const appels = source.match(/decideRollout\([^;]*\);/g) ?? [];
     expect(appels.length, "le tour d'un trait ET le tour en flux").toBe(2);
     for (const a of appels) expect(a).toMatch(/outilsPermis:\s*allTools\.map\(\(t\) => t\.name\)/);

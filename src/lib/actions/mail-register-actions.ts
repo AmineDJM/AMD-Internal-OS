@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import type { EntityType, MailDirection } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -97,37 +98,39 @@ export async function createMailEntry(
   formData: FormData,
 ): Promise<ActionResult> {
   const user = await requireUser();
+  return gesteReversible(user, { capaciteId: "mail-register-actions:createMailEntry", libelle: "Courrier enregistré" }, async () => {
 
-  // LE NŒUD DU DRIVE EST VÉRIFIÉ AVANT D'ÊTRE ÉCRIT. L'identifiant vient d'un champ de
-  // formulaire : sans contrôle, le registre pointerait vers un fichier corbeillé, inexistant,
-  // ou qu'on n'a pas le droit de lire.
-  const driveNodeId = fdStr(formData, "driveNodeId");
-  if (driveNodeId) {
-    const node = await prisma.driveNode.findUnique({ where: { id: driveNodeId }, select: { isTrashed: true } });
-    if (!node || node.isTrashed) return { ok: false, error: "Le dossier / fichier choisi n'existe plus dans le Drive." };
-    if (!canViewDrive(await resolveDriveAccess(user, driveNodeId))) {
-      return { ok: false, error: "Vous n'avez pas accès à ce dossier / fichier du Drive." };
+    // LE NŒUD DU DRIVE EST VÉRIFIÉ AVANT D'ÊTRE ÉCRIT. L'identifiant vient d'un champ de
+    // formulaire : sans contrôle, le registre pointerait vers un fichier corbeillé, inexistant,
+    // ou qu'on n'a pas le droit de lire.
+    const driveNodeId = fdStr(formData, "driveNodeId");
+    if (driveNodeId) {
+      const node = await prisma.driveNode.findUnique({ where: { id: driveNodeId }, select: { isTrashed: true } });
+      if (!node || node.isTrashed) return { ok: false, error: "Le dossier / fichier choisi n'existe plus dans le Drive." };
+      if (!canViewDrive(await resolveDriveAccess(user, driveNodeId))) {
+        return { ok: false, error: "Vous n'avez pas accès à ce dossier / fichier du Drive." };
+      }
     }
-  }
 
-  const parties = await readParties(user.id, formData);
-  if (!parties.ok) return { ok: false, error: parties.error };
-  const r = await createMailEntryFor(user, {
-    ...parties.data,
-    ...readFields(formData),
-    driveNodeId,
-    sourceType: (fdStr(formData, "sourceType") as EntityType | null) ?? null,
-    sourceId: fdStr(formData, "sourceId"),
+    const parties = await readParties(user.id, formData);
+    if (!parties.ok) return { ok: false, error: parties.error };
+    const r = await createMailEntryFor(user, {
+      ...parties.data,
+      ...readFields(formData),
+      driveNodeId,
+      sourceType: (fdStr(formData, "sourceType") as EntityType | null) ?? null,
+      sourceId: fdStr(formData, "sourceId"),
+    });
+    if (!r.ok || !r.id) return r;
+
+    // Les pièces jointes du formulaire, rattachées au courrier qui vient de naître. Un échec de
+    // fichier ne défait PAS l'enregistrement : le pli est au registre, on dit ce qui n'a pas suivi.
+    const files = await attachFormFiles(user.id, "MAIL_ENTRY", r.id, formData);
+    revalidatePath("/courriers");
+    return files.failed.length
+      ? { ...r, message: `Courrier enregistré. ${files.attached} pièce(s) jointe(s) ; échec sur : ${files.failed.map((x) => x.name).join(", ")}.` }
+      : r;
   });
-  if (!r.ok || !r.id) return r;
-
-  // Les pièces jointes du formulaire, rattachées au courrier qui vient de naître. Un échec de
-  // fichier ne défait PAS l'enregistrement : le pli est au registre, on dit ce qui n'a pas suivi.
-  const files = await attachFormFiles(user.id, "MAIL_ENTRY", r.id, formData);
-  revalidatePath("/courriers");
-  return files.failed.length
-    ? { ...r, message: `Courrier enregistré. ${files.attached} pièce(s) jointe(s) ; échec sur : ${files.failed.map((x) => x.name).join(", ")}.` }
-    : r;
 }
 
 /**
@@ -143,11 +146,13 @@ export async function editMailEntry(
   formData: FormData,
 ): Promise<ActionResult> {
   const user = await requireUser();
-  const parties = await readParties(user.id, formData);
-  if (!parties.ok) return { ok: false, error: parties.error };
-  const r = await updateMailEntryFor(user, id, { ...readFields(formData), ...parties.data });
-  if (r.ok) { revalidatePath("/courriers"); revalidatePath(`/courriers/${id}`); }
-  return r;
+  return gesteReversible(user, { capaciteId: "mail-register-actions:editMailEntry", libelle: "Courrier modifié" }, async () => {
+    const parties = await readParties(user.id, formData);
+    if (!parties.ok) return { ok: false, error: parties.error };
+    const r = await updateMailEntryFor(user, id, { ...readFields(formData), ...parties.data });
+    if (r.ok) { revalidatePath("/courriers"); revalidatePath(`/courriers/${id}`); }
+    return r;
+  });
 }
 
 /**
@@ -158,12 +163,14 @@ export async function setMailDate(input: {
   id: string; field: "receivedAt" | "acknowledgedAt"; value: string | null;
 }): Promise<ActionResult> {
   const user = await requireUser();
-  const date = input.value ? new Date(input.value) : null;
-  if (input.value && Number.isNaN(date!.getTime())) return { ok: false, error: "Date invalide." };
+  return gesteReversible(user, { capaciteId: "mail-register-actions:setMailDate", libelle: "Date du courrier posée" }, async () => {
+    const date = input.value ? new Date(input.value) : null;
+    if (input.value && Number.isNaN(date!.getTime())) return { ok: false, error: "Date invalide." };
 
-  const r = await setMailDateFor(user, { id: input.id, field: input.field, value: date });
-  if (r.ok) { revalidatePath("/courriers"); revalidatePath(`/courriers/${input.id}`); }
-  return r;
+    const r = await setMailDateFor(user, { id: input.id, field: input.field, value: date });
+    if (r.ok) { revalidatePath("/courriers"); revalidatePath(`/courriers/${input.id}`); }
+    return r;
+  });
 }
 
 export async function deleteMailEntry(formData: FormData): Promise<ActionResult> {
@@ -211,35 +218,37 @@ export async function attachDriveNodeToMail(input: {
   sender?: string; recipient?: string; reference?: string;
 }): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "MAIL_REGISTER", "CREATE")) return { ok: false, error: "Non autorisé à alimenter les Courriers." };
+  return gesteReversible(user, { capaciteId: "mail-register-actions:attachDriveNodeToMail", libelle: "Fichier du Drive classé en courrier" }, async () => {
+    if (!userCan(user, "MAIL_REGISTER", "CREATE")) return { ok: false, error: "Non autorisé à alimenter les Courriers." };
 
-  const node = await prisma.driveNode.findUnique({
-    where: { id: input.driveNodeId },
-    select: { id: true, name: true, type: true, isTrashed: true },
+    const node = await prisma.driveNode.findUnique({
+      where: { id: input.driveNodeId },
+      select: { id: true, name: true, type: true, isTrashed: true },
+    });
+    if (!node || node.isTrashed) return { ok: false, error: "Fichier introuvable dans le Drive." };
+    if (node.type !== "FILE") return { ok: false, error: "Seul un fichier peut devenir un courrier." };
+    if (!canViewDrive(await resolveDriveAccess(user, node.id))) {
+      return { ok: false, error: "Vous n'avez pas accès à ce fichier du Drive." };
+    }
+
+    // Déjà au carnet : on ne crée pas un deuxième pli pour le même fichier — c'est exactement le
+    // doublon que la référence sans copie sert à éviter.
+    const already = await prisma.mailEntry.findFirst({ where: { driveNodeId: node.id }, select: { id: true } });
+    if (already) return { ok: false, error: "Ce fichier figure déjà au carnet de courriers.", id: already.id };
+
+    const direction: MailDirection = input.direction === "INCOMING" ? "INCOMING" : "OUTGOING";
+    const created = await createMailEntryFor(user, {
+      title: (input.title ?? "").trim() || node.name,
+      direction,
+      sender: input.sender?.trim() || null,
+      recipient: input.recipient?.trim() || null,
+      reference: input.reference?.trim() || null,
+      driveNodeId: node.id,
+      // Un pli qui arrive est déjà arrivé ; un pli qui part n'est pas encore parti — les dates de
+      // trajet se posent ensuite depuis la ligne du carnet, comme pour toute saisie.
+      receivedAt: direction === "INCOMING" ? new Date() : null,
+    });
+    if (created.ok) revalidatePath("/courriers");
+    return created;
   });
-  if (!node || node.isTrashed) return { ok: false, error: "Fichier introuvable dans le Drive." };
-  if (node.type !== "FILE") return { ok: false, error: "Seul un fichier peut devenir un courrier." };
-  if (!canViewDrive(await resolveDriveAccess(user, node.id))) {
-    return { ok: false, error: "Vous n'avez pas accès à ce fichier du Drive." };
-  }
-
-  // Déjà au carnet : on ne crée pas un deuxième pli pour le même fichier — c'est exactement le
-  // doublon que la référence sans copie sert à éviter.
-  const already = await prisma.mailEntry.findFirst({ where: { driveNodeId: node.id }, select: { id: true } });
-  if (already) return { ok: false, error: "Ce fichier figure déjà au carnet de courriers.", id: already.id };
-
-  const direction: MailDirection = input.direction === "INCOMING" ? "INCOMING" : "OUTGOING";
-  const created = await createMailEntryFor(user, {
-    title: (input.title ?? "").trim() || node.name,
-    direction,
-    sender: input.sender?.trim() || null,
-    recipient: input.recipient?.trim() || null,
-    reference: input.reference?.trim() || null,
-    driveNodeId: node.id,
-    // Un pli qui arrive est déjà arrivé ; un pli qui part n'est pas encore parti — les dates de
-    // trajet se posent ensuite depuis la ligne du carnet, comme pour toute saisie.
-    receivedAt: direction === "INCOMING" ? new Date() : null,
-  });
-  if (created.ok) revalidatePath("/courriers");
-  return created;
 }

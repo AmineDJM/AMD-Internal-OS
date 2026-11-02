@@ -19,8 +19,9 @@ import { toNumber, formatMontant } from "@/lib/utils";
 import { netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { totauxAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import {
-  cleProduit, clePersonne, cleSociete, depassementDuCumul, emailNormalise, estAberrant, groupeReferenceFacture, joursEntre, jumellesDeReference,
-  mediane, resolutionEffective, signatureDe, verdictEmail, type Constat, type Correction, type DefinitionRegle,
+  cleProduit, clePersonne, cleSociete, depassementDuCumul, emailNormalise, estAberrant,
+  groupeReferenceFacture, joursEntre, jumellesDeReference, mediane, resolutionEffective, signatureDe,
+  verdictEmail, type Constat, type DefinitionRegle,
 } from "@/lib/quality/model";
 
 export const LIMITE_PAR_REGLE = 200;

@@ -4,16 +4,17 @@ import type { DocItem } from "@/components/documents/document-list";
 import { companyScopedWhere } from "@/lib/company";
 import { familleQuantifiee, type PromoFamille } from "@/lib/promo/catalogue";
 import {
-  etatOrdreMission, libelleOrdreMission, etatDemandeSecretariat, etatDemandeMateriel, etatNoteFrais, SOUS_TYPE_SECRETARIAT,
-  type EtatOM, type Etat, type EtapeFacultative, type HrStatut, type GateN1,
+  etatOrdreMission, libelleOrdreMission, etatDemandeSecretariat, etatDemandeMateriel, etatNoteFrais,
+  SOUS_TYPE_SECRETARIAT, type EtatOM, type Etat, type HrStatut, type GateN1,
 } from "@/lib/missions-equipe/etat";
 import {
   etapeParticipation, ficheStockee, tauxMission, versionLite, TRAJETS_BILLET,
   type EtapeParticipation, type FicheParticipation, type VersionLite,
 } from "@/lib/missions-equipe/participation";
-import { detailsStockes, personneVivante, type DetailTrajet } from "@/lib/care-fiches";
+import { detailsStockes, personneVivante, type DetailTrajet } from "@/modules/ad-pro/partage";
 import { fraisIntegres, imputationsDe } from "@/lib/missions-equipe/imputation-serveur";
 import type { ImputationEquipe } from "@/lib/missions-equipe/imputation";
+import { sansBloquer } from "@/lib/journal";
 
 export interface MissionCommentDTO {
   id: string; author: string; authorId: string | null; body: string; createdAt: string; editedAt: string | null;
@@ -365,7 +366,7 @@ export async function getMissionDetail(id: string): Promise<MissionDetailDTO | n
       select: { id: true, name: true },
     })).map((u) => [u.id, u.name]),
   );
-  const accompagnes = await professionnelsDeLaDemande(row.entityType, row.entityId).catch(() => [] as string[]);
+  const accompagnes = await professionnelsDeLaDemande(row.entityType, row.entityId).catch(sansBloquer("missions.getMissionDetail.professionnelsDeLaDemande", [] as string[]));
   return {
     mission,
     versions: versions.map((v) => {
@@ -487,11 +488,6 @@ export async function invitationsMissionAAccepter(userId: string): Promise<Invit
   });
 }
 
-/** Les invitations qui attendent ma réponse — pour les compteurs. */
-export async function compteInvitationsMission(userId: string): Promise<number> {
-  return prisma.missionAssignment.count({ where: { userId, archivedAt: null, response: "INVITEE" } });
-}
-
 /** Un ordre de mission que JE dois valider comme N+1. */
 export interface OrdreAValiderDTO {
   requestId: string;
@@ -586,5 +582,3 @@ export async function articlesDemandables(userId: string): Promise<{ id: string;
     .filter((i) => familleQuantifiee(i.catalogue.famille as PromoFamille))
     .map((i) => ({ id: i.id, libelle: i.name }));
 }
-
-export type { EtapeFacultative };

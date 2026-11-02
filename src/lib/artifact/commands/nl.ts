@@ -30,7 +30,7 @@
 import type { ArtifactFormat } from "@/lib/artifact/object-model/model";
 import { normaliserTexte } from "@/lib/artifact/object-model/text";
 import type { CommandeArtefact, Cible } from "@/lib/artifact/commands/ir";
-import { lireDistanceCm, lireInterligne, lirePoints, sansMesures } from "@/lib/artifact/commands/quantites";
+import { lireDistanceCm, lireInterligne, sansMesures } from "@/lib/artifact/commands/quantites";
 import { CIBLE_VIDE, cibleId, cibleIndex, cibleRole, commande } from "@/lib/artifact/commands/ir";
 
 /** Ce que le décodeur sait du contexte : où la personne regarde, ce qu'elle vient de toucher. */

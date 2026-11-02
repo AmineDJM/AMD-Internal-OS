@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, PackagePlus, CheckCircle2, Archive, FlaskConical, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Retour } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { seedRulePacksAction, setRulePackStatus, toggleRuleActive, runRulePackTests, type PackTestReport } from "@/lib/regulatory/intelligence/rules/admin-actions";
 
 interface Rule { id: string; code: string; kind: string; sectionCode: string | null; factKey: string | null; severity: string; blocker: boolean; active: boolean; title: string }
@@ -15,7 +17,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export function RulePacksAdmin({ packs, hasPacks }: { packs: Pack[]; hasPacks: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState<string | null>(null);
@@ -23,25 +25,40 @@ export function RulePacksAdmin({ packs, hasPacks }: { packs: Pack[]; hasPacks: b
 
   async function run(key: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(key); setError(null);
-    const r = await fn();
-    setBusy(null);
-    if (r.ok) router.refresh(); else setError(r.error ?? "Échec.");
+    try {
+      const r = await fn();
+      if (r.ok) rafraichir(); else setError(r.error ?? "Le paquet de règles n'a pas été modifié.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function seed() {
     setBusy("seed"); setError(null);
-    const r = await seedRulePacksAction();
-    setBusy(null);
-    if (r.ok) router.refresh(); else setError(r.error ?? "Échec.");
+    try {
+      const r = await seedRulePacksAction();
+      if (r.ok) rafraichir(); else setError(r.error ?? "Les paquets de règles n'ont pas été amorcés.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function test(packId: string) {
     setBusy(`test-${packId}`); setError(null);
     const fd = new FormData(); fd.set("packId", packId);
-    const r = await runRulePackTests(fd);
-    setBusy(null);
-    setTests((t) => ({ ...t, [packId]: r }));
-    if (!r.ok) setError(r.error ?? "Échec des tests.");
+    try {
+      const r = await runRulePackTests(fd);
+      setTests((t) => ({ ...t, [packId]: r }));
+      if (!r.ok) setError(r.error ?? "Échec des tests.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -58,7 +75,7 @@ export function RulePacksAdmin({ packs, hasPacks }: { packs: Pack[]; hasPacks: b
           </Button>
         )}
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
 
       <div className="space-y-2">
         {packs.map((p) => {

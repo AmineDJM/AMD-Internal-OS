@@ -84,6 +84,9 @@ suite("Budget Marketing — la dépense d'un poste Ad & Pro, de l'imputation au 
     catA = (await prisma.budgetCategoryLine.create({ data: { envelopeId: envId, name: `${TAG}Sponsoring`, allocated: 20_000_000 } })).id;
     catB = (await prisma.budgetCategoryLine.create({ data: { envelopeId: envId, name: `${TAG}Événements`, allocated: 20_000_000 } })).id;
     eventId = (await prisma.event.create({ data: { name: `${TAG}Journées de cardiologie` } })).id;
+    // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : trois postes de 6 000 000 dépassent le seuil — consommer, c'est
+    // demander le paiement, et cela n'est possible qu'une fois le total validé par le DG (ADPRO-02).
+    await prisma.adProPorteDg.create({ data: { entityType: "EVENT", entityId: eventId, statut: "VALIDEE", montant: 18_000_000, decideLe: new Date() } });
     postes.p1 = await nouveauPoste("Stand 18 m²", [{ ref: "BC1", montant: 4_200_000, signe: true }, { ref: "BC2", montant: 180_000, signe: false }]);
     postes.p2 = await nouveauPoste("Impression", [{ ref: "BC3", montant: 950_000, signe: true }]);
     postes.p3 = await nouveauPoste("Dîner-débat", [{ ref: "BC4", montant: 680_000, signe: true }]);
@@ -106,6 +109,7 @@ suite("Budget Marketing — la dépense d'un poste Ad & Pro, de l'imputation au 
     await prisma.legalDocument.deleteMany({ where: { id: { in: tousDocs } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { OR: [{ entityId: { in: [...ids, eventId, envId] } }, { actorId: { in: [pmId, finId] } }] } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await prisma.adProPorteDg.deleteMany({ where: { entityId: eventId } }).catch(() => {});
     await prisma.event.deleteMany({ where: { id: eventId } }).catch(() => {});
     await prisma.budgetCategoryLine.deleteMany({ where: { envelopeId: envId } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});

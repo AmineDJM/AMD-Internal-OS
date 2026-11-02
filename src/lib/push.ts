@@ -1,6 +1,10 @@
 import webpush from "web-push";
 import { prisma } from "./prisma";
 import { sortieAutorisee } from "@/lib/sortie/garde";
+import { noterEffetExterne } from "@/lib/effets/magasin";
+import { differerSiFenetre } from "@/lib/effets/fenetre";
+import { endpointPushAutorise } from "@/lib/notifications/endpoint-push";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Notifications **push** (Web Push / PWA) — serveur uniquement.
@@ -93,6 +97,10 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
   // Une notification poussée est « au mieux » : elle ne doit pas faire tomber une mission. On
   // prend donc la variante qui NE LÈVE PAS — mais qui enregistre quand même la tentative, pour
   // que le banc puisse dire ce qu'Adam aurait notifié.
+  // LE PORT DE SIMULATION (J7) : un geste simulé note la notification et ne la pousse pas.
+  if (noterEffetExterne({ acte: "NOTIFICATION_PUSH", cible: userId, apercu: payload.title, origine: "push:sendPushToUser" })) return;
+  // LA FENÊTRE D'ANNULATION (K10b, décision 0040) : sous un geste réversible, la poussée attend sa fenêtre.
+  if (await differerSiFenetre({ type: "push", acte: "NOTIFICATION_PUSH", cible: userId, apercu: payload.title, charge: { userId, payload } })) return;
   if (!sortieAutorisee("NOTIFICATION_PUSH", userId, { apercu: payload.title, origine: "push:sendPushToUser" })) return;
   if (!(await ensureVapid())) return;
   try {
@@ -108,11 +116,13 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
     await Promise.all(
       subs.map(async (s) => {
         try {
+          // Abonnement enregistré avant la règle d'adresse : jamais de POST hors des services push.
+          if (!endpointPushAutorise(s.endpoint)) return;
           await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, data);
         } catch (e) {
           // 404 / 410 = abonnement expiré → on le supprime.
           const code = (e as { statusCode?: number })?.statusCode;
-          if (code === 404 || code === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
+          if (code === 404 || code === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(sansBloquer("push.sendPushToUser.pushSubscription"));
         }
       }),
     );

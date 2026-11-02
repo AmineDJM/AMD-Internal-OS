@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Loader2, X } from "lucide-react";
-import { cancelAdvance } from "@/lib/actions/hr-actions";
+import { cancelAdvance } from "@/modules/rh/actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

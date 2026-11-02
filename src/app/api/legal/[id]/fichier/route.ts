@@ -20,7 +20,8 @@ import { construireXlsxCommercial } from "@/lib/artifact/factory/xlsx";
  * spécification (« générer le BC sur Excel »), sous la même porte et avec le même contrôle au centime que le Word.
  * Un classeur qui ne retombe pas sur les totaux de la pièce n'est pas livré (422, les raisons dites).
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
   const demande = req.nextUrl.searchParams.get("format");

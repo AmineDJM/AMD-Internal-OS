@@ -1,11 +1,12 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { callLuna, lunaConfigured, lunaModel, type LunaResult } from "@/lib/openai-luna";
-import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage } from "@/lib/ai-settings";
+import { callLuna, lunaModel, type LunaResult, portesLunaOuvertes } from "@/lib/openai-luna";
+import { logAiUsage } from "@/lib/ai-settings";
 import {
   CONSIGNE_ESSENTIEL, SCHEMA_ESSENTIEL, faitsPourLuna, lireReponseEssentiel, essentielDeterministe, empreinteFaits,
   type Fait360, type Essentiel360,
 } from "@/lib/products/essentiel-360";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -24,16 +25,6 @@ import {
 
 const FONCTION = "produit_360" as const;
 const DELAI_MS = 15_000;
-
-async function porteOuverte(): Promise<boolean> {
-  try {
-    if (await interrupteurIaCoupe()) return false;
-    if (!(await aiFeatureEnabled(FONCTION))) return false;
-    return lunaConfigured();
-  } catch {
-    return false;
-  }
-}
 
 async function lireCache(cle: string): Promise<Essentiel360 | null> {
   try {
@@ -78,7 +69,7 @@ async function demanderALuna(faits: readonly Fait360[], userId: string | null): 
     errorCode: panne ? "exception" : r === null ? "timeout" : !r.ok ? (r.error ?? "error").slice(0, 120) : lu ? null : "invalid_json",
     llmCalls: 1, inputTokens: r?.usage.inputTokens ?? null, outputTokens: r?.usage.outputTokens ?? null,
     cachedInputTokens: r?.usage.cachedInputTokens ?? null, costUsd: r?.usage.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("produit-360-luna.demanderALuna.logAiUsage"));
   return lu;
 }
 
@@ -90,7 +81,7 @@ export async function essentielDuProduit(input: { productId: string; faits: read
   const cle = `produit360|${input.productId}|${empreinteFaits(input.faits)}|${jour}`;
   const cache = await lireCache(cle);
   if (cache) return cache;
-  const parLuna = (await porteOuverte()) ? await demanderALuna(input.faits, input.userId) : null;
+  const parLuna = (await portesLunaOuvertes(FONCTION)) ? await demanderALuna(input.faits, input.userId) : null;
   const v: Essentiel360 = { points: parLuna ?? essentielDeterministe(input.faits), parLuna: Boolean(parLuna), calculeLe: maintenant.toISOString() };
   await ecrireCache(cle, jour, v);
   return v;

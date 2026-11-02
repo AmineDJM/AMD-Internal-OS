@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { estUnBancDeMesure } from "@/lib/sortie/garde";
+import { etatDuGeste } from "@/lib/effets/magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -86,6 +87,30 @@ export function estUneBaseDeBanc(url: string): boolean {
 }
 
 /**
+ * LA BASE D'ESSAI DU BANC PROGRAMMÉ (J5, décision 0022) — la seule base DISTANTE qu'un banc puisse ouvrir : celle que
+ * le worker lui a DÉCLARÉE (`BANC_ESSAI_DATABASE_URL`, identique à `DATABASE_URL`), dont l'empreinte (hôte, port, nom)
+ * diffère de celle de la production qu'il lui a transmise (`BANC_EMPREINTE_PRODUCTION`). Le marqueur en base
+ * (`BancBaseEssai`) est vérifié ensuite par le banc lui-même. Même empreinte que `domaine/qualite/base-essai.ts`.
+ */
+export function estLaBaseEssaiDeclaree(url: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  const prod = env.BANC_EMPREINTE_PRODUCTION?.trim();
+  if (!prod || !url || url !== env.BANC_ESSAI_DATABASE_URL?.trim()) return false;
+  try {
+    const u = new URL(url);
+    const h = u.hostname.toLowerCase();
+    const e = `${["localhost", "127.0.0.1", "::1"].includes(h) ? "local" : h}:${u.port || "5432"}/${decodeURIComponent(u.pathname.slice(1)).toLowerCase()}`;
+    return e !== prod;
+  } catch {
+    return false;
+  }
+}
+
+/** La base d'un banc : locale « bench », ou la base d'essai déclarée par le worker. */
+export function estUneBaseDeBancOuDEssai(url: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  return estUneBaseDeBanc(url) || estLaBaseEssaiDeclaree(url, env);
+}
+
+/**
  * Rend le REFUS (une phrase) ou `null`. Pur : `prisma.ts` l'appelle à la construction, et un
  * test l'exerce sans ouvrir de connexion — vérifier un corps sans son appelant ne prouverait
  * rien (§118.49), d'où l'appel juste en dessous.
@@ -99,7 +124,7 @@ export function refusDeBase(
   if (!test && !banc) return null;
 
   const url = env.DATABASE_URL ?? "";
-  if (banc ? estUneBaseDeBanc(url) : estUneBaseLocale(url)) return null;
+  if (banc ? estUneBaseDeBanc(url) || estLaBaseEssaiDeclaree(url, env) : estUneBaseLocale(url)) return null;
 
   let ou = "(DATABASE_URL absente)";
   try { const u = new URL(url); ou = `${u.hostname}${u.pathname}`; } catch { if (url) ou = "(URL illisible)"; }
@@ -167,11 +192,52 @@ const globalForPrisma = globalThis as unknown as {
 
 const datasourceUrl = pooledDatasourceUrl();
 
-export const prisma =
+/** Le client de BASE — sans extension. La capture y lit ses lignes « avant » d'un geste réel (`effets/capture.ts`). */
+export const prismaBrut: PrismaClient =
   globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
     ...(datasourceUrl ? { datasourceUrl } : {}),
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prismaBrut;
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE CLIENT DU GESTE (J7, décision 0029) — `prisma` est le client de base, SAUF pendant un geste d'agent.
+ *
+ * Toute l'application écrit par `prisma` (`import { prisma } from "@/lib/prisma"`). Pour SIMULER une action de
+ * l'écran — celle-là même que le bouton appelle — dans une transaction annulée, et pour JOURNALISER la valeur avant
+ * de chaque écriture d'un geste réel, il fallait que ses requêtes passent par un autre client sans qu'une ligne de
+ * l'action change. D'où ce relais : il lit le magasin du geste (`effets/magasin.ts`) et y prend le client posé par
+ * `effets/simulation.ts` (la transaction) ou `effets/journal.ts` (le client qui capture). Hors geste, il rend le
+ * client de base, tel quel.
+ *
+ * Dans une transaction interactive, `$transaction` n'existe pas : le relais la rend « en place » — une fonction
+ * reçoit la transaction du geste, un tableau de requêtes s'exécute dans l'ordre. L'action ne voit pas la différence,
+ * et rien n'échappe à l'annulation finale.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+function clientDuGeste(): Record<string | symbol, unknown> | null {
+  const c = etatDuGeste()?.client;
+  return c && typeof c === "object" ? (c as Record<string | symbol, unknown>) : null;
+}
+
+async function transactionEnPlace(tx: Record<string | symbol, unknown>, arg: unknown): Promise<unknown> {
+  if (typeof arg === "function") return (arg as (t: unknown) => unknown)(tx);
+  const out: unknown[] = [];
+  for (const requete of (arg as unknown[]) ?? []) out.push(await requete);
+  return out;
+}
+
+export const prisma: PrismaClient = new Proxy(prismaBrut, {
+  get(cible, prop) {
+    const geste = clientDuGeste();
+    const source = (geste && prop in geste ? geste : cible) as Record<string | symbol, unknown>;
+    if (geste && prop === "$transaction" && typeof geste.$transaction !== "function") {
+      return (arg: unknown) => transactionEnPlace(geste, arg);
+    }
+    const v = source[prop];
+    return typeof v === "function" ? (v as (...a: unknown[]) => unknown).bind(source) : v;
+  },
+});

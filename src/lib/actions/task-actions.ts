@@ -16,6 +16,7 @@ import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
 import { CHEMIN_TACHES, lienTache, vueTachePour } from "@/lib/chemins/espace";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * CRÉER UNE TÂCHE — et le destinataire décide de ce que ce geste veut dire.
@@ -118,6 +119,81 @@ export async function updateTaskStatus(formData: FormData): Promise<ActionResult
   return { ok: true };
 }
 
+const PRIORITES: readonly Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+
+/**
+ * REPLANIFIER UNE TÂCHE — l'échéance, la priorité, le responsable (lot J6, décision 0020).
+ *
+ * Le geste que l'Assistant IA faisait par une écriture à lui et que l'écran n'offrait pas : il revient
+ * comme une action d'écran, appelée par la même porte que le reste. QUI : le responsable, le créateur, un
+ * participant ou une vue globale changent l'échéance et la priorité (la règle de `updateTaskStatus`) ;
+ * changer de RESPONSABLE est réservé au responsable, au créateur et à la vue globale — un participant
+ * n'attribue pas le travail d'un autre. Une DEMANDE en attente se réattribue par `reattribuerDemandeTache`
+ * (son circuit). Le responsable — l'ancien et le nouveau — est prévenu ; l'audit garde chaque champ.
+ */
+export async function modifierTache(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = fdStr(formData, "id");
+  if (!userCan(user, "WORKSPACE", "UPDATE") || !id) return { ok: false, error: id ? "Non autorisé." : "Tâche introuvable." };
+  const echeance = fdStr(formData, "dueDate");
+  const dueDate = fdDate(formData, "dueDate");
+  const retirerEcheance = fdStr(formData, "clearDueDate") === "1";
+  const priority = fdStr(formData, "priority") as Priority | null;
+  const assignedToId = fdStr(formData, "assignedToId");
+  if (echeance && dueDate === null) return { ok: false, error: "Échéance illisible (attendu : AAAA-MM-JJ)." };
+  if (priority && !PRIORITES.includes(priority)) return { ok: false, error: "Priorité inconnue." };
+  const demandes = [dueDate, retirerEcheance, priority, assignedToId].filter(Boolean).length;
+  if (demandes === 0) return { ok: false, error: "Rien à modifier." };
+
+  const task = await prisma.task.findUnique({ where: { id }, select: {
+    title: true, status: true, assignedToId: true, createdById: true, participantIds: true, readerIds: true, priority: true,
+  } });
+  if (!task) return { ok: false, error: "Tâche introuvable." };
+  const global = hasGlobalView(user.role);
+  const porteur = task.assignedToId === user.id || task.createdById === user.id || global;
+  if (!porteur && !task.participantIds.includes(user.id)) return { ok: false, error: "Non autorisé." };
+
+  const data: { dueDate?: Date | null; priority?: Priority; assignedToId?: string; participantIds?: string[]; readerIds?: string[] } = {};
+  const resume: string[] = [];
+  if (retirerEcheance) { data.dueDate = null; resume.push("échéance retirée"); }
+  else if (dueDate) { data.dueDate = dueDate; resume.push(`échéance ${dueDate.toISOString().slice(0, 10)}`); }
+  if (priority && priority !== task.priority) { data.priority = priority; resume.push(`priorité ${priority}`); }
+  let nouveau: { id: string; name: string } | null = null;
+  if (assignedToId && assignedToId !== task.assignedToId) {
+    if (!porteur) return { ok: false, error: "Seuls le responsable, le créateur ou une vue globale changent le responsable." };
+    if (task.status === "REQUESTED") return { ok: false, error: "Cette demande attend sa réponse : réattribuez-la depuis la demande." };
+    nouveau = await prisma.user.findFirst({ where: { id: assignedToId, isActive: true }, select: { id: true, name: true } });
+    if (!nouveau) return { ok: false, error: "Cette personne n'est pas (ou plus) active." };
+    data.assignedToId = nouveau.id;
+    // Le nouveau responsable ne figure plus parmi les participants ou les lecteurs.
+    data.participantIds = task.participantIds.filter((p) => p !== nouveau!.id);
+    data.readerIds = task.readerIds.filter((p) => p !== nouveau!.id);
+    resume.push(`confiée à ${nouveau.name}`);
+  }
+  if (!resume.length) return { ok: true, id, message: "La tâche était déjà ainsi." };
+
+  await prisma.task.update({ where: { id }, data });
+  const prevenir = new Set([data.assignedToId, task.assignedToId].filter((p): p is string => !!p && p !== user.id));
+  const lignes = [...prevenir].map((userId) => ({
+    userId, type: "ASSIGNMENT" as const, title: "Tâche modifiée", body: `${task.title} — ${resume.join(", ")}`,
+    link: userId === task.assignedToId && nouveau ? CHEMIN_TACHES : lienTache(id),
+  }));
+  if (lignes.length) {
+    try {
+      await prisma.notification.createMany({ data: lignes });
+    } catch (err) {
+      await rejouerNotifications(lignes, err);
+    }
+  }
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
+    summary: `Tâche « ${task.title} » — ${resume.join(", ")}`,
+  });
+  revalidatePath("/mon-espace");
+  revalidatePath(`/mon-espace/taches/${id}`);
+  return { ok: true, id, message: `Tâche « ${task.title} » : ${resume.join(", ")}.` };
+}
+
 /**
  * SUPPRIMER UNE TÂCHE — le geste de rangement qui manquait : une to-do créée en double, un
  * intitulé de test, une tâche devenue sans objet restaient à l'écran pour toujours (« terminée »
@@ -153,7 +229,7 @@ export async function deleteTask(formData: FormData): Promise<ActionResult> {
     prisma.task.delete({ where: { id } }),
   ]);
   const { deleteFileByKey } = await import("@/lib/storage");
-  for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
+  for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(sansBloquer("task-actions.deleteTask.deleteFileByKey"));
 
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Espace de travail", entityType: "TASK",
@@ -282,7 +358,7 @@ export async function respondTaskRequest(formData: FormData): Promise<ActionResu
         body: accept ? task.title : `${task.title} — ${declineSummary(reason)}`,
         link: lienTache(id, "demandees"),
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("task-actions.respondTaskRequest.notification"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
@@ -325,7 +401,7 @@ export async function submitTaskWork(formData: FormData): Promise<ActionResult> 
         title: again ? "Travail mis à jour" : "Travail terminé",
         body: task.title, link: lienTache(id, "demandees"),
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("task-actions.submitTaskWork.notification"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
@@ -408,7 +484,7 @@ export async function relanceTaskRequest(formData: FormData): Promise<ActionResu
         // rappelle.
         popup: true,
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("task-actions.relanceTaskRequest.notification"));
   }
 
   // La relance s'écrit DANS la tâche. Un rappel qui part par message vit ailleurs que ce
@@ -418,7 +494,7 @@ export async function relanceTaskRequest(formData: FormData): Promise<ActionResu
       taskId: id, authorId: user.id,
       body: rang <= 1 ? "Relance — cette demande attend toujours." : `Relance (${rang}ᵉ) — cette demande attend toujours.`,
     },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("task-actions.relanceTaskRequest.taskComment"));
 
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
@@ -462,7 +538,7 @@ export async function annulerDemandeTache(formData: FormData): Promise<ActionRes
 
   await prisma.taskComment.create({
     data: { taskId: id, authorId: user.id, body: motif ? `Demande annulée par son demandeur — ${motif}` : "Demande annulée par son demandeur." },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("task-actions.annulerDemandeTache.taskComment"));
   if (task.assignedToId) {
     await prisma.notification.create({
       data: {
@@ -471,7 +547,7 @@ export async function annulerDemandeTache(formData: FormData): Promise<ActionRes
         body: `${user.name} a annulé « ${task.title} »${motif ? ` — ${motif}` : ""}. Vous n'avez plus à la traiter.`,
         link: lienTache(id),
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("task-actions.annulerDemandeTache.notification"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
@@ -520,7 +596,7 @@ export async function reattribuerDemandeTache(formData: FormData): Promise<Actio
   const ancien = task.assignedTo?.name ?? null;
   await prisma.taskComment.create({
     data: { taskId: id, authorId: user.id, body: `Demande réattribuée à ${nouveau.name}${ancien ? ` (auparavant : ${ancien})` : ""}.` },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("task-actions.reattribuerDemandeTache.taskComment"));
   const lignes = [
     { userId: nouveau.id, type: "ASSIGNMENT" as const, title: "Demande de tâche", body: task.title, link: lienTache(id), popup: true },
     // L'ancien destinataire ne voit plus la tâche : on le mène à SES tâches, pas à une fiche fermée.

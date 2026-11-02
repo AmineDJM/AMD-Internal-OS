@@ -59,12 +59,12 @@ export function VuePole({ campagne, propositions, propositionId, retourDirection
           {p.gestes.SOUMETTRE && (
             <button type="button" className={btnPrimaire} disabled={busy || p.lignes.length === 0}
               title={manquantes ? `${manquantes} justification(s) manquante(s)` : undefined}
-              onClick={() => { if (window.confirm(`Soumettre la version ${p.version + 1} ?`)) void run(soumettreProposition, { proposalId: p.id }); }}>
+              onClick={() => void run(soumettreProposition, { proposalId: p.id }, { confirmer: `Soumettre la version ${p.version + 1} ?` })}>
               Soumettre
             </button>
           )}
           {p.gestes.ROUVRIR_RECTIFICATIF && (
-            <button type="button" className={btn} disabled={busy} onClick={() => { if (window.confirm("Rouvrir ce budget validé en rectificatif ? Il devra être re-validé.")) void run(rouvrirRectificatif, { proposalId: p.id }); }}>Ouvrir un rectificatif</button>
+            <button type="button" className={btn} disabled={busy} onClick={() => void run(rouvrirRectificatif, { proposalId: p.id }, { confirmer: "Rouvrir ce budget validé en rectificatif ? Il devra être re-validé." })}>Ouvrir un rectificatif</button>
           )}
         </div>
       </div>
@@ -177,7 +177,7 @@ function LignePole({ proposalId, l, modifiable, run, busy }: {
             }} />
             <button type="button" className={btn} disabled={busy} title="Joindre une pièce" aria-label="Joindre une pièce" onClick={() => fichier.current?.click()}><Paperclip className="h-4 w-4" /></button>
             <button type="button" className={btn} disabled={busy} title="Retirer la ligne" aria-label="Retirer la ligne"
-              onClick={() => { if (window.confirm(`Retirer « ${l.label} » ?`)) void run(supprimerLigneProposition, { lineId: l.id }); }}><Trash2 className="h-4 w-4" /></button>
+              onClick={() => void run(supprimerLigneProposition, { lineId: l.id }, { confirmer: `Retirer « ${l.label} » ?` })}><Trash2 className="h-4 w-4" /></button>
           </span>
         )}
       </td>

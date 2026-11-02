@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Check } from "lucide-react";
 import { setSecondaryRole } from "@/lib/actions/admin-actions";
 import { Select } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { ROLE_LABELS } from "@/lib/labels";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export type RoleRowData = { id: string; name: string; email: string; role: string; secondaryRole: string | null };
 
@@ -35,23 +36,27 @@ export function RolesTable({ users, canManage }: { users: RoleRowData[]; canMana
 }
 
 function RoleRow({ u, canManage }: { u: RoleRowData; canManage: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [value, setValue] = React.useState(u.secondaryRole ?? "");
 
-  const change = (next: string) => {
+  const change = async (next: string) => {
     setValue(next);
     setBusy(true); setErr(null); setSaved(false);
     const fd = new FormData();
     fd.set("id", u.id);
     fd.set("secondaryRole", next);
-    setSecondaryRole(fd).then((r) => {
+    try {
+      const r = await setSecondaryRole(fd);
+      if (r.ok) { setSaved(true); rafraichir(); setTimeout(() => setSaved(false), 1500); }
+      else { setErr(r.error ?? "Le rôle secondaire n'a pas été changé."); setValue(u.secondaryRole ?? ""); }
+    } catch {
+      setErr(actionFailureMessage("THROWN")); setValue(u.secondaryRole ?? "");
+    } finally {
       setBusy(false);
-      if (r.ok) { setSaved(true); router.refresh(); setTimeout(() => setSaved(false), 1500); }
-      else { setErr(r.error ?? "Erreur."); setValue(u.secondaryRole ?? ""); }
-    });
+    }
   };
 
   return (
@@ -68,7 +73,7 @@ function RoleRow({ u, canManage }: { u: RoleRowData; canManage: boolean }) {
       <TableCell label="Autre rôle">
         {canManage ? (
           <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2 sm:justify-start">
-            <Select value={value} onChange={(e) => change(e.target.value)} disabled={busy} className="h-10 w-full max-w-[16rem] text-xs sm:h-8 sm:w-64">
+            <Select value={value} onChange={(e) => void change(e.target.value)} disabled={busy} className="h-10 w-full max-w-[16rem] text-xs sm:h-8 sm:w-64">
               <option value="">— Aucun —</option>
               {SECONDARY_OPTIONS.map(([v, l]) => <option key={v} value={v} disabled={v === u.role}>{l}</option>)}
             </Select>

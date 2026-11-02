@@ -9,6 +9,11 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { runDiagnostic, type Severity, type Finding } from "@/lib/platform-audit/engine";
 import { PlatformIdeas } from "./diagnostic-client";
+import { TachesDeFondCard } from "./taches-de-fond";
+import { WorkerCard } from "./worker";
+import { lireEtatWorker, lireSanteTachesDeFond } from "@/lib/taches-de-fond/sante";
+import { IncidentsCard } from "./incidents";
+import { lireIncidentsRecents } from "@/lib/incidents-repetes";
 
 export const metadata = { title: "Diagnostic — AMD Internal OS" };
 export const dynamic = "force-dynamic";
@@ -30,7 +35,7 @@ export default async function DiagnosticPage() {
   const admin = await requireModule("ADMIN", "UPDATE");
   if (admin.role !== "SUPER_ADMIN") redirect("/admin");
 
-  const d = await runDiagnostic();
+  const [d, sante, incidents, worker] = await Promise.all([runDiagnostic(), lireSanteTachesDeFond({ detail: true }), lireIncidentsRecents(), lireEtatWorker()]);
   const bySev = (s: Severity) => d.findings.filter((f) => f.severity === s);
   const crit = bySev("critical"), warn = bySev("warning"), info = bySev("info");
 
@@ -73,6 +78,15 @@ export default async function DiagnosticPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Battement des tâches de fond (V2-F) : web ou worker, dernier passage, durée, issue */}
+      <TachesDeFondCard sante={sante} />
+
+      {/* Le worker (décision 0019) : battement, contrôle au démarrage, file des conversions et échecs */}
+      <WorkerCard etat={worker} sante={sante} />
+
+      {/* Erreurs rattrapées par les `catch` nommés (V3-E) : ce que les écrans ont remplacé par un repli */}
+      <IncidentsCard incidents={incidents} />
 
       {/* Idées IA (bouton) */}
       <PlatformIdeas hasFindings={d.findings.length > 0} />

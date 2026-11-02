@@ -7,8 +7,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { settleExpenseOrder } from "@/lib/actions/expense-actions";
-import { decidePaymentRequest } from "@/lib/actions/payment-request-actions";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
+import { decidePaymentRequest } from "@/modules/finances/actions-demandes";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -76,7 +76,7 @@ suite("Règlements simultanés — une seule sortie d'argent, une seule décisio
     const ordre = await prisma.expenseOrder.create({
       data: {
         reference: `${TAG}OD${RUN.slice(-5)}`, label: `${TAG} facture unique`, amount: 54_321, category: "AUTRE", status: "PENDING",
-        centralStatus: "APPROVED", budgetCategoryId: categorie, requiresInvoice: false, requestedById: sa,
+        centralStatus: "APPROVED", budgetCategoryId: categorie, requiresInvoice: false,
       },
     });
 

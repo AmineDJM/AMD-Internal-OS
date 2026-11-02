@@ -72,8 +72,6 @@ function utilisateur(role: "SUPER_ADMIN" | "EMPLOYEE"): CurrentUser {
   } as unknown as CurrentUser;
 }
 
-const item = (id: string, sourceType: string, sourceId = id) => ({ itemId: id, sourceType, sourceId });
-
 describe("garde d'accès — ce qu'on ne sait pas vérifier, on le refuse", () => {
   it("une source dont la garde n'est pas écrite ici n'est JAMAIS rendue", async () => {
     // L'index accepte quinze types de source ; seul le Drive a sa garde traduite. Laisser

@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { FolderTree, FolderPlus, Folder, ChevronRight, Pencil, Trash2, Loader2, Home } from "lucide-react";
 import { createLegalFolder, updateLegalFolder, deleteLegalFolder } from "@/lib/actions/legal-folder-actions";
 import { buildFolderTree, flattenFolders, folderPath, indentedLabel, deletionSummary, type FolderLite } from "@/lib/legal/folders";
@@ -41,8 +42,11 @@ export function LegalFolderBar({
   const router = useRouter();
   const [adding, setAdding] = React.useState(false);
   const [editing, setEditing] = React.useState<FolderRow | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const fiche = useAction();
+  // L'icône « supprimer » n'a pas de place pour parler : un refus part en avis flottant.
+  const suppression = useAction({ signalerErreurs: true });
+  const busy = fiche.busy || suppression.busy;
+  const { err, setErr } = fiche;
 
   const tree = React.useMemo(() => buildFolderTree(folders), [folders]);
   const flat = React.useMemo(() => flattenFolders(tree), [tree]);
@@ -59,13 +63,15 @@ export function LegalFolderBar({
 
   const remove = async (f: FolderRow) => {
     const subs = folders.filter((x) => x.parentId === f.id).length;
-    if (!window.confirm(`Supprimer le dossier « ${f.name} » ?\n\n${deletionSummary({ subfolders: subs, documents: f.documentCount })}`)) return;
-    setBusy(true);
     const fd = new FormData(); fd.set("id", f.id);
-    const r = await deleteLegalFolder(fd);
-    setBusy(false);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    else { if (current === f.id) router.push("/legal"); else router.refresh(); }
+    await suppression.run(
+      async () => {
+        const r = await deleteLegalFolder(fd);
+        return r.ok ? r : { ...r, error: r.error ?? "Le dossier n'a pas été supprimé." };
+      },
+      () => { if (current === f.id) router.push("/legal"); },
+      { confirmer: `Supprimer le dossier « ${f.name} » ?\n\n${deletionSummary({ subfolders: subs, documents: f.documentCount })}` },
+    );
   };
 
   return (
@@ -151,10 +157,7 @@ export function LegalFolderBar({
           busy={busy} err={err}
           onClose={() => setAdding(false)}
           onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
-            const r = await createLegalFolder(undefined, fd);
-            setBusy(false);
-            if (r.ok) { setAdding(false); router.refresh(); } else setErr(r.error ?? "Échec.");
+            await fiche.run(() => createLegalFolder(undefined, fd), () => setAdding(false));
           }}
         />
       )}
@@ -168,11 +171,8 @@ export function LegalFolderBar({
           busy={busy} err={err}
           onClose={() => setEditing(null)}
           onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
             fd.set("id", editing.id);
-            const r = await updateLegalFolder(fd);
-            setBusy(false);
-            if (r.ok) { setEditing(null); router.refresh(); } else setErr(r.error ?? "Échec.");
+            await fiche.run(() => updateLegalFolder(fd), () => setEditing(null));
           }}
         />
       )}

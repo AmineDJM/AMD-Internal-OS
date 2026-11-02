@@ -1,7 +1,6 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { Check, Loader2 } from "lucide-react";
 import { toggleMissionStop } from "@/lib/actions/admin-request-actions";
 
@@ -11,16 +10,13 @@ const letter = (i: number) => String.fromCharCode(65 + (i % 26));
 
 /** Checklist des points de passage : le chauffeur coche chaque point fait. */
 export function MissionStops({ stops }: { stops: StopDTO[] }) {
-  const router = useRouter();
-  const [busyId, setBusyId] = React.useState<string | null>(null);
+  // La pastille d'un point n'a pas de place pour parler : un refus part en avis flottant.
+  const { busy: busyId, run } = useKeyedAction({ signalerErreurs: true });
 
   async function toggle(id: string) {
-    setBusyId(id);
     const fd = new FormData();
     fd.set("id", id);
-    await toggleMissionStop(fd);
-    setBusyId(null);
-    router.refresh();
+    await run(id, () => toggleMissionStop(fd));
   }
 
   if (stops.length === 0) return null;
@@ -37,7 +33,7 @@ export function MissionStops({ stops }: { stops: StopDTO[] }) {
             {s.task && <p className={s.done ? "line-through" : "text-muted-foreground"}>{s.task}</p>}
           </div>
           <button
-            onClick={() => toggle(s.id)}
+            onClick={() => void toggle(s.id)}
             disabled={busyId !== null}
             title={s.done ? "Marquer à refaire" : "Marquer comme fait"}
             className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border transition ${s.done ? "border-success bg-success text-white" : "border-border text-muted-foreground hover:border-success hover:text-success"}`}

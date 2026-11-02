@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { platformScope } from "@/lib/company";
 import { getRequestList } from "@/lib/queries/admin-requests";
-import { demanderPieceSecretariat } from "./ad-pro-item-actions";
+import { demanderPieceSecretariat } from "@/modules/ad-pro/actions-postes";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

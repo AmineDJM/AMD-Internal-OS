@@ -1,7 +1,4 @@
-import {
-  REG_STEPS, regStepStatus, presubUnlocked, presubOutcome,
-  type RegWorkflowState,
-} from "@/lib/regulatory-workflow";
+import { REG_STEPS, regStepStatus, presubUnlocked, type RegWorkflowState } from "@/lib/regulatory-workflow";
 
 /**
  * LE NIVEAU DE PROCESS SE LIT, IL NE SE DÉCLARE PLUS.
@@ -174,4 +171,3 @@ export function explainStatus(d: DerivedStatus): string {
 }
 
 /** L'avis de présoumission courant — réexporté pour les appelants du niveau (écran, actions). */
-export { presubOutcome };

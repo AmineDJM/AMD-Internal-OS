@@ -8,6 +8,7 @@ import {
   nextRunAt,
 } from "./contract";
 import { isKnownWorkflow, availableWorkflows } from "./registry";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -130,7 +131,7 @@ export async function setWorkflowStatus(
     ? { status, nextRunAt: nextRunAt(scheduleOf(owned.value), new Date()), claimedAt: null }
     : { status };
 
-  const wf = await prisma.scheduledWorkflow.update({ where: { id }, data, select: SELECT_WF }).catch(() => null);
+  const wf = await prisma.scheduledWorkflow.update({ where: { id }, data, select: SELECT_WF }).catch(sansBloquer("scheduler-manage.setWorkflowStatus.scheduledWorkflow", null));
   if (!wf) return fail("La planification n'a pas pu être mise à jour.");
   return { ok: true, value: toView(wf, await recentRuns(id)) };
 }
@@ -181,7 +182,7 @@ export async function updateWorkflow(
       ...(cadenceChanged ? { nextRunAt: nextRunAt(schedule, new Date()) } : {}),
     },
     select: SELECT_WF,
-  }).catch(() => null);
+  }).catch(sansBloquer("scheduler-manage.updateWorkflow.scheduledWorkflow", null));
   if (!wf) return fail("La planification n'a pas pu être mise à jour.");
   return { ok: true, value: toView(wf, await recentRuns(id)) };
 }
@@ -190,7 +191,7 @@ export async function updateWorkflow(
 export async function deleteWorkflow(id: string, actorId: string): Promise<ManageResult<{ id: string }>> {
   const owned = await assertOwned(id, actorId);
   if (!owned.ok) return owned;
-  const done = await prisma.scheduledWorkflow.delete({ where: { id } }).catch(() => null);
+  const done = await prisma.scheduledWorkflow.delete({ where: { id } }).catch(sansBloquer("scheduler-manage.deleteWorkflow.scheduledWorkflow", null));
   if (!done) return fail("La planification n'a pas pu être supprimée.");
   return { ok: true, value: { id } };
 }
@@ -202,7 +203,7 @@ export async function listWorkflows(ownerId: string, limit = 50): Promise<Workfl
     orderBy: [{ status: "asc" }, { nextRunAt: "asc" }],
     take: limit,
     select: { ...SELECT_WF, runs: { orderBy: { startedAt: "desc" }, take: 5, select: RUN_SELECT } },
-  }).catch(() => []);
+  }).catch(sansBloquer("scheduler-manage.listWorkflows.scheduledWorkflow", []));
 
   return rows.map((r) => toView(r, r.runs));
 }
@@ -253,7 +254,7 @@ function toView(w: WfRow, runs: RunRow[]): WorkflowView {
 async function recentRuns(workflowId: string): Promise<RunRow[]> {
   return prisma.workflowRun
     .findMany({ where: { workflowId }, orderBy: { startedAt: "desc" }, take: 5, select: RUN_SELECT })
-    .catch(() => []);
+    .catch(sansBloquer("scheduler-manage.recentRuns.workflowRun", []));
 }
 
 /**
@@ -261,7 +262,7 @@ async function recentRuns(workflowId: string): Promise<RunRow[]> {
  * deux dirait à un curieux qu'une planification existe, ce qu'il n'a pas à savoir.
  */
 async function assertOwned(id: string, actorId: string): Promise<ManageResult<WfRow>> {
-  const wf = await prisma.scheduledWorkflow.findUnique({ where: { id }, select: SELECT_WF }).catch(() => null);
+  const wf = await prisma.scheduledWorkflow.findUnique({ where: { id }, select: SELECT_WF }).catch(sansBloquer("scheduler-manage.assertOwned.scheduledWorkflow", null));
   if (!wf || wf.ownerId !== actorId) return fail("Planification introuvable.");
   return { ok: true, value: wf };
 }

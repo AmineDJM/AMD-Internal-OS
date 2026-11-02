@@ -9,7 +9,7 @@ import { LIBELLE_RELATION } from "@/lib/influence/relations";
 import { LIBELLE_RAISON_ND } from "@/lib/influence/parts-lots";
 import type { VuePartsLots } from "@/lib/queries/parts-lots";
 import { LETTRES, STATUT_LABELS, type Lettre, type Statut } from "@/lib/segmentation/regles";
-import { LIBELLE_ROLE_MEDECIN, TYPES_MEDECINS_CONCERNES, LIBELLE_NATURE_DEMANDE } from "@/lib/ad-pro/medecins-concernes";
+import { LIBELLE_ROLE_MEDECIN, TYPES_MEDECINS_CONCERNES, LIBELLE_NATURE_DEMANDE } from "@/modules/ad-pro/partage";
 import { LettreBadge } from "@/app/(app)/segmentation/lettre-badge";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { cn } from "@/lib/utils";
@@ -46,7 +46,8 @@ function Lettre_({ l }: { l: string | null }) {
 }
 const statutLibelle = (s: string | null) => (s && s in STATUT_LABELS ? STATUT_LABELS[s as Statut] : "—");
 
-export default async function IntelligenceTerrainPage({ searchParams }: { searchParams?: Params }) {
+export default async function IntelligenceTerrainPage(props: { searchParams?: Promise<Params> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   // RÉSERVÉ AU SUPER ADMINISTRATEUR — aucun droit de module ne l'ouvre à un autre rôle.
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");

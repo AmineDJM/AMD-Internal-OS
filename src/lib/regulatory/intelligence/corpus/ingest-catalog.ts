@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { CATALOG, FIRST_WAVE, ANPP_WATCH_PAGES, findSource, type CatalogSource } from "./catalog";
+import { ANPP_WATCH_PAGES, findSource } from "./catalog";
 import { fetchSource } from "./fetch-source";
 
 /**
@@ -143,16 +143,6 @@ export async function ingestSources(codes: string[], userId?: string | null, del
     unchanged: results.filter((r) => r.unchanged).length,
     failed: results.filter((r) => !r.ok).length,
   };
-}
-
-/** La première vague : les dix sources qui suffisent à analyser un dossier algérien. */
-export async function ingestFirstWave(userId?: string | null): Promise<IngestBatchResult> {
-  return ingestSources(FIRST_WAVE.map((s) => s.code), userId);
-}
-
-/** Tout ce qui est ingérable (licences respectées). Long : à lancer en tâche de fond. */
-export async function ingestEverything(userId?: string | null): Promise<IngestBatchResult> {
-  return ingestSources(CATALOG.filter((s) => s.ingestible).map((s) => s.code), userId);
 }
 
 // ───────────────────────────── Veille ANPP ─────────────────────────────

@@ -33,6 +33,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 export interface EntiteDictionnaire {
   type: "PRODUIT" | "PERSONNE" | "ORGANISATION";
@@ -63,8 +64,8 @@ export async function dictionnaireCanonique(): Promise<EntiteDictionnaire[]> {
     return cacheDictionnaire.entites;
   }
   const [produits, employes] = await Promise.all([
-    prisma.regulatoryProduct.findMany({ select: { id: true, dci: true, brandName: true, partnerLab: true } }).catch(() => []),
-    prisma.employee.findMany({ where: { isActive: true }, select: { id: true, fullName: true } }).catch(() => []),
+    prisma.regulatoryProduct.findMany({ select: { id: true, dci: true, brandName: true, partnerLab: true } }).catch(sansBloquer("mentions.dictionnaireCanonique.regulatoryProduct", [])),
+    prisma.employee.findMany({ where: { isActive: true }, select: { id: true, fullName: true } }).catch(sansBloquer("mentions.dictionnaireCanonique.employee", [])),
   ]);
 
   const entites: EntiteDictionnaire[] = [];
@@ -159,9 +160,9 @@ export async function balayerMentions(lot = 40): Promise<{ traites: number; rest
     take: lot,
   });
   for (const d of aFaire) {
-    await enregistrerMentions(d.nodeId, d.textFold).catch(() => undefined);
+    await enregistrerMentions(d.nodeId, d.textFold).catch(sansBloquer("mentions.balayerMentions.enregistrerMentions"));
   }
-  const restants = await prisma.driveTextIndex.count({ where: { mentionsAt: null } }).catch(() => 0);
+  const restants = await prisma.driveTextIndex.count({ where: { mentionsAt: null } }).catch(sansBloquer("mentions.balayerMentions.driveTextIndex", 0));
   return { traites: aFaire.length, restants };
 }
 

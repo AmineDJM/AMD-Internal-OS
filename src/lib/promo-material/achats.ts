@@ -35,6 +35,7 @@
 
 import { actionProduit, estAction, type PromoAction } from "@/lib/promo-material/actions-fournisseur";
 import { formatDzd, totalLigneHT, totauxTaxes, type DevisLu, type Totaux } from "@/lib/promo-material/devis";
+import { arrondirAuMillieme } from "@/lib/utils";
 
 export type FamillePromo = "CONSOMMABLE" | "DURABLE" | "NUMERIQUE";
 
@@ -55,7 +56,6 @@ export interface OptionCatalogue {
 
 /** Tolérance de comparaison des quantités — trois décimales, comme la base. */
 const EPS = 0.0005;
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 const nombre = (n: number): string => n.toLocaleString("fr-FR", { maximumFractionDigits: 3 });
 
 // ─────────────────────────────── 1. LA DEMANDE ───────────────────────────────
@@ -151,7 +151,7 @@ export function validerArticleDemande(s: {
     ok: true,
     article: {
       produitIds,
-      quantite: s.quantite != null ? r3(s.quantite) : null,
+      quantite: s.quantite != null ? arrondirAuMillieme(s.quantite) : null,
       actions: actions as PromoAction[],
       commentaire: s.commentaire?.trim() || null,
     },
@@ -235,7 +235,7 @@ export function lignesDuBC(d: DevisLu, facturees: readonly { quoteLineId: string
   const deja = new Map<string, number>();
   for (const f of facturees) {
     if (!f.quoteLineId) continue;
-    deja.set(f.quoteLineId, r3((deja.get(f.quoteLineId) ?? 0) + Number(f.quantite)));
+    deja.set(f.quoteLineId, arrondirAuMillieme((deja.get(f.quoteLineId) ?? 0) + Number(f.quantite)));
   }
   return d.lines
     .filter((l) => l.selected)
@@ -249,7 +249,7 @@ export function lignesDuBC(d: DevisLu, facturees: readonly { quoteLineId: string
 
 /** Ce qui reste à facturer sur une ligne du BC — jamais négatif. */
 export function resteAFacturer(l: Pick<LigneBC, "quantite" | "dejaFacture">): number {
-  return Math.max(0, r3(l.quantite - l.dejaFacture));
+  return Math.max(0, arrondirAuMillieme(l.quantite - l.dejaFacture));
 }
 
 /** Les lignes PROPOSÉES pour une nouvelle facture : ce qui reste à facturer, au prix du BC. */
@@ -302,7 +302,7 @@ export function validerLignesFacture(saisies: readonly SaisieLigneFacture[], lig
     }
     lignes.push({
       quoteLineId: bc.quoteLineId, designation: bc.designation, action: bc.action, unite: bc.unite,
-      requestItemId: bc.requestItemId, quantite: r3(s.quantite), prixUnitaire: s.prixUnitaire,
+      requestItemId: bc.requestItemId, quantite: arrondirAuMillieme(s.quantite), prixUnitaire: s.prixUnitaire,
     });
   }
   if (fautes.length) return { ok: false, error: `Lignes de facture à revoir : ${fautes.join(" ; ")}.` };
@@ -400,7 +400,7 @@ export function etatReception(l: Pick<LigneFactureLue, "quantite" | "quantiteRec
 /** Ce qu'on paie sur une ligne : ce qui a été REÇU (au plus ce qui est facturé). */
 export function quantitePayable(l: Pick<LigneFactureLue, "quantite" | "quantiteRecue">): number {
   if (l.quantiteRecue == null) return 0;
-  return r3(Math.min(l.quantite, l.quantiteRecue));
+  return arrondirAuMillieme(Math.min(l.quantite, l.quantiteRecue));
 }
 
 /** Les lignes qui attendent encore quelque chose : rien reçu, ou une partie seulement, sans renoncement. */
@@ -467,7 +467,7 @@ export function validerReception(l: Pick<LigneFactureLue, "designation" | "quant
   if (q > l.quantite + EPS) {
     return { ok: false, error: `« ${l.designation} » : ${nombre(q)} reçues pour ${nombre(l.quantite)} facturées — on ne réceptionne pas plus que la facture.` };
   }
-  return { ok: true, quantite: r3(q) };
+  return { ok: true, quantite: arrondirAuMillieme(q) };
 }
 
 // ─────────────────────────────── 5. LE PAIEMENT ───────────────────────────────

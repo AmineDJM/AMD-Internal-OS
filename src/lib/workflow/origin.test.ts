@@ -9,7 +9,7 @@ const C = "CONGRESS_NATIONAL" as const;
 
 const u = (role: UserRole, secondaryRole: UserRole | null = null) => ({ role, secondaryRole });
 
-/** La colonne vertébrale, dans l'ordre où le circuit la traverse depuis 09/2026 (§118.138). */
+/** La colonne vertébrale, dans l'ordre de la définition (§118.138) — la porte du DG est hors route depuis le 27/10/2026. */
 const SPINE = [SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION, SLUG_MARKETING];
 
 describe("Routage Ad & Pro selon le rang du créateur (origin)", () => {
@@ -22,7 +22,7 @@ describe("Routage Ad & Pro selon le rang du créateur (origin)", () => {
     expect(init.preliminaryBySelf).toBe(false);
   });
 
-  it("le National Sales n'approuve pas sa propre demande : elle entre par la porte du DG", () => {
+  it("le National Sales n'approuve pas sa propre demande : elle entre chez le Directeur des opérations", () => {
     expect(adProOriginRank(u("NATIONAL_SALES"))).toBe(1);
     const init = adProInit(u("NATIONAL_SALES"), C, "pm-1");
     expect(init.stage).toBe("ANALYSIS");
@@ -44,7 +44,8 @@ describe("Routage Ad & Pro selon le rang du créateur (origin)", () => {
 
   it("TOUT AUTRE DEMANDEUR — ni KAM, ni de la chaîne commerciale — entre au même endroit", () => {
     // Un demandeur hors force de vente n'a pas de superviseur national : l'étape préliminaire
-    // serait un accord demandé à quelqu'un qui n'a pas autorité sur lui.
+    // serait un accord demandé à quelqu'un qui n'a pas autorité sur lui. Son N+1 est le
+    // Directeur des opérations (27/10/2026).
     for (const role of ["DIRECTION_ASSISTANT", "FINANCE_BUDGET_MANAGER", "COORDINATOR"] as UserRole[]) {
       const init = adProInit(u(role), C);
       expect(adProOriginRank(u(role)), role).toBe(0);
@@ -53,48 +54,56 @@ describe("Routage Ad & Pro selon le rang du créateur (origin)", () => {
     }
   });
 
-  it("SEUL le KAM passe par le préliminaire — et le RANG l'emporte sur le métier", () => {
-    // Un délégué médical qui porte AUSSI la casquette Direction Marketing est un KAM au sens du
-    // texte, mais sa demande ne peut pas être TRANCHÉE par lui-même : sa chaîne s'arrête donc
-    // une étape plus tôt, chez la Direction. Sans cette borne, elle lui reviendrait.
+  it("SEUL le KAM passe par le préliminaire — puis le Directeur des opérations ; et le RANG l'emporte sur le métier", () => {
+    // Un délégué médical de rang 0 : National Sales, puis Directeur des opérations, puis Direction
+    // Marketing — la porte du DG seule est hors route (le DG valide le total des postes, à la fin).
     expect(adProInit(u("MEDICAL_DELEGATE"), C).stage).toBe("PRELIMINARY");
-    const double = u("MEDICAL_DELEGATE", "PRODUCT_MANAGER");
-    expect(adProOriginRank(double)).toBe(2);
-    expect(adProInit(double, C).stage).toBe("ANALYSIS");
-    expect(parcoursEffectif(double, SPINE, 2, C).decision, "la Direction tranche à sa place").toBe(SLUG_DIRECTION);
-    // Un KAM n'a AUCUNE borne (Direction Marketing est la dernière étape) et saute pourtant la
-    // Direction des opérations : c'est exactement ce que la borne seule ne pouvait pas dire.
     const kam = parcoursEffectif(u("MEDICAL_DELEGATE"), SPINE, 0, C);
-    expect(kam.decision, "Direction Marketing tranche, et c'est la dernière étape").toBeNull();
-    expect(kam.ignorees, "le national sales valide, la Direction des opérations non").toEqual([SLUG_DIRECTION]);
+    expect(kam.decision, "Direction Marketing prévalide, et c'est la dernière étape").toBeNull();
+    expect(kam.ignorees, "le National Sales ET le Directeur des opérations valident").toEqual([SLUG_DG]);
+    // Un délégué qui porte aussi le National Sales suit la branche de son rang : pas son propre
+    // préliminaire, le Directeur des opérations directement.
+    const nsDelegue = u("MEDICAL_DELEGATE", "NATIONAL_SALES");
+    expect(adProInit(nsDelegue, C).stage).toBe("ANALYSIS");
+    expect(parcoursEffectif(nsDelegue, SPINE, 1, C).entree).toBe(SLUG_DIRECTION);
   });
 
-  it("Direction Marketing entre par la porte du DG et NE TRANCHE PAS sa propre demande", () => {
-    for (const role of ["PRODUCT_MANAGER", "MEDICAL_PROMOTION_MANAGER"] as UserRole[]) {
-      expect(adProOriginRank(u(role))).toBe(2);
-      const init = adProInit(u(role), C, "pm-ignored");
-      expect(init.stage, role).toBe("ANALYSIS");
-      expect(init.status, role).toBe("PRELIMINARY_APPROVED");
-      expect(init.preliminaryBySelf, role).toBe(true);
-      expect(parcoursEffectif(u(role), SPINE, 2, C).decision, role).toBe(SLUG_DIRECTION);
-    }
+  it("Direction Marketing entre sur SA propre étape, prévalidée d'office ; le Manager Promotion médicale passe par le Directeur des opérations", () => {
+    // Ce qui le ferait tomber : l'ancienne route du rang 2 (porte du DG, puis la Direction des
+    // opérations qui tranchait à sa place). Depuis le 27/10/2026, la demande de la Direction
+    // Marketing n'attend personne ; le Manager Promotion médicale, lui, n'est pas la Direction
+    // Marketing — son N+1 est le Directeur des opérations.
+    expect(adProOriginRank(u("PRODUCT_MANAGER"))).toBe(2);
+    const dm = adProInit(u("PRODUCT_MANAGER"), C, "pm-1");
+    expect([dm.stage, dm.status, dm.preliminaryBySelf]).toEqual(["FINAL", "AWAITING_FINAL", true]);
+    const pDm = parcoursEffectif(u("PRODUCT_MANAGER"), SPINE, 2, C);
+    expect(pDm.entree).toBe(SLUG_MARKETING);
+    expect(pDm.dOffice, "prévalidée d'office").toBe(true);
+    expect(pDm.ignorees).toEqual([SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION]);
+
+    expect(adProOriginRank(u("MEDICAL_PROMOTION_MANAGER"))).toBe(2);
+    const mpm = adProInit(u("MEDICAL_PROMOTION_MANAGER"), C, "pm-1");
+    expect([mpm.stage, mpm.status, mpm.preliminaryBySelf]).toEqual(["ANALYSIS", "PRELIMINARY_APPROVED", true]);
+    const pMpm = parcoursEffectif(u("MEDICAL_PROMOTION_MANAGER"), SPINE, 2, C);
+    expect([pMpm.entree, pMpm.decision, pMpm.dOffice]).toEqual([SLUG_DIRECTION, null, false]);
   });
 
-  it("la Direction et le Super Admin vont DIRECTEMENT chez Direction Marketing, qui tranche", () => {
-    // Tout ce qui précède est soit leur propre accord, soit une porte dont ils sont la clé.
-    // Ce qui le ferait tomber : les faire entrer par la porte du DG — la Direction attendrait
-    // l'accord d'un DG qui est à son propre rang.
+  it("la Direction et le Super Admin vont DIRECTEMENT chez Direction Marketing, qui prévalide", () => {
+    // Tout ce qui précède est soit leur propre accord, soit une étape qui n'est plus sur la route.
+    // Ce qui le ferait tomber : les faire passer par le Directeur des opérations — la Direction
+    // attendrait l'accord de quelqu'un de son propre rang.
     for (const role of ["DIRECTION", "SUPER_ADMIN"] as UserRole[]) {
       expect(adProOriginRank(u(role))).toBe(3);
       expect(adProInit(u(role), C).stage, role).toBe("FINAL");
       expect(adProInit(u(role), C).status, role).toBe("AWAITING_FINAL");
+      expect(parcoursEffectif(u(role), SPINE, 3, C).dOffice, `${role} : la prévalidation d'office est réservée à la Direction Marketing`).toBe(false);
     }
   });
 
   // Le Directeur Général et le Directeur des Opérations n'ont pas la VUE GLOBALE (cloisonnement
   // voulu), mais ils n'ont personne au-dessus d'eux pour approuver : sans rang explicite, ils
   // retombaient au rang 0 et attendaient l'accord d'un superviseur qu'ils dirigent.
-  it("le Directeur Général et le Directeur des Opérations vont eux aussi directement à la décision", () => {
+  it("le Directeur Général et le Directeur des Opérations vont eux aussi directement à la prévalidation", () => {
     for (const role of ["GENERAL_MANAGER", "OPERATIONS_DIRECTOR"] as UserRole[]) {
       expect(adProOriginRank(u(role)), role).toBe(3);
       const init = adProInit(u(role), C);

@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
 import { readFileByKey } from "@/lib/storage";
 import { onlyofficeConfigured, readFileReadToken, readDocReadToken } from "@/lib/onlyoffice";
+import { contentDisposition } from "@/lib/http/content-disposition";
+import { entetesAntiExecution } from "@/lib/http/types-actifs";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +13,23 @@ export const dynamic = "force-dynamic";
  * session). L'accès est autorisé par un **jeton signé** émis par la page d'édition
  * (lié au nœud/document + à l'utilisateur). Personne ne peut récupérer un fichier
  * sans jeton valide. Gère le Drive (DriveNode) ET les documents (modèle Document).
+ *
+ * Le jeton voyage aussi dans le NAVIGATEUR (`document.url` de la configuration de l'éditeur), et le
+ * type enregistré est celui que le navigateur de l'auteur a déclaré au dépôt : servi en ligne, un
+ * `.docx` déposé comme `text/html` s'ouvrait comme une page de l'ERP. Le Document Server ne lit que
+ * les octets — on sert donc toujours en pièce jointe, et un type actif sous bac à sable.
  */
+function entetesServis(nom: string, mime: string, taille: number): Record<string, string> {
+  return {
+    "Content-Type": mime,
+    "Content-Disposition": contentDisposition(nom, "attachment"),
+    "X-Content-Type-Options": "nosniff",
+    ...entetesAntiExecution(mime),
+    "Content-Length": String(taille),
+    "Cache-Control": "private, no-store",
+  };
+}
+
 export async function GET(req: NextRequest) {
   if (!onlyofficeConfigured()) return new NextResponse(null, { status: 404 });
   const token = req.nextUrl.searchParams.get("token");
@@ -24,11 +42,7 @@ export async function GET(req: NextRequest) {
     try {
       const bytes = await readFileByKey(doc.fileKey);
       return new NextResponse(new Uint8Array(bytes), {
-        headers: {
-          "Content-Type": doc.mimeType ?? "application/octet-stream",
-          "Content-Length": String(bytes.length),
-          "Cache-Control": "private, no-store",
-        },
+        headers: entetesServis(doc.name, doc.mimeType ?? "application/octet-stream", bytes.length),
       });
     } catch {
       return new NextResponse(null, { status: 404 });
@@ -55,10 +69,6 @@ export async function GET(req: NextRequest) {
   if (!bytes) return new NextResponse(null, { status: 404 });
 
   return new NextResponse(new Uint8Array(bytes), {
-    headers: {
-      "Content-Type": node.mimeType ?? version.mimeType ?? "application/octet-stream",
-      "Content-Length": String(bytes.length),
-      "Cache-Control": "private, no-store",
-    },
+    headers: entetesServis(node.name, node.mimeType ?? version.mimeType ?? "application/octet-stream", bytes.length),
   });
 }

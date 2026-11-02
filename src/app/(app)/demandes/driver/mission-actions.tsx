@@ -1,18 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { Loader2, Play, Truck, CheckCircle2, AlertTriangle } from "lucide-react";
 import { updateMission } from "@/lib/actions/admin-request-actions";
 import { cn } from "@/lib/utils";
 
 export function MissionActions({ id, status }: { id: string; status: string }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // Les boutons de statut n'ont pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
 
   function Btn({ s, label, icon, cls }: { s: string; label: string; icon: React.ReactNode; cls: string }) {
     return (
-      <form action={async (fd) => { setBusy(true); await updateMission(fd); setBusy(false); router.refresh(); }} className="inline">
+      <form action={async (fd) => { await run(() => updateMission(fd)); }} className="inline">
         <input type="hidden" name="id" value={id} />
         <input type="hidden" name="status" value={s} />
         <button type="submit" disabled={busy} className={cn("inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium disabled:opacity-50", cls)}>

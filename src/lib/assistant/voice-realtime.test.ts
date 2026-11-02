@@ -215,7 +215,7 @@ suite("voix temps réel — instructions de session (même conversation, budget 
   });
 
   it("FAILURE A/B — l'état CANONIQUE des actions s'injecte : « déjà demandé ? » se lit, ne se devine pas", async () => {
-    const { persistActionIntents } = await import("./action-intents");
+    const { persistActionIntents } = await import("@/platform/ia/intentions/action-intents");
     await persistActionIntents(ceoId, [{
       kind: "send_message", module: "MESSAGING", title: `${TAG} Notification à Redouane`,
       fields: [{ label: "Objet", value: "Rattacher les contrats" }], payload: {},

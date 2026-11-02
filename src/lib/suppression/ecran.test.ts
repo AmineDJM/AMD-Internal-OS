@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS } from "@/lib/ad-pro/unified";
+import { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS } from "@/modules/ad-pro/partage";
 import { DELETE_REGISTRY, DELETABLE_KINDS } from "@/lib/admin-delete-registry";
 
 /** Un cliquet juge le CODE, pas la prose qui le décrit (§118.79d, §118.88, §118.112b). */
@@ -75,7 +75,7 @@ describe("Écran — un événement se supprime par la même fenêtre, plus par 
   });
 
   it("l'action du module passe par le cœur réversible — plus de suppression sèche", () => {
-    const src = code("src/lib/actions/event-actions.ts");
+    const src = code("src/modules/ad-pro/actions-evenements.ts");
     const corps = src.slice(src.indexOf("export async function deleteEvent"), src.indexOf("export async function deleteEvent") + 900);
     expect(corps).toContain('supprimerReversible("EVENT"');
     expect(corps).not.toMatch(/prisma\.event\.delete\(/);
@@ -102,7 +102,7 @@ describe("Écran — toute fiche du pôle Ad & Pro offre la suppression (Super A
 
 describe("Adam — la carte ne promet plus une perte que le lot n'inflige pas", () => {
   it("delete_record et restore_record lisent le lot avant de parler de cascade", () => {
-    const src = code("src/lib/assistant.ts");
+    const src = code("src/lib/assistant/propositions/donnees-et-corbeille.ts");
     expect(src).toContain("apercuSuppression(rawKind, target.id)");
     const i = src.indexOf("Les lignes liées supprimées en cascade (enfants du schéma) ne sont PAS restaurables.");
     expect(src.slice(Math.max(0, i - 200), i), "la réserve de cascade n'est dite que hors lot").toMatch(/apercu\.lot/);
@@ -111,13 +111,15 @@ describe("Adam — la carte ne promet plus une perte que le lot n'inflige pas", 
   });
 
   it("la carte dit, comme la fenêtre, ce qui perd son lien", () => {
-    const src = code("src/lib/assistant.ts");
+    const src = code("src/lib/assistant/propositions/donnees-et-corbeille.ts");
     expect(src).toMatch(/label: "Perd son lien", value: apercu\.detache\.join/);
   });
 
   it("la carte de suppression d'un événement ne dit plus « aucun retour possible »", () => {
-    const src = code("src/lib/assistant/ops/impl-wave5.ts");
-    expect(src).not.toContain("aucun retour possible");
+    // Les ops de la vague 5 vivent dans `ops/impl/vague5/` ; la carte d'un événement, dans `evenements.ts`.
+    const src = code("src/lib/assistant/ops/impl/vague5/evenements.ts");
+    const vague = ["evenements", "ad-pro", "consulting", "commun"].map((f) => code(`src/lib/assistant/ops/impl/vague5/${f}.ts`)).join("\n");
+    expect(vague).not.toContain("aucun retour possible");
     expect(src).toContain('apercuSuppression("EVENT", hit.id)');
   });
 });

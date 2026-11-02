@@ -1,4 +1,4 @@
-import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
+import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
 import { refusAnnulationPieceInfoMed } from "@/lib/annulations/regles";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -11,6 +11,7 @@ import { getDeclaration, canViewDeclaration, sourceLink, dernieresRelancesPieces
 import { decideursInfoMedActifs } from "@/lib/medical-info";
 import { estDecideurInfoMed, chezDecideur } from "@/lib/medical-info/decideur";
 import { peutOuvrirLeDossierPromo } from "@/lib/queries/promo-circuit";
+import { canAccessEntity } from "@/lib/entity-access";
 import { toNumber, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +42,8 @@ import { BackLink } from "@/components/shared/back-link";
 
 export const dynamic = "force-dynamic";
 
-export default async function DeclarationDetailPage({ params }: { params: { id: string } }) {
+export default async function DeclarationDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const decl = await getDeclaration(params.id);
   if (!decl) notFound();
@@ -100,11 +102,13 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
         (await prisma.sponsoringRequest.count({ where: { AND: [{ id: decl.sourceId }, scopeSponsoring(user)] } })) > 0;
     else if (decl.sourceType === "CONGRESS_INTERNATIONAL")
       canOpenSource = userCan(user, "CONGRESS_INTERNATIONAL", "VIEW") &&
-        (await prisma.congressInternational.count({ where: { id: decl.sourceId, ...scopeCongressIntl(user) } })) > 0;
+        (await prisma.congressInternational.count({ where: { AND: [{ id: decl.sourceId }, scopeCongressIntl(user)] } })) > 0;
     else if (decl.sourceType === "CONGRESS_NATIONAL")
       canOpenSource = userCan(user, "CONGRESS_NATIONAL", "VIEW") &&
-        (await prisma.congressNational.count({ where: { id: decl.sourceId, ...scopeCongressNational(user) } })) > 0;
+        (await prisma.congressNational.count({ where: { AND: [{ id: decl.sourceId }, scopeCongressNational(user)] } })) > 0;
     else if (decl.sourceType === "EVENT") canOpenSource = userCan(user, "EVENTS", "VIEW");
+    // La demande « autre » (27/10/2026) : la porte de SA fiche.
+    else if (decl.sourceType === "AD_PRO_OTHER") canOpenSource = await canAccessEntity(user, "AD_PRO_OTHER", decl.sourceId, "VIEW");
   }
   const amount = decl.amount != null ? toNumber(decl.amount) : null;
   const pendingCount = decl.requests.filter((r) => r.status === "PENDING").length;

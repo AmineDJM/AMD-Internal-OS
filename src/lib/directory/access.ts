@@ -34,13 +34,3 @@ export function canReadDirectory(user: CurrentUser): boolean {
 export function canEditDirectory(user: CurrentUser): boolean {
   return peutAnnuaire(user, "PERSONNES", "UPDATE");
 }
-
-/**
- * MARQUER UNE ADRESSE COMME VÉRIFIÉE — le geste le plus lourd de l'annuaire.
- *
- * « Vérifiée en interne » est la provenance la plus forte : elle bat tout le reste au moment de
- * choisir où envoyer. Elle engage donc celui qui la pose, et se limite à ceux qui écrivent.
- */
-export function canVerifyEndpoint(user: CurrentUser): boolean {
-  return canEditDirectory(user);
-}

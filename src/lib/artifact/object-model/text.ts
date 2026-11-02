@@ -31,7 +31,3 @@ export function abreger(s: string, max: number): string {
   const espace = coupe.lastIndexOf(" ");
   return `${espace > max * 0.6 ? coupe.slice(0, espace) : coupe}…`;
 }
-
-/** Le mot « paragraphe » au bon nombre — les messages d'erreur se lisent par des humains. */
-export const pluriel = (n: number, singulier: string, plur = `${singulier}s`): string =>
-  `${n} ${n > 1 ? plur : singulier}`;

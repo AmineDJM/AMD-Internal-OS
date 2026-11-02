@@ -198,7 +198,8 @@ describe("une absence n'est « vérifiée » que si une source peut la démontre
 
   it("la garde est branchée au PASSAGE COMMUN des deux boucles, pas sur un return (§118.49)", async () => {
     const fs = await import("node:fs");
-    const src = fs.readFileSync("src/lib/assistant.ts", "utf8");
+    // `assistant.ts` découpé (lot V4) : ses deux boucles vivent dans `boucle/tour.ts` et `boucle/flux.ts`.
+    const src = ["src/lib/assistant/boucle/tour.ts", "src/lib/assistant/boucle/flux.ts"].map((f) => fs.readFileSync(f, "utf8")).join("\n");
     // Deux chemins de réponse, deux `avecProvenance` : la garde doit être dans les DEUX.
     expect(src.split("avertirAbsenceNonProuvable({").length - 1, "un des deux chemins ne l'appelle pas").toBe(2);
     expect(src).toMatch(/f\.preuveNegative === true/);

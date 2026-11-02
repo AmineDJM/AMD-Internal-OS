@@ -1,0 +1,229 @@
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# SAUVEGARDE DE LA BASE DE PRODUCTION — chaque nuit, chiffrée, hors de Render, et RESTAURÉE pour de vrai
+# chaque dimanche dans une base jetable (une sauvegarde jamais restaurée n'est qu'un espoir).
+#
+# Audit 27/10/2026, INFRA-06 (docs/audit/2026-10-27/10-infra-ci-observabilite.md) : aucune sauvegarde ni
+# procédure de restauration n'existait, sur une base Render qui porte aussi des fichiers. Procédure complète
+# (mise en place, restauration d'urgence) : docs/readme/37-sauvegardes-restauration.md.
+#
+# Déroulé :
+#   sauvegarder : pg_dump (format custom) → chiffrement GPG AES-256 (phrase secrète) → empreinte SHA-256
+#                 → stockage S3 (si configuré) + artefact GitHub 7 jours (filet) → purge selon la rétention
+#                 (scripts/sauvegarde/retention.mjs : 14 quotidiennes, 8 hebdomadaires, 12 mensuelles).
+#   restaurer   : (dimanche, ou à la demande) déchiffre la copie de la nuit, la restaure dans un Postgres 16
+#                 neuf, et vérifie qu'elle est complète (migrations, comptes, volumes) — résumé dans le job.
+#
+# Secrets (Settings › Secrets and variables › Actions) — le job ÉCHOUE en le disant s'ils manquent :
+#   SAUVEGARDE_DATABASE_URL   URL EXTERNE de la base Render (Render › base › Connect › External)
+#   SAUVEGARDE_PHRASE         phrase secrète de chiffrement (≥ 32 caractères, gardée AUSSI hors de GitHub)
+#   SAUVEGARDE_S3_ENDPOINT, SAUVEGARDE_S3_BUCKET, SAUVEGARDE_S3_ACCESS_KEY_ID,
+#   SAUVEGARDE_S3_SECRET_ACCESS_KEY, SAUVEGARDE_S3_REGION   (facultatifs : sans eux, seul l'artefact est gardé)
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+name: Sauvegarde de la base
+
+on:
+  schedule:
+    - cron: "17 2 * * *" # 02:17 UTC — 03:17 à Alger, hors des heures d'usage
+  workflow_dispatch:
+    inputs:
+      restaurer:
+        description: "Restaurer aussi la copie dans une base jetable (vérification)"
+        type: boolean
+        default: true
+
+concurrency:
+  group: sauvegarde-base
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  PREFIXE: sauvegardes/base
+
+jobs:
+  sauvegarder:
+    name: Sauvegarder (pg_dump chiffré)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      fichier: ${{ steps.dump.outputs.fichier }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vérifier la configuration
+        env:
+          URL: ${{ secrets.SAUVEGARDE_DATABASE_URL }}
+          PHRASE: ${{ secrets.SAUVEGARDE_PHRASE }}
+        run: |
+          manque=""
+          [ -n "$URL" ] || manque="$manque SAUVEGARDE_DATABASE_URL"
+          [ -n "$PHRASE" ] || manque="$manque SAUVEGARDE_PHRASE"
+          if [ -n "$manque" ]; then
+            echo "::error::Sauvegarde IMPOSSIBLE — secret(s) manquant(s) :$manque. Procédure : docs/readme/37-sauvegardes-restauration.md"
+            exit 1
+          fi
+          if [ "${#PHRASE}" -lt 32 ]; then echo "::error::SAUVEGARDE_PHRASE trop courte (32 caractères minimum)."; exit 1; fi
+
+      - name: Installer le client PostgreSQL 17 (lit les serveurs 12 à 17)
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Copier la base (pg_dump) et la chiffrer
+        id: dump
+        env:
+          URL: ${{ secrets.SAUVEGARDE_DATABASE_URL }}
+          PHRASE: ${{ secrets.SAUVEGARDE_PHRASE }}
+        run: |
+          set -euo pipefail
+          horodatage=$(date -u +%Y%m%dT%H%M%SZ)
+          fichier="amd-${horodatage}.dump.gpg"
+          pg_dump --version
+          # Format custom : compressé, restaurable table par table, en parallèle. Ni propriétaires ni droits :
+          # la base de restauration a les siens.
+          pg_dump --format=custom --compress=9 --no-owner --no-privileges --dbname="$URL" --file=base.dump
+          taille=$(stat -c %s base.dump)
+          [ "$taille" -gt 1024 ] || { echo "::error::Copie vide ou presque ($taille octets) : refusée."; exit 1; }
+          pg_restore --list base.dump > contenu.txt
+          tables=$(grep -c " TABLE DATA " contenu.txt || true)
+          gpg --batch --yes --symmetric --cipher-algo AES256 --passphrase-fd 3 --output "$fichier" base.dump 3<<<"$PHRASE"
+          sha256sum "$fichier" > "$fichier.sha256"
+          rm -f base.dump
+          echo "fichier=$fichier" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Sauvegarde du $(date -u '+%d/%m/%Y %H:%M') UTC"
+            echo "- Fichier : \`$fichier\` ($(numfmt --to=iec "$(stat -c %s "$fichier")"), chiffré AES-256)"
+            echo "- Tables avec données : $tables"
+            echo "- Empreinte : \`$(cut -d' ' -f1 "$fichier.sha256")\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Garder la copie en artefact (7 jours — filet si S3 est indisponible)
+        # Le quota d'artefacts d'un dépôt privé est limité : un échec ici n'arrête pas la sauvegarde S3.
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: sauvegarde-base
+          path: |
+            ${{ steps.dump.outputs.fichier }}
+            ${{ steps.dump.outputs.fichier }}.sha256
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Envoyer au stockage S3 et purger selon la rétention
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAUVEGARDE_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAUVEGARDE_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.SAUVEGARDE_S3_REGION || 'auto' }}
+          ENDPOINT: ${{ secrets.SAUVEGARDE_S3_ENDPOINT }}
+          BUCKET: ${{ secrets.SAUVEGARDE_S3_BUCKET }}
+          FICHIER: ${{ steps.dump.outputs.fichier }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BUCKET" ] || [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "::warning::Stockage S3 des sauvegardes non configuré : la copie n'est gardée que 7 jours (artefact). Voir docs/readme/37-sauvegardes-restauration.md"
+            exit 0
+          fi
+          ep=(); [ -n "$ENDPOINT" ] && ep=(--endpoint-url "$ENDPOINT")
+          aws "${ep[@]}" s3 cp "$FICHIER" "s3://$BUCKET/$PREFIXE/$FICHIER" --only-show-errors
+          aws "${ep[@]}" s3 cp "$FICHIER.sha256" "s3://$BUCKET/$PREFIXE/$FICHIER.sha256" --only-show-errors
+          aws "${ep[@]}" s3api list-objects-v2 --bucket "$BUCKET" --prefix "$PREFIXE/" --output json > liste.json
+          node scripts/sauvegarde/retention.mjs < liste.json > a-purger.txt
+          n=0
+          while IFS= read -r cle; do
+            [ -n "$cle" ] || continue
+            aws "${ep[@]}" s3 rm "s3://$BUCKET/$cle" --only-show-errors
+            aws "${ep[@]}" s3 rm "s3://$BUCKET/$cle.sha256" --only-show-errors || true
+            n=$((n + 1))
+          done < a-purger.txt
+          echo "- Stockage : \`s3://$BUCKET/$PREFIXE/$FICHIER\` — $n ancienne(s) copie(s) purgée(s) selon la rétention" >> "$GITHUB_STEP_SUMMARY"
+
+  restaurer:
+    name: Restaurer dans une base jetable (vérification)
+    needs: sauvegarder
+    # Chaque dimanche, et à la demande : la copie se restaure pour de vrai, sinon elle ne vaut rien.
+    if: ${{ github.event_name == 'schedule' || inputs.restaurer }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: amd
+          POSTGRES_PASSWORD: amd
+          POSTGRES_DB: restauration
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U amd" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - name: Le dimanche seulement (planifié)
+        id: jour
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "$(date -u +%u)" != "7" ]; then echo "passer=1" >> "$GITHUB_OUTPUT"; fi
+
+      - name: Récupérer la copie de la nuit (stockage S3)
+        id: s3
+        if: steps.jour.outputs.passer != '1'
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.SAUVEGARDE_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.SAUVEGARDE_S3_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.SAUVEGARDE_S3_REGION || 'auto' }}
+          ENDPOINT: ${{ secrets.SAUVEGARDE_S3_ENDPOINT }}
+          BUCKET: ${{ secrets.SAUVEGARDE_S3_BUCKET }}
+          FICHIER: ${{ needs.sauvegarder.outputs.fichier }}
+        run: |
+          set -euo pipefail
+          if [ -z "$BUCKET" ] || [ -z "$AWS_ACCESS_KEY_ID" ]; then echo "ok=0" >> "$GITHUB_OUTPUT"; exit 0; fi
+          ep=(); [ -n "$ENDPOINT" ] && ep=(--endpoint-url "$ENDPOINT")
+          aws "${ep[@]}" s3 cp "s3://$BUCKET/$PREFIXE/$FICHIER" "$FICHIER" --only-show-errors
+          aws "${ep[@]}" s3 cp "s3://$BUCKET/$PREFIXE/$FICHIER.sha256" "$FICHIER.sha256" --only-show-errors
+          echo "ok=1" >> "$GITHUB_OUTPUT"
+
+      - name: Récupérer la copie de la nuit (artefact, sans S3)
+        if: steps.jour.outputs.passer != '1' && steps.s3.outputs.ok != '1'
+        uses: actions/download-artifact@v4
+        with:
+          name: sauvegarde-base
+
+      - name: Installer le client PostgreSQL 17
+        if: steps.jour.outputs.passer != '1'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+
+      - name: Vérifier l'empreinte, déchiffrer, restaurer, contrôler
+        if: steps.jour.outputs.passer != '1'
+        env:
+          PHRASE: ${{ secrets.SAUVEGARDE_PHRASE }}
+          FICHIER: ${{ needs.sauvegarder.outputs.fichier }}
+          CIBLE: postgresql://amd:amd@localhost:5432/restauration
+        run: |
+          set -euo pipefail
+          sha256sum --check "$FICHIER.sha256"
+          gpg --batch --yes --decrypt --passphrase-fd 3 --output base.dump "$FICHIER" 3<<<"$PHRASE"
+          # Les extensions de la production (pgcrypto, etc.) se recréent ; une erreur de droits sur un objet
+          # système n'invalide pas la copie — les contrôles ci-dessous, si.
+          pg_restore --no-owner --no-privileges --jobs=4 --dbname="$CIBLE" base.dump || echo "::warning::pg_restore a signalé des avertissements (voir le journal)."
+          migrations=$(psql "$CIBLE" -tAc 'SELECT count(*) FROM "_prisma_migrations" WHERE finished_at IS NOT NULL')
+          comptes=$(psql "$CIBLE" -tAc 'SELECT count(*) FROM "User"')
+          tables=$(psql "$CIBLE" -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
+          volume=$(psql "$CIBLE" -tAc "SELECT pg_size_pretty(pg_database_size('restauration'))")
+          {
+            echo "### Restauration vérifiée — \`$FICHIER\`"
+            echo "| Contrôle | Valeur |"
+            echo "|---|---|"
+            echo "| Migrations appliquées | $migrations |"
+            echo "| Tables | $tables |"
+            echo "| Comptes utilisateurs | $comptes |"
+            echo "| Volume restauré | $volume |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          [ "$migrations" -gt 400 ] || { echo "::error::Copie incomplète : $migrations migrations seulement."; exit 1; }
+          [ "$tables" -gt 300 ] || { echo "::error::Copie incomplète : $tables tables seulement."; exit 1; }
+          [ "$comptes" -gt 0 ] || { echo "::error::Copie sans aucun compte utilisateur."; exit 1; }
+          rm -f base.dump

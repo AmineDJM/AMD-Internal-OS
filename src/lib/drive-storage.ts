@@ -12,6 +12,7 @@ import { sqlAucuneColonneNeLeTient, sqlBlobsCitesEnJson } from "./storage/blob-r
 import {
   objectStorageConfigured, putObject, putObjectStream, getObject, deleteObject, MULTIPART_THRESHOLD_BYTES,
 } from "./storage/object-storage";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Drive blob backend — content-addressed, encrypted at rest.
@@ -247,7 +248,7 @@ async function putBlobChunked(plain: Buffer, tailleClair: number, hash: string, 
     await prisma.fileBlobChunk.create({ data: { blobId: blob.id, idx: idx++, data: Buffer.concat([cipher.final(), cipher.getAuthTag()]) } });
     return { blobId: blob.id, sha256: hash, size: tailleClair, deduplicated: false, storedSize: meta.storedSize ?? tailleClair };
   } catch (err) {
-    await prisma.fileBlob.delete({ where: { id: blob.id } }).catch(() => undefined); // cascade → supprime les tranches partielles
+    await prisma.fileBlob.delete({ where: { id: blob.id } }).catch(sansBloquer("drive-storage.putBlobChunked.fileBlob")); // cascade → supprime les tranches partielles
     throw err;
   }
 }
@@ -324,7 +325,7 @@ export async function putBlobFromFile(path: string, opts: { sha256?: string } = 
       await prisma.fileBlobChunk.create({ data: { blobId: blob.id, idx: idx++, data: Buffer.concat([cipher.final(), cipher.getAuthTag()]) } });
       return { blobId: blob.id, sha256: hash, size, deduplicated: false, storedSize: aStocker };
     } catch (err) {
-      await prisma.fileBlob.delete({ where: { id: blob.id } }).catch(() => undefined); // cascade → tranches partielles
+      await prisma.fileBlob.delete({ where: { id: blob.id } }).catch(sansBloquer("drive-storage.putBlobFromFile.fileBlob")); // cascade → tranches partielles
       throw err;
     }
   } finally {

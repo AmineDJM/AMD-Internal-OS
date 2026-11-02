@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Loader2, Pencil, Eye } from "lucide-react";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'ÉDITEUR OFFICE EMBARQUÉ — ouvrir un Word, un Excel, un PowerPoint (et leurs anciens formats) dans leur forme
@@ -55,7 +56,7 @@ function chargerScript(url: string): Promise<void> {
  */
 export function prechargerEditeur(apiJs: string | null | undefined): void {
   if (!apiJs) return;
-  chargerScript(apiJs).catch(() => { /* l'ouverture réessaiera et affichera la raison */ });
+  chargerScript(apiJs).catch(sansBloquer("editeur-en-ligne.prechargerEditeur.chargerScript"));
 }
 
 /**

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { regAudit } from "../audit";
-import { CATALOG, FIRST_WAVE, ANPP_WATCH_PAGES, type CatalogSource } from "./catalog";
+import { CATALOG, FIRST_WAVE, type CatalogSource } from "./catalog";
 import { ingestCatalogSource, ingestSources, watchAnppPages, type IngestBatchResult, type WatchFinding } from "./ingest-catalog";
 
 /**
@@ -127,9 +127,4 @@ export async function runAnppWatch(): Promise<WatchActionResult> {
     error: failed === findings.length ? `Aucune page ANPP atteinte (${failed} échec(s)). Vérifiez l'accès réseau sortant du serveur.` : undefined,
     findings,
   };
-}
-
-/** Le catalogue tel qu'affiché : sans secret, mais lu côté serveur pour rester une seule source. */
-export async function watchedPages(): Promise<typeof ANPP_WATCH_PAGES> {
-  return ANPP_WATCH_PAGES;
 }

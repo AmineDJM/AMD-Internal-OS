@@ -6,6 +6,7 @@ import { Ban, Clock, Loader2, Pencil, Trash2 } from "lucide-react";
 import { editOwnRequest, deleteOwnRequest } from "@/lib/actions/admin-request-actions";
 import { FENETRE_DISCRETE_MS } from "@/lib/secretariat/porte-demandeur";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
@@ -70,9 +71,14 @@ export function RequesterWindow({
 
   async function run(action: (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>, fd: FormData, after?: () => void) {
     setBusy(true); setErr(null); setNote(null);
-    const r = await action(fd);
-    setBusy(false);
-    if (r.ok) { setNote(r.message ?? null); after?.(); rafraichir(); } else setErr(r.error ?? "Erreur.");
+    try {
+      const r = await action(fd);
+      if (r.ok) { setNote(r.message ?? null); after?.(); rafraichir(); } else setErr(r.error ?? "La demande n'a pas été mise à jour.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

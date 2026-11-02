@@ -1,5 +1,5 @@
 import { RESUME_POUR_PLANNER } from "@/lib/events/catalogue";
-import { COMPLEXITIES, NODE_TYPES, SCALES, APPROVAL_STRATEGIES } from "@/lib/missions/planner/contract";
+import { COMPLEXITIES, SCALES, APPROVAL_STRATEGIES } from "@/lib/missions/planner/contract";
 import { EFFECT_RANK, type Effect } from "@/lib/missions/registry/capability-meta";
 import { EFFET_NOEUD } from "@/lib/missions/registry/node-effect";
 

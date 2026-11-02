@@ -123,6 +123,15 @@ export function verifierCommande(c: CommandeArtefact, format: ArtifactFormat): s
       if (c.texte === null) return "il faut donner le texte à insérer";
       if (c.position !== null && !POSITIONS.has(c.position)) return "position attendue : avant ou apres";
       return null;
+    case "docx.inserer_tableau": {
+      // Comme `docx.inserer_paragraphe` : une cible vide veut dire « à la fin ».
+      const lignes = (c.texte ?? "").split("\n").filter((l) => l.trim());
+      if (lignes.length === 0) return "il faut donner les lignes du tableau (une par ligne, cellules séparées par « | »)";
+      if (lignes.length > 200) return "200 lignes au plus par tableau";
+      if (lignes.some((l) => l.split("|").length > 20)) return "20 colonnes au plus par tableau";
+      if (c.position !== null && !POSITIONS.has(c.position)) return "position attendue : avant ou apres";
+      return null;
+    }
     case "docx.supprimer_paragraphe":
       if (cibleVide(c.cible)) return "il faut dire QUEL paragraphe supprimer";
       return null;

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { getMyCompanies } from "@/lib/company";
 import { definirLogo, definirMarque, marqueDe } from "./index";
-import { profilDocumentaire } from "@/platform/in-process/artifact/factory";
+import { profilDocumentaire } from "@/platform/ia/artifact/factory";
 import { construireDocumentCommercial } from "@/lib/artifact/factory/build";
 import { composerDocx, dimensionsImage, paragraphe } from "@/lib/artifact/factory/word";
 
@@ -80,7 +80,7 @@ describe("le registre de marque, par le pont", () => {
     expect(p.profil.societe.couleur).toBe("0B6E4F");
     expect(p.profil.resumeMarque).toMatch(/registre de marque/);
     // La spec telle que la fabrique la compose : on la rejoue ici sans numéroter ni écrire au registre.
-    const { specDepuisDemandePourTest } = await import("@/platform/in-process/artifact/factory");
+    const { specDepuisDemandePourTest } = await import("@/platform/ia/artifact/factory");
     const spec = { ...specDepuisDemandePourTest({ type: "DEVIS", tiers: { nom: "Clinique __brand__" }, lignes: [{ designation: "Nivolex 10 mg/ml", quantite: 4, prixUnitaire: 85_000 }] }, p.profil), numero: "DEV-TEST-0001" };
     expect(spec.signataire).toEqual({ nom: "Amel Haddad", qualite: "Directrice commerciale" });
     expect(spec.piedDePage?.join(" ")).toMatch(/Agrément ANPP n° __brand__-042/);

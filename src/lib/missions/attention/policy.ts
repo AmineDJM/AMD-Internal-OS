@@ -1,35 +1,5 @@
 import type { NiveauSignal, SignalAttention } from "@/lib/missions/ports";
 
-/**
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA POLITIQUE D'ATTENTION — quand parler au dirigeant, à quel niveau, et comment le dire.
- *
- * ── LES CINQ NIVEAUX, ET CE QUI LES SÉPARE ───────────────────────────────────────────────
- *
- *   SILENCE    — rien : l'information est au journal de la mission, personne n'est dérangé.
- *   JOURNAL    — une ligne dans le centre de notifications, sans push : utile, pas urgent.
- *   INFO       — notification + push discret : « mission terminée », le résultat en trois lignes.
- *   ATTENTION  — notification + push insistant + e-mail : un blocage réel après recours, une
- *                attente qui a épuisé ses relances, une planification impossible.
- *   ARBITRAGE  — les mêmes canaux, et la formulation d'une DÉCISION : un accord sur un périmètre
- *                sensible, une question que ni les données ni le responsable ne peuvent régler.
- *
- * ── POURQUOI UNE TABLE ET PAS UN JUGEMENT DE MODÈLE ────────────────────────────────────────
- *
- * Parce que la personne doit pouvoir dire pourquoi Adam l'a dérangée cette fois et pas la
- * précédente. Un modèle interrogé à chaque occasion répondrait selon son contexte du moment ;
- * ici le niveau se lit dans une table, la cadence dans une constante, et un test le tient.
- *
- * ── LA COMPRESSION EXÉCUTIVE ──────────────────────────────────────────────────────────────
- *
- * Le dirigeant ne reçoit jamais la télémétrie des 73 étapes. Un message dit : le problème, le
- * contexte indispensable, la recommandation, la décision demandée — ou, pour une mission finie :
- * le résultat, ce qui a été fait, les conséquences, ce qui reste à surveiller. Le tout sous
- * 700 caractères, composé par le CODE depuis le journal : rien d'inventé, rien de long.
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- */
-export const NIVEAUX: readonly NiveauSignal[] = ["SILENCE", "JOURNAL", "INFO", "ATTENTION", "ARBITRAGE"];
-
 /** Deux minutes : au-delà, la personne a pu quitter la conversation, et une fin de mission redevient une information. */
 export const DANS_LA_FOULEE_MS = 2 * 60 * 1000;
 

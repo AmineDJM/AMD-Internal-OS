@@ -190,11 +190,6 @@ export function clePresentation(p: Presentation): string {
   return `${p.molecule}|${p.dose ?? ""}|${p.forme}`;
 }
 
-export function lirePresentation(cle: string): Presentation {
-  const [molecule = "", dose = "", forme = "AUTRE"] = cle.split("|");
-  return { molecule, dose: dose || null, forme: forme as FamilleForme };
-}
-
 /**
  * MÊME PRÉSENTATION ? Même molécule, même première dose, même famille de forme. Une dose ou une forme ILLISIBLE d'un
  * côté ne conclut pas (« inconnu » n'est pas « identique ») : la ligne reste au marché de la molécule, sans produit.

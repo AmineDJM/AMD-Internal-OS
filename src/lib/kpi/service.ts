@@ -3,8 +3,7 @@ import type { Prisma, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { userCan, type SessionUser } from "@/lib/rbac";
 import { loadReportingLine } from "@/lib/departments";
-import { managementChainOf } from "@/lib/hr/reporting-line";
-import { subtreeOf, flattenTree } from "@/lib/hr/team-tree";
+import { managementChainOf, subtreeOf, flattenTree } from "@/modules/rh/partage";
 import { sensTendance } from "@/lib/force-de-vente/calculs";
 import { BRIQUE_PAR_ID, FREQUENCES, type FrequenceRevue } from "./briques";
 import {

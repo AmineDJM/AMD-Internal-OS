@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 import { requireModule } from "@/lib/session";
@@ -17,7 +16,8 @@ import { BackLink } from "@/components/shared/back-link";
 
 const LOGISTICS_DOC_CATEGORIES = ["PROFORMA", "INVOICE", "PACKING_LIST", "BL_AWB", "ANALYSIS_CERTIFICATE", "ORIGIN_CERTIFICATE", "CUSTOMS_DOCS", "DELIVERY_NOTE", "RECEPTION_REPORT", "OTHER"];
 
-export default async function LogisticsDetailPage({ params }: { params: { id: string } }) {
+export default async function LogisticsDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("LOGISTICS");
   const order = await prisma.logisticsOrder.findUnique({
     where: { id: params.id },

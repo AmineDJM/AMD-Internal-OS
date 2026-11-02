@@ -52,10 +52,6 @@ export async function startWatch(accessToken: string, topicName: string): Promis
   };
 }
 
-export async function stopWatch(accessToken: string): Promise<void> {
-  await googleJson({ method: "POST", url: `${GMAIL_BASE}/${USER}/stop`, accessToken });
-}
-
 export interface HistoryEntry {
   id: string;
   /** Identifiants de messages AJOUTÉS depuis le point de reprise. */

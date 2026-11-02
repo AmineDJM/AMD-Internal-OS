@@ -1,14 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2, Lock, RotateCcw } from "lucide-react";
-import { cloturerSponsoring, rouvrirSponsoring } from "@/lib/actions/sponsoring-actions";
+import { cloturerSponsoring, rouvrirSponsoring } from "@/modules/ad-pro/actions-sponsoring";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { Textarea } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useAction } from "@/components/shared/use-action";
 
 /**
  * LA VALIDATION FINALE ET LA CLÔTURE D'UN SPONSORING (§118.151) — l'écran du geste.
@@ -40,24 +40,18 @@ export function ClosurePanel({
   /** Renseigné quand la demande a été clôturée par sa validation finale. */
   cloture: { le: string; par: string | null; note: string | null; montant: number | null } | null;
 }) {
-  const router = useRouter();
   const [note, setNote] = React.useState("");
   const [motif, setMotif] = React.useState("");
   const [rouvrir, setRouvrir] = React.useState(false);
-  const [pending, start] = React.useTransition();
-  const [err, setErr] = React.useState<string | null>(null);
+  // Gardé (levée, délai) et rafraîchi par `useAction` : clôturer ou rouvrir ne peut plus figer le panneau.
+  const { busy: pending, err, setErr, run } = useAction();
 
-  const agir = (fn: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, champs: Record<string, string>) =>
-    start(async () => {
-      setErr(null);
-      const fd = new FormData();
-      fd.set("id", id);
-      for (const [k, v] of Object.entries(champs)) if (v.trim()) fd.set(k, v.trim());
-      const r = await fn(fd);
-      if (!r.ok) { setErr(r.error ?? "Action impossible."); return; }
-      setNote(""); setMotif(""); setRouvrir(false);
-      router.refresh();
-    });
+  const agir = (fn: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, champs: Record<string, string>) => {
+    const fd = new FormData();
+    fd.set("id", id);
+    for (const [k, v] of Object.entries(champs)) if (v.trim()) fd.set(k, v.trim());
+    void run(() => fn(fd), () => { setNote(""); setMotif(""); setRouvrir(false); });
+  };
 
   // ── CLÔTURÉE : ce qui a été arrêté, et le geste qui rouvre ──
   // Dans la carte « La demande » (Direction, 07/10), la phrase de statut dit déjà « validée et clôturée le …, par … » et

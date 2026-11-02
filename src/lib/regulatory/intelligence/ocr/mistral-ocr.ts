@@ -1,5 +1,7 @@
 import type { OcrResult, OcrPage } from "./ocr-engine";
 import { openPdf, type PdfSource } from "./pdf-split";
+import { attendu } from "@/lib/journal";
+import { recordProviderCall } from "@/platform/ia/telemetry/imputation";
 
 /**
  * MOTEUR OCR CLOUD — Mistral OCR (`mistral-ocr-latest`).
@@ -171,7 +173,7 @@ async function postOcr(apiKey: string, body: string): Promise<unknown> {
         signal: controller.signal,
       });
       if (res.ok) return (await res.json()) as unknown;
-      const detail = await res.text().catch(() => "");
+      const detail = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       const err = new Error(`Mistral OCR ${res.status} : ${detail.slice(0, 300)}`);
       // 4xx (hors 429) = erreur de requête → échec immédiat, inutile de réessayer.
       if (res.status !== 429 && res.status < 500) throw err;
@@ -195,7 +197,14 @@ async function mistralOcrOnce(apiKey: string, ext: string, buffer: Buffer, opts:
   // PDF → document_url ; image → image_url (le data-URL embarque le contenu, aucun upload séparé).
   const document = ext === "pdf" ? { type: "document_url", document_url: dataUrl } : { type: "image_url", image_url: dataUrl };
   const body = JSON.stringify({ model: opts.model, document, include_image_base64: false });
+  const debut = Date.now();
   const json = await postOcr(apiKey, body);
+  // L'OCR se paie À LA PAGE (audit K8, trou G2) : la ligne du journal porte les pages RENDUES par `usage_info`.
+  const pages = (json as { usage_info?: { pages_processed?: number } } | null)?.usage_info?.pages_processed;
+  recordProviderCall({
+    role: "ocr", provider: "mistral", model: opts.model, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0,
+    pages: typeof pages === "number" ? pages : 0, estimated: typeof pages !== "number", ms: Date.now() - debut,
+  });
   return parseMistralOcr(json, opts);
 }
 

@@ -65,7 +65,7 @@ Retired modules are also covered: Ventes (manual), Commandes & logistique, Marke
 | `src/lib/promo/*.ts`, `src/lib/actions/promo-stock-actions.ts` | Promo stock ledger (movements per lot) |
 | `src/lib/market/*.ts`, `src/data/market/*.ndjson.gz` | Embedded market snapshots (server-only `data.ts` reads `fs`/`zlib`) |
 | `src/lib/annuaires/*.ts`, `src/lib/medical/*.ts`, `src/lib/actions/medical-directory*-actions.ts` | Directories, per-directory access, establishment linking, workbook import/export |
-| `src/lib/consommation/*.ts` | Consumption import pipeline and establishment-level affinity |
+| `src/modules/consommation/` (pilot modular-monolith module: `api.ts`, `domaine/`, `infra/`, `ecrans/`) | Consumption import pipeline and establishment-level affinity |
 | `src/lib/site-web/*.ts`, `src/app/api/site-web/v1/*/route.ts` | Contract, queue, transport, inbound auth, reconciliation, key rotation, candidatures, audience |
 | `src/lib/rbac.ts`, `src/lib/modules-retired.ts`, `src/lib/modules-visibility.ts` | Module list, retirement, locked-dossier scope |
 | `src/lib/scheduled.ts` | Heartbeat: boot product sweep, regulatory jobs, stock recurrences, PCH deadline sweep, SFE sweep, site-web queue / reconciliation |

@@ -1,5 +1,6 @@
 "use server";
 
+import { gesteReversible } from "@/lib/effets/ecran";
 import { revalidatePath } from "next/cache";
 import type { Priority, DossierStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -12,6 +13,8 @@ import { notifyUser } from "@/lib/notify";
 import { putBlob, releaseBlob } from "@/lib/drive-storage";
 import { createDossierRecord } from "@/lib/dossiers-core";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
+import { inscrirePieceJointe } from "@/modules/bibliotheque/api-inscription";
 
 const MAX_MSG_ATTACHMENT = 25 * 1024 * 1024; // 25 Mo par pièce jointe de message (chat)
 
@@ -133,10 +136,13 @@ export async function postDossierMessage(formData: FormData): Promise<ActionResu
   for (const f of files) {
     if (f.size > MAX_MSG_ATTACHMENT) continue;
     const buf = Buffer.from(await f.arrayBuffer());
-    const { blobId, size } = await putBlob(buf);
-    await prisma.dossierMessageAttachment.create({
-      data: { messageId: msg.id, blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size },
+    const ecrit = await putBlob(buf);
+    const pj = await prisma.dossierMessageAttachment.create({
+      data: { messageId: msg.id, blobId: ecrit.blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size: ecrit.size },
+      select: { id: true, name: true, mime: true },
     });
+    // La pièce entre à la bibliothèque (J1), ouverte par la règle de sa famille. Ne lève jamais.
+    await inscrirePieceJointe("SUJET_PIECE", pj, ecrit, { source: "AUTRE", proprietaireId: user.id });
   }
 
   await prisma.dossier.update({ where: { id }, data: { updatedAt: new Date() } });
@@ -189,36 +195,38 @@ export async function linkEmailToDossier(
   input: LinkEmailInput,
 ): Promise<{ ok: boolean; error?: string; dossierId?: string; reference?: string }> {
   const user = await requireUser();
-  if (!userCan(user, "DOSSIERS", "VIEW")) return { ok: false, error: "Non autorisé." };
+  return gesteReversible(user, { capaciteId: "dossier-actions:linkEmailToDossier", libelle: "Courriel rattaché au dossier" }, async () => {
+    if (!userCan(user, "DOSSIERS", "VIEW")) return { ok: false, error: "Non autorisé." };
 
-  let dossierId = input.dossierId ?? null;
-  let reference = "";
+    let dossierId = input.dossierId ?? null;
+    let reference = "";
 
-  if (!dossierId) {
-    const title = (input.newTitle || input.subject || "").trim();
-    if (!title) return { ok: false, error: "Donnez un intitulé au sujet." };
-    if (!userCan(user, "DOSSIERS", "CREATE")) return { ok: false, error: "Vous ne pouvez pas créer de sujet." };
-    const created = await createDossierRecord({ title, category: "E-mail" }, user.id);
-    dossierId = created.id;
-    reference = created.reference;
-  } else {
-    const d = await prisma.dossier.findUnique({ where: { id: dossierId }, select: { createdById: true, assignedToId: true, participantIds: true, reference: true } });
-    if (!d) return { ok: false, error: "Sujet introuvable." };
-    if (!isMember(user, d)) return { ok: false, error: "Vous n'êtes pas membre de ce sujet." };
-    reference = d.reference;
-  }
+    if (!dossierId) {
+      const title = (input.newTitle || input.subject || "").trim();
+      if (!title) return { ok: false, error: "Donnez un intitulé au sujet." };
+      if (!userCan(user, "DOSSIERS", "CREATE")) return { ok: false, error: "Vous ne pouvez pas créer de sujet." };
+      const created = await createDossierRecord({ title, category: "E-mail" }, user.id);
+      dossierId = created.id;
+      reference = created.reference;
+    } else {
+      const d = await prisma.dossier.findUnique({ where: { id: dossierId }, select: { createdById: true, assignedToId: true, participantIds: true, reference: true } });
+      if (!d) return { ok: false, error: "Sujet introuvable." };
+      if (!isMember(user, d)) return { ok: false, error: "Vous n'êtes pas membre de ce sujet." };
+      reference = d.reference;
+    }
 
-  const subject = (input.subject || "(sans objet)").trim();
-  const from = (input.from || "—").trim();
-  const when = input.date ? new Date(input.date).toLocaleString("fr-FR") : "";
-  const body = (input.body || "").trim().slice(0, 6000);
-  const message = `📧 E-mail lié\nDe : ${from}\nObjet : ${subject}${when ? `\nReçu le : ${when}` : ""}\n\n${body || "(corps non disponible)"}`;
+    const subject = (input.subject || "(sans objet)").trim();
+    const from = (input.from || "—").trim();
+    const when = input.date ? new Date(input.date).toLocaleString("fr-FR") : "";
+    const body = (input.body || "").trim().slice(0, 6000);
+    const message = `📧 E-mail lié\nDe : ${from}\nObjet : ${subject}${when ? `\nReçu le : ${when}` : ""}\n\n${body || "(corps non disponible)"}`;
 
-  await prisma.dossierMessage.create({ data: { dossierId, authorId: user.id, body: message } });
-  await prisma.dossier.update({ where: { id: dossierId }, data: { updatedAt: new Date() } });
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Sujets", entityType: "DOSSIER", entityId: dossierId, summary: `E-mail lié — ${subject}` });
-  revalidate(dossierId);
-  return { ok: true, dossierId, reference };
+    await prisma.dossierMessage.create({ data: { dossierId, authorId: user.id, body: message } });
+    await prisma.dossier.update({ where: { id: dossierId }, data: { updatedAt: new Date() } });
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Sujets", entityType: "DOSSIER", entityId: dossierId, summary: `E-mail lié — ${subject}` });
+    revalidate(dossierId);
+    return { ok: true, dossierId, reference };
+  });
 }
 
 /** Ouvre un dossier de suivi à partir d'une tâche (reprend titre, description, responsable…). */
@@ -274,7 +282,7 @@ export async function deleteDossierMessage(formData: FormData): Promise<ActionRe
   const allowed = msg.authorId === user.id || isManager(user, msg.dossier);
   if (!allowed) return { ok: false, error: "Suppression non autorisée." };
   await prisma.dossierMessage.delete({ where: { id } }); // pièces jointes supprimées en cascade
-  for (const a of msg.attachments) await releaseBlob(a.blobId).catch(() => undefined); // libère le stockage
+  for (const a of msg.attachments) await releaseBlob(a.blobId).catch(sansBloquer("dossier-actions.deleteDossierMessage.releaseBlob")); // libère le stockage
 
   await recordAudit({ actorId: user.id, action: "DELETE", module: "Sujets", entityType: "DOSSIER", entityId: msg.dossierId, summary: "Message de sujet supprimé" });
   revalidate(msg.dossierId);

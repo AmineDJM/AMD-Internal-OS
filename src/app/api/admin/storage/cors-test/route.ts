@@ -4,6 +4,7 @@ import { getCurrentUserPourEcrire } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { deleteObject, objectStorageConfigured, createMultipartUpload, presignUploadPartUrl, abortMultipartUpload } from "@/lib/storage/object-storage";
 import { finaliserEnvoi, TAILLE_PARTIE, CLIENT_S3 } from "@/lib/storage/televersement-direct";
+import { sansBloquer, attendu } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -45,7 +46,7 @@ export async function PATCH(req: NextRequest) {
   const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!userCan(user, "ADMIN", "UPDATE")) return NextResponse.json({ error: "Réservé au Super Admin." }, { status: 403 });
-  const b = (await req.json().catch(() => ({}))) as { key?: unknown; uploadId?: unknown; total?: unknown; etag?: unknown };
+  const b = (await req.json().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", {}))) as { key?: unknown; uploadId?: unknown; total?: unknown; etag?: unknown };
   const key = typeof b.key === "string" ? b.key : "";
   const uploadId = typeof b.uploadId === "string" ? b.uploadId : "";
   const total = typeof b.total === "number" && Number.isInteger(b.total) && b.total > 0 && b.total < 1_000_000 ? b.total : 0;
@@ -59,7 +60,7 @@ export async function PATCH(req: NextRequest) {
     issue = await finaliserEnvoi(key, uploadId, total, TAILLE_PARTIE, CLIENT_S3, { 1: b.etag.trim() });
     viaNavigateur = issue.ok;
   }
-  if (issue.ok) await deleteObject(key).catch(() => {});
+  if (issue.ok) await deleteObject(key).catch(sansBloquer("cors-test-route.PATCH.deleteObject"));
   else await abortMultipartUpload(key, uploadId);
   return NextResponse.json(
     issue.ok ? { ok: true, empreintes: viaNavigateur ? "navigateur" : "bucket" } : { ok: false, error: issue.erreur },

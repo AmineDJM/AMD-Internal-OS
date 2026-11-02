@@ -212,9 +212,6 @@ const REGLES: Record<string, Verificateur> = {
   },
 };
 
-/** Les codes connus — exportés pour que les tests et le chemin direct restent alignés. */
-export const CODES_REGLES = Object.keys(REGLES);
-
 /** Ce que le compilateur sait du plan — ce qu'il faut pour RÉPARER une règle au lieu de refuser. */
 export interface ContexteReglesPlan {
   /** Les clés citables : celles du plan, plus les ACQUISES des plans antérieurs (elles existent, terminées, en base). */

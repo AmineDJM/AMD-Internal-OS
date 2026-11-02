@@ -93,10 +93,6 @@ export function missingGoogleVars(env: Env): string[] {
   return REQUIRED.filter((k) => !env[k]?.trim());
 }
 
-export function googleConfigured(env: Env): boolean {
-  return missingGoogleVars(env).length === 0;
-}
-
 /**
  * L'adresse connectée est-elle celle d'Adam ?
  *

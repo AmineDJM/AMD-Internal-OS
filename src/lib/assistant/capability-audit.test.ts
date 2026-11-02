@@ -1,5 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { clesDesActions } from "@/lib/actions/parc";
 import { describe, expect, it } from "vitest";
 // ⚠ ORDRE D'IMPORT IMPORTANT. `ops/index.ts` et `lib/assistant.ts` forment un cycle
 // d'INITIALISATION : `ops` → `impl-wave7d` → `actions/adventum-actions` → `assistant.ts`, qui
@@ -41,17 +40,9 @@ import { ACTION_CLASSIFICATION, ERP_ACTIONS, parityStats } from "./action-regist
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+/** Les clés vivantes du parc des actions (`src/lib/actions/parc.ts`), modules compris. */
 function liveActionKeys(): Set<string> {
-  const dir = join(process.cwd(), "src", "lib", "actions");
-  const keys = new Set<string>();
-  for (const file of readdirSync(dir)) {
-    if (!file.endsWith(".ts") || file.endsWith(".test.ts") || file === "types.ts") continue;
-    const base = file.replace(/\.ts$/, "");
-    for (const m of readFileSync(join(dir, file), "utf8").matchAll(/^export async function ([A-Za-z0-9_]+)/gm)) {
-      keys.add(`${base}:${m[1]}`);
-    }
-  }
-  return keys;
+  return clesDesActions();
 }
 
 describe("§12 — audit de capacités : ce qu'Adam sait faire, mesuré sur le code", () => {

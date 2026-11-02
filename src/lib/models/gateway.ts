@@ -334,17 +334,9 @@ export async function askModelJsonAvecImages<T>(
   }
 }
 
-export { bindingFor, allBindings, roleConfigured, activeProvider } from "./registry";
-export { protocolFor, protocolViolation, needsResponses, isReasoningModel } from "./protocol";
-export type { WireProtocol } from "./protocol";
 export type {
-  ModelBlock,
   ModelCallOptions,
   ModelReply,
   ModelRole,
-  ModelToolDef,
   ModelTurn,
-  ModelUsage,
-  ReasoningEffort,
 } from "./contract";
-export { textOf, toolCallsOf } from "./contract";

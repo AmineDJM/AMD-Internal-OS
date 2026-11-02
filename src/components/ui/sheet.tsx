@@ -4,6 +4,7 @@ import * as React from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScrollLock } from "@/lib/use-scroll-lock";
+import { SELECTEUR_FOCUSABLE, sautDeFocus } from "./sheet-focus-regle";
 
 interface SheetProps {
   open: boolean;
@@ -36,6 +37,40 @@ export function Sheet({ open, onClose, title, description, children, footer, wid
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // LE FOCUS ENTRE DANS LA FEUILLE ET Y RESTE, puis revient d'où il venait (audit 27/10/2026,
+  // FRONTEND-UX-02) : `aria-modal` promet que tout se passe ici. Le premier champ reçoit le focus
+  // (à défaut, le panneau lui-même) ; Tab boucle à l'intérieur (`sheet-focus-regle.ts`) ; à la
+  // fermeture, le bouton qui l'avait ouverte le retrouve — sinon il tombe sur `<body>`.
+  const panneau = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const avant = document.activeElement as HTMLElement | null;
+    const racine = panneau.current;
+    if (racine && !racine.contains(document.activeElement)) {
+      // Au doigt, on ne pose PAS le focus dans un champ : le clavier virtuel monterait aussitôt et
+      // couvrirait la moitié de la feuille. Le panneau prend le focus, la saisie attend un appui.
+      const tactile = window.matchMedia?.("(pointer: coarse)").matches;
+      const champ = tactile ? null : racine.querySelector<HTMLElement>("[autofocus], input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])");
+      (champ ?? racine).focus({ preventScroll: true });
+    }
+    const onTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab" || e.defaultPrevented || !panneau.current) return;
+      // Une couche modale ouverte PAR-DESSUS (une autre feuille, un sélecteur) garde son propre focus.
+      const modale = (document.activeElement as HTMLElement | null)?.closest('[aria-modal="true"]');
+      if (modale && modale !== panneau.current) return;
+      const cibles = Array.from(panneau.current.querySelectorAll<HTMLElement>(SELECTEUR_FOCUSABLE)).filter((el) => el.offsetParent !== null || el === document.activeElement);
+      const saut = sautDeFocus(cibles.length, cibles.indexOf(document.activeElement as HTMLElement), e.shiftKey);
+      if (saut === null) return;
+      e.preventDefault();
+      cibles[saut].focus();
+    };
+    document.addEventListener("keydown", onTab);
+    return () => {
+      document.removeEventListener("keydown", onTab);
+      if (avant && avant.isConnected && typeof avant.focus === "function") avant.focus({ preventScroll: true });
+    };
+  }, [open]);
+
   if (!open) return null;
 
   return (
@@ -43,10 +78,12 @@ export function Sheet({ open, onClose, title, description, children, footer, wid
       <div className="absolute inset-0 bg-black/40 animate-fade-in" onClick={onClose} />
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 flex max-h-[95dvh] flex-col overflow-hidden rounded-t-2xl bg-card shadow-2xl animate-slide-up",
+          "absolute inset-x-0 bottom-0 flex max-h-[95dvh] flex-col overflow-hidden rounded-t-2xl bg-card shadow-2xl outline-none animate-slide-up",
           "sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-0 sm:h-full sm:max-h-none sm:w-full sm:rounded-none sm:animate-slide-in",
           width === "xl" ? "sm:max-w-4xl" : width === "lg" ? "sm:max-w-2xl" : "sm:max-w-lg",
         )}
+        ref={panneau}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={title}

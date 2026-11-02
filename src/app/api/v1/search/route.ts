@@ -1,8 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api/http";
-import { ENTITIES, canReadEntity } from "@/lib/api/registry/entities";
+import { ENTITIES, canReadEntity, porteeManquante } from "@/lib/api/registry/entities";
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { textSearchWhere, serialize, parsePage } from "@/lib/api/query";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RECHERCHE GLOBALE — la première question d'un agent : « qu'est-ce qu'on a sur X ? ».
@@ -29,7 +30,7 @@ export const GET = handle(
       return { query: q, results: [], note: "Donnez au moins deux caractères : une recherche d'un caractère rendrait tout l'ERP." };
     }
 
-    const targets = ENTITIES.filter((e) => e.searchFields.length > 0 && (only.size === 0 || only.has(e.name)) && canReadEntity(ctx.user, e));
+    const targets = ENTITIES.filter((e) => e.searchFields.length > 0 && (only.size === 0 || only.has(e.name)) && canReadEntity(ctx.user, e) && !porteeManquante(e, ctx.client.scopes));
     // Fenêtre de dates optionnelle, appliquée sur la date de création — la seule que tous
     // les objets partagent.
     const dateWhere: Record<string, unknown> = {};
@@ -43,10 +44,11 @@ export const GET = handle(
     const perEntity = Math.max(1, Math.floor(page.limit / Math.max(1, targets.length)));
     const groups = await Promise.all(targets.map(async (def) => {
       const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
-      const where = { ...(await porteeEntite(ctx.user, def)), ...textSearchWhere(def, q), ...dateWhere };
+      // `AND` : la recherche (`{ OR }`) ne doit jamais écraser la portée (`{ OR }` elle aussi).
+      const where = { AND: [await porteeEntite(ctx.user, def), textSearchWhere(def, q), dateWhere] };
       const [rows, total] = await Promise.all([
-        model.findMany({ where, take: perEntity, orderBy: def.orderBy ?? { id: "desc" } }).catch(() => []),
-        model.count({ where }).catch(() => 0),
+        model.findMany({ where, take: perEntity, orderBy: def.orderBy ?? { id: "desc" } }).catch(sansBloquer("search-route.findMany", [])),
+        model.count({ where }).catch(sansBloquer("search-route.count", 0)),
       ]);
       return {
         entity: def.name,

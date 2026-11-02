@@ -12,9 +12,9 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, estPrete, accesAttribue, PERMISSIONS, type SessionUser } from "@/lib/rbac";
 import { detenteurPourInterim } from "@/lib/hr/stand-in-resolve";
 import { modulesPretables, delegatedActions } from "@/lib/hr/stand-in";
-import { proposeStandIn, decideStandIn } from "@/lib/actions/stand-in-actions";
+import { proposeStandIn, decideStandIn } from "@/modules/rh/actions-interim";
 import { setCompanyAccess } from "@/lib/actions/company-access-actions";
-import { setEmployeeActive } from "@/lib/actions/hr-actions";
+import { setEmployeeActive } from "@/modules/rh/actions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

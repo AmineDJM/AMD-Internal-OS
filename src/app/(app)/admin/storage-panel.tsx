@@ -5,6 +5,7 @@ import { Loader2, PlugZap, Check, X, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { SelfTestReport } from "@/lib/storage/self-test";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * STOCKAGE OBJET — état et test de connexion (Super Admin).
@@ -46,7 +47,7 @@ export function StoragePanel({ initial }: { initial: SelfTestReport["config"] })
         method: "PATCH", headers: { "content-type": "application/json" },
         body: JSON.stringify({ key: b.key, uploadId: b.uploadId, total: corps.size, etag: etag ?? undefined }),
       });
-      const f = (await fin.json().catch(() => ({}))) as { ok?: boolean; empreintes?: string; error?: string };
+      const f = (await fin.json().catch(sansBloquer("storage-panel.testerCors.json", {}))) as { ok?: boolean; empreintes?: string; error?: string };
       if (!res.ok) setCors({ ok: false, texte: `Le bucket a refusé l'envoi (code ${res.status}).` });
       else if (f.ok && f.empreintes === "bucket") {
         setCors({ ok: true, texte: `Envoi direct depuis ce navigateur : OK — partie envoyée par le navigateur et recollée par le serveur à partir des empreintes du stockage.${etag ? "" : " L'en-tête ETag n'est pas exposé au navigateur : sans effet, il n'est pas nécessaire."} Les gros fichiers partiront directement au bucket.` });

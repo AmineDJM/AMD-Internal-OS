@@ -4,6 +4,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { REG_STEPS, regProgress, type RegWorkflowState } from "@/lib/regulatory-workflow";
 import { REGULATORY_STATUS } from "@/lib/labels";
 import { canReadEntity, type EntityDef } from "./registry/entities";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE WORKFLOW, VU PAR UN AGENT.
@@ -100,7 +101,7 @@ async function regulatoryWorkflow(def: EntityDef, id: string): Promise<WorkflowV
 
   const [documentsCount, commentsCount] = await Promise.all([
     prisma.document.count({ where: { entityType: "REGULATORY_PRODUCT" as EntityType, entityId: id } }),
-    prisma.comment.count({ where: { entityType: "REGULATORY_PRODUCT" as EntityType, entityId: id } }).catch(() => 0),
+    prisma.comment.count({ where: { entityType: "REGULATORY_PRODUCT" as EntityType, entityId: id } }).catch(sansBloquer("workflow.regulatoryWorkflow.comment", 0)),
   ]);
 
   const now = Date.now();

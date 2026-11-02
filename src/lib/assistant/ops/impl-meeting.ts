@@ -35,7 +35,7 @@ export async function resolveMeeting(
         ? { participants: { some: { userId: user.id } } }
         : { OR: [{ organizerId: user.id }, { participants: { some: { userId: user.id } } }] };
   const rows = await prisma.meeting.findMany({
-    where: { title: { contains: q, mode: "insensitive" }, status: { not: "ENDED" }, ...scope },
+    where: { AND: [{ title: { contains: q, mode: "insensitive" as const }, status: { not: "ENDED" as const } }, scope] },
     select: { id: true, title: true, scheduledAt: true, organizer: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 6,

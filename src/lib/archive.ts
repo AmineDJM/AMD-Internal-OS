@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { putBlob } from "@/lib/drive-storage";
 import { readFileByKey } from "@/lib/storage";
+import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * Archivage des demandes TRAITÉES dans le Drive : chaque traitant (RH, bureau du
@@ -32,12 +33,14 @@ async function ensureFolder(name: string, parentId: string | null, ownerId: stri
 }
 
 async function addFile(parentId: string, name: string, content: Buffer, mimeType: string, ownerId: string): Promise<void> {
-  const { blobId, size } = await putBlob(content);
+  const { blobId, size, sha256 } = await putBlob(content);
   const node = await prisma.driveNode.create({
     data: { name, type: "FILE", parentId, ownerId, createdById: ownerId, mimeType, size },
     select: { id: true },
   });
   await prisma.fileVersion.create({ data: { nodeId: node.id, blobId, version: 1, size, mimeType, createdById: ownerId } });
+  // Le fichier archivé entre à la bibliothèque (J1). Ne lève jamais.
+  await inscrireFichierDrive({ nodeId: node.id, blobId, sha256, nom: name, mime: mimeType, taille: size, deposeParId: ownerId });
 }
 
 export interface ArchiveAttachment {

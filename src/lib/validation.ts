@@ -3,8 +3,9 @@ import type { EntityType, Prisma, Priority, UserRole, ValidationRule } from "@pr
 import { prisma } from "@/lib/prisma";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { notifyUser } from "@/lib/notify";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { lienDemandeDeValidation, lienEtapeAValider } from "@/lib/chemins/validations";
+import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * Moteur de validation transversal. Le Super Admin définit des règles
@@ -82,8 +83,10 @@ const SERIE_VALIDATION = "ValidationRequest.reference";
 async function nextReference(): Promise<string> {
   const year = new Date().getFullYear();
   // Dérivée du maximum réel (robuste aux suppressions) — voir src/lib/refs.ts.
-  const refs = await prisma.validationRequest.findMany({ where: { reference: { startsWith: `VAL-${year}-` } }, select: { reference: true } });
-  return buildRef("VAL", year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "ValidationRequest", prefixe: "VAL", annee: year,
+    existantes: async () => (await prisma.validationRequest.findMany({ where: { reference: { startsWith: `VAL-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /**
@@ -280,17 +283,20 @@ export function verifierPiecesValidation(files: readonly File[], maxMb: number):
 export async function joindrePiecesValidation(requestId: string, files: readonly File[], auteurId: string): Promise<number> {
   for (const file of files) {
     const key = `VALIDATION_REQUEST/${requestId}/${randomUUID()}__${file.name}`;
+    let ecrit: { blobId: string; sha256: string } | null = null;
     try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
+      ecrit = await saveFile(key, Buffer.from(await file.arrayBuffer()));
     } catch (err) {
       console.error("[validations] storage write failed, recording metadata only", err);
     }
-    await prisma.document.create({
+    const docEcrit = await prisma.document.create({
       data: {
         name: file.name, category: "OTHER", entityType: "VALIDATION_REQUEST", entityId: requestId,
         fileKey: key, mimeType: file.type || null, sizeBytes: file.size, confidentiality: "INTERNAL", uploadedById: auteurId,
       },
     });
+    // La pièce entre à la bibliothèque (J1) : registre, clé du document, file de lecture. Ne lève jamais.
+    await inscrireDocumentEcrit(docEcrit, ecrit);
   }
   return files.length;
 }

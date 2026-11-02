@@ -1,10 +1,11 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { prendreBail } from "@/lib/missions/runtime/bail";
-import type { CompiledMission, CompiledStep, StepSpec } from "@/lib/missions/compiler/compile";
+import type { CompiledMission, StepSpec } from "@/lib/missions/compiler/compile";
 import { MissionState, StepState, assertTransition } from "@/lib/missions/runtime/state";
 import { lireRecu, type ExecutionReceipt } from "@/lib/missions/runtime/receipt";
 import { criteresQuiSurvivent } from "@/lib/missions/goal/rules";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -52,6 +53,14 @@ export interface MaterialiserOptions {
    * pouvait introduire, et il est fermé ici, à sa source.
    */
   milestoneId?: string | null;
+  /**
+   * LA FAMILLE DE LA MISSION — `RUNTIME` (Adam, défaut) ou `TRAVAIL` (J2, décision 0016 : le même moteur pour
+   * n'importe quel collaborateur). Sans elle, un travail écrit par cette fonction deviendrait une mission
+   * d'Adam : son balayage la conduirait, et Mission Control la montrerait au Super Admin.
+   */
+  kind?: "RUNTIME" | "TRAVAIL" | "CHANTIER";
+  /** Les colonnes posées à la NAISSANCE seulement (personne au nom de qui, persona, carnet…) — jamais à un replan. */
+  naissance?: Partial<Prisma.MissionUncheckedCreateInput>;
 }
 
 /** Ce que le moteur relit au démarrage : l'état exact, sans rien reconstruire de mémoire. */
@@ -167,7 +176,7 @@ export async function materialiser(
   opts: MaterialiserOptions,
 ): Promise<string> {
   const donneesMission = {
-    kind: "RUNTIME",
+    kind: opts.kind ?? "RUNTIME",
     title: opts.title,
     objective: compiled.objective,
     goalRaw: opts.goalRaw,
@@ -192,7 +201,7 @@ export async function materialiser(
    * qui la vérifiait non — elle est reconstruite par le compilateur pour le plan courant.
    */
   const ligne = opts.missionId
-    ? await prisma.mission.findUnique({ where: { id: opts.missionId }, select: { acceptance: true } }).catch(() => null)
+    ? await prisma.mission.findUnique({ where: { id: opts.missionId }, select: { acceptance: true } }).catch(sansBloquer("runtime-store.materialiser.mission", null))
     : null;
   const anciens: string[] = Array.isArray(ligne?.acceptance)
     ? (ligne.acceptance as unknown[]).filter((x): x is string => typeof x === "string")
@@ -209,7 +218,7 @@ export async function materialiser(
         data: { ...donneesMission, acceptance: acceptanceCumulee, planVersion: { increment: 1 } },
       })
     : await prisma.mission.create({
-        data: { ...donneesMission, ownerId: opts.ownerId, status: "PLANNING" },
+        data: { ...(opts.naissance ?? {}), ...donneesMission, ownerId: opts.ownerId, status: "PLANNING" },
       });
 
   const version = mission.planVersion;

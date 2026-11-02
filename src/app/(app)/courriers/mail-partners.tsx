@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Users, Plus, Pencil, Trash2, Loader2, Power } from "lucide-react";
 import { createMailPartner, updateMailPartner, deleteMailPartner } from "@/lib/actions/mail-partner-actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 
 export interface MailPartnerRow {
   id: string;
@@ -26,30 +28,24 @@ export interface MailPartnerRow {
  * s'efface pas parce qu'on nettoie une liste.
  */
 export function MailPartnersManager({ partners }: { partners: MailPartnerRow[] }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<MailPartnerRow | "new" | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, setErr, run } = useAction();
+  // Les icônes d'une ligne n'ont pas de place pour parler : un refus part en avis flottant.
+  const { run: runLigne } = useAction({ signalerErreurs: true });
 
   const row = editing && editing !== "new" ? editing : null;
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    setBusy(true); setErr(null);
-    const r = row ? await updateMailPartner((fd.set("id", row.id), fd)) : await createMailPartner(undefined, fd);
-    setBusy(false);
-    if (r.ok) { setEditing(null); router.refresh(); } else setErr(r.error ?? "Échec.");
+    await run(() => (row ? updateMailPartner((fd.set("id", row.id), fd)) : createMailPartner(undefined, fd)), () => setEditing(null));
   }
 
   async function drop(p: MailPartnerRow) {
-    if (!window.confirm(`Supprimer « ${p.name} » de la liste des partenaires ?`)) return;
     const fd = new FormData();
     fd.set("id", p.id);
-    const r = await deleteMailPartner(fd);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    router.refresh();
+    await runLigne(() => deleteMailPartner(fd), undefined, { confirmer: `Supprimer « ${p.name} » de la liste des partenaires ?` });
   }
 
   async function deactivate(p: MailPartnerRow) {
@@ -58,9 +54,7 @@ export function MailPartnersManager({ partners }: { partners: MailPartnerRow[] }
     fd.set("name", p.name);
     if (p.kind) fd.set("kind", p.kind);
     fd.set("isActive", "0");
-    const r = await updateMailPartner(fd);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    router.refresh();
+    await runLigne(() => updateMailPartner(fd));
   }
 
   return (
@@ -146,7 +140,7 @@ export function MailPartnersManager({ partners }: { partners: MailPartnerRow[] }
               <Textarea id="p-notes" name="notes" rows={2} className="mt-1" />
             </div>
 
-            {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+            <Retour ton="erreur">{err}</Retour>
             <div className="flex justify-end gap-2 pt-1">
               <Button type="button" variant="outline" onClick={() => setEditing(null)}>Annuler</Button>
               <Button type="submit" disabled={busy}>

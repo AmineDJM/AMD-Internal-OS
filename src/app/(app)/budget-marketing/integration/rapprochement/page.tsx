@@ -19,9 +19,10 @@ export const dynamic = "force-dynamic";
  * la page renvoie à l'assistant d'intégration — jamais de donnée d'exemple.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export default async function RapprochementPage({ searchParams }: { searchParams: { env?: string } }) {
+export default async function RapprochementPage(props: { searchParams: Promise<{ env?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("BUDGET_MARKETING");
-  const ctx = await contexteIntegration(user, resolveBudgetEnvelope(searchParams.env));
+  const ctx = await contexteIntegration(user, await resolveBudgetEnvelope(searchParams.env));
   const tabs = await ongletsBudgetMarketing(user, ctx);
   const env = ctx.enveloppe;
   const vue = env?.lotActif ? await vueRapprochement(user, env.id) : null;

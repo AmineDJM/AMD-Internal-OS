@@ -23,7 +23,6 @@ export const LETTRES = ["H", "A", "B", "C", "D", "NA", "NC"] as const;
 export type Lettre = (typeof LETTRES)[number];
 /** Les lettres qu'une personne autorisée peut FORCER (NA n'est pas une décision : c'est une réponse qui manque). */
 export const LETTRES_FORCABLES = ["H", "A", "B", "C", "D", "NC"] as const;
-export type LettreForcable = (typeof LETTRES_FORCABLES)[number];
 
 export const STATUTS = ["DECIDEUR", "INFLUENCEUR", "REFERENT", "PRESCRIPTEUR"] as const;
 export type Statut = (typeof STATUTS)[number];

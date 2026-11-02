@@ -35,7 +35,15 @@ export function MoleculePanel({ molecule, dosage, form }: { molecule: string; do
     const mine = ++seq.current;
     setLoading(true);
     const t = setTimeout(async () => {
-      const r = await analyzeMarketMolecule({ molecule, dosage, form });
+      let r: Awaited<ReturnType<typeof analyzeMarketMolecule>>;
+      try {
+        r = await analyzeMarketMolecule({ molecule, dosage, form });
+      } catch {
+        if (mine !== seq.current) return;
+        setLoading(false); setData(null);
+        setErr("L'analyse du marché n'a pas pu être chargée (connexion ou serveur).");
+        return;
+      }
       if (mine !== seq.current) return;
       setLoading(false);
       if (!r.ok) { setErr(r.error ?? "Analyse impossible."); setData(null); return; }

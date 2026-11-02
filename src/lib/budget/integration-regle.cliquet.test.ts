@@ -47,8 +47,8 @@ const HORS_REGLE: Record<string, string> = {
 const AUTO_CATEGORIE: Record<string, string> = {
   "src/lib/budget/auto-category.ts": "la règle pure",
   "src/lib/queries/budget-sources.ts": "LECTEUR : l'engagé des ordres sans catégorie — jugé par la règle juste après (engagementsDesCategories)",
-  "src/lib/finance/settle-budget.ts": "ÉCRIVAIN au règlement : l'écriture née porte sa catégorie ; la règle la juge à la lecture, datée par son ordre",
-  "src/lib/actions/expense-actions.ts": "ÉCRIVAIN au règlement (même chemin que settle-budget)",
+  "src/modules/finances/domaine/settle-budget.ts": "ÉCRIVAIN au règlement : l'écriture née porte sa catégorie ; la règle la juge à la lecture, datée par son ordre",
+  "src/modules/finances/actions-depenses.ts": "ÉCRIVAIN au règlement (même chemin que settle-budget)",
   "src/app/(app)/finances/paiements-a-faire/page.tsx": "AFFICHAGE de la catégorie prévue d'un ordre — pas un total",
 };
 
@@ -103,7 +103,7 @@ describe("la règle d'intégration — aucun lecteur de budget ne l'ignore", () 
   it("les exports lisent la vue d'ensemble, jamais la base", () => {
     const exp = tous.find((f) => f.chemin === "src/lib/budget-export.ts")!.source;
     expect(exp).not.toMatch(/@\/lib\/prisma/);
-    for (const route of ["src/app/api/budgets/export/route.ts", "src/app/api/budgets/marketing/export/route.ts"]) {
+    for (const route of ["src/lib/exports/budget.ts"]) {
       const r = tous.find((f) => f.chemin === route)!.source;
       expect(r, route).toMatch(/getBudgetOverview/);
       expect(r, route).not.toMatch(/financeTransaction\.|budgetExpenseLine\./);

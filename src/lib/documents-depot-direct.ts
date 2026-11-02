@@ -16,6 +16,7 @@ import {
   CLIENT_S3, ouvrirEnvoi, planDeReprise, finaliserEnvoi, refusSansStockageObjet,
   type ClientS3Direct, type PlanEnvoi,
 } from "@/lib/storage/televersement-direct";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * GROS FICHIERS DES DOCUMENTS (checklist Regulatory, dossiers, pièces des objets métier) — déposés
@@ -179,7 +180,7 @@ export async function finaliserDepotDirectDocument(
     addPhysicalUsage(total);
     return { ok: true, id: r.documentId };
   } catch (e) {
-    if (blobId) await prisma.fileBlob.delete({ where: { id: blobId } }).catch(() => undefined);
+    if (blobId) await prisma.fileBlob.delete({ where: { id: blobId } }).catch(sansBloquer("documents-depot-direct.finaliserDepotDirectDocument.fileBlob"));
     const msg = e instanceof Error ? e.message : "erreur";
     await rouvrir(`Inscription du document impossible : ${msg}`);
     return { ok: false, status: 500, error: `Le fichier est bien arrivé, mais son inscription a échoué (${msg}). Relancez : il ne sera pas renvoyé.`, reprendre: true };

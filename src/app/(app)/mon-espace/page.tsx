@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { getMyWorkspace } from "@/lib/queries/hr";
+import { getMyWorkspace, discussionsDesConges } from "@/modules/rh/api";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { ongletsEspace } from "@/lib/queries/mes-taches";
 import { trierConges } from "@/lib/queries/mes-decisions";
@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { listMyReminders } from "@/lib/queries/reminders";
 import { MyReminders } from "@/components/reminders/my-reminders";
 import { LeaveApprovals } from "@/components/hr/leave-approvals";
-import { discussionsDesConges } from "@/lib/queries/conges-discussion";
 import { MyAdvances, type AdvanceItem } from "./my-advances";
 import { MyPortfolioCard } from "@/components/planning/my-portfolio-card";
 import { getMyPortfolio } from "@/lib/queries/portfolio";
@@ -22,6 +21,7 @@ import type { Fragment, Semaine, Tuile } from "@/lib/espace/aujourdhui";
 import { FileAFaire } from "./file-a-faire";
 import { RappelRapide } from "./rappel-rapide";
 import { EquipeEncart } from "./equipe-encart";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * « AUJOURD'HUI » — L'ONGLET PRINCIPAL DE L'ESPACE (Direction, 14/10/2026 : « Je valide l'onglet
@@ -43,7 +43,7 @@ export default async function MonEspacePage() {
   const [reminders, manager] = await Promise.all([
     listMyReminders(user.id),
     // Le responsable hiérarchique — nommé dans le formulaire de formation : il ne se choisit pas.
-    getManagerOfUser(user.id).catch(() => null),
+    getManagerOfUser(user.id).catch(sansBloquer("mon-espace-page.MonEspacePage.getManagerOfUser", null)),
   ]);
   const reminderRows = reminders.map((r) => ({ ...r, remindAt: r.remindAt.toISOString(), sentAt: r.sentAt ? r.sentAt.toISOString() : null }));
 

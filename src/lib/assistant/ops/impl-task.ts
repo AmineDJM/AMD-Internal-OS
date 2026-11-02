@@ -51,7 +51,7 @@ async function resolveMyTask(
               ? {}
               : { OR: circle };
   const rows = await prisma.task.findMany({
-    where: { title: { contains: q, mode: "insensitive" }, ...scope },
+    where: { AND: [{ title: { contains: q, mode: "insensitive" } }, scope] },
     select: { id: true, title: true, status: true, createdBy: { select: { name: true } } },
     orderBy: { createdAt: "desc" },
     take: 6,

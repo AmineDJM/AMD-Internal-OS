@@ -1,0 +1,387 @@
+import { prisma } from "@/lib/prisma";
+import { hasGlobalView, userCan } from "@/lib/rbac";
+import { commenterValidation, remindValidator } from "@/lib/actions/validation-actions";
+import { uploadDocument } from "@/lib/actions/document-actions";
+import { createCalendarEvent } from "@/lib/actions/calendar-actions";
+import { createDirect, sendMessage } from "@/lib/actions/messaging-actions";
+import { findPeople } from "@/platform/ia/outils/arguments";
+import { DOCUMENT_CATEGORY, ENTITY_TYPE_LABELS } from "@/lib/labels";
+import type { CurrentUser } from "@/lib/session";
+import { champs, liste, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
+import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";
+import { replier } from "./annuaire-medical";
+import { demandeParId, estNatureDemande, trouverDemande } from "./demandes-visibles";
+import { dateIso } from "./adpro-prise-en-charge";
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LES GESTES DU QUOTIDIEN — ceux que la personne a À L'ÉCRAN, et pas un de plus.
+ *
+ *   • RELANCER UN VALIDEUR d'une de SES demandes de validation : la Direction a le bouton de
+ *     relance (`remindValidator`) ; tout autre demandeur écrit dans la DISCUSSION de la demande
+ *     (`commenterValidation`), qui prévient les validateurs. La carte dit lequel des deux.
+ *   • DÉPOSER UNE PIÈCE sur une demande qu'elle voit (`uploadDocument`, droit de téléversement
+ *     revérifié par l'action).
+ *   • CRÉER UN RENDEZ-VOUS dans son agenda, invités désignés par leur nom (`createCalendarEvent`).
+ *   • RÉPONDRE À UN MESSAGE INTERNE dans une conversation dont elle est membre (`sendMessage`).
+ *
+ * Rien de sa propre initiative : chaque geste naît d'une demande de la personne et d'un clic.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+
+export const RELANCE: OperationIA = {
+  nom: "preparer_relance",
+  module: "VALIDATIONS",
+  libelle: "Relance préparée",
+  description:
+    "PRÉPARE la RELANCE du validateur d'une de TES demandes de validation en attente (désignée par sa référence ou son objet). "
+    + "Pour la Direction : le bouton de relance de l'écran ; sinon : un message dans la discussion de la demande, qui prévient les validateurs.",
+  schema: {
+    type: "object",
+    properties: {
+      demande: { type: "string", description: "Référence (VAL-…) ou objet de la demande de validation." },
+      message: { type: "string", description: "Le mot de relance (facultatif)." },
+    },
+  },
+  ouverte: (u) => userCan(u, "VALIDATIONS", "VIEW"),
+
+  async proposer(e, user): Promise<PropositionOperation> {
+    const q = texte(e, "demande");
+    const mes = await prisma.validationRequest.findMany({
+      where: {
+        requesterId: user.id,
+        status: "PENDING",
+        ...(q ? { OR: [{ reference: { equals: q, mode: "insensitive" } }, { title: { contains: q, mode: "insensitive" } }] } : {}),
+      },
+      select: { id: true, reference: true, title: true, steps: { where: { status: "PENDING" }, select: { id: true, validatorId: true, validator: { select: { name: true } } }, orderBy: { order: "asc" }, take: 1 } },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+    });
+    if (!mes.length) return { manque: [q ? `« ${q} » : aucune de vos demandes de validation en attente ne correspond — une autre référence` : "quelle demande de validation relancer (sa référence ou son objet)"] };
+    if (mes.length > 1) return { manque: [`laquelle : ${mes.map((m) => `${m.reference} — ${m.title}`).join(" ; ")}`] };
+    const d = mes[0]!;
+    const etape = d.steps[0];
+    if (!etape?.validatorId) return { erreur: `${d.reference} n'a pas d'étape en attente avec un validateur assigné.` };
+    const direction = hasGlobalView(user);
+    const mot = texte(e, "message") || `Bonjour, je me permets de vous relancer sur ${d.reference} — ${d.title}. Merci.`;
+    return {
+      carte: {
+        title: `Relancer ${etape.validator?.name ?? "le validateur"} — ${d.reference}`,
+        fields: champs([["Demande", `${d.reference} — ${d.title}`], ["Validateur", etape.validator?.name ?? null], ["Message", mot]]),
+        warnings: [direction
+          ? "Relance par le bouton de l'écran : le validateur reçoit une notification."
+          : "Le message est écrit dans la discussion de la demande : le validateur (et les participants) sont prévenus."],
+        libelleBouton: "Relancer",
+      },
+      args: { requestId: d.id, stepId: etape.id, note: mot, mode: direction ? "BOUTON" : "DISCUSSION" },
+    };
+  },
+
+  async executer(a) {
+    const fd = new FormData();
+    if (a.mode === "BOUTON") {
+      fd.set("stepId", a.stepId ?? "");
+      if (a.note) fd.set("note", a.note);
+      const r = await remindValidator(fd);
+      return r.ok ? { ok: true, message: "Validateur relancé.", link: `/validations/${a.requestId}` } : { ok: false, error: r.error ?? "Relance refusée." };
+    }
+    fd.set("requestId", a.requestId ?? "");
+    fd.set("body", a.note ?? "");
+    const r = await commenterValidation(fd);
+    return r.ok ? { ok: true, message: "Relance écrite dans la discussion : le validateur est prévenu.", link: `/validations/${a.requestId}` } : { ok: false, error: r.error ?? "Relance refusée." };
+  },
+};
+
+const CATEGORIES = Object.entries(DOCUMENT_CATEGORY) as [string, string][];
+
+/** La fiche nommée par son type et son identifiant (toute l'ERP), sinon une demande Ad & Pro. Le droit, l'action le juge. */
+async function ficheOuDemande(user: CurrentUser, type: string, id: string, demande: string, nature: string) {
+  if (!type && !id) return trouverDemande(user, demande, nature);
+  const t = type.trim().toUpperCase();
+  // K6 : une demande Ad & Pro désignée par son identifiant (attente de pièces) — son libellé et son lien, si elle est visible.
+  if (estNatureDemande(t) && id.trim()) return (await demandeParId(user, t, id)) ?? { manque: "une demande que vous pouvez voir (celle-ci ne vous est pas accessible)" };
+  const libelle = ENTITY_TYPE_LABELS[t as keyof typeof ENTITY_TYPE_LABELS];
+  if (!libelle) return { manque: `le type de la fiche (« ${type || "?"} » inconnu)` };
+  if (!id.trim()) return { manque: "l'identifiant de la fiche" };
+  return { nature: t, id: id.trim(), libelle: `${libelle} ${id.trim()}`, lien: "" };
+}
+
+export const DEPOT_PIECE: OperationIA = {
+  nom: "preparer_depot_piece",
+  module: "DOCUMENTS",
+  libelle: "Dépôt de pièce préparé",
+  description:
+    "PRÉPARE le DÉPÔT d'une ou plusieurs pièces (fichiers du Drive ou glissés dans la conversation) sur une demande Ad & Pro que tu vois "
+    + "(sponsoring, prise en charge, événement, matériel promotionnel, demande « autre ») — ou sur TOUTE AUTRE FICHE de l'ERP (tâche, dossier, "
+    + "courrier, employé…) dont tu as le type et l'identifiant (`typeFiche`, `idFiche`). Le droit de téléverser est revérifié par l'action de l'écran.",
+  schema: {
+    type: "object",
+    properties: {
+      demande: { type: "string", description: "Référence ou nom de la demande." },
+      natureDemande: { type: "string" },
+      pieces: { type: "string", description: "Noms ou identifiants des fichiers." },
+      categorie: { type: "string", description: "Catégorie (ex. Lettre de demande, Facture, Devis, Autre)." },
+      typeFiche: { type: "string", description: "Hors Ad & Pro : le type de la fiche (TASK, DOSSIER, MAIL_ENTRY, EMPLOYEE…)." },
+      idFiche: { type: "string", description: "Hors Ad & Pro : l'identifiant de la fiche (lu par une recherche)." },
+      confidentiel: { type: "string", description: "« oui » pour une pièce sensible (RH, identité, banque, paie) : rangée en confidentiel." },
+    },
+  },
+  ouverte: (u) => Boolean(u.id),
+
+  async proposer(e, user): Promise<PropositionOperation> {
+    const demande = await ficheOuDemande(user, texte(e, "typeFiche"), texte(e, "idFiche"), texte(e, "demande"), texte(e, "natureDemande"));
+    const refs = liste(e, "pieces");
+    const manque = ["manque" in demande ? demande.manque : null, !refs.length ? "la ou les pièces à déposer (glissez-les dans la conversation ou nommez-les)" : null]
+      .filter((x): x is string => x !== null);
+    if (manque.length) return { manque };
+    const d = demande as Exclude<typeof demande, { manque: string }>;
+    const pieces = await resoudrePieces(user, refs);
+    if ("erreur" in pieces) return { erreur: pieces.erreur };
+    const k = replier(texte(e, "categorie"));
+    const cat = (k && CATEGORIES.find(([, l]) => replier(l).includes(k))?.[0]) || "OTHER";
+    // K6 : une pièce sensible (RH, identité, banque, paie) se range en CONFIDENTIEL — jamais l'inverse sur demande du modèle.
+    const confidentiel = /^(oui|true|1|confidentiel)/i.test(texte(e, "confidentiel"));
+    return {
+      carte: {
+        title: `Déposer ${pieces.length > 1 ? `${pieces.length} pièces` : "une pièce"} — ${d.libelle}`,
+        fields: champs([["Demande", d.libelle], ["Pièce(s)", pieces.map((p) => p.nom).join(", ")], ["Catégorie", DOCUMENT_CATEGORY[cat] ?? "Autre"], ["Confidentialité", confidentiel ? "Confidentiel" : null]]),
+        warnings: ["Le contenu est copié dans la bibliothèque de la demande (le fichier du Drive reste intact) ; votre droit de déposer y est revérifié."],
+      },
+      args: { entityType: d.nature, entityId: d.id, category: cat, pieces: JSON.stringify(pieces.map((p) => p.id)), lien: d.lien, ...(confidentiel ? { confidentiality: "CONFIDENTIAL" } : {}) },
+    };
+  },
+
+  async executer(a, user) {
+    const fichiers = await fichiersDepuisDrive(user, idsDe(a.pieces));
+    if (!Array.isArray(fichiers)) return { ok: false, error: fichiers.erreur };
+    let deposes = 0;
+    for (const f of fichiers) {
+      const fd = new FormData();
+      fd.set("entityType", a.entityType ?? "");
+      fd.set("entityId", a.entityId ?? "");
+      fd.set("category", a.category ?? "OTHER");
+      if (a.confidentiality === "CONFIDENTIAL") fd.set("confidentiality", "CONFIDENTIAL");
+      fd.set("file", f);
+      const r = await uploadDocument(undefined, fd);
+      if (!r.ok) return { ok: false, error: `${deposes ? `${deposes} pièce(s) déposée(s), puis ` : ""}« ${f.name} » refusée : ${r.error ?? "dépôt refusé"}.` };
+      deposes++;
+    }
+    return { ok: true, message: `${deposes} pièce(s) déposée(s).`, ...(a.lien ? { link: a.lien } : {}) };
+  },
+};
+
+/** « 2026-11-03 14:30 », « 03/11/2026 à 14h30 » → « AAAA-MM-JJTHH:MM » (heure d'Alger, comme l'écran). */
+export function dateHeure(v: string): string | null {
+  const s = v.trim();
+  const m = s.match(/^(.+?)(?:[ T]+(?:à\s*)?(\d{1,2})\s*[:h]\s*(\d{2})?)?$/i);
+  const jour = m ? dateIso(m[1]!.trim()) : null;
+  if (!jour) return null;
+  const h = m?.[2] ? m[2].padStart(2, "0") : null;
+  return h ? `${jour}T${h}:${(m?.[3] ?? "00").padStart(2, "0")}` : jour;
+}
+
+export const RENDEZ_VOUS: OperationIA = {
+  nom: "preparer_rendez_vous",
+  module: "WORKSPACE",
+  libelle: "Rendez-vous préparé",
+  description: "PRÉPARE un RENDEZ-VOUS dans ton agenda (titre, début, fin, lieu, invités désignés par leur nom), par l'action de l'écran Agenda.",
+  schema: {
+    type: "object",
+    properties: {
+      titre: { type: "string" },
+      debut: { type: "string", description: "AAAA-MM-JJ HH:MM (heure d'Alger)." },
+      fin: { type: "string", description: "AAAA-MM-JJ HH:MM (facultatif)." },
+      lieu: { type: "string" },
+      invites: { type: "string", description: "Collègues invités (noms, séparés par des virgules)." },
+      description: { type: "string" },
+    },
+  },
+  ouverte: (u) => userCan(u, "WORKSPACE", "CREATE"),
+
+  async proposer(e): Promise<PropositionOperation> {
+    const debut = dateHeure(texte(e, "debut"));
+    const fin = texte(e, "fin") ? dateHeure(texte(e, "fin")) : null;
+    const manque = [
+      !texte(e, "titre") ? "l'objet du rendez-vous" : null,
+      !debut ? "le jour et l'heure de début" : null,
+      texte(e, "fin") && !fin ? "une heure de fin lisible" : null,
+    ].filter((x): x is string => x !== null);
+    const invites: { id: string; nom: string }[] = [];
+    // P1 (décision 0047, banc d'audit Q1 RV-01) : un invité SANS compte ERP ne bloque plus le rendez-vous — il est écrit
+    // comme invité EXTERNE dans la description, et la carte propose de l'inviter par mail.
+    const externes: string[] = [];
+    for (const nom of liste(e, "invites")) {
+      const t = await prisma.user.findMany({ where: { isActive: true, name: { contains: nom, mode: "insensitive" } }, select: { id: true, name: true }, take: 5 });
+      const exact = t.filter((u) => replier(u.name) === replier(nom));
+      const un = exact.length === 1 ? exact[0] : t.length === 1 ? t[0] : null;
+      if (un) invites.push({ id: un.id, nom: un.name });
+      else if (t.length > 1) manque.push(`quel invité pour « ${nom} » : ${t.map((u) => u.name).join(", ")}`);
+      else externes.push(nom);
+    }
+    if (manque.length) return { manque };
+    return {
+      carte: {
+        title: `Rendez-vous — ${texte(e, "titre")}`,
+        fields: champs([
+          ["Objet", texte(e, "titre")], ["Début", debut!.replace("T", " à ")], ["Fin", fin ? fin.replace("T", " à ") : null],
+          ["Lieu", texte(e, "lieu") || null], ["Invités", invites.length ? invites.map((i) => i.nom).join(", ") : null],
+          ["Invités externes", externes.length ? externes.join(", ") : null],
+        ]),
+        warnings: [
+          ...(invites.length ? ["Les invités reçoivent l'invitation dans leur agenda."] : []),
+          ...(externes.length ? [`${externes.join(", ")} n'${externes.length > 1 ? "ont" : "a"} pas de compte ERP : noté${externes.length > 1 ? "s" : ""} comme invité${externes.length > 1 ? "s" : ""} externe${externes.length > 1 ? "s" : ""} dans la description — je peux ${externes.length > 1 ? "les" : "l'"}inviter par mail (envoyer_mail) si tu me donnes ${externes.length > 1 ? "leurs adresses" : "son adresse"}.`] : []),
+        ],
+      },
+      args: {
+        title: texte(e, "titre"), start: debut, end: fin, location: texte(e, "lieu") || null,
+        description: [texte(e, "description"), externes.length ? `Invités externes : ${externes.join(", ")}` : ""].filter(Boolean).join("\n\n") || null, invites: JSON.stringify(invites.map((i) => i.id)),
+        allDay: debut!.length === 10 ? "true" : null,
+      },
+    };
+  },
+
+  async executer(a) {
+    const fd = new FormData();
+    for (const cle of ["title", "start", "end", "location", "description", "allDay"]) if (a[cle]) fd.set(cle, a[cle]!);
+    for (const id of idsDe(a.invites)) fd.append("inviteeIds", id);
+    const r = await createCalendarEvent(undefined, fd);
+    return r.ok ? { ok: true, message: "Rendez-vous ajouté à votre agenda.", link: "/calendar" } : { ok: false, error: r.error ?? "Rendez-vous refusé." };
+  },
+};
+
+export const REPONSE_MESSAGE: OperationIA = {
+  nom: "preparer_reponse_message",
+  module: "MESSAGING",
+  libelle: "Réponse préparée",
+  description:
+    "PRÉPARE la RÉPONSE à un message interne, dans une conversation dont tu es membre (désignée par le nom de l'interlocuteur ou du groupe). "
+    + "Lis d'abord tes conversations (mes_conversations) pour savoir à quoi tu réponds.",
+  schema: {
+    type: "object",
+    properties: {
+      conversation: { type: "string", description: "Interlocuteur ou nom du groupe." },
+      texte: { type: "string", description: "La réponse." },
+      enFil: { type: "boolean", description: "Répondre dans le fil du dernier message reçu (par défaut : oui)." },
+    },
+  },
+  ouverte: (u) => userCan(u, "MESSAGING", "CREATE"),
+
+  async proposer(e, user: CurrentUser): Promise<PropositionOperation> {
+    const q = texte(e, "conversation");
+    const corps = texte(e, "texte");
+    const manque = [!q ? "à qui (l'interlocuteur ou le groupe)" : null, !corps ? "le texte de la réponse" : null].filter((x): x is string => x !== null);
+    if (manque.length) return { manque };
+    const convs = await convsDe(user, q);
+    if (!convs.length) return { manque: [`aucune de vos conversations ne correspond à « ${q} » — un autre nom`] };
+    if (convs.length > 1) return { manque: [`laquelle : ${convs.map((c) => c.libelle).join(" ; ")}`] };
+    const c = convs[0]!;
+    const dernier = await prisma.message.findFirst({
+      where: { conversationId: c.id, deletedAt: null, senderId: { not: user.id } },
+      orderBy: { createdAt: "desc" }, select: { id: true, body: true },
+    });
+    const enFil = e.enFil !== false && dernier;
+    return {
+      carte: {
+        title: `Répondre — ${c.libelle}`,
+        fields: champs([["Conversation", c.libelle], ["En réponse à", enFil ? dernier!.body.slice(0, 140) : null], ["Réponse", corps]]),
+        warnings: [],
+        libelleBouton: "Envoyer",
+      },
+      args: { conversationId: c.id, body: corps, parentId: enFil ? dernier!.id : null },
+    };
+  },
+
+  async executer(a) {
+    const fd = new FormData();
+    fd.set("conversationId", a.conversationId ?? "");
+    fd.set("body", a.body ?? "");
+    if (a.parentId) fd.set("parentId", a.parentId);
+    const r = await sendMessage(fd);
+    return r.ok ? { ok: true, message: "Réponse envoyée.", link: `/messages?c=${a.conversationId}` } : { ok: false, error: r.error ?? "Envoi refusé." };
+  },
+};
+
+/** Les conversations DE LA PERSONNE (membre, pas partie) dont le titre ou un membre correspond. */
+export async function convsDe(user: CurrentUser, q: string): Promise<{ id: string; libelle: string }[]> {
+  const mesConvs = await prisma.conversationMember.findMany({
+    where: { userId: user.id, leftAt: null },
+    select: { conversation: { select: { id: true, title: true, members: { where: { leftAt: null, userId: { not: user.id } }, select: { user: { select: { name: true } } }, take: 8 } } } },
+    take: 200,
+  });
+  const k = replier(q);
+  return mesConvs
+    .map((m) => ({ id: m.conversation.id, libelle: m.conversation.title || m.conversation.members.map((x) => x.user.name).join(", ") || "Conversation" }))
+    .filter((c) => replier(c.libelle).includes(k));
+}
+
+/**
+ * UN MESSAGE À UN COLLÈGUE (J6, décision 0020) — l'outil propre au module qui remplace `send_message` d'Adam. Aucune
+ * action serveur ne porte « écrire à une personne » en un geste : l'écran ouvre la conversation directe
+ * (`createDirect`, retrouvée si elle existe), puis envoie (`sendMessage`). La carte nomme le destinataire RÉSOLU par
+ * l'annuaire ; plusieurs homonymes n'en désignent aucun (une question), personne ne se devine.
+ */
+export const MESSAGE_DIRECT: OperationIA = {
+  nom: "send_message",
+  module: "MESSAGING",
+  libelle: "Message préparé",
+  description:
+    "PRÉPARE un message interne à UN collègue (messagerie de l'ERP), désigné par son nom ou sa fonction, avec des PIÈCES JOINTES du Drive "
+    + "facultatives (un export que tu viens de produire, un document de la personne : son nodeId ou son nom). Rien ne part avant la confirmation. "
+    + "Pour répondre dans une conversation existante : preparer_reponse_message.",
+  schema: {
+    type: "object",
+    properties: {
+      recipientName: { type: "string", description: "Le nom (ou la fonction) du destinataire." },
+      body: { type: "string", description: "Le texte du message." },
+      pieces: { type: "array", items: { type: "string" }, description: "Pièces jointes : identifiants (nodeId) ou noms de fichiers du Drive de la personne — facultatif." },
+    },
+    required: ["recipientName"],
+  },
+  ouverte: (u) => userCan(u, "MESSAGING", "CREATE"),
+
+  async proposer(e, user: CurrentUser): Promise<PropositionOperation> {
+    const qui = texte(e, "recipientName");
+    const refs = liste(e, "pieces");
+    // Un fichier sans mot se joint tel quel ; sans fichier, le message a besoin d'un texte.
+    const corps = texte(e, "body") || (refs.length ? "Voici le fichier." : "");
+    const manque = [!qui ? "à qui (le nom du collègue)" : null, !corps ? "le texte du message" : null].filter((x): x is string => x !== null);
+    if (manque.length) return { manque };
+    const gens = (await findPeople(qui, 6)).filter((p) => p.id !== user.id);
+    if (!gens.length) return { erreur: `Aucun collègue « ${qui} » dans l'annuaire : vérifiez le nom.` };
+    const exact = gens.find((p) => p.name.toLowerCase() === qui.toLowerCase());
+    if (!exact && gens.length > 1) return { manque: [`lequel : ${gens.map((p) => `${p.name}${p.title ? ` (${p.title})` : ""}`).join(" ; ")}`] };
+    const dest = exact ?? gens[0]!;
+    // LES PIÈCES (K7, décision 0037) : seulement ce que la personne VOIT dans le Drive — la messagerie le rejuge à l'envoi
+    // (`driveRefs` : un fichier qu'elle ne voit plus est écarté) et n'ouvre au destinataire que ce fichier, en lecture.
+    const pieces = refs.length ? await resoudrePieces(user, refs.slice(0, 10)) : [];
+    if ("erreur" in pieces) return { erreur: pieces.erreur };
+    return {
+      carte: {
+        title: `Message à ${dest.name}`,
+        fields: champs([["Destinataire", dest.name], ["Fonction", dest.title], ["Message", corps], ["Pièce(s) jointe(s)", pieces.length ? pieces.map((p) => p.nom).join(", ") : null]]),
+        warnings: pieces.length ? [`${dest.name} pourra ouvrir ${pieces.length > 1 ? "ces fichiers" : "ce fichier"} (lecture seule), par la messagerie.`] : [],
+        libelleBouton: "Envoyer",
+      },
+      args: { userId: dest.id, body: corps, driveRefs: pieces.length ? JSON.stringify(pieces.map((p) => p.id)) : null },
+    };
+  },
+
+  async executer(a) {
+    const direct = new FormData();
+    direct.set("userId", a.userId ?? "");
+    const conv = await createDirect(direct);
+    const id = conv.ok ? (conv as { id?: string }).id : null;
+    if (!id) return { ok: false, error: conv.ok ? "Conversation introuvable." : conv.error ?? "Conversation refusée." };
+    const fd = new FormData();
+    fd.set("conversationId", id);
+    fd.set("body", a.body ?? "");
+    if (a.driveRefs) fd.set("driveRefs", a.driveRefs);
+    const r = await sendMessage(fd);
+    if (!r.ok) return { ok: false, error: r.error ?? "Envoi refusé." };
+    // Une pièce écartée à l'envoi (retirée, ou plus visible entre la carte et le clic) se DIT : le message est parti sans elle.
+    const jointes = r.message?.attachments?.length ?? 0;
+    const attendues = idsDe(a.driveRefs).length;
+    return { ok: true, message: jointes < attendues ? `Message envoyé — ${attendues - jointes} pièce(s) n'ont pas pu être jointes (plus accessibles).` : attendues ? "Message envoyé avec la pièce jointe." : "Message envoyé.", link: `/messages?c=${id}` };
+  },
+};

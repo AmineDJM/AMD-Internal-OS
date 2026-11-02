@@ -29,7 +29,10 @@ const STATUTS: { v: StatutConstat | "TOUS"; l: string }[] = [
 const TON: Record<Criticite, "danger" | "warning" | "neutral" | "info"> = { CRITIQUE: "danger", HAUTE: "warning", NORMALE: "neutral", BASSE: "info" };
 const dateFr = (d: Date | null) => (d ? new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Algiers" }).format(d) : "—");
 
-export default async function QualitePage({ searchParams }: { searchParams?: { statut?: string; famille?: string; criticite?: string; regle?: string } }) {
+export default async function QualitePage(
+  props: { searchParams?: Promise<{ statut?: string; famille?: string; criticite?: string; regle?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const visibles = modulesVisibles(user);
   if (visibles && visibles.length === 0) notFound();

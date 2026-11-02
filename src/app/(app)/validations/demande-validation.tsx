@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { AlertCircle, CheckCircle2, FileCheck2, Loader2, Plus, Trash2, Upload, Library, PenSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -52,7 +53,7 @@ export function DemanderUneValidation(props: DemandeValidationProps) {
 }
 
 function Formulaire(props: DemandeValidationProps & { onClose: () => void }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [nature, setNature] = React.useState<Nature>("AUTRE");
   const [titre, setTitre] = React.useState("");
   const sourcesOuvertes = SOURCES_BC.filter((s) => s === "LEGAL" || (s === "ORDINATEUR" ? props.peutDeposerBC : props.composition !== null));
@@ -102,10 +103,14 @@ function Formulaire(props: DemandeValidationProps & { onClose: () => void }) {
       fd.set("link", lien.trim());
     }
     startEnvoi(async () => {
-      const r = await createValidationRequest(undefined, fd);
-      if (!r.ok) { setErreur(r.error ?? "La demande n'a pas pu être envoyée."); return; }
-      setSucces(r.message ?? "Demande envoyée.");
-      router.refresh();
+      try {
+        const r = await createValidationRequest(undefined, fd);
+        if (!r.ok) { setErreur(r.error ?? "La demande n'a pas pu être envoyée."); return; }
+        setSucces(r.message ?? "Demande envoyée.");
+        rafraichir();
+      } catch {
+        setErreur(actionFailureMessage("THROWN"));
+      }
     });
   };
 

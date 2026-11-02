@@ -40,9 +40,6 @@ export const NATURES_PAR_DEFAUT: readonly NatureParDefaut[] = [
   { cle: "MG_AUTRE", nom: "Autre", motsCles: [] },
 ];
 
-/** La catégorie de dernier recours : l'IA ne s'y rabat que si rien d'autre, même nouveau, ne convient. */
-export const CLE_AUTRE = "MG_AUTRE";
-
 /**
  * Une NOUVELLE catégorie proposée voyage dans le même champ que l'identifiant d'une existante, préfixée : le
  * formulaire n'a qu'une valeur par ligne, et le serveur la crée au moment où la dépense s'enregistre — pas avant

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireModule } from "@/lib/session";
@@ -26,7 +25,8 @@ const BD_DOC_CATEGORIES = [
   "SUPPLIER_OFFER", "QUOTE", "PROFORMA", "ANALYSIS_CERTIFICATE", "PRESENTATION", "SUPPORTING_DOC", "OTHER",
 ];
 
-export default async function BdProjectDetailPage({ params }: { params: { id: string } }) {
+export default async function BdProjectDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("BUSINESS_DEVELOPMENT");
   if (!(await canAccessEntity(user, "BD_PROJECT", params.id, "VIEW"))) notFound();
 

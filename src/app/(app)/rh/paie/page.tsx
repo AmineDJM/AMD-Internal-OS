@@ -9,16 +9,14 @@ import { PageHeader } from "@/components/shared/page-header";
 import { toNumber } from "@/lib/utils";
 import { PayrollMatrix, type PayrollRow, type PayrollCell } from "./payroll-matrix";
 import { VirementsPaie, type CarteEntite, type MoisCarte } from "./virements-paie";
-import { defaultEmployerCost } from "@/lib/hr/payroll-cost";
-import { entryCost } from "@/lib/hr/payroll-cost";
-import { masseMensuelleParEntite, type LigneMasseMensuelle } from "@/lib/hr/payroll-mass";
+import { getRhData } from "@/modules/rh/api";
+import { defaultEmployerCost, entryCost, masseMensuelleParEntite, type LigneMasseMensuelle, etatVirement, etatSalaire, moisDeLEntite, saisiAvantLeCentre, type VirementDuMois, type EtatSalaire } from "@/modules/finances/partage";
+import { instantDuCentreDePaie } from "@/modules/finances/api";
 import type { ColonneMasse } from "./masse-mensuelle";
 import { RattacherSansEntite, type SalarieSansEntite } from "./rattacher-sans-entite";
-import { etatVirement, etatSalaire, moisDeLEntite, saisiAvantLeCentre, type VirementDuMois, type EtatSalaire } from "@/lib/hr/virement-paie";
-import { instantDuCentreDePaie } from "@/lib/hr/paie-centre";
 import { getMyCompanies, myCompanyWhere } from "@/lib/company";
-import { getRhData } from "@/lib/queries/hr";
 import { AdvanceApprovals, type AdvanceRow } from "../advance-approvals";
+import { lireSensiblesPour } from "@/modules/coffre/api-lecture";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +25,8 @@ export const dynamic = "force-dynamic";
  * entité (« Envoyer la paie »), puis la grille salariés × mois avec la masse salariale en pied,
  * l'alerte des salariés sans entité, les avances à trancher.
  */
-export default async function PaiePage({ searchParams }: { searchParams: { year?: string } }) {
+export default async function PaiePage(props: { searchParams: Promise<{ year?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("RH");
   if (!userCan(user, "RH", "UPDATE")) redirect("/mon-dossier");
 
@@ -42,7 +41,7 @@ export default async function PaiePage({ searchParams }: { searchParams: { year?
 
   const [employees, entries, budgetOptions, mesEntites] = await Promise.all([
     prisma.employee.findMany({
-      where: { isActive: true, ...portee },
+      where: { AND: [{ isActive: true }, portee] },
       select: {
         id: true, fullName: true, position: true, netToPay: true, grossSalary: true, baseSalary: true,
         employerCost: true, companyId: true, departmentId: true,
@@ -189,21 +188,30 @@ export default async function PaiePage({ searchParams }: { searchParams: { year?
       };
     })
     .sort((a, b) => b.cout - a.cout || a.nom.localeCompare(b.nom, "fr"));
+  // LE COFFRE (refonte V2-E) : les salaires de fiche qui préremplissent l'envoi, lus par la politique et journalisés.
+  const salaires = await lireSensiblesPour(user, {
+    modele: "Employee", champs: ["baseSalary", "grossSalary", "netToPay", "employerCost"], geste: "Paie — préremplissage des salaires",
+    lignes: employees.map((e) => ({ id: e.id, clair: e })),
+  });
+  const salaire = (id: string, champ: "baseSalary" | "grossSalary" | "netToPay" | "employerCost"): number | null => {
+    const v = salaires.get(id)?.[champ]?.valeur;
+    return v ? Number(v) : null;
+  };
   const rows: PayrollRow[] = employees.map((emp) => ({
     employeeId: emp.id,
     name: emp.fullName,
     poste: emp.position ?? null,
     companyId: emp.companyId ?? null,
     // Pré-remplissage : brut depuis le salaire brut de la fiche (à défaut le salaire de base), net depuis le net à payer.
-    defaultGross: emp.grossSalary != null ? toNumber(emp.grossSalary) : emp.baseSalary != null ? toNumber(emp.baseSalary) : null,
+    defaultGross: salaire(emp.id, "grossSalary") ?? salaire(emp.id, "baseSalary"),
     // Ordre : le coût employeur de la fiche, à défaut le brut, à défaut le salaire de base — et
     // JAMAIS 0, qui se validerait sans qu'on le relise et amputerait la masse d'un salaire.
     defaultEmployerCost: defaultEmployerCost({
-      employerCost: emp.employerCost != null ? toNumber(emp.employerCost) : null,
-      grossSalary: emp.grossSalary != null ? toNumber(emp.grossSalary) : null,
-      baseSalary: emp.baseSalary != null ? toNumber(emp.baseSalary) : null,
+      employerCost: salaire(emp.id, "employerCost"),
+      grossSalary: salaire(emp.id, "grossSalary"),
+      baseSalary: salaire(emp.id, "baseSalary"),
     }),
-    defaultNet: emp.netToPay != null ? toNumber(emp.netToPay) : emp.baseSalary != null ? toNumber(emp.baseSalary) : null,
+    defaultNet: salaire(emp.id, "netToPay") ?? salaire(emp.id, "baseSalary"),
     months: Array.from({ length: 12 }, (_, i): PayrollCell => {
       const e = byKey.get(`${emp.id}:${i + 1}`);
       if (!e || e.status !== "PAID") return { state: "UNPAID" as const, amount: null, net: null, employerCost: null, entryId: e?.id ?? null, payslip: null };

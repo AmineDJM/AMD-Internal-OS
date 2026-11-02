@@ -1,17 +1,24 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, UserPlus } from "lucide-react";
 import { shareNode, shareNodeWithMany, unshareNode } from "@/lib/actions/drive-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
+import { Retour, useRetours } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import type { ActionResult } from "@/lib/actions/types";
 
 export interface ShareItem { userId: string; name: string; access: string }
 
 /** Ligne d'un partage : l'accès est **modifiable** (Lecture / Éditeur / Aucun accès). */
 function ShareRow({ nodeId, share, canEdit, onChanged }: { nodeId: string; share: ShareItem; canEdit: boolean; onChanged?: () => void }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  // Le sélecteur d'une ligne n'a pas de place pour parler : un refus part en avis flottant.
+  const retours = useRetours();
   const [busy, setBusy] = React.useState(false);
 
   async function change(value: string) {
@@ -19,15 +26,22 @@ function ShareRow({ nodeId, share, canEdit, onChanged }: { nodeId: string; share
     const fd = new FormData();
     fd.set("nodeId", nodeId);
     fd.set("userId", share.userId);
-    if (value === "NONE") {
-      await unshareNode(fd);
-    } else {
-      fd.set("access", value);
-      await shareNode(fd);
+    try {
+      let r: ActionResult;
+      if (value === "NONE") {
+        r = await unshareNode(fd);
+      } else {
+        fd.set("access", value);
+        r = await shareNode(fd);
+      }
+      if (!r.ok) retours.erreur(r.error ?? "Le droit d'accès n'a pas été modifié.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
     onChanged?.();
-    router.refresh();
+    rafraichir();
   }
 
   return (
@@ -64,9 +78,7 @@ export function SharePanel({
   /** Appelé après un ajout / changement / retrait — pour rafraîchir un panneau embarqué. */
   onChanged?: () => void;
 }) {
-  const router = useRouter();
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy: saving, err, run } = useAction();
   const [picked, setPicked] = React.useState<Set<string>>(new Set());
   const [query, setQuery] = React.useState("");
 
@@ -94,12 +106,7 @@ export function SharePanel({
       {canEdit && users.length > 0 && (
         <form
           action={async (fd) => {
-            setSaving(true); setErr(null);
-            const r = await shareNodeWithMany(fd);
-            setSaving(false);
-            if (!r.ok) { setErr(r.error ?? "Partage impossible."); return; }
-            setPicked(new Set());
-            onChanged?.(); router.refresh();
+            await run(() => shareNodeWithMany(fd), () => { setPicked(new Set()); onChanged?.(); });
           }}
           className="space-y-2 border-t border-border pt-3"
         >
@@ -144,7 +151,7 @@ export function SharePanel({
               Partager{picked.size > 0 ? ` (${picked.size})` : ""}
             </Button>
           </div>
-          {err && <p className="text-xs text-destructive">{err}</p>}
+          <Retour ton="erreur">{err}</Retour>
         </form>
       )}
     </div>

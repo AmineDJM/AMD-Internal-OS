@@ -119,31 +119,3 @@ export function fileKind(mime: string | null | undefined, name: string): "pdf" |
   if (m.startsWith("text/") || ["txt", "csv", "md", "json", "log"].includes(ext)) return "text";
   return "other";
 }
-
-/**
- * Libellé LISIBLE du type de fichier (« Document Word », « PDF », « Image PNG »…) au lieu
- * du MIME brut illisible (`application/vnd.openxmlformats-…`). Repli propre : MIME utile,
- * sinon extension, sinon « Fichier ».
- */
-export function fileTypeLabel(mime: string | null | undefined, name: string): string {
-  const ext = name.split(".").pop()?.toLowerCase() ?? "";
-  const byExt: Record<string, string> = {
-    pdf: "PDF",
-    doc: "Document Word", docx: "Document Word", odt: "Document texte",
-    xls: "Classeur Excel", xlsx: "Classeur Excel", csv: "Fichier CSV", ods: "Classeur",
-    ppt: "Présentation PowerPoint", pptx: "Présentation PowerPoint", odp: "Présentation",
-    png: "Image PNG", jpg: "Image JPEG", jpeg: "Image JPEG", gif: "Image GIF", webp: "Image WebP", svg: "Image SVG", heic: "Image HEIC",
-    mp4: "Vidéo MP4", webm: "Vidéo WebM", mov: "Vidéo", m4v: "Vidéo", avi: "Vidéo",
-    mp3: "Audio MP3", wav: "Audio WAV", ogg: "Audio", m4a: "Audio",
-    txt: "Texte", md: "Markdown", json: "JSON", log: "Journal", xml: "XML",
-    zip: "Archive ZIP", rar: "Archive RAR", "7z": "Archive 7z", tar: "Archive TAR", gz: "Archive GZ",
-  };
-  if (byExt[ext]) return byExt[ext];
-  const kindLabel: Record<ReturnType<typeof fileKind>, string> = {
-    pdf: "PDF", image: "Image", video: "Vidéo", audio: "Audio", text: "Texte", office: "Document Office", other: "",
-  };
-  const byKind = kindLabel[fileKind(mime, name)];
-  if (byKind) return byKind;
-  if (mime && mime !== "application/octet-stream") return mime;
-  return ext ? ext.toUpperCase() : "Fichier";
-}

@@ -1,9 +1,9 @@
 import type { EntityType } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { CongressDetail } from "@/lib/queries/congress";
+import type { CongressDetail } from "@/modules/ad-pro/api";
 import { WorkflowPanel } from "@/components/workflow/workflow-panel";
 import type { WorkflowView } from "@/lib/queries/workflow";
-import { ThirdPartyInvolveButton } from "@/components/shared/third-party-involve";
+import { ThirdPartyInvolveButton } from "@/modules/ad-pro/ecrans/third-party-involve";
 import { MissionAssignmentsCard } from "@/components/missions/mission-assignments-card";
 import type { MissionAssignmentDTO } from "@/lib/queries/missions";
 

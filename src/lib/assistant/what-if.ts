@@ -1,15 +1,16 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
+import { ORDRE_NON_ANNULE } from "@/modules/finances/partage";
 import { userCan } from "@/lib/rbac";
 import { platformScope } from "@/lib/company";
-import { toNumber, formatMontant } from "@/lib/utils";
-import { getComptaData } from "@/lib/queries/compta";
+import { toNumber, formatMontant, arrondirAuCentime } from "@/lib/utils";
+import { getComptaData } from "@/modules/finances/api";
 import { getActionCenter } from "@/lib/queries/action-center";
 import { alertesExecutivesChaudes, fraicheurDeLecture } from "@/lib/assistant/hot-alerts";
 import type { ExecutiveAlert } from "@/lib/assistant/proactive";
 import { FINISHED_REG_STATUSES } from "@/lib/regulatory/stage";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * SIMULATION, ÉTAT DE L'ENTREPRISE, ATTENTION DU PDG — trois lectures de pilotage.
@@ -35,7 +36,6 @@ const num = (input: Record<string, unknown>, key: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-const dzd = (n: number): number => Math.round(n * 100) / 100;
 const kdzd = (n: number): string => `${formatMontant(n)} DZD`;
 
 /** Masse salariale MENSUELLE estimée : somme des coûts employeur actifs (repli : brut, puis base). */
@@ -112,9 +112,9 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
           simulation: SIM,
           scenario: `${emp.fullName} : salaire de base ${kdzd(currentBase)} → ${kdzd(newBase)} (${Math.round(((newBase - currentBase) / currentBase) * 1000) / 10} %)`,
           estimation: {
-            surcoutEmployeurMensuelDzd: dzd(newCost - currentCost),
-            surcoutEmployeurAnnuelDzd: dzd((newCost - currentCost) * 12),
-            masseSalarialeMensuelle: { avantDzd: dzd(payroll.totalDzd), apresDzd: dzd(payroll.totalDzd - currentCost + newCost) },
+            surcoutEmployeurMensuelDzd: arrondirAuCentime(newCost - currentCost),
+            surcoutEmployeurAnnuelDzd: arrondirAuCentime((newCost - currentCost) * 12),
+            masseSalarialeMensuelle: { avantDzd: arrondirAuCentime(payroll.totalDzd), apresDzd: arrondirAuCentime(payroll.totalDzd - currentCost + newCost) },
           },
           hypotheses: [
             `Les charges patronales restent proportionnelles au salaire de base (ratio actuel ${Math.round(ratio * 100) / 100} conservé) — ESTIMATION, pas un calcul de paie.`,
@@ -157,7 +157,7 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
             rapportsDirectsARerattacher: emp.reports.map((r) => r.fullName),
             observabilite: uid ? "compté sur son compte applicatif" : "AUCUN compte applicatif : l'exposition ERP est invisible ici (pas forcément nulle)",
           },
-          estimation: { coutEmployeurLibereAnnuelDzd: dzd(cost * 12) },
+          estimation: { coutEmployeurLibereAnnuelDzd: arrondirAuCentime(cost * 12) },
           hypotheses: [
             "Le coût libéré suppose un NON-remplacement — un remplacement l'annule (et coûte le recrutement).",
             "L'exposition ne mesure que l'ERP : le savoir informel (relations, historique) part avec la personne et n'est pas chiffrable ici.",
@@ -177,11 +177,11 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
           simulation: SIM,
           scenario: `Recrutement de ${count} personne(s) à ~${kdzd(cost)}/mois de coût employeur chacune`,
           estimation: {
-            surcoutMensuelDzd: dzd(delta),
-            surcoutAnnuelDzd: dzd(delta * 12),
+            surcoutMensuelDzd: arrondirAuCentime(delta),
+            surcoutAnnuelDzd: arrondirAuCentime(delta * 12),
             masseSalarialeMensuelle: {
-              avantDzd: dzd(payroll.totalDzd),
-              apresDzd: dzd(payroll.totalDzd + delta),
+              avantDzd: arrondirAuCentime(payroll.totalDzd),
+              apresDzd: arrondirAuCentime(payroll.totalDzd + delta),
               haussePct: payroll.totalDzd > 0 ? Math.round((delta / payroll.totalDzd) * 1000) / 10 : null,
             },
             effectif: { avant: payroll.headcount, apres: payroll.headcount + count },
@@ -213,7 +213,7 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
           byMonth.set(key, cur);
         }
         const rows = [...byMonth.entries()].sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([mois, v]) => ({ mois, recettesDzd: dzd(v.in), depensesDzd: dzd(v.out), resultatDzd: dzd(v.in - v.out) }));
+          .map(([mois, v]) => ({ mois, recettesDzd: arrondirAuCentime(v.in), depensesDzd: arrondirAuCentime(v.out), resultatDzd: arrondirAuCentime(v.in - v.out) }));
         if (rows.length < 3) {
           return `DONNÉES INSUFFISANTES : ${rows.length} mois de transactions réglées sur la fenêtre — aucune tendance sérieuse ne se projette sur si peu. Je préfère le dire que d'inventer une courbe.`;
         }
@@ -225,10 +225,10 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
           simulation: SIM,
           historique: rows,
           tendance: {
-            resultatMensuelMoyenDzd: dzd(avg),
-            projection3MoisDzd: { basse: dzd((avg - spread / 2) * 3), centrale: dzd(avg * 3), haute: dzd((avg + spread / 2) * 3) },
-            aEncaisserAujourdHuiDzd: dzd(compta.aEncaisser),
-            aReglerAujourdHuiDzd: dzd(compta.aReglerOrders),
+            resultatMensuelMoyenDzd: arrondirAuCentime(avg),
+            projection3MoisDzd: { basse: arrondirAuCentime((avg - spread / 2) * 3), centrale: arrondirAuCentime(avg * 3), haute: arrondirAuCentime((avg + spread / 2) * 3) },
+            aEncaisserAujourdHuiDzd: arrondirAuCentime(compta.aEncaisser),
+            aReglerAujourdHuiDzd: arrondirAuCentime(compta.aReglerOrders),
           },
           hypotheses: [
             `Projection NAÏVE : moyenne des ${rows.length} derniers mois prolongée, fourchette = amplitude observée — aucun modèle saisonnier.`,
@@ -264,22 +264,22 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
         prisma.validationRequest.count({ where: { status: "PENDING" } }),
         prisma.task.count({ where: { status: { in: ["TODO", "IN_PROGRESS"] }, dueDate: { lt: new Date() } } }),
         prisma.regulatoryProduct.count({ where: { status: { notIn: [...FINISHED_REG_STATUSES] } } }),
-        alertesExecutivesChaudes(user).catch(() => null),
+        alertesExecutivesChaudes(user).catch(sansBloquer("what-if.run.alertesExecutivesChaudes", null)),
       ]);
       const alerts: ExecutiveAlert[] = lectureAlertes?.valeur ?? [];
-      const compta = userCan(user, "FINANCES", "VIEW") ? await getComptaData(user.id).catch(() => null) : null;
+      const compta = userCan(user, "FINANCES", "VIEW") ? await getComptaData(user.id).catch(sansBloquer("what-if.run.getComptaData", null)) : null;
       const critical = alerts.filter((a) => a.criticite === "CRITICAL");
       const important = alerts.filter((a) => a.criticite === "IMPORTANT");
 
       return JSON.stringify({
         litLe: new Date().toISOString().slice(0, 16).replace("T", " "),
         effectifEtMasse: payroll
-          ? { effectifActif: payroll.headcount, masseSalarialeMensuelleDzd: dzd(payroll.totalDzd), source: "fiches employé actives (coût employeur ; brut/base en repli)" }
+          ? { effectifActif: payroll.headcount, masseSalarialeMensuelleDzd: arrondirAuCentime(payroll.totalDzd), source: "fiches employé actives (coût employeur ; brut/base en repli)" }
           : "section fermée — exige le module RH",
         tresorerie: compta
           ? {
-              recettesDuMoisDzd: dzd(compta.recettesMois), depensesDuMoisDzd: dzd(compta.depensesMois),
-              resultatDuMoisDzd: dzd(compta.resultatMois), aEncaisserDzd: dzd(compta.aEncaisser), aReglerDzd: dzd(compta.aReglerOrders),
+              recettesDuMoisDzd: arrondirAuCentime(compta.recettesMois), depensesDuMoisDzd: arrondirAuCentime(compta.depensesMois),
+              resultatDuMoisDzd: arrondirAuCentime(compta.resultatMois), aEncaisserDzd: arrondirAuCentime(compta.aEncaisser), aReglerDzd: arrondirAuCentime(compta.aReglerOrders),
               source: "transactions finances + ordres de dépense (entité en cours)",
             }
           : "section fermée — exige le module Finances",
@@ -314,7 +314,7 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
     run: async (_input, user) => {
       const [center, lectureAlertes, overdueCommitments] = await Promise.all([
         getActionCenter(user),
-        alertesExecutivesChaudes(user).catch(() => null),
+        alertesExecutivesChaudes(user).catch(sansBloquer("what-if.run.alertesExecutivesChaudes", null)),
         prisma.executiveCommitment.count({ where: { ownerId: user.id, status: "OPEN", dueAt: { lt: new Date() } } }),
       ]);
       const alerts: ExecutiveAlert[] = lectureAlertes?.valeur ?? [];

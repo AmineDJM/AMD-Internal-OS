@@ -5,6 +5,7 @@ import { CheckCircle2, ChevronDown, ChevronRight, Loader2, Save, Send } from "lu
 import { saisirStocksDemande } from "@/lib/actions/demande-stocks-actions";
 import { ligneRemplie } from "@/lib/stocks/demande-stocks";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { Input, Textarea } from "@/components/ui/input";
@@ -80,13 +81,19 @@ export function SaisieStocks({ demandeId, ouverte, envoyeLe, hopitaux, lignes }:
       fd.append("noteHopitalId", h.institutionId);
       fd.append("noteHopital", notes[h.institutionId] ?? "");
     }
-    const r = await saisirStocksDemande(fd);
-    setBusy(false);
-    setRetour({ ok: r.ok, texte: r.ok ? r.message ?? "Enregistré." : r.error ?? "Échec." });
-    // Le brouillon est enregistré même quand l'envoi est refusé faute de cases : on rafraîchit
-    // dans les deux cas, pour que l'écran montre ce qui est EN BASE.
-    setModifie(false);
-    rafraichir();
+    try {
+      const r = await saisirStocksDemande(fd);
+      setRetour({ ok: r.ok, texte: r.ok ? r.message ?? "Enregistré." : r.error ?? "La saisie n'a pas été enregistrée." });
+      // Le brouillon est enregistré même quand l'envoi est refusé faute de cases : on rafraîchit
+      // dans les deux cas, pour que l'écran montre ce qui est EN BASE.
+      setModifie(false);
+      rafraichir();
+    } catch {
+      // Rien n'est sûr : la saisie reste marquée « modifiée », l'écran ne prétend pas l'avoir enregistrée.
+      setRetour({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (lignes.length === 0) {

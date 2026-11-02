@@ -22,7 +22,8 @@ export const metadata = { title: "Nouvelle offre d'emploi — AMD Internal OS" }
  * compétences. JAMAIS la rémunération ni la justification : ce sont des données internes, et la
  * liste des champs repris est écrite ici, champ par champ — rien n'est recopié « en bloc ».
  */
-export default async function NouvelleOffrePage({ searchParams }: { searchParams?: { demande?: string } }) {
+export default async function NouvelleOffrePage(props: { searchParams?: Promise<{ demande?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.mustChangePassword) redirect("/change-password");
   if (!peutPublierOffres(user)) notFound();

@@ -9,8 +9,7 @@ import {
 
 // Réexport pour les appelants SERVEUR : la définition vit dans le module pur (voir
 // `import-formats.ts`), pour qu'un composant client puisse la lire sans embarquer Prisma.
-export { CORPUS_IMPORT_EXTS, extOf, titleFromFilename, codeFromTitle } from "./import-formats";
-export type { FileIngestResult, FileIngestStatus } from "./import-formats";
+export type { FileIngestResult } from "./import-formats";
 
 /**
  * INGESTION D'UN TEXTE RÉGLEMENTAIRE DEPUIS UN FICHIER.

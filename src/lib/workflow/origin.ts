@@ -1,6 +1,6 @@
 import type { UserRole } from "@prisma/client";
 import { hasGlobalView, hasRole } from "@/lib/rbac";
-import { estKam, parcoursAdPro, SLUG_MARKETING, SLUG_PRELIMINAIRE } from "./parcours";
+import { estDirectionMarketing, estKam, parcoursAdPro, SLUG_MARKETING, SLUG_PRELIMINAIRE } from "./parcours";
 import type { WorkflowCategory } from "./types";
 
 /**
@@ -97,16 +97,16 @@ export interface AdProInit {
 /**
  * Étape de DÉPART d'une demande Ad & Pro, et son statut legacy.
  *
- * Les entrées tenues par `parcoursAdPro` (la nature ne change que la SUITE, jamais l'entrée) :
- *   • KAM → préliminaire (National Sales) ;
- *   • rang 3 — Direction, DG, Directeur des opérations, Super Admin → directement Direction
- *     Marketing, qui TRANCHE ;
- *   • tous les autres — National Sales, Direction Marketing et Manager Promotion médicale
- *     (rang 2), demandeur ordinaire → porte du DG (franchie sous le seuil). Ce qui les distingue
- *     vient APRÈS : la borne et le tamis, que `ensureInstance` fige avec `parcoursEffectif`.
+ * Les entrées tenues par `parcoursAdPro` (règle du 27/10/2026, la même pour toutes les natures) :
+ *   • délégué médical (KAM) → préliminaire (National Sales), puis Directeur des opérations ;
+ *   • rang 3 — Direction, DG, Directeur des opérations, Super Admin → directement la
+ *     prévalidation de la Direction Marketing ;
+ *   • Direction Marketing → sa propre étape, prévalidée D'OFFICE à la naissance de l'instance ;
+ *   • tous les autres — National Sales, Manager Promotion médicale, demandeur ordinaire → le
+ *     Directeur des opérations (étape `final`).
  *
- * Le rang l'emporte sur le métier : un délégué médical qui porte aussi Direction Marketing ne
- * s'arbitre pas sa propre demande — c'est la Direction qui tranche la sienne.
+ * Le rang l'emporte sur le métier (§118.142) : un délégué médical qui porte aussi un rôle plus haut
+ * suit la branche de ce rang — Direction Marketing comprise (prévalidée d'office).
  */
 export function adProInit(
   user: OriginUser,
@@ -114,7 +114,7 @@ export function adProInit(
   productManagerId?: string | null,
 ): AdProInit {
   const rang = adProOriginRank(user);
-  const { entree } = parcoursAdPro({ rang, kam: estKam(user), categorie });
+  const { entree } = parcoursAdPro({ rang, kam: estKam(user), directionMarketing: estDirectionMarketing(user), categorie });
   const referent = productManagerId?.trim() || null;
 
   // LE KAM entre par son superviseur national.
@@ -127,8 +127,8 @@ export function adProInit(
   if (entree === SLUG_MARKETING) {
     return { stage: "FINAL", status: "AWAITING_FINAL", productManagerId: referent, preliminaryBySelf: true };
   }
-  // TOUS LES AUTRES entrent par la porte du Directeur Général, franchie automatiquement sous le
-  // seuil : le statut legacy est celui de la chaîne « préliminaire faite, décision à venir ».
+  // TOUS LES AUTRES entrent chez le Directeur des opérations : le statut legacy est celui de la
+  // chaîne « préliminaire faite, décision à venir ».
   return { stage: "ANALYSIS", status: "PRELIMINARY_APPROVED", productManagerId: referent, preliminaryBySelf: true };
 }
 

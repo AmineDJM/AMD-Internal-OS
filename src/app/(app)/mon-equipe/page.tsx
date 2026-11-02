@@ -43,7 +43,10 @@ export const metadata = { title: "Mon Équipe — AMD Internal OS" };
  *
  * Le RECRUTEMENT n'est plus ici : c'est un module à part sous « Ressources humaines » (Direction, 07/10).
  */
-export default async function MonEquipePage({ searchParams }: { searchParams?: { vue?: string; mois?: string; periode?: string } }) {
+export default async function MonEquipePage(
+  props: { searchParams?: Promise<{ vue?: string; mois?: string; periode?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MY_TEAM");
   const team = await getMyTeam(user);
   const { selfEmployeeId, members, directCount, pending, chevauchements, chevauchementsNonMontres } = team;

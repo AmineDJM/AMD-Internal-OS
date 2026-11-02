@@ -1,9 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { callLuna, lunaConfigured, lunaModel, type LunaResult } from "@/lib/openai-luna";
-import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage } from "@/lib/ai-settings";
+import { callLuna, lunaModel, type LunaResult, portesLunaOuvertes } from "@/lib/openai-luna";
+import { logAiUsage } from "@/lib/ai-settings";
 import { wrapUntrusted } from "@/lib/comms/untrusted";
-import { chargerLiensAdPro } from "@/lib/queries/ad-pro-medecins";
+import { chargerLiensAdPro } from "@/modules/ad-pro/api";
 import {
   CONSIGNE_INFLUENCE, SCHEMA_INFLUENCE, TEXTE_MAX, enteteRapport, lireReponseInfluence, rapportPorteur, texteEnvoye,
   type MentionLue, type RapportAnalyse,
@@ -13,6 +13,7 @@ import {
   type IndexPraticiens, type MembreService, type Resolution,
 } from "@/lib/influence/relations";
 import { scoreInfluence, type EntreeScore } from "@/lib/influence/score";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -54,16 +55,6 @@ export interface BilanAnalyse {
   scores: number;
 }
 
-async function porteOuverte(): Promise<boolean> {
-  try {
-    if (await interrupteurIaCoupe()) return false;
-    if (!(await aiFeatureEnabled(FONCTION))) return false;
-    return lunaConfigured();
-  } catch {
-    return false;
-  }
-}
-
 async function extraireParLuna(lot: readonly RapportAnalyse[], userId: string | null): Promise<MentionLue[] | null> {
   const user = lot.map((r) => `${enteteRapport(r)}\n${wrapUntrusted(texteEnvoye(r), { source: r.id, kind: "compte rendu de visite", maxChars: TEXTE_MAX })}`).join("\n\n");
   const t0 = Date.now();
@@ -86,7 +77,7 @@ async function extraireParLuna(lot: readonly RapportAnalyse[], userId: string | 
     errorCode: panne ? "exception" : r === null ? "timeout" : !r.ok ? (r.error ?? "error").slice(0, 120) : lu ? null : "invalid_json",
     llmCalls: 1, inputTokens: r?.usage.inputTokens ?? null, outputTokens: r?.usage.outputTokens ?? null,
     cachedInputTokens: r?.usage.cachedInputTokens ?? null, costUsd: r?.usage.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("influence-luna.extraireParLuna.logAiUsage"));
   return lu;
 }
 
@@ -339,7 +330,7 @@ export async function analyserInfluence(opts: { userId: string | null }): Promis
     bilan.structurels = await recalculerStructure(ctx);
     const index = indexerPraticiens(ctx.medecins);
     const chefs = chefsParService(ctx);
-    const ouverte = await porteOuverte();
+    const ouverte = await portesLunaOuvertes(FONCTION);
     let lotsRestants = MAX_LOTS;
     for (const [cle, lire] of [[CLE_RAPPORTS, rapportsVocaux], [CLE_VISITES, comptesRendusEcrits]] as const) {
       if (bilan.luna === "ECHEC") break;
@@ -376,14 +367,14 @@ export async function analyserInfluence(opts: { userId: string | null }): Promis
       where: { cle: CLE_EXECUTION },
       update: { derniereExecution: new Date(), bilan: bilan as unknown as Prisma.InputJsonValue },
       create: { cle: CLE_EXECUTION, derniereExecution: new Date(), bilan: bilan as unknown as Prisma.InputJsonValue },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("influence-luna.analyserInfluence.analyseWatermark"));
   }
   return bilan;
 }
 
 /** Le passage planifié : une analyse par jour au plus (le filigrane fait qu'elle ne relit que le nouveau). */
 export async function analyserInfluenceSiDu(maintenant = new Date()): Promise<void> {
-  const w = await prisma.analyseWatermark.findUnique({ where: { cle: CLE_EXECUTION }, select: { derniereExecution: true } }).catch(() => null);
+  const w = await prisma.analyseWatermark.findUnique({ where: { cle: CLE_EXECUTION }, select: { derniereExecution: true } }).catch(sansBloquer("influence-luna.analyserInfluenceSiDu.analyseWatermark", null));
   const jour = (d: Date) => d.toISOString().slice(0, 10);
   if (w?.derniereExecution && jour(w.derniereExecution) === jour(maintenant)) return;
   await analyserInfluence({ userId: null });

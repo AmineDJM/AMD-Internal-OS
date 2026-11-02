@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { lunaEmbed } from "@/lib/openai-luna";
 import { cosine } from "@/lib/regulatory/intelligence/corpus/semantic";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RECHERCHE SÉMANTIQUE SUR LE DRIVE — le NIVEAU DE REPLI quand le lexical ne trouve pas :
@@ -91,23 +92,6 @@ export async function driveSemanticCandidates(
 }
 
 /**
- * Vectorise un TEXTE d'index au moment de l'indexation — jamais bloquant, jamais obligatoire.
- * Rend true si un vecteur a été écrit.
- */
-export async function embedDriveIndexEntry(nodeId: string, text: string, embed: EmbedFn = (t) => lunaEmbed(t)): Promise<boolean> {
-  try {
-    const body = (text ?? "").slice(0, 4_000).trim();
-    if (!body) return false;
-    const [vec] = (await embed([body])) ?? [];
-    if (!vec) return false;
-    await prisma.driveTextIndex.update({ where: { nodeId }, data: { embedding: vec } });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * RATTRAPAGE BORNÉ : vectorise un paquet d'entrées d'index sans vecteur — appelé par
  * l'ingestion planifiée (un paquet par passage, jamais plus).
  */
@@ -125,7 +109,7 @@ export async function embedDriveBacklog(batch = 40, embed: EmbedFn = (t) => luna
     let done = 0;
     for (let i = 0; i < rows.length; i++) {
       if (!Array.isArray(vecs[i])) continue;
-      await prisma.driveTextIndex.update({ where: { nodeId: rows[i].nodeId }, data: { embedding: vecs[i] } }).catch(() => undefined);
+      await prisma.driveTextIndex.update({ where: { nodeId: rows[i].nodeId }, data: { embedding: vecs[i] } }).catch(sansBloquer("semantic-drive.embedDriveBacklog.driveTextIndex"));
       done += 1;
     }
     return done;

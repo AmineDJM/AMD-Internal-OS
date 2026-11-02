@@ -6,6 +6,8 @@ import { Trash2, Loader2, AlertTriangle } from "lucide-react";
 import { deleteOwnRecord } from "@/lib/actions/admin-delete-actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * Bouton « Supprimer » posé sur la fiche d'un objet que SON CRÉATEUR a le droit de retirer
@@ -34,6 +36,7 @@ export function RecordDeleteButton({
   typeLabel?: string;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -46,14 +49,19 @@ export function RecordDeleteButton({
     const fd = new FormData();
     fd.set("kind", kind);
     fd.set("id", id);
-    const r = await deleteOwnRecord(fd);
-    if (r.ok) {
-      setOpen(false);
-      router.push(r.redirect ?? "/mon-espace");
-      router.refresh();
-    } else {
+    try {
+      const r = await deleteOwnRecord(fd);
+      if (r.ok) {
+        setOpen(false);
+        router.push(r.redirect ?? "/mon-espace");
+        rafraichir();
+      } else {
+        setBusy(false);
+        setError(r.error ?? "Suppression impossible.");
+      }
+    } catch {
       setBusy(false);
-      setError(r.error ?? "Suppression impossible.");
+      setError(actionFailureMessage("THROWN"));
     }
   }
 

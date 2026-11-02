@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { entetesAntiExecution } from "@/lib/http/types-actifs";
+import { servirPiece } from "@/lib/http/servir-piece";
 import { getCurrentUser } from "@/lib/session";
-import { voitLesSalaires } from "@/lib/hr/confidentialite";
+import { peutOuvrirDocumentRh } from "@/lib/entity-access/ouverture-pieces";
 import { entitePermisePourFiche } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
+import { journal } from "@/lib/journal";
+import { accesAssistantIa } from "@/modules/assistant-ia/api";
+import { familleNominative } from "@/modules/assistant-ia/partage";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +15,8 @@ export const dynamic = "force-dynamic";
  * Sert un document RH déchiffré. Accès : l'employé propriétaire (compte lié, et
  * document marqué visible) OU un gestionnaire RH. `?dl=1` force le téléchargement.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
 
@@ -22,26 +26,29 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   });
   if (!doc) return new NextResponse(null, { status: 404 });
 
-  // Un bulletin, un contrat, une pièce d'identité : la LECTURE du module ne suffisait plus à les
-  // télécharger (audit 360°, S5) — il faut GÉRER les RH (`voitLesSalaires`), et dans une société
-  // permise (S6). L'employé garde ses propres pièces marquées visibles.
-  const isOwner = doc.employee.userId === user.id && doc.visibleToEmployee;
-  const isHr = voitLesSalaires(user) && (await entitePermisePourFiche(user.id, doc.employee.companyId));
-  if (!isOwner && !isHr) return new NextResponse(null, { status: 403 });
+  // Un bulletin, un contrat, une pièce d'identité : GÉRER les RH dans une société permise, ou l'employé pour ses pièces
+  // visibles — la règle est partagée avec la bibliothèque (`entity-access/ouverture-pieces.ts`).
+  // Décision 0012 : la Direction peut OUVRIR explicitement « Contrats & documents RH » à une personne dans la
+  // console de l'Assistant IA — le lien que l'assistant lui donne doit alors s'ouvrir (société permise toujours).
+  // Cette ouverture vaut pour le LIEN de l'assistant : la recherche de la bibliothèque, elle, s'en tient à la règle de base.
+  // S1 (décision 0048) : NOMMÉMENT à cette personne — un réglage de rôle n'ouvre pas le dossier RH d'autrui.
+  const ouvertParDirection = async () => familleNominative(await accesAssistantIa(user), "CONTRATS_RH")
+    && (await entitePermisePourFiche(user.id, doc.employee.companyId));
+  if (!(await peutOuvrirDocumentRh(user, doc)) && !(await ouvertParDirection())) return new NextResponse(null, { status: 403 });
 
-  const bytes = await getBlob(doc.blobId);
+  // Un service qui n'a pas la même clé de chiffrement ou le même stockage objet que l'ERP (site Adventum IA, worker)
+  // ne peut pas relire le fichier : le dire en clair plutôt qu'une erreur 500 (31/10/2026).
+  let bytes: Buffer | null;
+  try {
+    bytes = await getBlob(doc.blobId);
+  } catch (e) {
+    journal.erreur("rh.document-illisible", { documentId: params.id }, e);
+    return new NextResponse(
+      "Ce document n'a pas pu être lu sur ce service : sa configuration du stockage des fichiers diffère de celle de l'ERP "
+      + "(clé de chiffrement ou stockage objet). Ouvrez-le depuis l'ERP, et signalez-le à l'administrateur.",
+      { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+    );
+  }
   if (!bytes) return new NextResponse(null, { status: 404 });
-
-  const dl = req.nextUrl.searchParams.get("dl") === "1";
-  const filename = encodeURIComponent(doc.name);
-  return new NextResponse(new Uint8Array(bytes), {
-    headers: {
-      "Content-Type": doc.mime || "application/octet-stream",
-      // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
-      ...entetesAntiExecution(doc.mime || "application/octet-stream"),
-      "Content-Disposition": `${dl ? "attachment" : "inline"}; filename*=UTF-8''${filename}`,
-      "Content-Length": String(bytes.length),
-      "Cache-Control": "private, no-store",
-    },
-  });
+  return servirPiece(req, { octets: bytes, nom: doc.name, mime: doc.mime }, { disposition: "en-ligne", bacASable: false });
 }

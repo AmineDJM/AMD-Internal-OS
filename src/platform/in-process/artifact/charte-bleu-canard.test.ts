@@ -16,9 +16,9 @@ import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { ACCENT_DEFAUT } from "@/lib/brand/model";
 import { ACCENT_MAISON } from "@/lib/artifact/factory/commercial";
-import { portsArtefact } from "@/platform/in-process/artifact/ports";
+import { portsArtefact } from "@/platform/ia/artifact/ports";
 import { definirMarque } from "@/platform/in-process/brand";
-import { emettreDocumentDrive, reviserDocumentDrive, type DemandeDocument } from "@/platform/in-process/artifact/factory";
+import { emettreDocumentDrive, reviserDocumentDrive, type DemandeDocument } from "@/platform/ia/artifact/factory";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

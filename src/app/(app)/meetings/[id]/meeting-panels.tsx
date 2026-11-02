@@ -8,18 +8,20 @@ import {
   setMeetingLive, endMeeting, deleteMeeting,
 } from "@/lib/actions/meeting-actions";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { useKeyedAction } from "@/components/shared/use-action";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /** Boutons Accepter / Écarter d'une tâche proposée par l'IA. */
 export function ProposalActions({ proposalId }: { proposalId: string }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<"accept" | "dismiss" | null>(null);
+  // Deux icônes sans place où parler : un refus part en avis flottant.
+  const { busy, run: lancer } = useKeyedAction({ signalerErreurs: true });
 
   async function run(kind: "accept" | "dismiss") {
-    setBusy(kind);
     const fd = new FormData(); fd.set("proposalId", proposalId);
-    const r = kind === "accept" ? await acceptMeetingProposal(fd) : await dismissMeetingProposal(fd);
-    setBusy(null);
-    if (r.ok) router.refresh();
+    await lancer(kind, () => (kind === "accept" ? acceptMeetingProposal(fd) : dismissMeetingProposal(fd)));
   }
 
   return (
@@ -56,15 +58,24 @@ export function ShareLink({ url }: { url: string }) {
 /** Barre de gestion (organisateur) : démarrer / clôturer / supprimer. */
 export function ManageBar({ meetingId, status }: { meetingId: string; status: string }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [busy, setBusy] = React.useState<string | null>(null);
 
   async function act(kind: "live" | "end" | "delete") {
-    if (kind === "delete" && !confirm("Supprimer définitivement cette réunion ?")) return;
+    if (kind === "delete" && !(await confirmer("Supprimer définitivement cette réunion ?"))) return;
     setBusy(kind);
     const fd = new FormData(); fd.set("id", meetingId);
-    const r = kind === "live" ? await setMeetingLive(fd) : kind === "end" ? await endMeeting(fd) : await deleteMeeting(fd);
-    setBusy(null);
-    if (r.ok) { if (kind === "delete") router.push("/meetings"); else router.refresh(); }
+    try {
+      const r = kind === "live" ? await setMeetingLive(fd) : kind === "end" ? await endMeeting(fd) : await deleteMeeting(fd);
+      if (r.ok) { if (kind === "delete") router.push("/meetings"); else rafraichir(); }
+      else retours.erreur(r.error ?? (kind === "delete" ? "La réunion n'a pas été supprimée." : kind === "live" ? "La réunion n'a pas été démarrée." : "La réunion n'a pas été clôturée."));
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (

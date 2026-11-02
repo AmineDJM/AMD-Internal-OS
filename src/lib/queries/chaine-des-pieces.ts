@@ -1,6 +1,7 @@
 import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { SessionUser } from "@/lib/rbac";
+import { userCan, type SessionUser } from "@/lib/rbac";
+import { peutDaterLeReglement } from "@/modules/finances/partage";
 import { accesAuxPiecesLegalDetaille } from "@/lib/entity-access";
 import { LEGAL_DOC_STATUS, MAIL_DIRECTION, invoiceSettlementState, INVOICE_SETTLEMENT, natureLegale } from "@/lib/labels";
 import { formatCurrency, formatDate, toNumber } from "@/lib/utils";
@@ -10,13 +11,13 @@ import { LIBELLE_ETAPE_BC, type EtapeBC } from "@/lib/bons-de-commande/regle";
 import { fichiersEmis, type FichiersEmis } from "@/lib/legal/fichiers-emis";
 import {
   categorieDuPdf, natureDeLaCategorie, sectionDeLaNature, type NatureDeChaine, type SectionPieces,
-} from "@/lib/ad-pro/doc-categories";
+} from "@/modules/ad-pro/partage";
 
 // La règle de section vit au module PUR, que le formulaire du navigateur lit aussi : on la
 // réexporte pour les lecteurs serveur, on ne la réécrit pas (§118.5).
 export { categorieDuPdf, sectionDeLaNature, type SectionPieces };
 import type { DocItem } from "@/components/documents/document-list";
-import type { MaillonAmont, NaturePieceLiee } from "@/components/shared/attach-to-source";
+import type { MaillonAmont, NaturePieceLiee } from "@/components/pieces/attach-to-source";
 import { demandeDeLaPiece, droitsSuppressionDesPieces, type DroitsPieceDemande } from "@/lib/queries/pieces-demande-droits";
 
 /**
@@ -134,6 +135,15 @@ const docItem = (d: {
   confidentiality: d.confidentiality, uploadedBy: d.uploadedBy?.name ?? null,
   createdAt: d.createdAt.toISOString(), hasFile: Boolean(d.fileKey),
 });
+
+/**
+ * La date de paiement d'une facture créée depuis la fiche : à qui règle aux Finances seulement
+ * (`peutDaterLeReglement`, module finances). Lue ICI pour la carte des pièces liées : le kit
+ * d'interface (`components/shared/`) n'importe aucun module.
+ */
+export function daterLeReglementPour(spectateur: SessionUser | null | undefined): boolean {
+  return spectateur ? peutDaterLeReglement({ financesModifier: userCan(spectateur, "FINANCES", "UPDATE") }) : false;
+}
 
 export async function chargerPiecesLiees(e: EntreePiecesLiees): Promise<PiecesLieesChargees> {
   const where = { sourceType: e.entityType, sourceId: e.entityId };

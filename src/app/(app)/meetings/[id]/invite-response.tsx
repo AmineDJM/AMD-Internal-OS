@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Check, X, HelpCircle, Loader2 } from "lucide-react";
 import { respondToMeetingInvite } from "@/lib/actions/meeting-actions";
+import { useKeyedAction } from "@/components/shared/use-action";
 
 type Resp = "INVITED" | "ACCEPTED" | "DECLINED" | "TENTATIVE";
 
@@ -12,18 +12,15 @@ type Resp = "INVITED" | "ACCEPTED" | "DECLINED" | "TENTATIVE";
  * Chacun répond pour lui-même ; l'organisateur est notifié. Le choix courant est mis en avant.
  */
 export function InviteResponse({ meetingId, current }: { meetingId: string; current: Resp }) {
-  const router = useRouter();
   const [resp, setResp] = React.useState<Resp>(current);
-  const [busy, setBusy] = React.useState<Resp | null>(null);
+  // Trois boutons, une réponse à la fois ; un refus n'a pas de place où parler : avis flottant.
+  const { busy, run } = useKeyedAction({ signalerErreurs: true });
 
   async function send(value: "ACCEPTED" | "DECLINED" | "TENTATIVE") {
-    setBusy(value);
     const fd = new FormData();
     fd.set("id", meetingId);
     fd.set("response", value);
-    const r = await respondToMeetingInvite(fd);
-    setBusy(null);
-    if (r.ok) { setResp(value); router.refresh(); }
+    if (await run(value, () => respondToMeetingInvite(fd))) setResp(value);
   }
 
   const btn = (value: "ACCEPTED" | "DECLINED" | "TENTATIVE", active: string, icon: React.ReactNode, label: string) => (

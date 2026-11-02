@@ -1,3 +1,5 @@
+import { plier } from "@/lib/utils";
+import { zoneDuClient } from "@/lib/pieces-lues/emetteur-destinataire";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * L'IDENTITÉ DE L'ÉMETTEUR, RECOPIÉE DU PAPIER — raison sociale, adresse, NIF, RC, RIB, téléphone, e-mail.
@@ -30,8 +32,6 @@ export interface IdentiteEmetteur {
 
 export const IDENTITE_VIDE: IdentiteEmetteur = { nom: null, adresse: null, nif: null, rc: null, rib: null, telephone: null, email: null };
 
-const sansAccents = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
 type Champ = Exclude<keyof IdentiteEmetteur, "email">;
 
 /** Les étiquettes reconnues, à lire sur le texte SANS accents ni majuscules. L'ordre compte (la plus précise d'abord). */
@@ -46,7 +46,7 @@ const ETIQUETTES: { champ: Champ; re: RegExp }[] = [
 
 /** Une ligne qui est elle-même une étiquette (vide ou finissant par « : ») ne peut pas être une valeur. */
 const estEtiquette = (l: string): boolean => {
-  const p = sansAccents(l.trim());
+  const p = plier(l.trim());
   return p.endsWith(":") || ETIQUETTES.some((e) => e.re.test(p) && p.replace(e.re, "").trim() === "") || /^(client|fax|email|e-mail|site\s+web|date)\b/.test(p);
 };
 
@@ -71,10 +71,12 @@ function nettoyer(champ: Champ, brut: string): string | null {
 export function identiteEmetteurDuTexte(texte: string): IdentiteEmetteur {
   const id: IdentiteEmetteur = { ...IDENTITE_VIDE };
   const lignes = texte.split(/\r?\n/);
+  // LE BLOC CLIENT (lot B1) : « Client : / ADVENTUM PHARMA / NIF : … » — ses étiquettes ne sont pas celles de l'émetteur.
+  const zone = zoneDuClient(lignes);
   for (let i = 0; i < lignes.length; i++) {
     const brute = lignes[i].trim();
-    if (!brute) continue;
-    const p = sansAccents(brute);
+    if (!brute || zone.has(i)) continue;
+    const p = plier(brute);
     if (estLigneClient(p)) continue;
     for (const { champ, re } of ETIQUETTES) {
       if (id[champ] !== null) continue;
@@ -85,7 +87,7 @@ export function identiteEmetteurDuTexte(texte: string): IdentiteEmetteur {
       // …sinon sur la ligne suivante, si elle n'est pas elle-même une étiquette.
       if (!valeur.trim()) {
         const suivante = lignes.slice(i + 1).find((x) => x.trim() !== "");
-        if (suivante && !estEtiquette(suivante) && !estLigneClient(sansAccents(suivante.trim()))) valeur = suivante;
+        if (suivante && !estEtiquette(suivante) && !estLigneClient(plier(suivante.trim()))) valeur = suivante;
       }
       const v = nettoyer(champ, valeur);
       if (v) id[champ] = v;
@@ -93,8 +95,8 @@ export function identiteEmetteurDuTexte(texte: string): IdentiteEmetteur {
     }
   }
   // L'e-mail : la première adresse imprimée qui n'est pas sur une ligne du client.
-  for (const l of lignes) {
-    if (estLigneClient(sansAccents(l.trim()))) continue;
+  for (const [i, l] of lignes.entries()) {
+    if (zone.has(i) || estLigneClient(plier(l.trim()))) continue;
     const m = l.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
     if (m) { id.email = m[0]; break; }
   }

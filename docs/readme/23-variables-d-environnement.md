@@ -9,8 +9,21 @@
 | `ANTHROPIC_API_KEY` | ⬜ | Active l'**Assistant IA**, l'analyse des rapports vocaux, les synthèses Brain/Process Intelligence/réunions. |
 | `AI_MODEL` · `AI_MODEL_CHEAP` | ⬜ | Les **deux paliers** de modèle IA (maîtrise du coût). Palier **qualité** (défaut `claude-sonnet-4-6`) : revue CTD sourcée (14 agents), simulateur d'examen, réponse aux réserves, assistant conversationnel, Adventum Brain. Palier **éco** (défaut `claude-haiku-4-5`, ≈ 3× moins cher) : tâches **mécaniques** — revue de fond/forme par parts, extraction de faits & de rapports vocaux, résumés de réunion, brouillons fournisseur, Q&R de dossier, suggestion proactive. Baisser encore le coût = pointer `AI_MODEL` vers le palier éco. |
 | `OPENAI_API_KEY` | ⬜ | Active la **transcription vocale** (Whisper). |
+| `ASSISTANT_IA_MODEL` · `ASSISTANT_IA_TIMEOUT_MS` | ⬜ | L'**Assistant IA** (`/assistant`, Mastra) tourne sur la clé **`OPENAI_API_KEY`** déjà posée, modèle `gpt-6.1-terra` par l'API Responses (Direction, 28/10/2026 — il remplace MiMo, décision [0010](../assistant/decisions/0010-assistant-sur-openai.md)). Facultatifs : un autre modèle, le délai d'un tour (ms, 45 000 par défaut). |
+| `ASSISTANT_IA_PRICE_IN` · `ASSISTANT_IA_PRICE_OUT` · `ASSISTANT_IA_PRICE_CACHED` | ⬜ | Tarif POSÉ du modèle de l'Assistant IA en **dollars par million de jetons** (entrée, sortie, entrée en cache). Posé, il **prime** sur la grille (`priceGrid = env`). Absent (cas normal depuis K8) → la **grille datée par modèle** `src/lib/models/tarifs.ts` (décision 0035 : `gpt-6.1-terra` 1 $ / 0,05 $ / 5 $, `gpt-6-luna` 0,10 / 0,01 / 0,50…). Voix : `ASSISTANT_IA_AUDIO_PRICE_IN/OUT` (posés, priment). Un modèle hors grille sans tarif posé : « tarif inconnu ». (`MIMO_PRICE_*` ne sert plus qu'aux journaux d'avant le 28/10.) |
+| `OPENAI_ADMIN_KEY` | ⬜ | Clé **administrateur** de l'organisation OpenAI (distincte de `OPENAI_API_KEY`) : active le **rapprochement** de l'écran Consommation (API Costs `/v1/organization/costs` : facturé vs journalisé, écart). Absente → l'écran dit « rapprochement non configuré » (K8, décision 0035). |
+| `GEMINI_API_KEY` | ⬜ | K2 (décision 0032) : clé Gemini du **secours** d'image (`gemini-3-pro-image`), appelé seulement quand OpenAI échoue ou refuse une image. Absente : pas de secours, l'échec OpenAI est dit. |
+| `ASSISTANT_IA_MODEL_RAPIDE` · `ASSISTANT_IA_EFFORT` · `ASSISTANT_IA_EFFORT_RAISONNEMENT` · `ASSISTANT_IA_EFFORT_RAPIDE` | ⬜ | Le **modèle de chaque geste** de l'Assistant IA (lot J4, décision [0018](../assistant/decisions/0018-vitesse-memoire.md)) : modèle « rapide » du résumé roulant (défaut `gpt-6-luna`) ; effort de raisonnement de la conversation (`low`), d'une analyse (`medium`), du résumé (`low`) — `none`, `minimal`, `low`, `medium`, `high`. |
+| `ASSISTANT_IA_MODEL_RAISONNEMENT` · `BANC_ESSAI_DATABASE_URL` · `ASSISTANT_IA_TRACES` · `ASSISTANT_IA_TRACES_JOURS` | ⬜ | Qualité continue (lots J5 + J14, décision [0022](../assistant/decisions/0022-qualite-continue.md)) : modèle à part pour le raisonnement (défaut : celui du standard ; un choix fait à l'écran, sur banc vert, passe avant) ; la **base d'essai** du banc programmé, sur le WORKER seulement (absente en production : le banc le dit et ne tourne pas) ; traces rejouables (`off` les coupe ; gardées 30 jours par défaut). |
+| `ASSISTANT_IA_TTS_MODEL` · `ASSISTANT_IA_TTS_VOICE` | ⬜ | **Réponse vocale** de l'Assistant IA (décision [0011](../assistant/decisions/0011-vocaux-et-lecture-de-toute-piece.md)) : modèle et voix de la synthèse OpenAI (défauts `gpt-4o-mini-tts`, `alloy`). La transcription des vocaux garde `STT_MODEL`. |
+| `ASSISTANT_IA_AUDIO_PRICE_IN` · `ASSISTANT_IA_AUDIO_PRICE_OUT` | ⬜ | Tarif de la VOIX de l'Assistant IA (transcription, synthèse ; fournisseur `openai-audio`) en dollars par million de jetons — équivalents compris (10 par seconde d'audio). Absent → coût « inconnu ». |
+| `TERRAIN_STT_MODEL` · `ASSISTANT_IA_VOICE_MODEL` · `ASSISTANT_IA_VOICE` · `ASSISTANT_IA_LIVE_PRICE_IN` | ⬜ | **Terrain et voix** (lot J13, décision [0025](../assistant/decisions/0025-terrain-voix.md)) : moteur de transcription des vocaux de terrain (défaut `gpt-transcribe`, mesuré au banc), modèle et voix de la conversation vocale de l'Assistant IA (GPT-Live : défauts `gpt-live-1`, `marin` ; le réglage du Super Admin, Consommation IA, prime sur la variable ; pas de modèle de secours). Tarif de la voix GPT-Live en dollars par million d'équivalents (10 par seconde) : défaut 83,33 = 0,05 $/min. |
+| `ASSISTANT_DEPOT_DOSSIER_FICHIERS` · `ASSISTANT_DEPOT_DOSSIER_MO` · `BIBLIOTHEQUE_BUDGET_S` · `BIBLIOTHEQUE_PARALLELE` | ⬜ | **Dépôt de dossier** de l'Assistant IA (lot J11, décision [0030](../assistant/decisions/0030-formulaires-dossiers.md)) : bornes d'un dossier glissé au-delà de 10 pièces (défauts **1 000 fichiers**, **2 048 Mo**). Ingestion de la Bibliothèque : budget d'un passage de la tâche `bibliotheque.ingestion` (défaut **45 s**, plafond 100 — la file se vide lot après lot dans ce budget) et lecteurs en même temps (défaut **2**, plafond 6 — un OCR tient de la mémoire : 1 sur un worker de 512 Mo). |
 | `MAX_UPLOAD_MB` | ⬜ | Taille max d'upload par défaut (réglable aussi en base depuis l'admin). |
 | `APP_URL` | ⬜* | URL **publique** de l'app — requise pour le callback OnlyOffice, et écrite dans le bloc de liaison du site (`ERP_BASE_URL`) : c'est par elle que les candidatures du site arrivent (à défaut, l'adresse par laquelle le Super Admin a ouvert l'écran, puis celle de Render). |
+| `TACHES_DE_FOND` | ⬜ | **Qui porte les tâches de fond** (refonte V2-F) : `web` (défaut du code) · `worker` (service `npm run worker` seul) · `les-deux` (un bail par tâche en base). Lu par chaque service. **Posé à `les-deux` sur le web ET le worker par le Blueprint** (décision 0019). Procédure : [24-deploiement-render.md](24-deploiement-render.md). |
+| `CONVERSIONS_PYTHON` · `AMD_TESSDATA` · `CONVERSIONS_MOTEUR` | ⬜ | Le **moteur de conversion haute fidélité** (décision 0019) : le Python qui porte ses paquets (défaut `/opt/conversions/bin/python` dans l'image du worker, sinon `python3`) ; le dossier des modèles tesseract « best » (`/opt/tessdata` dans l'image) ; `CONVERSIONS_MOTEUR=off` le débraye. |
+| `SCHEDULER_DISABLED` · `SCHEDULER_TICK_MS` | ⬜ | Soupape (`1` = aucun battement, web ni worker) · période du battement en ms (défaut 60000, min 15000). |
 | `ONLYOFFICE_URL` | ⬜* | URL **publique** du Document Server OnlyOffice. |
 | `ONLYOFFICE_JWT_SECRET` | ⬜* | Secret JWT **identique** à celui du Document Server. |
 | `MAIL_ENCRYPTION_KEY` | ⬜ | Clé dédiée au chiffrement des mots de passe e-mail (sinon retombe sur `AUTH_SECRET`). |
@@ -36,6 +49,7 @@
 | `S3_DISABLED` | ⬜ | Interrupteur d'arrêt : `1` force le repli sur le stockage en base **sans effacer** les variables. Sert à écarter le stockage objet le temps d'un incident. |
 | `REG_S3_*` | ⬜ | **Anciens noms**, encore acceptés en **repli** pour ne pas casser une production en cours. Les `S3_*` priment quand les deux existent. À supprimer une fois la transition faite. |
 | `DRIVE_ENCRYPTION_KEY` | ⬜ | Clé maîtresse AES-256-GCM (32 octets, hex ou base64). À défaut, dérivée de `NEXTAUTH_SECRET`. ⚠️ **La changer rend illisibles tous les fichiers déjà stockés.** |
+| `COFFRE_KEY` | ⬜ (obligatoire pour ouvrir le coffre) | Clé maîtresse du **coffre des données sensibles** (refonte V2-E) : 32 octets, hex ou base64, **différente** de `DRIVE_ENCRYPTION_KEY` (refusée sinon). Aucun repli en production : sans elle, la double écriture et la double lecture ne s'ouvrent pas. ⚠️ **La perdre rend le coffre illisible** — la sauvegarder hors de Render. |
 | `OPENAI_API_KEY` · `OPENAI_BASE_URL` | ⬜ | Modèle économique **Luna** (`gpt-5.6-luna`) : lecture des lettres de réserves, des graphiques/images, et analyse différée (Batch). Sans clé, ces fonctions se désactivent **proprement** (message explicite) — le reste du module continue de fonctionner. |
 | `CTD_MODEL_CHEAP` | ⬜ | Surcharge du modèle économique (défaut `gpt-5.6-luna`). |
 | `CTD_BUDGET_USD_DEFAULT` | ⬜ | Plafond IA **global** par dossier, en dollars (défaut : aucun). Un dossier peut avoir son propre plafond, réglé à l'écran. Atteint ⇒ les appels sont **refusés avant dépense**, et l'écran le dit. |
@@ -48,5 +62,64 @@
 > \* Requis **ensemble** uniquement pour activer l'édition Office. Côté **service OnlyOffice**, poser
 > `JWT_ENABLED=true` et `JWT_SECRET=<même valeur que ONLYOFFICE_JWT_SECRET>`.
 
----
+### Pièces reçues par WhatsApp et par mail — Assistant IA (lot K6, décision 0036)
 
+| Variable | Requis | Rôle |
+|---|---|---|
+| `WHATSAPP_VERIFY_TOKEN` | ⬜ | Jeton d'**abonnement** du webhook (`GET /api/canaux/whatsapp`) : une chaîne au choix (`openssl rand -hex 24`), saisie à l'identique chez Meta. |
+| `WHATSAPP_APP_SECRET` | ⬜ | **Secret de l'app Meta** (*App settings › Basic › App secret*) : la signature `X-Hub-Signature-256` de chaque notification est vérifiée avec lui. Absent → le webhook refuse tout (503). |
+| `WHATSAPP_TOKEN` · `WHATSAPP_PHONE_ID` · `WHATSAPP_BASE_URL` | ⬜ | Déjà ceux de l'**envoi** (plugin messagerie) : jeton d'accès permanent (utilisateur système), identifiant du numéro, `https://graph.facebook.com/v21.0`. Ils servent aussi à **télécharger les médias** reçus et à répondre (accusé, refus poli). |
+| `ASSISTANT_IA_MAIL` | ⬜ | Adresse(s) de l'assistant (`assistant@adventum.dz`, séparées par des virgules). Un courrier reçu par `POST /api/mail/inbound` (signé, `MAIL_WEBHOOK_SECRET`) et adressé à l'une d'elles porte des pièces pour l'Assistant IA de son expéditeur. |
+| `CANAUX_RELAIS_SECRET` | ⬜ | Si le WhatsApp passe par un **relais** (Make, n8n, Twilio) : il poste `POST /api/canaux/relais` le JSON `{ id, de, texte?, pieces: [{ nom, mime?, base64? \| url? }] }`, signé HMAC-SHA256 hexadécimal du corps brut (en-tête `x-relais-signature`). La réponse porte `reponses` (texte à renvoyer à l'expéditeur — le relais l'envoie). Absent → 503. |
+| `ASSISTANT_IA_ATTENTE_HEURES` | ⬜ | Durée d'une **attente de pièces** (défaut 48 h, 1 h à 14 jours). |
+
+**Ce qui se passe.** La personne dit (à l'écrit ou dans un appel vocal) « je t'envoie la lettre du Dr Mansouri pour la demande SP-… » : l'assistant ouvre une **attente** (outil `attendre_pieces`, liée à la conversation et à la fiche, 48 h). Elle envoie la pièce au numéro WhatsApp de l'entreprise, ou la transfère à `ASSISTANT_IA_MAIL` (ou se l'envoie dans sa boîte Gmail connectée, si elle est le dirigeant et qu'une attente « mail » est ouverte). Reconnue par son **numéro** (fiche utilisateur, sinon fiche employé liée à un compte) ou son **adresse**, la pièce va dans son Drive (« Assistant IA — pièces reçues »), entre dans la conversation de l'attente, et l'assistant propose le rangement **par une carte** (« J'ai reçu la lettre… ; je l'ajoute à la demande ? »). Sans attente : la conversation courante et « À quoi la rattacher ? ». Numéro ou adresse inconnus : refus poli, **rien n'est stocké**. Chaque réception est au journal (`AssistantIaReception`).
+
+**Réglages chez Meta (une fois).**
+1. *developers.facebook.com › votre app › WhatsApp › Configuration › Webhook* : **URL de rappel** `https://amd-internal-os-k3uc.onrender.com/api/canaux/whatsapp` (ou l'adresse de l'app Adventum IA, qui sert la même route), **jeton de vérification** = `WHATSAPP_VERIFY_TOKEN`. Meta appelle aussitôt le `GET` : il doit répondre le défi (sinon : jeton différent, ou variable non posée sur Render).
+2. Champs du webhook : cocher **`messages`**.
+3. *App settings › Basic* : copier l'**App secret** dans `WHATSAPP_APP_SECRET` sur Render.
+4. Le jeton `WHATSAPP_TOKEN` doit être **permanent** (utilisateur système, droits `whatsapp_business_messaging`) : un jeton temporaire expire en 24 h et les médias ne se téléchargent plus.
+5. Les numéros des collaborateurs : renseigner le **téléphone** sur la fiche utilisateur (ou la fiche employé liée) — c'est lui qui reconnaît l'expéditeur.
+
+**Mail.** Chez le fournisseur de courrier entrant (Postmark recommandé : il transmet le contenu des pièces dans le webhook), router l'adresse `ASSISTANT_IA_MAIL` vers `https://amd-internal-os-k3uc.onrender.com/api/mail/inbound` avec la signature HMAC `MAIL_WEBHOOK_SECRET`. Avec Resend ou Brevo, le webhook ne porte que le nom des pièces : la réception le dit (« contenu non transmis par le fournisseur »).
+
+**Retrouver ce qui relie AUJOURD'HUI le WhatsApp de la Direction à Adam.** Le dépôt ne contient aucune réception WhatsApp
+(vérifié le 31/10/2026 : ni route, ni événement `IngestedEvent` WhatsApp) ; si Adam reçoit des WhatsApp, c'est par un service extérieur. Où regarder :
+1. **Meta Business Manager** (business.facebook.com › *Paramètres de l'entreprise › Comptes › Comptes WhatsApp*) : le numéro, puis
+   *developers.facebook.com › Mes apps › (l'app) › WhatsApp › Configuration › Webhook* — l'**URL de rappel** dit qui reçoit
+   (une adresse `hook.eu1.make.com` = Make, `…/webhook/…` d'un n8n, `api.twilio.com` = Twilio, l'ERP = nous).
+2. **Twilio** (console.twilio.com › *Messaging › Senders › WhatsApp senders*) : le numéro et son *Webhook URL* « when a message comes in ».
+3. **Make** (make.com › *Scenarios*, filtre « WhatsApp ») / **n8n** (*Workflows*, nœud « WhatsApp Trigger ») / **Zapier** : le scénario
+   déclenché par WhatsApp et ce qu'il appelle ensuite (souvent un e-mail vers la boîte Gmail connectée, ou `/api/events/inbound/generic`).
+4. **Boîte Gmail du dirigeant** : des courriels « WhatsApp » venus d'un de ces services = le relais passe par le mail (alors l'attente « mail » suffit).
+Ensuite : soit pointer le webhook Meta vers `/api/canaux/whatsapp` (réglages ci-dessus), soit ajouter au scénario existant UNE étape
+HTTP vers `/api/canaux/relais` (JSON ci-dessus, signé avec `CANAUX_RELAIS_SECRET`). Un numéro WhatsApp ne peut avoir qu'UN webhook Meta.
+
+### Chantiers de développement — connecteurs Claude Code, GitHub, Render, MiMo (lot C2, décision 0043)
+
+Toutes **côté serveur** (service de l'ERP sur Render), jamais lues par un modèle, jamais journalisées. État et sondes :
+**Administration › Développement** (Super Admin).
+
+| Variable | Rôle |
+|---|---|
+| `GITHUB_TOKEN` | jeton **fine-grained** de la Direction (compte HUMAIN : un bot ne déclenche pas `@claude`), limité aux dépôts des chantiers ; droits : Contents R/W, Pull requests R/W, Issues R/W (commentaires), Checks R, Actions R/W (journaux, relance), Commit statuses R, Metadata R |
+| `GITHUB_WEBHOOK_SECRET` | secret du webhook GitHub (`X-Hub-Signature-256`) ; URL `https://<erp>/api/chantiers/webhooks/github`, type `application/json`, événements push, pull_request, check_suite, check_run, workflow_run, issue_comment |
+| `CHANTIERS_DEPOTS` | dépôts suivis, « proprio/nom » séparés par des virgules (sondés par l'écran) |
+| `RENDER_API_KEY` | clé API Render (Account Settings › API Keys) |
+| `RENDER_WEBHOOK_SECRET` | « signing secret » du webhook Render (Workspace › Integrations › Webhooks) ; URL `https://<erp>/api/chantiers/webhooks/render`, événements deploy_started, deploy_ended, build_ended, pre_deploy_ended, server_failed, server_available |
+| `CLAUDE_ROUTINE_<ALIAS>_ID` | `trig_…` d'une routine Claude Code (une par dépôt, créée par la Direction sur claude.ai/code/routines, déclencheur **API**) |
+| `CLAUDE_ROUTINE_<ALIAS>_TOKEN` | jeton de la routine (`sk-ant-oat01-…`, affiché une fois) — ne déclenche que CETTE routine |
+| `CLAUDE_ROUTINE_<ALIAS>_DEPOT` | le dépôt de la routine (« proprio/nom ») |
+| `mimo` (ou `MIMO_API_KEY`), `MIMO_BASE_URL` | MiMo : clé déjà posée ; base par défaut `https://token-plan-ams.xiaomimimo.com/v1` (sonde `GET /models`) |
+| `CLAUDE_RELAIS_TOKEN` | jeton du **relais Claude Code** (service Render `claude-relais`, background worker Docker + disque `/var/data`) ; aléatoire, ≥ 24 caractères ; à poser IDENTIQUE sur `amd-internal-os` et sur `claude-relais` ; sans lui `/api/dev/relais/ordres` est fermée (503). Côté `claude-relais` aussi : `GITHUB_TOKEN` (Contents R/W, pour pousser la branche réservée), `ERP_URL`, `CLAUDE_CONFIG_DIR=/var/data/claude` (la connexion claude.ai faite par la Direction dans le Shell du service y vit), `RELAIS_DOSSIER=/var/data/depots`. Pas à pas : décision 0043 § 3 bis |
+| `GITHUB_API_URL`, `RENDER_API_URL`, `ANTHROPIC_ROUTINES_URL` | bancs seulement (faux serveur) |
+
+**Jamais** d'identifiant claude.ai d'abonnement sur le serveur (ni OAuth, ni `claude setup-token`) : interdit par les
+conditions d'Anthropic. Le `CLAUDE_CODE_OAUTH_TOKEN` du suivi `@claude` est un **secret GitHub** du dépôt, posé par la
+Direction (modèle `docs/assistant/modeles/github-workflow-claude.yml`), que l'ERP ne voit pas.
+
+Banc réel (dépôt et service de **test**) : `BANC_DEPOT`, `BANC_ROUTINE`, `BANC_SERVICE_RENDER`, `BANC_ATTENTE_MIN`,
+`BANC_DEPOTS_PROTEGES`, `BANC_SERVICES_PROTEGES` — `scripts/bench/chantiers-reel.ts`.
+
+---

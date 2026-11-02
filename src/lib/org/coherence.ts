@@ -1,4 +1,4 @@
-import { managementChainOf, type DepartmentNodeLite, type EmployeeNode } from "@/lib/hr/reporting-line";
+import { managementChainOf, type DepartmentNodeLite, type EmployeeNode } from "@/modules/rh/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

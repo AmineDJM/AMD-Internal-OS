@@ -100,7 +100,7 @@ de l'organisation ; les prix unitaires alimentent l'historique d'achat par produ
 
 | Palier | Contenu | Production |
 |---|---|---|
-| P0 Fondations | Schéma découpé en fichiers par module (`prismaSchemaFolder`) ; contrôle de dérive `prisma migrate diff --exit-code` dans les tests ; lint et typecheck **avant** `migrate deploy` sur Render | Aucun changement de données |
+| P0 Fondations | Schéma découpé en fichiers par module (`prismaSchemaFolder`, étudié) ; contrôle de dérive `prisma migrate diff` dans les tests (fait) ; lint, typecheck et build **avant** `migrate deploy` sur Render (fait) — voir [`refonte-p0-outillage.md`](refonte-p0-outillage.md) | Aucun changement de données |
 | P1 Référentiels | Tables R1-R6 créées vides ; colonnes de lien nullables ajoutées | Additif |
 | P2 Reprise | Remplissage idempotent depuis l'existant (identifiants déterministes) ; doublons **proposés** (par NIF, RC, e-mail, nom + wilaya), jamais fusionnés d'office | Additif |
 | P3 Double écriture | Les actions écrivent le référentiel ET les colonnes historiques ; les lectures basculent écran par écran | Additif |

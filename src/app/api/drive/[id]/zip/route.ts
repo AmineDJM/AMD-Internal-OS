@@ -20,7 +20,8 @@ export const dynamic = "force-dynamic";
 
 const MAX_ENTRIES = 5000; // borne la taille de la réponse « liste »
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   const path = req.nextUrl.searchParams.get("path");
   const refus = (error: string, status: number) => (path ? refusLisible(error, status) : NextResponse.json({ ok: false, error }, { status }));

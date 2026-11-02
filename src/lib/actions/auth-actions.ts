@@ -6,6 +6,9 @@ import { auth, signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { effacerVueExacte } from "@/lib/vue-exacte";
+import { checkLockout, clearAttempts, cleChangementMotDePasse, recordFailure } from "@/lib/login-throttle";
+import { sansBloquer } from "@/lib/journal";
+import { pageApresConnexion } from "@/platform/app-mode";
 
 /** Server action used by the login form. Returns an error string on failure. */
 export async function authenticate(
@@ -15,12 +18,13 @@ export async function authenticate(
   // UNE CONNEXION NEUVE NE REPREND JAMAIS LA « VUE EXACTE » D'UNE AUTRE SESSION (Direction, 06/10 : « c'est
   // seulement quand je quitte cette vue que je reviens à mon profil ») : un autre Super Admin qui se connecte
   // sur ce navigateur ne doit pas tomber dans l'écran que le précédent visualisait.
-  try { effacerVueExacte(); } catch { /* hors requête : rien à effacer */ }
+  try { await effacerVueExacte(); } catch { /* hors requête : rien à effacer */ }
   try {
     await signIn("credentials", {
       email: String(formData.get("email") ?? ""),
       password: String(formData.get("password") ?? ""),
-      redirectTo: "/mon-espace",
+      // Adventum IA (`APP_MODE`) : la connexion mène à l'app, l'adresse le dit (le middleware y renvoyait déjà).
+      redirectTo: pageApresConnexion(process.env.APP_MODE),
     });
   } catch (error) {
     // signIn throws a NEXT_REDIRECT on success — let it propagate.
@@ -39,10 +43,10 @@ export async function doSignOut() {
   if (sid) {
     await prisma.userSession
       .update({ where: { id: sid }, data: { revokedAt: new Date() } })
-      .catch(() => undefined);
+      .catch(sansBloquer("auth-actions.doSignOut.userSession"));
   }
   // Se déconnecter termine aussi la vue : elle ne ressurgit pas à la connexion suivante.
-  try { effacerVueExacte(); } catch { /* hors requête */ }
+  try { await effacerVueExacte(); } catch { /* hors requête */ }
   await signOut({ redirectTo: "/login" });
 }
 
@@ -64,9 +68,14 @@ export async function changePassword(
 
   const user = await prisma.user.findUnique({ where: { id: session.user.id } });
   if (!user) return "Utilisateur introuvable.";
+  // Anti-force brute (SA-17) : une session laissée ouverte ne permet pas de deviner le mot de passe actuel à volonté.
+  const cle = cleChangementMotDePasse(user.id);
+  if ((await checkLockout(cle)).locked) return "Trop d'essais du mot de passe actuel : réessayez dans quelques minutes.";
   if (!(await bcrypt.compare(current, user.passwordHash))) {
+    await recordFailure(cle, null);
     return "Mot de passe actuel incorrect.";
   }
+  await clearAttempts(cle);
 
   await prisma.user.update({
     where: { id: user.id },

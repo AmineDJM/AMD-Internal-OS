@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { aVueGlobale } from "@/platform/in-process/sandbox";
 import { RESUME_POUR_PLANNER, SOURCES, listerEvenementsRecus, rattacherEvenement, resumeIngestion } from "@/platform/in-process/events/ingestion";
 

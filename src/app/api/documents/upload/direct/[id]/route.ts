@@ -15,7 +15,8 @@ async function etagsDuCorps(req: NextRequest): Promise<Record<number, string>> {
 }
 
 /** Adresses fraîches pour les parties manquantes (expiration, reprise). */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   try {
@@ -28,7 +29,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 /** Finalise : le document est inscrit si le bucket l'a reçu en entier, à la bonne taille. */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   const r = await finaliserDepotDirectDocument(user, params.id, undefined, await etagsDuCorps(req));
@@ -37,7 +39,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 /** Abandon : les parties déjà envoyées sont libérées dans le bucket. */
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   return NextResponse.json(await abandonnerDepotDirectDocument(user, params.id));

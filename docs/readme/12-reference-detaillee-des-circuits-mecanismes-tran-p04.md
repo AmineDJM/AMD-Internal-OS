@@ -9,7 +9,7 @@ Le module était **une page à sept sections** : on y trouvait tout, sauf vite. 
 | **Congés** | `/rh/conges` | L'état de l'équipe **maintenant** + l'historique des décisions. |
 | **Départements** | `/rh/departements` | La structure (hiérarchie, responsables, rattachements). |
 
-**Sur le fond** — `lib/queries/hr-pulse.ts` (`getHrPulse`) répond à ce que le module ignorait :
+**Sur le fond** — `modules/rh/infra/requetes/hr-pulse.ts` (`getHrPulse`) répond à ce que le module ignorait :
 
 - **qui est absent aujourd'hui** (nombre sur l'effectif, motif, date de retour) — LA question
   quotidienne d'un service RH ;
@@ -174,7 +174,7 @@ vérifie le droit **par nature** (`canSetDepartmentBudget`).
 - **Les deux colonnes sont CÔTE À CÔTE**, et une case non modifiable est **affichée en lecture** (cadenas) plutôt
   que masquée : c'est la seule façon de voir ce que coûte réellement un département. Ce qui est réservé, c'est
   l'écriture, pas la lecture. Qui règle quoi est **écrit à l'écran**, pas seulement appliqué en silence.
-- **La masse salariale RÉELLE est calculée depuis la paie** de l'exercice (**coût employeur** de chaque ligne, repli brut + primes − retenues sur les mois d'avant ce champ — `hr/payroll-cost.ts`),
+- **La masse salariale RÉELLE est calculée depuis la paie** de l'exercice (**coût employeur** de chaque ligne, repli brut + primes − retenues sur les mois d'avant ce champ — `modules/finances/domaine/payroll-cost.ts`),
   jamais saisie — un montant ressaisi dirait ce qu'on espère, pas ce qui se passe.
 - **Le fonctionnement n'a volontairement PAS de colonne de consommation** : aucune dépense n'est aujourd'hui
   imputée à un département, et un chiffre inventé ressemblerait à une mesure sans en être une. La page le dit.
@@ -255,7 +255,7 @@ Marketing aura développées » ; puis « un Budget Regulatory » (« Regulatory
   d'une BU ; sinon sous la Direction commerciale → « hors BU » ; **depuis le 09/10**, un salarié de la **Direction des
   opérations** (ou au rôle directeur des opérations) entre aussi, sous « Direction des opérations » ; personne d'autre. Budget de l'année (catégorie
   `MASSE_SALARIALE_FDV`, sous-catégories par BU — `businessUnitId`) face à la paie réelle (coût de
-  `lib/hr/payroll-cost.ts`), BU par BU, mois par mois — **des totaux** : le détail par personne seulement pour qui voit
+  `modules/finances/domaine/payroll-cost.ts`), BU par BU, mois par mois — **des totaux** : le détail par personne seulement pour qui voit
   les salaires (`voitLesSalaires`), une équipe d'une personne regroupée (`EFFECTIF_MINIMUM` = 2). Catégories d'office
   hors Ad & Pro : véhicules & carburant, déplacements terrain, téléphonie, logistique, formations commerciales.
 - **Migrations** : `20270116090000_budget_marketing` (colonne `domaine` ; marque MARKETING les enveloppes qui ne
@@ -302,7 +302,7 @@ Sociétés → départements (responsable, adjoint) → personnes (poste, N+1) s
 d'une personne se règle sur sa **fiche salarié** (`Employee.departmentId`) ; le libellé texte (`Employee.department`) et
 le département du compte (`User.departmentId`) en **dérivent** et ne se saisissent plus : chaque geste qui change un
 rattachement passe par `lib/org/source-unique.ts` (`alignerSurLaFiche`, `alignerLibellesDuDepartement` — appelés par
-`hr-actions.ts`, `department-actions.ts`, `org-coherence-actions.ts`). La migration `20270118100000_campagne_budgetaire`
+`modules/rh/actions.ts`, `department-actions.ts`, `org-coherence-actions.ts`). La migration `20270118100000_campagne_budgetaire`
 rattrape l'existant (une fiche sans département reprend celui du compte ; libellés et comptes alignés).
 **Contrôle de cohérence** (Super Admin, panneau sur `/organigramme`, `coherence-panel.tsx`) — règle pure
 `lib/org/coherence.ts` (+ `coherence.test.ts`), lecture `coherence-donnees.ts` : comptes divergents, libellés périmés,
@@ -457,6 +457,39 @@ entité) sont éligibles. Supprimer une gamme **ne supprime aucun produit** (`SE
 
 ---
 
+### Refonte des données — les lieux et les coordonnées (vague 2, lot V2-D)
+
+**Le principe** : le texte saisi (`wilaya`, `city`, `wilayaPivot`, `region`, `country`) reste la saisie ; la colonne
+`wilayaCode` (FK → `Wilaya`, 69 wilayas de la loi n° 26-06) en est la **lecture**, posée par une seule règle,
+`rattacherFiche` (`modules/lieux/domaine/rattachement.ts`) : la colonne wilaya prime ; la ville, puis la région, ne parlent que si
+elle est vide ou illisible ; deux wilayas ou un numéro contredit → **nul et listé** ; un pays qui n'est pas l'Algérie →
+pas de wilaya. Le code suit le texte : un texte devenu ambigu remet le code à nul. Cinq fiches :
+`MedicalDoctor`, `MedicalInstitution`, `CompanyContact`, `Supplier`, `SalesSector`.
+
+**Double écriture** : chaque écrivain de ces fiches appelle `reposerWilayaCode(modele, ids)` après son écriture — relit
+la fiche entière (une cellule modifiée seule laisse les autres colonnes parler), pose le code, **n'échoue jamais**
+l'action (erreur journalisée, la reprise rattrape). Interrupteur `AppSetting.lieuxDoubleEcriture` (allumé par défaut),
+réglé sur l'écran de la refonte. Garde : `modules/lieux/double-ecriture-garde.test.ts` (un écrivain sans l'appel, ou une
+exception qui nomme une colonne de lieu, fait échouer `npm test`).
+
+**Reprises** (Administration › Refonte des données, `/admin/refonte-donnees`, **Super Admin seul**) — contrat commun
+`modules/referentiels/domaine/reprises/types.ts` : aperçu à blanc, puis lots de 500 au curseur `"<Table>:<id>"`, chaque geste à
+l'`AuditLog` (module « Refonte des données », champ = clé, curseur en `newValue` : l'écran reprend où l'on s'était
+arrêté). Aucune ne tourne au déploiement.
+
+| Clé | Lit | Écrit | Ne fait jamais |
+|---|---|---|---|
+| `lieux-wilaya` | les colonnes de lieu des cinq fiches | `wilayaCode` (sans toucher `updatedAt`) | modifier le texte ; deviner un cas ambigu |
+| `adresses` | adresses des praticiens, collaborateurs (domicile), établissements, partenaires, fournisseurs, sociétés (siège) | `Adresse` (id `adr_<sha256>` de titulaire + adresse repliée) | créer une Personne / Organisation ; reprendre une adresse à l'étranger ; poser une commune |
+| `points-de-contact` | téléphones, e-mails, sites de dix sources (dont `DirectoryEndpoint`) | `PointDeContact` (E.164 / minuscules / hôte ; id `pdc_<sha256>`) | reprendre une valeur illisible ; marquer un « principal » |
+
+Les reprises R3 ne servent que les fiches **déjà rattachées** (`personneId`, `organisationId`, posés par V2-B / V2-C) ;
+rejouées, elles n'insèrent que ce qui manque. **Lecture** : bandeau « Par wilaya » d'Annuaires › Établissements
+(`groupBy wilayaCode`, la part sans code dite à côté). Communes : table vide, rien d'inventé. Détail :
+`docs/architecture/refonte-v2-lieux.md`.
+
+---
+
 ### Accusés, verrous & confidentialité — règles éparses à ne pas casser
 
 - Événements (`Event`) n'a **pas** de champ `updatedById` → le moteur de workflow le retire avant `update`.
@@ -466,5 +499,410 @@ entité) sont éligibles. Supprimer une gamme **ne supprime aucun produit** (`SE
   fiche est réservé à la **fiche complète** et l'annonce clairement.
 - La **dernière activité** admin = max(`UserSession.lastSeenAt` groupé, `User.lastSeenAt` heartbeat, `lastLoginAt`).
 
+### Coffre des données sensibles — double écriture, double lecture (refonte V2-E)
+
+
+### Refonte des données — le dépôt nourrit les fiches (lot V2-A, 27/10/2026)
+
+**Interrupteur** `AppSetting.enrichissementActif`, **fermé par défaut** ; ouvert / fermé par le Super Admin depuis
+Administration › **Refonte des données** (`/admin/refonte-donnees`, audité). Fermé : rien n'est émis, rien n'est mis en
+file, rien n'est traité.
+
+- **Dépôt** — les trois goulots (`persistUploadedDocument` et `inscrireDocumentDirect` dans `lib/documents.ts`,
+  `attachFiles`, `enregistrerFichierDrive`) appellent `lib/enrichissement/signalement.ts` APRÈS l'écriture acquise : fait
+  `PIECE_DEPOSEE` au registre (inscrit au catalogue des faits) et une ligne `TacheEnrichissement` par (empreinte,
+  rattachement), clé unique — redéposer le même fichier au même endroit ne crée rien. `saveFile` rend `{ blobId, sha256 }`.
+  Pièce d'identité, RH, congés, paie : confidentielle pour le registre et la file (nom réduit à l'extension).
+- **Passage** — `traiterLaFile({ max })` (`lib/enrichissement/traitement.ts`), au battement `runScheduledJobs` (10 tâches
+  au plus) et au bouton « Traiter la file maintenant » ; prise atomique, reprise d'un verrou périmé, réessais espacés,
+  `ECHEC` au 5ᵉ essai (bouton « Relancer les échecs »). Pièce trop lourde (> 15 Mo) ou sans lecteur : `IGNOREE`, dit.
+- **Rien ne quitte le serveur** — texte lu en local (`cloud: false`, une fois par empreinte), classement par règles,
+  extracteurs par règles, devis/factures par la lecture des pièces en mode confidentiel (aucun modèle approché).
+- **Sujet** — la personne de la fiche où la pièce est déposée (voyageur ou fiche hôtellerie à l'étape `stepKey` d'un
+  poste, salarié, candidat), contrôlée par l'empreinte des identifiants au coffre ; jamais un rattachement sur le nom seul.
+  Une fiche porteuse sans Personne en reçoit une, faite de SA saisie. Une organisation se retrouve par NIF / NIS / RC / AI.
+- **Décision** (`enrichissement/decision.ts`) — confirmé d'office (coordonnées lues sur une pièce qui en fait foi,
+  confiance ≥ 0,9), à confirmer, conflit (jamais d'écrasement), ou **coffre** pour les numéros de pièce d'identité, NIN,
+  RIB/IBAN, salaire (porte d'écriture seule `enrichissement/porte-coffre.ts`). Un passeport déposé sur un poste propose
+  nom / prénoms / nationalité sur la Personne du voyageur et range le numéro au coffre.
+- **« À confirmer »** (`/a-confirmer`) — les faits proposés et conflits des pièces que la personne a déposées (le Super
+  Admin voit tout) : confirmer (écrit la fiche, l'ancienne valeur reste dans l'historique), rejeter, trancher.
+- **Rattrapage** — reprise « Rattrapage des pièces existantes » (documents de module déjà en base), par lots, depuis le
+  même écran (contrat commun des reprises : `modules/referentiels/infra/reprises/`).
+- **Ce qui est copié** (`coffre/champs.ts`) : `Employee.iban` (IBAN ou RIB, validé par sa clé), `nationalId` (NIN), les
+  quatre salaires ; `CompanyContact.rib` ; `CompanyLegalIdentity.rib`, `iban`. La colonne reste la vérité jusqu'à P5.
+- **Écriture** (`coffre/ecriture.ts` → `copies.ts`), interrupteur `AppSetting.coffreEcriture` : après chaque écriture de la
+  colonne, dans la transaction de l'écrivain s'il en a une ; sinon non bloquante (journal serveur, la reprise rattrape).
+  Nouvelle valeur → nouvelle copie, l'ancienne datée `remplaceeLe` ; colonne vidée → copie datée ; mal formée → rien.
+- **Lecture** (`coffre/acces.ts`, `lecture.ts`), interrupteur `coffreLecture` : politique (`politique.ts`) → **journal
+  `AccesDonneeSensible` d'abord** (accord comme refus, geste en clair) → valeur (déchiffrée si la copie correspond à la
+  colonne par empreinte) ou **masque**. Fermé : la colonne, sans journal, comme avant.
+- **Écrire sans lire** : un champ montré masqué n'est pas envoyé (ou revient masqué) et garde sa valeur
+  (`champsNonSaisis`) ; une saisie la remplace.
+- **Pièces** (`controlerRibDePiece`, fabrique `platform/ia/artifact/factory.ts`) : tout RIB imprimé est reconnu
+  au coffre par empreinte ; RIB d'une organisation → imprimé au nom de qui émet (journalisé) ; donnée d'une personne
+  non ouverte → masque.
+- **Gardes** : Super Admin seul pour la reprise et les interrupteurs ; jamais un modèle d'IA (politique, API v1, bac à
+  sable SQL, filtre de confidentialité, frontière d'import `frontiere.test.ts`).
+
 ---
 
+### Bibliothèque — toute pièce inscrite, lue une fois, retrouvée par son contenu (lot J1, 29/10/2026)
+
+Décision : `docs/assistant/decisions/0014-bibliotheque.md`. Module `src/modules/bibliotheque/`, écran `/bibliotheque`.
+
+- **Inscription** — tout point d'entrée qui écrit au coffre (`putBlob`, `saveFile`) appelle, APRÈS l'écriture métier,
+  `inscrirePiece` (ou `inscrireDocument`, `inscrireDocumentEcrit`, `inscrireDocumentExistant`, `inscrireDocumentRh`,
+  `inscrireFichierDrive`) de `@/modules/bibliotheque/api-inscription` ; les goulots `enregistrerFichierDrive`,
+  `persistUploadedDocument`, `inscrireDocumentDirect`, `attachFiles`, `putDriveFile` le font pour leurs appelants. Registre
+  `Piece` (une par empreinte, `piece_<sha256>`) + `PieceLien` (l'endroit, type ENTITE) + `BibliothequeFiche` (clés d'accès,
+  métadonnées, file). Ne lève jamais. Cliquet `src/modules/bibliotheque/inscription-cliquet.test.ts` (exceptions nommées).
+- **Clés d'accès** — `FAMILLE:id` : `DRIVE_NODE`, `DOCUMENT`, `MESSAGE_PIECE`, `SUJET_PIECE`, `REUNION_PIECE`,
+  `REUNION_AUDIO`, `RH_DOCUMENT`, `TERRAIN_PIECE`, `TERRAIN_AUDIO`, `RETOUR_PIECE`, `KPI_PIECE`. Exclusives (une version
+  remplace l'autre) : `DRIVE_NODE`, `DOCUMENT`, `REUNION_AUDIO`, `TERRAIN_AUDIO`, `KPI_PIECE`.
+- **Lecture** (tâche `bibliotheque.ingestion`, sous bail, 10 fiches par passage) — lecteurs existants : `lireFichierUneFois`
+  (texte, OCR LOCAL), `parsePptx`, transcription (celle de l'écran si elle existe ; sinon Whisper sous la bascule « voix »,
+  jamais pour une pièce confidentielle). Classement local : identité / paie / RIB → `sensible`. Passages ~800 jetons
+  (chevauchement), vecteurs 512 d par lots de 64 si pgvector est là et si la pièce n'est ni confidentielle ni sensible.
+  Ignorée (dit) : archive, format inconnu, > 40 Mo (enregistrement > 25 Mo). Réessais 1 min → 6 h, ÉCHEC au 6ᵉ.
+- **Rattrapage** (tâche `bibliotheque.rattrapage`) — 25 lignes par famille et par passage, par la même porte ; relecture
+  par lots quand `VERSION_INGESTION` monte. Débrayage des deux tâches : `BIBLIOTHEQUE_INGESTION=off`.
+- **Recherche** `chercherDocuments(user, requête, filtres, { pourModele })` — plein texte français replié (GIN), titre
+  (trigrammes), sens (HNSW, si pgvector) fusionnés par RRF ; filtres format, période, source, objet, famille ; extraits
+  surlignés. Une pièce n'est rendue qu'à qui peut ouvrir l'un de ses endroits — la règle de la route qui sert le fichier
+  (`infra/acces.ts` → `resolveDriveAccess`, `entity-access/ouverture-pieces.ts`, `canAccessConversation`…). `pourModele` :
+  ni confidentiel, ni sensible, extraits filtrés. `ouvrirDocuments(user, ids)` : le texte recousu, mêmes droits.
+- **Super Admin** — `/bibliotheque` montre l'état de la file et le mode (hybride / plein texte) ; « Lire maintenant »
+  (`bibliotheque-actions:lancerPassageBibliotheque`), relance d'une pièce (`relancerFicheBibliotheque`), audités.
+- **Branchée dans l'Assistant IA** (lot J4, décision [0018](../assistant/decisions/0018-vitesse-memoire.md)) : outils
+  `chercher_documents` / `ouvrir_documents` (`pourModele: true`) et `faits_confirmes` (`src/platform/ia/lectures/connaissance.ts`).
+  Pas encore dans Adam ; le corpus réglementaire garde son index (pont : lot J2).
+
+### Travaux longs de l'Assistant IA — le Mission Runtime pour tous (lot J2, 30/10/2026)
+
+Décision [0016](../assistant/decisions/0016-travaux.md). Code : `src/lib/missions/travaux/` (moteur, ports),
+`src/platform/ia/travaux/outil.ts` (outil du socle IA), `src/lib/agent/travaux.ts` (persona Assistant IA),
+`src/lib/actions/assistant-ia-actions.ts` (gestes « travaux »), `src/components/assistant-beta/travaux-panel.tsx`.
+
+- **Un travail = une `Mission` `kind = "TRAVAIL"`** conduite par le même `avancer` qu'Adam : `principalId` = n'importe quel
+  collaborateur (accès au module `ASSISTANT_IA`), `persona` = `ASSISTANT_IA` (ou `ADAM`, port prêt), plusieurs par
+  personne. Les balayages et écrans d'Adam filtrent `kind = "RUNTIME"` : ils ne voient pas les travaux.
+- **Ouvrir** : le tour de l'Assistant IA porte l'outil `lancer_un_travail` et sa consigne (+ un indice quand la demande a la
+  forme d'un travail long) ; le modèle propose un plan (`LECTURE`, `LOTS`, `ANALYSE` avec `pourChaque`, `GESTE`,
+  `ATTENTE`, `LIVRABLE`, condition `si`), relu contre ce que la persona sait lire et faire **pour la personne** (familles de
+  la console comprises). Rien ne tourne avant **« Approuver le plan »** (panneau « Travaux », bouton à côté des routines) :
+  étapes, gestes autorisés (libellé, famille), plafond.
+- **Conduire** (tâche `travaux.balayage`, sous bail) : vagues d'`avancer` ; avant chaque vague, **droits relus**
+  (compte actif, module `ASSISTANT_IA` — sinon pause `DROITS`) et **plafonds** (travail : 20 $ par défaut ; mois de la
+  personne : 50 $ ; jetons du jour) — atteint : pause `BUDGET_HOLD`, notifiée, réveil automatique quand le plafond le
+  permet. Chaque étape écrit son résultat en finissant (point de reprise) ; une étape « en cours » d'un processus mort est
+  reprise après 10 min ; rien d'autre n'est refait.
+- **Gestes** : opérations de l'Assistant IA (`OPERATIONS_IA` hors routines) — permis seulement s'ils sont dans la liste
+  approuvée ET ouverts par la console au moment d'agir ; reçu `TravailEcriture` réclamé avant, clos après : fait = jamais
+  refait, interrompu = jamais rejoué (l'étape échoue et le dit). Trace `ACTION_TRACED` (demandé par… / exécuté par l'Assistant IA).
+- **Carnet** : objectif, plan, notes, trouvailles, livrables — relu par chaque étape de modèle à la place de l'historique.
+- **Attentes** : fait métier (`recordEvent` réveille aussitôt ; prédicat `champs` sur la charge utile ; échéance `jours`)
+  ou minuterie ; « relance si pas de réponse sous 21 jours » = attente + geste `si: { issue: "TIMEOUT" }`.
+- **Panneau** : liste (état, « attend « … » depuis 2 jours », étapes faites, coût / plafond), détail (étapes, livrable,
+  trouvailles, journal), pause / reprendre / annuler ; notification à la fin et **point quotidien** pour un travail de
+  plus d'un jour (lien `/assistant?travail=…`).
+- **Console** `/admin/ai/acces` : plafonds par défaut (par travail, par mois) et par personne (`enregistrerPlafondsTravaux`, audité).
+- **Worker** : sous `TACHES_DE_FOND=les-deux`, le web s'abstient de conduire les travaux dès que le worker bat. Image
+  Docker `Dockerfile.worker` (LibreOffice, ffmpeg, Tesseract) — procédure : [Déploiement — Render](24-deploiement-render.md).
+
+### Sous-missions, tableau de bord en temps réel, dépôt d'office (lot K3, 31/10/2026)
+
+Décision [0033](../assistant/decisions/0033-sous-missions.md). Code : `src/lib/missions/travaux/{service,tableau,regles,balayage,reveil,conduite}.ts`,
+`src/platform/ia/travaux/outil.ts`, module `assistant-ia` : `infra/sous-missions.ts`, `domaine/sous-missions.ts`, `ecrans/missions/`,
+route SSE `app/api/assistant-ia/missions/flux`.
+- **Plusieurs sous-missions par tour** : `lancer_un_travail` sans `remplace` = une de plus ; `remplace` (ou le même titre dans le
+  tour) = reformulation ; `parent` = sous-mission d'un travail de la personne (`parentMissionId`). Conduites EN PARALLÈLE
+  (`TRAVAUX_EN_PARALLELE`, 4), chacune sous le bail de son travail.
+- **D'office** : un plan sans geste (lecture, lots, analyse, livrable) démarre sans clic si la personne l'a réglé — préférence
+  (`AssistantIaPreference`) > console par rôle (`AssistantIaAcces.travauxDOffice`) > oui pour le Super Admin, non sinon.
+- **Retour dans la conversation** : le tour garde ses sous-missions (`AssistantIaTour.travaux`) — carte en temps réel ; à la fin
+  de la dernière, réponse de SYNTHÈSE unique (`syntheseDe`) + notification ; rattrapage `assistant.sous-missions`.
+- **Tableau « Missions »** (app et ERP) : flux SSE (signature SQL chaque seconde, tableau poussé au changement, battement 15 s,
+  reconnexion à 4 min 30, repli en sondage 3 s) ; étapes, lots, coût, durée, journal, livrables ; approuver, pause, reprendre,
+  annuler (avec les sous-missions). Indicateur « 3 missions en cours » dans l'en-tête.
+- **Dépôt d'office** : au-delà de 6 pièces (fichiers isolés ou dossier), une puce « 14 fichiers : tout lire en arrière-plan »
+  — lu en entier par la Bibliothèque, interrogé par `lire_dossier_depose` ; plus de refus à 10 ni de pièce « nommée non lue ».
+- **Recherche approfondie** (`recherche_approfondie`) : plan construit par le code — une `web_research` par angle (2 à 6, en
+  parallèle), puis un LIVRABLE `pdf` (Word + PDF au Drive) ; la synthèse affiche le rapport en entier (sources numérotées).
+
+### Simulation, journal des effets, annulation (lot J7, 30/10/2026)
+
+Décision [0029](../assistant/decisions/0029-simulation-annulation.md). Code : `src/lib/effets/` (façade `lib/contexte-geste.ts`,
+porte IA `platform/ia/hors-requete.ts`), `lib/prisma.ts` (le client du geste), ports dans `mail.ts`, `mail-smart.ts`,
+`mail/graph/provider.ts`, `push.ts`, `site-web/transport.ts`, `storage/object-storage.ts` ; module `assistant-ia` :
+`infra/capacites.ts`, `domaine/simulation.ts`, `actions-gestes.ts`, `ecrans/gestes-assistant.tsx`.
+- **Simulation** : l'action de l'écran s'exécute dans une transaction Prisma annulée (`prisma` route vers elle) ; la
+  capture garde chaque écriture (avant, après, champs) ; les effets externes sont notés et neutralisés ; le diff et son
+  empreinte vont sur la carte. Confirmation : simulation rejouée, empreinte comparée — écart ⇒ rien d'exécuté.
+- **Journal** (`AssistantGesteJournal`, `AssistantEffet`) : cartes confirmées, étapes de travaux, gestes sous mandat.
+  Garde : `AssistantIaReglage.retentionEffetsJours` (console `/admin/ai/acces`), purge `assistant.effets`.
+- **Annulation** (`/assistant/gestes`) : par effet, annulé / compensé / impossible / sans objet + pourquoi ; écriture
+  verrouillée (`FOR UPDATE`), relue, jamais par-dessus une valeur changée depuis ; la personne (ou le Super Admin) seule ;
+  à l'audit ; un lot rend son détail geste par geste.
+
+### Actions métier réversibles (lot K10c, 31/10/2026)
+
+Décision [0040](../assistant/decisions/0044-actions-reversibles-metiers.md) — sur la fenêtre d'annulation et la barre
+« Annuler » de K10b ([0040](../assistant/decisions/0040-reversibilite-communications.md)). Code : `src/lib/effets/{reversible,politiques}.ts`,
+`annulation.ts` / `retablissement.ts` (étendus), gestes inverses `lib/suppression/coeur.ts` (`restaurerDepuisLaCorbeille`),
+`lib/effets/annulation-bibliotheque.ts`, diffusion différée `lib/notifications/diffusion-differee.ts`, déclarations
+`lib/effets/declarations/metiers.ts`.
+- **43 actions** (Ad & Pro, congrès, avances RH, juridique, promo, réservations, validations, réglages de l'Assistant IA,
+  diffusion) enveloppent leur corps par `actionReversible(id, libellé, …)` : au clic, le geste entre au journal des effets
+  (origine « ecran », fenêtre armée : leurs notifications poussées attendent la fenêtre) ; la barre « Annuler » le propose.
+- **Annuler** = `annulerGeste` + politique : **tout ou rien** (un ordre payé depuis, une valeur changée par un autre ⇒
+  rien n'est écrit, liste des bloquants), **rectificatif** à qui avait lu une notification, gestes inverses métier
+  (corbeille, clé d'index de la bibliothèque) ; un numéro de référence consommé n'est jamais rendu (dit). L'annulation est
+  journalisée : **Rétablir** l'annule.
+- **`sendBroadcast`** passe par la fenêtre (exécuteur `notification.diffusion`) : annulé dedans, rien ne part ; après,
+  non lues retirées + rectificatif, la poussée dite partie.
+- Garde : `effets/reversibles-metiers.test.ts` (cliquet : 0 action « aucune » du périmètre), bancs
+  `effets/reversibles-{reglages,circuits,adpro-juridique,promo,reservations}.test.ts` (exécuter puis annuler, base réelle).
+
+### Travaux, suite — délégation, attentes avancées, équipe, livrables au Drive (lot J8, 30/10/2026)
+
+Décision [0023](../assistant/decisions/0023-delegation.md). Code : `src/lib/missions/travaux/` (`delegation.ts`, `jalons.ts`,
+`reveil.ts`, `signaux.ts`), `src/modules/assistant-ia/infra/travaux-{pieces,livrables,equipe}.ts`,
+`src/modules/assistant-ia/infra/operations/delegation.ts`, `src/modules/assistant-ia/actions-travaux.ts`, écrans
+`ecrans/{demandes-recues,travaux-equipe}.tsx`.
+
+- **Délégation** : étape `DEMANDE` (`a`, `question`, `pieces`, `partager`, `jours`) → nœud `WAIT_INPUT`. Dépôt **une fois**
+  par étape (`TravailDemande`, clé `missionId, stepKey`), pièces partagées **en lecture** (`DriveShare`, audit), avis à la
+  personne sollicitée (`/assistant?demande=…`). Elle ne voit que la question, les pièces attendues et partagées — jamais
+  le carnet. Réponse (texte + pièces de **son** Drive, accordées en lecture au demandeur) ou refus motivé → l'étape se
+  règle, la réponse entre au carnet, le travail reprend. Relance (mi-délai), escalade (échéance, au N+1 de l'organigramme),
+  abandon (second délai → issue `TIMEOUT`). Faits `DEMANDE_DEPOSEE` / `DEMANDE_REPONDUE`. Côté sollicité : lecture
+  `mes_demandes_recues` (contenu non fiable) et carte `preparer_reponse_demande` (fiches de la sélection, hors socle).
+- **Attentes** : prédicat de charge utile sur les 34 types du catalogue ; jalons `relance` / `escalade { a: RESPONSABLE }` ;
+  **réveil rapide** — tout ce qui règle une attente signale le travail (`Mission.reveilDemandeLe`), la boucle courte
+  (`armerReveilsTravaux`, 10 s, worker et web) le conduit : p95 mesuré 10 s (critère 90 s).
+- **Plusieurs travaux par personne** : priorité (`HAUTE` / `NORMALE` / `BASSE`), battement servi à tour de rôle par personne.
+- **Équipe** : option console `/admin/ai/acces` « Travaux de l'équipe » (défaut **non**) — un N+1 voit résumé et étapes
+  des travaux de son équipe, en lecture seule ; chaque consultation à l'audit (`Assistant IA — travaux`).
+- **Livrables** : `format` `docx` | `pdf` | `xlsx` | `md` — Word / Excel de la fabrique, déposé au Drive personnel
+  (dossier « Travaux »), inscrit à la Bibliothèque ; PDF par les conversions de l'Atelier. Dépôt sous reçu : jamais deux.
+- **Robustesse mesurée** (`robustesse.test.ts`) : 3 semaines, 10 `SIGKILL` sur de vrais processus, aucun doublon ;
+  web + worker simultanés : un seul exécute.
+
+### L'Atelier de l'Assistant IA — documents affichés et modifiés en direct (lot J3, 30/10/2026)
+
+Décision [0017](../assistant/decisions/0017-atelier.md). Code : `src/platform/ia/artifact/atelier/` (gestes, service,
+conversions, structure — socle IA), `src/modules/assistant-ia/infra/atelier/outils.ts` (outils),
+`src/modules/assistant-ia/actions-atelier.ts` (clé `assistant-ia-atelier-actions`), `src/app/api/assistant-ia/atelier/route.ts`,
+`src/modules/assistant-ia/ecrans/atelier/` (écran).
+
+- **Ouvrir** : « Ouvrir dans l'Atelier » (aperçu d'une pièce) ou l'outil `ouvrir_dans_l_atelier` ; un onglet = une
+  `ArtifactSession` (`blockId` `atelier-…`) ; rendu fidèle par format (scènes du Live Office : Word, PowerPoint, grille Excel,
+  pages PDF rastérisées). Droits = ceux du fichier (`canViewDrive`) ; sans `canEditDrive` : **lecture seule**, modification
+  refusée avant d'être appliquée. Onglets multiples, « Côte à côte », poignée 25–75 %, plein écran ; téléphone : panneau plein écran.
+- **Modifier** : l'outil `modifier_document` reçoit des **gestes** typés, traduits en commandes IR par format
+  (`gestes.ts`) et appliqués **un par un sur le fichier d'origine** (styles, tableaux, mise en page conservés). L'écran relit
+  `/api/assistant-ia/atelier` (0,6 s pendant un tour, 8 s sinon), relit la vue d'un onglet dont la révision a bougé,
+  calcule ce qui a changé **par contenu** (`zonesModifiees`), y navigue et l'anime (surlignage, texte qui s'écrit, diapositive
+  qui apparaît ; rien sous `prefers-reduced-motion`).
+- **Revue** : une ligne par modification (`ArtifactOperation.revue`) — accepter, refuser (= annulée, rejeu exact), remettre à
+  revoir ; tout accepter ; annuler / rétablir.
+- **Enregistrer** : `FileVersion` n+1, jamais d'écrasement ; inscription Bibliothèque par le port. Document rattaché à un
+  objet métier (pièce juridique, courrier, espace partagé — `documentSensible`) : **carte de confirmation**
+  (`enregistrer_document`, famille Drive + Écritures). **Comparer** : avant / après côte à côte + différences constatées.
+- **Convertir** : Word/PowerPoint/Excel → PDF, tableau Word → Excel, PDF → Word (texte seulement) ; voie WORKER (LibreOffice
+  de l'image, tâche `atelier.conversions` sur le worker), EDITEUR (OnlyOffice), LOCAL, RENDU (`docxToPdf`), MAISON —
+  **affichée** ; résultat = nouveau fichier du dossier « Atelier » ; la dernière version enregistrée.
+- « Demander une modification » ouvre l'Atelier et pré-remplit la demande ; `preparer_document` ne sert plus qu'à créer.
+
+### « Mes notes » — le bloc-notes privé de l'Assistant IA (30/10/2026)
+
+Décision [0026](../assistant/decisions/0026-notes.md). Code : `src/modules/assistant-ia/domaine/notes/` (règles pures),
+`infra/notes/{pages,propositions,outils}.ts`, `actions-notes.ts` (clé `assistant-ia-notes-actions`), `ecrans/notes/` (panneau,
+éditeur — chargés à la demande), `ecrans/notes-proposees-card.tsx` ; tables `AssistantIaNote{Page,Version,Corbeille,Proposition}`.
+
+- **Ouvrir** : l'icône bloc-notes en haut de la conversation (`/assistant`) ; panneau à droite (plein écran sur téléphone).
+- **Écrire** : pages créées, nommées (double-clic / F2), réordonnées, mises à la corbeille ; blocs texte, titre, puce, case ;
+  Tab / Maj+Tab, Alt+↑/↓ ou glisser, Ctrl+Entrée coche ; raccourcis « - », « [] », « # ». Enregistrement automatique
+  (verrou de version) ; historique (≤ 1 version / 5 min, toujours avant une modification de l'IA) ; corbeille 30 jours.
+- **Privé** : seule la personne (session) ; « Vue exacte » refusée même en lecture ; aucun écran d'administration ; le
+  journal d'audit ne garde que les gestes de l'IA, jamais le texte.
+- **L'IA propose, la personne décide** : `lire_notes` (seulement si la demande en parle), `ajouter_note`, `modifier_note`,
+  `cocher_note`, `deplacer_note`, `supprimer_note`, `creer_page`, `renommer_page` créent une **proposition** — surlignée dans la
+  page et sur une carte de la conversation ; Accepter / Refuser, « Tout accepter », puis « Annuler » (24 h). Un montant d'une
+  ligne sensible part au modèle en repère ⟦Sn⟧. Hors routines et travaux. La voix utilise les mêmes outils.
+
+### Assistant IA — vitesse et mémoire (lot J4, 30/10/2026)
+
+Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/modules/assistant-ia/domaine/{selection-outils,assembleur}.ts`,
+`domaine/fil/resume.ts`, `infra/{selection,contexte,repondre,modele}.ts`, `infra/fil/{tour,service,resume}.ts` ; socle
+`src/platform/ia/{modeles-roles.ts,lectures/connaissance.ts}`.
+
+- **Outils d'un tour** : tous enregistrés, seuls les **actifs** partent au modèle à chaque étape — socle (10), présélection
+  par la demande (6), et ceux qu'ajoute `trouver_outil(intention)`. Les fiches sont les outils offerts sous les droits
+  (`allowed`, configuration du rôle) ; les familles de la console jugent à l'exécution. `trouver_outil` n'apparaît pas
+  dans « sources consultées ».
+- **Consigne** : préfixe stable (identité, règles, présentation, consignes générales, la personne), partie variable
+  (indice de travail long, mémoire, résumé), heure en dernier ; règles d'une famille d'outils seulement si elle est offerte.
+- **Conversation** : 4 échanges mot pour mot ; au-delà de 7, les plus anciens passent au **résumé roulant**
+  (`AssistantIaFil.resume`), régénéré par le modèle rapide après la réponse ; « nouvelle conversation » l'efface.
+- **Connaissance** : `chercher_documents` / `ouvrir_documents` (Bibliothèque, `pourModele: true`, famille « Drive &
+  documents »), `faits_confirmes` (un fait n'est rendu qu'à qui peut ouvrir sa pièce ; jamais un fait sensible).
+- **Modèle par geste** : rapide `gpt-6-luna` (résumé), standard `gpt-6.1-terra` effort `low`, raisonnement effort
+  `medium` (analyse, comparaison, plusieurs pièces) — variables `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`.
+
+### Assistant IA — le registre des capacités et l'appel générique (lot J6, 30/10/2026)
+
+Décision [0020](../assistant/decisions/0020-capacites.md). Code : socle `src/platform/ia/capacites/` (registre PUR, classement,
+portes, lexique, cliché `classement.genere.json`) ; module `src/modules/assistant-ia/infra/{capacites,lectures-erp}.ts`,
+`domaine/capacites.ts` ; `npm run capacites:classement`.
+
+- **Registre dérivé** de `lib/actions/contrat.genere.json` (1 206 actions), des outils de l'Assistant IA et des 16 commandes de
+  l'Atelier : schéma JSON + zod, famille de la console, libellé français, risque **R0 → R4**, simulable (J7), annulation
+  (`lib/annulation/reversibilite.ts`), contenu tiers, porte d'écran. Jamais appelable : `illisible`, refusée au chemin
+  générique, hors de l'assistant (`portes.ts`), objet binaire. Le cliché relu fait échouer `registre.test.ts` pour toute
+  action nouvelle non classée.
+- **Appel** : offerte si la porte de l'écran est ouverte ; R0 exécutée pendant le tour sous la session de la personne ; R1/R2
+  carte, R3/R4 carte renforcée (ressaisie) ; à la confirmation, arrêt d'urgence, porte et famille relus, puis l'ACTION ELLE-MÊME
+  (`executerAction`). Pas dans les travaux (J2) : un geste de capacité repasse toujours par une carte.
+- **Sélection** : les capacités sont des fiches de `trouver_outil` et de la présélection (J4) — rappel@5 96 % sur 300
+  demandes, 3 837 jetons fixes au pire, jamais hors droits.
+- **Adam n'est plus emprunté** (`RESIDUS` vide) : écritures → capacités ; `send_message` → opération propre ; lectures
+  transverses → outils propres (`lectures-erp.ts`, `read_budget`, `read_hr_overview`, `finance_totals`).
+- **Aucune régression de capacité** (0020 § 8, [inventaire](../assistant/decisions/0020-inventaire.md)) : les 123 gestes
+  qu'Adam prêtait avant J6 ont chacun leur équivalent appelable, ouvert à chaque rôle d'avant (`npm run capacites:inventaire`,
+  test `equivalents-avant-j6.test.ts`). Actions d'écran ajoutées : `modifierTache` (échéance, priorité, responsable),
+  `corrigerMaDemande`, `modifierChampPersonnalise` ; fiche employé par la politique `interdictionDeLAssistantIa`
+  (`GESTES_DE_FICHE` : jamais `userId`, R4, fiche relue et rejouée à la confirmation) ; portes nommées geste par geste
+  (`PORTES_DU_GESTE` : « le propriétaire OU le droit du module ») ; un fichier facultatif n'empêche plus l'appel.
+
+### Adventum IA — conversations multiples, privée, dossiers, app et site propre (décision 0027, 30/10/2026)
+
+Fichiers : `src/modules/assistant-ia/{domaine/conversations.ts,domaine/dossiers.ts,infra/conversations/*,actions-conversations.ts}`,
+`ecrans/{use-fil,use-pieces}.ts`, `ecrans/conversations/`, `ecrans/app/`, `src/app/ia/`, `src/platform/app-mode.ts`,
+`src/auth.config.ts` (middleware), `public/adventum-ia/`, `public/ia-sw.js`, `render.yaml` (`adventum-ia`).
+
+- **Conversation** = un `AssistantIaFil` (plusieurs par personne). Écrire : `envoyerAuFil(texte, pieces, conversation)` ou
+  `/api/assistant-ia/vocal` (champ `conversation`) ; lire : `/api/assistant-ia/fil?c=`. Sans conversation : la courante
+  (plus récente, ni archivée ni privée). Une conversation « nouvelle » n'existe qu'au premier envoi (`creerMaConversation`,
+  privée choisie là). Titre : provisoire au dépôt, proposé par le modèle rapide après la 1re réponse, jamais sur un titre manuel.
+- **Gardes** : porte `porte()` (module `ASSISTANT_IA`, session, pas d'écriture en Vue exacte) ; chaque `where` porte `userId`.
+  Privée : `reglerPrive` refusé dès un tour (et en base : `tours: { none: {} }`) ; ni mémoire (`sansMemoire`), ni
+  `proposer_memoire`, ni `chercher_conversations` ; purge 30 j (`assistant.conversations-privees`).
+- **Dossier** (`AssistantIaDossier`) : consignes + documents ; documents ajoutés seulement s'ils sont ouvrables
+  (`piecesCitees`), revérifiés à chaque tour (`sectionDossierDuTour`), nommés au modèle avec leur identifiant.
+- **Mode app** (`APP_MODE=adventum-ia`) : `/`, `/mon-espace`, `/aujourdhui` → `/ia` ; `/assistant?c=` → `/ia?c=` ; pages
+  permises : `/ia`, `/login`, `/change-password`, `/office-embed` ; API permises : assistant-ia, drive, documents, artifact,
+  push, health, onlyoffice, rh/document, auth ; le reste → `ERP_URL` (page) ou 404 (API).
+- **Appareils** : `listerMesAppareils` / `deconnecterMonAppareil` révoquent SES `UserSession` (honoré à la requête suivante).
+### Graphe de l'entreprise et faits datés (lot J9, 30/10/2026)
+
+Décision [0021](../assistant/decisions/0021-graphe.md). Module `src/modules/graphe-entreprise/` ; outils au socle
+`src/platform/ia/lectures/graphe.ts` ; fermeture bitemporelle `src/lib/enrichissement/confirmation.ts`.
+
+- **Une vue, pas un registre** : nœuds = fiches canoniques (`Personne`, `Organisation`, `Product`, `RegulatoryProduct`,
+  sponsoring / événement / demande « autre », congrès, `Piece`), arêtes datées lues dans `EntityLink`, `PieceLien`,
+  `FaitConfirme` (`atteste`, jamais un fait sensible), `EntityMention` et les clés métier (affiliation, emploi, dossier,
+  demandes, congrès). Une clé étrangère dit l'état actuel, et l'arête le dit.
+- **Droits avant le parcours** : types fermés non lus (module RBAC, ou famille de la console fermée : Réglementaire →
+  dossiers, Ad & Pro → demandes et congrès, Drive & documents → documents) ; chaque nœud jugé par la portée de son écran
+  (`scopeRegulatory` + verrou, `scopeSponsoring`, `scopeCongress*`, `scopeAdProOther`, `piecesOuvrables`) AVANT d'être
+  traversé ; pour un modèle, ni pièce confidentielle ni pièce du coffre. Profondeur ≤ 3, bornes dites (`tronque`).
+- **Résolution** : arabe ↔ latin (translittération + squelette consonantique), particules (Ben, Abd El, Aït), fautes,
+  sigles (ENPP), NIF/RC ; homonymes = question ; les candidats hors droits sont écartés avant le verdict.
+- **Faits bitemporels** : validité (`valideDu`/`valideAu`) ≠ constat (`confirmeLe`/`fermeLe`) ; un fait remplacé est
+  FERMÉ (`fermeLe`, `fermeParId`, `remplaceParId`), jamais écrasé. État à une date, et « ce qu'on savait » à une autre.
+- **Outils de l'Assistant IA** : `explorer_relations`, `etat_a_une_date`, `d_ou_vient` — fiches de la sélection ; chaque
+  chiffre porte sa `source` (vérifié au banc : `chiffresSansSource`).
+### Terrain et voix (lot J13, 30/10/2026)
+
+Décision [0025](../assistant/decisions/0025-terrain-voix.md). Code : `src/modules/assistant-ia/domaine/terrain/`,
+`infra/terrain/captation.ts`, `infra/operations/terrain.ts`, `infra/voix/temps-reel.ts`, `ecrans/terrain/`,
+`ecrans/voix-temps-reel.tsx` ; socle `src/platform/ia/voix/` ; page `/medical/terrain` ; routes `/api/assistant-ia/terrain`,
+`/api/assistant-ia/voix/{session,delegation,journal}` ; table `AssistantIaTerrainCapture`.
+
+- **Vocal → compte rendu** : file locale → dépôt idempotent (clé de capture) → Drive « Terrain — vocaux et photos » →
+  `gpt-transcribe` (langue détectée, indice du panel et de la gamme ; mesuré meilleur des quatre moteurs) → structuration
+  JSON relue → médecin résolu dans l'annuaire DU délégué (jamais deviné) → **cartes** : brouillon de compte rendu
+  pré-rempli (`createFieldReport` + `updateFieldReport`), demande d'échantillons (`demanderMateriel`), tournée de demain
+  (`planifierVisites`, sélection complète relue). **Rien n'est écrit sans clic** ; confirmation par `confirmerCarteTerrain`
+  (porte : module Rapports terrain ; seulement les opérations `terrain_*` de ce compte).
+- **Photos** : présentoir, ordonnance anonymisée (aucune donnée patient recopiée, filtrée en sortie), facture, carte de
+  visite → faits proposés ; carte « rattacher au compte rendu » → `rattacherPhotoTerrain` (brouillon seulement).
+- **Hors ligne** : IndexedDB, un élément ne sort de la file que sur l'accusé du serveur ; réessai 5 s → 5 min ; refus 4xx
+  gardé à relire ; envoi au retour du réseau ; état visible ; `sw.js` sert l'écran Terrain hors ligne (et rien d'autre).
+- **Voix temps réel de l'Assistant IA** (GPT-Live `gpt-live-1` seul, décision de Direction du 30/10 ; bouton à côté du
+  micro de `/assistant`) : l'offre WebRTC est échangée par notre serveur (`/v1/live/sessions`, aucun secret au
+  navigateur) ; GPT-Live converse et **délègue** ; la demande dite part dans **le même fil** que le texte, jouée par le
+  même assistant (outils, droits, console, repères, cartes) ; le résultat revient à la voix sans valeur sensible ;
+  **aucune confirmation à la voix** — une écriture est une carte, exécutée par son bouton. Modèle réglable par le Super
+  Admin (Consommation IA) ou `ASSISTANT_IA_VOICE_MODEL`. Latence mesurée sur la ligne de temps de la session (cible p50
+  ≤ 1,5 s, première mesure réelle à relever en production).
+
+### Recettes — la mémoire procédurale (lot J10, 30/10/2026)
+
+Décision [0028](../assistant/decisions/0028-recettes.md). Module `src/modules/recettes/` ; page `/recettes` ; outil
+`src/modules/assistant-ia/infra/recettes.ts` ; tâche `recettes.extraction`.
+
+- **Sources** (`infra/sources.ts`, 24 mois) : circuits Ad & Pro (`WorkflowStepEvent` + définition : rôles, `autoSkipMaxAmount`),
+  validations par module (`ValidationStep`), recrutement (`RecruitmentApproval`), travaux J2 réussis (forme du plan), formes
+  d'Adam `VALIDATED` ; pièces `PieceLien` → `Piece.nature` ; acteurs par RÔLE, jamais par nom.
+- **Extraction** (`domaine/extraction.ts`) : rien sous le seuil (5 dossiers clos acceptés, plancher 3, réglable par processus) ;
+  étapes par rang moyen, validateurs, pièces ≥ 50 %, seuil réglé ou observé (palier rond strictement entre les deux groupes,
+  `seuilRond`), médiane et p90, pièges répétés sur ≥ 2 dossiers (chiffres masqués). Idempotente (signature de structure).
+- **Vie** (`domaine/etats.ts`) : PROPOSEE → VALIDEE → REMPLACEE / RETIREE, ou REJETEE (motif). Seul le responsable désigné
+  (`RecetteResponsable` : rôle ou personne, par processus ; désigné par Super Admin / Direction) tranche, et seulement un
+  circuit dont il voit l'écran. Corriger = une version de plus.
+- **Assistant** : `recette_pour(intention, plan?)` → `AUCUNE` | `AMBIGU` (question) | `RECETTE` (fiche, phrase « selon la
+  recette … validée par … le … », plan J2 : ANALYSE → LIVRABLE → ATTENTE médiane → LIVRABLE, écarts). Version VALIDÉE
+  seulement ; famille fermée → processus retirés. `RecetteUsage` ; acceptation lue au travail lancé (même plan approuvé).
+- **Droits** : `voitLeCircuit` (module de l'écran du circuit ; formes d'Adam : Super Admin) — écran et assistant.
+
+
+### Assistant IA — images, vidéos et vidéos de données (lot K2, 31/10/2026)
+
+Décision `docs/assistant/decisions/0032-visuels.md`.
+
+- **Circuit d'une image** : outil `generer_image` / `modifier_image` → famille de console `VISUELS` (fermée par défaut,
+  Super Admin toujours) → `service.ts:genererImage` : interrupteur « Images » (Administration › IA) → interrupteur général
+  de l'IA → `filtrerConsigne` (aucune donnée confidentielle) → plafond du mois (somme `AiUsageLog` route `image`) →
+  OpenAI `gpt-image-2.5-sunburst` (secours `gemini-3-pro-image` seulement si OpenAI échoue ou refuse, dit) → coût réel au
+  journal → Drive personnel « Visuels de l'assistant » (Bibliothèque) → `AssistantIaVisuel` PRÊT → bloc `visuel` dans la
+  réponse (plein écran, Télécharger, Drive).
+- **Circuit d'une vidéo de données** : `video_de_donnees` → chaque valeur doit figurer dans les sorties d'outils du tour
+  (sinon refus nommant la valeur) → `AssistantIaVisuel` EN FILE → rendu immédiat si ffmpeg est là, sinon par le worker
+  (tâche `assistant.visuels`) → MP4 H.264 au Drive → carte mise à jour (relit `/api/assistant-ia/visuels/[id]`) → notification.
+- **Vidéo générée** : `generer_video` vérifie d'abord la fiche du modèle (`/v1/models/{id}`) — Sora arrêté le 24/09/2026 :
+  refus sans rien lancer ni facturer. Interrupteur coupé par défaut.
+- **Média** : `/api/assistant-ia/visuels/[id]/media` — propriétaire seule, droits du Drive relus, requêtes partielles (206,
+  indispensables au lecteur de l'iPhone), `?dl=1` à l'audit.
+
+### Chantiers de développement — Adam supervise Claude Code, GitHub et Render (lot C1, 01/11/2026)
+
+Décision [0042](../assistant/decisions/0042-chantiers-socle.md), architecture [CHANTIERS-DEV](../architecture/CHANTIERS-DEV.md).
+Code : `src/lib/missions/chantiers/` (moteur), `src/platform/dev/ports.ts` (contrat des connecteurs, adaptateurs au lot C2),
+`src/lib/models/mimo.ts` (passerelle), module `assistant-ia` : `infra/chantiers.ts`, `ecrans/reglages-chantiers.tsx`,
+`ecrans/missions/tableau-missions.tsx`.
+- **Qui** : le Super Admin seul (rôle relu à chaque passage et à chaque geste). Un chantier = `Mission` `kind = "CHANTIER"`,
+  conduite par le moteur des travaux (bail, reçus, reprise après coupure, tableau « Missions »).
+- **Étapes** (DSL fermé) : `DEV_LANCER` (dépendances, réservations, une session Claude Code sous reçu) → `DEV_ATTENDRE` (commit
+  neuf, sondage 1 → 10 min, 6 h au plus) → `DEV_VERIFIER` (périmètre, PR, checks du SHA de tête) → `DEV_CORRIGER` si rouge
+  (Auto-fix, relais, commentaire `@claude` sur la PR, anti-boucle) → `DEV_FUSIONNER` (carte « Fusionner la PR #n (« titre »)
+  dans main », écrite ou orale ; fusion par l'API GitHub au SHA vérifié ; CI de main sur le commit de fusion ; protection de
+  branche → refus clair) → par service, ERP d'abord : `RENDER_DEPLOYER` (preuve verte exigée ; rien sans fusion aboutie ;
+  revérification du SHA d'intégration si d'autres fusions sont passées) → `RENDER_VERIFIER` (santé, journaux) →
+  `RENDER_ROLLBACK` si malsain (autoDeploy coupé) → `RAPPORT` (SHA, checks, live, santé, coût).
+- **Réservations** `ChantierReservation` : `BRANCHE`, `PERIMETRE` (recouvrement → file d'attente), `MIGRATIONS` et
+  `DEPLOIEMENT` exclusifs ; tout ou rien, sous verrou ; expirent à 6 h si le chantier meurt.
+- **Anti-boucle et budgets** : même échec 2× → Sol une fois, 3× → blocage réel ; console Administration › IA › Chantiers
+  (dollars par chantier et par jour, lancements, déploiements, tentatives, parallélisme) → pause `BUDGET_HOLD` et reprise seule.
+- **Validation de la Direction** (carte du tableau, ou « valide » à l'écrit comme à l'oral dans la conversation) :
+  production, fusion sur main, rollback de production.
+- **Conversation** (Adventum IA et Adam — `chantiers/outils.ts`, `platform/in-process/chantiers/outils-adam.ts`) : `lancer_un_chantier`,
+  `ou_en_est_chantier`, `valider_chantier` (« vas-y » après relecture vocale), `annuler_chantier` (dont `annulerFusion`).
+- **Réversible** : annuler la validation (`validerMonChantier`, journal J7) retire la carte, ou compense une fusion faite par
+  une **PR de revert** (`platform/in-process/chantiers/compensation.ts`) — jamais un force-push.
+- **Réveil** : un `BusinessEvent` `DEV_*` / `RENDER_*` (webhooks C2) réveille le chantier concerné (`chantiers/reveil.ts`).
+- **Rapport** : Word au Drive (« Travaux »), aux livrables, et dans la conversation qui l'a lancé (synthèse K3, avec le lien).
+- **Mémoire technique** `MemoireTechnique` (dépôts, services, branches, incidents) : extraits ≤ 2 k jetons dans la consigne.
+- Sans connecteurs branchés (C2), un chantier ne part pas et le dit.

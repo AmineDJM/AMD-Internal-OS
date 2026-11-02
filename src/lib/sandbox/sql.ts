@@ -38,8 +38,14 @@ export const TABLES_AUTORISEES: ReadonlySet<string> = new Set([
   "BudgetEnvelope", "BudgetCategoryLine", "DepartmentBudget", "DepartmentBudgetExpense", "Sale", "FieldReport", "AuditLog",
 ]);
 
-/** Les colonnes masquées à la sortie même sur une table autorisée. */
-const COLONNES_MASQUEES = new Set(["passwordHash", "iban", "rib", "swift", "nationalId", "cnasNumber", "tokenVersion", "secret", "apiKey", "token", "vapidPrivateKey"]);
+/**
+ * Les colonnes masquées à la sortie même sur une table autorisée. Les salaires y sont depuis la refonte V2-E :
+ * ce sont des données du coffre, qu'aucun modèle d'IA ne lit (`coffre/ia-jamais.test.ts` le vérifie).
+ */
+export const COLONNES_MASQUEES: ReadonlySet<string> = new Set([
+  "passwordHash", "iban", "rib", "swift", "nationalId", "cnasNumber", "tokenVersion", "secret", "apiKey", "token", "vapidPrivateKey",
+  "baseSalary", "grossSalary", "netToPay", "employerCost",
+]);
 
 const INTERDITS = /\b(pg_read_file|pg_read_binary_file|pg_ls_dir|copy|dblink|lo_import|lo_export|pg_sleep|set_config|current_setting|pg_terminate_backend|pg_cancel_backend|pg_stat_activity|pg_shadow|pg_authid|pg_user|information_schema|pg_catalog|pg_roles|txid_current|pg_advisory_lock|into\s+outfile|create|alter|drop|truncate|insert|update|delete|grant|revoke|vacuum|analyze|reindex|cluster|listen|notify|set\s+role|reset|do)\b/i;
 

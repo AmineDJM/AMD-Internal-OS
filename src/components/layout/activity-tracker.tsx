@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
+import { sansBloquer } from "@/lib/journal";
 
 interface Geo { lat: number; lng: number; acc: number }
 
@@ -60,7 +61,7 @@ export function ActivityTracker() {
     const uad = (navigator as Navigator & { userAgentData?: UAData }).userAgentData;
     uad?.getHighEntropyValues?.(["model", "platform"]).then((v) => {
       devRef.current = [v.platform, v.model].filter(Boolean).join(" ").trim() || null;
-    }).catch(() => undefined);
+    }).catch(sansBloquer("activity-tracker.ActivityTracker.getHighEntropyValues"));
   }, []);
 
   React.useEffect(() => {

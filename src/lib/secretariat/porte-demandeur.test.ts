@@ -3,7 +3,7 @@ import {
   FENETRE_DISCRETE_MS, porteDuDemandeur, estDiscrete, refusDeModification, changementsDeLaDemande,
   suitLaDemandeDeBcDuPoste, refusDemandeDeBcDuPoste, type DemandeVueParSonDemandeur, type ContenuDemande,
 } from "./porte-demandeur";
-import { TITRE_BC_A_ETABLIR } from "@/lib/ad-pro/pieces-secretariat";
+import { TITRE_BC_A_ETABLIR } from "@/modules/ad-pro/partage";
 
 /**
  * UNE DEMANDE AU SECRÉTARIAT NE SE FIGE PAS À LA TRENTE ET UNIÈME MINUTE (§118.187, audit R08) — chaque

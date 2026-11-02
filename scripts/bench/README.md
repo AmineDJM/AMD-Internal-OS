@@ -60,3 +60,16 @@ détail part en JSON dans `bench-out/` (ignoré par git). Les tables AVANT/APRÈ
 
 Deux règles : le jeu ne se sème jamais sur une base distante (le script refuse), et un cas qui échoue est une
 information — on corrige le produit ou le verdict, jamais le chiffre.
+
+## Le banc « Jarvis » de l'Assistant IA (`assistant-jarvis-live.ts`)
+
+Vingt-six scénarios (annuaire, RH, Regulatory, Ad & Pro, Drive, pièces jointes, vocal, tâche longue) joués en Super
+Admin puis en assistante de direction, **par le fil gardé** (`deposerMessage` + `traiterFil`, comme l'écran
+`/assistant`), avec verdicts automatiques, latence vue par l'écran et coût lu au journal de consommation. Semis :
+`seed-assistant-jarvis.ts`, par-dessus celui d'Adam. Rapport et manques : `docs/bench/assistant-jarvis-live.md`.
+
+```bash
+BENCH_SEED_ALLOW=1 npm run adam:bench:seed
+BENCH_SEED_ALLOW=1 npm run bench:live -- scripts/bench/seed-assistant-jarvis.ts
+npm run bench:live -- scripts/bench/assistant-jarvis-live.ts      # JARVIS_ONLY=01-,17-  JARVIS_BUDGET_USD=5
+```

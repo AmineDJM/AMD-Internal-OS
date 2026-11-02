@@ -4,11 +4,12 @@ import * as React from "react";
 import { Loader2, Plus } from "lucide-react";
 import { createPromoMessage, updatePromoMessage, deletePromoMessage } from "@/lib/actions/promo-message-actions";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { MenuDossier } from "@/components/shared/menu-dossier";
-import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
 import { LETTRES_COMPTEES } from "@/lib/marketing-cockpit/calculs";
 import type { Lettre } from "@/lib/segmentation/regles";
 import { cn } from "@/lib/utils";
@@ -50,26 +51,18 @@ export function MessagesManager({
   defauts: { businessUnitId: string | null; productId: string | null };
   cycle: string;
 }) {
-  const { rafraichir } = useRafraichir();
+  const { busy, err, setErr, run: lancer } = useAction();
+  const confirmer = useConfirmer();
   const [creating, setCreating] = React.useState(false);
   const [editing, setEditing] = React.useState<MessageEcran | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
 
-  const run = async (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => {
-    setBusy(true); setErr(null);
-    const r = await action(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Action impossible."); return false; }
-    rafraichir();
-    return true;
-  };
+  const run = (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => lancer(() => action(fd));
 
   const retirer = async (m: MessageEcran) => {
     const texte = m.usages > 0
       ? `Archiver « ${m.title} » ?\n\nIl quitte le menu des KAM. Ses ${m.usages} portage(s) restent dans l'historique.`
       : `Supprimer « ${m.title} » ?\n\nIl n'a jamais été porté : rien à garder.`;
-    if (!window.confirm(texte)) return;
+    if (!(await confirmer(texte))) return;
     const fd = new FormData();
     fd.set("id", m.id);
     await run(deletePromoMessage, fd);

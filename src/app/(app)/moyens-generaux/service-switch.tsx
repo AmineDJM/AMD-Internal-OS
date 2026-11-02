@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { Loader2, Landmark, Check } from "lucide-react";
 import { setGeneralMeansDepartment } from "@/lib/actions/general-means-service-actions";
 
@@ -17,8 +17,8 @@ export function ServiceSwitch({ departmentId, departmentName, current }: {
   departmentName: string;
   current: string | null;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // Le bouton n'a pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
   if (current === departmentId) {
     return (
       <span className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-success/40 bg-success/10 px-3 py-1.5 text-sm font-medium text-success">
@@ -30,14 +30,10 @@ export function ServiceSwitch({ departmentId, departmentName, current }: {
     <button type="button" disabled={busy}
       title={`Tout le monde ouvrira la caisse de « ${departmentName} » en arrivant sur les moyens généraux.`}
       onClick={async () => {
-        if (!window.confirm(
-          `Faire de « ${departmentName} » LE service des moyens généraux ?\n\nC'est cette caisse que toute la société ouvrira désormais.`,
-        )) return;
-        setBusy(true);
         const fd = new FormData(); fd.set("departmentId", departmentId);
-        const r = await setGeneralMeansDepartment(fd);
-        setBusy(false);
-        if (r.ok) router.refresh(); else window.alert(r.error ?? "Échec.");
+        await run(() => setGeneralMeansDepartment(fd), undefined, {
+          confirmer: `Faire de « ${departmentName} » LE service des moyens généraux ?\n\nC'est cette caisse que toute la société ouvrira désormais.`,
+        });
       }}
       className="inline-flex items-center gap-1.5 rounded-lg border border-input px-3 py-1.5 text-sm font-medium hover:bg-secondary disabled:opacity-50">
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Landmark className="h-4 w-4" />}
@@ -62,11 +58,9 @@ export function ChangerDeService({ departements, actuel, ouvertParDefaut = false
   actuel: string | null;
   ouvertParDefaut?: boolean;
 }) {
-  const router = useRouter();
   const [ouvert, setOuvert] = React.useState(ouvertParDefaut);
   const [choix, setChoix] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, setErr, run } = useAction();
   const candidats = departements.filter((d) => d.id !== actuel);
 
   if (!ouvert) {
@@ -84,13 +78,10 @@ export function ChangerDeService({ departements, actuel, ouvertParDefaut = false
         e.preventDefault();
         const cible = departements.find((d) => d.id === choix);
         if (!cible) return;
-        if (!window.confirm(`Faire de « ${cible.libelle} » LE service des moyens généraux ?\n\nC'est cette caisse que toute la société ouvrira désormais.`)) return;
-        setBusy(true);
-        setErr(null);
         const fd = new FormData(); fd.set("departmentId", cible.id);
-        const r = await setGeneralMeansDepartment(fd);
-        setBusy(false);
-        if (r.ok) { setOuvert(false); setChoix(""); router.refresh(); } else setErr(r.error ?? "Échec.");
+        await run(() => setGeneralMeansDepartment(fd), () => { setOuvert(false); setChoix(""); }, {
+          confirmer: `Faire de « ${cible.libelle} » LE service des moyens généraux ?\n\nC'est cette caisse que toute la société ouvrira désormais.`,
+        });
       }}
     >
       <label htmlFor="mg-service" className="sr-only">Département qui tient les moyens généraux</label>

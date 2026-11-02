@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { entityHref, noHrefReason } from "./entity-href";
-import { AD_PRO_ENTITY_TYPE } from "./ad-pro/unified";
+import { AD_PRO_ENTITY_TYPE } from "@/modules/ad-pro/partage";
 
 describe("où s'ouvre un objet", () => {
   it("les origines RÉELLES des ordres de dépense s'ouvrent toutes", () => {

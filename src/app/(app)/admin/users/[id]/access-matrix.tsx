@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 import { ACTION_LABELS } from "@/lib/labels";
 import { AnnuairesCoches } from "@/components/admin/annuaires-coches";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Les colonnes sont les MÊMES pour toutes les lignes (c'est un tableau), mais les cases d'une
@@ -58,7 +59,7 @@ export function AccessMatrix({ userId, rows }: { userId: string; rows: ModuleAcc
       action={async (fd) => {
         setSaving(true);
         setErreur(null);
-        const r = await saveAccessMatrix(fd).catch(() => ({ ok: false as const, error: "Enregistrement impossible — réessayez." }));
+        const r = await saveAccessMatrix(fd).catch(sansBloquer("access-matrix.AccessMatrix.saveAccessMatrix", { ok: false as const, error: "Enregistrement impossible — réessayez." }));
         setSaving(false);
         if (!r.ok) { setErreur(r.error ?? "Enregistrement refusé."); return; }
         setSaved(true);

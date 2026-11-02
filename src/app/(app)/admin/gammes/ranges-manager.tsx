@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   Loader2, Plus, Pencil, Trash2, ChevronDown, Package, Users, X, Search, Building2,
 } from "lucide-react";
@@ -10,6 +9,8 @@ import {
   setProductsRange, setUserRanges, removeProductFromRange,
 } from "@/lib/actions/product-range-actions";
 import { Button } from "@/components/ui/button";
+import { Retour } from "@/components/ui/retour";
+import { useAction, useKeyedAction } from "@/components/shared/use-action";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,9 @@ export function RangesManager({
   products: ProductOption[];
   people: PersonRow[];
 }) {
-  const router = useRouter();
+  // Les gestes de l'arbre (retirer un produit, supprimer une gamme) n'ont pas de place où parler :
+  // un refus part en avis flottant.
+  const ligne = useKeyedAction({ signalerErreurs: true });
   const [openRange, setOpenRange] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<{ range: RangeNode | null; companyId: string; companyLabel: string } | null>(null);
   const [picking, setPicking] = React.useState<{ range: RangeNode; companyLabel: string } | null>(null);
@@ -67,20 +70,21 @@ export function RangesManager({
   async function removeOne(productId: string) {
     const fd = new FormData();
     fd.set("productId", productId);
-    const r = await removeProductFromRange(fd);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    router.refresh();
+    await ligne.run(`retirer-${productId}`, async () => {
+      const r = await removeProductFromRange(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? "Le produit n'a pas été retiré de la gamme." };
+    });
   }
 
   async function drop(range: RangeNode) {
-    if (!window.confirm(
-      `Supprimer la gamme « ${range.name} » ?\n\nSes ${range.productCount} produit(s) NE SONT PAS supprimés : ils redeviennent « sans gamme ». Les ${range.memberCount} rattachement(s) de personnes sont levés.`,
-    )) return;
     const fd = new FormData();
     fd.set("id", range.id);
-    const r = await deleteProductRange(fd);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    router.refresh();
+    await ligne.run(`supprimer-${range.id}`, async () => {
+      const r = await deleteProductRange(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? "La gamme n'a pas été supprimée." };
+    }, {
+      confirmer: `Supprimer la gamme « ${range.name} » ?\n\nSes ${range.productCount} produit(s) NE SONT PAS supprimés : ils redeviennent « sans gamme ». Les ${range.memberCount} rattachement(s) de personnes sont levés.`,
+    });
   }
 
   return (
@@ -281,21 +285,19 @@ function RangeSheet({
   companyLabel: string;
   onClose: () => void;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, run } = useAction();
   const [color, setColor] = React.useState(range?.color ?? PALETTE[0]);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.set("color", color);
-    setBusy(true); setErr(null);
-    const r = range
-      ? await updateProductRange((fd.set("id", range.id), fd))
-      : await createProductRange(undefined, (fd.set("companyId", companyId), fd));
-    setBusy(false);
-    if (r.ok) { onClose(); router.refresh(); } else setErr(r.error ?? "Échec.");
+    await run(async () => {
+      const r = range
+        ? await updateProductRange((fd.set("id", range.id), fd))
+        : await createProductRange(undefined, (fd.set("companyId", companyId), fd));
+      return r.ok ? r : { ok: false, error: r.error ?? "La gamme n'a pas été enregistrée." };
+    }, onClose);
   }
 
   return (
@@ -334,7 +336,7 @@ function RangeSheet({
           </label>
         )}
 
-        {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+        <Retour ton="erreur">{err}</Retour>
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
           <Button type="submit" disabled={busy}>
@@ -362,11 +364,9 @@ function ProductPicker({
   products: ProductOption[];
   onClose: () => void;
 }) {
-  const router = useRouter();
   const [q, setQ] = React.useState("");
   const [sel, setSel] = React.useState<Set<string>>(new Set(products.filter((p) => p.rangeId === range.id).map((p) => p.id)));
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, run } = useAction();
 
   const eligible = products.filter((p) => !p.companyId || p.companyId === range.companyId);
   const needle = q.trim().toLowerCase();
@@ -380,28 +380,29 @@ function ProductPicker({
     });
 
   async function save() {
-    setBusy(true); setErr(null);
     // Ce qu'on ENLÈVE et ce qu'on AJOUTE sont deux gestes : la case décochée d'un produit
     // qui était dans la gamme doit l'en sortir, pas seulement ne rien faire.
     const before = new Set(products.filter((p) => p.rangeId === range.id).map((p) => p.id));
     const added = [...sel].filter((id) => !before.has(id));
     const removed = [...before].filter((id) => !sel.has(id));
 
-    if (added.length) {
-      const fd = new FormData();
-      fd.set("rangeId", range.id);
-      added.forEach((id) => fd.append("productId", id));
-      const r = await setProductsRange(fd);
-      if (!r.ok) { setBusy(false); setErr(r.error ?? "Échec."); return; }
-    }
-    if (removed.length) {
-      const fd = new FormData();
-      fd.set("rangeId", "");
-      removed.forEach((id) => fd.append("productId", id));
-      const r = await setProductsRange(fd);
-      if (!r.ok) { setBusy(false); setErr(r.error ?? "Échec."); return; }
-    }
-    setBusy(false); onClose(); router.refresh();
+    await run(async () => {
+      if (added.length) {
+        const fd = new FormData();
+        fd.set("rangeId", range.id);
+        added.forEach((id) => fd.append("productId", id));
+        const r = await setProductsRange(fd);
+        if (!r.ok) return { ok: false, error: r.error ?? "Les produits n'ont pas été ajoutés à la gamme." };
+      }
+      if (removed.length) {
+        const fd = new FormData();
+        fd.set("rangeId", "");
+        removed.forEach((id) => fd.append("productId", id));
+        const r = await setProductsRange(fd);
+        if (!r.ok) return { ok: false, error: r.error ?? "Les produits décochés n'ont pas été sortis de la gamme." };
+      }
+      return { ok: true };
+    }, onClose);
   }
 
   return (
@@ -436,7 +437,7 @@ function ProductPicker({
           {shown.length === 0 && <li className="px-3 py-4 text-sm text-muted-foreground">Aucun produit ne correspond.</li>}
         </ul>
 
-        {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+        <Retour ton="erreur">{err}</Retour>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
           <Button onClick={save} disabled={busy}>
@@ -450,10 +451,8 @@ function ProductPicker({
 
 /** Le rattachement d'une personne aux gammes — toutes entités confondues. */
 function PersonSheet({ person, tree, onClose }: { person: PersonRow; tree: CompanyRangeTree[]; onClose: () => void }) {
-  const router = useRouter();
   const [sel, setSel] = React.useState<Set<string>>(new Set(person.rangeIds));
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, run } = useAction();
 
   const toggle = (id: string) =>
     setSel((prev) => {
@@ -463,13 +462,13 @@ function PersonSheet({ person, tree, onClose }: { person: PersonRow; tree: Compa
     });
 
   async function save() {
-    setBusy(true); setErr(null);
     const fd = new FormData();
     fd.set("userId", person.id);
     [...sel].forEach((id) => fd.append("rangeId", id));
-    const r = await setUserRanges(fd);
-    setBusy(false);
-    if (r.ok) { onClose(); router.refresh(); } else setErr(r.error ?? "Échec.");
+    await run(async () => {
+      const r = await setUserRanges(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? "Les gammes de cette personne n'ont pas été enregistrées." };
+    }, onClose);
   }
 
   return (
@@ -514,7 +513,7 @@ function PersonSheet({ person, tree, onClose }: { person: PersonRow; tree: Compa
           );
         })}
 
-        {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+        <Retour ton="erreur">{err}</Retour>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>Annuler</Button>
           <Button onClick={save} disabled={busy}>

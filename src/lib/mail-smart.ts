@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { sortieAutorisee } from "@/lib/sortie/garde";
+import { noterEffetExterne } from "@/lib/effets/magasin";
+import { differerSiFenetre } from "@/lib/effets/fenetre";
 
 /**
  * COURRIER « SMART » — l'e-mail sans SMTP.
@@ -163,6 +165,13 @@ export async function sendSmartEmail(input: SendEmailInput): Promise<SendEmailRe
   // lever : elle enregistre la tentative — le banc garde la preuve de ce qui serait parti —
   // et rend un refus STRUCTURÉ, que l'appelant journalise comme n'importe quel échec.
   // ═══════════════════════════════════════════════════════════════════════════════════════
+  // LE PORT DE SIMULATION (J7) : un geste simulé note le courriel et ne l'envoie pas.
+  if (noterEffetExterne({ acte: "COURRIEL", cible: (input.to ?? []).join(", ") || "(sans destinataire)", apercu: `« ${input.subject ?? ""} »`, origine: "mail-smart:sendSmartEmail" })) {
+    return { ok: true, providerId: "simulation" };
+  }
+  // LA FENÊTRE D'ANNULATION (K10b, décision 0040) : sous un geste réversible, le courriel attend sa fenêtre.
+  const differe = await differerSiFenetre({ type: "courriel.api", acte: "COURRIEL", cible: (input.to ?? []).join(", ") || "(sans destinataire)", apercu: `« ${input.subject ?? ""} »`, charge: input });
+  if (differe) return { ok: true, providerId: `differe:${differe.id}` };
   if (!sortieAutorisee("COURRIEL", (input.to ?? []).join(", ") || "(sans destinataire)", {
     apercu: `« ${input.subject ?? ""} »`,
     origine: "mail-smart:sendSmartEmail",

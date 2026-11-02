@@ -195,13 +195,6 @@ function infobulle(c: Couleurs) {
   };
 }
 
-/** Une part réelle mais minuscule se dit « < 1 % » : « 0 % » à côté d'un libellé ferait croire à une ligne vide. */
-export const pct = (v: number, total: number): string => {
-  if (!(total > 0)) return "";
-  const p = (v / total) * 100;
-  return p > 0 && p < 1 ? "< 1 %" : `${Math.round(p)} %`;
-};
-
 // ───────────────────────────── Les six graphiques ─────────────────────────────
 
 /**

@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { nomReduit, profilReduction, reductionRetenue, typeReduit, type NatureReduction } from "./politique";
 import { zipUneEntree } from "./zip-ecriture";
 import { listerZip, lireEntreeZip, sourceTampon } from "@/lib/storage/zip-lecteur";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA VERSION « TAILLE RÉDUITE » D'UN FICHIER — ce qu'on propose à côté de l'original au
@@ -80,7 +81,7 @@ async function reduireJpeg(buf: Buffer, qualite = QUALITE_JPEG, maxCote = MAX_CO
 
 async function reduireSansPerte(buf: Buffer, format: "png" | "tiff"): Promise<ResultatReduction> {
   const sharp = await sharpModule();
-  const meta = await sharp(buf, { limitInputPixels: MAX_PIXELS_SANS_PERTE }).metadata().catch(() => null);
+  const meta = await sharp(buf, { limitInputPixels: MAX_PIXELS_SANS_PERTE }).metadata().catch(sansBloquer("reduction.reduireSansPerte.metadata", null));
   if (!meta || !meta.width || !meta.height) return ko("Image illisible ou trop grande pour être optimisée ici.");
   if ((meta.pages ?? 1) > 1) return ko("Image animée ou à plusieurs pages : conservée telle quelle.");
   if (meta.depth !== "uchar") return ko("Profondeur de couleur élevée (16 bits) : conservée telle quelle.");
@@ -161,7 +162,7 @@ async function reduireOffice(buf: Buffer): Promise<ResultatReduction> {
     if (MEDIA_OFFICE.test(n) && data.length >= MIN_MEDIA_OFFICE) {
       const jpeg = /\.jpe?g$/i.test(n);
       // Même format en sortie : les relations et les types du document restent justes sans y toucher.
-      const r = jpeg ? await reduireJpeg(data, QUALITE_JPEG_OFFICE, MAX_COTE_JPEG).catch(() => null) : await reduireSansPerte(data, "png").catch(() => null);
+      const r = jpeg ? await reduireJpeg(data, QUALITE_JPEG_OFFICE, MAX_COTE_JPEG).catch(sansBloquer("reduction.reduireOffice.reduireJpeg", null)) : await reduireSansPerte(data, "png").catch(sansBloquer("reduction.reduireOffice.reduireSansPerte", null));
       if (r?.ok && reductionRetenue(data.length, r.octets.length)) { data = r.octets; modifies.set(n, jpeg ? "jpeg" : "png"); }
     }
     // Les médias déjà compressés sont STOCKÉS : le deflate ne les réduit pas et les alourdit parfois.
@@ -179,7 +180,7 @@ async function reduireOffice(buf: Buffer): Promise<ResultatReduction> {
     if (source.files[n].dir) continue;
     const apres = await relu.files[n].async("nodebuffer");
     if (modifies.has(n)) {
-      const m = await sharp(apres).metadata().catch(() => null);
+      const m = await sharp(apres).metadata().catch(sansBloquer("reduction.reduireOffice.metadata", null));
       if (!m || m.format !== modifies.get(n)) return ko(`L'image « ${n} » ne se relit pas : version écartée.`);
     } else {
       const avant = await source.files[n].async("nodebuffer");

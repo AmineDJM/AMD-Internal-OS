@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { entryCost } from "@/lib/hr/payroll-cost";
+import { entryCost } from "@/modules/finances/partage";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import type { SessionUser } from "@/lib/rbac";
 import type { BudgetOverview } from "@/lib/queries/budget";

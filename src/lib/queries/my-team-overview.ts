@@ -4,12 +4,11 @@ import { getAppSettings } from "@/lib/settings";
 import { userCan, type SessionUser } from "@/lib/rbac";
 import { CONTRACT_TYPE, LEAVE_TYPE } from "@/lib/labels";
 import { natureDeLAbsence, voitLeTypeDesAbsences } from "@/lib/hr/confidentialite";
-import { jobOf, type TeamJob } from "@/lib/hr/team-kpis";
+import { jobOf, type TeamJob, aujourdhuiAlger, jourDuConge, minuitUtc, plusJours } from "@/modules/rh/partage";
 import { DEFAULT_THRESHOLDS } from "@/lib/sfe-alerts";
 import { panelsDesKams } from "@/lib/queries/panel-kam";
 import { peutOuvrirModule } from "@/lib/queries/lien-ouvrable";
 import { viewsAllReports } from "@/lib/queries/field-reports";
-import { aujourdhuiAlger, jourDuConge, minuitUtc, plusJours } from "@/lib/hr/absences";
 import { toNumber } from "@/lib/utils";
 import type { MyTeam } from "@/lib/queries/my-team";
 

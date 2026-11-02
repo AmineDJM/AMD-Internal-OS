@@ -39,7 +39,7 @@ export async function setCompanyScope(value: string): Promise<void> {
     // filtrer nulle part. On l'ancre sur la seule entité qui le concerne.
     scope = mine[0].id;
   }
-  cookies().set(COMPANY_COOKIE, scope, { path: "/", maxAge: COOKIE_MAX_AGE, sameSite: "lax", httpOnly: true });
+  (await cookies()).set(COMPANY_COOKIE, scope, { path: "/", maxAge: COOKIE_MAX_AGE, sameSite: "lax", httpOnly: true });
 }
 
 /** Crée une nouvelle entité (dynamique : 3ᵉ société, filiale…). */

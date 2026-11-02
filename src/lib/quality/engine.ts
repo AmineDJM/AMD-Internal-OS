@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { REGLES, detecter } from "@/lib/quality/rules";
 import { appliquerCorrection } from "@/lib/quality/fix";
-import type { Constat } from "@/lib/quality/model";
+import { sansBloquer } from "@/lib/journal";
 
 export interface RapportRegle {
   id: string;
@@ -58,7 +58,7 @@ export async function balayerQualite(opts: {
   const appliquerAuto = opts.appliquerAuto ?? true;
   const cibles = REGLES.filter((r) => (opts.regles ? opts.regles.includes(r.id) : mode === "FULL" || r.legere === true));
   const debut = Date.now();
-  const sweep = opts.journaliser === false ? null : await prisma.dataQualitySweep.create({ data: { mode, startedAt: now }, select: { id: true } }).catch(() => null);
+  const sweep = opts.journaliser === false ? null : await prisma.dataQualitySweep.create({ data: { mode, startedAt: now }, select: { id: true } }).catch(sansBloquer("quality-engine.balayerQualite.dataQualitySweep", null));
   const rapports: RapportRegle[] = [];
 
   for (const regle of cibles) {
@@ -121,7 +121,7 @@ export async function balayerQualite(opts: {
     rapports.push(rapport);
   }
 
-  const ouverts = await prisma.dataQualityFinding.count({ where: { status: "OPEN" } }).catch(() => 0);
+  const ouverts = await prisma.dataQualityFinding.count({ where: { status: "OPEN" } }).catch(sansBloquer("quality-engine.balayerQualite.dataQualityFinding", 0));
   const total = (k: keyof Pick<RapportRegle, "constats" | "nouveaux" | "corriges" | "resolus">) => rapports.reduce((s, r) => s + r[k], 0);
   const rapportFinal: RapportBalayage = {
     mode, sweepId: sweep?.id ?? null, ms: Date.now() - debut, regles: rapports,
@@ -132,7 +132,7 @@ export async function balayerQualite(opts: {
     await prisma.dataQualitySweep.update({
       where: { id: sweep.id },
       data: { finishedAt: new Date(), ms: rapportFinal.ms, regles: json(rapports), constats: rapportFinal.constats, nouveaux: rapportFinal.nouveaux, corriges: rapportFinal.corriges, resolus: rapportFinal.resolus, erreurs: rapportFinal.erreurs },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("quality-engine.balayerQualite.dataQualitySweep"));
   }
   return rapportFinal;
 }
@@ -159,8 +159,8 @@ export async function balayageQualiteSiDu(now: Date = new Date()): Promise<Rappo
   if (process.env.DATA_QUALITY_DISABLED === "1") return null;
   if (!dernierComplet || !dernierLeger) {
     const [f, l] = await Promise.all([
-      prisma.dataQualitySweep.findFirst({ where: { mode: "FULL", finishedAt: { not: null } }, orderBy: { startedAt: "desc" }, select: { startedAt: true } }).catch(() => null),
-      prisma.dataQualitySweep.findFirst({ where: { mode: "LIGHT", finishedAt: { not: null } }, orderBy: { startedAt: "desc" }, select: { startedAt: true } }).catch(() => null),
+      prisma.dataQualitySweep.findFirst({ where: { mode: "FULL", finishedAt: { not: null } }, orderBy: { startedAt: "desc" }, select: { startedAt: true } }).catch(sansBloquer("quality-engine.balayageQualiteSiDu.dataQualitySweep", null)),
+      prisma.dataQualitySweep.findFirst({ where: { mode: "LIGHT", finishedAt: { not: null } }, orderBy: { startedAt: "desc" }, select: { startedAt: true } }).catch(sansBloquer("quality-engine.balayageQualiteSiDu.dataQualitySweep", null)),
     ]);
     dernierComplet = dernierComplet || (f?.startedAt.getTime() ?? 0);
     dernierLeger = dernierLeger || (l?.startedAt.getTime() ?? 0);
@@ -177,8 +177,3 @@ export async function balayageQualiteSiDu(now: Date = new Date()): Promise<Rappo
   }
   return null;
 }
-
-/** Pour les tests : oublier la cadence mémorisée. */
-export function _reinitialiserCadence(): void { dernierLeger = 0; dernierComplet = 0; }
-
-export type { Constat };

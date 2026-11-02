@@ -62,12 +62,3 @@ export function PastilleAlerte({ a }: { a: AlerteEquipe | undefined }) {
     </span>
   );
 }
-
-/** Le bouton-nom d'une personne : un clic ouvre son panneau. */
-export function NomCliquable({ nom, onOuvrir, className }: { nom: string; onOuvrir: () => void; className?: string }) {
-  return (
-    <button type="button" onClick={onOuvrir} className={cn("min-w-0 text-left font-medium hover:text-primary hover:underline [overflow-wrap:anywhere]", className)}>
-      {nom}
-    </button>
-  );
-}

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notifyUser, notifyRoles, broadcastNotification } from "@/lib/notify";
 import type { UserRole } from "@prisma/client";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES RAPPELS DU CHIEF OF STAFF — la planification en langage naturel devient un vrai job.
@@ -168,12 +169,12 @@ export async function runAssistantReminders(now: Date = new Date()): Promise<voi
   const externalDisabled = await prisma.appSetting.findUnique({
     where: { id: "global" },
     select: { aiExternalActionsDisabled: true },
-  }).then((s) => s?.aiExternalActionsDisabled === true).catch(() => false);
+  }).then((s) => s?.aiExternalActionsDisabled === true).catch(sansBloquer("reminders.runAssistantReminders.appSetting", false));
 
   for (const r of due) {
     // Surveillance : l'état de l'entité décide du message — et une entité RÉGLÉE éteint le
     // rappel, récurrence comprise (surveiller un dossier clos n'a pas de sens).
-    const watch = r.watchType && r.watchId ? await watchState(r.watchType, r.watchId).catch(() => null) : null;
+    const watch = r.watchType && r.watchId ? await watchState(r.watchType, r.watchId).catch(sansBloquer("reminders.runAssistantReminders.watchState", null)) : null;
     const resolved = watch != null && !watch.pending;
 
     /**
@@ -310,7 +311,7 @@ export async function eteindreRappelsSurEvenement(fait: {
     where: { active: true, NOT: { stopOnEvent: { equals: null } } as never },
     take: 100,
     select: { id: true, userId: true, title: true, stopOnEvent: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("reminders.eteindreRappelsSurEvenement.assistantReminder", []));
 
   let eteints = 0;
   for (const r of candidats) {
@@ -337,7 +338,7 @@ export async function eteindreRappelsSurEvenement(fait: {
       title: `Rappel annulé — ${r.title}`,
       body: "Ce que vous attendiez est arrivé : je n'insiste plus.",
       link: "/chief-of-staff",
-    }).catch(() => undefined);
+    }).catch(sansBloquer("reminders.eteindreRappelsSurEvenement.notifyUser"));
   }
   return eteints;
 }

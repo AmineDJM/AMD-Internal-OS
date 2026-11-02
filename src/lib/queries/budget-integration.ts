@@ -34,7 +34,7 @@ export interface ContexteIntegration {
   sourcesReliees?: Map<string, { demande: string; posteId: string | null }>;
 }
 
-const TYPES_DEMANDE = new Set(["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "TRAINING", "PROMO_MATERIAL", "MEDICAL_INFO_DECLARATION"]);
+const TYPES_DEMANDE = new Set(["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "AD_PRO_OTHER", "TRAINING", "PROMO_MATERIAL", "MEDICAL_INFO_DECLARATION"]);
 
 /** Les colonnes parentes d'un poste, en clé de demande — les sept porteurs. */
 export interface ParentsPoste {
@@ -42,12 +42,14 @@ export interface ParentsPoste {
   congressNationalId: string | null;
   congressInternationalId: string | null;
   eventId: string | null;
+  /** La demande « autre » (27/10/2026, décision #17). */
+  otherRequestId?: string | null;
   trainingId: string | null;
   promoMaterialParentId?: string | null;
   declarationInfoMedId?: string | null;
 }
 export const SELECT_PARENTS_POSTE = {
-  sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true,
+  sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, trainingId: true,
   promoMaterialParentId: true, declarationInfoMedId: true,
 } as const;
 
@@ -56,6 +58,7 @@ export function cleDemandeDuPoste(p: ParentsPoste): string | null {
   if (p.congressNationalId) return `CONGRESS_NATIONAL:${p.congressNationalId}`;
   if (p.congressInternationalId) return `CONGRESS_INTERNATIONAL:${p.congressInternationalId}`;
   if (p.eventId) return `EVENT:${p.eventId}`;
+  if (p.otherRequestId) return `AD_PRO_OTHER:${p.otherRequestId}`;
   if (p.trainingId) return `TRAINING:${p.trainingId}`;
   if (p.promoMaterialParentId) return `PROMO_MATERIAL:${p.promoMaterialParentId}`;
   if (p.declarationInfoMedId) return `MEDICAL_INFO_DECLARATION:${p.declarationInfoMedId}`;

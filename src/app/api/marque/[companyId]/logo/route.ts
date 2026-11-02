@@ -8,7 +8,8 @@ import { logoOctets, marqueEtCharte } from "@/platform/in-process/brand";
  * registre : voir la société. Les octets sortent déchiffrés du stockage du Drive, jamais mis en
  * cache partagé (`private`).
  */
-export async function GET(_req: NextRequest, { params }: { params: { companyId: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ companyId: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
   const mienne = (await getMyCompanies(user.id)).find((c) => c.id === params.companyId);

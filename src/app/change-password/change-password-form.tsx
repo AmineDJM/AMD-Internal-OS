@@ -1,6 +1,7 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { changePassword } from "@/lib/actions/auth-actions";
 import { Button } from "@/components/ui/button";
@@ -17,7 +18,7 @@ function Submit() {
 }
 
 export function ChangePasswordForm({ email }: { email: string }) {
-  const [error, formAction] = useFormState(changePassword, undefined);
+  const [error, formAction] = useActionState(changePassword, undefined);
   return (
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="email" value={email} autoComplete="username" />

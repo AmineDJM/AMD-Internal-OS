@@ -29,7 +29,8 @@ export const dynamic = "force-dynamic";
  * `requireModule("BUDGETS")` — sinon une personne autorisée sur un département mais sans le
  * module serait refoulée à l'entrée, et son autorisation ne servirait à rien.
  */
-export default async function DepartmentBudgetsPage({ searchParams }: { searchParams: { year?: string; demande?: string } }) {
+export default async function DepartmentBudgetsPage(props: { searchParams: Promise<{ year?: string; demande?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const year = normalizeYear(searchParams.year);
 

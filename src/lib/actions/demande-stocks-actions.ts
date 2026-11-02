@@ -18,6 +18,7 @@ import { chargerPorteeStock, chargerProduitsStock } from "@/lib/queries/stock-po
 import { porteeGlobale, etablissementDansPortee, produitDansPortee } from "@/lib/stocks/portee";
 import { assurerLieuDeStock } from "@/lib/stocks/lieux";
 import { ecrireEtatDuJour } from "@/lib/stocks/etat-jour";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -108,7 +109,7 @@ export async function creerDemandeStocks(formData: FormData): Promise<ActionResu
       userId: kamId, type: "ASSIGNMENT", title: "Demande de stocks",
       body: `${titre} — ${hop} établissement${hop > 1 ? "s" : ""}, ${siennes.length} stock${siennes.length > 1 ? "s" : ""} à renseigner${echeance ? `, avant le ${jour(echeance)}` : ""}.`.slice(0, 240),
       link: fiche(requestId),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("demande-stocks-actions.creerDemandeStocks.notifyUser"));
   }
 
   const sansKam = dev.hopitaux.filter((h) => h.sansKam).length;
@@ -240,7 +241,7 @@ export async function saisirStocksDemande(formData: FormData): Promise<ActionRes
       title: restants === 0 ? "Demande de stocks complète" : "Stocks reçus",
       body: `${user.name} a envoyé ses stocks — « ${demande.title} »${restants === 0 ? ". Tous les KAM ont répondu." : ` (${restants} KAM en attente).`}`.slice(0, 240),
       link: fiche(demande.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("demande-stocks-actions.saisirStocksDemande.notifyUser"));
   }
   revalidatePath(fiche(demande.id));
   revalidatePath(LISTE);
@@ -279,7 +280,7 @@ export async function relancerDemandeStocks(formData: FormData): Promise<ActionR
       userId: d.kamId, type: "DEADLINE_NEAR", title: "Relance — demande de stocks",
       body: `« ${demande.title} » attend vos stocks${demande.dueDate ? ` (échéance ${jour(demande.dueDate)})` : ""}.`.slice(0, 240),
       link: fiche(demande.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("demande-stocks-actions.relancerDemandeStocks.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Stocks", summary: `Demande de stocks « ${demande.title.slice(0, 80)} » — ${relancables.length} KAM relancé(s)` });
   revalidatePath(fiche(demande.id));

@@ -8,9 +8,8 @@ import { ModuleTabs } from "@/components/shared/module-tabs";
 import { CreateRecordButton } from "@/components/shared/create-record-button";
 import { visibleTabs } from "@/lib/nav-tabs";
 import { EMPLOYES_TABS } from "@/lib/labels";
-import { consultingRhCreateFields } from "@/lib/ad-pro/create-fields";
+import { consultingRhCreateFields, isOverdue } from "@/modules/ad-pro/partage";
 import { createConsultingContract } from "@/lib/actions/consulting-actions";
-import { isOverdue } from "@/lib/ad-pro/consulting";
 import { ContractsTable } from "@/components/consulting/contracts-table";
 
 export const dynamic = "force-dynamic";

@@ -5,6 +5,140 @@
 > Tests were NOT run (the vitest `globalSetup` touches Postgres); test outcomes below are derived
 > statically from the test source plus a read-only run of the boundary scanner (`scripts/adam-boundary.ts`).
 
+> **Update 2026-10-29 — lot J0, Adam / Assistant IA / AI socle separation** (decision record
+> `docs/assistant/decisions/0013-jarvis-architecture.md`, map `docs/architecture/MODULES.md` §7) [V]:
+> - **Three perimeters.** *Adam* = `src/lib/assistant.ts`, `src/lib/assistant/**`, `src/lib/assistant-*.ts`, the bridge
+>   `src/platform/in-process/**`, `src/lib/actions/assistant-actions.ts`, UI `src/components/chief/**` (incl. the chat
+>   `assistant-chat*` and the voice call `voice-mode.tsx` / `realtime-voice*`, **moved out of** `src/app/(app)/assistant/`),
+>   `src/app/(app)/chief-of-staff/**`, `src/app/api/assistant/**`. *Assistant IA* = `src/lib/agent/**`,
+>   `src/app/(app)/assistant/**` (now only `page.tsx` + `beta/`), `src/components/assistant-beta/**`,
+>   `src/app/api/assistant-ia/**`, `src/lib/actions/assistant-ia-*.ts`. *AI socle* = **`src/platform/ia/**`** (README there).
+> - **Socle content** (moved with `git mv` + `tsconfig.json` forwarding addresses, or extracted): `PowerTool` (`outil.ts`);
+>   model-argument reading and person resolution (`outils/arguments.ts`); directory/Regulatory reads, workflow admin (`lectures/`); `action-intents` + stale-proposal logic (`intentions/`);
+>   `resolveDriveFile`/`driveNodeToFile` (`drive.ts`); web research; ffmpeg + attachments + media door (`media/`); the
+>   document factory and Live Office artifact ports/store (`artifact/`, ex-`in-process/artifact/`); `teach/store.ts`;
+>   `proprietaire.ts`; the model-usage sink (`telemetry/usage-sink.ts`, now also installed by the socle modules that call
+>   a model); workspace protocol + block components (`workspace/`, `ecrans/`).
+> - **Guards.** `src/platform/ia/frontieres.test.ts` (in `test:architecture`): IA ↛ Adam, Adam ↛ IA, socle ↛ either (0,
+>   no exception), residuals = exact list. ESLint `@typescript-eslint/no-restricted-imports` overrides (a distinct rule so
+>   the base `no-restricted-imports` patterns are not clobbered). Before (base b42a952c, with V4-G
+>   business rights): 38 IA→Adam imports in 24 files. After: 4, named — `lib/agent/outils-v1.ts` borrows Adam's tool
+>   catalogue (`assistantToolsFor`, `executeReadTool`, `buildProposal`, `executePowerTool`, `DOMAIN_TOOLS`; decision 0012),
+>   and `assistant/beta/actions.ts → lib/actions/assistant-actions` (`confirmerIntentionAssistantIA` lives in Adam's actions
+>   file and executes business cards via Adam's `performAction`; moving it changes the action contract). Plus the reverse 3
+>   imports of that file into `lib/agent/{operations*,role-config}`, plus tests `lib/agent/{limites,droits-metier}.test.ts`. All → phase B.
+> - **Ratchets.** `boundary.test.ts`: Adam→ERP `DEBT_CEILING` 419 → **393**; new `SOCLE_IA_CEILING = 180` (socle ERP
+>   imports counted apart; `src/app/(app)/assistant/` left `ADAM_PATHS`). `domains.ts`: new layer "socle IA";
+>   crossings 58 / providers 39 (base 37a29edc measures 62 / 39: this lot removes 4). Action contract (`npm run actions:contrat`) byte-identical.
+> - **Phase B (2026-10-30).** `src/lib/agent/` → module **`src/modules/assistant-ia/`** (`domaine/` 14 pure rules, `infra/` engine,
+>   `ecrans/` = ex-`components/assistant-beta/`, `actions.ts` / `actions-consommation.ts` keep keys `assistant-ia-actions` /
+>   `assistant-ia-consommation-actions`; doors `api.ts` / `partage.ts`; map `assistant-ia → ad-pro, coffre`, `bibliotheque →
+>   assistant-ia`). `confirmerIntentionAssistantIA` moved there — the ONLY action-contract key change
+>   (`assistant-actions:` → `assistant-ia-actions:`); `executerIntention` + `confirm.ts` moved to `platform/ia/intentions/`.
+>   Adam → IA = 0. Remaining IA → Adam was Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
+>   closure is 92 % of Adam; kept, named and ratcheted until J6, which removed it (see J6 below).
+> - **J5 + J14 (2026-10-30) — continuous quality of the Assistant IA** (decision `docs/assistant/decisions/0022-qualite-continue.md`) [V]:
+>   scheduled bench on the WORKER (`qualite.banc` → child process `scripts/bench/banc-programme.ts`, trial DB only:
+>   `BANC_ESSAI_DATABASE_URL` + fingerprint ≠ prod + `BancBaseEssai` marker; refused and said otherwise), Super-Admin calendar
+>   (default weekly, 1 $ cap per run), history `AssistantIaBancPassage`/`Scenario`, regression (success down, P50/P95 or cost
+>   +30 %) → Super Admin notified; dashboard `/admin/ai/qualite`. Replayable traces of every fil turn (`AssistantIaTrace`, gzip,
+>   30 d; `modeleTrace` wraps the Mastra model; `npm run assistant:rejouer`). Third-party provenance on every card
+>   (`domaine/provenance-tierce.ts`: RIB/e-mail/phone/link/amount/name from a framed third-party content and not said by the
+>   person → "ce RIB provient du document X, à vérifier"; injection detection FR/AR/EN, hidden text) — 240-item trap corpus,
+>   0 unflagged misleading card. Model per role changed on screen (`AssistantIaModeleRole`) ONLY with a green A/B bench for that
+>   exact candidate (< 14 d); revert to env always allowed. New env: `ASSISTANT_IA_MODEL_RAISONNEMENT`, `ASSISTANT_IA_TRACES(_JOURS)`.
+> - **S1 (2026-11-02) — one assistant per employee** (decision `docs/assistant/decisions/0048-acces-personnels.md`) [V]:
+>   closed under Vue exacte (the action body is the real Super Admin — root cause of the 02/11 leak); every turn carries a
+>   server-built PERSON PROFILE (`infra/profil-personne.ts`, 60 s cache of the linked HR record + amendments + tu/vous
+>   preference `AssistantIaPreference.adresse`; families/perimeters from the turn's access, never cached) replacing the bare
+>   « INTERLOCUTEUR » section (`contexte.ts` option `profil`); access perimeters on others' sensitive values derived from
+>   amendments (`AvenantContrat` DELEGATION, one entity, dated, contract in force) and dated console grants
+>   (`AssistantIaDroitDate`) — role-level console openings no longer reach others (`domaine/perimetres.ts`). Console card
+>   « Ce que son assistant voit » (`/admin/ai/acces`, `apercuAssistantDe`). Audit D1: `directory_list` judged on the real
+>   right (`outils-v1.ts` `surDroitReel`). Leak audit table: `docs/assistant/preuves/s1/audit-fuite.md`.
+> - **Q1 (2026-11-02) — permanent audit bench of the Assistant IA** (decision `docs/assistant/decisions/0050-banc-audit-permanent.md`) [V]:
+>   a machine-played ATTACKER (93 scenarios, 8 categories: direct read, impersonation, multi-turn social engineering,
+>   indirect injection via PDF/Excel/K6 mail/WhatsApp/note/Drive/file name/fiche field/poisoned memory, aggregates/rank/SQL/export/
+>   deep search/sub-mission/routine/voice, action escalation incl. a simulated « Confirmer » click, prompt extraction, Vue exacte)
+>   and a DEMANDING USER (65 tasks: task, message, mail graded by a deterministic /8 grid + a `gpt-5-nano` judge, Ad & Pro, BC from
+>   a quote, export, analysis, search, note, mission, mission steering, undo, own salary). Shared catalogue at
+>   `modules/assistant-ia/infra/testing/audit/` (personas + unique sensitive WITNESS values + the rights matrix `peutVoir`;
+>   `espion.ts` = Prisma `$use` proof that another person's row was never READ), door `api-banc.ts`. Deterministic version
+>   `audit-assistant.test.ts` (adversarial fake model calls every read tool on someone else's data and echoes everything it got;
+>   asserts no witness in the answer nor in ANYTHING sent to the model; plus the RATCHET: every `outilsV1` read has a probe, a live
+>   attack scenario, or a `SANS_DONNEE_PERSONNE` reason). Live version `npm run audit:assistant` (`scripts/bench/audit-assistant/`,
+>   `amd_bench` only, product path: `deposerEcrit`, `deleguerALaVoix`, `jouerTour` with `impersonatedBy`), report
+>   `docs/assistant/preuves/audit/`. Nightly: `qualite.banc` runs the audit FIRST (rotating sample, half the cap); new verdict
+>   `FUITE` always notifies the Super Admin; default calendar → QUOTIDIEN (migration `20270220900000_banc_audit_nocturne`).
+>   Fixed: Vue exacte loaded the viewed person's memory (declared health) into the model context and offered their notes —
+>   `fil/tour.ts` `vueExacte`; « Quel est mon salaire ? » refused without a tool call — `consigneFamilles` now says one's OWN
+>   dossier is always open.
+> - **M1 (2026-11-01) — a real memory for Adventum IA** (decision `docs/assistant/decisions/0045-memoire-automatique.md`) [V]:
+>   the memory no longer waits for a click on a « Retenir » card. After each fil turn (`fil/service.ts`) and at the end of a
+>   voice session (`voix/temps-reel.ts`), `infra/memoire-capture.ts` `capturerApresTour` runs a deterministic filter
+>   (`domaine/memoire/capture.ts` `faitDurablePossible` — no call without a durable first-person fact), then the **rapide**
+>   model in strict JSON on the person's message ONLY (never the answer: it carries ERP data), then a guard (every number/proper
+>   noun must appear in the message; salary, IBAN, ID numbers, appraisals refused). Facts are written at once (origine `auto` /
+>   `voix`), deduplicated (Jaccard ≥ 0.8), a changed fact replaces the old one (`remplaceId`/`remplaceLe`, history kept), and
+>   each is undoable (`annulerSouvenir` restores the replaced version) from the « Retenu : … — annuler » line under the answer
+>   (`AssistantIaTour.memoiresRetenues`, `memoireEtat` keeps the screen polling). New sorts for personal life (identity, family,
+>   studies, declared health, travel, tastes, projects, constraints, people cited). Recall (`domaine/memoire/rappel.ts`): stable
+>   profile (250 tokens) + relevant memories (600) by BM25 over roots + the sort's words, cosine on text-embedding-3-small
+>   vectors (`generer.ts` `plongerTextes`) only when the memory exceeds the envelope; voice session gets the profile too.
+>   Per-person switch `AssistantIaPreference.memoireAuto` (default on; off → `proposer_memoire` + card come back). Private
+>   conversations: nothing read or written. Measured cost: ≈ 0.00017 $ per capture that retains, 0 $ when filtered (K8 usage
+>   « memoire »). Removed `assembleur.souvenirsPourQuestion` / `ENVELOPPES.memoire`. Direction 01/11: memory managed in
+>   TOKENS — calibrated counter (3.5 chars/token, measured against `usage.input_tokens`), per-person storage budget
+>   `AssistantIaReglage.memoireJetonsBudget` (8 000), batch consolidation by the fast model at 85 % (≤ 1/day, reversible via
+>   `consolideDans`; bench: 1 688 → 402 stored tokens, 892 → 467 injected per turn, 0.00097 $), history purged after 12 months
+>   (task `assistant.memoire`); daily token cap now 0 = none (per-turn cap unchanged).
+> - **J4 (2026-10-30) — speed & memory of the Assistant IA** (decision `docs/assistant/decisions/0018-vitesse-memoire.md`) [V]:
+>   tools on demand — a 10-tool socle + a 6-tool lexical preselection (`domaine/selection-outils.ts`, French full-text, 0 ms;
+>   reference corpus 60 requests: top-1 56/60, top-3 60/60) + meta-tool `trouver_outil` (`infra/selection.ts`); ALL tools stay
+>   registered with Mastra, only the step's ACTIVE ones are sent (`prepareStep` → `activeTools`, `infra/repondre.ts`). Fiches =
+>   tools the adapter would offer (`allowed`, `config.allowedTools`) → never out of rights; console families still judged at
+>   run time. Stable prompt prefix (`infra/contexte.ts`: rules → presentation → general instructions → person → variable tail →
+>   time LAST; per-tool-family rules via `reglesPour`/`reglesAjoutees`; `promptCacheKey` per user). **Measured: any change to
+>   the tool list voids the whole cached prefix** (tools precede instructions) — cache rate fell 89 % → ~47 %, accepted for a
+>   4× smaller input. Memory in 4 layers: (a) J2 work notebook; (b) 4 verbatim exchanges + ROLLING SUMMARY
+>   (`AssistantIaFil.resume/resumeJusquA/resumeLe`, migration `20270209100000_assistant_ia_resume_roulant`, `infra/fil/resume.ts`,
+>   fast model, after the reply, idempotent, filtered twice); (c) `AssistantMemoryItem` ranked by relevance; (d) knowledge tools
+>   `chercher_documents`/`ouvrir_documents`/`faits_confirmes` in the AI socle (`platform/ia/lectures/connaissance.ts`, facts rule in `bibliotheque/infra/faits.ts`; `SOCLE_IA_CEILING` 180 → 179,
+>   `pourModele: true`, framed as untrusted content; placed in the socle because `bibliotheque → assistant-ia` already exists
+>   in `carte.ts`). Context assembler `domaine/assembleur.ts` (fixed envelopes 500/700/3 500 tokens). Model per gesture:
+>   `platform/ia/modeles-roles.ts` (fast `gpt-6-luna`, standard `gpt-6.1-terra` effort low, reasoning effort medium;
+>   env `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`). Bench (same 26 scenarios, same criteria): input/call 22 925 →
+>   ~6 100 tokens, first word P50 5.3 → 3.4–3.7 s, P95 15.4 → 7.1–8.2 s (long task excluded; 3 passes), cost/turn 0.0238 → 0.018 $, 21 → 22/26.
+> - **J6 (2026-10-30) — capability registry & generic call** (decision `docs/assistant/decisions/0020-capacites.md`) [V]:
+>   `src/platform/ia/capacites/` is a PURE registry derived from `lib/actions/contrat.genere.json` (1 206 actions) + the
+>   Assistant IA's own tools + the 16 Atelier commands; ports injected by the module (`interdictionGenerique`, `classerGeste`,
+>   `MODULE_LABELS`) so `SOCLE_IA_CEILING` stays 177. Each fiche: JSON + zod input schema, console family, French label (word
+>   lexicon, no per-action table), risk R0→R4 (R0 70 / R1 628 / R2 159 / R3 61 / R4 288), simulable (oui 809 / inconnu 247 /
+>   non 150, for J7), annulation (retour/compensation/délégation/aucune via `reversibilite.ts`), third-party content, screen gate
+>   (RBAC modules from `userCan` → audit module → file prefix; unknown → Super Admin only). Never callable: `illisible`,
+>   generic refusal, `SURFACES_HORS_ASSISTANT` (the IA's own actions, Adam, auth, impersonation, supplier portal, admin
+>   plumbing), binary-object actions. Reviewed snapshot `classement.genere.json` (`npm run capacites:classement`) fails
+>   `registre.test.ts` on any unclassified new action. Module side `infra/capacites.ts`: one PowerTool per offered capability
+>   (`fichier__fonction`), R0 executed in-turn via `executerAction` under the person's own session (no session → refusal),
+>   R1+ → intent `assistant_ia_capacite` (one card per turn), R3/R4 CRITICAL + server-checked retype; confirmation
+>   (`confirmerIntentionAssistantIA` → `executerCapacite`) re-reads kill switch, gate, family, then calls the action itself.
+>   Not in J2 plans (capability gestures always go through a card). Selection: capabilities are J4 fiches (weights: label 2,
+>   context 1; first word ×1.4, same verb ×1.2; infinitive/imperative merged) — recall@5 96 % on a 300-request French corpus,
+>   worst fixed tool tokens 3 837, never out of rights, bench 26/26 at fake-model selection level. Adam residues removed
+>   (`RESIDUS` = []): writes → capabilities; `send_message` → own operation (`createDirect` + `sendMessage`); cross-cutting
+>   reads → own tools (`infra/lectures-erp.ts`, `read_budget`, `read_hr_overview`, `finance_totals`). Known gap: task due-date /
+>   priority change (no screen action). Per-turn cost (1 039 tools, warm): catalogue ~5–30 ms, selection ~15 ms, Mastra
+>   adapter ~90–110 ms (definitions, zod schemas and fiche weights are memoised per process).
+>   **No capability regression (0020 §8, 30/10):** generated inventory `npm run capacites:inventaire` maps the 123 gestures the IA
+>   borrowed from Adam before J6 (114 domain ops + 9 writes) to an appelable capability whose gate opens for every role Adam's
+>   gate passed (snapshot `modules/assistant-ia/infra/equivalents-avant-j6.json`, replayed by `equivalents-avant-j6.test.ts`). Gaps
+>   closed: new screen actions `modifierTache` (due date/priority/assignee), `corrigerMaDemande`, `modifierChampPersonnalise`;
+>   employee fiche via IA-only policy `interdictionDeLAssistantIa` (`GESTES_DE_FICHE`, never `userId`, R4 "account follows the
+>   fiche", `updateEmployee` re-read and replayed at confirmation); `PORTES_DU_GESTE` (owner-OR-module-right gestures get the
+>   workspace gate); optional file no longer blocks a call; `assistant-ia-*` files always out of reach.
+> - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
+>   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
+
 ---
 
 ## 1. Scope
@@ -25,7 +159,54 @@ Covered:
   `executerOperationIA` (re-checks `ouverte`) → the SCREEN's server action. Personal memory (`AssistantMemoryItem`),
   documents (`documents-lus.ts`, `mrz.ts`, `traduction.ts`, `formulaire-pdf.ts`, `bc-depuis-devis.ts`), user-scheduled
   read-only routines (`src/lib/agent/routines/`, tables `AssistantRoutine`/`AssistantRoutineRun`, swept from
-  `runScheduledJobs`). Decision records: `docs/assistant/decisions/0001`–`0008`.
+  `runScheduledJobs`). Decision records: `docs/assistant/decisions/0001`–`0012`.
+  **User's rights + sensitive values as tokens (decision 0012, 2026-10-28)**: `outilsV1` now exposes the engine reads and
+  writes the PERSON is entitled to — `lectures.ts` — `lecturesRh` (`lire_fiche_rh` RH VIEW or self; `lire_paie` `voitLesSalaires` +
+  `entitePermisePourFiche` or self; `documents_rh` = the `/api/rh/document/[id]` rule, returns the download link, reads a
+  contract LOCALLY), power reads by their own `allowed` (`read_hr_overview` with payroll mass stripped/tokenised,
+  `search_everything`, `read_calendar`, `search_drive`), engine writes via `buildProposal` (`create_hr_request`,
+  `create_admin_request`, regulatory field/step tools…) and domain tools `regulatory_operation` (incl. `create_product`),
+  `hr_operation`, `task_operation`, `drive_operation`, `request_operation` offered iff one op `meta.gate` passes. NOT the
+  engine's `read_employee`/`read_payroll` (guard wider than the screen). Every tool output goes through
+  `jetonnerSortie` (`filtre-confidentialite.ts` — repères, pure) with the turn's `CoffretDuTour`: sensitive keys/patterns → opaque `⟦Sn⟧`; the model
+  writes with the token; `Revelateur` (`fil/tour.ts` — `Revelateur`) replaces tokens BEFORE display/storage iff the coffre policy
+  `peutLire` allows (coffre columns also through `controlerLecture` = policy + `AccesDonneeSensible` journal, no
+  decryption — exported from `@/modules/coffre/api`, NOT `api-lecture`, the frontier holds); else `[confidentiel]`.
+  Revealed values are wrapped in U+2063: `filtrerSaisie` always strips them from assistant history; TTS and notifications
+  too. Routines (no coffret) keep the old `[CONFIDENTIEL]` censorship. **Access families** (Direction 29/10):
+  `acces-regles.ts` (pure, socle) — SUPER_ADMIN = everything; others default to app rights (`droitsApplicatifsIa`,
+  `role-config.ts`) with SALAIRES/CONTRATS_RH CLOSED; `AssistantIaAcces` rows (per role, per user — user wins) open/close
+  families; explicit opening may exceed app rights (own HR tools, token reveal — audited — and the RH document route).
+  Re-read every turn (`accesAssistantIa`); closed family → tool refuses naming it (`refusFamille`). Console
+  `/admin/ai/acces` (`enregistrerAccesAssistantIa`, Super Admin, audit, EXCLUDED in the action registry).
+  Follow-up (Direction 29/10): `vueDeLAssistant` adds VIEW on the modules of explicitly-opened families, so engine READS
+  accept "app right OR console opening" (writes still run under the real session); `Revelateur`/`peutVoirLaValeur` live
+  in `role-config.ts`; tokens inside a card input are substituted server-side (`substituerReperes`, refused without the
+  right), stored as `reperesSubstitues` on the intent, re-checked at confirmation (`verifierReperesAvantExecution` in
+  `confirmerIntentionAssistantIA`), audited at card and execution; non-vault values are journaled through
+  `journaliserLectureHorsColonne` (coffre door) with tool name and source (`PayrollEntry`, `EmployeeDocument`).
+  Bench V4-H gaps closed: directory returns manager/department (`findPeople`), `list_pending_decisions` exposed,
+  `demandes_adpro` / `etat_dossier_reglementaire` (`lecturesMetier`, `lectures.ts`, under the elevated view, perimeter-
+  scoped — `product_360` not lent), leave requests on the HR card, cached input billed at `cacheParM`
+  (`ASSISTANT_IA_PRICE_CACHED`, defaults `TARIFS_PAR_DEFAUT` 2/12/0.2 $ per M), `consigneGestesFermes` (refusals name the right). Bench: `src/lib/agent/droits-metier.test.ts`.
+  **Voice notes & reading attachments (decision 0011, 2026-10-28)**: `src/lib/agent/lecture/` — `pieces.ts` READS each
+  attachment before the turn (text/Office/PPTX/CSV natively, scanned PDF and images by VISION through the `genererTexte`
+  door with role `vision`, audio/video by STT + ffmpeg key frames), after vault gates (local nature, CONFIDENTIAL, file
+  name, local OCR + `classerPiece`/`natureSensible` BEFORE any image leaves) → `censurerTexte` → bounds (24k chars/piece,
+  60k/message, 12 images) → `encadrerNonFiable`; each `LecturePiece` (LUE/PARTIELLE/REFUSEE/ECHEC/NOMMEE + limit phrase)
+  is stored on the user turn (`AssistantIaTour.lecture`) and shown under the piece. `voix.ts`: voice note = Drive file in
+  the owner's "Assistant IA — vocaux" folder, `AssistantIaTour.vocal` transcribed when the thread plays it; optional spoken
+  reply (`AssistantIaFil.reponseVocale`, OpenAI TTS → `AssistantIaTour.audio`). STT/TTS metered by `appelVoix`
+  (`consommation.ts`, provider `openai-audio`, token equivalents). Route `POST /api/assistant-ia/vocal`.
+  **Operations (lot V3-D, 2026-10-28)**: the only two model doors (`repondre.ts`, `generer.ts`) read the master switch,
+  then open a **budget** (`consommation.ts`): per-step usage from Mastra `onStepFinish` → one `ModelCallLog` row per
+  call (feature `assistant_ia`, `role` = origin conversation/fil/routine/redaction, `threadId` = fil id) + one
+  `AiUsageLog` row per turn. Caps from `AssistantIaReglage` (Super Admin, `/admin/ai/consommation`): steps/turn,
+  tokens/turn, tokens/person/day (Algiers day) → `PlafondIaAtteint`, abort before the next call, one Super Admin
+  notice per person/day (`AssistantIaPlafondAtteint` unique key). Identity/budget travel via `AsyncLocalStorage`
+  (`auNomDe`, `sousBudget`), so a summary launched by a tool counts in its turn. Third-party tool outputs are framed
+  (`contenu-non-fiable.ts`). Ratchets: `consommation.test.ts` (every `new Agent(` file opens+closes a budget; no prod
+  caller of `remplacerReglagesPourTests`), `contenu-non-fiable.test.ts` (tool names evoking documents/messages/web are classified).
 - **Mission Runtime** (durable multi-step autonomous missions): `src/lib/missions/**` (~25k lines),
   `src/platform/in-process/missions/**`, `src/lib/interrupteurs/missions.ts`.
 - **`src/platform`**: contract, event bus, domain map, boundary ratchet, the in-process bridge (~22k non-test lines).
@@ -37,6 +218,13 @@ Not covered in depth: Adventum Brain *cockpit* risk detectors (`src/lib/adventum
 pipeline internals, Live Office (§104).
 
 ## 2. Summary
+
+- **Assistant IA conversations (decision 0027, 2026-10-30)**: `AssistantIaFil` is now one *conversation* (many per person; the
+  old single thread became the first one by additive migration). Private conversations skip personal memory
+  (`compileContext({ sansMemoire })`), `proposer_memoire` and `chercher_conversations`, lock after the first message and are
+  purged after 30 days; folders (`AssistantIaDossier`) inject their instructions and still-openable documents into the variable
+  part of the prompt each turn. Conversation titles come from the **fast** model role after the first answer. App `/ia` and
+  Render service `adventum-ia` (`APP_MODE`). Realtime voice (`gpt-live-1`) is J13's `BoutonVoixTempsReel`, scoped to the open conversation (`conversation` passed to `/api/assistant-ia/voix/{delegation,journal}`).
 
 - One **gateway** (`src/lib/models/gateway.ts`) is the intended single door to LLM providers; it resolves a **role**
   (`realtime | orchestrator | worker | bulk`) to a provider+model, validates the request shape, throttles, and records
@@ -69,11 +257,13 @@ pipeline internals, Live Office (§104).
 | `src/lib/ai.ts` | Legacy facade (`askClaude`=worker, `askClaudeCheap`=bulk); reads master kill switch first; Whisper transcription |
 | `src/lib/ai-settings.ts` | `AiSetting` row (master + per-feature toggles), `aiFeatureEnabled`, `interrupteurIaCoupe`, `logAiUsage` |
 | `src/lib/openai-luna.ts` | Regulatory CTD path: Luna vision, Batch API, embeddings; own accounting (`RegulatoryAiCall`) |
-| `src/platform/in-process/telemetry/usage-sink.ts` | Buffered sink → `ModelCallLog` (installed by side-effect import) |
+| `src/platform/ia/telemetry/usage-sink.ts` | Buffered sink → `ModelCallLog` (installed at boot by `src/instrumentation.ts` and `scripts/worker.ts` since K8, and by side-effect import; calls recorded before install wait in a 500-slot queue in `telemetry.ts`). Cost of each row recomputed by `cout-journal.ts` against the dated price grid `src/lib/models/tarifs.ts` (K8, decision 0035) |
+| `src/lib/models/tarifs.ts` | K8: dated price grid per model × token type (text/cached/audio/image/per-minute/per-second/per-page), BigInt cost to the micro-dollar; `null` = unknown, never 0 |
 | `src/lib/assistant.ts` | Adam: tool lists, prompts, `executeReadTool` :2354, `buildProposal` :2805, loops :4850/:5468, `performAction` :6107 |
 | `src/lib/assistant/power-tools.ts` | RBAC-gated "power" read tools; `powerToolsFor` :461, `executePowerTool` :477 |
 | `src/lib/assistant/ops/index.ts` + `ops/impl-*.ts` | Generic `domain_op` tools (catalogue × implementations, ~40 files) |
-| `src/lib/assistant/action-intents.ts` | Intent state machine: `persistActionIntents` :63, `executeIntentGuarded` :218 |
+| `src/platform/ia/intentions/action-intents.ts` (ex-`lib/assistant/`, lot J0) | Intent state machine: `persistActionIntents`, `executeIntentGuarded` — shared by Adam and the Assistant IA |
+| `src/platform/ia/**` | The AI socle shared by Adam and the Assistant IA (lot J0, see the update note at the top) |
 | `src/lib/actions/assistant-actions.ts` | Server actions: `assistantChat` :162, `assistantNudge` :239, `executeAssistantAction` :273 |
 | `src/app/api/assistant/stream/route.ts` | SSE entry point for the Adam text loop |
 | `src/app/api/assistant/{transcribe,voice/*}` | Whisper dictation; realtime voice session / tool / turn / log routes |
@@ -203,7 +393,7 @@ episodic memory aging in the scheduler (`vieillirMemoire`).
 mints an ephemeral OpenAI Realtime secret; the browser talks WebRTC to OpenAI; tool calls come back to `/api/assistant/voice/tool`, which
 reuses `executeReadTool` / `buildProposal` (same RBAC + interception); usage posted to `/voice/log` → `journaliserSessionVocale`.
 
-**Sandbox** [V] `lib/sandbox/js.ts`: model-written JS runs in a `worker_threads` Worker with `vm.runInContext`, `codeGeneration` disabled
+**Sandbox** [V] `platform/ia/analyse/js.ts` (moved from `lib/sandbox/` by K1, decision 0031): model-written JS runs in a `worker_threads` Worker with `vm.runInContext`, `codeGeneration` disabled
 and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation relies on the worker + empty context.
 
 ### 4.4 Mission Runtime
@@ -232,6 +422,157 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   journal reason, never deleted (§118.136, §118.119b). Also applied to lost-launch recovery (`runtime.ts:907`).
 - **Controls** [V] `platform/in-process/missions/control.ts`: pause, resume, suspend-all, stop, refuse approval, replan, prioritise, model cap.
 
+- **Travaux (J2, 30/10/2026)** [V] `src/lib/missions/travaux/`: the SAME engine for every employee. A *travail* is a `Mission` with
+  `kind = "TRAVAIL"`, `principalId` (any user) and `persona` (`ASSISTANT_IA` today; `ADAM` port-ready). Persona injected through
+  `travaux/persona.ts` (the runtime never imports an assistant); plan DSL compiled to `CompiledStep`s at approval (`plan.ts`);
+  `conduite.ts` drives `avancer` wave by wave, re-reading rights (`refusTravail`) and spend caps (`motifPlafond` → pause
+  `pausedReason = "BUDGET_HOLD — …"`) before each wave; writes go through `TravailEcriture` receipts (claimed before, closed after;
+  an unclosed claim is never replayed). Sweep `travaux.balayage` (`balayage.ts`, raw-SQL candidate query that skips sleeping
+  travaux; web abstains under `les-deux` when the worker is alive). Adam's sweeps/views filter `kind = "RUNTIME"`, so they never
+  touch travaux. Additive engine changes: `materialiser({ kind, naissance })`, `kind` on pause/resume/cancel, `payload` predicate
+  on waits (`events/match.ts`), `reveillerAttentesTemporelles(now, seulement?)`. Decision `docs/assistant/decisions/0016-travaux.md`.
+
+- **Simulation & undo J7 (30/10/2026)** [V] decision `docs/assistant/decisions/0029-simulation-annulation.md`. A card for a
+  simulable R1–R4 capability (`infra/capacites.ts`) runs the real screen action inside a rolled-back Prisma transaction
+  (`lib/effets/simulation.ts`) and shows the real diff (`domaine/simulation.ts` `VueSimulation`, card block in
+  `ecrans/action-confirmation-card.tsx`); at confirmation the simulation is replayed and its fingerprint compared — any
+  difference executes nothing and re-shows the card. Confirmed cards, work steps and mandated gestures run under
+  `journaliserGeste` (before/after of every write, `AssistantGesteJournal`/`AssistantEffet`); `/assistant/gestes` lists them
+  with an honest undo (annulé / compensé / impossible / sans objet + why). Classification: `simulableDe` (J7 rules), 92.5 %
+  of R1–R2 capabilities simulable. Cross-cutting details: KB 11 § 8ter.
+
+- **Reversibility K10b — outbound undo window, screen gestures (31/10/2026)** [V] decision
+  `docs/assistant/decisions/0040-reversibilite-communications.md`, README `src/lib/effets/README.md`. Every outbound effect
+  (SMTP / Graph / API mail, push, site queue, WhatsApp executor) waits `AssistantIaReglage.fenetreAnnulationSecondes`
+  (default 120 s) in `EffetSortantDiffere` (`lib/effets/fenetre.ts` `differerEffetSortant` — the interface K10a/K10c adopt;
+  port `differerSiFenetre` in each sending primitive under a journaled gesture); cancelled in the window → nothing left;
+  after → executor's compensation (rectificatif, itself deferred), never "deleted at the recipient". Screen actions wrap
+  their body in `gesteReversible` (`lib/effets/ecran.ts`, origin `ecran`) → shell bar "Annuler / Annuler l'envoi"
+  (`modules/assistant-ia/ecrans/barre-annulation.tsx`), `HistoriqueAnnulable` on a record. J7 extended: screen gestures undo
+  all-or-nothing (cascades), `LegalDocument` cancelled never deleted, counters (`DocumentSequence`, `DocumentReference`,
+  `SerieReference`) never roll back, read notification → rectificatif, `OutboundEmail` kept as trace, `retablirGeste`
+  (undo the undo), Graph immediate gestures with recorded inverse (`noterEffetFait`). Registry: optional port
+  `annulationDeclaree` ← `lib/effets/declarations.ts` (one table per perimeter). Tests/ratchet:
+  `src/lib/actions/internes/reversibilite/` (58 K10b actions, execute → undo → redo → re-undo against the DB).
+
+- **Travaux J8 (30/10/2026)** [V] decision `docs/assistant/decisions/0023-delegation.md`. **Delegation**: plan step `DEMANDE`
+  → `WAIT_INPUT`, handled in `conduite.ts` by `delegation.ts deposerDemande` (one `TravailDemande` per step, unique
+  `missionId, stepKey`; delays counted from the deposit; shared Drive pieces granted VIEW via the persona port
+  `pieces`, audited). The recipient sees `DemandeRecue` only (question, expected/shared pieces, due date — never the
+  carnet); `repondreDemande` / `declinerDemande` settle the step (conditional on WAITING), write the answer to the carnet,
+  signal the fast wake. **Jalons** `jalons.ts` (relance / escalade to N+1 via `persona.responsable` / abandon → TIMEOUT),
+  run by `travaux.balayage` before conducting. **Fast wake** `reveil.ts`: `router.ts` (events + timers) and delegation set
+  `Mission.reveilDemandeLe`; `scheduled.ts armerReveilsTravaux` (10 s loop, worker + web) conducts flagged travaux under the
+  mission lease — measured p95 10 s. **Fairness**: `travauxAFaireAvancer` round-robins per `principalId` (window
+  function), priority within a person. **Team view** `assistant-ia/infra/travaux-equipe.ts`: gated by
+  `AssistantIaReglage.managerVoitEquipe` (default false), team = `isManagerOfUser`, summary + steps only, every read
+  audited. **Deliverables** `assistant-ia/infra/travaux-livrables.ts`: Markdown → `composerDocx` / `construireClasseurVerifie`,
+  deposited through `portsArtefact.documents.creerFichier` (personal Drive « Travaux », Bibliothèque inscription), PDF via
+  Atelier conversions; deposit under a `TravailEcriture` receipt (`|livrable`), reprise finds the document by its
+  deterministic name. **Robustness** `robustesse.test.ts`: real child processes (`scripts/bench/travail-processus.ts`)
+  SIGKILLed 10× over a 3-week fake-clock travail, plus web + worker processes racing on one travail.
+
+- **Sous-missions K3 (31/10/2026)** [V] decision `docs/assistant/decisions/0033-sous-missions.md`. `lancer_un_travail` gains
+  `remplace` (replace a plan of THIS turn; same normalised title also replaces) and `parent` (`Mission.parentMissionId`, own
+  travaux only, kept through `approuverTravail`). Several travaux per turn are kept and stored on the turn
+  (`AssistantIaTour.travaux`). `balayage.ts` / `reveil.ts` conduct travaux concurrently (`enParallele`, `TRAVAUX_EN_PARALLELE`
+  default 4), each under its own lease; approval signals the fast wake. **Auto-start** `demarrerDOffice` for plans whose steps
+  are all LECTURE/LOTS/ANALYSE/LIVRABLE with no geste (`regles.planSansGeste`): preference `AssistantIaPreference` > console
+  `AssistantIaAcces.travauxDOffice` > SUPER_ADMIN default; journal `TRAVAIL_DOFFICE`. **Synthesis** `persona.surFin` (called by
+  `conduite.ts` on completion) → `assistant-ia/infra/sous-missions.ts conclureSousMissions` → `fil/service.deposerSynthese`
+  (unique `syntheseDe`, notification), fallback task `assistant.sous-missions`. **Dashboard** `travaux/tableau.ts`
+  (`tableauDesTravaux`, cheap `signatureTableau` aggregate) streamed by SSE `app/api/assistant-ia/missions/flux` (1 s signature
+  poll server-side, 15 s heartbeat, close at 4 min 30, client fallback 3 s poll) → `ecrans/missions/*` (shared by `/ia` and
+  `/assistant`). **Deep research** `recherche_approfondie` (`domaine/recherche-approfondie.ts`): code-built plan, one `web_research`
+  LECTURE per angle (no deps → parallel), then LIVRABLE `pdf` (docx + converted pdf); mission `context` =
+  `assistant-ia:recherche-approfondie` makes the synthesis show the full report; livrables read up to 64k chars of upstream output.
+  **Dépôt d'office**: `modeDuDepot` switches to the folder-deposit mode above `PIECES_LUES_MAX` (6) for loose
+  files too.
+
+- **Chantiers de développement C1 (01/11/2026)** [V] decision `docs/assistant/decisions/0042-chantiers-socle.md`,
+  architecture `docs/architecture/CHANTIERS-DEV.md`. `src/lib/missions/chantiers/`: a *chantier* is a `Mission` with
+  `kind = "CHANTIER"`, `persona = "ADAM"`, `principalId` = SUPER_ADMIN (role re-read each pass, `refusChantier`). Closed DSL
+  (`plan.ts`: DEV_LANCER/ATTENDRE/VERIFIER/CORRIGER, RENDER_DEPLOYER/VERIFIER/ROLLBACK, RAPPORT; default plan; refusals) compiled
+  to **WORKER** nodes, every step also depending on DEV_LANCER so synthesis nodes run past a dead intermediate — handlers
+  (`etapes.ts`) guard by PROOFS (no deploy without green checks on the exact SHA → SKIPPED). No DAG loop: the correction loop
+  lives inside DEV_CORRIGER (its WAITING result carries phase/tour/base), rollback is a `when` on `sain`. Waiting = `WAITING`
+  + `result.reessayerA`; `conduite.ts remettreEnFile` sets due ones READY with `attempt: 0`. External gestures under
+  `TravailEcriture` receipts; INTERROMPU never blindly replayed. Juge = `dossier.ts jugerPreuves` (green SHA = head, each planned
+  deploy live on it and healthy, no blocage) → otherwise BLOCKED/PARTIAL; `clore` writes the report if missing.
+  Dossier in `Mission.carnet.chantier`. Reservations `ChantierReservation` (unique `cle`, advisory-lock transaction, conservative
+  glob overlap `perimetre.ts`, 6 h expiry renewed each pass). Budgets `regles.ts` + `AppSetting.chantiersReglages` → pause
+  `BUDGET_HOLD` (auto-resume when raised). Router `routeur.ts` (deterministic → MiMo → Terra → Sol); `cerveau.ts` under
+  `sousImputation({ missionId, feature: "chantier" })`; MiMo adapter `src/lib/models/mimo.ts` (key `process.env.mimo`, base
+  `MIMO_BASE_URL`, model `MIMO_MODEL` default `mimo-v2.6-pro` unconfirmed, cost null unless `MIMO_PRICE_IN/OUT`). Memory
+  `MemoireTechnique` (`memoire.ts`, excerpts ≤ 2k tokens). The engine keeps ITS port contract (`ports-moteur.ts`, the original
+  text); C2's richer connectors (`src/platform/dev/ports.ts`, `platform/in-process/chantiers/`) are translated by the pure
+  `adaptateur-c2.ts` (files via compare-with-base, CI excerpt from the job log tail, Render 202-queued deploy found by SHA, PR
+  relaunch via `relancerDansPr` with idempotency key, `INCERTAIN` surfaced, no open/merge PR → Claude opens it, Direction merges
+  after validation), composed in `scheduled.ts brancherConnecteursDev` → `ports-dev.ts brancherPortsDev`; none (no GitHub token)
+  → chantier waits and says so. DEV_CORRIGER waits `autofixMinutes` (default 15) once per tour for the session's native PR
+  Auto-fix before relaunching (Direction decision 01/11). Dashboard: `travaux/tableau.ts` covers
+  `kind IN (TRAVAIL, CHANTIER)` with a `chantier` field; dashboard buttons routed by `travaux/service.ts siChantier`. Assistant IA
+  tools `infra/chantiers.ts` (SUPER_ADMIN only). Sweep `chantiers.balayage` + fast wake loop. Benches `chantiers/*.test.ts`,
+  `scripts/bench/chantier-processus.ts` (two-process reservation race, SIGKILL in DEV_ATTENDRE).
+  **Phase 2 (01/11, decision 0042 § 10)**: `DEV_FUSIONNER` in the default plan (`fusion: false` removes it; a service on another
+  branch requires it before its deploy). Green PR → validation card "Fusionner la PR #n (« titre ») dans <base>" (written or oral)
+  → `forge.fusionnerPr(depot, n, shaAttendu)` = C2 ForgeGit `fusionnerPr` (`PUT …/pulls/{n}/merge` with `sha`, 409 head moved,
+  405 protected → clear refusal; method `CHANTIERS_METHODE_FUSION` or repo setting) → base CI on the merge commit (red → blocage,
+  nothing deployed) → `vert` = merge commit, deploys follow (prod has its own card). A fusion plan deploys nothing until the
+  fusion succeeded; `jugerPreuves` requires `dossier.fusion`. Reversible: `validerMonChantier` under `actionReversible`, metier
+  inverse `src/platform/in-process/chantiers/compensation.ts` (not acted → validation removed; merged → `demanderRevertFusion` → `conduite.ts
+  traiterRevert` → `forge.proposerRevert` (GraphQL `revertPullRequest`), receipt `…|revert|<pr>`; prod deploy done → IMPOSSIBLE).
+  Webhook wake: `events/ledger.ts` consequence → `chantiers/reveil.ts reveillerChantiersSurFait` (DEV_*/RENDER_* refs vs dossier) →
+  WAITING worker steps READY + `reveilDemandeLe`. Tools moved to `chantiers/outils.ts`; Assistant IA wraps them, Adam gets them as
+  PowerTools (`platform/in-process/chantiers/outils-adam.ts`, `SOCLE_IA_CEILING` unchanged). Final report deposited to Drive « Travaux » as
+  Word (`DeposerRapport`, composed in `scheduled.ts depsFinChantier` from `PERSONA_ASSISTANT_IA.deposerLivrable`), added to
+  `carnet.livrables`; chantiers launched in a conversation join `travauxLances` and `conclureTour` (kinds TRAVAIL+CHANTIER) posts
+  the synthesis with the link.
+
+- **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
+  `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
+  (reads the view to locate targets, e.g. every PPTX shape holding a text) and computes `zonesModifiees` (content-based diff for
+  highlighting). `service.ts`: rights re-read (`voir`/`modifier` — edits refused before applying for viewers), gestures applied
+  ONE command per revision (0.7 s pace), review via engine `revoir(seq, ACCEPTER|REFUSER|A_REVOIR)` (reject = undone + replay,
+  no inverse command), save = new `FileVersion` (port inscribes Bibliothèque), `documentSensible` (legal doc, mail entry,
+  shared space → confirmation card; both live in `artifact/ports.ts`, tabs queries in `artifact/store.ts`, so the socle ceiling went DOWN 180 → 178). `conversions.ts` (composition) + `src/lib/office/conversions-atelier.ts` (engines + queue): voies WORKER (LibreOffice in worker image, queue `AtelierConversion`,
+  task `atelier.conversions`), EDITEUR, LOCAL, RENDU, MAISON — the voie is returned and shown. Engine additions:
+  `OperationPersistee.touches/revue`, `MagasinSessions.marquerRevue?`, op `docx.inserer_tableau`. Module tools
+  `ouvrir_dans_l_atelier` / `modifier_document` / `convertir_document` (family DRIVE, excluded from routines/travaux) and op
+  `enregistrer_document`. The screen polls `/api/assistant-ia/atelier` (no SSE: the op journal IS the stream). Decision
+  `docs/assistant/decisions/0017-atelier.md`.
+
+- **Proactivity under mandate (J12, 30/10/2026)** [V] `src/modules/assistant-ia/{domaine,infra}/proactivite/`: 12 **watchers**
+  (veilleurs) = pure CODE rules over what belongs to the person (own Ad & Pro requests, own budget lines ≥ 90 %, own unsigned
+  POs, ANPP obligations/deadlines, assigned reserve points, DIRECT reports' trial/CDD end, own overdue payments, duplicate
+  invoices, unreported visits, own stale validations, meeting within the hour). Gated by a screen module AND the console family
+  (re-read each pass). Signature = unique `(userId, veilleur, cle)` on `AssistantSignal` → said once; vanished → RESOLU;
+  reappears → reopened as JOURNAL (never rings twice). **Interruption budget** (`domaine/proactivite/budget.ts`, pure):
+  quiet hours 19→8 Algiers + Fri/Sat, one grouped notification per pass, ≥ 1 h apart, ≤ 5/day (console
+  `AssistantIaReglage.interruptionsMaxJour`, person can only lower) → else JOURNAL. One-click useful/not-useful adjusts the
+  watcher (threshold factor ×1.25 up to ×3; < 1/3 useful over ≥ 3 → discreet). Morning point = only model call (fast role,
+  confidentiality filter, fallback text). Heartbeat task `assistant.veilleurs` (15 min/person, 20/beat). **Mandates**
+  (`AssistantMandat`, receipts `AssistantMandatGeste` unique per mandate+signal, taken BEFORE acting): bounded capability /
+  recipients / amount / per-day / expiry ≤ 90 d, revocable, R1 by default (`NIVEAU_OPERATION`), sensitive family or R2 →
+  console approval. **Gestures run in the person's own request** (`ExecuteurMandats` in the `(app)` layout, server-side
+  10-min window): screen actions need `requireUser` and `revalidatePath` throws outside a request (after the write) — the
+  same limit applies to J2 travaux gestures on the worker. Actions key `assistant-ia-proactivite-actions`. Decision
+  `docs/assistant/decisions/0024-proactivite.md`.
+- **« Mes notes » (30/10/2026)** [V] `src/modules/assistant-ia/{domaine,infra}/notes/`: a private per-person notebook. Tables
+  `AssistantIaNotePage` (flat `blocs` JSON with a nesting LEVEL 0–4, `version` optimistic lock, `supprimeeLe` trash),
+  `AssistantIaNoteVersion` (state BEFORE a change: ≤ 1 per 5 min of typing, always before an AI change; 50/page),
+  `AssistantIaNoteCorbeille` (non-empty deleted lines, 30 days, purged lazily on read), `AssistantIaNoteProposition`, and
+  `AssistantIaTour.notesProposees` (migration `20270215150000_assistant_ia_notes`). **Private**: every query filters on the
+  session/turn `userId`; no action or tool takes an account; « Vue exacte » refused even for reads (`porte(true)`, tool check);
+  no admin screen; audit records AI gestures only, never note text. **The AI never writes** (Direction decision): tools
+  `lire_notes` + `ajouter_note` / `modifier_note` / `cocher_note` / `deplacer_note` / `supprimer_note` / `creer_page` /
+  `renommer_page` (`infra/notes/outils.ts`) only create proposals, resolved against the VIRTUAL page (page + pending proposals,
+  explicit `dependDe`); `accepter` claims the row in a transaction, applies (`appliquerSurBlocs`), stores `inverseDe` for
+  « Annuler »; refusal cascades to dependants. `lire_notes` is not in the tool socle (only preselected by notes words —
+  `MOTS_CLES`; rule `REGLE_NOTES` only when a notes tool is offered); amounts on a sensitive-context line become ⟦Sn⟧ with the
+  person as holder. No console family (like `proposer_memoire`); writes excluded from routines/travaux (`ECRITURES_DU_MOTEUR`).
+  Voice reuses `outilsNotes(user, { canal: "voix" })` from `api.ts`. Decision `docs/assistant/decisions/0026-notes.md`.
+
 ### 4.5 `src/platform` — the boundary
 
 - **Why** [V] `docs/ADAM_PLATFORM_BOUNDARY.md`: separate Adam from ERP *in code*, same process (no microservices, no local cache —
@@ -239,6 +580,8 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
 - **Contract** [V] `contract.ts` (zero imports, test-enforced): `PlatformPort { contractVersion; query; command; authorize; subscribe }`
   (`:448`), `Principal` with opaque role + capability set, `CommandOutcome` distinguishing refusal vs failure (`:399-404`), `DomainEvent`.
 - **Bridge** [V]: `BRIDGE_PATHS = ["src/platform/in-process/"]` (`boundary-scan.ts:74`), the only Adam code allowed to import ERP.
+  Since lot J0 the **AI socle** `src/platform/ia/` also knows the ERP by design; its imports are counted apart
+  (`SOCLE_IA_PATHS`, `SOCLE_IA_CEILING`), and the "zero in `src/platform/`" rule excludes it.
   `adapter.ts` implements the port; `runCommand` (`:410`) re-reads the session user (never trusts `Principal`) and calls `performAction`.
   Some queries (`record.get`, `record.search`, `pending-decisions.list`) throw "not served yet" by design (`adapter.ts:224-226`).
 - **Ratchet** [V] `boundary.test.ts`: `src/platform/` (minus bridge) has zero ERP imports; total Adam→ERP crossings ≤ `DEBT_CEILING = 425`
@@ -249,7 +592,7 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   L1 domains must not import each other; L2 façades (`queries/`, `api/registry/`, `links/`) are the authorised crossings; L3 Adam (`assistant/`, `models/`).
 - **Event bus** [V] `event-bus.ts` / `events.ts`: in-memory, per process, `REPLAY_CAPACITY = 500`, handlers isolated (errors swallowed),
   `emit` never throws and drops unknown types. Closed catalogue of **17** past-tense facts (`events.ts`). Actually emitted by ERP code in
-  **3** places: `actions/hr-actions.ts:97` (`hr.employee-added`), `actions/regulatory-actions.ts:824` (`regulatory.owner-changed`),
+  **3** places: `modules/rh/actions.ts:97` (`hr.employee-added`), `actions/regulatory-actions.ts:824` (`regulatory.owner-changed`),
   `comms/outbound.ts:514` (`mail.sent`). One subscriber: Adam's change feed (`assistant/platform/change-feed.ts:78-89`, `replayFrom: 0`),
   served via the `what_changed` tool as a *hint*, never as truth.
 - **Two event systems — do not confuse** [V]: the volatile `platform` bus (hints for Adam) vs the persistent `BusinessEvent` ledger
@@ -332,6 +675,42 @@ on BLOCKED: `replanifierMission` (Reasoner → `callModel("orchestrator")`) → 
 `createEmployee` (hr-actions) → `emit({type:"hr.employee-added",…})` → `event-bus.publish` → change-feed array (in memory) →
 later `what_changed` tool reads it as a hint and re-reads canonical data.
 
+### 6.4 Field voice & realtime voice of the Assistant IA (J13, decision 0025)
+
+- **Capture → cards**: `infra/terrain/captation.ts` (idempotent on `(userId, cle)`) → Drive → `transcrireMedia` (`gpt-transcribe`, no forced language, vocabulary hint; `modeleSttTerrain` in `platform/ia/modeles-roles.ts`, chosen by the bench `scripts/banc-stt-terrain.mjs`) → `genererTexte` + `lireCompteRendu` (untrusted JSON) → `resoudreMedecin` over `scopeMedicalDoctors` → `preparerCarte` (same `proposer` + `persistActionIntents` as model tools). Operations `terrain_*` live in `OPERATIONS_IA` (MOTS_CLES fiches, not SOCLE_OUTILS) and execute through screen actions (`createFieldReport`/`updateFieldReport`, `demanderMateriel`, `ouvrirPlanTournee`+`planifierVisites`, `rattacherPhotoTerrain`).
+- **Realtime voice (GPT-Live, `gpt-live-1` only — Direction 30/10, no fallback)**: socle `platform/ia/voix/session-temps-reel.ts` (server-side SDP exchange with `POST /v1/live/sessions`, `delegation: { type: "client" }`, no secret reaches the browser; zero imports) + `client-temps-reel.ts` (thin WebRTC client: on `session.delegation.created` it posts what the user said to `/api/assistant-ia/voix/delegation` and returns the result with `session.commentary.append`; latency read on the session timeline from transcript `start_ms`/`end_ms`; graceful `session.close` → `session.closed` usage). Module `infra/voix/temps-reel.ts`: delegation = `deposerMessage` + `traiterFil` — the SAME text assistant (tools, rights, console, repères, cards) in the SAME fil; voice text via `sansValeursRevelees`; transcript appended to the fil at the end; model = admin setting `AssistantIaReglage.modeleVoix` → `ASSISTANT_IA_VOICE_MODEL` → `gpt-live-1`. Adam's realtime untouched.
+- **K9 — fully oral voice (decision 0039, built on K4's oral card `0038-voix-orale`)**: delegation no longer blocks — `/voix/delegation` returns a work id at once (`AssistantIaVoixTravail`, scoped to the user's `AssistantIaVoixSession`), the browser polls `/voix/travail` and injects the result with `session.commentary.append` under the latest delegation id; a refinement said meanwhile is appended to the waiting user turn, or replayed as a targeted precision turn that sees the in-flight answer (old work `remplacePar`, stale result never spoken); unspoken results are injected at the next `session.started` (`reprisesOrales`). Voice turns get `CONSIGNE_ORALE` (`infra/fil/service.ts`); tables/charts/analyses/visuals are summarised server-side in one sentence (`resumeOralBlocs`). The card is K4's (`infra/voix/carte-orale.ts`): opened when the work's result arrives, oral yes judged server-side on the person's own transcript (`estOuiExplicite`, now with darja), executed through `infra/confirmation.ts:confirmerCarte` (same gate as the button); K9 removed the spoken key element (the voice reads it back, the server supplies the stored retype) and made a late « oui » robust (client waits up to 4 s for the first fragment; empty parole after the question → ask again). Router `infra/voix/oral.ts:traiterEnonceVocal`: oral commands (undo the last thing done — an outgoing send still in its window via `annulerEffetSortant`, else the last gesture via `annulerGeste`, said honestly by `phraseAnnulation` — and redo via `retablirGeste` (K10b), pause/resume/stop mission K3, stop, shorter) → oral card → precision → new work; client-side barge-in mutes the audio element.
+- **O1 — conversation orchestrator (decision 0046)**: one PURE state machine shared by voice and text, `src/platform/ia/conversation/orchestrateur.ts` (`transition` / `decider` / `vieillir` / `affichageEcrit`): dialogue states person-speaking / assistant-speaking / assistant-question-pending / free; a work result arriving outside « free » is QUEUED (per-work announcement queue) and delivered at the next natural break, glued to the ack of the person's answer; never over a pending question (20 s expiry, then the agenda goes quiet), never two announcements glued, never « I'm waiting ». Agenda derived deterministically from the request, with NO fixed cap — one item at a time while the work runs (`modules/assistant-ia/domaine/conversation/agenda.ts`: format / period / detail precisions, breakdown / comparison / risks follow-ups, recipient next step, K3 partials, real progress said once), stored in `AssistantIaAgenda` (`infra/orchestration/agenda.ts`, `rang`). Every utterance during a work is CLASSIFIED (`domaine/conversation/classement.ts` rules when obvious, else a cheap `rapide` classifier with strict-JSON output, logged via `auNomDe`; word-rule fallback only when it fails): precision / other request (parallel work) / conversation (answer, launch nothing). A precision has an IMPACT: MAJOR (scope, period, data, reasoning) is re-injected — appended to the waiting turn, or ONE targeted relaunch at the end of the running work (`appliquerPrecisions`, atomic claim; stale result dropped / « version d'avant »); MINOR (format, tone, length, recipient) never relaunches — text form is applied to the rendering (voice: instruction on the announcement; text: rewrite by the fast model, no tools, no revealed values), file / send is produced by a « mise en forme » turn from the ready result (parallel lane, no research). Thresholds are settings (`REGLAGES_ORCHESTRATION`, env `ASSISTANT_O1_*`). Voice: GPT-Live exposes no VAD nor response-done events — turns are read from transcript deltas (0.9 s silence), `session.delegation.created` and the trailing « ? »; the browser client follows several works (`suivis`); the server returns the agenda at launch (`lance`), judges answers to the posed element (`question`), launches a different request IN PARALLEL. Text: `infra/orchestration/ecrit.ts` (`deposerEcrit`: answer / parallel lane / normal queue; `orchestrationDuFil` read by `/api/assistant-ia/fil`), second play lane in `infra/fil/service.ts` (`AssistantIaTour.parallele`, lock `AssistantIaFil.paralleleLe`). Migrations `20270219200000_assistant_ia_agenda`, `20270219200100_assistant_ia_agenda_impact`.
+- **P1 — missions and mails piloted for real, truth guard (decision 0047)**: root cause of missions stuck at 0 %: nobody conducted them — the web heartbeat was only armed when a request first imported `lib/scheduled.ts` (an ERP page's messages badge); the app server is `TACHES_DE_FOND=worker` and never beats, so without the worker service nothing ran after each deploy. Now armed at boot in `src/instrumentation.ts` (`battementWebArme`). Streamed model errors are no longer swallowed (`generer.ts enFlux` rethrows `stream.error`). Pure rules `modules/assistant-ia/domaine/missions/pilotage.ts`: `diagnostiquerMission` (waiting for worker > 3 min silence, approval, budget, blocked with readable error, retrying), `designerMission`, `noteActionsNonVerifiees` (a claimed fusion / send / save / verification without a successful proving tool in the turn gets a « Non vérifié » note; a displayed card is not an action), `outilsPilotageVoulus`, `CONSIGNE_MISSIONS`. Server: `infra/missions/executants.ts` (heartbeat from `TacheDeFond`), `infra/missions/pilotage.ts` (`mes_missions`, `piloter_mission`, `piloterMission` shared with voice `commandeMission`), card op `infra/operations/missions-fusion.ts` (`fusionner_missions`: keep the most advanced or launch a union plan; others stopped with sub-missions; one synthesis). « Arrêter » = PAUSED with `MOTIF_ARRET`/`MOTIF_FUSION` (state `ARRETE`, resumable — `CANCELLED` stays terminal) in `lib/missions/travaux/{regles,service,tableau}.ts`. Fusion is a domain operation `lib/missions/travaux/service.ts fusionnerTravaux` (all-or-nothing, preconditions, re-read invariant, rollback). Mails go through ADAM's mailbox: `infra/mails/boites.ts` (`mes_boites_mail`, `envoyer_mail`; person's Microsoft/SMTP only on explicit request), op `envoyer_gmail` → `lib/google/gmail/envoi.ts` drives Adam's `OutboundMailIntent` state machine (prepared at card, approved by the confirming person, undo-window effect `courriel.gmail` whose executor calls `sendOutboundIntent`; `surAnnulation`/`surRetablissement` hooks in `lib/effets/fenetre.ts` keep the intent CANCELLED/APPROVED in step; drafts = DRAFT). Card level: R3 with annulation ≠ « aucune » → SENSITIVE (no retype), R4 stays CRITICAL (`domaine/capacites.ts niveauDeCarte`).
+- **B1 — « crée un BC en PDF » from an attached quote (decision 0049)**: commercial-piece reading (`lib/pieces-lues/service.ts`) now has three stages for the LINES: (1) **positions** — `positions.ts` walks mupdf glyphs into rows/cells (`rangeesDesGlyphes`), `tableau.ts` reads the table by its column header (repeated headers, « À reporter / Report », sub-totals, totals and section titles are never lines; wrapped designations glued; « 5.000 » = 5 000), dedups identical numbered lines (`consolider`), lists numbering gaps, cross-checks qty × PU = amount, and `reconcilier` compares the sum with the printed HT — when it is « juste » the positions piece (`tableau-piece.ts` → `PieceLue`) REPLACES any stored structure and the model is NOT called (works for confidential pieces too); (2) the text model as before; (3) **vision** second pass (`vision-lignes.ts`, Luna, strict JSON schema, numbers as printed strings, same gates, never for confidential pieces, stored as `structureePar: "vision:<model>"`, best score kept). Proposition gains `methodeLignes`, `reconciliation`, `destinataire`, `emetteurLu`. **Issuer vs recipient** (`emetteur-destinataire.ts`): the client block (« Client », « Doit »… + up to 6 lines) is never read as the issuer (also applied in `emetteur.ts`); issuer name from labelled legal name / « NAME — RC … — NIF … » footer / capitalised header / model / file name, never a group company (`estDuGroupe`: name, short name, legal name, NIF, RC — `annuaireDeLecture` now returns `groupe.societes`); recipient = group company named on the paper (NIF > RC > name). Assistant op `preparer_bc_depuis_devis` (`infra/operations/bc-depuis-devis.ts`): company = quote recipient, NO validator, envelope proposed by nature (`domaine/operations/bc-devis.ts`: promo material → PROMO_MATERIAL / MARKETING, never REGULATORY), supplier contact created at confirmation if missing and allowed; button « Créer le BC (PDF) » = `emettreDocumentDrive` with `prevalidation: true` (draft: no centre, no request) + PDF in Drive, link `/api/drive/<id>/raw`, `custom.depuisDevis` kept; separate op `envoyer_bc_en_validation` asks the validator and opens `createValidationRequest` (quote attached; threshold sentence only when > 0). Cancellation = K10b (piece CANCELLED, number kept). Card: long fields (> 4 lines) open in `PanneauLateral` (`separerChampsLongs`), warnings deduped (`sansRedite`), provenance once, taxes recomputed vs printed once (`phraseTaxes`). Bench: `lib/pieces-lues/banc/` (5 realistic Algerian quotes incl. a scan) + `scripts/banc-b1-devis.ts`.
+
+- **B1 — « crée un BC en PDF » from an attached quote (decision 0049)**: commercial-piece reading (`lib/pieces-lues/service.ts`) now has three stages for the LINES: (1) **positions** — `positions.ts` walks mupdf glyphs into rows/cells (`rangeesDesGlyphes`), `tableau.ts` reads the table by its column header (repeated headers, « À reporter / Report », sub-totals, totals and section titles are never lines; wrapped designations glued; « 5.000 » = 5 000), dedups identical numbered lines (`consolider`), lists numbering gaps, cross-checks qty × PU = amount, and `reconcilier` compares the sum with the printed HT — when it is « juste » the positions piece (`tableau-piece.ts` → `PieceLue`) REPLACES any stored structure and the model is NOT called (works for confidential pieces too); (2) the text model as before; (3) **vision** second pass (`vision-lignes.ts`, Luna, strict JSON schema, numbers as printed strings, same gates, never for confidential pieces, stored as `structureePar: "vision:<model>"`, best score kept). Proposition gains `methodeLignes`, `reconciliation`, `destinataire`, `emetteurLu`. **Issuer vs recipient** (`emetteur-destinataire.ts`): the client block (« Client », « Doit »… + up to 6 lines) is never read as the issuer (also applied in `emetteur.ts`); issuer name from labelled legal name / « NAME — RC … — NIF … » footer / capitalised header / model / file name, never a group company (`estDuGroupe`: name, short name, legal name, NIF, RC — `annuaireDeLecture` now returns `groupe.societes`); recipient = group company named on the paper (NIF > RC > name). Assistant op `preparer_bc_depuis_devis` (`infra/operations/bc-depuis-devis.ts`): company = quote recipient, NO validator, envelope proposed by nature (`domaine/operations/bc-devis.ts`: promo material → PROMO_MATERIAL / MARKETING, never REGULATORY), supplier contact created at confirmation if missing and allowed; button « Créer le BC (PDF) » = `emettreDocumentDrive` with `prevalidation: true` (draft: no centre, no request) + PDF in Drive, link `/api/drive/<id>/raw`, `custom.bcAssistant` kept (origin DEVIS / DICTE, envelope, validator); dictated BC without a file = `composer_bon_de_commande` (`bc-compose.ts`, lines as dictated, same draft + PDF cycle); a named envelope the person cannot see is kept « à confirmer » (`enveloppeDuBC`), never a blocking question; separate op `envoyer_bc_en_validation` asks the validator and opens `createValidationRequest` (quote attached; threshold sentence only when > 0). Cancellation = K10b (piece CANCELLED, number kept). Card: long fields (> 4 lines) open in `PanneauLateral` (`separerChampsLongs`), warnings deduped (`sansRedite`), provenance once, taxes recomputed vs printed once (`phraseTaxes`). Bench: `lib/pieces-lues/banc/` (5 realistic Algerian quotes incl. a scan) + `scripts/banc-b1-devis.ts`.
+- **Known limit**: a real `gpt-live-1` session was created (HTTP 201, 6.8 s) but WebRTC media (UDP) does not pass the dev container's egress; first real p50 is logged in production (`[assistant-ia] voix temps réel`).
+
+### 6.5 Card forms, folder deposit, large volumes (J11, decision 0030)
+
+- **Form from the contract**: `platform/ia/capacites/schema.ts` (extracted from `registre.ts`, re-exported: `libelleChamp`, `schemaDe`, `zodDe`) + `formulaire.ts` (pure: `widgetDe`, `formulaireDe`, `entreeDepuisSaisies`, `verifierFormulaire`, `champsCorriges`). `infra/capacites.ts:carteDe` builds fields/level/confirmText/form for every R1+ card; `corrigerCarteCapacite` (called by `confirmerIntentionAssistantIA(intentId, confirmTyped, corrections)` BEFORE `executerIntention`) re-runs the proposal gates (contract keys, `zodDe`, console families incl. salary, `preparer` = name resolution + `validerEntree`) and rewrites the intent (payload, summary, confirmText, `CORRECTED` event) only while `PROPOSED`. `chercherReferenceDeCarte` → `lib/cibles/resoudre-entrees.ts:candidatsDuChamp` (directory for `User`, `resoudreCible` under `porteeEntite` otherwise). Bench `formulaires.test.ts`: all 1 157 R1–R4 capacities, 0 schema gap.
+- **Folder lot**: table `AssistantIaDepotDossier` (migration `20270215140000_assistant_ia_depot_dossier`); `infra/depot-dossier.ts` (`ouvrirLotDossier` with a **port** `creerArborescence` supplied by the app route — the module adds no `lib/drive` debt; resume by list fingerprint; `etatDesLots` = recursive CTE under the root + LATERAL join on `BibliothequeFiche.cles @> ['DRIVE_NODE:<id>']`). Pure rules `domaine/lecture/depot-dossier.ts` (bounds `ASSISTANT_DEPOT_DOSSIER_FICHIERS/_MO`, default 1 000 / 2 GB).
+- **Ingestion throughput**: `bibliotheque/infra/ingestion.ts:traiterFile({ budgetMs, parallele })` drains batch after batch within a budget with N concurrent readers; `scheduled.ts` passes `BIBLIOTHEQUE_BUDGET_S` (45) / `BIBLIOTHEQUE_PARALLELE` (2). Without budget: one batch (previous behaviour). Bench `npm run bench:dossier` (300 unique files, fake embedder).
+- **Answering on the folder**: tool `lire_dossier_depose` (`infra/lecture-dossier.ts`, family DRIVE, third-party framed) reads the lot's files and their fiches in ONE batch (`bibliotheque:fichesDeDossier` via socle `connaissance.ts:fichesDeDossierPourModele` — same rights as `ouvrirDocuments`, vault/confidential without text) and classifies by CTD rules (`domaine/ctd.ts`: section number in path wins, else FR/EN keywords, S vs P tie-break, unclassified is said) + expected-but-missing sections of a generic dossier. No file re-read, no per-file model call.
+
+### 6.6 Generated images, videos and data videos (K2, decision 0032)
+
+- **Tools** (`assistant-ia/infra/visuels/outils.ts`, conversation only via `outilsV1(…, { visuels })`, console family `VISUELS` closed by default, in `ECRITURES_DU_MOTEUR` so never in routines/works): `generer_image`, `modifier_image`, `generer_video`, `video_de_donnees`. Each pushes a `visuel` block (new protocol kind, renderer `platform/ia/ecrans/blocks/visuel.tsx`, weight 54 in `lib/assistant/workspace/turn.ts`) merged ahead of the model's components in `fil/tour.ts`.
+- **Gates before any spend** (`infra/visuels/service.ts`): nature switch (`AssistantIaReglage.visuels*`) → global AI switch (`consommation.ts:refusSiIaCoupee`) → `filtrerConsigne` (text censor + `⟦Sn⟧` + confidential words) → monthly cap (`depenseVisuelsDuMois`, sum of `AiUsageLog` route `image`/`video`). Real cost logged by `journaliserVisuel` (ModelCallLog role `image`/`video` + AiUsageLog). File → personal Drive folder « Visuels de l'assistant » via `portsArtefact.documents.creerFichier` (Bibliothèque registration included); state in `AssistantIaVisuel`.
+- **Providers** (`infra/visuels/fournisseurs.ts`, outside the text gateway like STT): OpenAI `/images/generations` + `/images/edits` (default `gpt-image-2.5-sunburst`, measured 0.0135 $ per medium 1024² image), Gemini `gemini-3-pro-image` only as fallback when OpenAI fails/refuses; `/videos` guarded by `etatModeleVideo` — **Sora is shut down (shutdown_date 2026-09-24, `/v1/videos` 404)**, so generative video refuses without spending.
+- **Data video**: pure `domaine/visuels/video-donnees.ts` (values must appear in the turn's tool outputs; captions computed; SVG per frame) → `infra/visuels/rendu-donnees.ts` (sharp + ffmpeg, H.264 High yuv420p faststart, 8 s, 1080²). Rendered immediately where ffmpeg exists, else by the worker through task `assistant.visuels` (`traiterVisuelsEnFile`; queue expiry 20 min, interrupted render → failure said; user notified via `avertirPersonne`).
+- **Routes**: `app/api/assistant-ia/visuels/[id]` (state, owner only, not in Vue exacte) and `[id]/media` (Drive rights re-checked, **Range/206** for iPhone Safari, `?dl=1` audited).
+
+### 6.7 Data analysis of the Assistant IA (K1, decision 0031)
+
+- **Engine at the socle**: `platform/ia/analyse/` (moved, not copied, from `lib/sandbox/`: `analyse`, `pipeline`, `viz`, `porte`, `js`, `python`; Adam's bridge re-exports them). Only `lib/sandbox/sql.ts` stays (Prisma) — reached by the socle through ONE port `analyse/sql.ts` (+1 toward `SOCLE_IA_CEILING`, compensated by merging a duplicate import in `teach/store.ts`). Shared table reading `analyse/tableur.ts` (Adam's `lireLignesDrive` uses it).
+- **Flow**: `fil/tour.ts` creates `JeuxDuTour` + `blocsCalcules` → `outilsV1(…, { analyse })` → every lecture output (already tokenised by `jetonnerSortie`) is noted as a dataset in `filtre()` → `analyser_donnees` / `calculer_code` / `requete_sql` / `lire_tableur` (`infra/analyse/outils.ts`) mask confidential headers (`domaine/analyse/confidentialite.ts`), compute, and push a `kind: "analyse"` block (`analyse/bloc.ts:composerAnalyse`) → appended after the model's components, revealed by `Revelateur.objet`. The model gets the pre-formatted preview only (`affichage.ts:enClair`). `noteChiffresNonSources` flags message numbers absent from tool outputs.
+- **Selection**: `domaine/analyse/intention.ts:outilsDAnalyseVoulus` → `selectionDuTour(…, prioritaires)` → `preselectionner(…, prioritaires)` (put first, still under `BUDGET_JETONS_FIXES`).
+- **Excel**: `analyse/classeur.ts` → `artifact/sheets.ts:construireClasseurOctets` / `construireClasseurDrive` (verified builder; `SpecFeuille.filtre` added in `lib/artifact/sheets/build.ts`). Route `POST /api/assistant-ia/analyse/classeur` (download, or `depot: true` = Drive on the person's click; refused in "Vue exacte"); input re-read by `analyse/lecture.ts`.
+- **Screen**: `ecrans/blocks/analyse.tsx` (sort, filters, totals, CSV/Excel, charts via `VizFigure`, PNG/SVG export `export-graphique.ts`, "Comment c'est calculé"); `RENDERERS.analyse`; Adam's `workspace/turn.ts` weight `analyse: 46`.
+- **Guard**: `requete_sql` refuses any query NAMING a masked/sensitive column (alias bypass of `COLONNES_MASQUEES`, risk R3).
+
 ## 7. Coupling & blast radius
 
 **Adam → ERP** [V] (boundary scan, read-only run): 288 Adam files, **433** crossing imports to 181 ERP targets; top targets `src/lib/prisma` 63,
@@ -357,16 +736,30 @@ With >1 instance: duplicated heartbeats (missions protected by DB leases; other 
 
 **Can AI be disabled cleanly?** Runtime: yes — unset keys (`configured:false` everywhere), `masterEnabled=false` (all `lib/ai.ts` doors + features),
 `missionsPaused`/`MISSIONS_SWEEP=off`, `aiExternalActionsDisabled`, and Adam is already hidden from non-Super-Admins. Residual: the gateway-direct
-callers rely on their own toggles; the beta `/assistant` MiMo path reads **no** switch. Code removal: **no** — deleting `src/lib/assistant/`,
+callers rely on their own toggles; the `/assistant` MiMo path reads the master switch and the emergency stop (audit 27/10) and is
+capped per turn and per person/day (V3-D). Code removal: **no** — deleting `src/lib/assistant/`,
 `src/lib/models/`, `src/platform/in-process/` (the boundary doc's claim) would break the 41 ERP importers above, notably the audit→ledger chain
 and the scheduler; the Mission Runtime (`src/lib/missions`) itself only depends on ports and would survive.
 
 **What breaks if X changes**:
 - `AiSetting` columns → admin screen, `getAiSettings`, Adam op replay (ratchet).
+- `AssistantIaReglage` columns → `consommation-regles.ts` (defaults/bounds, pure, shared with the client form),
+  `consommation.ts`, `fil/tour.ts` (IA-09/IA-10 switches), `action-intents.ts` (`expirationCartesHeures`, read via Prisma
+  so the intent layer never imports `lib/agent`).
+- `ModelCallLog` rows with feature `assistant_ia` → daily cap (`jetonsDuJour`) AND the Consommation IA screen: deleting
+  them resets people's daily budget.
 - `AssistantActionIntent` schema/status strings → Adam cards, missions runner, beta `lib/agent/ecritures.ts`, idempotency.
 - `rbac.ts` `peutVoirAdam`/`peutPiloterMissionsAdam` → ~19 files + mission pause semantics (owners lose rights → all their missions PAUSE).
 - `faitDepuisAudit` whitelist → which ERP writes wake missions/watches/reminders.
 - Registry defaults → cost dashboards (price `null` if unknown model), protocol validation (`capabilities.ts`).
+
+### 7bis. Recipes (lot J10, decision 0028)
+
+- The Assistant IA reads the `recettes` module (`assistant-ia/infra/recettes.ts`, tool `recette_pour`, a selection card in
+  `MOTS_CLES`, context rule 13). Only VALIDATED versions are served; `AUCUNE`/`AMBIGU` never claim a recipe. The plan it returns is a
+  J2 work plan (ANALYSE → LIVRABLE → ATTENTE timer → LIVRABLE) valid against any persona catalogue; `RecetteUsage` + the TRAVAIL
+  mission launched afterwards measure "accepted unchanged". `MissionPlanPattern` VALIDATED shapes become Super-Admin-only recipe
+  cards (no plan): a pattern validated by repetition is still only a PROPOSAL until a human process owner validates it.
 
 ## 8. Invariants, gotchas, doctrine rules
 
@@ -407,7 +800,8 @@ Gotchas [V]:
 - `AiSetting` reads fail **open**; mission switch fails **closed**.
 - `logAiUsage` in the stream route hardcodes `provider: "openai"` even when `ADAM_MODEL_PROVIDER=anthropic` (`stream/route.ts`, logAiUsage call).
 - Two copies of the agent loop (`:4850` and `:5468`) must be changed together.
-- Telemetry sink is installed by **side-effect import** (`assistant.ts:67`, `reasoner.ts:2`); a process that never loads either would not persist `ModelCallLog` rows [U].
+- Telemetry sink: since K8 installed at boot (`src/instrumentation.ts`, worker) and calls made before install are queued (`telemetry.ts`, 500 max) — no silent loss. Out-of-turn gateway calls take user/feature from `sousImputation` (set by assistant-ia `auNomDe`/`sousBudget`).
+- K8 `ModelCallLog` convention: `inputTokens`/`outputTokens`/`cachedInputTokens` are TOTALS; `audio*`/`image*` columns are PARTS; `reasoningTokens` ⊂ output (never added twice); `durationMs`/`pages` are billed units; `estimated` flags non-API token counts; `priceGrid` dates the price. Every file calling a paid endpoint must write a row (ratchet `src/modules/assistant-ia/consommation-precise.test.ts`).
 - The scheduler runs inside the web process; an idle-suspended host stops missions (documented, `scheduled.ts:74`).
 - Container `DATABASE_URL` may default to production; benches/tests are protected by `prisma.ts`, ad-hoc `tsx` scripts outside `scripts/bench/` are **not**.
 
@@ -453,6 +847,40 @@ Gotchas [V]:
 [U] Whether missions can execute CRITICAL-level actions without the human retype (runner sets `confirmText` but `executeIntentGuarded` does not check it; scope approval may cover it).
 [U] How server actions that call `requireUser()` behave when invoked from the background heartbeat (no request context) via `domain_op`/generic executor.
 [U] Multi-instance behaviour of in-process scheduler/throttle/bus in production (Render instance count unknown).
-[U] Whether `ModelCallLog` misses calls in processes that never import the usage sink.
+[V, K8] `ModelCallLog` no longer misses calls made before the sink is installed (queue + `instrumentation.ts`).
 [U] `node:vm` + worker sandbox strength against hostile model-generated code.
 [U] Production `AiSetting` / `AppSetting` values (switch states) — not read.
+
+## C2 (2026-11-01) — connecteurs des chantiers de développement [V]
+
+- **Contract** `src/platform/dev/ports.ts` (zero import, L0 socle): `AgentDeveloppeur` (Claude Code), `ForgeGit` (GitHub),
+  `Hebergeur` (Render), `FaitDev`. Every method returns `Resultat<T>`; error codes `NON_CONFIGURE|AUTH|INTERDIT|INTROUVABLE|
+  QUOTA|INVALIDE|CONFLIT|INDISPONIBLE|RESEAU|INCERTAIN|SIMULE|INCONNU` with `reessayable` / `reessayerApresMs`. Composition
+  root `in-process/chantiers/connecteurs.ts` (`connecteursDev()` → `{agent, forge|null, hebergeur|null}`); the mission engine (lot C1) consumes it.
+- **Claude Code** = Routines API `/v1/claude_code/routines/{trig}/fire` (subscription) + `@claude` PR comment (GitHub
+  Action). No claude.ai credential server-side (Anthropic legal terms). Resuming an existing subscription session is
+  impossible server-side → continuity through branch + PR thread. Fire has **no idempotency**: `DevLancement.cleIdempotence`
+  claimed before sending (`createMany skipDuplicates`); timeout / connection reset / HTTP 500 ⇒ `INCERTAIN` (key blocked,
+  never replayed); 429 / 503 / pre-send network error ⇒ `ECHEC` (key re-claimable). Local hourly quota 30/routine,
+  100/account counted before the 429. Fire text arrives wrapped in `<routine-fire-payload>` (untrusted): the routine's own
+  prompt must opt in (decision 0043 § 2).
+- **Writes** (fire, comment, deploy, cancel, rollback, autoDeploy, rerun) call `noterEffetExterne` (J7): recorded in real
+  mode, neutralised (`SIMULE`) in simulation. Note: the J7 network port does NOT record anthropic.com calls by itself
+  (`HOTES_MODELES`), hence the explicit note.
+- **Webhooks** → `recevoirWebhook` (`reception.ts`): signature first (503 without secret, 401 bad), facts with SEMANTIC
+  keys claimed in `IngestedEvent (source "dev-github"|"dev-render", externalId)`, then `recordEvent` injected by the route
+  (`BusinessEvent` types `DEV_PUSH|DEV_PR|DEV_CHECKS|DEV_WORKFLOW|DEV_COMMENTAIRE|RENDER_DEPLOIEMENT|RENDER_SERVICE`,
+  `sourceDomain "DEV"`, refs `DEPOT:`, `BRANCHE:<repo>:<branch>`, `SHA:`, `PR:<repo>#n`, `SERVICE:`, `DEPLOIEMENT:`) → wakes
+  `WAIT_EVENT`. Polling (`sondage.ts`, 30 s ×2 → 15 min) emits the same keys ⇒ one event per fact.
+- Layout: PURE part in `src/platform/dev/` (ports, http, config, webhooks, consigne — no Prisma: `boundary.test.ts` forbids
+  any ERP import in `src/platform/` outside the bridge); adapters, `DevLancement`, reception, polling, probes and the
+  composition root `connecteursDev()` in the bridge `src/platform/in-process/chantiers/`. The registry (`recordEvent`) is
+  injected by the route, not imported.
+- **CLI relay** (Direction 01/11): `scripts/relais-claude.ts` on a Direction machine (`claude auth login`) long-polls
+  `GET /api/dev/relais/ordres` (Bearer `CLAUDE_RELAIS_TOKEN`), runs `claude --cloud "<task>"` (CREER, after pushing the
+  reserved branch) or `claude -p --cloud <id> --output-format json` (MESSAGE, stdin), POSTs raw output; the ERP interprets
+  it (`platform/dev/relais.ts` `interpreter`, pure). Queue `ClaudeRelaisOrdre` (idempotent key; 20 min EN_COURS ⇒
+  INCERTAIN; 1 h unpulled ⇒ ECHEC), heartbeat `ClaudeRelaisEtat`, completion ⇒ `BusinessEvent DEV_SESSION` with the
+  order's `missionId`. Agent port: `lancerParCli`, `envoyerMessage`, `ordreCli`, `relais()`. Managed Agents: not coded.
+- Auto-fix: `ConsigneDev.autoFix` asks the session to turn on native PR auto-fix (Claude GitHub App required);
+  `apresEchec()` in `sondage.ts` shows a new push after a red verdict.

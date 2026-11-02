@@ -1,11 +1,26 @@
 import { defineConfig } from "vitest/config";
+import fs from "fs";
 import path from "path";
+
+/**
+ * LES ADRESSES DE RÉEXPÉDITION (`src/platform/demenagements.ts`) — lues dans `tsconfig.json`, la
+ * seule table : TypeScript, Next.js et `tsx` la lisent nativement, Vitest par ces lignes. Chaque
+ * entrée est EXACTE (`^…$`) et passe avant l'alias général `@` : `@/lib/coffre/cle` va au module,
+ * `@/lib/coffre/clef` (s'il existait) resterait sous `src/lib/`.
+ */
+const paths = (JSON.parse(fs.readFileSync(path.resolve(__dirname, "tsconfig.json"), "utf8"))
+  .compilerOptions?.paths ?? {}) as Record<string, string[]>;
+const echapper = (s: string) => s.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+const reexpeditions = Object.entries(paths)
+  .filter(([cle]) => !cle.includes("*"))
+  .map(([cle, [cible]]) => ({ find: new RegExp(`^${echapper(cle)}$`), replacement: path.resolve(__dirname, cible!) }));
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
-    },
+    alias: [
+      ...reexpeditions,
+      { find: "@", replacement: path.resolve(__dirname, "./src") },
+    ],
   },
   test: {
     environment: "node",

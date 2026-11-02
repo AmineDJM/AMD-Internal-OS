@@ -160,8 +160,6 @@ suite("Stock promotionnel, étape 5 — comptages, récurrences, alertes, tablea
     return Number(r._sum.delta ?? 0);
   };
   const notifs = (qui: string, titre: string) => prisma.notification.count({ where: { userId: ids[qui]!, title: { contains: titre } } });
-  const comptageDe = (holderId: string | null, statut = "DEMANDE") =>
-    prisma.promoStockComptage.findFirst({ where: { holderId, statut: statut as never, demandeurId: { in: [ids.ops!, ids.ops2!, ids.sa!] } }, orderBy: { createdAt: "desc" } });
   const perimetre = () => ({ itemIds: Object.values(art), comptageIds: Object.values(comptages) });
 
   /** Forcer un entrelacement (§118.65) — même barrière que les bancs du stock (étapes 1 et 4). */

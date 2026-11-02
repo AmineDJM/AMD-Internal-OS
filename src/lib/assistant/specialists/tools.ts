@@ -8,7 +8,7 @@
  * pas non plus gratuit : un spécialiste coûte un appel de plus — la description dit quand il paie.
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { recordTool } from "@/lib/models/telemetry";
 import { LIMITE_FAITS_PAR_TOUR, type FaitSource } from "@/platform/in-process/fabric/provenance";
 import { LIBELLE_CERTITUDE, LIBELLE_CONDUITE } from "@/lib/assistant/confidence/calibrate";

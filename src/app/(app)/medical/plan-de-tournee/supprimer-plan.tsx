@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
 import { supprimerPlanTourneeBrouillon } from "@/lib/actions/tour-plan-actions";
+import { useAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 
 /**
  * SUPPRIMER UN BROUILLON — deux clics : « Supprimer », puis « Confirmer ».
@@ -12,24 +13,22 @@ import { supprimerPlanTourneeBrouillon } from "@/lib/actions/tour-plan-actions";
  * rapportées (qui ne se suppriment jamais) et c'est son refus qui s'affiche ici.
  */
 export function SupprimerPlan({ planId }: { planId: string }) {
-  const router = useRouter();
   const [confirmer, setConfirmer] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, setErr, run } = useAction();
 
   const supprimer = async () => {
-    setBusy(true); setErr(null);
     const fd = new FormData();
     fd.set("planId", planId);
-    const r = await supprimerPlanTourneeBrouillon(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Suppression impossible."); setConfirmer(false); return; }
-    router.refresh();
+    const ok = await run(async () => {
+      const r = await supprimerPlanTourneeBrouillon(fd);
+      return r.ok ? r : { ...r, error: r.error ?? "Suppression impossible." };
+    });
+    if (!ok) setConfirmer(false);
   };
 
   return (
     <span className="inline-flex flex-wrap items-center gap-2">
-      {err && <span className="text-xs text-destructive">{err}</span>}
+      <Retour ton="erreur" className="py-1 text-xs">{err}</Retour>
       {confirmer ? (
         <>
           <button

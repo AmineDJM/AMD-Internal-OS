@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Gavel, Loader2, AlertCircle } from "lucide-react";
-import { sponsoringAppeal } from "@/lib/actions/sponsoring-actions";
+import { sponsoringAppeal } from "@/modules/ad-pro/actions-sponsoring";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
+import { useAction } from "@/components/shared/use-action";
 
 /**
  * Appel du délégué après la décision. Le circuit de validation lui-même est piloté par le moteur de
@@ -15,23 +15,17 @@ import { InfoBulle } from "@/components/ui/info-bulle";
  * elle promettait « la Direction Marketing » quand le circuit rouvrait à la porte du DG.
  */
 export function AppealPanel({ id, etape }: { id: string; etape: string | null }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState("");
-  const [pending, start] = React.useTransition();
-  const [err, setErr] = React.useState<string | null>(null);
+  // Gardé (levée, délai) et rafraîchi par `useAction`.
+  const { busy: pending, err, setErr, run } = useAction();
 
-  const submit = () =>
-    start(async () => {
-      setErr(null);
-      const fd = new FormData();
-      fd.set("id", id);
-      fd.set("reason", reason);
-      const r = await sponsoringAppeal(fd);
-      if (!r.ok) { setErr(r.error ?? "Action impossible."); return; }
-      setOpen(false); setReason("");
-      router.refresh();
-    });
+  const submit = () => {
+    const fd = new FormData();
+    fd.set("id", id);
+    fd.set("reason", reason);
+    void run(() => sponsoringAppeal(fd), () => { setOpen(false); setReason(""); });
+  };
 
   if (!open) {
     // Le geste, et son pourquoi derrière un ⓘ (Direction, 07/10 : pas de phrase explicative à l'écran).

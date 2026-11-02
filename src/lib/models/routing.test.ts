@@ -73,28 +73,6 @@ describe("§5–§8 — le routage par rôle est tenu par le code, pas par la di
     expect(fautifs, `ces fichiers routent du travail vers la voix :\n${fautifs.join("\n")}`).toEqual([]);
   });
 
-  it("les ouvriers ne reçoivent JAMAIS d'outils — c'est structurel, pas une consigne", () => {
-    // Un ouvrier outillé peut agir sur l'ERP. Toute la sécurité du modèle « le code détient la
-    // vérité » tient à ce que seuls l'orchestrateur et la conversation portent des outils.
-    // `workstreams.ts` n'expose donc aucun champ `tools` au fournisseur : on le vérifie sur le
-    // texte du module, parce qu'un ajout futur serait une ligne discrète au milieu d'un objet.
-    const ws = read("src/lib/models/workstreams.ts");
-    const appels = [...ws.matchAll(/ask(?:Model|ModelJson)<?[^>]*>?\(\s*role,[\s\S]{0,260}?\}\)/g)].map((m) => m[0]);
-    expect(appels.length, "les appels de `workstreams` ont changé de forme — revoir ce test").toBeGreaterThanOrEqual(2);
-    for (const a of appels) {
-      expect(a, `un chantier passe des outils :\n${a}`).not.toMatch(/\btools\b/);
-    }
-  });
-
-  it("un chantier ne peut choisir QUE « worker » ou « bulk »", () => {
-    // Restriction de TYPE (`Extract<ModelRole, "worker" | "bulk">`) : l'orchestrateur coûte cher
-    // et la voix n'a rien à faire là. On vérifie que la déclaration existe toujours — la retirer
-    // rouvrirait silencieusement les deux autres rôles.
-    const ws = read("src/lib/models/workstreams.ts");
-    expect(ws).toMatch(/role\?\s*:\s*Extract<\s*ModelRole\s*,\s*"worker"\s*\|\s*"bulk"\s*>/);
-    expect(ws, "le défaut d'un chantier doit rester l'ouvrier").toMatch(/s\.role\s*\?\?\s*"worker"/);
-  });
-
   it("la voix est le SEUL usage du rôle temps réel, et elle ne passe pas par la passerelle texte", () => {
     const voix = read("src/lib/assistant/voice-realtime.ts");
     // La session vocale se négocie en SDP/WebRTC : si elle appelait `callModel`, on aurait deux

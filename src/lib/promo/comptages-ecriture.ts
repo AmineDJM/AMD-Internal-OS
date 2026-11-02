@@ -4,6 +4,7 @@ import { corrigerAuCompte, soldeDe, sousVerrous } from "@/lib/promo/stock-ecritu
 import { partitionComptage, type ArticleAComptabiliser, type LigneSaisie } from "@/lib/promo/comptages";
 import { libelleArticleStock } from "@/lib/promo/stock";
 import type { PromoFamille } from "@/lib/promo/catalogue";
+import { arrondirAuMillieme } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -24,8 +25,6 @@ import type { PromoFamille } from "@/lib/promo/catalogue";
  * Serveur seulement.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 
 class RefusComptage extends Error {}
 
@@ -55,7 +54,7 @@ export async function articlesDuComptage(saisieParId: string, holderId: string |
   const sommes = ids.length
     ? await prisma.promoStockMovement.groupBy({ by: ["itemId"], where: { itemId: { in: ids }, holderId }, _sum: { delta: true } })
     : [];
-  const solde = new Map(sommes.map((s) => [s.itemId, r3(Number(s._sum.delta ?? 0))]));
+  const solde = new Map(sommes.map((s) => [s.itemId, arrondirAuMillieme(Number(s._sum.delta ?? 0))]));
   const articles: ArticleAComptabiliser[] = items.map((i) => ({
     itemId: i.id, famille: i.catalogue.famille, actif: i.isActive, solde: solde.get(i.id) ?? 0,
   }));
@@ -86,7 +85,7 @@ export async function enregistrerSaisieComptage(c: {
       const resultat: LigneEnregistree[] = [];
       for (const l of c.lignes) {
         const attendu = await soldeDe(tx, l.itemId, c.holderId);
-        const ecart = r3(l.compte - attendu);
+        const ecart = arrondirAuMillieme(l.compte - attendu);
         if (ecart !== 0) {
           const r = await corrigerAuCompte(tx, l.itemId, {
             holderId: c.holderId, compte: l.compte, motif: c.motif, auteurId: c.auteurId, maintenant: c.maintenant,
@@ -166,11 +165,11 @@ export async function corrigerSaisieComptage(c: {
           select: { id: true, compte: true, ecart: true },
         });
         if (!ligne) throw new RefusComptage(`« ${libelle} » ne faisait pas partie de ce comptage.`);
-        const avant = r3(Number(ligne.compte));
-        const delta = r3(l.compte - avant);
+        const avant = arrondirAuMillieme(Number(ligne.compte));
+        const delta = arrondirAuMillieme(l.compte - avant);
         if (delta === 0) continue;
         const solde = await soldeDe(tx, l.itemId, c.holderId);
-        const cible = r3(solde + delta);
+        const cible = arrondirAuMillieme(solde + delta);
         if (cible < 0) {
           throw new RefusComptage(`« ${libelle} » : la correction ferait passer le solde sous zéro (${solde} en main aujourd'hui, ${-delta} à retirer) — des sorties ont eu lieu depuis le comptage.`);
         }
@@ -180,7 +179,7 @@ export async function corrigerSaisieComptage(c: {
         if (!r.ok) throw new RefusComptage(`« ${libelle} » : ${r.refus}`);
         await tx.promoStockComptageLigne.update({
           where: { id: ligne.id },
-          data: { compte: l.compte, ecart: r3(Number(ligne.ecart) + delta) },
+          data: { compte: l.compte, ecart: arrondirAuMillieme(Number(ligne.ecart) + delta) },
         });
         resultat.push({ itemId: l.itemId, libelle, avant, apres: l.compte });
       }

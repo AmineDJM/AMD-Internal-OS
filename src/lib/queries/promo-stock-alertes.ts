@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { familleQuantifiee, type PromoFamille } from "@/lib/promo/catalogue";
 import { libelleArticleStock, JOURS_ALERTE_VALIDITE } from "@/lib/promo/stock";
 import { JOURS_ALERTE_EN_ROUTE, type EntreeAlertes } from "@/lib/promo/comptages";
+import { arrondirAuMillieme } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -18,7 +19,6 @@ import { JOURS_ALERTE_EN_ROUTE, type EntreeAlertes } from "@/lib/promo/comptages
  */
 
 const JOUR_MS = 86_400_000;
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 
 export async function chargerFaitsAlertes(p: {
   itemIds: readonly string[] | null;
@@ -71,7 +71,7 @@ export async function chargerFaitsAlertes(p: {
     ? await prisma.promoStockMovement.groupBy({ by: ["lotId", "holderId"], where: { lotId: { in: lotsDates.map((l) => l.id) } }, _sum: { delta: true } })
     : [];
   const lotParId = new Map(lotsDates.map((l) => [l.id, l]));
-  const soldeMagasin = new Map(auMagasin.map((s) => [s.itemId, r3(Number(s._sum.delta ?? 0))]));
+  const soldeMagasin = new Map(auMagasin.map((s) => [s.itemId, arrondirAuMillieme(Number(s._sum.delta ?? 0))]));
 
   const personnes = new Set<string>();
   for (const s of soldesLots) if (s.holderId) personnes.add(s.holderId);
@@ -89,7 +89,7 @@ export async function chargerFaitsAlertes(p: {
     })),
     lotsDates: soldesLots.flatMap((s) => {
       const lot = lotParId.get(s.lotId);
-      const q = r3(Number(s._sum.delta ?? 0));
+      const q = arrondirAuMillieme(Number(s._sum.delta ?? 0));
       return lot && lot.valableJusquau && q > 0
         ? [{ itemId: lot.itemId, lotId: lot.id, numero: lot.numero, libelle: libelle.get(lot.itemId) ?? "Article", holderId: s.holderId, quantite: q, valableJusquau: lot.valableJusquau }]
         : [];

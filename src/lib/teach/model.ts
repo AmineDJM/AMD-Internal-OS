@@ -148,7 +148,6 @@ export const MAX_REGLES_ACTIVES_PAR_SUJET = 500;
 
 export const estKind = (v: unknown): v is Kind => typeof v === "string" && (KINDS as readonly string[]).includes(v);
 export const estScope = (v: unknown): v is Scope => typeof v === "string" && (SCOPES as readonly string[]).includes(v);
-export const estStatut = (v: unknown): v is Statut => typeof v === "string" && (STATUTS as readonly string[]).includes(v);
 
 /** Le domaine normalisé : minuscules, sans accent, un mot. Vide ou inconnu → `general`. */
 export function normaliserDomaine(v: unknown): string {

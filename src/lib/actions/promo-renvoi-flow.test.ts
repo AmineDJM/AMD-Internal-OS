@@ -18,7 +18,7 @@ import { enregistrerArticleDemandePromo, retirerArticleDemandePromo } from "./pr
 import { REFUS_EN_CORRECTION } from "@/lib/promo-material/renvoi";
 import { statutDuDossier } from "@/lib/promo-material/statut";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
-import { getAdProRequests } from "@/lib/queries/ad-pro";
+import { getAdProRequests } from "@/modules/ad-pro/api";
 import type { ActionResult } from "./types";
 
 let dbOk = false;

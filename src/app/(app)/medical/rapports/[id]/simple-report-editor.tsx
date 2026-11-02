@@ -6,6 +6,10 @@ import { Mic, Square, Loader2, Send, Paperclip, FileText, Download, Trash2, Rota
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { FIELD_REPORT_STATUS } from "@/lib/labels";
 import { formatBytes } from "@/app/(app)/messages/format";
 import { submitFieldReport, reopenFieldReport, deleteFieldReportAttachment } from "@/lib/actions/field-report-actions";
@@ -36,6 +40,7 @@ export function SimpleReportEditor({ detail, doctors, materiel, rattacheAUneVisi
   rattacheAUneVisite: boolean;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const sent = detail.status === "VALIDATED";
 
   const [summary, setSummary] = React.useState(detail.summary ?? detail.transcript ?? "");
@@ -93,17 +98,26 @@ export function SimpleReportEditor({ detail, doctors, materiel, rattacheAUneVisi
     f.set("institution", institution); f.set("specialty", specialty);
     // Les champs du bloc « Matériel remis » (mêmes noms que dans « Ma journée »).
     if (materielRef.current) for (const [k, v] of new FormData(materielRef.current)) f.append(k, v);
-    const r = await submitFieldReport(f);
-    setSending(false);
-    if (r.ok) router.push(CHEMIN_RAPPORTS_TERRAIN); else setMsg(r.error ?? "Envoi impossible.");
+    try {
+      const r = await submitFieldReport(f);
+      if (r.ok) router.push(CHEMIN_RAPPORTS_TERRAIN); else setMsg(r.error ?? "Envoi impossible.");
+    } catch {
+      setMsg(actionFailureMessage("THROWN"));
+    } finally {
+      setSending(false);
+    }
   };
 
-  const reopen = async () => { const f = new FormData(); f.set("id", detail.id); await reopenFieldReport(f); router.refresh(); };
+  const reopen = async () => {
+    const f = new FormData(); f.set("id", detail.id);
+    try { await reopenFieldReport(f); } catch { setMsg(actionFailureMessage("THROWN")); return; }
+    rafraichir();
+  };
 
   const uploadAttachment = async (file: File) => {
     const f = new FormData(); f.set("file", file);
     const res = await fetch(`/api/field-reports/${detail.id}/upload`, { method: "POST", body: f });
-    if (res.ok) router.refresh(); else { const d = await res.json(); setMsg(d.error ?? "Échec de la pièce jointe."); }
+    if (res.ok) rafraichir(); else { const d = await res.json(); setMsg(d.error ?? "Échec de la pièce jointe."); }
   };
 
   if (sent) {
@@ -184,7 +198,7 @@ export function SimpleReportEditor({ detail, doctors, materiel, rattacheAUneVisi
           <Button variant="outline" size="sm" className="h-10 sm:h-8" onClick={() => fileRef.current?.click()}><Paperclip className="h-4 w-4" /> Ajouter</Button>
           <input ref={fileRef} type="file" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadAttachment(f); e.target.value = ""; }} />
         </div>
-        <Attachments detail={detail} onDeleted={() => router.refresh()} />
+        <Attachments detail={detail} onDeleted={rafraichir} />
       </div>
 
       {/* TÉLÉPHONE : l'envoi colle au bas de l'écran, sous le pouce, pendant toute la saisie. */}
@@ -198,6 +212,8 @@ export function SimpleReportEditor({ detail, doctors, materiel, rattacheAUneVisi
 }
 
 function Attachments({ detail, readOnly, onDeleted }: { detail: FieldReportDetail; readOnly?: boolean; onDeleted?: () => void }) {
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   if (detail.attachments.length === 0) return null;
   return (
     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -210,7 +226,7 @@ function Attachments({ detail, readOnly, onDeleted }: { detail: FieldReportDetai
           <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{a.name}</p><p className="text-[0.6875rem] text-muted-foreground">{formatBytes(a.size)}</p></div>
           <a href={`/api/field-reports/attachment/${a.id}?dl=1`} aria-label={`Télécharger ${a.name}`} className="shrink-0 rounded-lg p-2.5 text-muted-foreground hover:bg-secondary sm:rounded sm:p-1"><Download className="h-4 w-4" /></a>
           {!readOnly && (
-            <button onClick={() => { if (window.confirm("Supprimer ?")) { const f = new FormData(); f.set("id", a.id); deleteFieldReportAttachment(f).then(() => onDeleted?.()); } }} aria-label={`Supprimer ${a.name}`} className="shrink-0 rounded-lg p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:rounded sm:p-1"><Trash2 className="h-4 w-4" /></button>
+            <button onClick={async () => { if (await confirmer("Supprimer ?")) { const f = new FormData(); f.set("id", a.id); deleteFieldReportAttachment(f).then(() => onDeleted?.(), () => retours.erreur(actionFailureMessage("THROWN"))); } }} aria-label={`Supprimer ${a.name}`} className="shrink-0 rounded-lg p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:rounded sm:p-1"><Trash2 className="h-4 w-4" /></button>
           )}
         </div>
       ))}

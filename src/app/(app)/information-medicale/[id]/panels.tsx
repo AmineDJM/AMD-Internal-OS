@@ -21,7 +21,6 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { ROLE_LABELS } from "@/lib/labels";
-import type { ActionResult } from "@/lib/actions/types";
 import { useAction } from "@/components/shared/use-action";
 import { InfoBulle } from "@/components/ui/info-bulle";
 
@@ -481,12 +480,14 @@ export function CreateDeclarationButton() {
   }
   return (
     <form
-      action={(fd) => {
-        void run(async () => {
+      action={async (fd) => {
+        let cree: string | undefined;
+        const ok = await run(async () => {
           const r = await createMedicalInfoItem(undefined, fd);
-          if (r.ok && r.id) { setOpen(false); router.push(`/information-medicale/${r.id}`); }
+          cree = r.id;
           return r;
         });
+        if (ok && cree) { setOpen(false); router.push(`/information-medicale/${cree}`); }
       }}
       className="w-full space-y-3 rounded-xl border border-primary/30 bg-primary/5 p-3"
     >
@@ -650,5 +651,3 @@ export function DirectionValidateButton({ id, amount }: { id: string; amount: nu
     </div>
   );
 }
-
-export const DocIcon = FileText;

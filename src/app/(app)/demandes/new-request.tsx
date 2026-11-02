@@ -12,11 +12,14 @@ import { Icon } from "@/components/ui/icon";
 import { optionsFromMap } from "@/components/shared/form-fields";
 import { DrivePickerField } from "@/components/drive/drive-picker";
 import { PRIORITY } from "@/lib/labels";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 type Option = { id: string; name: string };
 
 export function NewRequestButton({ users, departments, articles = [] }: { users: Option[]; departments: Option[]; articles?: Option[] }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [type, setType] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -42,10 +45,15 @@ export function NewRequestButton({ users, departments, articles = [] }: { users:
           <form
             action={async (fd) => {
               setSaving(true); setErr(null);
-              const r = await createRequest(undefined, fd);
-              setSaving(false);
-              if (r.ok) { setOpen(false); if (r.id) router.push(`/demandes/${r.id}`); else router.refresh(); }
-              else setErr(r.error ?? "Erreur.");
+              try {
+                const r = await createRequest(undefined, fd);
+                if (r.ok) { setOpen(false); if (r.id) router.push(`/demandes/${r.id}`); else rafraichir(); }
+                else setErr(r.error ?? "La demande n'a pas été créée.");
+              } catch {
+                setErr(actionFailureMessage("THROWN"));
+              } finally {
+                setSaving(false);
+              }
             }}
             className="space-y-4"
           >

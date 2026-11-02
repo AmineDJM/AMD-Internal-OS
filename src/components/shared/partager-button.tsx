@@ -9,6 +9,8 @@ import { libelleDuType } from "@/lib/partage";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Textarea, Label, Input } from "@/components/ui/input";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -74,6 +76,7 @@ function nommer({ refLabel, driveNodeIds, refType }: CiblePartage): string {
 export function PartagerSheet({ open, onClose, ...cible }: CiblePartage & { open: boolean; onClose: () => void }) {
   const { refType, refId, refLabel, driveNodeIds, href, people } = cible;
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   // UN GROUPE OU UN COLLÈGUE (Direction, 06/10) : un seul destinataire, choisi dans l'un des deux onglets.
@@ -137,15 +140,20 @@ export function PartagerSheet({ open, onClose, ...cible }: CiblePartage & { open
           if (refLabel) fd.set("refLabel", refLabel);
           if (href) fd.set("href", href);
           if (driveNodeIds && driveNodeIds.length > 0) fd.set("driveRefs", JSON.stringify([...driveNodeIds]));
-          const r = await partagerParMessagerie(fd);
-          setBusy(false);
-          if (r.ok) {
-            onClose(); setChoix(null);
-            // On EMMÈNE la personne dans le fil : « c'est parti » sans pouvoir le vérifier
-            // est une parole à croire, et aucun écran de ce produit n'a le droit de le demander.
-            if (r.conversationId) router.push(`/messages?c=${r.conversationId}`);
-            else router.refresh();
-          } else setErr(r.error ?? "Le partage n'a pas pu être envoyé.");
+          try {
+            const r = await partagerParMessagerie(fd);
+            if (r.ok) {
+              onClose(); setChoix(null);
+              // On EMMÈNE la personne dans le fil : « c'est parti » sans pouvoir le vérifier
+              // est une parole à croire, et aucun écran de ce produit n'a le droit de le demander.
+              if (r.conversationId) router.push(`/messages?c=${r.conversationId}`);
+              else rafraichir();
+            } else setErr(r.error ?? "Le partage n'a pas pu être envoyé.");
+          } catch {
+            setErr(actionFailureMessage("THROWN"));
+          } finally {
+            setBusy(false);
+          }
         }}
         className="space-y-4"
       >

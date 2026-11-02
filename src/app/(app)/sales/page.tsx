@@ -22,7 +22,8 @@ function Evol({ v }: { v: number | null }) {
  * VENTES PCH — SYNTHÈSE PAR BU → PRODUIT (Direction, 08/10). Ce que la PCH a reçu de nous (sell-in), ce que ses DR ont
  * distribué aux hôpitaux, la demande non servie, notre part des réceptions de la PCH, l'évolution sur la période d'avant.
  */
-export default async function VentesPchPage({ searchParams }: { searchParams: ParamsVentesPch }) {
+export default async function VentesPchPage(props: { searchParams: Promise<ParamsVentesPch> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PCH_VENTES");
   const ctx = await contexteVentesPch(searchParams);
   const lignes = await synthesePch(ctx.periode, ctx.precedente, ctx.buId);

@@ -69,7 +69,7 @@ est posée sur la pièce du registre / l'ordre (`custom.doublonPossible`) et dan
 
 ### La relance unifiée
 
-`relancerPaiement` (`src/lib/actions/relance-paiement-actions.ts`) — cible : une demande de paiement OU un ordre de
+`relancerPaiement` (`src/modules/finances/actions-relances.ts`) — cible : une demande de paiement OU un ordre de
 dépense. Règle pure `finance/relance-paiement.ts` : rien à relancer sur un paiement payé, clos ou pas encore demandé ; le
 demandeur ne se relance pas quand le dossier lui est renvoyé ; une relance par heure et par personne (le délai de
 `canNudge`, extrait en `refusDelaiDeCourtoisie`). Ouverte au demandeur, à la vue globale, et à la personne bloquée
@@ -92,8 +92,8 @@ le demandeur quand le dossier lui est renvoyé ; le demandeur est informé quand
 
 ### Fichiers clés
 
-`src/lib/factures/{identite,connues,blocage-vue,jeton-relance,recensement}.ts`, `src/lib/finance/relance-paiement.ts`,
-`src/lib/payments/relance-destinataires.ts`, `src/lib/actions/{relance-paiement,doublons-factures}-actions.ts`,
+`src/lib/factures/{identite,connues,blocage-vue,jeton-relance,recensement}.ts`, `src/modules/finances/domaine/relance-paiement.ts`,
+`src/modules/finances/infra/relance-destinataires.ts`, `src/lib/actions/{relance-paiement,doublons-factures}-actions.ts`,
 `src/components/factures/facture-deja-connue.tsx`, `src/app/(app)/finances/doublons-factures/`,
 `scripts/recenser-doublons-factures.ts`. Tests : `identite.banc.test.ts`, `doublons-factures-flow.test.ts`,
 `finance/relance-paiement.test.ts`.

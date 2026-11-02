@@ -40,10 +40,11 @@ import { EntityLinks } from "@/components/shared/entity-links";
 import { linksOf, linkedViews } from "@/lib/links/store";
 import { porteDuBC, origineDuBC, centreVouluDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { blocageParLeBC, reserveEtapeBC } from "@/lib/bons-de-commande/regle";
-import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement } from "@/lib/finances/settlement";
-import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
+import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement, refusFactureDePoste } from "@/modules/finances/partage";
+import { siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
 import { sitsOnValidationCentre } from "@/lib/validations/centre";
 import { BonDeCommandeGate } from "./bc-gate";
+import { HistoriqueAnnulable } from "@/modules/assistant-ia/ecrans/barre-annulation";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { peutSignerBC } from "@/lib/queries/bons-de-commande";
 import { fichiersEmis, lienFichierEmis } from "@/lib/legal/fichiers-emis";
@@ -77,7 +78,11 @@ const LEGAL_DOC_CATEGORIES = [
  * Le FICHIER de référence, lui, reste dans le Drive : Legal pointe dessus, ne le duplique pas.
  * Les pièces jointes ici sont les pièces PROPRES à l'engagement, par la table `Document` commune.
  */
-export default async function LegalDocumentPage({ params, searchParams }: { params: { id: string }; searchParams?: { emis?: string } }) {
+export default async function LegalDocumentPage(
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ emis?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   // DEUX PORTES, ET LA SECONDE EST ÉTROITE. Legal ouvre tout le registre ; la COMPTABILITÉ n'y
   // ouvre que les FACTURES — elle venait les lire dans un écran à part, et centraliser ne devait
   // rien lui retirer. La restriction est vérifiée sur la pièce elle-même, plus bas : une porte
@@ -289,8 +294,13 @@ export default async function LegalDocumentPage({ params, searchParams }: { para
     : null;
   // Une facture ÉMISE par la société se règle par son client : la fiche dit pourquoi le bouton n'est pas là, avec la
   // phrase même du refus de l'action (§118.195).
+  const posteDeLaFacture = doc.kind === "INVOICE"
+    ? await prisma.adProItemPiece.findFirst({ where: { legalDocumentId: doc.id, nature: "FACTURE" }, select: { item: { select: { label: true } } } })
+    : null;
   const settleBlocked = doc.kind === "INVOICE" && doc.direction === "IN"
     ? REFUS_FACTURE_EMISE_AU_REGLEMENT
+    : posteDeLaFacture
+      ? refusFactureDePoste(posteDeLaFacture.item.label)
     : bcAmont?.kind === "PURCHASE_ORDER"
       ? blocageParLeBC(await porteDuBC(bcAmont.id), bcAmont.reference)
       : null;
@@ -392,6 +402,9 @@ export default async function LegalDocumentPage({ params, searchParams }: { para
           ouvertParDefaut={searchParams?.emis === "1"}
         />
       )}
+
+      {/* K10c : mes gestes réversibles sur cette pièce (créée, modifiée, annulée, envoyée au règlement) — « Annuler ». */}
+      <HistoriqueAnnulable modele="LegalDocument" id={doc.id} titre="Mes gestes sur cette pièce — annuler" />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

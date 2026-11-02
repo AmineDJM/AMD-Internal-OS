@@ -1,5 +1,11 @@
 import { createHash, createHmac } from "crypto";
 import { resolveS3Config, type S3Config } from "@/lib/storage/s3-config";
+import { sansBloquer, attendu } from "@/lib/journal";
+import { noterEffetExterne } from "@/lib/effets/magasin";
+
+/** LE PORT DE SIMULATION (J7) : un geste simulé note l'écriture au stockage et ne touche pas au bucket. */
+const stockageSimule = (operation: string, key: string, taille?: number): boolean =>
+  noterEffetExterne({ acte: "STOCKAGE", cible: key, apercu: taille !== undefined ? `${operation} · ${taille} octets` : operation, origine: "object-storage" });
 
 /**
  * STOCKAGE OBJET S3-COMPATIBLE — Supabase Storage, Cloudflare R2, AWS S3, MinIO, Backblaze…
@@ -270,6 +276,7 @@ export async function uploadPartsBounded(
 }
 
 export async function createMultipartUpload(key: string, contentType: string): Promise<string> {
+  if (stockageSimule("ouverture d'un dépôt en parties", key)) return "simulation";
   const res = await signedRequestQ("POST", key, { uploads: "" }, undefined, contentType);
   const xml = await res.text();
   if (!res.ok) throw new Error(`Ouverture du téléversement échouée (${res.status}${s3ErrorCode(xml) ? ` ${s3ErrorCode(xml)}` : ""}).`);
@@ -281,7 +288,7 @@ export async function createMultipartUpload(key: string, contentType: string): P
 async function uploadPart(key: string, uploadId: string, partNumber: number, body: Buffer): Promise<string> {
   const res = await signedRequestQ("PUT", key, { partNumber: String(partNumber), uploadId }, body);
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    const detail = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
     throw new Error(`Envoi de la partie ${partNumber} échoué (${res.status}${s3ErrorCode(detail) ? ` ${s3ErrorCode(detail)}` : ""}).`);
   }
   // L'ETag est indispensable à la finalisation : sans lui, S3 refuse de recoller les parties.
@@ -291,6 +298,7 @@ async function uploadPart(key: string, uploadId: string, partNumber: number, bod
 }
 
 export async function completeMultipartUpload(key: string, uploadId: string, etags: string[]): Promise<void> {
+  if (stockageSimule("dépôt en parties", key)) return;
   const body = Buffer.from(
     `<CompleteMultipartUpload>${etags
       .map((etag, i) => `<Part><PartNumber>${i + 1}</PartNumber><ETag>${etag}</ETag></Part>`)
@@ -308,6 +316,7 @@ export async function completeMultipartUpload(key: string, uploadId: string, eta
 
 /** Abandonne un téléversement entamé — libère les parties déjà envoyées. Ne lève jamais. */
 export async function abortMultipartUpload(key: string, uploadId: string): Promise<void> {
+  if (stockageSimule("abandon d'un dépôt", key)) return;
   try {
     await signedRequestQ("DELETE", key, { uploadId });
   } catch (err) {
@@ -327,6 +336,10 @@ export async function putObjectStream(
   source: AsyncIterable<Buffer>,
   contentType = "application/octet-stream",
 ): Promise<void> {
+  if (stockageSimule("dépôt en parties", key)) {
+    for await (const _partie of source) { /* consommée : la source ne reste pas suspendue */ }
+    return;
+  }
   const uploadId = await createMultipartUpload(key, contentType);
   try {
     const etags = await uploadPartsBounded(
@@ -400,14 +413,15 @@ function s3Failure(action: string, res: Response, key: string, detail: string): 
 
 /** Écrit un objet (le serveur pousse les octets vers le bucket — ex. blobs chiffrés). */
 export async function putObject(key: string, body: Buffer, contentType = "application/octet-stream"): Promise<void> {
+  if (stockageSimule("dépôt", key, body.length)) return;
   const res = await signedRequest("PUT", key, body, contentType);
-  if (!res.ok) throw s3Failure("Écriture de l'objet", res, key, await res.text().catch(() => ""));
+  if (!res.ok) throw s3Failure("Écriture de l'objet", res, key, await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
 }
 
 /** Lit un objet en mémoire (inspection d'archive après PUT direct, ou lecture d'un blob). */
 export async function getObject(key: string): Promise<Buffer> {
   const res = await signedRequest("GET", key);
-  if (!res.ok) throw s3Failure("Lecture de l'objet", res, key, await res.text().catch(() => ""));
+  if (!res.ok) throw s3Failure("Lecture de l'objet", res, key, await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
   return Buffer.from(await res.arrayBuffer());
 }
 
@@ -418,12 +432,13 @@ export async function getObject(key: string): Promise<Buffer> {
 export async function getObjectRange(key: string, debut: number, longueur: number): Promise<Buffer> {
   if (longueur <= 0) return Buffer.alloc(0);
   const res = await signedRequestQ("GET", key, {}, undefined, undefined, { range: `bytes=${debut}-${debut + longueur - 1}` });
-  if (!res.ok) throw s3Failure("Lecture d'une plage de l'objet", res, key, await res.text().catch(() => ""));
+  if (!res.ok) throw s3Failure("Lecture d'une plage de l'objet", res, key, await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
   return Buffer.from(await res.arrayBuffer());
 }
 
 /** Supprime un objet (nettoyage archive temporaire ou blob déréférencé). Ne lève jamais. */
 export async function deleteObject(key: string): Promise<void> {
+  if (stockageSimule("suppression", key)) return;
   try {
     const res = await signedRequest("DELETE", key);
     if (!res.ok && res.status !== 404) console.error("[reg-object-storage] delete", key, res.status);
@@ -473,26 +488,6 @@ export function euJurisdictionHost(host: string): string | null {
   return eu === host ? null : eu;
 }
 
-/**
- * Liste les buckets visibles pour ces identifiants À CET endpoint (S3 ListBuckets, GET `/`).
- * NB : un token R2 *scopé* à un bucket renvoie 403 AccessDenied ici (normal) — la sonde décisive
- * est `probeJurisdiction()`. Lève une erreur explicite si l'appel échoue.
- */
-export async function listBuckets(): Promise<string[]> {
-  const cfg = config();
-  if (!cfg) throw new Error("Stockage objet non configuré.");
-  const base = new URL(cfg.endpoint);
-  const host = base.host;
-  const headers = signAuthHeaders(cfg, "GET", host, "/", "", EMPTY_SHA256);
-  const res = await fetch(`${base.protocol}//${host}/`, { method: "GET", headers });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    const code = s3ErrorCode(detail);
-    throw new Error(`Liste des buckets échouée (${res.status}${code ? ` ${code}` : ""}).`);
-  }
-  return parseBucketNames(await res.text());
-}
-
 /** Résultat de la sonde de juridiction : où le bucket cible existe-t-il ? */
 export interface JurisdictionProbe {
   bucket: string;
@@ -527,8 +522,8 @@ export async function probeJurisdiction(): Promise<JurisdictionProbe | null> {
   const configuredHost = new URL(cfg.endpoint).host;
   const euHost = euJurisdictionHost(configuredHost);
   const [configuredStatus, euStatus] = await Promise.all([
-    probeBucketExists(cfg, configuredHost).catch(() => null),
-    euHost ? probeBucketExists(cfg, euHost).catch(() => null) : Promise.resolve(null),
+    probeBucketExists(cfg, configuredHost).catch(sansBloquer("object-storage.probeJurisdiction.probeBucketExists", null)),
+    euHost ? probeBucketExists(cfg, euHost).catch(sansBloquer("object-storage.probeJurisdiction.probeBucketExists", null)) : Promise.resolve(null),
   ]);
   return { bucket: cfg.bucket, configuredHost, configuredStatus, euHost, euStatus };
 }
@@ -594,6 +589,6 @@ export async function headObjectSize(key: string): Promise<number | null> {
  */
 export async function getObjectStream(key: string): Promise<ReadableStream<Uint8Array>> {
   const res = await signedRequestQ("GET", key, {});
-  if (!res.ok || !res.body) throw s3Failure("Lecture de l'objet", res, key, await res.text().catch(() => ""));
+  if (!res.ok || !res.body) throw s3Failure("Lecture de l'objet", res, key, await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
   return res.body;
 }

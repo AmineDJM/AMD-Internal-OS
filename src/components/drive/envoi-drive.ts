@@ -6,6 +6,7 @@ import type { PlanClient } from "@/lib/storage/envoi-direct-client";
 import { refusTeleversement } from "@/lib/files/politique-televersement";
 import { refusSansStockageObjet } from "@/lib/storage/phrases-stockage";
 import { fingerprintFile } from "@/lib/drive/fingerprint";
+import { sansBloquer } from "@/lib/journal";
 
 /** Où va le fichier dans le Drive — les mêmes champs que le chemin habituel. */
 export interface CibleDrive {
@@ -18,7 +19,7 @@ export interface CibleDrive {
 }
 
 async function json<T>(res: Response): Promise<T> {
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const body = (await res.json().catch(sansBloquer("envoi-drive.json.json", {}))) as T & { error?: string };
   if (!res.ok) throw new Error(body.error ?? `Le serveur a répondu ${res.status}.`);
   return body;
 }
@@ -51,11 +52,11 @@ export function envoiDrive(cible: CibleDrive, limites: LimitesEnvoi | null): { r
         finaliser: async (id, etags) => {
           // Les empreintes reçues par le navigateur : la finalisation s'en sert si le stockage ne liste pas ses parties.
           const res = await fetch(`/api/drive/upload/direct/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ etags: etags ?? {} }) });
-          const b = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; reprendre?: boolean; id?: string };
+          const b = (await res.json().catch(sansBloquer("envoi-drive.finaliser.json", {}))) as { ok?: boolean; error?: string; reprendre?: boolean; id?: string };
           // Le corps (avec l'id du nœud créé) remonte à `onFileDone`, comme sur le chemin habituel.
           return res.ok && b.ok ? { ok: true as const, body: b as Record<string, unknown> } : { ok: false as const, error: b.error ?? `Finalisation refusée (${res.status}).`, reprendre: b.reprendre };
         },
-        abandonner: async (id) => { await fetch(`/api/drive/upload/direct/${id}`, { method: "DELETE" }).catch(() => undefined); },
+        abandonner: async (id) => { await fetch(`/api/drive/upload/direct/${id}`, { method: "DELETE" }).catch(sansBloquer("envoi-drive.abandonner.fetch")); },
       };
     },
   };

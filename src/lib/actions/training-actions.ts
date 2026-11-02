@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import type { UserRole } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -11,9 +10,9 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { CHEMIN_FORMATIONS, lienFormation } from "@/lib/chemins/formations";
 import { getAppSettings } from "@/lib/settings";
-import { saveFile, validateUpload } from "@/lib/storage";
+import { validateUpload, deposerPieceDeModule } from "@/lib/storage";
 import { companyIdForNew } from "@/lib/company";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { getManagerOfUser, getManagementChain } from "@/lib/departments";
 import {
   canDecideChain, applyChainDecision, chainNotifyRoles, CHAIN_STAGE_LABELS, type ChainStage,
@@ -24,6 +23,7 @@ import {
 } from "@/lib/training";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationFormation } from "@/lib/annulations/regles";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = CHEMIN_FORMATIONS;
 
@@ -53,11 +53,10 @@ async function revalidateTraining(id?: string): Promise<void> {
  */
 async function nextTrainingRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const existing = await prisma.training.findMany({
-    where: { reference: { startsWith: `FORM-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "Training", prefixe: "FORM", annee: year,
+    existantes: async () => (await prisma.training.findMany({ where: { reference: { startsWith: `FORM-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("FORM", year, existing.map((r) => r.reference));
 }
 
 /** Verse les pièces (devis, programme, convention) sur la formation. */
@@ -66,19 +65,8 @@ async function attachFiles(trainingId: string, files: File[], uploaderId: string
   for (const file of files) {
     const invalid = validateUpload(file.name, file.size, maxMb);
     if (invalid) return invalid;
-    const key = `TRAINING/${trainingId}/${randomUUID()}__${file.name}`;
-    try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
-    } catch (err) {
-      console.error("[training] storage write failed, recording metadata only", err);
-    }
-    await prisma.document.create({
-      data: {
-        name: file.name, category: "OTHER", entityType: "TRAINING", entityId: trainingId,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
-        confidentiality: "INTERNAL", uploadedById: uploaderId,
-      },
-    });
+    // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+    await deposerPieceDeModule(file, { entityType: "TRAINING", entityId: trainingId, category: "OTHER", confidentiality: "INTERNAL", uploadedById: uploaderId, journal: "training" });
   }
   return null;
 }
@@ -99,7 +87,7 @@ export async function requestTraining(_prev: ActionResult | undefined, formData:
   const amount = fdNum(formData, "amount") ?? 0;
   if (amount < 0) return { ok: false, error: "Un montant ne peut pas être négatif." };
 
-  const manager = await getManagerOfUser(user.id).catch(() => null);
+  const manager = await getManagerOfUser(user.id).catch(sansBloquer("training-actions.requestTraining.getManagerOfUser", null));
   const managerUserId = manager?.userId ?? null;
   const stage = initialTrainingStage("EMPLOYEE", Boolean(managerUserId));
 
@@ -225,7 +213,7 @@ async function deciderFor(user: SessionUser, training: { managerId: string | nul
     // ACTUELLE, sinon la demande reste orpheline.
     const emp = await prisma.employee.findUnique({ where: { userId: training.requesterId }, select: { id: true } });
     if (emp) {
-      const chain = await getManagementChain(emp.id).catch(() => []);
+      const chain = await getManagementChain(emp.id).catch(sansBloquer("training-actions.deciderFor.getManagementChain", []));
       isManager = chain.some((m) => Boolean(m.userId && ids.has(m.userId)));
     }
   }
@@ -451,11 +439,11 @@ export async function annulerFormation(formData: FormData): Promise<ActionResult
   if (training.status === "PENDING" && training.stage === "MANAGER" && training.managerId) {
     const chef = await prisma.employee.findUnique({ where: { id: training.managerId }, select: { userId: true } });
     if (chef?.userId && chef.userId !== user.id) {
-      await notifyUser({ userId: chef.userId, type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(() => undefined);
+      await notifyUser({ userId: chef.userId, type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(sansBloquer("training-actions.annulerFormation.notifyUser"));
     }
   } else {
     const roles = (training.status === "APPROVED" ? ["DIRECTION", "SUPER_ADMIN", ...rolesWithModule("TRAINING", "UPDATE")] : chainNotifyRoles(training.stage as ChainStage)) as UserRole[];
-    if (roles.length) await notifyRoles([...new Set(roles)], { type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(() => undefined);
+    if (roles.length) await notifyRoles([...new Set(roles)], { type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(sansBloquer("training-actions.annulerFormation.notifyRoles"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Ressources humaines", entityType: "TRAINING", entityId: id,

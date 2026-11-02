@@ -2,7 +2,7 @@
 
 import type { VueStockPromo } from "@/lib/chemins/stock-promo";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -38,7 +38,7 @@ const LIBELLE_VUE: Record<Vue, string> = {
  * lui ouvre pas — le chargeur, lui, ne lui a même pas ENVOYÉ ce qu'elle ne peut pas voir.
  */
 export function StockEcran({ page, vueDemandee }: { page: PageStock; vueDemandee: string | null }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const f = React.useMemo(() => faitsDe(page), [page]);
 
   const visibles = React.useMemo(() => {
@@ -94,7 +94,7 @@ export function StockEcran({ page, vueDemandee }: { page: PageStock; vueDemandee
     setMessage(null);
     try {
       const r = await fn();
-      if (r.ok) { setMessage({ ok: true, texte: r.message ?? succes }); router.refresh(); }
+      if (r.ok) { setMessage({ ok: true, texte: r.message ?? succes }); rafraichir(); }
       else setMessage({ ok: false, texte: r.error ?? "L'action n'a pas abouti." });
     } catch {
       // Une action peut avoir ÉCRIT avant de lever : on ne dit jamais « recommencez » à l'aveugle.
@@ -102,7 +102,7 @@ export function StockEcran({ page, vueDemandee }: { page: PageStock; vueDemandee
     } finally {
       setOccupe(false);
     }
-  }, [router]);
+  }, [rafraichir]);
 
   const ctx: Ctx = { page, f, ouvrir: setDialogue, executer, annoncer: (texte) => setMessage({ ok: true, texte }), occupe };
 

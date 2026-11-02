@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
 import { FilterX, Check, Paperclip } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatDate, formatDateTime } from "@/lib/utils";
 import { MAIL_DIRECTION } from "@/lib/labels";
 import { setMailDate } from "@/lib/actions/mail-register-actions";
 import { PartagerButton } from "@/components/shared/partager-button";
+import { useAction } from "@/components/shared/use-action";
 
 /**
  * LE CARNET DE COURRIERS — un tableau qu'on FILTRE, parce qu'on y cherche toujours une pièce
@@ -50,13 +51,12 @@ const cellInput = "h-9 w-full rounded-md border border-input bg-card px-2 text-b
 function DateCell({ id, field, value, canEdit }: {
   id: string; field: "receivedAt" | "acknowledgedAt"; value: string | null; canEdit: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // Une cellule n'a pas de place pour parler : un refus (date invalide…) part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
   if (!canEdit) return <span className="text-muted-foreground">{value ? formatDate(value) : "—"}</span>;
 
   const save = (v: string | null) => {
-    setBusy(true);
-    void setMailDate({ id, field, value: v }).then(() => { setBusy(false); router.refresh(); });
+    void run(() => setMailDate({ id, field, value: v }));
   };
 
   if (value) {

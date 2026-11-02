@@ -8,18 +8,19 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { EVENT_TYPE, EVENT_SCOPE, EVENT_FORMAT, EVENT_STATUS } from "@/lib/labels";
-import { createEvent, updateEvent, deleteEvent } from "@/lib/actions/event-actions";
-import { addAdProItem } from "@/lib/actions/ad-pro-item-actions";
-import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@/components/ad-pro/description-luna";
-import { versFormulairePoste, type PostePropose } from "@/lib/ad-pro/postes-luna";
-import type { EventDetail } from "@/lib/queries/events";
+import { TYPES_EVENEMENT_EXTERNE, estTypeExterne, STATUTS_MANUELS, versFormulairePoste, type PostePropose, availableProductOptions, doctorOptions, specialtyOptions, splitMulti, repartirMedecins, CHAMPS_MEDECINS, type DoctorRow, type ProductRow, type SpecialtyRow } from "@/modules/ad-pro/partage";
+import { createEvent, updateEvent, deleteEvent } from "@/modules/ad-pro/actions-evenements";
+import { addAdProItem } from "@/modules/ad-pro/actions-postes";
+import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@/modules/ad-pro/ecrans/description-luna";
+import type { EventDetail } from "@/modules/ad-pro/api";
 import { MultiSelectField } from "@/components/shared/create-record-button";
 import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
+import { useFormAction } from "@/components/shared/use-action";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { Retour } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { wilayaOptions } from "@/lib/geo/algeria";
-import {
-  availableProductOptions, doctorOptions, specialtyOptions, splitMulti, repartirMedecins, CHAMPS_MEDECINS,
-  type DoctorRow, type ProductRow, type SpecialtyRow,
-} from "@/lib/ad-pro/pickers";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -125,11 +126,17 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
       {/* TYPE, PORTÉE, FORMAT : un choix EXPLICITE, plus une valeur pré-remplie. C'est sur eux que
           l'arbitrage se fait, et une valeur par défaut EST une décision prise à la place du
           demandeur (§118.108). À la MODIFICATION la valeur existe, donc le repère ne gêne pas. */}
+      {/* UN ÉVÉNEMENT EXTERNE (Direction, 27/10) : staff, webinaire, congrès, journée, autre — et QUI l'organise.
+          Un ancien événement d'un autre type le garde (proposé tel quel), on ne le propose plus aux nouveaux. */}
       <W label="Type">
         <Select name="type" defaultValue={e?.type ?? ""} required>
           <option value="">— Choisir le type —</option>
-          {Object.entries(EVENT_TYPE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          {TYPES_EVENEMENT_EXTERNE.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          {e && !estTypeExterne(e.type) && <option value={e.type}>{EVENT_TYPE[e.type] ?? e.type}</option>}
         </Select>
+      </W>
+      <W label="Organisateur">
+        <Input name="organizer" defaultValue={e?.organizer ?? ""} required={!e} placeholder="Ex. Société algérienne de cardiologie, CHU Mustapha…" />
       </W>
       <W label="Portée">
         <Select name="scope" defaultValue={e?.scope ?? ""} required>
@@ -147,7 +154,15 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
           prise en charge le gouverne (§118.138 : deux vérités sur l'état, la plus flatteuse
           gagnait). À la création il n'y a rien à corriger — l'événement naît en brouillon. */}
       {e && !e.requestStatus && (
-        <W label="Statut"><Select name="status" defaultValue={e.status}>{Object.entries(EVENT_STATUS).map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}</Select></W>
+        <W label="Statut">
+          {/* Les états de VIE seulement — ni « En préparation », ni « Inscriptions ouvertes », ni « Complet » : nous
+              n'organisons pas l'événement. Un ancien état reste affiché tel quel ; le renvoyer ne l'écrit pas. */}
+          <Select name="status" defaultValue={e.status}>
+            {Object.entries(EVENT_STATUS)
+              .filter(([v]) => (STATUTS_MANUELS as readonly string[]).includes(v) || v === e.status)
+              .map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}
+          </Select>
+        </W>
       )}
       <Section>Dates et lieu</Section>
       <W label="Début"><Input type="date" name="startDate" defaultValue={d10(e?.startDate ?? null)} required /></W>
@@ -172,7 +187,6 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
       ) : (
         <W label="Spécialité"><Input name="specialty" defaultValue={e?.specialty ?? ""} required placeholder="Le référentiel est vide : saisissez-la." /></W>
       )}
-      <W label="Capacité max."><Input type="number" inputMode="numeric" name="capacity" defaultValue={e?.capacity ?? ""} /></W>
       {/* LE BUDGET EST OBLIGATOIRE, et c'est ce qui ferme la plainte du DG (voir l'en-tête). */}
       <W label="Budget estimé (DZD)">
         <Input type="number" step="any" min="0" inputMode="decimal" name="estimatedBudget" defaultValue={e?.estimatedBudget ?? ""} required />
@@ -250,13 +264,20 @@ export function CreateEventForm({ responsibles, referentiels, onDone, onCancel, 
 
   async function creer(fd: FormData) {
     setSaving(true); setErr(null);
-    const r: Result = await createEvent(fd);
-    if (!r.ok || !r.id) { setSaving(false); setErr(r.error ?? "Erreur."); return; }
+    let r: Result;
+    try {
+      r = await createEvent(fd);
+    } catch {
+      setSaving(false);
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    }
+    if (!r.ok || !r.id) { setSaving(false); setErr(r.error ?? "L'événement n'a pas été créé."); return; }
     const echecs: string[] = [];
     for (const p of postesLuna) {
       const f = new FormData();
       for (const [k, v] of versFormulairePoste(p, "EVENT", r.id)) f.append(k, v);
-      const x = await addAdProItem(undefined, f).catch(() => ({ ok: false as const, error: "réessayez depuis la demande." }));
+      const x = await addAdProItem(undefined, f).catch(sansBloquer("event-form.creer.addAdProItem", { ok: false as const, error: "réessayez depuis la demande." }));
       if (!x.ok) echecs.push(`${p.libelle} : ${x.error ?? "refusé."}`);
     }
     setSaving(false);
@@ -289,7 +310,7 @@ export function CreateEventForm({ responsibles, referentiels, onDone, onCancel, 
           />
         }
       />
-      {err && <p className="break-words text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">{cancelLabel}</Button><Button type="submit" disabled={saving} className="w-full sm:w-auto">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Créer{postesLuna.length > 0 ? ` avec ${postesLuna.length} poste${postesLuna.length > 1 ? "s" : ""}` : ""}</Button></div>
     </form>
   );
@@ -325,9 +346,12 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
   organisationSeule?: boolean;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { action: enregistrer, busy: saving, err, setErr } = useFormAction(updateEvent, {
+    prepare: (fd) => fd.set("id", event.id),
+    onOk: () => setOpen(false),
+  });
   // LA SUPPRESSION passe par la même fenêtre que le bouton du Super Admin (§118.162) : elle lit
   // AVANT le clic ce qui part avec l'événement (sa déclaration d'information médicale, son
   // circuit, ses postes, ses inscriptions…) et dit le refus quand une branche porte un paiement
@@ -338,7 +362,7 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
     <>
       <Button variant="outline" size="sm" onClick={() => { setErr(null); setOpen(true); }}><Pencil className="h-4 w-4" /> Modifier</Button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Modifier l'événement" width="lg">
-        <form action={async (fd) => { fd.set("id", event.id); setSaving(true); setErr(null); const r: Result = await updateEvent(fd); setSaving(false); if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "Erreur."); }} className="space-y-4">
+        <form action={enregistrer} className="space-y-4">
           {organisationSeule && (
             <p role="note" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
               La prise en charge est décidée : le nom, les dates, le lieu, les médecins, les produits et le budget ne se modifient plus
@@ -346,7 +370,7 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
             </p>
           )}
           <EventFields e={event} responsibles={responsibles} referentiels={referentiels} />
-          {err && <p className="break-words text-sm text-destructive">{err}</p>}
+          <Retour ton="erreur">{err}</Retour>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
             {canDelete ? <Button type="button" variant="ghost" className="w-full text-destructive sm:w-auto" onClick={() => { setOpen(false); setSuppression(true); }}><Trash2 className="h-4 w-4" /> Supprimer</Button> : <span className="hidden sm:block" />}
             <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">Annuler</Button><Button type="submit" disabled={saving} className="w-full sm:w-auto">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button></div>
@@ -361,7 +385,7 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
           id={event.id}
           name={event.name}
           executer={deleteEvent}
-          onSupprime={() => { setSuppression(false); router.push("/events"); router.refresh(); }}
+          onSupprime={() => { setSuppression(false); router.push("/events"); rafraichir(); }}
         />
       )}
     </>

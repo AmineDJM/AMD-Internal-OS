@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, MessageSquare } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { createDirect } from "@/lib/actions/messaging-actions";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES MORCEAUX CLIQUABLES DU PILOTAGE — une ligne de délégué qui ouvre sa fiche, la fiche elle-même (panneau latéral),
@@ -52,7 +53,7 @@ export function BoutonEcrire({ userId }: { userId: string }) {
           setBusy(true); setErreur(null);
           const fd = new FormData();
           fd.set("userId", userId);
-          const r = await createDirect(fd).catch(() => null);
+          const r = await createDirect(fd).catch(sansBloquer("pilotage-client.BoutonEcrire.createDirect", null));
           setBusy(false);
           if (r?.ok && r.id) router.push(`/messages?c=${r.id}`);
           else setErreur(r?.error ?? "La conversation n'a pas pu s'ouvrir.");

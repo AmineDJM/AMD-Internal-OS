@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { persistActionIntents, retirerCaduquesAvantLeTour } from "./action-intents";
+import { persistActionIntents, retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

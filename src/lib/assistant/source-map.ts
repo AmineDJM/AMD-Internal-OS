@@ -21,7 +21,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { SOURCES, fraicheurDe } from "@/lib/fabric/registry";
 
 // Le type de `allowed` vient du contrat PowerTool lui-même : pas d'import de session ici —

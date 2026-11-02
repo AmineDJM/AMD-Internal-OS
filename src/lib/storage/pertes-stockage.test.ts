@@ -42,7 +42,7 @@ vi.mock("@/lib/settings", async (orig) => {
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { createSponsoring } from "@/lib/actions/sponsoring-actions";
+import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
 import { putBlob, releaseBlob, getBlob, purgeOrphanBlobs, retainBlob } from "@/lib/drive-storage";
 import { saveFile, readFileByKey, deleteFileByKey } from "@/lib/storage";
 import { COLONNES_BLOB, COLONNES_JSON } from "./blob-refs";

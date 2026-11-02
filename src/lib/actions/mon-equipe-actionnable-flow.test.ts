@@ -39,7 +39,7 @@ import { accesAuPlan, type StatutPlan } from "@/lib/sfe/tournee";
 import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { loadPlanTournee } from "@/lib/queries/tour-schedule";
 import { getMyTeam, type MyTeam } from "@/lib/queries/my-team";
-import { NO_JOB_KPI_NOTE, type TeamKpi } from "@/lib/hr/team-kpis";
+import { NO_JOB_KPI_NOTE, type TeamKpi } from "@/modules/rh/partage";
 import { teamMemberKpis } from "./my-team-actions";
 
 let dbOk = false;

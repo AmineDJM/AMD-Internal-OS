@@ -6,6 +6,7 @@ import { collisionSur, nextProductCode } from "./resolve";
 import {
   cleProduitDuDossier, identiteFusionnee, planProduitDuDossier, type IdentiteProduit,
 } from "./produit-du-dossier";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -178,7 +179,7 @@ export async function ensureProduitDuDossier(dossierId: string, opts: { acteurId
     const pose = await prisma.regulatoryProduct.updateMany({ where: { id: d.id, productId: d.productId }, data: { productId: cree.id } });
     if (pose.count === 0) {
       // Course perdue entre PROCESSUS : l'autre a posé le sien. Le nôtre, que rien ne référence encore, s'efface.
-      await prisma.product.delete({ where: { id: cree.id } }).catch(() => undefined);
+      await prisma.product.delete({ where: { id: cree.id } }).catch(sansBloquer("canonique.ensureProduitDuDossier.product"));
       return essai < 2 ? ensureProduitDuDossier(dossierId, opts, essai + 1) : { etat: "INTROUVABLE" };
     }
     const ancien = plan.action === "SEPARER" ? plan.ancienProduitId : null;

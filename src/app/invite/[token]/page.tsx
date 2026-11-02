@@ -16,7 +16,8 @@ const REASON_TEXT: Record<"unknown" | "used" | "expired", string> = {
  * passe — il ne transite jamais par une conversation ni par un administrateur. Le token à
  * usage unique est la seule autorisation ; aucune session requise.
  */
-export default async function InvitePage({ params }: { params: { token: string } }) {
+export default async function InvitePage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const state = await inviteState(params.token);
 
   return (

@@ -1,16 +1,11 @@
 import Link from "next/link";
 import { AlertTriangle, Lock } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { userCan, scopeRegulatory, isRegulatorySupervisor, anyRoleFilter, seesLockedRegulatory } from "@/lib/rbac";
+import { userCan, anyRoleFilter, seesLockedRegulatory } from "@/lib/rbac";
 import { canSetStructural } from "@/lib/regulatory/structural-fields";
 import { prisma } from "@/lib/prisma";
-import { regProgress, type RegWorkflowState } from "@/lib/regulatory-workflow";
-import { regStage } from "@/lib/regulatory/stage";
-import { getCompanies } from "@/lib/company";
-import { getAppSettings } from "@/lib/settings";
 import { PageHeader } from "@/components/shared/page-header";
-import { PHARMA_FORM, DOSAGE_UNIT, effectiveTherapeuticSegments } from "@/lib/labels";
-import { effectiveStage } from "@/lib/regulatory/manufacturing-stage";
+import { effectiveTherapeuticSegments } from "@/lib/labels";
 import { RegulatoryTable } from "./regulatory-table";
 import { getRegulatoryRows } from "@/lib/queries/regulatory-rows";
 import { NewProductButton } from "./new-product";

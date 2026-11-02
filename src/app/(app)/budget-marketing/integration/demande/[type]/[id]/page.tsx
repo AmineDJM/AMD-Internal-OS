@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { PageHeader } from "@/components/shared/page-header";
-import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
+import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
 import { prisma } from "@/lib/prisma";
 import { entityHref } from "@/lib/entity-href";
 import { LIBELLE_TYPE_DEMANDE, type TypeDemandeIntegree } from "@/lib/budget-marketing/integration-2026";
@@ -17,7 +17,8 @@ const TYPES = Object.keys(LIBELLE_TYPE_DEMANDE) as TypeDemandeIntegree[];
  * dépôt). Elle sert d'abord aux FORMATIONS, qui n'ont pas de fiche à elles ; les autres natures y renvoient aussi vers
  * leur fiche. Une demande qu'aucun lot actif ne porte n'a pas de fiche ici.
  */
-export default async function FicheIntegrationPage({ params }: { params: { type: string; id: string } }) {
+export default async function FicheIntegrationPage(props: { params: Promise<{ type: string; id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("BUDGET_MARKETING");
   const type = params.type as TypeDemandeIntegree;
   if (!TYPES.includes(type)) notFound();

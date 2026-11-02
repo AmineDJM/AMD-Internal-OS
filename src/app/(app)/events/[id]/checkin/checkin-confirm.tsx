@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
-import { checkInByToken } from "@/lib/actions/event-actions";
+import { checkInByToken } from "@/modules/ad-pro/actions-evenements";
 
 /** Marque automatiquement le participant « présent » au scan du QR. */
 export function CheckinConfirm({ token, name, eventId }: { token: string; name: string; eventId: string }) {

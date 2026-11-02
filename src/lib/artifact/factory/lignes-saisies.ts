@@ -1,4 +1,4 @@
-import type { DemandeDocument } from "@/platform/in-process/artifact/factory";
+import type { DemandeDocument } from "@/platform/ia/artifact/factory";
 
 /**
  * LA SAISIE DES LIGNES D'UNE PIÈCE, CONVERTIE CÔTÉ SERVEUR — une seule conversion pour la composition, la révision

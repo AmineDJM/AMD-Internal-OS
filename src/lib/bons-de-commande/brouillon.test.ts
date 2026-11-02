@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { sourceDeLaCle } from "@/lib/actions/parc";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -65,12 +66,12 @@ describe("la numérotation NNN/DG/AAAA — prochain BC 037/DG/2026", () => {
     expect(sql).toMatch(/'PURCHASE_ORDER', 2026, 36/);
     expect(sql).toMatch(/GREATEST\("DocumentSequence"\."last", 36\)/);
     expect(sql, "idempotent : on ne reprend pas un départ déjà plus haut").toMatch(/::numeric < 37/);
-    const code = readFileSync(join(process.cwd(), "src/lib/ad-pro-bc-devis.ts"), "utf8");
+    const code = readFileSync(join(process.cwd(), "src/modules/ad-pro/infra/bc-devis.ts"), "utf8");
     expect(code, "aucun 37 écrit en dur dans le code de génération").not.toMatch(/\b37\b/);
   });
 
   it("le numéro n'est attribué qu'à la validation : générer (l'aperçu) n'appelle jamais l'émission", () => {
-    const src = readFileSync(join(process.cwd(), "src/lib/actions/ad-pro-item-actions.ts"), "utf8");
+    const src = sourceDeLaCle("ad-pro-item-actions");
     const corps = src.slice(src.indexOf("async function traiterLeBCDuPoste"));
     const apercu = corps.slice(0, corps.indexOf("LA MARCHE DU POSTE"));
     expect(apercu).toContain('mode === "APERCU"');

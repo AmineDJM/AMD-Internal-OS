@@ -57,7 +57,7 @@ export function VueDirection({ campagne, propositions, droits, campagnes, examen
           )}
           {droits.peutPiloter && suivants.map((s) => (
             <button key={s} type="button" disabled={busy} className={s === suivants[suivants.length - 1] ? btnPrimaire : btn}
-              onClick={() => { if (window.confirm(`Passer la campagne à « ${LIBELLE_STATUT_CAMPAGNE[s]} » ?`)) void run(changerStatutCampagne, { id: campagne.id, statut: s }); }}>
+              onClick={() => void run(changerStatutCampagne, { id: campagne.id, statut: s }, { confirmer: `Passer la campagne à « ${LIBELLE_STATUT_CAMPAGNE[s]} » ?` })}>
               {LIBELLE_STATUT_CAMPAGNE[s]}
             </button>
           ))}
@@ -181,7 +181,7 @@ function Examen({ p, droits, run, busy, onFermer }: {
           )}
           {p.gestes.VOTER && droits.estValideur && (
             <>
-              <button type="button" className={btn} disabled={busy} onClick={() => { if (window.confirm("Refuser cette proposition ?")) void run(voterProposition, { proposalId: p.id, decision: "REFUSE" }); }}>Refuser</button>
+              <button type="button" className={btn} disabled={busy} onClick={() => void run(voterProposition, { proposalId: p.id, decision: "REFUSE" }, { confirmer: "Refuser cette proposition ?" })}>Refuser</button>
               <button type="button" className={btnPrimaire} disabled={busy} onClick={() => void run(voterProposition, { proposalId: p.id, decision: "ACCEPTE" })}>
                 {p.lignes.some((l) => l.decision === "AJUSTE" || l.decision === "REFUSE") ? "Accepter avec ajustements" : "Accepter"}
               </button>
@@ -191,7 +191,7 @@ function Examen({ p, droits, run, busy, onFermer }: {
             <button type="button" className={btn} disabled={busy} onClick={() => void run(reprendreProposition, { proposalId: p.id })}>Rouvrir au pôle</button>
           )}
           {p.gestes.AUTORISER_REVISION && droits.peutAutoriserRevision && !p.revisionAutorisee && (
-            <button type="button" className={btn} disabled={busy} onClick={() => { if (window.confirm("Autoriser une révision de ce budget validé ? (audité)")) void run(autoriserRevisionProposition, { proposalId: p.id }); }}>Autoriser une révision</button>
+            <button type="button" className={btn} disabled={busy} onClick={() => void run(autoriserRevisionProposition, { proposalId: p.id }, { confirmer: "Autoriser une révision de ce budget validé ? (audité)" })}>Autoriser une révision</button>
           )}
           {p.revisionAutorisee && <Badge tone="purple" dot={false}>révision autorisée</Badge>}
         </div>

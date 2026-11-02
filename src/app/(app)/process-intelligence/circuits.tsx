@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn } from "@/lib/utils";
 import { reglerDelaiEtape } from "@/lib/actions/process-intelligence-actions";
 import { formatJours, lenteur, type CircuitStats, type StepStat } from "@/lib/process/mining";
@@ -142,9 +143,14 @@ function LigneEtape({ circuit, s, max }: { circuit: string; s: StepStat; max: nu
           className="mt-2 flex flex-wrap items-center gap-2 text-sm"
           action={async (fd) => {
             setEnvoi(true); setErr(null);
-            const r = await reglerDelaiEtape(fd);
-            setEnvoi(false);
-            if (r.ok) { setEdition(false); rafraichir(); } else setErr(r.error ?? "Échec.");
+            try {
+              const r = await reglerDelaiEtape(fd);
+              if (r.ok) { setEdition(false); rafraichir(); } else setErr(r.error ?? "Le délai de l'étape n'a pas été réglé.");
+            } catch {
+              setErr(actionFailureMessage("THROWN"));
+            } finally {
+              setEnvoi(false);
+            }
           }}
         >
           <input type="hidden" name="circuit" value={circuit} />

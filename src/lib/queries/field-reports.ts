@@ -140,64 +140,6 @@ export async function getFieldReportDetail(user: SessionUser, id: string): Promi
   };
 }
 
-export interface ReportSnippet { text: string; delegate: string | null; doctor: string | null; date: string }
-export interface FieldReportAggregation {
-  stats: { reports: number; doctors: number; withSponsoring: number; withCare: number; withQuality: number; withOpportunity: number };
-  topProducts: { name: string; count: number }[];
-  objections: ReportSnippet[];
-  medicalQuestions: ReportSnippet[];
-  competitors: ReportSnippet[];
-  opportunities: ReportSnippet[];
-  qualitySignals: ReportSnippet[];
-  nextActions: ReportSnippet[];
-  sponsoringRequests: ReportSnippet[];
-}
-
-/** Synthèse agrégée des rapports validés (vue Direction / managers). */
-export async function getFieldReportsAggregation(): Promise<FieldReportAggregation> {
-  const reports = await prisma.fieldReport.findMany({
-    where: { status: "VALIDATED" },
-    orderBy: { validatedAt: "desc" },
-    take: 300,
-    include: { delegate: { select: { name: true } }, doctor: { select: { name: true } } },
-  });
-
-  const snip = (text: string | null, r: (typeof reports)[number]): ReportSnippet | null =>
-    text && text.trim() ? { text: text.trim(), delegate: r.delegate?.name ?? null, doctor: r.doctor?.name ?? r.doctorName, date: (r.validatedAt ?? r.createdAt).toISOString() } : null;
-
-  const collect = (sel: (r: (typeof reports)[number]) => string | null): ReportSnippet[] =>
-    reports.map((r) => snip(sel(r), r)).filter((x): x is ReportSnippet => x !== null).slice(0, 25);
-
-  const doctorSet = new Set<string>();
-  const productCount = new Map<string, number>();
-  for (const r of reports) {
-    const d = r.doctor?.name ?? r.doctorName;
-    if (d) doctorSet.add(d.toLowerCase());
-    for (const p of (r.products ?? "").split(/[,;/]/).map((s) => s.trim()).filter(Boolean)) {
-      productCount.set(p, (productCount.get(p) ?? 0) + 1);
-    }
-  }
-
-  return {
-    stats: {
-      reports: reports.length,
-      doctors: doctorSet.size,
-      withSponsoring: reports.filter((r) => r.sponsoringRequest?.trim()).length,
-      withCare: reports.filter((r) => r.careRequest?.trim()).length,
-      withQuality: reports.filter((r) => r.qualitySignal?.trim()).length,
-      withOpportunity: reports.filter((r) => r.opportunity?.trim()).length,
-    },
-    topProducts: [...productCount.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10),
-    objections: collect((r) => r.objection),
-    medicalQuestions: collect((r) => r.medicalQuestion),
-    competitors: collect((r) => r.competitorInfo),
-    opportunities: collect((r) => r.opportunity),
-    qualitySignals: collect((r) => r.qualitySignal),
-    nextActions: collect((r) => r.nextAction),
-    sponsoringRequests: collect((r) => r.sponsoringRequest),
-  };
-}
-
 // ─────────── Overview (graphes d'analyse) — suivi des rapports terrain ───────────
 
 export interface NamedCount { name: string; value: number }

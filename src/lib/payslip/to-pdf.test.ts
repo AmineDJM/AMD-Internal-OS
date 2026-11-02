@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import PizZip from "pizzip";
 import { docxToPdf, pdfFileName, isConvertibleWord } from "./to-pdf";
-import { readDocxBlocks } from "./docx-blocks";
-// `tableau` est aliasé : le fichier a son propre `tableau(...)` XML minimal pour les cas de lecture.
+import { lireDocx, type Bloc } from "./docx-lecture";
+// `tableau` est aliasé : le fichier a son propre `tableau(...)` XML minimal pour les cas de conversion.
 import { composerDocx, papierEnTeteDeDemonstration, paragraphe, tableau as tableauWord } from "@/lib/artifact/factory/word";
 
 /** Le texte de la première page d'un PDF, lu par MuPDF — la relecture indépendante du rendu. */
@@ -45,49 +45,6 @@ const para = (texte: string, opts: { bold?: boolean; align?: string; style?: str
 const cellule = (t: string) => `<w:tc><w:p><w:r><w:t>${t}</w:t></w:r></w:p></w:tc>`;
 const ligne = (...cs: string[]) => `<w:tr>${cs.map(cellule).join("")}</w:tr>`;
 const tableau = (...ls: string[]) => `<w:tbl>${ls.join("")}</w:tbl>`;
-
-describe("lire un .docx dans l'ordre du document", () => {
-  it("l'ORDRE est conservé — un pied de page ne remonte pas au-dessus du tableau", () => {
-    // C'est toute la raison d'être de ce lecteur : le modèle d'ÉDITION range les tableaux dans
-    // une liste séparée, ce qui perd « qui vient avant quoi ».
-    const c = readDocxBlocks(docx(
-      para("Bulletin de paie — août 2026") +
-      tableau(ligne("Libellé", "Montant"), ligne("Salaire de base", "187 450,00")) +
-      para("Net à payer : 142 300,00 DZD"),
-    ));
-    expect(c.blocks.map((b) => b.kind)).toEqual(["paragraph", "table", "paragraph"]);
-  });
-
-  it("les fragments, leur graisse et l'alignement sont lus", () => {
-    const c = readDocxBlocks(docx(para("Titre centré", { bold: true, align: "center", style: "Heading1" })));
-    const p = c.blocks[0];
-    expect(p.kind).toBe("paragraph");
-    if (p.kind !== "paragraph") return;
-    expect(p.runs[0].text).toBe("Titre centré");
-    expect(p.runs[0].bold).toBe(true);
-    expect(p.align).toBe("center");
-    expect(p.heading).toBe(true);
-  });
-
-  it("les cellules d'un tableau arrivent ligne par ligne", () => {
-    const c = readDocxBlocks(docx(tableau(ligne("A", "B", "C"), ligne("1", "2", "3"))));
-    const t = c.blocks[0];
-    expect(t.kind).toBe("table");
-    if (t.kind !== "table") return;
-    expect(t.rows).toEqual([["A", "B", "C"], ["1", "2", "3"]]);
-  });
-
-  it("les paragraphes vides CONSÉCUTIFS se réduisent, mais un espace voulu survit", () => {
-    // Tout supprimer collerait le tableau sous le titre ; tout garder produirait des pages
-    // blanches sur les documents générés par un traitement de texte.
-    const c = readDocxBlocks(docx(para("A") + "<w:p/><w:p/><w:p/>" + para("B")));
-    expect(c.blocks).toHaveLength(3);
-  });
-
-  it("un fichier qui n'est pas un .docx LÈVE — l'appelant garde alors l'original", () => {
-    expect(() => readDocxBlocks(Buffer.from("ceci n'est pas un zip"))).toThrow();
-  });
-});
 
 describe("convertir en PDF", () => {
   it("produit un PDF valide, avec ses pages", async () => {
@@ -165,17 +122,16 @@ describe("LE PAPIER EN-TÊTE DANS LE PDF (§118.135) — l'en-tête, le pied et 
         }),
       ],
     });
-    const lu = readDocxBlocks(octets);
-    expect(lu.header?.blocks.length).toBeGreaterThan(0);
-    expect(lu.footer?.blocks.length).toBeGreaterThan(0);
+    const [{ section, blocs }] = lireDocx(octets).sections;
+    expect(section.entetes.defaut?.blocs.length).toBeGreaterThan(0);
+    expect(section.pieds.defaut?.blocs.length).toBeGreaterThan(0);
     // La grille de colonnes et la trame de l'en-tête de tableau sont LUES, pas devinées.
-    const table = lu.blocks.find((b) => b.kind === "table");
-    expect(table?.kind).toBe("table");
-    if (table?.kind === "table") {
-      expect(table.gridPt?.map((w) => Math.round(w))).toEqual([255, 85, 113]);
-      expect(table.cells[0][0].shading).toBe("8DB4E2");
-      expect(table.headerRows).toBe(1);
-      expect(table.borders.inner).toBe(false);
+    const table = blocs.find((b) => b.type === "tableau");
+    expect(table?.type).toBe("tableau");
+    if (table?.type === "tableau") {
+      expect(table.grille.map((w) => Math.round(w))).toEqual([255, 85, 113]);
+      expect(table.rangees[0].cellules[0].fond).toBe("8DB4E2");
+      expect(table.rangees.map((r) => r.entete)).toEqual([true, false]);
     }
     const r = await docxToPdf(octets);
     expect(r.ok).toBe(true);
@@ -225,11 +181,13 @@ describe("LE PAPIER EN-TÊTE DANS LE PDF (§118.135) — l'en-tête, le pied et 
       logo: { octets: PNG_1PX, png: true, largeurCm: 3 },
       blocs: [paragraphe("Bon de commande"), tableauWord([["Désignation", "Total HT"], ...lignes], { colonnes: [{ largeurCm: 10 }, { largeurCm: 5 }], entete: true })],
     });
-    const lu = readDocxBlocks(octets);
-    const images = lu.header?.blocks.flatMap((b) => (b.kind === "paragraph" ? b.images : [])) ?? [];
+    const entete: Bloc[] = lireDocx(octets).sections[0].section.entetes.defaut?.blocs ?? [];
+    const images = entete.flatMap((b) => (b.type === "paragraphe" ? b.contenu : []))
+      .flatMap((i) => (i.k === "dessin" ? i.contenu : []))
+      .filter((e) => e.type === "image");
     expect(images).toHaveLength(1);
-    expect(images[0].png).toBe(true);
-    expect(Math.round(images[0].widthPt)).toBe(85); // 3 cm
+    expect(images[0].image.octets.subarray(1, 4).toString("latin1")).toBe("PNG");
+    expect(Math.round(images[0].largeur)).toBe(85); // 3 cm
     const r = await docxToPdf(octets);
     expect(r.ok).toBe(true);
     if (!r.ok) return;

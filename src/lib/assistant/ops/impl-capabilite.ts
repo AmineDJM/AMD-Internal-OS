@@ -6,6 +6,7 @@ import {
 } from "@/platform/in-process/capacites";
 import { OPS_CATALOG } from "./catalog";
 import { ACTION_CLASSIFICATION } from "@/lib/assistant/action-registry";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -316,7 +317,7 @@ export const CAPABILITY_OPS_IMPL: Record<string, OpImpl> = {
       if (!r.contrat.ecrit) return { ok: true, message: `${r.contrat.fonction} exécutée.` };
 
       const vu = await relireApresEcriture(user, r.contrat.modelesEcrits, lus.champs, r.retour)
-        .catch(() => null);
+        .catch(sansBloquer("impl-capabilite.execute.relireApresEcriture", null));
       if (!vu) {
         return {
           ok: true,

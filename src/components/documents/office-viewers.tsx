@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Download, Loader2 } from "lucide-react";
+import { SANDBOX_APERCU, documentApercuIsole } from "./apercu-isole";
 
 /** Récupère les octets déchiffrés du fichier (route /raw, inline). */
 function useRawBuffer(src: string) {
@@ -33,11 +34,24 @@ function Fallback({ src, message }: { src: string; message: string }) {
   );
 }
 
-// Le tableau d'une feuille Excel défile DANS ce cadre (overflow-auto), jamais la page.
-const SHELL = "max-h-[78dvh] overflow-auto rounded-lg border border-border bg-white p-3 text-sm text-neutral-900 [overflow-wrap:anywhere] sm:p-5";
+/**
+ * LE CADRE ISOLÉ (audit 27/10, SA-12) — le HTML converti d'un fichier déposé par un autre ne touche jamais la page :
+ * il s'affiche dans un `<iframe sandbox>` sans script ni origine partagée (`apercu-isole.ts`). Le tableau d'une
+ * feuille Excel défile DANS ce cadre, jamais la page.
+ */
+function CadreIsole({ html, titre, tableur = false }: { html: string; titre: string; tableur?: boolean }) {
+  return (
+    <iframe
+      title={titre}
+      sandbox={SANDBOX_APERCU}
+      srcDoc={documentApercuIsole(html, { tableur })}
+      className="h-[78dvh] w-full rounded-lg border border-border bg-white"
+    />
+  );
+}
 
 /** Word (.docx) → HTML via mammoth (chargé à la demande). */
-export function DocxView({ src }: { src: string; name: string }) {
+export function DocxView({ src, name }: { src: string; name: string }) {
   const { buf, err } = useRawBuffer(src);
   const [html, setHtml] = React.useState<string | null>(null);
   const [perr, setPerr] = React.useState<string | null>(null);
@@ -54,16 +68,11 @@ export function DocxView({ src }: { src: string; name: string }) {
 
   if (err || perr) return <Fallback src={src} message="Aperçu Word indisponible pour ce fichier." />;
   if (!html) return <Loading />;
-  return (
-    <div
-      className={`${SHELL} leading-relaxed [&_a]:text-primary [&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:text-xl [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:mt-3 [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:font-semibold [&_img]:max-w-full [&_li]:ml-5 [&_li]:list-disc [&_p]:my-2 [&_table]:my-3 [&_table]:border-collapse [&_td]:border [&_td]:border-neutral-300 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-neutral-300 [&_th]:bg-neutral-100 [&_th]:px-2 [&_th]:py-1`}
-      dangerouslySetInnerHTML={{ __html: html }}
-    />
-  );
+  return <CadreIsole html={html} titre={`Aperçu de ${name}`} />;
 }
 
 /** Excel (.xlsx/.xls/.csv) → tableaux HTML via SheetJS (chargé à la demande). */
-export function XlsxView({ src }: { src: string; name: string }) {
+export function XlsxView({ src, name }: { src: string; name: string }) {
   const { buf, err } = useRawBuffer(src);
   const [sheets, setSheets] = React.useState<{ name: string; html: string }[] | null>(null);
   const [perr, setPerr] = React.useState<string | null>(null);
@@ -93,10 +102,7 @@ export function XlsxView({ src }: { src: string; name: string }) {
           ))}
         </div>
       )}
-      <div
-        className={`${SHELL} [&_table]:border-collapse [&_td]:whitespace-nowrap [&_td]:border [&_td]:border-neutral-300 [&_td]:px-2 [&_td]:py-1 [&_th]:border [&_th]:border-neutral-300 [&_th]:px-2 [&_th]:py-1`}
-        dangerouslySetInnerHTML={{ __html: sheets[active].html }}
-      />
+      <CadreIsole html={sheets[active].html} titre={`Aperçu de ${name} — ${sheets[active].name}`} tableur />
     </div>
   );
 }

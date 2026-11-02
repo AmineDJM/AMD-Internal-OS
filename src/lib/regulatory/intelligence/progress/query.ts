@@ -27,15 +27,15 @@ export interface AnalysisProgressResult extends AnalysisProgress {
 }
 
 export async function getAnalysisProgress(versionId: string, dossierStatus: string): Promise<AnalysisProgressResult> {
-  const scope = { dossierVersionId: versionId, securityStatus: { in: ["SAFE" as const, "SUSPICIOUS" as const] } };
+  const documentsSurs = { dossierVersionId: versionId, securityStatus: { in: ["SAFE" as const, "SUSPICIOUS" as const] } };
 
   // Un lot déposé il y a plus de 26 h ne reviendra plus (les lots aboutissent sous 24 h) : le
   // compter comme « en vol » ferait mentir l'écran indéfiniment.
   const batchFreshSince = new Date(Date.now() - BATCH_FRESH_MS);
 
   const [docsTotal, docsPending, ocrTotal, ocrDone, factsJob, rulesJob, aiReviewJob, simJob, batchPending, firstJob] = await Promise.all([
-    prisma.regulatoryDocument.count({ where: scope }),
-    prisma.regulatoryDocument.count({ where: { ...scope, extractionStatus: "PENDING", blobId: { not: null } } }),
+    prisma.regulatoryDocument.count({ where: documentsSurs }),
+    prisma.regulatoryDocument.count({ where: { ...documentsSurs, extractionStatus: "PENDING", blobId: { not: null } } }),
     prisma.regulatoryDocument.count({ where: { dossierVersionId: versionId, extractionStatus: { in: ["OCR_REQUIRED", "OCR_COMPLETED"] } } }),
     prisma.regulatoryDocument.count({ where: { dossierVersionId: versionId, extractionStatus: "OCR_COMPLETED" } }),
     prisma.regulatoryJob.findFirst({ where: { dossierVersionId: versionId, type: "FACTS" }, select: { status: true } }),
@@ -65,7 +65,7 @@ export async function getAnalysisProgress(versionId: string, dossierStatus: stri
   const [aiDocsTotal, reviewedRows] = aiJobActive
     ? await Promise.all([
         prisma.regulatoryDocument.count({
-          where: { ...scope, extractionStatus: { in: ["TEXT_EXTRACTED", "OCR_COMPLETED", "LOW_CONFIDENCE"] } },
+          where: { ...documentsSurs, extractionStatus: { in: ["TEXT_EXTRACTED", "OCR_COMPLETED", "LOW_CONFIDENCE"] } },
         }),
         prisma.regulatoryAiCall.findMany({
           where: { dossierVersionId: versionId, step: "review", documentId: { not: null }, ...(aiStartedAt ? { createdAt: { gte: aiStartedAt } } : {}) },

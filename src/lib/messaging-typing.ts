@@ -19,10 +19,6 @@ export function setTyping(conversationId: string, userId: string): void {
   conv.set(userId, Date.now() + TTL_MS);
 }
 
-export function clearTyping(conversationId: string, userId: string): void {
-  registry.get(conversationId)?.delete(userId);
-}
-
 /** Ids actuellement en train d'écrire dans la conversation (hors `excludeUserId`). */
 export function getTyping(conversationId: string, excludeUserId: string): string[] {
   const conv = registry.get(conversationId);

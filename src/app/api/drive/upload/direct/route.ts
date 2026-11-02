@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
 import { ouvrirDepotDirect } from "@/lib/drive/depot-direct";
+import { attendu } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (user.mustChangePassword) return NextResponse.json({ error: "Mot de passe à changer." }, { status: 403 });
-  const b = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const b = (await req.json().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", {}))) as Record<string, unknown>;
   const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
   const nom = str(b.name);
   const taille = Number(b.size);

@@ -1,7 +1,9 @@
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { Prisma } from "@prisma/client";
+import { parcDesActions, type FichierDActions } from "./parc";
 import { contratsDuFichier, importsProjet, type ContratAction, type TableEnums, type TableRelations } from "./contrat";
+import { PREFIXE_INTERNES } from "./contrat/internes";
 
 /**
  * LA LECTURE DU PARC — la seule pièce qui touche au disque.
@@ -11,15 +13,8 @@ import { contratsDuFichier, importsProjet, type ContratAction, type TableEnums, 
  * jamais. Ici on assume `fs` et Prisma, et on ne sert que le générateur et son cliquet.
  */
 
-export const DOSSIER_ACTIONS = join(process.cwd(), "src", "lib", "actions");
 /** La racine sur laquelle `@/` se résout — la même que celle du `tsconfig`. */
 const RACINE_SRC = join(process.cwd(), "src");
-
-/** Ce qui vit dans `src/lib/actions/` sans être une action : le contrat lui-même, les types. */
-const HORS_PARC = new Set([
-  "types.ts", "contrat.ts", "contrat-scan.ts", "contrat.genere.ts",
-  "generique.ts", "executer.ts", "aiguillage.genere.ts",
-]);
 
 /** Les valeurs admises que le SCHÉMA déclare — un fait de la base, pas une liste écrite. */
 export function enumsDuSchema(): TableEnums {
@@ -55,10 +50,12 @@ export function relationsDuSchema(): TableRelations {
   return table;
 }
 
-export function fichiersDActions(): string[] {
-  return readdirSync(DOSSIER_ACTIONS)
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !HORS_PARC.has(f))
-    .sort();
+/**
+ * Les fichiers d'actions du parc — `src/lib/actions/` ET les `actions.ts` des modules, sous leur
+ * clé déclarée (`parc.ts`). La clé, pas le chemin, est l'identité d'une action (ARCH-03).
+ */
+export function fichiersDActions(): FichierDActions[] {
+  return parcDesActions();
 }
 
 /**
@@ -74,20 +71,41 @@ export function fichiersDActions(): string[] {
  * entière parce qu'un import pointe vers un fichier `index.ts` d'un dossier, cas que ce
  * résolveur ne prétend pas couvrir.
  */
-function sourcesImportees(source: string, cache: Map<string, string>): Record<string, string> {
+function sourcesImportees(source: string, cache: Map<string, string>, profondeur = 0): Record<string, string> {
   const out: Record<string, string> = {};
   for (const spec of new Set(Object.values(importsProjet(source)))) {
-    const deja = cache.get(spec);
-    if (deja !== undefined) { if (deja) out[spec] = deja; continue; }
-    const rel = spec.replace(/^@\//, "");
-    let texte = "";
-    for (const chemin of [join(RACINE_SRC, `${rel}.ts`), join(RACINE_SRC, rel, "index.ts")]) {
-      try { texte = readFileSync(chemin, "utf8"); break; } catch { /* module suivant */ }
+    let texte = cache.get(spec);
+    if (texte === undefined) {
+      texte = lireAvecReexports(join(RACINE_SRC, spec.replace(/^@\//, "")));
+      cache.set(spec, texte);
     }
-    cache.set(spec, texte);
-    if (texte) out[spec] = texte;
+    if (!texte) continue;
+    out[spec] = texte;
+    // UNE AIDE INTERNE EST LE CODE DU FICHIER (`contrat/internes.ts`) : ce qu'ELLE importe se lit aussi, pour suivre
+    // ses écrivains comme ceux de l'action. Un seul niveau, et seulement sous `actions/internes/`.
+    if (profondeur === 0 && spec.startsWith(PREFIXE_INTERNES)) Object.assign(out, sourcesImportees(texte, cache, 1), out);
   }
   return out;
+}
+
+/**
+ * Le source d'un module, PLUS celui des fichiers qu'il réexporte en relatif (`export { … } from "./infra/x"`).
+ *
+ * La porte d'un module (`src/modules/<m>/api.ts`, audit 08) ne contient que des réexportations : sans les suivre, une
+ * action qui appelle `importerConsommation` par la porte serait décrite comme n'écrivant rien de plus que son journal.
+ * Un seul niveau, et seulement en relatif : c'est la forme exacte d'une porte, rien de plus n'est deviné.
+ */
+function lireAvecReexports(base: string): string {
+  for (const chemin of [`${base}.ts`, join(base, "index.ts")]) {
+    let texte: string;
+    try { texte = readFileSync(chemin, "utf8"); } catch { continue; }
+    const suivis: string[] = [];
+    for (const m of texte.matchAll(/export\s*\{[^}]*\}\s*from\s*"(\.{1,2}\/[^"]+)"/g)) {
+      try { suivis.push(readFileSync(`${join(dirname(chemin), m[1]!)}.ts`, "utf8")); } catch { /* réexport introuvable : ignoré */ }
+    }
+    return [texte, ...suivis].join("\n");
+  }
+  return "";
 }
 
 /** Tous les contrats de l'ERP, dérivés de la source à l'instant où on appelle. */
@@ -100,8 +118,8 @@ export function scannerContrats(): ContratAction[] {
   // les lectures disque sans rien changer au résultat.
   const cache = new Map<string, string>();
   for (const f of fichiersDActions()) {
-    const source = readFileSync(join(DOSSIER_ACTIONS, f), "utf8");
-    out.push(...contratsDuFichier(f.replace(/\.ts$/, ""), source, enums, relations, sourcesImportees(source, cache)));
+    const source = readFileSync(join(process.cwd(), f.chemin), "utf8");
+    out.push(...contratsDuFichier(f.cle, source, enums, relations, sourcesImportees(source, cache)));
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }

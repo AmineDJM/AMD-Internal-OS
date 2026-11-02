@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Send, Trash2 } from "lucide-react";
 import { finaliserFicheCoaching, supprimerFicheCoaching } from "@/lib/actions/coaching-actions";
 import { Button } from "@/components/ui/button";
+import { useKeyedAction } from "@/components/shared/use-action";
 
 /**
  * LES GESTES D'UNE FICHE CONSULTÉE — finaliser, retirer. L'écran ne propose que ce que la règle
@@ -23,8 +24,7 @@ export function FicheActions({
   dansUnMenu?: boolean;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = React.useState<"finaliser" | "supprimer" | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, error: err, run } = useKeyedAction();
 
   const agir = async (geste: "finaliser" | "supprimer") => {
     const question = geste === "finaliser"
@@ -32,15 +32,10 @@ export function FicheActions({
       : finalisee
         ? `Retirer cette fiche finalisée ? ${collaborateur} en sera prévenu, et elle disparaîtra de son espace.`
         : "Retirer ce brouillon ?";
-    if (!window.confirm(question)) return;
-    setBusy(geste); setErr(null);
     const fd = new FormData();
     fd.set("id", id);
-    const r = geste === "finaliser" ? await finaliserFicheCoaching(fd) : await supprimerFicheCoaching(fd);
-    setBusy(null);
-    if (!r.ok) { setErr(r.error ?? "Action impossible."); return; }
-    if (geste === "supprimer") router.push("/medical/coaching");
-    router.refresh();
+    const ok = await run(geste, () => (geste === "finaliser" ? finaliserFicheCoaching(fd) : supprimerFicheCoaching(fd)), { confirmer: question });
+    if (ok && geste === "supprimer") router.push("/medical/coaching");
   };
 
   if (!finaliser && !supprimer) return null;

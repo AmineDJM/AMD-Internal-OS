@@ -5,7 +5,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Annuaires — Médecins — AMD Internal OS" };
 
 /** Onglet MÉDECINS du module « Annuaires » : la feuille des praticiens, tout grade sauf pharmacien. */
-export default async function AnnuaireMedecinsPage({ searchParams }: { searchParams?: { annuaire?: string; specialite?: string; archives?: string } }) {
+export default async function AnnuaireMedecinsPage(
+  props: { searchParams?: Promise<{ annuaire?: string; specialite?: string; archives?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("DIRECTORIES");
   return (
     <FeuillePraticiensHub

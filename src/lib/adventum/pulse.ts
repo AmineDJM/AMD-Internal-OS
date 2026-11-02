@@ -3,6 +3,7 @@ import { notifyRoles } from "@/lib/notify";
 import { getRisks, type Risk, type RiskLevel } from "./risks";
 import { syncBrainRisks } from "./lifecycle";
 import { processPulseStats } from "@/lib/queries/process-intelligence";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Adventum Pulse — couche d'analyse EN CONTINU d'Adventum Brain + Process Intelligence.
@@ -107,7 +108,7 @@ export async function runIntelligencePulse(): Promise<void> {
           title: `Adventum Brain — ${fresh.length} nouveau${fresh.length > 1 ? "x" : ""} risque${fresh.length > 1 ? "s" : ""} critique${fresh.length > 1 ? "s" : ""}`,
           body: lead + (fresh.length > 3 ? ` … (+${fresh.length - 3})` : ""),
           link: "/adventum-brain",
-        }).catch(() => undefined);
+        }).catch(sansBloquer("pulse.runIntelligencePulse.notifyRoles"));
       }
     }
   } catch (err) {

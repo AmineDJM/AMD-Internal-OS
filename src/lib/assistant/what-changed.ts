@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { resolveRecord } from "@/lib/assistant/time-travel";
@@ -6,6 +6,7 @@ import { REGULATORY_STEP_TYPE } from "@/lib/labels";
 import { startChangeFeed, recentChanges, feedHealth } from "./platform/change-feed";
 import { faitsRecents } from "@/lib/events/ledger";
 import { canAccessEntity } from "@/lib/entity-access";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * WHAT CHANGED / CATCH ME UP — « qu'est-ce qui a changé sur Pembro depuis lundi ? »,
@@ -139,7 +140,7 @@ async function liveFeedAnswer(user: CurrentUser, depuis: Date | null): Promise<s
   startChangeFeed();
   const health = feedHealth();
 
-  const durables = await faitsRecents({ since, limit: 60 }).catch(() => null);
+  const durables = await faitsRecents({ since, limit: 60 }).catch(sansBloquer("what-changed.liveFeedAnswer.faitsRecents", null));
   const montres = durables?.faits.length ?? 0;
   const enMemoire = recentChanges({ limit: 30 });
 

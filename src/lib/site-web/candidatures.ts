@@ -6,6 +6,7 @@ import { notifyRoles, notifyUser } from "@/lib/notify";
 import { recordAudit } from "@/lib/audit";
 import { enSerie } from "@/lib/refs";
 import { isTopManagement, rolesWithModule, userCan, type SessionUser } from "@/lib/rbac";
+import { inscrireDocumentExistant } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -270,6 +271,8 @@ async function recevoirLue(c: CandidatureLue, maintenant: Date): Promise<Recepti
     throw e;
   }
 
+  // Le CV rattaché à un candidat entre à la bibliothèque (J1), sous la clé de son document. Ne lève jamais.
+  if (cree.candidateId && cvCle) await inscrireCvDuCandidat(cree.candidateId, cvCle);
   const offreLibre = c.offre?.titre ?? offre?.title ?? null;
   if (cree.candidateId && demande) {
     await notifyUser({
@@ -292,6 +295,12 @@ async function recevoirLue(c: CandidatureLue, maintenant: Date): Promise<Recepti
     summary: `Candidature reçue du site : ${c.nom}${offreLibre ? ` — ${offreLibre}` : " — spontanée"}${cree.candidateId && demande ? ` (entrée dans ${demande.reference})` : " (à trier)"}`,
   });
   return { ok: true, id: cree.id, deja: false, etat: cree.candidateId ? "RATTACHEE" : "NOUVELLE" };
+}
+
+/** Le document du CV d'un candidat, écrit dans une transaction : inscrit à la bibliothèque une fois celle-ci acquise. */
+async function inscrireCvDuCandidat(candidateId: string, cvCle: string): Promise<void> {
+  const doc = await prisma.document.findFirst({ where: { entityType: "RECRUITMENT_CANDIDATE", entityId: candidateId, fileKey: cvCle }, select: { id: true } });
+  if (doc) await inscrireDocumentExistant(doc.id);
 }
 
 // ───────────────────────────── Trier (RH) ─────────────────────────────
@@ -348,6 +357,7 @@ export async function rattacherCandidature(
     return c.id;
   });
   if (!candidateId) return { ok: false, erreur: "Cette candidature vient d'être traitée par quelqu'un d'autre." };
+  if (cand.cvCle) await inscrireCvDuCandidat(candidateId, cand.cvCle);
 
   await notifyUser({
     userId: demande.requesterId, type: "GENERIC", title: "CV reçu à présélectionner",

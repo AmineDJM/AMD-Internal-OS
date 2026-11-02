@@ -260,7 +260,7 @@ describe("la liste des blocs rendus colle à ce que l'écran sait VRAIMENT rendr
     // pas affiche un TROU là où le compilateur avait dit oui, et personne ne cherche du côté
     // du compilateur quand un bloc manque.
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync("src/components/chief/workspace/blocks.tsx", "utf8");
+    const src = readFileSync("src/platform/ia/ecrans/blocks.tsx", "utf8");
     const bloc = /const RENDERERS[^{]*\{([\s\S]*?)\n\};/.exec(src);
     expect(bloc, "la table RENDERERS a changé de forme — ce test doit être relu, pas supprimé").toBeTruthy();
 
@@ -295,7 +295,7 @@ describe("mesures consignées — mandat 7", () => {
       SRC, `${v.total.lignes} retenues, ${v.ecartees?.combien ?? 0} écartée(s) ${v.ecartees?.pourquoi ?? ""}`);
 
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync("src/components/chief/workspace/blocks.tsx", "utf8");
+    const src = readFileSync("src/platform/ia/ecrans/blocks.tsx", "utf8");
     const b = /const RENDERERS[^{]*\{([\s\S]*?)\n\};/.exec(src);
     const reels = new Set([...(b?.[1] ?? "").matchAll(/^\s{2}([a-zA-Z_][a-zA-Z0-9_]*)\s*:/gm)].map((m) => m[1]!));
     const { KINDS_RENDUS } = await import("@/lib/assistant/planche-tools");

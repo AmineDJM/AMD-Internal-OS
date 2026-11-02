@@ -10,7 +10,7 @@ import {
 import type { OpImpl, OpProposalDraft } from "./types";
 import { opStr } from "./types";
 import { fieldsOf, runFd, toFd } from "./helpers";
-import { resolveDriveFile, driveNodeToFile, kb } from "./impl-wave8-files";
+import { resolveDriveFile, driveNodeToFile, kb } from "@/platform/ia/drive";
 import { CHEMIN_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 
 /**

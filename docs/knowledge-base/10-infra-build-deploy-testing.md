@@ -6,6 +6,12 @@
 
 ---
 
+> **Update 2026-11-02 — lot Q1 (decision 0050)**: `npm test` now includes `src/modules/assistant-ia/audit-assistant.test.ts`
+> (≈ 25 s, seeds its own tagged personas in the local test DB, fake adversarial model, Prisma spy) — its RATCHET fails the suite
+> when a new Assistant IA read tool has no attack scenario. Live audit: `npm run audit:assistant` (BENCH DB only; `--semer`,
+> `--retirer`, `AUDIT_SEULEMENT`, `AUDIT_PARTIE`, `AUDIT_ECHANTILLON`, `AUDIT_BUDGET_USD`), also run nightly by the worker task
+> `qualite.banc` through `scripts/bench/banc-programme.ts`.
+
 ## 1. Scope
 
 This page covers everything around the application code: how it is built and deployed to Render
@@ -29,14 +35,20 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
   "gate" is the developer running `typecheck → build → test → next lint` locally, plus Render's
   own build failing.
 - **Build memory** is the dominant infra concern: Render kills builds at 8 GB (processes + workspace
-  files). `next.config.mjs` caps workers (`cpus: 1`), disables server minification and file tracing,
+  files). `next.config.mjs` caps workers (`cpus: 1`), disables server minification and per-page file tracing (Next 15: by removing
+  `TraceEntryPointsPlugin` from the server compiler — the `outputFileTracing` option is gone),
   shrinks the webpack cache and, **when `RENDER` is set, runs `tsc` in its own 5 GB process** before
   compiling — because (doctrine §118.208) the Render dashboard command overrides `render.yaml`.
+  **Since Next 15 (V3-A, 2026-10-28)** the compile heap is **3584 MB** (`TAS_DU_BUILD_MO`): Next 15's
+  server compile dies at 3072. Clean-build peaks (RENDER=1): Next 14 @3072 = 4542 MB; Next 15 @3584 =
+  5150 MB; @4096 = 5612 MB.
 - **Background jobs**: no external cron, no `instrumentation.ts`. `src/lib/scheduled.ts` arms an
   in-process `setInterval` (60 s) **the first time the module is imported** — in practice the first
   `GET /api/messaging/sync` poll by a logged-in browser — and runs ~48 sequential, idempotent,
   DB-gated sweeps (meeting reminders at T-30 min, reminders, payroll, regulatory jobs, site-web
   queue + daily reconciliation, durable missions, Gmail sweep…).
+  **Since V2-F** the sweeps are a task table with a per-task DB lease, runnable by the web (default) or by a
+  separate `npm run worker` process (`TACHES_DE_FOND=web|worker|les-deux`) — see §4.5.
 - **Tests**: 1,222 `*.test.ts` files (~14,260 `it/test` calls). ~457 import Prisma; 397 use the
   `dbOk ? describe : describe.skip` idiom (skip silently without Postgres). `src/lib/prisma.ts`
   **throws at import** if a test/bench process points at a non-local DB (§118.90). ~66 test files
@@ -50,7 +62,7 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
   Center", and read-only diagnostic CLIs (`adam:doctor`, `storage:check`). No APM/Sentry/metrics
   endpoint; Render's health check hits `/login`.
 - **Notable finding**: `middleware.ts` sits at the **repo root** while the app lives in `src/app`;
-  Next 14 only looks for middleware next to the `app` dir's parent (`src/`), so the edge auth
+  Next (14.2 and 15.5) only looks for middleware next to the `app` dir's parent (`src/`), so the edge auth
   middleware is very likely **not compiled at all** (details §8, §9).
 
 ---
@@ -61,7 +73,7 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 |---|---|
 | `render.yaml` | Render Blueprint: free Postgres `amd-postgres`, free web service, build/start commands, env vars, health check `/login`. |
 | `next.config.mjs` | Build-memory controls, separate typecheck on Render, heap cap for build workers, security headers, server-external packages, 256 MB server-action body. |
-| `package.json` | ~60 scripts (build, test, db, graphify, autotest, ~25 benches). Node deps pinned for Next 14.2.35 / Prisma 5.22 / Vitest 2.1.2 / Playwright 1.62. |
+| `package.json` | ~60 scripts (build, test, db, graphify, autotest, ~25 benches). Node deps pinned for Next 15.5.28 + React 19.2 / Prisma 5.22 / Vitest 2.1.9 / Playwright 1.62. `overrides`: `postcss` (Next pins a vulnerable 8.4.31) and `image-size` (declared, never loaded, by pptxgenjs). `xlsx` comes from the SheetJS CDN tarball (npm is no longer published). |
 | `tsconfig.json` / `tsconfig.build.json` | Full typecheck (`**/*.ts`, incl. tests, scripts, e2e) vs production-only typecheck (`src/**`, tests excluded, non-incremental). |
 | `.eslintrc.json` | `next/core-web-vitals` + 3 rules off. Lint only covers `src/` (Next default dirs). |
 | `.npmrc` | `legacy-peer-deps=true` (imapflow → nodemailer 9 vs next-auth's optional peer nodemailer 6). |
@@ -69,7 +81,11 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 | `vitest.global-setup.ts` | Upserts a permanent "Siège DG" test user (createdAt 2000-01-01) so validation-centre routing is deterministic (§118.148). |
 | `src/lib/prisma.ts` | Prisma singleton; **local-DB guard** for tests/benches (`refusDeBase`, line 93-122); production pool `connection_limit=12`. |
 | `src/lib/sortie/garde.ts` | Outbound "kill switch": refuses push/mail/site-web transport in tests, Playwright, benches or when `ADAM_SORTIE_INTERDITE=1`. |
-| `src/lib/scheduled.ts` | The in-process scheduler: heartbeat + `runScheduledJobs()` orchestration of all periodic sweeps. |
+| `src/lib/scheduled.ts` | The scheduler: web heartbeat + `runScheduledJobs()` (web wake-up) + the task table `TACHES_PLANIFIEES` (one entry per sweep) run by `executerTachesPlanifiees()` — shared by web and worker (V2-F). |
+| `src/lib/taches-de-fond/` | V2-F: switch `mode.ts` (`TACHES_DE_FOND`, pure), per-task DB lease `bail.ts` (table `TacheDeFond`), runner `executer.ts` (lease, renewal, duration, outcome, JSON log), worker loop `worker.ts`, migration wait `migrations.ts`, health `sante.ts`, V2-A slot `enrichissement.ts`. |
+| `scripts/worker.ts` | `npm run worker` entry point (tsx): declares the process as worker, SIGTERM/SIGINT → clean stop (25 s grace), runs the same task table. |
+| `scripts/conversions/` + `src/lib/office/conversions-haute-fidelite.ts` | Decision 0019: the high-fidelity conversion engine (Python, pinned `requirements.txt`, venv `/opt/conversions` in the worker image): pdf2docx + PyMuPDF patched (logical bidi order from glyph geometry, targeted NFKC, harakat, intended line breaks, headers/footers), DOCX post-processing (`w:bidi`/`w:rtl`/`w:cs`, lists, RTL tables), two-pass tesseract OCR (`tessdata_best` 4.1.0, sha256-checked) composed into Word, LibreOffice Office → PDF, PDF → XLSX, image → PDF/DOCX, PPTX → PNG zip. CLI `convertir.py` (one JSON line); `--verifier` lists missing pieces. Bench `npm run conversions:bench` on the versioned corpus (`scripts/conversions/corpus/`, `attendu.json`), metrics `src/lib/office/conversions-mesure.ts`. |
+| `src/app/api/health/worker/route.ts` | Background-task health: 200 if a task started < 5 min ago, else 503; holder/error detail for Super Admin only. |
 | `src/lib/scheduler/runner.ts` | User-defined *workflow* schedules (atomic claim, `WORKFLOW_SCHEDULER=off`). |
 | `src/app/api/messaging/sync/route.ts` | The hot route (polled every 12 s by each client) that imports `scheduled.ts` and kicks `runScheduledJobs()`. |
 | `playwright.config.ts` / `playwright.live.config.ts` | E2E on :3100 (no AI) / live bench on :3101 (real provider, local DB enforced). |
@@ -84,7 +100,7 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 | `public/sw.js`, `public/manifest.webmanifest` | PWA: push + notificationclick only (no fetch/offline caching). |
 | `src/lib/client-bundle-guard.test.ts` | Walks import graph from every `"use client"` file; fails on reach to `fs`/`net`/Node-only packages. |
 | `src/lib/lint-directives.test.ts` | Fails if an `eslint-disable` names a rule that the computed ESLint config doesn't load (§118.155). |
-| `src/platform/boundary.test.ts`, `domains.test.ts`, `reachability.test.ts`, `decors-de-test.test.ts` | Architecture ratchets (debt ceilings, cycles, orphan modules, fixture round-trip budget). |
+| `src/platform/boundary.test.ts`, `domains.test.ts`, `qualite-code.test.ts`, `decors-de-test.test.ts` | Architecture ratchets (debt ceilings, cycles, dead code and duplicates via knip/jscpd, fixture round-trip budget). |
 
 ---
 
@@ -95,9 +111,14 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 - Blueprint provisions `amd-postgres` (free) and `amd-internal-os` (node runtime, free plan,
   `healthCheckPath: /login`) — `render.yaml:15-25` [V].
 - `buildCommand` (`render.yaml:52`) [V]:
-  `npm install && npx prisma generate && npx prisma migrate deploy && npm run db:bootstrap && npm run build:render`.
-  Migrations are applied **during the build**, before the new code serves traffic; a failing
-  migration fails the deploy.
+  `npm install && npx prisma generate && npm run build:render && npx prisma migrate deploy && npm run db:bootstrap`
+  (order changed 2026-10-27, refonte P0 — `docs/architecture/refonte-p0-outillage.md` §2: lint, tsc and
+  `next build` run **before** any DB write; `next build` was measured to need no DB). Migrations are
+  still applied **during the build**, before the new code serves traffic; a failing migration fails the deploy.
+- **Second web service `adventum-ia`** (decision 0027, starter plan): same repo and build **without** `migrate deploy` /
+  `db:bootstrap`, `APP_MODE=adventum-ia`, `TACHES_DE_FOND=worker`, `AUTH_URL`/`APP_URL` = `https://adventum-ia-k3uc.onrender.com`,
+  `ERP_URL`, `DATABASE_URL` from the same database, `AUTH_SECRET`/S3/VAPID/`MAX_*`/`OPENAI_API_KEY` via `fromService`.
+  Routing rule is pure (`src/platform/app-mode.ts`, tested) and applied first in `authorized()` (`src/auth.config.ts`).
 - `startCommand: npx next start -p $PORT` (`render.yaml:53`) [V]. Full repo + `node_modules` on
   disk, which is why file tracing (`.nft.json`) is disabled (`next.config.mjs:104`) [V].
 - Env in the Blueprint (`render.yaml:54-111`) [V]: `DATABASE_URL` from DB, `AUTH_SECRET`
@@ -129,15 +150,16 @@ Exported as a **phase function** (`next.config.mjs:191-196`) [V]:
 3. Static config:
    - `eslint.ignoreDuringBuilds: true` (`:44`) — lint is **never** run by `next build`.
    - `experimental.cpus: 1` (`:70`) — one static-generation worker (~1.7 GB each, measured 10/2026).
-   - `webpackBuildWorker: true` (`:74`), `serverMinification: false` (`:83`).
-   - `serverComponentsExternalPackages` (`:89`): `bcryptjs, imapflow, nodemailer, mailparser,
+   - `webpackBuildWorker: true`, `webpackMemoryOptimizations: true` (Next 15), `serverMinification: false`.
+   - `serverExternalPackages` (top-level since Next 15): `bcryptjs, imapflow, nodemailer, mailparser,
      pdf-parse, mammoth, xlsx, tesseract.js, mupdf, sharp, docxtemplater, pizzip, pdfkit,
      @mastra/core` (pdfkit must stay external so its `.afm` font files resolve at runtime).
    - `serverActions.bodySizeLimit: "256mb"` (`:95`) — real limit enforced by `AppSetting`/
      `validateUpload`.
-   - `outputFileTracing: false` (`:104`).
-   - `webpack()` hook (`:121-127`): `cache.maxMemoryGenerations = 1`; gzip cache compression when
-     `RENDER` set.
+   - No `outputFileTracing` (removed by Next 15): the `webpack()` hook drops `TraceEntryPointsPlugin`
+     from the production server compiler instead (−~250 MB peak, −33 s, measured 2026-10-28).
+   - `webpack()` hook: `cache.maxMemoryGenerations = 1`; gzip cache compression when `RENDER` set.
+   - `TAS_DU_BUILD_MO = 3584`: heap cap injected into build workers when no cap is set.
    - `headers()` (`:128-170`): CSP limited to `frame-ancestors 'self'; object-src 'none';
      base-uri 'self'; form-action 'self'; upgrade-insecure-requests` (no script/style/connect
      restrictions on purpose — OnlyOffice, inline Next scripts, blob: previews), plus
@@ -175,8 +197,40 @@ Exported as a **phase function** (`next.config.mjs:191-196`) [V]:
 
 ### 4.5 Background / scheduled work
 
-There is **no `instrumentation.ts`, no `/api/cron` route, no external cron, no worker dyno** [V:
-`ls src` and `ls src/app/api`]. Everything periodic goes through `src/lib/scheduled.ts`:
+> **Updated 2026-10-27 (refonte V2-F, worker séparé)** [V: code of this lot]. Two possible executors, chosen by
+> `TACHES_DE_FOND` (`src/lib/taches-de-fond/mode.ts`, pure): `web` (default — unchanged production behaviour),
+> `worker` (only `npm run worker` runs the tasks; the web heartbeat is not armed and `runScheduledJobs()` is a no-op),
+> `les-deux` (both run; per-task lease decides). Unknown value → `web` (never silence). Both executors run the SAME
+> table `TACHES_PLANIFIEES` (`scheduled.ts`) through `executerPassage` (`taches-de-fond/executer.ts`):
+> - **Per-task lease** in table `TacheDeFond` (`bail.ts`): atomic `updateMany` claim when (no lease OR lease expired
+>   OR own) AND last start ≥ `INTERVALLE_MIN_MS` (45 s) ago. Lease `BAIL_TACHE_MS` = 120 s, renewed every 40 s while
+>   the task runs, released with outcome (`OK`/`ECHEC`/`IGNOREE`), duration, message, counters. Expired lease = dead
+>   process → retaken (crash recovery). Not an advisory lock: Prisma pools connections, a session lock would be taken
+>   and released on different connections. Proven by `taches-de-fond/bail.test.ts` (2 and 8 concurrent claimants →
+>   1 run; two concurrent passes share the table).
+> - **Failure isolation**: a throwing task is counted `ECHEC` and the pass continues (before V2-F five steps without
+>   `.catch` aborted the whole pass; ~20 swallowed errors silently).
+> - **Worker** (`scripts/worker.ts` → `taches-de-fond/worker.ts`): declares itself before importing `scheduled.ts`
+>   (otherwise the module-load web heartbeat would arm), waits until `_prisma_migrations` contains every migration of
+>   its checkout (`migrations.ts` — only the web build migrates, P0 order), one pass at start then every `TICK_MS`
+>   start-to-start, SIGTERM → stop between tasks, 25 s grace then exit 1 (lease expires by itself). Under `web` mode or
+>   `SCHEDULER_DISABLED=1` it idles (no restart loop).
+> - **Logs**: JSON lines `{"source":"taches-de-fond", "evenement": …}` — `passage.fin` (per-task `durees`),
+>   `tache.echec`, `tache.lente` (≥ 2 s), `tache.bail-perdu`, `worker.*`.
+> - **Health**: `/api/health/worker` and the "Tâches de fond" card of Admin › Diagnostic (`lireSanteTachesDeFond`).
+> - **Render**: commented `amd-worker` block in `render.yaml` (paid plan, build `npm install && npx prisma generate`,
+>   start `npm run worker`, same env incl. identical `AUTH_SECRET` and explicit `APP_URL`). Activation procedure:
+>   `docs/readme/24-deploiement-render.md`.
+> - **V2-A hook**: task `enrichissement.file` → `taches-de-fond/enrichissement.ts`, returns `ignoree(...)` until V2-A
+>   replaces its body with `traiterLaFile({ max: LOT_FILE_ENRICHISSEMENT })`.
+>
+> The description below (written 2026-10-24) remains accurate for the `web` mode, except: the heartbeat lives in
+> `armHeartbeat()` gated by `battementWebArme()`; the list of steps is now the table, with stable keys
+> (`rappels.reunions`, `missions.balayage`…); the in-process `running`/debounce flag only prevents a process from
+> overlapping itself — cross-process exclusivity is the lease.
+
+There is **no `instrumentation.ts`, no `/api/cron` route, no external cron** [V:
+`ls src` and `ls src/app/api`]; a worker entry point exists since V2-F but is opt-in. Everything periodic goes through `src/lib/scheduled.ts`:
 
 - **Heartbeat** (`scheduled.ts:78-92`) [V]: `TICK_MS = max(15 s, SCHEDULER_TICK_MS ?? 60 s)`;
   `armHeartbeat()` runs at module load; skipped when `SCHEDULER_DISABLED=1`, under Vitest /
@@ -318,7 +372,7 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 
 **Kill switches / feature flags / scheduler**
 
-`SCHEDULER_DISABLED=1`, `SCHEDULER_TICK_MS`, `WORKFLOW_SCHEDULER=off`, `MISSIONS_SWEEP=off`,
+`TACHES_DE_FOND=web|worker|les-deux` (V2-F, default `web`), `SCHEDULER_DISABLED=1`, `SCHEDULER_TICK_MS`, `WORKFLOW_SCHEDULER=off`, `MISSIONS_SWEEP=off`,
 `KNOWLEDGE_INGESTION=off` (`knowledge/worker.ts:52`), `ASSISTANT_DRIVE_INGESTION=off`,
 `DATA_QUALITY_DISABLED=1`, `INTELLIGENCE_CACHE_DISABLED=1`, `CHIEF_ROUTER_DISABLED`,
 `CHIEF_ROUTER_CANARY`, `ADAM_CIBLE_DESIGNEE_DISABLED`, `ADAM_EMPREINTE_MUTATION_DISABLED`,
@@ -363,7 +417,12 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 | `src/lib/lint-directives.test.ts` | Every `eslint-disable` rule name exists in ESLint's computed config (§118.155). |
 | `src/platform/boundary.test.ts` | `src/platform/**` imports nothing from the ERP except the bridge; Adam→ERP import debt ≤ `DEBT_CEILING = 425` (`:128`). |
 | `src/platform/domains.test.ts` | Architecture test: zero cycles / layer inversions; `CROSSING_CEILING = 68`, `PROVIDER_CEILING = 42` (`:68-69`). |
+| `src/modules/frontieres.test.ts` *(extended 2026-10-28, V3-G)* | Modules (`src/modules/<m>/`) are entered only through their doors (`api.ts`, `api-*.ts`, `partage.ts`, `actions.ts`; `ecrans/` from `src/app/` only); `domaine/` pure (type-only `@prisma/client` allowed); module→module edges ⊆ `src/modules/carte.ts`, acyclic, no dead permission; nobody imports an old path (`tsconfig.json` exact `paths` = forwarding addresses, `src/platform/demenagements.ts`); exact inherited-debt list. ESLint `no-restricted-imports` mirrors rules 1/2/5. |
+| `src/platform/couverture.test.ts` *(added 2026-10-28, V3-G)* | Six ceilings that can only go down (`src/platform/couverture.ts`): `src/lib` files in no layer 754 (after the `rh` module and assistant decision 0011), pages importing Prisma 126, routes 53, `components → app` 12, UI kit → business 6, tests reading source by path 128. `npm run test:architecture` runs all architecture guards in ~35 s. |
 | `src/platform/reachability.test.ts` | No module in `src/lib/missions`, `src/lib/artifact` is test-only or orphaned (§53); uses the `rg` binary. |
+
+| `src/platform/couverture.test.ts` *(added 2026-10-28, V3-G)* | Six ceilings that can only go down (`src/platform/couverture.ts`): `src/lib` files in no layer 768, pages importing Prisma 126, routes 53, `components → app` 12, UI kit → business 6, tests reading source by path 128. `npm run test:architecture` runs all architecture guards in ~35 s. |
+| `src/platform/qualite-code.test.ts` | Dead code (knip, whole repo: zero unused file/export/type/dependency; test-only production files ⊆ a named list) and duplicate blocks (jscpd ceilings). Replaced `reachability.test.ts` (lot V4, 2026-10-28). |
 | `src/platform/decors-de-test.test.ts` | Fixture cost measured in sequential DB round-trips: `PLAFOND_ATTENTES = 47`, notable ≥ 6 (`:49-52`). |
 | `src/lib/actions/contrat.test.ts` | Generated action contract is up to date (`npm run actions:contrat`), unreadable actions ≤ 24, designable ≥ 500. |
 | `src/lib/assistant/action-parity.test.ts`, `capability-audit.test.ts` | Every server action is classified in the Chief/Adam action registry. |
@@ -399,6 +458,30 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 
 ### 4.10 Observability
 
+> **Updated 2026-10-28 (lot V3-E « Fiabilité »)** [V: code of this lot]. The bullets below that describe
+> `/login` as health check, plain logging and no `global-error.tsx` are superseded:
+> - **Single structured journal** `src/lib/journal.ts` (zero imports → client-safe, NEUTRAL in
+>   `platform/boundary-scan.ts`): one JSON line `{ts, niveau, evenement, …contexte, erreur, repetitions}`;
+>   anti-avalanche (same event + same message rewritten once per 60 s, the next line carries the count of
+>   silenced repeats); every `erreur` is **counted** per event in process memory. `taches-de-fond/journal.ts`
+>   delegates to it (counting key `tache.echec:<clé>`).
+> - **Named catches** replace silent `.catch(() => x)`: `sansBloquer("event", repli)` (tolerated failure:
+>   logged + counted) and `attendu("raison", repli)` (expected rejection: client body, optional file,
+>   best-effort close — nothing logged). Measured 1 211 silent catches → 12 (2 motivated server exceptions,
+>   10 client screens that already show the failure). Ratchet: `src/lib/journal-catch-muets.test.ts`
+>   (server = 0 outside named exceptions; client ceiling 10, can only go down).
+> - **Repeated errors → Super Admin**: `src/lib/incidents-repetes.ts`. `verserCompteurs()` runs at the start
+>   of EVERY pass in EVERY process (outside leases — web and worker each own their memory), atomic UPSERT into
+>   `IncidentRepete` (window 1 h, reopened when stale; on DB failure the batch is restored in memory). Task
+>   `observabilite.incidents` (leased) sends ONE aggregated `notifyRoles(["SUPER_ADMIN"])` for events ≥ 5 in
+>   the window, then 6 h of silence per event. Diagnostic card "Erreurs rattrapées"
+>   (`admin/diagnostic/incidents.tsx`). Migration `20270205100000_incidents_repetes`.
+> - **Health**: `src/app/api/health/route.ts` — 503 on DB unreachable (3 s) **or** on migrations missing
+>   (`src/lib/migrations-appliquees.ts`: `prisma/migrations/*` dirs vs finished, non-rolled-back rows of
+>   `_prisma_migrations`; "up to date" memoised per process; unreadable folder → `inconnu`, not blocking);
+>   200 with `etat: "degrade"` + counts (no event names) when this process has repeated errors (15 min).
+>   `render.yaml` now `healthCheckPath: /api/health` and `npm ci`; `package.json` `engines.node = 22.x`.
+> - **`src/app/global-error.tsx`**: French root error boundary (inline styles, `digest`, logs via the journal).
 - **Logging**: plain `console.*` (≈452 `console.error`, 33 `warn`, 48 `log/info` in non-test `src/`),
   consumed by Render's log stream; scheduler steps log with `[scheduled]` / `[scheduler]` prefixes
   [V]. No structured logger, no log levels config.
@@ -424,6 +507,13 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 `install`→`skipWaiting`, `activate`→`clients.claim`, `push`→`showNotification`, `notificationclick`
 → focus/open URL). No `fetch` handler, so no offline cache [V]. Registered from
 `src/components/layout/push-register.tsx:25,45`.
+
+**Adventum IA (decision 0027, 2026-10-30)** — a second PWA served by the same build: `public/adventum-ia/manifest.webmanifest`
+(`start_url`/`id` `/ia`, theme `#2C59A7` (Adventum charter), PNG icons + maskable, `icone-180.png` as apple-touch-icon, iPhone startup images; metadata in
+`src/app/ia/layout.tsx`) and `public/ia-sw.js` (scope `/ia`: Web Push with the same VAPID keys, `notificationclick` maps
+`/assistant?c=` → `/ia?c=`, **fetch handler**: cache-first for `/_next/static/` and `/adventum-ia/`, network-first for `/ia`
+navigations with the last page as offline fallback). Offline voice notes are queued in IndexedDB
+(`ecrans/app/hors-ligne.ts`). `/adventum-ia/*` and `/ia-sw.js` are public in `auth.config.ts` (a manifest is fetched without cookies).
 
 ### 4.12 CI
 
@@ -493,9 +583,8 @@ build (lint if `build:render` is really used, separate tsc, compilation) as the 
 
 1. Push to the tracked branch → Render runs the build command (Blueprint: `render.yaml:52`; or the
    dashboard override, §118.208).
-2. `npm install` (`.npmrc` legacy peers) → `prisma generate` → `prisma migrate deploy` (applies
-   every un-applied folder in lexical order) → `db:bootstrap` (no-op if admin exists).
-3. `build:render`: `next lint` (fails on any ESLint error, e.g. unknown rule in a directive) →
+2. `npm install` (`.npmrc` legacy peers) → `prisma generate`.
+3. `build:render` (before any DB write since refonte P0; then `prisma migrate deploy` → `db:bootstrap`): `next lint` (fails on any ESLint error, e.g. unknown rule in a directive) →
    `tsc -p tsconfig.build.json` → `next build` with `TYPECHECK_SEPARE=1`.
    If instead a bare `npx next build` runs: `next.config.mjs` detects `RENDER`, runs the separate
    tsc itself, caps heaps at 3 GB; **lint does not run** (`ignoreDuringBuilds`).
@@ -535,12 +624,14 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
   OAuth secrets become unreadable. Note the two derivations prefer **different** variables:
   `drive-storage.ts` uses `NEXTAUTH_SECRET ?? AUTH_SECRET`; `secret-box.ts` uses
   `MAIL_ENCRYPTION_KEY || DRIVE_ENCRYPTION_KEY || AUTH_SECRET || NEXTAUTH_SECRET` [V].
-- **`next.config.mjs` `serverComponentsExternalPackages`** ↔ `client-bundle-guard`
+- **`next.config.mjs` `serverExternalPackages`** (Next 15 name) ↔ `client-bundle-guard`
   `NODE_ONLY_PACKAGES`: adding a new native/WASM dependency usually requires updating both.
 - **`scripts/graphify-refresh.sh`** temporarily moves `src/lib/actions/aiguillage.genere.ts` away;
   any build/typecheck/test started during a refresh fails with "Can't resolve './aiguillage.genere'".
-- **Upgrading Next** (14.2.35): the `cpus`/`webpackBuildWorker`/`serverMinification` knobs and the
-  middleware location rules are version-specific; the comments cite `next/dist` 14.2.35 internals.
+- **Upgrading Next** (15.5.28 since V3-A): the `cpus`/`webpackBuildWorker`/`serverMinification`/
+  `webpackMemoryOptimizations` knobs, the `TraceEntryPointsPlugin` filter (by constructor name — a
+  rename upstream silently re-enables tracing, +~250 MB) and the middleware location rule are
+  version-specific. Next 16 removes `next lint` (`build:render` calls it): migrate to the ESLint CLI first.
 - **Test DB = dev DB by default** (`amd_internal_os` on localhost): running `npm test` seeds tagged
   rows into the local working database.
 
@@ -563,8 +654,8 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
    `sortie/garde.ts`).
 6. **Do not set `NODE_OPTIONS` in the Render dashboard** (`render.yaml:46-49`): it would apply to
    `next start` too, and a big V8 heap on a small instance OOMs at runtime.
-7. **`middleware.ts` location** [V]: Next 14.2.35 resolves middleware in
-   `path.join(pagesDir || appDir, "..")` (`node_modules/next/dist/build/index.js:478-488`), i.e.
+7. **`middleware.ts` location** [V]: Next 14.2.35 — and still Next 15.5.28 (`node_modules/next/dist/build/index.js:548`, re-checked 2026-10-28, V3-A) — resolves middleware in
+   `path.join(pagesDir || appDir, "..")`, i.e.
    `src/` here, but the file is at the repo root and `src/middleware.ts` does not exist. The edge
    `authorized` callback (`src/auth.config.ts:16-71`) therefore probably never runs; protection
    comes from `requireUser()` in `src/app/(app)/layout.tsx:45` and per-route checks. Consistent with
@@ -582,7 +673,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 10. **Ratchet drift**: `boundary.test.ts` `DEBT_CEILING` is 425 today vs 424 in
     `audit/baseline/03-ratchets.txt`, and `domains.test.ts` `CROSSING_CEILING` 68 vs 69 — the
     boundary budget went **up** once despite "only goes down" [V].
-11. **`reachability.test.ts` has no floor** on files scanned and swallows `rg` failures
+11. *(Resolved, lot V4 2026-10-28 — test replaced by knip in `qualite-code.test.ts`.)* **`reachability.test.ts` had no floor** on files scanned and swallows `rg` failures
     (`execFileSync("rg", …)` in a `try { } catch { return []; }`): without the `rg` binary it passes
     vacuously — the exact anti-pattern §118.17 names [V].
 12. **E2E seed has no local-DB guard** (`e2e/global-setup.ts:58`, `global-teardown.ts:6` build a raw
@@ -660,7 +751,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
      called from `runScheduledJobs()` wrapped in `.catch`, placed after the critical reminders.
    - Added an env var → read it with a safe default, add it to `.env.example`, readme 23 and, for
      production, `render.yaml` (`sync: false` for secrets); never print values in diagnostics.
-   - Added a native/Node-only dependency → `serverComponentsExternalPackages` and
+   - Added a native/Node-only dependency → `serverExternalPackages` and
      `NODE_ONLY_PACKAGES` in the bundle guard.
 3. **Migration** → new folder sorting after `20270126100000_*`, hand-written idempotent SQL,
    `npm run db:deploy` locally (also on the test DB), update `schema.prisma`, `npm run db:generate`.
@@ -687,10 +778,61 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
   (`scheduled.ts:52-420`, `api/messaging/sync/route.ts:6-17`).
 - [V] Test/bench DB guard and pool (`prisma.ts:93-177`); outbound kill switch (`garde.ts:118-139`).
 - [V] Test counts, `dbOk` idiom counts, guard tests listed and their ceilings.
-- [V] Next 14.2.35 middleware lookup rule; root `middleware.ts`; no `src/middleware.ts`.
-- [V] No CI configuration; no APM; no `global-error.tsx`; health check on `/login`.
+- [V] Next 14.2.35 / 15.5.28 middleware lookup rule; root `middleware.ts`; no `src/middleware.ts`.
+- [V] No APM. (CI, `global-error.tsx` and the `/api/health` health check exist since the 27/10 audit and lot V3-E — §4.10.)
 - [U] Which build command the Render dashboard currently runs and which branch it tracks.
 - [U] Whether `build:measure` fails at its 4,200 MB default today (not run, per instructions).
 - [U] That every "…SiDu" job is DB-gated (three checked).
 - [U] Per-route self-guarding of all `/api/*` and non-`(app)` pages given the inactive middleware.
 - [U] Exact provenance/intent of `docs/wip/*.patch`.
+
+
+> **Updated 2026-10-30 (decision 0019, « Cliquez Sync, c'est tout »)** [V: code of this lot]. `render.yaml` sets
+> `TACHES_DE_FOND=les-deux` on BOTH web and worker (the per-task lease arbitrates; the web keeps doing everything until the
+> worker has beaten); the worker gets `AUTH_SECRET`, `OPENAI_API_KEY`, `S3_*`, `VAPID_*`, `ADVENTUM_*` via `fromService` (only keys
+> the web block declares — Render does not document `fromService` to an absent key), `DATABASE_URL` via `fromDatabase`, literal
+> `APP_URL`; plans of DB and web unchanged, worker `starter`. `Dockerfile.worker` on `node:22-bookworm-slim` (Python 3.11,
+> LibreOffice 7.4, **Tesseract 5.3** — measured better on Arabic than 5.5; do not bump without re-running the bench in the image), three stages (deps, Python engine, runtime), Arabic/Latin fonts incl. Carlito/Caladea, and a
+> build-time `convertir.py --verifier` gate. Worker start-up control (`evaluerControle`/`controlerAuDemarrage` in
+> `src/lib/taches-de-fond/sante.ts`, after the migration wait via `apresMigrations`) logs each missing variable/engine piece
+> (`worker.controle.manque`) and upserts table `ControleWorker` (migration `20270215120000_controle_worker`, additive; presence only,
+> never values). Web side: `atelier.conversions` still never converts on the web, but expires queued conversions the worker did not
+> take (15 min). Local docker builds behind the agent proxy need a CA-injected variant (not shipped).
+
+## J5 + J14 (2026-10-30) — scheduled bench & quality tests [V]
+
+- Worker task `qualite.banc` (no-op outside the worker) spawns `tsx scripts/bench/banc-programme.ts` with `DATABASE_URL` =
+  the declared trial DB; `@/lib/prisma` (`estLaBaseEssaiDeclaree`) is the ONLY door for a bench to open a remote DB.
+  One-time setup: `BANC_ESSAI_DATABASE_URL=… npm run banc:essai:semer` (migrations applied on that DB first).
+- Bench scripts write a normalized `BANC_SORTIE` JSON; `BANC_SEULEMENT=jarvis,…` runs a reduced pass.
+- Tests (fake model only): `infra/qualite/{regles,banc,traces,pieges-regles}.test.ts`, `pieges.test.ts` (35 traps through
+  `jouerTour`). Task `assistant.traces` purges traces older than `ASSISTANT_IA_TRACES_JOURS` (30).
+
+## C2 (2026-11-01) — GitHub / Render / Routines connectors, webhooks, real bench [V]
+
+- New public routes `POST /api/chantiers/webhooks/github|render` (exact paths in `auth.config.ts`; `/api/chantiers/webhooks/`
+  in the app-mode allow-list; `HORS`/`ENTRANT` in `gestes-ecran.test.ts`). Render signature = Standard Webhooks
+  (`webhook-id`, `webhook-timestamp` ±5 min, `webhook-signature: v1,<b64>`), secret tried base64-decoded after `whsec_`
+  and raw. GitHub = `X-Hub-Signature-256`.
+- Render API v1 paths verified on api-docs.render.com OpenAPI (01/11/2026): rollback `POST /services/{id}/rollback
+  {deployId}` does NOT turn autodeploy off (`PATCH /services/{id} {autoDeployTrigger:"off"}` separately); Blueprint sync is
+  not triggerable by API; `GET /services/{id}/env-vars` returns values — the adapter keeps keys only.
+- Migration `20270218200000_chantiers_connecteurs` (additive, idempotent): table `DevLancement`.
+- Tests `src/platform/in-process/chantiers/{connecteurs,webhooks}.test.ts`: local `node:http` fake server (doc payloads), signatures,
+  429/Retry-After, GitHub primary/secondary quotas, ETag 304, timeout ⇒ no retry, concurrent same key ⇒ one fire, no secret
+  in messages/logs/DB, webhook + poll dedupe, public route.
+- Real bench `scripts/bench/chantiers-reel.ts` (`BANC_DEPOT`, `BANC_ROUTINE`, `BANC_SERVICE_RENDER`…): refuses a non-local
+  `DATABASE_URL`, a production repo, a Render service not linked to the bench repo or with a protected name.
+- Admin screen `/admin/developpement` (Super Admin): read-only probes (GitHub `/user` + repos, Render `/services`, MiMo
+  `/models`; routines: configured or not — no side-effect-free probe exists).
+- Public route `GET|POST /api/dev/relais/ordres` (exact path in `auth.config.ts`, app-mode allow-list, `SANS_SESSION` in
+  `vue-exacte-etanche.test.ts`, inventory + decision 0037). Migration `20270218200100_chantiers_relais_cli`
+  (`ClaudeRelaisOrdre`, `ClaudeRelaisEtat`). `platform/dev/config.ts` is allowed to name `api.anthropic.com` in
+  `passerelle-unique.test.ts` (Routines fire is not a model call).
+- Relay as a Render service (Direction 01/11, "in the cloud"): worker `claude-relais` in `render.yaml` (`runtime: docker`,
+  `Dockerfile.relais` = node:22-bookworm-slim + git + `@anthropic-ai/claude-code@2.1.316`, context limited to the script by
+  `Dockerfile.relais.dockerignore`), plan `starter`, disk `claude-relais-data` on `/var/data`, `CLAUDE_CONFIG_DIR=/var/data/claude`,
+  no `DATABASE_URL`. Login once by the Direction in the service Shell (`claude auth login`, URL + pasted code). Local
+  `docker build` here needs the proxy CA (`NODE_EXTRA_CA_CERTS`) and a Docker Hub mirror when rate-limited — done in a
+  scratch copy only; the shipped Dockerfile is unchanged. Test `in-process/chantiers/relais-script.test.ts` runs the real
+  script against a fake ERP + fake `claude` + a local bare git repo.

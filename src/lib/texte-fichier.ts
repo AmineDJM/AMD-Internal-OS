@@ -1,18 +1,5 @@
 import { natureApercu, TAILLE_MAX_TEXTE_OCTETS } from "@/lib/formats/apercu";
 
-/**
- * LIRE ET MODIFIER UN FICHIER TEXTE (code, journaux, JSON, YAML, Markdown, SQL…) — Direction, 06/10 : « tout ce qui est
- * fichier modifiable, on peut le lire dans son format exact, le modifier, le supprimer ». Les formats Office passent par
- * l'éditeur Office ; le texte brut a son éditeur simple, dont la lecture, la vérification et l'écriture se font SUR LE
- * SERVEUR (le PC n'affiche qu'une zone de texte).
- *
- * Module PUR : les règles que les deux routes (documents et Drive) partagent — une seule vérité (§118.5).
- */
-
-export type LectureTexte =
-  | { ok: true; texte: string; tronque: boolean }
-  | { ok: false; error: string };
-
 /** Ce fichier est-il un texte qu'on peut éditer ici ? (la nature vient de la table unique des aperçus) */
 export const estUnTexteEditable = (nom: string, mime?: string | null): boolean => natureApercu(nom, mime) === "texte";
 

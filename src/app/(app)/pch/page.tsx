@@ -21,7 +21,8 @@ const ORDRE_NIVEAUX = [
   "PERDU", "ANNULE", "SUSPENDU",
 ] as const;
 
-export default async function PchPage({ searchParams }: { searchParams?: { niveau?: string } }) {
+export default async function PchPage(props: { searchParams?: Promise<{ niveau?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PCH");
   const canCreate = userCan(user, "PCH", "CREATE");
   // LES BUSINESS UNITS NE SONT PLUS CHARGÉES ICI : l'affectation ne se décide pas à l'ouverture

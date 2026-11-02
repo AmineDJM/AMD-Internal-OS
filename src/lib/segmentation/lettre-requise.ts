@@ -68,8 +68,6 @@ export function requisDuPanel(
   return total;
 }
 
-/** Les lettres qui comptent pour la couverture « cibles prioritaires ». */
-export const LETTRES_PRIORITAIRES: readonly Lettre[] = ["H", "A", "B"];
 /** L'ordre d'affichage des lettres dans un panel (NA et non ciblé à part). */
 export const LETTRES_PANEL = ["H", "A", "B", "C", "D"] as const;
 export type LettrePanel = (typeof LETTRES_PANEL)[number];

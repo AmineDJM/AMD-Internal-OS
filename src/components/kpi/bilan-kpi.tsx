@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import {
   bilanKpi, commentaireLunaKpi, declarerKpi, deciderDeclarationKpi, origineKpi, proposerNiveauKpi, signerRevueKpi, validerEvaluationKpi,
 } from "@/lib/actions/kpi-actions";
 import { LIBELLE_STATUT_REVUE, PastilleKpi, SparklineKpi, couleurScore } from "./kpi-commun";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE BILAN D'UNE PERSONNE — le même écran pour le manager (panneau de Mon équipe) et pour la personne (Mon bilan).
@@ -33,7 +35,7 @@ export function BilanKpiVue({ userId, periodeInitiale, bilanInitial, onChange }:
 
   const recharger = React.useCallback(async (p: string) => {
     setChargement(true);
-    const r = await bilanKpi(userId, p).catch(() => null);
+    const r = await bilanKpi(userId, p).catch(sansBloquer("bilan-kpi.BilanKpiVue.bilanKpi", null));
     setChargement(false);
     if (r?.ok) { setBilan(r.bilan); setPeriode(r.bilan.periode.cle); } else setMsg({ ok: false, texte: r && !r.ok ? r.error : "Le bilan n'a pas pu se charger." });
   }, [userId]);
@@ -43,7 +45,7 @@ export function BilanKpiVue({ userId, periodeInitiale, bilanInitial, onChange }:
   }, [bilanInitial, periodeInitiale, recharger]);
 
   const apres = async (r: { ok: boolean; error?: string; message?: string } | null) => {
-    setMsg(r ? { ok: r.ok, texte: r.ok ? r.message ?? "Enregistré." : r.error ?? "Échec." } : { ok: false, texte: "Échec." });
+    setMsg(r ? { ok: r.ok, texte: r.ok ? r.message ?? "Enregistré." : r.error ?? "La modification n'a pas été enregistrée." } : { ok: false, texte: actionFailureMessage("THROWN") });
     if (r?.ok) { await recharger(periode); onChange?.(); }
   };
 
@@ -131,7 +133,7 @@ function LigneChiffre({ k, userId, periode }: { k: KpiDuBilan; userId: string; p
     setOuvert(true);
     if (blocs) return;
     setBusy(true);
-    const r = await origineKpi(k.definitionId, userId, periode).catch(() => null);
+    const r = await origineKpi(k.definitionId, userId, periode).catch(sansBloquer("bilan-kpi.ouvrir.origineKpi", null));
     setBusy(false);
     setBlocs(r?.ok ? r.blocs : []);
   };
@@ -193,12 +195,12 @@ function CarteEvalue({ k, manager, userId, periode, apres }: { k: KpiDuBilan; ma
   const [busy, setBusy] = React.useState<"luna" | "valider" | null>(null);
   const grille = k.grille ?? [];
   const fd = () => { const f = new FormData(); f.set("definitionId", k.definitionId); f.set("userId", userId); f.set("periode", periode); return f; };
-  const luna = async () => { setBusy("luna"); const r = await proposerNiveauKpi(fd()).catch(() => null); setBusy(null); await apres(r); };
+  const luna = async () => { setBusy("luna"); const r = await proposerNiveauKpi(fd()).catch(sansBloquer("bilan-kpi.luna.proposerNiveauKpi", null)); setBusy(null); await apres(r); };
   const valider = async () => {
     if (!choix) return;
     setBusy("valider");
     const f = fd(); f.set("niveau", String(choix)); f.set("commentaire", commentaire);
-    const r = await validerEvaluationKpi(f).catch(() => null);
+    const r = await validerEvaluationKpi(f).catch(sansBloquer("bilan-kpi.valider.validerEvaluationKpi", null));
     setBusy(null); await apres(r);
   };
   return (
@@ -263,7 +265,7 @@ function CarteDeclare({ k, manager, soi, periode, apres }: { k: KpiDuBilan; mana
     const f = new FormData(e.currentTarget);
     f.set("definitionId", k.definitionId); f.set("periode", periode);
     setBusy(true);
-    const r = await declarerKpi(f).catch(() => null);
+    const r = await declarerKpi(f).catch(sansBloquer("bilan-kpi.declarer.declarerKpi", null));
     setBusy(false);
     if (r?.ok) setOuvert(false);
     await apres(r);
@@ -271,7 +273,7 @@ function CarteDeclare({ k, manager, soi, periode, apres }: { k: KpiDuBilan; mana
   const decider = async (id: string, decision: "VALIDEE" | "REFUSEE") => {
     const f = new FormData(); f.set("declarationId", id); f.set("decision", decision); f.set("motif", motifs[id] ?? "");
     setBusy(true);
-    const r = await deciderDeclarationKpi(f).catch(() => null);
+    const r = await deciderDeclarationKpi(f).catch(sansBloquer("bilan-kpi.decider.deciderDeclarationKpi", null));
     setBusy(false); await apres(r);
   };
   return (
@@ -334,7 +336,7 @@ function Revue({ bilan, manager, apres }: { bilan: BilanKpi; manager: boolean; a
   const fd = () => { const f = new FormData(); f.set("userId", bilan.userId); f.set("periode", bilan.periode.cle); return f; };
   const rediger = async () => {
     setBusy("luna");
-    const r = await commentaireLunaKpi(fd()).catch(() => null);
+    const r = await commentaireLunaKpi(fd()).catch(sansBloquer("bilan-kpi.rediger.commentaireLunaKpi", null));
     setBusy(null);
     if (r?.ok && r.texte) { setLuna(r.texte); if (!commentaire.trim()) setCommentaire(r.texte); }
     await apres(r);
@@ -342,7 +344,7 @@ function Revue({ bilan, manager, apres }: { bilan: BilanKpi; manager: boolean; a
   const signer = async () => {
     setBusy("signer");
     const f = fd(); f.set("commentaire", commentaire);
-    const r = await signerRevueKpi(f).catch(() => null);
+    const r = await signerRevueKpi(f).catch(sansBloquer("bilan-kpi.signer.signerRevueKpi", null));
     setBusy(null); await apres(r);
   };
   return (

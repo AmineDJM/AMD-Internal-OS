@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 import { clientIp, parseDevice } from "@/lib/device";
 import { recordAudit } from "@/lib/audit";
 import { notifyRoles } from "@/lib/notify";
+import { sansBloquer } from "@/lib/journal";
 
 const NO_CONTENT = new NextResponse(null, { status: 204 });
 
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     title: "⚠ Tentative de capture d'écran",
     body: `${who} — ${path} (${method})`,
     link: "/admin",
-  }).catch(() => undefined);
+  }).catch(sansBloquer("screenshot-attempt-route.POST.notifyRoles"));
 
   return NO_CONTENT;
 }

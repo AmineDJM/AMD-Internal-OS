@@ -5,12 +5,13 @@ import { enLecture } from "@/lib/vue-lecture";
 import { prisma } from "@/lib/prisma";
 import { aiConfigured } from "@/lib/ai";
 import { regCan, resolveRegCompanyIdFor } from "../access";
-import { askDossier, type ChatTurn, type DossierChatResult } from "./dossier-chat";
+import { type ChatTurn, type DossierChatResult } from "./dossier-chat";
 import { runDossierAgent, type AgentAttachment, type DossierAgentResult, type UnreadableAttachment } from "./dossier-agent";
 import { appendThreadMessage, clearThread, loadThread, loadThreadMemory, type AttachmentRecord, type ThreadMessageView } from "./dossier-thread";
 import { extractText } from "../extract/extract-text";
 import { canOcr, ocrDocument } from "../ocr/ocr-engine";
 import { askReserves } from "../reserves/chat";
+import { sansBloquer } from "@/lib/journal";
 
 /** Historique conversationnel transmis par le client (borné, texte pur — jamais une consigne). */
 function parseHistory(raw: string): ChatTurn[] {
@@ -24,34 +25,6 @@ function parseHistory(raw: string): ChatTurn[] {
   } catch {
     return [];
   }
-}
-
-/**
- * Action du CHATBOT DE DOSSIER — question/réponse ancrée dans le dossier réel, avec sources.
- * Vérifie le rôle (voir les documents) ET l'appartenance du dossier au périmètre de l'organisation,
- * puis interroge la dernière version. L'IA n'est appelée que si configurée (sinon sources seules).
- */
-export async function askDossierAction(formData: FormData): Promise<DossierChatResult> {
-  const fail = (error: string): DossierChatResult => ({ ok: false, configured: aiConfigured(), answer: "", citations: [], error });
-  const user = await requireUser();
-  if (!regCan(user, "regulatory.document.view") && user.role !== "SUPER_ADMIN") return fail("Non autorisé.");
-
-  const dossierId = String(formData.get("dossierId") ?? "").trim();
-  const question = String(formData.get("question") ?? "").trim();
-  if (!dossierId || !question) return fail("Paramètres manquants.");
-
-  const companyId = await resolveRegCompanyIdFor(user.id);
-  if (!companyId) return fail("Module non activé.");
-
-  const version = await prisma.regulatoryDossierVersion.findFirst({
-    where: { dossierId, dossier: { companyId } },
-    orderBy: { versionNo: "desc" },
-    select: { id: true },
-  });
-  if (!version) return fail("Aucune version de dossier.");
-
-  const history = parseHistory(String(formData.get("history") ?? ""));
-  return askDossier(version.id, question, undefined, history);
 }
 
 /**
@@ -89,7 +62,7 @@ export async function askDossierAgentAction(formData: FormData): Promise<Dossier
   if (!version) return fail("Aucune version de dossier.");
 
   // Mémoire du fil AVANT d'y écrire le nouveau message (sinon le tour courant s'y verrait en double).
-  const memory = await loadThreadMemory(dossierId, user.id).catch(() => ({ history: [] as ChatTurn[], priorAttachments: [] as AgentAttachment[] }));
+  const memory = await loadThreadMemory(dossierId, user.id).catch(sansBloquer("knowledge-actions.askDossierAgentAction.loadThreadMemory", { history: [] as ChatTurn[], priorAttachments: [] as AgentAttachment[] }));
 
   // PIÈCES JOINTES : 3 max, 20 Mo chacune — extraites tout de suite, OCR réel si scan. Une pièce
   // qui résiste (scan vide, format hostile, dépassement) est marquée ILLISIBLE avec son motif et

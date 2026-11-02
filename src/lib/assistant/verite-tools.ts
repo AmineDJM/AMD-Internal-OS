@@ -22,7 +22,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import {
   AUTORITE_CLAUSE, AUTORITE_DEFAUT, NATURES_ETAPE, NATURES_SOURCE,
   construire, detailler, direVerdict, questionsEtHypotheses, raconter, reconcilier, verifier,

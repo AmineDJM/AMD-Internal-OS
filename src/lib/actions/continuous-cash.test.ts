@@ -12,8 +12,7 @@ import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { allotPettyCash, confirmPettyCashReceipt, closePettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
-import { decidePayment } from "./payment-centre-actions";
-import { settleExpenseOrder } from "./expense-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -56,14 +55,18 @@ const withFile = (fields: Record<string, string>): FormData => {
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 suite("Caisse d'avance continue", () => {
-  let adminId = "", holderId = "", deptId = "";
+  // TROIS MAINS pour l'argent (séparation des tâches, ARGENT-06) : l'administrateur remet, le PDG autorise au
+  // centre, la comptabilité règle — un même compte ne fait pas les trois.
+  let adminId = "", holderId = "", deptId = "", pdgId = "", comptableId = "";
 
   beforeAll(async () => {
-    const [admin, holder] = await Promise.all([
+    const [admin, holder, pdg, comptable] = await Promise.all([
       prisma.user.create({ data: { name: `${TAG}admin`, email: `${TAG}admin@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}assistante`, email: `${TAG}holder@t.dz`, role: "DIRECTION_ASSISTANT", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "DIRECTION", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}comptable`, email: `${TAG}cpt@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" } }),
     ]);
-    adminId = admin.id; holderId = holder.id;
+    adminId = admin.id; holderId = holder.id; pdgId = pdg.id; comptableId = comptable.id;
     const dept = await prisma.department.create({ data: { name: `${TAG} Direction générale`, code: `${TAG}DG` } });
     deptId = dept.id;
     // L'assistante achète au quotidien : c'est son module.
@@ -87,6 +90,7 @@ suite("Caisse d'avance continue", () => {
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { id: { in: ecritures } } }).catch(() => {});
     await prisma.pettyCashPlan.deleteMany({ where: { departmentId: deptId } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: [pdgId, comptableId] } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: [adminId, holderId] } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
@@ -98,25 +102,19 @@ suite("Caisse d'avance continue", () => {
     return allotPettyCash(form({ departmentId: deptId, holderId, amount, period }));
   };
   /**
-   * LE CENTRE AUTORISE, LES FINANCES VERSENT (§118.176) — par les vraies actions, celles des
-   * boutons. Sans ce passage, la détentrice ne peut rien confirmer : la somme n'est pas partie.
+   * LE CENTRE AUTORISE, ET LA SOMME ENTRE DANS LA CAISSE (§118.176, règle du 28/10/2026) — par la vraie
+   * action, celle du bouton. Sans ce passage, rien n'est dans le fond : la somme n'est pas partie.
    */
   const verserTout = async () => {
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
+    const [pdg, comptable] = await Promise.all([actorFor(pdgId, "DIRECTION"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER")]);
     const attente = await prisma.pettyCashAllotment.findMany({
       where: { departmentId: deptId, status: "ALLOTTED", transactionId: null, expenseOrderId: { not: null } },
       select: { expenseOrderId: true },
     });
     for (const r of attente) {
+      ACTOR = pdg;
       expect((await decidePayment(form({ id: r.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
-      const regle = await settleExpenseOrder(form({ id: r.expenseOrderId! }));
-      expect(regle.ok, regle.error).toBe(true);
     }
-  };
-  const confirmerTout = async () => {
-    ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
-    const attente = await prisma.pettyCashAllotment.findMany({ where: { departmentId: deptId, status: "ALLOTTED" }, select: { id: true } });
-    for (const r of attente) expect((await confirmPettyCashReceipt(form({ id: r.id }))).ok).toBe(true);
   };
   const fond = async () => continuousCash(await openRemittances(deptId));
 
@@ -145,9 +143,9 @@ suite("Caisse d'avance continue", () => {
     const f = await fond();
     expect(f.remitted).toBe(80_000);
     expect(f.remittanceCount).toBe(2);
-    // Versé n'est pas confirmé reçu : décidé, puis versé, n'est pas encore détenu.
-    expect(f.received).toBe(0);
-    expect(f.awaitingAmount).toBe(80_000);
+    // Autorisée par le centre, la remise est EN MAIN : plus de confirmation à attendre.
+    expect(f.received).toBe(80_000);
+    expect(f.awaitingAmount).toBe(0);
   });
 
   it("la remise suivante NE REDEMANDE PAS la détentrice — elle est reprise du fond", async () => {
@@ -158,9 +156,8 @@ suite("Caisse d'avance continue", () => {
     expect(derniere?.holderId).toBe(holderId);
   });
 
-  it("chaque remise se confirme SÉPARÉMENT, et le fond ne compte que le confirmé", async () => {
+  it("chaque remise entre dans le fond à SON autorisation", async () => {
     await verserTout();
-    await confirmerTout();
     const f = await fond();
     expect(f.received).toBe(90_000);
     expect(f.remaining).toBe(90_000);

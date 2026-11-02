@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { clientIp, parseDevice } from "@/lib/device";
+import { sansBloquer } from "@/lib/journal";
 
 const NO_CONTENT = new NextResponse(null, { status: 204 });
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   if (session.user.sid) {
     const s = await prisma.userSession
       .findUnique({ where: { id: session.user.sid }, select: { country: true, city: true } })
-      .catch(() => null);
+      .catch(sansBloquer("activity-route.POST.userSession", null));
     country = s?.country ?? null;
     city = s?.city ?? null;
   }
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest) {
         os, browser, userAgent: ua,
       },
     })
-    .catch(() => undefined);
+    .catch(sansBloquer("activity-route.POST.activityLog"));
 
   return NO_CONTENT;
 }

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { setBcValidationThresholdCentre } from "@/lib/actions/settings-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — « les BC hors Ad & Pro passent par le centre de
@@ -29,10 +30,15 @@ export function SeuilBCCentre({ seuil }: { seuil: number }) {
         <form
           action={async (fd) => {
             setSaving(true); setError(null); setMessage(null);
-            const r = await setBcValidationThresholdCentre(fd);
-            setSaving(false);
-            if (r.ok) setMessage(r.message ?? "Enregistré.");
-            else setError(r.error ?? "Échec.");
+            try {
+              const r = await setBcValidationThresholdCentre(fd);
+              if (r.ok) setMessage(r.message ?? "Enregistré.");
+              else setError(r.error ?? "Le seuil n'a pas été enregistré.");
+            } catch {
+              setError(actionFailureMessage("THROWN"));
+            } finally {
+              setSaving(false);
+            }
           }}
           className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
         >

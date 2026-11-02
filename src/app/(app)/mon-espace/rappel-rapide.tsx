@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { createReminder } from "@/lib/actions/reminder-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * AJOUT RAPIDE D'UN RAPPEL — une ligne, un moment, « Ajouter ». La MÊME action que « Me rappeler »
@@ -19,7 +20,7 @@ const MOMENTS: { cle: string; label: string; at: (n: Date) => Date }[] = [
 ];
 
 export function RappelRapide() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [titre, setTitre] = React.useState("");
   const [moment, setMoment] = React.useState("demain");
   const [busy, setBusy] = React.useState(false);
@@ -38,10 +39,15 @@ export function RappelRapide() {
     fd.set("title", t);
     fd.set("remindAt", at.toISOString());
     fd.set("link", "/mon-espace");
-    const r = await createReminder(fd);
-    setBusy(false);
-    if (r.ok) { setTitre(""); setMsg({ ok: true, t: "Rappel ajouté." }); router.refresh(); }
-    else setMsg({ ok: false, t: r.error ?? "Le rappel n'a pas pu être créé." });
+    try {
+      const r = await createReminder(fd);
+      if (r.ok) { setTitre(""); setMsg({ ok: true, t: "Rappel ajouté." }); rafraichir(); }
+      else setMsg({ ok: false, t: r.error ?? "Le rappel n'a pas pu être créé." });
+    } catch {
+      setMsg({ ok: false, t: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (

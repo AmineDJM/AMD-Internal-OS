@@ -38,7 +38,10 @@
 import { sanitizeForModel } from "./ai-text";
 import { mentionsUnsupportedTemperature, providerErrorMessage } from "./models/errors";
 // L'interrupteur général de « Contrôle de l'IA » : lu AVANT tout envoi de données (voir `callLuna`).
-import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "./ai-settings";
+import { aiFeatureEnabled, interrupteurIaCoupe, REFUS_IA_COUPEE, type AiFeature } from "./ai-settings";
+import { attendu } from "@/lib/journal";
+import { cleOpenAI, urlOpenAI } from "./models/openai-acces";
+import { recordProviderCall } from "./models/telemetry";
 
 // Tarifs officiels (30 juillet 2026), en dollars par MILLION de jetons.
 const PRICE_INPUT_PER_M = 0.2;
@@ -49,7 +52,21 @@ export const BATCH_MULTIPLIER = 0.5;
 export const LUNA_MODEL = "gpt-5.6-luna";
 
 export function lunaConfigured(): boolean {
-  return Boolean((process.env.OPENAI_API_KEY ?? "").trim());
+  return Boolean(cleOpenAI());
+}
+
+/**
+ * Les trois portes d'un appel Luna, dans l'ordre : l'interrupteur général, la bascule de la
+ * fonction, la clé. Une lecture qui échoue (base indisponible) ferme la porte.
+ */
+export async function portesLunaOuvertes(fonction: AiFeature): Promise<boolean> {
+  try {
+    if (await interrupteurIaCoupe()) return false;
+    if (!(await aiFeatureEnabled(fonction))) return false;
+    return lunaConfigured();
+  } catch {
+    return false;
+  }
 }
 
 /** Modèle économique effectif (surchargeable sans toucher au code). */
@@ -166,10 +183,27 @@ interface ChatResponse {
     prompt_tokens?: number;
     completion_tokens?: number;
     prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
   };
 }
 
 /** Lit l'usage renvoyé par l'API et en déduit le coût. */
+/**
+ * CHAQUE APPEL PAYÉ DE LUNA VA AU JOURNAL (audit K8, trous G5/G6) — ici, au point de passage unique,
+ * plutôt que chez chaque appelant (quatre le faisaient à la main, six l'oubliaient). Usage RÉEL quand
+ * l'API le rend ; sinon estimé (caractères ÷ 4) et marqué comme tel.
+ */
+function journaliserLuna(model: string, raw: ChatResponse["usage"], fallbackIn: number, fallbackOut: number, ms: number, attempt: number): void {
+  recordProviderCall({
+    role: "bulk", provider: "openai", model,
+    inputTokens: raw?.prompt_tokens ?? fallbackIn, outputTokens: raw?.completion_tokens ?? fallbackOut,
+    cachedInputTokens: raw?.prompt_tokens_details?.cached_tokens ?? 0,
+    reasoningTokens: raw?.completion_tokens_details?.reasoning_tokens ?? 0,
+    estimated: raw?.prompt_tokens == null || raw?.completion_tokens == null,
+    ms, attempts: attempt,
+  });
+}
+
 export function readUsage(raw: ChatResponse["usage"], fallbackIn: number, fallbackOut: number, batch = false): LunaUsage {
   const inputTokens = raw?.prompt_tokens ?? fallbackIn;
   const outputTokens = raw?.completion_tokens ?? fallbackOut;
@@ -196,12 +230,12 @@ export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaR
   // coupé pendant que l'écran affichait « Toute l'IA est coupée ». Coupé : rien ne part, rien n'est
   // compté, et l'appelant reçoit l'échec qu'il traite déjà — `configured: true`, la clé n'est pas en cause.
   if (await interrupteurIaCoupe()) return { ok: false, configured: true, text: "", usage: EMPTY_USAGE, error: REFUS_IA_COUPEE };
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
+  const key = cleOpenAI();
   if (!key) return { ok: false, configured: false, text: "", usage: EMPTY_USAGE, error: "Clé OPENAI_API_KEY non configurée." };
 
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
   const body = buildLunaBody(input);
   const approxIn = estimateTokens(`${input.system ?? ""}${input.user}`) + (input.images?.length ?? 0) * 800;
+  const debutAppel = Date.now();
 
   // Jusqu'à 3 tentatives sur surcharge / limite de débit / réseau.
   let lastError = "Appel à l'IA impossible (réseau).";
@@ -209,7 +243,7 @@ export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaR
   let grewBudget = false;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const res = await fetch(`${base}/v1/chat/completions`, {
+      const res = await fetch(urlOpenAI("/chat/completions"), {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -220,6 +254,7 @@ export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaR
         const data = (await res.json()) as ChatResponse;
         const choice = data.choices?.[0];
         const text = choice?.message?.content ?? "";
+        journaliserLuna(String(body.model), data.usage, approxIn, estimateTokens(text), Date.now() - debutAppel, attempt);
 
         // RÉPONSE VIDE — le piège des modèles de RAISONNEMENT : max_completion_tokens couvre AUSSI
         // la réflexion interne. Un budget calibré pour la seule réponse est englouti par le
@@ -246,7 +281,7 @@ export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaR
         return { ok: true, configured: true, text, data: parsed, usage };
       }
 
-      const raw = await res.text().catch(() => "");
+      const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[luna] erreur API", res.status, raw.slice(0, 300));
       lastError = providerErrorMessage(res.status, raw);
 
@@ -317,17 +352,16 @@ export async function submitBatch(requests: BatchRequest[]): Promise<BatchSubmit
   // déjà déposé (`getBatchStatus`) et rapatrier sa sortie (`fetchBatchOutput`) restent ouverts,
   // exprès : rien n'y part, et couper la lecture ferait perdre un travail déjà payé.
   if (await interrupteurIaCoupe()) return { ok: false, error: REFUS_IA_COUPEE };
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
+  const key = cleOpenAI();
   if (!key) return { ok: false, error: "Clé OPENAI_API_KEY non configurée." };
   if (requests.length === 0) return { ok: false, error: "Lot vide." };
 
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
   try {
     // 1) Téléverser le JSONL.
     const form = new FormData();
     form.set("purpose", "batch");
     form.set("file", new Blob([buildBatchJsonl(requests)], { type: "application/jsonl" }), "batch.jsonl");
-    const up = await fetch(`${base}/v1/files`, {
+    const up = await fetch(urlOpenAI("/files"), {
       method: "POST",
       headers: { authorization: `Bearer ${key}` },
       body: form,
@@ -338,7 +372,7 @@ export async function submitBatch(requests: BatchRequest[]): Promise<BatchSubmit
     if (!file.id) return { ok: false, error: "Dépôt du lot : identifiant de fichier manquant." };
 
     // 2) Créer le lot.
-    const created = await fetch(`${base}/v1/batches`, {
+    const created = await fetch(urlOpenAI("/batches"), {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
       body: JSON.stringify({ input_file_id: file.id, endpoint: "/v1/chat/completions", completion_window: "24h" }),
@@ -375,7 +409,7 @@ export function parseBatchOutput(jsonl: string): BatchOutcome[] {
       };
       const customId = row.custom_id ?? "";
       if (row.error) {
-        out.push({ customId, ok: false, text: "", usage: EMPTY_USAGE, error: row.error.message ?? "Échec." });
+        out.push({ customId, ok: false, text: "", usage: EMPTY_USAGE, error: row.error.message ?? "Requête refusée par le service, sans motif." });
         continue;
       }
       const body = row.response?.body;
@@ -402,11 +436,10 @@ export interface BatchStatus {
 }
 
 export async function getBatchStatus(batchId: string): Promise<BatchStatus> {
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
+  const key = cleOpenAI();
   if (!key) return { ok: false, error: "Clé OPENAI_API_KEY non configurée." };
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
   try {
-    const res = await fetch(`${base}/v1/batches/${batchId}`, {
+    const res = await fetch(urlOpenAI(`/batches/${batchId}`), {
       headers: { authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(60_000),
     });
@@ -429,11 +462,10 @@ export async function getBatchStatus(batchId: string): Promise<BatchStatus> {
 
 /** Récupère le JSONL de résultats d'un lot terminé. */
 export async function fetchBatchOutput(outputFileId: string): Promise<string | null> {
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
+  const key = cleOpenAI();
   if (!key) return null;
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
   try {
-    const res = await fetch(`${base}/v1/files/${outputFileId}/content`, {
+    const res = await fetch(urlOpenAI(`/files/${outputFileId}/content`), {
       headers: { authorization: `Bearer ${key}` },
       signal: AbortSignal.timeout(180_000),
     });
@@ -464,15 +496,22 @@ export async function lunaEmbed(texts: string[], dims: number = EMBED_DIMS): Pro
   if (!lunaConfigured() || texts.length === 0) return null;
   // Vectoriser, c'est ENVOYER les textes : sous l'interrupteur, `null` — l'appelant reste en lexical pur.
   if (await interrupteurIaCoupe()) return null;
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
+  const debut = Date.now();
   try {
-    const res = await fetch(`${base}/v1/embeddings`, {
+    const res = await fetch(urlOpenAI("/embeddings"), {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${cleOpenAI()}` },
       body: JSON.stringify({ model: lunaEmbedModel(), input: texts.map((t) => t.slice(0, 6000)), dimensions: dims }),
     });
     if (!res.ok) return null;
-    const json = (await res.json()) as { data?: { index: number; embedding: number[] }[] };
+    const json = (await res.json()) as { data?: { index: number; embedding: number[] }[]; usage?: { prompt_tokens?: number } };
+    // Les plongements se paient au jeton d'entrée (audit K8, trou G1) : la ligne du journal, avec l'usage RENDU.
+    const enEntree = json.usage?.prompt_tokens;
+    recordProviderCall({
+      role: "bulk", provider: "openai", model: lunaEmbedModel(),
+      inputTokens: enEntree ?? texts.reduce((s, t) => s + estimateTokens(t.slice(0, 6000)), 0), outputTokens: 0, cachedInputTokens: 0,
+      estimated: enEntree == null, ms: Date.now() - debut,
+    });
     if (!Array.isArray(json.data) || json.data.length !== texts.length) return null;
     const out: number[][] = new Array(texts.length);
     for (const d of json.data) out[d.index] = d.embedding;

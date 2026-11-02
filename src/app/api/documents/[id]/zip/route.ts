@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ErreurZip } from "@/lib/storage/zip-lecteur";
 import { listerArchive, refusLisible, reponseEntreeZip, reponsePrechauffage, sourceDuFichierStocke } from "@/lib/storage/zip-reponse";
 import { recordAudit } from "@/lib/audit";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,8 @@ export const dynamic = "force-dynamic";
  * une archive CTD de plusieurs Go s'ouvre en une seconde sur une instance à 512 Mo.
  */
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ ok: false, error: "Non authentifié." }, { status: 401 });
 
@@ -56,7 +58,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       await recordAudit({
         actorId: user.id, action: "EXPORT", module: "Documents", entityType: doc.entityType, entityId: doc.entityId,
         summary: `Téléchargement de « ${entree.chemin} » dans « ${doc.name} »`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("zip-route.GET.recordAudit"));
     }
     return reponseEntreeZip(source, entree, dl, req.headers.get("range"));
   } catch (e) {

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { cibleInterne, specificateurs } from "./imports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -46,32 +47,36 @@ import path from "node:path";
 
 /**
  * LES DOMAINES. Chacun est un préfixe de chemin, et l'ordre compte : le PREMIER qui correspond
- * gagne. `finances/` et `finance/` coexistent dans l'arbre (dette historique) et sont donc
- * déclarés comme UN seul domaine — les séparer compterait comme « inter-domaine » ce qui n'est
- * qu'une incohérence de nommage.
+ * gagne. `finance/`, `finances/` et `payments/` ont déménagé ensemble dans le module
+ * `src/modules/finances/` (lot V4, 28/10/2026) : le domaine `finance` ne garde ici que les budgets.
  */
 export const DOMAINS: { name: string; paths: string[] }[] = [
   { name: "regulatory", paths: ["src/lib/regulatory/", "src/lib/products/", "src/lib/market/"] },
-  { name: "finance", paths: ["src/lib/finance/", "src/lib/finances/", "src/lib/payments/", "src/lib/budget/"] },
+  { name: "finance", paths: ["src/lib/budget/"] },
   { name: "hr", paths: ["src/lib/hr/", "src/lib/recruitment/", "src/lib/org/"] },
   { name: "drive", paths: ["src/lib/drive/", "src/lib/files/"] },
   { name: "mail", paths: ["src/lib/mail/", "src/lib/mail-register/", "src/lib/comms/"] },
   { name: "tasks", paths: ["src/lib/tasks/", "src/lib/workflow/", "src/lib/validations/"] },
   { name: "legal", paths: ["src/lib/legal/"] },
+  // LA LECTURE DES TABLEAUX DE PIÈCES (lot B1, décision 0049) : positions, tableau, verdict par invariants, émetteur /
+  // destinataire, banc de devis. Pur ou presque — déclaré pour être MESURÉ ; le reste de `pieces-lues/` attend son lot.
+  { name: "pieces-lues-tableau", paths: ["src/lib/pieces-lues/tableau.ts", "src/lib/pieces-lues/tableau-piece.ts", "src/lib/pieces-lues/positions.ts", "src/lib/pieces-lues/verdict.ts", "src/lib/pieces-lues/emetteur-destinataire.ts", "src/lib/pieces-lues/vision-lignes.ts", "src/lib/pieces-lues/banc/"] },
   // `teach/` : la couche de règles enseignées à Adam (Teach Adam) — types, classement,
   // précédence, composition. Module PUR ; la persistance et les droits vivent dans le pont
   // (`platform/in-process/teach/`), comme pour `artifact/`.
   { name: "teach", paths: ["src/lib/teach/"] },
-  // `sandbox/` : le bac à sable d'exécution (mandat 4 §25) — SQL en lecture seule, code isolé,
-  // opérations d'analyse pures, conseil de visualisation. Il n'importe aucun domaine ; ses
-  // capacités sur le Drive et l'audit vivent dans le pont (`platform/in-process/sandbox/`).
+  // `sandbox/` : le SQL en lecture seule du bac à sable (mandat 4 §25). Le moteur pur (opérations d'analyse,
+  // pipeline, conseil de visualisation, code isolé) a déménagé au socle IA (`platform/ia/analyse/`, K1, décision 0031) ;
+  // Adam l'atteint par son pont (`platform/in-process/sandbox/`), l'Assistant IA par la porte `platform/ia/analyse/sql.ts`.
   { name: "sandbox", paths: ["src/lib/sandbox/"] },
   { name: "knowledge", paths: ["src/lib/knowledge/"] },
   { name: "scheduler", paths: ["src/lib/scheduler/"] },
   { name: "adam", paths: ["src/lib/assistant/", "src/lib/models/", "src/lib/assistant.ts"] },
   { name: "google", paths: ["src/lib/google/"] },
   { name: "directory", paths: ["src/lib/directory/", "src/lib/contacts/", "src/lib/medical/"] },
-  { name: "adpro", paths: ["src/lib/ad-pro/", "src/lib/promo/", "src/lib/promo-material/"] },
+  // Le reste d'Ad & Pro (demandes, postes, prise en charge, événements) vit dans le module `src/modules/ad-pro/`
+  // (lot V4) : ici ne reste que le stock et le dossier de matériel promotionnel, prochain lot du pôle.
+  { name: "adpro", paths: ["src/lib/promo/", "src/lib/promo-material/"] },
   { name: "general-means", paths: ["src/lib/general-means/"] },
   // `site-web/` : la publication vers le site public Adventum (§118.158) — contrat de l'API du
   // site, lecture du Markdown, file de réessais, réconciliation. Déclaré pour être MESURÉ : il ne
@@ -83,7 +88,14 @@ export const DOMAINS: { name: string; paths: string[] }[] = [
   // PowerPoint ou un PDF. C'est le même métier que `office/` (bureautique) et il est déclaré
   // ici pour être MESURÉ comme les autres — il ne doit importer aucun autre domaine, et ses
   // capacités lui arrivent par un port (`artifact/ports.ts`), rempli par le pont.
-  { name: "office", paths: ["src/lib/office/", "src/lib/pdf/", "src/lib/artifact/"] },
+  // `payslip/` : la lecture d'un Word (`docx-lecture`), sa mise en page et son rendu PDF — de la
+  // bureautique pure, qui ne lit que `artifact/` (le modèle XML). Rangé ici au découpage V4 des
+  // fichiers géants : ses morceaux neufs auraient sinon grossi le compte « hors carte ».
+  { name: "office", paths: ["src/lib/office/", "src/lib/pdf/", "src/lib/artifact/", "src/lib/payslip/"] },
+  // `carte-plateforme/` : le catalogue DESCRIPTIF de `/admin/carte-plateforme` (modules, circuits,
+  // mécanismes) et le calcul des niveaux d'accès qu'il affiche. Zéro import hors de son dossier :
+  // déclaré pour être MESURÉ — il ne doit lire aucun autre domaine.
+  { name: "carte", paths: ["src/lib/carte-plateforme/"] },
 ];
 
 /**
@@ -107,6 +119,29 @@ const ADAM_DOMAIN = "adam";
 const SOCLE = [
   "src/lib/prisma", "src/lib/session", "src/lib/rbac", "src/lib/utils", "src/lib/labels",
   "src/lib/crypto/", "src/lib/ai-text", "src/lib/name-match", "src/platform/",
+  /**
+   * `journal` : le journal unique et les `catch` nommés (`sansBloquer`, `attendu` — lot V3-E), zéro
+   * import ; `migrations-appliquees` : la sonde de santé compare `prisma/migrations/` à la base (prisma
+   * + journal). De l'infrastructure lue partout, qui ne lit aucun métier.
+   */
+  "src/lib/journal", "src/lib/migrations-appliquees",
+  /**
+   * J8 : `contexte-geste` (la personne d'un geste exécuté HORS requête, lue par `session` avant le cookie, et le store
+   * de Next pour `revalidatePath`) et `async-local-storage-global` (le contexte asynchrone réel hors du serveur Next).
+   * Le prolongement de `session`, au même rang : ils ne lisent aucun métier.
+   */
+  "src/lib/contexte-geste", "src/lib/async-local-storage-global",
+  /**
+   * J7 (décision 0029) : `effets/` — le contexte de geste étendu (mode réel / simulation), la capture des écritures,
+   * la simulation transactionnelle, les ports de sortie, le journal des effets et l'annulation. Le prolongement de
+   * `prisma` et de `contexte-geste` : il ne lit aucun métier (le schéma seul, par le DMMF).
+   */
+  "src/lib/effets/",
+  /**
+   * `acces/compose` : `et(…)`, la composition des clauses Prisma en `AND` (audit 27/10, SA-03 — deux `OR`
+   * étalés s'écrasent). Zéro import ; lue par les façades, les domaines et les actions.
+   */
+  "src/lib/acces/compose",
   "src/lib/api/registry/entities",
   "src/lib/storage/",
   "src/lib/mutations/",
@@ -160,18 +195,47 @@ const SOCLE = [
    * `bons-de-commande/regle` — la RÈGLE des bons de commande (§118.148), et elle seule : quel
    * centre (Ad & Pro ou validations), quel état, ce qui bloque la facture, ce que dit la phrase.
    * Zéro import. QUATRE couches en ont besoin sans avoir le droit de se parler : les actions de
-   * Legal, la fabrique documentaire (le pont), le règlement des factures (domaine `finance`,
-   * `finances/settlement.ts`) et le centre Ad & Pro. L'AIGUILLAGE (`bons-de-commande/aiguillage`),
+   * Legal, la fabrique documentaire (le pont), le règlement des factures (module `finances`,
+   * `domaine/chemins-paiement.ts`) et le centre Ad & Pro. L'AIGUILLAGE (`bons-de-commande/aiguillage`),
    * qui lit la base et pose les portes, n'est PAS au socle : le chemin est EXACT, pour qu'un
    * fichier serveur ajouté à côté ne se retrouve pas exempté sans décision (§118.128).
    */
   "src/lib/bons-de-commande/regle",
+  /**
+   * `actions/contrat/` — les morceaux du LECTEUR DE CONTRAT des actions (`actions/contrat.ts`, lot V4) :
+   * découpage de la source, formulaire, écritures, porte, champs, arguments. Zéro import hors du
+   * dossier ; Adam (par le pont), les tests et les scripts le lisent. Pur par construction.
+   */
+  "src/lib/actions/contrat/",
+  // Les règles pures de l'Assistant IA (décisions 0011, 0012, 0015 : lecture des pièces, plafonds, contenu non
+  // fiable, mémoire affichée, texte partiel, familles d'accès, dépôt, et le markdown déclaré au lot J2) étaient
+  // déclarées ici par chemin exact : elles vivent dans `src/modules/assistant-ia/domaine/` depuis la phase B du
+  // lot J0, où `frontieres.test.ts` tient leur pureté.
   /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions
    * en lisent les refus. Chemin EXACT, comme `regle`.
    */
   "src/lib/bons-de-commande/prevalidation",
+  /**
+   * LES RÈGLES QUE `rbac.ts` LIT — chemins EXACTS, déclarés le 27/10/2026 quand le scanner a
+   * appris à lire les imports relatifs : `rbac.ts` les importait en `./…`, et l'invariant « le
+   * socle fuit : 0 » ne les voyait pas. Ils ne sont pas « déplacés au socle pour faire baisser un
+   * compteur » : `rbac` en DÉPEND pour répondre à `userCan`, ils sont donc de fait le socle des
+   * droits, et `scanSocle()` les tient désormais à l'obligation de n'importer aucun domaine.
+   *   - `hr/stand-in` et `hr/stand-in-resolve` : les droits délégués d'un absent (n'importent que
+   *     `rbac` et `prisma`) ;
+   *   - `regulatory/pipeline-access`, `regulatory/assignment` : l'accès par étape du pipeline
+   *     Regulatory, zéro import ;
+   *   - `budget/domaines` : les pôles budgétaires, zéro import.
+   * Cible (rapport d'audit 08, ARCH-01) : les ranger sous `src/lib/rbac/` quand `rbac.ts` sera
+   * découpé, et supprimer ces exceptions.
+   */
+  "src/lib/hr/stand-in",
+  "src/lib/hr/stand-in-resolve",
+  "src/lib/regulatory/pipeline-access",
+  "src/lib/regulatory/assignment",
+  "src/lib/budget/domaines",
   /**
    * `chemins/` : les ADRESSES des écrans que plusieurs couches citent (§118.173) — des constantes,
    * zéro import. Le menu (`labels.ts`, au socle) lit l'adresse du stock promotionnel ; les
@@ -305,13 +369,45 @@ const SOCLE = [
 // `fabric/` est une façade pour la même raison que `missions/` : une couche TRANSVERSE par
 // construction (recherche de contenu, registre des sources), consommée par Adam ET par les
 // domaines, qui n'importe jamais `assistant/`.
-const FACADES = ["src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/"];
+//
+// `admin-delete-registry` et `entity-access/` (lot V4, découpage des fichiers géants) : deux couches
+// TRANSVERSES par construction, qui n'étaient rangées nulle part (hors carte). Le REGISTRE des
+// suppressions déclare, pour chaque genre de TOUS les métiers, comment le décrire, le refuser et
+// l'effacer (il lit `queries/` et les règles de refus des domaines) ; seuls Adam, le pont, une
+// façade et des fichiers hors carte l'importent — chemin entier, porte comprise. La garde
+// `canAccessEntity` répond par enregistrement pour tout le parc (`queries/` + une règle par
+// domaine) : ses MORCEAUX sont une façade, mais sa PORTE `entity-access.ts` reste hors carte, car
+// trois domaines (regulatory, legal, mail) l'appellent — la déclarer façade compterait trois
+// inversions de couche, à défaire chez eux d'abord.
+//
+// `actions/internes/` (lot V4) : ce que les fichiers d'actions serveur ont sorti d'eux-mêmes pour passer
+// sous 1 000 lignes — aides, types, lectures, corps intermédiaires. Même couche que les actions qu'elles
+// servent (elles lisent les domaines et les façades), jamais importées par un domaine. Hors de la racine de
+// `actions/` et sans `"use server"` : ce ne sont PAS des actions (`actions/parc.ts`).
+//
+// `exports/` (lot K7, décision 0037) : les EXPORTS de l'ERP (Excel, CSV, PDF, PowerPoint), une fonction par export,
+// partagée par la route de l'écran et le socle IA. Transverse par construction : chaque export lit `queries/` et le
+// domaine qu'il exporte ; aucun domaine ne l'importe.
+const FACADES = [
+  "src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/",
+  "src/lib/admin-delete-registry", "src/lib/entity-access/", "src/lib/actions/internes/", "src/lib/exports/",
+];
 
 /**
  * LE PONT ADAM ↔ ERP — le seul fichier de `src/platform/` autorisé à connaître l'ERP, par
  * dessein. `boundary.test.ts` détient la même liste et la même justification.
  */
 const BRIDGE = ["src/platform/in-process/"];
+
+/**
+ * LE SOCLE IA (`src/platform/ia/`, lot J0, décision 0013) — ce que partagent Adam et l'Assistant IA :
+ * la forme d'un outil, les lectures et les propositions communes, les intentions, la fabrique de
+ * documents, les médias. Comme le pont, il CONNAÎT l'ERP par dessein (il lit et prépare pour les
+ * deux assistants) ; il n'est donc ni au socle L0 ni dans un domaine. Sa dette vers l'ERP est
+ * comptée et plafonnée à part (`boundary.test.ts`, `SOCLE_IA_CEILING`) ; ce qu'il n'importe JAMAIS
+ * — Adam, l'Assistant IA — est tenu par `src/platform/ia/frontieres.test.ts`.
+ */
+const SOCLE_IA = ["src/platform/ia/"];
 
 /**
  * LES FOURNISSEURS EXTERNES, qui doivent rester ISOLÉS (§1).
@@ -348,12 +444,10 @@ export interface DomainReport {
 }
 
 /**
- * Un seul motif pour `import … from` ET `export … from` : la seconde forme crée exactement la
- * même dépendance, et l'avoir oubliée est une vraie faille — c'est ainsi qu'un module « neutre »
- * peut réexporter la moitié d'un domaine sans qu'aucun compteur ne bouge.
+ * Les imports se lisent par `./imports` : `import … from`, `export … from` (une réexportation crée
+ * la même dépendance) et `import("…")`, en `@/` comme en RELATIF — un `./hr/…` écrit au socle
+ * échappait à ce scanner jusqu'au 27/10/2026 (voir `imports-relatifs.test.ts`).
  */
-const STATIC_RE = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?(?:[\s\S]*?)\s*from\s*["']([^"']+)["']/g;
-const DYNAMIC_RE = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
 
 function walk(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;
@@ -381,6 +475,24 @@ const isSocle = (t: string): boolean => inList(t, SOCLE);
 const isFacade = (t: string): boolean => inList(t, FACADES);
 const isProvider = (t: string): boolean => PROVIDERS.some((s) => t === s || t.startsWith(`${s}/`));
 
+/** La couche d'un fichier de `src/lib/` ou `src/platform/` — `null` s'il n'est dans AUCUNE (hors carte). */
+export type Couche = "socle" | "façade" | "pont" | "socle IA" | "fournisseur" | `domaine:${string}`;
+
+/**
+ * Où un fichier vit sur la carte. Un fichier `null` n'est mesuré par aucun cliquet : c'est ce
+ * que compte `couverture.test.ts` (rapport d'audit 08, ARCH-02), et ce compte ne peut que baisser —
+ * en rangeant le fichier dans un domaine, au socle, ou dans un module `src/modules/<m>/`.
+ */
+export function coucheDe(file: string): Couche | null {
+  if (BRIDGE.some((b) => file.startsWith(b))) return "pont";
+  if (SOCLE_IA.some((b) => file.startsWith(b))) return "socle IA";
+  if (isSocle(file)) return "socle";
+  if (isFacade(file)) return "façade";
+  if (isProvider(file.replace(/\.tsx?$/, ""))) return "fournisseur";
+  const d = domainOf(file);
+  return d ? `domaine:${d}` : null;
+}
+
 /**
  * SCANNE LES DÉPENDANCES ENTRE COUCHES.
  *
@@ -407,19 +519,15 @@ export function scanDomains(root = process.cwd()): DomainReport {
 
     for (const file of files) {
       const fromDomain = domainOf(file);
-      const fromSocle = isSocle(file) && !BRIDGE.some((b) => file.startsWith(b));
+      const fromSocle = isSocle(file) && !BRIDGE.some((b) => file.startsWith(b)) && !SOCLE_IA.some((b) => file.startsWith(b));
 
-      const src = fs.readFileSync(file, "utf8");
-      const specs: string[] = [];
-      for (const m of src.matchAll(STATIC_RE)) specs.push(m[1]);
-      for (const m of src.matchAll(DYNAMIC_RE)) specs.push(m[1]);
-
-      for (const spec of specs) {
-        if (!spec.startsWith("@/")) continue;
-        const target = spec.replace("@/", "src/");
+      for (const spec of specificateurs(fs.readFileSync(file, "utf8"))) {
+        const target = cibleInterne(spec, file);
+        if (!target) continue;
 
         // ── L0 : le socle ne connaît ni domaine ni façade. Zéro toléré. ──────────────────
         if (fromSocle) {
+          if (isSocle(target)) continue; // un fichier du socle déclaré par chemin EXACT sous un domaine
           const td = domainOf(target);
           if (td || isFacade(target)) {
             socleLeaks.push({ from: file, to: target, fromDomain: "socle", toDomain: td ?? "façade" });

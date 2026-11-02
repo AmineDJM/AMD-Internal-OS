@@ -2,7 +2,7 @@ import { GraduationCap } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView, isTopManagement } from "@/lib/rbac";
 import { loadReportingLine } from "@/lib/departments";
-import { managementChainOf } from "@/lib/hr/reporting-line";
+import { managementChainOf } from "@/modules/rh/partage";
 import { canDecideChain, type ChainStage } from "@/lib/approval-chain";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { prisma } from "@/lib/prisma";
@@ -26,7 +26,8 @@ export const metadata = { title: "Formations — AMD Internal OS" };
  * écrans aurait dédoublé le budget, les pièces et l'historique — et obligé la direction à
  * arbitrer dans deux files distinctes ce qui sort du même budget.
  */
-export default async function FormationsPage({ searchParams }: { searchParams: { formation?: string } }) {
+export default async function FormationsPage(props: { searchParams: Promise<{ formation?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   const isHr = userCan(user, "TRAINING", "VALIDATE") || userCan(user, "TRAINING", "UPDATE");
   const isDg = hasGlobalView(user);
@@ -55,7 +56,6 @@ export default async function FormationsPage({ searchParams }: { searchParams: {
   // sur l'organigramme réel (`managementChainOf`), et le sommet par `isTopManagement`, DG compris.
   const { employees, departments: organigramme } = await loadReportingLine();
   const employeDuCompte = new Map(employees.filter((e) => e.userId).map((e) => [e.userId as string, e.id]));
-  const monEmploye = employeDuCompte.get(user.id) ?? null;
   // LES FICHES AU NOM DESQUELLES JE TRANCHE : la mienne, et celle de chaque absent que je remplace
   // (I18) — la même lecture que l'action (`deciderFor`), sans quoi le bouton manquerait à qui l'a.
   const auNom = await auNomDeQui(user.id);

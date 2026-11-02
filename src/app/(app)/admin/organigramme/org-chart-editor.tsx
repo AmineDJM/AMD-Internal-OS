@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Loader2, Pencil, ExternalLink, Users, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { saveOrgNode } from "@/lib/actions/org-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export interface OrgNode {
   id: string;
@@ -26,7 +27,7 @@ export interface OrgNode {
  * personnes que l'admin a autorisés.
  */
 export function OrgChartEditor({ nodes, canEdit = true }: { nodes: OrgNode[]; canEdit?: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const byId = React.useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
   const childrenOf = React.useMemo(() => {
     const m = new Map<string | null, OrgNode[]>();
@@ -61,7 +62,7 @@ export function OrgChartEditor({ nodes, canEdit = true }: { nodes: OrgNode[]; ca
       ) : (
         <div className="space-y-1.5">
           {roots.map((n) => (
-            <OrgBranch key={n.id} node={n} depth={0} childrenOf={childrenOf} nodes={nodes} descendantsOf={descendantsOf} canEdit={canEdit} onSaved={() => router.refresh()} />
+            <OrgBranch key={n.id} node={n} depth={0} childrenOf={childrenOf} nodes={nodes} descendantsOf={descendantsOf} canEdit={canEdit} onSaved={rafraichir} />
           ))}
         </div>
       )}
@@ -101,10 +102,15 @@ function OrgBranch({
     fd.set("id", node.id);
     if (managerId) fd.set("managerId", managerId);
     fd.set("position", position);
-    const r = await saveOrgNode(fd);
-    setSaving(false);
-    if (r.ok) { setEditing(false); onSaved(); }
-    else setError(r.error ?? "Échec.");
+    try {
+      const r = await saveOrgNode(fd);
+      if (r.ok) { setEditing(false); onSaved(); }
+      else setError(r.error ?? "Le rattachement n'a pas été enregistré.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (

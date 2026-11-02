@@ -2,7 +2,7 @@ import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { userCan, type SessionUser } from "@/lib/rbac";
 import { accesAuxPiecesLegal, canAccessEntity } from "@/lib/entity-access";
-import { AD_PRO_ENTITY_TYPE } from "@/lib/ad-pro/unified";
+import { AD_PRO_ENTITY_TYPE } from "@/modules/ad-pro/partage";
 import { refusDesPieces } from "@/lib/queries/suppression-piece";
 
 /**

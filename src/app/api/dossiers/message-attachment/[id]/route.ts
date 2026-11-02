@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
-import { userCan, hasGlobalView } from "@/lib/rbac";
+import { userCan } from "@/lib/rbac";
+import { peutOuvrirPieceDeSujet } from "@/lib/entity-access/ouverture-pieces";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
 
 export const dynamic = "force-dynamic";
 
 /** Sert une pièce jointe d'un message de dossier — réservé aux membres du dossier. */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
+  // Le module d'abord (la règle partagée le revérifie) : sans lui, inutile de charger la pièce.
   if (!user || !userCan(user, "DOSSIERS", "VIEW")) return new NextResponse(null, { status: 403 });
 
   const att = await prisma.dossierMessageAttachment.findUnique({
@@ -21,9 +24,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   });
   if (!att) return new NextResponse(null, { status: 404 });
 
-  const d = att.message.dossier;
-  const member = hasGlobalView(user.role) || d.createdById === user.id || d.assignedToId === user.id || d.participantIds.includes(user.id);
-  if (!member) return new NextResponse(null, { status: 403 });
+  if (!peutOuvrirPieceDeSujet(user, att.message.dossier)) return new NextResponse(null, { status: 403 });
 
   const bytes = await getBlob(att.blobId);
   if (!bytes) return new NextResponse(null, { status: 404 });

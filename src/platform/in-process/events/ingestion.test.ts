@@ -185,7 +185,7 @@ suite("ingestion universelle — autoriser, dédoublonner, associer, inscrire, r
   }, 60_000);
 
   it("la ROUTE : 401 sans signature juste, 503 sans secret, 400 hors JSON ou source inconnue, 200 avec des comptes — et une charge rejetée est comptée, pas perdue", async () => {
-    const appel = (source: string, corps: string, signature: string | null) => POST(new Request(`http://local/api/events/inbound/${source}`, { method: "POST", body: corps, headers: signature ? { "x-webhook-signature": signature, "content-type": "application/json" } : { "content-type": "application/json" } }), { params: { source } });
+    const appel = (source: string, corps: string, signature: string | null) => POST(new Request(`http://local/api/events/inbound/${source}`, { method: "POST", body: corps, headers: signature ? { "x-webhook-signature": signature, "content-type": "application/json" } : { "content-type": "application/json" } }), { params: Promise.resolve({ source }) });
     const corps = JSON.stringify({ type: "PAYMENT_RECEIVED", externalId: `pay-${TAG}`, entity: { type: "INVOICE", id: `ckinv${TAG.replace(/[^a-z0-9]/g, "")}` }, from: { email: "banque@x.dz" }, payload: { montant: 1000 } });
     expect((await appel("generic", corps, "sha256=00")).status).toBe(401);
     expect((await appel("generic", corps, null)).status).toBe(401);

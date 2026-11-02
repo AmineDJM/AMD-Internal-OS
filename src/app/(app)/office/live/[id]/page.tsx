@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { ouvrirDocument } from "@/platform/in-process/artifact/office";
-import { ArtifactBlock } from "@/components/chief/workspace/blocks/artifact";
-import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
+import { ouvrirDocument } from "@/platform/ia/artifact/office";
+import { ArtifactBlock } from "@/platform/ia/ecrans/blocks/artifact";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -32,7 +32,8 @@ import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 
 export const dynamic = "force-dynamic";
 
-export default async function OfficeLivePage({ params }: { params: { id: string } }) {
+export default async function OfficeLivePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   // Le droit du MODULE ouvre l'écran ; le droit du FICHIER est revérifié par le port, nœud par
   // nœud. Les deux, parce qu'ils ne disent pas la même chose : l'un donne accès à la page,
   // l'autre à ce document-là.

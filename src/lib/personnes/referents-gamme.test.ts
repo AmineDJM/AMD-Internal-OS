@@ -154,7 +154,10 @@ describe("les référents Direction Marketing d'une gamme", () => {
      *
      * Ce qui le ferait tomber : un quatrième site qui rappellerait `notifyRoles` pour son compte.
      */
-    const src = fs.readFileSync(path.join(process.cwd(), "src/lib/workflow/engine.ts"), "utf8")
+    // Le moteur est découpé (`workflow/engine.ts` + `workflow/engine/*.ts`) : on lit le tout, porte d'abord.
+    const morceaux = fs.readdirSync(path.join(process.cwd(), "src/lib/workflow/engine")).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).sort();
+    const src = ["engine.ts", ...morceaux.map((f) => `engine/${f}`)]
+      .map((f) => fs.readFileSync(path.join(process.cwd(), "src/lib/workflow", f), "utf8")).join("\n")
       .replace(/\/\*[\s\S]*?\*\//g, " ")
       .replace(/^[ \t]*\/\/.*$/gm, " ");
     const appels = (src.match(/\bnotifyRoles\s*\(/g) ?? []).length;
@@ -164,8 +167,10 @@ describe("les référents Direction Marketing d'une gamme", () => {
     expect(bloc.includes("notifyRoles("), "l'appel doit vivre dans `prevenirEtapeAtteinte`").toBe(true);
     // Les sites appellent le point unique : l'approbation, le saut, l'avis défavorable — et depuis
     // le renvoi pour correction (§118.186) la POSE d'une demande resoumise, relancée ou rouverte en
-    // appel (`prevenirLaPose`) et la modification faite après un avis. Cinq sites + la déclaration.
-    expect((src.match(/prevenirEtapeAtteinte\(/g) ?? []).length, "cinq sites + la déclaration").toBe(6);
+    // appel (`prevenirLaPose`) et la modification faite après un avis — et depuis le circuit du
+    // 27/10/2026, l'annonce « pour information » aux étapes suivantes à l'ouverture du circuit
+    // (`ouvrirLeCircuit`, décision #1). Six sites + la déclaration.
+    expect((src.match(/prevenirEtapeAtteinte\(/g) ?? []).length, "six sites + la déclaration").toBe(7);
     const pose = src.slice(src.indexOf("async function prevenirLaPose"));
     expect(pose.slice(0, pose.indexOf("\n}\n")).includes("prevenirEtapeAtteinte("), "la pose prévient par le point unique").toBe(true);
     // ET LA GARDE D'ÉTAPE Y EST APPELÉE : vérifier son corps sans son point d'appel ne

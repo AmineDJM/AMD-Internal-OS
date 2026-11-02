@@ -1,4 +1,4 @@
-import { versDzd, tauxDeLaDemande, type DetailTrajet } from "@/lib/care-fiches";
+import { versDzd, tauxDeLaDemande, type DetailTrajet } from "@/modules/ad-pro/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -233,8 +233,6 @@ export type EtapeParticipation =
   | "DECLINEE"
   | "RETIREE"
   | "CONFIRMEE_SANS_FICHE"; // assignation d'avant la fiche (ou soi-même) : la mission est ouverte
-
-export const autreCote = (c: Cote): Cote => (c === "PERSONNE" ? "ADVENTUM" : "PERSONNE");
 
 /** Une version stockée (textes libres en base), lue pour les règles — une valeur inconnue retombe sur le cas sûr. */
 export function versionLite(v: { numero: number; cote: string; nature: string; statut: string; motifDecision?: string | null }): VersionLite {

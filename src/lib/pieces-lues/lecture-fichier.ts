@@ -72,8 +72,6 @@ const PERIME_APRES_MS = 5 * 60_000;
 /** Pas de l'attente : relire la ligne, pas plus souvent. */
 const INTERVALLE_MS = 250;
 
-export type EtatLecture = "EN_COURS" | "LUE" | "ECHOUEE";
-
 /** UNE LECTURE CONCLUE — ce que la ligne `LecturePiece` porte, et le texte lu, déchiffré. */
 export interface LectureDePiece {
   id: string;

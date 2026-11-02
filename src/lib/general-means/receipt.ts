@@ -1,3 +1,4 @@
+import { arrondirAuCentime } from "@/lib/utils";
 /**
  * LE TICKET DE CAISSE ET SES ARTICLES.
  *
@@ -33,7 +34,6 @@ export interface ReceiptLine {
 }
 
 /** Un ticket ne se compte pas au centime près sur 20 articles : deux décimales suffisent. */
-const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
  * Lit un nombre saisi à la main : virgule décimale française, espaces de milliers, champ vide.
@@ -65,7 +65,7 @@ export function normalizeLines(raw: ReceiptLineInput[]): ReceiptLine[] {
       articleId: l.articleId ? String(l.articleId) : null,
       label: String(l.label ?? "").trim(),
       quantity: parseQuantity(l.quantity),
-      amount: round2(Math.max(0, parseAmount(l.amount) ?? 0)),
+      amount: arrondirAuCentime(Math.max(0, parseAmount(l.amount) ?? 0)),
       budgetCategoryId: l.budgetCategoryId ? String(l.budgetCategoryId) : null,
     }))
     .filter((l) => l.label.length > 0 || l.articleId !== null);
@@ -73,7 +73,7 @@ export function normalizeLines(raw: ReceiptLineInput[]): ReceiptLine[] {
 
 /** Le total du ticket = la somme de ses lignes. Il n'y a pas d'autre source. */
 export function receiptTotal(lines: ReceiptLine[]): number {
-  return round2(lines.reduce((a, l) => a + l.amount, 0));
+  return arrondirAuCentime(lines.reduce((a, l) => a + l.amount, 0));
 }
 
 /**

@@ -18,7 +18,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { appliquerAnnulation, preparerAnnulation } from "@/platform/in-process/annulation";
 
 type Acteur = Parameters<PowerTool["run"]>[1];

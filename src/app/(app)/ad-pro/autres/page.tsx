@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireModule } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
+import { userCan, scopeAdProOther } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { platformScope, getMyCompanies, companyOptions } from "@/lib/company";
 import { toNumber, formatCurrency, formatDate } from "@/lib/utils";
@@ -12,8 +12,8 @@ import { CreateRecordButton } from "@/components/shared/create-record-button";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AD_PRO_OTHER_STATUS, EVENTS_TABS } from "@/lib/labels";
-import { adProOtherCreateFields } from "@/lib/ad-pro/create-fields";
-import { createAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
+import { adProOtherCreateFields } from "@/modules/ad-pro/partage";
+import { createAdProOtherRequest } from "@/modules/ad-pro/actions-autres";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,8 @@ export default async function AdProOtherPage() {
 
   const [requests, companies, businessUnits] = await Promise.all([
     prisma.adProOtherRequest.findMany({
-      where: await platformScope(user.id),
+      // Le délégué ne voit que SES demandes (portée ASSIGNÉE, 27/10/2026) — la même porte que la fiche.
+      where: { AND: [await platformScope(user.id), scopeAdProOther(user)] },
       orderBy: { createdAt: "desc" },
       include: { company: { select: { name: true } } },
     }),

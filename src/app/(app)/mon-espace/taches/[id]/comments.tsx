@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { MessageSquare, Send, Loader2 } from "lucide-react";
 import { addTaskComment } from "@/lib/actions/task-actions";
@@ -45,10 +46,15 @@ export function TaskComments({ id, items, canWrite }: { id: string; items: TaskC
     const fd = new FormData();
     fd.set("id", id);
     fd.set("body", text);
-    const r = await addTaskComment(fd);
-    setBusy(false);
-    if (r.ok) { setBody(""); rafraichir(); }
-    else setErr(r.error ?? "Échec de l'envoi.");
+    try {
+      const r = await addTaskComment(fd);
+      if (r.ok) { setBody(""); rafraichir(); }
+      else setErr(r.error ?? "Échec de l'envoi.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

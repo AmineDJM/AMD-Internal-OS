@@ -8,7 +8,7 @@
  * d'administration : une décision porte un nom, pas un tour de conversation.
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { compterConstats, derniersBalayages, lireConstats, modulesVisibles, LIBELLE_CRITICITE, LIBELLE_FAMILLE, FAMILLES, type Criticite, type FamilleQualite } from "@/platform/in-process/quality";
 
 const str = (input: Record<string, unknown>, key: string): string => (typeof input[key] === "string" ? (input[key] as string).trim() : "");

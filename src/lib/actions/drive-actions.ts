@@ -18,6 +18,7 @@ import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { creerArborescenceDrive } from "@/lib/drive/arborescence";
 import { supprimerReversible } from "@/lib/suppression/coeur";
+import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
@@ -175,12 +176,23 @@ export async function moveNode(formData: FormData): Promise<ActionResult> {
       const n: { parentId: string | null } | null = await prisma.driveNode.findUnique({ where: { id: cur }, select: { parentId: true } });
       cur = n?.parentId ?? null;
     }
-    const t = await prisma.driveNode.findUnique({ where: { id: targetId }, select: { spaceId: true } });
-    targetSpaceId = t?.spaceId ?? null;
+    // UNE CIBLE EST UN DOSSIER VIVANT (audit du 27/10/2026, RH-DOCUMENTS-COMMS-06) : rangé sous un FICHIER ou sous un
+    // dossier à la corbeille, l'élément n'apparaissait plus dans aucune liste — ni dans la corbeille.
+    const t = await prisma.driveNode.findUnique({ where: { id: targetId }, select: { spaceId: true, type: true, isTrashed: true } });
+    if (!t || t.type !== "FOLDER" || t.isTrashed) return { ok: false, error: "La destination doit être un dossier (hors corbeille)." };
+    targetSpaceId = t.spaceId ?? null;
   } else {
     // Déplacement à la racine d'une catégorie : gestionnaire requis (racine personnelle : libre).
     if (contextSpaceId && !(await canCreateInSpace(user, contextSpaceId))) return DENIED;
     targetSpaceId = contextSpaceId;
+  }
+
+  // SORTIR D'UNE CATÉGORIE se décide comme y entrer : gestionnaire de la catégorie d'origine. Un simple partage EDIT
+  // vidait la catégorie vers une racine personnelle (`spaceId` fourni par le client), et ses gestionnaires
+  // perdaient l'accès (audit du 27/10/2026, RH-DOCUMENTS-COMMS-06).
+  const source = await prisma.driveNode.findUnique({ where: { id }, select: { spaceId: true } });
+  if (source?.spaceId && source.spaceId !== targetSpaceId && !(await canCreateInSpace(user, source.spaceId))) {
+    return { ok: false, error: "Seul un gestionnaire de la catégorie peut en sortir cet élément." };
   }
 
   // Maintient l'invariant « tout le sous-arbre porte le spaceId de sa catégorie » : le sous-arbre
@@ -385,7 +397,7 @@ export async function createOfficeNode(formData: FormData): Promise<ActionResult
       letterheadName = lh.name;
     }
 
-    const { blobId, size } = await putBlob(data);
+    const { blobId, size, sha256 } = await putBlob(data);
     const node = await prisma.driveNode.create({
       data: {
         name, type: "FILE", parentId: parentId || null, spaceId: effSpaceId, ownerId: user.id, createdById: user.id, mimeType: mime, size,
@@ -397,6 +409,8 @@ export async function createOfficeNode(formData: FormData): Promise<ActionResult
       actorId: user.id, action: "CREATE", module: "Drive", entityType: "DRIVE_NODE", entityId: node.id,
       summary: `Nouveau document « ${name} »${letterheadName ? ` — papier en-tête « ${letterheadName} »` : ""}`,
     });
+    // Le document entre à la bibliothèque (J1). Ne lève jamais.
+    await inscrireFichierDrive({ nodeId: node.id, blobId, sha256, nom: name, mime, taille: size, deposeParId: user.id });
     revalidatePath("/drive");
     if (effSpaceId) revalidatePath(`/drive/espace/${effSpaceId}`);
     return { ok: true, id: node.id };
@@ -466,7 +480,7 @@ export async function convertNodeToPdf(formData: FormData): Promise<ActionResult
   const pdfName = `${node.name.replace(/\.[a-z0-9]+$/i, "")}.pdf`;
   // À côté de la source si on peut éditer son dossier, sinon à la racine (chez soi).
   const parentId = node.parentId && (await resolveDriveAccess(user, node.parentId)) === "EDIT" ? node.parentId : null;
-  const { blobId, size } = await putBlob(pdf);
+  const { blobId, size, sha256 } = await putBlob(pdf);
   const created = await prisma.driveNode.create({
     data: {
       name: pdfName, type: "FILE", parentId, ownerId: user.id, createdById: user.id, mimeType: "application/pdf", size,
@@ -475,6 +489,7 @@ export async function convertNodeToPdf(formData: FormData): Promise<ActionResult
     select: { id: true },
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Drive", entityType: "DRIVE_NODE", entityId: created.id, summary: `PDF généré depuis « ${node.name} »` });
+  await inscrireFichierDrive({ nodeId: created.id, blobId, sha256, nom: pdfName, mime: "application/pdf", taille: size, deposeParId: user.id });
   revalidatePath("/drive");
   return { ok: true, id: created.id };
 }
@@ -642,16 +657,21 @@ export async function copyNodes(formData: FormData): Promise<BulkResult> {
       // l'original : sans prendre une référence, supprimer la copie puis l'original rendait le
       // compteur à zéro alors qu'un détenteur restait — et le document d'origine devenait
       // illisible. Nœud, référence et version s'écrivent ensemble, ou rien.
-      await prisma.$transaction(async (tx) => {
+      const copieId = await prisma.$transaction(async (tx) => {
         const copy = await tx.driveNode.create({ data: nodeData, select: { id: true } });
-        if (!current) return;
+        if (!current) return null;
         if (!(await retainBlob(current.blobId, tx))) {
           throw new Error(`Le contenu de « ${src.name} » est introuvable : la copie n'a pas été créée.`);
         }
         await tx.fileVersion.create({
           data: { nodeId: copy.id, blobId: current.blobId, version: 1, size: current.size, mimeType: current.mimeType, createdById: user.id },
         });
+        return copy.id;
       });
+      // La copie est un endroit de plus pour la même pièce (J1) : une clé de plus, aucune relecture.
+      if (copieId && current) {
+        await inscrireFichierDrive({ nodeId: copieId, blobId: current.blobId, nom: src.name, mime: current.mimeType, taille: current.size, deposeParId: user.id });
+      }
     } else {
       const copy = await prisma.driveNode.create({ data: nodeData, select: { id: true } });
       const children = await prisma.driveNode.findMany({
@@ -699,7 +719,7 @@ export async function copyNodes(formData: FormData): Promise<BulkResult> {
  * passer cinq messages d'erreur pour un seul geste.
  */
 export async function moveNodes(formData: FormData): Promise<BulkResult> {
-  const user = await requireUser();
+  await requireUser();
   const ids = formData.getAll("id").map(String).filter(Boolean);
   if (ids.length === 0) return { ok: false, done: 0, denied: 0, error: "Rien à déplacer." };
 

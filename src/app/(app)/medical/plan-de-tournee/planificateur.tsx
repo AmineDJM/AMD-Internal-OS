@@ -9,7 +9,7 @@ import { lienSignalerPv } from "@/lib/chemins/rapports-terrain";
 import {
   planifierVisites, soumettrePlanTournee, escaladerPlanTournee, deciderPlanTournee, demanderRevisionPlanTournee,
 } from "@/lib/actions/tour-plan-actions";
-import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
 import { STATUT_PLAN_LABELS, aResoumettre, gestesPossibles, type StatutPlan } from "@/lib/sfe/tournee";
 import { deplacerCellule, etatCellule, gesteCellule, grilleModifiable, retirerCellule } from "@/lib/sfe/grille-tournee";
 import type { StockPourVisite } from "@/lib/queries/promo-remises";
@@ -142,7 +142,7 @@ export function Planificateur({
   jePeuxDemanderRevision: boolean;
 }) {
   // LE RAFRAÎCHISSEMENT SUIVI (§118.172) : les gestes restent fermés tant que l'écran montre l'état d'avant.
-  const { enCours, rafraichir } = useRafraichir();
+  const { busy: occupe, err, setErr, run: lancer } = useAction();
   const gestes = gestesPossibles(status);
   const acquises = React.useMemo(() => new Set(pairesAcquises), [pairesAcquises]);
   const nonTenues = React.useMemo(() => new Set(pairesNonTenues), [pairesNonTenues]);
@@ -153,8 +153,6 @@ export function Planificateur({
   const [wilaya, setWilaya] = React.useState("");
   const [secteur, setSecteur] = React.useState("");
   const [q, setQ] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
   const [rejet, setRejet] = React.useState(false);
   const [sale, setSale] = React.useState(false);
   const [revision, setRevision] = React.useState(false);
@@ -166,7 +164,6 @@ export function Planificateur({
   const [nonTenue, setNonTenue] = React.useState<LigneDuPlan | null>(null);
   const [nouveauRapport, setNouveauRapport] = React.useState(false);
   const [imprevue, setImprevue] = React.useState(false);
-  const occupe = busy || enCours;
   // QUI MODIFIE LA GRILLE : la MÊME règle que l'action — plan ouvert, et le KAM, le superviseur de sa BU ou la Direction.
   const modifiable = grilleModifiable(status, jePeuxDemanderRevision);
   const verrouillees = React.useMemo(() => new Set([...acquises, ...passees]), [acquises, passees]);
@@ -205,14 +202,7 @@ export function Planificateur({
     setSale(true);
   };
 
-  const run = async (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => {
-    setBusy(true); setErr(null);
-    const r = await action(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Action impossible."); return false; }
-    rafraichir();
-    return true;
-  };
+  const run = (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => lancer(() => action(fd));
 
   const enregistrer = async () => {
     const fd = new FormData();

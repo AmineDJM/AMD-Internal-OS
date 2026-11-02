@@ -8,6 +8,7 @@ import { prisma } from "./lib/prisma";
 import { clientIp, parseDevice } from "./lib/device";
 import { enrichSessionGeo } from "./lib/geo";
 import { checkLockout, recordFailure, clearAttempts } from "./lib/login-throttle";
+import { sansBloquer } from "@/lib/journal";
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -78,7 +79,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                   summary: `Compte verrouillé après ${r.failures} tentatives échouées : ${emailKey}`,
                 },
               })
-              .catch(() => undefined);
+              .catch(sansBloquer("auth.authorize.auditLog"));
           }
           return null;
         }
@@ -101,7 +102,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         await prisma.user
           .update({ where: { id: user.id }, data: { lastLoginAt: new Date() } })
-          .catch(() => undefined);
+          .catch(sansBloquer("auth.authorize.user"));
         await prisma.activityLog
           .create({
             data: {
@@ -114,7 +115,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               userAgent: ua,
             },
           })
-          .catch(() => undefined);
+          .catch(sansBloquer("auth.authorize.activityLog"));
         await prisma.auditLog
           .create({
             data: {
@@ -125,7 +126,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
               summary: `Connexion de ${user.name} (${browser} · ${os})`,
             },
           })
-          .catch(() => undefined);
+          .catch(sansBloquer("auth.authorize.auditLog"));
 
         return {
           id: user.id,

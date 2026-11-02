@@ -37,10 +37,6 @@ export type EntityKind =
   | "molecule"      // une DCI — plusieurs produits peuvent la partager
   | "organization"; // un tiers : agence, imprimeur, autorité, société externe
 
-export const ENTITY_KINDS: readonly EntityKind[] = [
-  "person", "company", "supplier", "product", "molecule", "organization",
-] as const;
-
 /**
  * D'OÙ VIENT UNE GRAPHIE.
  *

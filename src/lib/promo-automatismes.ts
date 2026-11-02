@@ -4,11 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { moneyEntityOf } from "@/lib/company";
 import type { CurrentUser } from "@/lib/session";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { MENU_CATALOGUE_PROMO } from "@/lib/chemins/stock-promo";
 import { CHEMIN_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
-import { emettreDocumentDrive, previsualiserDocument, type DemandeDocument } from "@/platform/in-process/artifact/factory";
+import { emettreDocumentDrive, previsualiserDocument, type DemandeDocument } from "@/platform/ia/artifact/factory";
 import type { PartieCommerciale } from "@/lib/artifact/factory/commercial";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
 import { brouillonPromoEnJson, brouillonPromoNeuf, lireBrouillonPromo, type BrouillonBcPromo } from "@/lib/promo-material/bc-brouillon-promo";
@@ -19,6 +19,7 @@ import { libellesPromusDeLArticle } from "@/lib/promo-material/achats";
 import { ACTION_LABEL } from "@/lib/promo-material/actions-fournisseur";
 import { texteDemandeDeDevis } from "@/lib/promo-material/texte-demande-devis";
 import { deposerLettreDevis, type DepotLettreDevis } from "@/lib/demande-devis-depot";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -60,8 +61,10 @@ const SELECT_DOSSIER_DEVIS = {
 /** La référence d'une demande au secrétariat — la même série que les demandes de devis des postes. */
 async function prochaineReferenceDemande(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `DEM-${year}-` } }, select: { reference: true } });
-  return buildRef("DEM", year, rows.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "DEM", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `DEM-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /** Les articles d'un dossier, dans la forme que le texte de la demande lit — la même que l'aperçu du formulaire. */
@@ -152,7 +155,7 @@ export async function envoyerDemandeDeDevis(auteurId: string, promoMaterialId: s
     },
   });
   if (bascule.count === 0) {
-    await prisma.administrativeRequest.delete({ where: { id: ouverte.demande.id } }).catch(() => {});
+    await prisma.administrativeRequest.delete({ where: { id: ouverte.demande.id } }).catch(sansBloquer("promo-automatismes.envoyerDemandeDeDevis.administrativeRequest"));
     return { ok: false, error: "La demande de devis de ce dossier vient de partir." };
   }
   await recordAudit({

@@ -23,6 +23,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { type Fichier } from "@/lib/fichiers/doublons";
 import { type Geste, type Reçu } from "@/lib/fichiers/lot";
 import { detecterEncodage } from "@/lib/formats/detection";
+import { sansBloquer } from "@/lib/journal";
 
 export { type Fichier, type GroupeDoublons, type RapportDoublons, distanceNoms, orphelins, radical, radicalSansVersion, trouverDoublons } from "@/lib/fichiers/doublons";
 export { type Apercu, type Geste, type GesteType, type RapportLot, type Reçu, CONFIANCE_AUTOMATIQUE, GESTES_MAX, estPassager, estReversible, executerLot, inverser, preparerLot } from "@/lib/fichiers/lot";
@@ -48,7 +49,7 @@ export interface Recensement {
 async function cheminsDe(parentIds: readonly (string | null)[]): Promise<Map<string, string>> {
   const cache = new Map<string, string>();
   for (const id of new Set(parentIds.filter((x): x is string => Boolean(x)))) {
-    const fil = await driveBreadcrumb(id).catch(() => []);
+    const fil = await driveBreadcrumb(id).catch(sansBloquer("in-process-fichiers.cheminsDe.driveBreadcrumb", []));
     cache.set(id, fil.map((f) => f.name).join(" / ") || "(racine)");
   }
   return cache;
@@ -121,7 +122,7 @@ export async function apercuTexte(user: SessionUser, nodeId: string): Promise<st
   if (!["txt", "csv", "tsv", "md", "json", "xml", "html", "log"].includes(ext)) return "";
   const version = await prisma.fileVersion.findFirst({ where: { nodeId }, orderBy: { version: "desc" }, select: { blobId: true } });
   if (!version) return "";
-  const octets = await getBlob(version.blobId).catch(() => null);
+  const octets = await getBlob(version.blobId).catch(sansBloquer("in-process-fichiers.apercuTexte.getBlob", null));
   if (!octets) return "";
   return detecterEncodage(octets.subarray(0, OCTETS_APERCU)).texte;
 }
@@ -132,7 +133,7 @@ export async function apercuTexte(user: SessionUser, nodeId: string): Promise<st
  */
 export async function appliquerGeste(user: SessionUser, g: Geste): Promise<{ ok: true; detail?: string } | { ok: false; erreur: string }> {
   if (g.type === "supprimer") return { ok: false, erreur: "refus : ce pont ne supprime aucun fichier. Une suppression passe par l'écran du Drive, avec sa corbeille." };
-  const acces = await resolveDriveAccess(user, g.cible).catch(() => "NONE" as const);
+  const acces = await resolveDriveAccess(user, g.cible).catch(sansBloquer("in-process-fichiers.appliquerGeste.resolveDriveAccess", "NONE" as const));
   if (!canEditDrive(acces)) return { ok: false, erreur: "droit d'écriture refusé sur ce fichier" };
   const node = await prisma.driveNode.findUnique({ where: { id: g.cible }, select: { id: true, name: true, parentId: true, category: true, isTrashed: true } });
   if (!node) return { ok: false, erreur: "fichier introuvable" };
@@ -146,7 +147,7 @@ export async function appliquerGeste(user: SessionUser, g: Geste): Promise<{ ok:
 
   // Le dossier d'arrivée doit être ouvert en écriture, lui aussi — sinon on rangerait chez autrui.
   if (typeof data.parentId === "string") {
-    if (!canEditDrive(await resolveDriveAccess(user, data.parentId).catch(() => "NONE" as const))) {
+    if (!canEditDrive(await resolveDriveAccess(user, data.parentId).catch(sansBloquer("in-process-fichiers.appliquerGeste.resolveDriveAccess", "NONE" as const)))) {
       return { ok: false, erreur: "le dossier de destination ne vous est pas ouvert en écriture" };
     }
   }
@@ -158,7 +159,7 @@ export async function appliquerGeste(user: SessionUser, g: Geste): Promise<{ ok:
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "DRIVE",
     summary: `Lot fichiers · ${g.type} · « ${node.name} » → ${JSON.stringify(data)} · ${g.raison.slice(0, 120)}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("in-process-fichiers.appliquerGeste.recordAudit"));
   return { ok: true, detail: `${g.type} appliqué` };
 }
 
@@ -185,7 +186,7 @@ export async function dossierPour(user: SessionUser, chemin: string, racine: str
       select: { id: true },
     });
     if (existant) { parentId = existant.id; continue; }
-    if (parentId && !canEditDrive(await resolveDriveAccess(user, parentId).catch(() => "NONE" as const))) {
+    if (parentId && !canEditDrive(await resolveDriveAccess(user, parentId).catch(sansBloquer("in-process-fichiers.dossierPour.resolveDriveAccess", "NONE" as const)))) {
       return { erreur: `le dossier « ${part} » n'existe pas et son parent ne vous est pas ouvert en écriture` };
     }
     const cree = await prisma.driveNode.create({

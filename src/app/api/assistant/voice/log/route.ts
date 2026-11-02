@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/session";
 import { logAiUsage } from "@/lib/ai-settings";
 import { canUseRealtimeVoice, REALTIME_VOICE_MODEL } from "@/lib/assistant/voice-realtime";
 import { coutSessionVocale, type UsageVocal } from "@/lib/assistant/voice/cost";
-import { journaliserSessionVocale } from "@/platform/in-process/telemetry/usage-sink";
+import { journaliserSessionVocale } from "@/platform/ia/telemetry/usage-sink";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -95,6 +95,8 @@ export async function POST(req: Request) {
         userId: user.id, model: REALTIME_VOICE_MODEL,
         inputTokens: entree ?? 0, outputTokens: sortie ?? 0, cachedInputTokens: cache ?? 0,
         costUsd: cout?.costUsd ?? null, ms: payload.sessionMs ?? 0, responses: usage.responses,
+        // K8 (audit E4) : la ventilation audio rendue par `response.done.usage` n'est plus fondue dans le total.
+        audioInputTokens: usage.inputAudio, cachedAudioInputTokens: usage.cachedAudio, audioOutputTokens: usage.outputAudio,
       });
     }
   }

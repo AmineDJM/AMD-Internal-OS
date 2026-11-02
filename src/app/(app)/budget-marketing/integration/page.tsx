@@ -25,9 +25,10 @@ export const dynamic = "force-dynamic";
  * tenue par chaque action serveur, jamais par l'écran seul.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export default async function IntegrationAdProPage({ searchParams }: { searchParams: { env?: string; filtre?: string } }) {
+export default async function IntegrationAdProPage(props: { searchParams: Promise<{ env?: string; filtre?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("BUDGET_MARKETING");
-  const ctx = await contexteIntegration(user, resolveBudgetEnvelope(searchParams.env));
+  const ctx = await contexteIntegration(user, await resolveBudgetEnvelope(searchParams.env));
   const tabs = await ongletsBudgetMarketing(user, ctx);
   const env = ctx.enveloppe;
   const lot = ctx.lot;

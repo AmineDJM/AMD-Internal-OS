@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft, Library, ShieldCheck } from "lucide-react";
 import { requireModule } from "@/lib/session";

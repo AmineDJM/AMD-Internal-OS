@@ -46,11 +46,12 @@ function dt(d: Date | null): string {
   return new Intl.DateTimeFormat("fr-FR", { dateStyle: "short", timeStyle: "short", timeZone: "Africa/Algiers" }).format(d);
 }
 
-export default async function AdamReglagesPage({
-  searchParams,
-}: {
-  searchParams?: { connecte?: string; erreur?: string };
-}) {
+export default async function AdamReglagesPage(
+  props: {
+    searchParams?: Promise<{ connecte?: string; erreur?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("CHIEF_OF_STAFF");
   // Le module suffit à ouvrir « My Chief of Staff », pas à brancher l'identité de communication
   // de la direction : cette page-là exige la vue globale.

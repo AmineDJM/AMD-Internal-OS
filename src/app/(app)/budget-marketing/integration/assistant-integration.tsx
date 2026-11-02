@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { CheckCircle2, FileSpreadsheet, Loader2, AlertTriangle, Paperclip, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +37,7 @@ const dzd = (n: number) => `${Math.round(n * 100) === 0 ? "0" : formatCentimes(M
 const ETAPES = ["Lire le fichier", "Trouver ou créer la demande", "Joindre les pièces", "Vérifier et valider"] as const;
 
 export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: string; enveloppe: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [etape, setEtape] = React.useState(0);
   const [fichier, setFichier] = React.useState<File | null>(null);
   const [lecture, setLecture] = React.useState<LectureIntegration | null>(null);
@@ -117,8 +118,10 @@ export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: st
     setOccupe("valider"); setMsg(null);
     try {
       const r = await validerIntegrationAdPro(formulaire({ verifie: verifie ? "on" : "off", confirmation: mot }));
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Intégration validée.") : (r.error ?? "Échec.") });
-      if (r.ok) router.refresh();
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Intégration validée.") : (r.error ?? "L'intégration n'a pas été validée.") });
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally { setOccupe(null); }
   }
 

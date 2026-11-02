@@ -19,7 +19,7 @@ import { userCan, type SessionUser } from "@/lib/rbac";
 import { getActionCenter, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN } from "@/lib/queries/action-center";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { approbationsEnAttente } from "@/lib/missions/approval/gate";
-import { sitsOnPaymentCentre, ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
+import { sitsOnPaymentCentre, ORDRE_NON_ANNULE } from "@/modules/finances/partage";
 import { lireConstats } from "@/lib/quality/read";
 import { intelligenceComplete, LIBELLE_GRAVITE as LIBELLE_GRAVITE_SIGNAL, type Signal } from "@/platform/in-process/intelligence";
 import { lireEtatChaud } from "@/lib/fabric/hot-state";

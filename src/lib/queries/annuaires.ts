@@ -2,6 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { scopeMedicalDoctors, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { companyScopedWhere, getMyCompanies, companyLabel } from "@/lib/company";
+import { getAppSettings } from "@/lib/settings";
+import { champSensible, masqueDepuisClair } from "@/modules/coffre/partage";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
 import { cleCellule } from "@/lib/grille/couleurs";
 import { ligneAnnuaire, type AnnuaireRow, type CustomColumnVue } from "@/lib/medical/directory-grid";
@@ -43,7 +45,7 @@ export type { EtablissementOption };
  * les sortait. Trouvé en branchant l'accès par annuaire sur cette route (§118.147) — une porte
  * gardée à côté d'une porte ouverte, et c'est la même chose qui passait (§118.71).
  */
-function ouvreAnnuaireNomme(user: SessionUser) {
+export function ouvreAnnuaireNomme(user: SessionUser) {
   const privileged = user.role === "SUPER_ADMIN" || hasGlobalView(user.role);
   return (d: { createdById: string | null; access: { userId: string }[] }) =>
     privileged || d.access.length === 0 || d.createdById === user.id || d.access.some((a) => a.userId === user.id);
@@ -320,7 +322,7 @@ export async function chargerEtablissements(
     }),
     prisma.medicalDoctor.groupBy({
       by: ["institutionId"],
-      where: { ...portee, institutionId: { not: null } },
+      where: { AND: [portee, { institutionId: { not: null } }] },
       _count: { _all: true },
     }),
     // DANS COMBIEN DE SECTEURS COMMERCIAUX il entre : c'est ce que la suppression ampute.
@@ -329,7 +331,7 @@ export async function chargerEtablissements(
     // secteurs qui le choisissent nommément — ce que sa suppression emporte, dit avant le clic.
     prisma.medicalDoctor.groupBy({
       by: ["serviceId"],
-      where: { ...portee, serviceId: { not: null } },
+      where: { AND: [portee, { serviceId: { not: null } }] },
       _count: { _all: true },
     }),
     prisma.salesSectorInstitutionService.groupBy({ by: ["serviceId"], _count: { _all: true } }),
@@ -372,7 +374,7 @@ export interface AnnuairePartenaires {
 
 /** Les contacts EXTERNES de la société — agence, livreur, transitaire —, dans le périmètre d'entité. */
 export async function chargerPartenaires(user: SessionUser, sphere: "PRIVE" | "PUBLIC" = "PRIVE"): Promise<AnnuairePartenaires> {
-  const [contacts, myCompanies] = await Promise.all([
+  const [contacts, myCompanies, reglages] = await Promise.all([
     prisma.companyContact.findMany({
       // LA SPHÈRE fait l'annuaire : « Partenaires » (prestataires) ou « Partenaires publics » (Direction, 06/10).
       where: { AND: [await companyScopedWhere(user.id, {}), { sphere }] },
@@ -380,13 +382,19 @@ export async function chargerPartenaires(user: SessionUser, sphere: "PRIVE" | "P
       orderBy: [{ name: "asc" }],
     }),
     getMyCompanies(user.id),
+    getAppSettings(),
   ]);
+  // LE COFFRE (refonte V2-E) : en double lecture, la liste n'emporte que le MASQUE du RIB — rien n'est lu, rien
+  // n'est journalisé ; le RIB en clair se lit là où il sert (bon de commande, ordre de virement). Renvoyé tel quel
+  // par la boîte d'édition, le masque garde la valeur en place (`champsNonSaisis`) ; une saisie la remplace.
+  const champRib = champSensible("CompanyContact", "rib")!;
+  const rib = (v: string | null) => (reglages.coffreLecture ? masqueDepuisClair(champRib, v) : v);
   return {
     contacts: contacts.map((c) => ({
       id: c.id, name: c.name, kind: c.kind, contactName: c.contactName,
       phone: c.phone, phoneAlt: c.phoneAlt, email: c.email, website: c.website,
       address: c.address, city: c.city, wilaya: c.wilaya,
-      rc: c.rc, nif: c.nif, rib: c.rib, notes: c.notes,
+      rc: c.rc, nif: c.nif, rib: rib(c.rib), notes: c.notes,
       isActive: c.isActive, companyId: c.companyId,
       companyLabel: c.company ? c.company.shortName ?? c.company.name : null,
     })),
@@ -448,4 +456,5 @@ export async function chargerPersonnes(): Promise<DirectoryPerson[]> {
     };
   });
 }
-
+
+

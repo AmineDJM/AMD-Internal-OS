@@ -3,11 +3,12 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { chantierBCClos } from "@/lib/bons-de-commande/regle";
-import { chantierPaiementClos, etatDeLOrdre, type PieceDeReglement } from "@/lib/payments/reglement";
+import { chantierPaiementClos, etatDeLOrdre, type PieceDeReglement } from "@/modules/finances/partage";
 import { executionDuDossier, verdictDuChantierPromo, type ExecutionDevis } from "@/lib/queries/promo-execution";
 import { PROMO_TRACKS, type PromoTrack } from "@/lib/promo-material/circuit";
 import { lignesAReceptionner, resteAFacturer } from "@/lib/promo-material/achats";
 import { commandesSoldees } from "@/lib/promo-material/fiche";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA CLÔTURE D'UN DOSSIER DE MATÉRIEL PROMOTIONNEL — les vérifications de chaque chantier, et la clôture AUTOMATIQUE.
@@ -162,7 +163,7 @@ export async function cloreLeDossierPromoSiSolde(promoId: string, acteurId: stri
       await notifyUser({
         userId: pm.requesterId, type: "GENERIC", title: "Matériel promotionnel terminé",
         body: `${pm.reference} — ${pm.title} : tout est reçu, payé et visé.`, link: `/promo-material/${pm.id}`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("promo-cloture.cloreLeDossierPromoSiSolde.notifyUser"));
     }
     return true;
   } catch (e) {

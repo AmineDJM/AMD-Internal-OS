@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Plus, Trash2, Loader2, LineChart as LineChartIcon, Table2, Send, Link2 } from "lucide-react";
 import { createStockHospital, deleteStockHospital, createStockAnnex, deleteStockAnnex, recordStockSnapshot, deleteStockSnapshot, requestStockState } from "@/lib/actions/stock-snapshot-actions";
@@ -75,7 +77,8 @@ export function StocksView({
   scopes: StockScope[];
   perimetre: PerimetreDTO | null;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const tabs = React.useMemo(() => scopes.map((k) => ({ key: k, label: STOCK_SCOPE_LABEL[k] })), [scopes]);
   // On ouvre sur le PREMIER onglet auquel on a droit — « PCH » en dur ouvrait sur un onglet
   // interdit, donc sur du vide, pour toute personne qui n'y a pas accès.
@@ -135,28 +138,40 @@ export function StocksView({
   const recordable = tab === "PCH" || (tab === "HOSPITAL" && !!hospital) || (tab === "ANNEX" && !!annexId);
 
   async function removeSnapshot(id: string) {
-    if (!window.confirm("Supprimer cet état de stock ?")) return;
+    if (!(await confirmer("Supprimer cet état de stock ?"))) return;
     const fd = new FormData(); fd.set("id", id);
-    const r = await deleteStockSnapshot(fd);
-    if (!r.ok) setError(r.error ?? "Échec de la suppression.");
-    router.refresh();
+    try {
+      const r = await deleteStockSnapshot(fd);
+      if (!r.ok) setError(r.error ?? "Échec de la suppression.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    }
+    rafraichir();
   }
 
   async function removeHospital(h: HospitalDTO) {
     if (!h.annexId) return;
-    if (!window.confirm(`Retirer « ${h.name} » des lieux de stock et supprimer tous ses états de stock ? L'établissement reste dans l'annuaire.`)) return;
+    if (!(await confirmer(`Retirer « ${h.name} » des lieux de stock et supprimer tous ses états de stock ? L'établissement reste dans l'annuaire.`))) return;
     const fd = new FormData(); fd.set("id", h.annexId);
-    const r = await deleteStockHospital(fd);
-    if (!r.ok) setError(r.error ?? "Échec de la suppression.");
-    router.refresh();
+    try {
+      const r = await deleteStockHospital(fd);
+      if (!r.ok) setError(r.error ?? "Échec de la suppression.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    }
+    rafraichir();
   }
 
   async function removeAnnex(l: LocationDTO) {
-    if (!window.confirm(`Supprimer « ${l.name} » (annexe PCH) et tous ses états de stock ?`)) return;
+    if (!(await confirmer(`Supprimer « ${l.name} » (annexe PCH) et tous ses états de stock ?`))) return;
     const fd = new FormData(); fd.set("id", l.id);
-    const r = await deleteStockAnnex(fd);
-    if (!r.ok) setError(r.error ?? "Échec de la suppression.");
-    router.refresh();
+    try {
+      const r = await deleteStockAnnex(fd);
+      if (!r.ok) setError(r.error ?? "Échec de la suppression.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    }
+    rafraichir();
   }
 
   /** Rattacher un lieu HÉRITÉ à un établissement de l'annuaire — le clic humain que le serveur refuse de deviner. */
@@ -164,11 +179,16 @@ export function StocksView({
     if (!h.annexId || !institutionId) return;
     setBusy(true); setError(null); setNotice(null);
     const fd = new FormData(); fd.set("annexId", h.annexId); fd.set("institutionId", institutionId);
-    const r = await createStockHospital(fd);
-    setBusy(false);
-    if (!r.ok) { setError(r.error ?? "Échec du rattachement."); return; }
-    if (r.message) setNotice(r.message);
-    router.refresh();
+    try {
+      const r = await createStockHospital(fd);
+      if (!r.ok) { setError(r.error ?? "Échec du rattachement."); return; }
+      if (r.message) setNotice(r.message);
+      rafraichir();
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   const herites = hospitals.filter((h) => h.herite).length;
@@ -208,9 +228,14 @@ export function StocksView({
           action={async (fd) => {
             setBusy(true); setError(null);
             for (const id of reqHospitals) fd.append("hospitalIds", id);
-            const r = await requestStockState(fd);
-            setBusy(false);
-            if (r.ok) { setShowRequest(false); setReqHospitals([]); router.refresh(); } else setError(r.error ?? "Échec.");
+            try {
+              const r = await requestStockState(fd);
+              if (r.ok) { setShowRequest(false); setReqHospitals([]); rafraichir(); } else setError(r.error ?? "La demande d'état de stock n'a pas été envoyée.");
+            } catch {
+              setError(actionFailureMessage("THROWN"));
+            } finally {
+              setBusy(false);
+            }
           }}
           className="surface space-y-3 p-3 sm:p-4"
         >
@@ -297,9 +322,14 @@ export function StocksView({
             <form
               action={async (fd) => {
                 setBusy(true); setError(null); setNotice(null);
-                const r = await createStockHospital(fd);
-                setBusy(false);
-                if (r.ok) { if (r.message) setNotice(r.message); router.refresh(); } else setError(r.error ?? "Échec.");
+                try {
+                  const r = await createStockHospital(fd);
+                  if (r.ok) { if (r.message) setNotice(r.message); rafraichir(); } else setError(r.error ?? "Le lieu de stock n'a pas été ajouté.");
+                } catch {
+                  setError(actionFailureMessage("THROWN"));
+                } finally {
+                  setBusy(false);
+                }
               }}
               className="flex flex-wrap items-end gap-2"
             >
@@ -346,9 +376,14 @@ export function StocksView({
             <form
               action={async (fd) => {
                 setBusy(true); setError(null);
-                const r = await createStockAnnex(fd);
-                setBusy(false);
-                if (r.ok) router.refresh(); else setError(r.error ?? "Échec.");
+                try {
+                  const r = await createStockAnnex(fd);
+                  if (r.ok) rafraichir(); else setError(r.error ?? "L'annexe n'a pas été ajoutée.");
+                } catch {
+                  setError(actionFailureMessage("THROWN"));
+                } finally {
+                  setBusy(false);
+                }
               }}
               className="flex flex-wrap items-end gap-2"
             >
@@ -402,9 +437,14 @@ export function StocksView({
                 }
                 if (tab === "ANNEX") fd.set("annexId", annexId);
                 fd.set("productId", productId);
-                const r = await recordStockSnapshot(fd);
-                setBusy(false);
-                if (r.ok) router.refresh(); else setError(r.error ?? "Échec.");
+                try {
+                  const r = await recordStockSnapshot(fd);
+                  if (r.ok) rafraichir(); else setError(r.error ?? "L'état de stock n'a pas été enregistré.");
+                } catch {
+                  setError(actionFailureMessage("THROWN"));
+                } finally {
+                  setBusy(false);
+                }
               }}
               className="surface flex flex-wrap items-end gap-3 p-3 sm:p-4"
             >

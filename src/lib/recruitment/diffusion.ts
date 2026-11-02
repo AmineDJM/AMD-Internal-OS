@@ -25,12 +25,6 @@ export function estCanal(v: string | null | undefined): v is Canal {
   return (CANAUX as readonly string[]).includes(v ?? "");
 }
 
-/** Les canaux dont l'état vit dans `RecruitmentChannelPost` — le site, lui, se lit sur l'offre (JobPosting). */
-export const CANAUX_SUIVIS = ["LINKEDIN", "EMPLOITIC", "AUTRE"] as const;
-
-export const STATUTS_CANAL = ["PREPARE", "PUBLIE", "RETIRE", "ECHEC"] as const;
-export type StatutCanal = (typeof STATUTS_CANAL)[number];
-
 export type TonPastille = "neutral" | "info" | "success" | "warning" | "danger";
 
 /** La pastille d'un canal : « Préparé », « Publié le 7 oct. », « Retiré », « Échec » — ou « — » s'il n'a rien. */

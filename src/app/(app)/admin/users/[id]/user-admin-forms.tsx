@@ -7,6 +7,8 @@ import {
 } from "@/lib/actions/access-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ROLE_LABELS } from "@/lib/labels";
 import { formatDateTime } from "@/lib/utils";
 
@@ -22,10 +24,15 @@ export function ProfileForm({ user }: { user: Profile }) {
     <form
       action={async (fd) => {
         setSaving(true); setError(null);
-        const r = await updateUserProfile(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(r.error ?? "Échec de l'enregistrement.");
+        try {
+          const r = await updateUserProfile(fd);
+          if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(r.error ?? "Le profil n'a pas été enregistré.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="grid grid-cols-1 gap-3 sm:grid-cols-2"
     >
@@ -57,6 +64,7 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
   const [pw, setPw] = React.useState("");
   const [done, setDone] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
 
   function generate() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#";
@@ -65,7 +73,18 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
 
   return (
     <form
-      action={async (fd) => { setSaving(true); const r = await adminResetPassword(fd); setSaving(false); if (r.ok) setDone(true); }}
+      action={async (fd) => {
+        setSaving(true); setErr(null);
+        try {
+          const r = await adminResetPassword(fd);
+          if (r.ok) setDone(true);
+          else setErr(r.error ?? "Le mot de passe n'a pas été réinitialisé.");
+        } catch {
+          setErr(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
+      }}
       className="space-y-2"
     >
       <input type="hidden" name="userId" value={userId} />
@@ -82,6 +101,7 @@ export function ResetPasswordForm({ userId }: { userId: string }) {
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
         Réinitialiser
       </Button>
+      <Retour ton="erreur">{err}</Retour>
       {done && (
         <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">
           Mot de passe défini. Communiquez-le à l’utilisateur&nbsp;: <code className="font-mono [overflow-wrap:anywhere]">{pw}</code>
@@ -125,11 +145,23 @@ export function RequestOnboardingButton({
 }) {
   const [saving, setSaving] = React.useState(false);
   const [requested, setRequested] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
   const pending = mustOnboard || requested;
   return (
     <div className="space-y-1.5">
       <form
-        action={async (fd) => { setSaving(true); const r = await requestOnboarding(fd); setSaving(false); if (r.ok) setRequested(true); }}
+        action={async (fd) => {
+          setSaving(true); setErr(null);
+          try {
+            const r = await requestOnboarding(fd);
+            if (r.ok) setRequested(true);
+            else setErr(r.error ?? "Le setup n'a pas été demandé.");
+          } catch {
+            setErr(actionFailureMessage("THROWN"));
+          } finally {
+            setSaving(false);
+          }
+        }}
       >
         <input type="hidden" name="userId" value={userId} />
         <Button type="submit" variant="outline" size="sm" disabled={saving || pending}>
@@ -137,6 +169,7 @@ export function RequestOnboardingButton({
           {pending ? "Setup demandé" : "Demander le setup"}
         </Button>
       </form>
+      <Retour ton="erreur">{err}</Retour>
       <p className="text-xs text-muted-foreground">
         {pending
           ? "L’utilisateur sera guidé à sa prochaine navigation."

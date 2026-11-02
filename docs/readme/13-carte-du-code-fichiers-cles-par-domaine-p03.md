@@ -96,7 +96,7 @@ l'ERP, et la racine de composition du runtime (`boundary-scan.ts` l'exempte, par
 | `e2e.test.ts` `memory.test.ts` `commitments.test.ts` `relance.test.ts` `situation.test.ts` `attention.test.ts` `launch-resilience.test.ts` `autonomous-dedup.test.ts` `message-wake.test.ts` `branche-conditionnelle.test.ts` `watch.test.ts` `evenement-anterieur.test.ts` | Les bancs de bout en bout, depuis les vrais points d'entrée |
 | `crash-matrix.test.ts` `permission-matrix.test.ts` `donnees-modifiees.test.ts` | Les MATRICES et le CHAOS : le crash à chaque frontière d'étape (5/5 reprises, 0 doublon) ; permissions × capacités × confirmation sur le vrai catalogue de tous les rôles ; la cible qui disparaît en cours de mission (rien ne part, la mission ne conclut pas, le dirigeant est prévenu une fois) |
 
-### Le bac à sable d'exécution (`src/lib/sandbox/`) — domaine (mandat 4 §25)
+### Le bac à sable d'exécution (`src/platform/ia/analyse/` + `src/lib/sandbox/sql.ts`) — mandat 4 §25, déménagé au socle IA par K1 (décision 0031)
 
 Adam CALCULE, il n'affirme pas. Quatre briques, une frontière : rien ici n'écrit. Le SQL est en
 lecture seule et borné à une liste blanche relue dans le PLAN d'exécution ; le JavaScript tourne
@@ -144,7 +144,7 @@ un en-tête de tableau).
 
 **Ce qui n'est pas prétendu** : le logo de marque n'entre que dans les pièces SANS papier en-tête (un papier déposé fait foi) ; les livrables de mission (`missions/artifacts`) gardent leur thème propre ; un modèle Word/Excel/PowerPoint de la société reste un papier en-tête déposé (`OfficeLetterhead`), la marque ne le régénère pas.
 
-### L'intelligence métier (`src/lib/legal/clauses.ts`, `src/lib/finance/intelligence.ts`, `platform/in-process/intelligence/`) — mandat 4 §27
+### L'intelligence métier (`src/lib/legal/clauses.ts`, `src/modules/finances/domaine/intelligence.ts`, `platform/in-process/intelligence/`) — mandat 4 §27
 
 Regulatory, Legal et Finance produisent des **signaux** de la même forme (`src/lib/utils/signaux.ts`,
 socle sans import) : un code, une gravité (critique / haute / normale / basse), un titre, un détail,
@@ -409,7 +409,7 @@ vérifie, compose, relit, dessine.
   invalide DITE. Aucun droit propre : représenter n'est pas lire, la source porte le sien.
 - **À la volée** : `run_analysis` et `sql_query` rendent AUSSI le graphique recommandé sous leur
   tableau (`rendu` le dit au modèle) — une analyse se voit, elle ne se lit pas seulement.
-- **Le rendu** (`components/chief/workspace/blocks/viz-figure.tsx`) : UN composant SVG/HTML pour les
+- **Le rendu** (`platform/ia/ecrans/blocks/viz-figure.tsx`) : UN composant SVG/HTML pour les
   dix-sept formes, sans dépendance. Une barre part TOUJOURS de zéro ; une courbe dont l'axe ne part
   pas de zéro le DIT sous l'axe ; les alertes se lisent AVANT la figure (`blocks/viz.tsx`) ; chaque
   élément porte sa valeur exacte en `<title>` ; les séries ont leurs données en clair (`<details>`).

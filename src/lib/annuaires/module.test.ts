@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { MODULES, getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { MODULE_LABELS, NAVIGATION, ANNUAIRES_TABS, MEDICAL_TABS, ADMIN_REQUEST_TYPE } from "@/lib/labels";
@@ -142,7 +142,10 @@ describe("Établissements — un seul écran, et l'ancienne adresse REDIRIGE", (
   it("les liens d'Adam pointent vers l'écran QUI EXISTE, pas vers la redirection", () => {
     // Un lien vers une redirection marche, mais il fait payer un aller-retour à chaque clic et
     // il devient faux le jour où la redirection disparaît.
-    for (const f of ["src/lib/assistant/ops/impl-wave4b.ts", "src/lib/assistant/executive-read-tools.ts"]) {
+    // La vague 4b vit dans `ops/impl/vague4b/` ; `impl-wave4b.ts` n'en est plus que la porte.
+    const vague4b = ["commun", "erp", "medical", "medical-fiches", "medical-annuaires", "gammes", "etudes-presentations"]
+      .map((m) => `src/lib/assistant/ops/impl/vague4b/${m}.ts`);
+    for (const f of ["src/lib/assistant/ops/impl-wave4b.ts", ...vague4b, "src/lib/assistant/executive-read-tools.ts"]) {
       const src = lire(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
       expect(src, `${f} ne doit plus lier /medical/etablissements`).not.toContain('"/medical/etablissements"');
     }
@@ -163,7 +166,10 @@ describe("Bureau du secrétariat — plus de « Demande RH »", () => {
   it("les chemins d'ÉCRITURE la refusent — écran ET conversation", () => {
     // §118.71 : retirer la carte sans fermer l'action laisserait une porte ouverte à côté de la
     // porte fermée, et Adam continuerait d'en créer.
-    for (const f of ["src/lib/actions/admin-request-actions.ts", "src/lib/assistant.ts"]) {
+    // `assistant.ts` est découpé (lot V4) : sa porte ET chacun de ses morceaux sont relus.
+    const assistant = ["src/lib/assistant.ts", ...["coeur", "outils", "propositions", "actions-confirmees", "boucle"].flatMap((d) =>
+      readdirSync(join(process.cwd(), "src/lib/assistant", d)).filter((n) => n.endsWith(".ts") && !n.endsWith(".test.ts")).map((n) => `src/lib/assistant/${d}/${n}`))];
+    for (const f of ["src/lib/actions/admin-request-actions.ts", ...assistant]) {
       const src = lire(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
       expect(src, `${f} ne doit plus accepter HR_SIMPLE en création`).not.toContain('"HR_SIMPLE"');
     }

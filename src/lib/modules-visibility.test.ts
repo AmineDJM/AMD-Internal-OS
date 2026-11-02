@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  NEVER_HIDDEN, isHideable, normalizeHidden, isModuleHidden, visibleModules,
-  canOpenModule, hiddenNotice, hiddenSummary, RETIRED_MODULES, isRetired,
+  NEVER_HIDDEN, isHideable, normalizeHidden, visibleModules, canOpenModule, hiddenNotice, hiddenSummary,
+  RETIRED_MODULES, isRetired,
 } from "./modules-visibility";
 import { MODULES, type Module } from "./rbac";
 

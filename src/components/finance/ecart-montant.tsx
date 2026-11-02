@@ -4,7 +4,7 @@ import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
-import { LIBELLE_CONFIRMATION_ECART } from "@/lib/finance/montant-facture";
+import { LIBELLE_CONFIRMATION_ECART } from "@/modules/finances/partage";
 
 const dzd = (n: number) => `${n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} DZD`;
 

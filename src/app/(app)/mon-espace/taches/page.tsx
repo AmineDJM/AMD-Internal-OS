@@ -17,7 +17,10 @@ export const metadata = { title: "Tâches — Mon espace" };
  * demandées, partagées, terminées. La fiche `/mon-espace/taches/[id]` reste servie (notifications,
  * liens) ; ici, une ligne s'ouvre dans un panneau.
  */
-export default async function TachesPage({ searchParams }: { searchParams: { vue?: string; page?: string; tache?: string } }) {
+export default async function TachesPage(
+  props: { searchParams: Promise<{ vue?: string; page?: string; tache?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("WORKSPACE");
   const vue = lireVue(searchParams.vue);
   const data = await lireOngletTaches(user, vue, Number(searchParams.page ?? "1") || 1);

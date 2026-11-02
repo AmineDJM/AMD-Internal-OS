@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { usePathname } from "next/navigation";
 import { Loader2, Check } from "lucide-react";
 import { saveCustomValues } from "@/lib/actions/custom-field-actions";
@@ -74,13 +75,18 @@ export function CustomFieldsCard({ entityType, entityId, defs, values, canEdit }
       action={async (fd) => {
         setSaving(true);
         setError(null);
-        const r = await saveCustomValues(fd);
-        setSaving(false);
-        if (r.ok) {
-          setSaved(true);
-          setTimeout(() => setSaved(false), 1500);
-        } else {
-          setError(r.error ?? "Enregistrement impossible.");
+        try {
+          const r = await saveCustomValues(fd);
+          if (r.ok) {
+            setSaved(true);
+            setTimeout(() => setSaved(false), 1500);
+          } else {
+            setError(r.error ?? "Enregistrement impossible.");
+          }
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
         }
       }}
       className="space-y-3"

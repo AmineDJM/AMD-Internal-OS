@@ -4,6 +4,8 @@ import * as React from "react";
 import { Lock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { compterDossiersNonEntames, mettreAuPipelineNonEntames } from "@/lib/actions/regulatory-actions";
 
 /**
@@ -12,18 +14,24 @@ import { compterDossiersNonEntames, mettreAuPipelineNonEntames } from "@/lib/act
  */
 export function MettreAuPipeline() {
   const { enCours, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [envoi, setEnvoi] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   async function lancer() {
     setEnvoi(true); setMsg(null);
-    const apercu = await compterDossiersNonEntames();
-    if (!apercu.ok) { setEnvoi(false); setMsg({ ok: false, text: apercu.error ?? "Impossible." }); return; }
-    if (!apercu.nombre) { setEnvoi(false); setMsg({ ok: true, text: "Aucun dossier non entamé : rien à mettre au pipeline." }); return; }
-    if (!window.confirm(`Mettre au pipeline ${apercu.nombre} dossier(s) non entamé(s) ?\n\nIls seront verrouillés : à l'étude, invisibles de l'équipe jusqu'à l'ouverture du cadenas.`)) { setEnvoi(false); return; }
-    const r = await mettreAuPipelineNonEntames();
-    setEnvoi(false);
-    setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Fait.") : (r.error ?? "Impossible.") });
-    if (r.ok) rafraichir();
+    try {
+      const apercu = await compterDossiersNonEntames();
+      if (!apercu.ok) { setMsg({ ok: false, text: apercu.error ?? "Impossible." }); return; }
+      if (!apercu.nombre) { setMsg({ ok: true, text: "Aucun dossier non entamé : rien à mettre au pipeline." }); return; }
+      if (!(await confirmer(`Mettre au pipeline ${apercu.nombre} dossier(s) non entamé(s) ?\n\nIls seront verrouillés : à l'étude, invisibles de l'équipe jusqu'à l'ouverture du cadenas.`))) return;
+      const r = await mettreAuPipelineNonEntames();
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Fait.") : (r.error ?? "Impossible.") });
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
+      setEnvoi(false);
+    }
   }
   return (
     <span className="inline-flex max-w-full flex-wrap items-center gap-2">

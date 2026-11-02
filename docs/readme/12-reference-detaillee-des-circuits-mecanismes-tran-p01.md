@@ -141,7 +141,7 @@ par les **vrais points d'entrée**, et **15 sabotages** dont le bilan est au jou
 
 ### Centre de paiement — entités en haut, trois sections (05/10/2026)
 
-Barre d'entités en haut (une pastille par société, `?entite=` validé), puis **Regulatory / Sales & Marketing / Autres** (`lib/payments/sections-centre.ts` : la section se lit sur l'origine de la dépense ; les « porteurs » — demande de paiement, secrétariat, pièce Legal — se classent sur l'origine qu'ils déclarent). « Autres » est le seul repli et se compte. Le siège, les deux issues et le cloisonnement ne changent pas.
+Barre d'entités en haut (une pastille par société, `?entite=` validé), puis **Regulatory / Sales & Marketing / Autres** (`modules/finances/domaine/sections-centre.ts` : la section se lit sur l'origine de la dépense ; les « porteurs » — demande de paiement, secrétariat, pièce Legal — se classent sur l'origine qu'ils déclarent). « Autres » est le seul repli et se compte. Le siège, les deux issues et le cloisonnement ne changent pas.
 
 ### Autres lots du 05/10/2026
 
@@ -172,7 +172,7 @@ soit le montant**, passe par le **centre de paiement** avant d'atteindre les Fin
 
 **Ce qui n'y passe pas AUJOURD'HUI est NOMMÉ, jamais tu (§118.148).** « Concernant les paiements,
 c'est clair, tous passent par le centre de paiements » (Direction, 09/2026). Le registre des chemins
-de paiement (`lib/finances/settlement.ts`) porte désormais un axe **`centre`** : `AUTORISE` (l'ordre
+de paiement (`modules/finances/domaine/chemins-paiement.ts`) porte désormais un axe **`centre`** : `AUTORISE` (l'ordre
 naît en attente du centre et `canDisburse` refuse de payer sans lui — ordre de dépense, demande de
 paiement, facture envoyée au règlement, **paie** virée par entité, **remise** de caisse d'avance), `ENREGISTRE` (le geste enregistre un mouvement DÉJÀ fait —
 écriture directe au livre, facture « marquée réglée » avant son enregistrement, achat sur caisse ; il
@@ -246,10 +246,10 @@ ou l'argent partir, sans que le centre ait vu le montant :
   autres portes la refusaient) — le même dinar écrit deux fois.
 - **Le matériel promotionnel** déclarait « paiement effectué », « réglé et clôturé », ou fermait son
   chantier « Paiement » d'un clic, sans ordre payé : les trois gestes lisent maintenant l'ordre, et
-  `chantierPaiementClos` (`lib/payments/reglement.ts`, pur) exige au moins un règlement et TOUS réglés.
+  `chantierPaiementClos` (`modules/finances/domaine/reglement.ts`, pur) exige au moins un règlement et TOUS réglés.
 - **La rallonge de caisse** sortait de la banque sans écriture au livre (la remise, elle, écrivait).
 
-**UN SEUL ÉCRIVAIN D'ORDRE DE DÉPENSE, TENU PAR UN CLIQUET** (`lib/payments/centre-ecrivains.test.ts`).
+**UN SEUL ÉCRIVAIN D'ORDRE DE DÉPENSE, TENU PAR UN CLIQUET** (`modules/finances/centre-ecrivains.test.ts`).
 Le schéma garde `centralStatus = NOT_REQUIRED` par défaut — l'état HISTORIQUE que `canDisburse` laisse
 payer — donc un second `prisma.expenseOrder.create` ajouté demain ferait sortir de l'argent sans que
 le centre le voie, en silence. Le cliquet lit la source SANS ses commentaires et exige : un seul site
@@ -258,13 +258,13 @@ de création (`createExpenseOrder`), qui pose le statut CALCULÉ par `initialCen
 écrivent l'autorisation (le centre, la réouverture des congrès), le paiement (`settleExpenseOrder`,
 qui consulte le verrou) ou le montant.
 
-- **Module PUR** : `src/lib/payments/authorization.ts` (`needsCentralAuthorization`,
+- **Module PUR** : `src/modules/finances/domaine/authorization.ts` (`needsCentralAuthorization`,
   `initialCentralStatus`, `canDisburse`, `visibleToFinance`, `sitsOnPaymentCentre`, `applyDecision`,
   `applyResubmission`, `blockedReason`) + `authorization.test.ts` (**19 tests**).
 - **Modèles** : `ExpenseOrder.centralStatus|proposedAmount|decidedById|decidedAt` +
   `PaymentCentreMessage` (le fil). Migration `20260824150000_payment_centre`.
 - **Écrans** : `app/(app)/centre-de-paiement/{page,centre-board}.tsx` ;
-  **actions** `lib/actions/payment-centre-actions.ts` (`decidePayment`, `respondToPaymentCentre`).
+  **actions** `modules/finances/actions-centre.ts` (`decidePayment`, `respondToPaymentCentre`).
 - **Reprise du passé** : migration `20261002140000_centre_guichet_unique` — les ordres encore
   **non réglés** qui étaient en `NOT_REQUIRED` entrent au centre. Les ordres **payés ou annulés**
   ne sont pas touchés : les rouvrir gèlerait des dossiers clos et réécrirait un passé autorisé par
@@ -581,7 +581,7 @@ ou l'annuaire des PERSONNES ouvert en modification depuis la console — `canEdi
 laisser une conversation changer une adresse ouvrirait un détournement de courrier trivial.
 
 Fichiers : `src/lib/directory/` (resolve, rank, normalize, access), `src/lib/actions/directory-actions.ts`,
-`src/lib/assistant/directory-tools.ts`, `src/app/(app)/mon-espace/annuaire/people-directory.tsx`.
+`src/platform/ia/lectures/directory-tools.ts`, `src/app/(app)/mon-espace/annuaire/people-directory.tsx`.
 
 ### Regulatory — l'avancement d'un dossier a UNE source
 
@@ -1221,7 +1221,7 @@ crée pas un droit, elle en prête un, et un remplaçant ne détruit pas.
 lendemain du congé ; un module retiré n'y entre par aucune porte implicite) et **se disent** : un **bandeau
 d'intérim** dans la coque (`components/layout/interim-banner.tsx`, lu sur `access.interims` — aucune lecture de plus)
 nomme qui l'on remplace, jusqu'à quand et les modules prêtés ; un droit prêté ne s'accorde pas à son tour
-(`estPrete` : ouvrir l'accès d'un tiers à une entité, fermer un compte — `lib/hr/depart.ts` —, désigner ou valider
+(`estPrete` : ouvrir l'accès d'un tiers à une entité, fermer un compte — `modules/rh/infra/depart.ts` —, désigner ou valider
 un intérim) ; `decideValidation` accepte l'intérimaire sur les étapes du validateur absent
 (`droitSurLEtape` : le validateur, le Super Admin ou l'intérim — jamais sur sa propre demande ; le jugement des
 pièces lit la même règle), les portes qui nomment une PERSONNE (N+1 d'un congé ou d'une formation, validateur d'un
@@ -1230,7 +1230,7 @@ achat, réviseur et N+2 d'un plan de tournée) reconnaissent l'intérimaire par 
 décision a été prise au titre d'un intérim. Les étapes adressées à un RÔLE ne se délèguent pas (décision).
 
 **Fichiers** : `lib/hr/stand-in.ts` (+ 36 tests) · `lib/hr/stand-in-resolve.ts` ·
-`lib/actions/stand-in-actions.ts` · `components/hr/stand-in-panel.tsx` · `components/layout/interim-banner.tsx` ·
+`modules/rh/actions-interim.ts` · `components/hr/stand-in-panel.tsx` · `components/layout/interim-banner.tsx` ·
 sections de `/rh/conges` et `/mon-dossier` ; banc de bout en bout `lib/hr/interim-prete-flow.test.ts`.
 
 ### Moteur de workflow dynamique (Ad & Pro — 4 catégories)
@@ -1309,7 +1309,7 @@ Le circuit Sponsoring / Prise en charge internationale / Prise en charge nationa
 
 ### RH — pré-remplissage IA du contrat + congés (acquisition & consommation)
 
-- **Contrat → fiche employé (IA)** : `analyzeEmployeeContract` (`src/lib/actions/hr-actions.ts`, gate `RH:CREATE`)
+- **Contrat → fiche employé (IA)** : `analyzeEmployeeContract` (`src/modules/rh/actions.ts`, gate `RH:CREATE`)
   fait **OCR Mistral** (`ocrDocument`, fr/en/ar) puis **Claude** pour renvoyer un objet de champs (nom, poste,
   type de contrat ∈ CDI/CDD/INTERIM/STAGE/FREELANCE/OTHER, dates ISO, salaire, NIN, CNAS…). **Ne persiste rien** :
   les valeurs pré-remplissent le formulaire (prop `analyze` de `CreateRecordButton`, re-montage des champs par

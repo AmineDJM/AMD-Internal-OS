@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { annuaireDeLecture, proposerLecture } from "@/lib/pieces-lues/service";
 import { lectureDevisPromo } from "@/lib/pieces-lues/prerempli-devis-promo";
-import { doutesDeLaLecture, lignesDepuisLaLecture, noteDeLecture } from "@/lib/ad-pro/devis-poste";
+import { doutesDeLaLecture, lignesDepuisLaLecture, noteDeLecture } from "@/modules/ad-pro/partage";
 import { identiteUtilisable } from "@/lib/pieces-lues/emetteur";
 
 /**

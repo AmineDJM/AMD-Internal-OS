@@ -5,7 +5,6 @@ import { requireModule } from "@/lib/session";
 import { PageHeader } from "@/components/shared/page-header";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { regCan, resolveRegCompanyIdFor } from "@/lib/regulatory/intelligence/access";
 import { RegScopeCard } from "../scope-gate";
 import { LiveAnalysisBadge } from "./live-badge";

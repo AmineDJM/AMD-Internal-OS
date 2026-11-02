@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { coutSessionVocale } from "./cost";
-import { cumulerUsage, usageVide } from "@/app/(app)/assistant/realtime-voice";
+import { cumulerUsage, usageVide } from "@/components/chief/realtime-voice";
 
 describe("le prix d'une session vocale", () => {
   afterEach(() => { delete process.env.ADAM_PRICE_REALTIME_AUDIO_IN; delete process.env.ADAM_MODEL_REALTIME; });

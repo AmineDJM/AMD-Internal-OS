@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2, PackageCheck, Plus, Trash2 } from "lucide-react";
 import { addOrderLine, createDelivery, deleteDelivery, deleteOrderLine } from "@/lib/actions/pch-market-actions";
-import { AttachToSourceButtons } from "@/components/shared/attach-to-source";
+import { AttachToSourceButtons } from "@/components/pieces/attach-to-source";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select } from "@/components/ui/input";
@@ -29,7 +31,8 @@ export function OrderExecution({ bon, contrats, canEdit, canInvoice }: {
   /** Droit FINANCES CREATE : ouvre la création d'une facture DÉJÀ rattachée à ce bon. */
   canInvoice: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [depassement, setDepassement] = React.useState<{ fd: FormData; message: string } | null>(null);
@@ -40,14 +43,22 @@ export function OrderExecution({ bon, contrats, canEdit, canInvoice }: {
     c.lignes.map((l) => ({ id: l.id, label: `${l.designation} (${l.surAvenant ? "avenant" : "contrat"}, ${formatNumber(l.quantityUnits)} u.)` })),
   );
 
-  const run = async (fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, done?: () => void) => {
+  // Ne lève jamais : une levée devient un refus lisible, que l'appelant peut encore examiner.
+  const run = async (fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, done?: () => void): Promise<{ ok: boolean; error?: string; message?: string }> => {
     setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Erreur."); return r; }
-    done?.();
-    router.refresh();
-    return r;
+    try {
+      const r = await fn();
+      if (!r.ok) { setErr(r.error ?? "Le bon de commande n'a pas été mis à jour."); return r; }
+      done?.();
+      rafraichir();
+      return r;
+    } catch {
+      const echec = actionFailureMessage("THROWN");
+      setErr(echec);
+      return { ok: false, error: echec };
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -87,8 +98,8 @@ export function OrderExecution({ bon, contrats, canEdit, canInvoice }: {
                     type="button"
                     disabled={busy}
                     aria-label={`Retirer la ligne ${l.designation}`}
-                    onClick={() => {
-                      if (!window.confirm(`Retirer la ligne « ${l.designation} » ?`)) return;
+                    onClick={async () => {
+                      if (!(await confirmer(`Retirer la ligne « ${l.designation} » ?`))) return;
                       void run(() => { const fd = new FormData(); fd.set("id", l.id); return deleteOrderLine(fd); });
                     }}
                     className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1"
@@ -133,8 +144,8 @@ export function OrderExecution({ bon, contrats, canEdit, canInvoice }: {
                       type="button"
                       disabled={busy}
                       aria-label="Supprimer la livraison"
-                      onClick={() => {
-                        if (!window.confirm("Supprimer cette livraison ? Les mouvements de stock liés sont CONSERVÉS.")) return;
+                      onClick={async () => {
+                        if (!(await confirmer("Supprimer cette livraison ? Les mouvements de stock liés sont CONSERVÉS."))) return;
                         void run(() => { const fd = new FormData(); fd.set("id", d.id); return deleteDelivery(fd); });
                       }}
                       className="ml-auto rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1"
@@ -225,13 +236,12 @@ export function OrderExecution({ bon, contrats, canEdit, canInvoice }: {
         <form
           action={(fd) => {
             fd.set("orderId", bon.id);
-            void (async () => {
-              const r = await run(() => addOrderLine(fd), () => setAddingLine(false));
+            void run(() => addOrderLine(fd), () => setAddingLine(false)).then((r) => {
               if (r && !r.ok && r.message === "DEPASSEMENT") {
                 setErr(null);
                 setDepassement({ fd, message: r.error ?? "Dépassement contractuel." });
               }
-            })();
+            });
           }}
           className="space-y-4"
         >

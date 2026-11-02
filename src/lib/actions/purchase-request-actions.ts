@@ -8,13 +8,14 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { companyIdForNew } from "@/lib/company";
 import { getManagerOfUser } from "@/lib/departments";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import {
   cleanLines, estimatedTotal, summarize, purchaseStage, canWithdraw, type PurchaseLine,
 } from "@/lib/general-means/purchase-request";
 import { journaliserDemandeAchat } from "@/lib/general-means/purchase-journal";
 import { annulerDemandeSecretariat } from "@/lib/secretariat/annulation";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * DEMANDER UN ACHAT — ouvert à tout le monde, adressé à son directeur.
@@ -55,11 +56,10 @@ function readLines(raw: FormDataEntryValue | null): PurchaseLine[] {
 
 async function nextRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.administrativeRequest.findMany({
-    where: { reference: { startsWith: `REQ-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "REQ", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `REQ-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("REQ", year, refs.map((r) => r.reference));
 }
 
 export async function createPurchaseRequest(
@@ -200,7 +200,7 @@ export async function withdrawPurchaseRequest(formData: FormData): Promise<Actio
     if (!res.ok) return { ok: false, error: res.error };
     if (!res.annulee) return { ok: false, error: "Cette demande vient de changer — rechargez la page pour voir où elle en est." };
     if (req.validatorId && req.validatorId !== user.id) {
-      await notifyUser({ userId: req.validatorId, type: "GENERIC", title: "Demande d'achat retirée", body: `${req.reference} — retirée après votre validation : ${motif}`, link: `/demandes/${id}` }).catch(() => undefined);
+      await notifyUser({ userId: req.validatorId, type: "GENERIC", title: "Demande d'achat retirée", body: `${req.reference} — retirée après votre validation : ${motif}`, link: `/demandes/${id}` }).catch(sansBloquer("purchase-request-actions.withdrawPurchaseRequest.notifyUser"));
     }
     await journaliserDemandeAchat({ requestId: id, event: "WITHDRAWN", actorId: user.id });
     revalidatePath(PATH);
@@ -242,7 +242,7 @@ export async function withdrawPurchaseRequest(formData: FormData): Promise<Actio
     await notifyUser({
       userId: req.validatorId, type: "GENERIC", title: "Demande d'achat retirée",
       body: req.reference, link: `/demandes/${id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("purchase-request-actions.withdrawPurchaseRequest.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Moyens généraux",

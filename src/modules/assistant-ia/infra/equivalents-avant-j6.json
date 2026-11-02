@@ -1,0 +1,2549 @@
+{
+ "drive_operation.create_folder": {
+  "libelle": "Nouveau dossier",
+  "apres": [
+   "drive-actions:createFolder"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.rename": {
+  "libelle": "Renommer",
+  "apres": [
+   "drive-actions:renameNode"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.move": {
+  "libelle": "Déplacer",
+  "apres": [
+   "drive-actions:moveNode",
+   "drive-actions:moveNodes"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.share": {
+  "libelle": "Partager",
+  "apres": [
+   "drive-actions:shareNode",
+   "drive-actions:shareNodeWithMany",
+   "drive-actions:shareNodesWithMany"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.unshare": {
+  "libelle": "Retirer le partage",
+  "apres": [
+   "drive-actions:unshareNode"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.trash": {
+  "libelle": "Mettre à la corbeille",
+  "apres": [
+   "drive-actions:trashNode",
+   "drive-actions:trashNodes"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.restore": {
+  "libelle": "Restaurer (corbeille Drive)",
+  "apres": [
+   "drive-actions:restoreNode"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.delete": {
+  "libelle": "Supprimer définitivement (Drive)",
+  "apres": [
+   "drive-actions:deleteNode"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.create_office": {
+  "libelle": "Nouveau document (Word/Excel/PowerPoint)",
+  "apres": [
+   "drive-actions:createOfficeNode"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.to_pdf": {
+  "libelle": "Convertir en PDF",
+  "apres": [
+   "drive-actions:convertNodeToPdf"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR"
+  ]
+ },
+ "drive_operation.copy": {
+  "libelle": "Copier vers un dossier",
+  "apres": [
+   "drive-actions:copyNodes"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.comment": {
+  "libelle": "Commenter un élément",
+  "apres": [
+   "drive-comment-actions:postDriveComment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.delete_comment": {
+  "libelle": "Supprimer un commentaire",
+  "apres": [
+   "drive-comment-actions:deleteDriveComment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.create_space": {
+  "libelle": "Nouvelle catégorie (espace)",
+  "apres": [
+   "drive-space-actions:createDriveSpace"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR"
+  ]
+ },
+ "drive_operation.update_space": {
+  "libelle": "Modifier la catégorie (nom, accès)",
+  "apres": [
+   "drive-space-actions:updateDriveSpace"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR"
+  ]
+ },
+ "drive_operation.archive_space": {
+  "libelle": "Archiver / désarchiver la catégorie",
+  "apres": [
+   "drive-space-actions:archiveDriveSpace"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR"
+  ]
+ },
+ "drive_operation.delete_space": {
+  "libelle": "Supprimer la catégorie",
+  "apres": [
+   "drive-space-actions:deleteDriveSpace"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR"
+  ]
+ },
+ "drive_operation.rename_attachment": {
+  "libelle": "Renommer une pièce jointe d'entité",
+  "apres": [
+   "document-actions:renameDocument"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.delete_attachment": {
+  "libelle": "Supprimer une pièce jointe d'entité",
+  "apres": [
+   "document-actions:deleteDocument"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "drive_operation.update_letterhead": {
+  "libelle": "Modifier un papier en-tête",
+  "apres": [
+   "letterhead-actions:updateLetterhead"
+  ],
+  "roles": []
+ },
+ "drive_operation.delete_letterhead": {
+  "libelle": "Supprimer un papier en-tête",
+  "apres": [
+   "letterhead-actions:deleteLetterhead"
+  ],
+  "roles": []
+ },
+ "task_operation.accept": {
+  "libelle": "Accepter la demande de tâche",
+  "apres": [
+   "task-actions:respondTaskRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.refuse": {
+  "libelle": "Refuser la demande de tâche",
+  "apres": [
+   "task-actions:respondTaskRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.delete_task": {
+  "libelle": "Supprimer la tâche",
+  "apres": [
+   "task-actions:deleteTask"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.submit_work": {
+  "libelle": "Valider mon travail",
+  "apres": [
+   "task-actions:submitTaskWork"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.reopen": {
+  "libelle": "Rouvrir la tâche",
+  "apres": [
+   "task-actions:reopenTaskWork"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.request_document": {
+  "libelle": "Demander une pièce à quelqu'un",
+  "apres": [
+   "document-request-actions:requestDocument"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.submit_document_request": {
+  "libelle": "Marquer la pièce transmise",
+  "apres": [
+   "document-request-actions:submitDocumentRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.decide_document_request": {
+  "libelle": "Accepter / refuser la pièce transmise",
+  "apres": [
+   "document-request-actions:decideDocumentRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.cancel_document_request": {
+  "libelle": "Annuler la demande de pièce",
+  "apres": [
+   "document-request-actions:cancelDocumentRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.comment": {
+  "libelle": "Commenter la tâche",
+  "apres": [
+   "task-actions:addTaskComment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "regulatory_operation.create_product": {
+  "libelle": "Nouveau dossier réglementaire",
+  "apres": [
+   "regulatory-actions:createRegulatoryProduct"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.set_participants": {
+  "libelle": "Participants du dossier",
+  "apres": [
+   "regulatory-actions:setRegulatoryParticipants"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.add_comment": {
+  "libelle": "Commenter le dossier",
+  "apres": [
+   "regulatory-actions:addRegulatoryComment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.update_step_details": {
+  "libelle": "Détail d'une étape (dates, note, pièces manquantes)",
+  "apres": [
+   "regulatory-actions:updateRegulatoryStep"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.add_dossier_step": {
+  "libelle": "Ajouter une étape à la frise du dossier",
+  "apres": [
+   "regulatory-timeline-actions:addDossierStep",
+   "regulatory-timeline-actions:startDossierTimeline"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.set_checklist_item": {
+  "libelle": "Checklist de présoumission (cocher un document)",
+  "apres": [
+   "regulatory-actions:setRegulatoryChecklistItem"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.create_variation": {
+  "libelle": "Déposer une variation de fabrication",
+  "apres": [
+   "regulatory-actions:createVariation"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.set_variation_status": {
+  "libelle": "Statut d'une variation (obtenue / en attente / annulée)",
+  "apres": [
+   "regulatory-actions:setVariationStatus"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.request_bv": {
+  "libelle": "Demander un BV (ordre de dépense ANPP)",
+  "apres": [
+   "regulatory-actions:requestBV"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.set_classification": {
+  "libelle": "Entité, segments thérapeutiques & projet BD du dossier",
+  "apres": [
+   "regulatory-actions:setRegulatoryClassification"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.create_supplier": {
+  "libelle": "Nouveau fournisseur",
+  "apres": [
+   "regulatory-actions:createRegulatorySupplier"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.unlock_all": {
+  "libelle": "Déverrouiller TOUS les dossiers",
+  "apres": [
+   "regulatory-actions:unlockAllRegulatory"
+  ],
+  "roles": [
+   "DIRECTION"
+  ]
+ },
+ "regulatory_operation.set_step_note": {
+  "libelle": "Note sur une étape de la chronologie",
+  "apres": [
+   "regulatory-actions:setRegulatoryStepNote"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.delete_variation": {
+  "libelle": "Supprimer une variation",
+  "apres": [
+   "regulatory-actions:deleteVariation"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.link_catalog_product": {
+  "libelle": "Rattacher un produit à son dossier",
+  "apres": [
+   "product-catalog-actions:linkProductToDossier"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "regulatory_operation.unlink_catalog_product": {
+  "libelle": "Défaire un rattachement de catalogue",
+  "apres": [
+   "product-catalog-actions:unlinkProductFromDossier"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT"
+  ]
+ },
+ "hr_operation.decide_leave": {
+  "libelle": "Approuver / refuser le congé",
+  "apres": [
+   "hr-actions:decideLeave"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.cancel_leave": {
+  "libelle": "Annuler le congé",
+  "apres": [
+   "hr-actions:cancelLeave"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.decide_advance": {
+  "libelle": "Trancher l'avance sur salaire",
+  "apres": [
+   "hr-actions:decideAdvance"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.set_employee_active": {
+  "libelle": "Activer / désactiver la fiche employé",
+  "apres": [
+   "hr-actions:setEmployeeActive"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.process_hr_request": {
+  "libelle": "Traiter la demande RH (statut)",
+  "apres": [
+   "hr-document-actions:processHrRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.decide_expense_report": {
+  "libelle": "Trancher la note de frais",
+  "apres": [
+   "hr-document-actions:decideExpenseReport"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.decide_training": {
+  "libelle": "Trancher la demande de formation",
+  "apres": [
+   "training-actions:decideTraining"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.decide_recruitment_step": {
+  "libelle": "Trancher l'étape de recrutement",
+  "apres": [
+   "recruitment-actions:decideRecruitmentStep"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.create_employee": {
+  "libelle": "Nouvelle fiche employé",
+  "apres": [
+   "hr-actions:createEmployee"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.update_employee": {
+  "libelle": "Modifier la fiche employé (PATCH — hors salaire)",
+  "apres": [
+   "hr-actions:updateEmployee"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.update_employee_salary": {
+  "libelle": "Modifier la rémunération (fiche)",
+  "apres": [
+   "hr-actions:updateEmployee"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.request_leave": {
+  "libelle": "Déposer une demande de congé",
+  "apres": [
+   "hr-actions:requestLeave"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.update_leave": {
+  "libelle": "Corriger une demande de congé (RH)",
+  "apres": [
+   "hr-actions:updateLeaveRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.request_advance": {
+  "libelle": "Demander une avance sur salaire",
+  "apres": [
+   "hr-actions:requestAdvance"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.cancel_advance": {
+  "libelle": "Annuler la demande d'avance",
+  "apres": [
+   "hr-actions:cancelAdvance"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.comment_hr_request": {
+  "libelle": "Message sur une demande RH",
+  "apres": [
+   "hr-document-actions:addHrRequestComment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.decide_hr_leave": {
+  "libelle": "Accorder / refuser une absence (dossier RH)",
+  "apres": [
+   "hr-document-actions:decideHrLeave"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.ack_expense_originals": {
+  "libelle": "Accuser réception des originaux",
+  "apres": [
+   "hr-document-actions:ackExpenseOriginals"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "DIRECTION_ASSISTANT"
+  ]
+ },
+ "hr_operation.propose_hr_meeting": {
+  "libelle": "Proposer une date d'entrevue",
+  "apres": [
+   "hr-document-actions:proposeHrMeeting"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.confirm_hr_meeting": {
+  "libelle": "Confirmer l'entrevue",
+  "apres": [
+   "hr-document-actions:confirmHrMeeting"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.delete_hr_request": {
+  "libelle": "Supprimer une demande RH",
+  "apres": [
+   "hr-document-actions:deleteHrRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.delete_employee_document": {
+  "libelle": "Supprimer un document du dossier",
+  "apres": [
+   "hr-document-actions:deleteEmployeeDocument"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.set_employee_document_visibility": {
+  "libelle": "Visibilité d'un document (employé)",
+  "apres": [
+   "hr-document-actions:setEmployeeDocumentVisibility"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.propose_stand_in": {
+  "libelle": "Désigner l'intérimaire d'un congé",
+  "apres": [
+   "stand-in-actions:proposeStandIn"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.decide_stand_in": {
+  "libelle": "Valider / refuser l'intérimaire",
+  "apres": [
+   "stand-in-actions:decideStandIn"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.create_recruitment": {
+  "libelle": "Demander un recrutement",
+  "apres": [
+   "recruitment-actions:createRecruitmentRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.cancel_recruitment": {
+  "libelle": "Annuler la demande de recrutement",
+  "apres": [
+   "recruitment-actions:cancelRecruitmentRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.ask_recruitment_info": {
+  "libelle": "Demander une précision (recrutement)",
+  "apres": [
+   "recruitment-actions:askRecruitmentInfo"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.answer_recruitment_info": {
+  "libelle": "Répondre à la question (recrutement)",
+  "apres": [
+   "recruitment-actions:answerRecruitmentInfo"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.open_recruitment_sourcing": {
+  "libelle": "Ouvrir le sourcing",
+  "apres": [
+   "recruitment-actions:openRecruitmentSourcing"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.close_recruitment": {
+  "libelle": "Clore la demande de recrutement",
+  "apres": [
+   "recruitment-actions:closeRecruitmentRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.add_recruitment_candidate": {
+  "libelle": "Ajouter une candidature",
+  "apres": [
+   "recruitment-actions:addRecruitmentCandidate"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.move_recruitment_candidate": {
+  "libelle": "Faire avancer un candidat",
+  "apres": [
+   "recruitment-actions:moveRecruitmentCandidate"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.onboard_recruitment": {
+  "libelle": "Intégrer le recruté (fiche employé)",
+  "apres": [
+   "recruitment-actions:onboardRecruitment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.request_training": {
+  "libelle": "Demander une formation",
+  "apres": [
+   "training-actions:requestTraining"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.create_hr_training": {
+  "libelle": "Organiser une formation (RH)",
+  "apres": [
+   "training-actions:createHrTraining"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.update_training": {
+  "libelle": "Corriger la formation",
+  "apres": [
+   "training-actions:updateTraining"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "hr_operation.invite_training_participants": {
+  "libelle": "Inviter / convoquer à la formation",
+  "apres": [
+   "training-actions:inviteTrainingParticipants"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER"
+  ]
+ },
+ "hr_operation.respond_training_invitation": {
+  "libelle": "Répondre à l'invitation (formation)",
+  "apres": [
+   "training-actions:respondToTrainingInvitation"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.create_reminder": {
+  "libelle": "Poser un rappel",
+  "apres": [
+   "reminder-actions:createReminder"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.complete_reminder": {
+  "libelle": "Terminer un rappel",
+  "apres": [
+   "reminder-actions:completeReminder"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.cancel_reminder": {
+  "libelle": "Annuler un rappel",
+  "apres": [
+   "reminder-actions:cancelReminder"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.snooze_reminder": {
+  "libelle": "Reporter un rappel",
+  "apres": [
+   "reminder-actions:snoozeReminder"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.request_approval": {
+  "libelle": "Demander une validation hiérarchique",
+  "apres": [
+   "admin-request-actions:requestApproval"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.decide_approval": {
+  "libelle": "Trancher une validation hiérarchique",
+  "apres": [
+   "admin-request-actions:decideApproval"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.toggle_mission_stop": {
+  "libelle": "Cocher un point de passage",
+  "apres": [
+   "admin-request-actions:toggleMissionStop"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.update_mission": {
+  "libelle": "Avancer une course",
+  "apres": [
+   "admin-request-actions:updateMission"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.edit_own_request": {
+  "libelle": "Modifier MA demande",
+  "apres": [
+   "admin-request-actions:corrigerMaDemande"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.delete_own_request": {
+  "libelle": "Retirer MA demande",
+  "apres": [
+   "admin-request-actions:deleteOwnRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.delete_requests": {
+  "libelle": "Supprimer des demandes (motif tracé)",
+  "apres": [
+   "admin-request-actions:deleteRequests"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "DIRECTION_ASSISTANT"
+  ]
+ },
+ "request_operation.restore_request": {
+  "libelle": "Restaurer une demande supprimée",
+  "apres": [
+   "admin-request-actions:restoreRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "DIRECTION_ASSISTANT"
+  ]
+ },
+ "request_operation.start_request_processing": {
+  "libelle": "Commencer le traitement",
+  "apres": [
+   "admin-request-actions:startRequestProcessing"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.request_finance_validation": {
+  "libelle": "Validation Finances (flux achat)",
+  "apres": [
+   "admin-request-actions:requestFinanceValidation"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.request_internal_validation": {
+  "libelle": "Validation interne (hors achat)",
+  "apres": [
+   "admin-request-actions:requestInternalValidation"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.finish_request": {
+  "libelle": "Fin du traitement",
+  "apres": [
+   "admin-request-actions:finishRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.submit_attachment_validation": {
+  "libelle": "Soumettre une pièce à validation",
+  "apres": [
+   "admin-request-actions:submitAttachmentValidation"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.cancel_attachment_validation": {
+  "libelle": "Retirer une validation de pièce",
+  "apres": [
+   "admin-request-actions:cancelAttachmentValidation"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.create_purchase_request": {
+  "libelle": "Demander un achat",
+  "apres": [
+   "purchase-request-actions:createPurchaseRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "request_operation.withdraw_purchase_request": {
+  "libelle": "Retirer MA demande d'achat",
+  "apres": [
+   "purchase-request-actions:withdrawPurchaseRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.respond_to_calendar_invite": {
+  "libelle": "Répondre à une invitation d'agenda",
+  "apres": [
+   "calendar-actions:respondToInvite"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.update_comment": {
+  "libelle": "Modifier un commentaire",
+  "apres": [
+   "comment-actions:updateComment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.delete_comment": {
+  "libelle": "Supprimer un commentaire",
+  "apres": [
+   "comment-actions:deleteComment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "regulatory_operation.send_update_reminder": {
+  "libelle": "Relance de mise à jour des dossiers",
+  "apres": [
+   "regulatory-reminder-actions:sendRegulatoryUpdateReminder"
+  ],
+  "roles": [
+   "DIRECTION"
+  ]
+ },
+ "task_operation.submit_feedback": {
+  "libelle": "Envoyer un feedback",
+  "apres": [
+   "feedback-actions:submitFeedback"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.set_custom_field": {
+  "libelle": "Champ personnalisé d'une fiche",
+  "apres": [
+   "custom-field-actions:modifierChampPersonnalise"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.delete_own_record": {
+  "libelle": "Supprimer mon courrier / document légal",
+  "apres": [
+   "admin-delete-actions:deleteOwnRecord"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "task_operation.upload_document": {
+  "libelle": "Joindre un fichier à une fiche",
+  "apres": [
+   "outil:preparer_depot_piece"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "create_task": {
+  "libelle": "Créer une tâche",
+  "apres": [
+   "task-actions:createTask"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "update_task": {
+  "libelle": "Modifier une tâche (échéance, priorité, responsable, statut, commentaire)",
+  "apres": [
+   "task-actions:modifierTache",
+   "task-actions:updateTaskStatus",
+   "task-actions:addTaskComment"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "send_message": {
+  "libelle": "Écrire à une personne",
+  "apres": [
+   "outil:send_message"
+  ],
+  "roles": []
+ },
+ "create_hr_request": {
+  "libelle": "Demander un document RH",
+  "apres": [
+   "hr-document-actions:requestHrDocument"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "create_admin_request": {
+  "libelle": "Demande administrative",
+  "apres": [
+   "admin-request-actions:createRequest"
+  ],
+  "roles": [
+   "DIRECTION",
+   "GENERAL_MANAGER",
+   "OPERATIONS_DIRECTOR",
+   "HEAD_OF_REGULATORY",
+   "REGULATORY_ASSISTANT",
+   "HEAD_OF_SALES",
+   "SALES_USER",
+   "LOGISTICS_MANAGER",
+   "MEDICAL_PROMOTION_MANAGER",
+   "MEDICAL_DELEGATE",
+   "NATIONAL_SALES",
+   "PRODUCT_MANAGER",
+   "BUSINESS_DEVELOPMENT_MANAGER",
+   "FINANCE_BUDGET_MANAGER",
+   "MEDICAL_INFO_PHARMACIST",
+   "DIRECTION_ASSISTANT",
+   "COORDINATOR",
+   "VIEWER"
+  ]
+ },
+ "update_regulatory_product": {
+  "libelle": "Modifier un dossier réglementaire",
+  "apres": [
+   "regulatory-actions:updateRegulatoryProduct",
+   "regulatory-actions:updateRegulatoryStatus",
+   "regulatory-actions:setRegulatoryPriority",
+   "regulatory-actions:setRegulatoryTargetDates",
+   "regulatory-actions:setRegulatoryLock"
+  ],
+  "roles": []
+ },
+ "assign_regulatory_responsible": {
+  "libelle": "Désigner le responsable d'un dossier",
+  "apres": [
+   "regulatory-actions:setRegulatoryResponsible"
+  ],
+  "roles": []
+ },
+ "set_regulatory_step": {
+  "libelle": "Régler une étape réglementaire",
+  "apres": [
+   "regulatory-actions:setRegulatoryStepState",
+   "regulatory-actions:setRegulatoryPresubOutcome"
+  ],
+  "roles": []
+ },
+ "request_regulatory_status_update": {
+  "libelle": "Demander un point de statut",
+  "apres": [
+   "regulatory-actions:requestRegulatoryStatusUpdate"
+  ],
+  "roles": []
+ }
+}

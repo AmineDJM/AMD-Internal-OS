@@ -11,6 +11,7 @@ import {
 import { SCHEMA_ARTEFACT } from "@/lib/missions/artifacts/schema";
 import { rolePourEtape } from "@/lib/missions/model/roles";
 import { amontDeLEtape } from "@/lib/missions/runtime/worker";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -310,7 +311,7 @@ async function composerSpec(ctx: StepContext, deps: ArtifactDeps): Promise<SpecO
     where: { missionId_key: { missionId: mission.id, key: s.key } },
     data: { spec: s as never, title: s.title, format: s.format, inputsHash: empreinte },
     select: { id: true },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("build.composerSpec.missionArtifact"));
   return s;
 }
 
@@ -457,7 +458,7 @@ async function attendreLaBase(args: {
         mission.id, "ARTIFACT_CANONIQUE",
         `Le livrable ${format} reprend le contenu du ${auteur!.format} « ${auteur!.fileName || cleAuteur} » : mêmes données amont, donc mêmes chiffres.`,
         { etape: step.key, format, depuis: auteur!.format, base: cleAuteur },
-      ).catch(() => undefined);
+      ).catch(sansBloquer("build.attendreLaBase.journaliser"));
       return s;
     }
     await new Promise((r) => setTimeout(r, 150));

@@ -19,7 +19,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { changementsDe, etatAuMoment, quiEtait, recitDe, vraiEtSu } from "@/platform/in-process/monde";
 
 const str = (input: Record<string, unknown>, key: string): string => (typeof input[key] === "string" ? (input[key] as string).trim() : "");

@@ -6,6 +6,7 @@ import { Loader2, RefreshCw, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { askBrain, regenererBriefing, type BrainAnswer } from "@/lib/actions/adventum-actions";
 import { executeAssistantAction } from "@/lib/actions/assistant-actions";
 import type { ProposedAction } from "@/lib/assistant";
@@ -25,9 +26,14 @@ export function BoutonRegenerer() {
       {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
       <Button size="sm" variant="outline" disabled={envoi || enCours} onClick={async () => {
         setEnvoi(true); setMsg(null);
-        const r = await regenererBriefing();
-        setEnvoi(false);
-        if (r.ok) { setMsg(r.message ?? null); rafraichir(); } else setMsg(r.error ?? "Échec.");
+        try {
+          const r = await regenererBriefing();
+          if (r.ok) { setMsg(r.message ?? null); rafraichir(); } else setMsg(r.error ?? "Le briefing n'a pas été régénéré.");
+        } catch {
+          setMsg(actionFailureMessage("THROWN"));
+        } finally {
+          setEnvoi(false);
+        }
       }}>
         {envoi || enCours ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}Régénérer
       </Button>
@@ -54,8 +60,12 @@ function Proposition({ p }: { p: ProposedAction }) {
         <Button size="sm" variant="ghost" onClick={() => setEtat("repos")}>Annuler</Button>
         <Button size="sm" disabled={etat === "envoi"} onClick={async () => {
           setEtat("envoi"); setErr(null);
-          const r = await executeAssistantAction(p.payload, p.intentId, critique ? saisie : undefined);
-          if (r.ok) setEtat("fait"); else { setErr(r.error ?? "Action impossible."); setEtat("confirmer"); }
+          try {
+            const r = await executeAssistantAction(p.payload, p.intentId, critique ? saisie : undefined);
+            if (r.ok) setEtat("fait"); else { setErr(r.error ?? "L'action proposée n'a pas été exécutée."); setEtat("confirmer"); }
+          } catch {
+            setErr(actionFailureMessage("THROWN")); setEtat("confirmer");
+          }
         }}>{etat === "envoi" && <Loader2 className="h-4 w-4 animate-spin" />}Confirmer</Button>
       </div>
     </div>
@@ -69,8 +79,11 @@ export function Demander() {
   const demander = async () => {
     if (!q.trim() || envoi) return;
     setEnvoi(true); setRep(null);
-    setRep(await askBrain(q));
-    setEnvoi(false);
+    try {
+      setRep(await askBrain(q));
+    } finally {
+      setEnvoi(false);
+    }
   };
   return (
     <div className="surface space-y-3 rounded-xl p-4">

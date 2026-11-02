@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
  * fait qu'encoder l'URL de check-in, elle-même protégée). Permet d'afficher le
  * badge sur la page d'inscription et dans la liste des inscrits.
  */
-export async function GET(req: NextRequest, { params }: { params: { token: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const reg = await prisma.eventRegistration.findUnique({
     where: { qrToken: params.token },
     select: { eventId: true },

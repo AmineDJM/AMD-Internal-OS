@@ -13,7 +13,7 @@ import { signerBonDeCommande } from "@/lib/actions/bc-signature-actions";
 import { avecCopieSignee } from "@/lib/bons-de-commande/signature-test-outils";
 import { setBcValidationThreshold, setBcValidationThresholdCentre } from "@/lib/actions/settings-actions";
 import { fileBonsDeCommande, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
-import { requestAdProItemOrder } from "@/lib/actions/ad-pro-item-actions";
+import { requestAdProItemOrder } from "@/modules/ad-pro/actions-postes";
 import { completePromoTrack } from "@/lib/actions/promo-circuit-actions";
 import { submitBcForFinance } from "@/lib/actions/promo-material-actions";
 import { etatDuBC } from "./etat";

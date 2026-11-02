@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
@@ -8,13 +7,12 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { lienDemandeBudgetDepartement } from "@/lib/chemins/budgets";
-import { saveFile, deleteFileByKey } from "@/lib/storage";
+import { deleteFileByKey, deposerPieceDeModule } from "@/lib/storage";
 import { validateAttachments } from "@/lib/attach-files";
 import {
-  canSetDepartmentBudget, canEditDepartmentBudget, canManageDepartmentBudgetAccess,
-  canRequestDepartmentBudget, canDecideDepartmentBudgetRequest, canViewDepartmentBudget,
-  mergeGrants, normalizeAmount, normalizeYear, DEPT_BUDGET_LABEL, DEPT_BUDGET_KINDS, EMPTY_GRANT,
-  type DeptBudgetKind, type BudgetSetter, type DeptBudgetGrant, type GrantSubject,
+  canEditDepartmentBudget, canManageDepartmentBudgetAccess, canRequestDepartmentBudget,
+  canDecideDepartmentBudgetRequest, mergeGrants, normalizeAmount, normalizeYear, DEPT_BUDGET_LABEL,
+  DEPT_BUDGET_KINDS, type DeptBudgetKind, type BudgetSetter, type DeptBudgetGrant, type GrantSubject,
 } from "@/lib/department-budget";
 import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
@@ -24,6 +22,8 @@ import { continuousCash, fundExcluding, fundHandle, canSpendFromFund } from "@/l
 import { openRemittances } from "@/lib/queries/general-means";
 import { resolveSource, sourceOf, sourceChange } from "@/lib/general-means/payment-source";
 import { toNumber } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 const PATH = "/budgets/departements";
 
@@ -73,7 +73,7 @@ function list(formData: FormData, name: string): string[] {
  * décocher doit retirer. Mais une règle n'en écrase jamais une autre : la générale et celle du
  * département restent deux lignes distinctes, cumulées à la lecture.
  */
-export async function setDepartmentBudgetAccess(formData: FormData): Promise<ActionResult> {
+export async function setDepartmentBudgetAccess(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:setDepartmentBudgetAccess", "Régler l'accès au budget de département", async () => {
   const user = await requireUser();
   if (!canManageDepartmentBudgetAccess(setterOf(user))) {
     return { ok: false, error: "Régler les accès aux budgets départementaux est réservé au Super Admin." };
@@ -124,7 +124,7 @@ export async function setDepartmentBudgetAccess(formData: FormData): Promise<Act
 
   revalidatePath(PATH);
   return { ok: true, id: departmentId ?? "general" };
-}
+}); }
 
 /**
  * Règle le budget d'un département pour une année et une nature.
@@ -133,7 +133,7 @@ export async function setDepartmentBudgetAccess(formData: FormData): Promise<Act
  * tenterait de fixer la masse salariale se voit refuser, et réciproquement — même si les deux
  * cases sont dans le même tableau.
  */
-export async function setDepartmentBudget(formData: FormData): Promise<ActionResult> {
+export async function setDepartmentBudget(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:setDepartmentBudget", "Définir budget département", async () => {
   const user = await requireUser();
   const departmentId = fdStr(formData, "departmentId");
   const rawKind = fdStr(formData, "kind");
@@ -184,7 +184,7 @@ export async function setDepartmentBudget(formData: FormData): Promise<ActionRes
   revalidatePath(PATH);
   revalidatePath("/budgets");
   return { ok: true, id: departmentId };
-}
+}); }
 
 /**
  * Ce département est-il « le sien » ? Celui qu'elle dirige, celui dont elle tient la caisse, ou
@@ -219,7 +219,7 @@ async function headedDepartmentIds(userId: string): Promise<string[]> {
  * au lieu d'en faire un usage. Une dotation initiale est une rallonge partant de zéro — même
  * geste, même circuit, une seule trace à relire.
  */
-export async function requestDepartmentBudget(formData: FormData): Promise<ActionResult> {
+export async function requestDepartmentBudget(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:requestDepartmentBudget", "Demander budget département", async () => {
   const user = await requireUser();
   const departmentId = fdStr(formData, "departmentId");
   const rawKind = fdStr(formData, "kind");
@@ -259,14 +259,14 @@ export async function requestDepartmentBudget(formData: FormData): Promise<Actio
   });
   revalidatePath(PATH);
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * RETIRER SA DEMANDE DE DOTATION / RALLONGE (décision de la Direction, 04/10) — tant que
  * l'administration ne l'a pas tranchée. Elle se clôt (`CANCELLED`) par une écriture conditionnelle,
  * et l'administration est prévenue.
  */
-export async function annulerDemandeBudgetDepartement(formData: FormData): Promise<ActionResult> {
+export async function annulerDemandeBudgetDepartement(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:annulerDemandeBudgetDepartement", "Annuler demande budget département", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Demande introuvable." };
@@ -284,7 +284,7 @@ export async function annulerDemandeBudgetDepartement(formData: FormData): Promi
   await notifyRoles(["SUPER_ADMIN", "DIRECTION"], {
     type: "GENERIC", title: "Demande de budget retirée",
     body: `${libelle} — retirée par ${user.name}, il n'y a plus rien à trancher.`, link: lienDemandeBudgetDepartement(id, req.year),
-  }).catch(() => undefined);
+  }).catch(sansBloquer("department-budget-actions.annulerDemandeBudgetDepartement.notifyRoles"));
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: req.departmentId,
     field: "status", oldValue: "PENDING", newValue: "CANCELLED",
@@ -292,7 +292,7 @@ export async function annulerDemandeBudgetDepartement(formData: FormData): Promi
   });
   revalidatePath(PATH);
   return { ok: true, message: "Demande retirée — l'administration est prévenue." };
-}
+}); }
 
 /**
  * ACCORDER OU REFUSER une dotation / rallonge — l'administration, et elle seule.
@@ -300,7 +300,7 @@ export async function annulerDemandeBudgetDepartement(formData: FormData): Promi
  * Accorder AJOUTE au budget courant plutôt que de le remplacer : une rallonge s'ajoute par
  * définition, et remplacer effacerait silencieusement la dotation précédente.
  */
-export async function decideDepartmentBudgetRequest(formData: FormData): Promise<ActionResult> {
+export async function decideDepartmentBudgetRequest(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:decideDepartmentBudgetRequest", "Décider demande budget département", async () => {
   const user = await requireUser();
   if (!canDecideDepartmentBudgetRequest(setterOf(user))) {
     return { ok: false, error: "Accorder un budget est réservé à l'administration." };
@@ -349,7 +349,7 @@ export async function decideDepartmentBudgetRequest(formData: FormData): Promise
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * IMPUTER UNE DÉPENSE à un budget départemental — **avec sa pièce**.
@@ -359,7 +359,7 @@ export async function decideDepartmentBudgetRequest(formData: FormData): Promise
  * porte donc son justificatif (facture, bon de paiement) : sans pièce, une ligne de dépense
  * n'est qu'une affirmation.
  */
-export async function addDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function addDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:addDepartmentExpense", "Ajouter une dépense de département", async () => {
   const user = await requireUser();
   const departmentId = fdStr(formData, "departmentId");
   const rawKind = fdStr(formData, "kind");
@@ -436,32 +436,35 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
     ? await finaliserNatures(ticket.lines, { userId: user.id, objet: fdStr(formData, "label"), classer: !budgetCategoryId })
     : [];
 
-  const created = await prisma.departmentBudgetExpense.create({
-    data: {
-      departmentId, year, kind, label, amount, budgetCategoryId,
-      notes: fdStr(formData, "notes"),
-      adminRequestId: fdStr(formData, "adminRequestId"),
-      pettyCashId: src.pettyCashId,
-      createdById: user.id,
-    },
-    select: { id: true },
+  // LA SECONDE PORTE DE LA CAISSE EST ATOMIQUE AUSSI (audit données 2026-10-27) : le contrôle ci-dessus lit le
+  // fond hors transaction — deux saisies « payée sur la caisse » simultanées le franchissaient toutes deux et la
+  // caisse finissait en négatif, exactement le défaut fermé dans `spendFromPettyCash`. Même remède, même verrou :
+  // le département `FOR UPDATE`, le fond relu dessous, la dépense écrite dans la même transaction.
+  const ecrite = await prisma.$transaction(async (tx) => {
+    if (src.pettyCashId) {
+      await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${departmentId} FOR UPDATE`;
+      const encore = canSpendFromFund(continuousCash(await openRemittances(departmentId, tx)), amount);
+      if (!encore.ok) return { ok: false as const, error: encore.reason ?? "Le fond ne couvre pas ce montant." };
+    }
+    const depense = await tx.departmentBudgetExpense.create({
+      data: {
+        departmentId, year, kind, label, amount, budgetCategoryId,
+        notes: fdStr(formData, "notes"),
+        adminRequestId: fdStr(formData, "adminRequestId"),
+        pettyCashId: src.pettyCashId,
+        createdById: user.id,
+      },
+      select: { id: true },
+    });
+    return { ok: true as const, id: depense.id };
   });
+  if (!ecrite.ok) return { ok: false, error: ecrite.error };
+  const created = { id: ecrite.id };
   if (ticket) await saveReceiptLines(created.id, lignes);
 
   for (const file of files) {
-    const key = `DEPARTMENT_EXPENSE/${created.id}/${randomUUID()}__${file.name}`;
-    try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
-    } catch (err) {
-      console.error("[dept-expense] storage write failed, recording metadata only", err);
-    }
-    await prisma.document.create({
-      data: {
-        name: file.name, category: "INVOICE", entityType: "DEPARTMENT_EXPENSE", entityId: created.id,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
-        confidentiality: "INTERNAL", uploadedById: user.id,
-      },
-    });
+    // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+    await deposerPieceDeModule(file, { entityType: "DEPARTMENT_EXPENSE", entityId: created.id, category: "INVOICE", confidentiality: "INTERNAL", uploadedById: user.id, journal: "dept-expense" });
   }
 
   await recordAudit({
@@ -471,7 +474,7 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * LA CAISSE D'AVANCE D'UN DÉPARTEMENT, telle qu'il faut la lire pour y imputer une dépense.
@@ -538,7 +541,7 @@ const AMEND_INCLUDE = {
  * la dépense en cours de correction, sans quoi son propre montant compterait deux fois et une
  * simple correction de libellé serait refusée faute d'argent.
  */
-export async function updateDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function updateDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:updateDepartmentExpense", "Modifier une dépense de département", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dépense introuvable." };
@@ -602,7 +605,15 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
     ? await finaliserNatures(ticket.lines, { userId: user.id, objet: label, classer: !rawCategory })
     : [];
 
-  await prisma.$transaction(async (tx) => {
+  // LE CONTRÔLE DU FOND SE REFAIT SOUS VERROU (audit 27/10, reste de DONNEES-06) : celui du dessus lit le fond hors
+  // transaction — deux corrections « en fait, c'était sur la caisse » simultanées (ou une correction et une saisie)
+  // le franchissaient toutes deux et la caisse finissait en négatif. Même verrou que la saisie : le département.
+  const corrigee = await prisma.$transaction(async (tx) => {
+    if (nextCashId) {
+      await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${before.departmentId} FOR UPDATE`;
+      const encore = canSpendFromFund(fundExcluding(await openRemittances(before.departmentId, tx), id), amount);
+      if (!encore.ok) return { ok: false as const, error: encore.reason ?? "Le fond ne couvre pas ce montant." };
+    }
     await tx.departmentBudgetExpense.update({
       where: { id },
       data: { label, amount, kind, budgetCategoryId: rawCategory, notes: fdStr(formData, "notes"), pettyCashId: nextCashId },
@@ -618,7 +629,9 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
         })),
       });
     }
+    return { ok: true as const };
   });
+  if (!corrigee.ok) return { ok: false, error: corrigee.error };
 
   const was = toNumber(before.amount);
   // Le changement de moyen de paiement se journalise EXPLICITEMENT : c'est lui qui déplace de
@@ -632,7 +645,7 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id };
-}
+}); }
 
 /**
  * SUPPRIMER UNE DÉPENSE IMPUTÉE — avec ses lignes et ses pièces.
@@ -645,7 +658,7 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
  * Les justificatifs partent avec elle : un scan de facture orphelin, rattaché à une dépense qui
  * n'existe plus, n'est plus consultable nulle part et occupe le stockage indéfiniment.
  */
-export async function deleteDepartmentExpense(formData: FormData): Promise<ActionResult> {
+export async function deleteDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:deleteDepartmentExpense", "Supprimer une dépense de département", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dépense introuvable." };
@@ -662,7 +675,7 @@ export async function deleteDepartmentExpense(formData: FormData): Promise<Actio
   // Le blob d'abord, la ligne ensuite : l'inverse laisserait un document sans fichier si le
   // stockage refuse, et un document illisible est pire qu'un document absent.
   for (const d of docs) {
-    if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
+    if (d.fileKey) await deleteFileByKey(d.fileKey).catch(sansBloquer("department-budget-actions.deleteDepartmentExpense.deleteFileByKey"));
   }
   await prisma.document.deleteMany({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: id } });
   // Les lignes du ticket tombent en cascade avec la dépense (contrainte de clé étrangère).
@@ -675,4 +688,4 @@ export async function deleteDepartmentExpense(formData: FormData): Promise<Actio
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
   return { ok: true, id };
-}
+}); }

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ClipboardList, MessageSquare, Paperclip } from "lucide-react";
 import { requireUser } from "@/lib/session";
@@ -21,7 +20,8 @@ export const dynamic = "force-dynamic";
 
 const DOSSIER_DOC_CATEGORIES = ["SUPPORTING_DOC", "PRESENTATION", "QUOTE", "ANALYSIS_CERTIFICATE", "OTHER"];
 
-export default async function DossierDetailPage({ params }: { params: { id: string } }) {
+export default async function DossierDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const d = await getDossier(params.id);
   if (!d) notFound();

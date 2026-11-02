@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, Check, ExternalLink } from "lucide-react";
 import { updateSupplierView } from "@/lib/actions/supplier-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { EXTERNAL_REGULATORY_STATUS } from "@/lib/labels";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 type Option = { value: string; label: string };
 
@@ -30,7 +32,7 @@ export function SupplierViewCard({
   suggestedStatus: string;
   canUpdate: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -53,10 +55,15 @@ export function SupplierViewCard({
         fd.set("productId", productId);
         fd.set("portalVisible", fd.get("portalVisible") ? "on" : "");
         fd.set("externalNotify", fd.get("externalNotify") ? "on" : "");
-        const r = await updateSupplierView(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); router.refresh(); setTimeout(() => setSaved(false), 2500); }
-        else setErr(r.error ?? "Erreur.");
+        try {
+          const r = await updateSupplierView(fd);
+          if (r.ok) { setSaved(true); rafraichir(); setTimeout(() => setSaved(false), 2500); }
+          else setErr(r.error ?? "La vue fournisseur n'a pas été enregistrée.");
+        } catch {
+          setErr(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >

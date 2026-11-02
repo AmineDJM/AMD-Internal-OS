@@ -71,8 +71,6 @@ export interface Principal {
   capabilities: ReadonlySet<string>;
 }
 
-export const can = (p: Principal, capability: string): boolean => p.capabilities.has(capability);
-
 // ═════════════════════════════════════════════════════════════════════════════════════════════
 // LECTURES
 // ═════════════════════════════════════════════════════════════════════════════════════════════

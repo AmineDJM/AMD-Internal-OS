@@ -106,7 +106,11 @@ suite("annulation — défaire ce qu'Adam a fait, sans effacer ce qu'un humain a
     await prisma.paymentRequest.deleteMany({ where: { reference: { startsWith: TAG } } });
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } });
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } });
+    // Un banc voisin, en parallèle, peut avoir désigné l'un de NOS Super Admin comme valideur d'une
+    // étape : on retire ces étapes avant les comptes, sinon la clé étrangère refuse la suppression.
+    const nous = (await prisma.user.findMany({ where: { email: { startsWith: TAG.toLowerCase() } }, select: { id: true } })).map((u) => u.id);
+    await prisma.validationStep.deleteMany({ where: { validatorId: { in: nous } } });
+    await prisma.user.deleteMany({ where: { id: { in: nous } } });
   });
 
   it("« voir » n'écrit RIEN, et sépare ce qui se défait de ce qui ne se défait pas", async () => {

@@ -17,7 +17,8 @@ export const dynamic = "force-dynamic";
  * qui revérifie le droit de lecture du Drive) — c'est ce que la visionneuse de la messagerie affiche
  * sans quitter la conversation. Sans ce paramètre, la page du Drive, comme avant.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
 

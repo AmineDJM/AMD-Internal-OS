@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
-import { managesReports } from "@/lib/queries/field-reports";
+import { userCan } from "@/lib/rbac";
+import { peutOuvrirPieceDeRapport } from "@/lib/entity-access/ouverture-pieces";
 
 export const dynamic = "force-dynamic";
 
 /** Sert une pièce jointe de rapport — auteur du rapport ou manager. */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
-  // Garde sur le module RAPPORTS TERRAIN (et non « Promotion médicale ») depuis leur séparation.
+  // Garde sur le module RAPPORTS TERRAIN d'abord (la règle partagée le revérifie) : sans lui, inutile de charger la pièce.
   if (!user || !userCan(user, "FIELD_REPORTS", "VIEW")) return new NextResponse(null, { status: 403 });
 
   const att = await prisma.fieldReportAttachment.findUnique({
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     select: { blobId: true, name: true, mime: true, report: { select: { delegateId: true } } },
   });
   if (!att) return new NextResponse(null, { status: 404 });
-  if (!(managesReports(user) || att.report.delegateId === user.id)) return new NextResponse(null, { status: 403 });
+  if (!peutOuvrirPieceDeRapport(user, att.report)) return new NextResponse(null, { status: 403 });
 
   const bytes = await getBlob(att.blobId);
   if (!bytes) return new NextResponse(null, { status: 404 });

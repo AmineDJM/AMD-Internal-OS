@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { intentFor } from "@/lib/assistant/workspace/direct-intents";
+import { intentFor } from "@/platform/ia/workspace/direct-intents";
 import { toNumber } from "@/lib/utils";
 import { valeurContractuelleCourante } from "@/lib/pch/market-math";
 import { invoiceSettlementState } from "@/lib/labels";
-import type { StoryEvent, StoryThread, WorkspaceMetric } from "@/lib/assistant/workspace/protocol";
+import type { StoryEvent, StoryThread, WorkspaceMetric } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

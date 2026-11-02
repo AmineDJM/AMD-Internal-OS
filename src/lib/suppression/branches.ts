@@ -68,6 +68,8 @@ export const REFERENTS: readonly Referent[] = [
     raison: "le circuit de validation de la demande — resté vivant, il apparaîtrait dans les files de ceux qui valident." },
   { modele: "AdProGateVisa", champType: "entityType", champId: "entityId", conduite: "EMPORTEE",
     raison: "le visa du DG ou du centre sur la demande — une porte ouverte sur un objet disparu." },
+  { modele: "AdProPorteDg", champType: "entityType", champId: "entityId", conduite: "EMPORTEE",
+    raison: "la décision du DG sur le TOTAL de la demande (27/10/2026) — sans demande, il n'y a plus de total à valider." },
   { modele: "ValidationRequest", champType: "entityType", champId: "entityId", conduite: "EMPORTEE",
     raison: "une validation demandée pour la demande ou l'une de ses pièces (bon de versement, BC)." },
   { modele: "PaymentRequest", champType: "entityType", champId: "entityId", conduite: "EMPORTEE",
@@ -112,6 +114,8 @@ export const REFERENTS: readonly Referent[] = [
     raison: "commentaires : même traitement que les pièces jointes." },
 
   // ── HISTOIRE : la trace reste ─────────────────────────────────────────────────────────────
+  { modele: "AssistantIaAttentePieces", champType: "cibleType", champId: "cibleId", conduite: "HISTOIRE",
+    raison: "K6 (décision 0036) : une attente de pièces de l'Assistant IA — elle expire seule (48 h) ; à l'arrivée, la carte de rangement rejuge la fiche (disparue, elle n'est pas proposée)." },
   { modele: "AuditLog", champType: "entityType", champId: "entityId", conduite: "HISTOIRE",
     raison: "le journal d'audit ne s'efface pas — c'est lui qui dira qui a supprimé quoi." },
   { modele: "BusinessEvent", champType: "entityType", champId: "entityId", conduite: "HISTOIRE",
@@ -128,10 +132,14 @@ export const REFERENTS: readonly Referent[] = [
     raison: "l'index de connaissance : une entrée périmée s'y retrouve sans rien casser." },
   { modele: "KnowledgeEntity", champType: "refType", champId: "refId", conduite: "HISTOIRE",
     raison: "idem : un index, pas une branche." },
+  { modele: "AssistantSignal", champType: "entiteType", champId: "entiteId", conduite: "HISTOIRE",
+    raison: "un constat d'un veilleur de l'Assistant IA (J12) : son passage suivant constate lui-même la disparition de l'objet (RÉSOLU) ; le constat reste à l'écran de sa personne comme une trace." },
   { modele: "AdamWatch", champType: "targetType", champId: "targetId", conduite: "HISTOIRE",
     raison: "une surveillance d'Adam : son balayage constate lui-même la disparition de sa cible." },
   { modele: "ApiCall", champType: "entityType", champId: "entityId", conduite: "HISTOIRE",
     raison: "le journal des appels d'API." },
+  { modele: "TacheEnrichissement", champType: "rattachementType", champId: "rattachementId", conduite: "HISTOIRE",
+    raison: "la file de l'enrichissement (refonte, V2-A) : la trace d'un DÉPÔT qui a eu lieu ; traitée ou non, elle ne porte aucun contenu et ne bloque rien." },
   { modele: "KnowledgeLink", champType: "toType", champId: "toId", conduite: "HISTOIRE",
     raison: "un lien de l'index de connaissance : un index, pas une branche." },
   { modele: "AssistantReminder", champType: "watchType", champId: "watchId", conduite: "HISTOIRE",
@@ -181,6 +189,9 @@ export const ENTITE_DU_MODELE: Readonly<Record<string, EntityType>> = {
   PharmacovigilanceCase: "PHARMACOVIGILANCE_CASE",
   // Un élément du Drive (10/2026) : ses pièces et commentaires polymorphes le suivent, sous-dossiers compris.
   DriveNode: "DRIVE_NODE",
+  // Un praticien (audit 27/10, DONNEES-07) : ses pièces, ses commentaires, sa segmentation et ses observations
+  // partent dans le même lot de corbeille et reviennent avec lui.
+  MedicalDoctor: "DOCTOR",
 };
 
 /**
@@ -273,6 +284,11 @@ export function delegueDe(modele: string): string {
 
 /** Libellés lisibles, pour dire à la personne ce qui part avec la demande. */
 export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
+  // Ce qui part avec un praticien (DONNEES-07) — l'aperçu le dit en français avant le clic.
+  DirectoryCellStyle: ["couleur de cellule d'annuaire", "couleurs de cellule d'annuaire"],
+  SegmentationFiche: ["fiche de segmentation", "fiches de segmentation"],
+  HcpObservation: ["observation de praticien", "observations de praticien"],
+  SegmentationDerogation: ["dérogation de segmentation", "dérogations de segmentation"],
   AdProItem: ["poste", "postes"],
   AdProItemDecision: ["décision de poste", "décisions de poste"],
   AdProProductAllocation: ["répartition par produit", "répartitions par produit"],
@@ -313,6 +329,7 @@ export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
   WorkflowInstance: ["circuit de validation", "circuits de validation"],
   WorkflowStepEvent: ["étape franchie", "étapes franchies"],
   AdProGateVisa: ["visa", "visas"],
+  AdProPorteDg: ["validation du total par le DG", "validations du total par le DG"],
   ValidationRequest: ["demande de validation", "demandes de validation"],
   ValidationStep: ["étape de validation", "étapes de validation"],
   ValidationParticipant: ["participant à la demande de validation", "participants à la demande de validation"],

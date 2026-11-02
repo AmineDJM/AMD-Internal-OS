@@ -1,27 +1,27 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { Truck, Loader2, CheckCircle2 } from "lucide-react";
 import { setOrderArrival } from "@/lib/actions/pch-tender-line-actions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { PchOrderDTO } from "@/lib/queries/pch";
 
-type Res = { ok: boolean; error?: string };
 const d10 = (iso: string | null) => (iso ? iso.slice(0, 10) : "");
 
 /** Suivi logistique : dates d'arrivée prévue / réelle des bons de commande (client = PCH). */
 export function TenderLogistics({ tenderId, orders, canEdit }: { tenderId: string; orders: PchOrderDTO[]; canEdit: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
+  // Une date saisie dans une ligne n'a pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useKeyedAction({ signalerErreurs: true });
 
   async function save(orderId: string, expectedArrival: string, arrivedDate: string) {
-    if (busy) return; setBusy(orderId);
+    if (busy) return;
     const fd = new FormData(); fd.set("id", orderId); fd.set("tenderId", tenderId);
     fd.set("expectedArrival", expectedArrival); fd.set("arrivedDate", arrivedDate);
-    const r: Res = await setOrderArrival(fd); setBusy(null);
-    if (!r.ok) { window.alert(r.error ?? "Action impossible."); return; }
-    router.refresh();
+    await run(orderId, async () => {
+      const r = await setOrderArrival(fd);
+      return r.ok ? r : { ...r, error: r.error ?? "La date d'arrivée n'a pas été enregistrée." };
+    });
   }
 
   if (orders.length === 0) return null;

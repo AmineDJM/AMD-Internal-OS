@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/utils";
 import { resolveDriveAccess } from "@/lib/drive";
 import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Le fil de commentaires d'un nœud — lu à l'ouverture du panneau « Commentaires », pas avec la page :
@@ -57,7 +58,7 @@ export async function postDriveComment(formData: FormData): Promise<ActionResult
     await notifyUser({
       userId: node.ownerId, type: "GENERIC",
       title: `Commentaire — ${node.name}`, body: body.slice(0, 140), link: `/drive/${nodeId}`,
-    }).catch(() => {});
+    }).catch(sansBloquer("drive-comment-actions.postDriveComment.notifyUser"));
   }
   revalidatePath(`/drive/${nodeId}`);
   return { ok: true };

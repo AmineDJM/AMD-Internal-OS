@@ -265,8 +265,10 @@ export function DiffusionCard({ id, peutAgir, site, linkedin, emploitic, autre }
               size="sm" disabled={occupe || (editeur === "publie-autre" && !url.trim() && !note.trim())}
               onClick={async () => {
                 const canal = editeur === "publie-linkedin" ? "LINKEDIN" : "AUTRE";
-                const ok = await run("pub", () => marquerCanalPublie(fd({ id, canal, url: url.trim(), texte: canal === "AUTRE" ? note.trim() : undefined })));
-                if (ok) { setEditeur(null); setUrl(""); setNote(""); }
+                // `run` (useKeyedAction) est déjà gardé : il ne lève pas, il dit vrai si l'action a abouti.
+                if (await run("pub", () => marquerCanalPublie(fd({ id, canal, url: url.trim(), texte: canal === "AUTRE" ? note.trim() : undefined })))) {
+                  setEditeur(null); setUrl(""); setNote("");
+                }
               }}
             >
               {spin("pub", <Check className="h-3.5 w-3.5" />)} Marquer publié

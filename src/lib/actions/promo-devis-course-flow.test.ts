@@ -613,7 +613,7 @@ suite("Matériel promotionnel — la retranscription sous course, et le total im
     // porte une COPIE. Deux définitions de la même règle finissent par diverger (§118.5) : celle-ci est comparée.
     const sansCommentaires = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
     const lire = (f: string) => sansCommentaires(readFileSync(join(process.cwd(), f), "utf8"));
-    const original = lire("src/lib/actions/admin-request-actions.ts").match(/const OUVERTE = \{([^;]*)\}\s*satisfies/);
+    const original = lire("src/lib/actions/internes/admin-request/demande.ts").match(/const OUVERTE = \{([^;]*)\}\s*satisfies/);
     expect(original, "la constante OUVERTE du bureau du secrétariat").not.toBeNull();
     const copie = lire("src/lib/promo-material/demande-secretariat.ts").match(/export async function fermerDemandeAuSecretariat[\s\S]*?where: \{([^}]*\{ notIn: \[[^\]]*\] \})/);
     expect(copie, "la condition de la fermeture d'un dossier").not.toBeNull();

@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Shield, Lock, Unlock, Loader2, Search, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +47,8 @@ export function LegalAccessPanel({
   readers: { id: string; name: string }[];
   canManage: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -70,10 +73,15 @@ export function LegalAccessPanel({
     const fd = new FormData();
     fd.set("id", documentId);
     for (const id of ids) fd.append("readerId", id);
-    const r = await setLegalReaders(fd);
-    setBusy(false);
-    setMsg({ ok: r.ok, text: r.ok ? okText : (r.error ?? "Échec.") });
-    if (r.ok) { setOpen(false); router.refresh(); }
+    try {
+      const r = await setLegalReaders(fd);
+      setMsg({ ok: r.ok, text: r.ok ? okText : (r.error ?? "Les accès n'ont pas été enregistrés.") });
+      if (r.ok) { setOpen(false); rafraichir(); }
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -160,8 +168,8 @@ export function LegalAccessPanel({
                 <Button
                   size="sm" variant="outline" disabled={busy}
                   className="ml-auto"
-                  onClick={() => {
-                    if (!window.confirm("Rendre ce document visible de tout le module Legal ? Les lecteurs désignés seront retirés.")) return;
+                  onClick={async () => {
+                    if (!(await confirmer("Rendre ce document visible de tout le module Legal ? Les lecteurs désignés seront retirés."))) return;
                     void submit([], "Restriction levée — le document est visible de tout le module.");
                   }}
                 >

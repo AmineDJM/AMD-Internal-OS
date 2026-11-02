@@ -16,6 +16,7 @@ import {
 } from "@/lib/regulatory/ctd-initiale";
 import { cn, formatDate } from "@/lib/utils";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 const humanSize = (n: number) => {
   if (!n) return "0 o";
@@ -89,12 +90,18 @@ export function CtdInitiale({
     const fd = new FormData();
     fd.set("productId", productId);
     for (const [k, v] of Object.entries(extra)) fd.set(k, v);
-    const r = await action(fd);
-    setOccupe(false);
-    if (!r.ok) { setMessage({ ton: "erreur", texte: r.error ?? "Échec." }); return false; }
-    if (r.message) setMessage({ ton: "ok", texte: r.message });
-    rafraichir();
-    return true;
+    try {
+      const r = await action(fd);
+      if (!r.ok) { setMessage({ ton: "erreur", texte: r.error ?? "La CTD initiale n'a pas été modifiée." }); return false; }
+      if (r.message) setMessage({ ton: "ok", texte: r.message });
+      rafraichir();
+      return true;
+    } catch {
+      setMessage({ ton: "erreur", texte: actionFailureMessage("THROWN") });
+      return false;
+    } finally {
+      setOccupe(false);
+    }
   }
 
   return (

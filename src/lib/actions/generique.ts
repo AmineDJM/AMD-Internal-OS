@@ -85,6 +85,15 @@ export const MODELES_INTERDITS: Readonly<Record<string, string>> = {
   // Refusée sur le MODÈLE écrit, en plus de la décision EXCLUDED : une action ajoutée demain qui
   // l'écrirait, sous un autre nom, dans un autre fichier, l'est sans que personne y pense.
   siteWebCle: "la clé de liaison au site public — l'identifiant qui donne le droit d'y publier",
+  // LE COFFRE DES DONNÉES SENSIBLES (refonte P1, R6) — NIN, passeport, RIB, salaire, chiffrés, et le
+  // journal de qui les a lus. L'assistant et les modèles n'y ont jamais accès ; réécrire le journal
+  // effacerait la preuve d'une lecture.
+  donneeSensible: "le coffre des données sensibles (NIN, passeport, RIB, salaire)",
+  accesDonneeSensible: "le journal des lectures du coffre des données sensibles",
+  // LE MODÈLE DE CHAQUE RÔLE DE L'ASSISTANT IA (J14, décision 0022) — changé seulement sur un banc vert, par le Super Admin :
+  // l'écrire par le chemin générique contournerait la garde du protocole A/B.
+  assistantIaModeleRole: "le modèle de chaque rôle de l'Assistant IA (changé seulement sur un banc vert)",
+  assistantIaVoixSession: "la session vocale d'une personne — ses gestes oraux (confirmer une carte, annuler) n'y valent que pour elle (K9)",
 };
 
 /**
@@ -98,6 +107,8 @@ export const MODELES_NON_SENSIBLES: Readonly<Record<string, string>> = {
   RegulatoryUploadSession: "un lot de dépôt de fichiers Regulatory, aucun droit",
   SessionEvent: "la trace d'un événement de session — un journal qu'on lit, pas une porte",
   CalendarInvite: "une invitation à une RÉUNION, pas à un compte",
+  PersonneRole: "ce qu'une personne EST pour l'entreprise (médecin, voyageur, candidat) — une qualité de la fiche, aucun droit",
+  OrganisationRole: "ce qu'une organisation EST pour l'entreprise (fournisseur, client) — une qualité de la fiche, aucun droit",
 };
 
 /**
@@ -253,6 +264,30 @@ export function interdictionGenerique(c: ContratAction): string | null {
     }
   }
   return null;
+}
+
+/**
+ * LE COMPTE SUIT LA FICHE (§118.184 — décision 0020) — trois gestes de la fiche employé écrivent le compte PAR
+ * CONSÉQUENCE : une fiche désactivée ferme le compte qui lui est lié, une fiche rattachée aligne son département.
+ * Le chemin générique d'Adam les refuse (`user` est un modèle interdit) ; l'ASSISTANT IA les appelle, parce qu'il
+ * les offrait avant J6 — derrière une carte renforcée, et JAMAIS avec les champs listés ici (`userId` : lier une
+ * fiche à un compte reste un geste d'écran). Liste FERMÉE : une action neuve qui écrit `user` reste refusée.
+ */
+export const GESTES_DE_FICHE: Readonly<Record<string, readonly string[]>> = {
+  "hr-actions:createEmployee": ["userId"],
+  "hr-actions:updateEmployee": ["userId"],
+  "hr-actions:setEmployeeActive": [],
+};
+
+/** Le refus générique, vu par l'Assistant IA : le même, sauf les gestes de fiche (sans leurs champs retenus). */
+export function interdictionDeLAssistantIa(c: ContratAction): string | null {
+  return Object.hasOwn(GESTES_DE_FICHE, c.id) ? null : interdictionGenerique(c);
+}
+
+/** Le contrat tel que l'Assistant IA le voit : sans les champs retenus d'un geste de fiche. */
+export function contratVuParLAssistantIa<C extends ContratAction>(c: C): C {
+  const retenus = GESTES_DE_FICHE[c.id];
+  return retenus?.length ? { ...c, champs: c.champs.filter((ch) => !retenus.includes(ch.nom)) } : c;
 }
 
 // ───────────────────────────────────────────────────────────────────────────────────────────

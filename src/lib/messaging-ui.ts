@@ -26,12 +26,6 @@ export function presenceOf(lastSeenAt: Date | string | null | undefined): Presen
   return "offline";
 }
 
-export const PRESENCE_LABEL: Record<Presence, string> = {
-  online: "En ligne",
-  away: "Absent",
-  offline: "Hors ligne",
-};
-
 /** Statut de messagerie choisi manuellement (façon Teams). */
 export type ChatStatus = "AVAILABLE" | "BUSY" | "DND" | "BRB" | "AWAY" | "OFFLINE";
 export const CHAT_STATUSES: ChatStatus[] = ["AVAILABLE", "BUSY", "DND", "BRB", "AWAY", "OFFLINE"];

@@ -5,12 +5,11 @@ import { requireUser } from "@/lib/session";
 import { canManageEnvelope, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { persistUploadedDocument } from "@/lib/documents";
 import { validateAttachments } from "@/lib/attach-files";
-import { ITEM_KIND_LABELS, PARENT_ENTITE, type AdProParent } from "@/lib/ad-pro-items";
-import { facturePourPayer } from "@/lib/ad-pro/poste-etapes";
-import { rattacherPieceAuPoste } from "@/lib/ad-pro/pieces-poste";
+import { ITEM_KIND_LABELS, PARENT_ENTITE, type AdProParent, facturePourPayer } from "@/modules/ad-pro/partage";
+import { rattacherPieceAuPoste, refusCategoriePourLaDemande, refusSiPorteDgFermee } from "@/modules/ad-pro/api";
 import { CHEMIN_PARENT_AD_PRO } from "@/lib/chemins/ad-pro";
 import { DOMAINES } from "@/lib/budget/domaines";
 import { depensesDesPostes } from "@/lib/queries/budget-sources";
@@ -19,6 +18,8 @@ import {
 } from "@/lib/budget/depense-poste";
 import { fdNum, fdStr, type ActionResult } from "@/lib/actions/types";
 import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
+import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -44,11 +45,12 @@ const MODULE = DOMAINES.MARKETING.titre;
 const REFUS_DROIT = `Réservé à ${DOMAINES.MARKETING.gestionnaire} (${DOMAINES.MARKETING.titre}).`;
 const CHANGE = "Cette dépense vient de changer : rechargez la page.";
 
-function parentDe(p: { sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null }): { parent: AdProParent; id: string } | null {
+function parentDe(p: { sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null; otherRequestId: string | null }): { parent: AdProParent; id: string } | null {
   if (p.sponsoringId) return { parent: "SPONSORING", id: p.sponsoringId };
   if (p.congressNationalId) return { parent: "CONGRESS_NATIONAL", id: p.congressNationalId };
   if (p.congressInternationalId) return { parent: "CONGRESS_INTERNATIONAL", id: p.congressInternationalId };
   if (p.eventId) return { parent: "EVENT", id: p.eventId };
+  if (p.otherRequestId) return { parent: "AD_PRO_OTHER", id: p.otherRequestId };
   return null;
 }
 
@@ -70,6 +72,10 @@ async function operation(o: { parent: AdProParent; id: string }): Promise<{ ref:
     case "EVENT": {
       const r = await prisma.event.findUnique({ where: { id: o.id }, select: { name: true, companyId: true } });
       return r ? { ref: r.name, beneficiaire: r.name, companyId: r.companyId } : null;
+    }
+    case "AD_PRO_OTHER": {
+      const r = await prisma.adProOtherRequest.findUnique({ where: { id: o.id }, select: { reference: true, title: true, beneficiary: true, companyId: true } });
+      return r ? { ref: r.reference, beneficiaire: r.beneficiary ?? r.title, companyId: r.companyId } : null;
     }
   }
 }
@@ -95,7 +101,7 @@ async function lirePoste(id: string) {
     select: {
       id: true, label: true, kind: true, supplier: true, status: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true,
       orderStage: true, updatedAt: true, depenseImputeeLe: true, depenseAnnuleeLe: true, montantPayeHistorique: true,
-      sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true,
+      sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
     },
   });
   if (!poste) return null;
@@ -114,7 +120,7 @@ function revalider(owner: { parent: AdProParent; id: string }) {
 }
 
 async function journal(user: SessionUser, posteId: string, field: string, summary: string, oldValue?: string | null, newValue?: string | null) {
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE, entityType: "AD_PRO_ITEM", entityId: posteId, field, oldValue: oldValue ?? null, newValue: newValue ?? null, summary }).catch(() => undefined);
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE, entityType: "AD_PRO_ITEM", entityId: posteId, field, oldValue: oldValue ?? null, newValue: newValue ?? null, summary }).catch(sansBloquer("budget-depense-poste-actions.journal.recordAudit"));
 }
 
 const dzd = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} DZD`;
@@ -139,6 +145,9 @@ async function imputation(formData: FormData, geste: GesteImputation): Promise<A
     actuelleId: poste.budgetCategoryId,
   });
   if (refus || !cible) return { ok: false, error: refus ?? "Catégorie introuvable." };
+  // La catégorie convient à la demande du poste : sa nature, son exercice, sa Business Unit (point 9, 27/10).
+  const refusCat = await refusCategoriePourLaDemande(cible.id, owner.parent, owner.id);
+  if (refusCat) return { ok: false, error: refusCat };
 
   const maintenant = new Date();
   const ordres = lue.ordres.filter((o) => o.statut !== "CANCELLED");
@@ -181,20 +190,20 @@ async function imputation(formData: FormData, geste: GesteImputation): Promise<A
 }
 
 /** IMPUTER une dépense à un budget marketing — ses bons de commande signés, elle devient ENGAGÉE. */
-export async function imputerDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function imputerDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("budget-depense-poste-actions:imputerDepensePoste", "Imputer une dépense de poste", async () => {
   return imputation(formData, "IMPUTER");
-}
+}); }
 
 /** CHANGER LE BUDGET d'une dépense engagée, consommée ou payée — à tout moment, tracé ancien → nouveau. */
-export async function changerBudgetDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function changerBudgetDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("budget-depense-poste-actions:changerBudgetDepensePoste", "Changer le budget d'une dépense de poste", async () => {
   return imputation(formData, "CHANGER");
-}
+}); }
 
 /**
  * CONSOMMER une dépense engagée : le montant (≤ l'engagé), la facture facultative ; l'ordre de dépense du poste naît au
  * centre de paiement. Idempotent : la prise conditionnelle refuse un second envoi.
  */
-export async function consommerDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function consommerDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("budget-depense-poste-actions:consommerDepensePoste", "Consommer une dépense de poste", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Poste non précisé." };
@@ -204,6 +213,10 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
   const { poste, owner, lue } = lu;
   const actuelle = await categorie(poste.budgetCategoryId);
   if (!actuelle || !canManageEnvelope(user, actuelle.envelope)) return { ok: false, error: REFUS_DROIT };
+  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : consommer, c'est demander le paiement du poste — la même porte que
+  // `demanderPaiementPoste`. Sans elle, l'onglet « Dépenses » émettait l'ordre d'une demande que le DG n'a pas validée (ADPRO-02).
+  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  if (porteDg) return { ok: false, error: porteDg };
   const montant = fdNum(formData, "montant");
   const refus = refusConsommation({ etat: lue.depense.etat, montant, montantEngage: lue.depense.montantEngage });
   if (refus || montant == null) return { ok: false, error: refus ?? "Indiquez le montant consommé." };
@@ -283,15 +296,15 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
   } catch (err) {
     console.error("[budget-marketing] consommation impossible", err);
     if (!ordreNe) {
-      await prisma.adProItem.updateMany({ where: { id, expenseOrderId: poste.expenseOrderId, orderStage: "ISSUED" }, data: { orderStage: poste.orderStage } }).catch(() => undefined);
-      if (factureId) await prisma.legalDocument.updateMany({ where: { id: factureId }, data: { status: "CANCELLED" } }).catch(() => undefined);
+      await prisma.adProItem.updateMany({ where: { id, expenseOrderId: poste.expenseOrderId, orderStage: "ISSUED" }, data: { orderStage: poste.orderStage } }).catch(sansBloquer("budget-depense-poste-actions.consommerDepensePoste.adProItem"));
+      if (factureId) await prisma.legalDocument.updateMany({ where: { id: factureId }, data: { status: "CANCELLED" } }).catch(sansBloquer("budget-depense-poste-actions.consommerDepensePoste.legalDocument"));
     }
     return { ok: false, error: "La consommation n'a pas pu être enregistrée." };
   }
-}
+}); }
 
 /** ANNULER une dépense engagée : l'engagement est libéré (motif facultatif). Refusé une fois consommée. */
-export async function annulerDepensePoste(formData: FormData): Promise<ActionResult> {
+export async function annulerDepensePoste(formData: FormData): Promise<ActionResult> { return annulable("budget-depense-poste-actions:annulerDepensePoste", "Annuler dépense poste", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Poste non précisé." };
@@ -314,4 +327,4 @@ export async function annulerDepensePoste(formData: FormData): Promise<ActionRes
     null, motif);
   revalider(owner);
   return { ok: true, id, message: `Dépense annulée : ${dzd(lue.depense.montantEngage)} rendus au budget.` };
-}
+}); }

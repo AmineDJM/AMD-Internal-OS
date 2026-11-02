@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, MODULES, ACTIONS } from "@/lib/rbac";
 import { STATE_MACHINES } from "./state-machines/registry";
+import { sansBloquer } from "@/lib/journal";
 
 type Matrix = Record<string, Record<string, string[]>>;
 
@@ -44,7 +45,7 @@ export async function businessObjectCoverage(): Promise<BusinessObjectCoverage> 
   let withData = 0;
   for (const sm of STATE_MACHINES) {
     const del = (prisma as unknown as Record<string, { count?: (a: unknown) => Promise<number> }>)[sm.model];
-    const n = del?.count ? await del.count({}).catch(() => 0) : 0;
+    const n = del?.count ? await del.count({}).catch(sansBloquer("coverage.businessObjectCoverage.count", 0)) : 0;
     if (n > 0) withData++;
     perMachine.push({ id: sm.id, records: n });
   }

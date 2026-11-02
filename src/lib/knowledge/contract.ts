@@ -49,11 +49,6 @@ export type KnowledgeSourceType =
   | "finance"         // pièce financière
   | "pch";            // marché / appel d'offres
 
-export const KNOWLEDGE_SOURCE_TYPES: readonly KnowledgeSourceType[] = [
-  "drive_file", "email", "attachment", "regulatory", "legal", "courrier", "task",
-  "decision", "comment", "meeting", "product", "supplier", "hr", "finance", "pch",
-] as const;
-
 // ─────────────────────────────── Où en est le traitement ───────────────────────────────
 
 /**
@@ -190,15 +185,6 @@ export type RouteReason =
   | "structured_only"     // déjà structuré : on NE monte pas, on s'arrête là
   | "parser_failed";      // le parser natif a échoué
 
-/**
- * LA CONFIANCE d'une extraction, entre 0 et 1. §22 : une donnée structurée critique ne se
- * remplit JAMAIS silencieusement depuis une extraction incertaine.
- */
-export interface Confidence {
-  value: number;
-  by: ExtractedBy;
-}
-
 /** Les deux seuils de la doctrine §22. Nommés ici pour qu'ils ne se dispersent pas. */
 export const CONFIDENCE_ACCEPT = 0.85;  // au-dessus : on accepte
 export const CONFIDENCE_VERIFY = 0.55;  // entre les deux : on tente de valider contre l'ERP
@@ -209,24 +195,6 @@ export function verdictOf(value: number): ConfidenceVerdict {
   if (value >= CONFIDENCE_ACCEPT) return "accept";
   if (value >= CONFIDENCE_VERIFY) return "verify";
   return "escalate";
-}
-
-/**
- * LA PROVENANCE — « d'où vient cette information ? » doit toujours avoir une réponse.
- *
- * Sans elle, une donnée extraite est indiscernable d'une donnée saisie, et une erreur d'OCR
- * devient un fait de l'entreprise que plus personne ne peut remettre en cause.
- */
-export interface Provenance {
-  sourceType: KnowledgeSourceType;
-  sourceId: string;
-  /** Page (PDF), diapositive (PPTX), ou index de message dans un fil. */
-  locator?: string | null;
-  extractedBy: ExtractedBy;
-  /** Le modèle exact, quand un modèle est intervenu. `null` pour le code. */
-  model?: string | null;
-  confidence?: number | null;
-  at: string; // ISO
 }
 
 // ─────────────────────────────── Ce qu'on retient ───────────────────────────────
@@ -271,35 +239,6 @@ export interface KnowledgeChunkDraft {
   locator?: string | null;
 }
 
-/** Ce qu'un parser rend. Le pipeline ne connaît que cette forme, quel que soit le format. */
-export interface ParsedContent {
-  text: string;
-  chunks: KnowledgeChunkDraft[];
-  extractedBy: ExtractedBy;
-  /** Vide quand rien n'a justifié de monter d'un barreau. */
-  reasons: RouteReason[];
-  meta: KnowledgeMeta;
-  confidence: number;
-  model?: string | null;
-  /** Pages/diapositives que le parsing natif n'a PAS su lire — candidates à la vision. */
-  unreadable?: string[];
-}
-
-// ─────────────────────────────── Le temps ───────────────────────────────
-
-/**
- * §16 — « quelle est la situation ACTUELLE ? » et « quelle était-elle en mars ? » ne sont pas la
- * même question. Un élément porte donc sa validité, et une nouvelle version ferme la précédente
- * au lieu de l'effacer : l'histoire reste lisible.
- */
-export interface TemporalBounds {
-  documentDate?: Date | null;
-  effectiveDate?: Date | null;
-  validFrom: Date;
-  validTo?: Date | null;
-  isCurrent: boolean;
-}
-
 // ─────────────────────────────── Les relations ───────────────────────────────
 
 /**
@@ -317,19 +256,6 @@ export type RelationPredicate =
   | "impacts"      // une décision touche un projet
   | "supersedes";  // une version remplace la précédente
 
-export const RELATION_PREDICATES: readonly RelationPredicate[] = [
-  "mentions", "concerns", "references", "manages", "assignedTo", "belongsTo", "supplies", "impacts", "supersedes",
-] as const;
-
-export interface RelationDraft {
-  predicate: RelationPredicate;
-  toType: string;
-  toId: string;
-  confidence: number;
-  /** Ce qui, dans le texte, a produit cette relation — pour pouvoir la contester. */
-  mention?: string | null;
-}
-
 // ─────────────────────────────── Les jobs ───────────────────────────────
 
 /**
@@ -345,8 +271,6 @@ export type JobKind =
   | "enrich";     // résumé, engagements, échéances
 
 export const JOB_KINDS: readonly JobKind[] = ["parse", "vision", "classify", "entities", "embed", "enrich"] as const;
-
-export type JobStatus = "QUEUED" | "RUNNING" | "DONE" | "FAILED" | "DEAD";
 
 /**
  * LA PRIORITÉ. Plus petit = plus urgent. Ce qui rend une donnée RETROUVABLE passe avant ce qui

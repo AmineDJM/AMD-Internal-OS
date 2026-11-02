@@ -4,11 +4,11 @@ import { toNumber, formatCurrency } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
-import { CENTRAL_AUTH_THRESHOLD_DZD, PAYMENT_CENTRE_REFUSAL, type CentralStatus } from "@/lib/payments/authorization";
-import { SECTION_CENTRE_LABEL } from "@/lib/payments/sections-centre";
-import { chargerCentre } from "@/lib/queries/centre-paiement";
+import {
+  CENTRAL_AUTH_THRESHOLD_DZD, PAYMENT_CENTRE_REFUSAL, type CentralStatus, SECTION_CENTRE_LABEL, SECTION_CENTRE_SLUG,
+} from "@/modules/finances/partage";
+import { chargerCentre, dossierHrefByOrder } from "@/modules/finances/api";
 import { entityHref } from "@/lib/entity-href";
-import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { marquesDesOrdres } from "@/lib/factures/connues";
 import { existingSources } from "@/lib/entity-exists";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Centre de paiement — AMD Internal OS" };
 
 /**
- * LE CENTRE DE PAIEMENT — le PDG et le Super Admin autorisent, la comptabilité exécute.
+ * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
  *
  * AUCUN décaissement ne quitte les Finances sans passer par ici, quel que soit son montant —
  * « Concernant les paiements, c'est clair, tous passent par le centre de paiements » (Direction,
@@ -45,7 +45,8 @@ export const metadata = { title: "Centre de paiement — AMD Internal OS" };
  * avec ce qui y attend), puis, sous l'entité choisie, trois sections — Regulatory, Sales &
  * Marketing, Autres — rangées d'après l'ORIGINE de la dépense (`payments/sections-centre.ts`).
  */
-export default async function CentreDePaiementPage({ searchParams }: { searchParams?: { entite?: string; section?: string } }) {
+export default async function CentreDePaiementPage(props: { searchParams?: Promise<{ entite?: string; section?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
 
   // Le chargeur lit les ordres que cet écran lisait déjà — tout le centre pour qui y siège, ses
@@ -205,7 +206,13 @@ export default async function CentreDePaiementPage({ searchParams }: { searchPar
       <PageHeader
         title="Centre de paiement"
         description={`Tout paiement de la société est autorisé ici avant d'atteindre les Finances, quel que soit son montant — ceux à partir de ${CENTRAL_AUTH_THRESHOLD_DZD.toLocaleString("fr-FR")} DZD en tête de file. Le centre autorise, la comptabilité exécute : c'est la séparation des deux gestes qui rend le contrôle réel. Le centre AUTORISE ou REFUSE — le montant et sa justification appartiennent à la demande et se corrigent avant d'arriver ici (décision de la Direction, 02/09/2026). Un refus dit toujours pourquoi : son motif reste dans le fil, que le demandeur lit sur sa propre ligne. On change d'entité en haut ; chaque entité range ses paiements en trois sections — Regulatory, Sales & Marketing, Autres — d'après l'origine de la dépense.`}
-      />
+      >
+        {/* L'EXPORT DE CE QUE L'ÉCRAN MONTRE — l'entité et la section choisies, toutes les lignes (K7, décision 0037). */}
+        <a
+          href={`/api/finances/centre/export?entite=${encodeURIComponent(centre.entiteChoisie ?? "")}&section=${SECTION_CENTRE_SLUG[centre.sectionChoisie]}`}
+          className="inline-flex h-9 items-center rounded-[var(--radius)] border border-border bg-card px-3 text-[13px] font-medium hover:bg-secondary sm:h-8"
+        >Exporter</a>
+      </PageHeader>
 
       <BarreEntites entites={centre.entites} choisie={centre.entiteChoisie} section={centre.sectionChoisie} />
 

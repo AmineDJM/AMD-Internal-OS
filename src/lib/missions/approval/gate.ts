@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import type { StepContext, StepOutcome } from "@/lib/missions/runtime/engine";
 import { journaliser } from "@/lib/missions/runtime/store";
-import { LIBELLE_NIVEAU, NiveauApprobation } from "@/lib/missions/policy/guard";
+import { LIBELLE_NIVEAU } from "@/lib/missions/policy/guard";
 import { nonCouvertes, perimetre, type PerimetreApprobation } from "@/lib/missions/approval/scope";
 import type { CompiledMission } from "@/lib/missions/compiler/compile";
 

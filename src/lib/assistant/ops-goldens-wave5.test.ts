@@ -145,20 +145,24 @@ suite("ops vague 5a — Events, circuits Ad&Pro, postes, Consulting", () => {
 
 
   describe("Events — FUSION de la fiche, inscriptions", () => {
-    it("update_event : changer le SEUL statut rejoue type, format, lieu, capacité et budget (les enums-pièges compris)", async () => {
+    it("update_event : changer le SEUL statut rejoue type, format, lieu et budget — l'ancien état d'organisation n'est plus proposé", async () => {
       const p = await buildProposal("event_operation", {
-        op: "update_event", target: "Journée HTA", status: "complet",
+        op: "update_event", target: "Journée HTA", status: "terminé",
       }, sa());
       expect("error" in p).toBe(false);
       if ("error" in p) return;
       const a = domainArgs(p);
       expect(a.id).toBe(eventId);
-      expect(a.status).toBe("FULL");
+      expect(a.status).toBe("COMPLETED");
       expect(a.type).toBe("SCIENTIFIC_DAY");
       expect(a.format).toBe("PRESENTIAL");
       expect(a.location).toBe("Hôtel El Aurassi");
-      expect(a.capacity).toBe("120");
+      // ÉVÉNEMENTS EXTERNES (Direction, 27/10) : la capacité ne se rejoue plus.
+      expect(a.capacity).toBeUndefined();
       expect(a.estimatedBudget).toBe("900000");
+      // « Complet » n'est plus un état qu'Adam propose.
+      const complet = await buildProposal("event_operation", { op: "update_event", target: "Journée HTA", status: "complet" }, sa());
+      expect("error" in complet).toBe(true);
     });
 
     it("delete_event : CRITIQUE — confirmText = nom, inscriptions emportées comptées", async () => {
@@ -217,20 +221,19 @@ suite("ops vague 5a — Events, circuits Ad&Pro, postes, Consulting", () => {
   });
 
   describe("Congrès — décisions multi-types & postes", () => {
-    it("decide_congress_final : la cible se résout par nom (kind congrès national), montant obligatoire", async () => {
-      const p = await buildProposal("adpro_operation", {
-        op: "decide_congress_final", target: "Congrès SAHA", kind: "congrès national", decision: "valider", amount: "450000",
-      }, sa());
-      expect("error" in p).toBe(false);
-      if ("error" in p) return;
-      expect(domainArgs(p).id).toBe(congressId);
-      expect(domainArgs(p).type).toBe("NATIONAL");
-      expect(domainArgs(p).finalAmount).toBe("450000");
+    it("les anciennes décisions congrès HORS circuit n'existent plus — Adam passe par les gestes de l'écran", async () => {
+      expect(congressId).not.toBe("");
+      for (const op of ["decide_congress_preliminary", "analyze_congress", "decide_congress_final", "update_congress_budget"]) {
+        const p = await buildProposal("adpro_operation", {
+          op, target: "Congrès SAHA", kind: "congrès national", decision: "valider", amount: "450000", person: "x",
+        }, sa());
+        expect("error" in p, `${op} ne doit plus construire de carte`).toBe(true);
+      }
     });
 
-    it("decide_congress_final : un SPONSORING passé par les ops congrès est refusé net (chacun son circuit)", async () => {
+    it("un SPONSORING passé par les ops congrès est refusé net (chacun son circuit)", async () => {
       const p = await buildProposal("adpro_operation", {
-        op: "decide_congress_final", target: `${TAG}-SPO-1`, kind: "sponsoring", decision: "valider", amount: "100",
+        op: "cancel_congress_request", target: `${TAG}-SPO-1`, kind: "sponsoring", motif: "test",
       }, sa());
       // Le refus NOMME le chemin qui existe : le moteur de circuit, puis la clôture (§118.63).
       expect("error" in p && p.error).toMatch(/advance_workflow/);

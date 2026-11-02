@@ -6,6 +6,7 @@ import { chargerStrategie, chargerFaits } from "./service";
 import { segmenterPraticien, type ContexteSegmentation } from "./moteur";
 import { capaciteKam, finDuCycle, avancement, DUREES, type CapaciteKam, type Duree, type PraticienFige, type AvancementKam } from "./cycle";
 import type { Regles } from "./regles";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES CYCLES, côté base : OUVRIR (figer règles, contexte, résultats, couverture KAM et capacité), lire l'avancement
@@ -64,7 +65,7 @@ export async function ouvrirCycle(auteurId: string, strategieId: string, input: 
     });
   }
   const instantane: Instantane = { produits: s.produits.map(({ productId, rang, nom }) => ({ productId, rang, nom })), regles: s.regle.regles, contexte: s.contexte, praticiens };
-  const promo = await prisma.promoCycle.findUnique({ where: { year_month: { year: debut.getUTCFullYear(), month: debut.getUTCMonth() + 1 } }, select: { id: true } }).catch(() => null);
+  const promo = await prisma.promoCycle.findUnique({ where: { year_month: { year: debut.getUTCFullYear(), month: debut.getUTCMonth() + 1 } }, select: { id: true } }).catch(sansBloquer("cycle-service.ouvrirCycle.promoCycle", null));
   const c = await prisma.segmentationCycle.create({
     data: {
       strategieId, libelle: input.libelle?.trim() || `Cycle du ${debut.toLocaleDateString("fr-FR", { timeZone: "UTC" })}`, duree: input.duree, debut, fin, regleVersion: s.regle.version,

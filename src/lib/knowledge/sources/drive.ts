@@ -9,6 +9,7 @@ import { parsePptx, pptxToText } from "../parsers/pptx";
 import { parseWorkbook, parseCsv, chunksFromTables, tablesToText } from "../parsers/sheet";
 import type { KnowledgeChunkDraft } from "../contract";
 import type { IngestInput } from "../ingest";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -101,16 +102,16 @@ export type OctetsDrive =
 export async function lireOctetsDrive(nodeId: string): Promise<OctetsDrive> {
   const node = await prisma.driveNode
     .findUnique({ where: { id: nodeId }, select: { id: true, name: true, type: true, isTrashed: true, size: true } })
-    .catch(() => null);
+    .catch(sansBloquer("drive.lireOctetsDrive.driveNode", null));
   if (!node || node.type !== "FILE" || node.isTrashed) return { ok: false, raison: "absent", name: node?.name ?? null };
   if (node.size != null && node.size > MAX_INGEST_BYTES) return { ok: false, raison: "trop_gros", name: node.name };
 
   const version = await prisma.fileVersion
     .findFirst({ where: { nodeId }, orderBy: { version: "desc" }, select: { blobId: true } })
-    .catch(() => null);
+    .catch(sansBloquer("drive.lireOctetsDrive.fileVersion", null));
   if (!version?.blobId) return { ok: false, raison: "stockage", name: node.name };
 
-  const buffer = await getBlob(version.blobId).catch(() => null);
+  const buffer = await getBlob(version.blobId).catch(sansBloquer("drive.lireOctetsDrive.getBlob", null));
   if (!buffer) return { ok: false, raison: "stockage", name: node.name };
 
   const guessed = detectMime(buffer, (node.name.split(".").pop() ?? "").toLowerCase());
@@ -186,14 +187,14 @@ export async function draftFromBytes(
     } else {
       // Aucune structure reconnue (feuille de mise en page, cellules fusionnées partout) : on
       // retombe sur le texte à plat plutôt que de ne rien rendre.
-      text = await heavyText("xlsx", buffer).catch(() => "");
+      text = await heavyText("xlsx", buffer).catch(sansBloquer("drive.draftFromBytes.heavyText", ""));
       chunks = text ? chunkText(text) : [];
       parserFailed = !text;
     }
   } else {
     const kind = heavyKindOf(mime);
     if (kind) {
-      text = await heavyText(kind, buffer).catch(() => "");
+      text = await heavyText(kind, buffer).catch(sansBloquer("drive.draftFromBytes.heavyText", ""));
       parserFailed = !text;
     } else if (isCsvName(nom) && looksLikePlainText(buffer)) {
       // LE CSV EST UN TABLEAU, lui aussi — et il n'a pas plus de signature que le texte brut.

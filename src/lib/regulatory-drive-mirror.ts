@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { putBlob } from "@/lib/drive-storage";
 import { mimeFromName } from "@/lib/drive/mime-nom";
 import { rangerDocumentsDansDrive } from "@/lib/regulatory-drive-dossier";
+import { deposerFichierDrive } from "@/lib/drive/mirror";
 
 export { mimeFromName };
 
@@ -86,28 +86,10 @@ export async function mirrorToProductDrive(opts: {
       parentId = id;
     }
 
-    const { blobId, size } = await putBlob(e.data);
-    const mimeType = e.mime || mimeFromName(filename);
-
-    // Dédup : même nom dans le même dossier → nouvelle VERSION (pas de doublon).
-    const existing = await prisma.driveNode.findFirst({
-      where: { type: "FILE", name: filename, parentId, isTrashed: false },
-      select: { id: true },
-    });
-    if (existing) {
-      const last = await prisma.fileVersion.findFirst({ where: { nodeId: existing.id }, orderBy: { version: "desc" }, select: { version: true } });
-      await prisma.fileVersion.create({ data: { nodeId: existing.id, blobId, version: (last?.version ?? 0) + 1, size, mimeType, createdById: opts.ownerId } });
-      await prisma.driveNode.update({ where: { id: existing.id }, data: { size, mimeType } });
-      updated++;
-    } else {
-      await prisma.driveNode.create({
-        data: {
-          name: filename, type: "FILE", parentId, ownerId: opts.ownerId, mimeType, size, createdById: opts.ownerId,
-          versions: { create: { blobId, version: 1, size, mimeType, createdById: opts.ownerId } },
-        },
-      });
-      created++;
-    }
+    // Dédup : même nom dans le même dossier → nouvelle VERSION (pas de doublon) ; le fichier entre à la bibliothèque.
+    const { cree } = await deposerFichierDrive({ parentId, name: filename, data: e.data, mimeType: e.mime || mimeFromName(filename), ownerId: opts.ownerId });
+    if (cree) created++;
+    else updated++;
   }
 
   return { productFolderId, created, updated, skipped };

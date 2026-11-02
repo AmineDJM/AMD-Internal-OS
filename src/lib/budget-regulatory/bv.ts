@@ -35,10 +35,6 @@ export const ETAPES_BV: Record<NatureBv, { demande: string; paiement: string }> 
 /** La part de chaque BV dans les frais d'enregistrement — d'où la prévision du 75 % à partir du 25 %. */
 export const PART_BV: Record<NatureBv, number> = { "25": 0.25, "75": 0.75 };
 
-export function natureDeLaCle(cle: string | null | undefined): NatureBv | null {
-  return cle === CLE_BV_25 ? "25" : cle === CLE_BV_75 ? "75" : null;
-}
-
 /**
  * LA NATURE D'UN ORDRE DE BV, lue sur son libellé (« BV 25 % — REG-2026-001 … »). Les libellés libres de l'assistant
  * (« BV », « BV1 ») ne disent pas leur part : `null`, et l'écran les range à part plutôt que de deviner.

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { resolveProductId } from "@/lib/products/resolve";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE PRODUIT D'UN DOSSIER — déduit de sa source, rien de nouveau à saisir.
@@ -53,7 +54,7 @@ export async function produitsDesDossiers(
   }
   if (options.rattraper !== false && aRattraper.length) {
     // Jamais bloquant : un rattrapage qui échoue laisse la lecture intacte (il se refera à la prochaine ouverture).
-    await Promise.all(aRattraper.map((r) => prisma.medicalInfoDeclaration.updateMany({ where: { id: r.id, productId: null }, data: { productId: r.productId } }).catch(() => null)));
+    await Promise.all(aRattraper.map((r) => prisma.medicalInfoDeclaration.updateMany({ where: { id: r.id, productId: null }, data: { productId: r.productId } }).catch(sansBloquer("produits.produitsDesDossiers.medicalInfoDeclaration", null))));
   }
   return out;
 }
@@ -74,7 +75,7 @@ async function produitsDeduitsDesSources(
   const ids = (t: string) => decls.filter((d) => d.sourceType === t).map((d) => d.sourceId);
   const legalIds = ids("LEGAL_DOCUMENT");
 
-  const [sponsorings, intls, nationaux, events, pieces] = await Promise.all([
+  const [sponsorings, intls, nationaux, events, autres, pieces] = await Promise.all([
     ids("SPONSORING").length
       ? prisma.sponsoringRequest.findMany({ where: { id: { in: ids("SPONSORING") } }, select: { id: true, product: true } })
       : Promise.resolve([]),
@@ -87,6 +88,10 @@ async function produitsDeduitsDesSources(
     ids("EVENT").length
       ? prisma.event.findMany({ where: { id: { in: ids("EVENT") } }, select: { id: true, products: true } })
       : Promise.resolve([]),
+    // La demande « autre » (27/10/2026, décision #17) : son produit concerné, facultatif.
+    ids("AD_PRO_OTHER").length
+      ? prisma.adProOtherRequest.findMany({ where: { id: { in: ids("AD_PRO_OTHER") } }, select: { id: true, product: true } })
+      : Promise.resolve([]),
     // UN PAIEMENT DE MATÉRIEL PROMOTIONNEL déclare la FACTURE : on remonte au dossier dont elle découle.
     legalIds.length
       ? prisma.legalDocument.findMany({ where: { id: { in: legalIds } }, select: { id: true, sourceType: true, sourceId: true } })
@@ -98,6 +103,7 @@ async function produitsDeduitsDesSources(
   for (const c of intls) texteParSource.set(c.id, c.products);
   for (const c of nationaux) texteParSource.set(c.id, c.promotedProducts);
   for (const e of events) texteParSource.set(e.id, e.products);
+  for (const o of autres) texteParSource.set(o.id, o.product);
 
   // Matériel promotionnel : le dossier, directement ou par sa facture.
   const promoParSource = new Map<string, string>();
@@ -122,7 +128,7 @@ async function produitsDeduitsDesSources(
   const cache = new Map<string, Promise<string | null>>();
   const resoudre = (m: string) => {
     const cle = m.toLowerCase();
-    if (!cache.has(cle)) cache.set(cle, resolveProductId(m).catch(() => null));
+    if (!cache.has(cle)) cache.set(cle, resolveProductId(m).catch(sansBloquer("produits.resoudre.resolveProductId", null)));
     return cache.get(cle)!;
   };
 

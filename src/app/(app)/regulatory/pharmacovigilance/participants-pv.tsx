@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, UserPlus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ajouterParticipantsPv, retirerParticipantPv } from "@/lib/actions/pharmacovigilance-actions";
 
 /**
@@ -28,9 +29,14 @@ export function ParticipantsCasPv({ caseId, participants, candidats, peutGerer, 
 
   const agir = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
     setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (!r.ok) setErr(r.error ?? "Échec."); else { setChoisi(""); setFiltre(""); rafraichir(); }
+    try {
+      const r = await fn();
+      if (!r.ok) setErr(r.error ?? "La liste des participants n'a pas été modifiée."); else { setChoisi(""); setFiltre(""); rafraichir(); }
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
   const fd = (champs: Record<string, string>) => { const f = new FormData(); f.set("caseId", caseId); for (const [k, v] of Object.entries(champs)) f.set(k, v); return f; };
 

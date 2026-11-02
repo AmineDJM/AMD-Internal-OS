@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { BellPlus, Check, Loader2 } from "lucide-react";
 import { createReminder } from "@/lib/actions/reminder-actions";
 import { cn } from "@/lib/utils";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * RAPPEL EN UN CLIC — pose un rappel personnel sur l'objet courant (dossier, demande, sujet…).
@@ -28,7 +29,7 @@ export function ReminderButton({
   label?: string;
   className?: string;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [done, setDone] = React.useState(false);
@@ -56,13 +57,18 @@ export function ReminderButton({
     if (link) fd.set("link", link);
     if (entityType) fd.set("entityType", entityType);
     if (entityId) fd.set("entityId", entityId);
-    const r = await createReminder(fd);
-    setBusy(false);
-    if (r.ok) {
-      setDone(true); setOpen(false); router.refresh();
-      setTimeout(() => setDone(false), 2500);
-    } else {
-      setError(r.error ?? "Échec de la création du rappel.");
+    try {
+      const r = await createReminder(fd);
+      if (r.ok) {
+        setDone(true); setOpen(false); rafraichir();
+        setTimeout(() => setDone(false), 2500);
+      } else {
+        setError(r.error ?? "Échec de la création du rappel.");
+      }
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
     }
   }
 

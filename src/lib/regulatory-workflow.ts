@@ -16,7 +16,6 @@ export const REG_STEP_STATE: Record<RegStepState, { label: string; tone: "neutra
   DONE: { label: "Fait", tone: "success" },
   BLOCKED: { label: "Bloqué", tone: "danger" },
 };
-export const REG_STEP_STATE_ORDER: RegStepState[] = ["TODO", "DOING", "DONE", "BLOCKED"];
 
 export interface RegPhase { key: string; label: string }
 export interface RegStep { key: string; phase: string; n: number; label: string; responsible: string; expected: string }
@@ -255,10 +254,6 @@ export function regChecklistProgress(state: RegChecklistState | null | undefined
   return { checked, total, pct: total ? Math.round((checked / total) * 100) : 0 };
 }
 
-export function phaseLabel(key: string): string {
-  return REG_PHASES.find((p) => p.key === key)?.label ?? key;
-}
-
 /**
  * JALON IMPLIQUÉ PAR UN STATUT du dossier — poser « Déposé » veut dire que tout ce qui précède
  * le dépôt est FAIT : plutôt que de laisser l'avancement à 0/22 (ou d'exiger 12 clics), le
@@ -305,18 +300,6 @@ export function completeStepsThrough(
     changed++;
   }
   return { state: base, changed };
-}
-
-/**
- * Étape qui marque le DÉBUT DU TRAITEMENT : « Demande du BV 25 % » (c.-à-d. la demande de BV
- * de présoumission). Dès qu'elle — ou toute étape ultérieure — est marquée « Fait », le dossier
- * bascule de « Nouveau / non traité » vers « En cours de traitement ».
- */
-export const REG_TREATMENT_START_STEP = "bv25_req";
-
-export function regTreatmentStarted(state: RegWorkflowState | null | undefined): boolean {
-  const startN = REG_STEPS.find((s) => s.key === REG_TREATMENT_START_STEP)?.n ?? 4;
-  return REG_STEPS.some((s) => s.n >= startN && regStepStatus(state, s.key) === "DONE");
 }
 
 /**

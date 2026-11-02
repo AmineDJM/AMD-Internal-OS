@@ -19,15 +19,6 @@ export function sections360(user: SessionUser): Record<Section360, boolean> {
 }
 
 /**
- * QUI VOIT LE MARCHÉ (IQVIA, réceptions PCH, nomenclature) — la règle des lectures de marché
- * (`actions/market-actions.ts`) : Market Intelligence OU l'Explorateur produits. La part de marché d'un produit
- * n'ouvre rien de plus.
- */
-export function voitLeMarche(user: SessionUser): boolean {
-  return userCan(user, "BUSINESS_DEVELOPMENT", "VIEW") || userCan(user, "PRODUCT_EXPLORER", "VIEW");
-}
-
-/**
  * QUI CORRIGE UN PRIX À LA MAIN — « Modifier » sur Produits 360 (la console l'ouvre à qui la Direction veut), ou sur
  * Regulatory : le prix d'un médicament est fixé avec sa décision d'enregistrement (attestation de prix), c'est le
  * réglementaire qui la détient.

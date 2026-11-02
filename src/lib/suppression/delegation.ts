@@ -1,5 +1,5 @@
 import { userCan, type Module, type SessionUser } from "@/lib/rbac";
-import { estDemandeAdProSupprimable } from "@/lib/ad-pro/suppression";
+import { estDemandeAdProSupprimable } from "@/modules/ad-pro/partage";
 import type { DeletableKind } from "@/lib/admin-delete-registry";
 import { ROLES_DIRECTEUR_DES_OPERATIONS } from "@/lib/promo-material/validateurs";
 

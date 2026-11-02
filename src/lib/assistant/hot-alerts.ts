@@ -22,6 +22,7 @@ import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { lireEtatChaud, rechaufferEtatChaud, type LectureChaude } from "@/lib/fabric";
 import { detectExecutiveAlerts, type ExecutiveAlert } from "@/lib/assistant/proactive";
+import { sansBloquer } from "@/lib/journal";
 
 /** La nature d'état — le registre d'événements invalide par cette clé. */
 export const ETAT_ALERTES = "alertes-executives";
@@ -84,7 +85,7 @@ export async function rechaufferAlertes(lot = 8): Promise<{ rechauffes: number }
     };
     await rechaufferEtatChaud(ETAT_ALERTES, u.id, () => detectExecutiveAlerts(user))
       .then(() => { rechauffes += 1; })
-      .catch(() => undefined);
+      .catch(sansBloquer("hot-alerts.rechaufferAlertes.rechaufferEtatChaud"));
   }
   return { rechauffes };
 }

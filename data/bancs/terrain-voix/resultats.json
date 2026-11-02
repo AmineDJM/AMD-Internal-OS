@@ -1,0 +1,791 @@
+{
+  "mesureLe": "2026-10-30T14:18:46.473Z",
+  "tableau": [
+    {
+      "moteur": "whisper-1",
+      "werMoyen": 0.313,
+      "entites": "9/12",
+      "msMedian": 1971
+    },
+    {
+      "moteur": "whisper-1 + indice",
+      "werMoyen": 0.266,
+      "entites": "10/12",
+      "msMedian": 2422
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "werMoyen": 0.29,
+      "entites": "8/12",
+      "msMedian": 1062
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe + indice",
+      "werMoyen": 0.248,
+      "entites": "9/12",
+      "msMedian": 2635
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "werMoyen": 0.276,
+      "entites": "8/12",
+      "msMedian": 1219
+    },
+    {
+      "moteur": "gpt-4o-transcribe + indice",
+      "werMoyen": 0.25,
+      "entites": "11/12",
+      "msMedian": 1430
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "werMoyen": 0.249,
+      "entites": "10/12",
+      "msMedian": 935
+    },
+    {
+      "moteur": "gpt-transcribe + indice",
+      "werMoyen": 0.229,
+      "entites": "11/12",
+      "msMedian": 970
+    }
+  ],
+  "lignes": [
+    {
+      "moteur": "whisper-1",
+      "indice": false,
+      "clip": "fr-simple",
+      "ms": 1912,
+      "texte": "Compte rendu. Je sors de chez le Dr. Karim Ben Ali au CHU Doran, Service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "langue": "french",
+      "wer": 0.128,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "whisper-1",
+      "indice": false,
+      "clip": "darja-melange",
+      "ms": 2018,
+      "texte": "راني فغشت من عند الدكتور بن علي في CHU وهران. هو أنترسي بزاف بالغام كارديوفيكس. يحب ديزي شانتيو. 10 بوات. نرجع له غدوة الصباح.",
+      "langue": "arabic",
+      "wer": 0.458,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": false
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "whisper-1",
+      "indice": false,
+      "clip": "arabe",
+      "ms": 1971,
+      "texte": "زرت الدكتورة مريم حداد في مستشفى مصطفى باشا، طلبت وثائق علمية على دواء غلوكورين، وتحب نفس لولها الدراسات.",
+      "langue": "arabic",
+      "wer": 0.333,
+      "entites": [
+        {
+          "cle": "haddad",
+          "entendu": true
+        },
+        {
+          "cle": "glucorine",
+          "entendu": true
+        },
+        {
+          "cle": "pacha",
+          "entendu": false
+        }
+      ]
+    },
+    {
+      "moteur": "whisper-1",
+      "indice": false,
+      "clip": "fr-rapide",
+      "ms": 1577,
+      "texte": "Alors, visite du professeur Ouldani, EHU Doran, Neurologie. Présentation de neurolames, objection sur le prix par rapport aux concurrents. Il demande des brochures et deux boîtes d'échantillons de neurolames.",
+      "langue": "french",
+      "wer": 0.333,
+      "entites": [
+        {
+          "cle": "ould ali",
+          "entendu": false
+        },
+        {
+          "cle": "neurolam",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "whisper-1",
+      "indice": true,
+      "clip": "fr-simple",
+      "ms": 2422,
+      "texte": "Compte rendu, je sors de chez le Dr Karim Benali au CHU Oran, Service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "langue": "french",
+      "wer": 0.051,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "whisper-1",
+      "indice": true,
+      "clip": "darja-melange",
+      "ms": 2458,
+      "texte": "راني فغشت من عند الدكتور بن علي في CHU Oran. هو أنترسي بزاف بالقام كارديوفيكس. يحب ديزيشان تيو. 10 بوات. نرجعلو غدوة صباح.",
+      "langue": "arabic",
+      "wer": 0.458,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": false
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "whisper-1",
+      "indice": true,
+      "clip": "arabe",
+      "ms": 1542,
+      "texte": "زرت الدكتورة مريم حداد في مستشفى مصطفى باشا طلبت وثائق علمية على دواء غلوكورين، وتحب نفس لولها الدراسات",
+      "langue": "arabic",
+      "wer": 0.333,
+      "entites": [
+        {
+          "cle": "haddad",
+          "entendu": true
+        },
+        {
+          "cle": "glucorine",
+          "entendu": true
+        },
+        {
+          "cle": "pacha",
+          "entendu": false
+        }
+      ]
+    },
+    {
+      "moteur": "whisper-1",
+      "indice": true,
+      "clip": "fr-rapide",
+      "ms": 2075,
+      "texte": "Alors, visite du professeur Ould Ali, EHU Doran, Neurologie. Présentation de Neurolam, objection sur le prix par rapport aux concurrents. Il demande des brochures et deux boîtes d'échantillons de Neurolam.",
+      "langue": "french",
+      "wer": 0.222,
+      "entites": [
+        {
+          "cle": "ould ali",
+          "entendu": true
+        },
+        {
+          "cle": "neurolam",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "indice": false,
+      "clip": "fr-simple",
+      "ms": 4575,
+      "texte": "Compte-rendu : je sors de chez le docteur Karim Benali au CHU d'Oran, service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "langue": null,
+      "wer": 0,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "indice": false,
+      "clip": "darja-melange",
+      "ms": 903,
+      "texte": "راني فشت من عند الدكتور بن علي في CHU وهران. هو أنتريسي بزاف بالقام كارديوفكس. يحب ديزيشانتييل، عشرة بوات. نرجع له غدوة الصباح.",
+      "langue": null,
+      "wer": 0.417,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "indice": false,
+      "clip": "arabe",
+      "ms": 1062,
+      "texte": "زرت الدكتورة مريم حداد في مستشفى مصطفى باشا طالبت وثائق علمية على دواء غلوكوريم وتحب نسلولها الدراسات.",
+      "langue": null,
+      "wer": 0.381,
+      "entites": [
+        {
+          "cle": "haddad",
+          "entendu": true
+        },
+        {
+          "cle": "glucorine",
+          "entendu": false
+        },
+        {
+          "cle": "pacha",
+          "entendu": false
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "indice": false,
+      "clip": "fr-rapide",
+      "ms": 1022,
+      "texte": "Alors, visite du professeur Ouldhali, EHU Doran, neurologie. Présentation de Neurolab, objections sur le prix par rapport aux concurrents. Il demande des brochures et deux boîtes d'échantillons de Neurolab.",
+      "langue": null,
+      "wer": 0.361,
+      "entites": [
+        {
+          "cle": "ould ali",
+          "entendu": false
+        },
+        {
+          "cle": "neurolam",
+          "entendu": false
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "indice": true,
+      "clip": "fr-simple",
+      "ms": 968,
+      "texte": "Compte-rendu : Je sors de chez le Dr Karim Benali, au CHU d'Oran, service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "langue": null,
+      "wer": 0.026,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "indice": true,
+      "clip": "darja-melange",
+      "ms": 968,
+      "texte": "راني فشت من عند الدكتور بن علي في CHU وهران، هو أمتريسي بزاف بالغام كارديوفيك، يحب ديزيشانطيو، عشرة بوات. نرجع له غدوة الصباح.",
+      "langue": null,
+      "wer": 0.417,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": false
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "indice": true,
+      "clip": "arabe",
+      "ms": 8617,
+      "texte": "زورت الدكتورة مريم حداد في مستشفى مصطفى باشا، طلبت وثائق علمية على دواء غلوكوريم، وتحب نسلولها الدراسات.",
+      "langue": null,
+      "wer": 0.381,
+      "entites": [
+        {
+          "cle": "haddad",
+          "entendu": true
+        },
+        {
+          "cle": "glucorine",
+          "entendu": false
+        },
+        {
+          "cle": "pacha",
+          "entendu": false
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-mini-transcribe",
+      "indice": true,
+      "clip": "fr-rapide",
+      "ms": 2635,
+      "texte": "Alors, visite du professeur Ould Ali, EHU d'Oran, neurologie. Présentation de Neurolam, objection sur le prix par rapport aux concurrents. Il demande des brochures et deux boîtes d'échantillons de Neurolam.",
+      "langue": null,
+      "wer": 0.167,
+      "entites": [
+        {
+          "cle": "ould ali",
+          "entendu": true
+        },
+        {
+          "cle": "neurolam",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "indice": false,
+      "clip": "fr-simple",
+      "ms": 1219,
+      "texte": "Compte rendu : Je sors de chez le Dr Karim Benali au CHU d’Oran, service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "langue": null,
+      "wer": 0.026,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "indice": false,
+      "clip": "darja-melange",
+      "ms": 1491,
+      "texte": "راني فشت من عند الدكتور بنعلي في CHU وهران. هو انترسي بزاف بالغام كارديوڤيكس. يحب دي زيشانتييو، عشرة بواط. نرجعلو غدوة الصباح.",
+      "langue": null,
+      "wer": 0.417,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": false
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "indice": false,
+      "clip": "arabe",
+      "ms": 1047,
+      "texte": "زرت الدكتورة مريم حداد في مستشفى مصطفى باشا. طالبت وثائق علمية على دواء غلوكورين وتحب نسلولها الدراسات.",
+      "langue": null,
+      "wer": 0.381,
+      "entites": [
+        {
+          "cle": "haddad",
+          "entendu": true
+        },
+        {
+          "cle": "glucorine",
+          "entendu": true
+        },
+        {
+          "cle": "pacha",
+          "entendu": false
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "indice": false,
+      "clip": "fr-rapide",
+      "ms": 1150,
+      "texte": "Alors, visite du professeur Ouldali, EHU d'Oran, neurologie. Présentation de Neurhalm, objection sur le prix par rapport aux concurrents. Il demande des brochures et deux boîtes d'échantillons de Neurhalm.",
+      "langue": null,
+      "wer": 0.278,
+      "entites": [
+        {
+          "cle": "ould ali",
+          "entendu": false
+        },
+        {
+          "cle": "neurolam",
+          "entendu": false
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "indice": true,
+      "clip": "fr-simple",
+      "ms": 1430,
+      "texte": "COMPTE RENDU: Je sors de chez le Docteur Karim Benali au CHU d'Oran, service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "langue": null,
+      "wer": 0,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "indice": true,
+      "clip": "darja-melange",
+      "ms": 1128,
+      "texte": "راني فشت من عند الدكتور بنعلي في CHU وهران. هو امتبرسي بزاف بالغام كارديوفكس. يحب ديزيشانتييو، عشرة بواط. نرجع له غدوة الصباح.",
+      "langue": null,
+      "wer": 0.5,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "indice": true,
+      "clip": "arabe",
+      "ms": 1255,
+      "texte": "زرت الدكتورة مريم حداد في مستشفى مصطفى باشا. طلبت وثائق علمية على دواء غلوكورين وتحب نرسلو لها الدراسات.",
+      "langue": null,
+      "wer": 0.333,
+      "entites": [
+        {
+          "cle": "haddad",
+          "entendu": true
+        },
+        {
+          "cle": "glucorine",
+          "entendu": true
+        },
+        {
+          "cle": "pacha",
+          "entendu": false
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-4o-transcribe",
+      "indice": true,
+      "clip": "fr-rapide",
+      "ms": 1763,
+      "texte": "Alors, visite du professeur Ould Ali, EHU d'Oran, Neurologie. Présentation de Neurolam. Objection sur le prix par rapport aux concurrents. Il demande des brochures et deux boîtes d'échantillons de Neurolam.",
+      "langue": null,
+      "wer": 0.167,
+      "entites": [
+        {
+          "cle": "ould ali",
+          "entendu": true
+        },
+        {
+          "cle": "neurolam",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "indice": false,
+      "clip": "fr-simple",
+      "ms": 983,
+      "texte": "Compte rendu. Je sors de chez le docteur Karim Ben Ali au CHU d'Oran, service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "langue": null,
+      "wer": 0.051,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "indice": false,
+      "clip": "darja-melange",
+      "ms": 935,
+      "texte": "راني فرشت من عند الدكتور بن علي في CHU وهران. هو أنتريسي بزاف بالجام كارديوفكس. يحب ديزيشانتيو، عشرة بوات. نرجعلو غدوة الصباح.",
+      "langue": null,
+      "wer": 0.333,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "indice": false,
+      "clip": "arabe",
+      "ms": 803,
+      "texte": "زرت الدكتورة مريم حداد في مستشفى مصطفى باشا. طلبت وثائق علمية على دواء غلوكورين، وتحب نسلولها الدراسات.",
+      "langue": null,
+      "wer": 0.333,
+      "entites": [
+        {
+          "cle": "haddad",
+          "entendu": true
+        },
+        {
+          "cle": "glucorine",
+          "entendu": true
+        },
+        {
+          "cle": "pacha",
+          "entendu": false
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "indice": false,
+      "clip": "fr-rapide",
+      "ms": 866,
+      "texte": "Alors, visite du professeur Huldani, EHU Doran, neurologie. Présentation de Neurolam, objection sur le prix par rapport aux concurrents. Il demande des brochures et deux boîtes d'échantillons de Neurolam.",
+      "langue": null,
+      "wer": 0.278,
+      "entites": [
+        {
+          "cle": "ould ali",
+          "entendu": false
+        },
+        {
+          "cle": "neurolam",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "indice": true,
+      "clip": "fr-simple",
+      "ms": 912,
+      "texte": "Compte rendu. Je sors de chez le docteur Karim Benali au CHU d'Oran, service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "langue": null,
+      "wer": 0,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "indice": true,
+      "clip": "darja-melange",
+      "ms": 970,
+      "texte": "راني فرشت من عند الدكتور بنعلي في CHU وهران. هو أنتريسي بزاف بالجام كارديوفكس. يحب ديزيشانطيو، عشرة بوات. نرجعلو غدوة الصباح.",
+      "langue": null,
+      "wer": 0.417,
+      "entites": [
+        {
+          "cle": "benali",
+          "entendu": true
+        },
+        {
+          "cle": "cardiovex",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "indice": true,
+      "clip": "arabe",
+      "ms": 959,
+      "texte": "زرت الدكتورة مريم حداد في مستشفى مصطفى باشا. طلبت وثائق علمية على دواء غلوكورين، وتحب نسلولها الدراسات.",
+      "langue": null,
+      "wer": 0.333,
+      "entites": [
+        {
+          "cle": "haddad",
+          "entendu": true
+        },
+        {
+          "cle": "glucorine",
+          "entendu": true
+        },
+        {
+          "cle": "pacha",
+          "entendu": false
+        }
+      ]
+    },
+    {
+      "moteur": "gpt-transcribe",
+      "indice": true,
+      "clip": "fr-rapide",
+      "ms": 1006,
+      "texte": "Alors, visite du professeur Ould Ali, EHU d'Oran, neurologie. Présentation de Neurolam, objection sur le prix par rapport aux concurrents. Il demande des brochures et deux boîtes d'échantillons de Neurolam.",
+      "langue": null,
+      "wer": 0.167,
+      "entites": [
+        {
+          "cle": "ould ali",
+          "entendu": true
+        },
+        {
+          "cle": "neurolam",
+          "entendu": true
+        },
+        {
+          "cle": "oran",
+          "entendu": true
+        }
+      ]
+    }
+  ]
+}

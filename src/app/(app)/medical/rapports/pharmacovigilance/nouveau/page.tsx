@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
  * avec le médecin et son établissement — relus ICI, dans le périmètre de la personne : l'adresse ne porte qu'un
  * identifiant, jamais un nom qu'on pourrait forger. Le déclarant est la session (l'action l'écrit).
  */
-export default async function SignalerCasPvPage({ searchParams }: { searchParams?: { praticien?: string } }) {
+export default async function SignalerCasPvPage(props: { searchParams?: Promise<{ praticien?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!signaleDesCasPv(user)) redirect(CHEMIN_PV_KAM);
   const praticienId = typeof searchParams?.praticien === "string" ? searchParams.praticien : null;

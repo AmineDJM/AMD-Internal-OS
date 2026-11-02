@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Badge } from "@/components/ui/badge";
 import type { AnalysisProgressResult } from "@/lib/regulatory/intelligence/progress/query";
 
@@ -21,7 +21,7 @@ export function LiveAnalysisBadge({
   label: string;
   tone: "neutral" | "info" | "success" | "warning" | "danger" | "purple";
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [pct, setPct] = React.useState<number | null>(null);
   const active = ACTIVE.has(status) && !!versionId;
 
@@ -35,13 +35,13 @@ export function LiveAnalysisBadge({
         const p = (await res.json()) as AnalysisProgressResult;
         if (!alive) return;
         setPct(p.percent);
-        if (!p.running) router.refresh(); // terminé → la liste reflète le nouveau statut
+        if (!p.running) rafraichir(); // terminé → la liste reflète le nouveau statut
       } catch { /* réseau : prochain tick */ }
     };
     void tick();
     const id = setInterval(tick, 8000);
     return () => { alive = false; clearInterval(id); };
-  }, [active, versionId, router]);
+  }, [active, versionId, rafraichir]);
 
   if (!active) return <Badge tone={tone} dot>{label}</Badge>;
 

@@ -7,6 +7,7 @@ import { regCan } from "../access";
 import { regAudit } from "../audit";
 import { watchAnppPages } from "./ingest-catalog";
 import { ANPP_WATCH_PAGES } from "./catalog";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * VEILLE AUTOMATIQUE DES PUBLICATIONS ANPP — une fois par jour.
@@ -110,7 +111,7 @@ async function alertRegulatory(changedCount: number): Promise<void> {
         title: "L'ANPP a publié ou modifié un texte",
         body: `${changedCount} page${changedCount > 1 ? "s ont" : " a"} changé depuis le dernier relevé. À vérifier avant la prochaine soumission.`,
         link: "/regulatory/enregistrement/corpus",
-      }).catch(() => undefined),
+      }).catch(sansBloquer("watch-schedule.alertRegulatory.notifyUser")),
     ));
   } catch (e) {
     console.error("[corpus] alerte de veille impossible", e);

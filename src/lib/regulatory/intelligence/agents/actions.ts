@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { aiConfigured, cleModeleRequise } from "@/lib/ai";
 import { courtIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import { regCan, resolveRegCompanyIdFor } from "../access";
-import { runAgentOnVersion, applicableAgents, type AgentRunSummary } from "./orchestrator";
+import { runAgentOnVersion, type AgentRunSummary } from "./orchestrator";
 
 /**
  * Actions des agents spécialisés (G6) — exécution À LA DEMANDE par un humain habilité.
@@ -44,17 +44,4 @@ export async function runAgentAction(formData: FormData): Promise<AgentRunSummar
   const summary = await runAgentOnVersion(version.id, agentKey);
   revalidatePath(`/regulatory/enregistrement/analyse/${dossierId}`);
   return summary;
-}
-
-/** Agents applicables au dossier + état de configuration IA (pour l'UI). */
-export async function listApplicableAgents(dossierId: string): Promise<{ configured: boolean; agents: { key: string; name: string; requiresSource: boolean }[] }> {
-  const user = await requireUser();
-  if (!regCan(user, "regulatory.workspace.view") && user.role !== "SUPER_ADMIN") return { configured: false, agents: [] };
-  const companyId = await scopeCompanyId(user.id);
-  if (!companyId) return { configured: false, agents: [] };
-  const version = await prisma.regulatoryDossierVersion.findFirst({
-    where: { dossierId, dossier: { companyId } }, orderBy: { versionNo: "desc" }, select: { id: true },
-  });
-  if (!version) return { configured: aiConfigured(), agents: [] };
-  return { configured: aiConfigured(), agents: await applicableAgents(version.id) };
 }

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { LIBELLE_ETAPE_BC } from "@/lib/bons-de-commande/regle";
-import { etatDeLOrdre, LIBELLE_ETAT_REGLEMENT, type EtatReglement } from "@/lib/payments/reglement";
+import { etatDeLOrdre, LIBELLE_ETAT_REGLEMENT, type EtatReglement } from "@/modules/finances/partage";
 import { DECLARATION_KIND_LABEL, isDeclarationKind } from "@/lib/medical-info/circuits";
 import { devisDuDossier, devisLu } from "@/lib/queries/promo-circuit";
 import { totauxRetenus, type Totaux } from "@/lib/promo-material/devis";

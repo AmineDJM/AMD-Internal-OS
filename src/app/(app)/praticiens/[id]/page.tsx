@@ -19,13 +19,14 @@ export const dynamic = "force-dynamic";
  * requises et faites dans le cycle ouvert, le pourquoi), son potentiel historisé, ses visites. En tête, la carte
  * simple du KAM : qui il est pour nous, ce qu'il faut faire ce cycle.
  */
-export default async function Praticien360Page({ params }: { params: { id: string } }) {
+export default async function Praticien360Page(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   if (!(await praticienVisible(user, params.id))) notFound();
   const d = await prisma.medicalDoctor.findUnique({
     where: { id: params.id },
     select: {
-      id: true, name: true, title: true, phone: true, email: true, wilaya: true, region: true, archivedAt: true,
+      id: true, name: true, title: true, phone: true, email: true, wilaya: true, region: true, archivedAt: true, personneId: true,
       institutionRef: { select: { name: true, type: true, wilaya: true } }, institution: true,
       serviceRef: { select: { name: true } },
       specialtyRef: { select: { name: true } }, specialty: true,
@@ -53,6 +54,7 @@ export default async function Praticien360Page({ params }: { params: { id: strin
           </a>
         )}
         <Link href="/medical/annuaire" className="inline-flex min-h-10 items-center text-sm text-primary underline sm:min-h-9">Annuaire</Link>
+        {d.personneId && <Link href={`/personnes/${d.personneId}`} className="inline-flex min-h-10 items-center text-sm text-primary underline sm:min-h-9">Fiche Personne</Link>}
       </PageHeader>
       {d.archivedAt && <p className="text-sm text-warning">Fiche archivée dans l&apos;annuaire.</p>}
 

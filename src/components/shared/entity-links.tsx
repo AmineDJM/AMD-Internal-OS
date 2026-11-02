@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ExternalLink, Link2, Loader2, Plus, X } from "lucide-react";
 import { addEntityLink, removeEntityLink, linkCandidatesFor } from "@/lib/actions/link-actions";
 import { LINK_TYPE_LABELS, pairReason, type LinkType } from "@/lib/links/graph";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import { useAction } from "@/components/shared/use-action";
 
 /**
  * « RELIÉ À… » — la MÊME carte sur toutes les fiches.
@@ -44,10 +44,8 @@ export function EntityLinks({ self, links, canEdit, emptyHint }: {
   canEdit: boolean;
   emptyHint?: string;
 }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, setErr, run: lancer } = useAction();
   // LES CIBLES SE CHARGENT AU CLIC, pas avec la page : jusqu'à cinq requêtes de deux cents
   // lignes pour un tiroir que la plupart des visites n'ouvrent jamais.
   const [candidates, setCandidates] = React.useState<EntityLinkCandidates[] | null>(null);
@@ -63,14 +61,7 @@ export function EntityLinks({ self, links, canEdit, emptyHint }: {
     setType(groupes.find((c) => c.options.length > 0)?.type ?? groupes[0]?.type ?? "");
   };
 
-  const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Erreur."); return false; }
-    router.refresh();
-    return true;
-  };
+  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) => lancer(fn);
 
   if (links.length === 0 && !canEdit) return null;
 

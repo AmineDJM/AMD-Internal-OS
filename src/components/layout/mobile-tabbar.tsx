@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Sparkles, LayoutGrid, MessageSquare, Grid3x3, X, Search } from "lucide-react";
-import { Icon } from "@/components/ui/icon";
+import { IconeCoque } from "@/components/ui/icone-coque";
 import type { NavItem } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { useScrollLock } from "@/lib/use-scroll-lock";
@@ -59,7 +59,7 @@ function Tile({
   if (onDeplier) {
     return (
       <button type="button" onClick={onDeplier} className={classe}>
-        <Icon name={item.icon} className="h-6 w-6" />
+        <IconeCoque name={item.icon} className="h-6 w-6" />
         <span className="text-[0.6875rem] font-medium leading-tight">{item.label}</span>
         {badge > 0 && (
           <span className="absolute right-1.5 top-1.5 min-w-[1.125rem] rounded-full bg-destructive px-1 text-[0.625rem] font-bold leading-[1.125rem] text-destructive-foreground">
@@ -72,7 +72,7 @@ function Tile({
   }
   return (
     <Link href={item.href} className={classe}>
-      <Icon name={item.icon} className="h-6 w-6" />
+      <IconeCoque name={item.icon} className="h-6 w-6" />
       <span className="text-[0.6875rem] font-medium leading-tight">{item.label}</span>
       {badge > 0 && (
         <span className="absolute right-1.5 top-1.5 min-w-[1.125rem] rounded-full bg-destructive px-1 text-[0.625rem] font-bold leading-[1.125rem] text-destructive-foreground">
@@ -188,7 +188,7 @@ export function MobileTabBar({
                   par la tuile entière : sa flèche n'est qu'un repère (pas de bouton dans un bouton). */}
               {kids.length > 0 && item.groupe && (
                 <span className="absolute bottom-1 right-1 p-1 text-muted-foreground" aria-hidden>
-                  <Icon name="ChevronDown" className={cn("h-3.5 w-3.5 transition-transform", opened ? "" : "-rotate-90")} />
+                  <IconeCoque name="ChevronDown" className={cn("h-3.5 w-3.5 transition-transform", opened ? "" : "-rotate-90")} />
                 </span>
               )}
               {kids.length > 0 && !item.groupe && (
@@ -199,7 +199,7 @@ export function MobileTabBar({
                   aria-label={opened ? `Replier ${item.label}` : `Déplier ${item.label}`}
                   className="absolute bottom-0.5 right-0.5 rounded-lg p-1.5 text-muted-foreground"
                 >
-                  <Icon name="ChevronDown" className={cn("h-3.5 w-3.5 transition-transform", opened ? "" : "-rotate-90")} />
+                  <IconeCoque name="ChevronDown" className={cn("h-3.5 w-3.5 transition-transform", opened ? "" : "-rotate-90")} />
                 </button>
               )}
             </Tile>
@@ -257,7 +257,7 @@ export function MobileTabBar({
                           aria-expanded={opened}
                           className="flex w-full items-center gap-2.5 px-3 py-3 text-left transition active:bg-secondary/60"
                         >
-                          <Icon name={pole.icon} className="h-5 w-5 shrink-0 text-primary" />
+                          <IconeCoque name={pole.icon} className="h-5 w-5 shrink-0 text-primary" />
                           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{pole.label}</span>
                           {badge > 0 && !opened && (
                             <span className="min-w-[1.125rem] rounded-full bg-destructive px-1 text-[0.625rem] font-bold leading-[1.125rem] text-destructive-foreground">
@@ -265,7 +265,7 @@ export function MobileTabBar({
                             </span>
                           )}
                           <span className="shrink-0 text-[0.6875rem] text-muted-foreground">{pole.children.length}</span>
-                          <Icon name="ChevronDown" className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", opened ? "" : "-rotate-90")} />
+                          <IconeCoque name="ChevronDown" className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", opened ? "" : "-rotate-90")} />
                         </button>
                         {opened && <div className="border-t border-border p-2">{renderTiles(pole.children)}</div>}
                       </div>

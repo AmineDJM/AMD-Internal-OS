@@ -7,6 +7,8 @@ import { saveFile, validateUpload } from "@/lib/storage";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
 import { sendPushToUser } from "@/lib/push";
 import type { DirectiveAudience, DirectiveScope } from "./audience";
+import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * DE LA PORTÉE AUX PERSONNES — et de la publication à l'envoi.
@@ -67,11 +69,6 @@ export async function resolveRecipientIds(d: {
   }
 }
 
-/** Combien de personnes la portée touche — affiché AVANT l'envoi, et sur la directive. */
-export async function countRecipients(d: Parameters<typeof resolveRecipientIds>[0]): Promise<number> {
-  return (await resolveRecipientIds(d)).length;
-}
-
 /**
  * ENVOYER (ou RENVOYER) une directive à sa portée.
  *
@@ -124,7 +121,7 @@ export async function sendDirective(directive: {
   // Push (PWA) — best-effort, comme partout ailleurs : un appareil injoignable ne doit pas
   // faire échouer la diffusion aux autres.
   await Promise.all(ids.map((userId) =>
-    sendPushToUser(userId, { title, body, url: link }).catch(() => undefined),
+    sendPushToUser(userId, { title, body, url: link }).catch(sansBloquer("recipients.sendDirective.sendPushToUser")),
   ));
   return ecrites;
 }
@@ -146,18 +143,21 @@ export async function attachDirectiveFiles(
     const invalid = validateUpload(file.name, file.size, maxMb);
     if (invalid) return invalid;
     const key = `DIRECTIVE/${directiveId}/${randomUUID()}__${file.name}`;
+    let ecrit: { blobId: string; sha256: string } | null = null;
     try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
+      ecrit = await saveFile(key, Buffer.from(await file.arrayBuffer()));
     } catch (err) {
       console.error("[directive] storage write failed, recording metadata only", err);
     }
-    await prisma.document.create({
+    const docEcrit = await prisma.document.create({
       data: {
         name: file.name, category: "OTHER", entityType: "DIRECTIVE", entityId: directiveId,
         fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
         confidentiality: "INTERNAL", uploadedById: uploaderId,
       },
     });
+    // La pièce entre à la bibliothèque (J1) : registre, clé du document, file de lecture. Ne lève jamais.
+    await inscrireDocumentEcrit(docEcrit, ecrit);
   }
   return null;
 }

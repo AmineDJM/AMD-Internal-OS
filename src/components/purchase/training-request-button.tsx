@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { GraduationCap, Loader2, Send } from "lucide-react";
 import { requestTraining } from "@/lib/actions/training-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -21,7 +22,7 @@ import { Input, Label, Textarea } from "@/components/ui/input";
  */
 /** `compact` : le bouton discret du bloc « Moi » d'Aujourd'hui (« Demander ») — même formulaire, même action. */
 export function TrainingRequestButton({ managerName, compact = false }: { managerName: string | null; compact?: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -54,14 +55,21 @@ export function TrainingRequestButton({ managerName, compact = false }: { manage
         <form
           action={async (fd) => {
             setBusy(true); setMsg(null);
-            const r = await requestTraining(undefined, fd);
-            setBusy(false);
+            let r: Awaited<ReturnType<typeof requestTraining>>;
+            try {
+              r = await requestTraining(undefined, fd);
+            } catch {
+              setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+              return;
+            } finally {
+              setBusy(false);
+            }
             if (r.ok) {
               setOpen(false);
               setMsg(null);
-              router.refresh();
+              rafraichir();
             } else {
-              setMsg({ ok: false, text: r.error ?? "Échec." });
+              setMsg({ ok: false, text: r.error ?? "La demande de formation n'a pas été envoyée." });
             }
           }}
           className="space-y-4"

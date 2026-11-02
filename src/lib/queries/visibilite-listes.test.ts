@@ -36,14 +36,14 @@ const RECHERCHE = "src/lib/queries/search.ts";
  */
 const CLAUSES: { fonction: string; ecrans: string[] }[] = [
   { fonction: "clauseSponsoringsVisibles", ecrans: ["src/app/(app)/sponsoring/page.tsx"] },
-  { fonction: "clauseEcrituresVisibles", ecrans: ["src/lib/queries/finance.ts", "src/lib/queries/compta.ts"] },
-  { fonction: "clauseSalariesVisibles", ecrans: ["src/lib/queries/hr.ts"] },
+  { fonction: "clauseEcrituresVisibles", ecrans: ["src/modules/finances/infra/requetes/finance.ts", "src/modules/finances/infra/requetes/compta.ts"] },
+  { fonction: "clauseSalariesVisibles", ecrans: ["src/modules/rh/infra/requetes/hr.ts"] },
   { fonction: "clauseVentesVisibles", ecrans: ["src/app/(app)/sales/historique/page.tsx"] },
   { fonction: "clauseCommandesLogistiqueVisibles", ecrans: ["src/app/(app)/logistics/page.tsx"] },
   { fonction: "clauseDemandesSecretariatVisibles", ecrans: ["src/lib/queries/admin-requests.ts"] },
-  { fonction: "clauseCongresInternationauxVisibles", ecrans: ["src/lib/queries/congress.ts"] },
-  { fonction: "clauseCongresNationauxVisibles", ecrans: ["src/lib/queries/congress.ts"] },
-  { fonction: "clauseEvenementsVisibles", ecrans: ["src/lib/queries/events.ts"] },
+  { fonction: "clauseCongresInternationauxVisibles", ecrans: ["src/modules/ad-pro/infra/requetes/congres.ts"] },
+  { fonction: "clauseCongresNationauxVisibles", ecrans: ["src/modules/ad-pro/infra/requetes/congres.ts"] },
+  { fonction: "clauseEvenementsVisibles", ecrans: ["src/modules/ad-pro/infra/requetes/evenements.ts"] },
   { fonction: "clauseMarchesPchVisibles", ecrans: ["src/lib/queries/pch.ts"] },
   // Les bons de commande PCH n'ont pas d'écran : ils héritent de la clause des marchés, qui l'appelle.
   { fonction: "clauseBonsDeCommandePchVisibles", ecrans: [] },
@@ -55,7 +55,7 @@ const CLAUSES: { fonction: string; ecrans: string[] }[] = [
   { fonction: "clauseMessagesVisibles", ecrans: [] },
   { fonction: "regulatoryVisibleWhere", ecrans: ["src/lib/queries/regulatory-rows.ts"] },
   { fonction: "accessibleDocumentWhere", ecrans: ["src/app/(app)/documents/page.tsx"] },
-  { fonction: "clausePraticiensVisibles", ecrans: ["src/app/api/medical/annuaire/export/route.ts"] },
+  { fonction: "clausePraticiensVisibles", ecrans: ["src/lib/exports/annuaire.ts"] },
   { fonction: "clauseDirectivesVisibles", ecrans: ["src/lib/queries/directives.ts"] },
   { fonction: "clauseTachesVisibles", ecrans: [] },
   { fonction: "resolveRegCompanyIdFor", ecrans: ["src/app/(app)/regulatory/enregistrement/analyse/page.tsx"] },
@@ -121,7 +121,7 @@ describe("La gamme Regulatory ne se recompose pas à côté de la clause de l'é
   });
 
   it("le rapprochement des catalogues, la relance et l'export lisent la clause de l'écran", () => {
-    for (const f of ["src/lib/queries/product-catalog.ts", "src/lib/queries/regulatory-reminders.ts", "src/app/api/regulatory/export/route.ts"]) {
+    for (const f of ["src/lib/queries/product-catalog.ts", "src/lib/queries/regulatory-reminders.ts", "src/lib/exports/regulatory.ts"]) {
       expect(code(f), f).toMatch(/regulatoryVisibleWhere\(user\)/);
       expect(code(f), f).not.toMatch(/\.\.\.\s*scopeRegulatory\(/);
     }
@@ -165,7 +165,7 @@ describe("Le cookie d'entité est une DEMANDE, jamais une autorisation (§118.17
   it("les lecteurs d'affichage ne s'en servent que pour NOMMER une entité parmi les leurs", () => {
     for (const f of ["src/app/(app)/courriers/page.tsx", "src/app/(app)/organigramme/page.tsx", "src/app/(app)/information-medicale/page.tsx"]) {
       const src = code(f);
-      const variable = src.match(/const (\w+) = getCompanyScope\(\);/)?.[1];
+      const variable = src.match(/const (\w+) = await getCompanyScope\(\);/)?.[1];
       expect(variable, `${f} : lecture du cookie introuvable`).toBeTruthy();
       // Chaque usage de la variable est une recherche dans une liste d'entités de la personne.
       const usages = [...src.matchAll(new RegExp(`\\b${variable}\\b`, "g"))].length;

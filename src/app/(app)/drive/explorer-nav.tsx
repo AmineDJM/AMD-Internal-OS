@@ -2,11 +2,13 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
 import { Share2 } from "lucide-react";
 import { Icon } from "@/components/ui/icon";
 import { QUICK_ACCESS, TRASH_ENTRY } from "@/lib/drive/explorer";
 import { moveNodes } from "@/lib/actions/drive-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 interface SpaceLite { id: string; name: string; icon: string | null; canManage: boolean }
 interface UserLite { id: string; name: string }
@@ -38,7 +40,7 @@ export function ExplorerNav({
   /** Personnes avec qui partager (hors soi-même) — vide = pas de partage depuis le volet. */
   users?: UserLite[];
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [over, setOver] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [menu, setMenu] = React.useState<{ x: number; y: number; id: string; name: string } | null>(null);
@@ -65,11 +67,15 @@ export function ExplorerNav({
     for (const id of ids) fd.append("id", id);
     fd.set("targetId", opts.targetId ?? "");
     fd.set("spaceId", opts.spaceId ?? "");
-    const r = await moveNodes(fd);
-    setMsg(r.ok ? { ok: true, text: `${r.done} élément(s) déplacé(s) vers ${opts.label}.` } : { ok: false, text: r.error ?? "Déplacement impossible." });
-    if (r.ok) router.refresh();
+    try {
+      const r = await moveNodes(fd);
+      setMsg(r.ok ? { ok: true, text: `${r.done} élément(s) déplacé(s) vers ${opts.label}.` } : { ok: false, text: r.error ?? "Déplacement impossible." });
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    }
     window.setTimeout(() => setMsg(null), 3000);
-  }, [router]);
+  }, [rafraichir]);
 
   const dropProps = (key: string, opts: { targetId?: string; spaceId?: string | null; label: string }) => ({
     onDragEnter: (e: React.DragEvent) => { e.preventDefault(); setOver(key); },

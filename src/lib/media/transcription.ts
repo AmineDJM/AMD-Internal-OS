@@ -1,3 +1,5 @@
+import { plier } from "@/lib/utils";
+export { plier };
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LA TRANSCRIPTION COMME CONNAISSANCE (mandat 5 §38) — pur.
@@ -77,8 +79,6 @@ export function lireHorodatage(v: unknown): number | null {
   if (!m) return null;
   return (m[1] ? Number(m[1]) * 3600 : 0) + Number(m[2]) * 60 + Number(m[3]);
 }
-
-export const plier = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export const STOPWORDS_FR: ReadonlySet<string> = new Set([
   "le", "la", "les", "un", "une", "des", "du", "de", "d", "l", "et", "ou", "mais", "donc", "or", "ni", "car", "que", "qui", "quoi", "dont", "ou",

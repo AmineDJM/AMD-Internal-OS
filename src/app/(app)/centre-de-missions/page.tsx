@@ -13,6 +13,7 @@ import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MissionControlList, MissionsCloses } from "@/components/missions/mission-control-list";
 import { AccordControls, MissionBulkControls } from "@/components/missions/mission-runtime-controls";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Missions d'Adam — AMD Internal OS" };
@@ -56,7 +57,7 @@ export default async function CentreDeMissionsPage() {
     compterPourLesGestesDeMasse(user.id),
   ]);
   const poseur = interrupteur.parId
-    ? await prisma.user.findUnique({ where: { id: interrupteur.parId }, select: { name: true } }).catch(() => null)
+    ? await prisma.user.findUnique({ where: { id: interrupteur.parId }, select: { name: true } }).catch(sansBloquer("centre-de-missions-page.CentreDeMissionsPage.user", null))
     : null;
 
   return (

@@ -95,8 +95,6 @@ export function monthGrid(year: number, month: number): GridDay[] {
   return days;
 }
 
-export const MONTH_LABELS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-
 /** Jours CIVILS d'Alger écoulés entre deux instants — 0 le même jour, jamais négatif. */
 export function joursCivilsDepuis(depuis: Date, maintenant: Date): number {
   const jour = (d: Date) => Date.parse(`${algiersYmd(d)}T00:00:00.000Z`) / 86_400_000;

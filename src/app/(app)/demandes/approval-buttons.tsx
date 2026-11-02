@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, Check, X, Pencil } from "lucide-react";
 import { decideApproval } from "@/lib/actions/admin-request-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { exigeMotif, type DecisionApprobation } from "@/lib/secretariat/decision-approbation";
 import { cn } from "@/lib/utils";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
@@ -42,15 +43,20 @@ export function ApprovalButtons({ approvalId }: { approvalId: string }) {
     fd.set("approvalId", approvalId);
     fd.set("decision", decision);
     if (exigeMotif(decision)) fd.set("comment", motif.trim());
-    const r = await decideApproval(fd);
-    setBusy(false);
-    if (!r.ok) {
-      setErreur(r.error ?? "La décision n'a pas été enregistrée.");
-      return;
+    try {
+      const r = await decideApproval(fd);
+      if (!r.ok) {
+        setErreur(r.error ?? "La décision n'a pas été enregistrée.");
+        return;
+      }
+      setOuvert(null);
+      setMotif("");
+      rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
     }
-    setOuvert(null);
-    setMotif("");
-    rafraichir();
   }
 
   return (

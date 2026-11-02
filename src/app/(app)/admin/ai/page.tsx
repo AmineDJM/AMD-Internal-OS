@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BrainCircuit, KeyRound, CheckCircle2, XCircle, Activity, Mic, HeartPulse } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -13,10 +14,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber, formatDateTime } from "@/lib/utils";
 import { AiSettingsForm } from "./ai-settings-form";
+import { depenseOcrVisionDuMois, etatChantiersPourAdministration, executantsPourAdministration, etatVisuelsPourAdministration, lireReglageOcrVision } from "@/modules/assistant-ia/api";
+import { ReglagesVisuelsForm } from "@/modules/assistant-ia/ecrans/reglages-visuels";
+import { ReglagesChantiersForm } from "@/modules/assistant-ia/ecrans/reglages-chantiers";
+import { TableauConsommation } from "@/modules/assistant-ia/ecrans/consommation/tableau-consommation";
 import { AiHealthCheckButton } from "./health-check-button";
 import { adamHealth, type HealthLevel } from "@/lib/google/health";
 import { statistiquesCout, fmtUsd } from "@/platform/in-process/telemetry/usage-stats";
 import { allBindings } from "@/lib/models/registry";
+import { sansBloquer } from "@/lib/journal";
 
 export const metadata = { title: "Centre de contrôle IA — AMD Internal OS" };
 export const dynamic = "force-dynamic";
@@ -46,11 +52,19 @@ const FEATURE_LABEL: Record<AiFeature, string> = {
   postes_luna: "Luna — postes d'une demande Ad & Pro (lecture de la description)",
   nature_depense: "Luna — nature des dépenses des moyens généraux",
 };
-const libelleFonction = (f: string): string => (FEATURE_LABEL as Record<string, string>)[f] ?? f;
+// Les fonctions journalisées SANS bascule à elles (`AiFeatureJournalisee`) — l'Assistant IA est tenu par
+// l'interrupteur général et ses plafonds (écran Consommation IA), pas par une bascule de cette page.
+const LIBELLE_JOURNAL: Record<string, string> = { assistant_ia: "Assistant IA (MiMo)" };
+const libelleFonction = (f: string): string => (FEATURE_LABEL as Record<string, string>)[f] ?? LIBELLE_JOURNAL[f] ?? f;
 
 export default async function AiControlCenterPage() {
   const user = await requireModule("ADMIN", "UPDATE");
   const settings = await getAiSettings();
+  const [ocrVision, depenseOcr, visuels, chantiers, executants] = await Promise.all([
+    lireReglageOcrVision(), depenseOcrVisionDuMois().catch(sansBloquer("admin-ia.depense-ocr", 0)), etatVisuelsPourAdministration(),
+    user.role === "SUPER_ADMIN" ? etatChantiersPourAdministration() : Promise.resolve(null),
+    executantsPourAdministration().catch(sansBloquer("admin-ia.executants", null)),
+  ]);
 
   const since30 = new Date(Date.now() - 30 * 86400000);
   const since7 = new Date(Date.now() - 7 * 86400000);
@@ -73,7 +87,7 @@ export default async function AiControlCenterPage() {
     FROM "AiUsageLog"
     WHERE "createdAt" >= ${since30} AND "latencyMs" IS NOT NULL
     GROUP BY "feature"
-  `.catch(() => [] as { feature: string; p50: number | null; p95: number | null }[]);
+  `.catch(sansBloquer("ai-page.AiControlCenterPage", [] as { feature: string; p50: number | null; p95: number | null }[]));
   const pMap = new Map(percentiles.map((r) => [r.feature, { p50: r.p50 ? Math.round(Number(r.p50)) : null, p95: r.p95 ? Math.round(Number(r.p95)) : null }]));
 
   // L'ÉTAT DES ACTIONS (7 j) : intentions proposées / exécutées / échouées / annulées —
@@ -82,7 +96,7 @@ export default async function AiControlCenterPage() {
     by: ["status"],
     where: { proposedAt: { gte: since7 } },
     _count: { _all: true },
-  }).catch(() => [] as { status: string; _count: { _all: number } }[]);
+  }).catch(sansBloquer("ai-page.AiControlCenterPage.assistantActionIntent", [] as { status: string; _count: { _all: number } }[]));
   const intentOf = (s: string) => intentCounts.find((r) => r.status === s)?._count._all ?? 0;
 
   // LA PARITÉ UI ↔ CHIEF — la métrique du registre ZERO-GAP (calcul pur, aucun appel IA).
@@ -115,7 +129,7 @@ export default async function AiControlCenterPage() {
 
   // LE COÛT — la métrique de premier rang : où part l'argent, par modèle, par usage, par personne,
   // par tour et par mission. Agrégé en base ; « inconnu » quand un tarif manque, jamais zéro.
-  const cout = await statistiquesCout(30).catch(() => null);
+  const cout = await statistiquesCout(30).catch(sansBloquer("ai-page.AiControlCenterPage.statistiquesCout", null));
   const liaisons = allBindings();
   const coutUsers = cout && cout.parPersonne.length
     ? await prisma.user.findMany({ where: { id: { in: cout.parPersonne.map((p) => p.userId) } }, select: { id: true, name: true } })
@@ -127,7 +141,7 @@ export default async function AiControlCenterPage() {
   // Santé des canaux Google d'Adam. Le calcul est partagé avec les réglages du PDG : deux
   // sources donneraient tôt ou tard deux vérités. Ne lève jamais — cette page doit s'afficher
   // même quand Google est en panne, sinon on perd l'écran qui sert justement à le diagnostiquer.
-  const adam = await adamHealth().catch(() => null);
+  const adam = await adamHealth().catch(sansBloquer("ai-page.AiControlCenterPage.adamHealth", null));
 
   return (
     <div className="space-y-5">
@@ -137,9 +151,38 @@ export default async function AiControlCenterPage() {
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><BrainCircuit className="h-6 w-6" /></span>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Centre de contrôle IA</h1>
-          <p className="text-sm text-muted-foreground">Activez ou coupez l'IA par fonction, et suivez son usage. Réservé au Super Admin.</p>
+          <p className="text-sm text-muted-foreground">
+            Activez ou coupez l'IA par fonction, et suivez son usage. Réservé au Super Admin.{" "}
+            <Link href="/admin/ai/consommation" className="underline">Consommation IA de l'Assistant IA — plafonds par personne</Link>
+            {" · "}
+            <Link href="/admin/ai/acces" className="underline">Assistant IA — accès (salaires, contrats, budgets… par rôle et par personne)</Link>
+            {" · "}
+            <Link href="/admin/ai/qualite" className="underline">Qualité IA — banc programmé, modèles par rôle</Link>
+          </p>
         </div>
       </div>
+
+      {/* P1 (décision 0047) : qui conduit les missions — une mission que personne ne conduit reste à 0 %. */}
+      {executants && (
+        <Card id="missions-executants" data-testid="admin-executants">
+          <CardHeader><CardTitle>Missions de l&apos;Assistant IA — qui les conduit</CardTitle></CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <p>Dernier passage effectif des travaux : <strong>{executants.dernierPassage ? formatDateTime(new Date(executants.dernierPassage)) : "jamais"}</strong>
+              {" · "}dernier battement du worker : <strong>{executants.workerVu ? formatDateTime(new Date(executants.workerVu)) : "jamais vu"}</strong>
+              {" · "}TACHES_DE_FOND de ce service : <code>{executants.mode}</code></p>
+            <p>Missions prêtes à avancer : <strong>{executants.enAttente}</strong></p>
+            {executants.silence
+              ? <p className="text-destructive">Les missions n&apos;avancent pas : {executants.silence}. Sur Render, vérifier que le service « amd-worker » existe et tourne (TACHES_DE_FOND=les-deux, mêmes DATABASE_URL et OPENAI_API_KEY que le web), ou que le web de l&apos;ERP porte TACHES_DE_FOND=les-deux ; puis GET /api/health/worker.</p>
+              : <p className="text-muted-foreground">Un exécutant conduit les missions (battement de moins de 3 min).</p>}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* K8 (décision 0035) : la consommation précise — le MÊME tableau que les Réglages d'Adventum IA. */}
+      <Card id="consommation">
+        <CardHeader><CardTitle>Consommation IA — jetons et dollars, appel par appel</CardTitle></CardHeader>
+        <CardContent><TableauConsommation superAdmin={user.role === "SUPER_ADMIN"} perimetreInitial="entreprise" /></CardContent>
+      </Card>
 
       {/* État des clés / configuration (lecture seule, posées sur Render). */}
       <Card>
@@ -259,9 +302,26 @@ export default async function AiControlCenterPage() {
       <Card>
         <CardHeader><CardTitle>Activation par fonction</CardTitle></CardHeader>
         <CardContent>
-          <AiSettingsForm initial={settings} />
+          <AiSettingsForm initial={settings} ocrVision={{ plafondUsd: ocrVision.plafondUsd, depenseMois: depenseOcr }} />
         </CardContent>
       </Card>
+
+      {/* K2 (décision 0032) : images, vidéos et vidéos de données de l'Assistant IA — interrupteurs, plafonds du mois, modèles. */}
+      <Card>
+        <CardHeader><CardTitle>Images et vidéos générées</CardTitle></CardHeader>
+        <CardContent>
+          <ReglagesVisuelsForm initial={visuels.reglages} depenseImagesUsd={visuels.depenseImagesUsd} depenseVideosUsd={visuels.depenseVideosUsd} videoIndisponible={visuels.videoIndisponible} />
+        </CardContent>
+      </Card>
+
+      {/* C1 (décision 0042) : les chantiers de développement (Claude Code, GitHub, Render) — plafonds par chantier et par jour. */}
+      {chantiers && (
+        <Card id="chantiers">
+          <CardHeader><CardTitle>Chantiers de développement</CardTitle></CardHeader>
+          <CardContent><ReglagesChantiersForm initial={chantiers.reglages} mimo={chantiers.mimo} /></CardContent>
+        </Card>
+      )}
+
 
       {/* COÛT — où part l'argent. Lu dans ModelCallLog (une ligne par appel) et AiUsageLog (une
           ligne par tour). Un tarif inconnu s'affiche comme tel : jamais un zéro qui aurait l'air

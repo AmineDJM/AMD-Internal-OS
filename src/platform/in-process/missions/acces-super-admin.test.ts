@@ -205,7 +205,7 @@ suite("§118.136 — l'autorité relue : ce qui tournait pour quelqu'un qui perd
 
 describe("§118.136 — les POINTS D'APPEL : la garde est là où l'on décide, pas seulement où on l'a écrite", () => {
   it("le menu : l'entrée du Centre porte la garde `adamMissions`, résolue sur le prédicat", () => {
-    const labels = lire("lib/labels.ts");
+    const labels = lire("lib/labels/navigation.ts");
     const ligne = labels.split("\n").find((l) => l.includes('href: "/centre-de-missions"') && l.includes("module:"));
     expect(ligne, "l'entrée de navigation du Centre de missions").toBeDefined();
     expect(ligne).toContain('gate: "adamMissions"');
@@ -251,7 +251,8 @@ describe("§118.136 — les POINTS D'APPEL : la garde est là où l'on décide, 
   });
 
   it("le moteur : les deux lanceurs et le filet des lancements perdus", () => {
-    const rt = lire("platform/in-process/missions/runtime.ts");
+    // `runtime.ts` est découpé : le lancement puis l'arrière-plan, dans l'ordre d'origine.
+    const rt = lire("platform/in-process/missions/runtime/lancement.ts") + "\n" + lire("platform/in-process/missions/runtime/arriere-plan.ts");
     const lancer = rt.slice(rt.indexOf("export function lancerMission("), rt.indexOf("export function lancerMission(") + 2500);
     expect(lancer.indexOf("peutPiloterMissionsAdam(user)")).toBeGreaterThan(0);
     expect(lancer.indexOf("peutPiloterMissionsAdam(user)")).toBeLessThan(lancer.indexOf('withTurn("background"'));
@@ -291,7 +292,7 @@ describe("§118.136 — les POINTS D'APPEL : la garde est là où l'on décide, 
   });
 
   it("le prompt DIT la règle à qui n'a pas les outils — sinon il irait les chercher (§118.122)", () => {
-    const a = lire("lib/assistant.ts");
+    const a = lire("lib/assistant/coeur/prompt.ts"); // le prompt d'`assistant.ts`, découpé (lot V4)
     expect(a).toContain('${peutPiloterMissionsAdam(user) ? "" : `');
     expect(a).toContain("MISSIONS ET SURVEILLANCES D'ADAM — RÉSERVÉES AU SUPER ADMIN");
   });

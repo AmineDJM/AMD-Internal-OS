@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { AlertCircle, ExternalLink, FilePen, Loader2, ShieldCheck, Send, Undo2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -66,7 +67,7 @@ export function BonDeCommandeGate({
   /** La personne peut-elle signer (« Modifier » sur le module « Bons de commande », §118.176) ? */
   peutSigner: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<"ADRESSER" | "SIGNER" | "RENVOYER" | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<string | null>(null);
@@ -89,8 +90,10 @@ export function BonDeCommandeGate({
       const r = quoi === "ADRESSER" ? await adresserBCAuCentre(f)
         : quoi === "SIGNER" ? await signerBonDeCommande(f)
           : await renvoyerBonDeCommande(f);
-      if (r.ok) { setMsg(r.message ?? null); setMotifRenvoi(null); router.refresh(); }
+      if (r.ok) { setMsg(r.message ?? null); setMotifRenvoi(null); rafraichir(); }
       else setErr(r.error ?? (quoi === "ADRESSER" ? "L'envoi au centre a échoué." : quoi === "SIGNER" ? "La signature a échoué." : "Le renvoi a échoué."));
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
     } finally {
       setBusy(null);
     }

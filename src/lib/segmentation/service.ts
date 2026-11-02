@@ -2,12 +2,13 @@ import { createHash } from "crypto";
 import { lireFeuilles } from "./feuilles";
 import type { DoctorTitle, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import { indexerEtablissements, cleDEtablissement } from "@/lib/annuaires/rattachement";
 import { indexerSpecialites } from "@/lib/annuaires/specialites";
 import { composeDoctorName } from "@/lib/medical/directory-grid";
 import { titleFrom } from "@/lib/medical/directory-sheet";
 import { ADVENTUM_COMPANY_ID } from "@/lib/company-defaut";
-import { lireClasseur, proposerRegles, type Feuilles, type LectureClasseur, type PropositionRegles } from "./lecture-classeur";
+import { lireClasseur, proposerRegles, type LectureClasseur, type PropositionRegles } from "./lecture-classeur";
 import { rapprocher, typeDEtablissement, type Rapprochement } from "./rapprochement";
 import { lireRegles, STATUTS, type InOut, type Regles, type Statut } from "./regles";
 import { inOutDe, pivotDuSecteur, wilayaDuPraticien } from "./in-out";
@@ -17,7 +18,7 @@ import { secteurDuPraticien, type SecteurBu } from "./secteurs";
 export { secteurDuPraticien, type SecteurBu };
 import { clausePanelDuKam } from "@/lib/rbac";
 import { segmenterPraticien, derniere, effaceDeSource, type ContexteSegmentation, type FaitsPraticien, type ResultatPraticien } from "./moteur";
-import { affinitesEtablissements } from "@/lib/consommation/affinite-service";
+import { affinitesEtablissements } from "@/modules/consommation/api";
 
 /**
  * SEGMENTATION STUDIO — le côté BASE : charger une stratégie et ses faits, préparer puis appliquer
@@ -130,7 +131,7 @@ export async function chargerFaits(strategieId: string, portee: Prisma.MedicalDo
   const p1 = strat?.produits[0]?.productId ?? null;
   const secteurs = strat ? await chargerSecteurs(strat.businessUnitId) : [];
   const fiches = await prisma.segmentationFiche.findMany({
-    where: { strategieId, retireeLe: null, doctor: { archivedAt: null, ...portee } },
+    where: { strategieId, retireeLe: null, doctor: { AND: [{ archivedAt: null }, portee] } },
     select: {
       id: true, statut: true, zone: true, secteurId: true,
       doctor: {
@@ -427,7 +428,9 @@ export async function appliquerImport(
     reglesV1 = lu.regles;
   }
 
-  return prisma.$transaction(async (tx) => {
+  // LES FICHES TOUCHÉES, pour la double écriture des lieux (refonte V2-D), faite APRÈS la transaction.
+  const lieux = { medecins: [] as string[], etablissements: [] as string[] };
+  const resultat = await prisma.$transaction(async (tx) => {
     const imp = await tx.segmentationImport.create({
       data: { strategieId, nomFichier, empreinte: apercu.empreinte, taille: buffer.length, feuille: apercu.feuille, rapport: apercu as unknown as Prisma.InputJsonValue, auteurId },
       select: { id: true },
@@ -437,6 +440,7 @@ export async function appliquerImport(
     for (const nom of apercu.etablissementsACreer) {
       const zone = lecture.lignes.find((l) => l.etablissement === nom)?.zone ?? null;
       const e = await tx.medicalInstitution.create({ data: { name: nom, type: typeDEtablissement(nom), region: zone, createdById: auteurId, notes: `Créé par l'import de segmentation « ${nomFichier} ».` }, select: { id: true } });
+      lieux.etablissements.push(e.id);
       etabCree.set(cleDEtablissement(nom), e.id);
     }
     const specCree = new Map<string, string>();
@@ -478,6 +482,7 @@ export async function appliquerImport(
         doctorId = d.id;
         crees++;
       }
+      lieux.medecins.push(doctorId);
       // La « Région » qui nomme un secteur de la BU y range la fiche ; une région inconnue garde le secteur déjà posé.
       const secteurId = prep.secteurDeRegion(l.zone);
       await tx.segmentationFiche.upsert({
@@ -505,6 +510,9 @@ export async function appliquerImport(
     }
     return { ok: true as const, importId: imp.id, crees, misAJour, observations, etablissementsCrees: etabCree.size, specialitesCreees: specCree.size, reglePubliee };
   }, { timeout: 120_000, maxWait: 20_000 });
+  await reposerWilayaCode("MedicalInstitution", lieux.etablissements);
+  await reposerWilayaCode("MedicalDoctor", lieux.medecins);
+  return resultat;
 }
 
 /**

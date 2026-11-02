@@ -22,6 +22,11 @@ describe("le plafond GLOBAL de replans n'existe plus (§118.42)", () => {
      */
     const fichiers = [
       "src/platform/in-process/missions/runtime.ts",
+      "src/platform/in-process/missions/runtime/assemblage.ts",
+      "src/platform/in-process/missions/runtime/lancement.ts",
+      "src/platform/in-process/missions/runtime/arriere-plan.ts",
+      "src/platform/in-process/missions/runtime/avancement.ts",
+      "src/platform/in-process/missions/runtime/replanification.ts",
       "src/lib/missions/events/router.ts",
       "src/platform/in-process/missions/horizon.ts",
     ];
@@ -179,7 +184,7 @@ describe("le moteur ne conclut pas une mission dont l'horizon est ouvert", () =>
      * l'objectif ENTIER, ne verrait qu'un septième du travail, refuserait honnêtement, et six
      * jalons ne seraient jamais écrits.
      */
-    const engine = lire("src/lib/missions/runtime/engine.ts");
+    const engine = lire("src/lib/missions/runtime/engine/conclusion.ts");
     const iPorte = engine.indexOf("if (etat.horizonOuvert)");
     const iJuge = engine.indexOf("const verdict = await evaluerObjectif(");
     expect(iPorte, "la porte d'horizon a disparu de `conclure`").toBeGreaterThan(0);
@@ -299,7 +304,7 @@ describe("la fraîcheur se prend au REÇU, jamais au plan", () => {
      * plus simple ». On daterait alors des lectures qui n'ont pas eu lieu — une fraîcheur bâtie
      * sur une intention, qui rassure exactement là où elle devrait alerter.
      */
-    const engine = lire("src/lib/missions/runtime/engine.ts");
+    const engine = lire("src/lib/missions/runtime/engine/sortie.ts");
     expect(engine).toContain("const recu = sortie.recu;");
     expect(engine).toContain("EFFETS_LECTURE.has(recu.effect)");
     expect(engine).toMatch(/valeur: recu\.resultHash/);
@@ -317,7 +322,7 @@ describe("la fraîcheur se prend au REÇU, jamais au plan", () => {
    * c'est le seul endroit où le reçu d'une lecture réussie existe.
    */
   it("et elle est APPELÉE — dans la branche DONE de `ecrireSortie`, pas seulement définie", () => {
-    const engine = lire("src/lib/missions/runtime/engine.ts");
+    const engine = lire("src/lib/missions/runtime/engine/sortie.ts");
     // On borne la recherche À LA FONCTION : `if (sortie.status === "DONE")` apparaît aussi dans
     // la définition du type `StepOutcome`, et chercher dans tout le fichier comparerait des
     // positions qui n'ont rien à voir.

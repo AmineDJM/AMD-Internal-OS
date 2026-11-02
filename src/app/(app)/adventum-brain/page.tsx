@@ -30,7 +30,8 @@ type Vue = (typeof VUES)[number];
  * Le Super Admin voit tout ; une autre personne à qui le module est ouvert (le Directeur des opérations, 08/10) ne voit
  * que « Ce matin » (à décider) et « Risques », bornés à son périmètre (`adventum/perimetre.ts`).
  */
-export default async function AdventumBrainPage({ searchParams }: { searchParams?: { vue?: string; jour?: string } }) {
+export default async function AdventumBrainPage(props: { searchParams?: Promise<{ vue?: string; jour?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("ADVENTUM_BRAIN");
   // HORS SUPER ADMIN (Direction, 08/10 — le Directeur des opérations) : les risques de SON périmètre seulement, et rien
   // de ce qui parle de toute la maison — ni le briefing, ni la question libre, ni l'historique, ni les seuils.

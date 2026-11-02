@@ -220,7 +220,58 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 | `operations/index.ts` · `types.ts` | Le registre `OPERATIONS_IA` : `proposer` (carte ou `manque`) / `executer` (action de l'écran) ; `executerOperationIA` revérifie le droit. |
 | `operations/adpro-*.ts` · `bon-de-commande.ts` · `quotidien.ts` · `budget.ts` | Ad & Pro de bout en bout, BC + « Créer la demande de validation », relance / dépôt / rendez-vous / réponse, contrôle de budget sans chiffre pour qui n'a pas « Budgets ». |
 | `operations/demandes-visibles.ts` · `pieces.ts` · `annuaire-medical.ts` | Ce que la personne voit : demandes (portées), pièces (Drive, droits revérifiés), médecins. |
-| `operations/documents-lus.ts` · `devis-lu.ts` · `bc-depuis-devis.ts` · `mrz.ts` · `voyageur-passeport.ts` · `traduction.ts` · `formulaire-pdf.ts` · `document-modele.ts` | Les documents ; portes avant le modèle (identité et paie refusées, RIB/IBAN/NIN masqués). |
+| `operations/documents-lus.ts` · `devis-lu.ts` · `bc-depuis-devis.ts` · `mrz.ts` · `voyageur-passeport.ts` · `traduction.ts` · `formulaire-pdf.ts` · `document-modele.ts` | Les documents ; portes avant le modèle (identité et paie refusées, RIB/IBAN/NIN masqués). `bc-depuis-devis.ts` (lot B1, décision 0049) : « Crée un BC en PDF » → `preparer_bc_depuis_devis` (société = client du devis, pas de validateur, enveloppe selon la nature — `domaine/operations/bc-devis.ts`), geste « Créer le BC (PDF) » = BC numéroté en pré-validation + PDF au Drive ; `envoyer_bc_en_validation` = le geste séparé où le validateur se demande ; `bc-compose.ts` : `composer_bon_de_commande`, le BC dicté sans pièce (même brouillon + PDF). |
 | `routines/calendrier.ts` · `passage.ts` · `service.ts` · `operations/routines.ts` | Les routines : calendrier en heure d'Alger, passage en lecture seule (vérifier puis comparer), prise atomique, traces et notifications. |
 | `memoire.ts` · `memoire-ui.ts` · `filtre-confidentialite.ts` · `generer.ts` · `recherche-web.ts` | Mémoire personnelle, filtre (et masque réversible), appel de rédaction sans outil, recherche web à question censurée. |
 | `src/lib/actions/assistant-ia-actions.ts` | Les gestes de la personne sur SA mémoire et SES routines (identité de la session, jamais d'un paramètre). |
+| `repondre.ts` · `generer.ts` | Les DEUX SEULES portes vers le modèle (cliquets `interrupteur.test.ts`, `consommation.test.ts`) : interrupteur général, puis budget ouvert / compté par étape / fermé. |
+| `consommation.ts` · `consommation-regles.ts` · `consommation-stats.ts` | Lot V3-D : journal de chaque appel (`ModelCallLog`, feature `assistant_ia`) et de chaque tour (`AiUsageLog`), plafonds (par tour, par personne et par jour, heure d'Alger), avis au Super Admin ; règles PURES partagées avec l'écran ; agrégats de l'écran. |
+| `lecture/regles.ts` (pur, au socle) · `lecture/pieces.ts` | Décision 0011 : les pièces d'un message sont LUES (texte, OCR local, vision des images et scans par `genererTexte`, transcription, images clés de vidéo) après les portes du coffre ; filtre, bornes et limites DITES (`LecturePiece` gardée sur le tour) ; transcription comptée par `appelVoix` (`consommation.ts`). |
+| `lecture/depot.ts` (pur, au socle) · `components/assistant-beta/depot-navigateur.ts` · `pieces-jointes.tsx` · `apercu-piece.tsx` | Décision 0015 : glisser-déposer de fichiers et dossiers (parcours récursif, fichiers système ignorés, bornes dites), collage, puces sélectionnables, téléversement À L'ENVOI avec progression ; aperçu latéral des pièces envoyées et renvoyées (`piecesCitees`, champ `piecesRendues` de `/api/assistant-ia/fil`) ; « Demander une modification ». |
+| `lecture/voix.ts` · `src/app/api/assistant-ia/vocal/route.ts` | Les vocaux du fil : dépôt (Drive personnel, « Assistant IA — vocaux »), transcription au moment de jouer le tour, réponse vocale (synthèse OpenAI) ; écran : `components/assistant-beta/enregistreur-vocal.tsx`, `bulle-vocale.tsx`. |
+| `contenu-non-fiable.ts` | Les sorties d'outils qui ramènent un contenu TIERS (document, message reçu, page web) sont encadrées et désamorcées avant le modèle ; la règle est dans `REGLES`. |
+| `src/app/(app)/admin/ai/consommation/` · `src/lib/actions/assistant-ia-consommation-actions.ts` | Écran Super Admin « Consommation IA » (par personne, par jour, par modèle) et réglage des plafonds / décisions (`AssistantIaReglage`). |
+
+### Refonte des données — enrichissement des fiches (lot V2-A)
+
+| Fichier | Rôle |
+|---|---|
+| `src/lib/enrichissement/signalement.ts` | Interrupteur, `PIECE_DEPOSEE` + mise en file, appelés par les goulots |
+| `src/lib/enrichissement/file.ts` | Pur : clés, identifiants dérivés, reprise après échec, source / confidentialité d'un dépôt |
+| `src/lib/enrichissement/traitement.ts` | `traiterLaFile` / `traiterTache` : pièce, lecture locale, classement, extraction, sujets, décisions |
+| `src/lib/enrichissement/extraction.ts` | Pur : l'extracteur de chaque nature |
+| `src/lib/enrichissement/sujets.ts` · `fiches.ts` | À qui se rapportent les faits (pur) · lectures des fiches, Personne d'un porteur |
+| `src/lib/enrichissement/confirmation.ts` · `a-confirmer.ts` | Confirmer / rejeter / trancher (transaction) · qui tranche, colonnes de fiche (pur) |
+| `src/lib/enrichissement/porte-coffre.ts` · `src/modules/coffre/infra/depot-referentiel.ts` | Écriture seule au coffre · dépôt du coffre sur les tables R6 réelles |
+| `src/lib/enrichissement/lectures.ts` | État de la file, file « À confirmer » |
+| `src/modules/referentiels/infra/reprises/` | Contrat commun des reprises + `rattrapage-pieces.ts` |
+| `src/lib/actions/enrichissement-actions.ts` · `src/modules/referentiels/actions-reprises.ts` | Gestes (Super Admin, responsable du fait) |
+| `src/app/(app)/admin/refonte-donnees/` · `src/app/(app)/a-confirmer/` | Écrans |
+### Référentiel des Personnes (R1) — `src/modules/referentiels/infra/personnes/` (refonte, lot V2-B)
+
+Module `referentiels` (`src/modules/referentiels/`, lot V3-G) : on l'importe par `@/modules/referentiels/api` (serveur) ou `/partage` (pur) — voir `docs/architecture/MODULES.md`.
+
+| Fichier | Rôle |
+|---|---|
+| `sources.ts` | Les neuf tables où vit une personne : rôle, identité lue (aucune colonne sensible), racine (lien ERP sûr), identifiant déterministe. Pur. |
+| `rattachement.ts` | LE geste « relier une ligne à sa Personne », partagé par la reprise et la double écriture ; à blanc pour l'aperçu. |
+| `reprise.ts`, `reprise-doublons.ts`, `../reprises/` | Les reprises (contrat commun `Reprise`, registre `reprises/index.ts`, journal = audit « Refonte des données »). |
+| `fiches-doublons.ts`, `../../domaine/personnes/paires.ts` | Les fiches comparées par le moteur `domaine/doublons.ts` (aussi pour `scripts/refonte/inventaire-doublons.ts`) et leur réduction en paires de Personnes. |
+| `fusion.ts` | Fusionner / écarter / défaire — gestes du Super Admin (`../../actions-personnes.ts`, clé `personnes-actions`). |
+| `double-ecriture.ts` | `relierALaPersonne` dans la transaction des écrivains, derrière `AppSetting.refontePersonnesDoubleEcriture`. |
+| `fiche.ts`, `visibilite.ts` | La fiche 360° `/personnes/[id]` : chaque ligne derrière la porte de son écran d'origine. |
+| `app/(app)/admin/refonte-donnees/` | L'écran unique des reprises (Super Admin). |
+| `app/(app)/personnes/` | La fiche 360° et `doublons/` (trancher). |
+#### Refonte des données — coffre (V2-E)
+
+| Fichier | Rôle |
+|---|---|
+| `src/modules/coffre/{partage,api,api-lecture}.ts` | Les trois portes : pure (navigateur), écriture (ne déchiffre jamais — celle des actions), lecture (déchiffre — écrans RH/Legal/admin). Guide : `docs/architecture/MODULES.md`. |
+| `src/modules/coffre/domaine/champs.ts` | Catalogue PUR des colonnes sensibles copiées, classement, masque, « écrire sans lire ». |
+| `src/modules/coffre/infra/copies.ts` · `ecriture.ts` | Chemin d'écriture (copie chiffrée, remplacement daté) et double écriture derrière l'interrupteur. |
+| `src/modules/coffre/infra/acces.ts` · `lecture.ts` · `dechiffrement.ts` | Contrôle d'accès + journal (sans déchiffrer), lecture des écrans (déchiffre), le seul module qui déchiffre. |
+| `src/modules/coffre/infra/couverture.ts` · `journal.ts` | Couverture colonne par colonne ; journal des accès filtrable. |
+| `src/modules/referentiels/domaine/reprises/types.ts` · `infra/reprises/{index,coffre}.ts` | Contrat commun des reprises ; reprise « coffre ». |
+| `src/modules/referentiels/actions-reprises.ts` · `src/modules/coffre/actions.ts` (clés `refonte-reprise-actions`, `coffre-actions`) | Aperçu / lot (Super Admin, audités) ; interrupteurs. |
+| `src/app/(app)/admin/refonte-donnees/` · `admin/acces-donnees-sensibles/` | Écrans Super Admin. |
+

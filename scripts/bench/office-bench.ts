@@ -37,7 +37,6 @@ import { ciblePage } from "@/lib/artifact/commands/ir";
 import PizZip from "pizzip";
 import { percentiles } from "@/lib/artifact/observability/timing";
 import type { DocumentOuvert } from "@/lib/artifact/adapters/contract";
-import type { CommandeArtefact } from "@/lib/artifact/commands/ir";
 
 const TOURS = 12;
 

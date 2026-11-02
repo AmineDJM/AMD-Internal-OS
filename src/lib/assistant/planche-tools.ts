@@ -19,7 +19,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import {
   compiler, raconter, repli, anglesUtiles, regarder,
   ANGLES, CONTENANTS, type Angle, type Ligne, type Noeud, type Planche,
@@ -39,9 +39,9 @@ const lignesDe = (v: unknown): Ligne[] => (Array.isArray(v) ? v.filter((x): x is
  * trou là où le compilateur avait dit oui.
  */
 export const KINDS_RENDUS = new Set<string>([
-  "agenda", "alerte", "artifact", "comparison", "dashboard", "directory", "document",
+  "agenda", "alerte", "analyse", "artifact", "comparison", "dashboard", "directory", "document",
   "dossier", "email", "entity360", "mail", "mission", "people", "planification",
-  "progress", "queue", "record", "story", "table", "timeline", "viz",
+  "progress", "queue", "record", "story", "table", "timeline", "viz", "visuel",
 ]);
 
 export const PLANCHE_TOOLS: PowerTool[] = [

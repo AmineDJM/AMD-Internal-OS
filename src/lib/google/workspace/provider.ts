@@ -1,4 +1,4 @@
-import { DOCS_BASE, SHEETS_BASE, SLIDES_BASE, PEOPLE_BASE, DRIVE_BASE } from "../config";
+import { DOCS_BASE, SHEETS_BASE, SLIDES_BASE, PEOPLE_BASE } from "../config";
 import { googleJson } from "../client";
 
 /**
@@ -84,21 +84,6 @@ export async function appendToDoc(accessToken: string, documentId: string, text:
   });
 }
 
-/** Remplace un texte partout dans le document (publipostage simple : « {{nom}} » → « Deepak »). */
-export async function replaceInDoc(accessToken: string, documentId: string, replacements: Record<string, string>): Promise<number> {
-  const requests = Object.entries(replacements).map(([find, replace]) => ({
-    replaceAllText: { containsText: { text: find, matchCase: true }, replaceText: replace },
-  }));
-  if (requests.length === 0) return 0;
-  const res = await googleJson<{ replies?: { replaceAllText?: { occurrencesChanged?: number } }[] }>({
-    method: "POST",
-    url: `${DOCS_BASE}/documents/${encodeURIComponent(documentId)}:batchUpdate`,
-    accessToken,
-    body: { requests },
-  });
-  return (res.replies ?? []).reduce((n, r) => n + Number(r.replaceAllText?.occurrencesChanged ?? 0), 0);
-}
-
 // ──────────────────────────── Google Sheets ────────────────────────────
 
 export interface GSheetSummary {
@@ -124,15 +109,6 @@ export async function createSpreadsheet(accessToken: string, title: string, firs
   };
 }
 
-export async function readRange(accessToken: string, spreadsheetId: string, range: string): Promise<string[][]> {
-  const res = await googleJson<{ values?: string[][] }>({
-    url: `${SHEETS_BASE}/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}`,
-    accessToken,
-    query: { majorDimension: "ROWS" },
-  });
-  return res.values ?? [];
-}
-
 /**
  * Écrit une plage. `USER_ENTERED` : « 12,5 » devient un nombre et « =SOMME(...) » une formule —
  * c'est ce qu'attend quelqu'un qui reçoit un tableau, plutôt qu'une colonne de texte inerte.
@@ -146,17 +122,6 @@ export async function writeRange(accessToken: string, spreadsheetId: string, ran
     body: { range, majorDimension: "ROWS", values },
   });
   return Number(res.updatedCells ?? 0);
-}
-
-export async function appendRows(accessToken: string, spreadsheetId: string, range: string, values: (string | number)[][]): Promise<number> {
-  const res = await googleJson<{ updates?: { updatedRows?: number } }>({
-    method: "POST",
-    url: `${SHEETS_BASE}/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}:append`,
-    accessToken,
-    query: { valueInputOption: "USER_ENTERED", insertDataOption: "INSERT_ROWS" },
-    body: { range, majorDimension: "ROWS", values },
-  });
-  return Number(res.updates?.updatedRows ?? 0);
 }
 
 /** Crée une feuille COMPLÈTE depuis un tableau — le chemin normal d'un livrable du Chief. */
@@ -202,27 +167,6 @@ export async function createPresentation(accessToken: string, title: string): Pr
     url: `https://docs.google.com/presentation/d/${id}/edit`,
     slideCount: (res.slides ?? []).length,
   };
-}
-
-interface RawSlide {
-  objectId?: string;
-  pageElements?: { shape?: { text?: { textElements?: { textRun?: { content?: string } }[] } } }[];
-}
-
-/** Le texte des diapositives — pour lire un support reçu, ou vérifier ce qu'on vient de produire. */
-export async function readSlidesText(accessToken: string, presentationId: string): Promise<{ title: string; slides: string[] }> {
-  const res = await googleJson<{ title?: string; slides?: RawSlide[] }>({
-    url: `${SLIDES_BASE}/presentations/${encodeURIComponent(presentationId)}`,
-    accessToken,
-  });
-  const slides = (res.slides ?? []).map((s) =>
-    (s.pageElements ?? [])
-      .map((el) => (el.shape?.text?.textElements ?? []).map((t) => t.textRun?.content ?? "").join(""))
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim(),
-  );
-  return { title: res.title ?? "(sans titre)", slides };
 }
 
 /** Ajoute une diapositive TITRE + CORPS — la forme utile pour un point exécutif. */
@@ -283,15 +227,6 @@ function normalizePerson(p: RawPerson): GContact {
 
 const PERSON_FIELDS = "names,emailAddresses,phoneNumbers,organizations";
 
-export async function listContacts(accessToken: string, pageSize = 100): Promise<GContact[]> {
-  const res = await googleJson<{ connections?: RawPerson[] }>({
-    url: `${PEOPLE_BASE}/people/me/connections`,
-    accessToken,
-    query: { personFields: PERSON_FIELDS, pageSize, sortOrder: "LAST_MODIFIED_DESCENDING" },
-  });
-  return (res.connections ?? []).map(normalizePerson);
-}
-
 /** Cherche un contact par nom ou fragment d'adresse — « Deepak » doit suffire. */
 export async function searchContacts(accessToken: string, query: string, pageSize = 15): Promise<GContact[]> {
   const res = await googleJson<{ results?: { person?: RawPerson }[] }>({
@@ -300,14 +235,4 @@ export async function searchContacts(accessToken: string, query: string, pageSiz
     query: { query, readMask: PERSON_FIELDS, pageSize },
   });
   return (res.results ?? []).map((r) => normalizePerson(r.person ?? {}));
-}
-
-/** Le fichier Drive derrière un document bureautique — pour le partager ou le ranger. */
-export async function driveFileOf(accessToken: string, fileId: string): Promise<{ id: string; name: string; webViewLink: string | null }> {
-  const res = await googleJson<{ id?: string; name?: string; webViewLink?: string }>({
-    url: `${DRIVE_BASE}/files/${encodeURIComponent(fileId)}`,
-    accessToken,
-    query: { fields: "id,name,webViewLink" },
-  });
-  return { id: String(res.id ?? fileId), name: res.name ?? "", webViewLink: res.webViewLink ?? null };
 }

@@ -7,6 +7,7 @@ import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { CHEMIN_PARENT_AD_PRO, lienDemandeAdPro, type ParentAdPro } from "@/lib/chemins/ad-pro";
 import { CHEMIN_MES_MISSIONS, lienMission } from "@/lib/chemins/espace";
 import { ficheStockee, lignesReservation, reservationsAdventum } from "@/lib/missions-equipe/participation";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * MISSIONS AD & PRO — l'orchestration côté SERVEUR (base, notifications). Les règles vivent dans
@@ -153,9 +154,9 @@ export async function synchroniserOrdreEmis(requestId: string, actorId: string):
     const a = await prisma.missionAssignment.findUnique({ where: { id: req.missionAssignmentId }, select: { entityType: true, entityId: true, createdById: true, userId: true } });
     if (!a) return;
     const p = await parentMission(a.entityType, a.entityId);
-    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Ordre de mission émis — votre mission est ouverte", body: p.label, link: lienMission(req.missionAssignmentId) }).catch(() => undefined);
+    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Ordre de mission émis — votre mission est ouverte", body: p.label, link: lienMission(req.missionAssignmentId) }).catch(sansBloquer("missions-equipe-serveur.synchroniserOrdreEmis.notifyUser"));
     if (a.createdById && a.createdById !== a.userId) {
-      await notifyUser({ userId: a.createdById, type: "GENERIC", title: "Ordre de mission émis", body: p.label, link: lienMission(req.missionAssignmentId) }).catch(() => undefined);
+      await notifyUser({ userId: a.createdById, type: "GENERIC", title: "Ordre de mission émis", body: p.label, link: lienMission(req.missionAssignmentId) }).catch(sansBloquer("missions-equipe-serveur.synchroniserOrdreEmis.notifyUser"));
     }
     await recordAudit({ actorId, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: req.missionAssignmentId, summary: `Ordre de mission émis par les RH — ${p.label}` });
     await envoyerReservationEquipe(req.missionAssignmentId, actorId);

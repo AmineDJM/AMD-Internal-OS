@@ -95,9 +95,13 @@ suite("un module BLOQUÉ ne revient pas par une règle implicite", () => {
  */
 describe("aucun accès implicite ne contourne le garde", () => {
   it("plus aucun `modules.set` hors de `grantImplicit`", () => {
-    const src = fs.readFileSync(path.join(process.cwd(), "src/lib/rbac.ts"), "utf8");
+    // `rbac.ts` est découpé (lot V4) : `grantImplicit` vit dans `rbac/acces.ts`, et ce qui le suivait
+    // dans l'ancien fichier (vérifications, portées) est relu à la suite — la propriété reste la même.
+    const src = ["acces", "verifications", "portees"]
+      .map((m) => fs.readFileSync(path.join(process.cwd(), `src/lib/rbac/${m}.ts`), "utf8"))
+      .join("\n");
     const debut = src.indexOf("const grantImplicit =");
-    expect(debut, "`grantImplicit` a disparu de rbac.ts").toBeGreaterThan(0);
+    expect(debut, "`grantImplicit` a disparu de rbac/acces.ts").toBeGreaterThan(0);
 
     const fautives = src
       .slice(debut)

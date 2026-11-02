@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { X, Download, Printer, Pencil, Trash2, Check, Loader2, ExternalLink, Maximize2, Minimize2 } from "lucide-react";
 import { ApercuUniversel } from "./apercu-universel";
 import { natureApercu } from "@/lib/formats/apercu";
@@ -10,6 +10,10 @@ import { printDocument } from "@/lib/print-document";
 import { deleteDocument, renameDocument } from "@/lib/actions/document-actions";
 import { useScrollLock } from "@/lib/use-scroll-lock";
 import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 // Extensions ouvrables/modifiables dans l'éditeur Office (alignées sur onlyofficeDocType côté serveur).
 const OFFICE_EDIT = ["doc", "docx", "odt", "rtf", "txt", "xls", "xlsx", "ods", "csv", "ppt", "pptx", "odp"];
@@ -57,7 +61,9 @@ export function DocumentPreview({
    */
   supprimer?: (id: string, path?: string) => Promise<{ ok: boolean; error?: string }>;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [open, setOpen] = React.useState(false);
   useScrollLock(open); // l'aperçu est modal : la page ne doit pas défiler derrière
   const [renaming, setRenaming] = React.useState(false);
@@ -78,19 +84,31 @@ export function DocumentPreview({
     const v = draft.trim();
     if (!v || v === name) { setRenaming(false); setDraft(name); return; }
     setBusy(true);
-    await renameDocument(id, v, path);
-    setBusy(false);
-    setRenaming(false);
-    router.refresh();
+    try {
+      const r = await renameDocument(id, v, path);
+      if (!r.ok) retours.erreur(r.error ?? "Le document n'a pas été renommé.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+      setRenaming(false);
+      rafraichir();
+    }
   }
   async function onDelete() {
-    if (!confirm("Supprimer définitivement ce document ?")) return;
+    if (!(await confirmer("Supprimer définitivement ce document ?"))) return;
     setDeleting(true);
-    const r = await (supprimer ?? deleteDocument)(id, path);
-    // Un refus se DIT (§118.83) : sans cela, la fenêtre restait ouverte sur un fichier qui n'était pas parti.
-    if (!r.ok) { setDeleting(false); window.alert(r.error ?? "Suppression impossible."); return; }
+    try {
+      const r = await (supprimer ?? deleteDocument)(id, path);
+      // Un refus se DIT (§118.83) : sans cela, la fenêtre restait ouverte sur un fichier qui n'était pas parti.
+      if (!r.ok) { setDeleting(false); retours.erreur(r.error ?? "Suppression impossible."); return; }
+    } catch {
+      setDeleting(false);
+      retours.erreur(actionFailureMessage("THROWN"));
+      return;
+    }
     setOpen(false);
-    router.refresh();
+    rafraichir();
   }
 
   return (

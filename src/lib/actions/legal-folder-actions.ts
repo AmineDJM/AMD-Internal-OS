@@ -1,5 +1,6 @@
 "use server";
 
+import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -22,6 +23,21 @@ const PATH = "/legal";
 /** Tous les dossiers, en forme légère — ce dont les règles pures ont besoin. */
 async function allFolders(): Promise<FolderLite[]> {
   return prisma.legalFolder.findMany({ select: { id: true, name: true, parentId: true, companyId: true } });
+}
+
+/**
+ * LE DOSSIER VISÉ PAR LE FORMULAIRE, PORTE D'ÉCRITURE FRANCHIE (audit 27/10, SA-16) : le droit du module ET la
+ * société du dossier — la création la vérifiait déjà. Renommer et supprimer passent par elle.
+ */
+async function porteDuDossier(formData: FormData, action: "UPDATE" | "DELETE") {
+  const user = await requireUser();
+  const id = fdStr(formData, "id");
+  if (!id) return { ok: false as const, error: "Dossier introuvable." };
+  const porte = await ouvrirPourEcrire(user, "LEGAL_FOLDER", id, action);
+  if (!porte.ok) return porte;
+  const existing = await prisma.legalFolder.findUnique({ where: { id }, select: { name: true } });
+  if (!existing) return { ok: false as const, error: "Dossier introuvable." };
+  return { ok: true as const, user, id, existing };
 }
 
 /** L'entité demandée est-elle dans le périmètre ? On ne classe pas dans une société qu'on ne voit pas. */
@@ -60,12 +76,9 @@ export async function createLegalFolder(_prev: ActionResult | undefined, formDat
 
 /** Renomme un dossier, ou le déplace sous un autre. */
 export async function updateLegalFolder(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!userCan(user, "LEGAL", "UPDATE")) return { ok: false, error: "Non autorisé." };
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Dossier introuvable." };
-  const existing = await prisma.legalFolder.findUnique({ where: { id }, select: { name: true } });
-  if (!existing) return { ok: false, error: "Dossier introuvable." };
+  const dossier = await porteDuDossier(formData, "UPDATE");
+  if (!dossier.ok) return dossier;
+  const { user, id, existing } = dossier;
 
   const parentRaw = formData.get("parentId");
   const nextParent = parentRaw != null ? (String(parentRaw) || null) : undefined;
@@ -106,12 +119,9 @@ export async function updateLegalFolder(formData: FormData): Promise<ActionResul
  * précaution d'écran.
  */
 export async function deleteLegalFolder(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!userCan(user, "LEGAL", "DELETE")) return { ok: false, error: "Non autorisé." };
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Dossier introuvable." };
-  const existing = await prisma.legalFolder.findUnique({ where: { id }, select: { name: true } });
-  if (!existing) return { ok: false, error: "Dossier introuvable." };
+  const dossier = await porteDuDossier(formData, "DELETE");
+  if (!dossier.ok) return dossier;
+  const { user, id, existing } = dossier;
 
   await prisma.legalFolder.delete({ where: { id } });
   await recordAudit({
@@ -137,6 +147,9 @@ export async function moveLegalDocuments(formData: FormData): Promise<ActionResu
   const folderId = fdStr(formData, "folderId");
   let folderName = "Non classés";
   if (folderId) {
+    // On ne range pas dans le dossier d'une société qu'on ne voit pas (SA-16).
+    const porte = await ouvrirPourEcrire(user, "LEGAL_FOLDER", folderId, "UPDATE");
+    if (!porte.ok) return porte;
     const folder = await prisma.legalFolder.findUnique({ where: { id: folderId }, select: { name: true } });
     if (!folder) return { ok: false, error: "Dossier introuvable." };
     folderName = folder.name;
@@ -151,6 +164,7 @@ export async function moveLegalDocuments(formData: FormData): Promise<ActionResu
   });
   if (movable.length === 0) return { ok: false, error: "Ces documents ne sont pas dans votre périmètre." };
 
+  // porte d'écriture : `movable` ne garde que les pièces des sociétés de la personne (filtre ci-dessus).
   await prisma.legalDocument.updateMany({
     where: { id: { in: movable.map((d) => d.id) } },
     data: { folderId: folderId || null },

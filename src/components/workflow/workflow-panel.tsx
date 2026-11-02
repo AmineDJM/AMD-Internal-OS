@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Check, X, Loader2, MessageSquare, ArrowRight, SkipForward, Undo2, Send, Ban } from "lucide-react";
 import type { EntityType } from "@prisma/client";
-import { advanceWorkflow, resoumettreDemande, retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
+import { advanceWorkflow, faireAppelAdPro, resoumettreDemande, retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
 import type { WorkflowView, WorkflowEventView, WorkflowStepView } from "@/lib/queries/workflow";
 import { SCOPE_LABELS } from "@/lib/workflow/types";
 import { ROLE_LABELS, EXPENSE_ORDER_STATUS } from "@/lib/labels";
@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { cn, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 const STATUS_TONE: Record<string, { label: string; tone: "success" | "danger" | "warning" | "neutral" }> = {
   IN_PROGRESS: { label: "En cours", tone: "warning" },
@@ -137,8 +138,15 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
     }
     start(async () => {
       setErr(null);
-      const r = await advanceWorkflow(fd);
-      if (!r.ok) { setErr(r.error ?? "Action impossible."); return; }
+      let r: Awaited<ReturnType<typeof advanceWorkflow>>;
+      try {
+        r = await advanceWorkflow(fd);
+      } catch {
+        // Une action qui LÈVE (connexion coupée, redéploiement) se dit ; elle ne remonte plus nue.
+        setErr(actionFailureMessage("THROWN"));
+        return;
+      }
+      if (!r.ok) { setErr(r.error ?? "La décision n'a pas été enregistrée."); return; }
       resetForm();
       rafraichir();
     });
@@ -305,6 +313,7 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
         </div>
       )}
       {view.peutResoumettre && <ResubmitForm entityType={entityType} entityId={entityId} />}
+      {view.peutFaireAppel && <AppealForm entityType={entityType} entityId={entityId} />}
     </>
   );
 
@@ -551,6 +560,38 @@ function ResubmitForm({ entityType, entityId }: { entityType: EntityType; entity
 }
 
 /**
+ * FAIRE APPEL D'UN REFUS (décision #12, 27/10/2026) — motif obligatoire, transmis à l'étape qui réexamine.
+ */
+function AppealForm({ entityType, entityId }: { entityType: EntityType; entityId: string }) {
+  const { enCours, rafraichir } = useRafraichir();
+  const [pendingAction, start] = React.useTransition();
+  const pending = pendingAction || enCours;
+  const [motif, setMotif] = React.useState("");
+  const [err, setErr] = React.useState<string | null>(null);
+  const envoyer = () => start(async () => {
+    setErr(null);
+    const fd = new FormData();
+    fd.set("entityType", entityType);
+    fd.set("entityId", entityId);
+    fd.set("motif", motif.trim());
+    const r = await faireAppelAdPro(fd);
+    if (!r.ok) { setErr(r.error ?? "Appel impossible."); return; }
+    setMotif("");
+    rafraichir();
+  });
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
+      <Label>Faire appel du refus</Label>
+      <Textarea value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Pourquoi la demande doit être réexaminée (obligatoire)…" className="min-h-[56px]" />
+      {err && <p className="text-xs text-destructive">{err}</p>}
+      <Button size="sm" className="w-full sm:w-auto" disabled={pending || !motif.trim()} onClick={envoyer}>
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Faire appel
+      </Button>
+    </div>
+  );
+}
+
+/**
  * RETIRER une demande non tranchée (§118.186) — motif obligatoire, et la confirmation le dit : retirer
  * la SUPPRIME (Direction, 05/10), récupérable depuis la corbeille par le Super Admin. La fiche n'existe
  * plus après le geste : on quitte la page vers la liste au lieu de la rafraîchir (elle s'afficherait
@@ -573,7 +614,13 @@ export function WithdrawForm({ entityType, entityId, dansUnMenu = false }: {
     fd.set("entityType", entityType);
     fd.set("entityId", entityId);
     fd.set("motif", motif.trim());
-    const r = await retirerDemandeAdPro(fd);
+    let r: Awaited<ReturnType<typeof retirerDemandeAdPro>>;
+    try {
+      r = await retirerDemandeAdPro(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    }
     if (!r.ok) { setErr(r.error ?? "Retrait impossible."); return; }
     setOpen(false);
     // Pas de `refresh()` : la fiche n'existe plus, la rafraîchir la rendrait « Introuvable ». L'action a

@@ -1,5 +1,5 @@
 import type { EntityType } from "@prisma/client";
-import { buildRef } from "@/lib/refs";
+import { referenceDeSerie } from "@/lib/refs";
 import { prisma } from "./prisma";
 import { anyRoleFilter, type SessionUser } from "./rbac";
 import { getDeclaration, canViewDeclaration } from "./queries/medical-info";
@@ -26,8 +26,10 @@ export async function decideursInfoMedActifs(requesterId: string | null): Promis
 
 export async function nextDeclarationRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.medicalInfoDeclaration.findMany({ where: { reference: { startsWith: `DIM-${year}-` } }, select: { reference: true } });
-  return buildRef("DIM", year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "MedicalInfoDeclaration", prefixe: "DIM", annee: year,
+    existantes: async () => (await prisma.medicalInfoDeclaration.findMany({ where: { reference: { startsWith: `DIM-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 interface CreateDeclarationInput {

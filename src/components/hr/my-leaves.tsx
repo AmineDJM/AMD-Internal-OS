@@ -2,12 +2,12 @@
 
 import * as React from "react";
 import { Loader2, X, Check } from "lucide-react";
-import { cancelLeave } from "@/lib/actions/hr-actions";
+import { cancelLeave } from "@/modules/rh/actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LEAVE_TYPE, LEAVE_STATUS } from "@/lib/labels";
-import { LEAVE_STAGE_LABELS, type LeaveStage } from "@/lib/leave-workflow";
+import { LEAVE_STAGE_LABELS, type LeaveStage } from "@/modules/rh/partage";
 import { formatDate, cn } from "@/lib/utils";
 import { StandInButton, StandInBadge } from "@/components/hr/stand-in-panel";
 import { BulleDiscussion, FilConge } from "@/components/hr/conge-discussion";

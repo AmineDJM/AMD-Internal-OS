@@ -3,6 +3,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import { LIBELLE_BC_DEMANDE } from "@/lib/secretariat/devis-natif";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * APRÈS LA SIGNATURE D'UN BC (module Bons de commande) : si le BC vient d'une demande au
@@ -22,10 +23,10 @@ export async function apresSignatureDuBCDeDemande(bcId: string, acteurId: string
   await recordAudit({
     actorId: acteurId, action: "VALIDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: demande.id,
     summary: `Bon de commande ${nom} ${LIBELLE_BC_DEMANDE.SIGNE.toLowerCase()} — signé par ${signataire}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("bc-signe.apresSignatureDuBCDeDemande.recordAudit"));
   const avis = { type: "GENERIC" as const, title: "Bon de commande signé et validé", body: `${demande.reference} — ${nom} signé par ${signataire} : la commande peut partir.`, link: `/demandes/${demande.id}` };
-  await prevenirLeSecretariat(demande.assignedToId, avis, acteurId).catch(() => 0);
+  await prevenirLeSecretariat(demande.assignedToId, avis, acteurId).catch(sansBloquer("bc-signe.apresSignatureDuBCDeDemande.prevenirLeSecretariat", 0));
   if (demande.requesterId && demande.requesterId !== acteurId && demande.requesterId !== demande.assignedToId) {
-    await notifyUser({ userId: demande.requesterId, ...avis }).catch(() => undefined);
+    await notifyUser({ userId: demande.requesterId, ...avis }).catch(sansBloquer("bc-signe.apresSignatureDuBCDeDemande.notifyUser"));
   }
 }

@@ -1,6 +1,6 @@
 import { analyser, afficher, referencesDe, fonctionsDe, traduireFormulePartagee, FONCTIONS_VOLATILES, type Noeud } from "@/lib/artifact/sheets/formula";
 import { a1DeCoord, cleDe, lettresDeColonne } from "@/lib/artifact/sheets/refs";
-import type { Cellule, Classeur, Feuille } from "@/lib/artifact/sheets/model";
+import type { Cellule, Classeur } from "@/lib/artifact/sheets/model";
 import { celluleDeId, type Graphe } from "@/lib/artifact/sheets/graph";
 import { ErreurExcel, FONCTIONS_CONNUES, nomCanonique, type Recalcul, type Scalaire } from "@/lib/artifact/sheets/evaluate";
 

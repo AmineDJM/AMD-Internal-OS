@@ -161,15 +161,6 @@ export async function listConflicts(dossierVersionId: string) {
   });
 }
 
-export async function listDossierAudit(dossierId: string, take = 50) {
-  return prisma.regulatoryAuditLog.findMany({
-    where: { dossierId },
-    orderBy: { createdAt: "desc" },
-    take,
-    select: { id: true, action: true, detail: true, actorId: true, createdAt: true },
-  });
-}
-
 /**
  * Journal d'audit Regulatory TRANSVERSE (tous dossiers). Sur la fiche d'un dossier, le journal
  * répondait à « qu'est-il arrivé à celui-ci » ; la question de gouvernance est « qui a fait quoi

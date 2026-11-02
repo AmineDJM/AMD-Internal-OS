@@ -1,6 +1,7 @@
 import { GRAPH_BASE } from "../config";
 import { MailError, type MailErrorKind, type MailDiagnostic } from "../provider";
 import { withRetry } from "./throttle";
+import { attendu } from "@/lib/journal";
 
 /**
  * L'APPEL À GRAPH — un seul endroit qui parle réseau.
@@ -146,7 +147,7 @@ async function graphRaw(req: GraphRequest): Promise<{ res: Response; text: strin
       // remonter une exception brute jusqu'à l'écran.
       return { status: 503, retryAfter: null, res: null as Response | null, text: "" };
     }
-    const text = await res.text().catch(() => "");
+    const text = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
     return { status: res.status, retryAfter: res.headers.get("retry-after"), res, text };
   // Une écriture n'est PAS rejouée sur 5xx : Graph a peut-être traité la requête avant de tomber,
   // et rejouer un envoi expédierait le message deux fois au destinataire.
@@ -167,7 +168,7 @@ async function graphRaw(req: GraphRequest): Promise<{ res: Response; text: strin
 }
 
 async function toError(res: Response, bodyText: string | undefined, req: GraphRequest): Promise<MailError> {
-  const text = bodyText ?? (await res.text().catch(() => ""));
+  const text = bodyText ?? (await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
   let code = "";
   let graphMessage = "";
   try {

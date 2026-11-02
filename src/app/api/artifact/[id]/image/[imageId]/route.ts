@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { octetsImageArtefact } from "@/platform/in-process/artifact/render";
+import { octetsImageArtefact } from "@/platform/ia/artifact/render";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -27,7 +27,11 @@ import { octetsImageArtefact } from "@/platform/in-process/artifact/render";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string; imageId: string } }) {
+export async function GET(
+  _req: NextRequest,
+  props: { params: Promise<{ id: string; imageId: string }> }
+) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
 

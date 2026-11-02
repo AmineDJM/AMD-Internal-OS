@@ -11,14 +11,14 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY, ENTITY_TYPE_LABELS } from "@/lib/labels";
-import { canApprove, canResubmit, isOverdue, deadlineLabel, isWithFinance, piecesEnVigueur } from "@/lib/finance/payment-request";
-import { isCompanionDossier } from "@/lib/finance/dossier-auto";
-import { CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, sitsOnPaymentCentre, type CentralStatus, type CentralDecision } from "@/lib/payments/authorization";
+import {
+  canApprove, canResubmit, isOverdue, deadlineLabel, isWithFinance, piecesEnVigueur, isCompanionDossier,
+  CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, sitsOnPaymentCentre, type CentralStatus, type CentralDecision,
+  deadlineNatureLabel, deadlineNatureOf, refusDeCorrection, refusDeRetrait, refusDeSuppression,
+} from "@/modules/finances/partage";
 import { entityHref } from "@/lib/entity-href";
 import { existingEntityIds } from "@/lib/entity-exists";
-import { deadlineNatureLabel, deadlineNatureOf } from "@/lib/finance/deadline-nature";
 import { PaymentDossier, type PieceView, type EventView } from "./dossier";
-import { refusDeCorrection, refusDeRetrait, refusDeSuppression } from "@/lib/finance/correction-demande";
 import { getMyCompanies } from "@/lib/company";
 import { AskChief } from "@/components/shared/ask-chief";
 import { realtimeVoiceConfigured, canUseRealtimeVoice } from "@/lib/assistant/voice-realtime";
@@ -37,7 +37,8 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
  * par un module : celui qui fait payer une facture n'a aucune raison d'accéder au grand livre,
  * et ne doit pourtant jamais perdre de vue SA demande.
  */
-export default async function PaymentRequestPage({ params }: { params: { id: string } }) {
+export default async function PaymentRequestPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const req = await prisma.paymentRequest.findUnique({
     where: { id: params.id },

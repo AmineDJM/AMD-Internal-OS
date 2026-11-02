@@ -8,6 +8,8 @@ import {
 } from "@/lib/actions/org-coherence-actions";
 import { assignEmployeeDepartment } from "@/lib/actions/department-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { Badge } from "@/components/ui/badge";
 import type { Coherence } from "@/lib/org/coherence";
@@ -30,6 +32,8 @@ export function CoherencePanel({ coherence, departements, employes, nomsComptes 
   nomsComptes: Record<string, string>;
 }) {
   const { enCours, rafraichir } = useRafraichir();
+  // Les gestes du panneau vivent dans des lignes, sans place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const [occupe, setOccupe] = React.useState(false);
   const busy = occupe || enCours;
 
@@ -37,10 +41,15 @@ export function CoherencePanel({ coherence, departements, employes, nomsComptes 
     const fd = new FormData();
     for (const [k, v] of Object.entries(champs)) fd.set(k, v);
     setOccupe(true);
-    const r = await action(fd);
-    setOccupe(false);
-    if (!r.ok) { window.alert(r.error ?? "Action impossible."); return; }
-    rafraichir();
+    try {
+      const r = await action(fd);
+      if (!r.ok) { retours.erreur(r.error ?? "La correction n'a pas été appliquée."); return; }
+      rafraichir();
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(false);
+    }
   }
 
   const c = coherence;

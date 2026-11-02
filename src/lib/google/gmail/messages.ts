@@ -1,5 +1,5 @@
 import { GMAIL_BASE } from "../config";
-import { googleJson, googleBinary } from "../client";
+import { googleJson } from "../client";
 import { decodeGmailBody, parseAddress, parseAddressList } from "./mime";
 
 /**
@@ -190,17 +190,6 @@ export async function getThread(accessToken: string, threadId: string): Promise<
   return (raw.messages ?? []).map(normalizeMessage);
 }
 
-/** Cherche et rend les messages COMPLETS (bornés) — le confort d'un seul appel côté Chief. */
-export async function searchMessages(accessToken: string, opts: GmailListOptions = {}): Promise<GmailMessage[]> {
-  const { ids } = await listMessageIds(accessToken, opts);
-  const capped = ids.slice(0, Math.min(opts.maxResults ?? 15, 25));
-  const out: GmailMessage[] = [];
-  for (const { id } of capped) {
-    try { out.push(await getMessage(accessToken, id)); } catch { /* un message disparu ne casse pas la recherche */ }
-  }
-  return out;
-}
-
 /** Les octets d'une pièce jointe — à la demande, jamais stockés par défaut. */
 export async function getAttachmentBytes(accessToken: string, messageId: string, attachmentId: string): Promise<Buffer> {
   const res = await googleJson<{ data?: string; size?: number }>({
@@ -222,14 +211,4 @@ export async function getProfile(accessToken: string): Promise<{ emailAddress: s
     historyId: res.historyId ? String(res.historyId) : null,
     messagesTotal: Number(res.messagesTotal ?? 0),
   };
-}
-
-/** Exporte un message brut (RFC 822) — utile au diagnostic, jamais au rendu courant. */
-export async function getRawMessage(accessToken: string, id: string): Promise<Buffer> {
-  const res = await googleBinary({
-    url: `${GMAIL_BASE}/${USER}/messages/${encodeURIComponent(id)}`,
-    accessToken,
-    query: { format: "raw" },
-  });
-  return res.buffer;
 }

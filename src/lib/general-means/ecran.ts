@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * MOYENS GÉNÉRAUX — L'ÉCRAN ALLÉGÉ (Direction, 09/10) : les règles PURES des dépenses rangées par mois, des chiffres du
  * mois, de la répartition par nature et des filtres. Aucun import : lu par la requête (la « nature » d'une dépense), par
@@ -193,8 +194,6 @@ export interface FiltresDepenses {
 }
 export const AUCUN_FILTRE: FiltresDepenses = { recherche: "", paiement: "TOUS", nature: "", mois: "" };
 
-const sansAccent = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
 /** Y a-t-il un filtre posé ? (alors tous les mois concernés s'ouvrent : on cherche, on ne feuillette pas) */
 export function filtreActif(f: FiltresDepenses): boolean {
   return f.recherche.trim() !== "" || f.paiement !== "TOUS" || f.nature !== "" || Boolean(f.mois);
@@ -208,14 +207,14 @@ function naturesDe(r: { nature: string | null; parts?: readonly PartDeNature[] }
 export function filtrerDepenses<T extends { label: string; notes: string | null; nature: string | null; parts?: readonly PartDeNature[]; date?: string; fromPettyCash: boolean; lines: readonly { label: string }[] }>(
   rows: readonly T[], f: FiltresDepenses,
 ): T[] {
-  const mots = sansAccent(f.recherche).split(/\s+/).filter(Boolean);
+  const mots = plier(f.recherche).split(/\s+/).filter(Boolean);
   return rows.filter((r) => {
     if (f.paiement === "CAISSE" && !r.fromPettyCash) return false;
     if (f.paiement === "HORS" && r.fromPettyCash) return false;
     if (f.nature !== "" && !naturesDe(r).includes(f.nature)) return false;
     if (f.mois && (!r.date || moisCle(r.date) !== f.mois)) return false;
     if (mots.length === 0) return true;
-    const texte = sansAccent([r.label, r.notes ?? "", r.nature ?? "", ...r.lines.map((l) => l.label)].join(" "));
+    const texte = plier([r.label, r.notes ?? "", r.nature ?? "", ...r.lines.map((l) => l.label)].join(" "));
     return mots.every((m) => texte.includes(m));
   });
 }

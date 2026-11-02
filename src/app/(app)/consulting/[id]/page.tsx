@@ -2,33 +2,30 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUser, requireModule } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
+import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { toNumber, formatCurrency, formatDate } from "@/lib/utils";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { PageHeader } from "@/components/shared/page-header";
-import { VisaCentreBanniere } from "@/components/ad-pro/visa-centre-banniere";
-import { SupprimerDemandeAdPro } from "@/components/ad-pro/supprimer-demande";
-import { peutSupprimerUneDemandeAdPro } from "@/lib/queries/ad-pro-suppression";
+import { VisaCentreBanniere } from "@/modules/ad-pro/ecrans/visa-centre-banniere";
+import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande";
+import { peutSupprimerUneDemandeAdPro, contextePiecesLiees, adProEditValues } from "@/modules/ad-pro/api";
 import { BackLink } from "@/components/shared/back-link";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { DocumentUpload } from "@/components/documents/document-upload";
-import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande } from "@/lib/ad-pro/doc-categories";
-import { contextePiecesLiees } from "@/lib/ad-pro/pieces-liees";
-import { LinkedRecords } from "@/components/shared/linked-records";
+import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande, billingSuffix, isOverdue, isContractEditable, isAwaitingDecision, totalCommitment, canEditAdProRequest, isAdProDecided } from "@/modules/ad-pro/partage";
+import { LinkedRecords } from "@/components/pieces/linked-records";
 import type { DocItem } from "@/components/documents/document-list";
 import { CONSULTING_STATUS, CONSULTING_BILLING } from "@/lib/labels";
-import { billingSuffix, isOverdue, isContractEditable, isAwaitingDecision, totalCommitment } from "@/lib/ad-pro/consulting";
 import { ConsultingActions, type ContractTask } from "./actions-panel";
-import { AdProDiscussionCard } from "@/components/ad-pro/discussion-card";
+import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
 import {
   MODULE_DU_POLE, CHEMIN_LISTE_POLE, LIBELLE_POLE, poleDe, poleOppose, transfertAutorise,
 } from "@/lib/lecteurs/consulting";
 import { TransferPanel } from "./transfer-panel";
-import { AdProEditButton } from "@/components/ad-pro/edit-request-button";
-import { canEditAdProRequest, isAdProDecided } from "@/lib/ad-pro-edit";
-import { adProEditValues } from "@/lib/queries/ad-pro-edit";
+import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +46,8 @@ function Info({ label, value }: { label: string; value: string | null | undefine
  * seulement ce qui a un sens à cet instant du cycle de vie. Un bouton qui apparaît puis échoue
  * fait douter de tout le reste de l'écran.
  */
-export default async function ConsultingContractPage({ params }: { params: { id: string } }) {
+export default async function ConsultingContractPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   // LA PORTE EST CELLE DU PÔLE DU CONTRAT (§118.150), pas « Consulting » en dur : un contrat passé
   // aux RH n'est plus lisible par la promotion — sa rémunération comprise — et il doit l'être
   // par les RH qui le suivent. Sans le module de son pôle, le contrat n'existe pas pour cette
@@ -62,6 +60,9 @@ export default async function ConsultingContractPage({ params }: { params: { id:
   if (!tete || !userCan(user, moduleDuContrat, "VIEW")) notFound();
   // Les gardes d'écran habituelles du module — mot de passe à changer, module masqué.
   await requireModule(moduleDuContrat);
+  // LA SOCIÉTÉ DU CONTRAT (audit 27/10, SA-14) : la liste est filtrée par entité, la fiche l'est aussi — la même
+  // porte que ses pièces (`canAccessEntity`). Hors d'elle, le contrat n'existe pas pour cette personne.
+  if (!(await canAccessEntity(user, "CONSULTING_CONTRACT", params.id, "VIEW"))) notFound();
 
   const contract = await prisma.consultingContract.findUnique({
     where: { id: params.id },

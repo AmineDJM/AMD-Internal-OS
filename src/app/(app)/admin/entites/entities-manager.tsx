@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Plus, Pencil, Power, Building2 } from "lucide-react";
 import { createCompany, updateCompany, toggleCompany } from "@/lib/actions/company-actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 
 export interface EntityRow {
@@ -23,10 +24,10 @@ export interface EntityRow {
 const PALETTE = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#db2777", "#475569"];
 
 export function EntitiesManager({ rows }: { rows: EntityRow[] }) {
-  const router = useRouter();
   const [editing, setEditing] = React.useState<EntityRow | "new" | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, setErr, run } = useAction();
+  // La bascule vit dans une ligne du tableau, sans place où parler : un refus part en avis flottant.
+  const bascule = useAction({ signalerErreurs: true });
   const [color, setColor] = React.useState<string>(PALETTE[0]);
 
   function openNew() {
@@ -42,12 +43,14 @@ export function EntitiesManager({ rows }: { rows: EntityRow[] }) {
 
   async function toggle(row: EntityRow) {
     const verb = row.isActive ? "désactiver" : "réactiver";
-    if (!window.confirm(`Voulez-vous ${verb} l'entité « ${row.name} » ? (une entité inactive disparaît du sélecteur)`)) return;
     const fd = new FormData();
     fd.set("id", row.id);
-    const r = await toggleCompany(fd);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    router.refresh();
+    await bascule.run(async () => {
+      const r = await toggleCompany(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? `L'entité n'a pas pu être ${row.isActive ? "désactivée" : "réactivée"}.` };
+    }, undefined, {
+      confirmer: `Voulez-vous ${verb} l'entité « ${row.name} » ? (une entité inactive disparaît du sélecteur)`,
+    });
   }
 
   const row = editing && editing !== "new" ? editing : null;
@@ -120,12 +123,12 @@ export function EntitiesManager({ rows }: { rows: EntityRow[] }) {
         {editing && (
           <form
             action={async (fd) => {
-              setBusy(true); setErr(null);
               fd.set("color", color);
               if (row) fd.set("id", row.id);
-              const res = row ? await updateCompany(fd) : await createCompany(undefined, fd);
-              setBusy(false);
-              if (res.ok) { setEditing(null); router.refresh(); } else setErr(res.error ?? "Échec.");
+              await run(async () => {
+                const res = row ? await updateCompany(fd) : await createCompany(undefined, fd);
+                return res.ok ? res : { ok: false, error: res.error ?? "L'entité n'a pas été enregistrée." };
+              }, () => setEditing(null));
             }}
             className="space-y-4"
           >
@@ -158,7 +161,7 @@ export function EntitiesManager({ rows }: { rows: EntityRow[] }) {
                 <Building2 className="h-3.5 w-3.5" /> {row.products} produit·s · {row.employees} employé·s · {row.departments} département·s rattaché·s.
               </p>
             )}
-            {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+            <Retour ton="erreur">{err}</Retour>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setEditing(null)} disabled={busy}>Annuler</Button>
               <Button type="submit" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Enregistrer</Button>

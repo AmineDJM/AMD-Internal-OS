@@ -31,6 +31,9 @@ import { chunkTable, renumber } from "../chunk";
 /** Au-delà, on n'indexe plus les lignes : le tableau est un export, pas un document. */
 export const MAX_SHEET_ROWS = 2_000;
 
+/** Lignes réellement ANALYSÉES par feuille : celles qu'on garde, la zone où l'on cherche l'en-tête, une marge de lignes vides. */
+const LIGNES_ANALYSEES = MAX_SHEET_ROWS + 100;
+
 /** Une feuille lue : son nom, ses colonnes, ses lignes. */
 export interface SheetTable {
   name: string;
@@ -160,14 +163,32 @@ export function parseCsv(text: string, name = "Feuille"): SheetTable | null {
 export async function parseWorkbook(buffer: Buffer): Promise<SheetTable[]> {
   try {
     const XLSX = await import("xlsx");
-    const wb = XLSX.read(buffer, { type: "buffer" });
+    // On n'analyse que les lignes qui serviront (`MAX_SHEET_ROWS`, plus la marge où l'on cherche l'en-tête
+    // et quelques lignes vides) : `XLSX.read` est SYNCHRONE et fige tout le processus web le temps de
+    // l'analyse. Mesuré sur 100 000 lignes / 20 Mo : 2,7 s de gel sans borne, 0,16 s avec (audit
+    // performance PERF-07). `!fullref` garde l'étendue réelle de la feuille pour compter ce qui est omis.
+    const wb = XLSX.read(buffer, { type: "buffer", sheetRows: LIGNES_ANALYSEES });
     const out: SheetTable[] = [];
     for (const name of wb.SheetNames) {
       const ws = wb.Sheets[name];
       if (!ws) continue;
-      const grid = XLSX.utils.sheet_to_json<string[]>(ws, { header: 1, blankrows: false, raw: false, defval: "" });
-      const table = tableFromGrid(name, grid.map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? "")) : [])));
-      if (table) out.push(table);
+      // Lignes vides gardées ICI pour savoir à quelle ligne de la feuille correspond chacune ; on les retire
+      // ensuite, comme le faisait `blankrows: false`.
+      const brute = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, blankrows: true, raw: false, defval: "" });
+      const premiere = ws["!ref"] ? XLSX.utils.decode_range(ws["!ref"]).s.r : 0;
+      const lues = brute
+        .map((r, i) => ({ ligne: premiere + i, cellules: Array.isArray(r) ? r.map((c) => String(c ?? "")) : [] }))
+        .filter((r) => r.cellules.some((c) => c !== ""));
+      const grid = lues.map((r) => r.cellules);
+      const table = tableFromGrid(name, grid);
+      if (!table) continue;
+      // Feuille tronquée par la lecture : le total vient de l'étendue réelle (un MAJORANT — les lignes
+      // vides au-delà de la fenêtre lue y comptent), à partir de la ligne qui suit l'en-tête.
+      const etendue = typeof ws["!fullref"] === "string" ? XLSX.utils.decode_range(ws["!fullref"]) : null;
+      if (etendue && etendue.e.r - etendue.s.r + 1 > LIGNES_ANALYSEES) {
+        const enTete = lues[findHeaderRow(grid)]?.ligne ?? etendue.s.r;
+        out.push({ ...table, totalRows: Math.max(table.totalRows, etendue.e.r - enTete) });
+      } else out.push(table);
     }
     return out;
   } catch (err) {

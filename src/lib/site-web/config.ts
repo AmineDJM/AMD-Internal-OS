@@ -193,11 +193,6 @@ export function apercuDe(lecture: LectureConfiguration, env: NodeJS.ProcessEnv =
   };
 }
 
-/** L'aperçu d'une configuration lue dans l'environnement seul (sans clé stockée). */
-export function apercuConfiguration(env: NodeJS.ProcessEnv = process.env, stockee: IdentifiantsStockes | null = null): ApercuConfiguration {
-  return apercuDe(lireConfiguration(env, stockee), env);
-}
-
 /** L'adresse publique complète d'un contenu, à partir de l'URL relative que le site a rendue. */
 export function urlPublique(relative: string | null, env: NodeJS.ProcessEnv = process.env): string | null {
   if (!relative) return null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { routeQuery, consigneCalcul, consignePeriode, consigneProchainGeste, consigneRepresentation, consigneSignaux } from "./router";
-import { outilsNommes, shortlistNames, shortlistTools, fitToolBudget, TOOL_DOMAINS_ALL } from "./tool-shortlist";
+import { outilsNommes, shortlistTools, fitToolBudget, TOOL_DOMAINS_ALL } from "./tool-shortlist";
 import { resolveTools } from "./tool-resolver";
 
 /**

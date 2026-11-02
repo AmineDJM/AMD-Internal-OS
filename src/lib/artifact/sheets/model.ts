@@ -1,4 +1,4 @@
-import { cleDe, coordDeCle, type Coord } from "@/lib/artifact/sheets/refs";
+import { cleDe } from "@/lib/artifact/sheets/refs";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -80,8 +80,3 @@ export function* formulesDe(classeur: Classeur): Generator<{ feuille: Feuille; c
     }
   }
 }
-
-export const coordDe = (cle: number): Coord => coordDeCle(cle);
-
-/** Une valeur est-elle « vide » au sens d'Excel (cellule absente ou chaîne vide) ? */
-export const estVide = (c: Cellule | undefined): boolean => !c || c.v === null || c.v === "" || c.t === "vide";

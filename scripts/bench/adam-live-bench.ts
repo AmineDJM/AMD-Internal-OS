@@ -47,7 +47,6 @@ export interface ContexteDefi {
   confirmation: { ok: boolean; message?: string; error?: string } | null;
 }
 
-type Verdict = { ok: boolean; motif: string };
 export interface Cas {
   id: string;
   categorie: string;
@@ -169,7 +168,7 @@ async function main(): Promise<void> {
       let derniere: Mesure | null = null;
       let pieces: string | null = null;
       if (c.piecesJointes) {
-        const { extractAttachmentText, buildAttachmentContext } = await import("@/lib/assistant-files");
+        const { extractAttachmentText, buildAttachmentContext } = await import("@/platform/ia/media/assistant-files");
         const lues = [];
         for (const pj of await c.piecesJointes(ctx)) lues.push(await extractAttachmentText(pj.name, pj.buffer));
         pieces = buildAttachmentContext(lues);
@@ -234,7 +233,7 @@ async function main(): Promise<void> {
       if (c.confirmer) {
         if (!propositionObj?.intentId) motifs.push("rien à confirmer : aucune proposition avec intent");
         else {
-          const { executeIntentGuarded } = await import("@/lib/assistant/action-intents");
+          const { executeIntentGuarded } = await import("@/platform/ia/intentions/action-intents");
           const { performAction } = await import("@/lib/assistant");
           const r = await executeIntentGuarded(user, propositionObj.intentId, (stored) => performAction(user, stored as Parameters<typeof performAction>[1]));
           ctx.confirmation = r ? { ok: r.ok, message: r.message, error: r.error } : { ok: false, error: "intent introuvable" };

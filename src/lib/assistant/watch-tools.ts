@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 // Par le PONT, pas par `lib/rbac` : un import direct est un franchissement de la frontière (§118.136).
 import { peutPiloterMissionsAdam, REFUS_MISSIONS_ADAM } from "@/platform/in-process/adapter";
 

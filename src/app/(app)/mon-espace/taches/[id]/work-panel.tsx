@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Check, X, Loader2, RotateCcw } from "lucide-react";
 import { respondTaskRequest, submitTaskWork, reopenTaskWork } from "@/lib/actions/task-actions";
@@ -36,9 +37,14 @@ export function TaskWorkPanel({
 
   const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
     setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (r.ok) rafraichir(); else setErr(r.error ?? "Échec.");
+    try {
+      const r = await fn();
+      if (r.ok) rafraichir(); else setErr(r.error ?? "La tâche n'a pas été mise à jour.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (canRespond) {

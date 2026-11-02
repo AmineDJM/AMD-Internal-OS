@@ -45,6 +45,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+import { sansBloquer } from "@/lib/journal";
 export type BundleLevel = "NORMAL" | "SENSITIVE" | "CRITICAL";
 
 export interface BundleItem {
@@ -157,7 +158,7 @@ export async function executeBundle(items: BundleItem[], runOne: RunOne): Promis
       continue;
     }
 
-    const r = await runOne(item.intentId).catch(() => null);
+    const r = await runOne(item.intentId).catch(sansBloquer("bundle.executeBundle.runOne", null));
 
     if (!r) {
       outcomes.push({ ...base, status: "failed", error: "Action introuvable ou expirée — rien n'a été exécuté." });

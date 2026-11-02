@@ -23,13 +23,16 @@ export const dynamic = "force-dynamic";
  * sont lus par `demandesAdProDeLEnveloppe` (règle d'intégration comprise), regroupés par `budget-marketing/demandes-vue.ts` ;
  * les pièces attendues / manquantes viennent du lot d'intégration 2026 de l'enveloppe (`vueDuLot`).
  */
-export default async function BudgetMarketingAdProPage({ searchParams }: { searchParams: ParamsBudget & { cat?: string; statut?: string; origine?: string; q?: string } }) {
+export default async function BudgetMarketingAdProPage(
+  props: { searchParams: Promise<ParamsBudget & { cat?: string; statut?: string; origine?: string; q?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("BUDGET_MARKETING");
   const opts = { portee: "MARKETING" as const };
   const envelopes = await getEnvelopes(user, opts);
-  const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), null, null, opts);
+  const overview = await getBudgetOverview(user, await resolveBudgetEnvelope(searchParams.env), null, null, opts);
   const lot = overview?.integration ? await vueDuLot(user, overview.envelope.id) : null;
-  const tabs = await ongletsBudgetMarketing(user, await contexteIntegration(user, overview?.envelope.id ?? resolveBudgetEnvelope(searchParams.env), overview ? { envelopeId: overview.envelope.id, lot } : undefined));
+  const tabs = await ongletsBudgetMarketing(user, await contexteIntegration(user, overview?.envelope.id ?? await resolveBudgetEnvelope(searchParams.env), overview ? { envelopeId: overview.envelope.id, lot } : undefined));
 
   const lignes = overview ? await demandesAdProDeLEnveloppe(overview.categories) : [];
   const infoLot: Record<string, InfoLotDemande> = {};

@@ -1,7 +1,7 @@
 import { requireModule } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/shared/page-header";
-import { EnablePushButton } from "@/components/layout/push-register";
+import { EnablePushButton } from "@/components/layout/push-activer";
 import { NotificationsList, type NotificationItem } from "./notifications-list";
 
 export default async function NotificationsPage() {

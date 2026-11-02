@@ -2,6 +2,10 @@
 
 import * as React from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import type { DemandeConfirmation } from "@/components/ui/dialogue-regle";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn, formatMontant } from "@/lib/utils";
 
 /** Ce que partagent les vues de la campagne : le lanceur d'actions, les cellules, les classes. */
@@ -10,9 +14,17 @@ export type Action = (fd: FormData) => Promise<{ ok: boolean; error?: string; me
 
 export function useActions() {
   const { enCours, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [occupe, setOccupe] = React.useState(false);
   const [info, setInfo] = React.useState<string | null>(null);
-  const run = React.useCallback(async (action: Action, champs: Record<string, string | string[] | File[] | null | undefined>): Promise<{ ok: boolean; message?: string }> => {
+  const run = React.useCallback(async (
+    action: Action,
+    champs: Record<string, string | string[] | File[] | null | undefined>,
+    geste: { confirmer?: string | DemandeConfirmation } = {},
+  ): Promise<{ ok: boolean; message?: string }> => {
+    // Demandée AVANT l'action (dialogue accessible) ; renoncer n'appelle rien.
+    if (geste.confirmer && !(await confirmer(geste.confirmer))) return { ok: false };
     const fd = new FormData();
     for (const [k, v] of Object.entries(champs)) {
       if (v === null || v === undefined) continue;
@@ -21,13 +33,19 @@ export function useActions() {
     }
     setOccupe(true);
     setInfo(null);
-    const r = await action(fd);
-    setOccupe(false);
-    if (!r.ok) { window.alert(r.error ?? "Action impossible."); return { ok: false }; }
-    if (r.message) setInfo(r.message);
-    rafraichir();
-    return { ok: true, message: r.message };
-  }, [rafraichir]);
+    try {
+      const r = await action(fd);
+      if (!r.ok) { retours.erreur(r.error ?? "L'opération n'a pas été enregistrée."); return { ok: false }; }
+      if (r.message) setInfo(r.message);
+      rafraichir();
+      return { ok: true, message: r.message };
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+      return { ok: false };
+    } finally {
+      setOccupe(false);
+    }
+  }, [rafraichir, confirmer, retours]);
   return { run, busy: occupe || enCours, info, setInfo };
 }
 

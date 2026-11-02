@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import type { UserRole } from "@prisma/client";
@@ -9,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { lienRemiseCaisse, lienRallongeCaisse, lienCaisseAvance } from "@/lib/chemins/moyens-generaux";
-import { saveFile } from "@/lib/storage";
+import { deposerPieceDeModule } from "@/lib/storage";
 import { validateAttachments } from "@/lib/attach-files";
 import { normalizeAmount, normalizeYear } from "@/lib/department-budget";
 import {
@@ -18,13 +17,15 @@ import {
 import { continuousCash, canSpendFromFund } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { toNumber } from "@/lib/utils";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { ordreDeRemise } from "@/lib/general-means/remettre";
 import { etatRemise, refusConfirmationRemise } from "@/lib/general-means/remise-centre";
 import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { readReceipt, saveReceiptLines, finaliserNatures } from "@/lib/general-means/expense-lines";
 import { allowedGeneralMeansCategoryIds, keepAllowedCategory } from "@/lib/general-means/budget-targets";
+import { sansBloquer } from "@/lib/journal";
+import { annulable } from "@/lib/effets/ecran";
 
 const PATH = "/moyens-generaux";
 
@@ -99,7 +100,7 @@ async function prevenirQuiTranche(input: { type: "VALIDATION_REQUIRED" | "GENERI
  * toujours dans le tiroir. On ne peut pas répondre à « qu'a-t-on remis, et quand ? » avec une
  * somme qui s'incrémente : la question a besoin des lignes.
  */
-export async function allotPettyCash(formData: FormData): Promise<ActionResult> {
+export async function allotPettyCash(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:allotPettyCash", "Remettre une caisse d'avance", async () => {
   const user = await requireUser();
   if (!canAllot(user)) return { ok: false, error: "Remettre une caisse d'avance est réservé à l'administration." };
 
@@ -148,7 +149,7 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
     ordre = await createExpenseOrder(ordreDeRemise({ departement: department, periode: periodLabel(period), amount, holderName, createdById: user.id, nature: "REMISE" }));
   } catch (e) {
     // RIEN N'EST PARTI : une remise sans ordre ne serait ni autorisable ni confirmable.
-    await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(() => undefined);
+    await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(sansBloquer("petty-cash-actions.allotPettyCash.pettyCashAllotment"));
     console.error("[petty-cash] ordre de la remise non créé", e);
     return { ok: false, error: "La remise n'a pas pu partir au centre de paiement — rien n'a été enregistré, réessayez." };
   }
@@ -164,13 +165,13 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
   await notifyUser({
     userId: holder, type: "GENERIC",
     title: premiere ? "Caisse d'avance annoncée" : "Nouvelle remise en caisse d'avance annoncée",
-    body: `${amount} DZD demandés au centre de paiement le ${new Date().toLocaleDateString("fr-FR")} — vous serez prévenue au versement, et confirmerez alors la réception.`,
+    body: `${amount} DZD demandés au centre de paiement le ${new Date().toLocaleDateString("fr-FR")} — elle s'ajoutera à la caisse dès que le centre l'autorise ; vous en serez prévenue.`,
     link: lienRemiseCaisse(remise.id),
   });
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
-  return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD envoyée au centre de paiement (${ordre.reference}) : elle rejoindra le fond une fois autorisée et versée par les Finances.` };
-}
+  return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD envoyée au centre de paiement (${ordre.reference}) : elle s'ajoutera au fond dès que le centre l'autorise.` };
+}); }
 
 /**
  * CONFIRMER LA RÉCEPTION — par la détentrice, et par elle seule.
@@ -178,7 +179,7 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
  * Tant qu'elle n'a pas confirmé, le solde disponible reste à zéro : afficher un fonds qu'on
  * n'a pas encore en main conduit à engager des dépenses qu'on ne peut pas payer.
  */
-export async function confirmPettyCashReceipt(formData: FormData): Promise<ActionResult> {
+export async function confirmPettyCashReceipt(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:confirmPettyCashReceipt", "Confirmer la réception d'une caisse", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Caisse non précisée." };
@@ -202,17 +203,20 @@ export async function confirmPettyCashReceipt(formData: FormData): Promise<Actio
   if (cash.status !== "ALLOTTED") return { ok: false, error: "Cette réception est déjà confirmée." };
   if (refusAttente) return { ok: false, error: refusAttente };
 
-  await prisma.pettyCashAllotment.update({
-    where: { id },
+  // SUR L'ÉTAT LU (audit 27/10, reste de DONNEES-06) : une remise soldée entre la lecture et cette écriture ne repasse
+  // pas « reçue » — la confirmation réécrivait RECEIVED par-dessus CLOSED et la remise revenait dans le fond.
+  const recue = await prisma.pettyCashAllotment.updateMany({
+    where: { id, status: "ALLOTTED" },
     data: { status: "RECEIVED", receivedAt: new Date() },
   });
+  if (recue.count === 0) return { ok: false, error: "Cette remise vient de changer (confirmée ou soldée) : rouvrez la caisse." };
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: cash.department.id,
     summary: `Remise en caisse d'avance reçue — ${toNumber(cash.amount)} DZD (${periodLabel(cash.period)})`,
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * SOLDER LA CAISSE — le fond ENTIER, jamais une remise isolée.
@@ -222,7 +226,7 @@ export async function confirmPettyCashReceipt(formData: FormData): Promise<Actio
  * imputées sur les autres — un solde qui s'effondre sans qu'une seule dépense n'ait été faite.
  * Il n'y a qu'une caisse : on la solde d'un bloc.
  */
-export async function closePettyCash(formData: FormData): Promise<ActionResult> {
+export async function closePettyCash(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:closePettyCash", "Clôturer une caisse d'avance", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Caisse non précisée." };
@@ -240,18 +244,29 @@ export async function closePettyCash(formData: FormData): Promise<ActionResult> 
     return { ok: false, error: "Rien à solder : la seule remise en cours attend encore le centre de paiement (ou son versement par les Finances)." };
   }
 
-  const fund = continuousCash(ouvertes);
-  await prisma.pettyCashAllotment.updateMany({
-    where: { id: { in: ouvertes.map((r) => r.id) } },
-    data: { status: "CLOSED" },
+  // SOLDER SOUS LE VERROU DE LA CAISSE (audit 27/10, reste de DONNEES-06) : la clôture lisait le fond puis écrivait
+  // sans verrou ni condition — une dépense saisie au même instant tombait sur une remise close, et deux clôtures
+  // simultanées journalisaient deux soldes. Le département se verrouille (comme pour une dépense), le fond se relit
+  // dessous, et seules les remises encore ouvertes se closent ; une seconde clôture trouve la caisse déjà soldée.
+  const solde = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${cash.departmentId} FOR UPDATE`;
+    const encore = (await openRemittances(cash.departmentId, tx)).filter((r) => !r.enAttenteDuCentre);
+    if (encore.length === 0) return null;
+    await tx.pettyCashAllotment.updateMany({
+      where: { id: { in: encore.map((r) => r.id) }, status: { not: "CLOSED" } },
+      data: { status: "CLOSED" },
+    });
+    return encore;
   });
+  if (!solde) return { ok: false, error: "Cette caisse est déjà soldée." };
+  const fund = continuousCash(solde);
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: cash.departmentId,
-    summary: `Caisse d'avance soldée — ${ouvertes.length} remise(s), ${fund.remitted} DZD remis, ${fund.spent} DZD dépensés, reliquat ${fund.remaining} DZD`,
+    summary: `Caisse d'avance soldée — ${solde.length} remise(s), ${fund.remitted} DZD remis, ${fund.spent} DZD dépensés, reliquat ${fund.remaining} DZD`,
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * DÉPENSER SUR LA CAISSE — avec justificatif scanné, sans exception.
@@ -260,7 +275,7 @@ export async function closePettyCash(formData: FormData): Promise<ActionResult> 
  * argent vu de deux endroits (ce qu'on avait le droit de dépenser, ce qu'on avait en main).
  * L'écrire deux fois séparément, c'était garantir deux totaux différents.
  */
-export async function spendFromPettyCash(formData: FormData): Promise<ActionResult> {
+export async function spendFromPettyCash(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:spendFromPettyCash", "Dépenser sur une caisse d'avance", async () => {
   const user = await requireUser();
   const cashId = fdStr(formData, "cashId");
   if (!cashId) return { ok: false, error: "Caisse non précisée." };
@@ -354,19 +369,8 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   if (ticket) await saveReceiptLines(created.id, lignes);
 
   for (const file of files) {
-    const key = `DEPARTMENT_EXPENSE/${created.id}/${randomUUID()}__${file.name}`;
-    try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
-    } catch (err) {
-      console.error("[petty-cash] storage write failed, recording metadata only", err);
-    }
-    await prisma.document.create({
-      data: {
-        name: file.name, category: "INVOICE", entityType: "DEPARTMENT_EXPENSE", entityId: created.id,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
-        confidentiality: "INTERNAL", uploadedById: user.id,
-      },
-    });
+    // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+    await deposerPieceDeModule(file, { entityType: "DEPARTMENT_EXPENSE", entityId: created.id, category: "INVOICE", confidentiality: "INTERNAL", uploadedById: user.id, journal: "petty-cash" });
   }
 
   // Le fond baisse : on prévient AVANT d'être à sec, pas une fois bloqué.
@@ -388,7 +392,7 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   revalidatePath(PATH);
   revalidatePath("/budgets/departements");
   return { ok: true, id: created.id };
-}
+}); }
 
 /**
  * DEMANDER UNE RALLONGE — par la détentrice, quand le fond s'épuise.
@@ -397,7 +401,7 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
  * pouvoir être ACCORDÉE, REFUSÉE, ou accordée à un AUTRE MONTANT. Une simple notification ne
  * laissait rien à trancher et ne gardait aucune trace de ce qui avait été décidé.
  */
-export async function requestPettyCashTopUp(formData: FormData): Promise<ActionResult> {
+export async function requestPettyCashTopUp(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:requestPettyCashTopUp", "Demander une rallonge de caisse", async () => {
   const user = await requireUser();
   const cashId = fdStr(formData, "cashId");
   if (!cashId) return { ok: false, error: "Caisse non précisée." };
@@ -439,14 +443,14 @@ export async function requestPettyCashTopUp(formData: FormData): Promise<ActionR
   });
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * RETIRER SA DEMANDE DE RALLONGE (décision de la Direction, 04/10) — tant que les RH ne l'ont pas
  * tranchée. Elle se clôt (`CANCELLED`) par une écriture conditionnelle : une décision croisée
  * l'emporte, et deux clics ne retirent qu'une fois. Ceux qui tranchent sont prévenus.
  */
-export async function annulerRallongeCaisse(formData: FormData): Promise<ActionResult> {
+export async function annulerRallongeCaisse(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:annulerRallongeCaisse", "Annuler une rallonge de caisse", async () => {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Demande introuvable." };
@@ -473,7 +477,7 @@ export async function annulerRallongeCaisse(formData: FormData): Promise<ActionR
   });
   revalidatePath(PATH);
   return { ok: true, message: "Demande de rallonge retirée." };
-}
+}); }
 
 /**
  * TRANCHER LA RALLONGE — les ressources humaines, au montant QU'ELLES écrivent.
@@ -482,7 +486,7 @@ export async function annulerRallongeCaisse(formData: FormData): Promise<ActionR
  * ajustent. Le montant retenu est donc celui qu'elles saisissent, et il s'AJOUTE au fonds du
  * mois — ouvrir une seconde caisse rendrait le solde indécidable.
  */
-export async function decidePettyCashTopUp(formData: FormData): Promise<ActionResult> {
+export async function decidePettyCashTopUp(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:decidePettyCashTopUp", "Décider d'une rallonge de caisse", async () => {
   const user = await requireUser();
   if (!canAllot(user)) return { ok: false, error: "Trancher une rallonge est réservé aux ressources humaines." };
   const id = fdStr(formData, "id");
@@ -537,7 +541,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
         }));
         await prisma.pettyCashAllotment.update({ where: { id: remise.id }, data: { expenseOrderId: ordre.id } });
       } catch (e) {
-        await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(() => undefined);
+        await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(sansBloquer("petty-cash-actions.decidePettyCashTopUp.pettyCashAllotment"));
         console.error("[petty-cash] ordre de la rallonge non créé", e);
         ordre = null;
       }
@@ -558,7 +562,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
       userId: req.requestedById, type: "GENERIC",
       title: decision === "APPROVED" ? "Rallonge accordée" : "Rallonge refusée",
       body: decision === "APPROVED"
-        ? `${granted} DZD accordés, envoyés au centre de paiement${reference ? ` (${reference})` : ""} : ils rejoindront la caisse une fois versés${note ? ` — ${note}` : ""}`
+        ? `${granted} DZD accordés, envoyés au centre de paiement${reference ? ` (${reference})` : ""} : ils s'ajouteront à la caisse dès que le centre les autorise${note ? ` — ${note}` : ""}`
         : `Demande refusée${note ? ` — ${note}` : ""}`,
       link: lienRallongeCaisse(id),
     });
@@ -570,8 +574,8 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
   });
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
-  return { ok: true, message: reference ? `Rallonge accordée et envoyée au centre de paiement (${reference}) : elle rejoindra la caisse une fois autorisée et versée.` : undefined };
-}
+  return { ok: true, message: reference ? `Rallonge accordée et envoyée au centre de paiement (${reference}) : elle s'ajoutera à la caisse dès que le centre l'autorise.` : undefined };
+}); }
 
 /**
  * RÉGLER LE MONTANT MENSUEL — par les ressources humaines.
@@ -581,7 +585,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
  * est borné à 28 : le 31 n'existe pas tous les mois, et une date fantôme ne déclencherait jamais
  * le rappel.
  */
-export async function setPettyCashPlan(formData: FormData): Promise<ActionResult> {
+export async function setPettyCashPlan(formData: FormData): Promise<ActionResult> { return annulable("petty-cash-actions:setPettyCashPlan", "Régler le plan d'une caisse", async () => {
   const user = await requireUser();
   if (!canAllot(user)) return { ok: false, error: "Régler la caisse mensuelle est réservé aux ressources humaines." };
   const departmentId = fdStr(formData, "departmentId");
@@ -618,7 +622,7 @@ export async function setPettyCashPlan(formData: FormData): Promise<ActionResult
   }
   revalidatePath(PATH);
   return { ok: true };
-}
+}); }
 
 /**
  * RAPPEL AUX RH, 48 H AVANT LE RECHARGEMENT — appelé par le planificateur.
@@ -628,11 +632,11 @@ export async function setPettyCashPlan(formData: FormData): Promise<ActionResult
  * planificateur — qui repasse toutes les minutes — enverrait la même alerte des centaines de
  * fois. La règle elle-même est une fonction pure, testée : voir `shouldRemindRecharge`.
  */
-export async function runPettyCashRechargeReminders(now = new Date()): Promise<number> {
+export async function runPettyCashRechargeReminders(now = new Date()): Promise<number> { return annulable("petty-cash-actions:runPettyCashRechargeReminders", "Rappels de recharge des caisses", async () => {
   const { shouldRemindRecharge } = await import("@/lib/petty-cash");
   const plans = await prisma.pettyCashPlan
     .findMany({ where: { isActive: true }, include: { department: { select: { name: true } } } })
-    .catch(() => []);
+    .catch(sansBloquer("petty-cash-actions.runPettyCashRechargeReminders.pettyCashPlan", []));
   let sent = 0;
   for (const plan of plans) {
     const r = shouldRemindRecharge(
@@ -650,7 +654,7 @@ export async function runPettyCashRechargeReminders(now = new Date()): Promise<n
     sent += 1;
   }
   return sent;
-}
+}); }
 
 /** La prochaine échéance de rechargement d'un département — pour l'afficher à l'écran. */
 export async function nextRechargeFor(departmentId: string, now = new Date()): Promise<Date | null> {

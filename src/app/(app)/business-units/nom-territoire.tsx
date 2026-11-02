@@ -5,6 +5,7 @@ import { Check, Loader2, Pencil, X } from "lucide-react";
 import { renommerSecteur } from "@/lib/actions/sales-planning-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { cn } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE NOM D'UN TERRITOIRE, RENOMMABLE SUR PLACE (Direction, 08/10 : « permets de nommer chaque territoire »).
@@ -39,7 +40,7 @@ export function NomTerritoire({ id, nom, peutRenommer, className }: {
     const fd = new FormData();
     fd.set("id", id);
     fd.set("name", propre);
-    const r = await renommerSecteur(fd).catch(() => null);
+    const r = await renommerSecteur(fd).catch(sansBloquer("nom-territoire.enregistrer.renommerSecteur", null));
     setEnvoi(false);
     if (!r?.ok) { setErreur(r?.error ?? "Le renommage a échoué."); return; }
     setEdition(false);

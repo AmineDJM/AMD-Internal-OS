@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, Send, Trash2, MessageSquare } from "lucide-react";
 import { postDriveComment, deleteDriveComment } from "@/lib/actions/drive-comment-actions";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 
 export interface DriveCommentItem {
   id: string;
@@ -15,9 +17,9 @@ export interface DriveCommentItem {
 
 /** Fil de commentaires d'un document du Drive — chaque document a le sien. */
 export function DriveComments({ nodeId, comments, onChanged }: { nodeId: string; comments: DriveCommentItem[]; /** Relire le fil après un ajout / une suppression (panneau embarqué). */ onChanged?: () => void }) {
-  const router = useRouter();
-  const [sending, setSending] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const { busy: sending, err: error, run } = useAction();
+  // L'icône « supprimer » d'un commentaire n'a pas de place pour parler : un refus part en avis flottant.
+  const { run: runSuppression } = useAction({ signalerErreurs: true });
   const formRef = React.useRef<HTMLFormElement>(null);
 
   return (
@@ -36,7 +38,7 @@ export function DriveComments({ nodeId, comments, onChanged }: { nodeId: string;
                   <span className="text-[0.6875rem] text-muted-foreground">{c.createdLabel}</span>
                   {c.canDelete && (
                     <form
-                      action={async (fd) => { await deleteDriveComment(fd); onChanged?.(); router.refresh(); }}
+                      action={async (fd) => { await runSuppression(() => deleteDriveComment(fd), () => onChanged?.()); }}
                       className="inline"
                     >
                       <input type="hidden" name="id" value={c.id} />
@@ -56,11 +58,7 @@ export function DriveComments({ nodeId, comments, onChanged }: { nodeId: string;
       <form
         ref={formRef}
         action={async (fd) => {
-          setSending(true); setError(null);
-          const res = await postDriveComment(fd);
-          setSending(false);
-          if (res.ok) { formRef.current?.reset(); onChanged?.(); router.refresh(); }
-          else setError(res.error ?? "Envoi impossible.");
+          await run(() => postDriveComment(fd), () => { formRef.current?.reset(); onChanged?.(); });
         }}
         className="space-y-2 border-t border-border pt-3"
       >
@@ -72,7 +70,7 @@ export function DriveComments({ nodeId, comments, onChanged }: { nodeId: string;
           placeholder="Écrire un commentaire…"
           className="w-full resize-y rounded-lg border border-input bg-background px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-ring sm:text-sm"
         />
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        <Retour ton="erreur">{error}</Retour>
         <div className="flex justify-end">
           <button
             type="submit"

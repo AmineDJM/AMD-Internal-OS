@@ -170,7 +170,7 @@ suite("CTD initiale — dépôt, arborescence, ajout, remplacement, suppression,
     expect(await prisma.document.count({ where: { entityId: produitAutre } })).toBe(0);
 
     // L'archive se liste par la route de la fiche, sans être téléchargée.
-    const res = await zipGET(req(`/api/documents/${docs[0].id}/zip`), { params: { id: docs[0].id } });
+    const res = await zipGET(req(`/api/documents/${docs[0].id}/zip`), { params: Promise.resolve({ id: docs[0].id }) });
     const liste = await res.json();
     expect(liste.ok).toBe(true);
     expect((liste.entries as { path: string }[]).map((e) => e.path)).toEqual(expect.arrayContaining(["0000/m1/lettre.txt", "0000/m3/qualite.txt"]));

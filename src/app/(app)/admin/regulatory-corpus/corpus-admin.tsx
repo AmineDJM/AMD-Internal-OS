@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Plus, Search, BookPlus, CheckCircle2, Archive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { createCorpusSourceVersion, setCorpusVersionStatus, seedAnppCorpus, searchCorpusAction } from "@/lib/regulatory/intelligence/corpus/actions";
 
 interface Version { id: string; version: string; status: string; approvedAt: string | Date | null; _count: { sections: number } }
@@ -12,7 +14,7 @@ interface Source { id: string; authority: string; jurisdiction: string; code: st
 interface Citation { sectionId: string; authority: string; code: string; version: string; path: string; heading: string | null; snippet: string; rank: number }
 
 export function CorpusAdmin({ sources, hasAnpp }: { sources: Source[]; hasAnpp: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [importing, setImporting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -21,26 +23,41 @@ export function CorpusAdmin({ sources, hasAnpp }: { sources: Source[]; hasAnpp: 
 
   async function run(key: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(key); setError(null);
-    const r = await fn();
-    setBusy(null);
-    if (r.ok) router.refresh(); else setError(r.error ?? "Échec.");
+    try {
+      const r = await fn();
+      if (r.ok) rafraichir(); else setError(r.error ?? "Le corpus n'a pas été modifié.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function doImport(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     setBusy("import"); setError(null);
-    const r = await createCorpusSourceVersion(fd);
-    setBusy(null);
-    if (r.ok) { setImporting(false); router.refresh(); } else setError(r.error ?? "Échec.");
+    try {
+      const r = await createCorpusSourceVersion(fd);
+      if (r.ok) { setImporting(false); rafraichir(); } else setError(r.error ?? "La source n'a pas été importée.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function search() {
     setBusy("search");
     const fd = new FormData(); fd.set("q", q);
-    const r = await searchCorpusAction(fd);
-    setBusy(null);
-    setCitations(r.citations);
+    try {
+      const r = await searchCorpusAction(fd);
+      setCitations(r.citations);
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -53,7 +70,7 @@ export function CorpusAdmin({ sources, hasAnpp }: { sources: Source[]; hasAnpp: 
         )}
         <Button type="button" size="sm" variant="outline" onClick={() => setImporting((v) => !v)}><Plus className="h-4 w-4" /> Importer une source</Button>
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
 
       {importing && (
         <form onSubmit={doImport} className="space-y-2 rounded-xl border border-border bg-card p-4">

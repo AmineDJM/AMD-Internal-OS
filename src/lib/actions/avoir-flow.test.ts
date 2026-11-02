@@ -14,8 +14,8 @@ import { legalWriteAllowed } from "@/lib/lecteurs/legal";
 import { refusPlafondAvoir } from "@/lib/lecteurs/avoir";
 import { totauxAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import { refusChampsDuFichier } from "@/lib/legal/piece-emise";
-import { portsArtefact } from "@/platform/in-process/artifact/ports";
-import { emettreDocumentDrive, previsualiserDocument, reviserDocumentDrive, type DemandeDocument, type DocumentEmis } from "@/platform/in-process/artifact/factory";
+import { portsArtefact } from "@/platform/ia/artifact/ports";
+import { emettreDocumentDrive, previsualiserDocument, reviserDocumentDrive, type DemandeDocument, type DocumentEmis } from "@/platform/ia/artifact/factory";
 import { cancelLegalDocument, createLegalDocument, updateLegalDocument } from "./legal-actions";
 import { emettreAvoir, emettrePieceCommerciale } from "./fabrique-actions";
 

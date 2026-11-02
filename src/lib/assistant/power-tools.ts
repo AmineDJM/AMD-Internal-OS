@@ -1,10 +1,11 @@
 import type { ClaudeToolDef } from "@/lib/ai";
+import type { PowerTool } from "@/platform/ia/outil";
 import { recordPermissionRefusal } from "@/lib/models/telemetry";
 import type { CurrentUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { getEnvelopes, getEnvelopesGrandTotal, getBudgetOverview } from "@/lib/queries/budget";
-import { getComptaData } from "@/lib/queries/compta";
-import { getRhData, getLeavesToDecide } from "@/lib/queries/hr";
+import { getComptaData } from "@/modules/finances/api";
+import { getRhData, getLeavesToDecide } from "@/modules/rh/api";
 import { getActionCenter, PREFIXE_CONGE } from "@/lib/queries/action-center";
 import { EXECUTIVE_TOOLS } from "@/lib/assistant/executive-tools";
 import { WATCH_TOOLS } from "@/lib/assistant/watch-tools";
@@ -32,6 +33,7 @@ import { MONDE_TOOLS } from "@/lib/assistant/monde-tools";
 import { VERITE_TOOLS } from "@/lib/assistant/verite-tools";
 import { OBJECTIF_TOOLS } from "@/lib/assistant/objectif-tools";
 import { ANNULATION_TOOLS } from "@/lib/assistant/annulation-tools";
+import { CHANTIER_TOOLS } from "@/platform/in-process/chantiers/outils-adam";
 import { VERIFICATION_TOOLS } from "@/lib/assistant/verification-tools";
 import { PLANCHE_TOOLS } from "@/lib/assistant/planche-tools";
 import { executerOutilDynamique, labelsDynamiques, outilsDynamiquesPour } from "@/platform/in-process/skills";
@@ -42,15 +44,16 @@ import { WHAT_IF_TOOLS } from "@/lib/assistant/what-if";
 import { DELIVERABLE_TOOLS } from "@/lib/assistant/deliverables";
 import { CORPUS_TOOLS } from "@/lib/assistant/corpus-tools";
 import { TIME_TRAVEL_TOOLS } from "@/lib/assistant/time-travel";
-import { REGULATORY_READ_TOOLS } from "@/lib/assistant/regulatory-read";
+import { REGULATORY_READ_TOOLS } from "@/platform/ia/lectures/regulatory-read";
 import { INVESTIGATION_TOOLS } from "@/lib/assistant/investigation";
-import { ACTION_INTENT_TOOLS } from "@/lib/assistant/action-intents";
+import { ACTION_INTENT_TOOLS } from "@/platform/ia/intentions/action-intents";
 import { WHAT_CHANGED_TOOLS } from "@/lib/assistant/what-changed";
 import { ADAM_TOOLS } from "@/lib/assistant/adam-tools";
-import { DIRECTORY_TOOLS } from "@/lib/assistant/directory-tools";
+import { DIRECTORY_TOOLS } from "@/platform/ia/lectures/directory-tools";
 import { SHOW_TOOLS } from "@/lib/assistant/show-tools";
-import { WEB_RESEARCH_TOOLS } from "@/lib/assistant/web-research";
-import { resultatVide } from "@/lib/assistant/empty-result";
+import { WEB_RESEARCH_TOOLS } from "@/platform/ia/web-research";
+import { resultatVide } from "@/platform/ia/lectures/empty-result";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES POUVOIRS DE L'ASSISTANT SONT **CEUX DE SON INTERLOCUTEUR** — ni plus, ni moins.
@@ -70,21 +73,7 @@ import { resultatVide } from "@/lib/assistant/empty-result";
  * en passant par la conversation.
  */
 
-export interface PowerTool {
-  def: ClaudeToolDef;
-  /** Le droit qui ouvre l'outil — une PERMISSION, jamais un rôle en dur. */
-  allowed: (user: CurrentUser) => boolean;
-  /**
-   * Le REFUS quand `allowed` dit non — facultatif. Par défaut, « ce module ne vous est pas
-   * ouvert » ; un outil que ferme une RÈGLE et non un module (les missions d'Adam, réservées au
-   * Super Admin) dit la règle et le geste qui reste : un refus qui nomme le remède évite un
-   * aller-retour, et un refus qui nomme un faux remède en coûte deux (§118.30, §118.128).
-   */
-  refus?: string;
-  /** Libellé affiché dans la trace (« ce que l'assistant a consulté »). */
-  label: string;
-  run: (input: Record<string, unknown>, user: CurrentUser) => Promise<string>;
-}
+export type { PowerTool } from "@/platform/ia/outil";
 
 const str = (input: Record<string, unknown>, key: string): string =>
   typeof input[key] === "string" ? (input[key] as string).trim() : "";
@@ -327,7 +316,7 @@ export const POWER_TOOLS: PowerTool[] = [
       const limit = Math.max(1, Math.min(60, Math.round(rawLimit)));
       const [center, leaves] = await Promise.all([
         getActionCenter(user),
-        getLeavesToDecide(user).catch(() => []),
+        getLeavesToDecide(user).catch(sansBloquer("power-tools.run.getLeavesToDecide", [])),
       ]);
       // Les congés du centre sont écartés : ils sont relus juste en dessous, avec leurs gestes. Depuis le lot E2
       // le centre les porte aussi — sans ce filtre, chaque congé serait listé, et compté, deux fois.
@@ -421,6 +410,8 @@ export const POWER_TOOLS: PowerTool[] = [
   ...VERITE_TOOLS,
   ...OBJECTIF_TOOLS,
   ...ANNULATION_TOOLS,
+  // C1 (décision 0042) : les chantiers de développement — Super Admin, comme les missions d'Adam.
+  ...CHANTIER_TOOLS,
   ...VERIFICATION_TOOLS,
   ...PLANCHE_TOOLS,
   ...INTELLIGENCE_TOOLS,

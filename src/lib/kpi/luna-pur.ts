@@ -1,4 +1,4 @@
-import { BRIQUES, BRIQUE_IDS, LETTRES_KPI, NATURE_LABELS, type BriqueId } from "./briques";
+import { BRIQUES, BRIQUE_IDS, LETTRES_KPI } from "./briques";
 import { validerDefinition, type DefinitionKpi } from "./definition";
 
 /**
@@ -342,8 +342,3 @@ export function resumeProposition(message: string): string {
   const intention = /Intention : (.+)/.exec(message)?.[1] ?? /Demande du manager : (.+)/.exec(message)?.[1] ?? message;
   return intention.replace(/\s+/g, " ").trim().slice(0, 120);
 }
-
-/** Ce que l'écran dit de la nature d'un KPI dans l'en-tête de colonne. */
-export const natureCourte = (n: keyof typeof NATURE_LABELS): string => NATURE_LABELS[n];
-
-export const briqueConnue = (id: string): id is BriqueId => (BRIQUE_IDS as readonly string[]).includes(id);

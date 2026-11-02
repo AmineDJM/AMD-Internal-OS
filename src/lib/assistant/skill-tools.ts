@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { creerMicroSkill, listerSkills, promouvoirSkill, supprimerSkill } from "@/platform/in-process/skills";
 
 /**

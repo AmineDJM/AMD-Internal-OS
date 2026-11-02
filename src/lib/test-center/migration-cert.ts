@@ -3,6 +3,7 @@ import path from "node:path";
 import { prisma } from "@/lib/prisma";
 import type { FindingInput } from "./types";
 import { ephemeralSchemaName, createEphemeralSchema, destroyEphemeralSchema, execInEphemeral, countInEphemeral } from "./ephemeral";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Certification migrations & reprise (§35). Deux volets :
@@ -55,7 +56,7 @@ async function backupRestoreRoundtrip(runId: string) {
     const restored = await countInEphemeral(schema, "data");
     return { original, afterLoss, restored, ok: original > 0 && afterLoss === 0 && restored === original };
   } finally {
-    await destroyEphemeralSchema(schema).catch(() => undefined); // destruction garantie + vérifiée
+    await destroyEphemeralSchema(schema).catch(sansBloquer("migration-cert.backupRestoreRoundtrip.destroyEphemeralSchema")); // destruction garantie + vérifiée
   }
 }
 

@@ -14,8 +14,8 @@ import {
 } from "@/lib/actions/admin-request-actions";
 import type { Prisma } from "@prisma/client";
 import { decideValidation } from "@/lib/actions/validation-actions";
-import { createExpenseOrder } from "@/lib/expense-orders";
-import { TITRE_BC_A_ETABLIR } from "@/lib/ad-pro/pieces-secretariat";
+import { createExpenseOrder } from "@/modules/finances/api";
+import { TITRE_BC_A_ETABLIR } from "@/modules/ad-pro/partage";
 import { retirerValidationSansObjet } from "@/lib/validation";
 
 let dbOk = false;

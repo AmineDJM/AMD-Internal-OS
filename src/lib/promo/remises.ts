@@ -24,8 +24,8 @@
  */
 
 import { MENU_STOCK_PROMO } from "@/lib/chemins/stock-promo";
+import { arrondirAuMillieme } from "@/lib/utils";
 
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 const nombre = (n: number): string => n.toLocaleString("fr-FR", { maximumFractionDigits: 3 });
 
 export interface RemiseSaisie {
@@ -61,7 +61,7 @@ export function lireRemises(items: readonly unknown[], quantites: readonly unkno
     if (q === 0) return;
     if (vus.has(itemId)) { fautes.push(`un article figure deux fois (ligne ${i + 1})`); return; }
     vus.add(itemId);
-    remises.push({ itemId, quantite: r3(q) });
+    remises.push({ itemId, quantite: arrondirAuMillieme(q) });
   });
   if (fautes.length) return { ok: false, error: `Matériel remis à revoir : ${fautes.join(" ; ")}.` };
   return { ok: true, remises };
@@ -91,7 +91,7 @@ export function remisNetParArticle(mouvements: readonly MouvementDeVisite[]): Ma
   const net = new Map<string, number>();
   for (const m of mouvements) {
     if (m.kind !== "DISTRIBUTION" || annules.has(m.id)) continue;
-    net.set(m.itemId, r3((net.get(m.itemId) ?? 0) - m.delta));
+    net.set(m.itemId, arrondirAuMillieme((net.get(m.itemId) ?? 0) - m.delta));
   }
   // Pas de filtre « net > 0 » ici : une remise est TOUJOURS négative (l'écrivain l'écrit ainsi),
   // donc chaque article retenu a un net positif. Le filtre qui vivait là ne pouvait pas se

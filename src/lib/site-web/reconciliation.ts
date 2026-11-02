@@ -13,6 +13,7 @@ import { ECRAN_LIAISON } from "./ecran";
 import { lireDepotDuSite } from "./reprise-lecture";
 import { reprendreDuSite, repriseImpossible, type BilanReprise } from "./reprise";
 import type { CorpsSuppression, EnregistrementSite } from "./contrat";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -209,7 +210,7 @@ export async function rapprocherSite(opts: OptionsRapprochement): Promise<BilanR
             state: "DONE", attempts: 0, confirmedHash: hash, confirmedPublished: v.corps.published, confirmedAt: maintenant,
             siteUrl: c.url, siteSlug: c.slug,
           },
-        }).catch(() => undefined);
+        }).catch(sansBloquer("reconciliation.rapprocherSite.sitePublication"));
         continue;
       }
       // La ligne décrit la version voulue et le site la détient : c'est FAIT — même si l'envoi a

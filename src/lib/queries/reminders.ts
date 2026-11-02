@@ -9,8 +9,3 @@ export async function listMyReminders(userId: string, take = 50) {
     select: { id: true, title: true, note: true, link: true, remindAt: true, status: true, sentAt: true },
   });
 }
-
-/** Compte des rappels échus (déjà notifiés, non traités) — pour une pastille éventuelle. */
-export async function countDueReminders(userId: string): Promise<number> {
-  return prisma.reminder.count({ where: { userId, status: "SENT" } });
-}

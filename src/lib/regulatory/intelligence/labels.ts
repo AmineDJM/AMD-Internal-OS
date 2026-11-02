@@ -1,6 +1,4 @@
-import type {
-  RegProcedureType, RegDossierStatus, RegDocSecurityStatus, RegDocExtractionStatus, RegJobStatus, RegJobType,
-} from "@prisma/client";
+import type { RegProcedureType, RegDossierStatus, RegDocSecurityStatus, RegDocExtractionStatus } from "@prisma/client";
 
 /** Libellés français (UI) des énumérations du Regulatory Intelligence OS. Purs, sans dépendance. */
 
@@ -82,27 +80,6 @@ export const EXTRACTION_LABELS: Record<RegDocExtractionStatus, string> = {
   PASSWORD_PROTECTED: "Protégé par mot de passe",
   UNSUPPORTED: "Non pris en charge",
   MANUAL_REVIEW_REQUIRED: "Revue manuelle requise",
-};
-
-export const JOB_STATUS_LABELS: Record<RegJobStatus, string> = {
-  QUEUED: "En file",
-  RUNNING: "En cours",
-  DONE: "Terminé",
-  FAILED: "Échec",
-  CANCELLED: "Annulé",
-};
-
-export const JOB_TYPE_LABELS: Record<RegJobType, string> = {
-  INGEST: "Ingestion",
-  EXTRACT: "Extraction du texte",
-  OCR: "OCR (scans)",
-  CLASSIFY: "Classification CTD",
-  FACTS: "Extraction des faits",
-  RULES: "Contrôles réglementaires",
-  VISION: "Examen visuel (figures & forme)",
-  AI_REVIEW: "Revue IA (fond/forme)",
-  CHALLENGER: "Contre-analyse",
-  SIMULATE: "Simulation d'examen",
 };
 
 /** Un statut de sécurité empêche-t-il la conservation du fichier ? */

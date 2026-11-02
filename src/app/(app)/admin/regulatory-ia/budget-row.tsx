@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { setDossierBudget } from "@/lib/regulatory/intelligence/cost/cost-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * Une ligne de dépense par dossier, avec son plafond MODIFIABLE sur place.
@@ -27,7 +28,7 @@ export interface BudgetRowData {
 }
 
 export function DossierBudgetRow({ row, canManage }: { row: BudgetRowData; canManage: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [value, setValue] = React.useState(row.budgetUsd != null ? String(row.budgetUsd) : "");
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -44,8 +45,10 @@ export function DossierBudgetRow({ row, canManage }: { row: BudgetRowData; canMa
     void (async () => {
       try {
         const r = await setDossierBudget(fd);
-        setMsg({ ok: r.ok, text: r.ok ? "Enregistré." : (r.error ?? "Échec.") });
-        if (r.ok) router.refresh();
+        setMsg({ ok: r.ok, text: r.ok ? "Enregistré." : (r.error ?? "Le plafond n'a pas été enregistré.") });
+        if (r.ok) rafraichir();
+      } catch {
+        setMsg({ ok: false, text: actionFailureMessage("THROWN") });
       } finally {
         setBusy(false);
         lock.current = false;

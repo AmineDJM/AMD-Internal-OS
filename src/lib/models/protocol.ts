@@ -1,5 +1,5 @@
 import { capabilityFor, isReasoningModel } from "./capabilities";
-import type { ModelBinding, ModelCallOptions, ModelProvider } from "./contract";
+import type { ModelBinding, ModelCallOptions } from "./contract";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -45,7 +45,6 @@ import type { ModelBinding, ModelCallOptions, ModelProvider } from "./contract";
  * « je ne me parle QUE en temps réel » : c'est ce qui empêche structurellement le temps réel de
  * traverser le constructeur Responses. La passerelle textuelle, elle, n'en emprunte que deux.
  */
-export type { WireProtocol } from "./capabilities";
 
 /** Les deux portes qu'un appel TEXTUEL peut emprunter. */
 export type TextProtocol = "responses" | "chat_completions";
@@ -140,6 +139,3 @@ export function protocolViolation(
   }
   return null;
 }
-
-/** Le fournisseur concerné par ce module. Les autres ont leur propre transport. */
-export const PROTOCOL_PROVIDER: ModelProvider = "openai";

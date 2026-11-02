@@ -10,7 +10,7 @@ import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import {
   AD_PRO_KINDS, AD_PRO_STATE, AD_PRO_ENTITY_TYPE, kindSpec,
   type AdProRequest, type AdProState, type AdProKind,
-} from "@/lib/ad-pro/unified";
+} from "@/modules/ad-pro/partage";
 import { PartagerButton } from "@/components/shared/partager-button";
 
 /**

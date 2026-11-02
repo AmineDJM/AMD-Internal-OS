@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Link2, Link2Off, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { cn } from "@/lib/utils";
 import type { CatalogReconciliation, OrphanProduct } from "@/lib/queries/product-catalog";
 import { linkProductToDossier, unlinkProductFromDossier } from "@/lib/actions/product-catalog-actions";
@@ -26,24 +27,23 @@ const KIND_LABEL: Record<"BD" | "PROMO", string> = {
  * complète des dossiers. Aucun rattachement ne se fait tout seul.
  */
 export function ReconcileTable({ data, canLink }: { data: CatalogReconciliation; canLink: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const geste = useKeyedAction();
+  const busy = geste.busy;
+  const error = geste.error;
   const [picked, setPicked] = React.useState<Record<string, string>>({});
 
   const key = (o: { kind: string; id: string }) => `${o.kind}:${o.id}`;
 
   async function run(id: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
-    setBusy(id); setError(null);
-    const r = await fn();
-    setBusy(null);
-    if (!r.ok) { setError(r.error ?? "Action impossible."); return; }
-    router.refresh();
+    await geste.run(id, async () => {
+      const r = await fn();
+      return r.ok ? r : { ok: false, error: r.error ?? "Le rattachement n'a pas été modifié." };
+    });
   }
 
   return (
     <div className="space-y-5">
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">

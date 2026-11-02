@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { findSimilarReserves, reserveRisk } from "@/lib/regulatory/intelligence/reserves/library";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ENRICHISSEMENT D'UN CONSTAT — le rendre défendable.
@@ -98,7 +99,7 @@ export async function enrichVersionFindings(dossierVersionId: string, ctx: Enric
       await prisma.regulatoryFinding.update({
         where: { id: f.id },
         data: { similarReserveIds: e.similarReserveIds, reserveRisk: e.reserveRisk },
-      }).catch(() => {});
+      }).catch(sansBloquer("enrich.enrichVersionFindings.regulatoryFinding"));
       enriched++;
     }
   } catch (e) {

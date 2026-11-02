@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { BellRing, Lock, Trash2 } from "lucide-react";
 import { relancerDemandeStocks, cloreDemandeStocks, supprimerDemandeStocks } from "@/lib/actions/demande-stocks-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +31,17 @@ function useGeste() {
   const [retour, setRetour] = useState<{ ok: boolean; texte: string } | null>(null);
   const lancer = async (fn: () => Promise<Res>) => {
     setBusy(true); setRetour(null);
-    const r = await fn();
-    setBusy(false);
-    if (!r.ok) { setRetour({ ok: false, texte: r.error ?? "Échec." }); return; }
-    if (r.message) setRetour({ ok: true, texte: r.message });
-    if (r.redirect) router.push(r.redirect);
-    else rafraichir();
+    try {
+      const r = await fn();
+      if (!r.ok) { setRetour({ ok: false, texte: r.error ?? "La demande de stocks n'a pas été mise à jour." }); return; }
+      if (r.message) setRetour({ ok: true, texte: r.message });
+      if (r.redirect) router.push(r.redirect);
+      else rafraichir();
+    } catch {
+      setRetour({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
   };
   return { occupe: busy || enCours, retour, lancer };
 }

@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Pencil, Loader2, Check, Video, Mic, MapPin } from "lucide-react";
 import { updateMeeting } from "@/lib/actions/meeting-actions";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 interface Props {
   id: string;
@@ -22,7 +23,7 @@ interface Props {
 
 /** Modifier les informations et l'horaire d'une réunion (organisateur / vue globale). */
 export function EditMeetingButton({ id, title, description, meetLink, scheduledAtInput, withVideo, inPerson: inPersonInit, location }: Props) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -44,10 +45,15 @@ export function EditMeetingButton({ id, title, description, meetLink, scheduledA
             fd.set("id", id);
             fd.set("withVideo", video ? "true" : "false");
             fd.set("inPerson", inPerson ? "true" : "false");
-            const r = await updateMeeting(fd);
-            setSaving(false);
-            if (r.ok) { setOpen(false); router.refresh(); }
-            else setErr(r.error ?? "Erreur.");
+            try {
+              const r = await updateMeeting(fd);
+              if (r.ok) { setOpen(false); rafraichir(); }
+              else setErr(r.error ?? "La réunion n'a pas été modifiée.");
+            } catch {
+              setErr(actionFailureMessage("THROWN"));
+            } finally {
+              setSaving(false);
+            }
           }}
           className="space-y-4"
         >

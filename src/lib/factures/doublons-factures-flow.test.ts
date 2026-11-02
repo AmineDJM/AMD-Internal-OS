@@ -52,10 +52,10 @@ import { repererEntetes } from "@/lib/pieces-lues/entetes";
 import { lireStructureModele } from "@/lib/pieces-lues/structure";
 import { empreinteDe, VERSION_LECTEUR } from "@/lib/pieces-lues/lecture-fichier";
 import { persistUploadedDocument } from "@/lib/documents";
-import { createExpenseOrder } from "@/lib/expense-orders";
-import { createPaymentRequest } from "@/lib/actions/payment-request-actions";
+import { createExpenseOrder } from "@/modules/finances/api";
+import { createPaymentRequest } from "@/modules/finances/actions-demandes";
 import { createInvoice } from "@/lib/actions/invoice-actions";
-import { relancerPaiement } from "@/lib/actions/relance-paiement-actions";
+import { relancerPaiement } from "@/modules/finances/actions-relances";
 import { marquesDesOrdres } from "@/lib/factures/connues";
 import { recenserDoublonsFactures } from "@/lib/factures/recensement";
 

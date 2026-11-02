@@ -2,13 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { anyRoleFilter } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { persistUploadedDocument } from "@/lib/documents";
-import { getCareDossier } from "@/lib/queries/care";
-import { detailsStockes } from "@/lib/care-fiches";
+import { getCareDossier } from "@/modules/ad-pro/api";
+import { detailsStockes, cleLivret } from "@/modules/ad-pro/partage";
 import { ficheStockee } from "@/lib/missions-equipe/participation";
-import { cleLivret } from "@/lib/care-pieces-acces";
 import { lireMarque } from "@/lib/brand/model";
 import { civiliteDuGrade, livretGeneral, livretIndividuel, versPoste, type CoordonneesLivret, type EntreeLivret, type MembreLivret } from "./modele";
 import { rendreLivretPdf } from "./rendu-pdf";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE LIVRET DE SÉJOUR, CÔTÉ SERVEUR — lire la demande (événement, fiches voyageur, postes de groupe, équipe
@@ -167,7 +167,7 @@ export async function genererLivret(
   await recordAudit({
     actorId: acteurId, action: "CREATE", module, entityType: module, entityId: requestId,
     summary: `${livret.type === "GENERAL" ? "Livret de la délégation" : "Livret de séjour"} généré — « ${livret.nomFichier} ».`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("livret-serveur.genererLivret.recordAudit"));
   return { ok: true, documentId: r.documentId, nom: livret.nomFichier };
 }
 

@@ -4,6 +4,7 @@ import type { CurrentUser } from "@/lib/session";
 import { approveOutboundIntent, sendOutboundIntent, type MailTransport } from "./outbound";
 import { markMissionAsked } from "./missions";
 import { recordAudit } from "@/lib/audit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * APPROUVER ET ENVOYER — l'UNIQUE fonction qui conclut un courriel.
@@ -55,7 +56,7 @@ export async function solePendingMailIntent(
     orderBy: { createdAt: "desc" },
     take: 2,
     select: { id: true, subject: true, recipients: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("approve-execute.solePendingMailIntent.outboundMailIntent", []));
   return waiting.length === 1 ? waiting[0] : null;
 }
 
@@ -113,7 +114,7 @@ export async function approveAndExecuteIntent(
     actorId: user.id, action: "CREATE", module: "Chief of Staff",
     summary: `Courriel envoyé (Adam) — « ${intent.subject} » à ${intent.recipients.join(", ")}`,
   });
-  if (intent.missionId) await markMissionAsked(intent.missionId).catch(() => undefined);
+  if (intent.missionId) await markMissionAsked(intent.missionId).catch(sansBloquer("approve-execute.approveAndExecuteIntent.markMissionAsked"));
 
   return {
     ok: true,

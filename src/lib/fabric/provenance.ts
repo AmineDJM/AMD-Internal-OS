@@ -440,7 +440,6 @@ export function faitsDuTour(
 
 // ─────────────────────────────── Dire la provenance ───────────────────────────────
 
-const HEURE = new Intl.DateTimeFormat("fr-FR", { hour: "2-digit", minute: "2-digit", timeZone: "Africa/Algiers" });
 const DATE = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Africa/Algiers" });
 const DATE_HEURE = new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Algiers" });
 
@@ -584,5 +583,3 @@ export function repondreProvenance(args: { question: string; tours: readonly Tou
     faits: retenus, trouve: true, cible,
   };
 }
-
-export { HEURE as _formatHeure };

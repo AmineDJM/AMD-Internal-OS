@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
+import { useConfirmer } from "@/components/ui/dialogue";
 import { ExternalLink, FileSignature, Loader2, Plus, Trash2 } from "lucide-react";
 import {
   addContractLine, createAmendment, createContractFromAward, deleteContractLine,
@@ -37,21 +38,11 @@ export function ContractPanel({ tenderId, contrats, lignesAo, aDesGagnes, canPch
   canPch: boolean;
   canLegal: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, setErr, run } = useAction();
+  const confirmer = useConfirmer();
   const [creating, setCreating] = React.useState(false);
   const [amendingId, setAmendingId] = React.useState<string | null>(null);
   const [linking, setLinking] = React.useState(false);
-
-  const run = async (fn: () => Promise<{ ok: boolean; error?: string }>, done?: () => void) => {
-    setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Erreur."); return; }
-    done?.();
-    router.refresh();
-  };
 
   return (
     <div className="space-y-3">
@@ -134,8 +125,8 @@ export function ContractPanel({ tenderId, contrats, lignesAo, aDesGagnes, canPch
                             type="button"
                             disabled={busy}
                             aria-label={`Retirer la ligne ${l.designation}`}
-                            onClick={() => {
-                              if (!window.confirm(`Retirer la ligne « ${l.designation} » (${l.quantityUnits} u.) ?`)) return;
+                            onClick={async () => {
+                              if (!(await confirmer(`Retirer la ligne « ${l.designation} » (${l.quantityUnits} u.) ?`))) return;
                               void run(() => { const fd = new FormData(); fd.set("id", l.id); return deleteContractLine(fd); });
                             }}
                             className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1"
@@ -247,7 +238,7 @@ function AddLineForm({ contract, lignesAo, busy, run }: {
   contract: Market360["contrats"][number];
   lignesAo: LigneAo[];
   busy: boolean;
-  run: (fn: () => Promise<{ ok: boolean; error?: string }>, done?: () => void) => Promise<void>;
+  run: (fn: () => Promise<{ ok: boolean; error?: string }>, done?: () => void) => Promise<boolean>;
 }) {
   const [open, setOpen] = React.useState(false);
   return (

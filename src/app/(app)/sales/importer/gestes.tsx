@@ -7,6 +7,7 @@ import { Input, Select } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { formatNumber } from "@/lib/utils";
 import { moisCourt } from "@/lib/ventes-pch/calculs";
 import {
@@ -125,10 +126,15 @@ export function TeleverserPch() {
     setErr(null); setResultats(null); setApercus(null); setErreurs([]); setChoix({});
     if (!liste.length) return;
     setOccupe("analyse");
-    const r = await apercuFichiersVentesPch(formulaire(liste, {}));
-    setOccupe(null);
-    if (!r.ok) { setErr(r.error); return; }
-    setApercus(r.apercus); setErreurs(r.erreurs);
+    try {
+      const r = await apercuFichiersVentesPch(formulaire(liste, {}));
+      if (!r.ok) { setErr(r.error); return; }
+      setApercus(r.apercus); setErreurs(r.erreurs);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(null);
+    }
   };
   /** Le mois ou l'année d'un fichier change : son aperçu se relit sous cette période (ce qu'elle remplace se met à jour). */
   const choisir = async (a: Apercu, c: ChoixPeriodeEcran) => {
@@ -137,22 +143,32 @@ export function TeleverserPch() {
     setChoix(suivant);
     if (!f) return;
     setErr(null); setOccupe("analyse");
-    const r = await apercuFichiersVentesPch(formulaire([f], suivant));
-    setOccupe(null);
-    if (!r.ok) { setErr(r.error); return; }
-    const nouveau = r.apercus[0];
-    if (nouveau) setApercus((liste) => liste?.map((x) => (x.nomFichier === a.nomFichier ? nouveau : x)) ?? null);
-    if (r.erreurs[0]) setErr(`${r.erreurs[0].nomFichier} : ${r.erreurs[0].error}`);
+    try {
+      const r = await apercuFichiersVentesPch(formulaire([f], suivant));
+      if (!r.ok) { setErr(r.error); return; }
+      const nouveau = r.apercus[0];
+      if (nouveau) setApercus((liste) => liste?.map((x) => (x.nomFichier === a.nomFichier ? nouveau : x)) ?? null);
+      if (r.erreurs[0]) setErr(`${r.erreurs[0].nomFichier} : ${r.erreurs[0].error}`);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(null);
+    }
   };
   const appliquer = async () => {
     const aAppliquer = fichiers.filter((f) => apercus?.some((a) => a.nomFichier === f.name && !a.deja));
     if (!aAppliquer.length) return;
     setErr(null); setOccupe("application");
-    const r = await appliquerFichiersVentesPch(formulaire(aAppliquer, choix));
-    setOccupe(null);
-    if (!r.ok) { setErr(r.error); return; }
-    setResultats(r.resultats); setApercus(null); setFichiers([]); setChoix({});
-    rafraichir();
+    try {
+      const r = await appliquerFichiersVentesPch(formulaire(aAppliquer, choix));
+      if (!r.ok) { setErr(r.error); return; }
+      setResultats(r.resultats); setApercus(null); setFichiers([]); setChoix({});
+      rafraichir();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(null);
+    }
   };
   const nouveaux = apercus?.filter((a) => !a.deja).length ?? 0;
 
@@ -211,9 +227,14 @@ export function RattacherEtablissements({ liste, etablissements, peutModifier }:
     if (!institutionId) { setErr("Choisissez un établissement de la liste."); return; }
     setErr(null); setOccupe(cle);
     const fd = new FormData(); fd.set("cle", cle); fd.set("institutionId", institutionId);
-    const r = await rattacherEtablissementVentesPch(fd);
-    setOccupe(null);
-    if (!r.ok) setErr(r.error ?? "Erreur."); else rafraichir();
+    try {
+      const r = await rattacherEtablissementVentesPch(fd);
+      if (!r.ok) setErr(r.error ?? "L'établissement n'a pas été rattaché."); else rafraichir();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(null);
+    }
   };
   if (!liste.length) return <p className="text-sm text-muted-foreground">Tous les clients des DR sont rattachés à l&apos;annuaire.</p>;
   return (
@@ -284,9 +305,14 @@ export function RattacherPostes({ postes, peutModifier }: { postes: PosteARattac
   const enregistrer = async (poste: number, productId: string) => {
     setErr(null); setOccupe(poste);
     const fd = new FormData(); fd.set("poste", String(poste)); fd.set("productId", productId);
-    const r = await rattacherPosteVentesPch(fd);
-    setOccupe(null);
-    if (!r.ok) setErr(r.error ?? "Erreur."); else rafraichir();
+    try {
+      const r = await rattacherPosteVentesPch(fd);
+      if (!r.ok) setErr(r.error ?? "Le poste n'a pas été rattaché."); else rafraichir();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(null);
+    }
   };
   if (!postes.length) return <p className="text-sm text-muted-foreground">Aucun poste PCH de nos molécules pour l&apos;instant.</p>;
   return (
@@ -344,9 +370,14 @@ export function FournisseursNous({ liste, peutModifier }: { liste: FournisseursP
   const regler = async (productId: string, fournisseur: string, actif: boolean) => {
     setErr(null); setOccupe(`${productId}|${fournisseur}`);
     const fd = new FormData(); fd.set("productId", productId); fd.set("fournisseur", fournisseur); fd.set("actif", actif ? "on" : "off");
-    const r = await reglerFournisseurVentesPch(fd);
-    setOccupe(null);
-    if (!r.ok) setErr(r.error ?? "Erreur."); else { setAjouts({ ...ajouts, [productId]: "" }); rafraichir(); }
+    try {
+      const r = await reglerFournisseurVentesPch(fd);
+      if (!r.ok) setErr(r.error ?? "Le fournisseur n'a pas été enregistré."); else { setAjouts({ ...ajouts, [productId]: "" }); rafraichir(); }
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(null);
+    }
   };
   if (!liste.length) return <p className="text-sm text-muted-foreground">Aucun produit rattaché à un poste PCH pour l&apos;instant.</p>;
   return (
@@ -427,9 +458,14 @@ export function DirectionsRegionalesPch({ drs, peutModifier }: { drs: DirectionR
                       action={async (fd) => {
                         setErr(null); setOccupe(d.code);
                         fd.set("code", d.code);
-                        const r = await enregistrerDrVentesPch(fd);
-                        setOccupe(null);
-                        if (!r.ok) setErr(r.error ?? "Erreur."); else rafraichir();
+                        try {
+                          const r = await enregistrerDrVentesPch(fd);
+                          if (!r.ok) setErr(r.error ?? "La direction régionale n'a pas été enregistrée."); else rafraichir();
+                        } catch {
+                          setErr(actionFailureMessage("THROWN"));
+                        } finally {
+                          setOccupe(null);
+                        }
                       }}
                     >
                       <Input name="libelle" defaultValue={d.libelle} placeholder="DR Oran" className="h-9 text-xs sm:h-8 sm:w-48" />

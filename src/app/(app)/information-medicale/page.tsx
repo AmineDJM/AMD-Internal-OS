@@ -22,16 +22,16 @@ export const dynamic = "force-dynamic";
 
 export default async function MedicalInfoPage() {
   const user = await requireModule("MEDICAL_INFO");
-  const [declarations, portee, myCompanies] = await Promise.all([
+  const [declarations, horsPortee, myCompanies] = await Promise.all([
     getDeclarations(user),
     declarationsHiddenByScope(user),
     getMyCompanies(user.id),
   ]);
   // CE QUE LE FILTRE D'ENTITÉ CACHE, dit au lieu d'être subi : sans ce chiffre, on voit des
   // déclarations dans « Mon espace » et pas dans son module, et rien ne relie les deux faits.
-  const scopeId = getCompanyScope();
+  const scopeId = await getCompanyScope();
   const masques = hiddenByScopeMessage({
-    ...portee,
+    ...horsPortee,
     companyLabel: scopeId ? (myCompanies.find((c) => c.id === scopeId)?.name ?? null) : null,
   });
 

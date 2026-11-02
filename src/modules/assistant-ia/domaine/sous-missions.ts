@@ -1,0 +1,126 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LES SOUS-MISSIONS — les RÈGLES (K3, décision 0033). Pur, navigateur compris (le tableau de bord les lit).
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+/** La clé d'un titre de plan : minuscules, sans accents ni ponctuation — deux reformulations du même plan se reconnaissent. */
+export function cleDeTitre(titre: unknown): string {
+  return typeof titre === "string"
+    ? titre.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()
+    : "";
+}
+
+/**
+ * DÉMARRER D'OFFICE un plan sans geste ? La préférence de la personne, sinon la console (personne, puis rôle), sinon le
+ * défaut de la Direction : OUI pour le Super Admin, NON pour les autres.
+ */
+export function reglageDOffice(r: { preference: boolean | null; personne: boolean | null; role: boolean | null; superAdmin: boolean }): boolean {
+  return r.preference ?? r.personne ?? r.role ?? r.superAdmin;
+}
+
+/** Un statut du moteur où la sous-mission ne bougera plus sans la personne : la synthèse peut s'écrire. */
+/**
+ * Un statut FINAL : la synthèse peut s'écrire. Une mission BLOQUÉE ou terminée EN PARTIE n'en est pas un — elle se reprend
+ * (bouton « Reprendre » de la carte et du tableau) ; la personne en est prévenue par la conduite (banc réel du 31/10 : une
+ * erreur 502 passagère du fournisseur sur la rédaction du rapport écrivait une synthèse vide, que la reprise ne refaisait pas).
+ */
+export const statutFini = (status: string): boolean => ["COMPLETED", "CANCELLED", "FAILED"].includes(status);
+
+export interface IssueSousMission {
+  titre: string;
+  statut: string;
+  coutUsd: number;
+  extrait: string;
+  document: { nom: string; lien: string } | null;
+  /** D'autres documents du même livrable (le Word d'un rapport livré en PDF). */
+  autres?: { nom: string; lien: string }[];
+  /** § 7 : le livrable s'affiche EN ENTIER (Markdown gardé) — le rapport d'une recherche approfondie. */
+  complet?: boolean;
+  dureeMs: number | null;
+}
+
+const ISSUE: Record<string, string> = { COMPLETED: "terminée", CANCELLED: "annulée", FAILED: "en échec", PARTIAL: "terminée en partie", BLOCKED: "bloquée" };
+
+/** « 0,03 $ » — et « < 0,01 $ » pour un coût réel mais minuscule (jamais un « 0,00 $ » qui ferait croire à la gratuité). */
+export const usd = (n: number): string => (n > 0 && n < 0.005 ? "< 0,01 $" : `${n.toFixed(2).replace(".", ",")} $`);
+
+/** « 3 min 20 s », « 45 s », « 1 h 05 » — une durée dite. */
+export function duree(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return "—";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s} s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m} min${s % 60 ? ` ${String(s % 60).padStart(2, "0")} s` : ""}`;
+  return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
+}
+
+/** `/drive/<id>` → `/api/drive/<id>/raw` (le reste tel quel). */
+export const lienTelechargement = (lien: string): string => lien.replace(/^\/drive\/([^/?#]+)$/, "/api/drive/$1/raw");
+
+/**
+ * L'EXTRAIT d'un livrable pour la synthèse : le TEXTE de ses premiers paragraphes, sans titres, tableaux ni marques
+ * Markdown (un livrable aplati sur une ligne commençait par « # » et s'affichait tout en titre).
+ */
+export function extraitDuLivrable(md: string, max = 700): string {
+  const lignes = md.split(/\r?\n/).map((l) => l.trim())
+    .filter((l) => l && !/^#{1,6}\s/.test(l) && !l.startsWith("|") && !/^[-*_]{3,}$/.test(l));
+  const texte = lignes.join(" ").replace(/\*\*|__|`/g, "").replace(/^\s*[-*]\s+/g, "").replace(/\s+/g, " ").trim();
+  return texte.length > max ? `${texte.slice(0, max - 1).replace(/\s+\S*$/, "")}…` : texte;
+}
+
+/** LA RÉPONSE DE SYNTHÈSE écrite dans la conversation — un en-tête, un « en bref » éventuel, puis chaque sous-mission. */
+export function phraseSynthese(issues: readonly IssueSousMission[], enBref: string | null): string {
+  const faites = issues.filter((i) => i.statut === "COMPLETED").length;
+  const cout = issues.reduce((s, i) => s + i.coutUsd, 0);
+  const tete = issues.length > 1
+    ? `**Les sous-missions sont finies** — ${faites}/${issues.length} terminée${faites > 1 ? "s" : ""}, coût total ${usd(cout)}.`
+    : `**La mission « ${issues[0]?.titre ?? ""} » est ${ISSUE[issues[0]?.statut ?? ""] ?? "finie"}** — coût ${usd(cout)}.`;
+  const blocs = issues.map((i, n) => {
+    const lignes = [`${issues.length > 1 ? `**${n + 1}. ${i.titre}** — ${ISSUE[i.statut] ?? i.statut.toLowerCase()}` : ""}${i.dureeMs != null && issues.length > 1 ? ` (${duree(i.dureeMs)})` : ""}`];
+    if (i.extrait) lignes.push(i.complet ? `---\n\n${i.extrait}\n\n---` : i.extrait);
+    // Le lien de TÉLÉCHARGEMENT (`/api/drive/…/raw`) : servi par l'ERP comme par l'app (où `/drive/…` n'existe pas) ; la
+    // pièce s'affiche aussi en puce ouvrable sous la réponse (les identifiants du Drive cités).
+    const docs = [i.document, ...(i.autres ?? [])].filter((d): d is { nom: string; lien: string } => !!d);
+    if (docs.length) lignes.push(`${docs.length > 1 ? "Documents" : "Livrable"} : ${docs.map((d) => `[${d.nom}](${lienTelechargement(d.lien)})`).join(" · ")}`);
+    return lignes.filter(Boolean).join("\n\n");
+  });
+  return [tete, enBref ? `En bref : ${enBref}` : null, ...blocs].filter(Boolean).join("\n\n");
+}
+
+// ─────────────────────────────── Ce que le tableau de bord affiche ───────────────────────────────
+
+export const LIBELLE_ETAPE: Record<string, string> = { FILE: "En file", EN_COURS: "En cours", FAITE: "Faite", ATTENTE: "En attente", ECHEC: "Échec", ECARTEE: "Écartée" };
+
+/** Une mission est-elle VIVANTE (compte dans « 3 missions en cours ») ? */
+export const missionVivante = (etat: string): boolean => ["EN_COURS", "EN_ATTENTE", "BUDGET_HOLD"].includes(etat);
+
+/** L'indicateur discret de l'en-tête : « 3 missions en cours », « 1 plan à approuver », ou rien. */
+export function phraseIndicateur(enCours: number, aApprouver: number): string | null {
+  const p: string[] = [];
+  if (enCours) p.push(`${enCours} mission${enCours > 1 ? "s" : ""} en cours`);
+  if (aApprouver) p.push(`${aApprouver} à approuver`);
+  return p.length ? p.join(" · ") : null;
+}
+
+/** Le pourcentage d'avancement d'une mission (les lots d'un éventail comptent à leur part). */
+export function avancement(etapes: readonly { etat: string; lots: { faits: number; total: number } | null }[]): number {
+  if (!etapes.length) return 0;
+  const part = etapes.reduce((s, e) => s + (e.etat === "FAITE" || e.etat === "ECARTEE" ? 1 : e.lots && e.lots.total ? e.lots.faits / e.lots.total : 0), 0);
+  return Math.round((part / etapes.length) * 100);
+}
+
+/** L'état d'une mission tel que le tableau de bord le dit (les états affichés du moteur des travaux). */
+export const LIBELLE_MISSION: Readonly<Record<string, string>> = {
+  A_APPROUVER: "À approuver", EN_COURS: "En cours", EN_ATTENTE: "En attente", BUDGET_HOLD: "Plafond atteint", EN_PAUSE: "En pause",
+  ARRETE: "Arrêtée (reprenable)", BLOQUE: "Bloquée", TERMINE: "Terminée", ANNULE: "Annulée", ECHEC: "Échec",
+};
+
+/** Ce que la personne peut faire d'une mission dans cet état : la pause, la reprise, l'annulation. */
+export function gestesPermis(etat: string): { pause: boolean; reprise: boolean; annuler: boolean } {
+  return {
+    pause: etat === "EN_COURS" || etat === "EN_ATTENTE",
+    reprise: etat === "EN_PAUSE" || etat === "BUDGET_HOLD" || etat === "BLOQUE" || etat === "ARRETE",
+    annuler: etat !== "TERMINE" && etat !== "ANNULE" && etat !== "ARRETE",
+  };
+}

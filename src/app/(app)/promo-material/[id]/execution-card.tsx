@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, AlertTriangle, CheckCircle2, Circle, Clock, FileText, Loader2, PackageCheck, Pencil, Send, Stethoscope, Trash2, Undo2, Upload, Wand2, X, XCircle } from "lucide-react";
 import {
   genererBonsDeCommandePromo, modifierBonDeCommandePromo, annulerBonDeCommandePromo, marquerBonDeCommandeEnvoye,
@@ -22,11 +21,15 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import type { ActionResult } from "@/lib/actions/types";
 import type { OptionCatalogue } from "@/lib/queries/promo-achats";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useSaisir } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { ChampNumeroPiece } from "@/components/references/champ-numero-piece";
 import { phraseNumeroSeul } from "@/lib/bons-de-commande/numero-seul";
 import { ApercuBcPromo, type BrouillonAffiche } from "./apercu-bc-promo";
 import { MenuLigne, useGeste, type EntreeMenu } from "./menu-ligne";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'EXÉCUTION D'UN DOSSIER DU CIRCUIT 2 — du devis retenu au stock (§118.152, §118.165).
@@ -131,17 +134,25 @@ interface Props {
 }
 
 function useRun() {
-  const router = useRouter();
+  // LE RAFRAÎCHISSEMENT SUIVI (§118.172) : les gestes restent fermés jusqu'à l'arrivée des nouvelles données.
+  const { enCours, rafraichir } = useRafraichir();
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<string | null>(null);
   const run = async (fn: () => Promise<ActionResult>, after?: () => void) => {
     setSaving(true); setErr(null); setMsg(null);
-    const r = await fn();
-    setSaving(false);
-    if (r.ok) { setMsg(r.message ?? null); after?.(); router.refresh(); } else setErr(r.error ?? "Action impossible.");
+    let r: ActionResult;
+    try {
+      r = await fn();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
+    if (r.ok) { setMsg(r.message ?? null); after?.(); rafraichir(); } else setErr(r.error ?? "Le geste n'a pas abouti.");
   };
-  return { saving, err, msg, run };
+  return { saving: saving || enCours, err, msg, run };
 }
 
 const Erreur = ({ msg }: { msg: string | null }) =>
@@ -188,7 +199,7 @@ function DepotFacture({ id, e, onDone, onCancel }: { id: string; e: ExecutionAff
     if (!f) { setLectureMsg("Choisissez d'abord le fichier de la facture."); return; }
     setLit(true); setLectureMsg(null);
     const fd = new FormData(); fd.set("promoMaterialId", id); fd.set("quoteId", e.quoteId); fd.set("file", f);
-    const r = await lireFacturePromo(fd).catch(() => ({ ok: false as const, error: "La lecture n'a pas abouti — saisissez depuis le papier." }));
+    const r = await lireFacturePromo(fd).catch(sansBloquer("execution-card.lireAvecLuna.lireFacturePromo", { ok: false as const, error: "La lecture n'a pas abouti — saisissez depuis le papier." }));
     setLit(false);
     if (!r.ok || !r.lecture) { setLectureMsg(r.ok ? "Aucune lecture rendue." : (r.error ?? "La lecture n'a pas abouti.")); return; }
     const lu = r.lecture;
@@ -418,6 +429,7 @@ function Facture({ id, f, agir, canReceive, options, formalite, deplie = false }
   formalite: string | null;
 }) {
   const { saving, err, msg, run } = useRun();
+  const saisir = useSaisir();
   const [annulation, setAnnulation] = React.useState(false);
   const detail = f.detail;
   const enAttente = detail ? detail.lignes.filter((l) => l.etat === "EN_ATTENTE" || l.etat === "PARTIELLE") : [];
@@ -483,10 +495,14 @@ function Facture({ id, f, agir, canReceive, options, formalite, deplie = false }
                       {receptionOuverte && l.etat === "EN_ATTENTE" && <div className="mt-1"><ReceptionLigne id={id} l={l} options={options} run={run} saving={saving} deplie={deplie} /></div>}
                       {receptionOuverte && l.quantiteRecue != null && (
                         <Button size="sm" variant="ghost" className="mt-1" disabled={saving}
-                          onClick={() => {
+                          onClick={async () => {
                             // UN MOTIF, pas une simple confirmation (audit 360°, R17) : le journal doit dire si
                             // c'était une erreur de saisie ou une marchandise renvoyée. Abandonner la boîte ne fait rien.
-                            const motif = window.prompt(`Pourquoi annuler la réception de « ${l.designation} » ?${l.entree ? " Son entrée au magasin sera contre-passée." : ""} (obligatoire)`);
+                            const motif = await saisir({
+                              titre: `Pourquoi annuler la réception de « ${l.designation} » ?`,
+                              ...(l.entree ? { message: "Son entrée au magasin sera contre-passée." } : {}),
+                              saisie: { libelle: "Motif (obligatoire)", obligatoire: true },
+                            });
                             if (motif === null || !motif.trim()) return;
                             const fd = new FormData(); fd.set("promoMaterialId", id); fd.set("ligneId", l.id); fd.set("motif", motif.trim());
                             run(() => annulerReceptionLigneFacturePromo(fd));
@@ -735,7 +751,7 @@ const PastilleOuVide = ({ p }: { p: Pastille | null }) => (p ? <Badge tone={p.to
  */
 export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouvert, optionsReception, peutValiderBc }: Props) {
   const { saving, err, msg, run } = useRun();
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [options, setOptions] = React.useState(false);
   const [generer, setGenerer] = React.useState(false);
   const [choisi, setChoisi] = React.useState<string | null>(null);
@@ -941,7 +957,7 @@ export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouver
         <ApercuBcPromo
           promoMaterialId={id} quoteId={enApercu.quoteId} fournisseur={enApercu.fournisseur} brouillon={enApercu.brouillon}
           peutValider={peutValiderBc} onClose={() => setApercu(null)}
-          onDone={(r) => { setApercu(null); setAnnonce(r.message ?? null); router.refresh(); }}
+          onDone={(r) => { setApercu(null); setAnnonce(r.message ?? null); rafraichir(); }}
         />
       )}
     </section>

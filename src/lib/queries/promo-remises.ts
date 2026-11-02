@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { etatValidite, libelleArticleStock } from "@/lib/promo/stock";
 import { remisNetParArticle } from "@/lib/promo/remises";
 import type { PromoFamille } from "@/lib/promo/catalogue";
+import { arrondirAuMillieme } from "@/lib/utils";
 
 /**
  * CE QUE LE FORMULAIRE DE VISITE PROPOSE, ET CE QU'UNE VISITE A REMIS (§118.166).
@@ -12,7 +13,6 @@ import type { PromoFamille } from "@/lib/promo/catalogue";
  * a raison si les deux divergent (le sens sûr : un refus après le clic, jamais une remise de trop).
  */
 
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 const num = (v: unknown): number => (v == null ? 0 : Number(v));
 
 export interface ArticleEnMain {
@@ -88,8 +88,8 @@ export async function stockPourVisite(repId: string, maintenant: Date = new Date
   for (const s of positifs) {
     const q = num(s._sum.delta);
     const e = parItem.get(s.itemId) ?? { distribuable: 0, perime: 0 };
-    if (etatValidite(validite.get(s.lotId) ?? null, maintenant) === "PERIME") e.perime = r3(e.perime + q);
-    else e.distribuable = r3(e.distribuable + q);
+    if (etatValidite(validite.get(s.lotId) ?? null, maintenant) === "PERIME") e.perime = arrondirAuMillieme(e.perime + q);
+    else e.distribuable = arrondirAuMillieme(e.distribuable + q);
     parItem.set(s.itemId, e);
   }
   const articles: ArticleEnMain[] = items

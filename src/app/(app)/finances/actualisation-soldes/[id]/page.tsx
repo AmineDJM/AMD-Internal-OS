@@ -6,11 +6,10 @@ import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { companyScopedWhere } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
-import { jourAlger } from "@/lib/finance/tresorerie";
-import { chargerTresorerie } from "@/lib/queries/finance";
+import { jourAlger, estEtatLigne, etatDemande, LIBELLE_ETAT_DEMANDE, type EtatLigne } from "@/modules/finances/partage";
+import { chargerTresorerie } from "@/modules/finances/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
-import { estEtatLigne, etatDemande, LIBELLE_ETAT_DEMANDE, type EtatLigne } from "@/lib/finance/actualisation-soldes";
 import { FormulaireActualisation, type LigneEcran } from "./formulaire";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +23,8 @@ export const metadata = { title: "Actualisation des soldes — AMD Internal OS" 
  * réponse. Qui voit les Finances voit l'écran ; seul qui peut les MODIFIER saisit — la même porte que
  * « Corriger l'ancrage ». Un compte d'une entité qu'on ne voit pas rend la demande introuvable.
  */
-export default async function ActualisationSoldesPage({ params }: { params: { id: string } }) {
+export default async function ActualisationSoldesPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("FINANCES");
   const demande = await prisma.demandeActualisationSoldes.findUnique({
     where: { id: params.id },

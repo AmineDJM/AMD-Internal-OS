@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createHash } from "node:crypto";
 import { mailProvider, verifyInboundSignature, normalizeInbound } from "@/lib/mail-smart";
+import { isAutomatedSender } from "@/lib/comms/loop-safety";
+import { recevoirPieces } from "@/modules/assistant-ia/api";
+import { destinatairesDuCourrier, entetesDuCourrier, piecesDuCourrier } from "@/platform/ia/canaux/courrier";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -16,6 +20,10 @@ export const runtime = "nodejs";
  *      volontiers : on ne veut pas dix copies du même e-mail).
  *
  * Les réponses restent laconiques : on ne renseigne pas un attaquant sur ce qui a échoué.
+ *
+ * K6 (décision 0036) : un courrier adressé à L'ASSISTANT (`ASSISTANT_IA_MAIL`, une ou plusieurs adresses) porte des
+ * pièces pour l'Assistant IA de son expéditeur — reconnu par son adresse, mêmes gardes et même stockage que WhatsApp
+ * (`recevoirPieces` : idempotence, expéditeur automatique écarté, taille, injection, Drive, carte, journal).
  */
 export async function POST(req: Request) {
   const secret = (process.env.MAIL_WEBHOOK_SECRET ?? "").trim();
@@ -37,6 +45,21 @@ export async function POST(req: Request) {
 
   const msg = normalizeInbound(provider, payload);
   if (!msg) return NextResponse.json({ ok: false }, { status: 400 });
+
+  // L'ASSISTANT IA (K6) : avant la boîte commune — ses pièces ne dépendent pas de l'enregistrement du courrier.
+  const adressesAssistant = (process.env.ASSISTANT_IA_MAIL ?? "").toLowerCase().split(/[,;\s]+/).filter((a) => a.includes("@"));
+  const pourAssistant = adressesAssistant.length > 0 && destinatairesDuCourrier(payload).some((a) => adressesAssistant.includes(a));
+  if (pourAssistant) {
+    const r = await recevoirPieces({
+      canal: "MAIL",
+      idExterne: msg.messageId || createHash("sha256").update(raw).digest("hex"),
+      expediteur: msg.fromAddress,
+      texte: msg.subject,
+      fichiers: piecesDuCourrier(payload),
+      automatique: isAutomatedSender({ from: msg.fromAddress, subject: msg.subject, headers: entetesDuCourrier(payload) }),
+    });
+    return NextResponse.json({ ok: true, assistant: r.issue });
+  }
 
   try {
     // Relivraison du même message → on ne duplique pas (contrainte d'unicité sur messageId).

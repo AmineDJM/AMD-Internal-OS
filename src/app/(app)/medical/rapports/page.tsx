@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Filter, ShieldAlert } from "lucide-react";
+import { BarChart3, Filter, Mic, ShieldAlert } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { getAppSettings } from "@/lib/settings";
 import { canViewFieldReportsOverview } from "@/lib/queries/field-reports";
@@ -27,7 +27,10 @@ export const metadata = { title: "Rapports — AMD Internal OS" };
  * La GARDE est le module `FIELD_REPORTS`, celui de l'ancienne entrée « Rapports terrain » : la console d'administration
  * règle toujours qui voit cet onglet. Ce que chacun y lit vient des règles d'hier (`chargerListeRapports`).
  */
-export default async function RapportsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+export default async function RapportsPage(
+  props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("FIELD_REPORTS");
   const filtres = lireFiltresRapports(searchParams);
   const [liste, settings, onglets] = await Promise.all([
@@ -42,6 +45,9 @@ export default async function RapportsPage({ searchParams }: { searchParams?: Re
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader title="Rapports">
+        <Link href="/medical/terrain" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-primary hover:underline sm:min-h-8">
+          <Mic className="h-4 w-4" /> Dicter (terrain)
+        </Link>
         {signalements && (
           <Link href={CHEMIN_PV_KAM} className="inline-flex min-h-10 items-center gap-1.5 text-sm text-primary hover:underline sm:min-h-8">
             <ShieldAlert className="h-4 w-4" /> Mes signalements

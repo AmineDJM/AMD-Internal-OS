@@ -37,11 +37,12 @@ function Montant({ c }: { c: CelluleBv }) {
  * BUDGET REGULATORY — LES BV PAR DOSSIER (Direction, 08/10). Chaque dossier d'enregistrement, son BV 25 % et son BV 75 %
  * (montant, statut, date), et le 75 % encore attendu — face aux deux catégories BV de l'enveloppe.
  */
-export default async function BudgetRegulatoryBvPage({ searchParams }: { searchParams: ParamsBudget }) {
+export default async function BudgetRegulatoryBvPage(props: { searchParams: Promise<ParamsBudget> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("BUDGET_REGULATORY");
   const opts = { portee: "REGULATORY" as const };
   const [envelopes, tabs] = await Promise.all([getEnvelopes(user, opts), visibleTabs(user, BUDGET_REGULATORY_TABS)]);
-  const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), null, null, opts);
+  const overview = await getBudgetOverview(user, await resolveBudgetEnvelope(searchParams.env), null, null, opts);
   const vue = overview ? await vueBvParDossier(user, overview) : null;
   const gere = overview ? canManageEnvelope(user, overview.envelope) : false;
 

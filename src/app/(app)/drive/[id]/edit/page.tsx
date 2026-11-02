@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
  * l'on a le droit, lecture sinon) — il n'y a plus de page « Éditer dans Office » à part. L'adresse reste
  * valable pour les liens déjà envoyés et les favoris.
  */
-export default function DriveEditPage({ params }: { params: { id: string } }) {
-  redirect(`/drive/${encodeURIComponent(params.id)}`);
+export default async function DriveEditPage(props: { params: Promise<{ id: string }> }) {
+ const params = await props.params;
+ redirect(`/drive/${encodeURIComponent(params.id)}`);
 }

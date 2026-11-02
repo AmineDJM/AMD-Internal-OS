@@ -137,11 +137,6 @@ export function consommationHistorique(
   return { parCategorie, lignes };
 }
 
-/** Additionner deux cartes catégorie → montant. */
-export function ajouterParCategorie(cible: Map<string | null, number>, source: ReadonlyMap<string, number>): void {
-  for (const [k, v] of source) cible.set(k, (cible.get(k) ?? 0) + v);
-}
-
 /** La règle d'un lot, depuis ses lignes lues (forme plate, pour le serveur et les tests). */
 export function regleDuLot(l: {
   lotId: string; enveloppeId: string; integreLe: Date;

@@ -10,7 +10,11 @@ import {
   type ModelTurn,
   costOf,
   emptyUsage,
+  reponseEnEchec,
+  reponseSansCle,
 } from "./contract";
+import { attendu } from "@/lib/journal";
+import { cleOpenAI, urlOpenAI } from "./openai-acces";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -55,6 +59,7 @@ interface OaResponse {
     prompt_tokens?: number;
     completion_tokens?: number;
     prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
   };
 }
 
@@ -267,19 +272,11 @@ export async function callOpenAi(
   opts: ModelCallOptions = {},
 ): Promise<ModelReply> {
   const started = Date.now();
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
+  const key = cleOpenAI();
   if (!key) {
-    return {
-      ok: false,
-      configured: false,
-      stop: "error",
-      blocks: [],
-      usage: emptyUsage(binding.role, binding.model, "openai"),
-      error: "Clé OPENAI_API_KEY non configurée.",
-    };
+    return reponseSansCle(binding, "openai", "OPENAI_API_KEY");
   }
 
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
   const body = buildBody(binding, turns, opts);
 
   let lastError = "Appel au modèle impossible (réseau).";
@@ -289,7 +286,7 @@ export async function callOpenAi(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch(`${base}/v1/chat/completions`, {
+      const res = await fetch(urlOpenAI("/chat/completions"), {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -332,6 +329,7 @@ export async function callOpenAi(
             inputTokens,
             outputTokens,
             cachedInputTokens: data.usage?.prompt_tokens_details?.cached_tokens ?? 0,
+            reasoningTokens: data.usage?.completion_tokens_details?.reasoning_tokens ?? 0,
             costUsd: costOf(binding, inputTokens, outputTokens, data.usage?.prompt_tokens_details?.cached_tokens ?? 0),
             ms: Date.now() - started,
             attempts: attempt,
@@ -339,7 +337,7 @@ export async function callOpenAi(
         };
       }
 
-      const raw = await res.text().catch(() => "");
+      const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       lastError = providerErrorMessage(res.status, raw);
 
       // PARAMÈTRE REFUSÉ PAR LE MODÈLE. Un 400 sur `temperature` n'est pas une panne : c'est un
@@ -385,14 +383,7 @@ export async function callOpenAi(
     await new Promise((r) => setTimeout(r, 600 * attempt));
   }
 
-  return {
-    ok: false,
-    configured: true,
-    stop: "error",
-    blocks: [],
-    usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-    error: lastError,
-  };
+  return reponseEnEchec(binding, "openai", started, lastError);
 }
 
 // ─────────────────────────────── Streaming ───────────────────────────────
@@ -453,27 +444,20 @@ export async function streamOpenAi(
   onText: (chunk: string) => void,
 ): Promise<ModelReply> {
   const started = Date.now();
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
+  const key = cleOpenAI();
   if (!key) {
-    return {
-      ok: false,
-      configured: false,
-      stop: "error",
-      blocks: [],
-      usage: emptyUsage(binding.role, binding.model, "openai"),
-      error: "Clé OPENAI_API_KEY non configurée.",
-    };
+    return reponseSansCle(binding, "openai", "OPENAI_API_KEY");
   }
 
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
   const body = { ...buildBody(binding, turns, opts), stream: true, stream_options: { include_usage: true } };
   const asm = new StreamAssembler();
   let inputTokens = 0;
   let outputTokens = 0;
   let cachedInputTokens = 0;
+  let reasoningTokens = 0;
 
   try {
-    const res = await fetch(`${base}/v1/chat/completions`, {
+    const res = await fetch(urlOpenAI("/chat/completions"), {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -481,16 +465,9 @@ export async function streamOpenAi(
     });
 
     if (!res.ok || !res.body) {
-      const raw = await res.text().catch(() => "");
+      const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] openai stream error", binding.role, res.status, raw.slice(0, 300));
-      return {
-        ok: false,
-        configured: true,
-        stop: "error",
-        blocks: [],
-        usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-        error: providerErrorMessage(res.status, raw),
-      };
+      return reponseEnEchec(binding, "openai", started, providerErrorMessage(res.status, raw));
     }
 
     const reader = res.body.getReader();
@@ -526,6 +503,7 @@ export async function streamOpenAi(
             inputTokens = evt.usage.prompt_tokens ?? inputTokens;
             outputTokens = evt.usage.completion_tokens ?? outputTokens;
             cachedInputTokens = evt.usage.prompt_tokens_details?.cached_tokens ?? cachedInputTokens;
+            reasoningTokens = evt.usage.completion_tokens_details?.reasoning_tokens ?? reasoningTokens;
           }
         } catch {
           /* fragment SSE illisible — on continue, le flux reste exploitable */
@@ -546,6 +524,7 @@ export async function streamOpenAi(
         inputTokens,
         outputTokens,
         cachedInputTokens,
+        reasoningTokens,
         costUsd: costOf(binding, inputTokens, outputTokens, cachedInputTokens),
         ms: Date.now() - started,
         attempts: 1,
@@ -570,13 +549,6 @@ export async function streamOpenAi(
       };
     }
     console.error("[models] openai stream failed", binding.role, err);
-    return {
-      ok: false,
-      configured: true,
-      stop: "error",
-      blocks: [],
-      usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-      error: "Appel au modèle impossible (réseau ou délai dépassé).",
-    };
+    return reponseEnEchec(binding, "openai", started, "Appel au modèle impossible (réseau ou délai dépassé).");
   }
 }

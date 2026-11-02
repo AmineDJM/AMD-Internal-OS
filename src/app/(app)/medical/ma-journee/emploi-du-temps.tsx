@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Clock, Loader2, Mic, Package, Pencil, Plus, ShieldAlert, Square } from "lucide-react";
 import { rapporterVisite, ajouterVisiteImprevue, direVisiteNonTenue } from "@/lib/actions/tour-visit-actions";
-import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
 import { ETAT_VISITE_LABELS, VUES, VUE_LABELS, type EtatVisite, type VueTournee } from "@/lib/sfe/tournee";
 import type { AvancementTournee } from "@/lib/sfe/tournee";
 import { Badge } from "@/components/ui/badge";
@@ -121,14 +121,13 @@ export function EmploiDuTemps({
   const router = useRouter();
   const params = useSearchParams();
   // LE RAFRAÎCHISSEMENT SUIVI (§118.172) : une fiche rouverte avant la fin montrerait la visite d'avant.
-  const { enCours, rafraichir } = useRafraichir();
+  // `busy` de `useAction` court jusqu'à l'arrivée des nouvelles données (§118.172).
+  const { busy: occupe, err, setErr, run: lancer } = useAction();
   const [ouverte, setOuverte] = React.useState<LigneVue | null>(null);
   /** La visite qu'on dit NON TENUE (reportée, annulée) — §118.193. */
   const [nonTenue, setNonTenue] = React.useState<LigneVue | null>(null);
   const [imprevue, setImprevue] = React.useState(false);
   const gamme: GammeVue = { produits, produitsIncomplets, messages, sansBu };
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
 
   const changerVue = (v: VueTournee) => {
     const q = new URLSearchParams(params?.toString() ?? "");
@@ -136,15 +135,7 @@ export function EmploiDuTemps({
     router.push(`/medical/ma-journee?${q.toString()}`);
   };
 
-  const run = async (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => {
-    setBusy(true); setErr(null);
-    const r = await action(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Action impossible."); return false; }
-    rafraichir();
-    return true;
-  };
-  const occupe = busy || enCours;
+  const run = (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => lancer(() => action(fd));
 
   const tonDe = (e: EtatVisite): "neutral" | "success" | "warning" | "info" =>
     e === "FAITE" ? "success" : e === "PERDUE" ? "warning" : e === "ANNULEE" || e === "REPORTEE" ? "info" : "neutral";

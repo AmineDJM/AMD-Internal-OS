@@ -6,11 +6,21 @@
  * (en cas de panne du suivi, on laisse passer plutôt que de bloquer tout le monde).
  */
 import { prisma } from "./prisma";
+import { sansBloquer } from "@/lib/journal";
 
 export const MAX_FAILURES = 5; // échecs tolérés avant verrouillage
 const WINDOW_MS = 15 * 60_000; // fenêtre glissante de comptage (15 min)
 const BASE_LOCK_MS = 15 * 60_000; // durée de verrouillage de base (15 min)
 const MAX_LOCK_MS = 2 * 60 * 60_000; // plafond (2 h)
+
+/**
+ * LES AUTRES PORTES À MOT DE PASSE (audit 27/10, SA-17 — KB R6/R14). Le portail fournisseur et le changement de mot
+ * de passe vérifiaient un mot de passe sans limite d'essais : on pouvait les deviner à volonté. Ils passent par le
+ * MÊME compteur, sous une clé préfixée — un fournisseur et un salarié de même adresse ne se verrouillent pas l'un
+ * l'autre, et deviner le mot de passe actuel d'une session volée ne bloque pas la connexion de son titulaire.
+ */
+export const cleConnexionPortail = (email: string) => `portail:${email.trim().toLowerCase()}`;
+export const cleChangementMotDePasse = (userId: string) => `mdp:${userId}`;
 
 export interface LockState {
   locked: boolean;
@@ -19,7 +29,7 @@ export interface LockState {
 
 /** Indique si l'identifiant est actuellement verrouillé. */
 export async function checkLockout(email: string): Promise<LockState> {
-  const row = await prisma.loginAttempt.findUnique({ where: { email } }).catch(() => null);
+  const row = await prisma.loginAttempt.findUnique({ where: { email } }).catch(sansBloquer("login-throttle.checkLockout.loginAttempt", null));
   if (row?.lockedUntil && row.lockedUntil > new Date()) return { locked: true, until: row.lockedUntil };
   return { locked: false };
 }
@@ -36,7 +46,7 @@ export interface FailureResult {
  */
 export async function recordFailure(email: string, ip: string | null): Promise<FailureResult> {
   const now = new Date();
-  const row = await prisma.loginAttempt.findUnique({ where: { email } }).catch(() => null);
+  const row = await prisma.loginAttempt.findUnique({ where: { email } }).catch(sansBloquer("login-throttle.recordFailure.loginAttempt", null));
 
   // Fenêtre glissante : une dernière tentative trop ancienne (sans verrou actif)
   // repart de zéro pour ne pas pénaliser un utilisateur légitime occasionnel.
@@ -60,12 +70,12 @@ export async function recordFailure(email: string, ip: string | null): Promise<F
       create: { email, ipAddress: ip, failures, lockedUntil, lastAttempt: now },
       update: { ipAddress: ip, failures, lockedUntil, lastAttempt: now },
     })
-    .catch(() => undefined);
+    .catch(sansBloquer("login-throttle.recordFailure.loginAttempt"));
 
   return { lockedNow, until: lockedUntil ?? undefined, failures };
 }
 
 /** Réinitialise le compteur (connexion réussie). */
 export async function clearAttempts(email: string): Promise<void> {
-  await prisma.loginAttempt.deleteMany({ where: { email } }).catch(() => undefined);
+  await prisma.loginAttempt.deleteMany({ where: { email } }).catch(sansBloquer("login-throttle.clearAttempts.loginAttempt"));
 }

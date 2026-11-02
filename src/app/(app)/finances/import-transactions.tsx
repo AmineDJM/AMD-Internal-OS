@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useFormState } from "react-dom";
-import { useRouter } from "next/navigation";
+import { useActionState } from "react";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Upload, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { importTransactions, type ResultatImport } from "@/lib/actions/finance-actions";
+import { importTransactions, type ResultatImport } from "@/modules/finances/actions-tresorerie";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/input";
@@ -15,9 +15,9 @@ const SAMPLE = `date,direction,category,label,amount,method,account,counterparty
 2026-06-04,OUT,VOYAGE,Mission Oran,35000,CASH,Caisse,Délégué`;
 
 export function ImportTransactionsButton() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
-  const [state, formAction] = useFormState<ResultatImport | undefined, FormData>(importTransactions, undefined);
+  const [state, formAction] = useActionState<ResultatImport | undefined, FormData>(importTransactions, undefined);
   const [pending, setPending] = React.useState(false);
   // Le bilan de CET import, remis à zéro à chaque ouverture : le bilan d'un import précédent ne
   // doit pas se lire sous un texte neuf.
@@ -31,12 +31,12 @@ export function ImportTransactionsButton() {
     setBilan(state);
     if (state.ok) {
       setDejaImporte(true);
-      router.refresh();
+      rafraichir();
       // Tout est passé : on referme, le temps de lire le compte. Une ligne écartée garde le panneau
       // ouvert — la personne doit pouvoir lire laquelle, et pourquoi.
       if (!state.ecartees) setTimeout(() => setOpen(false), 1500);
     }
-  }, [state, router]);
+  }, [state, rafraichir]);
 
   const ouvrir = () => { setBilan(undefined); setDejaImporte(false); setOpen(true); };
 

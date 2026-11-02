@@ -32,7 +32,8 @@ function scoreTone(s: number): "success" | "info" | "warning" | "neutral" {
   return s >= 75 ? "success" : s >= 60 ? "info" : s >= 45 ? "warning" : "neutral";
 }
 
-export default async function MarketOpportunitiesPage({ searchParams }: { searchParams: { view?: string; min?: string } }) {
+export default async function MarketOpportunitiesPage(props: { searchParams: Promise<{ view?: string; min?: string }> }) {
+  const searchParams = await props.searchParams;
   await requireModule("BUSINESS_DEVELOPMENT");
   const view = (["eligible", "import_substitution", "all"].includes(searchParams.view ?? "") ? searchParams.view : "eligible") as "eligible" | "import_substitution" | "all";
   const minUsd = Number(searchParams.min) || 0;

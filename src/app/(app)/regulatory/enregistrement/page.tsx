@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Scale, Coins, Timer, Layers, ClipboardList, RefreshCw, ShieldCheck, XCircle, Sparkles } from "lucide-react";
 import { requireModule } from "@/lib/session";
@@ -13,11 +14,10 @@ import {
   CTD_MODULES, CTD_RULES, MODIFICATION_CATEGORIES, MODIFICATION_RULES,
   DECISION_MENTIONS, DECISION_RULES, REFUSAL_GROUNDS, REGISTRATION_DOSSIER_PIECES,
 } from "@/lib/regulatory/anpp-knowledge";
+import { montantDzd } from "@/lib/utils";
 
 export const metadata = { title: "Enregistrement (CTD) — Regulatory" };
 export const dynamic = "force-dynamic";
-
-const dzd = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
 
 /**
  * Onglet Regulatory « Enregistrement » — RÉFÉRENTIEL réglementaire ANPP (Algérie), intégré
@@ -53,7 +53,7 @@ export default async function EnregistrementPage() {
           <CardTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Analyseur de dossier CTD</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>Déposez un dossier CTD en <strong>ZIP</strong> dans l'onglet <a href="/regulatory/enregistrement/analyse" className="font-medium text-primary hover:underline">Analyse CTD</a> : le logiciel le <strong>décompresse en sécurité</strong>, <strong>lit et conserve</strong> chaque fichier (chiffré), le <strong>classe</strong> dans le bon module CTD (1 à 5), puis produira une <strong>analyse fond &amp; forme</strong> au regard de la <strong>réglementation algérienne</strong> (et des références CTD/UE), signalera les manques et <strong>préparera les formulaires</strong>.</p>
+          <p>Déposez un dossier CTD en <strong>ZIP</strong> dans l'onglet <Link href="/regulatory/enregistrement/analyse" className="font-medium text-primary hover:underline">Analyse CTD</Link> : le logiciel le <strong>décompresse en sécurité</strong>, <strong>lit et conserve</strong> chaque fichier (chiffré), le <strong>classe</strong> dans le bon module CTD (1 à 5), puis produira une <strong>analyse fond &amp; forme</strong> au regard de la <strong>réglementation algérienne</strong> (et des références CTD/UE), signalera les manques et <strong>préparera les formulaires</strong>.</p>
           <p>Cette page reste la <strong>base de connaissance</strong> qui pilote l'analyseur — l'assistant IA la maîtrise (posez-lui vos questions d'enregistrement). Toute conclusion IA est un <strong>projet soumis à revue humaine</strong>.</p>
         </CardContent>
       </Card>
@@ -86,16 +86,16 @@ export default async function EnregistrementPage() {
                 {REGISTRATION_FEES.map((f) => (
                   <tr key={f.productType} className="border-b border-border/60">
                     <td data-sans-etiquette className="py-1.5 pr-3 font-medium sm:font-normal">{f.productType}</td>
-                    <td className="py-1.5 pr-3 text-right text-muted-foreground">{dzd(f.presubmission)}</td>
-                    <td className="py-1.5 pr-3 text-right text-muted-foreground">{dzd(f.deposit)}</td>
-                    <td className="py-1.5 text-right font-medium">{dzd(f.total)}</td>
+                    <td className="py-1.5 pr-3 text-right text-muted-foreground">{montantDzd(f.presubmission)}</td>
+                    <td className="py-1.5 pr-3 text-right text-muted-foreground">{montantDzd(f.deposit)}</td>
+                    <td className="py-1.5 text-right font-medium">{montantDzd(f.total)}</td>
                   </tr>
                 ))}
               </tbody>
           </Table>
           <div className="flex flex-wrap gap-2">
             {OTHER_FEES.map((o) => (
-              <span key={o.operation} className="rounded-lg border border-border bg-secondary/40 px-2.5 py-1 text-xs">{o.operation} : <span className="font-medium">{dzd(o.amount)}</span></span>
+              <span key={o.operation} className="rounded-lg border border-border bg-secondary/40 px-2.5 py-1 text-xs">{o.operation} : <span className="font-medium">{montantDzd(o.amount)}</span></span>
             ))}
           </div>
           <ul className="list-disc space-y-1 pl-5 text-xs text-muted-foreground">

@@ -9,6 +9,7 @@ import { ApercuBcDemande } from "./apercu-bc-demande";
 import { TAUX_TVA_DEVIS, nombreSaisi, totauxDesLignes, type LigneDevisNatif } from "@/lib/secretariat/devis-natif";
 import { CATEGORIES_AJOUT, type NatureAjout } from "@/lib/secretariat/pieces";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { PartyPicker } from "@/components/directory/party-picker";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { Sheet } from "@/components/ui/sheet";
@@ -42,9 +43,14 @@ function useGeste() {
   const [note, setNote] = React.useState<string | null>(null);
   const run = async (action: (fd: FormData) => Promise<Resultat>, fd: FormData, apres?: () => void) => {
     setEnVol(true); setErr(null); setNote(null);
-    const r = await action(fd);
-    setEnVol(false);
-    if (r.ok) { setNote(r.message ?? null); apres?.(); rafraichir(); } else setErr(r.error ?? "Erreur.");
+    try {
+      const r = await action(fd);
+      if (r.ok) { setNote(r.message ?? null); apres?.(); rafraichir(); } else setErr(r.error ?? "Le devis n'a pas été mis à jour.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setEnVol(false);
+    }
   };
   return { busy: enVol || enCours, err, note, run, setErr };
 }

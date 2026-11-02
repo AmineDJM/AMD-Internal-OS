@@ -106,6 +106,3 @@ export async function verifyClean(testRunId: string): Promise<VerifyResult> {
   }
   return { clean: residuals.length === 0, checked: artifacts.length, residuals };
 }
-
-/** Modèles pris en charge par la fabrique/nettoyage (pour la doc & les gardes). */
-export const SUPPORTED_MODELS = Object.keys(DELETERS);

@@ -5,13 +5,15 @@ import { saveFile } from "@/lib/storage";
 import { callLuna, lunaModel } from "@/lib/openai-luna";
 import { docxToPdf } from "@/lib/payslip/to-pdf";
 import { composerDocx, paragraphe, MIME_DOCX } from "@/lib/artifact/factory/word";
-import { profilDocumentaire, resoudreSociete } from "@/platform/in-process/artifact/factory";
+import { profilDocumentaire, resoudreSociete } from "@/platform/ia/artifact/factory";
 import type { CurrentUser } from "@/lib/session";
 import { anneeDuRegistre, attribuerAuRegistre, registreDe, verifierReferenceLibre } from "@/lib/references/registre-serveur";
 import {
   ETAPE_DEMANDE_DEVIS, lettreDeSecours, lettreValide, texteDeLaLettre, quantiteEnLettre,
   type ArticleADeviser, type LettreDevis,
-} from "@/lib/ad-pro/demande-devis-lettre";
+} from "@/modules/ad-pro/partage";
+import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -139,7 +141,7 @@ export type DepotLettreDevis =
  */
 export async function societeDeLaLettre(user: CurrentUser, societeId: string | null): Promise<string | null> {
   if (societeId) return societeId;
-  const r = await resoudreSociete(user.id, null).catch(() => null);
+  const r = await resoudreSociete(user.id, null).catch(sansBloquer("demande-devis-depot.societeDeLaLettre.resoudreSociete", null));
   return r && r.ok ? r.societe.id : null;
 }
 
@@ -157,7 +159,7 @@ export async function deposerLettreDevis(
   d: ContenuDemandeDevis & { reference: string | null; societeId: string | null; referenceChoisie?: string | null },
 ): Promise<DepotLettreDevis> {
   if (cibles.length === 0) return { ok: false, error: "Aucun objet où déposer la demande de devis." };
-  const profil = await profilDocumentaire(user, d.societeId).catch(() => null);
+  const profil = await profilDocumentaire(user, d.societeId).catch(sansBloquer("demande-devis-depot.deposerLettreDevis.profilDocumentaire", null));
   const societeId = profil && profil.ok ? profil.profil.societe.id : d.societeId;
   const annee = anneeDuRegistre();
   const registre = await registreDe(societeId, annee);
@@ -189,7 +191,7 @@ export async function deposerLettreDevis(
     titre: lettre.objet,
     auteur: user.name ?? "Adventum",
   });
-  const pdf = await docxToPdf(composition.octets).catch(() => ({ ok: false as const, error: "conversion impossible" }));
+  const pdf = await docxToPdf(composition.octets).catch(sansBloquer("demande-devis-depot.deposerLettreDevis.docxToPdf", { ok: false as const, error: "conversion impossible" }));
   const base = nomDeFichier(`Demande de devis — ${reference ?? d.titre}`);
   const fichiers: { nom: string; octets: Buffer; mime: string }[] = [
     ...(pdf.ok ? [{ nom: `${base}.pdf`, octets: pdf.pdf, mime: "application/pdf" }] : []),
@@ -198,13 +200,15 @@ export async function deposerLettreDevis(
   for (const c of cibles) {
     for (const f of fichiers) {
       const cle = `${c.entityType}/${c.entityId}/${randomUUID()}__${f.nom}`;
-      await saveFile(cle, f.octets);
-      await prisma.document.create({
+      const ecrit = await saveFile(cle, f.octets);
+      const docEcrit = await prisma.document.create({
         data: {
           name: f.nom, category: "OTHER", entityType: c.entityType, entityId: c.entityId, stepKey: ETAPE_DEMANDE_DEVIS,
           fileKey: cle, mimeType: f.mime, sizeBytes: f.octets.length, confidentiality: "INTERNAL", uploadedById: user.id,
         },
       });
+      // La pièce entre à la bibliothèque (J1) : registre, clé du document, file de lecture. Ne lève jamais.
+      await inscrireDocumentEcrit(docEcrit, ecrit);
     }
   }
   return { ok: true, parLuna, texte: texteDeLaLettre(lettre), pdf: pdf.ok, surPapierEnTete: composition.surPapierEnTete, referenceRegistre };

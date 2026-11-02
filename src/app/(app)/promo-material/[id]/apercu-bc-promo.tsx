@@ -13,6 +13,7 @@ import {
   apercuBcPromo, modifierApercuBcPromo, annulerApercuBcPromo, validerEtEnvoyerBcPromo, type ApercuBcPromoResultat,
 } from "@/lib/actions/promo-execution-actions";
 import type { ActionResult } from "@/lib/actions/types";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -114,7 +115,13 @@ export function ApercuBcPromo({ promoMaterialId, quoteId, fournisseur, brouillon
   const enregistrer = () => {
     setErreur(null);
     startEnregistre(async () => {
-      const r = await modifierApercuBcPromo(formulaire());
+      let r: ActionResult;
+      try {
+        r = await modifierApercuBcPromo(formulaire());
+      } catch {
+        setErreur(actionFailureMessage("THROWN"));
+        return;
+      }
       if (!r.ok) { setErreur(r.error ?? "L'enregistrement n'a pas abouti."); return; }
       setEdition(false);
       montrer();

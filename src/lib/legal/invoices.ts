@@ -90,7 +90,7 @@ export function invoiceTally(rows: readonly InvoiceTallyRow[], today: Date = new
 // de la règle des lecteurs désignés : les pièces liées d'une fiche Ad & Pro doivent la lire pour
 // n'offrir que les boutons que l'action acceptera, et le domaine Ad & Pro n'a pas le droit
 // d'importer Legal (§118.114). Réexportée ici pour ses lecteurs d'origine — une seule règle.
-export { PURCHASE_CHAIN_KINDS, legalViewScope, legalKindVisible, legalWriteAllowed, type LegalViewScope } from "@/lib/lecteurs/legal";
+export { PURCHASE_CHAIN_KINDS, legalViewScope, legalKindVisible, legalWriteAllowed } from "@/lib/lecteurs/legal";
 
 /**
  * LA NATURE DEMANDÉE PAR L'URL — `?nature=INVOICE`.

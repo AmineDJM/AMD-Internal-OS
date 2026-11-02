@@ -46,7 +46,8 @@ const MAX_LIGNES = 200;
  * au premier correctif (§118.5).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export default async function AdminMessageriePage({ searchParams }: { searchParams: { qui?: string } }) {
+export default async function AdminMessageriePage(props: { searchParams: Promise<{ qui?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/mon-espace");
 

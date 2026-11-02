@@ -2,16 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { HrDocumentCategory } from "@prisma/client";
 import { getCurrentUserPourEcrire } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
+import { entitePermisePourFiche } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 import { putBlob } from "@/lib/drive-storage";
 import { validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
-import { mirrorEmployeeContractToDrive } from "@/lib/hr-drive-mirror";
+import {
+  mirrorEmployeeContractToDrive, marquerDemandeRhTraitee, resolveVisibility, shouldMirrorToDrive,
+  visibilityLabel,
+} from "@/modules/rh/api";
 import { synchroniserOrdreEmis } from "@/lib/missions-equipe/serveur";
-import { marquerDemandeRhTraitee } from "@/lib/hr-demande-traitee";
-import { resolveVisibility, shouldMirrorToDrive, visibilityLabel } from "@/lib/hr/document-visibility";
+import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
 
 export const dynamic = "force-dynamic";
 
@@ -27,8 +31,9 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File)) return NextResponse.json({ error: "Fichier manquant." }, { status: 400 });
   const employeeId = (form.get("employeeId") as string) || "";
   if (!employeeId) return NextResponse.json({ error: "Employé manquant." }, { status: 400 });
-  const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { id: true, userId: true, fullName: true } });
-  if (!employee) return NextResponse.json({ error: "Employé introuvable." }, { status: 404 });
+  const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { id: true, userId: true, fullName: true, companyId: true } });
+  // LA PORTE DE LA FICHE (`/rh/[id]`) : le dossier d'une société qu'on ne voit pas reste introuvable (audit 27/10).
+  if (!employee || !(await entitePermisePourFiche(user.id, employee.companyId))) return NextResponse.json({ error: "Employé introuvable." }, { status: 404 });
 
   const err = validateUpload(file.name, file.size, (await getAppSettings()).maxUploadMb);
   if (err) return NextResponse.json({ error: err }, { status: 400 });
@@ -36,6 +41,10 @@ export async function POST(req: NextRequest) {
   const catRaw = (form.get("category") as string) || "OTHER";
   const category = (Object.values(HrDocumentCategory) as string[]).includes(catRaw) ? (catRaw as HrDocumentCategory) : "OTHER";
   const requestId = (form.get("requestId") as string) || null;
+  // La demande à laquelle la pièce répond est celle de CE salarié — sinon on marquait « prête » la demande d'un autre.
+  if (requestId && !(await prisma.hrDocumentRequest.findFirst({ where: { id: requestId, employeeId }, select: { id: true } }))) {
+    return NextResponse.json({ error: "Demande introuvable pour ce salarié." }, { status: 404 });
+  }
 
   // QUI VERRA CETTE PIÈCE. Le défaut suit la NATURE du document : ce qu'on remet au salarié
   // (bulletin, attestations) lui est visible, ce que les RH conservent (contrat, avenant, pièce
@@ -49,7 +58,7 @@ export async function POST(req: NextRequest) {
   );
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const { blobId, size } = await putBlob(buf);
+  const { blobId, size, sha256 } = await putBlob(buf);
 
   const doc = await prisma.employeeDocument.create({
     data: {
@@ -66,10 +75,12 @@ export async function POST(req: NextRequest) {
     },
     select: { id: true, name: true },
   });
+  // La pièce entre à la bibliothèque, CONFIDENTIELLE (J1) : ouverte par la règle de `/api/rh/document`, jamais à un modèle.
+  await inscrireDocumentRh({ id: doc.id, blobId, sha256, nom: doc.name, mime: file.type || "application/octet-stream", taille: size, deposeParId: user.id });
 
   // Si le document répond à une demande : la marquer « prête » et prévenir l'employé.
   if (requestId) {
-    await prisma.hrDocumentRequest.update({ where: { id: requestId }, data: { status: "READY", handledById: user.id } }).catch(() => undefined);
+    await prisma.hrDocumentRequest.update({ where: { id: requestId }, data: { status: "READY", handledById: user.id } }).catch(sansBloquer("upload-route.POST.hrDocumentRequest"));
     await marquerDemandeRhTraitee(requestId); // brique KPI « demandes traitées »
     // Un ordre de mission joint à la main : la mission Ad & Pro reliée le sait (« émis »).
     await synchroniserOrdreEmis(requestId, user.id);

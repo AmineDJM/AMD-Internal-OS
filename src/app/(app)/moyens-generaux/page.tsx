@@ -42,9 +42,8 @@ export const metadata = { title: "Moyens généraux — AMD Internal OS" };
  * des dépenses avec leurs pièces (où est passé l'argent ?). Chaque dépense porte sa facture ou
  * son bon de paiement — sans pièce, une ligne n'est qu'une affirmation.
  */
-export default async function MoyensGenerauxPage({
-  searchParams,
-}: { searchParams: { year?: string; cible?: string } }) {
+export default async function MoyensGenerauxPage(props: { searchParams: Promise<{ year?: string; cible?: string }> }) {
+  const searchParams = await props.searchParams;
   // DEUX VISAGES SUR LE MÊME ÉCRAN, et c'est le sujet de cette page.
   //
   // Demander un achat est un geste de TOUT employé : un délégué qui a besoin de cartouches n'a

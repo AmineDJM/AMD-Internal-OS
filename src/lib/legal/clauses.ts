@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LES CLAUSES D'UN CONTRAT — lues par le code, jamais devinées (mandat 4 §27, Legal).
@@ -113,8 +114,6 @@ function lireTaux(s: string): number | null {
 }
 
 // ─────────────────────────── Découpage en phrases ───────────────────────────
-
-const plier = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 interface Phrase { texte: string; plie: string; position: number }
 

@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { useAutoOpen } from "./use-auto-open";
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Plus, Loader2, AlertCircle, Wand2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -376,6 +377,7 @@ export function RecordForm({
   onTouched,
 }: RecordFormProps) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   // LES CHAMPS TOUCHÉS : un champ rempli depuis la pièce perd son violet dès que la personne y met la main.
   const [touches, setTouches] = React.useState<ReadonlySet<string>>(() => new Set());
   const [preuveOuverte, setPreuveOuverte] = React.useState<string | null>(null);
@@ -404,7 +406,7 @@ export function RecordForm({
    *
    * ── LE DÉFAUT QU'ON CORRIGE ───────────────────────────────────────────────────────────────
    *
-   * `useFormState` ne met l'état à jour QUE si l'action RETOURNE. Si elle LÈVE — erreur Prisma,
+   * `useActionState` ne met l'état à jour QUE si l'action RETOURNE. Si elle LÈVE — erreur Prisma,
    * stockage injoignable, déploiement en cours, connexion coupée — aucun état n'arrive : l'effet
    * de succès comme celui d'erreur restent muets, `submitting` reste vrai, et le bouton tourne
    * pour toujours SANS AUCUN MESSAGE. C'est exactement le symptôme rapporté (« ça tourne tourne
@@ -435,7 +437,7 @@ export function RecordForm({
     },
     [],
   );
-  const [state, formAction] = useFormState<ActionResult | undefined, FormData>(guarded, undefined);
+  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(guarded, undefined);
 
   // Pré-remplissage IA : valeurs extraites + compteur pour re-monter (reset) les champs.
   const [prefill, setPrefill] = React.useState<Record<string, string>>({});
@@ -501,12 +503,12 @@ export function RecordForm({
       // liste qu'on abandonne, puis la fiche — et le bouton tournait pendant les deux.
       // L'action a déjà invalidé le cache de la liste : elle sera à jour au retour.
       if (redirectBase && state.id) router.push(`${redirectBase}/${state.id}`);
-      else router.refresh();
+      else rafraichir();
     } else if (state?.error) {
       setSubmitting(false);
       lock.current = false; // échec → nouvelle tentative autorisée
     }
-  }, [state, router, redirectBase]);
+  }, [state, router, redirectBase, rafraichir]);
 
   return (
     <>

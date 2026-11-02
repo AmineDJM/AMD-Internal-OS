@@ -144,6 +144,3 @@ export function reécriteLienNotification(lien: string | null | undefined): stri
   const paramsStr = params.toString();
   return cheminActuel + (paramsStr ? `?${paramsStr}` : "") + hash;
 }
-
-/** Alias ASCII — même fonction. */
-export const lienActuelNotification = reécriteLienNotification;

@@ -16,6 +16,7 @@ import {
 } from "@/lib/budget-marketing/integration-serveur";
 import { controleDeLaPiece, piecesAttenduesDe, piecesRattacheesDe, stepKeyDePiece } from "@/lib/budget-marketing/integration-vue";
 import { formatCentimes, type PlanIntegration, type TypeDemandeIntegree } from "@/lib/budget-marketing/integration-2026";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -188,7 +189,7 @@ export async function validerIntegrationAdPro(formData: FormData): Promise<Actio
   });
   if (!r.ok) return { ok: false, error: r.erreur };
   // Le fichier, rangé comme pièce du lot (best-effort : le lot est écrit, la pièce suit).
-  const piece = await attachFiles({ files: [new File([f.octets as BlobPart], f.nom, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })], entityType: "BUDGET", entityId: env.id, uploadedById: user.id, stepKey: `integration-lot:${r.resultat.lotId}` }).catch(() => ({ saved: 0 }));
+  const piece = await attachFiles({ files: [new File([f.octets as BlobPart], f.nom, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })], entityType: "BUDGET", entityId: env.id, uploadedById: user.id, stepKey: `integration-lot:${r.resultat.lotId}` }).catch(sansBloquer("integration-adpro-actions.validerIntegrationAdPro.attachFiles", { saved: 0 }));
   if (piece.saved) {
     const doc = await prisma.document.findFirst({ where: { entityType: "BUDGET", entityId: env.id, stepKey: `integration-lot:${r.resultat.lotId}` }, select: { id: true } });
     if (doc) await prisma.adProIntegrationLot.update({ where: { id: r.resultat.lotId }, data: { fichierDocumentId: doc.id } });
@@ -295,7 +296,7 @@ export async function joindrePiecesIntegration(formData: FormData): Promise<Acti
   if (refus) return { ok: false, error: refus };
 
   const montant = Number(row.montant);
-  const connues = await chargerFacturesConnues().catch(() => []);
+  const connues = await chargerFacturesConnues().catch(sansBloquer("integration-adpro-actions.joindrePiecesIntegration.chargerFacturesConnues", []));
   const instances = [`FICHE:${row.demandeType}:${row.demandeId}`];
   const rattachees = piecesRattacheesDe(row.piecesRattachees);
   const nouvellesRattachees: typeof rattachees = [];
@@ -307,7 +308,7 @@ export async function joindrePiecesIntegration(formData: FormData): Promise<Acti
     let trouvaille = parFichier;
     let lu: { ttc: number | null; fournisseur: string | null } = { ttc: null, fournisseur: null };
     if (!(parFichier.niveau === "CERTAIN" && parFichier.connue)) {
-      const identite = await lireIdentiteDuDepot(user.id, octets, f.name).catch(() => null);
+      const identite = await lireIdentiteDuDepot(user.id, octets, f.name).catch(sansBloquer("integration-adpro-actions.joindrePiecesIntegration.lireIdentiteDuDepot", null));
       if (identite) {
         lu = { ttc: identite.ttc, fournisseur: identite.fournisseur.nom };
         trouvaille = chercherFactureConnue(identite, connues, { instances });

@@ -17,7 +17,8 @@ async function scope(req: NextRequest): Promise<{ companyId: string } | { error:
   return { companyId };
 }
 
-export async function GET(req: NextRequest, { params }: { params: { sessionId: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+  const params = await props.params;
   const s = await scope(req);
   if ("error" in s) return NextResponse.json({ error: s.error }, { status: s.status });
   const r = await uploadSessionStatus(params.sessionId, s.companyId);
@@ -25,7 +26,8 @@ export async function GET(req: NextRequest, { params }: { params: { sessionId: s
   return NextResponse.json(r);
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { sessionId: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+  const params = await props.params;
   const s = await scope(req);
   if ("error" in s) return NextResponse.json({ error: s.error }, { status: s.status });
   await abortUploadSession(params.sessionId, s.companyId);

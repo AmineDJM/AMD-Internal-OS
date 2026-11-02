@@ -31,6 +31,7 @@ import { idCompteAgent } from "@/lib/missions/agent/account";
 import { envoyerMessageDirect } from "@/lib/messaging";
 import { porteAttentionPour } from "@/platform/in-process/missions/attention";
 import { correspond, lireAttente, type Attente, type FaitObserve } from "@/lib/missions/events/match";
+import { sansBloquer } from "@/lib/journal";
 
 export const CADENCE_RELANCE_MS = 24 * 3600_000;
 export const BARREAUX_AVANT_DIRIGEANT = 3;
@@ -57,9 +58,9 @@ async function personneAttendue(from: string | undefined): Promise<{ id: string;
     },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
-  }).catch(() => null);
+  }).catch(sansBloquer("relance.personneAttendue.user", null));
   if (!user) return null;
-  const fiche = await prisma.employee.findFirst({ where: { userId: user.id }, select: { manager: { select: { userId: true } } } }).catch(() => null);
+  const fiche = await prisma.employee.findFirst({ where: { userId: user.id }, select: { manager: { select: { userId: true } } } }).catch(sansBloquer("relance.personneAttendue.employee", null));
   return { id: user.id, name: user.name, managerUserId: fiche?.manager?.userId ?? null };
 }
 
@@ -68,7 +69,7 @@ async function historique(missionId: string, stepKey: string): Promise<{ n: numb
   const rows = await prisma.missionEvent.findMany({
     where: { missionId, kind: "NUDGED", detail: { path: ["stepKey"], equals: stepKey } },
     select: { at: true }, orderBy: { at: "desc" },
-  }).catch(() => []);
+  }).catch(sansBloquer("relance.historique.missionEvent", []));
   return { n: rows.length, derniere: rows[0]?.at ?? null };
 }
 
@@ -135,7 +136,7 @@ export async function relancerAttente(e: AttenteEchue, maintenant = new Date()):
         : `« ${e.stepTitle} » attend ${e.attente.from ?? "une partie externe"} (hors de l'entreprise) depuis ${jours} jour(s)`,
       decision: personne ? "trancher : relancer autrement, réassigner, ou clore" : "relancer le partenaire par un e-mail que je préparerai, ou clore",
       attente: { jours, relances: Math.max(h.n, BARREAUX_AVANT_DIRIGEANT) },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("relance.relancerAttente.signaler"));
     await journaliser(e.missionId, "NUDGED", `Barreau ${barreau} : le dirigeant est prévenu (${geste === "EXTERNE" ? "partie externe" : "échelle épuisée"}).`,
       { stepKey: e.stepKey, barreau, geste });
     return { geste, barreau, detail: geste === "EXTERNE" ? "partie externe : le dirigeant décide" : "échelle épuisée : le dirigeant décide" };
@@ -146,7 +147,7 @@ export async function relancerAttente(e: AttenteEchue, maintenant = new Date()):
     await journaliser(e.missionId, "NUDGED", `Barreau ${barreau} impossible : le compte d'Adam n'existe pas encore.`, { stepKey: e.stepKey, barreau, geste: "SILENCE" });
     return { geste: "SILENCE", barreau, detail: "compte d'Adam absent" };
   }
-  const proprietaire = await prisma.user.findUnique({ where: { id: e.ownerId }, select: { name: true } }).catch(() => null);
+  const proprietaire = await prisma.user.findUnique({ where: { id: e.ownerId }, select: { name: true } }).catch(sansBloquer("relance.relancerAttente.user", null));
   const pour = proprietaire?.name ?? "la direction";
 
   // ── BARREAU 3 : LA HIÉRARCHIE DANS LA BOUCLE ─────────────────────────────────────────
@@ -217,7 +218,7 @@ export async function observerReponseTardive(fait: FaitObserve & { messageId?: s
         kind: "QUESTION", missionId, ownerId: r.mission.ownerId, titre: r.mission.title, stepKey: `reponse:${idFait}`, planVersion: r.mission.planVersion, niveauSuggere: "INFO",
         raison: `${auteur} a répondu après la relance : « ${texte.slice(0, 200)}${texte.length > 200 ? "…" : ""} ».`,
         decision: "dire à Adam ce qu'il doit en faire (reprendre, clore, ou ignorer)",
-      }).catch(() => undefined);
+      }).catch(sansBloquer("relance.observerReponseTardive.signaler"));
       n += 1;
     }
     return n;

@@ -12,6 +12,7 @@ import { InfoBulle } from "@/components/ui/info-bulle";
 import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";
 import { DocxView, XlsxView, PptxView } from "@/components/documents/office-viewers";
 import { ApercuUniversel, SansApercu } from "@/components/documents/apercu-universel";
+import { sansBloquer } from "@/lib/journal";
 
 // L'API du Document Server est injectée globalement par api.js.
 declare global {
@@ -109,9 +110,9 @@ export function OfficeEditor({
     const el = wrapRef.current;
     if (!el) return;
     if (document.fullscreenElement) {
-      document.exitFullscreen?.().catch(() => {});
+      document.exitFullscreen?.().catch(sansBloquer("office-editor.OfficeEditor.exitFullscreen"));
     } else {
-      el.requestFullscreen?.().catch(() => {});
+      el.requestFullscreen?.().catch(sansBloquer("office-editor.OfficeEditor.requestFullscreen"));
     }
   }, []);
 

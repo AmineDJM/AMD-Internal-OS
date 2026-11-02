@@ -147,6 +147,7 @@ export function DataTable<T>({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
             className="pl-8"
           />
         </div>
@@ -171,24 +172,32 @@ export function DataTable<T>({
                   className={cn(
                     col.align === "right" && "text-right",
                     col.align === "center" && "text-center",
-                    col.sortable && "cursor-pointer select-none hover:text-foreground",
                     col.className,
                   )}
-                  onClick={col.sortable ? () => toggleSort(col.key) : undefined}
+                  aria-sort={col.sortable ? (sortKey === col.key ? (sortDir === "asc" ? "ascending" : "descending") : "none") : undefined}
                 >
-                  <span className="inline-flex items-center gap-1">
-                    {col.header}
-                    {col.sortable &&
-                      (sortKey === col.key ? (
+                  {/* UN VRAI BOUTON (audit 27/10/2026, FRONTEND-UX-03) : un `<th onClick>` ne se trie
+                      ni au clavier ni au lecteur d'écran — Tab ne s'y arrête pas. */}
+                  {col.sortable ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(col.key)}
+                      className="inline-flex select-none items-center gap-1 rounded focus-ring hover:text-foreground"
+                    >
+                      {col.header}
+                      {sortKey === col.key ? (
                         sortDir === "asc" ? (
-                          <ChevronUp className="h-3.5 w-3.5" />
+                          <ChevronUp className="h-3.5 w-3.5" aria-hidden />
                         ) : (
-                          <ChevronDown className="h-3.5 w-3.5" />
+                          <ChevronDown className="h-3.5 w-3.5" aria-hidden />
                         )
                       ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-40" />
-                      ))}
-                  </span>
+                        <ArrowUpDown className="h-3 w-3 opacity-40" aria-hidden />
+                      )}
+                    </button>
+                  ) : (
+                    col.header
+                  )}
                 </TableHead>
               ))}
             </TableRow>
@@ -199,8 +208,11 @@ export function DataTable<T>({
               return (
                 <TableRow
                   key={i}
-                  className={href ? "cursor-pointer" : undefined}
+                  className={href ? "cursor-pointer focus-ring" : undefined}
                   onClick={href ? () => router.push(href) : undefined}
+                  // La ligne cliquable s'ouvre AUSSI au clavier : Tab s'y arrête, Entrée l'ouvre.
+                  tabIndex={href ? 0 : undefined}
+                  onKeyDown={href ? (e) => { if (e.key === "Enter" && e.target === e.currentTarget) router.push(href); } : undefined}
                 >
                   {columns.map((col) => (
                     <TableCell
@@ -238,6 +250,7 @@ export function DataTable<T>({
               size="icon"
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={currentPage === 0}
+              aria-label="Page précédente"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -249,6 +262,7 @@ export function DataTable<T>({
               size="icon"
               onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
               disabled={currentPage >= pageCount - 1}
+              aria-label="Page suivante"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

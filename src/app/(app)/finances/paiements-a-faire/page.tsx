@@ -1,7 +1,9 @@
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { ordresAvecFacture } from "@/lib/finance/facture-ordre";
+import {
+  ordresAvecFacture, chargerOrdresDesFinances, dossierHrefByOrder, chargerTresorerie, comptesTresorerie,
+} from "@/modules/finances/api";
 import { companyScopedWhere, getMyCompanies, companyOptions } from "@/lib/company";
 import { entiteParDefaut } from "@/lib/company-defaut";
 import Link from "next/link";
@@ -11,18 +13,12 @@ import { ComptesTresorerieButton } from "../comptes-tresorerie";
 import { toNumber, formatCurrency } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
-import { visibleToFinance, type CentralStatus } from "@/lib/payments/authorization";
-import { settlementState, sortForSettlement } from "@/lib/finance/settlement";
-import { dossierHrefByOrder } from "@/lib/expense-orders";
+import { settlementState, sortForSettlement, needsBudgetChoice, compteParDefaut } from "@/modules/finances/partage";
 import { marquesDesOrdres } from "@/lib/factures/connues";
-import { needsBudgetChoice } from "@/lib/finance/settle-budget";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { ENTITY_MODULE, modulesDesEntites } from "@/lib/entity-access";
-import { chargerTresorerie } from "@/lib/queries/finance";
 import { TreasuryUpdateRequestButton } from "../treasury-update-request";
 import { OrdersTable, type OrderRow, type BudgetChoice, type CompteChoice } from "./orders-table";
-import { compteParDefaut } from "@/lib/finance/tresorerie";
-import { comptesTresorerie } from "@/lib/finance/comptes";
 import { PurgeHistoryButton } from "./purge-history";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { ordresBvAvecQuittance } from "@/lib/regulatory/bv-reglement";
@@ -56,7 +52,8 @@ const jourFr = (iso: string | null) => {
   return `${j}/${m}/${a}`;
 };
 
-export default async function PaiementsAFairePage({ searchParams }: { searchParams: { focus?: string; entite?: string } }) {
+export default async function PaiementsAFairePage(props: { searchParams: Promise<{ focus?: string; entite?: string }> }) {
+  const searchParams = await props.searchParams;
   // `?focus=` : la ligne qu'on vient de cliquer depuis « Mon espace ». Voir OrdersTable.
   const focusId = searchParams.focus ?? null;
   const user = await requireModule("FINANCES");
@@ -79,17 +76,13 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
   // pas `X`. Un ordre qu'on n'a pas su rattacher disparaissait de la file du décaissement pour
   // tout comptable cloisonné sur une société — et un paiement invisible n'est pas un paiement
   // classé, c'est un paiement qu'on ne fera jamais.
-  const orders = (await prisma.expenseOrder.findMany({
-    where: await companyScopedWhere(user.id, entiteId ? { companyId: entiteId } : {}),
-    orderBy: { createdAt: "desc" },
-    include: { requestedBy: { select: { name: true } } },
-    take: 300,
-  })).filter((o) => visibleToFinance(o.centralStatus as CentralStatus));
+  // LA FILE À RÉGLER EST ENTIÈRE, l'historique seul est borné (`chargerOrdresDesFinances`) : une fenêtre
+  // commune faisait sortir de « à régler » les paiements autorisés les plus anciens.
+  const orders = await chargerOrdresDesFinances(await companyScopedWhere(user.id, entiteId ? { companyId: entiteId } : {}));
 
   // La facture de chaque ordre — par la MÊME règle que le règlement (`finance/facture-ordre.ts`,
   // §118.185) : la colonne disait « facture jointe » là où le règlement refusait, et inversement.
   const orderIds = orders.map((o) => o.id);
-  const avecFacture = await ordresAvecFacture(orders.filter((o) => o.requiresInvoice));
   const sourceFilters = orders
     .filter((o) => o.sourceType && o.sourceId)
     .map((o) => ({ entityType: o.sourceType!, entityId: o.sourceId! }));
@@ -101,18 +94,28 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
   // joindre une facture obligeait à retrouver le module d'origine — quand on y avait accès.
   // Depuis qu'un ordre ouvre son dossier en naissant (`createExpenseOrder`), le lien se lit sur
   // `expenseOrderId`, qui vaut pour les deux sens de l'histoire.
-  const dossiers = await dossierHrefByOrder(orderIds);
-  // LA MARQUE « DOUBLON POSSIBLE » de chaque ordre (Direction, 14/10/2026).
-  const doublons = await marquesDesOrdres(orderIds);
-
-  // ── OÙ CETTE DÉPENSE TOMBERA-T-ELLE ? ───────────────────────────────────────────────────────
   //
-  // La question se pose AVANT le clic, avec la MÊME fonction que le serveur (`pickAutoCategory`,
-  // puis `needsBudgetChoice`) : deux règles séparées auraient divergé, et l'on aurait fini avec un
-  // bouton qui promet un règlement que le serveur refuse. Les catégories sont chargées ici une
-  // fois pour toute la table — l'écran en a besoin pour PROPOSER le classement, pas seulement
-  // pour le calculer.
-  const [envelopes, categoryLines] = await Promise.all([
+  // LA MARQUE « DOUBLON POSSIBLE » de chaque ordre (Direction, 14/10/2026).
+  //
+  // LE BV D'UN DOSSIER RÉGLEMENTAIRE se règle avec sa QUITTANCE : l'écran la demande au geste « Payé »
+  // quand elle n'est pas déjà jointe — par la MÊME règle que le serveur (`ordresBvAvecQuittance`).
+  //
+  // Le module de chaque SOURCE, en une lecture — la même réponse que l'action serveur
+  // (`moduleDeLEntite`) : un consultant passé aux RH se classe sur une enveloppe RH (§118.150).
+  //
+  // LES CATÉGORIES DE BUDGET et LES COMPTES D'OÙ PEUT PARTIR UN RÈGLEMENT : voir leur usage plus bas.
+  //
+  // UNE DEMANDE D'ACTUALISATION ENCORE OUVERTE pour cette entité : elle se DIT en tête, avec le chemin
+  // de la réponse — le comptable qui arrive ici sans passer par la notification la trouve aussi.
+  //
+  // Toutes ces lectures ne dépendent que des ordres et de l'entité : UN aller-retour au lieu de neuf en
+  // cascade (audit performance PERF-11).
+  const [avecFacture, dossiers, doublons, avecQuittance, modulesSources, envelopes, categoryLines, tresorerie, tousLesComptes, demandeOuverte] = await Promise.all([
+    ordresAvecFacture(orders.filter((o) => o.requiresInvoice)),
+    dossierHrefByOrder(orderIds),
+    marquesDesOrdres(orderIds),
+    ordresBvAvecQuittance(orders.filter((o) => o.status === "PENDING")),
+    modulesDesEntites(sourceFilters),
     prisma.budgetEnvelope.findMany({
       where: { isActive: true },
       select: { id: true, isActive: true, modules: true, module: true, periodStart: true, name: true },
@@ -122,7 +125,22 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
       select: { id: true, envelopeId: true, module: true, parentId: true, createdAt: true, name: true },
       orderBy: { name: "asc" },
     }),
+    chargerTresorerie(user.id, entiteId),
+    comptesTresorerie(),
+    prisma.demandeActualisationSoldes.findFirst({
+      where: { companyId: entiteId, termineeLe: null },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, createdAt: true },
+    }),
   ]);
+
+  // ── OÙ CETTE DÉPENSE TOMBERA-T-ELLE ? ───────────────────────────────────────────────────────
+  //
+  // La question se pose AVANT le clic, avec la MÊME fonction que le serveur (`pickAutoCategory`,
+  // puis `needsBudgetChoice`) : deux règles séparées auraient divergé, et l'on aurait fini avec un
+  // bouton qui promet un règlement que le serveur refuse. Les catégories sont chargées ici une
+  // fois pour toute la table — l'écran en a besoin pour PROPOSER le classement, pas seulement
+  // pour le calculer.
   const envelopeName = new Map(envelopes.map((e) => [e.id, e.name]));
   // Le libellé porte l'enveloppe : « Marketing 2026 · Congrès » — « Congrès » seul se répète
   // d'une enveloppe à l'autre, et l'on classe alors dans l'exercice de l'an dernier.
@@ -130,9 +148,6 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
     id: c.id,
     label: `${envelopeName.get(c.envelopeId) ?? "Budget"} · ${c.name}`,
   }));
-  // Le module de chaque SOURCE, en une lecture — la même réponse que l'action serveur
-  // (`moduleDeLEntite`) : un consultant passé aux RH se classe sur une enveloppe RH (§118.150).
-  const modulesSources = await modulesDesEntites(sourceFilters);
   const autoOf = (o: (typeof orders)[number]): string | null =>
     o.sourceType
       ? pickAutoCategory(
@@ -144,12 +159,8 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
   // LES COMPTES D'OÙ PEUT PARTIR UN RÈGLEMENT — et le défaut de chaque ordre, par la MÊME règle que
   // l'écriture (`compteParDefaut` sur TOUS les comptes), sinon l'écran proposerait un compte et le
   // serveur en figerait un autre (§118.176).
-  const [tresorerie, tousLesComptes] = await Promise.all([chargerTresorerie(user.id, entiteId), comptesTresorerie()]);
   const comptes: CompteChoice[] = tresorerie.comptes.map((c) => ({ id: c.id, nom: c.nom }));
 
-  // LE BV D'UN DOSSIER RÉGLEMENTAIRE se règle avec sa QUITTANCE : l'écran la demande au geste « Payé »
-  // quand elle n'est pas déjà jointe — par la MÊME règle que le serveur (`ordresBvAvecQuittance`).
-  const avecQuittance = await ordresBvAvecQuittance(orders.filter((o) => o.status === "PENDING"));
   const bvDe = (o: (typeof orders)[number]): OrderRow["bv"] => {
     const nature = natureDeLOrdreBv(o);
     return nature ? { nature: LIBELLE_NATURE_BV[nature], quittanceJointe: avecQuittance.has(o.id) } : null;
@@ -195,13 +206,6 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
   // (chargée plus haut, avec les comptes du règlement)
   const dernierReleve = tresorerie.comptes.reduce<string | null>((max, c) => (max === null || c.jourAncrage > max ? c.jourAncrage : max), null);
 
-  // UNE DEMANDE D'ACTUALISATION ENCORE OUVERTE pour cette entité : elle se DIT en tête, avec le chemin
-  // de la réponse — le comptable qui arrive ici sans passer par la notification la trouve aussi.
-  const demandeOuverte = await prisma.demandeActualisationSoldes.findFirst({
-    where: { companyId: entiteId, termineeLe: null },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, createdAt: true },
-  });
   const libelleEntite = mesSocietes.find((s) => s.id === entiteId);
 
   return (

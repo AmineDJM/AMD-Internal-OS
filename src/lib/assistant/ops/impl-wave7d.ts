@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { masquerSensibles } from "@/platform/in-process/capacites";
 import type { EntityType } from "@prisma/client";
 import { updateCompany, setCompanyScope } from "@/lib/actions/company-actions";
 import { updateCompanyContact, deleteCompanyContact } from "@/lib/actions/company-contact-actions";
@@ -197,7 +198,8 @@ export const ORG7D_OPS_IMPL: Record<string, OpImpl> = {
         kind: pick("kind", row.kind), contactName: pick("contactName", row.contactName),
         phone: pick("phone", row.phone), phoneAlt: row.phoneAlt ?? "", email: pick("email", row.email),
         website: pick("website", row.website), address: pick("address", row.address), city: pick("city", row.city),
-        wilaya: pick("wilaya", row.wilaya), rc: row.rc ?? "", nif: row.nif ?? "", rib: row.rib ?? "",
+        // Le RIB part MASQUÉ (refonte V2-E) : rejoué, le masque garde la valeur en place.
+        wilaya: pick("wilaya", row.wilaya), rc: row.rc ?? "", nif: row.nif ?? "", rib: masquerSensibles("CompanyContact", { rib: row.rib }).rib ?? "",
         notes: pick("notes", row.notes),
       };
       const activeRaw = opStr(input, "active");
@@ -613,6 +615,7 @@ export const ORG7D_OPS_IMPL: Record<string, OpImpl> = {
         ["siteWebAiEnabled", "Rédaction du site (articles et offres)"],
         ["lecturePiecesEnabled", "Lecture des pièces commerciales (lignes par l'IA)"],
         ["conseilPiecesEnabled", "Luna — conseil de rangement des pièces Ad & Pro"],
+        ["ocrVisionEnabled", "OCR vision des conversions (pages scannées difficiles)"],
       ];
       const key = matchLabel(opStr(input, "feature") || opStr(input, "target"), AI_PAIRS);
       if (typeof key !== "string") return key;
@@ -632,6 +635,8 @@ export const ORG7D_OPS_IMPL: Record<string, OpImpl> = {
         // Le défaut de la COLONNE, coupée (`ai-settings.ts`) : sans ligne, la lecture des pièces ne part pas.
         lecturePiecesEnabled: s?.lecturePiecesEnabled ?? false,
         conseilPiecesEnabled: s?.conseilPiecesEnabled ?? true,
+        // COUPÉ comme sa colonne (décision 0019) : sans ligne, aucune page ne part au modèle de vision.
+        ocrVisionEnabled: s?.ocrVisionEnabled ?? false,
       };
       if (cur[key as keyof typeof cur] === on) return { error: `« ${label} » est déjà ${on ? "activé" : "coupé"}.` };
       const next = { ...cur, [key]: on };
@@ -652,6 +657,7 @@ export const ORG7D_OPS_IMPL: Record<string, OpImpl> = {
           siteWebAiEnabled: onOff(next.siteWebAiEnabled),
           lecturePiecesEnabled: onOff(next.lecturePiecesEnabled),
           conseilPiecesEnabled: onOff(next.conseilPiecesEnabled),
+          ocrVisionEnabled: onOff(next.ocrVisionEnabled),
         },
         successMessage: `« ${label} » ${on ? "activé" : "coupé"}.`,
       };

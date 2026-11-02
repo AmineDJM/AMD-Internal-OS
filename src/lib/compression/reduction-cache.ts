@@ -1,5 +1,6 @@
 import { reduire, type ResultatReduction } from "./reduction";
 import { profilReduction } from "./politique";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA MÉMOIRE DES RÉDUCTIONS — pour qu'un fichier regardé dans le menu puis téléchargé ne soit pas
@@ -49,13 +50,6 @@ export interface DemandeReduction {
   charger: () => Promise<Buffer | null>;
 }
 
-/** Verdict seul (sans octets) quand le cache le sait déjà. */
-export function verdictEnCache(empreinte: string | null): ResultatReduction | null {
-  if (!empreinte) return null;
-  const e = cache.get(`${VERSION_REDUCTION}:${empreinte}`);
-  return e && e.expire > Date.now() ? e.resultat : null;
-}
-
 /**
  * La réduction, avec cache et appel unique (deux demandes simultanées du même fichier n'en lancent
  * qu'une). `avecOctets: false` pour une simple estimation : un verdict en cache suffit.
@@ -93,7 +87,7 @@ export async function obtenirReduction(d: DemandeReduction, opts: { avecOctets: 
   })();
   if (cle) {
     enVol.set(cle, travail);
-    travail.finally(() => enVol.delete(cle)).catch(() => undefined);
+    travail.finally(() => enVol.delete(cle)).catch(sansBloquer("reduction-cache.obtenirReduction"));
   }
   return travail;
 }

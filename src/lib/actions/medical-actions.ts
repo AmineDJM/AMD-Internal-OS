@@ -6,13 +6,16 @@ import type { DoctorTitle, InfluenceLevel, InstitutionSector, InstitutionType, M
 import { requireUser } from "@/lib/session";
 import { userCan, peutAnnuaire, peutGererSpecialites, scopeMedicalDoctors } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
+import { supprimerReversible } from "@/lib/suppression/coeur";
 import { prisma } from "@/lib/prisma";
 import { cleDEtablissement, indexerEtablissements } from "@/lib/annuaires/rattachement";
 import { CHEMINS_SPECIALITES, cleDeSpecialite, ecritureDeSpecialite, indexerSpecialites, lienDeSpecialiteValide } from "@/lib/annuaires/specialites";
 import { suivreRenommageEtablissement } from "@/lib/stocks/lieux";
 import { recordAudit } from "@/lib/audit";
+import { doubleEcrireOrganisation, relierALaPersonne } from "@/modules/referentiels/api";
 import { fdStr, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import { sousVerrous } from "@/lib/promo/stock-ecriture";
 import { dejaDansLaVisite, ecrireRemises, lireMaterielRemis, motifDeRemise, phraseMateriel, RefusRemise, toucheLeStock, verrousDuRapport } from "@/lib/promo/remises-visite";
 import { fenetreRapport, gestesPossibles, refusVisiteHorsDelai, retraitInterditApresRevision, type StatutPlan } from "@/lib/sfe/tournee";
@@ -135,7 +138,10 @@ export async function createInstitution(formData: FormData): Promise<ActionResul
       createdById: user.id,
     },
   });
+  // DOUBLE ÉCRITURE DES LIEUX (refonte V2-D) : la wilaya choisie devient aussi le code officiel `wilayaCode`.
+  await reposerWilayaCode("MedicalInstitution", created.id);
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Annuaires", entityType: "INSTITUTION", entityId: created.id, summary: `Établissement « ${name} »` });
+  await doubleEcrireOrganisation("MEDICAL_INSTITUTION", created.id, user.id);
   revalidatePath("/medical");
   return { ok: true, id: created.id };
 }
@@ -182,6 +188,7 @@ export async function updateInstitution(formData: FormData): Promise<ActionResul
       isActive: fdCase(formData, "isActive"),
     },
   });
+  if (wilaya || porte("region")) await reposerWilayaCode("MedicalInstitution", id); // double écriture des lieux (V2-D)
   // Re-synchronise le libellé dénormalisé sur les praticiens rattachés.
   await prisma.medicalDoctor.updateMany({ where: { institutionId: id }, data: { institution: name } });
   // LE LIEU DE STOCK SUIT : son nom est ce que les demandes d'état, les récurrences et Adam
@@ -487,18 +494,27 @@ export async function rattacherLibelleSpecialite(formData: FormData): Promise<Ac
 
 /** Supprime un médecin de l'annuaire (MEDICAL:DELETE). Ses visites sont supprimées
  *  en cascade ; il est retiré des listes d'invités de congrès (IDs orphelins ignorés). */
+/**
+ * SUPPRIMER UN PRATICIEN — par le cœur réversible (audit 27/10, DONNEES-07).
+ *
+ * Ce geste effaçait d'abord TOUTES les visites du praticien, puis la fiche — et la cascade du schéma emportait ses
+ * montants Ad & Pro, sa segmentation et ses observations, sans corbeille, y compris quand le geste venait d'Adam.
+ * Désormais : la porte de la ligne (portée du délégué, `canAccessEntity`), le refus du registre (des visites
+ * rapportées ou des montants attribués → l'archivage), puis une entrée de corbeille qui emporte et rend le lot.
+ * Les visites PLANIFIÉES restent au registre, détachées de la fiche (lien remis à la restauration).
+ */
 export async function deleteDoctor(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!userCan(user, "MEDICAL", "DELETE")) return { ok: false, error: "Suppression réservée (droit Supprimer sur l'Annuaire)." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
+  if (!(await canAccessEntity(user, "DOCTOR", id, "DELETE"))) return { ok: false, error: "Médecin introuvable." };
   const doc = await prisma.medicalDoctor.findUnique({ where: { id }, select: { name: true } });
   if (!doc) return { ok: false, error: "Médecin introuvable." };
-  await prisma.medicalVisit.deleteMany({ where: { doctorId: id } });
-  await prisma.medicalDoctor.delete({ where: { id } });
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Promotion médicale", entityType: "DOCTOR", entityId: id, summary: `Médecin supprimé — ${doc.name}` });
+  const r = await supprimerReversible("DOCTOR", id, user.id, `Suppression d'un praticien — ${doc.name} (restaurable depuis la corbeille)`);
+  if (!r.ok) return { ok: false, error: r.error ?? "Suppression impossible." };
   revalidatePath("/medical");
-  return { ok: true };
+  return { ok: true, message: "Praticien supprimé — restaurable depuis la corbeille." };
 }
 
 /** Supprime une visite (MEDICAL:DELETE, ou le délégué auteur de la visite). */
@@ -556,32 +572,38 @@ export async function createDoctor(
   const wilaya = parseWilaya(fdStr(formData, "wilaya"));
   if (!wilaya.ok) return { ok: false, error: wilaya.error };
 
-  const created = await prisma.medicalDoctor.create({
-    data: {
-      name,
-      title: parseTitle(fdStr(formData, "title")),
-      specialtyId: specialite.specialtyId,
-      specialty: specialite.specialty,
-      sector: parseSector(fdStr(formData, "sector")),
-      institutionId,
-      institution: iName ?? fdStr(formData, "institution"),
-      wilaya: wilaya.value,
-      region: fdStr(formData, "region"),
-      phone: fdStr(formData, "phone"),
-      email: fdStr(formData, "email"),
-      influence: parseSegment(fdStr(formData, "influence")),
-      potential: parseSegment(fdStr(formData, "potential")),
-      affinity: parseSegment(fdStr(formData, "affinity")),
-      // Champs hérités tenus cohérents avec l'échelle 5 niveaux.
-      influenceLevel: segToInfluence[parseSegment(fdStr(formData, "influence"))],
-      prescriptionPotential: segToPriority[parseSegment(fdStr(formData, "potential"))],
-      targetProducts: fdStr(formData, "targetProducts"),
-      comments: fdStr(formData, "comments"),
-      delegateId,
-      companyId: fdStr(formData, "companyId") || null,
-      createdById: user.id,
-    },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const created = await prisma.$transaction(async (tx) => {
+    const d = await tx.medicalDoctor.create({
+      data: {
+        name,
+        title: parseTitle(fdStr(formData, "title")),
+        specialtyId: specialite.specialtyId,
+        specialty: specialite.specialty,
+        sector: parseSector(fdStr(formData, "sector")),
+        institutionId,
+        institution: iName ?? fdStr(formData, "institution"),
+        wilaya: wilaya.value,
+        region: fdStr(formData, "region"),
+        phone: fdStr(formData, "phone"),
+        email: fdStr(formData, "email"),
+        influence: parseSegment(fdStr(formData, "influence")),
+        potential: parseSegment(fdStr(formData, "potential")),
+        affinity: parseSegment(fdStr(formData, "affinity")),
+        // Champs hérités tenus cohérents avec l'échelle 5 niveaux.
+        influenceLevel: segToInfluence[parseSegment(fdStr(formData, "influence"))],
+        prescriptionPotential: segToPriority[parseSegment(fdStr(formData, "potential"))],
+        targetProducts: fdStr(formData, "targetProducts"),
+        comments: fdStr(formData, "comments"),
+        delegateId,
+        companyId: fdStr(formData, "companyId") || null,
+        createdById: user.id,
+      },
+    });
+    await relierALaPersonne(tx, "MedicalDoctor", d.id, user.id);
+    return d;
   });
+  await reposerWilayaCode("MedicalDoctor", created.id); // double écriture des lieux (V2-D)
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Promotion médicale",
     entityType: "DOCTOR", entityId: created.id, summary: `Médecin « ${name} »`,
@@ -664,6 +686,7 @@ export async function updateDoctor(formData: FormData): Promise<ActionResult> {
       updatedById: user.id,
     },
   });
+  await reposerWilayaCode("MedicalDoctor", id); // double écriture des lieux (V2-D)
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Promotion médicale",
     entityType: "DOCTOR", entityId: id, summary: `Médecin « ${name} » mis à jour`,

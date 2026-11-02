@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { toNumber, formatCurrency } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
@@ -10,13 +9,13 @@ import { KpiCard } from "@/components/shared/kpi-card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY } from "@/lib/labels";
-import { sortByPriority, isOverdue, deadlineLabel, isWithFinance } from "@/lib/finance/payment-request";
-import { isCompanionDossier } from "@/lib/finance/dossier-auto";
-import { deadlineNatureLabel, deadlineNatureOf } from "@/lib/finance/deadline-nature";
+import {
+  sortByPriority, isOverdue, deadlineLabel, isWithFinance, isCompanionDossier, deadlineNatureLabel,
+  deadlineNatureOf, groupByEntity, unassignedWarning,
+} from "@/modules/finances/partage";
 import { NewPaymentButton } from "./new-payment-button";
 import { getMyCompanies } from "@/lib/company";
-import { myPaymentRequests } from "@/lib/queries/my-payment-requests";
-import { groupByEntity, unassignedWarning } from "@/lib/finance/money-entity";
+import { fileAInstruire, instruitLesDemandes, myPaymentRequests } from "@/modules/finances/api";
 
 export const dynamic = "force-dynamic";
 
@@ -41,27 +40,15 @@ export const dynamic = "force-dynamic";
  */
 export default async function PaymentRequestsPage() {
   const user = await requireUser();
-  const finance = userCan(user, "FINANCES", "VALIDATE") || userCan(user, "FINANCES", "UPDATE")
-    || user.role === "FINANCE_BUDGET_MANAGER" || hasGlobalView(user.role);
+  // LE DROIT D'INSTRUIRE ET LA FILE : définis une fois dans le module, partagés avec l'export (K7, décision 0037).
+  const finance = instruitLesDemandes(user);
 
   const [mine, queue] = await Promise.all([
     // LA MÊME LISTE QUE L'ÉCRAN DES VALIDATIONS — une seule définition de « mes demandes ».
     // Deux requêtes auraient fini par diverger, et une demande visible ici serait absente là.
     myPaymentRequests(user.id),
-    finance
-      ? prisma.paymentRequest.findMany({
-          // ── LES COMPAGNONS NE S'INSTRUISENT PAS ICI ────────────────────────────────────────
-          //
-          // Depuis que TOUT ordre de dépense ouvre son dossier, les paiements nés ailleurs
-          // (matériel promotionnel, bon de versement, sponsoring…) ont eux aussi un dossier. Mais
-          // ils ne s'instruisent pas : leur circuit d'origine a validé, le centre a autorisé, et
-          // les Finances les règlent dans « Banque & paiements ». Les faire remonter ici aurait
-          // demandé de les instruire une SECONDE fois — deux files pour le même argent, et un
-          // « à instruire » qui ne veut plus rien dire.
-          where: { status: { in: ["SUBMITTED", "UNDER_REVIEW", "ON_HOLD"] }, origin: "REQUEST" },
-          orderBy: { createdAt: "desc" }, take: 200,
-        })
-      : Promise.resolve([] as never[]),
+    // Les compagnons (nés d'un autre circuit) ne s'instruisent pas ici : `fileAInstruire` les écarte.
+    finance ? fileAInstruire() : Promise.resolve([] as never[]),
   ]);
 
   // L'ENTITÉ EST LA COLONNE VERTÉBRALE DE L'ARGENT : le formulaire la propose et l'exige, la
@@ -144,6 +131,9 @@ export default async function PaymentRequestsPage() {
         title="Demandes de paiement"
         description="Le dossier qui arrive aux Finances : montant, bénéficiaire, échéance, et les pièces qui le justifient. La discussion se tient pièce par pièce."
       >
+        {/* L'EXPORT DE CE QUE L'ÉCRAN MONTRE (Direction, 01/11 : « l'export de tout ») — mes demandes et, pour les
+            Finances, la file à instruire ; la même fonction que l'Assistant IA (`exporter_demandes_paiement`). */}
+        <a href="/api/finances/demandes-paiement/export" className="inline-flex h-9 items-center rounded-[var(--radius)] border border-border bg-card px-3 text-[13px] font-medium hover:bg-secondary sm:h-8">Exporter</a>
         <NewPaymentButton />
       </PageHeader>
 

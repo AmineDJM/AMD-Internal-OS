@@ -16,6 +16,7 @@ import { lireDepot, FICHIER_PARASITE, type EntreeDepot } from "@/components/docu
 import { preparerDepotMessagerie } from "@/lib/actions/messaging-actions";
 import { trashNode } from "@/lib/actions/drive-actions";
 import { cleParPersonne } from "@/lib/vue-exacte-ui";
+import { sansBloquer } from "@/lib/journal";
 
 export interface UploadedAttachment {
   blobId: string;
@@ -157,7 +158,7 @@ export function Composer({ conversationId, members, selfId, replyTo, onCancelRep
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ conversationId }),
       keepalive: true,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("composer.pingTyping.fetch"));
   };
 
   const onChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -275,7 +276,7 @@ export function Composer({ conversationId, members, selfId, replyTo, onCancelRep
     if (!lot || lotEnCours) return;
     const fd = new FormData();
     fd.set("id", lot.lotId);
-    void trashNode(fd).catch(() => undefined);
+    void trashNode(fd).catch(sansBloquer("composer.retirerLot.trashNode"));
     setLots((ls) => ls.filter((l) => l !== lot));
   };
 

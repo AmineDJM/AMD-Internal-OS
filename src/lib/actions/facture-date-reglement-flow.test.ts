@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { userCan, type EffectiveAccess } from "@/lib/rbac";
 import { updateLegalDocument } from "./legal-actions";
 import { createInvoice, setInvoicePaid, updateInvoice } from "./invoice-actions";
-import { REFUS_DATE_REGLEMENT_HORS_FINANCES, dateDeReglementAEcrire, peutDaterLeReglement } from "@/lib/finances/settlement";
+import { REFUS_DATE_REGLEMENT_HORS_FINANCES, dateDeReglementAEcrire, peutDaterLeReglement } from "@/modules/finances/partage";
 import { legalFields } from "@/app/(app)/legal/legal-fields";
 
 /**

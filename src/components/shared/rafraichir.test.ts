@@ -64,8 +64,10 @@ const APPEL_NU = /\brouter\.refresh\(\)/g;
  * Ramené à 326 le 20/10 — les lots suivants avaient porté le parc à 332 (intégration Ad & Pro, pièces, références…) ;
  * le compositeur de pièces (six appels : émettre, réviser, brouillon, retirer, fermer) suit son rafraîchissement — une
  * révision rouverte sur l'état d'avant partirait avec une `versionVue` dépassée.
+ * Ramené à 1 le 28/10/2026 (V3-B, primitives UI) — tout le parc passe par `useRafraichir` (ou `useAction`, qui
+ * l'appelle) ; le seul appel restant est celui du crochet lui-même (`use-rafraichir.ts`).
  */
-const PLAFOND_APPELS_NUS = 326;
+const PLAFOND_APPELS_NUS = 1;
 
 describe("le rafraîchissement suivi", () => {
   const parc = fichiers(SRC).map((f) => ({ f, src: sansCommentaires(readFileSync(f, "utf8")) }));
@@ -83,8 +85,8 @@ describe("le rafraîchissement suivi", () => {
       // §118.175 : la carte d'un poste ouvre des fiches (modifier le poste, un voyageur) sur
       // l'état qu'elle montre — ouvertes avant la fin du rafraîchissement, elles réécriraient
       // l'état d'avant.
-      "src/components/ad-pro/items-panel.tsx",
-      "src/components/ad-pro/supprimer-demande.tsx",
+      "src/modules/ad-pro/ecrans/items-panel.tsx",
+      "src/modules/ad-pro/ecrans/supprimer-demande.tsx",
       // §118.176 : envoyer la paie au centre, puis renvoyer sur l'état d'avant, partirait deux fois ;
       // supprimer des écritures « à imputer » rouvrirait une sélection sur des lignes disparues.
       "src/app/(app)/rh/paie/virements-paie.tsx",
@@ -110,13 +112,18 @@ describe("le rafraîchissement suivi", () => {
     ];
     for (const e of ecrans) {
       const src = sansCommentaires(readFileSync(join(process.cwd(), e), "utf8"));
-      expect(src, `${e} doit appeler useRafraichir()`).toMatch(/useRafraichir\(\)/);
+      // `useAction()` / `useKeyedAction()` rafraîchissent PAR `useRafraichir` (`use-action.ts`, dans
+      // cette liste) : un écran qui passe par eux suit son rafraîchissement (audit 27/10/2026). Leurs options
+      // (`useAction({ signalerErreurs })`) et `useFormAction(…)`, bâti sur `useAction`, comptent aussi (V3-B).
+      expect(src, `${e} doit appeler useRafraichir()`).toMatch(/useRafraichir\(\)|\buse(Keyed|Form)?Action\(/);
       expect(src.match(APPEL_NU) ?? [], `${e} rafraîchit encore à nu`).toEqual([]);
     }
     // La feuille des praticiens : le composant PRINCIPAL suit son rafraîchissement ; les deux
-    // petits formulaires qu'il héberge (ajout de ligne, colonnes) n'ouvrent aucune fiche.
-    const grille = sansCommentaires(readFileSync(join(process.cwd(), "src/app/(app)/medical/annuaire/annuaire-grid.tsx"), "utf8"));
-    const principal = grille.slice(grille.indexOf("export function AnnuaireGrid("), grille.indexOf("function AddDoctorRow("));
+    // petits formulaires qu'il héberge (ajout de ligne, colonnes) n'ouvrent aucune fiche. Depuis le
+    // découpage de `annuaire-grid.tsx`, le composant principal vit SEUL dans `annuaire-grid/feuille.tsx`
+    // (les deux formulaires sont dans `ajout-ligne.tsx` et `gestion-colonnes.tsx`).
+    const grille = sansCommentaires(readFileSync(join(process.cwd(), "src/app/(app)/medical/annuaire/annuaire-grid/feuille.tsx"), "utf8"));
+    const principal = grille.slice(grille.indexOf("export function AnnuaireGrid("));
     expect(principal).toMatch(/useRafraichir\(\)/);
     expect(principal.match(APPEL_NU) ?? []).toEqual([]);
   });

@@ -1,13 +1,13 @@
 import PizZip from "pizzip";
 import ExcelJS from "exceljs";
 import pptxgen from "pptxgenjs";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { depositBufferToDrive } from "@/lib/assistant/exports";
 import { referenceLivrable } from "@/lib/assistant/artifact-ref";
-import { resultatVide } from "@/lib/assistant/empty-result";
+import { resultatVide } from "@/platform/ia/lectures/empty-result";
 
 /**
  * LIVRABLES UNIVERSELS — de VRAIS fichiers Word / Excel / PowerPoint, fabriqués depuis UNE

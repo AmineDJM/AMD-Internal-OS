@@ -2,10 +2,12 @@ import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api/http";
 import { errors } from "@/lib/api/errors";
-import { getEntity, canReadEntity } from "@/lib/api/registry/entities";
+import { getEntity } from "@/lib/api/registry/entities";
+import { exigerLectureEntite } from "@/lib/api/acces-entite";
 import { porteeEntite } from "@/lib/api/registry/portee";
-import { parsePage, serialize, listResult } from "@/lib/api/query";
+import { champJamaisExpose, parsePage, serialize, listResult } from "@/lib/api/query";
 import { workflowOf, availableActionsFor } from "@/lib/api/workflow";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES FACETTES D'UN OBJET : historique, pièces, objets liés, circuit, actions possibles.
@@ -24,11 +26,11 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
     if (!ASPECTS.has(params.aspect)) {
       throw errors.validation(`Facette inconnue « ${params.aspect} ». Attendu : ${[...ASPECTS].join(", ")}.`);
     }
-    if (!canReadEntity(ctx.user, def)) throw errors.forbidden(`Le module ${def.module} n'est pas accessible à cette identité.`);
+    exigerLectureEntite(ctx, def);
     mark({ operationId: `get_${def.name}_${params.aspect.replace("-", "_")}`, entityType: def.entityType ?? def.model, entityId: params.id });
 
     const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
-    const record = await model.findFirst({ where: { id: params.id, ...(await porteeEntite(ctx.user, def)) } });
+    const record = await model.findFirst({ where: { AND: [await porteeEntite(ctx.user, def), { id: params.id }] } });
     if (!record) throw errors.notFound(def.label);
 
     const page = parsePage(req.nextUrl.searchParams);
@@ -51,7 +53,10 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
             select: { id: true, operationId: true, ok: true, status: true, correlationId: true, createdAt: true, client: { select: { name: true } } },
           }),
         ]);
-        return { humanActions: audit.map(serialize), agentCalls: calls.map(serialize) };
+        // Un changement de salaire est journalisé avec ses deux valeurs : le champ se dit, les valeurs
+        // d'un champ jamais exposé ne se disent pas (sinon l'historique rendait ce que la fiche cache).
+        const masque = (e: (typeof audit)[number]) => (e.field && champJamaisExpose(e.field) ? { ...e, oldValue: null, newValue: null } : e);
+        return { humanActions: audit.map(masque).map(serialize), agentCalls: calls.map(serialize) };
       }
 
       case "comments": {
@@ -59,7 +64,7 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
           where: { entityType: (def.entityType ?? def.model) as EntityType, entityId: params.id },
           orderBy: { createdAt: "desc" }, take: page.limit, skip: page.offset,
           select: { id: true, body: true, createdAt: true, author: { select: { id: true, name: true } } },
-        }).catch(() => []);
+        }).catch(sansBloquer("[aspect]-route.comment", []));
         return { items: rows.map(serialize) };
       }
 
@@ -80,10 +85,12 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
       case "related": {
         const out: Record<string, unknown> = {};
         for (const [name, field] of Object.entries(def.related ?? {})) {
+          // Une relation qui porte des données personnelles a sa projection (`champsRelation`) : la ligne entière, non.
+          const champs = def.champsRelation?.[name];
           const withRel = await model.findFirst({
             where: { id: params.id },
-            select: { [field]: { take: 200 } },
-          }).catch(() => null);
+            select: { [field]: { take: 200, ...(champs ? { select: Object.fromEntries(champs.map((c) => [c, true])) } : {}) } },
+          }).catch(sansBloquer("[aspect]-route.findFirst", null));
           out[name] = withRel ? serialize((withRel as Record<string, unknown>)[field]) : [];
         }
         return { entity: def.name, id: params.id, related: out };

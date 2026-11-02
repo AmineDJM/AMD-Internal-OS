@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Building2, Loader2, AlertCircle, Check, Plus } from "lucide-react";
 import { createRegulatorySupplier } from "@/lib/actions/regulatory-actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
 import { TextField, TextAreaField } from "@/components/shared/form-fields";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export interface SupplierRow {
   id: string;
@@ -18,7 +20,7 @@ export interface SupplierRow {
 }
 
 export function SuppliersManager({ suppliers }: { suppliers: SupplierRow[] }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -46,15 +48,20 @@ export function SuppliersManager({ suppliers }: { suppliers: SupplierRow[] }) {
               setSubmitting(true);
               setError(null);
               setSaved(false);
-              const r = await createRegulatorySupplier(fd);
-              setSubmitting(false);
-              if (r.ok) {
-                setSaved(true);
-                formRef.current?.reset();
-                router.refresh();
-                setTimeout(() => setSaved(false), 2500);
-              } else {
-                setError(r.error ?? "Erreur.");
+              try {
+                const r = await createRegulatorySupplier(fd);
+                if (r.ok) {
+                  setSaved(true);
+                  formRef.current?.reset();
+                  rafraichir();
+                  setTimeout(() => setSaved(false), 2500);
+                } else {
+                  setError(r.error ?? "Le fournisseur n'a pas été créé.");
+                }
+              } catch {
+                setError(actionFailureMessage("THROWN"));
+              } finally {
+                setSubmitting(false);
               }
             }}
             className="space-y-4 rounded-xl border bg-card p-4"

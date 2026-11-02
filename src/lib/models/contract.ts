@@ -194,6 +194,23 @@ export interface ModelUsage {
    * c'est notre erreur de réglage, pas une limite du modèle, et il faut pouvoir la compter.
    */
   incompleteReason?: string | null;
+  /**
+   * LOT K8 (décision 0035) — LA VENTILATION EXACTE, quand le protocole la rend. Ce sont des PARTS des
+   * totaux (`inputTokens` = texte + audio + image) ; absentes = zéro. Les unités hors jetons (durée,
+   * pages) ont leurs champs ; `estimated` dit que les jetons sont estimés (l'API n'a rien rendu).
+   */
+  audioInputTokens?: number;
+  cachedAudioInputTokens?: number;
+  audioOutputTokens?: number;
+  imageInputTokens?: number;
+  cachedImageInputTokens?: number;
+  imageOutputTokens?: number;
+  durationMs?: number;
+  pages?: number;
+  estimated?: boolean;
+  batch?: boolean;
+  /** Les jetons sont des équivalents de durée (le plafond les compte) : seule la durée se facture. */
+  equivalents?: boolean;
 }
 
 export interface ModelReply {
@@ -347,5 +364,29 @@ export function emptyUsage(role: ModelRole, model: string, provider: ModelProvid
     costUsd: null,
     ms: 0,
     attempts: 0,
+  };
+}
+
+/** La clé du fournisseur n'est pas posée : l'appel n'est pas parti (`configured: false`). */
+export function reponseSansCle(binding: ModelBinding, provider: ModelProvider, cle: string): ModelReply {
+  return {
+    ok: false,
+    configured: false,
+    stop: "error",
+    blocks: [],
+    usage: emptyUsage(binding.role, binding.model, provider),
+    error: `Clé ${cle} non configurée.`,
+  };
+}
+
+/** L'appel est parti et n'a rien rendu : aucun bloc, l'usage à zéro sauf la durée, et la raison. */
+export function reponseEnEchec(binding: ModelBinding, provider: ModelProvider, started: number, error: string): ModelReply {
+  return {
+    ok: false,
+    configured: true,
+    stop: "error",
+    blocks: [],
+    usage: { ...emptyUsage(binding.role, binding.model, provider), ms: Date.now() - started },
+    error,
   };
 }

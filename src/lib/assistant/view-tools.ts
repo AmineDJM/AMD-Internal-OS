@@ -18,10 +18,10 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { blocTableau, chargerLignes } from "@/lib/assistant/sandbox-tools";
-import { VIZ_TYPES, WORKSPACE_LIMITS, type VizDonnees, type VizType } from "@/lib/assistant/workspace/protocol";
-import { ATTENDU, FAMILLE, construireViz, isVizType, readVizBlock, type DemandeViz } from "@/lib/assistant/workspace/viz-block";
+import { VIZ_TYPES, WORKSPACE_LIMITS, type VizDonnees, type VizType } from "@/platform/ia/workspace/protocol";
+import { ATTENDU, FAMILLE, construireViz, isVizType, readVizBlock, type DemandeViz } from "@/platform/ia/workspace/viz-block";
 import { recommanderGraphique, verifierGraphique, type SpecGraphique, type TypeGraphique } from "@/platform/in-process/sandbox";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";
 
@@ -34,7 +34,7 @@ const strOuNull = (input: Json, key: string): string | null => str(input, key) |
 /** Ce que le conseiller du bac recommande, traduit dans les formes du protocole. */
 const VERS_VIZ: Record<TypeGraphique, VizType | "tableau"> = {
   courbe: "courbe", barres: "barres", barres_empilees: "barres_empilees", secteurs: "secteurs",
-  nuage: "nuage", histogramme: "histogramme", cascade: "cascade", tableau: "tableau",
+  nuage: "nuage", histogramme: "histogramme", cascade: "cascade", tableau: "tableau", aires: "aires", heatmap: "heatmap",
 };
 /** Les formes que le vérificateur du bac sait juger (les autres ont leurs contrôles locaux). */
 const VERS_SPEC: Partial<Record<VizType, TypeGraphique>> = {

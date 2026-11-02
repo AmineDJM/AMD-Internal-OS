@@ -27,7 +27,7 @@
 
 import { PROMO_MATERIAL_STATUS, type BadgeTone } from "@/lib/labels";
 import { libelleEtape, PROMO_STEPS, type PromoState } from "@/lib/promo-material/circuit";
-import { adProState, AD_PRO_STATE, type AdProState } from "@/lib/ad-pro/unified";
+import { adProState, AD_PRO_STATE, type AdProState } from "@/modules/ad-pro/partage";
 import { attendSaCorrection } from "@/lib/promo-material/renvoi";
 
 export interface DossierPromoStatut {

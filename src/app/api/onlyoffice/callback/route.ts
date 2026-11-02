@@ -6,6 +6,7 @@ import { saveFile } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
 import { onlyofficeConfigured, lireRappelOnlyoffice } from "@/lib/onlyoffice";
 import { peutEnregistrerOnlyoffice } from "@/lib/onlyoffice-session";
+import { inscrireDocumentExistant, inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * Callback du Document Server : à l'enregistrement (status 2 ou 6), il fournit l'URL
@@ -62,11 +63,13 @@ export async function POST(req: NextRequest) {
       await saveFile(key, buf);
       await prisma.document.update({ where: { id: docId }, data: { fileKey: key, sizeBytes: buf.length, version: { increment: 1 } } });
       await recordAudit({ actorId: userId, action: "UPLOAD", module: "Documents", entityType: doc.entityType, entityId: doc.entityId, summary: `Édition Office enregistrée — ${doc.name}` });
+      // La version éditée entre à la bibliothèque (J1), sous la clé du document. Ne lève jamais.
+      await inscrireDocumentExistant(docId, userId);
       return NextResponse.json({ error: 0 });
     }
 
     // ─── Drive (DriveNode + FileVersion) ───
-    const { blobId, size } = await putBlob(buf);
+    const { blobId, size, sha256 } = await putBlob(buf);
     const last = await prisma.fileVersion.findFirst({ where: { nodeId: id }, orderBy: { version: "desc" }, select: { version: true, mimeType: true } });
     const version = (last?.version ?? 0) + 1;
     await prisma.fileVersion.create({
@@ -74,6 +77,9 @@ export async function POST(req: NextRequest) {
     });
     await prisma.driveNode.update({ where: { id }, data: { size } });
     await recordAudit({ actorId: userId, action: "UPLOAD", module: "Drive", entityType: "DRIVE_NODE", entityId: id, summary: `Édition Office enregistrée (v${version})` });
+    // La nouvelle version entre à la bibliothèque (J1) : la clé du nœud passe à ce contenu. Ne lève jamais.
+    const noeud = await prisma.driveNode.findUnique({ where: { id }, select: { name: true } });
+    await inscrireFichierDrive({ nodeId: id, version, blobId, sha256, nom: noeud?.name ?? "document", mime: last?.mimeType ?? null, taille: size, deposeParId: userId });
     return NextResponse.json({ error: 0 });
   } catch (e) {
     console.error("[onlyoffice] save failed", e);

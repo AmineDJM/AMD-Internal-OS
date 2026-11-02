@@ -16,6 +16,7 @@ import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { motifNonSignable } from "@/lib/bons-de-commande/regle";
 import { bcVisiblesWhere, peutSignerBC, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
 import { apresSignatureDuBCDeDemande } from "@/lib/secretariat/bc-signe";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -115,14 +116,14 @@ export async function signerBonDeCommande(formData: FormData): Promise<ActionRes
       title: "Bon de commande signé",
       body: `${ref} (${montant}) signé par ${signataire} — la copie signée est sur la pièce. Il peut partir chez le fournisseur ; la facture se dépose ensuite.`,
       link: `/legal/${id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.notifyUser"));
   }
   revalidatePath(CHEMIN_BC_A_SIGNER);
   revalidatePath("/legal");
   revalidatePath(`/legal/${id}`);
   revalidatePath("/ad-pro", "layout");
   // LE BC D'UNE DEMANDE AU SECRÉTARIAT revient « signé et validé » sur sa fiche : l'assistante et le demandeur le savent.
-  await apresSignatureDuBCDeDemande(id, user.id, signataire).catch(() => undefined);
+  await apresSignatureDuBCDeDemande(id, user.id, signataire).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.apresSignatureDuBCDeDemande"));
   revalidatePath("/demandes", "layout");
   return { ok: true, id, message: `Bon de commande ${ref} signé par ${signataire}. ${constat} Il remplace le BC non signé, et la facture peut être déposée.` };
 }
@@ -186,7 +187,7 @@ export async function renvoyerBonDeCommande(formData: FormData): Promise<ActionR
       title: "Bon de commande renvoyé pour correction",
       body: `${ref} : « ${note} ». Modifiez-le dans Legal — sa modification le rend à la signature.`,
       link: `/legal/${id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("bc-signature-actions.renvoyerBonDeCommande.notifyUser"));
   }
   revalidatePath(CHEMIN_BC_A_SIGNER);
   revalidatePath("/legal");

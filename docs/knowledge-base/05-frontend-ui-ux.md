@@ -19,11 +19,11 @@ Out of scope: RBAC internals (`rbac.ts`), the Adam/Chief-of-Staff product intern
 ## 2. Summary
 
 - **Every route page is a React Server Component** (0 of 294 `page.tsx` start with `"use client"`); 566 of 948 `.tsx`/`.ts` files under `src` are `"use client"` islands fed by serializable props (ISO strings, numbers) [V].
-- The "shadcn-style" kit is **much thinner than shadcn**: no Radix, no `class-variance-authority`, no Dialog/Tabs/Dropdown/Toast primitives. `ui/` = Button, Badge, Card, Input/Textarea/Select/Label, Table, Sheet, Progress, Avatar, Icon, InfoBulle, BoutonDecisif [V].
+- The "shadcn-style" kit is **much thinner than shadcn**: no Radix, no `class-variance-authority`, no Tabs/Dropdown primitives. `ui/` = Button, Badge, Card, Input/Textarea/Select/Label, Table, Sheet, Progress, Avatar, Icon, InfoBulle, BoutonDecisif, and since V3-B (28/10/2026) **DialogueConfirmation (`useConfirmer`/`useSaisir`) and Retour (`<Retour>`/`useRetours`)** [V].
 - One visual language: CSS-variable tokens in `globals.css` (azure brand `#1677FF`, night-blue sidebar, 4 status colours + `info` + reserved `luna` violet); **no dark mode** despite `darkMode: ["class"]` [V].
 - Two house mechanisms dominate interaction: **`BoutonDecisif`** (two-click confirmation, no `window.confirm`) and **`useAction` / `useKeyedAction` / `useRafraichir`** (server action call with throw-catch, 45 s watchdog, and `router.refresh()` inside a transition so buttons stay locked until fresh data is on screen, §118.172) [V].
-- Forms mostly go through `CreateRecordButton` → `Sheet` → `RecordForm` (`useFormState` + guarded action + redirect to `${redirectBase}/${id}`) [V].
-- Real-time is **polling only** (no SSE/WebSocket for app data): notifications every 20 s / 15 s, messaging badge every 12 s, open conversation every 3.5 s; sounds generated with Web Audio oscillators [V].
+- Forms mostly go through `CreateRecordButton` → `Sheet` → `RecordForm` (`useActionState` + guarded action + redirect to `${redirectBase}/${id}`) [V].
+- Real-time is **polling only** (no SSE/WebSocket for app data): notifications every 15 s (single poller since PERF-04; the chime listens), messaging badge every 12 s, open conversation every 3.5 s; sounds generated with Web Audio oscillators [V].
 - Several source-scanning Vitest "ratchets" enforce UI rules (client bundle, responsive tables, decisive buttons, icon names, dead links, no `loading.tsx`, bare `router.refresh()` ceiling) [V].
 - `docs/UI_UX_AUDIT.md` (measured 2026-08-30) is directionally right but numerically stale; some debts grew (dead `dark:` classes 33 → 212, raw Tailwind palette), others improved (aria-live 0 → 25) [V].
 
@@ -64,7 +64,7 @@ Out of scope: RBAC internals (`rbac.ts`), the Adam/Chief-of-Staff product intern
 - **z-index scale** (documented, `globals.css:261-282`): 30 topbar · 40 mobile tab bar · **50 every modal/sheet/drawer** · 60 "Tout" drawer/mail reader · 90 fullscreen mail · 100 command palette · 200 admin popup [V].
 - **Utilities**: `.surface` = bordered white card with 1-px shadow (shadow removed < 640 px) (`globals.css:284-290`); `.motion-fast` 150 ms; `.table-clean`; `.badge-soft` (unused); `.focus-ring`; `table.mobile-cards` (`:367+`); `:root.amd-focus` full-screen mode (`:436-451`) [V].
 - **`cn()`** = `twMerge(clsx(...))` (`src/lib/utils.ts:5-7`) — used by every primitive so caller classes override defaults [V].
-- **Icons**: `lucide-react@0.446.0`, imported directly in 664 files [V]. String-named icons (config-driven nav, `EmptyState icon="Inbox"`) go through `Icon`/`iconeParNom` (`src/components/ui/icon.tsx:23-35`), which accepts renamed legacy names; `icon-names.test.ts` checks every literal name resolves (§118.149 in code) [V]. Note `icon.tsx` does `import * as Lucide` + `icons` — the whole icon table enters any client bundle that uses `Icon` (13 client files, incl. `sidebar.tsx`) [V code / U bundle weight].
+- **Icons**: `lucide-react@0.446.0`, imported directly in 664 files [V]. String-named icons (config-driven nav, `EmptyState icon="Inbox"`) go through `Icon`/`iconeParNom` (`src/components/ui/icon.tsx:23-35`), which accepts renamed legacy names; `icon-names.test.ts` checks every literal name resolves (§118.149 in code) [V]. Note `icon.tsx` does `import * as Lucide` + `icons` — the whole icon table enters any client bundle that uses `Icon`. **Since 2026-10-28 (PERF-05)** the shell (`sidebar`, `topbar`, `command-palette`, `mobile-tabbar`, `office-pins`) uses `IconeCoque` (`ui/icone-coque.tsx`) over the static named-import table `ui/icones-coque.ts`; a name missing from the table lazy-loads `Icon`. Ratchet `icones-coque.test.ts` (every shell name present, no unused entry, no full-set import in `components/layout`). 8 page-level client files still use `Icon`. Measure: `node scripts/mesure-bundle.mjs` [V].
 - **Motion**: CSS keyframes only (`tailwind.config.ts:94-115`; doctrine "150 ms, jamais plus", `globals.css:291-294`). `framer-motion` is installed but imported by a single file, `src/components/assistant-beta/luminescent-cursor.tsx` [V].
 - **Charts**: the shared kit `src/components/charts/*` is **dependency-free SVG/HTML, server-renderable** (no `"use client"`, no Recharts) with a CVD-validated 8-colour `SERIES` + `OTHER_COLOR` + `INK` (`palette.ts:17-40`; "jamais la couleur seule", always labels/legend) [V]. Recharts (`2.12.7`) is imported in only 4 files: `components/dashboard/charts.tsx`, `stocks/stocks-view.tsx`, `medical/rapports/overview/overview-charts.tsx`, `budgets/marketing-graphiques.tsx` [V].
 
@@ -83,8 +83,11 @@ Out of scope: RBAC internals (`rbac.ts`), the Adam/Chief-of-Staff product intern
 | `Avatar` | `size`: sm/md/lg, initials | no |
 | `Icon` / `iconeParNom` | lucide by string name | no |
 | `InfoBulle` (`info-bulle.tsx:14`) | ⓘ tooltip, `label` default "Plus d'informations", `align` | yes |
+| `DialogueConfirmation`, `useConfirmer()`, `useSaisir()` (`dialogue.tsx`, rule `dialogue-regle.ts`) — V3-B | `await confirmer("Supprimer ce document ?")` → `boolean`; `await saisir({ titre, saisie: { libelle, obligatoire } })` → `string \| null`. A plain string suffices: 1st paragraph = title, rest = detail, button = the verb when known (closed list) else "Confirmer"; cancel is always "Retour". `role="alertdialog"` + `aria-modal`, labelled/described, focus enters (on "Retour" for a risky gesture — `danger` tone auto-detected from supprimer/retirer/corbeille/irréversible…), Tab loops (`sautDeFocus`), Escape captured before an underlying `Sheet`, focus restored, voile click cancels, `z-[100]`, queued requests | yes |
+| `Retour` (bandeau), `useRetours()` (avis flottants) (`retour.tsx`, rule `retour-regle.ts`) — V3-B | `<Retour ton="erreur\|alerte\|succes\|info">{err}</Retour>` renders nothing when empty; `role="alert"` for erreur/alerte, `status` otherwise. `useRetours().erreur/alerte/succes/info(msg)`: two `aria-live` regions present from first render; erreur/alerte stay until closed, succes/info 4–10 s; same message not stacked; max 3; above the mobile tab bar, `z-[110]` | yes |
+| `PrimitivesUI` (`primitives-ui.tsx`) — V3-B | Mounts `RetoursProvider` (`retours-porteur.tsx`) + `DialoguesProvider` (`dialogue.tsx`) once in `app/(app)/layout.tsx` and `app/(portal)/layout.tsx` — not the root layout, a separate build entry that would duplicate them in every page's JS. The dialog window (`dialogue-fenetre.tsx`), the toast drawing (`retours-pile.tsx`) and the ⌘K palette / announcement window are fetched at browser idle (`differe.ts`), outside the shell budget; offline, confirmation falls back to the native box and toasts to plain text in the same `aria-live` region. Without a provider the hooks fall back to the native box (the only `window.confirm/alert/prompt` allowed, in `dialogue.tsx` and `retours-porteur.tsx`) | yes |
 
-There is **no Dialog, Tabs, Dropdown, Popover, Tooltip (other than InfoBulle) or Toast primitive** [V]. Modals are `Sheet` (127 importers) or ad-hoc `fixed inset-0` overlays (21 files) [V].
+There is no Tabs, Dropdown, Popover or Tooltip primitive (other than InfoBulle) [V]. Since V3-B (28/10/2026) there **is** a confirmation dialog and a feedback (toast/banner) primitive — see the rows above and § 4.7. Modals are `Sheet` (127 importers) or ad-hoc `fixed inset-0` overlays (21 files) [V].
 
 ### 4.3 Shared building blocks (`src/components/shared`)
 
@@ -96,7 +99,11 @@ There is **no Dialog, Tabs, Dropdown, Popover, Tooltip (other than InfoBulle) or
 - `KpiCard` (tones default/success/warning/danger/info + trend) and `Tuile` (label/value/context + `info` slot) [V].
 - `CreateRecordButton` / `RecordForm` (`create-record-button.tsx`, 619 l.): declarative `FieldDef[]` (`text` with `inputType` number/date/datetime-local, `textarea`, `select`, `multiselect`, `checkbox`, `file`, `drivepicker`, `parties`, `hidden`), optional AI prefill (`analyze`), `autoOpenParam` (opens via `?new`), opens a `Sheet` (`:584-619`) [V].
 - `form-fields.tsx`: `Field`, `TextField`, `TextAreaField`, `SelectField`, `optionsFromMap` (turn a labels map into options) [V].
-- `use-action.ts`: `useAction()` → `{ saving, busy, err, setErr, run(fn, onOk) }`; `useKeyedAction()` → `{ busy: key, error, run(key, fn) }` (`:29-122`) [V].
+- `use-action.ts` — **the single way to call a server action from a client island** (V3-B):
+  - `useAction(opts?)` → `{ saving, busy, err, setErr, run(fn, onOk?, { confirmer?, succes? }) }`;
+  - `useKeyedAction(opts?)` → `{ busy: key, error, setError, run(key, fn, { confirmer?, succes? }) }`;
+  - `useFormAction(fn, { prepare?, onOk?, confirmer?, succes?, signalerErreurs? })` → `{ action, busy, err, setErr }` for `<form action>`, with a synchronous anti-double-submit lock.
+  - All three: catch throws, 45 s watchdog, `actionFailureMessage` (never "réessayez"), refresh via `useRafraichir` on success, `confirmer` asked BEFORE the call (dialog), `succes` announced after. `opts.signalerErreurs` also sends errors to a floating notice (for icon-only row gestures). A refusal with no `error` → `REFUS_SANS_MOTIF`.
 - `use-rafraichir.ts:29-36`: `rafraichir()` wraps `router.refresh()` in `useTransition`; `enCours` stays true until new RSC payload is rendered (§118.172) [V].
 - `BackLink` (`back-link.tsx`): real `<Link>` that goes `router.back()` when there is in-app history (counted per tab in `sessionStorage` by `NavDepthTracker` mounted in the shell), else its written `href` [V]. 80 files.
 - `RecordDeleteButton` (creator-level soft delete to admin trash, honest copy), `SuperAdminDeleteButton`, `CommentThread`, `EntityLinks`, `LinkedRecords`, `ValidationStepper`, `PartagerButton`, `CompanyBadge`… [V names; internals not reviewed].
@@ -119,7 +126,7 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
 - Counts [V]: 948 `.tsx` files under `src`; 566 files (`.ts`+`.tsx`) start with `"use client"`; 198 start with `"use server"`; 294 `page.tsx` under `src/app`, **none** client.
 - Pattern: page (RSC) does `requireModule`/`requireUser` + `userCan` + Prisma query, maps rows to plain objects (`Date → toISOString()`, `Decimal → toNumber`), passes them and boolean capabilities (`canCreate`, `isResponder`) to a co-located client file (`*-table.tsx`, `panel.tsx`, `*-board.tsx`) [V: `sponsoring/page.tsx:52-65`, `support/[id]/page.tsx:23-27,125`].
 - Server actions are imported **directly** inside client files (e.g. `support/[id]/panel.tsx:6`) or passed as props (`CreateRecordButton action={createSponsoring}`, `sponsoring/page.tsx:82`) [V]. They return `ActionResult { ok, error?, id?, message?, redirect?, … }` (`src/lib/actions/types.ts:4+`) and call `revalidatePath` (`sponsoring-actions.ts:280-284`) [V]. Some domains still define their own local `ActionResult` interface (`document-actions.ts:13`, `regulatory-actions.ts:46`, `regulatory-ctd-actions.ts:19`, `regulatory/intelligence/actions.ts:26`) [V].
-- Hook usage [V, file counts]: `useFormState` 7, `useFormStatus` 3, `useTransition` 33, `useRafraichir` 96, `useAction`/`useKeyedAction` 9, bare `router.refresh()` 204 files (ceiling-tested, see §8).
+- Hook usage [V, file counts]: `useActionState` 7, `useFormStatus` 3, `useTransition` 33, `useRafraichir` 96, `useAction`/`useKeyedAction` 9, bare `router.refresh()` 204 files (ceiling-tested, see §8).
 - **Client/server boundary rule** (CLAUDE.md): a `"use client"` module must never reach `fs`, `zlib`, `child_process`… or Node-only packages through ordinary imports; server actions are exempt. `client-bundle-guard.test.ts` walks static + dynamic imports from every client file, stops at `"use server"` modules (`:99`), and fails on `NODE_ONLY` builtins (`:28`) or `NODE_ONLY_PACKAGES` (`web-push, nodemailer, imapflow, mailparser, sharp, mupdf, pdfkit, pdf-parse, yauzl, @mastra/core`, `:41-43`) [V]. Pure helpers are split into import-free modules (`*-ui.ts`, `*-regle.ts`, e.g. `bouton-decisif-regle.ts` "pure, sans import"; `vue-exacte-ui.ts` imported by the layout) [V].
 
 ### 4.6 Labels, copy and formatting
@@ -128,12 +135,12 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
 - Tone semantics: green = validated, amber = waiting, red = blocking, blue (`info`) = in progress, grey = neutral (`globals.css:41-45`) [V].
 - Copy style [V by reading]: French, plain, explains consequences ("VÉRIFIEZ D'ABORD LA LISTE…" on failure, `create-record-button.tsx:353-356`); never invites blind retry (duplicate risk, `use-action.ts:26-27`); descriptions say what happens *today* (comment §118.151 in `sponsoring/page.tsx:73-76`); action `message`s are shown, not swallowed (§118.168 in `consulting/[id]/actions-panel.tsx:70-72`).
 - **Money**: `formatCurrency(value, "DZD", "fr-FR")` → "12 500 DZD" / "12 500,50 DZD", never rounded (decision 05/10/2026), "—" for null (`utils.ts:10-27`); `formatMontant` same without currency (`:34-38`); `formatCompact`, `formatNumber` [V]. Money inputs must not use `step="1000"` (`src/lib/saisie-montant.test.ts`) [V].
-- **Dates**: `formatDate` (`2-digit/short/numeric`, `fr-FR`) and `formatDateTime` (`utils.ts:55-79`) **do not set `timeZone`** → they render in the process/browser time zone [V]. `formatMonth` uses UTC deliberately [V]. Algiers-correct helpers exist but are scattered: `src/lib/calendar-tz.ts` (client-safe, fixed +60 min offset), `assistant/reminders.ts:formatAlgiersDue`, and duplicated `jourAlger` in `adventum/briefing.ts:143`, `finance/tresorerie.ts:84`, `coaching/dates.ts:22`, `aujourdhuiAlger` in `hr/absences.ts:33` [V]. 178 raw `toLocale*String(` calls in `.tsx` files bypass both [V].
+- **Dates**: `formatDate` (`2-digit/short/numeric`, `fr-FR`) and `formatDateTime` (`utils.ts:55-79`) **do not set `timeZone`** → they render in the process/browser time zone [V]. `formatMonth` uses UTC deliberately [V]. Algiers-correct helpers exist but are scattered: `src/lib/calendar-tz.ts` (client-safe, fixed +60 min offset), `assistant/reminders.ts:formatAlgiersDue`, and duplicated `jourAlger` in `adventum/briefing.ts:143`, `finance/tresorerie.ts:84`, `coaching/dates.ts:22`, `aujourdhuiAlger` in `modules/rh/domaine/absences.ts:33` [V]. 178 raw `toLocale*String(` calls in `.tsx` files bypass both [V].
 
 ### 4.7 Feedback, confirmation, empty/loading states
 
-- **No toast system** (no library; two local `toast` states in `segmentation/praticiens-table.tsx:175` and `drive/node-actions.tsx`) [V]. Feedback is **inline**: an error block `rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive` with `AlertCircle` (e.g. `support/[id]/panel.tsx:13-14`, `create-record-button.tsx:548`) or `text-xs text-destructive` lines (`workflow-panel.tsx`) [V]. `aria-live` appears 25× in 17 files [V].
-- **Confirmation**: `BoutonDecisif` is the doctrine for any gesture that decides, commits money, signs, emits, pays or deletes (`bouton-decisif-regle.ts:1-11`); 55 files use it; `boutons-decisifs.test.ts` pins named call sites with minimum occurrence counts and forbids `window.confirm` in those files [V]. Elsewhere `window.confirm` still appears ~122 times in `.tsx` (e.g. `shared/comment-thread.tsx:73`, `site-web/offre-form.tsx:113,141`) [V].
+- **Feedback (V3-B, 28/10/2026)**: inline next to the gesture with `<Retour ton="erreur">{err}</Retour>` (role alert/status), or a floating notice with `useRetours()` when the gesture has no room to speak. Older inline blocks (`bg-destructive/10 … text-destructive`) remain valid but carry no role — prefer `Retour` when touching them. Two local ad-hoc toasts predate it (`segmentation/praticiens-table.tsx`, `drive/node-actions.tsx`).
+- **Confirmation**: `BoutonDecisif` remains the doctrine for any gesture that decides, commits money, signs, emits, pays (second click on the button itself); `boutons-decisifs.test.ts` pins named call sites. Every other confirmation (delete a row, quit unsaved, reset a setting, type a reason) goes through `useConfirmer()` / `useSaisir()` (dialog) — or `run(fn, onOk, { confirmer })`. **`window.confirm/alert/prompt` are banned** (ceiling 0, `src/lib/ui/dialogues-natifs.test.ts`), as are generic fallbacks `?? "Échec." / "Erreur." / "Action impossible."` — write what did NOT happen.
 - **Busy states**: `Loader2 animate-spin` inside the button, `disabled={saving}`; `useAction` gives a 45 s watchdog (`ACTION_TIMEOUT_MS`, `src/lib/action-outcome.ts:53`) and a pure failure message (`actionFailureMessage`) [V].
 - **Loading**: no Suspense skeletons; `NavProgress` top bar instead [V].
 - **Empty**: `EmptyState` or `DataTable emptyTitle` [V].
@@ -146,7 +153,7 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
 ### 4.9 Responsive / PWA / print / accessibility
 
 - Mobile-first touches: `MobileTabBar` bottom nav (Espace, Messages, Assistant, "Tout" full grid) hidden ≥ `lg`; `Sheet` becomes a bottom sheet; button `sm` is 36 px on phones; safe-area insets everywhere; `.page-shell` makes top-level cards edge-to-edge < 640 px (`globals.css:333-365`) [V].
-- **PWA**: `manifest.webmanifest` (standalone, portrait, `#0b1220`, single SVG icon "any"/"maskable"); `public/sw.js` (38 l.) only handles `install/activate/push/notificationclick` — **no offline caching** [V]. `PushRegister` registers `/sw.js`, fetches VAPID key from `/api/push/key`, subscribes via `/api/push/subscribe` (`push-register.tsx:18-47`) [V].
+- **PWA**: `manifest.webmanifest` (standalone, portrait, `#0b1220`, single SVG icon "any"/"maskable"); `public/sw.js` handles `install/activate/push/notificationclick` and, since J13 (decision 0025), a **narrow offline cache**: only the `/medical/terrain` navigation (network first, fallback copy) and the `/_next/static/` files that page loads; captured audio/photos wait in IndexedDB (`ecrans/terrain/file-locale.ts`), never in the SW [V]. `PushRegister` registers `/sw.js`, fetches VAPID key from `/api/push/key`, subscribes via `/api/push/subscribe` (`push-register.tsx:18-47`) [V].
 - **Print**: a single dedicated print route, `src/app/impression/coaching/[id]/page.tsx` (A4 `@page`, `print:hidden` controls, `toLocaleDateString("fr-FR", { timeZone: "Africa/Algiers" })` `:49`), outside the `(app)` shell [V]. Documents print via `printDocument` from `DocumentPreview`; `window.print()` in `coaching/fiche-actions.tsx` and `messagerie/mail-workspace.tsx` [V].
 - **Accessibility practices present** [V]: `lang="fr"`; `aria-label` on icon buttons ("Fermer", "Messagerie"); `aria-current="page"` on tabs; `role="dialog" aria-modal` on `Sheet`; BoutonDecisif live announcement; `focus-visible` rings in `Input`/`Button` (68 occurrences, 21 files); `palette.ts` "never colour alone". Gaps: 952 raw `<button>` vs 353 files importing `ui/button`; only 8 files with `role="dialog"` for 21+ custom overlays; no focus trap in `Sheet` [V for counts; U for full a11y audit].
 
@@ -154,6 +161,32 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
 
 - `DocumentPreview` (`src/components/documents/document-preview.tsx`, client): clickable name → in-app viewer (`ApercuUniversel`, `ZipViewer`) with toolbar (print, edit in Office if extension in `OFFICE_EDIT`, rename/delete via `document-actions`, download via `BoutonTelecharger`), `srcOverride` to read bytes from non-`Document` routes (payslips) [V].
 - OnlyOffice: `office-editor.tsx` loads the Document Server `api.js` with `next/script`, instantiates `new window.DocsAPI.DocEditor("onlyoffice-editor", config)` (`:73-75`), shows an explicit error if the script fails (`:185`); `editeur-en-ligne.tsx` does the same with its own loader and timeout (`:33-41,112-114`); `src/app/office-embed/[id]/page.tsx` is a shell-less embed [V].
+
+- Assistant IA (`src/components/assistant-beta/apercu-piece.tsx`, decision 0015): a side panel that renders `ApercuUniversel` **without** an edit target (read-only viewers), loaded with `next/dynamic` on first open so `/assistant` does not pay for the Office viewers; download via `/api/drive/<id>/raw?dl=1`, "Ouvrir dans le Drive", Escape closes and restores focus [V].
+- **Atelier** (J3, decision 0017) [V] `src/modules/assistant-ia/ecrans/atelier/`: tabbed document pane beside the chat in
+  `/assistant` (`assistant-workspace.tsx`: glass container becomes `flex-row`, conversation width via `--conversation`
+  25–75 %, `role="separator"` handle with arrow keys, full-screen toggle, `fixed inset-0` panel below `lg`). Renders with the Live
+  Office scenes exported from `platform/ia/ecrans/blocks/artifact.tsx` (`SceneDocx/Pdf/Pptx/Xlsx`, now with `data-id` and
+  multi-cell highlight). Effects in `atelier.css` (keyframes `atelier-lueur`, `atelier-ecrit` clip-path reveal,
+  `atelier-apparait`), all disabled under `prefers-reduced-motion`. Review list (`data-testid="atelier-modif"`, `data-etat`),
+  compare overlay, conversion menu, inline `ActionConfirmationCard` for sensitive saves. Polls `/api/assistant-ia/atelier`
+  (0.6 s while the assistant works, 8 s idle). The preview panel gains « Ouvrir dans l'Atelier ».
+  Conversion menu (decision 0019): PDF → Word (high fidelity) and « Tableaux → Excel », PowerPoint « Diapositives → images »;
+  the toast says the route (« le moteur haute fidélité, sur le worker ») and the engine's note (pages rebuilt, RTL paragraphs, OCR).
+- **Diagnostic › « Worker et conversions »** (decision 0019) [V] `src/app/(app)/admin/diagnostic/worker.tsx` (server component,
+  Super Admin): worker alive/silent, last beat, start-up control (ready/incomplete + each missing variable in plain French),
+  engine complete or not, conversion queue (queued, running, done/failed over 24 h, oldest queued), last 5 failures.
+- **« Mes notes »** (decision 0026) [V] `src/modules/assistant-ia/ecrans/notes/`: a private notebook beside the chat in `/assistant`.
+  A floating notebook button (top-right of the conversation, `data-testid="bouton-notes"`, amber count of pending AI proposals)
+  opens `panneau-notes.tsx`, loaded with `next/dynamic` on first click (`lg:w-[380px]` column; `fixed inset-0` full screen below
+  `lg`). Page tabs (`role="tablist"`, rename by double-click / F2, reorder and trash from the page menu), toolbar (Tâche, Puce,
+  Texte, Titre), block editor `editeur-notes.tsx` (auto-sized `<textarea>` per block, Enter / Backspace / Tab / Shift+Tab /
+  Alt+↑↓ / Ctrl+Enter, line-start shortcuts « - » « [] » « # », HTML5 drag handle that also answers ↑/↓), autosave 0.7 s with an
+  `aria-live` « Enregistrement… / Enregistré » and optimistic version (conflict → server page shown, user told), history and
+  30-day trash views. AI proposals render IN the page (amber ring; an added line is a read-only « ghost » at its position;
+  deletion in red) with Accepter / Refuser, a proposals band with « Tout accepter », accepted ones with « Annuler »; the chat card
+  `notes-proposees-card.tsx` mirrors them (events `notes:relire` / `assistant-fil:relancer` keep both in sync). A new proposal in
+  the fil opens the panel. Polls `etatMesNotes` (2 s while the assistant works, 15 s idle; never overwrites unsaved typing).
 
 ### 4.11 Real-time UX — polling + Web Audio
 
@@ -234,7 +267,7 @@ Most screen-specific client code is **co-located with its route** under `src/app
 5. `:68-86` renders `PageHeader` + `CreateRecordButton action={createSponsoring} redirectBase="/sponsoring" autoOpenParam="new"` + `ModuleTabs(EVENTS_TABS)` + `<SponsoringTable rows>` [V].
 6. `sponsoring-table.tsx` (client) defines `Column<SponsoringRow>[]` with `formatDate`, `formatCurrency`, `StatusBadge(SPONSORING_STATUS)` and renders `DataTable` [V].
 7. Clicking "Nouvelle demande" (or arriving with `?new`, `useAutoOpen`) opens `Sheet` → `RecordForm` (`create-record-button.tsx:584-619`) [V].
-8. Submit: `useFormState(guarded)` (`:362`); `guarded` try/catches the server action and returns a French "check the list first" error on throw (`:348-360`); a synchronous `lock` ref blocks double submit; a 45 s timer frees the button (`:409-418`) [V].
+8. Submit: `useActionState(guarded)` (`:362`); `guarded` try/catches the server action and returns a French "check the list first" error on throw (`:348-360`); a synchronous `lock` ref blocks double submit; a 45 s timer frees the button (`:409-418`) [V].
 9. Server: `createSponsoring(_prev, formData)` in `src/lib/actions/sponsoring-actions.ts:69` (`"use server"`): `requireUserAuNomDeLaVue()`, `userCan(…"CREATE")` → `{ok:false, error:"Non autorisé."}`, field validation with French messages, create, `revalidatePath("/sponsoring" | "/ad-pro" | "/mon-espace")`, `return { ok: true, id, message? }` (`:280-284`) [V].
 10. Client effect (`:420-433`): on `ok` closes the sheet and `router.push("/sponsoring/<id>")` (no refresh of the list being left); on `error` re-enables and shows it inline [V].
 
@@ -248,6 +281,19 @@ Most screen-specific client code is **co-located with its route** under `src/app
 ### 6.3 New-notification signal
 
 Server code creates a `Notification` row → within ≤ 20 s `NotificationChime` polls `/api/notifications/poll` (RBAC: `getCurrentUser`, `Cache-Control: private, no-store`) → `unread` increased → Web Audio chime + desktop `Notification` (if tab unfocused and permission granted) → click opens `/notifications`. In parallel `NotificationPopup` (15 s) shows admin-broadcast popups; Web Push reaches closed tabs via `sw.js` [V].
+
+### 6.4 Drop files/folders into the Assistant IA (decision 0015)
+
+`window` drag listeners in `assistant-workspace.tsx` show the drop zone only when `dataTransfer.types` contains `Files` → on drop, `depot-navigateur.ts:lireDepot` takes the `webkitGetAsEntry()` entries **during** the event and hands them to the pure walker `lib/agent/lecture/depot.ts:parcourirDepot` (relative paths, system files skipped, depth/entry caps) → `planifierDepot` accepts/refuses (10 per message, 40 MB, empty, duplicate) and every refusal is announced in an `aria-live` line → chips (`pieces-jointes.tsx:PiecesEnAttente`, keyboard: Space selects, Delete removes, arrows move). **No upload before send**: `preparerPieces` uploads each file with `XMLHttpRequest` progress to `/api/drive/upload`, stops on the first failure (the text returns to the field — `CommandPillBar.onSendMessage` may return `false`), then `envoyerAuFil` carries the Drive ids. Assistant-returned files come from the `piecesRendues` field of `/api/assistant-ia/fil` (`/drive/<id>` links re-checked by `piecesCitees`) [V].
+
+### 6.4b Editable confirmation card & folder deposit (J11, decision 0030)
+
+- **Card = generated form**: a capacity card (`kind assistant_ia_capacite`) carries `intent.formulaire` (built server-side by `platform/ia/capacites/formulaire.ts:formulaireDe` from the contract fields of the registry fiche) → `action-confirmation-card.tsx` renders `ecrans/formulaire-carte.tsx` instead of the static field grid while `PROPOSED`. One widget per contract type (choice list, textarea for long-text names, decimal, date, checkbox, multi-checkbox, one-per-line list, **reference combobox** whose options come from the server action `chercherReferenceCarteAssistantIA` — only rows the person can see, only for a field of HER card). Proposed values are pre-filled and tagged « Proposé » (sky); changed ones « Corrigé » (amber). Validation = registry `zodDe` re-run client-side (`verifierFormulaire`, French messages bound by `aria-describedby`/`aria-invalid`), first faulty field focused; the button reads « Signer » / « Signer avec mes corrections »; CRITICAL cards recompute the text to retype from the corrected entry (`texteARessaisir`). Mobile: single column, 44 px fields, 16 px text.
+- **Folder deposit**: `ecrans/depot-dossier.tsx:useDepotDossier` — a dropped FOLDER of more than 10 files becomes ONE chip (`PuceDossier`, « Dossier « X » — n fichiers · size »); nothing is sent before Enter; on send, `POST /api/assistant-ia/depot-dossier` opens the lot and the files go through the app-wide `useBackgroundUpload` queue (`envoiArborescenceDrive`: 6 parallel, multipart direct-to-bucket above the threshold, resumable parts, known content skipped) into their recreated folders; the message carries « Dossier déposé : … ». A small folder (≤ 10, chips) also lands in its recreated tree (`televerser(…, parentId)`). `SuiviDepots` (above the input, polling every 4 s until done) shows files / arrived / read / no-text / failed / queued with an accessible progress bar and a Drive link. Covered by `e2e/assistant-formulaires-dossiers.spec.ts` (desktop + 390 px screenshots).
+
+### 6.5 Field voice report, offline (J13, decision 0025)
+
+`/medical/terrain` (`ecrans/terrain/ecran-terrain.tsx`, mobile-first, tested at 390 px by `e2e/terrain-voix.spec.ts`) → `MediaRecorder` / `<input capture="environment">` → **IndexedDB queue first** (state + blob in one transaction, key = idempotency key) → pure `viderFile` sends one item at a time to `/api/assistant-ia/terrain`, removes it only on server ack; 5xx/network → retry 5 s→5 min; 4xx → kept as « refusé » → server returns the capture with its **cards** rendered by the shared `ActionConfirmationCard`, confirmed through `confirmerCarteTerrain`. The status line (`phraseFile`) is always visible. The realtime voice panel (`ecrans/voix-temps-reel.tsx`) is portalled to `document.body` (the composer's backdrop blur would otherwise contain a `fixed` child) [V].
 
 ## 7. Coupling & blast radius
 
@@ -267,7 +313,8 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 - **Client bundle boundary** (CLAUDE.md; production broke twice — `market/data.ts` via `fs`, `messaging.ts` via `web-push`): ordinary imports from a client file must not reach Node-only code; split pure parts into an import-free module and re-export server-side. Guard: `src/lib/client-bundle-guard.test.ts` [V].
 - **`npm run build` reuses `.next` cache**; Render runs `next lint` before build (§118.155) — one lint error blocks deploy [V CLAUDE.md].
 - **No `loading.tsx` above redirecting pages** (Next 14.2 prod turned `redirect()` into client redirects → 26 screens "Application error") — `src/lib/ui/loading-boundary.test.ts`, `nav-progress.tsx:7-31` [V].
-- **§118.172**: a state-changing gesture keeps its buttons closed until fresh data is displayed (`useRafraichir`); bare `router.refresh()` count is ceiling-tested and must only go down [V].
+- **§118.172**: a state-changing gesture keeps its buttons closed until fresh data is displayed (`useRafraichir`); bare `router.refresh()` is ceiling-tested at **1** (the hook itself) since V3-B [V].
+- **V3-B ratchets at zero** (28/10/2026): unguarded server-action calls (`src/lib/ui/action-gardee.test.ts`, 315 → 0), `confirm(` 125 → 0, `alert(` 46 → 0, `prompt(` 6 → 0, generic fallback 259 → 0 (`src/lib/ui/dialogues-natifs.test.ts`). Known blind spots of the unguarded-call detector: `const r: T = await f()` (annotated) and `await f(); setX(false)` without assignment — reviewed by hand during V3-B, not mechanically guarded.
 - **Decisive buttons**: two-click confirmation, 5 s, Escape cancels; `Sheet` must not close on Escape when an armed button consumed it (`sheet.tsx:34-37`, `sheet-echap.test.ts`) [V].
 - **Never round money**; inputs must not force `step="1000"` [V].
 - **Action failure copy** never invites blind retry (duplicates) [V].
@@ -281,7 +328,7 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 - **Gotcha — time zone**: `formatDate/formatDateTime` have no `timeZone`; on a UTC server (Render default, no `TZ` in `render.yaml`) server-rendered times are 1 h behind Algiers and dates can shift near midnight; client components formatting the same ISO string during SSR vs hydration can differ [V code; U runtime TZ].
 - **Gotcha — bell staleness**: chime plays but the bell digit only updates on layout re-render [V].
 - **Gotcha — DataTable** cannot be fed `render` functions from an RSC page; always wrap [V].
-- **Gotcha — `consulting/[id]/actions-panel.tsx:62-75`** shows the pre-`useAction` anti-pattern (no try/catch, bare `router.refresh()`): if the action throws, `busy` never resets. Don't copy it [V].
+- **Gotcha — hooks of the primitives** (`useConfirmer`, `useRetours`, `useAction`…) must be called at the top of a component, never inside a `.map` or a callback: in a row-level gesture, extract a small row component or lift the hook to the list.
 - Section numbers cited in code (§118.149, §118.164, §118.151) do not always map one-to-one to a same-topic paragraph in `docs/claude-md` (e.g. §118.149 there covers Ad & Pro thresholds with sub-items a–i) [U — spot-checked only].
 
 ## 9. Docs-vs-code discrepancies
@@ -306,7 +353,7 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 
 ## 10. Verified vs uncertain
 
-**Verified [V]** (read in code, cited above): token system and absence of dark tokens; primitive inventory and variants; absence of Dialog/Tabs/Toast/Radix/cva; all pages are RSC; counts of client/server files and hook usage; `CreateRecordButton` guarded `useFormState` flow; `useAction`/`useRafraichir` semantics and ceiling test; `BoutonDecisif` mechanics and pinned call sites; polling intervals and endpoints; Web Audio chimes; PWA manifest + push-only service worker; single print route; OnlyOffice embed via `DocsAPI`; `labels.ts` structure and `moduleForPath`; layout composition; z-index scale; responsive and UI guard tests; `formatDate` lacks `timeZone`; bell not updated by polling; audit figures re-measured.
+**Verified [V]** (read in code, cited above): token system and absence of dark tokens; primitive inventory and variants; absence of Dialog/Tabs/Toast/Radix/cva; all pages are RSC; counts of client/server files and hook usage; `CreateRecordButton` guarded `useActionState` flow; `useAction`/`useRafraichir` semantics and ceiling test; `BoutonDecisif` mechanics and pinned call sites; polling intervals and endpoints; Web Audio chimes; PWA manifest + push-only service worker; single print route; OnlyOffice embed via `DocsAPI`; `labels.ts` structure and `moduleForPath`; layout composition; z-index scale; responsive and UI guard tests; `formatDate` lacks `timeZone`; bell not updated by polling; audit figures re-measured.
 
 **Uncertain [U]**:
 - Render's runtime TZ is UTC (no `TZ` key in `render.yaml`, but not executed) and therefore the magnitude of date drift in SSR output.
@@ -327,8 +374,8 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 4. Every enum → `labels.ts` map → `StatusBadge`; no raw enum strings, no hex, no `amber-500`; use tokens (`text-success`, `bg-warning/10`, `text-muted-foreground`).
 5. Money via `formatCurrency`/`formatMontant`; dates via `formatDate`/`formatDateTime`, Algiers-sensitive logic via `src/lib/calendar-tz.ts`.
 6. Create flows via `CreateRecordButton` (`FieldDef[]`, `ActionResult`, `redirectBase`, `autoOpenParam`).
-7. Button actions via `useAction`/`useKeyedAction`; refresh via `useRafraichir`; keep gestures disabled while busy; show `err` inline (`bg-destructive/10` block).
-8. Irreversible/money/sign/delete gestures: `BoutonDecisif` (+ `confirmation`), never `window.confirm`.
+7. Button actions via `useAction`/`useKeyedAction`, forms via `useFormAction`; never `router.refresh()` by hand (the hooks refresh; else `useRafraichir`); keep gestures disabled while busy; show `err` with `<Retour ton="erreur">`.
+8. Money/decide/sign gestures: `BoutonDecisif` (+ `confirmation`). Other confirmations: `useConfirmer()` / `run(…, { confirmer })`; a reason: `useSaisir()`. Never `window.confirm/alert/prompt` (ceiling 0).
 9. Panels: `Sheet`; any custom overlay at z ≥ 50 with `role="dialog"`, `aria-modal`, Escape, `useScrollLock`.
 10. Tables: `ui/table` (`mobileCards` for wide data) or `DataTable`; always an `overflow-x-auto` container; `EmptyState` when empty.
 11. Responsive: test at 375 px; `sm:col-span-*`, `min-w-0`, no fixed widths that overflow.
@@ -341,3 +388,11 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 - **List + create**: `src/app/(app)/sponsoring/page.tsx` + `sponsoring-table.tsx` (RSC guard/query/map, `PageHeader`, `CreateRecordButton`, `ModuleTabs`, `DataTable` + `StatusBadge` + formatters).
 - **Detail + actions**: `src/app/(app)/support/[id]/page.tsx` + `panel.tsx` (`notFound` on no access, `Card`s, `StatusBadge`, `BackLink`, `DocumentList`, `useAction` with inline `Err`).
 - **Decision panel**: `src/components/workflow/workflow-panel.tsx` (`useRafraichir`, `BoutonDecisif` for approve/reject/return/skip, mandatory note, mobile-sized touch targets `h-11 sm:h-8`).
+
+**Adventum IA (decision 0027, 2026-10-30)** — the Assistant IA as its own ChatGPT-style app at `/ia`
+(`src/modules/assistant-ia/ecrans/app/adventum-ia-app.tsx`): conversation list left (shared with `/assistant`:
+`ecrans/conversations/liste-conversations.tsx`), thread centre (`ChatMessageList apparence="app"`), drawer right (Notes /
+Travaux / Documents), full-screen list and drawer below `lg`, safe-area insets, 16 px input on phones. Its **only theme file**
+is `ecrans/app/theme.css`: `--aia-*` tokens under `.adventum-ia`, Adventum charter (`docs/charte/adventum-pharma.md`: `#2C59A7` primary, teal/cyan accents, Helvetica Neue), light/dark/system (`data-theme`
++ the `dark` class so shared components follow), no green. Logo/icons in `public/adventum-ia/`. State logic shared with the
+ERP screen through hooks (`ecrans/use-fil.ts`, `ecrans/use-pieces.ts`) — one implementation.

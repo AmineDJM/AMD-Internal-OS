@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { recenserDoublonsFactures, examensDesGroupes } from "@/lib/factures/recensement";
 import { BoutonExamen } from "./bouton-examen";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Doublons de factures — AMD Internal OS" };
@@ -34,7 +35,7 @@ export default async function DoublonsFacturesPage() {
   const dossiers = new Map<string, { type: string; id: string }>();
   for (const g of groupes) for (const m of g.membres) dossiers.set(`${m.dossier.type}:${m.dossier.id}`, m.dossier);
   const ouvrables = new Set(
-    (await Promise.all([...dossiers.entries()].map(async ([k, d]) => ((await canAccessEntity(user, d.type as EntityType, d.id, "VIEW").catch(() => false)) ? k : null))))
+    (await Promise.all([...dossiers.entries()].map(async ([k, d]) => ((await canAccessEntity(user, d.type as EntityType, d.id, "VIEW").catch(sansBloquer("doublons-factures-page.DoublonsFacturesPage.canAccessEntity", false))) ? k : null))))
       .filter((k): k is string => Boolean(k)),
   );
   const certains = groupes.filter((g) => g.niveau === "CERTAIN");

@@ -1,6 +1,6 @@
 import { analyser, fonctionsDe, type Noeud, type Ref } from "@/lib/artifact/sheets/formula";
 import { idDe, plageDeNom, type Graphe, type IdCellule } from "@/lib/artifact/sheets/graph";
-import { cleDe, COLONNES_MAX, LIGNES_MAX, type Plage } from "@/lib/artifact/sheets/refs";
+import { cleDe, type Plage } from "@/lib/artifact/sheets/refs";
 import { type Cellule, type Classeur, type Feuille } from "@/lib/artifact/sheets/model";
 
 /**
@@ -658,4 +658,3 @@ export function evaluerFormule(formule: string, classeur?: Classeur, opts: { feu
 }
 
 export const FONCTIONS_CONNUES: ReadonlySet<string> = new Set([...Object.keys(FONCTIONS), ...Object.keys(ALIAS_FR)]);
-export { LIGNES_MAX, COLONNES_MAX };

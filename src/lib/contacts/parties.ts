@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * LES PARTIES — ce qui S'AFFICHE, et ce qui se CLIQUE.
  *
@@ -63,8 +64,6 @@ export function resolveParties(options: readonly PartyOption[], ids: readonly st
   return ids.map((id) => byId.get(id)).filter((p): p is PartyOption => Boolean(p));
 }
 
-const sansAccent = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-
 /**
  * LA RECHERCHE — les trois entrées réelles : le métier, le nom, ou quelques chiffres du numéro.
  *
@@ -72,10 +71,10 @@ const sansAccent = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g,
  * l'on arrive parfois avec une facture à la main, dont on ne lit que le numéro.
  */
 export function matchesParty(p: PartyOption, query: string): boolean {
-  const q = sansAccent(query.trim());
+  const q = plier(query.trim());
   if (!q) return true;
   const champs = [p.name, p.kind, p.contactName, p.email, p.city, p.companyLabel, p.phone, p.phoneAlt];
-  return champs.some((c) => c && sansAccent(c).includes(q));
+  return champs.some((c) => c && plier(c).includes(q));
 }
 
 /**

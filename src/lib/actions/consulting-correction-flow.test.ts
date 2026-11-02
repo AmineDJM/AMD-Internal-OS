@@ -9,14 +9,13 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
-import { seuilAdProEnVigueur, lireVisaAdPro } from "@/lib/ad-pro/visa";
-import { getAdProRequests } from "@/lib/queries/ad-pro";
+import { seuilAdProEnVigueur, lireVisaAdPro, getAdProRequests } from "@/modules/ad-pro/api";
 import { getActionCenter } from "@/lib/queries/action-center";
 import {
   requestConsultingValidation, decideConsultingContract, closeConsultingContract, prolongerConsultingContract,
 } from "./consulting-actions";
-import { updateAdProRequest } from "./ad-pro-edit-actions";
-import { deciderVisaCentreAdPro } from "./ad-pro-centre-actions";
+import { updateAdProRequest } from "@/modules/ad-pro/actions-edition";
+import { deciderVisaCentreAdPro } from "@/modules/ad-pro/actions-centre";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

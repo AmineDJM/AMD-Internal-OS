@@ -4,6 +4,10 @@ import * as React from "react";
 import { Loader2, Send, Paperclip, FileDown, X, MessageSquarePlus } from "lucide-react";
 import { askDossierAgentAction, loadDossierChatAction, resetDossierChatAction } from "@/lib/regulatory/intelligence/knowledge/actions";
 import type { ThreadMessageView } from "@/lib/regulatory/intelligence/knowledge/dossier-thread";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import { sansBloquer } from "@/lib/journal";
 
 /** Même forme que les messages persistés côté serveur — le fil recharge à l'identique. */
 type Msg = ThreadMessageView;
@@ -28,6 +32,8 @@ const SUGGESTIONS = [
  * et l'agent revoit les pièces déjà soumises. L'historique n'est plus transporté par le client.
  */
 export function DossierChatPanel({ dossierId, configured, canView }: { dossierId: string; configured: boolean; canView: boolean }) {
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [messages, setMessages] = React.useState<Msg[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [input, setInput] = React.useState("");
@@ -44,7 +50,7 @@ export function DossierChatPanel({ dossierId, configured, canView }: { dossierId
     fd.set("dossierId", dossierId);
     loadDossierChatAction(fd)
       .then((r) => { if (alive && r.ok) setMessages(r.messages); })
-      .catch(() => { /* fil indisponible → on démarre vide, la conversation reste possible */ })
+      .catch(sansBloquer("chat-panel.DossierChatPanel.loadDossierChatAction"))
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [dossierId, canView]);
@@ -120,11 +126,16 @@ export function DossierChatPanel({ dossierId, configured, canView }: { dossierId
 
   async function resetThread() {
     if (busy || messages.length === 0) return;
-    if (!window.confirm("Commencer une nouvelle discussion ? Le fil actuel sera effacé et l'agent oubliera les pièces soumises.")) return;
+    if (!(await confirmer("Commencer une nouvelle discussion ? Le fil actuel sera effacé et l'agent oubliera les pièces soumises."))) return;
     const fd = new FormData();
     fd.set("dossierId", dossierId);
-    const r = await resetDossierChatAction(fd);
-    if (r.ok) setMessages([]);
+    try {
+      const r = await resetDossierChatAction(fd);
+      if (r.ok) setMessages([]);
+      else retours.erreur(r.error ?? "La discussion n'a pas été effacée.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    }
   }
 
   return (

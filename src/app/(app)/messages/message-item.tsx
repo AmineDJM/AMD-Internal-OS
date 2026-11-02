@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useConfirmer } from "@/components/ui/dialogue";
 import type { MessageDTO, AttachmentDTO } from "@/lib/queries/messaging";
 import { timeOf, renderRich, formatBytes } from "./format";
 import { peutRetirerUnMessage } from "@/lib/messaging-ui";
@@ -57,6 +58,7 @@ export function MessageItem({
 }: Props) {
   const isOwn = m.senderId === selfId;
   const mentionsMe = m.mentionIds.includes(selfId);
+  const confirmer = useConfirmer();
   const [showEmoji, setShowEmoji] = React.useState(false);
   const [editing, setEditing] = React.useState(false);
   const [editValue, setEditValue] = React.useState(m.body);
@@ -301,7 +303,7 @@ export function MessageItem({
               Avant, l'écran ignorait la vue globale — le Super Admin ne voyait jamais
               le bouton que l'action aurait accepté (§118.50). */}
           {peutRetirerUnMessage({ vueGlobale, auteur: isOwn, gereLaConversation }) && (
-            <ActionBtn title="Supprimer" onClick={() => { if (window.confirm("Supprimer ce message ?")) onDelete(m.id); }}>
+            <ActionBtn title="Supprimer" onClick={async () => { if (await confirmer("Supprimer ce message ?")) onDelete(m.id); }}>
               <Trash2 className="h-4 w-4 text-destructive" />
             </ActionBtn>
           )}

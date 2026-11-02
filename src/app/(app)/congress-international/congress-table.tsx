@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { CONGRESS_REQUEST_STATUS, NATIONAL_EVENT_TYPE } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import type { CongressListRow } from "@/lib/queries/congress";
+import type { CongressListRow } from "@/modules/ad-pro/api";
 
 export function CongressTable({ rows, basePath, showType }: { rows: CongressListRow[]; basePath: string; showType?: boolean }) {
   if (rows.length === 0) {

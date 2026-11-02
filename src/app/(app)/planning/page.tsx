@@ -27,7 +27,10 @@ export const dynamic = "force-dynamic";
  * segmentation (lettre × In/Out × fréquence du secteur) — plus de « planifié », de « capacité » ni de « fréquence
  * cible » concurrents. L'effort × ventes reste, replié, pour qui le lisait.
  */
-export default async function PilotagePage({ searchParams }: { searchParams?: { bu?: string; y?: string; m?: string; kam?: string; liste?: string } }) {
+export default async function PilotagePage(
+  props: { searchParams?: Promise<{ bu?: string; y?: string; m?: string; kam?: string; liste?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("SALES_PLANNING");
   const scope = await resolveRepScope(user);
   const bus = await busDuPerimetre(scope, user.id);

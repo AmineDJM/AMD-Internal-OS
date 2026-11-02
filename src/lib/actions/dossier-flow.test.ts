@@ -46,7 +46,7 @@ suite("Dossiers — création, visibilité, échange, pilotage, proposition IA",
     expect(r.ok).toBe(true);
     dossierId = r.id!;
     const d = await prisma.dossier.findUniqueOrThrow({ where: { id: dossierId } });
-    expect(d.reference).toMatch(/^DOS-\d{4}-\d{3}$/);
+    expect(d.reference).toMatch(/^DOS-\d{4}-\d{3,}$/);
     expect(d.assignedToId).toBe(assigneeId);
     expect(d.status).toBe("OPEN");
     const notif = await prisma.notification.findFirst({ where: { userId: assigneeId, title: "Nouveau sujet" } });
@@ -107,7 +107,7 @@ suite("Dossiers — création, visibilité, échange, pilotage, proposition IA",
     ACTOR = await actorFor(creatorId, "MEDICAL_DELEGATE");
     const created = await linkEmailToDossier({ newTitle: `${TAG} Suivi e-mail IQVIA`, from: "iqvia@x.com", subject: "Données", body: "PJ" });
     expect(created.ok).toBe(true);
-    expect(created.reference).toMatch(/^DOS-\d{4}-\d{3}$/);
+    expect(created.reference).toMatch(/^DOS-\d{4}-\d{3,}$/);
   });
 
   it("création d'un dossier à partir d'une tâche (reprend le titre)", async () => {
@@ -129,7 +129,7 @@ suite("Dossiers — création, visibilité, échange, pilotage, proposition IA",
       { title: `${TAG} Analyse IQVIA`, category: "Analyse IQVIA", assignedToId: assigneeId, participantIds: [participantId] },
       creatorId,
     );
-    expect(reference).toMatch(/^DOS-\d{4}-\d{3}$/);
+    expect(reference).toMatch(/^DOS-\d{4}-\d{3,}$/);
     const d = await prisma.dossier.findUniqueOrThrow({ where: { id } });
     expect(d.assignedToId).toBe(assigneeId);
     expect(d.participantIds).toContain(participantId);

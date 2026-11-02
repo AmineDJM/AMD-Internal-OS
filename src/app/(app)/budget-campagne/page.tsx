@@ -19,7 +19,10 @@ export const dynamic = "force-dynamic";
  * `?campagne=` choisit la campagne (la plus récente sinon), `?pole=` ouvre la préparation d'un pôle, `?examen=` ouvre le
  * panneau d'examen d'une proposition — les liens des notifications (`chemins/budget-campagne.ts`).
  */
-export default async function CampagneBudgetairePage({ searchParams }: { searchParams: { campagne?: string; pole?: string; examen?: string; vue?: string } }) {
+export default async function CampagneBudgetairePage(
+  props: { searchParams: Promise<{ campagne?: string; pole?: string; examen?: string; vue?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("BUDGET_CAMPAIGN");
   const campagnes = await listerCampagnes();
   // Le lien d'une notification nomme la PROPOSITION : on en retrouve la campagne.

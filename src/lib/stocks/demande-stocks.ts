@@ -28,9 +28,6 @@ export const TYPES_HOSPITALIERS = ["CHU", "EPH", "EHS", "CLINIQUE_PRIVEE", "POLY
 /** Une relance par KAM et par heure au plus — au-delà, c'est du bruit qui apprend à ignorer. */
 export const DELAI_RELANCE_MS = 60 * 60 * 1000;
 
-export const STATUTS_DEMANDE_STOCKS = ["OUVERTE", "CLOTUREE"] as const;
-export type StatutDemandeStocks = (typeof STATUTS_DEMANDE_STOCKS)[number];
-
 const unique = (xs: readonly string[]): string[] => [...new Set(xs)].sort();
 
 // ── 1. LA COUVERTURE : qui porte quel établissement, pour quelle BU ───────────────────────

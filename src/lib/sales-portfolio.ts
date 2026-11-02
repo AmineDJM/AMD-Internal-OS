@@ -1,25 +1,5 @@
 import type { ProductChannel } from "@prisma/client";
 
-/**
- * MON PORTEFEUILLE — la gamme et les produits qu'une personne porte réellement.
- *
- * L'affectation KAM × produit × cycle existait déjà (module « Prévisions & Force de vente »),
- * mais elle ne servait qu'à planifier : **elle ne pilotait rien**. Personne ne voyait « sa »
- * gamme, et les formulaires proposaient tout le catalogue à tout le monde.
- *
- * Ce fichier en fait un **périmètre**. Il vit hors des Ressources humaines à dessein : porter
- * tel ou tel produit relève du business et change au fil des cycles ; ce n'est pas une donnée
- * de contrat.
- *
- * Fonctions PURES uniquement — importé par des composants client.
- */
-
-export const GAMME_LABELS: Record<ProductChannel, string> = {
-  RETAIL: "Ville",
-  HOSPITAL: "Hôpital",
-  BOTH: "Ville et hôpital",
-};
-
 /** Priorité de détail : P1 se travaille en premier, P3 se mentionne. */
 export function positionLabel(position: number): string {
   return position >= 1 && position <= 3 ? `P${position}` : `P${Math.max(1, Math.min(3, position))}`;
@@ -104,11 +84,6 @@ export interface Portfolio {
   fromPreviousCycle: boolean;
   /** Vrai si la personne pilote une équipe (des produits viennent de ses KAM). */
   hasTeam: boolean;
-}
-
-/** Le portefeuille est-il vide au point qu'on ne puisse rien proposer ? */
-export function isEmpty(p: Portfolio): boolean {
-  return p.products.length === 0;
 }
 
 /** Répartition par priorité — ce qu'on affiche en tête de la carte « Ma gamme ». */

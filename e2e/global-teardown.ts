@@ -18,6 +18,8 @@ export default async function globalTeardown(): Promise<void> {
     // Le décor Live Office : les nœuds Drive puis leurs versions partent en cascade avec le
     // propriétaire ; on retire d'abord les nœuds nommés, pour le cas où le testeur survivrait.
     await prisma.driveNode.deleteMany({ where: { name: { startsWith: "__e2e__" } } }).catch(() => {});
+    // J11 : les dépôts de dossier du banc (leur racine porte le préfixe, retirée juste au-dessus).
+    await prisma.assistantIaDepotDossier.deleteMany({ where: { nom: { startsWith: "__e2e__" } } }).catch(() => {});
     await prisma.artifactSession.deleteMany({ where: { name: { startsWith: "__e2e__" } } }).catch(() => {});
     await prisma.assistantProvenance.deleteMany({ where: { question: { startsWith: "__e2e__" } } }).catch(() => {});
     // LE COACHING (§118.157) : une version de grille publiée par un compte de banc SURVIVRAIT à

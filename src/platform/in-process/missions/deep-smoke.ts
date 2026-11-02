@@ -6,6 +6,7 @@ import { RaisonneurInstrumente } from "@/platform/in-process/missions/provider-w
 import {
   jouer, jetonUnique, preconditionAbsence,
   type ResultatMission, type Scenario, arreterMissionsDeDiagnostic } from "@/platform/in-process/missions/provider-smoke";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -67,24 +68,24 @@ export async function inventorier(): Promise<Echantillons> {
   const semaine = new Date(Date.now() - 7 * 24 * 3600 * 1000);
   const [dossiers, produits, employes, fichiers, courriers, partenaires, legals, factures, paiements, taches, marches, departements] =
     await Promise.all([
-      prisma.regulatoryDossier.findMany({ select: { reference: true, title: true }, take: 6 }).catch(() => []),
-      prisma.regulatoryProduct.findMany({ select: { dci: true, brandName: true }, take: 8 }).catch(() => []),
-      prisma.employee.findMany({ where: { isActive: true }, select: { fullName: true }, take: 6 }).catch(() => []),
-      prisma.driveNode.findMany({ where: { isTrashed: false, NOT: { mimeType: null } }, select: { name: true }, take: 6 }).catch(() => []),
-      prisma.mailEntry.findMany({ select: { title: true }, take: 4 }).catch(() => []),
-      prisma.mailPartner.findMany({ where: { isActive: true }, select: { name: true }, take: 3 }).catch(() => []),
-      prisma.legalDocument.findMany({ select: { title: true }, take: 4 }).catch(() => []),
-      prisma.legalDocument.findMany({ where: { kind: "INVOICE" }, select: { title: true }, take: 3 }).catch(() => []),
-      prisma.paymentRequest.findMany({ select: { title: true }, take: 3 }).catch(() => []),
-      prisma.task.findMany({ select: { title: true }, take: 4 }).catch(() => []),
-      prisma.pchTender.findMany({ select: { reference: true, title: true }, take: 3 }).catch(() => []),
-      prisma.department.findMany({ select: { name: true }, take: 5 }).catch(() => []),
+      prisma.regulatoryDossier.findMany({ select: { reference: true, title: true }, take: 6 }).catch(sansBloquer("deep-smoke.inventorier.regulatoryDossier", [])),
+      prisma.regulatoryProduct.findMany({ select: { dci: true, brandName: true }, take: 8 }).catch(sansBloquer("deep-smoke.inventorier.regulatoryProduct", [])),
+      prisma.employee.findMany({ where: { isActive: true }, select: { fullName: true }, take: 6 }).catch(sansBloquer("deep-smoke.inventorier.employee", [])),
+      prisma.driveNode.findMany({ where: { isTrashed: false, NOT: { mimeType: null } }, select: { name: true }, take: 6 }).catch(sansBloquer("deep-smoke.inventorier.driveNode", [])),
+      prisma.mailEntry.findMany({ select: { title: true }, take: 4 }).catch(sansBloquer("deep-smoke.inventorier.mailEntry", [])),
+      prisma.mailPartner.findMany({ where: { isActive: true }, select: { name: true }, take: 3 }).catch(sansBloquer("deep-smoke.inventorier.mailPartner", [])),
+      prisma.legalDocument.findMany({ select: { title: true }, take: 4 }).catch(sansBloquer("deep-smoke.inventorier.legalDocument", [])),
+      prisma.legalDocument.findMany({ where: { kind: "INVOICE" }, select: { title: true }, take: 3 }).catch(sansBloquer("deep-smoke.inventorier.legalDocument", [])),
+      prisma.paymentRequest.findMany({ select: { title: true }, take: 3 }).catch(sansBloquer("deep-smoke.inventorier.paymentRequest", [])),
+      prisma.task.findMany({ select: { title: true }, take: 4 }).catch(sansBloquer("deep-smoke.inventorier.task", [])),
+      prisma.pchTender.findMany({ select: { reference: true, title: true }, take: 3 }).catch(sansBloquer("deep-smoke.inventorier.pchTender", [])),
+      prisma.department.findMany({ select: { name: true }, take: 5 }).catch(sansBloquer("deep-smoke.inventorier.department", [])),
     ]);
   const [cDossiers, cProduits, cEmployes, cAudits] = await Promise.all([
-    prisma.regulatoryDossier.count().catch(() => -1),
-    prisma.regulatoryProduct.count().catch(() => -1),
-    prisma.employee.count({ where: { isActive: true } }).catch(() => -1),
-    prisma.auditLog.count({ where: { createdAt: { gte: semaine } } }).catch(() => -1),
+    prisma.regulatoryDossier.count().catch(sansBloquer("deep-smoke.inventorier.regulatoryDossier", -1)),
+    prisma.regulatoryProduct.count().catch(sansBloquer("deep-smoke.inventorier.regulatoryProduct", -1)),
+    prisma.employee.count({ where: { isActive: true } }).catch(sansBloquer("deep-smoke.inventorier.employee", -1)),
+    prisma.auditLog.count({ where: { createdAt: { gte: semaine } } }).catch(sansBloquer("deep-smoke.inventorier.auditLog", -1)),
   ]);
   return {
     dossiers, produits, employes, fichiers, courriers, partenaires, legals, factures,
@@ -386,13 +387,13 @@ export interface ResultatDeep {
 async function nettoyerMissions(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0;
   const where = { missionId: { in: ids } };
-  await prisma.missionWorkerRun.deleteMany({ where }).catch(() => {});
-  await prisma.missionEvent.deleteMany({ where }).catch(() => {});
-  await prisma.missionApproval.deleteMany({ where }).catch(() => {});
-  await prisma.missionArtifact.deleteMany({ where }).catch(() => {});
-  await prisma.missionParticipant.deleteMany({ where }).catch(() => {});
-  await prisma.missionStep.deleteMany({ where }).catch(() => {}); // MissionStepDep suit en cascade
-  const r = await prisma.mission.deleteMany({ where: { id: { in: ids } } }).catch(() => ({ count: 0 }));
+  await prisma.missionWorkerRun.deleteMany({ where }).catch(sansBloquer("deep-smoke.nettoyerMissions.missionWorkerRun"));
+  await prisma.missionEvent.deleteMany({ where }).catch(sansBloquer("deep-smoke.nettoyerMissions.missionEvent"));
+  await prisma.missionApproval.deleteMany({ where }).catch(sansBloquer("deep-smoke.nettoyerMissions.missionApproval"));
+  await prisma.missionArtifact.deleteMany({ where }).catch(sansBloquer("deep-smoke.nettoyerMissions.missionArtifact"));
+  await prisma.missionParticipant.deleteMany({ where }).catch(sansBloquer("deep-smoke.nettoyerMissions.missionParticipant"));
+  await prisma.missionStep.deleteMany({ where }).catch(sansBloquer("deep-smoke.nettoyerMissions.missionStep")); // MissionStepDep suit en cascade
+  const r = await prisma.mission.deleteMany({ where: { id: { in: ids } } }).catch(sansBloquer("deep-smoke.nettoyerMissions.mission", { count: 0 }));
   return r.count;
 }
 

@@ -342,14 +342,6 @@ export function refusFinalisation(b: BilanNotes): string | null {
   return `Pour finaliser, notez ${b.manquants.length === 1 ? "l'axe" : "les axes"} ${noms} — une fiche partagée avec le collaborateur doit être complète.`;
 }
 
-/** Le ton d'affichage d'un niveau : rouge → ambre → vert → bleu, dans l'ordre du barème. */
-export function tonDuNiveau(points: number): "danger" | "warning" | "success" | "info" {
-  if (points <= 1) return "danger";
-  if (points === 2) return "warning";
-  if (points === 3) return "success";
-  return "info";
-}
-
 /** « MB = Maîtrise Basique (Insuffisant / À développer) : 1 » — la ligne de légende du classeur. */
 export function ligneEchelle(n: NiveauMaitrise, points: number): string {
   return `${n.code} = ${n.libelle}${n.qualification ? ` (${n.qualification})` : ""} : ${points}`;

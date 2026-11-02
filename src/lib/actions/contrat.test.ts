@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { Prisma } from "@prisma/client";
 import { join } from "node:path";
 import {
   HELPERS_PARTAGES, contratsDuFichier, decrireAction, direContrat, helpersDuFichier, importsProjet, lireArguments, type TableEnums,
 } from "./contrat";
 import { scannerContrats } from "./contrat-scan";
+import { ACTIONS_DES_MODULES, actionsDesModulesSurLeDisque, cheminsDeLaCle, cheminsDesActionsDesModules, parcDesActions } from "./parc";
 import { CONTRATS_ACTIONS, CONTRAT_PAR_ID } from "./contrat.genere";
 import { ACTION_CLASSIFICATION } from "@/lib/assistant/action-registry";
 
@@ -789,11 +790,10 @@ describe("CONTRAT D'ACTION — présence, récepteur et gardes", () => {
  */
 describe("LECTEURS DE CHAMP — aucun ne peut passer inaperçu", () => {
   it("tout helper qui lit un formulaire est connu, ou défini là où il sert", () => {
-    const dir = join(process.cwd(), "src/lib/actions");
     const inconnus: string[] = [];
-    for (const f of readdirSync(dir)) {
-      if (!f.endsWith(".ts") || f.endsWith(".test.ts") || f.includes("genere")) continue;
-      const source = readFileSync(join(dir, f), "utf8");
+    // Tout le PARC (`parc.ts`) : `src/lib/actions/` et les `actions.ts` des modules.
+    for (const { cle: f, chemin } of parcDesActions()) {
+      const source = readFileSync(join(process.cwd(), chemin), "utf8");
       // SEULS LES FICHIERS D'ACTIONS — et la directive est un fait de POSITION, pas de
       // PRÉSENCE : elle ouvre le fichier. Deux versions de ce filtre ont échoué avant celle-ci,
       // toutes deux sur `contrat.ts`, qui cite « use server » dans sa propre prose et donne
@@ -913,20 +913,20 @@ export async function ouvrirSession(id: string) {
 
   it("le PONT de plateforme est du code du dépôt : ses écrivains sont suivis, une bibliothèque non", () => {
     // CE QUI FERAIT TOMBER : ne retenir que `@/lib/…`. `emettrePieceCommerciale` émet une facture
-    // par `@/platform/in-process/artifact/factory` et sortait `ecrit: false` : la carte de
+    // par `@/platform/ia/artifact/factory` (le socle IA) et sortait `ecrit: false` : la carte de
     // confirmation disait « aucune écriture en base détectée » sur un geste qui inscrit une pièce
     // au registre Legal et consomme un numéro (§118.116). Mesuré : 4 actions du parc réparées,
     // 0 champ changé.
-    expect(importsProjet(`import { emettreDocumentDrive } from "@/platform/in-process/artifact/factory";
+    expect(importsProjet(`import { emettreDocumentDrive } from "@/platform/ia/artifact/factory";
 import { z } from "zod";
 import { fdStr } from "@/lib/actions/types";`))
-      .toEqual({ emettreDocumentDrive: "@/platform/in-process/artifact/factory", fdStr: "@/lib/actions/types" });
+      .toEqual({ emettreDocumentDrive: "@/platform/ia/artifact/factory", fdStr: "@/lib/actions/types" });
     const [c] = contratsDuFichier("fabrique-actions", `"use server";
-import { emettre } from "@/platform/in-process/artifact/factory";
+import { emettre } from "@/platform/ia/artifact/factory";
 export async function poser(formData: FormData): Promise<R> {
   const n = fdStr(formData, "n");
   return emettre({ n });
-}`, {}, {}, { "@/platform/in-process/artifact/factory": `export async function emettre(d) {
+}`, {}, {}, { "@/platform/ia/artifact/factory": `export async function emettre(d) {
   return prisma.$transaction(async (tx) => tx.legalDocument.create({ data: d }));
 }` });
     expect(c!.ecrit).toBe(true);
@@ -951,5 +951,117 @@ export async function faireLeTruc(formData: FormData): Promise<ActionResult> {
     expect(champ?.type).toBe("reference");
     // Et le contrat DÉCLARE quand même l'écriture du délégué.
     expect(c.modelesEcrits).toContain("truc");
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * UNE AIDE INTERNE (`actions/internes/`) EST LE CODE DU FICHIER D'ACTIONS (`contrat/internes.ts`).
+ *
+ * Le même corps — qui reçoit le formulaire, lit ses champs avec un lecteur de son module, écrit et confie une
+ * notification à un écrivain importé — déplacé hors du fichier `"use server"`. Hors de `actions/internes/`, la
+ * dérivation ne le suit que pour ses faits d'écriture directs : les champs et l'attribution sont PERDUS. Sous
+ * `actions/internes/`, l'action dit exactement ce qu'elle disait quand ce code était dans son corps.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+describe("une aide INTERNE compte comme une fonction locale du fichier d'actions", () => {
+  const action = (depuis: string) => `"use server";
+import { requireUser } from "@/lib/session";
+import { renommerLeTruc } from "${depuis}";
+
+export async function renommerTruc(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  return renommerLeTruc(formData, user);
+}
+`;
+  const MODULE_INTERNE = `import { notifyUser } from "@/lib/notify";
+
+export function champ(formData: FormData, key: string): string | null {
+  const v = formData.get(key);
+  return v ? String(v) : null;
+}
+
+export async function renommerLeTruc(formData: FormData, acteur: { id: string }) {
+  const id = champ(formData, "trucId");
+  const nom = champ(formData, "nom");
+  if (!id || !nom) return { ok: false, error: "Champs manquants." };
+  await prisma.truc.update({ where: { id }, data: { name: nom } });
+  await notifyUser({ userId: acteur.id, title: "Renommé" });
+  return { ok: true };
+}
+`;
+  const NOTIFY = `
+export async function notifyUser(n: { userId: string }) {
+  return prisma.notification.create({ data: n });
+}
+`;
+  const relations = { "Truc.trucId": "Truc" };
+  const decrire = (depuis: string) => contratsDuFichier("truc-actions", action(depuis), {}, relations, {
+    [depuis]: MODULE_INTERNE, "@/lib/notify": NOTIFY,
+  })[0]!;
+
+  it("TÉMOIN — hors de `actions/internes/`, les champs, l'attribution et l'écrivain du corps déplacé sont perdus", () => {
+    const c = decrire("@/lib/domaine/truc-renommage");
+    expect(c.champs).toEqual([]);
+    expect(c.illisible).not.toBeNull();
+    expect(c.modelesEcrits).not.toContain("notification");
+  });
+
+  it("sous `actions/internes/`, l'action lit les champs, attribue la référence et déclare les écrivains du délégué", () => {
+    const c = decrire("@/lib/actions/internes/truc/renommage");
+    expect(c.illisible).toBeNull();
+    expect(c.champs.map((ch) => [ch.nom, ch.obligatoire, ch.modele])).toEqual([["nom", true, null], ["trucId", true, "Truc"]]);
+    expect(c.ecrit).toBe(true);
+    expect(c.modelesEcrits).toEqual(["notification", "truc"]);
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE PARC — la clé d'une action est un NOM déclaré, pas un chemin (rapport d'audit 08, ARCH-03).
+ *
+ * Une action rangée dans son module (`src/modules/<m>/actions.ts`) garde sa clé historique en se
+ * déclarant dans `parc.ts`. Oubliée là, elle sortirait du contrat, de la parité et d'Adam sans
+ * qu'aucun autre test ne le dise : c'est ce banc qui le dit.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+describe("PARC DES ACTIONS — chaque fichier d'actions a une clé, une seule", () => {
+  it("tout `actions.ts` d'un module est déclaré dans `ACTIONS_DES_MODULES`", () => {
+    const declares = new Set(cheminsDesActionsDesModules());
+    expect(actionsDesModulesSurLeDisque().filter((c) => !declares.has(c)),
+      "déclarer ce fichier dans src/lib/actions/parc.ts (ACTIONS_DES_MODULES) avec sa clé historique").toEqual([]);
+  });
+
+  it("chaque entrée de `ACTIONS_DES_MODULES` existe et commence par « use server »", () => {
+    for (const chemin of cheminsDesActionsDesModules()) {
+      expect(readFileSync(join(process.cwd(), chemin), "utf8"), chemin).toMatch(/^\s*["']use server["']/);
+    }
+  });
+
+  it("aucune clé n'est portée par deux fichiers, sauf les morceaux d'un fichier découpé déclarés ENSEMBLE", () => {
+    const decoupees = new Set(Object.entries(ACTIONS_DES_MODULES).filter(([, c]) => cheminsDeLaCle(c).length > 1).map(([cle]) => cle));
+    const cles = parcDesActions().map((f) => f.cle);
+    expect(cles.filter((c, i) => cles.indexOf(c) !== i && !decoupees.has(c)),
+      "un module ne reprend pas la clé d'un fichier resté en place ; un fichier découpé déclare la liste de ses morceaux").toEqual([]);
+    // Un morceau de `src/lib/actions/` ne peut pas porter une clé découpée : elle vit entière dans son module.
+    expect(parcDesActions().filter((f) => decoupees.has(f.cle) && f.chemin.startsWith("src/lib/actions/")).map((f) => f.chemin)).toEqual([]);
+  });
+
+  it("une action n'est exportée que par UN morceau de sa clé (sinon l'aiguillage choisirait au hasard)", () => {
+    const vues = new Map<string, string>();
+    const doublons: string[] = [];
+    for (const { cle, chemin } of parcDesActions()) {
+      for (const m of readFileSync(join(process.cwd(), chemin), "utf8").matchAll(/^export async function ([A-Za-z0-9_]+)/gm)) {
+        const id = `${cle}:${m[1]}`;
+        if (vues.has(id)) doublons.push(`${id} — ${vues.get(id)} et ${chemin}`);
+        else vues.set(id, chemin);
+      }
+    }
+    expect(doublons).toEqual([]);
+  });
+
+  it("le scanner lit les actions des modules (le contrat ne les perd pas en route)", () => {
+    const fichiers = new Set(scannerContrats().map((c) => c.fichier));
+    for (const cle of Object.keys(ACTIONS_DES_MODULES)) expect(fichiers.has(cle), cle).toBe(true);
   });
 });

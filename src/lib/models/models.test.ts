@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { costOf, emptyUsage, textOf, toolCallsOf, type ModelBlock } from "./contract";
+import { costOf, emptyUsage, textOf, toolCallsOf } from "./contract";
 import { bindingFor, activeProvider, DEFAULT_MODELS, DEFAULT_REASONING } from "./registry";
 import { parseToolArgs, stopOf, toOpenAiMessages, toBlocks, buildBody, StreamAssembler } from "./openai";
 import { toAnthropicMessages, fromAnthropicBlocks, stopOfAnthropic, buildAnthropicBody } from "./anthropic";
@@ -62,7 +62,9 @@ describe("portabilité — `src/lib/models/` est ce qu'Adam emporte avec lui", (
    * régulières, sans état ni règle métier — il figure d'ailleurs comme NEUTRE dans le scanner de
    * frontière. Toute autre dépendance `@/` ferait de cette couche un morceau d'ERP déguisé.
    */
-  const ALLOWED = new Set(["@/lib/ai-text"]);
+  // `journal` (lot V3-E) : zéro import, aucune règle métier — le `catch` nommé et la ligne JSON,
+  // que la passerelle emporte avec elle comme `ai-text` (même critère que NEUTRAL, boundary-scan.ts).
+  const ALLOWED = new Set(["@/lib/ai-text", "@/lib/journal"]);
 
   it("aucun module de la passerelle n'importe le produit", () => {
     const offenders: string[] = [];
@@ -102,7 +104,8 @@ describe("portabilité — `src/lib/models/` est ce qu'Adam emporte avec lui", (
     // Cette seconde entrée a été ouverte le jour où un HTTP 400 (`temperature` non supporté) a
     // montré qu'on n'avait NULLE PART où écrire cette connaissance. Le cliquet garde tous les
     // autres fichiers : c'est une exception nommée, pas un assouplissement.
-    const AUTORISES = ["registry.ts", "capabilities.ts"];
+    //   • `tarifs.ts`       — CE QUE CHAQUE MODÈLE COÛTE (lot K8) : la grille datée, une ligne par modèle.
+    const AUTORISES = ["registry.ts", "capabilities.ts", "tarifs.ts"];
     const offenders = files
       .filter((f) => !AUTORISES.some((a) => f.endsWith(a)))
       .filter((f) => /["'](gpt-|claude-)[a-z0-9.\-]+["']/.test(fs.readFileSync(f, "utf8")));

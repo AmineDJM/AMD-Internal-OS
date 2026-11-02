@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { verifierProduitsDesDossiers } from "@/lib/actions/produit-canonique-actions";
 import type { BilanProduitsDesDossiers } from "@/lib/products/canonique";
 
@@ -20,11 +21,16 @@ export function VerifierCatalogue() {
 
   async function verifier() {
     setEnvoi(true); setErreur(null);
-    const r = await verifierProduitsDesDossiers();
-    setEnvoi(false);
-    if (!r.ok) { setErreur(r.error); return; }
-    setBilan(r.bilan);
-    rafraichir();
+    try {
+      const r = await verifierProduitsDesDossiers();
+      if (!r.ok) { setErreur(r.error); return; }
+      setBilan(r.bilan);
+      rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   const occupe = envoi || enCours;

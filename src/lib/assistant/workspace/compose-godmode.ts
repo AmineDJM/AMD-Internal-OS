@@ -4,11 +4,11 @@ import {
   type WorkspaceAction, type WorkspaceBlock, type WorkspaceBlockMeta, type WorkspaceBlockState,
   type WorkspaceCertainty, type WorkspaceDoc, type WorkspaceEntityRef, type WorkspaceField,
   type WorkspaceGauge, type WorkspaceItem, type WorkspacePerson,
-} from "./protocol";
+} from "@/platform/ia/workspace/protocol";
 import {
   actionsOf, arr, clip, DOC_KINDS, isInternalHref, isObj, num, readColumns, readEditable,
   readMetrics, readPerson, readRows, s, strings, TONES, tonOf, type Json,
-} from "./read";
+} from "@/platform/ia/workspace/read";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

@@ -3,7 +3,7 @@ import { contentDisposition } from "@/lib/http/content-disposition";
 import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { extensionDejaCompressee, lireQualite, type EstimationTelechargement, type Qualite } from "@/lib/compression/politique";
 import { obtenirReduction } from "@/lib/compression/reduction-cache";
-import { ecrireZip, enFluxWeb, ErreurZipLimite, LIMITE_ZIP_OCTETS, type EntreeZip, type NiveauZip } from "@/lib/compression/zip-ecriture";
+import { ecrireZip, enFluxWeb, LIMITE_ZIP_OCTETS, type EntreeZip, type NiveauZip } from "@/lib/compression/zip-ecriture";
 
 /**
  * LA PORTE UNIQUE DU TÉLÉCHARGEMENT — le seul endroit qui lit `?qualite=` et le seul qui décide
@@ -197,5 +197,3 @@ export async function repondreEstimationArchive(a: {
   }
   return NextResponse.json({ max, reduite: { ...base, taille, gain: 1 - taille / max.taille } } satisfies EstimationTelechargement, { headers: entetes });
 }
-
-export { ErreurZipLimite };

@@ -25,14 +25,15 @@ import { ValidationAttachments } from "./validation-attachments";
 import { SupervisionBoard } from "./supervision-board";
 import { supervisionCounters } from "@/lib/validation-supervision";
 import { NewPaymentButton } from "./paiements/new-payment-button";
-import { myPaymentRequests } from "@/lib/queries/my-payment-requests";
-import { sortByPriority, isOverdue, deadlineLabel } from "@/lib/finance/payment-request";
+import { myPaymentRequests } from "@/modules/finances/api";
+import { sortByPriority, isOverdue, deadlineLabel } from "@/modules/finances/partage";
 import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY } from "@/lib/labels";
 import { toNumber } from "@/lib/utils";
 import { SuperAdminDeleteButton } from "@/components/shared/super-admin-delete";
 import { DocumentList } from "@/components/documents/document-list";
 
-export default async function ValidationsPage({ searchParams }: { searchParams: { focus?: string } }) {
+export default async function ValidationsPage(props: { searchParams: Promise<{ focus?: string }> }) {
+  const searchParams = await props.searchParams;
   /**
    * `?focus=<stepId>` — ON ARRIVE **DANS** LA VALIDATION.
    *

@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Play, Loader2, AlertCircle, ShieldCheck, ShieldAlert, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, Label, Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { runTestCenter, resumeTestCleanup } from "@/lib/actions/test-center-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { WRITE_MODES, PRODUCTION_SAFETY_PHRASE } from "@/lib/test-center/types";
 
 const MODES = [
@@ -18,7 +19,7 @@ const ENV_LABEL: Record<string, string> = { production: "Production", staging: "
 
 /** Panneau de lancement d'un run. En production, un mode d'écriture exige une confirmation + phrase. */
 export function LaunchPanel({ environment }: { environment: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [mode, setMode] = React.useState("SAFE_SYNTHETIC_TEST");
   const [confirmed, setConfirmed] = React.useState(false);
   const [phrase, setPhrase] = React.useState("");
@@ -34,11 +35,15 @@ export function LaunchPanel({ environment }: { environment: string }) {
   const launch = () =>
     start(async () => {
       setErr(null); setOkMsg(null);
-      const r = await runTestCenter(needsConfirm ? { mode, productionConfirmed: confirmed, safetyPhrase: phrase.trim() } : { mode });
-      if (!r.ok) { setErr(r.error ?? "Échec du lancement."); return; }
-      setOkMsg(`Run ${r.runId?.slice(0, 8)} terminé.`);
-      setConfirmed(false); setPhrase("");
-      router.refresh();
+      try {
+        const r = await runTestCenter(needsConfirm ? { mode, productionConfirmed: confirmed, safetyPhrase: phrase.trim() } : { mode });
+        if (!r.ok) { setErr(r.error ?? "Le run de test n'a pas été lancé."); return; }
+        setOkMsg(`Run ${r.runId?.slice(0, 8)} terminé.`);
+        setConfirmed(false); setPhrase("");
+        rafraichir();
+      } catch {
+        setErr(actionFailureMessage("THROWN"));
+      }
     });
 
   const current = MODES.find((m) => m.value === mode);
@@ -92,14 +97,18 @@ export function LaunchPanel({ environment }: { environment: string }) {
 
 /** Bouton de reprise de nettoyage pour un run interrompu / incomplet. */
 export function ResumeCleanupButton({ runId }: { runId: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [pending, start] = React.useTransition();
   const [msg, setMsg] = React.useState<string | null>(null);
   const resume = () =>
     start(async () => {
-      const r = await resumeTestCleanup(runId);
-      setMsg(r.ok ? "Nettoyage terminé." : (r.error ?? "Nettoyage incomplet."));
-      router.refresh();
+      try {
+        const r = await resumeTestCleanup(runId);
+        setMsg(r.ok ? "Nettoyage terminé." : (r.error ?? "Nettoyage incomplet."));
+        rafraichir();
+      } catch {
+        setMsg(actionFailureMessage("THROWN"));
+      }
     });
   return (
     <div className="flex flex-wrap items-center gap-2">

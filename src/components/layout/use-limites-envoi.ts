@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { sansBloquer } from "@/lib/journal";
 
 /** Ce que le serveur dit des envois — lu une fois par onglet, puis gardé. */
 export interface LimitesEnvoi {
@@ -17,7 +18,7 @@ let promesse: Promise<LimitesEnvoi | null> | null = null;
 export function lireLimitesEnvoi(): Promise<LimitesEnvoi | null> {
   promesse ??= fetch("/api/uploads/limites", { cache: "no-store" })
     .then((r) => (r.ok ? (r.json() as Promise<LimitesEnvoi>) : null))
-    .catch(() => null)
+    .catch(sansBloquer("use-limites-envoi.lireLimitesEnvoi.fetch", null))
     .then((l) => { if (!l) promesse = null; return l; });
   return promesse;
 }

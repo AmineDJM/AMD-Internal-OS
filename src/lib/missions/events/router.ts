@@ -1,8 +1,12 @@
 import { prisma } from "@/lib/prisma";
+import type { MissionStatus } from "@prisma/client";
 import { lireReponse } from "@/lib/missions/runtime/reponse";
 import { journaliser } from "@/lib/missions/runtime/store";
 import { Attente, FaitObserve, correspond, decomposer, echue, etatAttente, lireAttente, lireProgres } from "@/lib/missions/events/match";
 import { ETATS_REPLANIFIABLES } from "@/lib/missions/runtime/replan";
+import { sansBloquer } from "@/lib/journal";
+// J8 : un TRAVAIL dont une attente se règle est signalé à la boucle courte des réveils (les missions d'Adam : filtre `kind`).
+import { signalerReveil } from "@/lib/missions/travaux/signaux";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -130,7 +134,8 @@ export async function reveillerMissions(fait: FaitObserve): Promise<Reveil[]> {
       await prisma.mission.updateMany({
         where: { id: { in: reveillees }, replanBloque: true },
         data: { replanBloque: false, replanRefus: null },
-      }).catch(() => undefined);
+      }).catch(sansBloquer("router.reveillerMissions.mission"));
+      await signalerReveil(reveillees, maintenant);
     }
 
     /**
@@ -196,14 +201,15 @@ function apercuExpediteur(fait: FaitObserve): string | null {
  * la découvre après n'importe quel redémarrage. L'écriture est conditionnée à `WAITING` :
  * deux battements concurrents (ou un battement rejoué) ne règlent l'attente qu'UNE fois.
  */
-export async function reveillerAttentesTemporelles(maintenant = new Date()): Promise<Reveil[]> {
+export async function reveillerAttentesTemporelles(
+  maintenant = new Date(),
+  /** BANC SEULEMENT (J2) : borne le réveil à ces missions — la suite partage une base, et une horloge simulée en avance réveillerait les attentes des voisins. */
+  seulement?: readonly string[],
+): Promise<Reveil[]> {
   try {
+    const vivante = { status: { notIn: ["COMPLETED", "CANCELLED"] as MissionStatus[] } };
     const enAttente = await prisma.missionStep.findMany({
-      where: {
-        status: "WAITING",
-        nodeType: "WAIT_EVENT",
-        mission: { status: { notIn: ["COMPLETED", "CANCELLED"] } },
-      },
+      where: { status: "WAITING", nodeType: "WAIT_EVENT", mission: seulement ? { ...vivante, id: { in: [...seulement] } } : vivante },
       select: { id: true, missionId: true, key: true, title: true, waitFor: true, result: true },
     });
 
@@ -245,6 +251,7 @@ export async function reveillerAttentesTemporelles(maintenant = new Date()): Pro
         { stepKey: step.key, instant: maintenant.toISOString() });
       reveils.push({ missionId: step.missionId, stepKey: step.key });
     }
+    await signalerReveil(reveils.map((r) => r.missionId), maintenant);
     return reveils;
   } catch (err) {
     console.error("[missions] réveil temporel impossible", err);
@@ -414,7 +421,6 @@ export async function rattraperFaitAnterieur(opts: {
   clesEcritures: readonly string[];
   maintenant?: Date;
 }): Promise<{ complete: boolean; reglees: number[]; fait: FaitObserve | null }> {
-  const maintenant = opts.maintenant ?? new Date();
   const reglees = [...opts.dejaReglees];
   const types = [...new Set(decomposer(opts.attente).branches.map((b) => b.event).filter((e): e is string => Boolean(e)))];
   if (types.length === 0) return { complete: false, reglees, fait: null };

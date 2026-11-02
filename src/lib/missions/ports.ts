@@ -364,11 +364,6 @@ export interface Situation {
   couverture: { sources: string[]; enEchec: string[]; ms: number };
 }
 
-/** Le port de l'enquête — rempli par le pont, jamais par le runtime lui-même. */
-export interface Enqueteur {
-  situer(objectif: string, acteur: MissionActor): Promise<Situation | null>;
-}
-
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * L'ATTENTION DU DIRIGEANT — un port, parce qu'elle est une ressource rare (§attention).

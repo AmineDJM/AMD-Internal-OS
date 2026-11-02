@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { scopeMedicalVisits, type SessionUser } from "@/lib/rbac";
 import { chargerStrategie, chargerPanel } from "@/lib/segmentation/service";
-import { CHEMIN_DEMANDE, LIBELLE_NATURE_DEMANDE, type TypeMedecinsConcernes } from "@/lib/ad-pro/medecins-concernes";
+import { CHEMIN_DEMANDE, LIBELLE_NATURE_DEMANDE, type TypeMedecinsConcernes } from "@/modules/ad-pro/partage";
 import { ecoulementMensuel, cleMois } from "@/lib/products/fiche-360";
 import { toNumber } from "@/lib/utils";
 import {

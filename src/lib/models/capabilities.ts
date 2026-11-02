@@ -46,14 +46,14 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { ReasoningEffort, Verbosity } from "./contract";
+import type { ReasoningEffort } from "./contract";
 
 /** Les portes. Le temps réel a la sienne et ne partage aucun constructeur avec les deux autres. */
 export type WireProtocol = "responses" | "chat_completions" | "realtime";
 
 // Les deux vocabulaires viennent du CONTRAT — une seule définition, sinon les listes divergent
 // et l'une des deux finit par autoriser ce que l'autre refuse.
-export type { ReasoningEffort, Verbosity };
+export type { ReasoningEffort };
 
 /**
  * TOUS LES PARAMÈTRES QUE NOTRE CONSTRUCTEUR SAIT ÉMETTRE.
@@ -246,6 +246,8 @@ const FAMILLES: [string, () => ModelCapability][] = [
   ["gpt-5.6-luna", () => MODEL_CAPABILITIES["gpt-5.6-luna"]],
   ["gpt-realtime", () => MODEL_CAPABILITIES["gpt-realtime-2.1"]],
   ["gpt-5", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],
+  // C1 (décision 0042) : Terra et Sol 6.1 (`gpt-6.1-terra`, `gpt-6.1-sol`) — même porte (Responses) et mêmes paramètres que Terra 5.6.
+  ["gpt-6", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],
   ["o1", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],
   ["o3", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],
   ["o4", () => MODEL_CAPABILITIES["gpt-5.6-terra"]],

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { loadCockpit } from "@/lib/queries/sfe-cockpit";
 import { fieldAlerts, monthlyReviewLine, type FieldAlert, type RepSnapshot } from "@/lib/sfe-alerts";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE BALAYAGE DE LA FORCE DE VENTE — la supervision vient au superviseur, et le mois se fige.
@@ -159,14 +160,14 @@ export async function runSfeFieldSweep(now: Date = new Date()): Promise<SfeSweep
           userId, type: "MEDICAL_TOUR", title: a.title, body: a.body,
           // La fiche DU délégué dont parle l'alerte, ouverte dans le pilotage (`?kam=`).
           link: `/planning?kam=${encodeURIComponent(a.repId)}`,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("sfe-sweep.runSfeFieldSweep.notifyUser"));
       }
       // Le verrou se pose sur le PROFIL du KAM : sans profil (KAM non configuré), l'alerte
       // repartira — c'est voulu, elle signale justement qu'il faut le configurer.
       if (profile) {
         await prisma.salesRepProfile.update({
           where: { id: profile.id }, data: { lastAlertKey: a.key, lastAlertAt: now },
-        }).catch(() => undefined);
+        }).catch(sansBloquer("sfe-sweep.runSfeFieldSweep.salesRepProfile"));
       }
       out.alerted += 1;
     }
@@ -215,7 +216,7 @@ export async function runSfeFieldSweep(now: Date = new Date()): Promise<SfeSweep
           title: `Revue ${String(prev.month).padStart(2, "0")}/${prev.year} — ${info.equipes.join(", ")}`,
           body: monthlyReviewLine(siens),
           link: `/planning?y=${prev.year}&m=${prev.month}`,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("sfe-sweep.runSfeFieldSweep.notifyUser"));
         out.reviews += 1;
       }
     }

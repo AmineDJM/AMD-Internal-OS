@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useAction, type OptionsGeste } from "@/components/shared/use-action";
 import { CalendarClock, Loader2, Pause, Play, Plus, Repeat, Trash2 } from "lucide-react";
 import {
   createStockRecurrence, updateStockRecurrence, setStockRecurrenceStatus, deleteStockRecurrence,
@@ -39,20 +39,14 @@ export function RecurrencesPanel({ recurrences, hospitals, users }: {
   hospitals: { id: string; name: string }[];
   users: { id: string; label: string }[];
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, err: error, setErr: setError, run } = useAction();
   const [ouvert, setOuvert] = useState(false);
   const [edite, setEdite] = useState<RecurrenceStockDTO | null>(null);
   const [cadence, setCadence] = useState<string>(RECURRENCE_STOCK_DEFAUT);
   const [coches, setCoches] = useState<string[]>([]);
 
-  const lancer = async (fn: () => Promise<Res>) => {
-    setBusy(true); setError(null);
-    const r = await fn();
-    setBusy(false);
-    if (r.ok) { setOuvert(false); setEdite(null); setCoches([]); router.refresh(); }
-    else setError(r.error ?? "Échec.");
+  const lancer = async (fn: () => Promise<Res>, geste?: OptionsGeste) => {
+    await run(fn, () => { setOuvert(false); setEdite(null); setCoches([]); }, geste);
   };
 
   const ouvrirNeuve = () => {
@@ -125,13 +119,12 @@ export function RecurrencesPanel({ recurrences, hospitals, users }: {
                 </Button>
                 <Button type="button" size="sm" variant="ghost" disabled={busy}
                   onClick={() => {
-                    // LA CONSÉQUENCE, pas « êtes-vous sûr ? » : ce qui est déjà parti reste.
-                    if (!window.confirm(
-                      `Retirer « ${r.name} » ? Les ${r.runCount} demande(s) déjà envoyée(s) restent dans les tâches de ${r.assigneeName} — seules les prochaines s'arrêtent.`,
-                    )) return;
                     const fd = new FormData();
                     fd.set("id", r.id);
-                    void lancer(() => deleteStockRecurrence(fd));
+                    // LA CONSÉQUENCE, pas « êtes-vous sûr ? » : ce qui est déjà parti reste.
+                    void lancer(() => deleteStockRecurrence(fd), {
+                      confirmer: `Retirer « ${r.name} » ? Les ${r.runCount} demande(s) déjà envoyée(s) restent dans les tâches de ${r.assigneeName} — seules les prochaines s'arrêtent.`,
+                    });
                   }}>
                   <Trash2 className="h-3.5 w-3.5" /> Retirer
                 </Button>

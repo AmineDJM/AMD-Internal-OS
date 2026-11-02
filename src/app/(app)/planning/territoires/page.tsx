@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  * établissements, panel par lettre, charge face à la capacité (les chiffres de la Segmentation), cibles H ou A hors panel
  * qu'un clic affecte au délégué du secteur.
  */
-export default async function TerritoiresPage({ searchParams }: { searchParams?: { bu?: string; y?: string; m?: string } }) {
+export default async function TerritoiresPage(props: { searchParams?: Promise<{ bu?: string; y?: string; m?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("SALES_PLANNING");
   const scope = await resolveRepScope(user);
   const bus = await busDuPerimetre(scope, user.id);

@@ -13,7 +13,8 @@ async function derniereVersion(nodeId: string) {
 }
 
 /** LIRE un fichier texte du Drive (JSON : texte, version, tronqué, modifiable). Mêmes droits que la lecture du fichier. */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401, headers: SANS_CACHE });
   const acces = await resolveDriveAccess(user, params.id);

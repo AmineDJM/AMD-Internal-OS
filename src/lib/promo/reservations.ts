@@ -37,8 +37,8 @@
 
 import { MENU_STOCK_PROMO } from "@/lib/chemins/stock-promo";
 import type { PromoFamille } from "@/lib/promo/catalogue";
+import { arrondirAuMillieme } from "@/lib/utils";
 
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 const EPS = 0.0005;
 const nombre = (n: number): string => n.toLocaleString("fr-FR", { maximumFractionDigits: 3 });
 
@@ -55,7 +55,7 @@ function lire(brut: unknown): number | null {
   const s = String(brut ?? "").replace(/\s/g, "").replace(",", ".");
   if (s === "") return null;
   const n = Number(s);
-  return Number.isFinite(n) ? r3(n) : Number.NaN;
+  return Number.isFinite(n) ? arrondirAuMillieme(n) : Number.NaN;
 }
 
 export interface SaisieConfirmation {
@@ -92,7 +92,7 @@ export function lireConfirmation(
     const perdue = lire(s.perdue) ?? 0;
     if ([rendue, abimee, perdue].some((x) => Number.isNaN(x))) return { ok: false, faute: `« ${libelle} » : une quantité est illisible` };
     if ([rendue, abimee, perdue].some((x) => x < 0)) return { ok: false, faute: `« ${libelle} » : une quantité est négative` };
-    const total = r3(rendue + abimee + perdue);
+    const total = arrondirAuMillieme(rendue + abimee + perdue);
     if (Math.abs(total - reservee) > EPS) {
       return {
         ok: false,
@@ -108,7 +108,7 @@ export function lireConfirmation(
   if (utilisee > reservee + EPS) {
     return { ok: false, faute: `« ${libelle} » : ${nombre(utilisee)} remis, mais ${nombre(reservee)} seulement étaient réservés` };
   }
-  const retour = r3(reservee - utilisee);
+  const retour = arrondirAuMillieme(reservee - utilisee);
   return { ok: true, confirmation: { utilisee, rendue: retour, abimee: null, perdue: null, retour } };
 }
 
@@ -131,12 +131,12 @@ export function repartirRetour(tranches: readonly TrancheReservee[], retour: num
   const ordre = [...tranches].sort((a, b) =>
     fin(b) - fin(a) || b.recuLe.getTime() - a.recuLe.getTime() || b.numero - a.numero);
   const out: { lotId: string; quantite: number }[] = [];
-  let reste = r3(retour);
+  let reste = arrondirAuMillieme(retour);
   for (const t of ordre) {
     if (reste <= EPS) break;
-    const q = r3(Math.min(t.quantite, reste));
+    const q = arrondirAuMillieme(Math.min(t.quantite, reste));
     if (q > 0) out.push({ lotId: t.lotId, quantite: q });
-    reste = r3(reste - q);
+    reste = arrondirAuMillieme(reste - q);
   }
   return out;
 }

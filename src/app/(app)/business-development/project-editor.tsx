@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Pencil, Loader2, AlertCircle } from "lucide-react";
 import { updateBdProject } from "@/lib/actions/bd-project-actions";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { BD_PROJECT_STATUS } from "@/lib/labels";
+import { useFormAction } from "@/components/shared/use-action";
 
 export function ProjectEditor({
   id, name, status, description, comment, companyId = null, companies, proposition = null,
@@ -25,10 +26,8 @@ export function ProjectEditor({
   /** L'entité que désignent TOUS ses dossiers — proposée, jamais enregistrée sans un clic. */
   proposition?: string | null;
 }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { action, busy: saving, err, setErr } = useFormAction(updateBdProject, { prepare: (fd) => fd.set("id", id), onOk: () => setOpen(false) });
 
   return (
     <>
@@ -37,13 +36,7 @@ export function ProjectEditor({
       </Button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Modifier le projet" width="lg">
         <form
-          action={async (fd) => {
-            setSaving(true); setErr(null);
-            fd.set("id", id);
-            const r = await updateBdProject(fd);
-            setSaving(false);
-            if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "Erreur.");
-          }}
+          action={action}
           className="space-y-4"
         >
           <div className="space-y-1.5">

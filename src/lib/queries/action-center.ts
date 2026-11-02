@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { tempsEnAttente, peutTenir, estDirectionOperations, estDirectionMarketingPoste } from "@/lib/ad-pro/validation-poste";
+import { tempsEnAttente, peutTenir, estDirectionOperations, estDirectionMarketingPoste } from "@/modules/ad-pro/partage";
 import { canAccessEntity } from "@/lib/entity-access";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
-import { getLeavesToDecide } from "@/lib/queries/hr";
+import { getLeavesToDecide } from "@/modules/rh/api";
 import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIXE_RESTE } from "@/lib/queries/mes-decisions";
 import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
@@ -20,6 +20,7 @@ import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import {
   type BadgeTone, FINANCE_CATEGORY, ENTITY_TYPE_LABELS, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, MEDICAL_INFO_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS,
 } from "@/lib/labels";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Les préfixes d'identité que relisent les consommateurs du centre : l'outil de file d'Adam écarte les
@@ -117,13 +118,15 @@ const resolve = (map: Record<string, { label: string; tone: BadgeTone }>, v: str
 async function libellesAdPro(refs: readonly { type: string; id: string }[]): Promise<Map<string, { titre: string; nature: string; href: string; demandeur: string | null }>> {
   const out = new Map<string, { titre: string; nature: string; href: string; demandeur: string | null }>();
   const ids = (t: string) => refs.filter((r) => r.type === t).map((r) => r.id);
-  const [spo, evt, intl, nat] = await Promise.all([
+  const [spo, evt, intl, nat, aut] = await Promise.all([
     ids("SPONSORING").length ? prisma.sponsoringRequest.findMany({ where: { id: { in: ids("SPONSORING") } }, select: { id: true, reference: true, institution: true, requesterId: true } }) : [],
     ids("EVENT").length ? prisma.event.findMany({ where: { id: { in: ids("EVENT") } }, select: { id: true, name: true, requesterId: true } }) : [],
     ids("CONGRESS_INTERNATIONAL").length ? prisma.congressInternational.findMany({ where: { id: { in: ids("CONGRESS_INTERNATIONAL") } }, select: { id: true, name: true, requesterId: true } }) : [],
     ids("CONGRESS_NATIONAL").length ? prisma.congressNational.findMany({ where: { id: { in: ids("CONGRESS_NATIONAL") } }, select: { id: true, name: true, requesterId: true } }) : [],
+    // La demande « autre » suit le circuit commun depuis le 27/10/2026 (décision #17).
+    ids("AD_PRO_OTHER").length ? prisma.adProOtherRequest.findMany({ where: { id: { in: ids("AD_PRO_OTHER") } }, select: { id: true, reference: true, title: true, requesterId: true } }) : [],
   ]);
-  const demandeurs = [...spo, ...evt, ...intl, ...nat].map((r) => r.requesterId).filter((x): x is string => Boolean(x));
+  const demandeurs = [...spo, ...evt, ...intl, ...nat, ...aut].map((r) => r.requesterId).filter((x): x is string => Boolean(x));
   const noms = new Map((demandeurs.length
     ? await prisma.user.findMany({ where: { id: { in: [...new Set(demandeurs)] } }, select: { id: true, name: true } })
     : []).map((u) => [u.id, u.name]));
@@ -132,6 +135,7 @@ async function libellesAdPro(refs: readonly { type: string; id: string }[]): Pro
   for (const r of evt) out.set(`EVENT:${r.id}`, { titre: r.name, nature: "Événement", href: `/events/${r.id}`, demandeur: nom(r.requesterId) });
   for (const r of intl) out.set(`CONGRESS_INTERNATIONAL:${r.id}`, { titre: r.name, nature: "Prise en charge internationale", href: `/congress-international/${r.id}`, demandeur: nom(r.requesterId) });
   for (const r of nat) out.set(`CONGRESS_NATIONAL:${r.id}`, { titre: r.name, nature: "Prise en charge nationale", href: `/congress-national/${r.id}`, demandeur: nom(r.requesterId) });
+  for (const r of aut) out.set(`AD_PRO_OTHER:${r.id}`, { titre: `${r.reference} — ${r.title}`, nature: "Autre demande", href: `/ad-pro/autres/${r.id}`, demandeur: nom(r.requesterId) });
   return out;
 }
 
@@ -282,6 +286,8 @@ export async function getActionCenter(user: SessionUser) {
       { colonne: "congressNationalId", module: "CONGRESS_NATIONAL", type: "CONGRESS_NATIONAL", path: "/congress-national" },
       { colonne: "congressInternationalId", module: "CONGRESS_INTERNATIONAL", type: "CONGRESS_INTERNATIONAL", path: "/congress-international" },
       { colonne: "eventId", module: "EVENTS", type: "EVENT", path: "/events" },
+      // La demande « autre » porte des postes depuis le 27/10/2026 (décision #17).
+      { colonne: "otherRequestId", module: "AD_PRO_OTHER", type: "AD_PRO_OTHER", path: "/ad-pro/autres" },
     ] as const;
     // DEUX TEMPS (§118.204) : la Direction des opérations, puis la Direction Marketing (montant et
     // budget). La file ne montre à chacun que le temps qu'il TIENT — la règle de l'action
@@ -299,16 +305,18 @@ export async function getActionCenter(user: SessionUser) {
         select: {
           id: true, label: true, amountEstimated: true, budgetKind: true, addedAfterDecision: true, submittedAt: true, createdAt: true,
           opsDecidedAt: true, status: true,
-          sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true,
+          sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
           sponsoring: { select: { requesterId: true } }, congressNational: { select: { requesterId: true } },
           congressInternational: { select: { requesterId: true } }, event: { select: { requesterId: true } },
+          otherRequest: { select: { requesterId: true } },
         },
         orderBy: [{ submittedAt: "asc" }, { createdAt: "asc" }],
         take: LOT_POSTES, skip,
       });
       type PosteLu = Awaited<ReturnType<typeof lirePostes>>[number];
       const demandeurDe = (p: PosteLu) =>
-        p.sponsoring?.requesterId ?? p.congressNational?.requesterId ?? p.congressInternational?.requesterId ?? p.event?.requesterId ?? null;
+        p.sponsoring?.requesterId ?? p.congressNational?.requesterId ?? p.congressInternational?.requesterId ?? p.event?.requesterId
+          ?? p.otherRequest?.requesterId ?? null;
       const postes: PosteLu[] = [];
       let restePeutEtre = false;
       for (let lotsLus = 0; ; lotsLus += 1) {
@@ -339,7 +347,9 @@ export async function getActionCenter(user: SessionUser) {
         const hors = p.budgetKind === "ADDITIONAL" ? "hors budget" : p.addedAfterDecision ? "ajouté après la décision" : null;
         items.push({
           key: `poste-${p.id}`, objet: `AD_PRO_ITEM:${p.id}`, title: p.label,
-          subtitle: [hors, p.opsDecidedAt ? `validé par la Direction des opérations — montant et budget à décider${montant}` : `poste à valider${montant}`].filter(Boolean).join(" · "),
+          // UN SEUL TEMPS (27/10/2026) : `opsDecidedAt` est posé d'office à la soumission — il ne dit plus qu'une
+          // Direction des opérations a validé le poste. La ligne dit ce qui reste à faire, chez la Direction Marketing.
+          subtitle: [hors, `poste à accepter — montant et budget à décider${montant}`].filter(Boolean).join(" · "),
           module: "Ad & Pro", href: `${parent.path}/${parentId}`, kind: "validation", priority: null, deadline: null,
           depuis: (p.submittedAt ?? p.createdAt).toISOString(), owner: "", statusLabel: "À décider", statusTone: "warning",
           montant: p.amountEstimated != null ? toNumber(p.amountEstimated) : null,
@@ -410,12 +420,12 @@ export async function getActionCenter(user: SessionUser) {
       where: MARCHE_N1_MISSIONS(user.id),
       select: { id: true, type: true, createdAt: true, details: true, employee: { select: { fullName: true } } },
       orderBy: { createdAt: "asc" }, take: 30,
-    }).catch(() => []),
+    }).catch(sansBloquer("action-center.getActionCenter.hrDocumentRequest", [])),
     prisma.missionAssignment.findMany({
       where: { userId: user.id, archivedAt: null, response: "INVITEE" },
       select: { id: true, createdAt: true, dateDepart: true },
       orderBy: { createdAt: "asc" }, take: 30,
-    }).catch(() => []),
+    }).catch(sansBloquer("action-center.getActionCenter.missionAssignment", [])),
   ]);
   for (const o of omAValider) {
     items.push({
@@ -441,11 +451,12 @@ export async function getActionCenter(user: SessionUser) {
   // Un contrat de consulting RENVOYÉ est un brouillon qui porte son renvoi (audit 360°, lot C4a) — dans
   // les pôles que la personne lit : un contrat passé aux RH ne s'ouvre plus pour qui n'a pas les RH.
   const polesDuPorteur = polesLisibles((m) => userCan(user, m, "VIEW"));
-  const [spoR, ciR, cnR, evR, coR, payR, recR, planR] = await Promise.all([
+  const [spoR, ciR, cnR, evR, autR, coR, payR, recR, planR] = await Promise.all([
     prisma.sponsoringRequest.findMany({ where: { requesterId: user.id, status: "RETURNED" }, select: { id: true, reference: true, institution: true }, orderBy: { updatedAt: "asc" }, take: PLAFOND_A_CORRIGER + 1 }),
     prisma.congressInternational.findMany({ where: { requesterId: user.id, requestStatus: "RETURNED" }, select: { id: true, name: true }, orderBy: { updatedAt: "asc" }, take: PLAFOND_A_CORRIGER + 1 }),
     prisma.congressNational.findMany({ where: { requesterId: user.id, requestStatus: "RETURNED" }, select: { id: true, name: true }, orderBy: { updatedAt: "asc" }, take: PLAFOND_A_CORRIGER + 1 }),
     prisma.event.findMany({ where: { requesterId: user.id, requestStatus: "RETURNED" }, select: { id: true, name: true }, orderBy: { updatedAt: "asc" }, take: PLAFOND_A_CORRIGER + 1 }),
+    prisma.adProOtherRequest.findMany({ where: { requesterId: user.id, status: "RETURNED" }, select: { id: true, reference: true, title: true }, orderBy: { updatedAt: "asc" }, take: PLAFOND_A_CORRIGER + 1 }),
     polesDuPorteur.length
       ? prisma.consultingContract.findMany({
           where: { requesterId: user.id, status: "DRAFT", returnedAt: { not: null }, pole: { in: polesDuPorteur } },
@@ -479,6 +490,7 @@ export async function getActionCenter(user: SessionUser) {
     ...ciR.map((r) => ({ type: "CONGRESS_INTERNATIONAL", id: r.id, titre: r.name, nature: "Prise en charge internationale", href: `/congress-international/${r.id}` })),
     ...cnR.map((r) => ({ type: "CONGRESS_NATIONAL", id: r.id, titre: r.name, nature: "Prise en charge nationale", href: `/congress-national/${r.id}` })),
     ...evR.map((r) => ({ type: "EVENT", id: r.id, titre: r.name, nature: "Événement", href: `/events/${r.id}` })),
+    ...autR.map((r) => ({ type: "AD_PRO_OTHER", id: r.id, titre: `${r.reference} — ${r.title}`, nature: "Autre demande", href: `/ad-pro/autres/${r.id}` })),
   ];
   // Le renvoi d'un contrat vit SUR le contrat (`returnNote`), pas dans le journal du moteur Ad & Pro.
   const renvoisContrats = new Map(coR.map((r) => [r.id, r.returnNote]));
@@ -703,8 +715,9 @@ export async function getActionCenter(user: SessionUser) {
         kind: "validation", priority: null, deadline: null, depuis: null, owner: "", statusLabel: "À arbitrer", statusTone: "warning",
       });
     }
-    // Consulting et « autre demande » n'ont pas de circuit à étapes : ce qui les attend se lit sur
-    // leur statut, et la règle de décision est celle de leur action (`peutSurLeContrat`, VALIDATE).
+    // Le consulting n'a pas de circuit à étapes : ce qui l'attend se lit sur son statut, et la règle de
+    // décision est celle de son action (`peutSurLeContrat`, VALIDATE). La demande « autre », elle, suit le
+    // circuit commun depuis le 27/10/2026 (décision #17) : elle est listée plus haut, sur l'étape qui l'attend.
     // UNE COUPE SE DIT (§118.60) : on lit un de plus que ce qu'on montre ; s'il existe, une ligne
     // le dit et mène à la liste. Le compte exact demanderait la porte de chaque ligne de la base.
     const PLAFOND = 30;
@@ -731,7 +744,7 @@ export async function getActionCenter(user: SessionUser) {
         where: { status: "AWAITING_VALIDATION", pole: "AD_PRO", OR: [{ validatorId: null }, { validatorId: user.id }] },
         select: { id: true, reference: true, title: true },
         orderBy: { updatedAt: "asc" }, take: FENETRE,
-      }).catch(() => []);
+      }).catch(sansBloquer("action-center.getActionCenter.consultingContract", []));
       // Non datés : aucun champ ne dit quand un contrat est entré en validation (07-05 — on ne l'invente pas).
       await lister(contrats, "CONSULTING_CONTRACT", (c) => ({
         key: `arb-cons-${c.id}`, objet: `CONSULTING_CONTRACT:${c.id}`, title: c.title, subtitle: `Consulting · ${c.reference}`, module: "Ad & Pro",
@@ -740,21 +753,6 @@ export async function getActionCenter(user: SessionUser) {
       }), {
         key: "arb-cons-reste", objet: `${PREFIXE_RESTE}consulting`, title: "D'autres contrats de consulting attendent votre validation", subtitle: "Les plus anciens sont listés ci-dessus",
         module: "Ad & Pro", href: "/consulting", kind: "validation", priority: null, deadline: null, depuis: null, owner: "", statusLabel: "À valider", statusTone: "warning",
-      });
-    }
-    if (userCan(user, "AD_PRO_OTHER", "VALIDATE")) {
-      const autres = await prisma.adProOtherRequest.findMany({
-        where: { status: "AWAITING_DECISION" },
-        select: { id: true, reference: true, title: true },
-        orderBy: { updatedAt: "asc" }, take: FENETRE,
-      }).catch(() => []);
-      await lister(autres, "AD_PRO_OTHER", (a) => ({
-        key: `arb-autre-${a.id}`, objet: `AD_PRO_OTHER:${a.id}`, title: a.title, subtitle: `Autre demande · ${a.reference}`, module: "Ad & Pro",
-        href: `/ad-pro/autres/${a.id}`, kind: "validation", priority: null, deadline: null, depuis: null, owner: "",
-        statusLabel: "À décider", statusTone: "warning",
-      }), {
-        key: "arb-autre-reste", objet: `${PREFIXE_RESTE}autres`, title: "D'autres demandes attendent votre décision", subtitle: "Les plus anciennes sont listées ci-dessus",
-        module: "Ad & Pro", href: "/ad-pro", kind: "validation", priority: null, deadline: null, depuis: null, owner: "", statusLabel: "À décider", statusTone: "warning",
       });
     }
   }

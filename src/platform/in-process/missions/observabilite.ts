@@ -18,6 +18,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import type { ActionObservee, DecisionPermission, ObservabiliteMission } from "@/platform/contract";
+import { sansBloquer } from "@/lib/journal";
 
 /** Les treize champs du mandat — l'ordre est celui de l'énoncé. */
 export const CHAMPS_ACTION = [
@@ -73,7 +74,7 @@ export async function observabiliteMission(missionId: string, ownerId: string): 
 
   const appels = await prisma.modelCallLog.groupBy({
     by: ["model"], where: { missionId: m.id }, _count: { _all: true }, _sum: { costUsd: true },
-  }).catch(() => [] as { model: string; _count: { _all: number }; _sum: { costUsd: unknown } }[]);
+  }).catch(sansBloquer("observabilite.observabiliteMission.modelCallLog", [] as { model: string; _count: { _all: number }; _sum: { costUsd: unknown } }[]));
   const modeles = appels.map((a) => ({ modele: a.model, appels: a._count._all, coutUsd: a._sum.costUsd == null ? null : Number(a._sum.costUsd) }));
 
   const parEtape = new Map<string, (typeof m.workerRuns)[number]>();

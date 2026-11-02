@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { loadReportingLine } from "@/lib/departments";
-import { subtreeOf, flattenTree, type TeamTreeNode } from "@/lib/hr/team-tree";
+import {
+  subtreeOf, flattenTree, type TeamTreeNode, aujourdhuiAlger, chevauchementsDe, couvreLeJour, jourDuConge,
+  minuitUtc, periodesCommunes, type AbsenceDEquipe, type PeriodeCommune,
+} from "@/modules/rh/partage";
 import { toNumber } from "@/lib/utils";
 import { getAppSettings } from "@/lib/settings";
 import type { Module, SessionUser } from "@/lib/rbac";
@@ -10,10 +13,6 @@ import { STATUT_PLAN_LABELS, clausePlansADecider, type StatutPlan } from "@/lib/
 import { lienDeLigne, type LienDeLigne } from "@/lib/queries/lien-ouvrable";
 import { lienFormation } from "@/lib/chemins/formations";
 import { MARCHE_N1_MISSIONS } from "@/lib/queries/missions";
-import {
-  aujourdhuiAlger, chevauchementsDe, couvreLeJour, jourDuConge, minuitUtc, periodesCommunes,
-  type AbsenceDEquipe, type PeriodeCommune,
-} from "@/lib/hr/absences";
 
 /**
  * MON ÉQUIPE — ce qu'un encadrant a réellement besoin de voir sur ses N-1.

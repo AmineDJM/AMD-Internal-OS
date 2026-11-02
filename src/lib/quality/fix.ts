@@ -50,8 +50,6 @@ const CORRECTEURS: Record<string, Correcteur> = {
   },
 };
 
-export const CHAMPS_CORRIGEABLES: readonly string[] = Object.keys(CORRECTEURS);
-
 export async function appliquerCorrection(
   constat: Pick<Constat, "regle" | "module" | "titre" | "correction">,
   opts: { acteurId: string | null; acteurNom?: string | null },

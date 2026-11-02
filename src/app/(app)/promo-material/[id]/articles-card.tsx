@@ -14,6 +14,8 @@ import { libellesPromusDeLArticle, type ArticleDemandeLu } from "@/lib/promo-mat
 import type { ArticleDeLaFiche, EtatPrestation } from "@/lib/promo-material/fiche";
 import type { OptionCatalogue } from "@/lib/queries/promo-achats";
 import type { ActionResult } from "@/lib/actions/types";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { MenuLigne, type EntreeMenu } from "./menu-ligne";
 
 /**
@@ -59,12 +61,20 @@ export function PromoArticlesCard({ id, lignes, canEdit, options, avertissement,
   const [err, setErr] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const occupe = saving || enCours;
+  const confirmer = useConfirmer();
 
   const geste = async (fn: () => Promise<ActionResult>) => {
     setSaving(true); setErr(null); setMsg(null);
-    const r = await fn();
-    setSaving(false);
-    if (r.ok) { setMsg(r.message ?? null); rafraichir(); } else setErr(r.error ?? "Action impossible.");
+    let r: ActionResult;
+    try {
+      r = await fn();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
+    if (r.ok) { setMsg(r.message ?? null); rafraichir(); } else setErr(r.error ?? "Le geste n'a pas abouti.");
   };
   const fdArticle = (a: ArticleDemandeLu) => { const fd = new FormData(); fd.set("promoMaterialId", id); fd.set("requestItemId", a.id); return fd; };
   const ouvrir = (a: ArticleDemandeLu | "nouveau") => { setLibre(a !== "nouveau" && Boolean(a.horsCatalogue)); setEdition(a); };
@@ -126,7 +136,12 @@ export function PromoArticlesCard({ id, lignes, canEdit, options, avertissement,
   };
 
   const action = async (_prev: ActionResult | undefined, fd: FormData): Promise<ActionResult> => {
-    const r = await enregistrerArticleDemandePromo(fd);
+    let r: ActionResult;
+    try {
+      r = await enregistrerArticleDemandePromo(fd);
+    } catch {
+      return { ok: false, error: actionFailureMessage("THROWN") };
+    }
     if (r.ok) { setMsg(r.message ?? null); setErr(null); rafraichir(); }
     return r;
   };
@@ -136,7 +151,7 @@ export function PromoArticlesCard({ id, lignes, canEdit, options, avertissement,
     ...(peutProposer && a.horsCatalogue
       ? [{ libelle: tientLeCatalogue ? "Ajouter au catalogue" : "Proposer au catalogue", onClick: () => geste(() => proposerArticleAuCataloguePromo(fdArticle(a))), disabled: occupe }]
       : []),
-    ...(canEdit ? [{ libelle: "Retirer de la demande", danger: true, onClick: () => { if (confirm(`Retirer ${a.reference} ${a.nom} de la demande ?`)) void geste(() => retirerArticleDemandePromo(fdArticle(a))); }, disabled: occupe }] : []),
+    ...(canEdit ? [{ libelle: "Retirer de la demande", danger: true, onClick: async () => { if (await confirmer(`Retirer ${a.reference} ${a.nom} de la demande ?`)) void geste(() => retirerArticleDemandePromo(fdArticle(a))); }, disabled: occupe }] : []),
   ];
 
   return (

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
-import { dossierStageLabel } from "./regulatory-read";
+import { dossierStageLabel } from "@/platform/ia/lectures/regulatory-read";
 import { completeStepsThrough, REG_STEPS } from "@/lib/regulatory-workflow";
 
 /**
@@ -161,7 +161,7 @@ suite("regulatory_workload / regulatory_portfolio — gérer ≠ accéder, parte
 
 describe("regulatory_knowledge — la connaissance se lit à la demande, par section", () => {
   it("rend tout le cadre sans sujet, et UNE section ciblée avec — jamais vide", async () => {
-    const { extraireConnaissanceReglementaire } = await import("./regulatory-read");
+    const { extraireConnaissanceReglementaire } = await import("@/platform/ia/lectures/regulatory-read");
     const tout = extraireConnaissanceReglementaire(null);
     expect(tout).toContain("DROITS D'ENREGISTREMENT");
     expect(tout).toContain("MOTIFS DE REFUS");

@@ -4,7 +4,6 @@ import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { lancerMission, avancerMission } from "@/platform/in-process/missions/runtime";
 import { RaisonneurScripte, pour, planScripte } from "@/platform/in-process/missions/fake-reasoner";
-import { decider } from "@/lib/missions/approval/gate";
 import { chargerEtat } from "@/lib/missions/runtime/store";
 import { BAIL_MS } from "@/lib/missions/runtime/engine";
 import { capabilityMeta } from "@/lib/missions/registry/capability-meta";

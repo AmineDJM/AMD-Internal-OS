@@ -13,6 +13,7 @@ import { WilayaPivotKam } from "./wilaya-pivot";
 import type { EtabOpt } from "./choix-etablissements";
 import type { BuRow, KamRow, LectureOrg, Opt, ProductRow, ReferentRow } from "./bu-manager";
 import { InfoBulle } from "@/components/ui/info-bulle";
+import { useConfirmer } from "@/components/ui/dialogue";
 
 /**
  * LES ÉTAPES DU MONTAGE D'UNE BU (Direction, 07/10 : « découpées en étapes au lieu d'un écran de 14 blocs ») — la BU et
@@ -46,6 +47,7 @@ export function EtapeIdentite({ bu, companies, supervisors, users, steps, saveBu
   departements?: Opt[];
   lectureOrg?: LectureOrg | null;
 }) {
+  const confirmer = useConfirmer();
   const nomDe = (id: string | null) => (id ? users.find((u) => u.id === id)?.name ?? supervisors.find((u) => u.id === id)?.name ?? null : null);
   const propose = lectureOrg?.propose && lectureOrg.propose !== bu.supervisorId ? lectureOrg.propose : null;
   // Le superviseur proposé n'est pas toujours dans la liste des candidats par rôle : il reste choisissable.
@@ -103,8 +105,8 @@ export function EtapeIdentite({ bu, companies, supervisors, users, steps, saveBu
           <button
             type="button" title="Supprimer la BU" aria-label="Supprimer la BU"
             className={`${iconBtnCls} text-destructive hover:bg-destructive/10`}
-            onClick={() => {
-              if (!window.confirm(`Supprimer la BU « ${bu.name} » ?`)) return;
+            onClick={async () => {
+              if (!(await confirmer(`Supprimer la BU « ${bu.name} » ?`))) return;
               const fd = new FormData(); fd.set("id", bu.id);
               void run(deleteBusinessUnit, fd);
             }}
@@ -348,6 +350,7 @@ function KamLine({ kam, buId, config, busy, run, hospitaliere }: {
 
 /** Une ligne de produit : son dossier d'origine, son canal, son Direction Marketing. */
 function ProductLine({ prod, buChannel, users, busy, run }: { prod: ProductRow; buChannel: string; users: Opt[]; busy: boolean; run: Run }) {
+  const confirmer = useConfirmer();
   function save(patch: Partial<ProductRow>, refresh = false) {
     const next = { ...prod, ...patch };
     const fd = new FormData();
@@ -379,8 +382,8 @@ function ProductLine({ prod, buChannel, users, busy, run }: { prod: ProductRow; 
         <button
           type="button" title="Supprimer le produit" aria-label="Supprimer le produit" disabled={busy}
           className={`${iconBtnCls} text-destructive hover:bg-destructive/10`}
-          onClick={() => {
-            if (!window.confirm(`Supprimer « ${prod.name} » du catalogue promotionnel ?`)) return;
+          onClick={async () => {
+            if (!(await confirmer(`Supprimer « ${prod.name} » du catalogue promotionnel ?`))) return;
             const fd = new FormData(); fd.set("id", prod.id);
             void run(deletePromoProduct, fd, true);
           }}

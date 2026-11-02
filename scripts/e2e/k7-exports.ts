@@ -1,0 +1,41 @@
+/**
+ * K7 (décision 0037) POUR L'E2E AU FAUX MODÈLE — sous `tsx`, avec le code de PRODUCTION du fil et des outils.
+ *
+ *   demander <email> <message>   dépose le message dans SON fil, puis le JOUE au FAUX MODÈLE : le modèle appelle
+ *                                `exporter_suivi_regulatory` (le vrai export, déposé au Drive), puis `send_message` avec
+ *                                la pièce (son nodeId, relu dans la sortie de l'outil), puis répond avec les deux liens.
+ *                                L'écran n'en sait rien que par sa relecture (`/api/assistant-ia/fil`), comme en vrai.
+ *
+ * Pour quand le vrai modèle n'est pas joignable (crédit épuisé) : la preuve d'ÉCRAN reste faisable — la carte, le
+ * téléchargement, l'envoi — ; le passage au vrai modèle est le banc `scripts/bench/k7-exports.ts`.
+ */
+import { prisma } from "@/lib/prisma";
+import { executerHorsRequete, personneDuGeste } from "@/lib/contexte-geste";
+import { deposerMessage, traiterFil } from "@/modules/assistant-ia/api";
+import { modeleFactice, remplacerModelesPourTests } from "@/modules/assistant-ia/api-banc";
+
+async function main(): Promise<void> {
+  const [cmd, email, message] = process.argv.slice(2);
+  if (cmd !== "demander" || !email || !message) throw new Error("usage : k7-exports.ts demander <email> <message>");
+  const u = await prisma.user.findUniqueOrThrow({ where: { email }, select: { id: true } });
+  const nodeId = (prompt: string) => [...prompt.matchAll(/\\?"nodeId\\?":\s*\\?"(c[a-z0-9]{20,})/g)].at(-1)?.[1] ?? "";
+  const f = modeleFactice([
+    // Les outils se TROUVENT d'abord (seuls les actifs d'une étape partent au modèle), comme le fait le vrai modèle.
+    { appel: { outil: "trouver_outil", entree: { intention: "exporter le suivi regulatory en excel et envoyer un message à un collègue" } } },
+    { appel: { outil: "exporter_suivi_regulatory", entree: {} } },
+    (p) => ({ appel: { outil: "send_message", entree: { recipientName: "Amel Haddad", body: "Voici le suivi Regulatory.", pieces: [nodeId(p)] } } }),
+    (p) => ({ texte: JSON.stringify({ message: `Le suivi Regulatory est prêt : [Télécharger](/api/drive/${nodeId(p)}/raw?dl=1). Le message à Amel Haddad attend votre confirmation.`, components: [] }) }),
+  ]);
+  remplacerModelesPourTests([f.modele as never]);
+  const d = await executerHorsRequete((await personneDuGeste(u.id))!, "essai", async () => {
+    const depot = await deposerMessage(u.id, message, []);
+    if (!depot.ok) throw new Error(depot.erreur);
+    await traiterFil(u.id, depot.conversation);
+    return depot;
+  }).then((x) => x.resultat);
+  const reponse = await prisma.assistantIaTour.findFirst({ where: { repondA: d.tour.id }, select: { etat: true, contenu: true, erreur: true } });
+  // La conversation où le message est déposé : l'écran l'ouvre (`/ia?c=…`).
+  process.stdout.write(JSON.stringify({ conversation: d.conversation, tours: f.toursJoues(), reponse }));
+}
+
+main().then(() => prisma.$disconnect()).catch(async (e) => { console.error(e); await prisma.$disconnect(); process.exit(1); });

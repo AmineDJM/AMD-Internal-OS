@@ -5,8 +5,8 @@ import type { PchTenderStatus, PchOrderStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { referenceDeSerie } from "@/lib/refs";
 import { supprimerReversible } from "@/lib/suppression/coeur";
-import { buildRef } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { refreshLinkLabels } from "@/lib/links/store";
 import { persistUploadedDocument } from "@/lib/documents";
@@ -20,6 +20,23 @@ const int = (formData: FormData, key: string) => Math.max(0, Math.round(fdNum(fo
 
 // ───────────────────────────── Appels d'offres ─────────────────────────────
 
+/**
+ * La prochaine référence « AO-AAAA-NNN » — le compteur de la série (DONNEES-12). Une référence SAISIE à la main peut
+ * avoir pris un numéro que le compteur donne ensuite : on passe au suivant, borné.
+ */
+async function prochaineReferenceAO(): Promise<string> {
+  const year = new Date().getFullYear();
+  let reference = "";
+  for (let essai = 0; essai < 5; essai++) {
+    reference = await referenceDeSerie({
+      modele: "PchTender", prefixe: "AO", annee: year,
+      existantes: async () => (await prisma.pchTender.findMany({ where: { reference: { startsWith: `AO-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+    });
+    if ((await prisma.pchTender.count({ where: { reference } })) === 0) break;
+  }
+  return reference;
+}
+
 export async function createTender(
   _prev: ActionResult | undefined,
   formData: FormData,
@@ -27,11 +44,7 @@ export async function createTender(
   const user = await requireUser();
   if (!userCan(user, "PCH", "CREATE")) return { ok: false, error: "Non autorisé." };
   let reference = fdStr(formData, "reference");
-  if (!reference) {
-    const year = new Date().getFullYear();
-    const refs = await prisma.pchTender.findMany({ where: { reference: { startsWith: `AO-${year}-` } }, select: { reference: true } });
-    reference = buildRef("AO", year, refs.map((r) => r.reference));
-  }
+  if (!reference) reference = await prochaineReferenceAO();
   const exists = await prisma.pchTender.findUnique({ where: { reference }, select: { id: true } });
   if (exists) return { ok: false, error: "Cette référence existe déjà." };
   // L'ENTITÉ DU MARCHÉ est l'une de celles que le formulaire propose (`getMyCompanies`) — un identifiant
@@ -262,9 +275,12 @@ export async function deleteOrder(formData: FormData): Promise<ActionResult> {
   if (!userCan(user, "PCH", "DELETE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
-  const order = await prisma.pchOrder.findUnique({ where: { id }, select: { tenderId: true } });
+  const order = await prisma.pchOrder.findUnique({ where: { id }, select: { tenderId: true, reference: true } });
   if (!order || !(await peutAgirSurLeMarche(user, order.tenderId, "DELETE"))) return { ok: false, error: "Bon de commande introuvable." };
-  await prisma.pchOrder.delete({ where: { id } });
+  // PAR LE CŒUR RÉVERSIBLE (audit 27/10, DONNEES-15) : refusé s'il a été livré ; sinon à la corbeille avec ses lignes
+  // et ses livraisons attendues, tracé. Le `delete` d'avant effaçait tout, sans journal ni retour.
+  const r = await supprimerReversible("PCH_ORDER", id, user.id, `Suppression d'un bon de commande de marché — ${order.reference ?? id} (restaurable depuis la corbeille)`);
+  if (!r.ok) return { ok: false, error: r.error ?? "Suppression impossible." };
   revalidatePath(`/pch/${order.tenderId}`);
-  return { ok: true };
+  return { ok: true, message: "Bon de commande supprimé — restaurable depuis la corbeille." };
 }

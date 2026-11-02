@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dispositionPourBucket } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
-import { canAccessEntity } from "@/lib/entity-access";
-import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "@/lib/ad-pro/passeport-acces";
+import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 import { readFileByKey } from "@/lib/storage";
 import { cleObjetDirect, infoBlob } from "@/lib/drive-storage";
 import { presignGetUrl } from "@/lib/storage/object-storage";
@@ -17,23 +16,16 @@ import { qualiteDeLaRequete, repondreFichier } from "@/lib/http/telechargement";
  * `?qualite=max|reduite|estimer` — voir `@/lib/http/telechargement` (la porte unique). Les DROITS
  * sont ceux d'avant et ne dépendent pas de la qualité : la version réduite n'ouvre rien de plus.
  */
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 
   const doc = await prisma.document.findUnique({ where: { id: params.id } });
   if (!doc) return NextResponse.json({ error: "Introuvable" }, { status: 404 });
 
-  // Le passeport d'un voyageur s'ouvre aussi à qui réserve son billet (audit 360°, I10) — une porte
-  // ÉTROITE, à la pièce près : voir `peutLirePasseportDuSujet`.
-  // Même porte pour un congrès (passeports, billets émis, vouchers, livrets de séjour) : `peutLirePieceDePriseEnCharge`.
-  const allowed = (await canAccessEntity(user, doc.entityType, doc.entityId, "VIEW"))
-    || (await peutLirePasseportDuSujet(user.id, doc))
-    || (await peutLirePieceDePriseEnCharge(user, doc));
-  if (!allowed) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  // La règle est partagée avec la recherche de la bibliothèque (`entity-access/ouverture-pieces.ts`).
+  if (!(await peutOuvrirDocument(user, doc))) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
   if (!doc.fileKey) {
     return NextResponse.json(
