@@ -100,4 +100,9 @@ export interface Domaine {
   nom: string;
   taches: Tache[];
   semer?: SemisDeDomaine;
+  /**
+   * Retire ce que le semis du domaine a créé hors des comptes (appelé par `retirerAudit` AVANT la suppression des comptes) —
+   * un semis doit être REJOUABLE : semer, retirer, semer à nouveau sur la même base (tenu par `semis-rejouable.test.ts`).
+   */
+  retirer?: (etiquette: string, userIds: string[]) => Promise<void>;
 }

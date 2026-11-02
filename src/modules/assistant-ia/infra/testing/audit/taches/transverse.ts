@@ -10,6 +10,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { nomComplet } from "../personas";
+import { prisma } from "@/lib/prisma";
 import { demandeAdProAutre, deposerPiece, dossierDrive, pdf } from "./aides";
 import { tache as t, type SemisDeDomaine, type Tache } from "./types";
 
@@ -135,3 +136,8 @@ export const SEMIS_TRANSVERSE: SemisDeDomaine = async ({ users, companyId, etiqu
     ])),
   };
 };
+
+/** Le retrait du domaine : les demandes Ad & Pro semées pour le KAM (référence `AUT-TR<étiquette>-n`) et celles que ses tâches ont créées. */
+export async function RETIRER_TRANSVERSE(etiquette: string, userIds: string[]): Promise<void> {
+  await prisma.adProOtherRequest.deleteMany({ where: { OR: [{ reference: { startsWith: `AUT-TR${etiquette}-` } }, { requesterId: { in: userIds } }] } });
+}
