@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import { MODULES } from "@/lib/rbac/modules";
 import { MODELES_SENSIBLES } from "@/modules/coffre/partage";
 import { FAMILLES_IA } from "@/platform/ia/capacites/familles";
+import { CATALOGUE_BASES } from "@/modules/acces-bases/partage";
 
 /**
  * LE CLIQUET DU CATALOGUE DES « BASES » (lot D1, `docs/architecture/BASES-DE-DONNEES.md`).
@@ -63,6 +64,13 @@ describe("catalogue des bases — chaque table rangée exactement une fois", () 
         if (t.sensibilite !== "public-interne") expect(NIVEAUX.indexOf(t.sensibilite), `${t.modele} moins sensible que sa base`).toBeGreaterThanOrEqual(NIVEAUX.indexOf(b.sensibilite));
       }
     }
+  });
+});
+
+describe("catalogue des bases — l'application lit le même catalogue (module acces-bases)", () => {
+  it("le catalogue applicatif généré est à jour", () => {
+    const attendu = catalogue.bases.map((b) => ({ cle: b.cle, tables: b.tables.map((t) => t.modele) }));
+    expect(CATALOGUE_BASES.map((b) => ({ cle: b.cle, tables: [...b.tables] })), "`npm run bases:generer`").toEqual(attendu);
   });
 });
 

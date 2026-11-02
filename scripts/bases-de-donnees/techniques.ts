@@ -29,6 +29,8 @@ export const BASES_TECHNIQUES: BaseDef[] = [
       RowGrant: "Accès à une ligne précise",
       AssistantIaAcces: "Familles de l'assistant ouvertes ou fermées (rôle ou personne)",
       AssistantIaDroitDate: "Droit daté de l'assistant sur une famille sensible",
+      AccesBase: "Réglage d'accès à une base (rôle ou personne, daté)",
+      AccesBaseParametre: "Paramètre d'une base (accès à ses propres données)",
       SupplierUser: "Compte du portail fournisseur",
       ApiClient: "Client de l'API externe",
       MailAccount: "Boîte de courriel connectée",

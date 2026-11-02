@@ -149,7 +149,30 @@ function markdown(c: Catalogue): string {
   return out.join("\n");
 }
 
+/**
+ * Le catalogue COMPACT côté application (module `acces-bases`, règle pure) : base → tables, sans libellés de tables.
+ * Une ligne par base : le fichier reste court et un diff dit exactement quelle table a changé de base.
+ */
+function catalogueApplicatif(c: Catalogue): string {
+  const lignes = c.bases.map((b) => "  " + JSON.stringify({
+    cle: b.cle, nom: b.nom, nature: b.nature, sensibilite: b.sensibilite,
+    modules: b.acces.modules.map((m) => m.cle), ...(b.acces.lectureExige ? { lectureExige: b.acces.lectureExige } : {}),
+    famillesIa: b.acces.famillesIa, tables: b.tables.map((t) => t.modele),
+  }) + ",");
+  return [
+    "// GÉNÉRÉ par `npm run bases:generer` (scripts/bases-de-donnees.ts) — ne pas éditer à la main.",
+    "// Le catalogue des bases (lot D1, décision 0057) vu par l'application : chaque table du schéma, rangée une fois.",
+    'import type { BaseCatalogue } from "./types";',
+    "",
+    "export const CATALOGUE_BASES: readonly BaseCatalogue[] = [",
+    ...lignes,
+    "];",
+    "",
+  ].join("\n");
+}
+
 const catalogue = construire();
+writeFileSync(join(RACINE, "src/modules/acces-bases/domaine/catalogue.genere.ts"), catalogueApplicatif(catalogue));
 writeFileSync(join(RACINE, "docs/architecture/bases-de-donnees.json"), JSON.stringify(catalogue, null, 1) + "\n");
 const docPath = join(RACINE, "docs/architecture/BASES-DE-DONNEES.md");
 const doc = readFileSync(docPath, "utf8");
