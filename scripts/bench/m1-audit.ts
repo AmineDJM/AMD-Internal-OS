@@ -317,6 +317,29 @@ async function main() {
     if (visible) { await b.click(); await page.waitForTimeout(1000); }
     lignes.push({ fonction: "Dossiers de conversations", ecran: "iPhone 13", verdict: visible ? "marche" : "marche mal", preuve: `bouton « Nouveau dossier » : ${visible}`, captures: [await capture(page, "iphone-18-dossiers")] });
   });
+  // ── DIRECTION 02/11 : « enlève la limite » — un texte collé n'est jamais coupé (60 000 entier, 600 000 en pièce).
+  const long = (n: number) => {
+    let t = "";
+    for (let i = 0; t.length < n; i++) t += `Point ${i} du compte rendu : la réunion a validé l'étape ${i}. `;
+    return `${t.slice(0, n - 11)} FIN-COLLEE`;
+  };
+  await etape("texte-long", async () => {
+    await nouvelle(page, true);
+    const t60 = `Résume en deux phrases ce compte rendu, et dis-moi par quoi il se termine.\n${long(60_000)}`;
+    const r = await envoyer(page, t60, 180);
+    const q = r ? await prisma.assistantIaTour.findUnique({ where: { id: r.repondA ?? "" }, select: { contenu: true } }) : null;
+    const c1 = await capture(page, "iphone-27-texte-60000");
+    lignes.push({ fonction: "Texte collé de 60 000 caractères — envoyé ENTIER", ecran: "iPhone 13", verdict: q?.contenu.length === t60.length && contient(r?.contenu, "FIN-COLLEE") ? "marche" : q?.contenu.length === t60.length ? "marche mal" : "ne marche pas", preuve: `message en base : ${q?.contenu.length} caractères sur ${t60.length} ; réponse : « ${r?.contenu?.slice(0, 200)} »`, captures: [c1] });
+    await nouvelle(page, true);
+    const t600 = `Résume ce très long texte en une phrase.\n${long(600_000)}`;
+    const r2 = await envoyer(page, t600, 300);
+    const q2 = r2 ? await prisma.assistantIaTour.findUnique({ where: { id: r2.repondA ?? "" }, select: { contenu: true, pieces: true } }) : null;
+    const piece = ((q2?.pieces as { id: string; nom: string }[] | null) ?? [])[0];
+    const n = piece ? await prisma.driveNode.findUnique({ where: { id: piece.id }, select: { size: true } }) : null;
+    const c2 = await capture(page, "iphone-28-texte-600000-piece");
+    lignes.push({ fonction: "Texte collé de 600 000 caractères — devenu une pièce lue", ecran: "iPhone 13", verdict: n && Number(n.size) === Buffer.byteLength(t600, "utf8") && r2?.etat === "TERMINE" ? "marche" : n ? "marche mal" : "ne marche pas", preuve: `pièce « ${piece?.nom} » (${n?.size} octets, texte ${Buffer.byteLength(t600, "utf8")} octets) ; réponse : « ${r2?.contenu?.slice(0, 200)} »`, captures: [c2] });
+  });
+
   // ── LE COMPLÉMENT DE LA DIRECTION (session parente) : tout ce que l'app offre, au pouce, comme l'ERP.
   const ouvrirListe = async () => { await page.getByLabel("Ouvrir la liste des conversations").click(); await page.waitForTimeout(400); };
   const fermerPanneau = async () => { await page.keyboard.press("Escape"); await page.waitForTimeout(500); };
@@ -434,6 +457,15 @@ async function main() {
     await b.page.getByRole("dialog", { name: "Ce qu'il retient" }).getByTestId("souvenir").first().waitFor({ timeout: 10_000 });
     const c2 = await capture(b.page, "bureau-02-panneau");
     lignes.push({ fonction: "Bureau — ligne « Retenu » et panneau", ecran: "bureau 1440", verdict: "marche", preuve: "conversation et panneau affichés", captures: [c1, c2] });
+    if (SEULES.includes("texte-long-bureau")) {
+      const p = b.page;
+      await p.keyboard.press("Escape");
+      await p.getByRole("button", { name: /Nouvelle conversation/ }).first().click();
+      const t = `Combien de points compte ce compte rendu ? Réponds par le numéro du dernier point.\n${long(60_000)}`;
+      const r = await envoyer(p, t, 180);
+      const q = r ? await prisma.assistantIaTour.findUnique({ where: { id: r.repondA ?? "" }, select: { contenu: true } }) : null;
+      lignes.push({ fonction: "Bureau — texte collé de 60 000 caractères envoyé ENTIER", ecran: "bureau 1440", verdict: q?.contenu.length === t.length ? "marche" : "ne marche pas", preuve: `message en base : ${q?.contenu.length} sur ${t.length} ; réponse : « ${r?.contenu?.slice(0, 160)} »`, captures: [await capture(p, "bureau-07-texte-60000")] });
+    }
     if (!SEULES.length || SEULES.includes("bureau-panneaux")) {
       const p = b.page;
       const cs: string[] = [];

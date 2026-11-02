@@ -13,6 +13,13 @@ describe("mémoire — le filtre déterministe (aucun appel sans fait durable)",
     "Retiens que je préfère les réponses courtes.",
     "Je suis allergique à la pénicilline.",
     "[Conversation vocale — transcription]\nmoi je vais en Espagne en juillet avec mon frère",
+    // « Un peu plus » (Direction, 02/11/2026) : échéances, lieux, avis, priorités, vocabulaire.
+    "Le rapport annuel doit être prêt pour le 15 décembre, c'est ma date limite.",
+    "Notre usine principale est à Rouiba, et l'entrepôt à Blida.",
+    "J'ai un rendez-vous chez le dentiste jeudi 12 novembre à 15 h.",
+    "Je suis plutôt d'avis qu'on externalise la logistique.",
+    "Quand je dis « le comité », je parle du comité de direction du dimanche.",
+    "Ma priorité ce trimestre : réduire les délais de paiement fournisseurs à 45 jours.",
   ])("retient la possibilité : %s", (m) => expect(faitDurablePossible(m)).toBe(true));
 
   it.each([

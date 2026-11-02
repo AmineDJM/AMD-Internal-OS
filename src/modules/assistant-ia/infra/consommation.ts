@@ -273,6 +273,12 @@ export function colonnesDeLAppel(a: AppelModele): { costUsd: string | null; pric
 export class Budget {
   readonly turnId = randomUUID();
   readonly appels: AppelModele[] = [];
+  /**
+   * LA FRANCHISE DU MESSAGE (Direction, 02/11/2026 : un long texte ne doit jamais être coupé) — les jetons du message de
+   * la personne, renvoyés à CHAQUE étape de la boucle d'outils : le plafond du tour ne les compte qu'UNE fois. Le garde-fou
+   * reste entier contre ce qu'il vise (une boucle d'appels d'outils) ; la consommation du jour, elle, compte tout.
+   */
+  franchiseParAppel = 0;
 
   constructor(
     readonly userId: string | null,
@@ -292,13 +298,14 @@ export class Budget {
     return this.userId && plafondJourActif(this.reglages) ? Math.max(0, this.reglages.plafondJetonsJour - this.consommeAvant) : Infinity;
   }
 
-  /** La borne du tour : son plafond, ou ce qui reste du jour s'il est plus bas. */
-  get limite(): number {
-    return Math.min(this.reglages.plafondJetonsTour, this.resteJour);
+  /** Ce que le plafond du TOUR compte : chaque appel, moins le message de la personne déjà compté une fois. */
+  get consommePourLeTour(): number {
+    const f = this.franchiseParAppel;
+    return this.appels.reduce((s, a) => s + Math.max(0, a.entree - f) + a.sortie, 0) + (this.appels.length ? Math.min(f, this.appels[0].entree) : 0);
   }
 
   get depasse(): boolean {
-    return this.consomme >= this.limite;
+    return this.consommePourLeTour >= this.reglages.plafondJetonsTour || this.consomme >= this.resteJour;
   }
 
   /** Inscrit un appel ; rend VRAI quand le tour a atteint sa borne — l'appelant arrête alors la boucle. */
@@ -436,9 +443,12 @@ export const jetonsAudio = (secondes: number | null | undefined): number => Math
  */
 export async function budgetDeLAppel(
   origine: OrigineAppel,
+  /** Son PROPRE budget même pendant un tour (lecture d'un long document, bornée par son nombre de parties) : imputé à la
+   *  personne, journalisé, mais hors du plafond PAR TOUR — ce garde-fou vise une boucle d'outils, pas un document. */
+  propre = false,
 ): Promise<{ ok: true; budget: Budget; proprietaire: boolean } | { ok: false; raison: string }> {
   const porteur = porteurCourant();
-  if (porteur?.budget) {
+  if (porteur?.budget && !propre) {
     return porteur.budget.depasse ? { ok: false, raison: porteur.budget.refus() } : { ok: true, budget: porteur.budget, proprietaire: false };
   }
   try {

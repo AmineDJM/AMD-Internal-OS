@@ -6,6 +6,7 @@ import { outilsPour } from "./outils";
 import { optionsFournisseur, pourMastra, type ModeleConfig } from "./modele";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { modeleTrace, tracerEntree, tracerResultat } from "./qualite/traces";
+import { jetonsDuTexte } from "../domaine/fil/texte-long";
 import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, sousBudget, type Budget, type OrigineAppel } from "./consommation";
 
 // L'UI générative (R5) se lit au même endroit que le tour : l'action de l'écran n'a qu'une porte
@@ -120,6 +121,7 @@ export class IaCoupee extends Error {
 export async function repondreAvecSecours(t: TourAssistant): Promise<ResultatTour> {
   if (await interrupteurIaCoupe()) throw new IaCoupee();
   const budget = await ouvrirBudget({ userId: t.user.id, origine: t.origine ?? "conversation", conversation: t.conversation });
+  budget.franchiseParAppel = jetonsDuTexte(t.message);
   const debut = Date.now();
   let echec: string | null = null;
   let outils = 0;

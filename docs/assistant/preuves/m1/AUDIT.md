@@ -49,6 +49,15 @@ souvenirs pour le même message).
 | Sans plafond quotidien | ✅ | Console : « Sans plafond » ; Administration › IA : « Sans plafond par jour · 150 000 jetons par tour ». [erp-admin-consommation](erp-admin-consommation-sans-plafond.jpg), [erp-admin-ia](erp-admin-ia-plafonds.jpg) |
 | Historique 12 mois, santé d'office | ✅ | tests `infra/memoire-consolidation.test.ts` (purge à 13 mois, gardé à 11, actif de 3 ans gardé ; allergie retenue). |
 
+## Direction du 02/11 — textes longs, mémoire « un peu plus »
+
+| Point | Verdict | Preuve |
+|---|---|---|
+| Texte collé de 60 000 caractères (iPhone 13) | ✅ | message en base 60 075 / 60 075 caractères ; la réponse cite la fin du texte (« FIN-COLLEE », point 986). [iphone-27](iphone-27-texte-60000.jpg) |
+| Texte collé de 60 000 caractères (bureau) | ✅ | 60 083 / 60 083 ; « 986 ». [bureau-07](bureau-07-texte-60000.jpg) |
+| Texte collé de 600 000 caractères | ✅ | devenu la pièce « Texte collé — … (600 041 caractères).txt », 628 720 octets = le texte entier ; lue par parties jusqu'au bout (plus de « parties non lues » : lecture portée à ≈ 1 080 000 caractères, hors du plafond par tour). [iphone-28](iphone-28-texte-600000-piece.jpg) |
+| Mémoire « un peu plus » | ✅ | même jeu de 30 messages : durables retenus 7 → 13 sur 15 ; faux positifs 0 → 0 ; interdits 0 → 0. [`retention-avant.json`](retention-avant.json), [`retention-apres.json`](retention-apres.json) |
+
 ## L'app face à l'ERP `/assistant`
 
 Outils de l'ERP (barre et « Plus d'outils ») : Ma mémoire, Mes routines, Mes travaux, Veille, « Ce que l'assistant a
