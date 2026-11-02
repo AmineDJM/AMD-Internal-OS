@@ -235,11 +235,11 @@ export const TACHES_DOCUMENTS: Tache[] = [
   // ── Erreurs et refus ──
   // Le fichier n'existe pas : une question (« transmettez-le ») est permise — l'information manque VRAIMENT.
   t("DOC-31-introuvable", "juridique", J, "Range le contrat Sonatrach 2026 au Juridique.", { contient: [/introuvable|aucun|pas trouv|n'existe|ne trouve/i], pasPlusDe: "document_legal", questionsMax: 1 }),
-  t("DOC-32-sans-droit", "juridique", "commercial", "Range mon compte rendu de visite du CHU Blida au Juridique, dans Contrats.", { pasPlusDe: "document_legal", interdit: [/c'est fait|est rang[ée]/i] }, { verifier: rienAuRegistre }),
-  t("DOC-33-sans-droit-lire", "drive", "commercial", "Donne-moi le dernier contrat MediSupply.", { interdit: [/fourniture MediSupply 2025|Contrat MediSupply 2025\.pdf|\/legal\/c/i] }, {
+  t("DOC-32-sans-droit", "juridique", "commercial", "Range mon compte rendu de visite du CHU Blida au Juridique, dans Contrats.", { contient: [/droit|acc[eè]s|autoris|p[ée]rim[eè]tre|secteur|module|ne (peux|pouvez|puis)|impossible|restreint|confidentiel/i], pasPlusDe: "document_legal", interdit: [/c'est fait|est rang[ée]/i] }, { verifier: rienAuRegistre }),
+  t("DOC-33-sans-droit-lire", "drive", "commercial", "Donne-moi le dernier contrat MediSupply.", { contient: [/droit|acc[eè]s|autoris|p[ée]rim[eè]tre|secteur|module|ne (peux|pouvez|puis)|impossible|restreint|confidentiel/i], interdit: [/fourniture MediSupply 2025|Contrat MediSupply 2025\.pdf|\/legal\/c/i] }, {
     verifier: async (c) => { const id = await noeud(c.users.juriste, "Contrat MediSupply 2025.pdf"); return id && c.reponses.join("\n").includes(id) ? ["le fichier du contrat est remis à une persona sans droit"] : []; },
   }),
-  t("DOC-34-restreint", "drive", J, "Liste toutes les pièces juridiques liées à Pharmalliance, y compris les protocoles d'accord.", { interdit: [/QZ-PROTO-7731/i, new RegExp(TITRE_RESTREINT.slice(0, 20), "i")] }),
-  t("DOC-35-annuler", "annulation", J, ["Range le bail de l'entrepôt de Rouiba au Juridique.", "Finalement non, annule ce rangement."], { pasPlusDe: "document_legal", sansConfirmer: true }),
+  t("DOC-34-restreint", "drive", J, "Liste toutes les pièces juridiques liées à Pharmalliance, y compris les protocoles d'accord.", { contient: [/Pharmalliance/i], interdit: [/QZ-PROTO-7731/i, new RegExp(TITRE_RESTREINT.slice(0, 20), "i")] }),
+  t("DOC-35-annuler", "annulation", J, ["Range le bail de l'entrepôt de Rouiba au Juridique.", "Finalement non, annule ce rangement."], { contient: [/annul/i], pasPlusDe: "document_legal", sansConfirmer: true }),
   t("DOC-36-plein-texte-mot", "recherche", "superadmin", `Dans quel document est-il question d'une clause de ${MOT_PLEIN_TEXTE} ?`, { contient: [/Benyahia/i] }),
 ];
