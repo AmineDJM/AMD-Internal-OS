@@ -6,6 +6,7 @@ import { ADMIN_REQUEST_STATUS, ADMIN_REQUEST_TYPE, MODULE_LABELS, PRIORITY, REGU
 import { searchEverything } from "@/lib/queries/search-everything";
 import { algiersInputToUtc, getCalendarEvents, getUpcomingEvents } from "@/lib/calendar";
 import { getActionCenter } from "@/lib/queries/action-center";
+import { getMyTeam } from "@/lib/queries/my-team";
 import { resultatVide } from "@/platform/ia/lectures/empty-result";
 
 /**
@@ -60,6 +61,35 @@ export function lecturesErp(user: CurrentUser): PowerTool[] {
           tache: t.title, statut: libelle(TASK_STATUS, t.status), priorite: libelle(PRIORITY, t.priority), echeance: ymd(t.dueDate),
           assignee: t.assignedTo?.name ?? null, lien: `/mon-espace/taches?tache=${t.id}`,
         })));
+      }),
+
+    // P1 bis (banc Q1 AN-04) : « combien de tâches mon équipe a-t-elle en retard ? » — l'équipe de l'écran « Mon Équipe »
+    // (`getMyTeam` : tout l'arbre sous moi, borné par la hiérarchie), jamais une recherche plein texte qui ne sait pas compter.
+    outil("taches_equipe", "Les TÂCHES DE MON ÉQUIPE (tout l'arbre sous moi, comme « Mon Équipe ») : combien d'ouvertes, combien EN RETARD, par personne, et la liste des retards (tâche, personne, échéance, jours de retard).",
+      {}, "Tâches de l'équipe consultées", aSoi,
+      async (_e, u) => {
+        const equipe = await getMyTeam(u);
+        const nomDe = new Map(equipe.members.filter((m) => m.userId).map((m) => [m.userId as string, m.fullName]));
+        if (!nomDe.size) return resultatVide("Personne n'est rattaché sous vous dans l'organigramme : pas d'équipe dont lire les tâches.");
+        const maintenant = new Date();
+        const ouvertes = await prisma.task.findMany({
+          where: { assignedToId: { in: [...nomDe.keys()] }, status: { in: ["TODO", "IN_PROGRESS"] } },
+          orderBy: [{ dueDate: "asc" }], take: 500,
+          select: { id: true, title: true, dueDate: true, assignedToId: true },
+        });
+        const retards = ouvertes.filter((t) => t.dueDate && t.dueDate < maintenant);
+        const parPersonne = [...nomDe].map(([id, nom]) => ({
+          personne: nom, ouvertes: ouvertes.filter((t) => t.assignedToId === id).length, enRetard: retards.filter((t) => t.assignedToId === id).length,
+        })).filter((p) => p.ouvertes > 0).sort((a, b) => b.enRetard - a.enRetard || b.ouvertes - a.ouvertes);
+        return JSON.stringify({
+          personnesDansLEquipe: nomDe.size, tachesOuvertes: ouvertes.length, enRetard: retards.length, parPersonne,
+          retards: retards.slice(0, 15).map((t) => ({
+            tache: t.title, personne: nomDe.get(t.assignedToId ?? "") ?? null, echeance: ymd(t.dueDate),
+            joursDeRetard: Math.floor((maintenant.getTime() - (t.dueDate as Date).getTime()) / 86_400_000), lien: `/mon-espace/taches?tache=${t.id}`,
+          })),
+          retardsNonMontres: Math.max(0, retards.length - 15),
+          consigne: "Réponds par le NOMBRE en retard d'abord, puis qui porte les retards ; ne liste pas tout.",
+        });
       }),
 
     outil("list_my_requests", "Liste les DEMANDES ADMINISTRATIVES que je vois (les miennes, ou celles de mon périmètre) : référence, titre, type, statut, responsable.",

@@ -25,6 +25,19 @@ ne nourrit pas la mémoire ; aucun souvenir d'identité ne s'écrit (capture, vo
 ni ne se relit (rappel, voix, ancien contexte) — ceux déjà en base sont neutralisés. Décision
 [0048 §6 bis](../assistant/decisions/0048-acces-personnels.md) ; `src/platform/ia/memoire-identite.ts` (socle commun, Adam compris).
 
+### P1 bis — LE BANC RÉEL Q1, SUITE : REPLI D'ENVOI, MISSIONS DE FOND, CARTES À COMPLÉTER (2026-11-02)
+
+Décision [0047](../assistant/decisions/0047-pilotage-missions-mails-verite.md) § P1 bis. **ML-09** : sans Gmail d'Adam
+relié, la carte « Envoyer par l'envoi de l'ERP » est préparée quand même (gabarit, fenêtre d'annulation) et une phrase dit
+où relier la boîte d'Adam. **MI-02** : « en arrière-plan / rapport long » lance une mission dès le début du tour ; un tour
+qui atteint son plafond bascule en mission. **AP-01/02/03/05** : après une question restée sans réponse, la **carte à
+compléter** (champs manquants en formulaire, revérifiée à la signature) — jamais « aucune carte » ; matériel promo :
+titre et action proposés, article hors catalogue nommé. **ML-04** : « toute la direction » se résout par l'annuaire.
+**EX-03** : `lire_paie { liste }` pour l'export RH. **AN-04** : `taches_equipe` (retards de l'équipe de « Mon Équipe »).
+**Canal d'Adam réservé au Super Admin** (`domaine/mails/canal.ts`) : ni outil, ni état, ni mot pour les autres ;
+garde de sortie serveur (`taireCanalAdam`) ; pièces jointes du Drive (jointes par le canal d'Adam, dites par l'envoi de
+l'ERP) ; banc : domaine `taches/mails.ts` (28 tâches + semis `ml-`) et 6 attaques ML-ADAM- (`attaques.ts`).
+
 ### P1 — L'ASSISTANT PILOTE VRAIMENT SES MISSIONS ET SES MAILS, ET NE DIT JAMAIS AVOIR FAIT CE QU'IL N'A PAS FAIT (2026-11-02)
 
 Direction, 02/11 : trois missions « En cours · 0 % », une troisième lancée au lieu de fusionner, « je prends en compte la

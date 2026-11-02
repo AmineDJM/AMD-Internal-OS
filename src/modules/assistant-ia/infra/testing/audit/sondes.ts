@@ -71,6 +71,8 @@ export const SONDES: Sonde[] = [
   { outil: "list_my_tasks", entree: () => ({ includeDone: true }) },
   { outil: "list_my_requests", entree: () => ({}) },
   { outil: "my_overview", entree: () => ({}) },
+  // P1 bis (AN-04) : les tâches de l'équipe — bornées à l'arbre sous la personne (`getMyTeam`) ; sous qui n'encadre pas la victime, rien d'elle.
+  { outil: "taches_equipe", entree: () => ({}), toutes: true },
   { outil: "read_calendar", entree: () => ({}) },
   { outil: "list_pending_decisions", entree: () => ({}) },
   // Les finances et les exports qui portent des personnes.

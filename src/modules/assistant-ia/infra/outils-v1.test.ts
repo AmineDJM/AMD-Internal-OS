@@ -49,6 +49,8 @@ describe("outils V1", () => {
       "proposer_memoire", "read_budget", "read_calendar", "read_hr_overview", "read_workflow",
       "regulatory_knowledge", "regulatory_portfolio", "regulatory_workload",
       "search_everything", "search_products", "web_research",
+      // P1 bis (AN-04) : les tâches de l'équipe (« Mon Équipe »).
+      "taches_equipe",
       // J4 : la connaissance de l'entreprise (Bibliothèque, faits confirmés — `platform/ia/lectures/connaissance.ts`).
       "chercher_documents", "ouvrir_documents", "faits_confirmes",
       // J9 : le graphe de l'entreprise et les faits datés (`platform/ia/lectures/graphe.ts`).
