@@ -25,12 +25,16 @@ const ROLES = "directeur|directrice|dg|pdg|president|presidente|gerant|gerante|c
 /** Les formes qui disent qui EST la personne (le texte est plié : minuscules, sans accents, apostrophes en espaces). */
 const IDENTITE: readonly RegExp[] = [
   // « Prénom : Amine », « Son nom est… », « Nom de famille… », « Surnom… », « Identité… »
-  /^(son |sa |le |la )?(prenom|nom|nom de famille|nom complet|identite|pseudo|surnom|petit nom)\b/,
+  // (« Nom de son chat : Minou », « Poste de sa fille » parlent d'un autre : le complément « de… » les laisse passer.)
+  /^(son |sa |mon |ma |le |la )?(prenom|nom de famille|nom complet|nom|identite|pseudo|surnom|petit nom)\b(?! (de|du|des|d) )/,
   // « S'appelle Amine », « Se fait appeler… », « Préfère être appelé… »
-  /^(la personne |l utilisateur |l utilisatrice |l interlocuteur |l interlocutrice |utilisateur |interlocuteur |il |elle )?(s appelle|se nomme|se prenomme|se fait appeler|prefere (etre|qu on l) appel|veut (etre|qu on l) appel|aime (etre|qu on l) appel|souhaite (etre|qu on l) appel|est appele|doit etre appele|repond au nom)/,
+  /^(la personne |l utilisateur |l utilisatrice |l interlocuteur |l interlocutrice |utilisateur |interlocuteur |il |elle )?(s appelle|se nomme|se prenomme|se fait appeler|demande a etre appel|prefere (etre|qu on l) appel|veut (etre|qu on l) appel|aime (etre|qu on l) appel|souhaite (etre|qu on l) appel|est appele|doit etre appele|repond au nom)/,
   // « Est le DG », « Elle est directrice », « Poste : … », « Rôle : … », « A les droits Super Admin »
   new RegExp(`^(la personne |l utilisateur |l utilisatrice |il |elle )?(est|serait|devient|occupe le poste de|travaille comme|a le role de|exerce comme) (le |la |l |un |une |notre |son |sa )?(${ROLES})\\b`),
-  /^(son |sa |le |la )?(poste|role|fonction|titre|statut|grade|niveau d acces|droits?|habilitations?|profil)( |$)/,
+  /^(son |sa |mon |ma |le |la )?(poste|role|fonction|titre|statut|grade|niveau d acces|droits?|habilitations?|profil)( |$)(?!(de|du|des|d) )/,
+  // « Est en réalité Amine », « Est en fait le DG » ; les droits de l'ERP, où qu'ils soient dits (S1, US-01).
+  /^(la personne |il |elle )?(est|serait) (en realite|en fait|vraiment) /,
+  /\b(super ?admin|mode admin|droits? d admin|droits? administrateur|tous les droits)\b/,
   /^(a|possede|dispose de) (les |des |le |un )?(droits?|acces|habilitations?|role) /,
   // Écrire à la place d'un autre : « C'est Amine qui écrit », « Amine écrit depuis le poste de Radia », « au nom de… »
   /\bc est \p{L}+ qui (ecrit|parle|tape|demande)\b/u,
