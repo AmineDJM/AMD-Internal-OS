@@ -147,8 +147,8 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
     remplacerLecteurInterrupteurIaPourTests(async () => false);
     remplacerReglagesPourTests({ valeursSensibles: "EN_CLAIR" });
     amine = await session("SUPER_ADMIN", "Amine", true);
-    radia = await session("DIRECTION_ASSISTANT", "Radia", true);
-    sansFiche = await session("DIRECTION_ASSISTANT", "Nadia", true);
+    radia = await session("COORDINATOR", "Radia", true);
+    sansFiche = await session("COORDINATOR", "Nadia", true);
     assia = await session("MEDICAL_DELEGATE", "Assia");
     await prisma.employee.create({ data: { fullName: `Radia ${TAG}KEBIR`, userId: radia.id, position: "Assistante de direction", baseSalary: 105180, grossSalary: 180673, netToPay: 110000 } });
     await prisma.employee.create({ data: { fullName: `Assia ${TAG}ABDELAZIZ`, userId: assia.id, position: "Pharmacienne", baseSalary: 350000, netToPay: 400000, iban: "DZ5900400174401234567890" } });
@@ -159,7 +159,7 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
     remplacerLecteurInterrupteurIaPourTests(null);
     remplacerReglagesPourTests(null);
     const ids = [amine, radia, sansFiche, assia].filter(Boolean).map((u) => u.id);
-    await prisma.assistantIaAcces.deleteMany({ where: { OR: [{ userId: { in: ids } }, { role: "DIRECTION_ASSISTANT", updatedById: TAG }] } }).catch(() => {});
+    await prisma.assistantIaAcces.deleteMany({ where: { OR: [{ userId: { in: ids } }, { role: "COORDINATOR", updatedById: TAG }] } }).catch(() => {});
     await prisma.accesDonneeSensible.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await effacerJournalDe(ids);
@@ -227,8 +227,8 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
 
   it("RADIA — même la famille « Salaires & paie » ouverte à SON RÔLE (réglage large) n'ouvre pas la paie d'autrui", async () => {
     await prisma.assistantIaAcces.upsert({
-      where: { role: "DIRECTION_ASSISTANT" },
-      create: { role: "DIRECTION_ASSISTANT", ouvertes: ["SALAIRES", "CONTRATS_RH", "FICHES"], updatedById: TAG },
+      where: { role: "COORDINATOR" },
+      create: { role: "COORDINATOR", ouvertes: ["SALAIRES", "CONTRATS_RH", "FICHES"], updatedById: TAG },
       update: { ouvertes: ["SALAIRES", "CONTRATS_RH", "FICHES"], updatedById: TAG },
     });
     try {
@@ -241,7 +241,7 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
       expect(r.ok).toBe(true);
       expect(chiffres(JSON.stringify(f.promptsRecus))).not.toMatch(/400000|350000/);
     } finally {
-      await prisma.assistantIaAcces.deleteMany({ where: { role: "DIRECTION_ASSISTANT", updatedById: TAG } });
+      await prisma.assistantIaAcces.deleteMany({ where: { role: "COORDINATOR", updatedById: TAG } });
     }
   });
 
@@ -326,8 +326,8 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
 
     it("D1 — « Fiches collaborateurs » ouverte au rôle n'offre pas l'extraction du registre complet (directory_list)", async () => {
       await prisma.assistantIaAcces.upsert({
-        where: { role: "DIRECTION_ASSISTANT" },
-        create: { role: "DIRECTION_ASSISTANT", ouvertes: ["FICHES"], updatedById: TAG },
+        where: { role: "COORDINATOR" },
+        create: { role: "COORDINATOR", ouvertes: ["FICHES"], updatedById: TAG },
         update: { ouvertes: ["FICHES"], updatedById: TAG },
       });
       try {
@@ -335,7 +335,7 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
         const liste = outilsV1(radia, [], [], [], null, acces).find((o) => o.def.name === "directory_list");
         expect(liste?.allowed(radia) ?? false).toBe(false);
       } finally {
-        await prisma.assistantIaAcces.deleteMany({ where: { role: "DIRECTION_ASSISTANT", updatedById: TAG } });
+        await prisma.assistantIaAcces.deleteMany({ where: { role: "COORDINATOR", updatedById: TAG } });
       }
     });
   });

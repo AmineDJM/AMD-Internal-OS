@@ -67,7 +67,9 @@ const MOTIFS_TEXTUELS: Array<{ regex: RegExp; label: string }> = [
   },
   {
     // Sur UNE ligne : l'en-tête « iban » d'un tableau n'avale pas le nom du fournisseur de la ligne suivante.
-    regex: /\b(?:RIB|IBAN|CCP|Compte[ \t]+bancaire)[ \t]*[:#=]?[ \t]*[0-9A-Z \t-]{10,30}\b/gi,
+    // S1 (banc Q1, SO-03) : la VALEUR a la forme d'un numéro (deux lettres de pays au plus, puis des chiffres) — « Quel IBAN
+    // est enregistré sur ma fiche ? » n'est plus pris pour un IBAN (« [CONFIDENTIEL]é »).
+    regex: /\b(?:RIB|IBAN|CCP|Compte[ \t]+bancaire)[ \t]*[:#=]?[ \t]*(?:[A-Z]{2}[ \t]?)?\d[0-9 \t-]{8,28}\d\b/gi,
     label: "COMPTE_BANCAIRE",
   },
   // NIN algérien (Numéro d'Identification Nationale : 18 chiffres consécutifs)
