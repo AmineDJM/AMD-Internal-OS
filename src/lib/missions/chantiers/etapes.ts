@@ -403,8 +403,12 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
       if (r.etat === "FAIT") {
         const s = r.valeur;
         await ctx.ecrire((x) => {
-          if (!x.sessions.some((y) => y.sessionId === s.sessionId)) x.sessions.push({ sessionId: s.sessionId, url: s.url, le: s.lanceeLe, moyen: s.moyen, motif: "correction" });
-          x.compteurs.lancements += 1;
+          // Seule une session NEUVE compte comme lancement : un message à la même session ou un commentaire de PR non (01/11 :
+          // 4 lancements par chantier, et les huit corrections doivent y tenir).
+          if (!x.sessions.some((y) => y.sessionId === s.sessionId) && s.moyen !== "commentaire-pr") {
+            x.sessions.push({ sessionId: s.sessionId, url: s.url, le: s.lanceeLe, moyen: s.moyen, motif: "correction" });
+            x.compteurs.lancements += 1;
+          }
         });
         await ctx.journal("CHANTIER_LANCEMENT", `Correction demandée (tour ${tour}${sol ? ", analyse Sol" : ""}) : ${s.url}`, { tour, sol, signature: echec.signature });
       }
