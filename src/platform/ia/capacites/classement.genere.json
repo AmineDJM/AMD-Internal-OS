@@ -368,6 +368,16 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "ad-pro-item-actions:historiqueBrouillonBcPoste": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
  "ad-pro-item-actions:imprimerApercuBcPoste": {
   "risque": "R0",
   "familles": [
@@ -444,6 +454,16 @@
    "ECRITURES"
   ],
   "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-item-actions:preparerBrouillonPoste": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": true
  },

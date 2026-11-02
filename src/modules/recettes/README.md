@@ -19,3 +19,19 @@ ne lit que la version validée (`recette_pour`). Décision : [`docs/assistant/de
 - **Consommateurs** : l'Assistant IA (`assistant-ia/infra/recettes.ts` : outil `recette_pour`), la tâche `recettes.extraction`.
 - **Bancs** : `recettes.test.ts` (base réelle, corpus semé, faux modèle) — ≥ 10 recettes justes, ≥ 70 % de plans acceptés sans retouche,
   aucune recette servie avant validation, aucune recette hors droits.
+
+## Accès — un module de la console (lot R1, décision 0054)
+
+« Recettes » est le module `RECETTES` du contrôle d'accès standard ([décision 0054](../../../docs/assistant/decisions/0054-acces-module-recettes.md)).
+La porte `ouvreLesRecettes(user, geste)` (`infra/recettes.ts`, exportée par `api.ts`) est jugée AVANT la règle dérivée :
+
+| Geste du module | Ouvre | En plus de |
+|---|---|---|
+| Voir | l'écran `/recettes` (`requireModule`), l'entrée de menu, l'outil `recette_pour` | le circuit visible (`voitLeCircuit`) |
+| Valider | valider, corriger, rejeter, retirer | être le responsable désigné du processus |
+| Modifier | désigner les responsables | `peutDesigner` (la Direction) |
+
+Défauts : tous les rôles Voir + Valider, la Direction Voir + Modifier + Valider, le Super Admin tout — exactement ceux qui
+voyaient Recettes avant. Masquer : Administration › Accès › Recettes, « Bloqué » (« Par défaut » rétablit) ; pour tous :
+Réglages › modules masqués. Banc : `acces.test.ts` (base locale, console réelle).
+

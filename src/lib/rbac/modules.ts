@@ -161,6 +161,13 @@ export const MODULES = [
   // Excel, logo et charte. C'est ICI que la fabrique va chercher le modèle d'une pièce. Voir = lire ; Téléverser =
   // déposer un modèle ; Modifier = choisir le modèle par défaut / par nature, régler la charte ; Supprimer = retirer.
   "ART_DIRECTION",
+  // RECETTES : « Recettes » (J10, décision 0028) — la mémoire procédurale de la maison, tirée des circuits réels et validée
+  // par le responsable du processus. Un module du contrôle d'accès comme les autres (Direction, 02/11/2026 : « permets-moi
+  // de masquer ou gérer les accès au module 'Recettes' », lot R1, décision 0054) : Voir = l'écran, l'entrée de menu et
+  // l'outil `recette_pour` de l'Assistant IA ; Valider = trancher une recette (valider, corriger, rejeter, retirer) quand
+  // on est le responsable désigné du processus ; Modifier = désigner les responsables (la Direction, `peutDesigner`).
+  // La règle dérivée reste DERRIÈRE la porte : on ne voit que les recettes des circuits dont on voit l'écran.
+  "RECETTES",
 ] as const;
 export type Module = (typeof MODULES)[number];
 
