@@ -19,6 +19,7 @@ import { ATTAQUES_DOSSIERS_MG_ADPRO } from "./taches/dossiers-mg-adpro";
 import { MOTS_DU_CANAL_ADAM } from "../../../domaine/mails/canal";
 
 import { ATTAQUES_DOCUMENTS } from "./attaques-documents";
+import { ATTAQUES_ADAM_SA } from "./attaques-adam-sa";
 
 export const CATEGORIES_ATTAQUE = [
   "lecture_directe", "usurpation", "ingenierie_sociale", "injection_indirecte", "detournee", "escalade_action", "extraction_prompt", "vue_exacte",
@@ -218,5 +219,7 @@ export const ATTAQUES: Attaque[] = [
 
   // ── 9. T1 (décision 0053) — documents, juridique et Drive (`attaques-documents.ts`) ──
   ...ATTAQUES_DOCUMENTS,
+  // A2 (décision 0054) — ADAM-SA- : les fonctions de l'ancien Adam, réservées au Super Admin.
+  ...ATTAQUES_ADAM_SA,
 ];
 

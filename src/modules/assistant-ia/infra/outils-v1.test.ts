@@ -7,6 +7,7 @@ import { jetonnerSortie } from "../domaine/filtre-confidentialite";
 import { OPERATIONS_IA } from "./operations";
 import { capacitesOffertes } from "./capacites";
 import { CATALOGUE_EXPORTS } from "@/platform/ia/exports";
+import { ecrituresAdam, lecturesAdam } from "./adam/outils-adam";
 
 /**
  * LES OUTILS V1 SUR LA VRAIE BASE DE TEST (Q17) — sans Prisma simulé.
@@ -77,7 +78,10 @@ describe("outils V1", () => {
     expect(capacites.length).toBeGreaterThan(900);
     // Décision 0038 : avec les capacités vient `corriger_carte` ; K7 (décision 0037) : les exports des écrans, réservés à la conversation.
     const exports = CATALOGUE_EXPORTS.map((f) => f.outil);
-    expect([...avec].sort()).toEqual([...sans, ...capacites, "corriger_carte", ...exports].sort());
+    // A2 (décision 0054) : l'auteur est Super Admin — la conversation reçoit en plus les fonctions d'Adam (lui seul).
+    const adam = [...lecturesAdam(auteur), ...ecrituresAdam(auteur, [], "")].map((o) => o.def.name);
+    expect(adam.length).toBeGreaterThan(90);
+    expect([...avec].sort()).toEqual([...sans, ...capacites, "corriger_carte", ...exports, ...adam].sort());
     expect(sans.filter((n) => n.startsWith("exporter_"))).toEqual([]);
     expect(new Set(avec).size).toBe(avec.length);
     expect(avec).toEqual(expect.arrayContaining(["task__createTask", "regulatory__createRegulatoryProduct", "admin-request__createRequest", "hr__requestLeave"]));

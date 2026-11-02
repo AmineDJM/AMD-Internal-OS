@@ -9,7 +9,7 @@ import { SLUG_DG } from "@/lib/workflow/parcours";
 import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types";
 import { ROLE_LABELS } from "@/lib/labels";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "../domaine/memoire-ui";
-import { OPERATIONS_IA, outilsOperations, type PropositionCarte } from "./operations";
+import { OPERATIONS_IA, outilsOperations, REFUS_SECONDE_CARTE, type PropositionCarte } from "./operations";
 import { lecturesDocuments } from "./operations/documents-lus";
 import { lectureBudget } from "./operations/budget";
 import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
@@ -34,6 +34,7 @@ import { outilCorrigerCarte, outilsCapacites } from "./capacites";
 import { FAMILLES_EXPORTS, outilsExports } from "./exports";
 import { outilExporterDonnees } from "./analyse/exporter";
 import { outilsAnalyse, OUTILS_ANALYSE, type ContexteAnalyseTour } from "./analyse/outils";
+import { ecrituresAdam, lecturesAdam } from "./adam/outils-adam";
 import { censurerTexte, jetonnerSortie, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 import { FAMILLES_IA, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
 import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
@@ -321,6 +322,8 @@ export function outilsV1(
     ...(options.analyse ? outilsAnalyse(user, { ...options.analyse, coffret: coffret ?? null, driveOuvert: familleOuverte(acces, "DRIVE") }) : []),
     // K7 (décision 0037) — « l'export de tout » : ce que le tour a lu ou calculé, en Excel / CSV / PDF (la conversation seulement).
     ...(options.analyse ? [outilExporterDonnees(user, { jeux: options.analyse.jeux, coffret, acces })] : []),
+    // A2 (décision 0054) — les lectures d'Adam : la conversation du SEUL Super Admin (vide pour tout autre compte).
+    ...(options.capacites ? lecturesAdam(user) : []),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a
@@ -348,6 +351,8 @@ export function outilsV1(
     // LES CAPACITÉS (J6) : leur famille se juge DANS l'outil (celle de la fiche du registre), leur porte dans `allowed`.
     ...(options.capacites ? outilsCapacites(user, propositions, acces).map((o) => avecProvenance(avecReperes(o), propositions, provenance)) : []),
     ...outilsOperations(user, propositions).map((o) => garde(avecProvenance(avecReperes(o), propositions, provenance), famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
+    // A2 (décision 0054) — les écritures d'Adam, en CARTES (Super Admin seul) ; exécutées à la confirmation, journalisées (K10).
+    ...(options.capacites ? ecrituresAdam(user, propositions, REFUS_SECONDE_CARTE).map((o) => avecProvenance(avecReperes(o), propositions, provenance)) : []),
   ];
   // Chaque outil porte les accès de CETTE personne : appelé sous une autre (jamais en production — `allowed` le
   // refuse déjà au modèle), il refuse au lieu de prêter ces accès.

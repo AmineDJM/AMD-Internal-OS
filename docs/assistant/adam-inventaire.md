@@ -8,7 +8,7 @@
 > comme outil du moteur **réservé au Super Admin** · **(c)** écran seulement : reste dans l'onglet « Bureau d'Adam »
 > (posé par A1) tant qu'aucun équivalent n'est prouvé. Rien n'est supprimé.
 >
-> **La source de vérité de ce tableau est le code** : `src/lib/assistant/porte-assistant-ia.ts` classe CHAQUE
+> **La source de vérité de ce tableau est le code** : `src/platform/in-process/porte-assistant-ia.ts` classe CHAQUE
 > outil du catalogue d'Adam (`POWER_TOOLS`) dans exactement une classe, et
 > `src/modules/assistant-ia/adam-super-admin.test.ts` échoue si un outil n'est pas classé (un outil ajouté à Adam
 > demain devra être classé ici). Ce document en est la lecture humaine.
@@ -17,7 +17,7 @@
 
 | Étape | Où | Ce qui garantit |
 |---|---|---|
-| Le catalogue d'Adam est lu par **une seule porte** | `src/lib/assistant/porte-assistant-ia.ts` (`outilsAdamSuperAdmin`) | un seul franchissement Assistant IA → Adam, nommé dans `RESIDUS` (`src/platform/ia/frontieres.test.ts`) — Adam → IA et socle restent à zéro |
+| Le catalogue d'Adam est lu par **une seule porte** | `src/platform/in-process/porte-assistant-ia.ts` (`outilsAdamSuperAdmin`) | un seul franchissement Assistant IA → Adam, nommé dans `RESIDUS` (`src/platform/ia/frontieres.test.ts`) — Adam → IA et socle restent à zéro |
 | L'Assistant IA les reçoit par **un seul fichier** | `src/modules/assistant-ia/infra/adam/outils-adam.ts` | `peutVoirAdam` (rôle **principal** Super Admin), hors Vue exacte ; refus serveur à l'exécution ; ni nom ni description donnés à un autre compte |
 | **Lectures** (vague 1) | offertes dans la conversation, passées au filtre de confidentialité (`filtre` de `outils-v1.ts`) | droit relu à chaque appel (`allowed` + `run`) |
 | **Écritures** (vague 2) | une **carte** (`kind: "adam_sa_op"`) ; l'outil d'Adam ne s'exécute qu'à la confirmation, sous `journaliserGeste` | confirmation par carte, arrêt d'urgence, **journal des effets K10** (valeur avant → « Ce que l'assistant a fait » → Annuler) |
