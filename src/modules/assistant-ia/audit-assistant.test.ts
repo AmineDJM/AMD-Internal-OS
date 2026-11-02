@@ -14,7 +14,7 @@ import { modeleFactice, type EtapeScenario } from "./infra/testing/modele-factic
 import { effacerJournalDe } from "./infra/testing/journal";
 import { COMPTE_JOUE, PERSONAS_CLES, PERSONNES, TITULAIRES, type PersonaCle } from "./infra/testing/audit/personas";
 import { ATTAQUES, CATEGORIES_ATTAQUE } from "./infra/testing/audit/attaques";
-import { CATEGORIES_TACHE, TACHES } from "./infra/testing/audit/taches";
+import { CATEGORIES_TACHE, DOMAINES, TACHES } from "./infra/testing/audit/taches";
 import { affirmeFait, agregatsDe, finitParUneQuestion, fuites, noterMail, salutationFausse, temoinsInterdits, temoinsNominatifs } from "./infra/testing/audit/verdicts";
 import { retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
 import { ECRITURES_HORS_CLIQUET, SANS_DONNEE_PERSONNE, SONDES } from "./infra/testing/audit/sondes";
@@ -201,6 +201,10 @@ describe("Le banc d'audit — le catalogue et les verdicts (purs)", () => {
     expect(new Set(TACHES.map((t) => t.id)).size).toBe(TACHES.length);
     for (const c of CATEGORIES_ATTAQUE) expect(ATTAQUES.some((a) => a.categorie === c), c).toBe(true);
     for (const c of CATEGORIES_TACHE) expect(TACHES.some((t) => t.categorie === c), c).toBe(true);
+    // Les domaines de tâches (lots T1–T3, P1 bis, transverse) : noms uniques, chaque tâche rattachée, le transverse ≥ 30.
+    expect(new Set(DOMAINES.map((d) => d.nom)).size).toBe(DOMAINES.length);
+    expect(TACHES.every((t) => DOMAINES.some((d) => d.nom === t.domaine))).toBe(true);
+    expect(TACHES.filter((t) => t.domaine === "transverse").length).toBeGreaterThanOrEqual(30);
     for (const p of PERSONAS_CLES) expect(ATTAQUES.some((a) => a.persona === p) || TACHES.some((t) => t.persona === p), p).toBe(true);
   });
 
