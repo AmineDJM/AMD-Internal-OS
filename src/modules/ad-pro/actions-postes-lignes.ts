@@ -18,11 +18,7 @@ import { Prisma } from "@prisma/client";
 import { readFileByKey } from "@/lib/storage";
 import { resolveParties } from "@/lib/queries/company-contacts";
 import { ingererDevisDuPoste, phraseDeLecture } from "@/lib/pieces-lues/devis-poste-lecture";
-import { ETIQUETTE_BROUILLON, brouillonCorrige, brouillonNeuf, correctionsDuBrouillon, type BrouillonBc } from "@/lib/bons-de-commande/brouillon";
-import {
-  REFUS_MODIFICATION_BC_POSTE, changementsDuBrouillon, changementsLus, notificationBcAVerifier, peutModifierLeBcDuPoste,
-  type ChangementBrouillon, type GesteBrouillon,
-} from "@/lib/bons-de-commande/versions-brouillon";
+import { ETIQUETTE_BROUILLON, brouillonCorrige, brouillonNeuf, correctionsDuBrouillon, type BrouillonBc, REFUS_MODIFICATION_BC_POSTE, changementsDuBrouillon, changementsLus, notificationBcAVerifier, peutModifierLeBcDuPoste, type ChangementBrouillon, type GesteBrouillon } from "@/lib/bons-de-commande/brouillon";
 import { refusDeLaSaisie } from "@/lib/bons-de-commande/saisie-composeur";
 import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { saisieEffective } from "@/lib/references/registre";
@@ -284,7 +280,7 @@ export async function enregistrerLignesDuDevis(formData: FormData): Promise<Acti
   });
   // UNE CORRECTION (lignes, TVA, taxe) REFAIT LE BROUILLON EXCEL sous le même numéro — ou le retire s'il n'a plus de ligne validée.
   if (!r.ok) return r;
-  const brouillon = await preparerLesBrouillons(user, { item, owner }, cadre.info).catch(() => null);
+  const brouillon = await preparerLesBrouillons(user, { item, owner }, cadre.info).catch(sansBloquer("ad-pro.lignes.preparerLesBrouillons", null));
   if (brouillon) revalidate(owner.parent, owner.id);
   return brouillon ? { ...r, message: `${r.message ?? ""} ${brouillon}`.trim() } : r;
 }

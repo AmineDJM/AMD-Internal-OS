@@ -29,13 +29,14 @@
     "!src/lib/bons-de-commande/*-test-outils.ts!",
     "!src/lib/missions/chantiers/*-test-outils.ts!",
     "!src/lib/actions/internes/reversibilite/{banc,cas-*}.ts!",
+    "!src/lib/actions/internes/bancs-concurrents.ts!",
     "!src/lib/budget-marketing/integration-fixture.ts!",
     "!src/lib/derive-schema/**!",
     "!src/modules/finances/domaine/invariants-argent.ts!",
     "!src/modules/carte.ts!",
     "!src/platform/{couverture,demenagements,domains,source}.ts!"
   ],
-  "ignore": [],
+  "ignore": ["src/**/*.d.json.ts"],
   "ignoreExportsUsedInFile": true,
   "playwright": {
     "config": [

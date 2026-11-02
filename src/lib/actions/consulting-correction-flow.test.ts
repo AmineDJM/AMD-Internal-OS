@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { seuilAdProEnVigueur, lireVisaAdPro, getAdProRequests } from "@/modules/ad-pro/api";
 import { getActionCenter } from "@/lib/queries/action-center";
@@ -98,21 +99,6 @@ suite("Consulting — renvoyer, corriger, resoumettre, prolonger, annuler (flux 
     const ref = (await contrat(id)).reference;
     return prisma.notification.count({ where: { userId, title, createdAt: { gte: T0 }, OR: [{ link: { contains: id } }, { body: { contains: `${ref} — ` } }] } });
   };
-
-  /** Attendre que `n` sessions soient bloquées sur un verrou dont la requête nomme `motif`. */
-  async function attendreBloques(tx: Prisma.TransactionClient, motif: string, n: number) {
-    const debut = Date.now();
-    for (;;) {
-      await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-      const [{ k }] = await tx.$queryRaw<{ k: number }[]>`
-        SELECT count(*)::int AS k FROM pg_stat_activity
-        WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE ANY(${[`%${motif}%`]}::text[])`;
-      if (k >= n) return;
-      if (Date.now() - debut > 10_000) throw new Error(`${k} geste(s) bloqué(s) sur ${motif}, ${n} attendu(s)`);
-      await new Promise((r) => setTimeout(r, 25));
-    }
-  }
   /**
    * Deux gestes FORCÉS à se croiser : le verrou SHARE arrête toute écriture de contrat sans arrêter
    * les lectures — chacun lit l'état d'avant, puis les deux écritures partent ensemble. Sans
@@ -121,7 +107,7 @@ suite("Consulting — renvoyer, corriger, resoumettre, prolonger, annuler (flux 
   async function croises<T>(table: string, a: () => Promise<T>, b: () => Promise<T>): Promise<[T, T]> {
     let pa!: Promise<T>, pb!: Promise<T>;
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "${table}" IN SHARE MODE`);
+      await poserBarriere(tx, table);
       pa = a();
       pb = b();
       await attendreBloques(tx, table, 2);

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { depenseDuPoste, type FaitsDepensePoste } from "@/lib/budget/depense-poste";
 import { chargerOrdresDesFinances } from "@/modules/finances/api";
 import { purgeSettledExpenseOrders } from "@/modules/finances/actions-depenses";
+import { exclusifEntreBancs, PURGE_HISTORIQUE } from "@/lib/actions/internes/bancs-concurrents";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -73,7 +74,9 @@ suite("purgeSettledExpenseOrders — un masque d'écran, jamais une suppression"
     await prisma.user.deleteMany({ where: { id: adminId } }).catch(() => {});
   });
 
-  it("les ordres réglés et annulés RESTENT en base, avec leur écriture et leur dossier ; l'ordre ouvert n'est pas touché", async () => {
+  it("les ordres réglés et annulés RESTENT en base, avec leur écriture et leur dossier ; l'ordre ouvert n'est pas touché", () => exclusifEntreBancs(PURGE_HISTORIQUE, async () => {
+    // Geste GLOBAL : un autre banc qui le joue (puis l'annule) au même instant masquerait nos ordres sous son geste, et
+    // les rendrait en l'annulant. Les bancs de ce geste se succèdent (`exclusifEntreBancs`).
     const r = await purgeSettledExpenseOrders();
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
 
@@ -86,7 +89,7 @@ suite("purgeSettledExpenseOrders — un masque d'écran, jamais une suppression"
     expect(parId.get(annule)?.historiqueMasqueLe).not.toBeNull();
     expect(parId.get(ouvert)?.historiqueMasqueLe).toBeNull();
     expect(await prisma.paymentRequest.count({ where: { id: dossier } })).toBe(1);
-  });
+  }));
 
   it("l'historique de l'écran ne les montre plus ; la file à régler garde l'ordre ouvert", async () => {
     const ids = (await chargerOrdresDesFinances({ companyId: societe })).map((o) => o.id);

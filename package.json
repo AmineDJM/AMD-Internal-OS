@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
-    "build:render": "NODE_OPTIONS=--max-old-space-size=3072 next lint && NODE_OPTIONS=--max-old-space-size=7168 tsc --noEmit -p tsconfig.build.json && TYPECHECK_SEPARE=1 NODE_OPTIONS=--max-old-space-size=3584 next build",
+    "build:render": "NODE_OPTIONS=--max-old-space-size=3072 next lint && node scripts/typecheck-production.mjs && TYPECHECK_SEPARE=1 NODE_OPTIONS=--max-old-space-size=3584 next build",
     "build:measure": "bash scripts/build-memory.sh",
     "bundle:plafond": "node scripts/mesure-bundle.mjs --plafond",
     "adam:doctor": "tsx scripts/adam-doctor.ts",
@@ -19,6 +19,7 @@
     "banc:essai:semer": "tsx scripts/banc-essai-semer.ts",
     "lint": "next lint",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit",
+    "typecheck:production": "node scripts/typecheck-production.mjs",
     "test": "DATABASE_URL=\"${TEST_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_internal_os}\" vitest run",
     "test:architecture": "DATABASE_URL=\"${TEST_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_internal_os}\" vitest run src/modules src/platform/ia/frontieres.test.ts src/platform/couverture.test.ts src/platform/taille-fichiers.test.ts src/platform/domains.test.ts src/platform/boundary.test.ts src/platform/source.test.ts src/platform/imports-relatifs.test.ts src/lib/actions/contrat.test.ts src/lib/client-bundle-guard.test.ts",
     "db:generate": "prisma generate",

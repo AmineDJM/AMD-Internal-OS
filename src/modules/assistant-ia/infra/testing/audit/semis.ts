@@ -18,7 +18,7 @@ import { DOSSIER_PIECES_RECUES } from "../../canaux/reception";
 import { nomComplet, PERSONNES, TITULAIRES, type Titulaire } from "./personas";
 import type { Piege } from "./attaques";
 import { brancherDepots, deposerPiece, docx, pdf, sessionDe, xlsx, type DepotsDuSemis } from "./taches/aides";
-import { semerDomaines } from "./taches";
+import { retirerDomaines, semerDomaines } from "./taches";
 import { retirerT2 } from "./taches/annuaire-marketing-semis";
 
 import { retirerDocuments } from "./semis-documents";
@@ -185,6 +185,7 @@ export async function retirerAudit(etiquette: string): Promise<void> {
   const ids = users.map((u) => u.id);
   if (!ids.length) return;
   const sur = <T>(p: Promise<T>) => p.catch(attendu("banc d'audit : ligne déjà retirée", null));
+  await retirerDomaines(etiquette, ids); // Les domaines qui déclarent `retirer` (transverse…), avant les comptes
   await retirerT2(etiquette, ids); // Lot T2 : l'annuaire, les secteurs, les visites, les dépenses (avant les comptes)
 
   // T1 : le registre juridique, ses dossiers et les partenaires semés ou ajoutés par les tâches DOC- (avant les comptes).

@@ -16,7 +16,7 @@ import { SEMIS_DOCUMENTS, TACHES_DOCUMENTS } from "./documents";
 import { SEMIS_DOSSIERS_MG_ADPRO, TACHES_DOSSIERS_MG_ADPRO } from "./dossiers-mg-adpro";
 import { SEMIS_MAILS, TACHES_MAILS } from "./mails";
 import { TACHES_SOCLE } from "./socle";
-import { SEMIS_TRANSVERSE, TACHES_TRANSVERSE } from "./transverse";
+import { RETIRER_TRANSVERSE, SEMIS_TRANSVERSE, TACHES_TRANSVERSE } from "./transverse";
 import type { Domaine, PieceSemee, SemisDeDomaine, Tache } from "./types";
 
 export { CATEGORIES_TACHE } from "./socle";
@@ -28,7 +28,7 @@ export const DOMAINES: Domaine[] = [
   { nom: "annuaire-marketing", taches: TACHES_ANNUAIRE_MARKETING, semer: SEMIS_ANNUAIRE_MARKETING },
   { nom: "dossiers-mg-adpro", taches: TACHES_DOSSIERS_MG_ADPRO, semer: SEMIS_DOSSIERS_MG_ADPRO },
   { nom: "mails", taches: TACHES_MAILS, semer: SEMIS_MAILS },
-  { nom: "transverse", taches: TACHES_TRANSVERSE, semer: SEMIS_TRANSVERSE },
+  { nom: "transverse", taches: TACHES_TRANSVERSE, semer: SEMIS_TRANSVERSE, retirer: RETIRER_TRANSVERSE },
 ];
 
 /** Toutes les tâches, chacune portant son domaine. */
@@ -45,4 +45,9 @@ export async function semerDomaines(c: Parameters<SemisDeDomaine>[0]): Promise<R
     }
   }
   return out;
+}
+
+/** Les retraits des domaines (avant la suppression des comptes) : chacun efface ce que son semis et ses tâches ont créé. */
+export async function retirerDomaines(etiquette: string, userIds: string[]): Promise<void> {
+  for (const d of DOMAINES) if (d.retirer) await d.retirer(etiquette, userIds);
 }

@@ -140,7 +140,11 @@ Exported as a **phase function** (`next.config.mjs:191-196`) [V]:
 
 1. `typecheckSepare(phase)` (`:19-34`): if `TYPECHECK_SEPARE=1` → already done, return true. Else,
    only in `phase-production-build` **and** when `process.env.RENDER` is set, spawn
-   `node --max-old-space-size=5120 typescript/bin/tsc --noEmit -p tsconfig.build.json`; any error
+   `node scripts/typecheck-production.mjs` (lot M2, 02/11/2026: the production typecheck **by
+   tranches** — contiguous slices of ≤ 650 files, each in its own process with a 4 300 MB heap, each
+   program = its files + every global declaration + their import closure; same diagnostics as a
+   single `tsc -p tsconfig.build.json`, peak ≈ 3.5 GB instead of ≈ 5.5 GB — it replaced the 5 GB
+   single tsc that died once at 5 027 MB, §118.216); any error
    throws and aborts the build; then sets `TYPECHECK_SEPARE=1` so child processes skip it. The
    return value becomes `typescript.ignoreBuildErrors` (true only when the separate tsc ran).
    → Locally (`RENDER` unset) `next build` keeps its **integrated** typecheck, which uses
@@ -171,7 +175,7 @@ Exported as a **phase function** (`next.config.mjs:191-196`) [V]:
 
 | Group | Scripts | Notes |
 |---|---|---|
-| App lifecycle | `dev`, `build` (`prisma generate && next build`), `start`, `build:render`, `build:measure` | `build:render` (`package.json:9`) = three **separate processes**: `next lint` (3 GB heap) → `tsc -p tsconfig.build.json` (5 GB) → `TYPECHECK_SEPARE=1 next build` (3 GB). Separate because ESLint (~1 GB) + typecheck in one heap OOM'd at Node's 2 GB default (comment `next.config.mjs:36-43`). `build:render` does **not** run `prisma generate` (Render's buildCommand does). |
+| App lifecycle | `dev`, `build` (`prisma generate && next build`), `start`, `build:render`, `build:measure` | `build:render` (`package.json:9`) = three **separate processes**: `next lint` (3 GB heap) → `node scripts/typecheck-production.mjs` (tsconfig.build.json by tranches, 4.3 GB heap each — lot M2) → `TYPECHECK_SEPARE=1 next build` (3.5 GB). Separate because ESLint (~1 GB) + typecheck in one heap OOM'd at Node's 2 GB default (comment `next.config.mjs:36-43`). `build:render` does **not** run `prisma generate` (Render's buildCommand does). |
 | Quality gates | `typecheck` (`tsc --noEmit`, whole repo), `lint` (`next lint`), `test` (`vitest run` with `DATABASE_URL=${TEST_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_internal_os}`), `test:e2e`, `test:e2e:live`, `evals:report` | `npm test` **overrides** any `.env` `DATABASE_URL`. |
 | Database | `db:generate`, `db:push`, `db:migrate`, `db:deploy`, `db:bootstrap`, `db:reset` | House rule: write SQL migrations by hand, apply with `db:deploy`. `db:push` / `db:migrate` exist but contradict that rule. |
 | Code map | `graphify:refresh`, `graphify:report`, `graphify:query` | Python CLI `graphifyy` auto-installed with `pip --user`. |
@@ -585,7 +589,7 @@ build (lint if `build:render` is really used, separate tsc, compilation) as the 
    dashboard override, §118.208).
 2. `npm install` (`.npmrc` legacy peers) → `prisma generate`.
 3. `build:render` (before any DB write since refonte P0; then `prisma migrate deploy` → `db:bootstrap`): `next lint` (fails on any ESLint error, e.g. unknown rule in a directive) →
-   `tsc -p tsconfig.build.json` → `next build` with `TYPECHECK_SEPARE=1`.
+   typecheck by tranches (`scripts/typecheck-production.mjs`) → `next build` with `TYPECHECK_SEPARE=1`.
    If instead a bare `npx next build` runs: `next.config.mjs` detects `RENDER`, runs the separate
    tsc itself, caps heaps at 3 GB; **lint does not run** (`ignoreDuringBuilds`).
 4. `next build`: 1 static worker, webpack build workers, gzip cache, no server minification, no

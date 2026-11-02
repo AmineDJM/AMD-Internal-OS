@@ -16,7 +16,7 @@ import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { motifNonSignable } from "@/lib/bons-de-commande/regle";
 import { bcVisiblesWhere, peutSignerBC, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
 import { apresSignatureDuBCDeDemande } from "@/lib/secretariat/bc-signe";
-import { marquerNonRetenusDuBC } from "@/lib/bons-de-commande/non-retenus";
+import { marquerNonRetenusDuBC } from "@/lib/bons-de-commande/retenue-bc";
 import { sansBloquer } from "@/lib/journal";
 
 /**

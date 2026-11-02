@@ -6,6 +6,11 @@
  * simulé, le fichier produit, ou le vérificateur du domaine), le NOMBRE DE QUESTIONS avant d'agir (cible 0 ; au plus
  * `questionsMax`), la vérité (« c'est fait » jamais dit sans outil réussi), la beauté d'un mail, la latence et le coût.
  *
+ * RÈGLES D'ÉCRITURE (tenues par `audit-assistant.test.ts`) : (1) aucune tâche ne réussit sur une observation VIDE — son
+ * jugement ou son vérificateur doit échouer quand rien n'est fait (« le banc à vide ») ; (2) une tâche de REFUS (sans carte,
+ * objet, fichier, mail ni vérificateur) déclare `contient` — ce que le refus doit DIRE (« droit », « accès », « réservé »…) :
+ * `interdit` ou `pasPlusDe` seuls réussiraient sur une réponse vide.
+ *
  * Un DOMAINE (fichier de `taches/`) n'écrit que ses tâches et, s'il en a besoin, son SEMIS (`SemisDeDomaine`, appelé
  * après le semis commun) et ses VÉRIFICATEURS (`verifier`, appelé après la tâche). Aucun domaine ne touche aux autres.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -95,4 +100,9 @@ export interface Domaine {
   nom: string;
   taches: Tache[];
   semer?: SemisDeDomaine;
+  /**
+   * Retire ce que le semis du domaine a créé hors des comptes (appelé par `retirerAudit` AVANT la suppression des comptes) —
+   * un semis doit être REJOUABLE : semer, retirer, semer à nouveau sur la même base (tenu par `semis-rejouable.test.ts`).
+   */
+  retirer?: (etiquette: string, userIds: string[]) => Promise<void>;
 }

@@ -12,10 +12,9 @@ import { refusMontantDesDevis } from "../domaine/devis-poste";
 import { modifierBcDuPoste, previsualiserBcDuPoste } from "../actions-postes-paiement";
 import { validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, preparerBrouillonPoste, historiqueBrouillonBcPoste, type VersionBrouillonBc } from "../actions-postes-lignes";
 import { ApercuBonDeCommande } from "./apercu-bc-poste";
-import { LIBELLE_GESTE_BROUILLON } from "@/lib/bons-de-commande/versions-brouillon";
+import { LIBELLE_GESTE_BROUILLON, ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
 import { ModifierNumeroBc } from "@/components/references/modifier-numero-bc";
-import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -325,8 +324,13 @@ function HistoriqueDuBc({ itemId, pieceId }: { itemId: string; pieceId: string }
     fd.set("id", itemId);
     fd.set("pieceId", pieceId);
     start(async () => {
-      const r = await historiqueBrouillonBcPoste(fd);
-      if (r.ok) { setVersions(r.versions); setErreur(null); } else setErreur(r.error);
+      // Une levée (connexion coupée, redéploiement) se dit au lieu de figer le panneau.
+      try {
+        const r = await historiqueBrouillonBcPoste(fd);
+        if (r.ok) { setVersions(r.versions); setErreur(null); } else setErreur(r.error);
+      } catch {
+        setErreur("Historique indisponible pour l'instant — réessayez.");
+      }
     });
   };
   return (

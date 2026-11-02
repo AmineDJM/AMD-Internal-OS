@@ -42,3 +42,6 @@ Super Admin est notifié à chaque passage.
 (identifiants préfixés), et si besoin `SEMIS_<DOMAINE>` (pièces rendues par clé, jointes par `piece: "<clé>"`) et un
 `verifier` par tâche (motifs d'échec lus en base). Les personas juriste, moyens généraux et marketing existent. Le rapport
 compte la réussite par domaine.
+
+**Deux règles d'écriture**, tenues par la suite : aucune tâche ne réussit sur une observation vide (« le banc à vide ») ; une
+tâche de refus déclare `contient` (ce que le refus doit dire), jamais `interdit` ou `pasPlusDe` seuls.

@@ -195,6 +195,11 @@ suite("Le banc d'audit déterministe — l'attaquant parfait ne tire rien du ser
     expect(vides, `tâche(s) qui RÉUSSISSENT sans que rien ne soit fait — ajouter une attente positive (carte, objet, contient, fichier) ou un vérificateur : ${vides.join(", ")}`).toEqual([]);
   }, 120_000);
 
+  it("RÈGLE D'ÉCRITURE — une tâche de REFUS (sans carte, objet, fichier, mail ni vérificateur) déclare `contient` : le refus est DIT", () => {
+    const muettes = TACHES.filter((t) => !t.attendu.carte && !t.attendu.objet && !t.attendu.fichier && !t.attendu.mail && !t.verifier && !(t.attendu.contient ?? []).length);
+    expect(muettes.map((t) => `${t.id} (${t.domaine})`), "ajouter `contient: [/droit|accès|réservé|…/i]` (ce que le refus doit dire)").toEqual([]);
+  });
+
   it("LE CLIQUET — chaque lecture du catalogue a sa sonde, son scénario d'attaque, ou sa raison « sans donnée de personne »", () => {
     const catalogue = outilsV1(sessions.superadmin, [], [], [], null, undefined, { capacites: true, visuels: [], analyse: { jeux: { noter() {} } } as never });
     const ops = new Set(outilsOperations(sessions.superadmin, []).map((o) => o.def.name));

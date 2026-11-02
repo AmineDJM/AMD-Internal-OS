@@ -99,12 +99,13 @@ export async function demandeAdProAutre(d: {
   statut?: "AWAITING_DECISION" | "APPROVED" | "REFUSED" | "DONE"; mois?: number;
 }): Promise<string> {
   const an = new Date().getUTCFullYear();
-  const r = await prisma.adProOtherRequest.create({
-    data: {
-      reference: d.reference, title: d.titre, description: d.description ?? d.titre, amount: d.montant, status: d.statut ?? "AWAITING_DECISION",
-      companyId: d.companyId, requesterId: d.requesterId, createdById: d.requesterId, createdAt: new Date(Date.UTC(an, (d.mois ?? 6) - 1, 10)),
-    } as never,
-    select: { id: true },
+  // Rejouable : la référence est unique — un ressemis sur la même base REPREND la ligne au lieu d'échouer (T3, 02/11).
+  const data = {
+    title: d.titre, description: d.description ?? d.titre, amount: d.montant, status: d.statut ?? "AWAITING_DECISION",
+    companyId: d.companyId, requesterId: d.requesterId, createdById: d.requesterId, createdAt: new Date(Date.UTC(an, (d.mois ?? 6) - 1, 10)),
+  };
+  const r = await prisma.adProOtherRequest.upsert({
+    where: { reference: d.reference }, update: data as never, create: { reference: d.reference, ...data } as never, select: { id: true },
   });
   return r.id;
 }

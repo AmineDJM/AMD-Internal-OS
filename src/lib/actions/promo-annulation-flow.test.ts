@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { statutDuDossier } from "@/lib/promo-material/statut";
 import { cancelPromoMaterial } from "./promo-material-actions";
@@ -55,20 +56,6 @@ suite("Matériel promotionnel — annuler avec un motif, « Annulé » et non «
   const lire = (id: string) => prisma.promoMaterial.findUniqueOrThrow({ where: { id }, select: { status: true, circuitState: true, circuitVersion: true } });
   const fil = (id: string) =>
     prisma.comment.findMany({ where: { entityType: "PROMO_MATERIAL", entityId: id }, select: { body: true } });
-
-  async function attendreBloques(tx: Prisma.TransactionClient, motif: string, n: number) {
-    const debut = Date.now();
-    for (;;) {
-      await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-      const [{ k }] = await tx.$queryRaw<{ k: number }[]>`
-        SELECT count(*)::int AS k FROM pg_stat_activity
-        WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE ANY(${[`%${motif}%`]}::text[])`;
-      if (k >= n) return;
-      if (Date.now() - debut > 10_000) throw new Error(`${k} geste(s) bloqué(s) sur ${motif}, ${n} attendu(s)`);
-      await new Promise((r) => setTimeout(r, 25));
-    }
-  }
 
   beforeAll(async () => {
     const mk = (s: string, role: SessionUser["role"]) =>
@@ -126,7 +113,7 @@ suite("Matériel promotionnel — annuler avec un motif, « Annulé » et non «
     const d = await actorFor(demandeurId, "PRODUCT_MANAGER");
     let pa!: ReturnType<typeof cancelPromoMaterial>, pb!: ReturnType<typeof cancelPromoMaterial>;
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "PromoMaterial" IN SHARE MODE`);
+      await poserBarriere(tx, "PromoMaterial");
       ACTOR = d; pa = cancelPromoMaterial(form({ id, motif: "Premier clic." }));
       ACTOR = d; pb = cancelPromoMaterial(form({ id, motif: "Second clic." }));
       await attendreBloques(tx, "PromoMaterial", 2);

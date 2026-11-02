@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, isTopManagement, userCan, type SessionUser } from "@/lib/rbac";
 import {
   decideRecruitmentStep, cancelRecruitmentRequest, closeRecruitmentRequest, openRecruitmentSourcing,
@@ -117,20 +118,10 @@ suite("Recrutement — renvoyer, corriger, rouvrir, annuler l'embauche, un geste
   async function pendantLaLecture<T>(table: string, lancer: () => Promise<T>, concurrent: (tx: Prisma.TransactionClient) => Promise<unknown>): Promise<T> {
     let geste!: Promise<T>;
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "${table}" IN SHARE MODE`);
+      await poserBarriere(tx, table);
       geste = lancer();
       geste.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE ${`%"${table}"%`}`;
-        if (n >= 1) break;
-        if (Date.now() - debut > 10_000) throw new Error(`le geste n'a pas atteint la barrière (${table})`);
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, `%"${table}"%`, 1);
       await concurrent(tx);
     }, { timeout: 20_000 });
     return geste;

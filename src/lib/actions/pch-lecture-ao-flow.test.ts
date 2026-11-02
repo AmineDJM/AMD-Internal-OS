@@ -39,6 +39,7 @@ vi.mock("@/lib/regulatory/intelligence/ocr/ocr-engine", async (importOriginal) =
 vi.mock("@/lib/drive/document-mirror", () => ({ mirrorDocumentsToDrive: async () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques as attendreBloquesParLaBarriere, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { deleteFileByKey } from "@/lib/storage";
@@ -111,23 +112,9 @@ async function formulaireEcran(id: string, patch: Record<string, string> = {}): 
   return f;
 }
 
-/** LA BARRIÈRE (§118.164e) : combien de sessions attendent un verrou sur ces tables, l'instantané rafraîchi à chaque tour. */
-async function attendreBloques(tx: Prisma.TransactionClient, motif: string, n: number, delai: number, exiger: boolean): Promise<void> {
-  const debut = Date.now();
-  for (;;) {
-    await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-    const [{ k }] = await tx.$queryRaw<{ k: number }[]>`
-      SELECT count(*)::int AS k FROM pg_stat_activity
-      WHERE datname = current_database() AND pid <> pg_backend_pid()
-        AND wait_event_type = 'Lock' AND query ILIKE ${motif}`;
-    if (k >= n) return;
-    if (Date.now() - debut > delai) {
-      if (exiger) throw new Error(`barrière : ${n} session(s) bloquée(s) attendue(s) sur ${motif}, ${k} vue(s)`);
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 25));
-  }
-}
+/** LA BARRIÈRE (§118.164e) : les gestes de CE banc arrêtés par son verrou (`bancs-concurrents.ts`), au plus `delai` ms. */
+const attendreBloques = (tx: Prisma.TransactionClient, motif: string, n: number, delai: number, exiger: boolean): Promise<number> =>
+  attendreBloquesParLaBarriere(tx, motif, n, { delaiMs: delai, exiger });
 
 suite("PCH — lire le document d'un appel d'offres : le texte d'abord, la coupe dite, ce que personne n'a touché remplacé", () => {
   let A = "", B = "", bu = "";
@@ -409,7 +396,7 @@ suite("PCH — lire le document d'un appel d'offres : le texte d'abord, la coupe
     let ga!: ReturnType<typeof lireTexte>, gb!: ReturnType<typeof lireTexte>;
     await prisma.$transaction(async (tx) => {
       // Aucune lecture ne peut inscrire la sienne tant que le banc tient la table : les deux gestes sont en vol ensemble.
-      await tx.$executeRawUnsafe(`LOCK TABLE "PchTenderExtraction" IN SHARE MODE`);
+      await poserBarriere(tx, "PchTenderExtraction");
       ga = lireTexte(t.D, texteDe(["P1", "P2", "P3"]));
       gb = lireTexte(t.D, texteDe(["P1", "P2", "P3"]));
       ga.catch(() => undefined); gb.catch(() => undefined);

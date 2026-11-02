@@ -1,4 +1,4 @@
-import type { CareBeneficiaryStatus, CareQuoteStatus } from "@prisma/client";
+import type { CareBeneficiaryStatus, CareQuoteStatus, CongressRequestStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { beneficiaryName } from "../../domaine/prise-en-charge/regles";
 import { sansBloquer } from "@/lib/journal";
@@ -46,11 +46,14 @@ export function refusPersonnesNonAccordees(personnes: readonly { nom: string; st
 /** La demande est-elle prévalidée ? Lit son instance de circuit, sinon son statut. */
 export async function demandePrevalidee(scope: Scope, requestId: string): Promise<boolean> {
   const entityType = scope === "NATIONAL" ? "CONGRESS_NATIONAL" : "CONGRESS_INTERNATIONAL";
+  // Type DÉCLARÉ : l'union inférée de deux `PrismaPromise` fait instancier à tsc ≈ 220 000 types
+  // dans `Promise.all` (le point le plus coûteux du module, 0,7 s — lot M2, mémoire du build).
+  const lectureDemande: Promise<{ requestStatus: CongressRequestStatus } | null> = scope === "NATIONAL"
+    ? prisma.congressNational.findUnique({ where: { id: requestId }, select: { requestStatus: true } })
+    : prisma.congressInternational.findUnique({ where: { id: requestId }, select: { requestStatus: true } });
   const [instance, demande] = await Promise.all([
     prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType, entityId: requestId } }, select: { status: true } }),
-    scope === "NATIONAL"
-      ? prisma.congressNational.findUnique({ where: { id: requestId }, select: { requestStatus: true } })
-      : prisma.congressInternational.findUnique({ where: { id: requestId }, select: { requestStatus: true } }),
+    lectureDemande,
   ]);
   return estPrevalidee(instance?.status ?? null, demande?.requestStatus ?? null);
 }

@@ -39,6 +39,7 @@ vi.mock("./pieces-poste", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity, accesAuxPiecesLegal } from "@/lib/entity-access";
 import { addAdProItem, submitAdProItem, requestAdProItemOrder, approveAdProItemOrder } from "../actions-postes";
@@ -148,7 +149,7 @@ suite("Ad & Pro — la chaîne d'un poste : un seul temps, BC par l'assistante, 
       },
       select: { id: true },
     });
-    catId = (await prisma.budgetCategoryLine.create({ data: { envelopeId: env.id, name: `${TAG}Imprimerie`, allocated: 50_000_000 }, select: { id: true } })).id;
+    catId = (await prisma.budgetCategoryLine.create({ data: { envelopeId: env.id, name: `${RUN}Imprimerie`, allocated: 50_000_000 }, select: { id: true } })).id;
   });
 
   afterAll(async () => {
@@ -187,7 +188,7 @@ suite("Ad & Pro — la chaîne d'un poste : un seul temps, BC par l'assistante, 
     await prisma.congressNational.deleteMany({ where: { id: { in: [congres, congres2, congresEnCircuit, congresDg] } } }).catch(() => {});
     await prisma.event.deleteMany({ where: { id: { in: [evtDm, evtOps, evtSansCircuit] } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spo } }).catch(() => {});
-    await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
@@ -249,20 +250,10 @@ suite("Ad & Pro — la chaîne d'un poste : un seul temps, BC par l'assistante, 
   async function sousBarriere<T>(lancer: () => Promise<T>[], attendus = 2): Promise<T[]> {
     let gestes: Promise<T>[] = [];
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "AdProItem" IN SHARE MODE`);
+      await poserBarriere(tx, "AdProItem");
       gestes = lancer();
       for (const g of gestes) g.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE ANY(${["%AdProItem%"]}::text[])`;
-        if (n >= attendus) break;
-        if (Date.now() - debut > 10_000) throw new Error(`les gestes n'ont pas atteint la barrière (${n} en attente sur ${attendus})`);
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, "%AdProItem%", attendus);
     }, { timeout: 20_000 });
     return Promise.all(gestes);
   }

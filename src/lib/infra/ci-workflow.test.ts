@@ -27,7 +27,7 @@ describe(".github/workflows/ci.yml — la porte avant le déploiement", () => {
     expect(r).toContain("npx prisma migrate deploy");
     expect(r).toContain("npm run actions:contrat");
     expect(r).toContain("npm run typecheck");
-    expect(r).toContain("tsconfig.build.json");
+    expect(r).toContain("npm run typecheck:production");
     expect(r).toContain("npx next lint");
     expect(r).toMatch(/image: postgres:16/);
   });

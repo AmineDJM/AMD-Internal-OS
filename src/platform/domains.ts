@@ -207,6 +207,11 @@ const SOCLE = [
    * dossier ; Adam (par le pont), les tests et les scripts le lisent. Pur par construction.
    */
   "src/lib/actions/contrat/",
+  /**
+   * `actions/contrat.genere.d.json` — le TYPE DÉCLARÉ du JSON généré du contrat (lot M2, mémoire du build) :
+   * une déclaration pure, zéro code émis, lue par tsc à la place du JSON. Chemin EXACT.
+   */
+  "src/lib/actions/contrat.genere.d.json",
   // Les règles pures de l'Assistant IA (décisions 0011, 0012, 0015 : lecture des pièces, plafonds, contenu non
   // fiable, mémoire affichée, texte partiel, familles d'accès, dépôt, et le markdown déclaré au lot J2) étaient
   // déclarées ici par chemin exact : elles vivent dans `src/modules/assistant-ia/domaine/` depuis la phase B du
