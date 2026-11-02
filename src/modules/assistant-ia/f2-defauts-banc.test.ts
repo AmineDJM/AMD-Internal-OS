@@ -26,6 +26,7 @@ import { deleguerALaVoix } from "./infra/voix/temps-reel";
 import { enregistrerSessionVoix } from "./infra/voix/oral";
 import { lirePlan } from "@/lib/missions/travaux/plan";
 import { PERSONA_ASSISTANT_IA } from "./infra/travaux";
+import { outilsMails } from "./infra/mails/boites";
 import { deposerMessage, ETAT, traiterFil } from "./infra/fil/service";
 import { messageDEchec } from "./infra/fil/tour";
 import { retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
@@ -365,5 +366,42 @@ suite("F2 · TR-EV-01 — la BU se désigne par son nom (base réelle)", () => {
     expect(JSON.stringify(sortie)).not.toMatch(/identifiant/i);
     expect(sortie.statut, JSON.stringify(sortie)).toBe("EN_ATTENTE_DE_CONFIRMATION");
     expect(props[0]!.proposition.payload).toMatchObject({ entree: { businessUnitId: bu.id } });
+  });
+});
+
+suite("F2 · TR-MU-03 — un mail au destinataire introuvable : la carte est préparée, « À » à compléter (base réelle)", () => {
+  let meriem: CurrentUser;
+  beforeAll(async () => { meriem = await compte("Meriem", "REGULATORY_ASSISTANT"); });
+  afterAll(async () => {
+    await prisma.assistantActionIntent.deleteMany({ where: { userId: meriem?.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Meriem` } } }).catch(() => {});
+  });
+
+  it("jamais « rien n'est préparé » : une carte, le destinataire à compléter ; confirmée sans lui, rien ne part", async () => {
+    ACTEUR = meriem;
+    const props: PropositionPreparee[] = [];
+    const tous = outilsV1(meriem, props, [], [], null, await accesAssistantIa(meriem), { capacites: true });
+    const o = outilsMails(meriem, (n) => tous.find((t) => t.def.name === n), props).find((t) => t.def.name === "envoyer_mail");
+    expect(o, "envoyer_mail absent").toBeTruthy();
+    const sortie = JSON.parse(await o!.run({ mails: [{
+      a: `le pharmacien responsable ${TAG}`, objet: "Visite ANPP — actions correctives",
+      contenu: { salutation: "Bonjour,", paragraphes: ["Deux actions sont à mener sous 30 jours."], liste: ["Compléter le registre des températures de septembre", "Mettre à jour la procédure de rappel de lot"], cloture: "Bien cordialement," },
+    }] }, meriem));
+    expect(sortie.statut, JSON.stringify(sortie)).toBe("EN_ATTENTE_DE_CONFIRMATION");
+    expect(sortie.a_completer).toBeTruthy();
+    expect(props).toHaveLength(1);
+    const carte = props[0]!.proposition;
+    expect(JSON.stringify(carte.warnings)).toContain("Destinataire à compléter");
+    expect(JSON.stringify(carte.payload)).toContain("registre des températures");
+    expect((carte.payload as { entree: Record<string, unknown> }).entree.to).toBeUndefined();
+    // Le formulaire de la carte porte le champ « À », vide, à saisir.
+    expect(carte.formulaire?.champs.some((c) => c.nom === "to")).toBe(true);
+    // Le modèle ne peut pas demander une carte incomplète : un champ JSON « à compléter » n'a aucun effet.
+    const sans: PropositionPreparee[] = [];
+    const cap = outilsV1(meriem, sans, [], [], null, await accesAssistantIa(meriem), { capacites: true }).find((t) => t.def.name === "smart-mail__sendMail");
+    if (cap) expect(JSON.parse(await cap.run({ subject: "x", body: "y", "champs à compléter sur la carte": ["to"] }, meriem)).statut).toBe("INCOMPLET");
+    // Confirmée sans destinataire : l'action refuse, rien ne part.
+    const r = await confirmerIntentionAssistantIA(props[0]!.intentId);
+    expect(r.ok).toBe(false);
   });
 });
