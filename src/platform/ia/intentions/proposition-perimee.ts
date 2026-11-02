@@ -216,3 +216,15 @@ export function caduquesParMessage(
   const vues = new Set(dejaRemplacees);
   return enAttente.filter((p) => !vues.has(p.id) && messageRendCaduque(p, message)).map((p) => p.id);
 }
+
+/**
+ * F2 (banc réel du 02/11, AN-ANNULER-03) — « ANNULE CETTE DEMANDE », DIT À UNE CARTE QUI ATTEND. L'assistant répondait « si
+ * vous ne l'avez pas confirmée, fermez-la » : c'était à la personne de retirer la carte. Un ordre d'annulation COURT, sans
+ * autre objet (« annule », « annule cette demande », « laisse tomber », « non, oublie »), vise la DERNIÈRE carte proposée :
+ * le serveur la retire lui-même. Un ordre qui nomme autre chose (« annule le mail envoyé à Karim ») n'est pas lu ici.
+ */
+export function annuleLaCarte(message: string): boolean {
+  const n = (message ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[’']/g, " ").replace(/[.!…]+\s*$/, "").trim();
+  if (n.split(/\s+/).length > 7) return false;
+  return /^(?:(?:non|bon|finalement|en fait)[\s,]+)?(?:annule[sz]?|annuler|laisse tomber|oublie|on oublie|abandonne|ne fais rien|n en fais rien|retire)(?:[\s-]+(?:la|le|ca|cela|tout|la demande|cette demande|cette carte|la carte|cette tache|ce mail|ce message|stp|s il te plait|s il vous plait|finalement))*$/.test(n);
+}

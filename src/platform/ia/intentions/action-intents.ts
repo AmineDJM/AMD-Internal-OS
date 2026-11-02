@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { PowerTool, UtilisateurOutil as CurrentUser } from "@/platform/ia/outil";
-import { caduquesParMessage, natureComparable, objetDeLaCharge, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/platform/ia/intentions/proposition-perimee";
+import { annuleLaCarte, caduquesParMessage, natureComparable, objetDeLaCharge, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/platform/ia/intentions/proposition-perimee";
 import { sansBloquer } from "@/lib/journal";
 import { matchesConfirmText } from "./confirm";
 
@@ -169,6 +169,32 @@ const FENETRE_PERIMEES_MS = 2 * 60 * 60 * 1000;
  * devenus sans objet. Sans eux, le serveur refusait un geste que l'interface proposait encore.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+/**
+ * F2 (AN-ANNULER-03) — LA CARTE QUE LA PERSONNE ANNULE EST RETIRÉE PAR LE SERVEUR, avant le modèle : la dernière carte
+ * proposée (moins de 30 minutes), passée à CANCELLED avec la raison au journal. Rend la carte retirée (son titre est dit
+ * au modèle, qui l'annonce), ou `null`. Une carte déjà confirmée n'est pas touchée (le filtre `PROPOSED`).
+ */
+export async function retirerCarteAnnuleeAvantLeTour(userId: string, message: string): Promise<{ id: string; title: string } | null> {
+  if (!annuleLaCarte(message)) return null;
+  try {
+    // LA DERNIÈRE carte, quel que soit son état : si elle a été confirmée (exécutée), « annule » vise ce geste-là — c'est
+    // l'annulation du journal des effets (K10), pas ce retrait.
+    const carte = await prisma.assistantActionIntent.findFirst({
+      where: { userId, proposedAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+      orderBy: { proposedAt: "desc" }, select: { id: true, title: true, events: true, status: true },
+    });
+    if (!carte || carte.status !== "PROPOSED") return null;
+    const n = await prisma.assistantActionIntent.updateMany({
+      where: { id: carte.id, status: "PROPOSED" },
+      data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(carte.events, "CANCELLED_BY_USER_MESSAGE") as object },
+    });
+    return n.count === 1 ? { id: carte.id, title: carte.title } : null;
+  } catch (e) {
+    console.error("[assistant] retrait de la carte annulée impossible", e);
+    return null;
+  }
+}
+
 export async function retirerCaduquesAvantLeTour(userId: string, message: string, garder: readonly string[] = []): Promise<string[]> {
   if (retraitDesPerimeesDesactive()) return [];
   const texte = (message ?? "").trim();

@@ -29,8 +29,8 @@ import { PERSONA_ASSISTANT_IA } from "./infra/travaux";
 import { outilsMails } from "./infra/mails/boites";
 import { deposerMessage, ETAT, traiterFil } from "./infra/fil/service";
 import { messageDEchec } from "./infra/fil/tour";
-import { retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
-import { estQuestionOuRappel } from "@/platform/ia/intentions/proposition-perimee";
+import { retirerCaduquesAvantLeTour, retirerCarteAnnuleeAvantLeTour } from "@/platform/ia/intentions/action-intents";
+import { annuleLaCarte, estQuestionOuRappel } from "@/platform/ia/intentions/proposition-perimee";
 import { porteUneConsigne, separerDitEtConsigne, sortieOrale } from "@/platform/ia/voix/dit-et-consigne";
 
 let dbOk = false;
@@ -444,5 +444,37 @@ suite("F2 · TR-LM-04 — un article hors catalogue est proposé en saisie libre
     expect(dossier.articlesDemandes).toHaveLength(2);
     const libre = dossier.articlesDemandes.find((i) => i.catalogue.nom.startsWith("Brochures"))!;
     expect(libre.catalogue).toMatchObject({ horsCatalogue: true, actif: false, famille: "CONSOMMABLE" });
+  });
+});
+
+describe("F2 · AN-ANNULER-03 — l'ordre d'annuler une carte (pur)", () => {
+  it("court et sans autre objet : vise la carte ; qui nomme autre chose : non", () => {
+    for (const m of ["Annule cette demande.", "annule", "Non, laisse tomber", "oublie ça", "Annule-la stp"]) expect(annuleLaCarte(m), m).toBe(true);
+    for (const m of ["Annule le mail envoyé à Karim ce matin", "Est-ce que je peux annuler ?", "Crée une demande Ad & Pro « autre »"]) expect(annuleLaCarte(m), m).toBe(false);
+  });
+});
+
+suite("F2 · AN-ANNULER-03 — « annule cette demande » : la carte non confirmée est retirée par l'assistant (base réelle)", () => {
+  let kam: CurrentUser;
+  beforeAll(async () => { kam = await compte("KamAnnule", "SUPER_ADMIN"); });
+  afterAll(async () => {
+    await prisma.assistantActionIntent.deleteMany({ where: { userId: kam?.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}KamAnnule` } } }).catch(() => {});
+  });
+  it("la dernière carte proposée passe à « annulée », la raison au journal ; une carte confirmée n'est jamais touchée", async () => {
+    ACTEUR = kam;
+    const props: PropositionPreparee[] = [];
+    const o = outilsV1(kam, props, [], [], null, await accesAssistantIa(kam), { capacites: true }).find((t) => t.def.name === "task__createTask")!;
+    await o.run({ title: "Commander 20 cartes de visite" }, kam);
+    const id = props[0]!.intentId;
+    expect(await retirerCarteAnnuleeAvantLeTour(kam.id, "Où en est le budget ?")).toBeNull();
+    const r = await retirerCarteAnnuleeAvantLeTour(kam.id, "Annule cette demande.");
+    expect(r?.id).toBe(id);
+    const i = await prisma.assistantActionIntent.findUniqueOrThrow({ where: { id } });
+    expect(i.status).toBe("CANCELLED");
+    expect(JSON.stringify(i.events)).toContain("CANCELLED_BY_USER_MESSAGE");
+    expect((await confirmerIntentionAssistantIA(id)).ok).toBe(false);
+    // Rien d'autre à retirer : la carte suivante n'existe pas.
+    expect(await retirerCarteAnnuleeAvantLeTour(kam.id, "annule")).toBeNull();
   });
 });

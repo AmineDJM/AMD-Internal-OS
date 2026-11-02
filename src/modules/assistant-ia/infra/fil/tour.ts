@@ -20,7 +20,7 @@ import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "../modele";
 import { modelesEffectifs } from "../generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "../repondre";
 import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "../consommation";
-import { retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
+import { retirerCaduquesAvantLeTour, retirerCarteAnnuleeAvantLeTour } from "@/platform/ia/intentions/action-intents";
 import { carteOraleEnAttente } from "../voix/carte-orale";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import type { VueSimulation } from "../../domaine/simulation";
@@ -197,6 +197,11 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   // cliquable). Une carte retirée se redemande ; une mauvaise action exécutée ne se reprend pas.
   // Décision 0035 : à l'oral, la carte en cours de conversation (complétée, corrigée) n'est pas caduque — et l'en-tête de
   // la délégation (qui la nomme) ne compte pas comme « en reparler ».
+  // F2 (AN-ANNULER-03) : « annule cette demande » face à une carte qui attend — le serveur la retire lui-même, et le dit.
+  const annulee = await retirerCarteAnnuleeAvantLeTour(user.id, texteSaisi.replace(/^\[[^\]]*\]\s*/, ""));
+  const noteAnnulee = annulee
+    ? `CARTE RETIRÉE : la personne vient d'annuler la carte « ${annulee.title} », qui attendait sa confirmation ; le serveur l'a RETIRÉE — rien n'a été créé ni envoyé. Dis-le en une phrase ; ne lui demande pas de la fermer.`
+    : null;
   if (reglages.retirerCartesCaduques) {
     const orale = texteSaisi.startsWith("[Conversation vocale") ? await carteOraleEnAttente(user) : null;
     await retirerCaduquesAvantLeTour(user.id, texteSaisi.replace(/^\[Conversation vocale[^\]]*\]\s*/, ""), orale ? [orale.id] : []);
@@ -274,7 +279,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, canalAdamOuvert(user) ? CONSIGNE_BOITE_ADAM : null, d.consigne, fond ? CONSIGNE_FOND : null]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
-      sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
+      sectionsDuTour: sauf([noteAnnulee, consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
     })).systemPrompt;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
