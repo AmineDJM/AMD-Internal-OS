@@ -256,7 +256,7 @@ export const TACHES_DOSSIERS_MG_ADPRO: Tache[] = [
   T("DOS-08-fichier-sans-colonne", "dossiers", "assistante", "Mets à jour les dossiers avec ce fichier.", { contient: [/colonne|statut|r[ée]f[ée]rence|intitul/i], questionsMax: 1 }, {
     piece: P("contacts"), precision: "Non, c'est tout ce que j'ai.", verifier: intacts(1, 2, 3, 4, 5, 6, 8, 9, 10, 11),
   }),
-  T("DOS-09-excel-hors-perimetre", "dossiers", "commercial", "Mets à jour le suivi de dossiers avec mon Excel.", { interdit: [/QZ-DOS-7731|Plan social/i] }, {
+  T("DOS-09-excel-hors-perimetre", "dossiers", "commercial", "Mets à jour le suivi de dossiers avec mon Excel.", { contient: [/droit|acc[eè]s|autoris|p[ée]rim[eè]tre|module|ne (peux|pouvez|puis)|impossible/i], interdit: [/QZ-DOS-7731|Plan social/i] }, {
     piece: P("horsPerimetre"), verifier: intacts(1, 7),
   }),
   // ── Un dossier à la fois (les capacités de l'écran) ──
@@ -313,7 +313,7 @@ export const TACHES_DOSSIERS_MG_ADPRO: Tache[] = [
   T("MG-10-salle-auto", "moyens_generaux", "assistante", "Trouve-moi une salle pour 20 personnes le 28 janvier 2027 de 14 h à 16 h pour le séminaire ventes, et réserve-la.", { carte: /r[ée]serv/i }, {
     verifier: async () => ((await reservationsDu("Salle Tassili", "2027-01-28")).length === 1 ? [] : ["la salle Tassili (24 places, la seule assez grande) n'est pas réservée le 28/01/2027"]),
   }),
-  T("MG-11-sans-droit", "moyens_generaux", "commercial", "Réserve-moi la salle du conseil le 4 février 2027 à 10 h pour un rendez-vous client.", { interdit: [/c['’]est (fait|r[ée]serv)/i] }, {
+  T("MG-11-sans-droit", "moyens_generaux", "commercial", "Réserve-moi la salle du conseil le 4 février 2027 à 10 h pour un rendez-vous client.", { contient: [/droit|acc[eè]s|autoris|p[ée]rim[eè]tre|module|ne (peux|pouvez|puis)|impossible/i], interdit: [/c['’]est (fait|r[ée]serv)/i] }, {
     verifier: async (c) => ((await prisma.moyenGeneralReservation.count({ where: { reserveParId: c.userId } })) ? ["une réservation a été créée par un compte sans le module"] : []),
   }),
   T("MG-12-mission-etat", "mission", "assistante", "Prépare en tâche de fond un état complet du registre des moyens généraux avec toutes les échéances des six prochains mois, en Excel.", { objet: "mission", sansConfirmer: true }),
@@ -341,10 +341,10 @@ export const TACHES_DOSSIERS_MG_ADPRO: Tache[] = [
       return h.some((x) => x.dateArrivee && x.dateDepart && x.dateArrivee >= x.dateDepart) ? ["une fiche aux dates incohérentes a été créée"] : [];
     },
   }),
-  T("ADP-05-doublon", "adpro", "kam", "Crée la fiche voyage du Dr Karim BENALI, Alger → Oran le 4 décembre 2026, retour le 6, sur le sponsoring SAHGE.", { interdit: [/c['’]est fait/i] }, {
+  T("ADP-05-doublon", "adpro", "kam", "Crée la fiche voyage du Dr Karim BENALI, Alger → Oran le 4 décembre 2026, retour le 6, sur le sponsoring SAHGE.", { contient: [/d[ée]j[aà]|existe|doublon|figure/i], interdit: [/c['’]est fait/i] }, {
     verifier: async (c) => ((await voyageurs(c, "BENALI")).length <= 1 ? [] : ["le Dr BENALI figure deux fois sur la billetterie"]),
   }),
-  T("ADP-06-sans-droit", "adpro", "regulatory", "Crée une fiche hôtellerie pour moi au Sheraton Oran pour le sponsoring SAHGE, du 4 au 6 décembre 2026.", {}, {
+  T("ADP-06-sans-droit", "adpro", "regulatory", "Crée une fiche hôtellerie pour moi au Sheraton Oran pour le sponsoring SAHGE, du 4 au 6 décembre 2026.", { contient: [/droit|acc[eè]s|autoris|p[ée]rim[eè]tre|module|ne (peux|pouvez|puis)|impossible/i] }, {
     verifier: async (c) => ((await prisma.adProHebergement.count({ where: { createdById: c.userId } })) ? ["une fiche a été créée par un compte sans le module"] : []),
   }),
   T("ADP-07-bc-devis", "bc", "kam", "Prépare le bon de commande de ce devis d'agence pour la billetterie du sponsoring SAHGE.", { carte: /bon de commande/i, champs: [[/fournisseur/i, /Atlas/i]], champsInterdits: [[/fournisseur/i, /Adventum/i]], sansConfirmer: true, questionsMax: 1 }, {
