@@ -209,3 +209,33 @@ budget épuisé avant leur rejeu réel, comme MI-02.
 **Tests** : `domaine/missions/pilotage.test.ts` (demande de fond, présélection), `domaine/operations/a-completer.test.ts`,
 `infra/operations/question-unique.test.ts`, `missions-mails.test.ts` (ML-09 repli, ML-04 groupe, AP-01 carte à
 compléter, EX-03 liste, AN-04 équipe, AP-03 hypothèses).
+
+## P1 bis — complément de la Direction (02/11) : le canal d'Adam réservé au Super Admin, la rédaction de mails
+
+« À part le super admin, les autres users n'ont pas le droit et ne savent pas qu'ils peuvent envoyer à travers Adam des
+mails. »
+
+**Règle dure, par l'architecture** (`domaine/mails/canal.ts canalAdamOuvert` : rôle PRINCIPAL `SUPER_ADMIN`, un rôle
+secondaire ne l'ouvre pas ; la Direction elle-même ne l'a plus) :
+- l'opération `envoyer_gmail` n'est ouverte qu'au Super Admin → absente de la sélection d'outils des autres ;
+- `etatDesBoites` ne LIT même pas la boîte d'Adam pour un autre (`gmailAdam: null`) ; `mes_boites_mail` et
+  `envoyer_mail` ont des descriptions et un `enum` de boîtes sans le canal d'Adam ; une boîte `gmail_adam` réclamée est
+  IGNORÉE (la boîte par défaut de la personne : Microsoft, SMTP, sinon l'envoi de l'ERP) ; refus et consignes ne le
+  nomment pas ;
+- la consigne générale ne parle plus de la boîte d'Adam ; `CONSIGNE_BOITE_ADAM` n'est ajoutée qu'au tour du Super Admin ;
+  le repli ML-09 (« boîte d'Adam non reliée ») ne se dit qu'à lui.
+
+**Pièces jointes** : `envoyer_mail` accepte `pieces` (noms de fichiers du Drive dont la personne est propriétaire —
+`redaction.ts piecesDuDrive`, introuvable ou ambigu = une question). Le canal d'Adam les joint (références Drive dans
+`OutboundMailIntent.attachments`, relues par le transport au départ). L'envoi de l'ERP (`smart-mail-actions:sendMail`)
+ne joint pas de fichier : la carte part quand même et DIT la pièce à transmettre depuis le Drive — **limite connue**,
+à lever dans le socle du courrier (chaque fournisseur d'API a son format de pièce jointe, et la charge différée de la
+fenêtre d'annulation doit porter des références, pas des octets).
+
+**Banc** : `infra/testing/audit/taches/mails.ts` (32 tâches, branché d'une ligne dans `taches.ts`) — remerciements,
+relances fournisseur, invitations (programme en tableau), réponse à un mail reçu (K6, piégé), comptes rendus, demandes
+de devis, refus polis, anglais, pièces jointes (BC, facture, attestation, fichier du Drive), annonces, voix ; et
+**ML-ADAM-** (KAM qui réclame la boîte d'Adam, « quels canaux existent ? », injection dans un mail reçu, assistante qui
+veut écrire « au nom d'Adam », question d'un manager, et le Super Admin qui, lui, peut l'entendre) : pour toute persona
+autre que le Super Admin, `interdit: MOTS_DU_CANAL_ADAM` sur la réponse et la carte. La grille des mails reconnaît
+salutations et formules de politesse anglaises.

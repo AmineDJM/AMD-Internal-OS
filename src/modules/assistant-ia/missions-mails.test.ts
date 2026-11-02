@@ -28,6 +28,7 @@ import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 import { outilsMails } from "./infra/mails/boites";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { annulerEffetSortant } from "@/lib/effets/fenetre";
+import { canalAdamOuvert, MOTS_DU_CANAL_ADAM } from "./domaine/mails/canal";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -260,9 +261,13 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     const tous = outilsV1(asst, props, [], [], null, undefined, { capacites: true });
     const mails = outilsMails(asst, (n) => tous.find((o) => o.def.name === n), props);
     const etat = JSON.parse(await mails.find((o) => o.def.name === "mes_boites_mail")!.run({}, asst));
-    expect(etat.gmailAdam.ouvertePourToi).toBe(false);
+    expect(etat.gmailAdam).toBeUndefined();
     expect(etat.parDefaut).toBe("erp");
-    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ mails: [{ a: "pharmacie@chu-mustapha.dz", objet: "Invitation au comité", contenu: { salutation: "Madame, Monsieur,", paragraphes: ["Nous avons le plaisir de vous convier au comité du **jeudi 12 novembre**."], tableau: { colonnes: ["Heure", "Point"], lignes: [["10 h", "Ouverture"]] }, cloture: "Bien cordialement," } }] }, asst));
+    // P1 bis (canal d'Adam = Super Admin seul) : ni l'outil, ni ses descriptions, ni l'état ne le nomment ; demandé, il est ignoré.
+    expect(tous.some((o) => o.def.name === "envoyer_gmail" && o.allowed(asst))).toBe(false);
+    expect(JSON.stringify(mails.map((o) => o.def))).not.toMatch(MOTS_DU_CANAL_ADAM);
+    expect(JSON.stringify(etat)).not.toMatch(MOTS_DU_CANAL_ADAM);
+    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ boite: "gmail_adam", mails: [{ a: "pharmacie@chu-mustapha.dz", objet: "Invitation au comité", contenu: { salutation: "Madame, Monsieur,", paragraphes: ["Nous avons le plaisir de vous convier au comité du **jeudi 12 novembre**."], tableau: { colonnes: ["Heure", "Point"], lignes: [["10 h", "Ouverture"]] }, cloture: "Bien cordialement," } }] }, asst));
     ACTEUR = sa;
     console.info("[banc P1] mail d'une assistante :", r.statut, r.raison ?? r.boite ?? "");
     if (r.statut === "REFUS") {
@@ -273,10 +278,33 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       expect(props[0]!.proposition.title).toContain("Envoyer par l'envoi de l'ERP");
       expect(JSON.stringify(props[0]!.proposition.payload)).toContain("Assistante");
       expect(JSON.stringify(props[0]!.proposition.payload)).not.toContain(" | ");
+      expect(JSON.stringify({ r, p: props[0]!.proposition })).not.toMatch(MOTS_DU_CANAL_ADAM);
     }
     await prisma.assistantActionIntent.deleteMany({ where: { userId: u.id } });
     await prisma.userAccess.deleteMany({ where: { userId: u.id } });
     await prisma.user.delete({ where: { id: u.id } });
+  });
+
+  it("CANAL D'ADAM (ML-ADAM-) — réservé au Super Admin par l'architecture : la Direction elle-même ne l'a pas", () => {
+    expect(canalAdamOuvert({ role: "SUPER_ADMIN" })).toBe(true);
+    for (const role of ["DIRECTION", "GENERAL_MANAGER", "KAM", "DIRECTION_ASSISTANT", "VIEWER"]) expect(canalAdamOuvert({ role })).toBe(false);
+    expect(MOTS_DU_CANAL_ADAM.test("envoie-le depuis la boîte d'Adam")).toBe(true);
+    expect(MOTS_DU_CANAL_ADAM.test("le Gmail d’Adam")).toBe(true);
+    expect(MOTS_DU_CANAL_ADAM.test("Adam (assistant de l'ERP) a préparé la carte")).toBe(false);
+  });
+
+  it("PIÈCES JOINTES — un fichier du Drive DONT la personne est propriétaire, par son nom ; introuvable : une question, jamais deviné", async () => {
+    const { piecesDuDrive } = await import("./infra/mails/redaction");
+    const f = await prisma.driveNode.create({ data: { name: `BC imprimerie ${TAG}.pdf`, type: "FILE", ownerId: sa.id, createdById: sa.id, mimeType: "application/pdf", size: 1234 } });
+    try {
+      const r = await piecesDuDrive(sa, [`BC imprimerie ${TAG}`]);
+      expect(r).toMatchObject({ ok: true, pieces: [{ driveNodeId: f.id, filename: `BC imprimerie ${TAG}.pdf`, mimeType: "application/pdf" }] });
+      const absent = await piecesDuDrive(sa, [`Facture inexistante ${TAG}`]);
+      expect(absent.ok).toBe(false);
+      expect((absent as { manque: string[] }).manque[0]).toMatch(/introuvable/);
+    } finally {
+      await prisma.driveNode.delete({ where: { id: f.id } });
+    }
   });
 
   it("RENDEZ-VOUS (audit Q1 RV-01) — un invité sans compte ERP ne bloque pas : invité externe dans la description, mail proposé", async () => {

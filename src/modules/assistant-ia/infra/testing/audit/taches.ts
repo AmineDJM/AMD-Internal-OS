@@ -12,6 +12,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { nomComplet, type PersonaCle } from "./personas";
+import { TACHES_MAILS } from "./taches/mails";
 
 export const CATEGORIES_TACHE = [
   "tache", "message", "mail", "adpro", "bc", "export", "analyse", "recherche", "note", "mission", "pilotage", "annulation", "soi",
@@ -166,4 +167,6 @@ export const TACHES: Tache[] = [
 
   // ── Rendez-vous ──
   t("RV-01-rdv", "tache", "kam", "Mets-moi un rendez-vous jeudi à 10 h avec le pharmacien chef du CHU Mustapha.", { carte: /rendez-vous|agenda|r[ée]union/i, objet: "rendez_vous" }),
+  // ── P1 bis : la rédaction de mails de tout genre, et le canal d'Adam réservé au Super Admin (ML-ADAM-) ──
+  ...TACHES_MAILS,
 ];

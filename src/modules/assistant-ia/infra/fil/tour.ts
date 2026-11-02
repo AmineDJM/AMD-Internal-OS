@@ -29,6 +29,7 @@ import { lirePieces, type DependancesLecture } from "../lecture/pieces";
 import { ProvenanceDuTour } from "../provenance";
 import { JeuxDuTour } from "../analyse/outils";
 import { noteChiffresNonSources } from "../../domaine/analyse/chiffres";
+import { CONSIGNE_BOITE_ADAM, canalAdamOuvert } from "../../domaine/mails/canal";
 import { CONSIGNE_FOND, CONSIGNE_MISSIONS, demandeDeFond, ETAPES_DE_FOND, noteActionsNonVerifiees, OUTILS_DE_FOND, outilsPilotageVoulus } from "../../domaine/missions/pilotage";
 import { outilsMissions } from "../missions/pilotage";
 import { outilsMails } from "../mails/boites";
@@ -267,7 +268,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const { section: profil } = await profilDeLaPersonne(user, acces);
     instructions = (await compileContext({
       user, profil, consignesRole: resoudreConsignesRole(config),
-      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, d.consigne, fond ? CONSIGNE_FOND : null]),
+      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, canalAdamOuvert(user) ? CONSIGNE_BOITE_ADAM : null, d.consigne, fond ? CONSIGNE_FOND : null]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
       sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),

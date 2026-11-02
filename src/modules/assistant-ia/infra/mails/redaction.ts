@@ -62,7 +62,28 @@ export async function groupeDestinataires(qui: string): Promise<Destinataire[] |
   return membres.map((m) => ({ email: m.email.toLowerCase(), nom: m.name, prenom: prenomDe(m.name) }));
 }
 
-/** LA SIGNATURE de la personne qui envoie via Adam. */
+/**
+ * P1 bis (rédaction de mails, pièce jointe de l'ERP) : les PIÈCES à joindre — des fichiers du Drive DONT LA PERSONNE EST
+ * PROPRIÉTAIRE (un BC, une facture, une attestation déjà déposés), désignés par leur nom. Une référence, jamais des
+ * octets : le transport relit le fichier au départ. Introuvable ou ambigu : NOMMÉ (une question), jamais deviné.
+ */
+export interface PieceJointe { driveNodeId: string; filename: string; mimeType: string | null; sizeBytes: number }
+export async function piecesDuDrive(user: CurrentUser, noms: readonly string[]): Promise<{ ok: true; pieces: PieceJointe[] } | { ok: false; manque: string[] }> {
+  const pieces: PieceJointe[] = [];
+  for (const nom of noms.map((n) => n.trim()).filter(Boolean).slice(0, 5)) {
+    const trouves = await prisma.driveNode.findMany({
+      where: { ownerId: user.id, type: "FILE", isTrashed: false, name: { contains: nom, mode: "insensitive" } },
+      select: { id: true, name: true, mimeType: true, size: true }, orderBy: { updatedAt: "desc" }, take: 6,
+    });
+    const exacts = trouves.filter((f) => plier(f.name) === plier(nom) || plier(f.name.replace(/\.[a-z0-9]+$/i, "")) === plier(nom));
+    const un = exacts.length === 1 ? exacts[0] : trouves.length === 1 ? trouves[0] : null;
+    if (!un) return { ok: false, manque: [trouves.length ? `quel fichier joindre pour « ${nom} » : ${trouves.map((f) => f.name).join(", ")}` : `le fichier « ${nom} » (introuvable dans ton Drive : dépose-le, ou donne son nom exact)`] };
+    if (!pieces.some((x) => x.driveNodeId === un.id)) pieces.push({ driveNodeId: un.id, filename: un.name, mimeType: un.mimeType, sizeBytes: Math.round(un.size) });
+  }
+  return { ok: true, pieces };
+}
+
+/** LA SIGNATURE de la personne qui envoie. */
 export async function signatureDe(user: CurrentUser): Promise<SignatureMail & { societeId: string | null }> {
   const fiche = await prisma.employee.findFirst({ where: { userId: user.id }, select: { position: true, phone: true, company: { select: { id: true, name: true } } } })
     .catch(sansBloquer("mails.signature", null));

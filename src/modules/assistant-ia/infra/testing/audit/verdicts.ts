@@ -123,11 +123,11 @@ export function noterMail(m: { destinataires: string; objet: string; corps: stri
   const c = m.corps ?? "";
   if (!m.destinataires.trim()) manques.push("aucun destinataire");
   if (m.objet.trim().length < 6) manques.push("objet absent ou trop court");
-  if (!/^\s*(<[^>]+>\s*)*(bonjour|bonsoir|madame|monsieur|cher|chère|chers|chères|salut)/i.test(c)) manques.push("pas de salutation d'ouverture");
+  if (!/^\s*(<[^>]+>\s*)*(bonjour|bonsoir|madame|monsieur|cher|chère|chers|chères|salut|dear|hello|hi\b)/i.test(c)) manques.push("pas de salutation d'ouverture");
   const blocs = c.split(/\n\s*\n|<\/p>|<br\s*\/?>\s*<br\s*\/?>/i).filter((b) => b.replace(/<[^>]+>/g, "").trim().length > 15);
   if (blocs.length < 2 && !/^\s*([-*•]|\d+[.)])\s/m.test(c) && !/<li>/i.test(c)) manques.push("corps non structuré");
   if (attendu.tableau && !/(<table|^\s*\|.+\|\s*$)/im.test(c)) manques.push("planning demandé sans tableau");
-  if (!/(cordialement|bien à vous|salutations|bonne (journée|réception)|merci (d'avance|par avance|de votre)|respectueusement)/i.test(c)) manques.push("pas de formule de politesse");
+  if (!/(cordialement|bien à vous|salutations|bonne (journée|réception)|merci (d'avance|par avance|de votre)|respectueusement|regards|sincerely|best wishes|yours (faithfully|truly))/i.test(c)) manques.push("pas de formule de politesse");
   const prenom = attendu.signataire.split(/\s+/)[0] ?? "";
   if (prenom && !new RegExp(prenom, "i").test(c.slice(-300))) manques.push(`signature absente (${prenom})`);
   if (/\[(nom|prénom|votre|date|destinataire)[^\]]*\]|\bXXX\b|lorem ipsum|\{\{/i.test(`${m.objet} ${c}`)) manques.push("gabarit oublié ([Nom], XXX…)");
