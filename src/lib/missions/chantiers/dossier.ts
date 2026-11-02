@@ -48,15 +48,35 @@ export interface DossierChantier {
   revertDemande: { par: string; le: string } | null;
   revert: { numero: number; url: string; le: string } | null;
   rapport: { le: string; texte: string; issue: "LIVRE" | "BLOQUE" | "ANNULE" | "PARTIEL"; document?: { nodeId: string; nom: string; lien: string } | null } | null;
+  /** Les consignes de la Direction (écrites ou orales), transmises à la session ; chacune ouvre une nouvelle approche. */
+  consignes: { texte: string; par: string; le: string; canal: "ecrit" | "oral"; transmise: string | null }[];
+  /** Ce qu'Adam attend de la Direction quand il ne sait plus avancer seul (pause « attend tes consignes »), sinon `null`. */
+  attenteConsignes: string | null;
 }
 
 export function dossierInitial(plan: PlanChantier): DossierChantier {
   return {
     plan, sessions: [], pr: null, shaVu: null, vert: null, signatures: [], solPour: [],
     compteurs: { lancements: 0, deploiements: 0, appelsModeles: {} }, validations: {}, deploiements: [], reservations: [],
-    blocage: null, fusion: null, revertDemande: null, revert: null, rapport: null,
+    blocage: null, fusion: null, revertDemande: null, revert: null, rapport: null, consignes: [], attenteConsignes: null,
   };
 }
+
+/**
+ * LA VRAIE SESSION D'UN ORDRE DU RELAIS (C2, décision 0043 § 3 bis) : à l'enfilement, le dossier ne connaît que
+ * `ordre-<id>` ; le fait `DEV_SESSION` apporte l'identifiant `session_…` et son lien. Rend VRAI si le dossier a changé.
+ * Idempotent (un second passage du même fait ne change rien), pur.
+ */
+export function adopterSessionDuRelais(d: DossierChantier, ordreId: string, sessionId: string, url: string | null): boolean {
+  const i = d.sessions.findIndex((x) => x.sessionId === `ordre-${ordreId}`);
+  if (i < 0 || !/^(session|cse)_[A-Za-z0-9]+$/.test(sessionId)) return false;
+  d.sessions[i] = { ...d.sessions[i]!, sessionId, url: url || d.sessions[i]!.url };
+  return true;
+}
+
+/** La dernière session à qui l'on peut PARLER (ni un commentaire de PR, ni une clé d'idempotence). */
+export const sessionParlable = (d: DossierChantier): string | undefined =>
+  [...d.sessions].reverse().find((x) => x.moyen !== "commentaire-pr" && !x.sessionId.startsWith("commentaire-"))?.sessionId;
 
 /** Le dossier lu d'un carnet — `null` si ce n'est pas celui d'un chantier. Tolérant : un champ absent prend son défaut. */
 export function lireDossier(carnet: unknown): DossierChantier | null {
@@ -105,6 +125,8 @@ export interface VueDossier {
   pr: { numero: number; url: string } | null;
   vert: string | null;
   deploiements: { nom: string; statut: string; commit: string; sain: boolean | null; rollback: boolean }[];
+  attenteConsignes: string | null;
+  consignes: { texte: string; le: string }[];
 }
 
 export function vueDossier(d: DossierChantier, reservations: readonly string[]): VueDossier {
@@ -112,6 +134,7 @@ export function vueDossier(d: DossierChantier, reservations: readonly string[]):
     depot: `${d.plan.depot.proprietaire}/${d.plan.depot.nom}`, branche: d.plan.branche, reservations: [...reservations],
     sessions: d.sessions.map((s) => ({ url: s.url, motif: s.motif })), pr: d.pr, vert: d.vert ? court(d.vert.sha) : null,
     deploiements: d.deploiements.map((x) => ({ nom: x.nom, statut: x.statut, commit: court(x.commit), sain: x.sain ?? null, rollback: !!x.rollback })),
+    attenteConsignes: d.attenteConsignes, consignes: d.consignes.map((c) => ({ texte: c.texte, le: c.le })),
   };
 }
 
@@ -131,6 +154,7 @@ export function composerRapport(d: DossierChantier, coutUsd: number, issue: NonN
     ...d.deploiements.map((x) =>
       `${x.nom} : déploiement ${x.deployId} ${x.statut} sur ${court(x.commit)}${x.sante ? `, santé HTTP ${x.sante.statut} en ${x.sante.ms} ms` : ""}${x.rollback ? `, rollback ${x.rollback.deployId} ${x.rollback.statut}` : ""}.`),
     `Coût réel des modèles : ${fmtUsd(coutUsd)} ; ${d.compteurs.lancements} lancement(s) Claude Code, ${d.compteurs.deploiements} déploiement(s).`,
+    ...d.consignes.map((c) => `Consigne de la Direction (${c.canal}, ${c.le.slice(0, 16).replace("T", " ")}) : ${c.texte}`),
     ...(d.blocage ? [`Blocage : ${d.blocage}`] : []),
   ];
   return lignes.join("\n");

@@ -46,9 +46,9 @@ Nouveaux types d'étape (DSL du plan, compilés et refusés s'ils sortent du cat
 | Étape | Fait | Preuve exigée (déterministe) |
 |---|---|---|
 | `DEV_LANCER` | lance Claude Code (Routines) avec une consigne précise (rédigée par MiMo, relue par Terra si risquée) : dépôt, branche RÉSERVÉE, périmètre de fichiers, critères d'acceptation, commandes de test | `claude_code_session_id` + URL rendus |
-| `DEV_ATTENDRE` | attend un événement GitHub (push sur la branche, PR, `check_suite`) — webhook, sinon sondage à pas croissant | commit nouveau sur la branche réservée |
+| `DEV_ATTENDRE` | attend un événement GitHub (push sur la branche, PR, `check_suite`) — webhook, sinon sondage à pas croissant. **Jusqu'à 24 h** (réglable, Direction 02/11 : « l'ERP est gros, 7 à 14 h c'est normal ») : toutes les 4 h sans commit, « où en es-tu ? » à la MÊME session (jamais une session neuve pour une question) ; session MORTE (relais : « archivée / introuvable ») → relance dans le budget ; à 24 h, pause « attend tes consignes », branche gardée | commit nouveau sur la branche réservée |
 | `DEV_VERIFIER` | lit GitHub : commits, fichiers touchés DANS le périmètre réservé, PR mergeable, **checks verts sur le SHA de tête** | tous verts, sinon `DEV_CORRIGER` |
-| `DEV_CORRIGER` | d'abord RIEN si l'Auto-fix de la session est actif et travaille (gratuit) ; sinon message à LA MÊME session par le relais CLI (`claude -p … --cloud <id>`, contexte gardé) ; à défaut commentaire `@claude` sur la PR ou nouveau lancement « reprends la branche X » ; MiMo extrait l'erreur utile des logs CI | même preuve que `DEV_VERIFIER`, bornée (§ 5) |
+| `DEV_CORRIGER` | d'abord RIEN si l'Auto-fix de la session est actif et travaille (gratuit) ; sinon message à LA MÊME session par le relais CLI (`claude -p … --cloud <id>`, contexte gardé) ; à défaut commentaire `@claude` sur la PR ou nouveau lancement « reprends la branche X » ; MiMo extrait l'erreur utile des logs CI. **Autonome** : la boucle continue seule ; au 3ᵉ rouge la Direction est PRÉVENUE (sans arrêt) ; au plafond de corrections (8) ou même panne après Sol → pause « attend tes consignes » | même preuve que `DEV_VERIFIER`, bornée (§ 5) |
 | `RENDER_DEPLOYER` | déclenche/suit un déploiement (commit donné), sérialisé par service | statut `live` |
 | `RENDER_VERIFIER` | santé : `healthCheckPath` 200, routes témoins, logs sans erreur nouvelle ; E2E lourd seulement si le risque le demande | sinon `RENDER_REPARER` ou `RENDER_ROLLBACK` |
 | `RENDER_ROLLBACK` | `POST /rollback` vers le dernier déploiement sain + `autoDeploy` coupé jusqu'au correctif (dit) | statut `live` du déploiement visé |
@@ -60,7 +60,8 @@ preuves déterministes ci-dessus.
 ## 4. Concurrence — réservations avant tout
 
 Table `ChantierReservation` (ressource, clé, mission, expiration, bail) : réservation **atomique** (contrainte d'unicité)
-avant de lancer, libérée à la fin, reprise par expiration.
+avant de lancer, libérée à la fin, reprise par expiration — **seulement celle d'un chantier FINI** : un chantier vivant
+(attente de 24 h, pause « attend tes consignes » ou plafond) garde ses réservations même échues (02/11).
 
 - `BRANCHE:<dépôt>:<branche>` — une branche n'a qu'un chantier ; chaque chantier travaille sur SA branche (`claude/…`).
 - `PERIMETRE:<dépôt>:<glob>` — les dossiers déclarés ; deux chantiers aux périmètres qui se recouvrent sont **sérialisés**
@@ -76,8 +77,16 @@ avant de lancer, libérée à la fin, reprise par expiration.
 
 - Budget par chantier (dollars modèles + nombre de lancements Claude Code + déploiements), plafonds globaux par jour,
   réglables en console ; dépassement → pause `BUDGET_HOLD` (mécanisme existant) et question à la Direction.
-- **Anti-boucle** : signature d'échec (étape, check, première ligne d'erreur normalisée). Même signature 2× → Sol une
-  fois ; 3× → blocage réel, rapport. Tentatives max par étape (défaut 3), délai croissant.
+- **Anti-boucle** (Direction, 02/11 : « autonome, réessayer si c'est rouge, me prévenir au bout de la 3, suivre mes
+  consignes ») : signature d'échec (étape, check, première ligne d'erreur normalisée). La boucle de correction continue
+  SEULE dans les plafonds de budget : même signature 2× → Sol une fois (changer d'approche) ; au 3ᵉ rouge (réglable)
+  la Direction est **prévenue** — ce qui casse, ce qui a été essayé, ce qui va l'être — et la boucle continue ; même panne
+  après Sol, ou plafond de corrections (défaut 8) → pause **« attend tes consignes »**, jamais un échec sec. Tentatives
+  par étape (pannes de connecteur, défaut 3), délai croissant.
+- **Les consignes de la Direction** (outil `consigne_chantier`, écrit ou oral : « dis-lui de … », « change d'approche,
+  fais … ») partent à la MÊME session (sinon fil de la PR, sinon session neuve avec l'historique), sont journalisées,
+  ouvrent une nouvelle approche (tours et signatures à zéro), reprennent un chantier en pause ; « durable » → mémoire
+  technique du dépôt.
 - Contexte minimal : la consigne d'une session = objectif + périmètre + critères + mémoire technique ciblée (§ 6), jamais
   l'historique complet ; résultats d'outil résumés par MiMo avant d'aller à Terra ; cache de prompt Terra.
 - Tableau « Missions » existant : coût réel du chantier (K8), tentatives, réservations, liens session/PR/déploiement.

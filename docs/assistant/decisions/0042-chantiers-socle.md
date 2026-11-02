@@ -222,3 +222,23 @@ Le RAPPORT revient par notification et par `ou_en_est_chantier` ; l'envoi par Wh
 - `processus.test.ts` (2, vrais processus) : deux processus sur la même branche puis sur deux globs recouvrants à la même
   milliseconde → un seul gagnant ; SIGKILL pendant `DEV_ATTENDRE` → reprise de l'orpheline, aucune seconde session
   Claude Code, chantier terminé, réservations libérées.
+
+## Correctifs du 02/11/2026 (lot C2, relecture du pilote) — chacun tenu par un test qui l'aurait vu
+1. **Le lancement par le seul relais était bloqué** : `disponible()` rendait « indisponible » sans routine, même relais
+   vivant — `DEV_LANCER` attendait 15 min sans fin. Désormais : une routine **OU** le relais vivant et connecté à
+   claude.ai (moyen `relais-cli`) ; la raison dite distingue « non configuré », « hors ligne » et « non connecté ».
+   Test : `chantiers.test.ts` « RELAIS SEUL (zéro routine) » (moteur réel, adaptateur réel, connecteur simulé).
+2. **La session créée par le relais gardait l'identifiant provisoire `ordre-<id>`** : le fait `DEV_SESSION` n'était pas
+   reconnu par `faitConcerne`, rien ne réécrivait le dossier, et la relance ne pouvait pas parler à la MÊME session.
+   Désormais : `faitConcerne` reconnaît `ORDRE:` / `SESSION:` ; le réveil réécrit la session du dossier
+   (`adopterSessionDuRelais`, relu au moment d'écrire) ; le registre passe la charge du fait au réveil ; si le fait
+   s'est perdu, la relance relit l'ordre (`ordreCli`). Test : même banc — CREER → `session_…` enregistrée → correction
+   par MESSAGE à cette session.
+3. **Le budget du plan était ignoré** (seul `budget.usd` servait, et pouvait relâcher la console) : `reglagesDuPlan`
+   applique le PLUS STRICT du plan et de la console (`usd`, `lancements`, `deploiements`, `tentatives`). Test : « le
+   budget DU PLAN resserre la console ».
+4. **Les migrations n'étaient gardées par aucune étape** : avant la fusion, les fichiers SQL de migration du diff sont
+   lus au SHA vérifié (`ForgeGit.fichier` → `contenuFichier`, GitHub `contents?ref=` média raw) ; un geste destructeur
+   (DROP, TRUNCATE, DELETE FROM, ALTER … DROP / TYPE) — ou un fichier illisible — est **dit sur la carte de fusion**
+   (l'accord le couvre en connaissance) ; une branche déployée SANS fusion avec une telle migration exige une carte
+   (`DEPLOIEMENT_MIGRATION`), même hors production. Tests : « MIGRATION DESTRUCTIVE dans le diff » et « … sans fusion ».
