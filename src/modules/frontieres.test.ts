@@ -514,6 +514,8 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/actions-consommation.ts → src/lib/vue-lecture",
     "src/modules/assistant-ia/ecrans/travaux-panel.tsx → src/lib/missions/travaux/regles",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/persona",
+    // P1 (décision 0047) : le mail par le Gmail d'Adam sous fenêtre d'annulation — le domaine Google n'a pas encore de porte.
+    "src/modules/assistant-ia/infra/operations/envoi-gmail.ts → src/lib/google/gmail/envoi",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/plan",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/service",
     // C1 (décision 0042) — LES CHANTIERS DE DÉVELOPPEMENT : le même moteur (`lib/missions/`), une SEULE porte

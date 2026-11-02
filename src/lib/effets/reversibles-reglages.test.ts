@@ -18,7 +18,7 @@ import { getAccess } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { executerEffetsSortantsDus } from "@/lib/effets/fenetre";
-import { reglerMaMemoireAuto, reglerMaReponseVocale } from "@/modules/assistant-ia/actions";
+import { reglerMaMemoireAuto, reglerMaReponseVocale, reglerMonAdresse } from "@/modules/assistant-ia/actions";
 import { reglerMaConversationPrivee } from "@/modules/assistant-ia/actions-conversations";
 import { reglerConsoleProactivite, reglerMaVeille, reglerMonVeilleur } from "@/modules/assistant-ia/actions-proactivite";
 import { reglerMaPreferenceDOffice, reglerPrioriteMonTravail } from "@/modules/assistant-ia/actions-travaux";
@@ -139,6 +139,12 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     await annuler(gm);
     expect(await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } })).toBeNull();
 
+    // S1 (décision 0048) : « tutoiement » se défait — la préférence née du geste est retirée (défaut : vous).
+    const ga = gesteDe(await reglerMonAdresse("TU"));
+    expect((await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } }))?.adresse).toBe("TU");
+    await annuler(ga);
+    expect(await prisma.assistantIaPreference.findUnique({ where: { userId: moi.id } })).toBeNull();
+
     const fil = await prisma.assistantIaFil.create({ data: { userId: moi.id } });
     const g3 = gesteDe(await reglerMaConversationPrivee(fil.id, true));
     expect((await prisma.assistantIaFil.findUniqueOrThrow({ where: { id: fil.id } })).prive).toBe(true);
@@ -196,13 +202,15 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     const r = await sendBroadcast(fd({ title: `${TAG} réunion`, body: "Salle B", audience: "USERS", userIds: autres }));
     expect((r as { message?: string }).message).toMatch(/Annuler/);
     const g = gesteDe(r);
-    expect(await prisma.notification.count({ where: { userId: { in: autres } } })).toBe(0);
+    // Les notifications DE CETTE diffusion (son titre porte le TAG) : d'autres bancs, en parallèle, notifient aussi les
+    // assistantes de direction — compter toutes leurs notifications rendait ce test dépendant de l'ordre des fichiers.
+    expect(await prisma.notification.count({ where: { userId: { in: autres }, title: { contains: TAG } } })).toBe(0);
     await prisma.effetSortantDiffere.updateMany({ where: { id: { in: await envoisDe(g) } }, data: { executeLe: new Date(Date.now() + 10 * 365 * 86_400_000) } });
     const c = await annuler(g);
     expect(c.details.some((d) => /rien n'est parti/.test(d.pourquoi))).toBe(true);
     // La fenêtre se ferme : il n'y a plus rien à expédier.
     await executerEffetsSortantsDus({ maintenant: new Date(Date.now() + 3_600_000), ids: await envoisDe(g) });
-    expect(await prisma.notification.count({ where: { userId: { in: autres } } })).toBe(0);
+    expect(await prisma.notification.count({ where: { userId: { in: autres }, title: { contains: TAG } } })).toBe(0);
     await traceeDe(g);
   });
 

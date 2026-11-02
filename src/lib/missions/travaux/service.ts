@@ -9,7 +9,7 @@ import { annulerDemandesDuTravail, demandesDuTravail, type DemandeEnvoyee } from
 import type { PersonaTravaux } from "@/lib/missions/travaux/persona";
 import { carnetInitial, lireCarnet, type Carnet } from "@/lib/missions/travaux/carnet";
 import { lireGestesAutorises, reprendreTravail } from "@/lib/missions/travaux/conduite";
-import { etatTravail, motifPlafond, phraseAttente, planSansGeste, type EtatTravail } from "@/lib/missions/travaux/regles";
+import { etatTravail, MOTIF_ARRET, motifPlafond, phraseAttente, planSansGeste, type EtatTravail } from "@/lib/missions/travaux/regles";
 import { signalerReveil } from "@/lib/missions/travaux/signaux";
 
 /**
@@ -189,7 +189,89 @@ export async function reprendreMonTravail(travailId: string, principalId: string
   const refus = await persona.refusTravail(principalId);
   if (refus) return { ok: false, erreur: refus };
   const r = await reprendreTravail(travailId, principalId, "à la demande de la personne");
-  return r.ok ? { ok: true, travailId, message: "Travail repris là où il s'était arrêté." } : { ok: false, erreur: r.message };
+  if (!r.ok) return { ok: false, erreur: r.message };
+  // P1 : un travail ARRÊTÉ (ou fusionné) l'avait été avec ses sous-missions — elles repartent avec lui.
+  const arretees = await prisma.mission.findMany({ where: { parentMissionId: travailId, kind: "TRAVAIL", principalId, ownerId: principalId, status: "PAUSED", pausedReason: { startsWith: MOTIF_ARRET } }, select: { id: true } });
+  for (const e of arretees) await reprendreTravail(e.id, principalId, "reprise du travail parent");
+  return { ok: true, travailId, message: `Travail repris là où il s'était arrêté${arretees.length ? `, avec ${arretees.length} sous-mission(s)` : ""}.` };
+}
+
+/**
+ * P1 (décision 0047) — ARRÊTER, et pouvoir le défaire : une PAUSE marquée (`MOTIF_ARRET`, ou la fusion), sous-missions
+ * vivantes comprises. Le travail ne tourne plus et se range avec les finis ; « reprendre » le relance là où il était.
+ * Un plan jamais approuvé (rien n'a tourné) est simplement retiré : il se redemande.
+ */
+export async function arreterTravail(travailId: string, principalId: string, motif: string = MOTIF_ARRET): Promise<ResultatTravail & { sousMissions?: number }> {
+  const m = await prisma.mission.findFirst({ where: ou(travailId, principalId), select: { status: true } });
+  if (!m) return { ok: false, erreur: "Travail introuvable — ou il ne vous appartient pas." };
+  if (m.status === "AWAITING_APPROVAL") {
+    const r = await annulerTravail(travailId, principalId);
+    return r.ok ? { ...r, message: "Plan retiré (rien n'avait tourné) : il se redemande." } : r;
+  }
+  if (["COMPLETED", "CANCELLED"].includes(m.status)) return { ok: false, erreur: m.status === "COMPLETED" ? "Ce travail est déjà terminé." : "Ce travail était déjà annulé." };
+  const motifComplet = motif.startsWith(MOTIF_ARRET) ? motif : `${MOTIF_ARRET} — ${motif}`;
+  const r = await parLaMain(travailId, principalId, () => mettreEnPause(travailId, principalId, motifComplet, "TRAVAIL"));
+  if (!r.ok) return r;
+  const enfants = await enfantsVivants(travailId, principalId);
+  for (const e of enfants) await mettreEnPause(e, principalId, motifComplet, "TRAVAIL");
+  await journaliser(travailId, "PAUSED", `Arrêté : ${motifComplet.replace(`${MOTIF_ARRET} — `, "")}${enfants.length ? ` (avec ${enfants.length} sous-mission(s))` : ""}. « Reprendre » le relance.`, { motif: motifComplet, enfants }, principalId);
+  return { ok: true, travailId, message: enfants.length ? `Arrêté, avec ${enfants.length} sous-mission(s).` : "Arrêté.", sousMissions: enfants.length };
+}
+
+/**
+ * P1 (décision 0047) — FUSIONNER DES TRAVAUX : une opération de DOMAINE, tout ou rien, à invariants vérifiés.
+ *
+ *   AVANT : le travail qui RESTE et ceux à ARRÊTER sont tous à la personne (`principalId` dans le `where`), distincts,
+ *           vivants (ni finis, ni annulés, ni déjà arrêtés) ; au moins un à arrêter.
+ *   PENDANT : renommage du travail qui reste (s'il y a un titre), puis arrêt réversible de chacun des autres
+ *           (sous-missions comprises). Un arrêt refusé DÉFAIT ceux déjà faits et le renommage : rien n'a changé.
+ *   APRÈS : relu en base — chaque travail arrêté porte la pause marquée ; celui qui reste n'est pas arrêté. Sinon, tout
+ *           est défait et l'erreur le dit. L'appelant (carte confirmée) est sous le journal des effets : annulable.
+ */
+export async function fusionnerTravaux(principalId: string, d: { resteId: string; arreter: readonly string[]; titre?: string | null; motif: string }): Promise<{ ok: true; resteId: string; arretes: string[] } | { ok: false; erreur: string }> {
+  const arreter = [...new Set(d.arreter)].filter((x) => x !== d.resteId);
+  if (!arreter.length) return { ok: false, erreur: "Une fusion arrête au moins un autre travail." };
+  const ms = await prisma.mission.findMany({ where: { id: { in: [d.resteId, ...arreter] }, kind: "TRAVAIL", principalId, ownerId: principalId }, select: { id: true, status: true, pausedReason: true, title: true } });
+  const parId = new Map(ms.map((m) => [m.id, m]));
+  const arrete = (m: { status: string; pausedReason: string | null }) => m.status === "PAUSED" && !!m.pausedReason?.startsWith(MOTIF_ARRET);
+  const vivant = (m: { status: string; pausedReason: string | null }) => !["COMPLETED", "CANCELLED"].includes(m.status) && !arrete(m);
+  for (const id of [d.resteId, ...arreter]) {
+    const m = parId.get(id);
+    if (!m) return { ok: false, erreur: `Travail introuvable — ou il ne vous appartient pas (${id}).` };
+    if (!vivant(m)) return { ok: false, erreur: `« ${m.title} » n'est plus vivant (${m.status}) : il ne se fusionne pas.` };
+  }
+  const titreAvant = parId.get(d.resteId)!.title;
+  const defaire = async (faits: string[]) => {
+    for (const f of faits) await reprendreTravail(f, principalId, "fusion défaite");
+    if (d.titre && d.titre.trim() !== titreAvant) await prisma.mission.update({ where: { id: d.resteId }, data: { title: titreAvant } });
+  };
+  if (d.titre && d.titre.trim() && d.titre.trim() !== titreAvant) {
+    const r = await renommerTravail(d.resteId, principalId, d.titre);
+    if (!r.ok) return r;
+  }
+  const faits: string[] = [];
+  for (const id of arreter) {
+    const r = await arreterTravail(id, principalId, d.motif);
+    if (!r.ok) { await defaire(faits); return { ok: false, erreur: `Fusion défaite : « ${parId.get(id)!.title} » n'a pas pu être arrêté (${r.erreur}). Rien n'a changé.` }; }
+    faits.push(id);
+  }
+  // L'INVARIANT, relu en base : une mission reste, les autres sont arrêtées.
+  const apres = await prisma.mission.findMany({ where: { id: { in: [d.resteId, ...arreter] } }, select: { id: true, status: true, pausedReason: true } });
+  const ok = apres.every((m) => (m.id === d.resteId ? !arrete(m) && m.status !== "CANCELLED" : arrete(m)));
+  if (!ok) { await defaire(faits); return { ok: false, erreur: "Fusion défaite : l'état relu ne tenait pas l'invariant (une mission qui reste, les autres arrêtées). Rien n'a changé." }; }
+  await journaliser(d.resteId, "TRAVAIL_FUSION", `Fusion : ${arreter.length} travail(aux) arrêté(s) et réuni(s) dans celui-ci.`, { arretes: arreter }, principalId);
+  return { ok: true, resteId: d.resteId, arretes: arreter };
+}
+
+/** P1 : RENOMMER un travail (le titre que le tableau et la conversation montrent) — au journal. */
+export async function renommerTravail(travailId: string, principalId: string, titre: string): Promise<ResultatTravail> {
+  const t = titre.replace(/\s+/g, " ").trim().slice(0, 120);
+  if (!t) return { ok: false, erreur: "Titre vide." };
+  const avant = await prisma.mission.findFirst({ where: { id: travailId, kind: { in: ["TRAVAIL", "CHANTIER"] }, principalId, ownerId: principalId }, select: { title: true } });
+  if (!avant) return { ok: false, erreur: "Travail introuvable — ou il ne vous appartient pas." };
+  await prisma.mission.update({ where: { id: travailId }, data: { title: t } });
+  await journaliser(travailId, "TRAVAIL_RENOMME", `Renommé : « ${avant.title} » → « ${t} ».`, { avant: avant.title, apres: t }, principalId);
+  return { ok: true, travailId, message: `Renommé : « ${t} ».` };
 }
 
 /** ANNULER — et retirer ses demandes ouvertes : la personne sollicitée apprend qu'on n'attend plus sa réponse (J8). */
@@ -332,7 +414,7 @@ export async function lireTravail(travailId: string, principalId: string, mainte
   const evenements = await prisma.missionEvent.findMany({
     where: { missionId: travailId, kind: { in: [
       "TRAVAIL_PROPOSE", "TRAVAIL_APPROUVE", "TRAVAIL_REPRIS", "TRAVAIL_SIGNAL", "ACTION_TRACED", "GESTE_REFUSE", "PAUSED", "RESUMED", "CLOSED", "EVENT_WAKE", "TIME_WAKE",
-      "STEP_RECLAIMED", "GOAL_SATISFIED", "DEMANDE_DEPOSEE", "DEMANDE_REPONDUE", "DEMANDE_DECLINEE", "DEMANDE_EXPIREE", "ATTENTE_RELANCE", "ATTENTE_ESCALADE", "LIVRABLE_DEPOSE", "TRAVAIL_PRIORITE",
+      "STEP_RECLAIMED", "GOAL_SATISFIED", "DEMANDE_DEPOSEE", "DEMANDE_REPONDUE", "DEMANDE_DECLINEE", "DEMANDE_EXPIREE", "ATTENTE_RELANCE", "ATTENTE_ESCALADE", "LIVRABLE_DEPOSE", "TRAVAIL_PRIORITE", "TRAVAIL_RENOMME", "TRAVAIL_FUSION",
     ] } },
     select: { at: true, summary: true }, orderBy: { at: "desc" }, take: 40,
   });
@@ -356,5 +438,7 @@ export {
 export { equipeVisible, lireTravailEquipe, listerTravauxEquipe, responsableDe, type TravailDEquipe } from "@/lib/missions/travaux/equipe";
 // K3 (décision 0033) : le tableau de bord en temps réel, et ce que les sous-missions relisent du carnet et du plan.
 export { lireCarnet } from "@/lib/missions/travaux/carnet";
+// P1 (décision 0047) : les motifs de l'arrêt réversible — la porte du moteur pour l'Assistant IA.
+export { MOTIF_ARRET, MOTIF_FUSION } from "@/lib/missions/travaux/regles";
 export { planSansGeste } from "@/lib/missions/travaux/regles";
 export { signatureTableau, tableauDesTravaux, type EtapeTableau, type EtatEtapeTableau, type MissionTableau } from "@/lib/missions/travaux/tableau";

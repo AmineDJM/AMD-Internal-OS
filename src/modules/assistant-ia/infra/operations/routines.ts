@@ -60,7 +60,9 @@ export type LectureCalendrier = { ok: true; calendrier: Calendrier } | { manque:
 
 export function lireCalendrier(e: Record<string, unknown>, now = new Date()): LectureCalendrier {
   const frequence = FREQUENCES[replier(texte(e, "frequence"))] ?? null;
-  const heure = lireHeure(texte(e, "heure"));
+  // P1 (décision 0047, banc d'audit Q1 TA-05) : un passage UNIQUE sans heure dite prend 9 h — la carte le DIT (« heure
+  // par défaut »), la personne la change ; une routine RÉCURRENTE garde sa question (on ne devine pas « chaque dimanche »).
+  const heure = lireHeure(texte(e, "heure")) ?? (frequence === "ONCE" ? { heure: 9, minute: 0 } : null);
   const jours = lireJours(e);
   const date = texte(e, "date");
   const jdm = replier(texte(e, "jourDuMois")) === "dernier" ? -1 : nombre(e, "jourDuMois");
@@ -106,7 +108,7 @@ export const PROGRAMMER_ROUTINE: OperationIA = {
     "PROGRAMME (ou modifie, avec `remplace`) une ROUTINE que l'utilisateur te DEMANDE : « fais-moi un briefing du marché pharmaceutique en Algérie chaque dimanche "
     + "à 8 h ». À chaque passage, tu rejoueras `consigne` sous ses droits, en lecture seule (ERP + recherche web), et le rapport lui parvient. `titre` : court, "
     + "à l'impératif, sans date. `consigne` : la demande réécrite comme s'il la tapait. Ne DEVINE jamais l'heure ni le jour : laisse-les vides s'il ne les a "
-    + `pas donnés — elle répond \`manque\`, pose alors UNE seule question. Heure d'Alger. Jamais de ta propre initiative.`,
+    + `pas donnés — elle répond \`manque\`, pose alors UNE seule question (un passage unique sans heure prend 9 h, dit sur la carte). Heure d'Alger. Jamais de ta propre initiative.`,
   schema: {
     type: "object",
     properties: {
@@ -150,7 +152,7 @@ export const PROGRAMMER_ROUTINE: OperationIA = {
         title: `${existante ? "Modifier la routine" : "Routine"} « ${texte(e, "titre")} »`,
         fields: champs([
           ["À chaque passage", texte(e, "consigne")],
-          ["Quand", decrireCalendrier(c)],
+          ["Quand", `${decrireCalendrier(c)}${!lireHeure(texte(e, "heure")) && c.frequence === "ONCE" ? " — heure par défaut (9 h), à changer si besoin" : ""}`],
           ["Prochains passages", suivants.map((d) => dateLongue(d)).join("\n")],
           ["Où arrive le rapport", "Onglet « Routines » de l'assistant, et une notification"],
         ]),

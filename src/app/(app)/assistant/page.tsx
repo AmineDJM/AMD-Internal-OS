@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { AssistantWorkspace } from "@/modules/assistant-ia/ecrans/assistant-workspace";
+import { adresseDeLaPersonne } from "@/modules/assistant-ia/api";
 
 export const metadata: Metadata = {
   title: "Adventum Brain — Assistant IA",
@@ -22,10 +23,12 @@ export const dynamic = "force-dynamic";
 export default async function AssistantPage() {
   const user = await requireUser();
   if (!peutUtiliserAssistantIA(user)) notFound();
+  // S1 (décision 0048) : l'accueil dans l'adresse que la personne a choisie (tutoiement / vouvoiement).
+  const adresse = await adresseDeLaPersonne(user.id);
 
   return (
     <div className="app-viewport-flush -mx-3 -mt-3 -mb-3 flex flex-col overflow-hidden sm:-mx-4 sm:-mt-6 sm:-mb-6 lg:-mx-8 lg:-mb-8">
-      <AssistantWorkspace userName={user.name} userRole={user.role} />
+      <AssistantWorkspace userName={user.name} userRole={user.role} adresse={adresse} />
     </div>
   );
 }

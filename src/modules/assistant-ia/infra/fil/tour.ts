@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
 import { compileContext, CONSIGNE_MEMOIRE_A_LA_CARTE } from "../contexte";
+import { profilDeLaPersonne } from "../profil-personne";
 import { memoireAutoActive } from "../memoire";
 import { OUTILS_NOTES } from "../notes/outils";
 import { accesAssistantIa, getRoleConfig, GESTE_MODELE_EN_CLAIR, resoudreConsignesRole, Revelateur } from "../role-config";
@@ -28,6 +29,10 @@ import { lirePieces, type DependancesLecture } from "../lecture/pieces";
 import { ProvenanceDuTour } from "../provenance";
 import { JeuxDuTour } from "../analyse/outils";
 import { noteChiffresNonSources } from "../../domaine/analyse/chiffres";
+import { CONSIGNE_MISSIONS, noteActionsNonVerifiees, outilsPilotageVoulus } from "../../domaine/missions/pilotage";
+import { outilsMissions } from "../missions/pilotage";
+import { outilsMails } from "../mails/boites";
+import type { PowerTool } from "@/platform/ia/outil";
 import { outilsDAnalyseVoulus } from "../../domaine/analyse/intention";
 import { avecTrace } from "../qualite/traces";
 import { chargerModelesRoles } from "../qualite/modeles";
@@ -53,6 +58,8 @@ export interface IntentionDuTour {
   warnings?: string[];
   confirmText?: string;
   libelleBouton?: string;
+  /** P1 (décision 0047) : l'aperçu réel des mails préparés (rendu du gabarit). */
+  apercus?: { titre: string; html: string }[];
   /** J7 : le diff réel de la simulation (capacités simulables) — ou « non simulable », dit. */
   simulation?: VueSimulation;
   fields?: { label: string; value: string }[];
@@ -207,8 +214,10 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
    * exacte chargeait la mémoire du compte regardé (santé déclarée comprise) dans le contexte du modèle.
    */
   const vueExacte = Boolean(user.impersonatedBy);
-  let outils;
+  let outils: PowerTool[] | undefined;
   let selection: SelectionDuTour;
+  // P1 : les pilotages de mission REFUSÉS pendant le tour — la garde de vérité ne les compte pas comme preuves.
+  const pilotagesEchoues = new Set<string>();
   try {
     acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
@@ -224,6 +233,12 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, {
       capacites: true, provenance, notesProposees, visuels, analyse, ...(auModele ? { revelerAuModele: (s: string) => auModele.enClair(s) } : {}),
     }), ...outilsSousMissionsDuTour(user, travauxLances, "fin-du-tour"), ...outilsChantierPour(user, travauxLances)];
+    // P1 (décision 0047) : lire et piloter SES missions (fusion par carte, `fusionner_missions`), lire ses boîtes mail et
+    // envoyer par l'une d'elles (carte « Envoyer », fenêtre d'annulation) — l'écrit a enfin les gestes de l'écran et de la voix.
+    const tousLesOutils = (): PowerTool[] => outils ?? [];
+    // Leurs sorties PROUVENT ce que la réponse montre (un tableau des missions lues) — comme celles des autres lectures.
+    const prouvees = (xs: PowerTool[]): PowerTool[] => xs.map((o) => ({ ...o, run: async (e, u) => { const r = await o.run(e, u); sorties.push(r); return r; } }));
+    outils.push(...prouvees([...outilsMissions(user, pilotagesEchoues), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions)]));
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     // M1 : la mémoire automatique retient seule — la carte « Retenir » ne sert que si la personne l'a coupée.
@@ -234,14 +249,16 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     outils.push(outilAttendrePieces(user, d.conversation ?? null, d.vocal || texteSaisi.startsWith("[Conversation vocale]") ? "VOIX" : "ECRIT"));
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
-    selection = selectionDuTour(outils, user, message, config, precedente, outilsDAnalyseVoulus(texteSaisi, analyse.pieces));
+    selection = selectionDuTour(outils, user, message, config, precedente, [...outilsPilotageVoulus(texteSaisi), ...outilsDAnalyseVoulus(texteSaisi, analyse.pieces)]);
     outils.push(selection.outil);
     // LE PRÉFIXE STABLE (J4) : identité, règles, présentation, consignes générales, puis la personne ; la partie
     // variable du tour (indice de travail long, résumé de la conversation, heure) ferme la consigne.
     const sauf = (xs: (string | null | undefined)[]) => xs.filter((c): c is string => !!c);
+    // S1 (décision 0048) : à qui il parle — le profil construit par le serveur (compte de la session, fiche LIÉE, avenants).
+    const { section: profil } = await profilDeLaPersonne(user, acces);
     instructions = (await compileContext({
-      user, consignesRole: resoudreConsignesRole(config),
-      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, d.consigne]),
+      user, profil, consignesRole: resoudreConsignesRole(config),
+      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, d.consigne]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
       sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
@@ -275,6 +292,11 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // K1 : après une analyse, un chiffre du MESSAGE que rien ne prouve est dit sous la réponse (et compté par le banc).
     const note = blocsCalcules.length ? noteChiffresNonSources(ui.message, [...sorties, message]) : null;
     if (note) console.warn("[assistant] chiffres non sourcés", note.chiffres);
+    // P1 (décision 0047) — LA GARDE DE VÉRITÉ : « j'ai fusionné », « c'est envoyé », « j'ai pris en compte la mission
+    // fusionnée » sans l'outil réussi qui le prouve dans ce tour → une note « non vérifié » sous la réponse.
+    const preuves = r.outilsAppeles.filter((n) => !pilotagesEchoues.has(n));
+    const nonVerifie = noteActionsNonVerifiees(ui.message, preuves, propositions.length > 0);
+    if (nonVerifie) console.warn("[assistant] actions non vérifiées", nonVerifie.familles);
     const p = propositions[0];
     // LA RÉVÉLATION, AVANT D'AFFICHER ET DE STOCKER : chaque repère devient la valeur pour qui a le droit de
     // la voir (politique du coffre, journal), « [confidentiel] » sinon.
@@ -282,7 +304,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     return {
       ok: true,
       message,
-      content: await revelateur.texte([ui.message || "Je n'ai pas de réponse à afficher.", note?.texte].filter(Boolean).join("\n\n")),
+      content: await revelateur.texte([ui.message || "Je n'ai pas de réponse à afficher.", note?.texte, nonVerifie?.texte].filter(Boolean).join("\n\n")),
       blocs: [...visuels, ...(await revelateur.objet([...ui.blocs, ...blocsCalcules]))],
       memoireProposee: d.prive || vueExacte ? null : memoires[0] ?? null,
       notesProposees: [...notesProposees],
@@ -294,6 +316,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
         ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),
         ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
         ...(p.proposition.libelleBouton ? { libelleBouton: p.proposition.libelleBouton } : {}),
+        ...(p.proposition.apercus?.length ? { apercus: p.proposition.apercus } : {}),
         ...(p.proposition.simulation ? { simulation: p.proposition.simulation } : {}),
         ...(p.proposition.formulaire ? { formulaire: p.proposition.formulaire } : {}),
         status: "PROPOSED",

@@ -14,6 +14,7 @@ import { BON_DE_COMMANDE } from "./bon-de-commande";
 import { DEPOT_PIECE, MESSAGE_DIRECT, RELANCE, RENDEZ_VOUS, REPONSE_MESSAGE } from "./quotidien";
 import { DOCUMENT_MODELE } from "./document-modele";
 import { BC_DEPUIS_DEVIS, ENVOI_BC_VALIDATION } from "./bc-depuis-devis";
+import { BC_COMPOSE } from "./bc-compose";
 import { VOYAGEUR_PASSEPORT } from "./voyageur-passeport";
 import { TRADUCTION } from "./traduction";
 import { FORMULAIRE_PDF } from "./formulaire-pdf";
@@ -21,6 +22,8 @@ import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "./routines";
 import { ENREGISTRER_ATELIER } from "./atelier-enregistrer";
 import { REPONSE_DEMANDE } from "./delegation";
 import { OPERATIONS_TERRAIN } from "./terrain";
+import { FUSION_MISSIONS } from "./missions-fusion";
+import { ENVOI_GMAIL } from "./envoi-gmail";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
 
@@ -28,7 +31,7 @@ import { sansBloquer } from "@/lib/journal";
 /** LE REGISTRE — chaque geste que l'Assistant IA sait préparer. */
 export const OPERATIONS_IA: OperationIA[] = [
   SPONSORING_CREATION, PRISE_EN_CHARGE_CREATION, EVENEMENT_CREATION, MATERIEL_PROMO_CREATION, AUTRE_CREATION, POSTE_AJOUT,
-  BON_DE_COMMANDE, BC_DEPUIS_DEVIS, ENVOI_BC_VALIDATION, VOYAGEUR_PASSEPORT,
+  BON_DE_COMMANDE, BC_DEPUIS_DEVIS, BC_COMPOSE, ENVOI_BC_VALIDATION, VOYAGEUR_PASSEPORT,
   RELANCE, DEPOT_PIECE, RENDEZ_VOUS, REPONSE_MESSAGE, MESSAGE_DIRECT,
   DOCUMENT_MODELE, TRADUCTION, FORMULAIRE_PDF,
   PROGRAMMER_ROUTINE, GERER_ROUTINE,
@@ -36,6 +39,8 @@ export const OPERATIONS_IA: OperationIA[] = [
   REPONSE_DEMANDE,
   // J13 (décision 0025) : le terrain — compte rendu pré-rempli, échantillons, tournée de demain, photo rattachée.
   ...OPERATIONS_TERRAIN,
+  // P1 (décision 0047) : fusionner ses missions en une ; envoyer un mail par sa boîte Gmail reliée (fenêtre d'annulation).
+  FUSION_MISSIONS, ENVOI_GMAIL,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));
@@ -53,6 +58,8 @@ export interface PropositionCarte {
     level?: "SENSITIVE" | "CRITICAL";
     confirmText?: string;
     libelleBouton?: string;
+    /** P1 (décision 0047) : l'aperçu réel des mails préparés. */
+    apercus?: { titre: string; html: string }[];
     /** J11 (décision 0030) : le formulaire généré depuis le contrat — la carte d'une capacité le rend éditable. */
     formulaire?: FormulaireCarte;
     payload?: unknown;
@@ -74,6 +81,20 @@ export const REFUS_SECONDE_CARTE = JSON.stringify({
   consigne: "Ne prépare rien d'autre maintenant. Résume la carte affichée, puis dis que l'autre demande sera préparée dès que celle-ci sera confirmée ou écartée.",
 });
 
+/** Les questions déjà posées par geste et par personne (15 min) — le processus web les tient ; un redémarrage les oublie. */
+const QUESTIONS = new Map<string, number>();
+const QUESTION_TTL_MS = 15 * 60_000;
+const MEME_TOUR_MS = 20_000;
+export function questionDejaPosee(userId: string, op: string, champ: string, maintenant = Date.now()): boolean {
+  for (const [k, t] of QUESTIONS) if (maintenant - t > QUESTION_TTL_MS) QUESTIONS.delete(k);
+  const cle = `${userId}\u0000${op}\u0000${champ.slice(0, 120)}`;
+  const avant = QUESTIONS.get(cle);
+  // Une reprise DANS le même tour (le modèle rappelle l'outil) n'est pas une question reposée : la personne ne l'a pas vue.
+  if (avant !== undefined && maintenant - avant < MEME_TOUR_MS) return false;
+  QUESTIONS.set(cle, maintenant);
+  return avant !== undefined;
+}
+
 /**
  * Les opérations offertes à CETTE personne, en outils. Une opération que son rôle ne permet pas
  * n'est pas même offerte ; celle qui l'est revérifie tout à l'exécution (action métier).
@@ -87,6 +108,16 @@ export function outilsOperations(user: CurrentUser, propositions: PropositionCar
       if (propositions.length > 0) return REFUS_SECONDE_CARTE;
       const p = await o.proposer(entree ?? {}, u);
       if ("manque" in p) {
+        // P1 (décision 0047, banc d'audit Q1 AP-01…05) : LA MÊME QUESTION NE SE POSE PAS DEUX FOIS. Le même champ déjà
+        // demandé par ce geste dans les 15 dernières minutes, et toujours absent : on ne le redemande pas — on le dit.
+        const deja = questionDejaPosee(u.id, o.nom, p.manque[0] ?? "");
+        if (deja) {
+          return JSON.stringify({
+            statut: "BLOQUE",
+            manque: p.manque,
+            consigne: `Tu as DÉJÀ demandé « ${p.manque[0]} » et la personne ne l'a pas donné. NE REPOSE PAS la question. Dis en une phrase que ce champ est obligatoire pour ce geste, que rien n'est créé, et qu'elle peut le donner quand elle veut (ou compléter à l'écran).`,
+          });
+        }
         return JSON.stringify({
           statut: "INCOMPLET",
           manque: p.manque,

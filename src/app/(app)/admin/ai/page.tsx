@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber, formatDateTime } from "@/lib/utils";
 import { AiSettingsForm } from "./ai-settings-form";
-import { depenseOcrVisionDuMois, etatChantiersPourAdministration, etatVisuelsPourAdministration, lireReglageOcrVision } from "@/modules/assistant-ia/api";
+import { depenseOcrVisionDuMois, etatChantiersPourAdministration, executantsPourAdministration, etatVisuelsPourAdministration, lireReglageOcrVision } from "@/modules/assistant-ia/api";
 import { ReglagesVisuelsForm } from "@/modules/assistant-ia/ecrans/reglages-visuels";
 import { ReglagesChantiersForm } from "@/modules/assistant-ia/ecrans/reglages-chantiers";
 import { TableauConsommation } from "@/modules/assistant-ia/ecrans/consommation/tableau-consommation";
@@ -60,9 +60,10 @@ const libelleFonction = (f: string): string => (FEATURE_LABEL as Record<string, 
 export default async function AiControlCenterPage() {
   const user = await requireModule("ADMIN", "UPDATE");
   const settings = await getAiSettings();
-  const [ocrVision, depenseOcr, visuels, chantiers] = await Promise.all([
+  const [ocrVision, depenseOcr, visuels, chantiers, executants] = await Promise.all([
     lireReglageOcrVision(), depenseOcrVisionDuMois().catch(sansBloquer("admin-ia.depense-ocr", 0)), etatVisuelsPourAdministration(),
     user.role === "SUPER_ADMIN" ? etatChantiersPourAdministration() : Promise.resolve(null),
+    executantsPourAdministration().catch(sansBloquer("admin-ia.executants", null)),
   ]);
 
   const since30 = new Date(Date.now() - 30 * 86400000);
@@ -160,6 +161,22 @@ export default async function AiControlCenterPage() {
           </p>
         </div>
       </div>
+
+      {/* P1 (décision 0047) : qui conduit les missions — une mission que personne ne conduit reste à 0 %. */}
+      {executants && (
+        <Card id="missions-executants" data-testid="admin-executants">
+          <CardHeader><CardTitle>Missions de l&apos;Assistant IA — qui les conduit</CardTitle></CardHeader>
+          <CardContent className="space-y-1 text-sm">
+            <p>Dernier passage effectif des travaux : <strong>{executants.dernierPassage ? formatDateTime(new Date(executants.dernierPassage)) : "jamais"}</strong>
+              {" · "}dernier battement du worker : <strong>{executants.workerVu ? formatDateTime(new Date(executants.workerVu)) : "jamais vu"}</strong>
+              {" · "}TACHES_DE_FOND de ce service : <code>{executants.mode}</code></p>
+            <p>Missions prêtes à avancer : <strong>{executants.enAttente}</strong></p>
+            {executants.silence
+              ? <p className="text-destructive">Les missions n&apos;avancent pas : {executants.silence}. Sur Render, vérifier que le service « amd-worker » existe et tourne (TACHES_DE_FOND=les-deux, mêmes DATABASE_URL et OPENAI_API_KEY que le web), ou que le web de l&apos;ERP porte TACHES_DE_FOND=les-deux ; puis GET /api/health/worker.</p>
+              : <p className="text-muted-foreground">Un exécutant conduit les missions (battement de moins de 3 min).</p>}
+          </CardContent>
+        </Card>
+      )}
 
       {/* K8 (décision 0035) : la consommation précise — le MÊME tableau que les Réglages d'Adventum IA. */}
       <Card id="consommation">

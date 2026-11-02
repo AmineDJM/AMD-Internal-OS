@@ -134,7 +134,7 @@ function carteDe(cap: Capacite, entree: Record<string, unknown>, affichage: Read
   const contrat = CONTRAT_IA.get(cap.id)!;
   const fields = contrat.champs.filter((c) => entree[c.nom] !== undefined)
     .map((c) => ({ label: libelleChamp(c.nom), value: affichage.get(c.nom) ?? valeurAffichee(entree[c.nom]) }));
-  const level = niveauDeCarte(cap.risque);
+  const level = niveauDeCarte(cap.risque, cap.annulation);
   const confirmText = level === "CRITICAL" ? texteARessaisir(cap.libelle, entree) : undefined;
   // Une référence résolue par son nom garde ce nom à l'écran (l'identifiant seul ne dit rien à la personne).
   const etiquettes: Record<string, string> = {};

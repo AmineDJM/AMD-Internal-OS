@@ -39,6 +39,9 @@ import { contratEnVigueur, fonctionEnVigueur, perimetreEnVigueur, perimetreQuiCo
 import { estFamilleIa, resoudreAccesIa, FAMILLES_IA, type FamilleIa } from "./domaine/acces-regles";
 import { accesAssistantIa } from "./infra/role-config";
 import { outilsV1 } from "./infra/outils-v1";
+import { accueilPour, prenomDe, sectionProfil } from "./domaine/profil-personne";
+import { oublierProfil, profilDeLaPersonne } from "./infra/profil-personne";
+import { apercuAssistantDe, enregistrerAvenantIa, accorderDroitDateIa } from "./actions-consommation";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -105,6 +108,26 @@ describe("les périmètres sensibles (pur)", () => {
   });
 });
 
+describe("le profil de la personne (pur)", () => {
+  it("le prénom : le mot qui n'est pas un NOM en capitales", () => {
+    expect(prenomDe("Radia KEBIR")).toBe("Radia");
+    expect(prenomDe("KEBIR Radia")).toBe("Radia");
+    expect(prenomDe("Assia")).toBe("Assia");
+    expect(prenomDe("")).toBe("");
+  });
+  it("l'accueil suit l'adresse choisie", () => {
+    expect(accueilPour("Radia", "TU")).toMatch(/^Bonjour Radia 👋[\s\S]*ton assistant/);
+    expect(accueilPour("Radia", "VOUS")).toMatch(/votre assistant/);
+  });
+  it("la section dit à qui il parle, interdit un autre prénom, et dit l'absence de fiche sans rien ouvrir", () => {
+    const t = sectionProfil({ userId: "u", nom: "Radia KEBIR", prenom: "Radia", adresse: "VOUS", role: "Assistante de Direction", roleSecondaire: null, fiche: null, famillesOuvertes: [], perimetres: [] });
+    expect(t).toContain("Tu parles à : Radia KEBIR");
+    expect(t).toContain("JAMAIS par un autre prénom");
+    expect(t).toContain("AUCUNE n'est liée");
+    expect(t).toContain("AUCUN périmètre nominatif");
+  });
+});
+
 suite("S1 — le scénario du 02/11 contre la base", () => {
   let amine: CurrentUser;
   let radia: CurrentUser;
@@ -124,8 +147,8 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
     remplacerLecteurInterrupteurIaPourTests(async () => false);
     remplacerReglagesPourTests({ valeursSensibles: "EN_CLAIR" });
     amine = await session("SUPER_ADMIN", "Amine", true);
-    radia = await session("DIRECTION_ASSISTANT", "Radia", true);
-    sansFiche = await session("DIRECTION_ASSISTANT", "Nadia", true);
+    radia = await session("COORDINATOR", "Radia", true);
+    sansFiche = await session("COORDINATOR", "Nadia", true);
     assia = await session("MEDICAL_DELEGATE", "Assia");
     await prisma.employee.create({ data: { fullName: `Radia ${TAG}KEBIR`, userId: radia.id, position: "Assistante de direction", baseSalary: 105180, grossSalary: 180673, netToPay: 110000 } });
     await prisma.employee.create({ data: { fullName: `Assia ${TAG}ABDELAZIZ`, userId: assia.id, position: "Pharmacienne", baseSalary: 350000, netToPay: 400000, iban: "DZ5900400174401234567890" } });
@@ -136,7 +159,7 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
     remplacerLecteurInterrupteurIaPourTests(null);
     remplacerReglagesPourTests(null);
     const ids = [amine, radia, sansFiche, assia].filter(Boolean).map((u) => u.id);
-    await prisma.assistantIaAcces.deleteMany({ where: { OR: [{ userId: { in: ids } }, { role: "DIRECTION_ASSISTANT", updatedById: TAG }] } }).catch(() => {});
+    await prisma.assistantIaAcces.deleteMany({ where: { OR: [{ userId: { in: ids } }, { role: "COORDINATOR", updatedById: TAG }] } }).catch(() => {});
     await prisma.accesDonneeSensible.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await effacerJournalDe(ids);
@@ -204,8 +227,8 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
 
   it("RADIA — même la famille « Salaires & paie » ouverte à SON RÔLE (réglage large) n'ouvre pas la paie d'autrui", async () => {
     await prisma.assistantIaAcces.upsert({
-      where: { role: "DIRECTION_ASSISTANT" },
-      create: { role: "DIRECTION_ASSISTANT", ouvertes: ["SALAIRES", "CONTRATS_RH", "FICHES"], updatedById: TAG },
+      where: { role: "COORDINATOR" },
+      create: { role: "COORDINATOR", ouvertes: ["SALAIRES", "CONTRATS_RH", "FICHES"], updatedById: TAG },
       update: { ouvertes: ["SALAIRES", "CONTRATS_RH", "FICHES"], updatedById: TAG },
     });
     try {
@@ -218,7 +241,7 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
       expect(r.ok).toBe(true);
       expect(chiffres(JSON.stringify(f.promptsRecus))).not.toMatch(/400000|350000/);
     } finally {
-      await prisma.assistantIaAcces.deleteMany({ where: { role: "DIRECTION_ASSISTANT", updatedById: TAG } });
+      await prisma.assistantIaAcces.deleteMany({ where: { role: "COORDINATOR", updatedById: TAG } });
     }
   });
 
@@ -303,8 +326,8 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
 
     it("D1 — « Fiches collaborateurs » ouverte au rôle n'offre pas l'extraction du registre complet (directory_list)", async () => {
       await prisma.assistantIaAcces.upsert({
-        where: { role: "DIRECTION_ASSISTANT" },
-        create: { role: "DIRECTION_ASSISTANT", ouvertes: ["FICHES"], updatedById: TAG },
+        where: { role: "COORDINATOR" },
+        create: { role: "COORDINATOR", ouvertes: ["FICHES"], updatedById: TAG },
         update: { ouvertes: ["FICHES"], updatedById: TAG },
       });
       try {
@@ -312,8 +335,67 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
         const liste = outilsV1(radia, [], [], [], null, acces).find((o) => o.def.name === "directory_list");
         expect(liste?.allowed(radia) ?? false).toBe(false);
       } finally {
-        await prisma.assistantIaAcces.deleteMany({ where: { role: "DIRECTION_ASSISTANT", updatedById: TAG } });
+        await prisma.assistantIaAcces.deleteMany({ where: { role: "COORDINATOR", updatedById: TAG } });
       }
+    });
+  });
+  describe("le profil construit par le serveur, la console", () => {
+    afterEach(async () => {
+      await prisma.assistantIaPreference.deleteMany({ where: { userId: radia.id } });
+      const fiche = await prisma.employee.findFirst({ where: { userId: radia.id } });
+      if (fiche) await prisma.avenantContrat.deleteMany({ where: { employeeId: fiche.id } });
+      oublierProfil(radia.id);
+    });
+
+    it("la consigne du tour porte SON profil (poste, contrat, avenant de fonction) — et jamais le prénom d'un autre", async () => {
+      const fiche = await prisma.employee.findFirstOrThrow({ where: { userId: radia.id } });
+      await prisma.avenantContrat.create({ data: { employeeId: fiche.id, objet: "FONCTION", fonction: "Office manager", effetLe: new Date(Date.now() - 86_400_000), motif: `Avenant n°2 ${TAG}` } });
+      await prisma.assistantIaPreference.create({ data: { userId: radia.id, adresse: "TU" } });
+      oublierProfil(radia.id);
+      const f = modeleFactice([reponse("Salut Radia !")]);
+      remplacerModelesPourTests([f.modele as never]);
+      const r = await jouerTour(radia, { texte: "Salut", pieces: [], historique: [{ role: "assistant", content: "Salut Amine !" }] });
+      expect(r.ok).toBe(true);
+      const systeme = JSON.stringify(f.promptsRecus[0]);
+      expect(systeme).toContain(`Tu parles à : Radia ${TAG}`);
+      expect(systeme).toContain("prénom « Radia »");
+      expect(systeme).toContain("Office manager (par avenant)");
+      expect(systeme).toContain("tutoiement");
+      expect(systeme).not.toMatch(/Tu parles à : Amine/);
+    });
+
+    it("le profil ne vient que de SA fiche : celle d'Assia n'y entre jamais", async () => {
+      const { profil, section } = await profilDeLaPersonne(radia, await accesAssistantIa(radia));
+      expect(profil.userId).toBe(radia.id);
+      expect(section).not.toContain("ABDELAZIZ");
+      expect(section).not.toContain("Pharmacienne");
+    });
+
+    it("« Ce que son assistant voit » : Super Admin seul ; le calcul est celui du moteur", async () => {
+      ACTEUR = radia;
+      expect((await apercuAssistantDe(assia.id)).ok).toBe(false);
+      ACTEUR = { ...amine, visualise: { id: radia.id, name: radia.name } };
+      expect((await apercuAssistantDe(radia.id)).ok).toBe(false);
+      ACTEUR = amine;
+      const r = await apercuAssistantDe(radia.id);
+      expect(r.ok).toBe(true);
+      if (r.ok) {
+        expect(r.apercu.consigne).toContain(`Tu parles à : Radia ${TAG}`);
+        expect(r.apercu.profil.famillesOuvertes).not.toContain("SALAIRES");
+      }
+    });
+
+    it("la console refuse une délégation sans entité, un droit sans motif ; accorde un droit daté nommément", async () => {
+      ACTEUR = amine;
+      const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
+      expect((await enregistrerAvenantIa(fd({ userId: radia.id, objet: "DELEGATION", famille: "SALAIRES", effetLe: "2026-11-01", motif: "Intérim" }))).ok).toBe(false);
+      expect((await accorderDroitDateIa(fd({ userId: radia.id, famille: "SALAIRES", du: "2026-11-01", motif: "" }))).ok).toBe(false);
+      expect((await accorderDroitDateIa(fd({ userId: radia.id, famille: "BUDGETS", du: "2026-11-01", motif: "Audit annuel" }))).ok).toBe(false);
+      expect((await accorderDroitDateIa(fd({ userId: amine.id, famille: "SALAIRES", du: "2026-11-01", motif: "Audit annuel" }))).ok).toBe(false);
+      expect((await accorderDroitDateIa(fd({ userId: radia.id, famille: "SALAIRES", du: "2026-11-01", au: "2026-11-30", motif: `Audit annuel ${TAG}` }))).ok).toBe(true);
+      ACTEUR = radia;
+      expect((await accorderDroitDateIa(fd({ userId: radia.id, famille: "SALAIRES", du: "2026-11-01", motif: "Je m'ouvre tout" }))).ok).toBe(false);
+      await prisma.assistantIaDroitDate.deleteMany({ where: { userId: radia.id } });
     });
   });
 });

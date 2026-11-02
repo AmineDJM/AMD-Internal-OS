@@ -6,6 +6,9 @@ import { getAppSettings } from "@/lib/settings";
 import { validationRequiseBC } from "@/lib/bons-de-commande/regle";
 import { peutCreerUnBC } from "@/lib/bons-de-commande/retenue-bc";
 import { findPartyByName } from "@/lib/queries/company-contacts";
+
+// Le fournisseur par son nom dans l'annuaire que la personne voit — réexporté pour le BC dicté (`bc-compose.ts`).
+export { findPartyByName };
 import type { CurrentUser } from "@/lib/session";
 import { champs, dzd, nombre, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 import { fichiersDepuisDrive, idsDe, resoudrePiece } from "./pieces";
@@ -47,7 +50,8 @@ export const BON_DE_COMMANDE: OperationIA = {
   module: "VALIDATIONS",
   libelle: "Bon de commande préparé",
   description:
-    "PRÉPARE un BON DE COMMANDE et sa DEMANDE DE VALIDATION (bouton « Créer la demande de validation ») : le fichier du BC (Drive ou conversation), "
+    "SOUMET un BON DE COMMANDE qui existe DÉJÀ EN FICHIER, avec sa DEMANDE DE VALIDATION (bouton « Créer la demande de validation ») — sans fichier, "
+    + "c'est `composer_bon_de_commande` (BC dicté) ou `preparer_bc_depuis_devis` (devis joint). Ici : le fichier du BC (Drive ou conversation), "
     + "le fournisseur, le montant, le validateur. Elle dit la société sur laquelle le BC s'inscrit (par défaut celle de l'employé) et prévient du "
     + "passage par le centre de validation et la signature des Finances. Elle répond `manque` — pose alors UNE seule question.",
   schema: {

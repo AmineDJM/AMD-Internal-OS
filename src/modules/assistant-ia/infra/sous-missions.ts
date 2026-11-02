@@ -4,10 +4,12 @@ import type { CurrentUser } from "@/lib/session";
 import { sansBloquer } from "@/lib/journal";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {
-  annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
+  annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, MOTIF_ARRET, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
   type MissionTableau, type PersonaTravaux,
 } from "./travaux";
 import { deposerSynthese } from "./fil/service";
+import { diagnostiquerMission, silenceDesExecutants, type Diagnostic, type EtatDesExecutants } from "../domaine/missions/pilotage";
+import { etatDesExecutants } from "./missions/executants";
 import { outilLancerUnTravail, type OuvertureTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
 import { ANGLES_MAX, ANGLES_MIN, lireDemandeRecherche, NOM_OUTIL_RECHERCHE, ORIGINE_RECHERCHE, planRecherche } from "../domaine/recherche-approfondie";
 import { genererTexte } from "./generer";
@@ -172,11 +174,15 @@ async function conclureTour(tour: { id: string; filId: string; userId: string; t
   const ms = await prisma.mission.findMany({
     // C1 (décision 0042) : un CHANTIER lancé depuis la conversation y rend compte comme un travail (rapport au carnet).
     where: { id: { in: ids }, principalId: tour.userId, kind: { in: ["TRAVAIL", "CHANTIER"] } },
-    select: { id: true, title: true, status: true, costUsd: true, carnet: true, startedAt: true, updatedAt: true, context: true },
+    select: { id: true, title: true, status: true, costUsd: true, carnet: true, startedAt: true, updatedAt: true, context: true, pausedReason: true },
   });
-  if (ms.some((m) => !statutFini(m.status))) return "attente";
-  if (!ms.length || ms.every((m) => m.status === "CANCELLED")) return "rien";
-  const issues: IssueSousMission[] = await Promise.all(ms.map(async (m) => {
+  // P1 (décision 0047) : une mission ARRÊTÉE (ou fusionnée dans une autre) ne retient pas la synthèse, et n'y figure pas —
+  // trois missions fusionnées en une rendent UNE synthèse, celle de la mission gardée.
+  const arretee = (m: { status: string; pausedReason: string | null }) => m.status === "PAUSED" && !!m.pausedReason?.startsWith(MOTIF_ARRET);
+  if (ms.some((m) => !statutFini(m.status) && !arretee(m))) return "attente";
+  const retenues = ms.filter((m) => !arretee(m));
+  if (!retenues.length || retenues.every((m) => m.status === "CANCELLED")) return "rien";
+  const issues: IssueSousMission[] = await Promise.all(retenues.map(async (m) => {
     const c = lireCarnet(m.carnet);
     const livrable = c.livrables[c.livrables.length - 1];
     // LA RECHERCHE APPROFONDIE (§ 7) : le rapport s'affiche EN ENTIER ; son Word (le PDF en est la conversion) est cité aussi.
@@ -248,9 +254,15 @@ export async function balayerSousMissions(maintenant = new Date(), limite = 30):
 export interface MissionDuTableau extends MissionTableau {
   /** La conversation qui l'a lancée (et le tour) : les sous-missions lancées ensemble se regroupent. */
   conversation: { id: string; titre: string | null; tourId: string } | null;
+  /** P1 (décision 0047) : ce que la mission attend VRAIMENT — jamais « En cours · 0 % » indéfiniment. */
+  diagnostic: Diagnostic;
 }
 
-export interface TableauDesMissions { missions: MissionDuTableau[]; enCours: number; aApprouver: number; signature: string; lu: string }
+export interface TableauDesMissions {
+  missions: MissionDuTableau[]; enCours: number; aApprouver: number; signature: string; lu: string;
+  /** P1 : le battement des exécutants (dernier passage effectif des travaux, worker vu) et l'alerte quand personne ne conduit. */
+  executants: EtatDesExecutants & { alerte: string | null };
+}
 
 /** LE TABLEAU d'une personne, avec la conversation d'origine de chaque mission. */
 export async function tableauDesMissions(userId: string, maintenant = new Date()): Promise<TableauDesMissions> {
@@ -262,9 +274,19 @@ export async function tableauDesMissions(userId: string, maintenant = new Date()
   }) : [];
   const origine = new Map<string, MissionDuTableau["conversation"]>();
   for (const t of tours) for (const id of idsDe(t.travaux)) if (!origine.has(id)) origine.set(id, { id: t.filId, titre: t.fil.titre, tourId: t.id });
-  const avec = missions.map((m) => ({ ...m, conversation: origine.get(m.id) ?? null }));
+  const ex = await etatDesExecutants();
+  const avec = missions.map((m) => ({
+    ...m, conversation: origine.get(m.id) ?? null,
+    diagnostic: diagnostiquerMission({ etat: m.etat, motifPause: m.motifPause, attente: m.attente, etapes: m.etapes, majLe: m.majLe }, ex, maintenant.getTime()),
+  }));
+  const silence = silenceDesExecutants(ex, maintenant.getTime());
+  const bloquees = avec.filter((m) => m.diagnostic.code === "ATTENTE_EXECUTANT").length;
   return {
     missions: avec, signature, lu: maintenant.toISOString(),
+    executants: {
+      dernierPassage: ex.dernierPassage, workerVu: ex.workerVu,
+      alerte: bloquees && silence ? `${bloquees} mission${bloquees > 1 ? "s n'avancent" : " n'avance"} pas : ${silence}. À vérifier sur Render : le service « amd-worker » tourne (TACHES_DE_FOND=les-deux), ou le web de l'ERP bat (TACHES_DE_FOND=les-deux).` : null,
+    },
     enCours: avec.filter((m) => ["EN_COURS", "EN_ATTENTE", "BUDGET_HOLD"].includes(m.etat)).length,
     aApprouver: avec.filter((m) => m.etat === "A_APPROUVER").length,
   };

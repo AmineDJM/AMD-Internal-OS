@@ -27,6 +27,8 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "ad-pro-item-actions:demanderPaiementPoste": compensation(ORDRE),
   "assistant-ia-actions:reglerMaReponseVocale": retour(REGLAGE),
   "assistant-ia-actions:reglerMaMemoireAuto": retour(REGLAGE),
+  // S1 (décision 0048) : tutoiement / vouvoiement de SON assistant.
+  "assistant-ia-actions:reglerMonAdresse": retour(REGLAGE),
   "assistant-ia-conversations-actions:reglerMaConversationPrivee": retour(REGLAGE),
   "assistant-ia-proactivite-actions:reglerConsoleProactivite": retour(REGLAGE),
   "assistant-ia-proactivite-actions:reglerMaVeille": retour(REGLAGE),

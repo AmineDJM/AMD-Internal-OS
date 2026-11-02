@@ -208,6 +208,13 @@ const peutAgir = (l: { principalId: string | null }, user: CurrentUser) => l.pri
 const libelleActe = (acte: string, type?: string): string => type?.startsWith("inverse.graph") ? "le geste dans la boîte Microsoft" :
   ({ COURRIEL: "le courriel", NOTIFICATION_PUSH: "la notification poussée", ECRITURE_EXTERNE: "la publication", RESEAU: "l'appel externe", PAIEMENT: "l'ordre de paiement", INVITATION_AGENDA: "l'invitation" } as Record<string, string>)[acte] ?? "l'effet";
 
+/** L'état métier d'un effet annulé ou rétabli (P1) — jamais bloquant : la file fait foi. */
+async function crochetMetier(l: LigneEffet, quand: "surAnnulation" | "surRetablissement", parId: string): Promise<void> {
+  const ex = await executeurDe(l.type).catch(sansBloquer(`effets.fenetre.${quand}.executeur`, null));
+  const f = ex?.[quand];
+  if (f) await f(l.charge, ligneVue(l), parId).catch(sansBloquer(`effets.fenetre.${quand}`));
+}
+
 async function auditer(user: CurrentUser, l: { id: string; acte: string; type: string; cible: string; apercu: string | null }, quoi: string) {
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte, l.type)} à ${l.cible}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
 }
@@ -222,6 +229,7 @@ export async function annulerEffetSortant(id: string, user: CurrentUser, opts: {
   if (!peutAgir(l, user)) return { ok: false, issue: "REFUS", message: "Seule la personne au nom de qui l'envoi part (ou le Super Admin) peut l'annuler." };
   const prise = await prismaBrut.effetSortantDiffere.updateMany({ where: { id, statut: "EN_ATTENTE" }, data: { statut: "ANNULE", annuleLe: new Date(), annuleParId: user.id } });
   if (prise.count === 1) {
+    await crochetMetier(l, "surAnnulation", user.id);
     await auditer(user, l, "Envoi annulé dans la fenêtre : rien n'est parti");
     return { ok: true, issue: "ANNULE", message: `${majuscule(libelleActe(l.acte, l.type))} à ${l.cible} est annulé : rien n'est parti.` };
   }
@@ -286,6 +294,7 @@ export async function retablirEffetSortant(id: string, user: CurrentUser): Promi
   });
   if (prise.count !== 1) return { ok: false, issue: "SANS_OBJET", message: "Cet envoi n'est pas annulé : rien à rétablir." };
   programmerReveil(delai);
+  await crochetMetier(l, "surRetablissement", user.id);
   await auditer(user, l, "Envoi rétabli (l'annulation est annulée)");
   return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte, l.type))} à ${l.cible} repart dans ${delai} s (annulable d'ici là).` };
 }
@@ -404,6 +413,12 @@ export interface ExecuteurEffetSortant {
   compensation?: (charge: unknown, ligne: EffetSortantVu, motif: string | null) => Promise<PlanCompensation | null>;
   /** La phrase honnête quand rien ne compense (« la notification s'est affichée sur son téléphone »). */
   sansCompensation?: string;
+  /**
+   * P1 (décision 0047) : l'effet porte un ÉTAT MÉTIER à tenir juste (l'intention d'envoi d'Adam) — annulé dans la
+   * fenêtre, il passe à « annulé » chez lui ; rétabli, il redevient « approuvé ». Ne lève pas : l'annulation est acquise.
+   */
+  surAnnulation?: (charge: unknown, ligne: EffetSortantVu, parId: string) => Promise<void>;
+  surRetablissement?: (charge: unknown, ligne: EffetSortantVu, parId: string) => Promise<void>;
 }
 
 // UN SEUL registre par processus, même si Next charge deux copies du module (comme le magasin du geste).

@@ -119,7 +119,7 @@ dit **en une phrase** l'écart et les lignes douteuses NOMMÉES (`phraseReconcil
   en-tête de la société, mentions, lignes, totaux, référence du devis), en **pré-validation** — c'est le brouillon : aucun
   centre ne le prend, aucune demande n'existe — avec son .docx et son **PDF au Drive** (« Bons de commande émis ») ; le
   lien du PDF revient dans la conversation (« Ouvrir le PDF »). Le devis lu, l'enveloppe et le validateur déjà nommé sont
-  gardés sur la pièce (`custom.depuisDevis`).
+  gardés sur la pièce (`custom.bcAssistant`).
 - **« Envoyer en validation »** est un geste séparé (`envoyer_bc_en_validation`) : c'est LÀ que le validateur se demande ;
   la demande joint le devis ; le circuit (centre puis Finances) n'est dit que si un seuil est réglé — « au-dessus du seuil
   de 0 DZD » ne se dit plus.
@@ -133,6 +133,21 @@ plus dans la famille IA « Ad & Pro » : un BC se crée aussi aux Finances et au
 l'outil à qui peut le faire à l'écran. La porte est celle du geste (`ouverte` : VALIDATIONS + droit de créer un BC),
 la famille celle des écritures. La lecture des lignes d'un PDF à couche texte ne dépend plus de la bascule « lecture des
 pièces par l'IA » (positions, locales) ; un scan, si.
+
+### 4 ter. Le BC dicté, et l'enveloppe nommée (audit Q1, rejeu du 02/11)
+
+- **BC sans pièce** (`composer_bon_de_commande`, `infra/operations/bc-compose.ts`) : « fais un BC à l'Imprimerie Atlas :
+  500 kakémonos à 2 000 DZD » ne demande plus de fichier. Les lignes sont celles DICTÉES (rien n'est complété : une
+  quantité ou un prix manquant se demande), le fournisseur celui de l'annuaire ou son seul nom (dit sur la carte), la
+  TVA 19 % par défaut, affichée. Même geste et même cycle : « Créer le BC (PDF) » → brouillon + PDF, sans validateur.
+  `preparer_bon_de_commande` reste le chemin d'un BC qui existe DÉJÀ en fichier.
+- **Enveloppe nommée invisible** (`enveloppeDuBC`) : « imputé au budget Marketing » par quelqu'un qui ne lit pas les
+  Budgets ne bloque plus la carte — l'enveloppe est gardée telle que dite, « à confirmer à la validation »
+  (`custom.bcAssistant.enveloppe` sans identifiant, note de la pièce).
+
+Rejeu réel du banc Q1 (`AUDIT_SEULEMENT=BC- npm run audit:assistant`, modèle de production, 02/11) : **BC-01** devis
+(assistante) réussi, 0 question, 8,5 s ; **BC-02** devis imputé « Marketing » (KAM) réussi, 0 question, 5,7 s ; **BC-03**
+BC dicté sans pièce (KAM) réussi, 0 question, 4,5 s — 3/3 (avant : 1/3), 0,07 $.
 
 ### 5. La carte : un résumé, le détail au panneau, chaque chose dite une fois
 

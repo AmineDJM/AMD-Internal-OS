@@ -242,10 +242,13 @@ export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | un
       if ("erreur" in e) return refus(e.erreur);
       const nonFiche = estSoi(u, e) ? null : await droitSurAutrui(u, e, acces, "FICHES", userCan(u, "RH", "VIEW"), REFUS_FICHE);
       if (nonFiche) return refus(nonFiche);
+      // S1 (banc Q1, LD-06) : DÉFENSE AU NIVEAU DES DONNÉES — l'IBAN et le NIN d'autrui ne sont même pas LUS en base pour qui
+      // ne gère pas les RH de sa société (finance comprise) : pas « lus puis masqués », jamais sélectionnés.
+      const identite = estSoi(u, e) || acces.superAdmin || (await gereLesRhDe(u, e));
       const f = await prisma.employee.findUniqueOrThrow({
         where: { id: e.id },
         select: {
-          hireDate: true, contractType: true, contractStart: true, contractEnd: true, leaveBalanceDays: true, iban: true, nationalId: true,
+          hireDate: true, contractType: true, contractStart: true, contractEnd: true, leaveBalanceDays: true, iban: identite, nationalId: identite,
           departmentRef: { select: { name: true } }, manager: { select: { fullName: true } },
           company: { select: { shortName: true, name: true } }, user: { select: { role: true } },
           _count: { select: { documents: true } },

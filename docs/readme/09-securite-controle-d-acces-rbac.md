@@ -54,3 +54,14 @@ les Missions d'Adam, Mon Équipe, le Pipeline ou l'Analyse CTD peuvent y être p
 
 ---
 
+### Assistant IA — l'assistant d'une personne (S1, décision 0048)
+
+- **Vue exacte** : l'assistant (texte, voix, gestes, notes) est **fermé** — le corps d'une action y porte le Super Admin
+  réel. Garde : `enVueExacteIa` (`modules/assistant-ia/domaine/acces-regles.ts`) dans `beta/actions.ts` et `jouerTour`.
+- **Par défaut** chacun ne voit que ses propres données (fiche **liée** au compte : `Employee.userId`, jamais devinée).
+- **Données sensibles d'autrui** (paie, dossier RH) : droit applicatif RH dans la société de la fiche, **avenant** de
+  délégation daté sur une entité (`AvenantContrat`), ou **droit daté** nominatif de la console (`AssistantIaDroitDate`) —
+  jamais un réglage de rôle (`domaine/perimetres.ts`, `perimetreCouvrant`). Révélation auditée avec origine et motif.
+- **Profil** : `infra/profil-personne.ts` — la section « INTERLOCUTEUR » de chaque tour. Console : `/admin/ai/acces`,
+  carte « Ce que son assistant voit ».
+

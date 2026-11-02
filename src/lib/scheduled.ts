@@ -217,6 +217,8 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     const graph = await import("@/lib/mail/executeur-sortant");
     graph.enregistrerExecuteurGraph();
     graph.enregistrerInversesGraph();
+    // P1 (décision 0047) : le courriel Gmail de l'Assistant IA, différé comme celui de Microsoft.
+    (await import("@/lib/google/gmail/envoi")).enregistrerExecuteurGmail();
     await (await import("@/lib/contexte-geste")).executerEffetsSortantsDus();
   } },
   { cle: "rappels.reunions", executer: sendDueMeetingReminders },

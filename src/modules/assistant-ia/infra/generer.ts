@@ -68,6 +68,10 @@ async function enFlux(agent: Agent, messages: never, options: never): Promise<{ 
     if (done) break;
     text += String(value ?? "");
   }
+  // P1 (décision 0047) : un flux qui s'arrête SANS texte porte souvent l'erreur du fournisseur (clé refusée, crédit épuisé) —
+  // la rendre, sinon l'étape d'une mission échoue sur « aucune réponse » et personne ne sait pourquoi.
+  const erreur = (s as { error?: unknown }).error;
+  if (!text && erreur) throw erreur instanceof Error ? erreur : new Error(String(erreur));
   return { text: text || (await s.text), finishReason: await s.finishReason, usage: await s.usage };
 }
 

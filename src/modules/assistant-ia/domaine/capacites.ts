@@ -9,7 +9,8 @@
  *
  *   • R0 (lecture) : exécutée pendant le tour, la sortie encadrée si elle porte un contenu tiers ;
  *   • R1, R2 : une carte de confirmation (R2 la marque « sensible » : quelqu'un sera prévenu) ;
- *   • R3, R4 : une carte RENFORCÉE — la personne RESSAISIT la valeur demandée (`matchesConfirmText`, au socle).
+ *   • R3 réversible (fenêtre d'annulation, journal des effets) : le bouton suffit (décision 0047) ;
+ *   • R4, et R3 sans annulation : une carte RENFORCÉE — la personne RESSAISIT la valeur demandée (`matchesConfirmText`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -33,8 +34,12 @@ export function estChargeCapacite(v: unknown): v is ChargeCapacite {
     && !!c.entree && typeof c.entree === "object" && !Array.isArray(c.entree);
 }
 
-/** Le niveau de la carte : rien pour R1, « sensible » pour R2, « critique » (ressaisie) pour R3 et R4. */
-export function niveauDeCarte(risque: string): "SENSITIVE" | "CRITICAL" | undefined {
+/** Le niveau de la carte : rien pour R1, « sensible » pour R2 et R3 réversible, « critique » (ressaisie) pour R4 et R3 sans annulation. */
+export function niveauDeCarte(risque: string, annulation?: string): "SENSITIVE" | "CRITICAL" | undefined {
+  // DÉCISION DE LA DIRECTION (lot P1, décision 0047) : une action R3 RÉVERSIBLE (envoi sous fenêtre d'annulation,
+  // brouillon, geste défait par le journal des effets) se confirme d'un bouton — plus de ressaisie « ENREGISTRER ».
+  // La ressaisie reste pour R4 (argent, production) et pour tout geste qui ne se défait pas.
+  if (risque === "R3" && annulation !== undefined && annulation !== "aucune") return "SENSITIVE";
   if (risque === "R3" || risque === "R4") return "CRITICAL";
   if (risque === "R2") return "SENSITIVE";
   return undefined;

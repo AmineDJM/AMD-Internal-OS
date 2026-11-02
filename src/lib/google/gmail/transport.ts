@@ -5,7 +5,13 @@ import { googleJson } from "../client";
 import { getActiveGoogleConnection } from "../connection";
 import { buildMimeMessage, toGmailRaw, type MimeAttachment } from "./mime";
 import { getAttachmentBytes } from "./messages";
-import type { MailTransport, OutboundAttachmentRef } from "@/lib/comms/outbound";
+import {
+  approveOutboundIntent, cancelOutboundIntent, checkRateLimits, createOutboundIntent, rouvrirOutboundIntent, sendOutboundIntent,
+  type MailTransport, type OutboundAttachmentRef,
+} from "@/lib/comms/outbound";
+
+// P1 (décision 0047) : le canal d'Adam (`envoi.ts`) pilote la machine d'envoi par cette seule arête vers `comms`.
+export { approveOutboundIntent, cancelOutboundIntent, checkRateLimits, createOutboundIntent, rouvrirOutboundIntent, sendOutboundIntent };
 
 /**
  * LE TRANSPORT GMAIL — ce qui fait réellement partir un message.

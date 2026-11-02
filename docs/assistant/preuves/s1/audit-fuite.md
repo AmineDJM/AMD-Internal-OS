@@ -29,6 +29,11 @@ RH, évaluation, nature d'absence, notes, missions, mémoire, conversations, voi
 | 8c | `directory_lookup` | `platform/ia/lectures/directory-tools.ts` | l'annuaire du groupe, comme l'écran Annuaires › Personnes | OK (égal à l'écran) |
 | 8d | `directory_list` (registre complet + coordonnées) | `infra/outils-v1.ts` `surDroitReel` | jugé désormais sur le droit RÉEL (RH lecture, Direction, Super Admin) | **DOUTE D1 CORRIGÉ** (banc S1) |
 
+Ajouts après le banc Q1 : **LD-06** (la finance lisait le NIN d'autrui en base avant masquage) — IBAN et NIN ne sont plus
+sélectionnés hors gestion RH de la société ; **IBAN d'autrui à la finance** — refusé par l'assistant (règle la plus stricte,
+les écrans de paiement gardent la leur) ; **SO-03** — le filtre de la saisie ne mutile plus « Quel IBAN est enregistré… ».
+Banc de contournement : `src/modules/assistant-ia/s1-contournement.test.ts` (10 attaques, espion des lectures en base).
+
 Remarque hors assistant (comportement existant de l'ERP, non modifié) : `predicatEntitePermise` (`lib/company.ts`) rend
 « toutes les entités » quand l'ensemble des entités permises d'un porteur est vide.
 
@@ -46,7 +51,7 @@ exacte. Les lignes RH paie, Super Admin et l'assistante ouverte nommément vienn
 | Salarié sans fiche liée | ❌ (« aucune fiche ») | ❌ | ❌ | ❌ | ❌ | ❌ |
 | Manager | ✅ | ❌ (congé/absent seulement, comme l'écran) | ❌ | ❌ | ❌ | ❌ |
 | RH paie (RH modifier/valider) | ✅ | ✅ entités permises, famille ouverte | ✅ entités permises | ✅ (politique du coffre) | ❌ | ✅ entités permises |
-| Finance | ✅ | ❌ | ❌ | ❌ par l'assistant (fiche RH d'autrui fermée sans droit RH) | ❌ | ❌ |
+| Finance | ✅ | ❌ | ❌ | ❌ par l'assistant — jamais sélectionné en base, jamais révélé (banc de contournement) | ❌ | ❌ |
 | Assistante de direction | ✅ | ❌ — même famille ouverte à son rôle | ❌ | ❌ | ❌ | ❌ |
 | … avec avenant de délégation paie (entité P, daté) | ✅ | ✅ entité P seule, dans les dates | ❌ | ❌ | ❌ | ❌ |
 | KAM / délégué | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |

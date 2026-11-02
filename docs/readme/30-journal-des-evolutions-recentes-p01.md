@@ -1,5 +1,35 @@
 ## 🧾 Journal des évolutions récentes
 
+### P1 — L'ASSISTANT PILOTE VRAIMENT SES MISSIONS ET SES MAILS, ET NE DIT JAMAIS AVOIR FAIT CE QU'IL N'A PAS FAIT (2026-11-02)
+
+Direction, 02/11 : trois missions « En cours · 0 % », une troisième lancée au lieu de fusionner, « je prends en compte la
+mission que tu as déjà fusionnée » sans rien avoir lu, des cartes à ressaisir « ENREGISTRER ». Décision
+[0047](../assistant/decisions/0047-pilotage-missions-mails-verite.md). **Cause des 0 %** : personne ne conduisait les
+missions — le battement du web ne s'armait qu'à la première requête qui importait `lib/scheduled.ts` (une page de l'ERP) ;
+il s'arme désormais au démarrage (`src/instrumentation.ts`). L'erreur d'un modèle en flux n'est plus avalée (« crédit
+OpenAI épuisé » au lieu de « aucune réponse »). **À l'écrit** : `mes_missions`, `piloter_mission` (pause, reprendre, arrêter
+— réversible —, renommer), carte `fusionner_missions` ; la voix passe par les mêmes fonctions. **État honnête** : « en
+attente du worker (aucun battement depuis N min) », « attend ton approbation », « plafond », « bloquée : … » au tableau
+« Missions », dans la conversation et dans Administration › IA. **Garde de vérité** serveur (`noteActionsNonVerifiees`).
+**Mails, par la boîte d'ADAM** : `mes_boites_mail` lit l'état réel de sa connexion Google ; `envoyer_mail` → carte
+« Envoyer » qui nomme la boîte d'Adam, puis la MÊME machine à états que son écran (`OutboundMailIntent` : approuvée au nom
+de qui confirme, fenêtre d'annulation `courriel.gmail`, annulée = CANCELLED) ; Microsoft/SMTP de la personne seulement
+sur demande. La fusion est une opération de domaine tout ou rien à invariant relu (`fusionnerTravaux`). **R3 réversible : le bouton suffit** (plus de
+ressaisie) ; la ressaisie reste pour R4. Libellé « calculé à partir de tes dates » au lieu de « aucune donnée ».
+
+### S1 — UN ASSISTANT PAR EMPLOYÉ, QUI SAIT À QUI IL PARLE ET NE VOIT QUE SES DROITS (2026-11-02)
+
+Constat de la Direction (02/11) : depuis le compte de Radia ouvert en **Vue exacte**, l'assistant répondait « Salut Amine »
+et donnait la paie de Radia et d'Assia. Cause : le message part par une action serveur, dont le corps porte le Super
+Admin réel (§118.184) — le tour se jouait avec l'identité, la mémoire et les droits du Super Admin. **Corrigé** :
+l'assistant est fermé en Vue exacte (actions, `jouerTour` en échec fermé, accès vide), l'accueil le dit. Un réglage de
+**rôle** de la console n'ouvre plus jamais la paie ou le dossier RH d'**autrui** : seulement le droit applicatif RH, un
+**avenant** de délégation daté sur une entité (`AvenantContrat`, contrat en vigueur) ou un **droit daté** nominatif
+(`AssistantIaDroitDate`), chaque lecture auditée avec son motif. Chaque tour porte le **profil de la personne** construit
+par le serveur (nom, prénom, poste, entité, responsable, contrat, avenants, rôle, périmètres — jamais un autre prénom),
+tutoiement ou vouvoiement au choix. Administration › IA › Accès montre « **Ce que son assistant voit** ». Décision
+[0048](../assistant/decisions/0048-acces-personnels.md), audit `docs/assistant/preuves/s1/`. Migration
+`20270221000000_s1_acces_personnels`.
 ### B1 : « CRÉE UN BC EN PDF » DEPUIS UN DEVIS — LECTURE FIABLE, FLUX SANS FRICTION, PDF RENDU (2026-11-02)
 
 Direction, 02/11 (« catastrophique ») : sur « Devis matériel promotionnel INSIGNE.pdf », la carte disait

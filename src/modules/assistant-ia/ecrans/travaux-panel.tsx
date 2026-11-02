@@ -42,6 +42,7 @@ const CLASSE: Record<EtatTravail, string> = {
   EN_ATTENTE: "bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300",
   BUDGET_HOLD: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
   EN_PAUSE: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+  ARRETE: "bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400",
   BLOQUE: "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-400",
   TERMINE: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
   ANNULE: "bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400",
@@ -136,7 +137,7 @@ export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver, d
       {peutReprendre(t.etat) && (
         <button type="button" disabled={!!occupe} onClick={() => agir(`r${t.id}`, t.id, reprendreMonTravailIA)} className={bouton}><Play className="h-3.5 w-3.5" /> Reprendre</button>
       )}
-      {!["TERMINE", "ANNULE", "ECHEC"].includes(t.etat) && (
+      {!["TERMINE", "ANNULE", "ECHEC", "ARRETE"].includes(t.etat) && (
         <label className="inline-flex items-center gap-1 text-[12px] text-slate-600 dark:text-zinc-400">
           <span className="sr-only">Priorité</span>
           <select
