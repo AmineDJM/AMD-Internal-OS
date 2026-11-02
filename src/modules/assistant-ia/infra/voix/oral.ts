@@ -310,6 +310,7 @@ async function annulerDerniere(user: CurrentUser): Promise<RetourOral> {
   // Un envoi encore en fenêtre, hors geste de l'assistant (son geste l'annule avec lui).
   const e = envois.find((x) => x.statut === "EN_ATTENTE" && recent(x.creeLe) && (!g || !x.gesteId || x.gesteId !== g.id));
   if (e && (!g || new Date(e.creeLe) > new Date(g.quand))) {
+    (await import("../operations/envoi-gmail")).enregistrerExecuteurGmail();
     const r = await annulerEffetSortant(e.id, user);
     return { pourVoix: `${r.message} Dis-le en une phrase.` };
   }

@@ -33,7 +33,7 @@ export {
   // K9 (décision 0039) : les commandes orales — mettre en pause, reprendre une mission dite par son nom.
   listerTravaux, pauserTravail, reprendreMonTravail,
   // P1 (décision 0047) : piloter ses missions à l'écrit — arrêter (réversible), renommer.
-  arreterTravail, renommerTravail,
+  arreterTravail, fusionnerTravaux, renommerTravail,
   type MissionTableau,
 } from "@/lib/missions/travaux/service";
 export type { PersonaTravaux } from "@/lib/missions/travaux/persona";

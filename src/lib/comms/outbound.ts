@@ -383,6 +383,28 @@ export async function cancelOutboundIntent(id: string, actorId: string, reason?:
   return { ok: true };
 }
 
+/**
+ * ROUVRIR une intention annulée DANS LA FENÊTRE D'ANNULATION (lot P1, décision 0047) — « Rétablir l'envoi » : elle
+ * redevient APPROUVÉE au nom de la personne qui rétablit, sur le contenu exact qu'elle porte (l'empreinte est reposée).
+ * Une intention partie, ou annulée autrement que par la fenêtre, ne se rouvre pas.
+ */
+export async function rouvrirOutboundIntent(id: string, actorId: string): Promise<{ ok: boolean; error?: string }> {
+  const cur = await prisma.outboundMailIntent.findUnique({ where: { id }, select: { status: true, events: true, contentHash: true } });
+  if (!cur) return { ok: false, error: "Intention d'envoi introuvable." };
+  if (cur.status !== OutboundMailStatus.CANCELLED) return { ok: false, error: "Cette intention n'est pas annulée." };
+  await prisma.outboundMailIntent.update({
+    where: { id },
+    data: {
+      status: OutboundMailStatus.APPROVED, approvedHash: cur.contentHash, approvedById: actorId, approvedAt: new Date(),
+      events: pushEvent(cur.events, { status: "APPROVED", by: actorId, note: "rétablie dans la fenêtre d'annulation" }) as never,
+    },
+  });
+  return { ok: true };
+}
+
+// P1 : les freins anti-boucle, par la porte de la machine d'envoi (le canal d'Adam les lit avant de préparer).
+export { checkRateLimits } from "./loop-safety";
+
 /** Ce que doit savoir faire un transport pour qu'une intention parte. Injecté : testable sans réseau. */
 export interface MailTransport {
   send(msg: {

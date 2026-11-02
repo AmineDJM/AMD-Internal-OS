@@ -67,17 +67,32 @@ en compte la mission que tu as déjà fusionnée », « c'est enregistré ») sa
 reçoit la note « ⚠️ Non vérifié : … rien n'a été exécuté » (journal `[assistant] actions non vérifiées`). Une carte affichée
 n'est pas une action faite : « c'est envoyé » sur une carte est repris. Un `piloter_mission` refusé n'est pas une preuve.
 
-## 5. Les mails de bout en bout
+## 5. Les mails de bout en bout — par la boîte d'ADAM
 
-- `mes_boites_mail` (lecture, sans jeton) : le **Gmail d'Adam** (l'unique connexion Google, `GOOGLE_ADAM_EMAIL`), la boîte
-  Microsoft et la boîte SMTP de la personne — reliée, adresse, envoi possible, boîte par défaut.
-- `envoyer_mail` : carte « Envoyer » qui NOMME la boîte. Ordre : Gmail d'Adam (Direction et Super Admin — mêmes portes que
-  les outils Gmail d'Adam : `EXEC`, freins anti-boucle `checkRateLimits`), sinon Microsoft de la personne
-  (`microsoft-mail-actions:sendMessage`), sinon SMTP de l'ERP (`mail-actions:sendMailAction`). Brouillon seulement sur
-  demande (Microsoft `saveDraft`).
-- **Gmail par la fenêtre d'annulation** : nouvel effet sortant `courriel.gmail` (`lib/google/gmail/envoi.ts`) — sous le
-  geste confirmé, le mail est différé (2 min par défaut), annulable ; parti, un rectificatif le compense. Exécuteur
-  enregistré par la tâche `effets.sortants` et par l'opération.
+Précision de la Direction : « quand je parle de boîte mail, je parle de celle d'ADAM ». La boîte de l'assistant est le
+**Gmail d'Adam** (l'unique connexion Google, contrôlée contre `GOOGLE_ADAM_EMAIL`), et l'assistant y écrit par **la même
+machine à états que l'écran d'Adam** — l'intention d'envoi `OutboundMailIntent` (`comms/outbound.ts`) :
+
+| Étape | Code | Ce qui est garanti |
+|---|---|---|
+| carte affichée | `preparerMailAdam` → `createOutboundIntent` | identité = connexion d'Adam, connectée et non suspendue ; empreinte du contenu ; un doublon de 24 h rend la même intention ; état initial selon la politique d'envoi (DRAFT_ONLY → brouillon) |
+| « Envoyer » | `confirmerMailAdam` → `approveOutboundIntent(id, personne)` puis effet `courriel.gmail` (fenêtre K10b) | la personne qui confirme est tracée (`approvedById`, audit « Chief of Staff », journal des effets) ; rien ne part avant l'échéance |
+| échéance | exécuteur `courriel.gmail` → `sendOutboundIntent(id, gmailTransport)` | politique RELUE, identité RELUE, contenu = celui approuvé, verrou atomique APPROVED → SENDING → SENT (jamais deux envois), `mail.sent` émis |
+| « Annuler l'envoi » | `annulerEffetSortant` + crochet `surAnnulation` | effet ANNULÉ **et** intention CANCELLED : rien n'est parti, l'écran d'Adam le dit |
+| « Rétablir » | `retablirEffetSortant` + `surRetablissement` | l'intention redevient APPROVED (`rouvrirOutboundIntent`) et repart pour une fenêtre neuve |
+| parti puis annulé | `compensation` | un RECTIFICATIF, lui-même une intention de la même machine, approuvée et différée |
+| « brouillon » (sur demande) | `confirmerMailAdam(…, { brouillon })` | l'intention reste DRAFT, visible à l'écran d'Adam ; rien ne part |
+
+- Droits : ceux des outils Gmail d'Adam (`EXEC` : Direction et Super Admin) ; freins anti-boucle `checkRateLimits` sur ses
+  envois de la dernière heure.
+- `mes_boites_mail` (lecture, sans jeton) répond à « as-tu accès à ta boîte / à Gmail ? » : reliée, adresse, envoi possible
+  (statut, coupe-circuit, scope `gmail.modify`), et qui peut faire écrire par Adam.
+- Pas de repli silencieux : si la boîte d'Adam ne peut pas envoyer, l'assistant le dit. La boîte Microsoft ou SMTP de la
+  personne ne sert que si elle le demande (`envoyer_mail` avec `boite`).
+- Sur Render, pour que la boîte d'Adam soit reliée : `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+  (…/api/google/callback), `GOOGLE_ADAM_EMAIL` (l'adresse d'Adam) sur le service qui sert la connexion, puis
+  « Connecter Google » dans Chief of Staff › Réglages, consentement `gmail.modify` accordé (lecture, brouillons, envoi).
+  La réception temps réel garde ses variables (`GOOGLE_PUBSUB_TOPIC`, `GOOGLE_PUBSUB_AUDIENCE`).
 - **Décision de la Direction appliquée** : une action R3 RÉVERSIBLE (annulation ≠ « aucune ») se confirme d'un bouton —
   plus de ressaisie (`niveauDeCarte(risque, annulation)`). La ressaisie reste pour R4 (argent, production) et pour un R3
   sans annulation. Les 61 R3 du registre sont toutes réversibles.
@@ -87,9 +102,46 @@ n'est pas une action faite : « c'est envoyé » sur une carte est repris. Un `p
 Un calcul en code sans source lue (le rétroplanning de ses dates) disait « aucune donnée (paramètres de la demande
 seulement) » ; il dit « calculé à partir de tes dates et paramètres (rien de lu dans l'ERP) ».
 
+## 7. L'architecture — ce que le CODE garantit (pas le prompt)
+
+Exigence de la Direction : « C'est l'architecture qui doit être robuste, pas le prompt ni le contexte. »
+
+**Composants.**
+
+| Couche | Fichier | Rôle |
+|---|---|---|
+| règles pures | `modules/assistant-ia/domaine/missions/pilotage.ts` | diagnostic, désignation, garde de vérité, présélection |
+| état des exécutants | `modules/assistant-ia/infra/missions/executants.ts` | battement lu sur les baux `TacheDeFond` |
+| porte serveur des missions | `modules/assistant-ia/infra/missions/pilotage.ts` | `mesMissions`, `piloterMission` (écrit ET voix) |
+| domaine des travaux | `lib/missions/travaux/service.ts` | `arreterTravail`, `renommerTravail`, `fusionnerTravaux`, reprise des sous-missions |
+| carte de fusion | `modules/assistant-ia/infra/operations/missions-fusion.ts` | proposer (lecture, rien n'est écrit) / exécuter (domaine) |
+| canal mail d'Adam | `lib/google/gmail/envoi.ts` + `comms/outbound.ts` | intention d'envoi, fenêtre K10b, exécuteur `courriel.gmail` |
+| garde de vérité | `infra/fil/tour.ts` | compare la réponse aux outils réussis du tour |
+| battement | `src/instrumentation.ts` | armé au démarrage là où l'interrupteur l'autorise |
+
+**États d'une mission vus par la personne** : À approuver → En cours | En attente | Plafond | En pause | **Arrêtée**
+(pause marquée, reprenable) | Bloquée → Terminée | Annulée. « Arrêtée » ↔ « En cours » par `arreterTravail` / « reprendre ».
+
+**Invariants tenus par le code.**
+1. Une mission ne se lit et ne se touche que par son propriétaire (`principalId` dans chaque `where`).
+2. Le modèle ne connaît l'état d'une mission que par `mes_missions` (lecture en base) ; un pilotage passe par
+   `piloterMission`, jamais par une phrase.
+3. Fusion **tout ou rien** (`fusionnerTravaux`) : préconditions vérifiées (propriété, distinctes, vivantes) ; un arrêt
+   refusé défait les arrêts faits et le renommage ; l'état final est RELU — une mission reste, chacune des autres porte la
+   pause marquée — sinon tout est défait. La nouvelle mission éventuelle est retirée si la fusion échoue. La carte
+   confirmée est sous le journal des effets : le geste entier s'annule.
+4. Une mission arrêtée ne retient ni ne figure dans la synthèse de son tour : N missions fusionnées → une synthèse.
+5. Aucune mail ne part sans : une carte confirmée par une personne autorisée, l'identité d'Adam relue, la politique relue,
+   le contenu approuvé intact, le verrou atomique, et l'échéance de la fenêtre d'annulation.
+6. Une réponse qui affirme une action sans l'outil réussi qui la prouve dans le tour porte la note « Non vérifié »
+   (garde serveur, indépendante de la consigne).
+7. Une mission prête qu'aucun exécutant ne conduit depuis 3 min est dite « en attente du worker », partout.
+
 ## Tests
 
 `domaine/missions/pilotage.test.ts` (diagnostic, désignation, garde sur les phrases de la Direction, présélection, niveau de
 carte) ; `missions-mails.test.ts` (contre la base : 3 missions → `mes_missions` les lit, « en attente du worker » ; carte
 de fusion → une seule reste, deux arrêtées avec la sous-mission, « reprendre » défait l'arrêt, renommer ; carte
-« Envoyer » SMTP sans ressaisie ; Gmail d'Adam → fenêtre d'annulation → annulé, rien ne part).
+fusion refusée tout ou rien ; sans Gmail d'Adam, refus dit et aucune carte, SMTP seulement sur demande, sans ressaisie ;
+Gmail d'Adam → intention préparée, approuvée par la personne, fenêtre, annulée = CANCELLED, rétablie = APPROVED ;
+brouillon = DRAFT, rien ne part).

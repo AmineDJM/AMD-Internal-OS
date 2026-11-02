@@ -60,6 +60,8 @@ export const OUTILS_INTERNES_NOMMES: readonly string[] = [
   "preparer_formulaire_pdf", "preparer_bc_depuis_devis",
   // L'Atelier (J3) : une conversion rend un nom de fichier et une voie, écrits par l'ERP ; l'enregistrement, une carte.
   "convertir_document", "enregistrer_document",
+  // P1 (décision 0047) : préparer un mail par la boîte d'Adam rend une carte, écrite par l'ERP — rien de lu chez un tiers.
+  "envoyer_gmail",
   // Le terrain (J13) : rattacher une photo rend une carte, écrite par l'ERP ; la lecture de la photo, elle, ne
   // passe pas par cet outil (elle est faite à la captation, sous la consigne et le filtre du terrain).
   "terrain_piece_visite",

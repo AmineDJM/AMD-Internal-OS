@@ -130,20 +130,19 @@ export const FUSION_MISSIONS: OperationIA = {
       const id = args.garder ?? "";
       const m = await prisma.mission.findFirst({ where: { id, principalId: user.id, ownerId: user.id, kind: "TRAVAIL" }, select: { id: true, title: true } });
       if (!m) return { ok: false, error: "La mission à garder n'existe plus. Rien n'a été arrêté." };
-      if (args.titre && args.titre !== m.title) await t.renommerTravail(m.id, user.id, args.titre);
       reste = { id: m.id, titre: args.titre || m.title, message: "elle continue" };
     }
-    const faits: string[] = [];
-    const refus: string[] = [];
-    for (const id of arreter) {
-      const r = await t.arreterTravail(id, user.id, `${t.MOTIF_FUSION} « ${reste.titre} »`);
-      if (r.ok) faits.push(id); else refus.push(r.erreur);
+    // L'OPÉRATION DE DOMAINE : tout ou rien, invariant relu (`service.ts fusionnerTravaux`). Échouée, la nouvelle mission
+    // éventuelle est retirée : la personne retrouve exactement ses missions d'avant.
+    const f = await t.fusionnerTravaux(user.id, { resteId: reste.id, arreter, titre: args.plan ? null : args.titre, motif: `${t.MOTIF_FUSION} « ${reste.titre} »` });
+    if (!f.ok) {
+      if (args.plan) await t.annulerTravail(reste.id, user.id);
+      return { ok: false, error: f.erreur };
     }
-    const titres = await prisma.mission.findMany({ where: { id: { in: faits } }, select: { title: true } });
+    const titres = await prisma.mission.findMany({ where: { id: { in: f.arretes } }, select: { title: true } });
     return {
-      ok: refus.length === 0,
-      message: `Fusion faite : « ${reste.titre} » reste (${reste.message}) ; arrêtée${titres.length > 1 ? "s" : ""} : ${titres.map((x) => `« ${x.title} »`).join(", ") || "aucune"}.${refus.length ? ` Non arrêtée(s) : ${refus.join(" ; ")}` : ""} « Reprendre » relance une mission arrêtée.`,
-      ...(refus.length ? { error: refus.join(" ; ") } : {}),
+      ok: true,
+      message: `Fusion faite : « ${reste.titre} » reste (${reste.message}) ; arrêtée${titres.length > 1 ? "s" : ""} : ${titres.map((x) => `« ${x.title} »`).join(", ")}. « Reprendre » relance une mission arrêtée.`,
       link: `/assistant?travail=${reste.id}`,
     };
   },

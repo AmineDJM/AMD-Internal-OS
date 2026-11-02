@@ -99,6 +99,8 @@ export async function agirSurMonEnvoi(id: string, geste: "annuler" | "retablir")
   const p = await personne(true);
   if (!p.ok) return p;
   if (!idValide(id) || (geste !== "annuler" && geste !== "retablir")) return { ok: false, error: "Envoi introuvable." };
+  // P1 : le mail d'Adam garde son intention d'envoi juste (annulée / rétablie) — son exécuteur est armé ici.
+  (await import("./infra/operations/envoi-gmail")).enregistrerExecuteurGmail();
   const issue = geste === "annuler" ? await annulerEffetSortant(id, p.user) : await retablirEffetSortant(id, p.user);
   return { ok: true, issue };
 }

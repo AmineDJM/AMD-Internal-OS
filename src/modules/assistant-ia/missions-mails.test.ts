@@ -34,6 +34,8 @@ try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
 const TAG = `__p1_${Date.now().toString(36)}_`;
+const ADAM = `${TAG}adam@adventum-pharma.com`.toLowerCase();
+const ADAM_AVANT = process.env.GOOGLE_ADAM_EMAIL;
 let sa: CurrentUser;
 
 async function compte(nom: string): Promise<CurrentUser> {
@@ -75,9 +77,11 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     await prisma.tacheDeFond.updateMany({ where: { executeur: "worker" }, data: { dernierDebutA: new Date(Date.now() - 60 * 60_000) } });
   });
   afterAll(async () => {
+    if (ADAM_AVANT === undefined) delete process.env.GOOGLE_ADAM_EMAIL; else process.env.GOOGLE_ADAM_EMAIL = ADAM_AVANT;
     if (!baux.some((b) => b.cle === "travaux.balayage")) await prisma.tacheDeFond.deleteMany({ where: { cle: "travaux.balayage" } }).catch(() => {});
     for (const b of baux) await prisma.tacheDeFond.update({ where: { cle: b.cle }, data: { executeur: b.executeur, dernierDebutA: b.dernierDebutA, dernierStatut: b.dernierStatut } }).catch(() => {});
     await prisma.effetSortantDiffere.deleteMany({ where: { principalId: sa?.id } }).catch(() => {});
+    await prisma.outboundMailIntent.deleteMany({ where: { connection: { userId: sa?.id } } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId: sa?.id } }).catch(() => {});
     await prisma.mailAccount.deleteMany({ where: { userId: sa?.id } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { principalId: sa?.id } }).catch(() => {});
@@ -132,43 +136,83 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     expect((await prisma.mission.findUniqueOrThrow({ where: { id: ids[1] }, select: { title: true, pausedReason: true } }))).toMatchObject({ title: "Planning — repris", pausedReason: expect.stringContaining("ARRETE") });
   });
 
-  it("MAILS — « as-tu accès à ton Gmail ? » se répond en LISANT ; sans Gmail d'Adam, la carte « Envoyer » nomme la boîte SMTP, sans ressaisie", async () => {
-    // La base de banc n'a pas de compte Google (le Gmail d'Adam n'y est jamais relié) : le test le vérifie.
-    expect(await prisma.googleConnection.count()).toBe(0);
+  it("FUSION — opération de domaine tout ou rien : un travail fini dans la liste → refusée, rien n'a changé", async () => {
+    const { fusionnerTravaux } = await import("@/lib/missions/travaux/service");
+    const fini = await lancer("Déjà fini", 2);
+    await prisma.mission.update({ where: { id: fini }, data: { status: "COMPLETED" } });
+    const avant = await prisma.mission.findMany({ where: { principalId: sa.id }, select: { id: true, status: true, title: true }, orderBy: { id: "asc" } });
+    const r = await fusionnerTravaux(sa.id, { resteId: ids[0], arreter: [ids[1], fini], titre: "Ne doit pas rester", motif: "ARRETE — fusionnée dans « x »" });
+    expect(r.ok).toBe(false);
+    expect(await prisma.mission.findMany({ where: { principalId: sa.id }, select: { id: true, status: true, title: true }, orderBy: { id: "asc" } })).toEqual(avant);
+  });
+
+  it("MAILS — sans Gmail d'Adam : « as-tu accès ? » se répond en LISANT, et RIEN ne part par une autre boîte sans qu'on le demande", async () => {
+    // Le Gmail d'Adam de CE banc (GOOGLE_ADAM_EMAIL) n'est pas encore relié — d'autres bancs ont pu laisser les leurs.
+    process.env.GOOGLE_ADAM_EMAIL = ADAM;
     await prisma.mailAccount.create({ data: { userId: sa.id, email: `${TAG}direction@adventum.dz`, passwordEnc: "x" } });
     const props: PropositionPreparee[] = [];
     const tous = outilsV1(sa, props, [], [], null, undefined, { capacites: true });
     const mails = outilsMails(sa, (n) => tous.find((o) => o.def.name === n), props);
     const etat = JSON.parse(await mails.find((o) => o.def.name === "mes_boites_mail")!.run({}, sa));
     expect(etat.gmailAdam.reliee).toBe(false);
-    expect(etat.parDefaut).toBe("smtp");
-    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ a: "redouane@adventum.dz", objet: "Planning AMD", corps: "Bonjour Redouane,\nVoici ton planning." }, sa));
+    expect(etat.parDefaut).toBeNull();
+    const envoyer = mails.find((o) => o.def.name === "envoyer_mail")!;
+    const refus = JSON.parse(await envoyer.run({ a: "redouane@adventum.dz", objet: "Planning AMD", corps: "Bonjour." }, sa));
+    expect(refus.statut).toBe("REFUS");
+    expect(refus.raison).toContain("Gmail d'Adam");
+    expect(props).toHaveLength(0);
+    // Demandée EXPLICITEMENT, la boîte SMTP de la personne : carte « Envoyer », sans ressaisie (R3 réversible).
+    const r = JSON.parse(await envoyer.run({ a: "redouane@adventum.dz", objet: "Planning AMD", corps: "Bonjour Redouane,\nVoici ton planning.", boite: "smtp" }, sa));
     expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
-    expect(r.boite).toContain("SMTP");
     expect(props[0]!.proposition.title).toContain("Envoyer par ta boîte SMTP");
     expect(props[0]!.proposition.libelleBouton).toBe("Envoyer");
     expect(props[0]!.proposition.confirmText).toBeUndefined();
     expect(props[0]!.proposition.level).toBe("SENSITIVE");
   });
 
-  it("MAILS — par le Gmail d'Adam : carte « Envoyer », confirmée → dans la fenêtre d'annulation, puis ANNULÉE (rien ne part)", async () => {
-    await prisma.googleConnection.create({ data: { userId: sa.id, address: "adam@adventum-pharma.com", status: "connected", grantedScopes: "https://www.googleapis.com/auth/gmail.modify" } });
+  it("MAILS — par le Gmail d'Adam, MÊME MACHINE que son écran : intention préparée → approuvée par qui confirme → fenêtre → annulée (CANCELLED), rétablie (APPROVED)", async () => {
+    const { retablirEffetSortant } = await import("@/lib/effets/fenetre");
+    await prisma.googleConnection.create({ data: { userId: sa.id, address: ADAM, status: "connected", grantedScopes: "https://www.googleapis.com/auth/gmail.modify" } });
     const props: PropositionPreparee[] = [];
     const tous = outilsV1(sa, props, [], [], null, undefined, { capacites: true });
     const mails = outilsMails(sa, (n) => tous.find((o) => o.def.name === n), props);
     const etat = JSON.parse(await mails.find((o) => o.def.name === "mes_boites_mail")!.run({}, sa));
-    expect(etat.gmailAdam).toMatchObject({ reliee: true, envoi: true, adresse: "adam@adventum-pharma.com" });
+    expect(etat.gmailAdam).toMatchObject({ reliee: true, envoi: true, adresse: ADAM });
+    expect(etat.parDefaut).toBe("gmail_adam");
     const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ a: "nesrine@adventum.dz", objet: "Planning AMD", corps: "Bonjour Nesrine." }, sa));
     expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
     expect(props[0]!.proposition.title).toContain("Gmail d'Adam");
     expect(props[0]!.proposition.confirmText).toBeUndefined();
+    const intention = await prisma.outboundMailIntent.findFirstOrThrow({ where: { subject: "Planning AMD", recipients: { has: "nesrine@adventum.dz" } }, orderBy: { createdAt: "desc" } });
+    expect(["AWAITING_APPROVAL", "APPROVED", "DRAFT"]).toContain(intention.status);
+    expect(intention.approvedById).toBeNull();
+
     const c = await confirmerIntentionAssistantIA(props[0]!.intentId);
     expect(c.ok, c.error).toBe(true);
+    expect(await prisma.outboundMailIntent.findUniqueOrThrow({ where: { id: intention.id } })).toMatchObject({ status: "APPROVED", approvedById: sa.id, sentAt: null });
     const ligne = await prisma.effetSortantDiffere.findFirstOrThrow({ where: { type: "courriel.gmail", principalId: sa.id }, orderBy: { creeLe: "desc" } });
     expect(ligne.statut).toBe("EN_ATTENTE");
-    expect(ligne.executeLe.getTime()).toBeGreaterThan(Date.now());
+    expect(ligne.charge).toEqual({ outboundId: intention.id });
     const a = await annulerEffetSortant(ligne.id, sa);
     expect(a.ok, JSON.stringify(a)).toBe(true);
     expect((await prisma.effetSortantDiffere.findUniqueOrThrow({ where: { id: ligne.id } })).statut).toBe("ANNULE");
+    expect((await prisma.outboundMailIntent.findUniqueOrThrow({ where: { id: intention.id } })).status).toBe("CANCELLED");
+    const re = await retablirEffetSortant(ligne.id, sa);
+    expect(re.ok, JSON.stringify(re)).toBe(true);
+    expect((await prisma.outboundMailIntent.findUniqueOrThrow({ where: { id: intention.id } })).status).toBe("APPROVED");
+    await annulerEffetSortant(ligne.id, sa);
+  });
+
+  it("MAILS — un brouillon demandé reste un brouillon d'Adam (DRAFT) : rien ne part", async () => {
+    const props: PropositionPreparee[] = [];
+    const tous = outilsV1(sa, props, [], [], null, undefined, { capacites: true });
+    const mails = outilsMails(sa, (n) => tous.find((o) => o.def.name === n), props);
+    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ a: "redouane@adventum.dz", objet: "Brouillon AMD", corps: "À relire.", brouillon: true }, sa));
+    expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
+    expect(props[0]!.proposition.libelleBouton).toBe("Enregistrer le brouillon");
+    const c = await confirmerIntentionAssistantIA(props[0]!.intentId);
+    expect(c.ok, c.error).toBe(true);
+    expect((await prisma.outboundMailIntent.findFirstOrThrow({ where: { subject: "Brouillon AMD" } })).status).toBe("DRAFT");
+    expect(await prisma.effetSortantDiffere.count({ where: { type: "courriel.gmail", principalId: sa.id, statut: "EN_ATTENTE" } })).toBe(0);
   });
 });

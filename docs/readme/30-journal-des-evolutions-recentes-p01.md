@@ -11,8 +11,10 @@ OpenAI épuisé » au lieu de « aucune réponse »). **À l'écrit** : `mes_mis
 — réversible —, renommer), carte `fusionner_missions` ; la voix passe par les mêmes fonctions. **État honnête** : « en
 attente du worker (aucun battement depuis N min) », « attend ton approbation », « plafond », « bloquée : … » au tableau
 « Missions », dans la conversation et dans Administration › IA. **Garde de vérité** serveur (`noteActionsNonVerifiees`).
-**Mails** : `mes_boites_mail` lit l'état (Gmail d'Adam, Microsoft, SMTP) ; `envoyer_mail` → carte « Envoyer » qui nomme la
-boîte ; le Gmail d'Adam passe par la fenêtre d'annulation (`courriel.gmail`). **R3 réversible : le bouton suffit** (plus de
+**Mails, par la boîte d'ADAM** : `mes_boites_mail` lit l'état réel de sa connexion Google ; `envoyer_mail` → carte
+« Envoyer » qui nomme la boîte d'Adam, puis la MÊME machine à états que son écran (`OutboundMailIntent` : approuvée au nom
+de qui confirme, fenêtre d'annulation `courriel.gmail`, annulée = CANCELLED) ; Microsoft/SMTP de la personne seulement
+sur demande. La fusion est une opération de domaine tout ou rien à invariant relu (`fusionnerTravaux`). **R3 réversible : le bouton suffit** (plus de
 ressaisie) ; la ressaisie reste pour R4. Libellé « calculé à partir de tes dates » au lieu de « aucune donnée ».
 
 ### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
