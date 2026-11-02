@@ -1,4 +1,6 @@
-import { annuaireDeLecture, proposerLecture, type PropositionDeLecture } from "@/lib/pieces-lues/service";
+import { annuaireDeLecture, proposerLecture, type MethodeLignes, type PropositionDeLecture, type Reconciliation } from "@/lib/pieces-lues/service";
+
+export { phraseReconciliation } from "@/lib/pieces-lues/service";
 import { lectureDevisPromo } from "@/lib/pieces-lues/prerempli-devis-promo";
 import type { CurrentUser } from "@/lib/session";
 import { fichiersDepuisDrive, resoudrePiece, type PieceResolue } from "./pieces";
@@ -50,6 +52,16 @@ export interface DevisLu {
   sansLignes: string | null;
   /** L'identité de l'émetteur recopiée du papier — pour le bon de commande, JAMAIS pour le modèle. */
   emetteur: PropositionDeLecture["emetteur"];
+  /** Lot B1 — d'où viennent les lignes : tableau du PDF (positions), lecture IA du texte, image des pages. */
+  methodeLignes?: MethodeLignes | null;
+  /** Lot B1 — la somme des lignes contre le HT imprimé, les lignes douteuses nommées. */
+  reconciliation?: Reconciliation | null;
+  /** Lot B1 — la société du groupe à qui le devis est adressé (le client), si le papier en nomme une. */
+  destinataireId?: string | null;
+  /** Lot B1 — les montants de taxes IMPRIMÉS, pour les comparer une fois à ceux recalculés depuis les lignes. */
+  imprime?: { tva: number | null; taxe: number | null; ttc: number | null };
+  /** Lot B1 — ce qu'il faut pour créer la fiche du fournisseur s'il manque à l'annuaire. */
+  aCreer?: { nom: string | null; nif: string | null; rc: string | null } | null;
 }
 
 export async function lireDevis(user: CurrentUser, ref: string): Promise<DevisLu | { erreur: string }> {
@@ -97,6 +109,15 @@ export async function lireDevis(user: CurrentUser, ref: string): Promise<DevisLu
     note: l.noteMethode,
     sansLignes: l.sansLignes,
     emetteur: p.emetteur,
+    methodeLignes: p.methodeLignes,
+    reconciliation: p.reconciliation,
+    destinataireId: p.destinataire?.societeId ?? null,
+    imprime: {
+      tva: p.entetes.totalTva?.valeur ?? (p.entetes.tva.length === 1 ? p.entetes.tva[0].montant.valeur : null),
+      taxe: p.entetes.taxes.length === 1 ? p.entetes.taxes[0].montant.valeur : null,
+      ttc: p.entetes.totalTtc?.valeur ?? null,
+    },
+    aCreer: p.fournisseur.statut === "AUCUN" && p.emetteur.nom ? { nom: p.emetteur.nom, nif: p.emetteur.nif, rc: p.emetteur.rc } : null,
   };
 }
 

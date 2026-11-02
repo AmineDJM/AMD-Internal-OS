@@ -19,6 +19,11 @@ import {
   noteDeMethode, phraseSansLignes, refusFormatDePiece, refusTailleDePiece, type FaitsDeLecture, type RaisonSansLignes,
 } from "@/lib/pieces-lues/phrases";
 import type { PieceLue } from "@/lib/pieces-lues/structure";
+import { rangeesDuPdf } from "@/lib/pieces-lues/positions";
+import { lireTableau, reconcilier, type LigneTableau, type Reconciliation } from "@/lib/pieces-lues/tableau";
+import { pieceDepuisTableau } from "@/lib/pieces-lues/tableau-piece";
+import { lireTableauParVision } from "@/lib/pieces-lues/vision-lignes";
+import { emetteurEtDestinataire, estDuGroupe, type DestinataireLu, type EmetteurLu } from "@/lib/pieces-lues/emetteur-destinataire";
 import {
   phraseAuditConfirmation, refusDeConfirmation, verdictsDeConfirmation,
   type CibleLecture, type LigneProposee, type LigneSoumise, type VerdictDeLigne,
@@ -121,7 +126,22 @@ export interface PropositionDeLecture {
   suspectes: { rang: number; designation: string; motifs: string[] }[];
   /** L'IDENTITÉ DE L'ÉMETTEUR recopiée du papier (étiquettes imprimées), complétée par le modèle — jamais devinée. */
   emetteur: IdentiteEmetteur;
+  /**
+   * D'OÙ VIENNENT LES LIGNES (lot B1) : le tableau lu par ses POSITIONS (PDF à couche texte, sans modèle),
+   * le MODÈLE sur le texte, ou la VISION sur l'image des pages (seconde passe). `null` sans lignes.
+   */
+  methodeLignes: MethodeLignes | null;
+  /** La somme des lignes contre le HT imprimé, et les lignes douteuses NOMMÉES — `null` sans lignes. */
+  reconciliation: Reconciliation | null;
+  /** La société du GROUPE à qui le devis est adressé (le client) — `null` si le papier n'en nomme aucune, ou plusieurs. */
+  destinataire: DestinataireLu | null;
+  /** NIS, AI et la source du nom de l'émetteur (« pied de page », « en-tête »…). */
+  emetteurLu: EmetteurLu;
 }
+
+export type MethodeLignes = "positions" | "modele" | "vision";
+// La réconciliation, réexportée : un appelant de la lecture lit l'écart par la porte du service.
+export { phraseReconciliation, type Reconciliation } from "@/lib/pieces-lues/tableau";
 
 export type ResultatProposition = { ok: true; proposition: PropositionDeLecture } | { ok: false; error: string };
 
@@ -167,8 +187,24 @@ function entetesGardees(v: unknown): EntetesReperes | null {
 }
 
 async function structureGardee(id: string): Promise<PieceLue | null> {
-  const ligne = await prisma.lecturePiece.findUnique({ where: { id }, select: { structure: true } });
-  return pieceGardee(ligne?.structure ?? null);
+  return (await structureGardeeEtSource(id)).piece;
+}
+
+async function structureGardeeEtSource(id: string): Promise<{ piece: PieceLue | null; par: string | null }> {
+  const ligne = await prisma.lecturePiece.findUnique({ where: { id }, select: { structure: true, structureePar: true } });
+  return { piece: pieceGardee(ligne?.structure ?? null), par: ligne?.structureePar ?? null };
+}
+
+/**
+ * UNE LECTURE QUI RÉCONCILIE REMPLACE CELLE QUI NE RÉCONCILIE PAS (lot B1). « La première fait foi » tient
+ * entre deux lectures d'égale valeur ; une lecture dont la somme fait le HT imprimé, ligne à ligne
+ * recoupée, l'emporte sur une recopie qui ne le fait pas — sinon la mauvaise lecture d'hier resterait servie.
+ */
+async function remplacerStructure(id: string, piece: PieceLue, par: string): Promise<void> {
+  await prisma.lecturePiece.updateMany({
+    where: { id, etat: "LUE" },
+    data: { structure: piece as unknown as Prisma.InputJsonValue, structureePar: par },
+  }).catch((e) => console.error("[pièces lues] structure non remplacée (non bloquant)", id, e));
 }
 
 /** Les en-têtes repérés, gardés une fois — la confirmation les relit pour consigner le contrôle de la lecture. */
@@ -198,6 +234,7 @@ interface LignesDeLecture {
   piece: PieceLue | null;
   raison: RaisonSansLignes | null;
   sansLignes: string | null;
+  methode?: MethodeLignes | null;
 }
 
 const sans = (raison: RaisonSansLignes, cause: string | null = null): LignesDeLecture =>
@@ -211,8 +248,19 @@ const sans = (raison: RaisonSansLignes, cause: string | null = null): LignesDeLe
  */
 async function lignesDeLaLecture(
   l: LectureDePiece,
-  e: { noteMethode: string; nomFichier: string; confidentielle: boolean; userId: string },
+  e: {
+    noteMethode: string; nomFichier: string; confidentielle: boolean; userId: string;
+    /** La lecture par les POSITIONS quand elle réconcilie — locale, sans modèle : elle passe avant tout. */
+    parPositions: PieceLue | null;
+  },
 ): Promise<LignesDeLecture> {
+  if (e.parPositions) {
+    const gardee = await structureGardeeEtSource(l.id);
+    if (gardee.par !== SOURCE_POSITIONS || JSON.stringify(gardee.piece) !== JSON.stringify(e.parPositions)) {
+      if (l.etat === "LUE") await remplacerStructure(l.id, e.parPositions, SOURCE_POSITIONS);
+    }
+    return { piece: e.parPositions, raison: null, sansLignes: null, methode: "positions" };
+  }
   if (l.ocrEchoue) return sans("OCR_ECHOUE", l.raisonOcr);
   if (l.texte.replace(/\s+/g, "").length < CARACTERES_MIN) return sans("TEXTE_ILLISIBLE");
   if (e.confidentielle) {
@@ -223,14 +271,29 @@ async function lignesDeLaLecture(
     return sans("CONFIDENTIELLE");
   }
   return enSerie(`lecture-piece-modele:${l.id}`, async () => {
-    const gardee = await structureGardee(l.id);
-    if (gardee) return { piece: gardee, raison: null, sansLignes: null };
+    const gardee = await structureGardeeEtSource(l.id);
+    if (gardee.piece) return { piece: gardee.piece, raison: null, sansLignes: null, methode: methodeDeSource(gardee.par) };
     const r = await structurerParModele({
       texte: l.texte, noteMethode: e.noteMethode, nomFichier: e.nomFichier, confidentielle: false, userId: e.userId,
     });
     if (!r.ok) return { piece: null, raison: r.raison, sansLignes: r.error };
-    return { piece: await garderStructure(l.id, r.piece, r.modele), raison: null, sansLignes: null };
+    return { piece: await garderStructure(l.id, r.piece, r.modele), raison: null, sansLignes: null, methode: "modele" };
   });
+}
+
+const SOURCE_POSITIONS = "lecture du tableau (positions du PDF)";
+const PREFIXE_VISION = "vision:";
+const methodeDeSource = (par: string | null): MethodeLignes =>
+  par === SOURCE_POSITIONS ? "positions" : par?.startsWith(PREFIXE_VISION) ? "vision" : "modele";
+
+/** Les lignes d'une pièce lue, en lignes de tableau — pour la réconciliation. */
+function lignesPourReconcilier(piece: PieceLue): LigneTableau[] {
+  return piece.lignes.filter((x) => !x.section).map((x) => ({
+    numero: x.rang, designation: x.designation, reference: x.reference, page: 0,
+    quantite: x.quantite, prixUnitaire: x.prixUnitaire,
+    montant: x.montantHt ?? (x.quantite !== null && x.prixUnitaire !== null ? Math.round(x.quantite * x.prixUnitaire * (1 - (x.remise ?? 0)) * 100) / 100 : null),
+    doutes: x.illisibles.map((i) => i.raison),
+  }));
 }
 
 /**
@@ -264,8 +327,49 @@ export async function proposerLecture(args: {
   if (l.etat === "LUE") await garderEntetes(l.id, entetes);
 
   const noteMethode = noteDeMethode(faits);
-  const lignes = await lignesDeLaLecture(l, { noteMethode, nomFichier, confidentielle: !contexte.sortieCloudPermise, userId: user.id });
+  const societes = contexte.groupe?.societes ?? [];
+
+  // ── LE TABLEAU PAR SES POSITIONS (lot B1) : local, sans modèle — confidentielle comprise. S'il réconcilie
+  // (chaque ligne recoupée, numérotation suivie, somme = HT imprimé), c'est LUI qui fait les lignes.
+  const rangees = ext === "pdf" ? await rangeesDuPdf(octets).catch(() => null) : null;
+  const tableau = rangees ? lireTableau(rangees) : null;
+  const htImprime = entetes.totalHt?.valeur ?? tableau?.totalHt ?? null;
+  const etiquete = identiteEmetteurDuTexte(l.texte);
+  const ed0 = emetteurEtDestinataire({ texte: l.texte, nomFichier, groupe: societes, nomEtiquete: etiquete.nom });
+  const recPositions = tableau && tableau.lignes.length ? reconcilier(tableau, htImprime) : null;
+  const parPositions = tableau && recPositions?.juste ? pieceDepuisTableau(tableau.lignes, entetes, ed0.emetteur) : null;
+
+  let lignes = await lignesDeLaLecture(l, { noteMethode, nomFichier, confidentielle: !contexte.sortieCloudPermise, userId: user.id, parPositions });
+  let reconciliation: Reconciliation | null = lignes.piece
+    ? (lignes.methode === "positions" ? recPositions : reconcilier({ lignes: lignesPourReconcilier(lignes.piece), trous: [] }, htImprime))
+    : null;
+
+  // ── LA SECONDE PASSE : LA VISION. La lecture ne réconcilie pas (ou il n'y en a pas : un scan) — on relit
+  // l'image des pages. Jamais pour une pièce confidentielle ; jamais deux fois pour la même lecture.
+  if (!reconciliation?.juste && contexte.sortieCloudPermise && lignes.methode !== "vision" && lignes.methode !== "positions") {
+    const vision = await lireTableauParVision(octets, ext).catch(() => null);
+    if (vision && vision.lignes.length) {
+      const htV = htImprime ?? vision.totalHt;
+      const recV = reconcilier(vision, htV);
+      const nomV = vision.emetteur.nom && !estDuGroupe(vision.emetteur.nom, societes) ? vision.emetteur.nom : null;
+      const meilleure = recV.juste || !reconciliation || scoreReconciliation(recV) < scoreReconciliation(reconciliation);
+      if (meilleure) {
+        const emV = { ...ed0.emetteur, nom: ed0.emetteur.nom ?? nomV };
+        const pieceV = pieceDepuisTableau(vision.lignes, entetes, emV);
+        if (l.etat === "LUE") await remplacerStructure(l.id, pieceV, `${PREFIXE_VISION}${vision.modele}`);
+        lignes = { piece: pieceV, raison: null, sansLignes: null, methode: "vision" };
+        reconciliation = recV;
+      }
+    }
+  }
+  // Une lecture positionnelle qui ne réconcilie pas, et rien de mieux : elle vaut mieux que rien (un PDF confidentiel, IA coupée).
+  if (!lignes.piece && tableau && tableau.lignes.length) {
+    lignes = { piece: pieceDepuisTableau(tableau.lignes, entetes, ed0.emetteur), raison: null, sansLignes: null, methode: "positions" };
+    reconciliation = recPositions;
+  }
   const piece = lignes.piece;
+  // L'ÉMETTEUR, relu avec ce que le modèle a dit — jamais une société du groupe.
+  const ed = emetteurEtDestinataire({ texte: l.texte, nomFichier, groupe: societes, nomEtiquete: etiquete.nom, nomModele: piece?.fournisseur.nom ?? null });
   const decoupe = decouperPourLecture(l.texte, BUDGET_CARACTERES);
   const chiffrees = piece ? piece.lignes.filter((x) => !x.section) : [];
 
@@ -285,16 +389,41 @@ export async function proposerLecture(args: {
       entetes,
       piece,
       controle: piece ? controlerPiece(piece, entetes) : null,
-      fournisseur: candidatsFournisseur(identiteLue(piece, entetes), contexte.annuaireVisible, contexte.groupe ?? {}),
+      fournisseur: candidatsFournisseur(
+        societes.length ? identiteDeLEmetteur(ed.emetteur, piece, societes) : identiteLue(piece, entetes),
+        societes.length ? contexte.annuaireVisible.filter((c) => !estDuGroupe(c.nom, societes)) : contexte.annuaireVisible,
+        contexte.groupe ?? {},
+      ),
       appariement: piece && contexte.lignesAttendues
         ? apparierLignes(chiffrees.map((x) => ({ designation: x.designation, quantite: x.quantite, prixUnitaire: x.prixUnitaire })), contexte.lignesAttendues)
         : null,
       suspectes: (piece?.lignes ?? []).filter((x) => x.suspecte.length > 0).map((x) => ({ rang: x.rang, designation: x.designation, motifs: x.suspecte })),
-      emetteur: fusionnerIdentite(
-        identiteEmetteurDuTexte(l.texte),
-        piece?.fournisseur ? { nom: piece.fournisseur.nom, adresse: piece.fournisseur.adresse, nif: piece.fournisseur.nif, rc: piece.fournisseur.rc } : null,
-      ),
+      emetteur: societes.length
+        ? { ...fusionnerIdentite(etiquete, null), nom: ed.emetteur.nom, nif: ed.emetteur.nif ?? etiquete.nif, rc: ed.emetteur.rc ?? etiquete.rc }
+        : fusionnerIdentite(
+          etiquete,
+          piece?.fournisseur ? { nom: piece.fournisseur.nom, adresse: piece.fournisseur.adresse, nif: piece.fournisseur.nif, rc: piece.fournisseur.rc } : null,
+        ),
+      methodeLignes: lignes.methode ?? null,
+      reconciliation,
+      destinataire: ed.destinataire,
+      emetteurLu: ed.emetteur,
     },
+  };
+}
+
+/** Plus petit = meilleure lecture : un trou ou une ligne douteuse pèse, l'écart aussi. */
+function scoreReconciliation(r: Reconciliation): number {
+  return (r.juste ? 0 : 1_000_000) + r.manquantes.length * 10_000 + r.douteuses.length * 1_000 + Math.min(Math.abs(r.ecart ?? 1e6), 999);
+}
+
+/** L'émetteur tel que l'annuaire le cherche : son nom et SES identifiants — jamais ceux du bloc client. */
+function identiteDeLEmetteur(e: EmetteurLu, piece: PieceLue | null, societes: NonNullable<IdentifiantsDuGroupe["societes"]>) {
+  const modeleHorsGroupe = piece?.fournisseur.nom && !estDuGroupe(piece.fournisseur.nom, societes);
+  return {
+    nom: e.nom,
+    nifs: [e.nif, modeleHorsGroupe ? piece?.fournisseur.nif ?? null : null],
+    rcs: [e.rc, modeleHorsGroupe ? piece?.fournisseur.rc ?? null : null],
   };
 }
 
@@ -304,9 +433,10 @@ export async function proposerLecture(args: {
  * écrite ici (§118.5). Et les identifiants du groupe : le client de la pièce, jamais son émetteur.
  */
 export async function annuaireDeLecture(userId: string): Promise<{ annuaireVisible: ContactAnnuaire[]; groupe: IdentifiantsDuGroupe }> {
-  const [options, identites] = await Promise.all([
+  const [options, identites, societes] = await Promise.all([
     listPartyOptions(userId),
     prisma.companyLegalIdentity.findMany({ select: { nif: true, rcNumber: true } }),
+    prisma.company.findMany({ select: { id: true, name: true, shortName: true, legalIdentity: { select: { legalName: true, nif: true, rcNumber: true } } } }),
   ]);
   const fiches = options.length > 0
     ? await prisma.companyContact.findMany({ where: { id: { in: options.map((o) => o.id) } }, select: { id: true, nif: true, rc: true } })
@@ -314,7 +444,13 @@ export async function annuaireDeLecture(userId: string): Promise<{ annuaireVisib
   const parId = new Map(fiches.map((f) => [f.id, f]));
   return {
     annuaireVisible: options.map((o) => ({ id: o.id, nom: o.name, nif: parId.get(o.id)?.nif ?? null, rc: parId.get(o.id)?.rc ?? null })),
-    groupe: { nifs: identites.map((i) => i.nif), rcs: identites.map((i) => i.rcNumber) },
+    groupe: {
+      nifs: identites.map((i) => i.nif), rcs: identites.map((i) => i.rcNumber),
+      // Les sociétés du groupe, par leurs NOMS aussi : le client d'un devis, jamais son fournisseur (lot B1).
+      societes: societes.map((s) => ({
+        id: s.id, noms: [s.name, s.shortName, s.legalIdentity?.legalName], nifs: [s.legalIdentity?.nif], rcs: [s.legalIdentity?.rcNumber],
+      })),
+    },
   };
 }
 

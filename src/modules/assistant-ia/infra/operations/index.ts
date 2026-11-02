@@ -13,7 +13,7 @@ import { AUTRE_CREATION, POSTE_AJOUT } from "./adpro-poste-autre";
 import { BON_DE_COMMANDE } from "./bon-de-commande";
 import { DEPOT_PIECE, MESSAGE_DIRECT, RELANCE, RENDEZ_VOUS, REPONSE_MESSAGE } from "./quotidien";
 import { DOCUMENT_MODELE } from "./document-modele";
-import { BC_DEPUIS_DEVIS } from "./bc-depuis-devis";
+import { BC_DEPUIS_DEVIS, ENVOI_BC_VALIDATION } from "./bc-depuis-devis";
 import { VOYAGEUR_PASSEPORT } from "./voyageur-passeport";
 import { TRADUCTION } from "./traduction";
 import { FORMULAIRE_PDF } from "./formulaire-pdf";
@@ -28,7 +28,7 @@ import { sansBloquer } from "@/lib/journal";
 /** LE REGISTRE — chaque geste que l'Assistant IA sait préparer. */
 export const OPERATIONS_IA: OperationIA[] = [
   SPONSORING_CREATION, PRISE_EN_CHARGE_CREATION, EVENEMENT_CREATION, MATERIEL_PROMO_CREATION, AUTRE_CREATION, POSTE_AJOUT,
-  BON_DE_COMMANDE, BC_DEPUIS_DEVIS, VOYAGEUR_PASSEPORT,
+  BON_DE_COMMANDE, BC_DEPUIS_DEVIS, ENVOI_BC_VALIDATION, VOYAGEUR_PASSEPORT,
   RELANCE, DEPOT_PIECE, RENDEZ_VOUS, REPONSE_MESSAGE, MESSAGE_DIRECT,
   DOCUMENT_MODELE, TRADUCTION, FORMULAIRE_PDF,
   PROGRAMMER_ROUTINE, GERER_ROUTINE,

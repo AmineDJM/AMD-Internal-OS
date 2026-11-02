@@ -1,5 +1,24 @@
 ## 🧾 Journal des évolutions récentes
 
+### B1 : « CRÉE UN BC EN PDF » DEPUIS UN DEVIS — LECTURE FIABLE, FLUX SANS FRICTION, PDF RENDU (2026-11-02)
+
+Direction, 02/11 (« catastrophique ») : sur « Devis matériel promotionnel INSIGNE.pdf », la carte disait
+« Fournisseur : ADVENTUM PHARMA » (le client), perdait 14 lignes et en répétait 3 (893 500 HT au lieu de 794 500),
+exigeait un validateur puis la société, rattachait le matériel promotionnel à l'enveloppe Regulatory et ne faisait pas
+de PDF. **Causes** : le bloc client du devis (NIF, RC) était lu comme l'émetteur ; le texte à plat d'un PDF met chaque
+cellule sur sa ligne et répète en-têtes et pieds de page — le modèle recopiait mal, et rien ne confrontait la somme au HT
+imprimé. **Désormais** : le tableau se lit par les **positions** des caractères (mupdf — rangées, colonnes, en-têtes
+répétés et reports écartés, blocs répétés dédoublonnés, numérotation suivie, chaque ligne recoupée) ; s'il réconcilie
+avec le HT imprimé, c'est lui qui fait les lignes, sans modèle ; sinon le modèle, puis une **seconde passe de vision**
+(image des pages, schéma JSON strict) ; l'écart persistant se dit en UNE phrase qui **nomme** les lignes douteuses.
+**L'émetteur est le fournisseur** (pied de page, en-tête, nom du fichier ; jamais une société du groupe), le **client est
+la société** du BC ; fiche fournisseur proposée à l'annuaire s'il manque. « Crée un BC en PDF » : aucune question de
+validateur ni de société ; **« Créer le BC (PDF) »** = BC numéroté en brouillon (pré-validation) + PDF au Drive, lien
+dans la conversation ; **« Envoyer en validation »** est un geste séparé ; enveloppe proposée selon la nature ; carte
+résumée (détail des lignes au panneau, provenance dite une fois, plus de « seuil de 0 DZD »). Annulable (K10b : ANNULÉ,
+jamais effacé). Banc : 5 devis fabriqués (dont un scan) — 76/76 lignes par positions, vision réelle 27/27 et 5/5.
+Décision [0049](../assistant/decisions/0049-bc-depuis-devis.md). Aucune migration.
+
 ### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
 
 Direction, 01/11 : « l'export des demandes de paiement, oui. Enfin, l'export de tout, quoi. » Décision 0037, § 7.

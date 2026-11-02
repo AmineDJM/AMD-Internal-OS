@@ -4,6 +4,7 @@ import type { PowerTool } from "@/platform/ia/outil";
 import { disponible } from "@/lib/budget/marketing-vue";
 import type { CurrentUser } from "@/lib/session";
 import { dzd } from "../../domaine/operations/types";
+import { choisirEnveloppe, type NatureCommande } from "../../domaine/operations/bc-devis";
 
 /**
  * LE BUDGET, AVANT DE REMPLIR — lu comme l'écran Budgets le lit, et seulement par qui l'y lit.
@@ -70,4 +71,22 @@ export function lectureBudget(user: CurrentUser): PowerTool {
       });
     },
   };
+}
+
+/**
+ * L'ENVELOPPE PROPOSÉE À UN BC DEPUIS UN DEVIS (lot B1, décision 0049) : celle qui couvre la NATURE de la commande
+ * (`choisirEnveloppe`), parmi celles que la personne voit, avec son disponible — seulement pour qui lit les Budgets.
+ */
+export async function enveloppeProposee(user: CurrentUser, nature: NatureCommande, voulue: string | null) {
+  if (!userCan(user, "BUDGETS", "VIEW")) return null;
+  try {
+    const envs = await getEnvelopes(user);
+    const choix = choisirEnveloppe(envs.map((x) => ({ ...x, modules: x.modules ?? [], domaine: x.domaine ?? "GENERAL" })), nature, voulue, new Date());
+    if (!choix) return null;
+    const vue = await getBudgetOverview(user, choix.enveloppe.id).catch(() => null);
+    const reste = vue ? disponible(vue.totals.total, vue.totals.consumed, vue.totals.committed) : null;
+    return { id: choix.enveloppe.id, nom: choix.enveloppe.name, raison: choix.raison, reste };
+  } catch {
+    return null;
+  }
 }

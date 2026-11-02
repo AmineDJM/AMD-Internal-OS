@@ -1,0 +1,120 @@
+# 0049 — « Crée un BC en PDF » depuis un devis : lecture fiable, flux sans friction, PDF rendu (lot B1, 02/11/2026)
+
+> Construit sur la lecture des pièces commerciales (lot D2 : `lib/pieces-lues/service.ts`, une lecture par empreinte,
+> en-têtes repérés par règles, contrôle en centimes), la fabrique de pièces (`platform/ia/artifact/factory`,
+> `emettreDocumentDrive` : numérotation, papier de la société, .docx + PDF au Drive) et la réversibilité K10b
+> ([0040](0040-reversibilite-communications.md) : une pièce numérotée est annulée, jamais effacée).
+
+## Le constat de la Direction (02/11, « catastrophique »)
+
+Pièce jointe « Devis matériel promotionnel INSIGNE.pdf ». « Crée un bc en pdf » → « Qui doit valider ce bon de
+commande ? », un écart « 893 500 vs 794 500 », un fournisseur incertain, pas de PDF. « Crée-le et on verra plus tard qui
+le valide » → refus (« ne peut pas être préparé sans validateur principal »). « moi » → « Au nom de quelle société ? » →
+« adventum ». La carte : « Bon de commande — ADVENTUM PHARMA », **Fournisseur = ADVENTUM PHARMA** (c'est le client ;
+l'émetteur est INSIGNE), des lignes manquantes (4-8, 11-13, 15, 18-20, 24-26), un bloc de trois lignes répété deux fois,
+« ce nom provient du document… » ×3, « Contrôle des totaux » ×4, « Au-dessus du seuil de 0 DZD », l'enveloppe
+« Regulatory » pour du matériel promotionnel, et un bouton « Créer la demande de validation » — pas de PDF.
+
+## Les causes (mesurées sur un devis INSIGNE fabriqué fidèlement)
+
+1. **Fournisseur inversé.** Le bloc client d'un devis (« Client : / ADVENTUM PHARMA / NIF : … / RC : … ») porte des
+   étiquettes NIF et RC ; la lecture des étiquettes (`emetteur.ts`) n'écartait que la ligne qui commence par « Client » :
+   elle prenait le NIF et le RC du CLIENT pour ceux de l'émetteur. Comme l'annuaire contient Adventum Pharma (un client,
+   avec ce NIF), le rapprochement par NIF devenait « certain » → fournisseur = Adventum. Le nom venait du modèle, qui avait
+   lu au même endroit.
+2. **Lignes dupliquées et manquantes.** Le texte « à plat » d'un PDF met chaque CELLULE du tableau sur sa propre ligne
+   (« 2 / Conception ADV / 1 / 145 000,00 / 145 000,00 »), l'en-tête des colonnes et le pied de page de l'émetteur se
+   répètent à chaque page : le modèle qui recopiait ce texte a perdu des lignes et répété un bloc. Rien ne comparait la
+   somme des lignes au HT imprimé avant de composer, sinon une phrase vague ; rien ne suivait la numérotation.
+3. **Friction.** Le validateur était exigé pour CRÉER le BC (le geste créait le BC ET la demande de validation) ; la
+   société n'était pas déduite du devis ; l'enveloppe était « la plus récente que vous voyez », quelle que soit la nature.
+4. **Carte illisible.** Chaque doute du contrôle devenait un avertissement, le seuil était dit même à 0, la provenance
+   répétée.
+
+## Ce qui est décidé
+
+### 1. Lire le tableau par ses positions, avant tout modèle (`pieces-lues/positions.ts`, `tableau.ts`)
+
+- mupdf rend chaque caractère avec sa position : regroupés par ligne de base (rangées), coupés en cellules aux écarts de
+  colonne (`rangeesDesGlyphes`). Lu comme un humain : l'en-tête « Désignation / Qté / P.U. / Montant » fixe les colonnes ;
+  une ligne = une rangée qui commence par son numéro et porte ses chiffres ; une rangée de texte seul juste dessous = la
+  suite de la désignation ; titres de section, en-têtes répétés, « À reporter / Report », sous-totaux et totaux ne sont
+  JAMAIS des lignes ; « 5.000 » dans une colonne de dinars = 5 000.
+- **Dédoublonnage** par numéro (`consolider`) : une ligne imprimée deux fois à l'identique n'en fait qu'une (compté) ;
+  un même numéro à deux contenus reste, douteux et nommé. **Numérotation suivie** : les numéros absents sont des lignes
+  non lues (« lignes 4 à 8 et 11 à 13 non lues »). Chaque ligne se **recoupe** (quantité × prix = montant).
+- **Réconciliation** (`reconcilier`) : la somme des lignes doit faire le HT imprimé. Juste (lignes recoupées, aucun trou,
+  somme = HT) → c'est CETTE lecture qui fait les lignes (`methodeLignes: "positions"`) — locale, gratuite, valable même
+  pour une pièce confidentielle — et le modèle n'est pas appelé. Elle remplace une structure gardée qui ne réconciliait
+  pas (« la première fait foi » vaut entre lectures d'égale valeur).
+
+### 2. Seconde passe : la vision (`pieces-lues/vision-lignes.ts`)
+
+Quand le tableau ne peut pas se lire par positions (un scan) ou que la lecture ne réconcilie pas, chaque page est rendue
+en image et le modèle de vision (Luna) recopie le tableau dans un **schéma JSON strict** (numéro, désignation, quantité,
+PU, montant — chaque nombre EN TEXTE, lu par `montants.ts`), puis les mêmes règles (dédoublonnage, numérotation,
+recoupement). La meilleure lecture (score : juste d'abord, puis trous, lignes douteuses, écart) est gardée
+(`structureePar: "vision:<modèle>"`, jamais rappelée pour la même lecture). Mêmes portes que la lecture par le modèle
+(interrupteur, bascule « lecture des pièces », clé) ; jamais pour une pièce confidentielle. Si l'écart persiste, la carte
+dit **en une phrase** l'écart et les lignes douteuses NOMMÉES (`phraseReconciliation`) — jamais « une ligne est mal lue ».
+
+### 3. L'émetteur est le fournisseur ; le client est la société du groupe (`pieces-lues/emetteur-destinataire.ts`)
+
+- Le **bloc client** (« Client », « Doit », « Facturé à », « À l'attention de »… et ses six lignes suivantes, jusqu'à une
+  ligne vide ou une autre rubrique) n'est jamais lu comme l'émetteur — ni son nom, ni son NIF, ni son RC (`zoneDuClient`,
+  appliquée aussi à `identiteEmetteurDuTexte`).
+- Le nom de l'émetteur : la raison sociale étiquetée, le **pied de page** « NOM — RC … — NIF … », l'en-tête en capitales,
+  le modèle, le **nom du fichier** (« Devis … INSIGNE.pdf ») — le premier qui n'est PAS une société du groupe (nom d'usage,
+  libellé court, dénomination légale) ; le nom du fichier confirme un candidat de l'en-tête. Ses NIF / RC / NIS / AI : hors
+  du bloc client et hors des identifiants du groupe ; le RC est rendu tel qu'imprimé.
+- Le **destinataire** : la société du groupe que le papier nomme (bloc client d'abord) — par NIF, puis RC, puis nom.
+- L'annuaire se cherche par le nom et les identifiants DE L'ÉMETTEUR, sans les fiches qui sont des sociétés du groupe ;
+  absent, la carte propose de **créer sa fiche** (avec SON NIF / RC), faite à la confirmation si la personne a le droit
+  d'écrire l'annuaire des partenaires (`creer_fiche: false` pour s'en passer).
+
+### 4. Le flux : « Crée un BC en PDF » → une carte, un geste, un PDF
+
+- `preparer_bc_depuis_devis` compose avec ce que l'ERP **sait** : la société = le client du devis (demandée seulement si
+  le papier n'en nomme aucune et que la personne en a plusieurs), le **validateur n'est plus demandé** (« plus tard » est
+  une réponse), l'**enveloppe** est proposée selon la NATURE de la commande (`natureDeLaCommande` : matériel promotionnel →
+  enveloppe promo / marketing — module `PROMO_MATERIAL`, pôle MARKETING — jamais une enveloppe Regulatory ou Opérations ;
+  événement → EVENTS / congrès ; rien qui couvre la nature → rien n'est proposé), changeable (`enveloppe`). Une seule
+  question à la fois, et seulement si elle bloque : un chiffre illisible, une TVA que le papier n'imprime pas, un
+  fournisseur que rien ne nomme.
+- Le geste principal est **« Créer le BC (PDF) »** : la fabrique émet le BC (numéroté selon la règle des pièces, papier
+  en-tête de la société, mentions, lignes, totaux, référence du devis), en **pré-validation** — c'est le brouillon : aucun
+  centre ne le prend, aucune demande n'existe — avec son .docx et son **PDF au Drive** (« Bons de commande émis ») ; le
+  lien du PDF revient dans la conversation (« Ouvrir le PDF »). Le devis lu, l'enveloppe et le validateur déjà nommé sont
+  gardés sur la pièce (`custom.depuisDevis`).
+- **« Envoyer en validation »** est un geste séparé (`envoyer_bc_en_validation`) : c'est LÀ que le validateur se demande ;
+  la demande joint le devis ; le circuit (centre puis Finances) n'est dit que si un seuil est réglé — « au-dessus du seuil
+  de 0 DZD » ne se dit plus.
+- **Réversible** (K10b) : annuler « Créer le BC (PDF) » passe la pièce à ANNULÉE — numéro consommé, fichiers au Drive
+  comme trace — par le journal des effets des cartes ; rétablir lui rend son statut.
+
+### 5. La carte : un résumé, le détail au panneau, chaque chose dite une fois
+
+Résumé : fournisseur (NIF, annuaire ou fiche créée), société (« client du devis »), devis, nombre de lignes, HT, TVA et
+taxe, TTC, enveloppe proposée, validateur (« à désigner à l'envoi en validation »). Le **détail des lignes** s'ouvre dans
+le panneau latéral (un champ de plus de quatre lignes y va, `separerChampsLongs`). Avertissements sans redite
+(`sansRedite`) : la provenance UNE fois (« Lignes et montants lus sur le tableau du PDF, à vérifier contre le papier »),
+l'écart en une phrase avec les lignes nommées, les **taxes recalculées depuis les lignes et comparées une fois** au
+papier (`phraseTaxes` : rien quand elles concordent), un dépassement d'enveloppe seulement s'il existe.
+
+## Mesures (banc)
+
+- Banc fabriqué (`lib/pieces-lues/banc/devis-fabriques.ts`) : INSIGNE (27 lignes, 3 blocs, 3 pages, 794 500 HT, TVA 19 %,
+  taxe publicitaire 2 %), une imprimerie (milliers à points), une agence événementielle (34 lignes, 3 pages, reports), un
+  fournisseur d'objets (colonnes Réf. / Unité, désignations sur deux lignes), un **scan** image.
+- Lecture par positions : **76/76 lignes justes** sur les quatre PDF texte, totaux HT / TVA / taxe / TTC justes, émetteur
+  et destinataire justes, **0 appel modèle**. Vision réelle (`gpt-5.6-luna`, 2 appels) : **scan 5/5** (4,6 s), **INSIGNE
+  27/27** (10,8 s) — `scripts/banc-b1-devis.ts` (`B1_VISION=1`).
+- Scénario de la Direction contre la vraie base (`bc-devis-direction.test.ts`) : le modèle rendant la lecture fautive du
+  02/11 et l'annuaire contenant Adventum avec son NIF → fournisseur INSIGNE, société Adventum (client du devis), 27 lignes
+  justes, 794 500 HT / 961 345 TTC, enveloppe Marketing (pas Regulatory), un seul avertissement, **aucune question** ;
+  « Créer le BC (PDF) » → BC numéroté en brouillon, PDF au Drive, fiche INSIGNE créée avec SON NIF ; annulé → ANNULÉ.
+
+Code : `src/lib/pieces-lues/{positions,tableau,tableau-piece,emetteur-destinataire,vision-lignes}.ts`, `service.ts`
+(étages positions → modèle → vision), `src/modules/assistant-ia/infra/operations/{devis-lu,bc-depuis-devis}.ts`,
+`src/modules/assistant-ia/domaine/operations/bc-devis.ts`, `ecrans/action-confirmation-card.tsx` (panneau du détail,
+« Ouvrir le PDF »). Aucune migration.

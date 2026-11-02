@@ -1,4 +1,5 @@
 import { plier } from "@/lib/utils";
+import { zoneDuClient } from "@/lib/pieces-lues/emetteur-destinataire";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * L'IDENTITÉ DE L'ÉMETTEUR, RECOPIÉE DU PAPIER — raison sociale, adresse, NIF, RC, RIB, téléphone, e-mail.
@@ -70,9 +71,11 @@ function nettoyer(champ: Champ, brut: string): string | null {
 export function identiteEmetteurDuTexte(texte: string): IdentiteEmetteur {
   const id: IdentiteEmetteur = { ...IDENTITE_VIDE };
   const lignes = texte.split(/\r?\n/);
+  // LE BLOC CLIENT (lot B1) : « Client : / ADVENTUM PHARMA / NIF : … » — ses étiquettes ne sont pas celles de l'émetteur.
+  const zone = zoneDuClient(lignes);
   for (let i = 0; i < lignes.length; i++) {
     const brute = lignes[i].trim();
-    if (!brute) continue;
+    if (!brute || zone.has(i)) continue;
     const p = plier(brute);
     if (estLigneClient(p)) continue;
     for (const { champ, re } of ETIQUETTES) {
@@ -92,8 +95,8 @@ export function identiteEmetteurDuTexte(texte: string): IdentiteEmetteur {
     }
   }
   // L'e-mail : la première adresse imprimée qui n'est pas sur une ligne du client.
-  for (const l of lignes) {
-    if (estLigneClient(plier(l.trim()))) continue;
+  for (const [i, l] of lignes.entries()) {
+    if (zone.has(i) || estLigneClient(plier(l.trim()))) continue;
     const m = l.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
     if (m) { id.email = m[0]; break; }
   }
