@@ -1,5 +1,9 @@
 # 0013 — L'Assistant IA en « Jarvis » : décisions de la Direction et lot J0 (29/10/2026)
 
+> **Révisée le 02/11/2026 par [0055](0055-adam-complet-super-admin.md)** : Adam et l'Assistant IA ne font plus qu'un ; la
+> règle « l'Assistant IA n'importe jamais Adam » admet UNE porte nommée (`platform/in-process/porte-assistant-ia.ts`, lue
+> par le seul `modules/assistant-ia/infra/adam/outils-adam.ts`) ; les deux autres règles restent à zéro.
+
 **Décision (Direction, 29/10/2026)** : la proposition d'architecture « L'Assistant IA en Jarvis : travaux longs, mémoire,
 documents en direct » est validée (lien : <https://claude.ai/artifact/8TCDJTz6Nxow3qUtjb2hRS>, inventaire au commit
 `ed81866f`). Ce document en garde les cinq décisions, le plan J0 → J5, et ce que le lot J0 a livré.

@@ -101,7 +101,7 @@ export function finitParUneQuestion(reponse: string): boolean {
 
 /** « C'est fait » : une affirmation d'action ACCOMPLIE, à confronter à un outil réussi ou un objet créé. */
 export function affirmeFait(reponse: string): string | null {
-  const m = /(c['’]est fait|c['’]est envoyé|j['’]ai (bien )?(envoyé|créé|fusionné|arrêté|annulé|programmé|validé|supprimé|modifié|enregistré|transmis|lancé)|(a|ont) été (envoyée?s?|créée?s?|fusionnée?s?|arrêtée?s?|annulée?s?|validée?s?|supprimée?s?|modifiée?s?|transmise?s?)|est désormais (fusionn|arrêt|annul))/i.exec(reponse);
+  const m = /(c['’]est fait|c['’]est envoyé|j['’]ai (bien )?(envoyé|créé|fusionné|arrêté|annulé|programmé|validé|supprimé|modifié|enregistré|transmis|lancé)|\b(a|ont) été (envoyée?s?|créée?s?|fusionnée?s?|arrêtée?s?|annulée?s?|validée?s?|supprimée?s?|modifiée?s?|transmise?s?)|est désormais (fusionn|arrêt|annul))/i.exec(reponse);
   if (!m) return null;
   // « sera créée après confirmation », « une fois confirmé » : une PROMESSE, pas un fait.
   const autour = reponse.slice(Math.max(0, m.index - 80), m.index + m[0].length + 80);
