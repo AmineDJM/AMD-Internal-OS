@@ -14,8 +14,7 @@ import { demandeLesDevis } from "@/lib/promo-material/circuit";
 import { libelleArticleDemande, validerArticleDemande, type FamillePromo } from "@/lib/promo-material/achats";
 import { aucunPromu, designeUnProduit, libellesPromus, lirePromusStockes } from "@/lib/promo-material/promus";
 import { resoudrePromus } from "@/lib/queries/promo-promus";
-import { FAMILLES as FAMILLES_PROMO, prochaineReference } from "@/lib/promo/catalogue";
-import { createWithRetry, enSerie } from "@/lib/refs";
+import { creerArticleHorsCatalogue, refusArticleLibre } from "@/lib/promo-material/article-hors-catalogue";
 import { CHEMIN_CATALOGUE_PROMO } from "@/lib/chemins/stock-promo";
 
 /**
@@ -118,8 +117,8 @@ export async function enregistrerArticleDemandePromo(formData: FormData): Promis
   if (libre) {
     const nom = fdStr(formData, "autreNom");
     const famille = fdStr(formData, "autreFamille");
-    if (!nom) return { ok: false, error: "Écrivez le nom de l'article (« Autre article »)." };
-    if (!famille || !(FAMILLES_PROMO as readonly string[]).includes(famille)) return { ok: false, error: "Choisissez la famille de l'article (consommable, durable ou numérique)." };
+    const invalide = refusArticleLibre({ nom: nom ?? "", famille: famille ?? "" });
+    if (invalide || !nom || !famille) return { ok: false, error: invalide ?? "Article illisible." };
     const description = fdStr(formData, "autreDescription");
     if (existant?.catalogue.horsCatalogue && !existant.catalogue.actif) {
       await prisma.promoCatalogueArticle.updateMany({
@@ -128,17 +127,7 @@ export async function enregistrerArticleDemandePromo(formData: FormData): Promis
       });
       catalogueId = existant.catalogueId;
     } else {
-      const cree = await enSerie("catalogue-promo", () => createWithRetry(async () => {
-        const refs = await prisma.promoCatalogueArticle.findMany({ select: { reference: true } });
-        return prisma.promoCatalogueArticle.create({
-          data: {
-            reference: prochaineReference(refs.map((r) => r.reference)), nom, famille: famille as FamillePromo, description,
-            actif: false, horsCatalogue: true, createdById: user.id, updatedById: user.id,
-          },
-          select: { id: true },
-        });
-      }));
-      catalogueId = cree.id;
+      catalogueId = await creerArticleHorsCatalogue(user.id, { nom, famille, description });
     }
   }
   const lu = catalogueId

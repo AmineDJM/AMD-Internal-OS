@@ -28,6 +28,10 @@ export interface LigneDemandeSaisie {
   /** « Autre » — un produit promu écrit en clair, quand il n'est dans aucune liste. */
   autre: string;
   commentaire: string;
+  /** F2 : « AUTRE ARTICLE » (`catalogueId: "AUTRE"`) — l'article absent du catalogue, saisi librement. */
+  autreNom?: string;
+  autreFamille?: string;
+  autreDescription?: string;
 }
 
 /** Une limite OPÉRATIONNELLE (§118.2) : au-delà, la demande se scinde — et le refus le dit. */
@@ -64,6 +68,9 @@ export function lireLignesDemande(brut: string | null | undefined): { ok: true; 
         produitIds: textes(o.produitIds),
         autre: texte(o.autre).trim(),
         commentaire: texte(o.commentaire),
+        autreNom: texte(o.autreNom).trim(),
+        autreFamille: texte(o.autreFamille).trim(),
+        autreDescription: texte(o.autreDescription).trim(),
       };
     }),
   };
@@ -76,7 +83,7 @@ export function lireLignesDemande(brut: string | null | undefined): { ok: true; 
  * une ligne vide, et le refus le dira.
  */
 export function ligneVide(l: LigneDemandeSaisie): boolean {
-  return !l.catalogueId && !l.quantite && l.actions.length === 0 && l.produitIds.length === 0 && !l.autre && !l.commentaire.trim();
+  return !l.catalogueId && !l.quantite && l.actions.length === 0 && l.produitIds.length === 0 && !l.autre && !l.commentaire.trim() && !l.autreNom;
 }
 
 /** Le refus quand il ne reste aucune ligne — il dit à quoi sert une ligne, pas seulement qu'il en manque. */

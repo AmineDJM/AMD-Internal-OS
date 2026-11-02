@@ -35,6 +35,18 @@ function actionProbable(nom: string, famille: string): string {
   return famille === "DURABLE" ? "FABRICATION" : "ACHAT";
 }
 
+/**
+ * F2 (banc réel du 02/11, TR-LM-04) — LA FAMILLE PROBABLE d'un article absent du catalogue, saisi en « Autre article » :
+ * un support numérique se conçoit, un objet durable se fabrique, le reste se consomme. Dite sur la carte, modifiable.
+ */
+function familleProbable(nom: string): "CONSOMMABLE" | "DURABLE" | "NUMERIQUE" {
+  const n = replier(nom);
+  if (/video|numerique|digital|e-?mail|newsletter|site|application|appli|animation|banniere web|e-learning/.test(n)) return "NUMERIQUE";
+  if (/presentoir|stand|kakemono|roll-?up|banner|totem|mobilier|comptoir|tablette|enseigne|vitrine|parasol/.test(n)) return "DURABLE";
+  return "CONSOMMABLE";
+}
+const LIBELLE_FAMILLE_PROMO = { CONSOMMABLE: "consommable", DURABLE: "durable", NUMERIQUE: "numérique" } as const;
+
 interface LigneLue { article: string; quantite: string; actions: string[]; produit: string; commentaire: string }
 
 function lignesDe(e: Record<string, unknown>): LigneLue[] {
@@ -55,7 +67,7 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
   libelle: "Demande de matériel promotionnel préparée",
   description:
     "PRÉPARE une demande de MATÉRIEL PROMOTIONNEL, exécutée à la confirmation par l'action de l'écran. Chaque ligne : un article du catalogue "
-    + "(nom ou référence), les actions attendues du fournisseur (conception, impression, fabrication, achat, location, livraison, installation, autre), "
+    + "(nom ou référence ; un article ABSENT du catalogue est repris tel quel en saisie libre « Autre article »), les actions attendues du fournisseur (conception, impression, fabrication, achat, location, livraison, installation, autre), "
     + "une quantité, et le produit si l'article l'exige. Elle répond `manque` — pose alors UNE seule question.",
   schema: {
     type: "object",
@@ -94,8 +106,7 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
     const besoin = texte(e, "besoinLe") ? dateIso(texte(e, "besoinLe")) : null;
     if (texte(e, "besoinLe") && !besoin) manque.push("une date de besoin lisible (jour, mois, année)");
 
-    const resolues: { catalogueId: string; nom: string; ligne: LigneLue }[] = [];
-    const horsCatalogue: string[] = [];
+    const resolues: { catalogueId: string; nom: string; ligne: LigneLue; libre?: { famille: keyof typeof LIBELLE_FAMILLE_PROMO } }[] = [];
     for (const [i, l] of lignes.entries()) {
       const n = i + 1;
       if (!l.article) { manque.push(`ligne ${n} : l'article du catalogue`); continue; }
@@ -106,7 +117,16 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
       });
       const exacts = trouves.filter((c) => replier(c.nom) === replier(l.article) || replier(c.reference) === replier(l.article));
       const c = exacts.length === 1 ? exacts[0] : trouves.length === 1 ? trouves[0] : null;
-      if (!c && !trouves.length) { horsCatalogue.push(l.article); continue; }
+      if (!c && !trouves.length) {
+        // F2 (TR-LM-04) : absent du catalogue actif → proposé en SAISIE LIBRE (« Autre article », comme sur la fiche),
+        // jamais retiré de la demande. Il entre au catalogue archivé, hors catalogue, à la création de la demande.
+        const famille = familleProbable(l.article);
+        if (!l.actions.length) l.actions = [actionProbable(l.article, famille)];
+        if (famille === "NUMERIQUE" && l.quantite) manque.push(`ligne ${n} (${l.article}) : un support numérique n'a pas de quantité — à retirer`);
+        hypotheses.push(`« ${l.article} » n'est pas au catalogue actif : saisi en « Autre article » (famille ${LIBELLE_FAMILLE_PROMO[famille]}, ${l.actions.map((a) => LIBELLE_ACTION[a]).join(", ")} — modifiable) ; un gestionnaire pourra l'ajouter au catalogue.`);
+        resolues.push({ catalogueId: "AUTRE", nom: l.article, ligne: l, libre: { famille } });
+        continue;
+      }
       if (!c) {
         manque.push(trouves.length > 1
           ? `ligne ${n} : quel article pour « ${l.article} » : ${trouves.map((t) => `${t.nom} (${t.reference})`).join(", ")}`
@@ -122,13 +142,9 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
       if (c.famille === "NUMERIQUE" && l.quantite) manque.push(`ligne ${n} (${c.nom}) : un support numérique n'a pas de quantité — à retirer`);
       resolues.push({ catalogueId: c.id, nom: c.nom, ligne: l });
     }
-    // Un article absent du catalogue n'arrête pas la demande quand d'autres lignes s'y trouvent : il est NOMMÉ sur la
-    // carte (non repris), la personne l'ajoute à l'écran si elle y tient. Seul, il reste une question.
-    if (horsCatalogue.length && !resolues.length) manque.push(...horsCatalogue.map((a) => `« ${a} » n'est pas au catalogue actif — un autre article`));
     if (manque.length) return { manque };
 
     const warnings: string[] = [...hypotheses];
-    if (horsCatalogue.length) warnings.push(`Hors catalogue actif, non repris : ${horsCatalogue.join(", ")} — à ajouter à l'écran avec un article du catalogue si besoin.`);
     const proches = await prisma.promoMaterial.findMany({
       where: { requesterId: user.id, title: { equals: titre, mode: "insensitive" }, createdAt: { gte: new Date(Date.now() - 120 * 24 * 3600 * 1000) } },
       select: { reference: true, createdAt: true },
@@ -144,7 +160,7 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
           ["Campagne", titre],
           ...resolues.map((r, i): [string, string] => [
             `Ligne ${i + 1}`,
-            `${r.nom}${r.ligne.quantite ? ` × ${r.ligne.quantite}` : ""} — ${r.ligne.actions.map((a) => LIBELLE_ACTION[a]).join(", ")}${r.ligne.produit ? ` (${r.ligne.produit})` : ""}`,
+            `${r.nom}${r.libre ? " (saisie libre, hors catalogue)" : ""}${r.ligne.quantite ? ` × ${r.ligne.quantite}` : ""} — ${r.ligne.actions.map((a) => LIBELLE_ACTION[a]).join(", ")}${r.ligne.produit ? ` (${r.ligne.produit})` : ""}`,
           ]),
           ["Besoin le", besoin],
           ["Description", texte(e, "description") || null],
@@ -158,6 +174,7 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
         lignes: JSON.stringify(resolues.map((r) => ({
           catalogueId: r.catalogueId, quantite: r.ligne.quantite, actions: r.ligne.actions,
           produitIds: [], autre: r.ligne.produit, commentaire: r.ligne.commentaire,
+          ...(r.libre ? { autreNom: r.nom, autreFamille: r.libre.famille } : {}),
         }))),
       },
     };

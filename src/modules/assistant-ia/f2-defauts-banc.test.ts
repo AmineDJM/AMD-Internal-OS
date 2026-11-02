@@ -10,7 +10,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 let ACTEUR: unknown = null;
-vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
+vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
@@ -403,5 +403,46 @@ suite("F2 · TR-MU-03 — un mail au destinataire introuvable : la carte est pr�
     // Confirmée sans destinataire : l'action refuse, rien ne part.
     const r = await confirmerIntentionAssistantIA(props[0]!.intentId);
     expect(r.ok).toBe(false);
+  });
+});
+
+suite("F2 · TR-LM-04 — un article hors catalogue est proposé en saisie libre, jamais retiré (base réelle)", () => {
+  let yanis: CurrentUser;
+  const marque = `F2${Date.now().toString(36)}`;
+  beforeAll(async () => {
+    yanis = await compte("Yanis", "MEDICAL_DELEGATE");
+    await prisma.userAccess.create({ data: { userId: yanis.id, module: "PROMO_MATERIAL", canView: true, canCreate: true, scope: "ASSIGNED" } });
+    yanis = { ...yanis, access: await getAccess(yanis.id, yanis.role) } as CurrentUser;
+    await prisma.promoCatalogueArticle.create({ data: { reference: `CAT-${marque}`, nom: `Stylos ${marque}`, famille: "CONSOMMABLE", actif: true } });
+  });
+  afterAll(async () => {
+    const dossiers = await prisma.promoMaterial.findMany({ where: { requesterId: yanis?.id }, select: { id: true } });
+    await prisma.promoRequestItem.deleteMany({ where: { promoMaterialId: { in: dossiers.map((d) => d.id) } } }).catch(() => {});
+    await prisma.promoMaterial.deleteMany({ where: { requesterId: yanis?.id } }).catch(() => {});
+    await prisma.promoCatalogueArticle.deleteMany({ where: { nom: { contains: marque } } }).catch(() => {});
+    await prisma.assistantActionIntent.deleteMany({ where: { userId: yanis?.id } }).catch(() => {});
+    await prisma.userAccess.deleteMany({ where: { userId: yanis?.id } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Yanis` } } }).catch(() => {});
+  });
+
+  it("« 3 cartons de brochures » (hors catalogue) et « 2 boîtes de stylos » : deux lignes ; confirmée, la brochure entre en « Autre article »", async () => {
+    ACTEUR = yanis;
+    const props: PropositionPreparee[] = [];
+    const o = outilsV1(yanis, props, [], [], null, await accesAssistantIa(yanis), { capacites: true }).find((t) => t.def.name === "preparer_materiel_promo");
+    expect(o, "l'opération n'est pas offerte").toBeTruthy();
+    const sortie = JSON.parse(await o!.run({ titre: `Daclavir ${marque}`, articles: [
+      { article: `Brochures Daclavir ${marque}`, quantite: "300", actions: ["impression"] },
+      { article: `Stylos ${marque}`, quantite: "2" },
+    ] }, yanis));
+    expect(sortie.statut, JSON.stringify(sortie)).toBe("EN_ATTENTE_DE_CONFIRMATION");
+    const carte = JSON.stringify(props[0]!.proposition.fields);
+    expect(carte).toContain(`Brochures Daclavir ${marque} (saisie libre, hors catalogue) × 300`);
+    expect(carte).toContain(`Stylos ${marque}`);
+    const r = await confirmerIntentionAssistantIA(props[0]!.intentId);
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    const dossier = await prisma.promoMaterial.findFirstOrThrow({ where: { requesterId: yanis.id }, include: { articlesDemandes: { include: { catalogue: true } } } });
+    expect(dossier.articlesDemandes).toHaveLength(2);
+    const libre = dossier.articlesDemandes.find((i) => i.catalogue.nom.startsWith("Brochures"))!;
+    expect(libre.catalogue).toMatchObject({ horsCatalogue: true, actif: false, famille: "CONSOMMABLE" });
   });
 });
