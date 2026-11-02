@@ -113,7 +113,7 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     // LA BOÎTE DE PHARMACOVIGILANCE (Direction, 06/10) : à qui REÇOIT les cas (portée TOUT). Le KAM qui signale lit
     // ses cas depuis les Rapports terrain — une entrée de pôle Regulatory lui ouvrirait une boîte presque vide.
     pharmacovigilance: voitTousLesCasPv(user),
-    // LES RECETTES (J10) : la Direction, un responsable de processus, ou qui voit le circuit d'une recette.
+    // LES RECETTES (J10) : le module `RECETTES` (lot R1, console) PUIS la Direction, un responsable de processus, ou qui voit le circuit d'une recette.
     recettes: await voitDesRecettes(user).catch(sansBloquer("nav-access.navigationFor.voitDesRecettes", false)),
   };
 

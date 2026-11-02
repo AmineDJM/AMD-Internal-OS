@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/session";
+import { requireModule } from "@/lib/session";
 import { ROLE_LABELS } from "@/lib/labels";
 import { PageHeader } from "@/components/shared/page-header";
 import { lireEcranRecettes } from "@/modules/recettes/api";
@@ -9,10 +9,11 @@ export const metadata = { title: "Recettes — AMD Internal OS" };
 
 /**
  * LES RECETTES (J10, décision 0028) — « comment on fait chez nous », tiré des circuits réels et validé par le
- * responsable du processus. Chacun ne voit que les recettes des circuits dont il voit l'écran.
+ * responsable du processus. Chacun ne voit que les recettes des circuits dont il voit l'écran — DERRIÈRE la porte du
+ * module `RECETTES` (lot R1, décision 0054) : bloqué dans la console ou masqué pour tous, l'adresse ne s'ouvre pas.
  */
 export default async function RecettesPage() {
-  const user = await requireUser();
+  const user = await requireModule("RECETTES");
   const e = await lireEcranRecettes(user);
   const roles = Object.fromEntries(Object.entries(ROLE_LABELS));
   const compte = (s: string) => e.recettes.filter((r) => r.statut === s).length;

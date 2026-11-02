@@ -119,6 +119,8 @@ export const SERVICE_DU_MODULE: Record<CleModule, ServiceDuModule> = {
   DRIVE: { domaines: ["DRIVE"] },
   // Direction artistique (10/2026) — papeterie par entité. Aucun outil d'Adam : gestes d'écran.
   ART_DIRECTION: { domaines: ["DRIVE"], mots: ["direction artistique", "papier en-tete", "papier entete", "modele de bon de commande", "charte graphique"] },
+  // Recettes (J10, lot R1) — les procédures validées : l'outil `recette_pour` les sert, sous le module.
+  RECETTES: { domaines: ["MISSION"], mots: ["recettes de la maison", "comment on fait chez nous", "procedure validee"], outils: [] },
   ADMIN: { domaines: ["ADMIN"] },
   PCH: { domaines: ["REGULATORY"], outils: ["pch_operation", "pch_market_status"] },
   PRODUCT_EXPLORER: { domaines: ["REGULATORY"] },
