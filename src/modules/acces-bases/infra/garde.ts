@@ -10,7 +10,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { sansBloquer } from "@/lib/journal";
-import { estSysteme, poserEvaluateurDonnees, type ContexteDonnees, type EvaluateurDonnees } from "@/platform/donnees/contexte";
+import { estSysteme, poserEvaluateurDonnees, type EvaluateurDonnees } from "@/platform/donnees/contexte";
 import { baseDe, baseDuModele, droitEffectif, droitParModules, niveauPour } from "../domaine/regle";
 import type { ReglageBase } from "../domaine/types";
 import { compterObservation } from "./observations";
@@ -70,4 +70,3 @@ export function debrancherGardeDonnees(): void {
   poserEvaluateurDonnees(null);
 }
 
-export type { ContexteDonnees };

@@ -237,6 +237,8 @@ async function transactionEnPlace(tx: Record<string | symbol, unknown>, arg: unk
  * qu'appeler la requête. Pendant un geste d'agent, c'est le client du geste qui parle, comme avant.
  */
 let garde: PrismaClient | null = null;
+/** Ce qu'un client étendu ne porte pas : le relais le prend au client de base (les intergiciels `$use` valent pour les deux). */
+const PROPRES_AU_CLIENT_DE_BASE: ReadonlySet<string | symbol> = new Set(["$use", "$on"]);
 function clientGarde(): PrismaClient {
   return (garde ??= prismaBrut.$extends(extensionGarde()) as unknown as PrismaClient);
 }
@@ -244,7 +246,9 @@ function clientGarde(): PrismaClient {
 export const prisma: PrismaClient = new Proxy(prismaBrut, {
   get(cible, prop) {
     const geste = clientDuGeste();
-    const source = (geste && prop in geste ? geste : clientGarde()) as Record<string | symbol, unknown>;
+    // Hors geste : le client gardé ; ce qu'il n'a pas (`$use`, `$on` — un client étendu ne les porte pas), le client de base.
+    const garde = clientGarde() as unknown as Record<string | symbol, unknown>;
+    const source = (geste && prop in geste ? geste : PROPRES_AU_CLIENT_DE_BASE.has(prop) ? cible : garde) as Record<string | symbol, unknown>;
     if (geste && prop === "$transaction" && typeof geste.$transaction !== "function") {
       return (arg: unknown) => transactionEnPlace(geste, arg);
     }

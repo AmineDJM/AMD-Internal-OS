@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+import type { AsyncLocalStorage } from "node:async_hooks";
 import { cache } from "react";
 
 /**
@@ -50,9 +50,29 @@ export type EvaluateurDonnees = (demande: {
 }) => VerdictDonnees | null;
 
 const caseDeRequete = cache((): { ctx: ContexteDonnees | null } => ({ ctx: null }));
-const magasinSysteme = new AsyncLocalStorage<ContexteSysteme>();
-const magasinIdentite = new AsyncLocalStorage<IdentiteDonnees>();
-let evaluateur: EvaluateurDonnees | null = null;
+
+/**
+ * SANS IMPORT STATIQUE D'UN MODULE NODE (même motif que `effets/magasin.ts`) : `prisma.ts` lit ce contexte, et des écrans
+ * client importent (de loin) `prisma.ts`. Côté serveur, Node fournit le constructeur ; côté navigateur, il n'y a ni
+ * requête de données ni magasin. UN SEUL état par processus (`globalThis`), même si Next charge deux copies du module :
+ * l'évaluateur branché au démarrage doit être vu par toutes.
+ */
+type ConstructeurAls = typeof AsyncLocalStorage;
+function constructeur(): ConstructeurAls | null {
+  const g = globalThis as { AsyncLocalStorage?: ConstructeurAls; process?: { getBuiltinModule?: (n: string) => unknown } };
+  if (typeof g.AsyncLocalStorage === "function") return g.AsyncLocalStorage;
+  const m = g.process?.getBuiltinModule?.("node:async_hooks") as { AsyncLocalStorage?: ConstructeurAls } | undefined;
+  return m?.AsyncLocalStorage ?? null;
+}
+interface EtatDonnees {
+  systeme: AsyncLocalStorage<ContexteSysteme> | null;
+  identite: AsyncLocalStorage<IdentiteDonnees> | null;
+  evaluateur: EvaluateurDonnees | null;
+}
+const etat: EtatDonnees = ((globalThis as { __amdGardeDonnees?: EtatDonnees }).__amdGardeDonnees ??= (() => {
+  const C = constructeur();
+  return { systeme: C ? new C<ContexteSysteme>() : null, identite: C ? new C<IdentiteDonnees>() : null, evaluateur: null };
+})());
 
 /** La session pose l'identité une fois par requête. Sans elle, la garde ne juge rien (elle ne devine jamais). */
 export function poserIdentiteDonnees(identite: IdentiteDonnees): void {
@@ -63,20 +83,12 @@ export function poserIdentiteDonnees(identite: IdentiteDonnees): void {
   }
 }
 
-/** Oublie l'identité de la requête courante (déconnexion, fin de banc). */
-export function oublierIdentiteDonnees(): void {
-  try {
-    caseDeRequete().ctx = null;
-  } catch {
-    /* rien à oublier */
-  }
-}
-
 /** Une tâche de fond DÉCLARE son contexte : `enSysteme("battement des missions", () => …)`. */
 export function enSysteme<T>(raison: string, corps: () => T | Promise<T>): Promise<T> {
   // ATTENDRE DEDANS : une requête Prisma est paresseuse (elle part à l'`await`) — rendue telle quelle, elle partirait
   // hors du contexte.
-  return magasinSysteme.run({ systeme: true, raison }, async () => await corps());
+  if (!etat.systeme) return Promise.resolve().then(corps);
+  return etat.systeme.run({ systeme: true, raison }, async () => await corps());
 }
 
 /**
@@ -84,14 +96,15 @@ export function enSysteme<T>(raison: string, corps: () => T | Promise<T>): Promi
  * case de la requête, jamais sur un contexte système qui l'enveloppe.
  */
 export function avecIdentiteDonnees<T>(identite: IdentiteDonnees, corps: () => T | Promise<T>): Promise<T> {
-  return magasinIdentite.run(identite, async () => await corps());
+  if (!etat.identite) return Promise.resolve().then(corps);
+  return etat.identite.run(identite, async () => await corps());
 }
 
 /** Le contexte de la requête courante : le système d'abord (il enveloppe), puis une identité enveloppante, puis la case. */
 export function contexteDonnees(): ContexteDonnees | null {
-  const sys = magasinSysteme.getStore();
+  const sys = etat.systeme?.getStore();
   if (sys) return sys;
-  const id = magasinIdentite.getStore();
+  const id = etat.identite?.getStore();
   if (id) return id;
   try {
     return caseDeRequete().ctx;
@@ -102,7 +115,7 @@ export function contexteDonnees(): ContexteDonnees | null {
 
 /** Le module `acces-bases` se branche ici (au démarrage). Rebrancher remplace : un seul juge à la fois. */
 export function poserEvaluateurDonnees(fn: EvaluateurDonnees | null): void {
-  evaluateur = fn;
+  etat.evaluateur = fn;
 }
 
-export const evaluateurDonnees = (): EvaluateurDonnees | null => evaluateur;
+export const evaluateurDonnees = (): EvaluateurDonnees | null => etat.evaluateur;
