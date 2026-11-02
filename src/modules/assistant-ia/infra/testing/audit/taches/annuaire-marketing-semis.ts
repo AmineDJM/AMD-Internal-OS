@@ -3,7 +3,7 @@
  * LE BANC D'AUDIT — LE SEMIS DU LOT T2 (annuaires, marketing, terrain), décision 0051.
  *
  * Un petit monde réaliste, étiqueté et retirable, posé APRÈS les personas (`semerAudit`) :
- *   • deux BU (Hépatologie, Oncologie), deux secteurs — Est (Constantine, Yanis HAMDI) et Ouest (Oran, Karim ZEROUAL) ;
+ *   • deux BU (Hépatologie, Oncologie), deux secteurs — Est (Constantine, Yanis HAMDI) et Ouest (Oran, Farid ZEROUAL) ;
  *   • un annuaire de praticiens (panels des deux délégués, homonymes « BENALI », fiches sans téléphone ni spécialité) ;
  *   • des pharmacies et établissements (Oran : trois paires de DOUBLONS ; Constantine : une pharmacie non couverte) ;
  *   • des visites (dates RELATIVES au jour du passage : « ces 30 derniers jours » reste vrai), dont un compte rendu
@@ -17,17 +17,17 @@
  */
 import { prisma } from "@/lib/prisma";
 import { attendu } from "@/lib/journal";
-import type { CurrentUser } from "@/lib/session";
-import type { Titulaire } from "../personas";
-import { etiquetteT2, INITIAL, TEMOIN_VISITE, type SemisT2 } from "./annuaire-marketing-donnees";
+import { deposerPiece, xlsx } from "./aides";
+import type { PieceSemee, SemisDeDomaine } from "./types";
+import { etiquetteT2, INITIAL, TEMOIN_VISITE } from "./annuaire-marketing-donnees";
 
-export type { SemisT2 };
+/**
+ * QUI SÈME LE MONDE T2 : le banc réel (étiquette « -q1 ») et la suite T2 (`annuaire-terrain.test.ts`, « -t2-… »). Les autres
+ * suites, qui sèment les personas en parallèle dans la même base de test, ne le sèment pas : ses noms (« Pharmacie
+ * Es-Salam », BU « Hépatologie ») deviendraient de vrais homonymes d'une suite à l'autre.
+ */
+export const semeLeMondeT2 = (etiquette: string) => etiquette === "-q1" || etiquette.startsWith("-t2-");
 
-interface DepotsT2 {
-  putBlob: (octets: Buffer) => Promise<{ blobId: string; size: number; sha256: string }>;
-  enregistrerFichierDrive: (u: CurrentUser, cible: { parentId?: string | null }, f: { blobId: string; size: number; mimeType: string; name: string; sha256?: string | null }) => Promise<{ id: string }>;
-  sessionDe: (userId: string) => Promise<CurrentUser>;
-}
 
 /** Les codes officiels des deux wilayas du banc (référentiel `Wilaya`) : posés avec le texte, comme la double écriture. */
 const CODE_WILAYA: Record<string, string> = { Oran: "31", Constantine: "25" };
@@ -38,19 +38,13 @@ const dansLeMois = (decalage: number, jour = 3) => {
   return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth() - decalage, Math.min(jour, Math.max(1, n.getUTCDate())), 9));
 };
 
-async function xlsx(feuille: string, lignes: (string | number)[][]): Promise<Buffer> {
-  const ExcelJS = (await import("exceljs")).default;
-  const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet(feuille);
-  for (const l of lignes) ws.addRow(l);
-  return Buffer.from(await wb.xlsx.writeBuffer());
-}
 
 async function specialite(name: string): Promise<string> {
   return (await prisma.medicalSpecialty.upsert({ where: { name }, update: {}, create: { name }, select: { id: true } })).id;
 }
 
-export async function semerT2(etiquette: string, companyId: string, users: Record<Titulaire, string>, d: DepotsT2): Promise<SemisT2> {
+export const SEMIS_T2: SemisDeDomaine = async ({ etiquette, users, companyId }): Promise<Record<string, PieceSemee>> => {
+  if (!semeLeMondeT2(etiquette)) return {};
   const tag = etiquetteT2(etiquette);
   const [hepato, onco] = [
     await prisma.businessUnit.create({ data: { name: "Hépatologie", code: `T2-HEP${etiquette}`, companyId }, select: { id: true } }),
@@ -67,7 +61,7 @@ export async function semerT2(etiquette: string, companyId: string, users: Recor
     if (secteur) await prisma.salesSectorInstitution.create({ data: { sectorId: secteur, institutionId: e.id } });
     return e.id;
   };
-  const etablissements: SemisT2["etablissements"] = {
+  const etablissements = {
     chuConstantine: await etab("CHU Constantine", "CHU", "Constantine", { phone: "031 88 00 00" }, est.id),
     elHayat: await etab("Clinique El Hayat", "CLINIQUE_PRIVEE", "Constantine"),
     ibnSina: await etab("Pharmacie Ibn Sina", "PHARMACIE", "Constantine", { phone: "031 92 14 14", address: "12 rue Abane Ramdane, Constantine" }, est.id),
@@ -90,7 +84,7 @@ export async function semerT2(etiquette: string, companyId: string, users: Recor
       name, lastName: name.split(" ").slice(-1)[0], firstName: name.split(" ")[0], delegateId: delegue, wilaya, wilayaCode: CODE_WILAYA[wilaya] ?? null, city: wilaya, directoryId: directory.id, companyId,
       specialtyId: o.specialtyId ?? null, institutionId: o.institutionId ?? null, institution: o.institution ?? null, phone: o.phone ?? null, comments: tag,
     }, select: { id: true } })).id;
-  const medecins: SemisT2["medecins"] = {
+  const medecins = {
     bensalem: await medecin("Karima BENSALEM", users.delegue, "Constantine", { specialtyId: gastro, institutionId: etablissements.chuConstantine, institution: "CHU Constantine", phone: INITIAL.bensalem.phone }),
     mansouri: await medecin("Rachid MANSOURI", users.delegue, "Constantine", { specialtyId: hep, institutionId: etablissements.chuConstantine, institution: "CHU Constantine", phone: "0661 72 31 48" }),
     amelBenali: await medecin("Amel BENALI", users.delegue, "Constantine", { specialtyId: cardio, institutionId: etablissements.chuConstantine, institution: "CHU Constantine", phone: "0662 10 20 30" }),
@@ -98,7 +92,7 @@ export async function semerT2(etiquette: string, companyId: string, users: Recor
     khelif: await medecin("Sami KHELIF", users.delegue, "Constantine", { specialtyId: gastro }),
     aissaoui: await medecin("Nora AISSAOUI", users.delegue, "Constantine", { phone: "0664 11 22 33" }),
     lamri: await medecin("Fares LAMRI", users.delegue, "Constantine", {}),
-    boudiaf: await medecin("Hakim BOUDIAF", users.delegue_ouest, "Oran", { specialtyId: hep, phone: "0770 12 12 12" }),
+    belhadj: await medecin("Hakim BELHADJ", users.delegue_ouest, "Oran", { specialtyId: hep, phone: "0770 12 12 12" }),
     touati: await medecin("Leila TOUATI", users.delegue_ouest, "Oran", { specialtyId: gastro }),
   };
 
@@ -110,7 +104,7 @@ export async function semerT2(etiquette: string, companyId: string, users: Recor
   await visite(medecins.bensalem, users.delegue, 2, "Daclavir présenté, demande d'échantillons.");
   await visite(medecins.amelBenali, users.delegue, 9, "Visite de courtoisie.");
   await visite(medecins.khelif, users.delegue, 12, "Intéressé par le congrès d'hépatologie.");
-  await visite(medecins.boudiaf, users.delegue_ouest, 3, "Daclavir : prescripteur régulier.");
+  await visite(medecins.belhadj, users.delegue_ouest, 3, "Daclavir : prescripteur régulier.");
   await visite(medecins.touati, users.delegue_ouest, 6, "Remise de brochures.");
 
   // ── Les dépenses Ad & Pro (montants demandés, aucun accordé : une seule base de calcul, dite) ──
@@ -134,28 +128,18 @@ export async function semerT2(etiquette: string, companyId: string, users: Recor
     status: "APPROVED", requesterId: users.marketing, companyId, createdAt: dansLeMois(0, 2),
   } as never });
 
-  const fournisseur = await prisma.supplier.create({ data: { name: "Hetero Labs", country: "Inde", website: INITIAL.fournisseur.website, contactEmail: "regulatory@hetero.example", notes: tag }, select: { id: true } });
+  await prisma.supplier.create({ data: { name: "Hetero Labs", country: "Inde", website: INITIAL.fournisseur.website, contactEmail: "regulatory@hetero.example", notes: tag } });
 
-  // ── Les classeurs que la responsable marketing joint ──
-  const session = await d.sessionDe(users.marketing);
-  const deposer = async (nom: string, octets: Buffer) => {
-    const b = await d.putBlob(octets);
-    return (await d.enregistrerFichierDrive(session, { parentId: null }, { blobId: b.blobId, size: b.size, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", name: nom, sha256: b.sha256 })).id;
-  };
-  const fichiers = {
-    specialites: await deposer("Spécialités médecins Constantine.xlsx", await xlsx("Spécialités", [
-      ["Médecin", "Spécialité"], ["Nora AISSAOUI", "Hépatologie"], ["Fares LAMRI", "Oncologie"], ["Yacine HADJ", "Cardiologie"],
-    ])),
-    telephones: await deposer("Téléphones pharmacies Oran.xlsx", await xlsx("Pharmacies", [
-      ["Pharmacie", "Téléphone"], ["Pharmacie El Amel", "041 33 22 11"], ["Pharmacie Belle Vue", "041 45 67 89"], ["Pharmacie Inconnue", "041 00 00 00"],
-    ])),
-  };
-
+  // ── Les classeurs que la responsable marketing joint (pièces du domaine, clés `ann_…`) ──
   return {
-    directoryId: directory.id, bu: { hepato: hepato.id, onco: onco.id }, secteurs: { est: est.id, ouest: ouest.id }, medecins, etablissements,
-    fournisseur: fournisseur.id, fichiers,
+    ann_specialites: await deposerPiece(users.marketing, "Spécialités médecins Constantine.xlsx", await xlsx([
+      ["Médecin", "Spécialité"], ["Nora AISSAOUI", "Hépatologie"], ["Fares LAMRI", "Oncologie"], ["Yacine HADJ", "Cardiologie"],
+    ], "Spécialités")),
+    ann_telephones: await deposerPiece(users.marketing, "Téléphones pharmacies Oran.xlsx", await xlsx([
+      ["Pharmacie", "Téléphone"], ["Pharmacie El Amel", "041 33 22 11"], ["Pharmacie Belle Vue", "041 45 67 89"], ["Pharmacie Inconnue", "041 00 00 00"],
+    ], "Pharmacies")),
   };
-}
+};
 
 /** Retire le monde T2 (avant les comptes : les fiches portent leurs délégués). */
 export async function retirerT2(etiquette: string, userIds: string[]): Promise<void> {

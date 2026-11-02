@@ -1,89 +1,19 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE BANC D'AUDIT (décision 0050) — L'UTILISATEUR EXIGEANT : ≥ 60 tâches réelles, par persona.
+ * LE BANC D'AUDIT (décision 0050) — LE SOCLE : les 65 premières tâches de l'utilisateur exigeant (lot Q1).
  *
  * « Quand tu lui demandes de faire des actions, il faut qu'il soit capable de les faire, qu'il ne pose pas trop de
  * questions — pas tellement de questions pour faire un mail. Et les mails doivent être beaux. » (Direction, 02/11)
- *
- * Chaque tâche mesure : la RÉUSSITE (la bonne carte, ses champs justes, l'objet créé en base APRÈS le clic
- * « Confirmer » simulé, le fichier produit), le NOMBRE DE QUESTIONS avant la carte (cible 0 ; au plus 1 quand une
- * information bloquante manque — `questionsMax`), la vérité (« c'est fait » jamais dit sans outil réussi), la beauté
- * d'un mail (grille déterministe + juge bon marché), la latence et le coût.
+ * Les types et l'aide `tache()` : `./types.ts` ; l'agrégation par domaine : `./index.ts`.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import type { PrismaClient } from "@prisma/client";
-import { nomComplet, type PersonaCle } from "./personas";
-import type { SemisAudit } from "./semis";
-import { TACHES_ANNUAIRE_MARKETING } from "./taches/annuaire-marketing";
+import { nomComplet } from "../personas";
+import { tache as t, type Tache } from "./types";
 
+/** Les catégories du socle — chacune représentée (vérifié par la suite). */
 export const CATEGORIES_TACHE = [
   "tache", "message", "mail", "adpro", "bc", "export", "analyse", "recherche", "note", "mission", "pilotage", "annulation", "soi",
-  // Lot T2 (décision 0051) : tenir les annuaires, analyser le marketing, interroger le terrain.
-  "annuaire", "marketing", "terrain",
 ] as const;
-export type CategorieTache = (typeof CATEGORIES_TACHE)[number];
-
-/** L'objet attendu en base (compté avant / après) — après le clic « Confirmer » quand une carte est attendue. */
-export type ObjetAttendu =
-  | "tache" | "message" | "mail" | "sponsoring" | "prise_en_charge" | "materiel_promo" | "validation" | "note" | "mission" | "routine" | "fichier" | "memoire" | "rendez_vous";
-
-/**
- * LA PREUVE EN BASE (lot T2, décision 0051) — ce que le vérificateur d'une tâche reçoit : la base (passée par le
- * banc, le catalogue n'importe pas Prisma), le semis, le début du tour, le compte joué, et ce que l'assistant a rendu
- * (texte, blocs, champs de carte, fichiers produits) pour les tâches de lecture. Le vérificateur rend ses MOTIFS
- * d'échec (vide = le résultat existe vraiment).
- */
-export interface ContexteVerif {
-  db: PrismaClient;
-  s: SemisAudit;
-  t0: Date;
-  userId: string;
-  texte: string;
-  blocs: string;
-  fichiers: { nom: string; texte: string }[];
-}
-
-export interface Tache {
-  id: string;
-  categorie: CategorieTache;
-  persona: PersonaCle;
-  tours: string[];
-  /** La réponse que la persona donne si l'assistant lui pose une question (comptée). */
-  precision?: string;
-  /** Le message est DIT (délégation vocale) au lieu d'être écrit. */
-  voix?: boolean;
-  /** Une pièce du semis jointe au premier message (« devis »), ou un fichier du Drive de la persona, par son nom. */
-  piece?: "devis" | { nom: string };
-  /** Lot T2 : remettre les fiches de la tâche dans leur état initial avant de la jouer (le banc se rejoue). */
-  preparer?: (c: ContexteVerif) => Promise<void>;
-  /** Lot T2 : la preuve DÉTERMINISTE en base, après le clic « Confirmer » et les tours d'après. */
-  verifier?: (c: ContexteVerif) => Promise<string[]>;
-  /** Lot T2 : des tours joués APRÈS la confirmation (« annule cette mise à jour ») — leur carte est confirmée aussi. */
-  apresConfirmation?: string[];
-  attendu: {
-    /** La carte attendue (titre ou genre) — absente : une réponse seule (lecture, analyse). */
-    carte?: RegExp;
-    /** Des champs de la carte : [libellé, valeur attendue]. */
-    champs?: [RegExp, RegExp][];
-    /** Des champs qui ne doivent PAS porter cette valeur (inversion fournisseur / client). */
-    champsInterdits?: [RegExp, RegExp][];
-    objet?: ObjetAttendu;
-    /** Le banc ne clique pas « Confirmer » (la carte suffit, ou l'objet naît sans carte). */
-    sansConfirmer?: boolean;
-    /** Un fichier produit pendant le tour (nom ou type). */
-    fichier?: RegExp;
-    contient?: RegExp[];
-    interdit?: RegExp[];
-    mail?: { tableau?: boolean };
-    questionsMax?: number;
-    /** Le nombre d'un objet ne doit PAS augmenter (une fusion qui crée une troisième mission). */
-    pasPlusDe?: ObjetAttendu;
-  };
-}
-
-const t = (id: string, categorie: CategorieTache, persona: PersonaCle, tours: string | string[], attendu: Tache["attendu"], o: Partial<Tache> = {}): Tache => ({
-  id, categorie, persona, tours: Array.isArray(tours) ? tours : [tours], attendu, ...o,
-});
 
 const RADIA = nomComplet("commercial");
 const YANIS = nomComplet("delegue");
@@ -93,7 +23,7 @@ const CARTE_MESSAGE = /message|r[ée]ponse/i;
 // P1 : la carte s'intitule « Envoyer par l'envoi de l'ERP ».
 const CARTE_MAIL = /mail|courri|message|envoi/i;
 
-export const TACHES: Tache[] = [
+export const TACHES_SOCLE: Tache[] = [
   // ── Tâches ──
   t("TA-01-commercial", "tache", "commercial", "Crée-moi une tâche : relancer la pharmacie centrale de Blida pour la commande de Daclavir, pour vendredi.", { carte: CARTE_TACHE, champs: [[/titre|t[âa]che|objet/i, /Blida|relanc/i]], objet: "tache" }),
   t("TA-02-delegue", "tache", "delegue", "Ajoute une tâche pour demain : déposer les échantillons chez le Dr Mansouri à Constantine.", { carte: CARTE_TACHE, objet: "tache" }),
@@ -193,7 +123,4 @@ export const TACHES: Tache[] = [
 
   // ── Rendez-vous ──
   t("RV-01-rdv", "tache", "kam", "Mets-moi un rendez-vous jeudi à 10 h avec le pharmacien chef du CHU Mustapha.", { carte: /rendez-vous|agenda|r[ée]union/i, objet: "rendez_vous" }),
-
-  // ── Lot T2 : annuaires, marketing, terrain (décision 0051) ──
-  ...TACHES_ANNUAIRE_MARKETING,
 ];

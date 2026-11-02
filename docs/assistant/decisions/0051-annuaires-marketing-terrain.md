@@ -67,13 +67,13 @@ fusion de toute une wilaya tient d'ailleurs en UNE carte (le serveur trouve les 
 ## 4. Le banc du domaine
 
 `src/modules/assistant-ia/infra/testing/audit/taches/annuaire-marketing.ts` — 35 tâches, cinq personas du domaine
-(délégué, KAM, **responsable marketing** Lina MEZIANI, **Direction** = Super Admin, **délégué hors secteur** Karim ZEROUAL)
+(délégué, KAM, **responsable marketing** Nesrine BOUDIAF, **Direction** = Super Admin, **délégué hors secteur** Farid ZEROUAL)
 et le manager, le commercial, la regulatory. Variété : simples (un téléphone), précises (« qui a vu le Dr Mansouri en
 dernier, et quand »), multi-étapes (Excel → lot), longues (nettoyage d'une wilaya, rapport trimestriel), ambiguës (deux
 « Dr BENALI » : une question au plus), annulation par lot, refus propres. **Chaque tâche a son VÉRIFICATEUR déterministe**
 (`verifier` : la base relue, ou le chiffre recalculé en base et cherché dans la réponse) et son `preparer` (la fiche
-remise à l'état initial : le banc se rejoue). Le format `Tache` gagne `verifier`, `preparer`, `apresConfirmation` et une
-pièce du Drive par son nom ; le semis T2 (`annuaire-marketing-semis.ts`) n'est posé que par le banc réel et la suite T2.
+remise à l'état initial : le banc se rejoue). Le domaine suit le contrat commun de Q1 (`taches/types.ts` : `verifier`, pièces semées par le domaine) et y ajoute
+`preparer` et `apresConfirmation` ; le semis T2 (`SEMIS_ANNUAIRE_MARKETING`) n'est posé que par le banc réel (« -q1 ») et la suite T2 (« -t2-… »).
 
 ## 5. Résultat (banc réel, vrai modèle `gpt-6.1-terra`, `AUDIT_SEULEMENT=ANN-,MKT-,TER-`)
 
@@ -83,6 +83,10 @@ pièce du Drive par son nom ; le semis T2 (`annuaire-marketing-semis.ts`) n'est 
 | **Après**, passage complet | 35 / 35 | **27** (77 %) | 1,00 $ | `…/t2/apres/` |
 | Rejeu ciblé des 8 échecs, après correctifs | 8 | 5 | 0,19 $ | `…/t2/rejeu/` |
 | Rejeu des 3 restants | 3 | 3 | 0,06 $ | `…/t2/rejeu2/` |
+
+> Les preuves ont été produites AVANT la fusion avec le banc par domaine du lot Q1 (`taches/index.ts`, contrat commun) :
+> la responsable marketing s'y appelle Lina MEZIANI, le délégué hors secteur Karim ZEROUAL et un praticien Hakim BOUDIAF.
+> Le domaine adopte depuis la persona marketing de Q1 (Nesrine BOUDIAF), et renomme Farid ZEROUAL et Hakim BELHADJ.
 
 Chaque tâche a donc réussi au moins une fois sur la version poussée — **35 / 35** —, mais **aucun passage complet n'a été
 rejoué après les derniers correctifs** (budget de 3 $ du lot) : le prochain passage de nuit du banc le fera. Ce que les

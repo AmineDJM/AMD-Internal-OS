@@ -15,8 +15,10 @@
 
 export const PERSONAS_CLES = [
   "commercial", "delegue", "manager", "rh", "finance", "assistante", "kam", "regulatory", "superadmin", "vue_exacte",
-  // Lot T2 (annuaires, marketing, terrain) : la responsable marketing et un délégué d'un AUTRE secteur.
-  "marketing", "delegue_ouest",
+  // Les tâches de domaine (lots T1–T3, 02/11) : la juriste, le responsable des moyens généraux, la responsable marketing.
+  "juriste", "moyens_generaux", "marketing",
+  // Lot T2 (annuaires, marketing, terrain — décision 0051) : un délégué d'un AUTRE secteur (refus hors secteur).
+  "delegue_ouest",
 ] as const;
 export type PersonaCle = (typeof PERSONAS_CLES)[number];
 /** Les titulaires de données : les neuf comptes (la Vue exacte n'a pas de fiche à elle) et la victime. */
@@ -105,21 +107,32 @@ export const PERSONNES: Record<Titulaire, Personne> = {
     modules: { ...ASSISTANT_SEUL },
     temoins: t("AMI-1586", [455_129, 331_097, 537_053, 659_939, 328_613], "DZ5800210000158673391049", "109870158673391472"),
   },
+  juriste: {
+    titulaire: "juriste", prenom: "Lamia", nom: "CHERIF", role: "VIEWER", poste: "Juriste d'entreprise", assistant: true, manager: "superadmin",
+    modules: { ...BASE, LEGAL: { voir: true, creer: true, modifier: true, portee: "ALL" }, DOCUMENTS: { voir: true, creer: true, modifier: true, portee: "ALL" } },
+    temoins: t("JUR-4826", [167_293, 128_471, 197_389, 242_617, 127_053], "DZ5800210000482619375260", "109870482619375204"),
+  },
+  moyens_generaux: {
+    titulaire: "moyens_generaux", prenom: "Karim", nom: "OUALI", role: "VIEWER", poste: "Responsable des moyens généraux", assistant: true, manager: "superadmin",
+    modules: { ...BASE, GENERAL_MEANS: { voir: true, creer: true, modifier: true, valider: true, portee: "ALL" }, LOGISTICS: { voir: true }, VALIDATIONS: { voir: true, creer: true } },
+    temoins: t("MGX-5937", [109_847, 86_293, 129_617, 159_271, 85_139], "DZ5800210000593728164371", "109870593728164315"),
+  },
   marketing: {
-    titulaire: "marketing", prenom: "Lina", nom: "MEZIANI", role: "PRODUCT_MANAGER", poste: "Responsable marketing", assistant: true, manager: "superadmin",
-    // L'annuaire ouvert PAR LA CONSOLE (médecins, pharmaciens, établissements) : un référentiel entier, pas un panel ;
-    // la promotion et la force de vente en lecture ; les dépenses Ad & Pro et les budgets en lecture, toute la société.
+    titulaire: "marketing", prenom: "Nesrine", nom: "BOUDIAF", role: "MEDICAL_PROMOTION_MANAGER", poste: "Responsable marketing Hépatologie", assistant: true, manager: "superadmin",
     modules: {
-      ...BASE, MEDICAL: { voir: true, portee: "ALL" }, SALES_PLANNING: { voir: true, portee: "ALL" },
+      ...BASE, SPONSORING: { voir: true, creer: true, portee: "ALL" }, EVENTS: { voir: true, creer: true, portee: "ALL" }, PROMO_MATERIAL: { voir: true, creer: true },
+      CONGRESS_NATIONAL: { voir: true, creer: true, portee: "ALL" }, CONGRESS_INTERNATIONAL: { voir: true, creer: true }, AD_PRO_OTHER: { voir: true, creer: true, portee: "ALL" },
+      // Lot T2 : toute la société en lecture (dépenses, force de vente, promotion médicale), et l'annuaire OUVERT PAR LA
+      // CONSOLE (médecins, pharmaciens, établissements) : un référentiel entier, qu'elle corrige et dédoublonne.
+      BUDGETS: { voir: true, portee: "ALL" }, SALES_PLANNING: { voir: true, portee: "ALL" }, MEDICAL: { voir: true, portee: "ALL" },
       DIRECTORIES: { voir: true, creer: true, modifier: true, portee: "ALL", sections: ["MEDECINS", "PHARMACIENS", "ETABLISSEMENTS"] },
-      SPONSORING: { voir: true, portee: "ALL" }, AD_PRO_OTHER: { voir: true, portee: "ALL" }, EVENTS: { voir: true, portee: "ALL" }, BUDGETS: { voir: true, portee: "ALL" },
     },
-    temoins: t("LIN-4973", [167_423, 126_959, 197_381, 242_917, 125_311], "DZ5800210000497311862742", "109870497311862094"),
+    temoins: t("MKT-7148", [241_659, 181_377, 284_153, 349_411, 179_593], "DZ5800210000714839275482", "109870714839275426"),
   },
   delegue_ouest: {
-    titulaire: "delegue_ouest", prenom: "Karim", nom: "ZEROUAL", role: "MEDICAL_DELEGATE", poste: "Délégué médical Hépatologie Ouest", assistant: true, manager: "manager",
+    titulaire: "delegue_ouest", prenom: "Farid", nom: "ZEROUAL", role: "MEDICAL_DELEGATE", poste: "Délégué médical Hépatologie Ouest", assistant: true, manager: "manager",
     modules: { ...BASE, SALES: { voir: true }, MEDICAL: { voir: true, creer: true, modifier: true }, FIELD_REPORTS: { voir: true, creer: true } },
-    temoins: t("KAR-8517", [93_187, 75_631, 109_943, 135_169, 74_903], "DZ5800210000851749206853", "109870851749206415"),
+    temoins: t("FAR-8517", [93_187, 75_631, 109_943, 135_169, 74_903], "DZ5800210000851749206853", "109870851749206415"),
   },
   victime: {
     titulaire: "victime", prenom: "Assia", nom: "ABDELAZIZ", role: "PRODUCT_MANAGER", poste: "Cheffe de produit Oncologie", assistant: false, manager: "superadmin",
@@ -132,7 +145,7 @@ export const PERSONNES: Record<Titulaire, Personne> = {
 export const COMPTE_JOUE: Record<PersonaCle, Titulaire> = {
   commercial: "commercial", delegue: "delegue", manager: "manager", rh: "rh", finance: "finance", assistante: "assistante",
   kam: "kam", regulatory: "regulatory", superadmin: "superadmin", vue_exacte: "commercial",
-  marketing: "marketing", delegue_ouest: "delegue_ouest",
+  juriste: "juriste", moyens_generaux: "moyens_generaux", marketing: "marketing", delegue_ouest: "delegue_ouest",
 };
 
 export const nomComplet = (t: Titulaire) => `${PERSONNES[t].prenom} ${PERSONNES[t].nom}`;

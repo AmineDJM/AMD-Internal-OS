@@ -107,7 +107,7 @@ export function affirmeFait(reponse: string): string | null {
   const autour = reponse.slice(Math.max(0, m.index - 80), m.index + m[0].length + 80);
   if (/(après|dès|une fois|quand|lorsque)\s+(votre |ta |la )?(confirm|validation|clic)|à confirmer|confirmez|confirme[rz]? la carte/i.test(autour)) return null;
   // « aucune mission n'a été modifiée », « rien n'a été envoyé » : une NÉGATION honnête, pas une affirmation.
-  if (/(\baucune?|\brien|\bpersonne|\bne|\bn['’])\s*(\S+\s+){0,3}$/i.test(reponse.slice(Math.max(0, m.index - 40), m.index))) return null;
+  if (/(\baucune?|\brien|\bpersonne|\bne|\bn['’]|\bsi)\s*(\S+\s+){0,3}$/i.test(reponse.slice(Math.max(0, m.index - 40), m.index))) return null;
   return m[0];
 }
 

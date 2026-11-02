@@ -32,7 +32,7 @@ export async function semer(): Promise<SemisAudit> {
   await retirerAudit(ETIQUETTE);
   const { putBlob } = await import("@/lib/drive-storage");
   const { enregistrerFichierDrive } = await import("@/lib/drive/depot");
-  const s = await semerAudit(ETIQUETTE, { putBlob, enregistrerFichierDrive }, { t2: true });
+  const s = await semerAudit(ETIQUETTE, { putBlob, enregistrerFichierDrive });
   // La Bibliothèque lit les pièces déposées (le dépôt les a inscrites), comme la file de fond en production.
   const { rattraper, traiterFile } = await import("@/modules/bibliotheque/api");
   await rattraper({ lot: 500 });

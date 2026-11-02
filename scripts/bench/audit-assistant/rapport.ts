@@ -14,7 +14,7 @@ export interface ResultatAttaque {
   ms: number; coutUsd: number; appels: number; erreur: string | null;
 }
 export interface ResultatTache {
-  id: string; categorie: string; persona: string; verdict: "RÉUSSIE" | "ÉCHEC" | "FUITE" | "ERREUR";
+  id: string; domaine: string; categorie: string; persona: string; verdict: "RÉUSSIE" | "ÉCHEC" | "FUITE" | "ERREUR";
   motifs: string[]; questions: number; carte: string | null; objetCree: boolean | null; fichiers: string[];
   mail: { grille: NoteMail; juge: { note: number | null; avis: string; coutUsd: number }; objet: string; corps: string; destinataires: string } | null;
   fauxFait: string | null; fuites: Fuite[]; echanges: Echange[]; ms: number; coutUsd: number; appels: number; erreur: string | null;
@@ -35,7 +35,9 @@ export function syntheses(p: Passage) {
     const xs = p.attaques.filter((a) => a.categorie === c);
     return { c, n: xs.length, bloquees: xs.filter((a) => a.verdict === "BLOQUÉE").length, lues: xs.filter((a) => a.verdict === "LUE").length, passees: xs.filter((a) => a.verdict === "PASSÉE").length, erreurs: xs.filter((a) => a.verdict === "ERREUR").length, cout: xs.reduce((x, a) => x + a.coutUsd, 0) };
   }).filter((l) => l.n);
-  const tac = CATEGORIES_TACHE.map((c) => {
+  // Les catégories : celles du socle, puis toutes celles des domaines (dans l'ordre d'apparition).
+  const categories = [...new Set([...CATEGORIES_TACHE, ...p.taches.map((t) => t.categorie)])];
+  const tac = categories.map((c) => {
     const xs = p.taches.filter((t) => t.categorie === c);
     const mails = xs.map((t) => t.mail).filter((m): m is NonNullable<ResultatTache["mail"]> => !!m);
     return {
@@ -45,7 +47,13 @@ export function syntheses(p: Passage) {
       p50: q(xs.map((t) => t.ms), 50), cout: xs.reduce((x, t) => x + t.coutUsd, 0),
     };
   }).filter((l) => l.n);
-  return { att, tac };
+  // Lot Q1 bis (02/11) : la réussite PAR DOMAINE (socle, documents, annuaire-marketing, dossiers-mg-adpro, mails, transverse).
+  const noms = [...new Set(p.taches.map((t) => t.domaine ?? "socle"))];
+  const dom = noms.map((d) => {
+    const xs = p.taches.filter((t) => (t.domaine ?? "socle") === d);
+    return { d, n: xs.length, reussies: xs.filter((t) => t.verdict === "RÉUSSIE").length, questions: moy(xs.map((t) => t.questions)), p50: q(xs.map((t) => t.ms), 50), cout: xs.reduce((x, t) => x + t.coutUsd, 0) };
+  });
+  return { att, tac, dom };
 }
 
 function conversationMd(e: Echange[]): string {
@@ -53,7 +61,7 @@ function conversationMd(e: Echange[]): string {
 }
 
 export function markdown(p: Passage): string {
-  const { att, tac } = syntheses(p);
+  const { att, tac, dom } = syntheses(p);
   const passees = p.attaques.filter((a) => a.verdict === "PASSÉE");
   const lues = p.attaques.filter((a) => a.verdict === "LUE");
   const echecs = p.taches.filter((t) => t.verdict !== "RÉUSSIE");
@@ -65,6 +73,8 @@ export function markdown(p: Passage): string {
   L.push(`**Tâches : ${p.taches.length} jouées — ${p.taches.filter((t) => t.verdict === "RÉUSSIE").length} réussies, questions moyennes ${s1(moy(p.taches.map((t) => t.questions)))}, ${p.taches.filter((t) => t.questions === 0).length} sans aucune question.**${p.nonJouees.length ? `  \nNon jouées (plafond) : ${p.nonJouees.join(", ")}` : ""}`, "");
   L.push("## Attaques par catégorie", "", "| Catégorie | Jouées | Bloquées | Lues en base | **Passées** | Erreurs | Coût |", "|---|---:|---:|---:|---:|---:|---:|");
   for (const l of att) L.push(`| ${l.c} | ${l.n} | ${l.bloquees} | ${l.lues} | **${l.passees}** | ${l.erreurs} | ${usd(l.cout)} |`);
+  L.push("", "## Tâches par domaine", "", "| Domaine | Jouées | Réussies | Taux | Questions moy. | Durée P50 | Coût |", "|---|---:|---:|---:|---:|---:|---:|");
+  for (const l of dom) L.push(`| ${l.d} | ${l.n} | ${l.reussies} | ${Math.round((100 * l.reussies) / Math.max(1, l.n))} % | ${s1(l.questions)} | ${s1(l.p50 / 1000)} s | ${usd(l.cout)} |`);
   L.push("", "## Tâches par catégorie", "", "| Catégorie | Jouées | Réussies | Questions moy. | Sans question | Mail (grille /8) | Mail (juge /5) | Latence P50 | Coût |", "|---|---:|---:|---:|---:|---:|---:|---:|---:|");
   for (const l of tac) L.push(`| ${l.c} | ${l.n} | ${l.reussies} | ${s1(l.questions)} | ${l.sansQuestion} | ${l.grille == null ? "—" : s1(l.grille)} | ${l.juge == null ? "—" : s1(l.juge)} | ${s1(l.p50 / 1000)} s | ${usd(l.cout)} |`);
   L.push("", `## Défauts bloquants — attaques PASSÉES (${passees.length})`, "");
@@ -89,13 +99,13 @@ export function markdown(p: Passage): string {
   for (const t of mails) L.push(`| ${t.id} | ${t.mail!.grille.note}/${t.mail!.grille.sur} | ${t.mail!.grille.manques.join(", ") || "—"} | ${t.mail!.juge.note ?? "—"} | ${t.mail!.juge.avis.replace(/\|/g, "/").slice(0, 160)} |`);
   L.push("", "## Toutes les attaques", "", "| Scénario | Persona | Voie | Verdict | Durée | Coût |", "|---|---|---|---|---:|---:|");
   for (const a of p.attaques) L.push(`| ${a.id} | ${a.persona} | ${a.voie} | ${a.verdict} | ${s1(a.ms / 1000)} s | ${usd(a.coutUsd)} |`);
-  L.push("", "## Toutes les tâches", "", "| Tâche | Persona | Verdict | Questions | Durée | Coût |", "|---|---|---|---:|---:|---:|");
-  for (const t of p.taches) L.push(`| ${t.id} | ${t.persona} | ${t.verdict} | ${t.questions} | ${s1(t.ms / 1000)} s | ${usd(t.coutUsd)} |`);
+  L.push("", "## Toutes les tâches", "", "| Tâche | Domaine | Persona | Verdict | Questions | Durée | Coût |", "|---|---|---|---|---:|---:|---:|");
+  for (const t of p.taches) L.push(`| ${t.id} | ${t.domaine ?? "socle"} | ${t.persona} | ${t.verdict} | ${t.questions} | ${s1(t.ms / 1000)} s | ${usd(t.coutUsd)} |`);
   return L.join("\n") + "\n";
 }
 
 export function html(p: Passage): string {
-  const { att, tac } = syntheses(p);
+  const { att, tac, dom } = syntheses(p);
   const passees = p.attaques.filter((a) => a.verdict === "PASSÉE");
   const echecs = p.taches.filter((t) => t.verdict !== "RÉUSSIE");
   const conv = (e: Echange[]) => `<div class="conv">${e.map((x) => `<p><b>${esc(x.qui)}</b> ${esc(x.texte.slice(0, 1200))}${x.carte ? `<br><i>carte : ${esc(x.carte.slice(0, 400))}</i>` : ""}${x.outils?.length ? `<br><i>outils : ${esc(x.outils.join(", "))}</i>` : ""}</p>`).join("")}</div>`;
@@ -113,6 +123,8 @@ table{width:100%;border-collapse:collapse;background:var(--carte);border:1px sol
 <div class="tuiles">${tuile(String(p.attaques.length), "attaques jouées")}${tuile(String(passees.length), "attaques PASSÉES", passees.length ? "ko" : "ok")}${tuile(String(p.attaques.filter((a) => a.verdict === "LUE").length), "bloquées mais lues en base")}${tuile(`${p.taches.filter((t) => t.verdict === "RÉUSSIE").length}/${p.taches.length}`, "tâches réussies")}${tuile(s1(moy(p.taches.map((t) => t.questions))), "questions moyennes")}${tuile(usd(p.depenseUsd + p.jugeUsd), "coût du passage")}</div>
 <h2>Attaques par catégorie</h2><div class="scroll"><table><tr><th>Catégorie</th><th class="n">Jouées</th><th class="n">Bloquées</th><th class="n">Lues</th><th class="n">Passées</th><th class="n">Erreurs</th><th class="n">Coût</th></tr>
 ${att.map((l) => `<tr><td>${l.c}</td><td class="n">${l.n}</td><td class="n">${l.bloquees}</td><td class="n">${l.lues}</td><td class="n"><b>${l.passees}</b></td><td class="n">${l.erreurs}</td><td class="n">${usd(l.cout)}</td></tr>`).join("")}</table></div>
+<h2>Tâches par domaine</h2><div class="scroll"><table><tr><th>Domaine</th><th class="n">Jouées</th><th class="n">Réussies</th><th class="n">Taux</th><th class="n">Questions</th><th class="n">P50</th><th class="n">Coût</th></tr>
+${dom.map((l) => `<tr><td>${esc(l.d)}</td><td class="n">${l.n}</td><td class="n">${l.reussies}</td><td class="n">${Math.round((100 * l.reussies) / Math.max(1, l.n))} %</td><td class="n">${s1(l.questions)}</td><td class="n">${s1(l.p50 / 1000)} s</td><td class="n">${usd(l.cout)}</td></tr>`).join("")}</table></div>
 <h2>Tâches par catégorie</h2><div class="scroll"><table><tr><th>Catégorie</th><th class="n">Jouées</th><th class="n">Réussies</th><th class="n">Questions</th><th class="n">Mail /8</th><th class="n">Juge /5</th><th class="n">P50</th><th class="n">Coût</th></tr>
 ${tac.map((l) => `<tr><td>${l.c}</td><td class="n">${l.n}</td><td class="n">${l.reussies}</td><td class="n">${s1(l.questions)}</td><td class="n">${l.grille == null ? "—" : s1(l.grille)}</td><td class="n">${l.juge == null ? "—" : s1(l.juge)}</td><td class="n">${s1(l.p50 / 1000)} s</td><td class="n">${usd(l.cout)}</td></tr>`).join("")}</table></div>
 <h2>Défauts bloquants (${passees.length})</h2>${passees.length ? passees.map((a) => `<div class="defaut"><b>${esc(a.id)}</b> — ${esc(a.persona)} (${esc(a.voie)})<ul>${a.fuites.map((f) => `<li>${esc(f.temoin.libelle)} dans ${esc(f.ou)}</li>`).join("")}${a.actes.map((x) => `<li>ACTE : ${esc(x)}</li>`).join("")}</ul>${conv(a.echanges)}</div>`).join("") : "<p>Aucun.</p>"}

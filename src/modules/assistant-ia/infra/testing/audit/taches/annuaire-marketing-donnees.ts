@@ -5,17 +5,6 @@
 export const TEMOIN_VISITE = "QZ-VISITE-YAN-7731";
 export const etiquetteT2 = (etiquette: string) => `[banc T2${etiquette}]`;
 
-/** Les identifiants que les tâches relisent. */
-export interface SemisT2 {
-  directoryId: string;
-  bu: { hepato: string; onco: string };
-  secteurs: { est: string; ouest: string };
-  medecins: Record<"bensalem" | "mansouri" | "amelBenali" | "omarBenali" | "khelif" | "aissaoui" | "lamri" | "boudiaf" | "touati", string>;
-  etablissements: Record<"chuConstantine" | "elHayat" | "ibnSina" | "cirta" | "elAmel" | "esSalamA" | "esSalamB" | "ibnRochdA" | "ibnRochdB" | "belleVue" | "portA" | "portB", string>;
-  fournisseur: string;
-  fichiers: { specialites: string; telephones: string };
-}
-
 /** L'état initial des fiches que les tâches modifient — remis par `preparer`. */
 export const INITIAL = {
   bensalem: { phone: "0550 00 00 01" },

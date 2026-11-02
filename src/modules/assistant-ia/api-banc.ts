@@ -16,7 +16,7 @@ export {
   COMPTE_JOUE, nomComplet, PERSONNES, TITULAIRES, type PersonaCle,
 } from "./infra/testing/audit/personas";
 export { ATTAQUES, CATEGORIES_ATTAQUE, type Attaque } from "./infra/testing/audit/attaques";
-export { CATEGORIES_TACHE, TACHES, type ContexteVerif, type ObjetAttendu, type Tache } from "./infra/testing/audit/taches";
+export { CATEGORIES_TACHE, TACHES, type ObjetAttendu, type Tache } from "./infra/testing/audit/taches";
 export {
   affirmeFait, agregatsDe, finitParUneQuestion, fuites, noterMail, salutationFausse, temoinsInterdits, type Fuite, type NoteMail, type Temoin,
 } from "./infra/testing/audit/verdicts";

@@ -13,6 +13,7 @@ import { COMPTE_JOUE, type PersonaCle } from "./infra/testing/audit/personas";
 import { adresseDe, retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
 import { INITIAL, TEMOIN_VISITE } from "./infra/testing/audit/taches/annuaire-marketing-donnees";
 import { TACHES } from "./infra/testing/audit/taches";
+import { idsDuMondeT2 } from "./infra/testing/audit/taches/annuaire-marketing";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -29,10 +30,12 @@ let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
-const ETIQUETTE = `-a${Date.now().toString(36)}`;
+// « -t2-… » : l'étiquette qui sème le monde T2 (`semeLeMondeT2`) — les autres suites ne le sèment pas.
+const ETIQUETTE = `-t2-${Date.now().toString(36)}`;
 let S: SemisAudit;
 const u = {} as Record<PersonaCle, CurrentUser>;
-const t2 = () => S.t2!;
+let T2: Awaited<ReturnType<typeof idsDuMondeT2>>;
+const t2 = () => T2;
 
 /** Le clic : la carte proposée, confirmée sous la session de la personne, sous le journal (comme `confirmerCarte`). */
 async function confirmerOperation(user: CurrentUser, op: string, args: Record<string, string | null>) {
@@ -44,7 +47,8 @@ const lire = async (nom: string, user: CurrentUser, entree: Record<string, unkno
 
 suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis annulé)", () => {
   beforeAll(async () => {
-    S = await semerAudit(ETIQUETTE, { putBlob, enregistrerFichierDrive }, { t2: true });
+    S = await semerAudit(ETIQUETTE, { putBlob, enregistrerFichierDrive });
+    T2 = await idsDuMondeT2();
     for (const p of ["delegue", "delegue_ouest", "marketing", "commercial", "superadmin"] as PersonaCle[]) u[p] = await sessionDe(S.users[COMPTE_JOUE[p]]);
   }, 180_000);
   afterAll(async () => { if (S) await retirerAudit(ETIQUETTE); }, 120_000);
@@ -227,7 +231,7 @@ describe("Lot T2 — demander au terrain : le plan de mission construit par le c
     expect(joursJusqua("vendredi", new Date("2026-11-02T10:00:00Z"))).toBe(4);
     expect(joursJusqua("2026-11-06", new Date("2026-11-02T10:00:00Z"))).toBe(4);
     expect(joursJusqua("demain", new Date())).toBe(1);
-    const { plan } = planDemandesTerrain({ destinataires: ["Yanis HAMDI", "Karim ZEROUAL"], question: "Combien de boîtes de Daclavir reste-t-il ?", jours: 4, relanceJours: 2, format: "xlsx" });
+    const { plan } = planDemandesTerrain({ destinataires: ["Yanis HAMDI", "Farid ZEROUAL"], question: "Combien de boîtes de Daclavir reste-t-il ?", jours: 4, relanceJours: 2, format: "xlsx" });
     const lu = lirePlan(plan, { lectures: [], gestes: [] } as never);
     expect(lu.ok, JSON.stringify(lu)).toBe(true);
     expect(plan.etapes.filter((e) => e.type === "DEMANDE")).toHaveLength(2);

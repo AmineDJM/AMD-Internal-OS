@@ -385,6 +385,6 @@ regardée (`infra/fil/tour.ts`).
   un geste `actionReversible` chacune, déclarées (`lib/effets/declarations/metiers.ts`), banc `lib/effets/reversibles-annuaire.test.ts`.
 - **Résolution** : entité `institution` au registre (`lib/api/registry/entities.ts`) ; `resoudreCible` cherche aussi par
   MOTS (titres retirés) quand le texte entier ne se trouve pas (`lib/cibles/resoudre.ts`).
-- **Banc** : `infra/testing/audit/taches/annuaire-marketing.ts` (35 tâches ANN-/MKT-/TER-, vérificateurs en base),
-  semis `annuaire-marketing-semis.ts` ; personas `marketing` (Lina MEZIANI) et `delegue_ouest` (Karim ZEROUAL, hors
+- **Banc** : `infra/testing/audit/taches/annuaire-marketing.ts` (domaine « annuaire-marketing » du banc par domaine : 35 tâches ANN-/MKT-/TER-, vérificateurs en base),
+  semis `annuaire-marketing-semis.ts` ; personas `marketing` (Nesrine BOUDIAF) et `delegue_ouest` (Farid ZEROUAL, hors
   secteur). Suite exécutée contre la base : `annuaire-terrain.test.ts`.
