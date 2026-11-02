@@ -270,3 +270,37 @@ export async function getAdProCreateData(userId: string, kinds: readonly AdProKi
     businessUnits,
   };
 }
+
+/**
+ * LES DÉPENSES AD & PRO D'UNE PÉRIODE, ligne à ligne (lot T2, décision 0051) — la matière des analyses marketing
+ * (par BU, produit, nature, mois, demandeur) de l'Assistant IA. MÊMES DROITS que la liste unifiée (`demandes.ts`) :
+ * chaque nature n'est lue que si la personne a son module, sous la portée de ses lignes et la portée d'entité.
+ * Montant retenu : accordé, sinon proposé, sinon demandé (sponsoring) ; final, sinon estimé (congrès national).
+ */
+export interface LigneDepenseAdPro {
+  nature: string; reference: string | null; objet: string; bu: string | null; produit: string | null; le: Date; montant: number | null; etat: string; demandeur: string | null;
+}
+
+export async function lignesDepensesAdPro(u: SessionUser, du: Date, au: Date): Promise<LigneDepenseAdPro[]> {
+  const scope = await platformScope(u.id);
+  const quand = { createdAt: { gte: du, lt: au } };
+  const peut = (m: Parameters<typeof userCan>[1]) => userCan(u, m, "VIEW");
+  const bu = { select: { name: true } } as const;
+  const [sp, autres, nat, evts] = await Promise.all([
+    peut("SPONSORING") ? prisma.sponsoringRequest.findMany({ where: { AND: [scope, scopeSponsoring(u), quand] }, select: { reference: true, institution: true, product: true, createdAt: true, amountRequested: true, amountProposed: true, amountGranted: true, status: true, businessUnit: bu, requester: { select: { name: true } } } }).catch(sansBloquer("ad-pro.depenses.sponsoring", [])) : [],
+    peut("AD_PRO_OTHER") ? prisma.adProOtherRequest.findMany({ where: { AND: [scope, scopeAdProOther(u), quand] }, select: { reference: true, title: true, product: true, createdAt: true, amount: true, status: true, requesterId: true, businessUnit: bu } }).catch(sansBloquer("ad-pro.depenses.autres", [])) : [],
+    peut("CONGRESS_NATIONAL") ? prisma.congressNational.findMany({ where: { AND: [scope, scopeCongressNational(u), quand] }, select: { name: true, promotedProducts: true, createdAt: true, estimatedBudget: true, finalAmount: true, requestStatus: true, businessUnit: bu } }).catch(sansBloquer("ad-pro.depenses.congres", [])) : [],
+    peut("EVENTS") ? prisma.event.findMany({ where: { AND: [scope, quand] }, select: { name: true, products: true, createdAt: true, estimatedBudget: true, status: true, businessUnit: bu } }).catch(sansBloquer("ad-pro.depenses.evenements", [])) : [],
+  ]);
+  const n = (x: unknown) => (x == null ? null : Number(x));
+  // Le demandeur d'une « autre demande » : un identifiant sans relation — les noms en UN lot.
+  const ids = [...new Set(autres.map((r) => r.requesterId).filter((x): x is string => !!x))];
+  const noms = new Map((ids.length ? await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : []).map((x) => [x.id, x.name]));
+  return [
+    ...sp.map((r) => ({ nature: "Sponsoring", reference: r.reference, objet: r.institution, bu: r.businessUnit?.name ?? null, produit: r.product ?? null, le: r.createdAt, montant: n(r.amountGranted) ?? n(r.amountProposed) ?? n(r.amountRequested), etat: r.status, demandeur: r.requester?.name ?? null })),
+    ...autres.map((r) => ({ nature: "Autre demande", reference: r.reference, objet: r.title, bu: r.businessUnit?.name ?? null, produit: r.product ?? null, le: r.createdAt, montant: n(r.amount), etat: String(r.status), demandeur: r.requesterId ? noms.get(r.requesterId) ?? null : null })),
+    ...nat.map((r) => ({ nature: "Congrès national", reference: null, objet: r.name, bu: r.businessUnit?.name ?? null, produit: r.promotedProducts ?? null, le: r.createdAt, montant: n(r.finalAmount) ?? n(r.estimatedBudget), etat: String(r.requestStatus), demandeur: null })),
+    ...evts.map((r) => ({ nature: "Événement", reference: null, objet: r.name, bu: r.businessUnit?.name ?? null, produit: r.products ?? null, le: r.createdAt, montant: n(r.estimatedBudget), etat: String(r.status), demandeur: null })),
+  ];
+}
+

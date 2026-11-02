@@ -814,6 +814,9 @@ export async function addDirectoryDoctor(input: {
   institutionId?: string | null;
   /** Son service — toujours un service DE cet établissement. */
   serviceId?: string | null;
+  /** Ses coordonnées, quand elles sont connues à la création (lot T2 : « ajoute le Dr X, téléphone 0661… » les perdait). */
+  phone?: string | null;
+  email?: string | null;
 }): Promise<ActionResult> {
   const user = await requireUser();
   // LE GRADE D'ABORD : c'est lui qui range la fiche dans l'annuaire des médecins ou des
@@ -873,6 +876,7 @@ export async function addDirectoryDoctor(input: {
         name, lastName: lastName || null, firstName: firstName || null,
         specialty: specialite.specialty, specialtyId: specialite.specialtyId, wilaya: wilaya.value, delegateId, companyId, directoryId,
         institutionId, institution, serviceId,
+        phone: input.phone?.replace(/\s+/g, " ").trim() || null, email: input.email?.trim().toLowerCase() || null,
         ...(title && title.ok && title.value ? { title: title.value as never } : {}),
         createdById: user.id, updatedById: user.id,
       },

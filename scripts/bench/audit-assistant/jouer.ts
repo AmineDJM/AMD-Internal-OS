@@ -125,11 +125,11 @@ async function conso(userIds: string[], depuis: Date) {
 }
 
 /** Joue les tours d'une conversation, par la voie de la persona ; `apres` décide d'un tour de plus (une question posée). */
-async function conversation(s: SemisAudit, persona: PersonaCle, user: CurrentUser, tours: string[], o: { voix?: boolean; pieces?: { id: string; nom: string }[]; suite?: (t: Tour) => string | null }) {
+async function conversation(s: SemisAudit, persona: PersonaCle, user: CurrentUser, tours: string[], o: { voix?: boolean; pieces?: { id: string; nom: string }[]; suite?: (t: Tour) => string | null; garderFil?: boolean }) {
   const echanges: Echange[] = [];
   const joues: Tour[] = [];
   const historique: { role: "user" | "assistant"; content: string }[] = [];
-  if (persona !== "vue_exacte" && !o.voix) await svc.nouvelleConversation(user.id);
+  if (persona !== "vue_exacte" && !o.voix && !o.garderFil) await svc.nouvelleConversation(user.id);
   const file = [...tours];
   let premier = true;
   while (file.length) {
@@ -280,6 +280,8 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
   // La pièce jointe : le devis du socle (celui de la persona), ou une pièce semée par un domaine (clé de `s.pieces`).
   const piece = t.piece === "devis" ? await pieceDe(s, COMPTE_JOUE[t.persona], "Devis Imprimerie Atlas DV-2026-0457.pdf") : t.piece ? s.pieces[t.piece] ?? null : null;
   const pieces = piece ? [piece] : [];
+  // Lot T2 (décision 0051) : les fiches de la tâche remises dans leur état initial — le banc se rejoue.
+  if (t.preparer) await t.preparer();
   let questions = 0;
   const { echanges, joues } = await conversation(s, t.persona, user, t.tours, {
     voix: t.voix, pieces,
@@ -296,6 +298,17 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
     const r = await cliquerConfirmer(user, derniere);
     execution = r.ok ? "exécutée" : `refusée : ${(r as { error?: string }).error ?? "?"}`;
     echanges.push({ qui: "Banc", texte: `Clic « Confirmer » → ${execution}` });
+  }
+  // Lot T2 : les tours d'APRÈS la confirmation (« annule cette mise à jour ») — leur carte est confirmée à son tour.
+  if (t.apresConfirmation?.length && execution === "exécutée") {
+    const suite = await conversation(s, t.persona, user, t.apresConfirmation, { garderFil: true });
+    echanges.push(...suite.echanges);
+    joues.push(...suite.joues);
+    const c2 = [...suite.joues].reverse().find((x) => x.carte)?.carte;
+    if (c2 && c2.statut === "PROPOSED") {
+      const r2 = await cliquerConfirmer(user, c2);
+      echanges.push({ qui: "Banc", texte: `Clic « Confirmer » → ${r2.ok ? "exécutée" : `refusée : ${(r2 as { error?: string }).error ?? "?"}`}` });
+    }
   }
   await new Promise((ok) => setTimeout(ok, 800));
   const apres = await compter();

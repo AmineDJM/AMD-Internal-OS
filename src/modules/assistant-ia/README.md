@@ -378,3 +378,25 @@ et `lire_moyens_generaux` (`infra/lectures-dossiers-mg.ts`). Fiches hôtellerie 
 `preparer_fiches_hotellerie_voyage` (`infra/operations/adpro-fiches-voyage.ts` : contrôles, nuits calculées, doublons,
 poste créé s'il manque). Banc du domaine : `infra/testing/audit/taches/dossiers-mg-adpro.ts` (tâches `DOS-`, `MG-`, `ADP-`
 avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `infra/operations/dossiers-mg-adpro.test.ts`.
+
+## Annuaires, marketing et terrain (lot T2, décision 0051)
+
+- **Lectures typées** (`infra/annuaire/lectures.ts`, règles pures `domaine/annuaire/analyse.ts`) :
+  `annuaire_terrain` (médecins, pharmacies, établissements : coordonnées, spécialité, délégué, secteur, **qui couvre**,
+  dernière visite, champs manquants, comptes exacts — praticiens sous `scopeMedicalDoctors` ou l'annuaire ouvert par la
+  console, établissements sous `peutAnnuaire`) ; `visites_terrain` (`scopeMedicalVisits` : un délégué ne lit que SES
+  visites ; par délégué, par médecin, couverture en %) ; `depenses_marketing` (Ad & Pro par BU, produit, nature, mois,
+  demandeur, avec comparaison à la période précédente ; chaque nature sous son module et sa portée). Leurs tableaux
+  deviennent des jeux K1 (`analyser_donnees`, `exporter_donnees`).
+- **Gestes** (`infra/operations/annuaire.ts`, `demandes-terrain.ts`) : `maj_annuaire` (une ou N fiches, depuis un Excel :
+  résolution par les mots du nom dans la portée de la personne, avant → après, introuvables et homonymes dits) ;
+  `fusionner_doublons_annuaire` (fiches nommées, ou toutes les paires d'une wilaya) ; `annuler_mon_action` (la carte
+  montre le plan d'annulation, `annulerGeste`) ; `demander_au_terrain` (une mission du moteur des travaux construite par le
+  code : une DEMANDE par personne, relance, abandon, livrable consolidé — canal interne, jamais un mail).
+- **Actions de l'ERP** : `lib/actions/fournisseurs-annuaire-actions.ts` (`appliquerLotAnnuaire`, `fusionnerEtablissementsAnnuaire`),
+  un geste `actionReversible` chacune, déclarées (`lib/effets/declarations/metiers.ts`), banc `lib/effets/reversibles-annuaire.test.ts`.
+- **Résolution** : entité `institution` au registre (`lib/api/registry/entities.ts`) ; `resoudreCible` cherche aussi par
+  MOTS (titres retirés) quand le texte entier ne se trouve pas (`lib/cibles/resoudre.ts`).
+- **Banc** : `infra/testing/audit/taches/annuaire-marketing.ts` (domaine « annuaire-marketing » du banc par domaine : 35 tâches ANN-/MKT-/TER-, vérificateurs en base),
+  semis `annuaire-marketing-semis.ts` ; personas `marketing` (Nesrine BOUDIAF) et `delegue_ouest` (Farid ZEROUAL, hors
+  secteur). Suite exécutée contre la base : `annuaire-terrain.test.ts`.

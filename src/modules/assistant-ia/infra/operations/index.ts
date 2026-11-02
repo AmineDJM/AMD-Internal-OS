@@ -27,6 +27,9 @@ import { ENVOI_GMAIL } from "./envoi-gmail";
 import { DOSSIERS_EXCEL } from "./dossiers-excel";
 import { FICHES_VOYAGE } from "./adpro-fiches-voyage";
 import { MOYEN_GENERAL_ENREGISTRER, MOYEN_GENERAL_RESERVER } from "./moyens-generaux";
+
+import { OPERATIONS_ANNUAIRE } from "./annuaire";
+import { DEMANDER_AU_TERRAIN } from "./demandes-terrain";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
 import { prisma } from "@/lib/prisma";
@@ -48,6 +51,9 @@ export const OPERATIONS_IA: OperationIA[] = [
   FUSION_MISSIONS, ENVOI_GMAIL,
   // T3 : le suivi de dossiers depuis un tableau, les fiches hôtellerie et voyage d'une demande Ad & Pro, le registre des moyens généraux.
   DOSSIERS_EXCEL, FICHES_VOYAGE, MOYEN_GENERAL_ENREGISTRER, MOYEN_GENERAL_RESERVER,
+
+  // T2 (décision 0051) : tenir l'annuaire — mise à jour en lot (Excel), fusion des doublons, annuler la dernière action.
+  ...OPERATIONS_ANNUAIRE, DEMANDER_AU_TERRAIN,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));

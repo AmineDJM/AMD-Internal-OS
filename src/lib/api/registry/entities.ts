@@ -356,6 +356,22 @@ export const ENTITIES: EntityDef[] = [
     orderBy: { name: "asc" },
   },
   {
+    // L'ANNUAIRE DES ÉTABLISSEMENTS (hôpitaux, cliniques, PHARMACIES, grossistes) — lot T2 : sans cette entité, une
+    // action qui attend `id` d'établissement (`updateInstitution`) ne se désignait que par son identifiant, et l'assistant
+    // réclamait « l'identifiant de la Pharmacie El Amel ». Un référentiel partagé : pas de portée par ligne ; le module
+    // Promotion médicale, OU l'annuaire ouvert par la console (Annuaires), le lit — la règle de `peutAnnuaire`.
+    name: "institution",
+    model: "MedicalInstitution",
+    module: "MEDICAL",
+    lisiblePar: ["DIRECTORIES"],
+    label: "Établissement de santé",
+    description: "Établissement de l'annuaire : CHU, EPH, clinique, cabinet, pharmacie, grossiste.",
+    scope: null,
+    listFields: ["id", "name", "type", "sector", "wilaya", "city", "phone", "email", "isActive"],
+    searchFields: ["name", "city", "wilaya", "address"],
+    orderBy: { name: "asc" },
+  },
+  {
     name: "medical_visit",
     model: "MedicalVisit",
     module: "MEDICAL",

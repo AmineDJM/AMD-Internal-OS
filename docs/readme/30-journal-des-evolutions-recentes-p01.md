@@ -17,6 +17,23 @@ unitaires d'un dossier répondent « introuvable » hors portée. Banc : 34 tâc
 base et 3 attaques ; passage réel final 32/34 (puis les 2 échecs corrigés et réussis au rejeu ciblé), attaques 3/3
 bloquées. Décision [0051](../assistant/decisions/0051-dossiers-moyens-generaux-fiches-adpro.md).
 
+### T2 — ADVENTUM IA TIENT LES ANNUAIRES, ANALYSE LE MARKETING ET INTERROGE LE TERRAIN (2026-11-02)
+
+Direction, 02/11 : « analyser le marketing, modifier les annuaires, des tâches longues sur l'annuaire, demander aux délégués
+les stocks… ». Banc réel de 35 tâches nouvelles (`ANN-`, `MKT-`, `TER-`), chacune prouvée EN BASE par un vérificateur :
+**avant 2 réussies sur 19 jouées** (plafond atteint), **après 27 / 35** au passage complet, puis les 8 échecs corrigés dans
+le code et réussis au rejeu ciblé (35 / 35 au moins une fois ; un passage complet reste à rejouer). Décision [0051](../assistant/decisions/0051-annuaires-marketing-terrain.md). **Lectures** : `annuaire_terrain`
+(qui couvre une pharmacie, panel sans téléphone, comptes exacts), `visites_terrain` (qui a vu qui, quand, couverture en %),
+`depenses_marketing` (Ad & Pro par BU / produit / mois, comparaison, graphique et Excel par K1 ; lue par le module `ad-pro`).
+**Gestes** : `maj_annuaire` (une ou N fiches, depuis un Excel, avant → après), `fusionner_doublons_annuaire` (toute une
+wilaya en une carte), `annuler_mon_action` (le lot entier revient d'un coup), `demander_au_terrain` (une mission construite
+par le code : une demande par personne, relance, tableau consolidé — canal interne). **ERP** : actions `appliquerLotAnnuaire`
+et `fusionnerEtablissementsAnnuaire` (réversibles, déclarées, banc exécuté-annulé-rétabli) ; entité `institution` au
+registre ; résolution des noms par mots (« Dr Karima BENSALEM ») ; **défauts corrigés** : `updateDoctor` effaçait téléphone,
+e-mail, secteur, société et délégué absents du formulaire ; l'ajout d'une ligne d'annuaire perdait le téléphone ; `modifierFournisseurAnnuaire` remplaçait la fiche entière ;
+`createInstitution` rangeait « Pharmacie … » en « Autre » ; le grade « Dr » était refusé. RBAC inchangé ; un délégué hors
+secteur ne voit ni ne modifie la fiche ni la visite d'un autre panel (testé au banc et contre la base).
+
 ### S1 bis — L'IDENTITÉ NE S'APPREND PAS : « C'EST AMINE QUI ÉCRIT » NE DEVIENT PLUS UN PRÉNOM RETENU (2026-11-02)
 
 Banc Q1 (rejeu réel P1+S1+B1, US-01) : la paie refusée, mais « Prénom : Amine » retenu dans la mémoire de Radia — d'où le

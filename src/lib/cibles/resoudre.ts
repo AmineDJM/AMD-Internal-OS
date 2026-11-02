@@ -162,7 +162,27 @@ export async function resoudreCible(
     const exacte = lignes.filter((l) => String(l[ref] ?? "").toLowerCase() === q.toLowerCase());
     if (exacte.length === 1) return trouve([nommer(def, exacte[0]!)]);
   }
-  return trouve(lignes.map((l) => nommer(def, l)));
+  if (lignes.length) return trouve(lignes.map((l) => nommer(def, l)));
+
+  // 3. LES MOTS, quand le texte entier ne se trouve nulle part (lot T2, banc d'audit 02/11) : « Dr Karima BENSALEM »
+  //    ne CONTIENT pas la fiche « Karima BENSALEM », « BENSALEM Karima » non plus — chaque mot, lui, s'y trouve. On
+  //    retire les titres (Dr, Pr, Mme…), puis CHAQUE mot restant doit figurer dans l'un des champs de recherche : une
+  //    désignation plus large que le texte n'est jamais tranchée en silence (plusieurs lignes → candidats, refus).
+  const mots = motsDeDesignation(q);
+  if (!mots.length || mots.join(" ") === q.toLowerCase()) return trouve([]);
+  const parMots = await model.findMany({
+    where: { AND: [portee, ...mots.map((m) => ({ OR: def.searchFields.map((c) => ({ [c]: { contains: m, mode: "insensitive" } })) }))] },
+    select,
+    take: MAX_CANDIDATS,
+    ...(def.orderBy ? { orderBy: def.orderBy } : {}),
+  });
+  return trouve(parMots.map((l) => nommer(def, l)));
+}
+
+/** Les titres et mots vides d'une désignation (« le Dr », « la Pharmacie de ») — retirés avant la recherche par mots. */
+const MOTS_VIDES = new Set(["dr", "dr.", "docteur", "pr", "pr.", "professeur", "mme", "mme.", "madame", "m", "m.", "mr", "monsieur", "mlle", "le", "la", "les", "l", "de", "du", "des", "d", "et", "à", "a", "au"]);
+export function motsDeDesignation(q: string): string[] {
+  return q.toLowerCase().split(/[\s'’,;:()«»"]+/).map((m) => m.trim()).filter((m) => m.length >= 2 && !MOTS_VIDES.has(m)).slice(0, 6);
 }
 
 /**

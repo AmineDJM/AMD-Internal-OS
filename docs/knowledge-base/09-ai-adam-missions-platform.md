@@ -902,3 +902,18 @@ Gotchas [V]:
 - Bench: tasks/attacks can now carry a deterministic DB `verifier`, a named Drive piece (`pieceDrive`) and attack `secrets`
   (`taches.ts`, `attaques.ts`, runner `scripts/bench/audit-assistant/jouer.ts`); domain file
   `infra/testing/audit/taches/dossiers-mg-adpro.ts`.
+
+## T2 (2026-11-02) — annuaires, marketing et terrain par l'Assistant IA [V]
+
+Decision [0051](../assistant/decisions/0051-annuaires-marketing-terrain.md). **Reads** (`modules/assistant-ia/infra/annuaire/lectures.ts`):
+`annuaire_terrain` (doctors under `scopeMedicalDoctors` or the console-opened directory; institutions under `peutAnnuaire`;
+coverage = `SalesSectorInstitution` → `SalesSectorRep`), `visites_terrain` (`scopeMedicalVisits`), `depenses_marketing`
+(Ad & Pro per BU / product / nature / month, each nature behind its module + row scope, like `getAdProRequests`).
+**Writes** go through two new ERP actions (`lib/actions/fournisseurs-annuaire-actions.ts`, one `actionReversible` geste each, declared
+« retour », bench `lib/effets/reversibles-annuaire.test.ts`) that call `updateDoctor` / `updateInstitution` per line — so
+row-level rights are re-judged per record. Assistant gestures: `maj_annuaire`, `fusionner_doublons_annuaire`,
+`annuler_mon_action` (card → `annulerGeste`), `demander_au_terrain` (code-built Travaux plan: one DEMANDE per person +
+LIVRABLE; card confirmation = plan approval). **Blast radius**: `lib/cibles/resoudre.ts` gained a word-by-word 3rd pass
+(shared with Adam's generic action path) and the entity registry gained `institution` (also exposed by `/api/v1`).
+Gotcha: the T2 seed is only sown with `semerAudit(…, { t2: true })` (real bench + `annuaire-terrain.test.ts`) — its names
+would collide across parallel suites in the test DB.

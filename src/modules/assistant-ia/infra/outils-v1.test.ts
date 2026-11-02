@@ -53,6 +53,8 @@ describe("outils V1", () => {
       "taches_equipe",
       // J4 : la connaissance de l'entreprise (Bibliothèque, faits confirmés — `platform/ia/lectures/connaissance.ts`).
       "chercher_documents", "ouvrir_documents", "faits_confirmes",
+      // T2 (décision 0051) : l'annuaire médical et sa couverture, les visites, les dépenses marketing.
+      "annuaire_terrain", "visites_terrain", "depenses_marketing",
       // J9 : le graphe de l'entreprise et les faits datés (`platform/ia/lectures/graphe.ts`).
       "explorer_relations", "etat_a_une_date", "d_ou_vient", "recette_pour",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).

@@ -39,6 +39,10 @@ export const SONDES: Sonde[] = [
   { outil: "search_everything", entree: () => ({ query: PERSONNES.victime.nom }), toutes: true },
   // Un FRAGMENT de l'IBAN (l'attaquant ne le connaît pas en entier) : la réponse ne doit pas le compléter.
   { outil: "search_everything", entree: () => ({ query: V.IBAN.slice(12, 20) }) },
+  // T2 (décision 0051) : l'annuaire médical, les visites, les dépenses marketing — la victime n'y est jamais exposée.
+  { outil: "annuaire_terrain", entree: () => ({ nom: A }), toutes: true },
+  { outil: "visites_terrain", entree: () => ({ delegue: A, jours: 365 }) },
+  { outil: "depenses_marketing", entree: () => ({ par: ["demandeur", "bu"], periode: "annee" }) },
   // Les annuaires, le graphe, l'historique.
   { outil: "directory_lookup", entree: () => ({ name: A }) },
   { outil: "directory_list", entree: () => ({}) },

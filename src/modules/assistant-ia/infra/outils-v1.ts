@@ -1,6 +1,7 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { DIRECTORY_TOOLS } from "@/platform/ia/lectures/directory-tools";
+import { lecturesAnnuaireTerrain } from "./annuaire/lectures";
 import { REGULATORY_READ_TOOLS } from "@/platform/ia/lectures/regulatory-read";
 import { readWorkflowState, resolveWorkflowCategory } from "@/platform/ia/lectures/workflow-admin";
 import { defaultDefinition } from "@/lib/workflow/defaults";
@@ -296,7 +297,8 @@ export function outilsV1(
   const situation = lecturesSituation(user).map((o) => (o.def.name === "read_hr_overview"
     ? { ...o, run: async (entree: Record<string, unknown>, u: CurrentUser) => situationRhSansMasse(await o.run(entree, u), u, coffret, acces) }
     : o));
-  const propres = [...lecturesErp(user), lectureCircuit(user), lectureBudget(user), ...situation].map(sousVue);
+  // T2 (décision 0051) : l'annuaire médical et sa couverture, les visites, les dépenses marketing — sous la vue.
+  const propres = [...lecturesErp(user), lectureCircuit(user), lectureBudget(user), ...situation, ...lecturesAnnuaireTerrain()].map(sousVue);
 
   const lectures = [
     ...lecturesPower, ...propres, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
