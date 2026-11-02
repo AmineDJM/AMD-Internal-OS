@@ -79,9 +79,21 @@ export function porteOuverte(user: CurrentUser, cap: Capacite): boolean {
   return cap.modules.some((m) => userCan(user, m as Module, verbe));
 }
 
-/** Les capacités d'actions OFFERTES à cette personne : appelables, porte ouverte. */
+/**
+ * LES CAPACITÉS SUPPLANTÉES PAR UNE OPÉRATION TYPÉE (T1, décision 0051) — le même geste, fait en mieux par une opération de
+ * l'assistant qui passe par LA MÊME action de l'écran : `ranger_au_juridique` (une carte pour un lot, partie et dates lues
+ * sur la pièce, dossier canonique) remplace le rattachement nu (`attachDriveNodeToLegal` : partie exigée sans dire
+ * laquelle, ni dossier ni montant) et le déplacement nu. Mesuré au banc DOC- : offert, le modèle prenait le geste nu et la
+ * confirmation était refusée. Retirée de l'offre SEULEMENT quand l'opération est ouverte à la personne : aucun droit de moins.
+ */
+const SUPPLANTEES: Readonly<Record<string, (u: CurrentUser) => boolean>> = {
+  "legal-actions:attachDriveNodeToLegal": (u) => userCan(u, "LEGAL", "CREATE"),
+  "legal-folder-actions:moveLegalDocuments": (u) => userCan(u, "LEGAL", "CREATE"),
+};
+
+/** Les capacités d'actions OFFERTES à cette personne : appelables, porte ouverte, non supplantées par une opération. */
 export function capacitesOffertes(user: CurrentUser): Capacite[] {
-  return registreDesCapacites().capacites.filter((c) => c.source === "action" && c.appelable && porteOuverte(user, c));
+  return registreDesCapacites().capacites.filter((c) => c.source === "action" && c.appelable && porteOuverte(user, c) && !SUPPLANTEES[c.id]?.(user));
 }
 
 /** Les familles de la console : celles de la capacité, et « Salaires & paie » dès que l'entrée touche une rémunération. */

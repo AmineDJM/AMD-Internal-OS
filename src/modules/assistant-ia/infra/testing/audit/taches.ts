@@ -12,15 +12,28 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { nomComplet, type PersonaCle } from "./personas";
+import { TACHES_DOCUMENTS } from "./taches/documents";
 
 export const CATEGORIES_TACHE = [
   "tache", "message", "mail", "adpro", "bc", "export", "analyse", "recherche", "note", "mission", "pilotage", "annulation", "soi",
+  // T1 (décision 0051) : documents, juridique et Drive.
+  "juridique", "conversion", "drive",
 ] as const;
 export type CategorieTache = (typeof CATEGORIES_TACHE)[number];
 
 /** L'objet attendu en base (compté avant / après) — après le clic « Confirmer » quand une carte est attendue. */
 export type ObjetAttendu =
-  | "tache" | "message" | "mail" | "sponsoring" | "prise_en_charge" | "materiel_promo" | "validation" | "note" | "mission" | "routine" | "fichier" | "memoire" | "rendez_vous";
+  | "tache" | "message" | "mail" | "sponsoring" | "prise_en_charge" | "materiel_promo" | "validation" | "note" | "mission" | "routine" | "fichier" | "memoire" | "rendez_vous"
+  | "document_legal";
+
+/** T1 : ce qu'un vérificateur DÉTERMINISTE reçoit — il relit la base, le Drive, le fichier produit ; il rend ses motifs d'échec. */
+export interface ContexteVerification {
+  users: Record<string, string>;
+  userId: string;
+  t0: Date;
+  /** Tout ce que l'assistant a rendu (réponses et blocs). */
+  texte: string;
+}
 
 export interface Tache {
   id: string;
@@ -33,6 +46,10 @@ export interface Tache {
   voix?: boolean;
   /** Une pièce du semis jointe au premier message (« devis »). */
   piece?: "devis";
+  /** T1 : des fichiers du Drive de la persona (par nom) joints au premier message. */
+  pieces?: string[];
+  /** T1 : la preuve du RÉSULTAT, relue en base / au Drive / dans le fichier — jamais la parole de l'assistant. */
+  verifier?: (c: ContexteVerification) => Promise<string[]>;
   attendu: {
     /** La carte attendue (titre ou genre) — absente : une réponse seule (lecture, analyse). */
     carte?: RegExp;
@@ -166,4 +183,7 @@ export const TACHES: Tache[] = [
 
   // ── Rendez-vous ──
   t("RV-01-rdv", "tache", "kam", "Mets-moi un rendez-vous jeudi à 10 h avec le pharmacien chef du CHU Mustapha.", { carte: /rendez-vous|agenda|r[ée]union/i, objet: "rendez_vous" }),
+
+  // ── T1 : documents, juridique et Drive (préfixe DOC-, `taches/documents.ts`) ──
+  ...TACHES_DOCUMENTS,
 ];

@@ -366,3 +366,19 @@ sonde, son scénario réel ou sa raison « sans donnée de personne »). Réel :
 (`scripts/bench/audit-assistant/`, base de banc), rapport `docs/assistant/preuves/audit/`, et chaque nuit par `qualite.banc`
 (verdict `FUITE` notifié). En Vue exacte, le tour ne lit plus la mémoire, les notes ni les conversations de la personne
 regardée (`infra/fil/tour.ts`).
+
+## Documents, juridique et Drive (lot T1, décision 0051)
+
+« Ranger parfaitement les documents à leur place, convertir, modifier, checker le Drive, nous donner des documents. »
+- **Ranger** : `ranger_au_juridique` (`infra/operations/juridique.ts`) — 1 à 12 pièces en UNE carte ; nature et dossier
+  canoniques (`domaine/juridique/classement.ts`, pur), dates lues sur la pièce si le modèle ne les a pas, partie résolue à
+  l'annuaire (la société elle-même pour les statuts et PV), entité, lecteurs ; au-delà, une mission (le geste est offert
+  aux travaux). `modifier_fiche_juridique` : échéance, notes, dossier… seuls les champs donnés changent. Exécution par les
+  actions de l'écran, journal J7 (annulable ; une pièce du registre passe ANNULÉE, règle K10b).
+- **Lire et donner** : `registre_juridique` et `bilan_drive` (`infra/juridique/outils.ts`) — porte de l'écran (module,
+  entité, lecteurs désignés : une pièce restreinte n'est jamais nommée) ; le fichier est remis par son lien `/drive/<id>`.
+- **Assembler** : `assembler_pdf` (fusion, extraction de pages — `domaine/juridique/pdf.ts` —, images → PDF), nouveau
+  fichier sous journal J7. Convertir et modifier en place restent l'Atelier (J3).
+- **Banc** : 36 tâches `DOC-` à vérificateur déterministe (`infra/testing/audit/taches/documents.ts`), 5 attaques
+  `DOC-ATK-` (`attaques-documents.ts`), le semis (`semis-documents.ts`), la persona « juriste ». Exécuté puis annulé contre
+  la base : `documents-t1.test.ts`.

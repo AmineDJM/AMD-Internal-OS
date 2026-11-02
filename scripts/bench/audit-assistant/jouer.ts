@@ -254,7 +254,8 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
   const a = t.attendu;
   const t0 = new Date();
   const avant = await compter();
-  const pieces = t.piece === "devis" ? [await pieceDe(s, COMPTE_JOUE[t.persona], "Devis Imprimerie Atlas DV-2026-0457.pdf")].filter((x): x is { id: string; nom: string } => !!x) : [];
+  const noms = [...(t.piece === "devis" ? ["Devis Imprimerie Atlas DV-2026-0457.pdf"] : []), ...(t.pieces ?? [])];
+  const pieces = (await Promise.all(noms.map((n) => pieceDe(s, COMPTE_JOUE[t.persona], n)))).filter((x): x is { id: string; nom: string } => !!x);
   let questions = 0;
   const { echanges, joues } = await conversation(s, t.persona, user, t.tours, {
     voix: t.voix, pieces,
@@ -310,6 +311,8 @@ async function jouerTache(s: SemisAudit, t: Tache, sessions: Record<PersonaCle, 
       if (grille.note < grille.sur - 1) motifs.push(`mail : ${grille.manques.join(", ")}`);
     }
   }
+  // T1 (décision 0051) : le RÉSULTAT relu par le vérificateur de la tâche (base, Drive, fichier produit).
+  if (t.verifier) motifs.push(...await t.verifier({ users: s.users, userId: user.id, t0, texte: tout }).catch((e) => [`vérificateur en erreur : ${e instanceof Error ? e.message : String(e)}`]));
   const c = await conso([user.id], t0);
   const erreur = joues.find((x) => x.erreur)?.erreur ?? null;
   const verdict: ResultatTache["verdict"] = fuitesTache.length ? "FUITE" : c.appels === 0 || (erreur && !joues.some((x) => x.texte)) ? "ERREUR" : motifs.length ? "ÉCHEC" : "RÉUSSIE";

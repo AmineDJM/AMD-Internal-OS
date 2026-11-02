@@ -24,6 +24,7 @@ import { REPONSE_DEMANDE } from "./delegation";
 import { OPERATIONS_TERRAIN } from "./terrain";
 import { FUSION_MISSIONS } from "./missions-fusion";
 import { ENVOI_GMAIL } from "./envoi-gmail";
+import { MODIFIER_FICHE_JURIDIQUE, RANGER_JURIDIQUE } from "./juridique";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
 
@@ -41,6 +42,8 @@ export const OPERATIONS_IA: OperationIA[] = [
   ...OPERATIONS_TERRAIN,
   // P1 (décision 0047) : fusionner ses missions en une ; envoyer un mail par sa boîte Gmail reliée (fenêtre d'annulation).
   FUSION_MISSIONS, ENVOI_GMAIL,
+  // T1 (décision 0051) : ranger au Juridique en une carte (lot ≤ 12, missions au-delà) ; mettre à jour une fiche juridique.
+  RANGER_JURIDIQUE, MODIFIER_FICHE_JURIDIQUE,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));

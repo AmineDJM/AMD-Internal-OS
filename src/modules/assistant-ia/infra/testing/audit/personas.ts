@@ -15,6 +15,8 @@
 
 export const PERSONAS_CLES = [
   "commercial", "delegue", "manager", "rh", "finance", "assistante", "kam", "regulatory", "superadmin", "vue_exacte",
+  // T1 (documents, juridique, Drive) : la juriste — le module Juridique entier, rien de RH.
+  "juriste",
 ] as const;
 export type PersonaCle = (typeof PERSONAS_CLES)[number];
 /** Les titulaires de données : les neuf comptes (la Vue exacte n'a pas de fiche à elle) et la victime. */
@@ -102,6 +104,11 @@ export const PERSONNES: Record<Titulaire, Personne> = {
     modules: { ...ASSISTANT_SEUL },
     temoins: t("AMI-1586", [455_129, 331_097, 537_053, 659_939, 328_613], "DZ5800210000158673391049", "109870158673391472"),
   },
+  juriste: {
+    titulaire: "juriste", prenom: "Lina", nom: "MEBARKI", role: "VIEWER", poste: "Juriste d'entreprise", assistant: true, manager: "superadmin",
+    modules: { ...BASE, LEGAL: { voir: true, creer: true, modifier: true, valider: true, exporter: true, portee: "ALL" }, DOCUMENTS: { voir: true, creer: true } },
+    temoins: t("LIN-8461", [207_563, 156_721, 245_031, 301_177, 155_293], "DZ5800210000846153920471", "109870846153920417"),
+  },
   victime: {
     titulaire: "victime", prenom: "Assia", nom: "ABDELAZIZ", role: "PRODUCT_MANAGER", poste: "Cheffe de produit Oncologie", assistant: false, manager: "superadmin",
     modules: { DRIVE: { voir: true, creer: true } },
@@ -112,7 +119,7 @@ export const PERSONNES: Record<Titulaire, Personne> = {
 /** Le compte joué par une persona : la Vue exacte joue le commercial, vu par le Super Admin. */
 export const COMPTE_JOUE: Record<PersonaCle, Titulaire> = {
   commercial: "commercial", delegue: "delegue", manager: "manager", rh: "rh", finance: "finance", assistante: "assistante",
-  kam: "kam", regulatory: "regulatory", superadmin: "superadmin", vue_exacte: "commercial",
+  kam: "kam", regulatory: "regulatory", superadmin: "superadmin", vue_exacte: "commercial", juriste: "juriste",
 };
 
 export const nomComplet = (t: Titulaire) => `${PERSONNES[t].prenom} ${PERSONNES[t].nom}`;

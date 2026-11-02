@@ -55,6 +55,8 @@ describe("outils V1", () => {
       "explorer_relations", "etat_a_une_date", "d_ou_vient", "recette_pour",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
+      // T1 (décision 0051) — le registre juridique, le bilan du Drive, l'assemblage de PDF.
+      "registre_juridique", "bilan_drive", "assembler_pdf",
       // J8 — les demandes reçues du travail d'un collègue (la réponse est une opération, `preparer_reponse_demande`).
       "mes_demandes_recues",
       // « Mes notes » (décision 0026) : lire, et PROPOSER des modifications que la personne accepte.

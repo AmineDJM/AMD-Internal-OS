@@ -14,6 +14,7 @@ import { lectureBudget } from "./operations/budget";
 import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
 import { OUTILS_NOTES_ECRITURE, outilsNotes } from "./notes/outils";
 import { OUTILS_VISUELS, outilsVisuels } from "./visuels/outils";
+import { outilsDocumentsT1 } from "./juridique/outils";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
@@ -78,6 +79,9 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
   // J3 — l'Atelier : ouvrir, modifier en place (rien n'est enregistré sans la personne), convertir.
   ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],
+  // T1 (décision 0051) — documents & juridique : le registre et le bilan se lisent avec le Drive ; ranger, c'est écrire.
+  registre_juridique: ["DRIVE"], bilan_drive: ["DRIVE"], assembler_pdf: ["DRIVE"],
+  ranger_au_juridique: ["DRIVE", "ECRITURES"], modifier_fiche_juridique: ["ECRITURES"],
   // K7 (décision 0037) — les exports de l'ERP : déposés dans le Drive de la personne, et la famille de leur domaine.
   ...FAMILLES_EXPORTS,
   // K2 (décision 0032) — les visuels générés : famille propre, fermée par défaut (payante) ; l'image source passe les droits du Drive.
@@ -114,7 +118,7 @@ const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTo
 // Les CAPACITÉS (J6) ne sont pas même construites hors de la conversation (`outilsV1(…, { capacites: true })`).
 // Les notes (décision 0026) non plus : une proposition attend le geste de la personne, qui n'est pas là.
 // K2 : une génération d'image ou de vidéo est PAYANTE et se demande — ni routine ni travail ne la lance.
-export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE, ...OUTILS_VISUELS]);
+export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE, ...OUTILS_VISUELS, "assembler_pdf"]);
 
 /**
  * LA SORTIE D'UN OUTIL, AVANT LE MODÈLE : jetonnée (confidentialité), CONSIGNÉE (le garde-fou de l'UI
@@ -298,6 +302,8 @@ export function outilsV1(
   const lectures = [
     ...lecturesPower, ...propres, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
     lectureFormulaire(user), lectureRoutines(user), lectureDossierDepose(user), lectureDemandesRecues(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
+    // T1 (décision 0051) — le registre juridique, le bilan du Drive, l'assemblage de PDF.
+    ...outilsDocumentsT1(user),
     // J9 — le graphe : une famille FERMÉE retire ses types du parcours (dossiers, demandes, documents), sans fermer l'outil.
     ...outilsGraphe(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
     // J10 — les recettes : seulement la version VALIDÉE ; une famille FERMÉE retire les recettes de ses processus.

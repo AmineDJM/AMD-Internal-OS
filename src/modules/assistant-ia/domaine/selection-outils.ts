@@ -133,6 +133,12 @@ const MOTS_CLES: Record<string, string> = {
   ouvrir_dans_l_atelier: "atelier ouvre affiche montre document word powerpoint presentation diapositive excel classeur pdf piece jointe modifie modifier remplace mets change corrige",
   modifier_document: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese en place document",
   convertir_document: "convertis convertir conversion pdf word excel exporte transforme en",
+  // T1 (décision 0051) — documents, juridique et Drive : les mots de qui range, cherche une pièce, checke son Drive.
+  ranger_au_juridique: "range ranger classe classer mets place bon endroit juridique legal registre dossier contrat avenant statuts pv proces verbal assemblee agrement amm autorisation licence assurance attestation bail convention nda accord confidentialite piece pieces lot",
+  modifier_fiche_juridique: "mets a jour mise jour echeance prolonge prolongation renouvele date fin note fiche juridique legal contrat bail avenant reclasse",
+  registre_juridique: "dernier contrat donne envoie moi attestation agrement amm police assurance bail convention registre juridique legal echeance expire expirent expirees dossier pieces liees partie",
+  bilan_drive: "checke check verifie drive doublons doublon expirees expire range pas rangees vrac manque manquent bilan menage",
+  assembler_pdf: "fusionne fusionner assemble regroupe un seul pdf extrais extraire pages page decoupe decouper separe scan image photo en pdf",
   enregistrer_document: "enregistre sauvegarde nouvelle version garde valide document atelier",
   // J13 (décision 0025) — le terrain : les mots d'un délégué qui sort d'une visite.
   terrain_compte_rendu: "compte rendu visite rapport terrain medecin docteur dr pr cabinet chu hopital clinique vu rencontre presente interesse objection",

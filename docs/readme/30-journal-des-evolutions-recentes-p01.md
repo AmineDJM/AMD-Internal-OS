@@ -1,5 +1,17 @@
 ## 🧾 Journal des évolutions récentes
 
+### T1 — ADVENTUM IA RANGE, CONVERTIT, MODIFIE, RETROUVE ET DONNE LES DOCUMENTS, À LEUR PLACE (2026-11-02)
+
+« Ranger des documents dans légal, convertir, modifier, checker le drive, nous donner des documents » (Direction, 02/11).
+**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 12 pièces ou un dossier du Drive ; nature et dossier
+canoniques, dates lues sur la pièce, partie de l'annuaire, avenant créé sur son contrat) et **mettre à jour une fiche**
+(`modifier_fiche_juridique`) — par les actions de l'écran, annulables (J7/K10b). **Lire et donner** : `registre_juridique`
+(« le dernier contrat de X », échéances, dossiers ; le fichier remis par son lien, pièce restreinte jamais nommée) et
+`bilan_drive` (doublons, vrac, pièces à ranger, expirées, non classées). **Assembler** : `assembler_pdf` (fusion, extraction
+de pages, images → PDF). Conversions de secours sans worker (PDF → Excel, image → PDF), fichier désigné par ses mots.
+Banc `DOC-` : 36 tâches à vérificateur déterministe + 5 attaques, persona « juriste » — rejeu réel 2,53 $ : 19/30 au premier
+passage, 36/36 au dernier, 5/5 attaques bloquées. Décision [0051](../assistant/decisions/0051-documents-juridique-drive.md).
+
 ### S1 bis — L'IDENTITÉ NE S'APPREND PAS : « C'EST AMINE QUI ÉCRIT » NE DEVIENT PLUS UN PRÉNOM RETENU (2026-11-02)
 
 Banc Q1 (rejeu réel P1+S1+B1, US-01) : la paie refusée, mais « Prénom : Amine » retenu dans la mémoire de Radia — d'où le
