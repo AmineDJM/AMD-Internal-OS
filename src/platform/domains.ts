@@ -58,6 +58,9 @@ export const DOMAINS: { name: string; paths: string[] }[] = [
   { name: "mail", paths: ["src/lib/mail/", "src/lib/mail-register/", "src/lib/comms/"] },
   { name: "tasks", paths: ["src/lib/tasks/", "src/lib/workflow/", "src/lib/validations/"] },
   { name: "legal", paths: ["src/lib/legal/"] },
+  // LA LECTURE DES TABLEAUX DE PIÈCES (lot B1, décision 0049) : positions, tableau, verdict par invariants, émetteur /
+  // destinataire, banc de devis. Pur ou presque — déclaré pour être MESURÉ ; le reste de `pieces-lues/` attend son lot.
+  { name: "pieces-lues-tableau", paths: ["src/lib/pieces-lues/tableau.ts", "src/lib/pieces-lues/tableau-piece.ts", "src/lib/pieces-lues/positions.ts", "src/lib/pieces-lues/verdict.ts", "src/lib/pieces-lues/emetteur-destinataire.ts", "src/lib/pieces-lues/vision-lignes.ts", "src/lib/pieces-lues/banc/"] },
   // `teach/` : la couche de règles enseignées à Adam (Teach Adam) — types, classement,
   // précédence, composition. Module PUR ; la persistance et les droits vivent dans le pont
   // (`platform/in-process/teach/`), comme pour `artifact/`.

@@ -13,13 +13,13 @@ import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
-import { BC_DEPUIS_DEVIS } from "./bc-depuis-devis";
+import { BC_DEPUIS_DEVIS, ENVOI_BC_VALIDATION } from "./bc-depuis-devis";
 import { executerOperationIA } from "./";
 
 /**
  * L'ASSISTANT IA — UN BON DE COMMANDE COMPOSÉ DEPUIS UN DEVIS : les lignes viennent de la lecture,
- * une TVA non imprimée se demande, une ligne illisible se complète, puis le BC est composé en
- * pré-validation et sa demande de validation ouverte, le devis joint.
+ * une TVA non imprimée se demande, une ligne illisible se complète ; le BC naît en BROUILLON avec son
+ * PDF, SANS validateur (lot B1) ; l'envoi en validation est un geste séparé, qui joint le devis.
  */
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -83,25 +83,45 @@ suite("Assistant IA — bon de commande depuis un devis", () => {
     expect("manque" in incomplet && incomplet.manque[0]).toMatch(/prix unitaire HT de la ligne 3/);
     const p = await BC_DEPUIS_DEVIS.proposer({ fichier: devisId, validateur: valideur.name, societe: `${TAG}PHG`, ecarter: [2], corrections: [{ rang: 3, prixUnitaire: 9_000 }] }, admin);
     if (!("carte" in p)) throw new Error(JSON.stringify(p));
-    const lignes = p.carte.fields.find((f) => f.label === "Lignes")!.value;
+    const lignes = p.carte.fields.find((f) => f.label === "Détail des lignes")!.value;
     expect(lignes).not.toMatch(/Flyers/);
-    expect(lignes).toMatch(/2 × Roll-up/);
+    expect(lignes).toMatch(/Roll-up — 2 × 9\s000 DZD/);
+    expect(p.carte.fields.find((f) => f.label === "Lignes")?.value).toBe("2 lignes (sur 3)");
     expect(p.carte.fields.find((f) => f.label === "Total HT")?.value).toMatch(/66\s000 DZD/);
   });
 
-  it("confirmé : le BC est composé en pré-validation et sa demande de validation ouverte, le devis joint", async () => {
+  it("« crée un BC en PDF » SANS validateur : le BC naît en brouillon avec son PDF ; l'envoi en validation est un geste séparé", async () => {
     LU = lu();
-    const p = await BC_DEPUIS_DEVIS.proposer({ fichier: devisId, validateur: valideur.name, societe: `${TAG}PHG` }, admin);
+    const p = await BC_DEPUIS_DEVIS.proposer({ fichier: devisId, societe: `${TAG}PHG` }, admin);
     if (!("carte" in p)) throw new Error(JSON.stringify(p));
-    expect(p.carte.libelleBouton).toBe("Créer la demande de validation");
-    expect(p.carte.warnings.join(" ")).toMatch(/SIGNATURE DES FINANCES/);
-    expect(p.carte.warnings.join(" ")).toMatch(/pas dans votre annuaire/);
+    expect(p.carte.libelleBouton).toBe("Créer le BC (PDF)");
+    expect(p.carte.fields.find((f) => f.label === "Validateur")?.value).toMatch(/à désigner/);
+    // UNE provenance, pas de seuil, pas de redite.
+    const w = p.carte.warnings.join(" | ");
+    expect(w).not.toMatch(/seuil/);
+    expect(p.carte.warnings.filter((x) => /lus sur/.test(x))).toHaveLength(1);
     ACTOR = admin;
     const r = await executerOperationIA(admin, { kind: "assistant_ia_op", op: BC_DEPUIS_DEVIS.nom, args: p.args });
     expect(r.ok, r.error).toBe(true);
+    expect(r.message).toMatch(/brouillon/);
     const bc = await prisma.legalDocument.findFirstOrThrow({ where: { companyId: societeId, kind: "PURCHASE_ORDER" } });
-    expect(bc.bcPrevalidationRequestId).not.toBeNull();
-    const vr = await prisma.validationRequest.findFirstOrThrow({ where: { id: bc.bcPrevalidationRequestId! } });
+    expect(bc.bcPrevalidationAt).not.toBeNull();
+    expect(bc.bcPrevalidationRequestId).toBeNull();
+    const fab = (bc.custom as { fabrique: { pdf: { nodeId: string } | null } }).fabrique;
+    expect(fab.pdf, "le PDF du BC est déposé au Drive").not.toBeNull();
+    expect(r.link).toBe(`/api/drive/${encodeURIComponent(fab.pdf!.nodeId)}/raw`);
+
+    // L'ENVOI : le validateur se demande ici, et seulement ici.
+    const sans = await ENVOI_BC_VALIDATION.proposer({ bc: bc.reference ?? "" }, admin);
+    expect("manque" in sans && sans.manque[0]).toMatch(/qui doit valider/);
+    const e = await ENVOI_BC_VALIDATION.proposer({ bc: bc.reference ?? "", validateur: valideur.name }, admin);
+    if (!("carte" in e)) throw new Error(JSON.stringify(e));
+    expect(e.carte.libelleBouton).toBe("Envoyer en validation");
+    const r2 = await executerOperationIA(admin, { kind: "assistant_ia_op", op: ENVOI_BC_VALIDATION.nom, args: e.args });
+    expect(r2.ok, r2.error).toBe(true);
+    const apres = await prisma.legalDocument.findUniqueOrThrow({ where: { id: bc.id } });
+    expect(apres.bcPrevalidationRequestId).not.toBeNull();
+    const vr = await prisma.validationRequest.findFirstOrThrow({ where: { id: apres.bcPrevalidationRequestId! } });
     expect(vr.requesterId).toBe(admin.id);
     expect(await prisma.document.count({ where: { entityId: vr.id } })).toBe(1);
   });
