@@ -92,6 +92,7 @@ const MOTS_CLES: Record<string, string> = {
   preparer_poste: "poste cout stand hotellerie billetterie traiteur salle imprimerie ajoute",
   preparer_bon_de_commande: "bon commande bc validation fournisseur",
   preparer_bc_depuis_devis: "bon commande bc pdf depuis devis lignes composer cree",
+  composer_bon_de_commande: "bon commande bc compose fournisseur quantite prix unitaire sans devis",
   envoyer_bc_en_validation: "envoie bon commande bc validation valider validateur",
   preparer_voyageur_passeport: "passeport voyageur billet billetterie ajoute",
   preparer_relance: "relance validateur relancer rappeler",

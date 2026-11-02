@@ -74,7 +74,7 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   preparer_materiel_promo: ["AD_PRO", "ECRITURES"], preparer_demande_autre: ["AD_PRO", "ECRITURES"], preparer_poste: ["AD_PRO", "ECRITURES"],
   // LES BONS DE COMMANDE ne sont pas d'Ad & Pro seul (lot B1, audit Q1) : les Finances et le Legal en créent à l'écran. La
   // porte est celle du geste (`ouverte` : VALIDATIONS + droit de créer un BC), la famille celle des écritures.
-  preparer_bon_de_commande: ["ECRITURES"], preparer_bc_depuis_devis: ["ECRITURES"], envoyer_bc_en_validation: ["ECRITURES"],
+  preparer_bon_de_commande: ["ECRITURES"], preparer_bc_depuis_devis: ["ECRITURES"], composer_bon_de_commande: ["ECRITURES"], envoyer_bc_en_validation: ["ECRITURES"],
   preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
   // J3 — l'Atelier : ouvrir, modifier en place (rien n'est enregistré sans la personne), convertir.
   ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],

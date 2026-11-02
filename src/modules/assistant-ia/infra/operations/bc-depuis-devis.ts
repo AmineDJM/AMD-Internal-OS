@@ -93,6 +93,9 @@ async function tiersDuFournisseur(d: DevisLu, ficheId: string | null): Promise<P
 
 const c2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Qui peut préparer un BC par l'assistant : celui qui le peut à l'écran (VALIDATIONS + droit de créer un BC). */
+export const peutPreparerUnBC = (u: CurrentUser): boolean => userCan(u, "VALIDATIONS", "CREATE") && peutCreerUnBC(u);
+
 export const BC_DEPUIS_DEVIS: OperationIA = {
   nom: "preparer_bc_depuis_devis",
   module: "VALIDATIONS",
@@ -121,7 +124,7 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
       },
     },
   },
-  ouverte: (u) => userCan(u, "VALIDATIONS", "CREATE") && peutCreerUnBC(u),
+  ouverte: peutPreparerUnBC,
 
   async proposer(e, user: CurrentUser): Promise<PropositionOperation> {
     if (!texte(e, "fichier")) return { manque: ["le devis : glissez-le dans la conversation ou nommez-le dans le Drive"] };
@@ -165,8 +168,7 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
     const ttc = c2(ht + tva + taxe);
     const objet = texte(e, "objet") || `Commande ${d.fournisseur.nom}${d.numero ? ` — devis ${d.numero}` : ""}`;
     const nature = natureDeLaCommande([objet, d.piece.nom, ...lignes.map((l) => l.designation)]);
-    const env = await enveloppeProposee(user, nature, texte(e, "enveloppe") || null);
-    if (texte(e, "enveloppe") && !env) return { manque: [`quelle enveloppe : « ${texte(e, "enveloppe")} » n'est pas parmi celles que vous voyez`] };
+    const { env, champEnveloppe, avertissementEnveloppe } = await enveloppeDuBC(user, nature, texte(e, "enveloppe") || null, ttc);
 
     const fiche = d.fournisseur.id ? null : d.aCreer ?? null;
     const peutCreerFiche = !!fiche?.nom && peutAnnuaire(user, "PARTENAIRES", "CREATE");
@@ -179,7 +181,7 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
       ...(toutesLues && !d.reconciliation ? d.doutes.slice(0, 1) : []),
       toutesLues ? phraseTaxes({ tva, taxe, ttc }, d.imprime, dzd) : null,
       nombre(e, "tva") != null && d.tvaPct == null ? `TVA ${tvaPct} % : donnée par vous, le devis n'en imprime pas.` : null,
-      env?.reste != null && ttc > env.reste ? `${dzd(ttc)} dépasse le disponible de l'enveloppe « ${env.nom} » (${dzd(env.reste)}) — la Direction arbitrera.` : null,
+      avertissementEnveloppe,
     ]);
 
     const fournisseurAffiche = `${d.fournisseur.nom}${d.emetteur.nif ? ` · NIF ${d.emetteur.nif}` : ""}${d.fournisseur.id ? " · dans l'annuaire" : creerFiche ? " · fiche créée à l'annuaire" : " · hors annuaire"}`;
@@ -195,7 +197,7 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
           ["Total HT", dzd(ht)],
           ["TVA", `${tvaPct} % · ${dzd(tva)}${d.taxe ? ` — ${d.taxe.libelle} ${d.taxe.pct} % · ${dzd(taxe)}` : ""}`],
           ["Total TTC", dzd(ttc)],
-          ["Enveloppe proposée", env ? `${env.nom} (${LIBELLE_NATURE[nature]}${env.reste != null ? ` · disponible ${dzd(env.reste)}` : ""})` : null],
+          ["Enveloppe proposée", champEnveloppe],
           ["Validateur", v ? `${v.nom} (à l'envoi en validation)` : "à désigner à l'envoi en validation"],
           ["Détail des lignes", lignes.map((l) => ligneDeDetail(l, dzd)).join("\n")],
         ]),
@@ -204,7 +206,7 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
       },
       args: {
         fichier: d.piece.id, empreinte: d.empreinte, societe: p.profil.societe.id, objet,
-        tva: String(tvaPct), validatorId: v?.id ?? null, enveloppe: env ? JSON.stringify({ id: env.id, nom: env.nom }) : null,
+        tva: String(tvaPct), validatorId: v?.id ?? null, enveloppe: env ? JSON.stringify(env) : null,
         creerFiche: creerFiche ? "1" : null,
         lignes: JSON.stringify(lignes.map((l) => ({ designation: l.designation, unite: l.unite, quantite: l.quantite, prixUnitaire: l.prixUnitaire }))),
       },
@@ -242,28 +244,63 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
     }, { canal: "ADAM" });
     if (!emis.ok) return { ok: false, error: emis.motif + (emis.bloquants?.length ? ` — ${emis.bloquants.slice(0, 3).join(" ; ")}` : "") };
 
-    // Ce que l'envoi en validation reprendra : le devis lu, l'enveloppe, le validateur déjà nommé.
-    let env: { id: string; nom: string } | null = null;
-    try { env = a.enveloppe ? JSON.parse(a.enveloppe) : null; } catch { env = null; }
-    const doc = await prisma.legalDocument.findUnique({ where: { id: emis.legalDocumentId }, select: { custom: true, notes: true } });
-    const custom = (doc?.custom && typeof doc.custom === "object" ? doc.custom : {}) as Record<string, unknown>;
-    await prisma.legalDocument.update({
-      where: { id: emis.legalDocumentId },
-      data: {
-        custom: { ...custom, depuisDevis: { nodeId: d.piece.id, nom: d.piece.nom, empreinte: d.empreinte, lecture: d.methodeLignes ?? null, enveloppe: env, validatorId: a.validatorId ?? null } } as unknown as Prisma.InputJsonValue,
-        ...(env ? { notes: `${doc?.notes ?? ""}${doc?.notes ? "\n" : ""}Enveloppe proposée : ${env.nom}.` } : {}),
-      },
-    });
-    const pdf = emis.pdf ? `/api/drive/${encodeURIComponent(emis.pdf.nodeId)}/raw` : null;
-    return {
-      ok: true, link: pdf ?? `/legal/${emis.legalDocumentId}`,
-      message: `BC ${emis.reference} ${emis.dejaEmis ? "déjà émis" : "créé en brouillon"} sur le papier de ${emis.societe.nom} (${dzd(emis.totaux.totalTtc)} TTC)`
-        + `${emis.pdf ? ` — PDF « ${emis.pdf.nom} » déposé au Drive (Bons de commande émis)` : " — le PDF n'a pas pu être produit, le .docx est au Drive"}.`
-        + " Pour l'envoyer en validation : « envoie-le en validation » (validateur à désigner).",
-      revalidate: ["/legal", "/drive"],
-    };
+    return finaliserBrouillonBC(emis, a, { origine: "DEVIS", nodeId: d.piece.id, nom: d.piece.nom, empreinte: d.empreinte, lecture: d.methodeLignes ?? null });
   },
 };
+
+/**
+ * L'ENVELOPPE D'UN BC (lot B1) : celle que la personne nomme, sinon celle qui couvre la nature. Une enveloppe NOMMÉE
+ * mais invisible pour la personne (un KAM ne lit pas les Budgets) ne bloque jamais la carte : elle est gardée telle
+ * que dite, « à confirmer », et la Direction l'impute à la validation (audit Q1, BC-02).
+ */
+export async function enveloppeDuBC(user: CurrentUser, nature: ReturnType<typeof natureDeLaCommande>, voulue: string | null, ttc: number): Promise<{
+  env: { id: string | null; nom: string } | null; champEnveloppe: string | null; avertissementEnveloppe: string | null;
+}> {
+  const trouvee = await enveloppeProposee(user, nature, voulue);
+  if (trouvee) {
+    return {
+      env: { id: trouvee.id, nom: trouvee.nom },
+      champEnveloppe: `${trouvee.nom} (${voulue ? "demandée" : LIBELLE_NATURE[nature]}${trouvee.reste != null ? ` · disponible ${dzd(trouvee.reste)}` : ""})`,
+      avertissementEnveloppe: trouvee.reste != null && ttc > trouvee.reste ? `${dzd(ttc)} dépasse le disponible de l'enveloppe « ${trouvee.nom} » (${dzd(trouvee.reste)}) — la Direction arbitrera.` : null,
+    };
+  }
+  if (!voulue) return { env: null, champEnveloppe: null, avertissementEnveloppe: null };
+  return {
+    env: { id: null, nom: voulue },
+    champEnveloppe: `« ${voulue} » (demandée — à confirmer à la validation)`,
+    avertissementEnveloppe: null,
+  };
+}
+
+/**
+ * LE BROUILLON NÉ : ce que l'envoi en validation reprendra (origine, enveloppe, validateur déjà nommé) est gardé sur la
+ * pièce (`custom.bcAssistant`), et le lien du PDF revient dans la conversation.
+ */
+export async function finaliserBrouillonBC(
+  emis: Extract<Awaited<ReturnType<typeof emettreDocumentDrive>>, { ok: true }>,
+  a: Record<string, string | null>,
+  origine: { origine: "DEVIS" | "DICTE"; nodeId: string | null; nom: string | null; empreinte?: string | null; lecture?: string | null },
+) {
+  let env: { id: string | null; nom: string } | null = null;
+  try { env = a.enveloppe ? JSON.parse(a.enveloppe) : null; } catch { env = null; }
+  const doc = await prisma.legalDocument.findUnique({ where: { id: emis.legalDocumentId }, select: { custom: true, notes: true } });
+  const custom = (doc?.custom && typeof doc.custom === "object" ? doc.custom : {}) as Record<string, unknown>;
+  await prisma.legalDocument.update({
+    where: { id: emis.legalDocumentId },
+    data: {
+      custom: { ...custom, bcAssistant: { ...origine, enveloppe: env, validatorId: a.validatorId ?? null } } as unknown as Prisma.InputJsonValue,
+      ...(env ? { notes: `${doc?.notes ?? ""}${doc?.notes ? "\n" : ""}Enveloppe ${env.id ? "proposée" : "demandée (à confirmer)"} : ${env.nom}.` } : {}),
+    },
+  });
+  const pdf = emis.pdf ? `/api/drive/${encodeURIComponent(emis.pdf.nodeId)}/raw` : null;
+  return {
+    ok: true, link: pdf ?? `/legal/${emis.legalDocumentId}`,
+    message: `BC ${emis.reference} ${emis.dejaEmis ? "déjà émis" : "créé en brouillon"} sur le papier de ${emis.societe.nom} (${dzd(emis.totaux.totalTtc)} TTC)`
+      + `${emis.pdf ? ` — PDF « ${emis.pdf.nom} » déposé au Drive (Bons de commande émis)` : " — le PDF n'a pas pu être produit, le .docx est au Drive"}.`
+      + " Pour l'envoyer en validation : « envoie-le en validation » (validateur à désigner).",
+    revalidate: ["/legal", "/drive"],
+  };
+}
 
 // ─────────────────────────────── L'envoi en validation — un geste séparé ───────────────────────────────
 
@@ -282,8 +319,8 @@ async function bcDesigne(user: CurrentUser, ref: string) {
     select: { id: true, reference: true, amount: true, counterparty: true, custom: true, companyId: true, createdById: true, status: true, signedAt: true, bcPrevalidationRequestId: true },
     orderBy: { createdAt: "desc" },
   }) ?? (r ? null : await prisma.legalDocument.findFirst({
-    // Sans référence : le dernier BC brouillon que CETTE personne a créé depuis un devis.
-    where: { kind: "PURCHASE_ORDER", status: { not: "CANCELLED" }, createdById: user.id, custom: { path: ["depuisDevis", "nodeId"], not: Prisma.AnyNull } },
+    // Sans référence : le dernier BC brouillon que CETTE personne a créé par l'assistant (devis lu ou lignes dictées).
+    where: { kind: "PURCHASE_ORDER", status: { not: "CANCELLED" }, createdById: user.id, custom: { path: ["bcAssistant", "origine"], not: Prisma.AnyNull } },
     select: { id: true, reference: true, amount: true, counterparty: true, custom: true, companyId: true, createdById: true, status: true, signedAt: true, bcPrevalidationRequestId: true },
     orderBy: { createdAt: "desc" },
   }));
@@ -306,12 +343,12 @@ export const ENVOI_BC_VALIDATION: OperationIA = {
       description: { type: "string" },
     },
   },
-  ouverte: (u) => userCan(u, "VALIDATIONS", "CREATE") && peutCreerUnBC(u),
+  ouverte: peutPreparerUnBC,
 
   async proposer(e, user) {
     const doc = await bcDesigne(user, texte(e, "bc"));
     if (!doc) return { erreur: texte(e, "bc") ? `Aucun bon de commande « ${texte(e, "bc")} » que vous voyez.` : "Aucun bon de commande créé depuis un devis à envoyer : créez-le d'abord." };
-    const dep = ((doc.custom as Record<string, unknown> | null)?.depuisDevis ?? null) as { validatorId?: string | null; nom?: string; enveloppe?: { nom: string } | null } | null;
+    const dep = ((doc.custom as Record<string, unknown> | null)?.bcAssistant ?? null) as { validatorId?: string | null; nom?: string; enveloppe?: { nom: string } | null } | null;
     let v: { id: string; nom: string } | null = null;
     if (texte(e, "validateur")) {
       const r = await validateur(user, texte(e, "validateur"));
@@ -352,7 +389,7 @@ export const ENVOI_BC_VALIDATION: OperationIA = {
     if (!doc) return { ok: false, error: "Ce bon de commande n'existe plus (ou a été annulé)." };
     const refus = refusTransitionBC("ENVOYER_EN_VALIDATION", await etatDe(doc), { validateurId: a.validatorId ?? null });
     if (refus) return { ok: false, error: refus };
-    const dep = ((doc.custom as Record<string, unknown> | null)?.depuisDevis ?? null) as { nodeId?: string } | null;
+    const dep = ((doc.custom as Record<string, unknown> | null)?.bcAssistant ?? null) as { nodeId?: string } | null;
     const fd = new FormData();
     fd.set("objectKind", "BON_DE_COMMANDE");
     fd.set("bcSource", "COMPOSER");
