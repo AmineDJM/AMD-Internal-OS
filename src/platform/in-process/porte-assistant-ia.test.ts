@@ -5,7 +5,7 @@ import {
 } from "./porte-assistant-ia";
 
 /**
- * LA PORTE D'ADAM VERS L'ASSISTANT IA (lot A2, décision 0054) — l'inventaire est EXHAUSTIF et la porte se garde seule.
+ * LA PORTE D'ADAM VERS L'ASSISTANT IA (lot A2, décision 0055) — l'inventaire est EXHAUSTIF et la porte se garde seule.
  *
  * Chaque outil du catalogue d'Adam est classé dans exactement une classe (a, b-lecture, b-écriture, c) : un outil ajouté
  * à Adam demain fait échouer ce test tant qu'il n'est pas classé (et l'inventaire `docs/assistant/adam-inventaire.md`

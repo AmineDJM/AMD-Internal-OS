@@ -1,5 +1,5 @@
 /**
- * LA CHARGE D'UNE CARTE D'ADAM (lot A2, décision 0054) — pure : l'outil d'Adam à exécuter à la confirmation, et son
+ * LA CHARGE D'UNE CARTE D'ADAM (lot A2, décision 0055) — pure : l'outil d'Adam à exécuter à la confirmation, et son
  * entrée telle que le modèle l'a donnée. Exécutée par `infra/adam/outils-adam.ts`, pour le seul Super Admin.
  */
 export const KIND_ADAM_SA = "adam_sa_op";

@@ -219,7 +219,7 @@ export const ATTAQUES: Attaque[] = [
 
   // ── 9. T1 (décision 0053) — documents, juridique et Drive (`attaques-documents.ts`) ──
   ...ATTAQUES_DOCUMENTS,
-  // A2 (décision 0054) — ADAM-SA- : les fonctions de l'ancien Adam, réservées au Super Admin.
+  // A2 (décision 0055) — ADAM-SA- : les fonctions de l'ancien Adam, réservées au Super Admin.
   ...ATTAQUES_ADAM_SA,
 ];
 

@@ -28,7 +28,7 @@ export interface FicheOutil {
   /** Son contexte (fichier, champs) — pesé comme une description : il départage, il ne désigne pas. */
   contexte?: string;
   /**
-   * A2 (décision 0054) : un facteur de RANG (< 1) — les fonctions d'Adam du Super Admin (~100 outils aux descriptions
+   * A2 (décision 0055) : un facteur de RANG (< 1) — les fonctions d'Adam du Super Admin (~100 outils aux descriptions
    * riches) ne passent devant un outil de l'ERP que si la demande les vise nettement. Absent : 1.
    */
   facteur?: number;

@@ -38,7 +38,7 @@ export function fichesOffertes(outils: readonly PowerTool[], user: CurrentUser, 
   return outils
     .filter((o) => o.def.name !== OUTIL_TROUVER && o.allowed(user) && autoriseParLaConfig(o.def.name, autorises))
     .map((o) => (estOutilAdam(o.def.name)
-      // A2 (décision 0054) : une fonction d'Adam (Super Admin) — sa fiche est sa première phrase, et son rang est réduit.
+      // A2 (décision 0055) : une fonction d'Adam (Super Admin) — sa fiche est sa première phrase, et son rang est réduit.
       ? { nom: o.def.name, libelle: o.label, description: o.def.description.slice(0, FICHE_ADAM_CARACTERES), facteur: FACTEUR_ADAM }
       : { nom: o.def.name, libelle: o.label, description: o.def.description, ...(mots.get(o.def.name) ?? MOTS_EXPORTS.get(o.def.name)) }));
 }

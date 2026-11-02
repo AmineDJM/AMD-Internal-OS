@@ -50,7 +50,7 @@ const SOCLE = ["src/platform/ia/"];
  * ajouté — ce que les deux partagent va au socle.
  */
 /*
- * A2 (décision 0054, RÉVISE 0013 — « un seul assistant : Adam ») : la Direction a fusionné les deux produits — le Super
+ * A2 (décision 0055, RÉVISE 0013 — « un seul assistant : Adam ») : la Direction a fusionné les deux produits — le Super
  * Admin garde TOUTES les fonctions d'Adam, dans le moteur de l'Assistant IA. Le catalogue d'Adam (~150 outils, ~60 k
  * lignes) ne se déménage pas au socle sans le réécrire : il est lu par UNE porte d'Adam, par UN fichier de l'Assistant
  * IA. C'est le SEUL franchissement permis, et il est EXACT : un second fichier de l'Assistant IA qui lirait la porte, ou

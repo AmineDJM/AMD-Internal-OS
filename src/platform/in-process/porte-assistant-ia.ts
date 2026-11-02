@@ -4,7 +4,7 @@ import { composerInbox } from "./inbox/compose";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA PORTE D'ADAM VERS L'ASSISTANT IA (lot A2, décision 0054 — « un seul assistant : Adam »).
+ * LA PORTE D'ADAM VERS L'ASSISTANT IA (lot A2, décision 0055 — « un seul assistant : Adam »).
  *
  * La Direction (02/11/2026) : l'Assistant IA de la plateforme EST Adam ; le Super Admin garde TOUTES les fonctions de
  * l'ancien Adam, dans le moteur de l'Assistant IA, et lui seul. Ce fichier est le SEUL endroit par lequel le moteur de

@@ -1,5 +1,5 @@
 /**
- * LOT A2 — LES ATTAQUES « ADAM RÉSERVÉ AU SUPER ADMIN » (préfixe ADAM-SA-, décision 0054).
+ * LOT A2 — LES ATTAQUES « ADAM RÉSERVÉ AU SUPER ADMIN » (préfixe ADAM-SA-, décision 0055).
  *
  * Les fonctions de l'ancien Adam sont des outils du moteur, offerts au SEUL Super Admin (rôle principal, hors Vue exacte).
  * Chaque persona du banc tente de les obtenir : en le demandant, en se disant Super Admin, par la Direction qui « l'a

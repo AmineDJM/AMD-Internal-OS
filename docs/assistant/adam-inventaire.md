@@ -2,7 +2,7 @@
 
 > Décision de la Direction (02/11/2026) : l'Assistant IA de la plateforme **est** Adam ; le Super Admin garde
 > **toutes** les fonctions de l'ancien Adam, dans le moteur de l'Assistant IA (`src/modules/assistant-ia`), et
-> lui seul ; les employés gardent exactement leur assistant. Décision d'architecture : [0054](decisions/0054-adam-complet-super-admin.md).
+> lui seul ; les employés gardent exactement leur assistant. Décision d'architecture : [0055](decisions/0055-adam-complet-super-admin.md).
 >
 > **Classes** — **(a)** déjà couvert par l'Assistant IA (même outil, ou équivalent nommé) · **(b)** à brancher
 > comme outil du moteur **réservé au Super Admin** · **(c)** écran seulement : reste dans l'onglet « Bureau d'Adam »
@@ -10,7 +10,7 @@
 >
 > **La source de vérité de ce tableau est le code** : `src/platform/in-process/porte-assistant-ia.ts` classe CHAQUE
 > outil du catalogue d'Adam (`POWER_TOOLS`) dans exactement une classe, et
-> `src/modules/assistant-ia/adam-super-admin.test.ts` échoue si un outil n'est pas classé (un outil ajouté à Adam
+> `src/platform/in-process/porte-assistant-ia.test.ts` échoue si un outil n'est pas classé (un outil ajouté à Adam
 > demain devra être classé ici). Ce document en est la lecture humaine.
 
 ## Comment une fonction (b) est branchée
@@ -23,17 +23,20 @@
 | **Écritures** (vague 2) | une **carte** (`kind: "adam_sa_op"`) ; l'outil d'Adam ne s'exécute qu'à la confirmation, sous `journaliserGeste` | confirmation par carte, arrêt d'urgence, **journal des effets K10** (valeur avant → « Ce que l'assistant a fait » → Annuler) |
 | Sélection | `trouver_outil` / présélection par la demande (J4) | rien de plus n'est envoyé au modèle tant qu'il ne le cherche pas |
 
-## Résumé
+## Résumé (état au 02/11/2026, après les vagues 1 et 2)
+
+Le catalogue d'Adam compte **138 outils** (noms uniques de `POWER_TOOLS`), plus des fonctions hors outils (écrans,
+tâches de fond, voix).
 
 | Classe | Nombre | Détail |
 |---|---|---|
-| (a) déjà couvert | 37 outils + 6 fonctions | même outil (12), équivalent nommé (25), voix, mémoire, missions, chantiers, Gmail (envoi), Atelier |
-| (b) → **branché** vague 1 (lectures SA) | 70 outils + boîte de réception | brief du matin, inbox, histoire d'un dossier, bilans, 360°, what-changed, signaux, Gmail/agenda/Drive Google d'Adam (lecture), surveillances et rappels (lecture), registres, corpus, calculs… |
-| (b) → **branché** vague 2 (écritures SA par carte) | 36 outils | rappels, surveillances, Teach Adam, registres décisions/engagements, sollicitations, objectifs, livrables, Google Workspace, skills, rangement Gmail, annulation… |
-| (c) écran seulement | 4 outils + 6 écrans | `render_view`, `show_document`, `show_table`, `composer_planche` ; palette, Bureau, inbox (boutons), réglages, Teach Adam (écran), voix d'Adam |
+| (a) déjà couvert avant A2 | 32 outils + 5 fonctions | même outil (12), équivalent nommé (20) ; voix, mémoire, missions, chantiers, Gmail (envoi), Atelier, capacités |
+| (b) → **(a) branché**, vague 1 (lectures SA) | 70 outils + `boite_de_reception` | brief du matin, inbox, histoire d'un dossier, bilans, 360°, what-changed, signaux, documents, Gmail/agenda/Drive Google d'Adam (lecture), surveillances et rappels (lecture), registres, corpus, calculs |
+| (b) → **(a) branché**, vague 2 (écritures SA par carte) | 32 outils | rappels, surveillances, Teach Adam, registres décisions/engagements, sollicitations, objectifs, livrables, Google Workspace, skills, rangement Gmail, annulation |
+| (c) écran seulement | 4 outils + 6 écrans | `render_view`, `show_document`, `show_table`, `composer_planche` ; palette, Bureau, boutons de l'inbox, réglages, écran Teach Adam, skills dynamiques |
 
-Après les deux vagues, **toutes** les fonctions (b) sont passées en (a) : il ne reste en (b) que ce qui est listé
-sous « Reste à faire ».
+**Il ne reste aucune fonction en (b).** Les tableaux « Vague 1 » et « Vague 2 » ci-dessous sont désormais de la
+classe (a) : branchées et prouvées (tests ci-dessous, banc ADAM-SA-).
 
 ## (a) Déjà couvert par l'Assistant IA
 
@@ -53,7 +56,7 @@ sous « Reste à faire ».
 | Décisions du centre de paiement (exécution) | `platform/in-process/inbox/actions.ts` (`agirSurCarte`) | les **capacités** de l'ERP (visas, validations, paiements — J6) par carte ; la **lecture** de l'inbox est en (b) | `capacites.test.ts` |
 | Écritures métier d'Adam (`ops/impl-*`, ~300 gestes) | `lib/assistant/ops/` | registre des capacités dérivé du contrat des actions (J6) + opérations de l'Assistant IA | `action-parity.test.ts`, `capacites.test.ts` |
 
-## (b) Vague 1 — lectures réservées au Super Admin (branchées)
+## (b) → (a) Vague 1 — lectures réservées au Super Admin (branchées, prouvées)
 
 Toutes : `outilsAdamSuperAdmin` → `infra/adam/outils-adam.ts`, offertes à la conversation du seul Super Admin.
 
@@ -71,7 +74,7 @@ Toutes : `outilsAdamSuperAdmin` → `infra/adam/outils-adam.ts`, offertes à la 
 | **Missions de sollicitation** | `mission_participants`, `mission_consolidate`, `mission_nudge_candidates` | `adam-tools/missions.ts` | — |
 | **Gmail / agenda / Drive Google d'Adam (lecture)** | `adam_status`, `gmail_search`, `gmail_read_thread`, `gmail_read_attachment`, `gmail_pending_mail`, `gcal_search`, `gcal_free_slots`, `gdrive_search`, `gdrive_read`, `resolve_person` | `adam-tools/` | canal Gmail d'Adam : SA seul (inchangé) |
 
-## (b) Vague 2 — écritures réservées au Super Admin, par carte (branchées)
+## (b) → (a) Vague 2 — écritures réservées au Super Admin, par carte (branchées, prouvées)
 
 L'outil d'Adam ne s'exécute **qu'au clic « Confirmer »** (ou à l'oral, même garde), sous le journal des effets K10.
 
@@ -105,11 +108,13 @@ les mêmes tables.
 
 ## Tests qui le prouvent
 
-- `src/modules/assistant-ia/adam-super-admin.test.ts` (vraie base) : chaque outil du catalogue d'Adam est classé ;
-  le Super Admin reçoit les outils (b) et un résultat réel ; une écriture ne fait rien avant la carte, puis s'exécute
+- `src/platform/in-process/porte-assistant-ia.test.ts` : chaque outil du catalogue d'Adam est classé, une fois ; la
+  porte ne rend rien et n'exécute rien hors Super Admin principal (DIRECTION, SA secondaire, Vue exacte refusés).
+- `src/modules/assistant-ia/adam-super-admin.test.ts` (vraie base) : le Super Admin reçoit les outils (b) et un résultat réel ; une écriture ne fait rien avant la carte, puis s'exécute
   et entre au journal des effets ; **chaque persona du banc Q1** (et un Super Admin en secondaire, et une Vue exacte)
   ne les a pas, ne les voit pas nommés dans sa consigne, et ne peut pas les obtenir en se disant Super Admin (appel
-  forcé, intention forgée).
+  forcé, intention forgée) ; le Super Admin TROUVE ses fonctions par `trouver_outil` (fiche courte, rang réduit :
+  le rappel@5 du banc J6 sur 300 demandes ERP reste à 95,0 %, comme sans Adam).
 - Banc d'audit Q1 : attaques `ADAM-SA-*` (`infra/testing/audit/attaques.ts`).
 - Frontière : `src/platform/ia/frontieres.test.ts` (un résidu nommé, exact).
 

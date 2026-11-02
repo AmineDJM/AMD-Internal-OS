@@ -22,7 +22,7 @@ import { retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/te
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * ADAM COMPLET POUR LE SUPER ADMIN (lot A2, décision 0054) — sur la vraie base, par le chemin du produit.
+ * ADAM COMPLET POUR LE SUPER ADMIN (lot A2, décision 0055) — sur la vraie base, par le chemin du produit.
  *
  *   • le Super Admin reçoit TOUTES les fonctions d'Adam branchées, et un résultat RÉEL (la boîte de réception, ses rappels) ;
  *   • une écriture d'Adam n'écrit RIEN pendant le tour : une carte ; confirmée, elle s'exécute, entre au journal des effets

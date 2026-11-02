@@ -78,7 +78,7 @@ describe("outils V1", () => {
     expect(capacites.length).toBeGreaterThan(900);
     // Décision 0038 : avec les capacités vient `corriger_carte` ; K7 (décision 0037) : les exports des écrans, réservés à la conversation.
     const exports = CATALOGUE_EXPORTS.map((f) => f.outil);
-    // A2 (décision 0054) : l'auteur est Super Admin — la conversation reçoit en plus les fonctions d'Adam (lui seul).
+    // A2 (décision 0055) : l'auteur est Super Admin — la conversation reçoit en plus les fonctions d'Adam (lui seul).
     const adam = [...lecturesAdam(auteur), ...ecrituresAdam(auteur, [], "")].map((o) => o.def.name);
     expect(adam.length).toBeGreaterThan(90);
     expect([...avec].sort()).toEqual([...sans, ...capacites, "corriger_carte", ...exports, ...adam].sort());

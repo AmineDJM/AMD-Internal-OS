@@ -322,7 +322,7 @@ export function outilsV1(
     ...(options.analyse ? outilsAnalyse(user, { ...options.analyse, coffret: coffret ?? null, driveOuvert: familleOuverte(acces, "DRIVE") }) : []),
     // K7 (décision 0037) — « l'export de tout » : ce que le tour a lu ou calculé, en Excel / CSV / PDF (la conversation seulement).
     ...(options.analyse ? [outilExporterDonnees(user, { jeux: options.analyse.jeux, coffret, acces })] : []),
-    // A2 (décision 0054) — les lectures d'Adam : la conversation du SEUL Super Admin (vide pour tout autre compte).
+    // A2 (décision 0055) — les lectures d'Adam : la conversation du SEUL Super Admin (vide pour tout autre compte).
     ...(options.capacites ? lecturesAdam(user) : []),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
@@ -351,7 +351,7 @@ export function outilsV1(
     // LES CAPACITÉS (J6) : leur famille se juge DANS l'outil (celle de la fiche du registre), leur porte dans `allowed`.
     ...(options.capacites ? outilsCapacites(user, propositions, acces).map((o) => avecProvenance(avecReperes(o), propositions, provenance)) : []),
     ...outilsOperations(user, propositions).map((o) => garde(avecProvenance(avecReperes(o), propositions, provenance), famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
-    // A2 (décision 0054) — les écritures d'Adam, en CARTES (Super Admin seul) ; exécutées à la confirmation, journalisées (K10).
+    // A2 (décision 0055) — les écritures d'Adam, en CARTES (Super Admin seul) ; exécutées à la confirmation, journalisées (K10).
     ...(options.capacites ? ecrituresAdam(user, propositions, REFUS_SECONDE_CARTE).map((o) => avecProvenance(avecReperes(o), propositions, provenance)) : []),
   ];
   // Chaque outil porte les accès de CETTE personne : appelé sous une autre (jamais en production — `allowed` le

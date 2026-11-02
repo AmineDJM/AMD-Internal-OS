@@ -14,7 +14,7 @@ import { estChargeAdamSA, KIND_ADAM_SA, type ChargeAdamSA } from "../../domaine/
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * ADAM COMPLET POUR LE SUPER ADMIN (lot A2, décision 0054) — le SEUL fichier du module qui lit Adam.
+ * ADAM COMPLET POUR LE SUPER ADMIN (lot A2, décision 0055) — le SEUL fichier du module qui lit Adam.
  *
  * Les fonctions de l'ancien Adam deviennent des outils du moteur de l'Assistant IA, OFFERTS AU SEUL SUPER ADMIN (rôle
  * principal, hors Vue exacte — `peutVoirAdam`). Ils viennent de la porte d'Adam (`platform/in-process/porte-assistant-ia.ts`),
