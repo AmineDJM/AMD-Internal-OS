@@ -207,7 +207,7 @@ export function ChaineDuPoste({ onglets, demande = null }: { onglets: OngletChai
     ?? [...onglets].reverse().find((o) => o.etat === "FAIT")
     ?? onglets[0]).cle;
   const [choisi, setChoisi] = React.useState<string | null>(null);
-  // UN GESTE DU POSTE QUI MÈNE À UNE CASE (« Déposer le BC signé ») l'ouvre — chaque clic compte (`n`).
+  // UN GESTE DU POSTE QUI MÈNE À UNE CASE (« Vérifier et valider le BC ») l'ouvre — chaque clic compte (`n`).
   React.useEffect(() => { if (demande) setChoisi(demande.cle); }, [demande]);
   const actif = onglets.find((o) => o.cle === choisi) ?? onglets.find((o) => o.cle === parDefaut) ?? onglets[0];
   return (

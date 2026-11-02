@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, FileText, FileDown, FileCheck, Wand2, Pencil, ScanText, CheckCircle2, AlertTriangle, Paperclip, Clock, Circle, XCircle } from "lucide-react";
+import { Loader2, FileText, FileCheck, Wand2, Pencil, ScanText, CheckCircle2, AlertTriangle, Paperclip, Clock, Circle, XCircle, Eye, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -10,7 +10,9 @@ import type { BcDePoste } from "../infra/pieces-poste";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { refusMontantDesDevis } from "../domaine/devis-poste";
 import { modifierBcDuPoste, previsualiserBcDuPoste } from "../actions-postes-paiement";
-import { validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, preparerBrouillonExcelPoste, deposerBcSignePoste } from "../actions-postes-lignes";
+import { validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, preparerBrouillonPoste, historiqueBrouillonBcPoste, type VersionBrouillonBc } from "../actions-postes-lignes";
+import { ApercuBonDeCommande } from "./apercu-bc-poste";
+import { LIBELLE_GESTE_BROUILLON } from "@/lib/bons-de-commande/versions-brouillon";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
 import { ModifierNumeroBc } from "@/components/references/modifier-numero-bc";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
@@ -39,15 +41,15 @@ type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; messag
 
 const dzd = (n: number): string => formatCurrency(n);
 
-/** Les liens d'un BC généré : son Word et son PDF, sous la porte de la pièce — téléchargeables l'un et l'autre. */
+/**
+ * LE PDF D'UN BC GÉNÉRÉ, sous la porte de la pièce. PDF SEUL (Direction, 11/2026) : le BC se modifie dans la plateforme, jamais
+ * en dehors — son Word n'est plus proposé.
+ */
 function LiensBC({ bc }: { bc: BcDePoste }) {
-  if (!bc.emis.docx && !bc.emis.pdf) return null;
+  if (!bc.emis.pdf) return null;
   const lien = "inline-flex min-h-9 items-center gap-0.5 text-primary hover:underline sm:min-h-0";
   return (
-    <span className="inline-flex flex-wrap items-center gap-x-2">
-      {bc.emis.docx && <a className={lien} href={lienFichierEmis(bc.id, "docx", true)} aria-label={`Télécharger le Word de ${bc.reference ?? bc.titre}`}><FileDown className="h-3 w-3" /> Word</a>}
-      {bc.emis.pdf && <a className={lien} href={lienFichierEmis(bc.id, "pdf")} target="_blank" rel="noreferrer" aria-label={`Ouvrir le PDF de ${bc.reference ?? bc.titre}`}><FileText className="h-3 w-3" /> PDF</a>}
-    </span>
+    <a className={lien} href={lienFichierEmis(bc.id, "pdf")} target="_blank" rel="noreferrer" aria-label={`Ouvrir le PDF de ${bc.reference ?? bc.titre}`}><FileText className="h-3 w-3" /> PDF</a>
   );
 }
 
@@ -63,12 +65,10 @@ function NomDuDevis({ d }: { d: Pick<DevisDePosteVue, "reference" | "titre" | "f
 }
 
 function phraseEtat(d: DevisDePosteVue): { texte: string; ton: "ok" | "attente" | "alerte" } | null {
-  // Le brouillon Excel (numéro réservé) : à signer et à déposer — ou à refaire si les lignes validées ont changé.
-  if (d.brouillon?.excel && d.etat === "A_GENERER") {
-    return { texte: d.brouillon.excelPerime ? "Brouillon à refaire" : `Brouillon ${d.brouillon.excel.numero} — à signer`, ton: "attente" };
-  }
+  // LE BC À VÉRIFIER (Direction, 11/2026) : généré à la validation du devis, il attend que son déposant le vérifie et le valide.
+  if (d.brouillon && d.etat === "A_GENERER") return { texte: "BC à vérifier et valider", ton: "attente" };
   // Un aperçu préparé mais pas encore validé : « Brouillon — à vérifier par le demandeur » (rien n'est numéroté ni envoyé).
-  if (d.brouillon && (d.etat === "A_GENERER" || d.etat === "A_REGENERER")) return { texte: ETIQUETTE_BROUILLON, ton: "attente" };
+  if (d.brouillon && d.etat === "A_REGENERER") return { texte: ETIQUETTE_BROUILLON, ton: "attente" };
   switch (d.etat) {
     case "A_GENERER": return { texte: "BC à générer", ton: "attente" };
     case "A_REGENERER": return { texte: `BC à régénérer (${d.nbAjoutees > 0 ? `+${d.nbAjoutees}` : ""}${d.nbAjoutees > 0 && d.nbRetirees > 0 ? " " : ""}${d.nbRetirees > 0 ? `−${d.nbRetirees}` : ""} ligne${d.nbAjoutees + d.nbRetirees > 1 ? "s" : ""})`, ton: "attente" };
@@ -82,8 +82,8 @@ function phraseEtat(d: DevisDePosteVue): { texte: string; ton: "ok" | "attente" 
 
 /**
  * LE BC SIGNÉ REMPLACE LE BC NON SIGNÉ (Direction, 06/10) : la copie que les Finances ont téléversée est LA pièce qu'on
- * ouvre, avec son signataire et ce que Luna a repéré. Avant la signature : le Word et le PDF générés, et « Modifier le
- * BC » — une nouvelle version à chaque fois, sans limite.
+ * ouvre, avec son signataire et ce que Luna a repéré. Avant la signature : le PDF du BC, et « Modifier le BC » — une
+ * nouvelle version à chaque fois, sans limite.
  */
 function PieceDuBC({ bc, itemId, peutModifier }: { bc: BcDePoste; itemId: string; peutModifier: boolean }) {
   const lien = "inline-flex min-h-9 items-center gap-0.5 text-primary hover:underline sm:min-h-0";
@@ -128,7 +128,7 @@ function FriseBC({ bc }: { bc: BcDePoste }) {
   const etape = bc.etape ?? "HORS_CIRCUIT";
   type Ton = "fait" | "en-cours" | "alerte" | "refus" | "a-venir";
   const lignes: { cle: string; ton: Ton; texte: string; aide?: string }[] = [
-    { cle: "cree", ton: "fait", texte: `Créé le ${formatDate(bc.creeLe)}` },
+    { cle: "cree", ton: "fait", texte: `Validé le ${formatDate(bc.creeLe)}` },
   ];
   if (etape === "HORS_CIRCUIT") lignes.push({ cle: "hors", ton: "a-venir", texte: "Antérieur au circuit de signature" });
   if (etape === "SANS_PORTE") lignes.push({ cle: "centre", ton: "alerte", texte: "À adresser au centre de validation" });
@@ -137,15 +137,15 @@ function FriseBC({ bc }: { bc: BcDePoste }) {
   if (etape === "REFUSE") lignes.push({ cle: "centre", ton: "refus", texte: "Refusé par le centre" });
   if (etape === "A_SIGNER") {
     lignes.push({
-      cle: "finances", ton: "en-cours", texte: "Chez les Finances — en attente de signature",
-      aide: "Les Finances signent le BC et téléversent la copie signée depuis leur module « Bons de commande ». La facture se dépose ensuite.",
+      cle: "finances", ton: "en-cours", texte: "Page Bons de commande — en attente de signature",
+      aide: "Le responsable des bons de commande le télécharge en PDF, le signe et dépose la version signée. Signé, il entre dans Legal ; la facture se dépose ensuite.",
     });
   }
-  if (etape === "A_CORRIGER") lignes.push({ cle: "finances", ton: "alerte", texte: "Renvoyé par les Finances — à corriger" });
+  if (etape === "A_CORRIGER") lignes.push({ cle: "finances", ton: "alerte", texte: "Renvoyé par le signataire — à corriger" });
   if (etape === "SIGNE") {
-    lignes.push({ cle: "signe", ton: "fait", texte: `Signé${bc.signeLe ? ` le ${formatDate(bc.signeLe)}` : ""}${bc.copieSignee?.signataire ? ` par ${bc.copieSignee.signataire}` : ""}` });
+    lignes.push({ cle: "signe", ton: "fait", texte: `Signé${bc.signeLe ? ` le ${formatDate(bc.signeLe)}` : ""}${bc.copieSignee?.signataire ? ` par ${bc.copieSignee.signataire}` : ""} — dans Legal` });
   } else if (etape === "A_VALIDER" || etape === "A_REVOIR" || etape === "SANS_PORTE") {
-    lignes.push({ cle: "signe", ton: "a-venir", texte: "Signature des Finances" });
+    lignes.push({ cle: "signe", ton: "a-venir", texte: "Signature (page Bons de commande)" });
   }
   const style: Record<Ton, { classe: string; icone: React.ReactNode }> = {
     "fait": { classe: "text-success", icone: <CheckCircle2 className="h-3.5 w-3.5" /> },
@@ -166,15 +166,17 @@ function FriseBC({ bc }: { bc: BcDePoste }) {
   );
 }
 
-export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutTraiter, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, repli }: {
+export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutTraiter, moi, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, repli }: {
   itemId: string;
   bcs: BcDePoste[];
   devis: DevisDePosteVue[];
   accorde: number | null;
-  /** Pourquoi le brouillon ne peut pas naître (`refusGenerationBC`) — `null` : il le peut. */
+  /** Pourquoi le BC ne peut pas être généré (`refusGenerationBC`) — `null` : il le peut. */
   refusGeneration: string | null;
-  /** Préparer le brouillon et déposer la version signée : qui traite les devis du poste (le droit de les valider). */
+  /** Relancer la génération du BC : qui traite les devis du poste (le droit de les valider). */
   peutTraiter: boolean;
+  /** Qui regarde : le BC d'un devis se vérifie, se modifie et se valide par la personne qui a ajouté le devis (ou le Super Admin). */
+  moi: { id: string; superAdmin: boolean };
   peutJoindre: boolean;
   /** Le demandeur peut-il modifier le BC généré (« Modifier le BC », tant qu'il n'est pas signé) ? */
   peutModifier: boolean;
@@ -187,23 +189,27 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
   repli: React.ReactNode;
 }) {
   const vivants = devis.filter((d) => !d.annule);
-  // LE BROUILLON EXCEL NAÎT DE LA VALIDATION (Direction, 11/2026) : chaque devis à lignes validées sans BC a le sien — ou l'aura.
-  const aSigner = vivants.filter((d) => d.etat === "A_GENERER");
+  // LE BC NAÎT DE LA VALIDATION DU DEVIS (Direction, 11/2026) : chaque devis à lignes validées sans BC a le sien à vérifier — ou l'aura.
+  const aVerifier = vivants.filter((d) => d.etat === "A_GENERER");
+  const manquants = aVerifier.filter((d) => !d.brouillon);
   // LE PLAFOND SUR LES DEVIS QUI COMPTENT — une copie de la même pièce, une proposition écartée n'y entrent pas (§118.5 :
   // le même calcul que l'action, `refusMontantDuPoste`).
   const depasse = refusMontantDesDevis(vivants, accorde);
   const pourquoiPas = refusGeneration ?? depasse;
   const figes = vivants.filter((d) => (d.etat === "FIGE" || d.etat === "A_ANNULER") && d.refus);
+  const [ouvert, setOuvert] = React.useState<string | null>(null);
+  const devisOuvert = ouvert ? vivants.find((d) => d.pieceId === ouvert) ?? null : null;
   const preparer = () => {
     const fd = new FormData();
     fd.set("id", itemId);
-    void run(`brw:${itemId}`, () => preparerBrouillonExcelPoste(fd), "Brouillon du bon de commande prêt.");
+    void run(`brw:${itemId}`, () => preparerBrouillonPoste(fd), "Bon de commande généré — à vérifier par la personne qui a ajouté le devis.");
   };
   const enPreparation = busy === `brw:${itemId}`;
+  const siens = (d: DevisDePosteVue) => moi.superAdmin || (d.depose !== null && d.depose.id === moi.id);
 
   return (
     <>
-      {bcs.length === 0 && aSigner.length === 0 ? repli : bcs.map((bc) => {
+      {bcs.length === 0 && aVerifier.length === 0 ? repli : bcs.map((bc) => {
         const source = vivants.find((d) => d.bc?.id === bc.id);
         return (
           <div key={bc.id} className="min-w-0 space-y-2 rounded-lg border border-border bg-card p-3 text-sm">
@@ -218,12 +224,35 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
             </div>
             <FriseBC bc={bc} />
             <PieceDuBC bc={bc} itemId={itemId} peutModifier={peutModifier} />
+            {moi.superAdmin && source && <HistoriqueDuBc itemId={itemId} pieceId={source.pieceId} />}
           </div>
         );
       })}
 
-      {aSigner.map((d) => (
-        <BrouillonDuDevis key={d.pieceId} d={d} itemId={itemId} peutTraiter={peutTraiter} busy={busy} run={run} />
+      {aVerifier.filter((d) => d.brouillon).map((d) => (
+        <div key={d.pieceId} className="min-w-0 space-y-2 rounded-lg border border-dashed border-border bg-card p-3 text-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+            <span className="inline-flex min-w-0 items-center gap-1.5 font-medium">
+              <FileText className="h-4 w-4 shrink-0 text-muted-foreground" /> Bon de commande
+              <span className="rounded-full border border-dashed border-border px-2 text-[0.6875rem] font-normal text-muted-foreground">À vérifier</span>
+            </span>
+            <span className="tabular-nums text-muted-foreground">
+              {d.entete.tvaRate === null ? `${dzd(d.totalValideHt)} · sans TVA` : `${dzd(d.totalValideTtc)} TTC`}
+              <span className="text-xs"> · d&apos;après <NomDuDevis d={d} /></span>
+            </span>
+          </div>
+          <p className="text-muted-foreground">
+            {siens(d)
+              ? "Généré à la validation du devis. Vérifiez-le et modifiez-le ici — chaque modification est enregistrée — puis validez-le : il partira à la page Bons de commande pour être signé."
+              : `Généré à la validation du devis — ${d.depose ? `${d.depose.nom} le vérifie et le valide` : "la personne qui a ajouté le devis le vérifie et le valide"}.`}
+          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Button size="sm" variant={siens(d) ? "primary" : "outline"} onClick={() => setOuvert(d.pieceId)}>
+              {siens(d) ? <><Pencil className="h-3.5 w-3.5" /> Vérifier, modifier et valider</> : <><Eye className="h-3.5 w-3.5" /> Voir le BC</>}
+            </Button>
+          </div>
+          {moi.superAdmin && <HistoriqueDuBc itemId={itemId} pieceId={d.pieceId} />}
+        </div>
       ))}
 
       {vivants.some((d) => d.structure && d.bc && d.etat !== "A_JOUR") && (
@@ -243,17 +272,25 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
       )}
 
       {figes.map((d) => <p key={d.pieceId} className="flex gap-1 text-destructive"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {d.refus}</p>)}
-      {aSigner.some((d) => !d.brouillon?.excel || d.brouillon.excelPerime) && pourquoiPas && (
+      {manquants.length > 0 && pourquoiPas && (
         <p className="flex gap-1 text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {pourquoiPas}</p>
       )}
 
-      {(peutTraiter && aSigner.some((d) => !d.brouillon?.excel || d.brouillon.excelPerime)) || peutJoindre ? (
+      {devisOuvert && (
+        <ApercuBonDeCommande
+          itemId={itemId} pieceId={devisOuvert.pieceId} nomDevis={devisOuvert.reference ?? devisOuvert.titre}
+          peutEditer={siens(devisOuvert)} peutValider={siens(devisOuvert)} run={run}
+          onClose={() => setOuvert(null)}
+        />
+      )}
+
+      {(peutTraiter && manquants.length > 0) || peutJoindre ? (
         <div className="flex flex-wrap items-center gap-2 pt-0.5">
-          {/* LE GESTE EST TOUJOURS LÀ quand un brouillon manque : inactif, il porte sa raison (écrite au-dessus) — §118.83. */}
-          {peutTraiter && aSigner.some((d) => !d.brouillon?.excel || d.brouillon.excelPerime) && (
+          {/* LE GESTE EST TOUJOURS LÀ quand un BC manque : inactif, il porte sa raison (écrite au-dessus) — §118.83. */}
+          {peutTraiter && manquants.length > 0 && (
             <Button size="sm" onClick={preparer} disabled={enPreparation || Boolean(pourquoiPas)} title={pourquoiPas ?? undefined}>
               {enPreparation ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              Préparer le brouillon
+              Générer le bon de commande
             </Button>
           )}
           {peutTraiter && depasse && onReviser && (
@@ -273,76 +310,58 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
 }
 
 /**
- * LE BROUILLON EXCEL D'UN DEVIS, ET LE DÉPÔT DE SA VERSION SIGNÉE (Direction, 11/2026). Le fichier Excel se télécharge, s'imprime, se
- * complète ou se signe ; la version signée (scan ou photo) se dépose ici avec le nom du signataire. Luna y cherche la
- * signature et le numéro du brouillon ; accepté, le BC entre dans Legal déjà signé et la case Facture s'ouvre.
+ * L'HISTORIQUE DES MODIFICATIONS DU BC (Direction, 11/2026) — « le Super Admin voit ce qui a changé » : chaque geste (créé,
+ * modifié, retiré, validé), qui, quand, et chaque champ avant → après. Chargé à la demande : la carte ne le porte pas.
  */
-function BrouillonDuDevis({ d, itemId, peutTraiter, busy, run }: {
-  d: DevisDePosteVue; itemId: string; peutTraiter: boolean; busy: string | null; run: Run;
-}) {
+function HistoriqueDuBc({ itemId, pieceId }: { itemId: string; pieceId: string }) {
+  const [versions, setVersions] = React.useState<VersionBrouillonBc[] | null>(null);
+  const [erreur, setErreur] = React.useState<string | null>(null);
   const [ouvert, setOuvert] = React.useState(false);
-  const excel = d.brouillon?.excel && !d.brouillon.excelPerime ? d.brouillon.excel : null;
-  const cle = `sig:${d.pieceId}`;
-  const total = d.entete.tvaRate === null ? `${dzd(d.totalValideHt)} · sans TVA` : `${dzd(d.totalValideTtc)} TTC`;
-  const deposer = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
+  const [charge, start] = React.useTransition();
+  const basculer = () => {
+    if (ouvert) { setOuvert(false); return; }
+    setOuvert(true);
+    const fd = new FormData();
     fd.set("id", itemId);
-    fd.set("pieceId", d.pieceId);
-    void run(cle, async () => {
-      const r = await deposerBcSignePoste(fd);
-      if (r.ok) setOuvert(false);
-      return r;
-    }, "Bon de commande signé enregistré dans Legal.");
+    fd.set("pieceId", pieceId);
+    start(async () => {
+      const r = await historiqueBrouillonBcPoste(fd);
+      if (r.ok) { setVersions(r.versions); setErreur(null); } else setErreur(r.error);
+    });
   };
   return (
-    <div className="min-w-0 space-y-2 rounded-lg border border-dashed border-border bg-card p-3 text-sm">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-        <span className="inline-flex min-w-0 items-center gap-1.5 font-medium">
-          <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-          {excel ? `BC ${excel.numero}` : "Bon de commande"}
-          <span className="rounded-full border border-dashed border-border px-2 text-[0.6875rem] font-normal text-muted-foreground">Brouillon</span>
-        </span>
-        <span className="tabular-nums text-muted-foreground">{total} <span className="text-xs">· d&apos;après <NomDuDevis d={d} /></span></span>
-      </div>
-      {excel ? (
-        <>
-          <p className="text-muted-foreground">
-            Pas encore dans Legal. Téléchargez le fichier Excel, complétez-le, imprimez-le ou faites-le signer, puis déposez la version signée : c&apos;est elle qui
-            entre dans Legal, déjà signée.
-          </p>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <a href={`/api/documents/${excel.documentId}?dl=1`} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline sm:min-h-0" aria-label={`Télécharger le brouillon Excel du BC ${excel.numero}`}>
-              <FileDown className="h-3.5 w-3.5" /> Télécharger le fichier Excel
-            </a>
-            {peutTraiter && !ouvert && (
-              <Button size="sm" onClick={() => setOuvert(true)}><FileCheck className="h-3.5 w-3.5" /> Déposer la version signée</Button>
-            )}
-          </div>
-          {peutTraiter && ouvert && (
-            <form onSubmit={deposer} className="space-y-2 rounded-md border border-border bg-background p-2.5">
-              <label className="block space-y-0.5 text-xs" htmlFor={`copie-${d.pieceId}`}>
-                Bon de commande signé (PDF ou photo de la page signée)
-                <input id={`copie-${d.pieceId}`} name="copieSignee" type="file" required accept=".pdf,.png,.jpg,.jpeg,.webp" className="block w-full text-sm" />
-              </label>
-              <label className="block space-y-0.5 text-xs" htmlFor={`signataire-${d.pieceId}`}>
-                Signé par
-                <input id={`signataire-${d.pieceId}`} name="signataire" required maxLength={120} placeholder="Nom et qualité du signataire" className={champ} />
-              </label>
-              <p className="text-xs text-muted-foreground">Luna vérifie que la page porte une signature et le numéro {excel.numero} avant d&apos;enregistrer.</p>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" type="submit" disabled={busy === cle}>
-                  {busy === cle ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileCheck className="h-3.5 w-3.5" />} Déposer la version finale
-                </Button>
-                <Button size="sm" type="button" variant="ghost" onClick={() => setOuvert(false)}>Annuler</Button>
-              </div>
-            </form>
+    <div className="border-t border-border/60 pt-1.5 text-xs">
+      <button type="button" onClick={basculer} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline sm:min-h-0" aria-expanded={ouvert}>
+        <History className="h-3 w-3" /> Historique des modifications
+      </button>
+      {ouvert && (
+        <div className="mt-1 space-y-1.5">
+          {charge && <p className="flex items-center gap-1 text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Chargement…</p>}
+          {erreur && <p className="text-destructive">{erreur}</p>}
+          {versions && versions.length === 0 && <p className="text-muted-foreground">Aucune version enregistrée.</p>}
+          {versions && versions.length > 0 && (
+            <ol className="space-y-1.5">
+              {versions.map((v) => (
+                <li key={v.numero} className="rounded-md border border-border bg-background p-2">
+                  <p className="font-medium text-foreground">
+                    v{v.numero} · {LIBELLE_GESTE_BROUILLON[v.geste] ?? v.geste}
+                    <span className="font-normal text-muted-foreground"> — {v.auteur ?? "—"}, {formatDate(v.le)}</span>
+                  </p>
+                  {v.changements.length > 0 && (
+                    <ul className="mt-0.5 space-y-0.5">
+                      {v.changements.map((c, i) => (
+                        <li key={i} className="[overflow-wrap:anywhere]">
+                          <span className="text-muted-foreground">{c.champ} : </span>
+                          <span className="line-through decoration-muted-foreground/60">{c.avant}</span> → <span className="font-medium text-foreground">{c.apres}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              ))}
+            </ol>
           )}
-        </>
-      ) : (
-        <p className="text-muted-foreground">
-          {d.brouillon?.excel ? `Les lignes validées ont changé depuis le brouillon ${d.brouillon.excel.numero} : il se refait sous le même numéro.` : "Le brouillon Excel se prépare à la validation des lignes."}
-        </p>
+        </div>
       )}
     </div>
   );

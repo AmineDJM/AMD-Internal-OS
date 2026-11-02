@@ -9,7 +9,7 @@ import {
 } from "../../domaine/devis-poste";
 import { IDENTITE_VIDE, identiteUtilisable, type IdentiteEmetteur } from "@/lib/pieces-lues/emetteur";
 import { montantLu } from "@/lib/pieces-lues/montants";
-import { brouillonPerime, brouillonExcelPerime, lireBrouillon, lignesEffectives, type BrouillonBc } from "@/lib/bons-de-commande/brouillon";
+import { brouillonPerime, lireBrouillon, lignesEffectives, type BrouillonBc } from "@/lib/bons-de-commande/brouillon";
 import type { LigneCommerciale } from "@/lib/artifact/factory/commercial";
 
 /** L'identité gardée en base (JSON) → sa forme typée, ou `null` si elle ne nomme personne. */
@@ -87,7 +87,7 @@ export interface DevisDePosteVue {
    * LE BROUILLON DU BC (« à vérifier par le demandeur ») de CE poste, s'il y en a un : aucun numéro n'est encore attribué. Ses lignes
    * sont celles qu'il imprimera (corrigées, ou celles des lignes validées).
    */
-  brouillon: (BrouillonBc & { perime: boolean; lignesBc: LigneCommerciale[]; excelPerime: boolean }) | null;
+  brouillon: (BrouillonBc & { perime: boolean; lignesBc: LigneCommerciale[] }) | null;
   /**
    * NE COMPTE PAS (sans BC) : la copie d'une pièce déjà comptée, ou une proposition d'un voyageur qui n'est pas la retenue
    * (`devisMisAPart`). Ses lignes validées restent lisibles ; elles n'entrent ni dans le plafond, ni dans un BC.
@@ -97,6 +97,11 @@ export interface DevisDePosteVue {
   doublonProbableDe: string | null;
   /** Le voyageur pour qui ce devis a été déposé (billetterie), s'il y en a un. */
   voyageur: { id: string; nom: string; retenu: boolean } | null;
+  /**
+   * QUI A AJOUTÉ CE DEVIS AU POSTE (Direction, 11/2026) — la personne qui vérifie, modifie dans la plateforme et valide le
+   * bon de commande qui en découle (`peutModifierLeBcDuPoste`). `null` : pièce d'avant la trace du déposant.
+   */
+  depose: { id: string; nom: string } | null;
 }
 
 /**
@@ -157,6 +162,7 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
       orderBy: { createdAt: "asc" },
       select: {
         itemId: true,
+        createdById: true,
         voyageur: { select: { retenuLe: true, voyageur: { select: { id: true, nom: true, prenom: true } } } },
         legalDocument: {
           select: {
@@ -203,6 +209,11 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
   for (const f of fichiers) if (!premierFichier.has(f.entityId)) premierFichier.set(f.entityId, f.id);
   const libellePoste = new Map(postes.map((p) => [p.id, p.label]));
 
+  // LES DÉPOSANTS des devis — ceux qui vérifient et valident le BC qui en découle.
+  const deposants = [...new Set(liensDevis.map((l) => l.createdById).filter((x): x is string => Boolean(x)))];
+  const nomsDeposants = new Map(deposants.length
+    ? (await prisma.user.findMany({ where: { id: { in: deposants } }, select: { id: true, name: true } })).map((u) => [u.id, u.name] as const)
+    : []);
   for (const lien of liensDevis) {
     const d = lien.legalDocument;
     const entreeBase = d.devisPoste;
@@ -263,13 +274,13 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
             retenu: lien.voyageur.retenuLe != null,
           }
         : null,
+      depose: lien.createdById ? { id: lien.createdById, nom: nomsDeposants.get(lien.createdById) ?? "—" } : null,
     };
     const brut = lireBrouillon(entreeBase?.bcBrouillon);
     if (brut && brut.itemId === lien.itemId && (decision.etat === "A_GENERER" || decision.etat === "A_REGENERER")) {
       const lignesBc = lignesDuBon(entete, lignes, lien.itemId);
       vue.brouillon = {
         ...brut, perime: brouillonPerime(brut, lignesBc), lignesBc: lignesEffectives(brut, lignesBc),
-        excelPerime: brut.excel ? brouillonExcelPerime(brut.excel, lignesBc, { tvaRate: entete.tvaRate, extraTaxRate: entete.extraTaxRate }) : false,
       };
     }
     res.get(lien.itemId)?.push(vue);

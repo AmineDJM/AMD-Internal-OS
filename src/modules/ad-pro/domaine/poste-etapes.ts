@@ -125,8 +125,10 @@ export interface RegardPoste {
   secondTempsParOperations?: boolean;
   /** La personne qui regarde a demandé le BC : c'est elle qui vérifie la pièce déposée. */
   verifieLeBC?: boolean;
-  /** Valider l'aperçu du BC et l'envoyer aux Finances : le demandeur de la demande, ou le Super Admin. */
-  peutValiderBc?: boolean;
+  /** Qui regarde — le BC d'un devis se vérifie, se modifie et se valide par la personne qui a ajouté le devis. */
+  moiId?: string;
+  /** La personne qui regarde est Super Admin : elle lit l'historique des modifications des BC. */
+  superAdmin?: boolean;
 }
 
 export type CleGeste =
@@ -457,10 +459,11 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
 const capitale = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /**
- * Le geste qui suit la validation des lignes (Direction, 11/2026) : le brouillon Excel est né avec elle — il reste à le faire
- * signer et à DÉPOSER la version signée. « Déposer le BC signé » pour un devis, « Déposer les BC signés (N) » pour plusieurs.
+ * Le geste qui suit la validation des lignes (Direction, 11/2026) : le BC de chaque devis validé est né avec elle — la personne
+ * qui a ajouté le devis le vérifie, le modifie au besoin dans la plateforme, et le valide. « Vérifier et valider le BC » pour un
+ * devis, « Vérifier et valider les BC (N) » pour plusieurs.
  */
-const gesteGenerer = (n: number): Geste => ({ cle: "GENERER_BC", libelle: n > 1 ? `Déposer les BC signés (${n})` : "Déposer le BC signé" });
+const gesteGenerer = (n: number): Geste => ({ cle: "GENERER_BC", libelle: n > 1 ? `Vérifier et valider les BC (${n})` : "Vérifier et valider le BC" });
 
 /**
  * LES POSTES REGROUPÉS PAR RÉPARTITION — dans l'ordre où ils apparaissent. Un poste né d'une

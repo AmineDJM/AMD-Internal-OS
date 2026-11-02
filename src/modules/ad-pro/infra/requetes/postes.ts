@@ -22,7 +22,6 @@ import type { VoyageurVue } from "../../ecrans/voyageurs-bloc";
 import type { HebergementVue } from "../../ecrans/hebergements-bloc";
 import { porteDesHebergements } from "../../domaine/hebergements";
 import { piecesDesPostes, demandesBCDesPostes, assistantesDeDirection } from "../pieces-poste";
-import { peutValiderLeBrouillon } from "@/lib/bons-de-commande/brouillon";
 import { pieceEmise, specRevisable, valeursComposables } from "@/lib/legal/piece-emise";
 import { devisDesPostes } from "./devis-poste";
 import { droitsValidation, type DroitsValidation } from "../../domaine/validation-poste";
@@ -508,8 +507,8 @@ export interface ContextePostes {
   userId: string;
   /** La demande vient de la Direction Marketing : le second temps revient à la Direction des opérations. */
   secondTempsParOperations: boolean;
-  /** Valider l'aperçu du bon de commande et l'envoyer aux Finances : le demandeur de la demande, ou le Super Admin (`peutValiderLeBrouillon`). */
-  peutValiderBc: boolean;
+  /** La personne qui regarde est Super Admin : elle lit l'historique des modifications des BC (Direction, 11/2026). */
+  superAdmin: boolean;
   /**
    * LA PORTE DU DG SUR LE TOTAL DE LA DEMANDE (27/10/2026) — la même pour tous ses postes, et ce que la
    * personne qui regarde peut en faire (le DG ou le Super Admin statuent).
@@ -536,7 +535,7 @@ export async function contextePostes(user: SessionUser, parent: AdProParent, par
     userId: user.id,
     // La règle du 27/10/2026 n'a plus de second temps chez le Directeur des opérations.
     secondTempsParOperations: false,
-    peutValiderBc: peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: requesterId }),
+    superAdmin: user.role === "SUPER_ADMIN" || user.secondaryRole === "SUPER_ADMIN",
     porteDg: {
       etat: porte.etat, phrase: porte.phrase, total: porte.total, seuil: porte.seuil, note: porte.note,
       peutStatuer: peutStatuerSurLeTotal(moi ?? { role: user.role }),
