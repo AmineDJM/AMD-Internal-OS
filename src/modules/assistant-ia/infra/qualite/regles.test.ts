@@ -12,7 +12,7 @@ describe("le calendrier du banc (heure d'Alger)", () => {
   const hebdo = { ...REGLAGE_BANC_DEFAUT, frequence: "HEBDOMADAIRE" as const, jour: 5, heure: 3 };
 
   it("par défaut : chaque semaine, 1 $ par passage, actif", () => {
-    expect(REGLAGE_BANC_DEFAUT).toMatchObject({ actif: true, frequence: "HEBDOMADAIRE", plafondUsd: 1 });
+    expect(REGLAGE_BANC_DEFAUT).toMatchObject({ actif: true, frequence: "QUOTIDIEN", plafondUsd: 1 });
     expect(calendrierLisible(hebdo)).toBe("chaque vendredi à 3 h, heure d'Alger");
   });
 
@@ -39,7 +39,7 @@ describe("le calendrier du banc (heure d'Alger)", () => {
   });
 
   it("une saisie hors bornes est ramenée dans les bornes", () => {
-    expect(normaliserReglageBanc({ frequence: "N'IMPORTE", jour: 12, heure: 40, plafondUsd: 900, actif: "on" })).toEqual({ actif: true, frequence: "HEBDOMADAIRE", jour: 6, heure: 23, plafondUsd: 20 });
+    expect(normaliserReglageBanc({ frequence: "N'IMPORTE", jour: 12, heure: 40, plafondUsd: 900, actif: "on" })).toEqual({ actif: true, frequence: "QUOTIDIEN", jour: 6, heure: 23, plafondUsd: 20 });
     expect(normaliserReglageBanc({ frequence: "MENSUEL", jour: 0, plafondUsd: -3, actif: false })).toMatchObject({ jour: 1, plafondUsd: 1, actif: false });
   });
 });

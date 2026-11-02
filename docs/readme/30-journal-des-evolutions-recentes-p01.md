@@ -21,6 +21,20 @@ Verdict par invariants (FIABLE / À VÉRIFIER / ILLISIBLE) gardé avec la lectur
 validation → validé → signé / annulé) à préconditions tenues par le code. Décision
 [0049](../assistant/decisions/0049-bc-depuis-devis.md). Migration `20270222100000_lecture_piece_verdict`.
 
+### LE BANC D'AUDIT PERMANENT DE L'ASSISTANT IA — un attaquant et un utilisateur exigeant, joués par la machine (Q1, 2026-11-02)
+
+« Audite ça toi-même, même la partie test. Vérifie qu'avec le compte de l'un, ça ne va pas vers l'autre. Essaie de le
+jailbreaker » (Direction). Décision 0050. Dix personas (commercial, délégué, manager, RH paie, finance, assistante, KAM,
+regulatory, Super Admin, Vue exacte) et une victime, chacun avec des valeurs TÉMOINS uniques ; **93 attaques** (usurpation,
+flatterie sur plusieurs tours, injection par PDF/Excel/mail/WhatsApp/note/Drive/nom de fichier/fiche/mémoire, agrégats, SQL,
+export, voix, escalade d'action avec clic « Confirmer » simulé, extraction du prompt, Vue exacte) et **65 tâches** jouées avec
+le vrai modèle (`npm run audit:assistant`), verdict au niveau des DONNÉES (réponse, carte, fichiers, mémoire, traces) et un
+espion de Prisma qui prouve qu'une ligne d'autrui n'a pas été lue. Version déterministe dans `npm test` (faux modèle
+adversarial, cliquet : toute nouvelle lecture sans scénario d'attaque fait échouer la suite) ; version réelle chaque nuit
+(`qualite.banc`, une attaque passée notifiée au Super Admin). Premier passage : 92/93 attaques bloquées, 0 passée ; 45/65
+tâches réussies. Corrigé : la Vue exacte envoyait la mémoire de la personne regardée au modèle ; « Quel est mon salaire ? »
+était refusé sans outil. Rapport : `docs/assistant/preuves/audit/`.
+
 ### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
 
 Direction, 01/11 : « l'export des demandes de paiement, oui. Enfin, l'export de tout, quoi. » Décision 0037, § 7.

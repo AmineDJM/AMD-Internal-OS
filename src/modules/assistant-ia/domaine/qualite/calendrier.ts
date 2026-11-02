@@ -21,7 +21,8 @@ export interface ReglageBanc {
   plafondUsd: number;
 }
 
-export const REGLAGE_BANC_DEFAUT: ReglageBanc = { actif: true, frequence: "HEBDOMADAIRE", jour: 5, heure: 3, plafondUsd: 1 };
+/** Lot Q1 (décision 0050) : le banc tourne CHAQUE NUIT (3 h, Alger) — il porte le banc d'audit (attaques et tâches), plafonné. */
+export const REGLAGE_BANC_DEFAUT: ReglageBanc = { actif: true, frequence: "QUOTIDIEN", jour: 5, heure: 3, plafondUsd: 1 };
 
 export const PLAFOND_PASSAGE_MAX_USD = 20;
 export const JOURS_SEMAINE = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"] as const;

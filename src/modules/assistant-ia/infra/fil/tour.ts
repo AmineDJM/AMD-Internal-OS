@@ -1,6 +1,7 @@
 import type { CurrentUser } from "@/lib/session";
 import { compileContext, CONSIGNE_MEMOIRE_A_LA_CARTE } from "../contexte";
 import { memoireAutoActive } from "../memoire";
+import { OUTILS_NOTES } from "../notes/outils";
 import { accesAssistantIa, getRoleConfig, GESTE_MODELE_EN_CLAIR, resoudreConsignesRole, Revelateur } from "../role-config";
 import { consigneFamilles, enVueExacteIa, refusAssistantVueExacte, type AccesIa } from "../../domaine/acces-regles";
 import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
@@ -200,13 +201,19 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les
   // repères — sauf en mode « en clair » (décision 0034), où celles que la personne a le droit de voir lui sont rendues.
   const coffret = new CoffretDuTour();
+  /**
+   * LA VUE EXACTE NE LIT PAS LA VIE PRIVÉE DE LA PERSONNE REGARDÉE (lot Q1, décision 0050 ; §118.153). Le Super Admin voit
+   * l'écran du compte, pas sa mémoire, ses notes ni ses conversations passées : mesuré par le banc d'audit, le tour en Vue
+   * exacte chargeait la mémoire du compte regardé (santé déclarée comprise) dans le contexte du modèle.
+   */
+  const vueExacte = Boolean(user.impersonatedBy);
   let outils;
   let selection: SelectionDuTour;
   try {
     acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
     // M1 (décision 0045) : mémoire automatique (défaut) — retenue d'office après le tour ; coupée, la carte « Retenir ».
-    const memoireAuto = d.prive ? false : await memoireAutoActive(user.id);
+    const memoireAuto = d.prive || vueExacte ? false : await memoireAutoActive(user.id);
     // MODE « EN CLAIR » (décision 0034) : la sortie d'un outil rend au modèle les valeurs que la personne a le droit de
     // voir — le MÊME juge que l'affichage (politique du coffre, familles de la console), chaque valeur au journal.
     const auModele = enClair ? new Revelateur(coffret, user, acces, GESTE_MODELE_EN_CLAIR) : null;
@@ -220,8 +227,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     // M1 : la mémoire automatique retient seule — la carte « Retenir » ne sert que si la personne l'a coupée.
-    if (d.prive || memoireAuto) outils = outils.filter((o) => o.def.name !== "proposer_memoire");
-    if (!d.prive) outils = [...outils, outilConversationsPassees(user, d.conversation ?? null)];
+    if (d.prive || vueExacte || memoireAuto) outils = outils.filter((o) => o.def.name !== "proposer_memoire");
+    if (vueExacte) outils = outils.filter((o) => !(OUTILS_NOTES as readonly string[]).includes(o.def.name));
+    if (!d.prive && !vueExacte) outils = [...outils, outilConversationsPassees(user, d.conversation ?? null)];
     // K6 (décision 0036) : « je t'envoie la lettre par WhatsApp » — l'attente de pièces (fiche de la sélection, pas socle).
     outils.push(outilAttendrePieces(user, d.conversation ?? null, d.vocal || texteSaisi.startsWith("[Conversation vocale]") ? "VOIX" : "ECRIT"));
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
@@ -235,7 +243,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       user, consignesRole: resoudreConsignesRole(config),
       consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, d.consigne]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
-      outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true, valeursEnClair: enClair,
+      outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
       sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
     })).systemPrompt;
   } catch (e) {
@@ -276,7 +284,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       message,
       content: await revelateur.texte([ui.message || "Je n'ai pas de réponse à afficher.", note?.texte].filter(Boolean).join("\n\n")),
       blocs: [...visuels, ...(await revelateur.objet([...ui.blocs, ...blocsCalcules]))],
-      memoireProposee: d.prive ? null : memoires[0] ?? null,
+      memoireProposee: d.prive || vueExacte ? null : memoires[0] ?? null,
       notesProposees: [...notesProposees],
       travaux: [...travauxLances],
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».

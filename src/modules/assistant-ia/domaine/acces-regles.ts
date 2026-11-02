@@ -147,6 +147,10 @@ export function consigneFamilles(a: AccesIa): string | null {
       + "« Contrats & documents RH », même si « Fiches collaborateurs » est fermée ; un fichier joint ou du Drive à ouvrir ou modifier — même un contrat — "
       + "de « Drive & documents », les droits du fichier décident). Une demande d'une famille FERMÉE : dis-le directement, "
       + "en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Assistant IA — accès.",
+    // Lot Q1 (décision 0050) : mesuré par le banc d'audit, « Quel est mon salaire ? » était refusé SANS appel d'outil
+    // (« Salaires & paie » fermée) — alors que l'outil rend toujours sa propre paie à la personne dont la fiche est liée.
+    "SON PROPRE DOSSIER reste toujours ouvert à la personne, quelles que soient les familles : « mon salaire », « ma fiche », "
+      + "« mon contrat », « mes congés » → appelle l'outil (lire_paie, lire_fiche_rh, documents_rh, nom vide) ; c'est lui qui juge. Jamais pour autrui.",
   ].join("\n");
 }
 
