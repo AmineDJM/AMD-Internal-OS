@@ -66,7 +66,7 @@ export function silenceDesExecutants(ex: EtatDesExecutants, maintenant: number):
   const d = depuis(ex.dernierPassage, maintenant);
   if (d <= SILENCE_EXECUTANT_MS) return null;
   return ex.dernierPassage === null
-    ? "aucun exécutant des tâches de fond n'a encore conduit de mission (worker absent)"
+    ? "worker absent : aucun battement enregistré"
     : `aucun battement du worker depuis ${minutes(d)} min`;
 }
 
@@ -92,7 +92,7 @@ export function diagnostiquerMission(m: MissionDiagnostiquee, ex: EtatDesExecuta
   const reessaie = echec ?? m.etapes.find((e) => e.etat === "EN_COURS" && e.erreur);
   if (reessaie) return { code: "REESSAIE", phrase: `l'étape « ${reessaie.titre} » réessaie : ${erreurLisible(reessaie.erreur!)}` };
   if (m.attente && m.etat === "EN_ATTENTE") return { code: "ATTENTE", phrase: m.attente };
-  if (silence) return { code: "ATTENTE_EXECUTANT", phrase: `en attente du worker (${silence}) — elle n'avance pas tant qu'aucun exécutant ne tourne` };
+  if (silence) return { code: "ATTENTE_EXECUTANT", phrase: `en attente du worker — ${silence}` };
   const enCours = m.etapes.find((e) => e.etat === "EN_COURS");
   return { code: "EN_COURS", phrase: enCours ? `en cours : ${enCours.titre}` : "prête : la prochaine étape part au prochain battement (moins d'une minute)" };
 }

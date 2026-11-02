@@ -223,7 +223,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     // P1 (décision 0047) : lire et piloter SES missions (fusion par carte, `fusionner_missions`), lire ses boîtes mail et
     // envoyer par l'une d'elles (carte « Envoyer », fenêtre d'annulation) — l'écrit a enfin les gestes de l'écran et de la voix.
     const tousLesOutils = (): PowerTool[] => outils ?? [];
-    outils.push(...outilsMissions(user, pilotagesEchoues), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions));
+    // Leurs sorties PROUVENT ce que la réponse montre (un tableau des missions lues) — comme celles des autres lectures.
+    const prouvees = (xs: PowerTool[]): PowerTool[] => xs.map((o) => ({ ...o, run: async (e, u) => { const r = await o.run(e, u); sorties.push(r); return r; } }));
+    outils.push(...prouvees([...outilsMissions(user, pilotagesEchoues), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions)]));
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     // M1 : la mémoire automatique retient seule — la carte « Retenir » ne sert que si la personne l'a coupée.
