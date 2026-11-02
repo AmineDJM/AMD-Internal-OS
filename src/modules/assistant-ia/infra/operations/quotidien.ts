@@ -208,12 +208,16 @@ export const RENDEZ_VOUS: OperationIA = {
       texte(e, "fin") && !fin ? "une heure de fin lisible" : null,
     ].filter((x): x is string => x !== null);
     const invites: { id: string; nom: string }[] = [];
+    // P1 (décision 0047, banc d'audit Q1 RV-01) : un invité SANS compte ERP ne bloque plus le rendez-vous — il est écrit
+    // comme invité EXTERNE dans la description, et la carte propose de l'inviter par mail.
+    const externes: string[] = [];
     for (const nom of liste(e, "invites")) {
       const t = await prisma.user.findMany({ where: { isActive: true, name: { contains: nom, mode: "insensitive" } }, select: { id: true, name: true }, take: 5 });
       const exact = t.filter((u) => replier(u.name) === replier(nom));
       const un = exact.length === 1 ? exact[0] : t.length === 1 ? t[0] : null;
       if (un) invites.push({ id: un.id, nom: un.name });
-      else manque.push(t.length > 1 ? `quel invité pour « ${nom} » : ${t.map((u) => u.name).join(", ")}` : `« ${nom} » n'a pas de compte actif : un autre invité`);
+      else if (t.length > 1) manque.push(`quel invité pour « ${nom} » : ${t.map((u) => u.name).join(", ")}`);
+      else externes.push(nom);
     }
     if (manque.length) return { manque };
     return {
@@ -222,12 +226,16 @@ export const RENDEZ_VOUS: OperationIA = {
         fields: champs([
           ["Objet", texte(e, "titre")], ["Début", debut!.replace("T", " à ")], ["Fin", fin ? fin.replace("T", " à ") : null],
           ["Lieu", texte(e, "lieu") || null], ["Invités", invites.length ? invites.map((i) => i.nom).join(", ") : null],
+          ["Invités externes", externes.length ? externes.join(", ") : null],
         ]),
-        warnings: invites.length ? ["Les invités reçoivent l'invitation dans leur agenda."] : [],
+        warnings: [
+          ...(invites.length ? ["Les invités reçoivent l'invitation dans leur agenda."] : []),
+          ...(externes.length ? [`${externes.join(", ")} n'${externes.length > 1 ? "ont" : "a"} pas de compte ERP : noté${externes.length > 1 ? "s" : ""} comme invité${externes.length > 1 ? "s" : ""} externe${externes.length > 1 ? "s" : ""} dans la description — je peux ${externes.length > 1 ? "les" : "l'"}inviter par mail (envoyer_mail) si tu me donnes ${externes.length > 1 ? "leurs adresses" : "son adresse"}.`] : []),
+        ],
       },
       args: {
         title: texte(e, "titre"), start: debut, end: fin, location: texte(e, "lieu") || null,
-        description: texte(e, "description") || null, invites: JSON.stringify(invites.map((i) => i.id)),
+        description: [texte(e, "description"), externes.length ? `Invités externes : ${externes.join(", ")}` : ""].filter(Boolean).join("\n\n") || null, invites: JSON.stringify(invites.map((i) => i.id)),
         allDay: debut!.length === 10 ? "true" : null,
       },
     };

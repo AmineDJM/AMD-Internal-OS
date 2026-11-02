@@ -270,6 +270,18 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     await prisma.user.delete({ where: { id: u.id } });
   });
 
+  it("RENDEZ-VOUS (audit Q1 RV-01) — un invité sans compte ERP ne bloque pas : invité externe dans la description, mail proposé", async () => {
+    const { RENDEZ_VOUS } = await import("./infra/operations/quotidien");
+    const demain = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+    const p = await RENDEZ_VOUS.proposer({ titre: "Point appel d'offres", debut: `${demain} 10:00`, invites: `Dr Externe${TAG}` }, sa);
+    expect("carte" in p, JSON.stringify(p)).toBe(true);
+    if ("carte" in p) {
+      expect(JSON.stringify(p.carte.fields)).toContain(`Dr Externe${TAG}`);
+      expect(p.carte.warnings.join(" ")).toMatch(/invité.? externe.*mail/);
+      expect(p.args.description).toContain(`Invités externes : Dr Externe${TAG}`);
+    }
+  });
+
   it("MAILS — un nom introuvable : UNE question, aucune carte", async () => {
     const props: PropositionPreparee[] = [];
     const tous = outilsV1(sa, props, [], [], null, undefined, { capacites: true });
