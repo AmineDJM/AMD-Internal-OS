@@ -25,6 +25,10 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "ad-pro-item-actions:annulerOrdrePoste": retour("l'ordre, la facture et le poste reprennent leur statut d'avant ; refusée si l'ordre a été réémis depuis"),
   "ad-pro-item-actions:deleteAdProItem": retour("le poste revient de la corbeille avec ses éléments liés (même identifiant), l'ordre reprend son statut"),
   "ad-pro-item-actions:demanderPaiementPoste": compensation(ORDRE),
+  // D2 (décision 0057) : l'accès par base — un réglage daté se révoque ; l'annulation remet l'état d'avant.
+  "acces-bases-actions:poserReglageBase": retour("le réglage créé est retiré (journal des effets) : la base revient à son niveau d'avant"),
+  "acces-bases-actions:revoquerReglageBase": retour("le réglage révoqué reprend vigueur (journal des effets)"),
+  "acces-bases-actions:reglerPropresDonneesBase": retour(REGLAGE),
   "assistant-ia-actions:reglerMaReponseVocale": retour(REGLAGE),
   "assistant-ia-actions:reglerMaMemoireAuto": retour(REGLAGE),
   // S1 (décision 0048) : tutoiement / vouvoiement de SON assistant.

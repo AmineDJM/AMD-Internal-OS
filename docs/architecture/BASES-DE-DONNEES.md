@@ -69,7 +69,7 @@ par base :
    du coffre et est journalisée (`AccesDonneeSensible`) ; aucun modèle d'IA ne le lit jamais.
 
 <!-- BASES:DEBUT -->
-_Généré par `npm run bases:generer` — 515 tables, 29 bases. Ne pas éditer à la main._
+_Généré par `npm run bases:generer` — 517 tables, 29 bases. Ne pas éditer à la main._
 
 ### Bases métier (381 tables)
 
@@ -100,11 +100,11 @@ _Généré par `npm run bases:generer` — 515 tables, 29 bases. Ne pas éditer 
 | Pilotage, KPI & intelligence de direction (`pilotage`) | 20 | Confidentiel (jusqu'à secret) | KPI & bilans, Adventum Brain, Process Intelligence, Cockpit Opérations, My Chief of Staff |
 | Site web public (`site-web`) | 6 | Public interne | Site web |
 
-### Bases techniques (134 tables)
+### Bases techniques (136 tables)
 
 | Base | Tables | Sensibilité | Modules qui l'ouvrent aujourd'hui |
 |---|---:|---|---|
-| Comptes, connexions & droits d'accès (`comptes-et-droits`) | 17 | Secret | Administration |
+| Comptes, connexions & droits d'accès (`comptes-et-droits`) | 19 | Secret | Administration |
 | Assistant IA — conversations, notes & mémoire personnelles (`ia-conversations`) | 31 | Confidentiel | Assistant IA, My Chief of Staff |
 | IA — moteur, missions, connaissances & réglages (`ia-moteur`) | 56 | Restreint (jusqu'à confidentiel) | Administration, Assistant IA, Recettes |
 | Journaux & traçabilité (`journaux`) | 8 | Confidentiel (jusqu'à secret) | Administration |
@@ -843,7 +843,7 @@ Ce que le site public d'Adventum publie (articles, pages reprises) et la mesure 
 | `SiteReconciliation` | Rapprochement du site publié | Public interne | site-web-actions |
 | `SiteAnalyticsEvent` | Mesure d'audience du site | Public interne | — |
 
-#### Comptes, connexions & droits d'accès — `comptes-et-droits` (17 tables, secret)
+#### Comptes, connexions & droits d'accès — `comptes-et-droits` (19 tables, secret)
 
 Qui peut se connecter, avec quels droits, sur quelles sociétés, et les connexions aux services externes (courriel, Google, API).
 
@@ -865,6 +865,8 @@ Qui peut se connecter, avec quels droits, sur quelles sociétés, et les connexi
 | `RowGrant` | Accès à une ligne précise | Secret | access-actions |
 | `AssistantIaAcces` | Familles de l'assistant ouvertes ou fermées (rôle ou personne) | Secret | assistant-ia-consommation-actions |
 | `AssistantIaDroitDate` | Droit daté de l'assistant sur une famille sensible | Secret | assistant-ia-consommation-actions |
+| `AccesBase` | Réglage d'accès à une base (rôle ou personne, daté) | Secret | acces-bases-actions |
+| `AccesBaseParametre` | Paramètre d'une base (accès à ses propres données) | Secret | acces-bases-actions |
 | `SupplierUser` | Compte du portail fournisseur | Secret | supplier-actions, supplier-portal-actions |
 | `ApiClient` | Client de l'API externe | Secret | — |
 | `MailAccount` | Boîte de courriel connectée | Secret | mail-actions |
@@ -1000,7 +1002,7 @@ Qui a fait quoi et quand : journal d'audit, activité, corbeille, appels d'API, 
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `AuditLog` | Journal d'audit | Secret — les valeurs avant / après de toute écriture, paie comprise | access-actions, actualisation-soldes-actions, ad-pro-centre-actions, ad-pro-edit-actions +154 |
+| `AuditLog` | Journal d'audit | Secret — les valeurs avant / après de toute écriture, paie comprise | acces-bases-actions, access-actions, actualisation-soldes-actions, ad-pro-centre-actions +155 |
 | `ActivityLog` | Journal d'activité | Confidentiel | adoption-actions |
 | `SessionEvent` | Événement de session | Confidentiel | — |
 | `DeletedRecord` | Élément en corbeille | Secret — copie complète de chaque ligne supprimée, de toutes les bases | ad-pro-item-actions, ad-pro-pieces-actions, admin-delete-actions, bd-project-actions +9 |

@@ -58,6 +58,11 @@ export const CARTE = {
   recettes: [],
   /** Salles de réunion et leurs réservations (T3, décision 0051) : ouvertes à tous les employés, créneau sans chevauchement. */
   salles: [],
+  /**
+   * Accès par base (D1-D5, décision 0057) : le catalogue des bases (familles de tables) et un niveau au-dessus des modules
+   * — Normal / Lecture seule / Fermée / Ouverte, par rôle ou par personne, daté et motivé. Ne lit aucun module.
+   */
+  "acces-bases": [],
   /** Suivi de dossiers (T3, décision 0051) : la mise à jour EN LOT depuis un tableau (rapprochement contrôlé, plan). */
   "suivi-dossiers": [],
 } as const satisfies Record<string, readonly string[]>;

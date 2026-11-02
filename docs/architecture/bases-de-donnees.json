@@ -1,5 +1,5 @@
 {
- "schemaModeles": 515,
+ "schemaModeles": 517,
  "bases": [
   {
    "cle": "personnel",
@@ -4633,7 +4633,7 @@
      "Mots de passe hachés, jetons de connexion chiffrés ; jamais exposés à l'assistant"
     ]
    },
-   "nombreTables": 17,
+   "nombreTables": 19,
    "tables": [
     {
      "modele": "User",
@@ -4717,6 +4717,22 @@
      "sensibilite": "secret",
      "ecritePar": [
       "assistant-ia-consommation-actions"
+     ]
+    },
+    {
+     "modele": "AccesBase",
+     "libelle": "Réglage d'accès à une base (rôle ou personne, daté)",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "acces-bases-actions"
+     ]
+    },
+    {
+     "modele": "AccesBaseParametre",
+     "libelle": "Paramètre d'une base (accès à ses propres données)",
+     "sensibilite": "secret",
+     "ecritePar": [
+      "acces-bases-actions"
      ]
     },
     {
@@ -5500,6 +5516,7 @@
      "sensibilite": "secret",
      "pourquoi": "les valeurs avant / après de toute écriture, paie comprise",
      "ecritePar": [
+      "acces-bases-actions",
       "access-actions",
       "actualisation-soldes-actions",
       "ad-pro-centre-actions",

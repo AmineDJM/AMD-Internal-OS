@@ -1,6 +1,8 @@
 # Accès par base — proposition (lot D1, 02/11/2026)
 
-> **Statut : PROPOSITION, à valider par la Direction.** Rien n'est implémenté dans ce lot. Le catalogue des bases
+> **Statut : DÉCIDÉ (Direction, 02/11/2026) — voir la décision [0057](../assistant/decisions/0057-acces-par-base.md)**, qui
+> tranche les neuf questions (§9) : la base OUVRE et FERME, par rôle et par personne, datée et motivée, sans exception
+> pour le Super Admin (garde-fou anti-verrouillage). Mise en œuvre par lots D2 à D5. Le catalogue des bases
 > est dans [BASES-DE-DONNEES.md](BASES-DE-DONNEES.md) ; le résumé d'une page dans
 > [BASES-RESUME-DIRECTION.md](BASES-RESUME-DIRECTION.md).
 

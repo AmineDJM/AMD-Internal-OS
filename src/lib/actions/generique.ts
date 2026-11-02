@@ -64,6 +64,9 @@ export const MODELES_INTERDITS: Readonly<Record<string, string>> = {
   medicalDirectoryAccess: "l'accès d'une personne à l'annuaire médical",
   regulatoryFeatureAccess: "l'accès d'une personne aux fonctions Regulatory",
   supplierUser: "les comptes fournisseurs",
+  // D2 (décision 0057) : l'accès par base — ouvrir, fermer, lecture seule, et ses propres données.
+  accesBase: "l'accès d'un rôle ou d'une personne à une base de données entière",
+  accesBaseParametre: "l'accès à ses propres données quand une base est fermée",
   // Les RÉGLAGES portent les garde-fous eux-mêmes — la politique d'envoi d'Adam, la pause
   // sortante, les bascules de fonctionnalité. Le chemin générique ne sait pas distinguer un
   // réglage qui RESTREINT d'un réglage qui OUVRE ; il refuse donc les deux, et les gestes
