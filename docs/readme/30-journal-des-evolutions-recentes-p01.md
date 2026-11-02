@@ -1,5 +1,13 @@
 ## 🧾 Journal des évolutions récentes
 
+### S1 bis — L'IDENTITÉ NE S'APPREND PAS : « C'EST AMINE QUI ÉCRIT » NE DEVIENT PLUS UN PRÉNOM RETENU (2026-11-02)
+
+Banc Q1 (rejeu réel P1+S1+B1, US-01) : la paie refusée, mais « Prénom : Amine » retenu dans la mémoire de Radia — d'où le
+« Salut Amine ». L'identité vient du compte, jamais de la parole ni de la mémoire : un tour qui déclare écrire pour un autre
+ne nourrit pas la mémoire ; aucun souvenir d'identité ne s'écrit (capture, voix, consolidation, main, carte, modification)
+ni ne se relit (rappel, voix, ancien contexte) — ceux déjà en base sont neutralisés. Décision
+[0048 §6 bis](../assistant/decisions/0048-acces-personnels.md) ; `src/modules/assistant-ia/domaine/memoire/identite.ts`.
+
 ### P1 — L'ASSISTANT PILOTE VRAIMENT SES MISSIONS ET SES MAILS, ET NE DIT JAMAIS AVOIR FAIT CE QU'IL N'A PAS FAIT (2026-11-02)
 
 Direction, 02/11 : trois missions « En cours · 0 % », une troisième lancée au lieu de fusionner, « je prends en compte la

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ditQuiEstLaPersonne, REFUS_IDENTITE } from "../domaine/memoire/identite";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {
   estSorteMemoire, MEMOIRE_MAX_CARACTERES, MEMOIRE_MAX_ELEMENTS,
@@ -38,6 +39,8 @@ export function nettoyerSouvenir(contenu: unknown): { ok: true; texte: string } 
   if (censurerTexte(texte).censure) {
     return { ok: false, erreur: "Une rémunération, une coordonnée bancaire ou un numéro de pièce d'identité ne se retient pas : ces données ne vont jamais à l'assistant." };
   }
+  // S1 (décision 0048) : qui est la personne vient de son compte, jamais de sa mémoire — quelle que soit l'origine.
+  if (ditQuiEstLaPersonne(texte)) return { ok: false, erreur: REFUS_IDENTITE };
   return { ok: true, texte };
 }
 
@@ -215,5 +218,6 @@ export async function memoirePourContexte(userId: string, limite = MEMOIRE_MAX_E
     orderBy: { updatedAt: "desc" },
     take: limite,
   });
-  return items.map((i) => ({ id: i.id, sorte: i.type, contenu: i.content, vecteur: i.vecteur }));
+  // Un souvenir ANCIEN qui dirait qui elle est (« Prénom : Amine », retenu avant la garde) ne se relit plus.
+  return items.filter((i) => !ditQuiEstLaPersonne(i.content)).map((i) => ({ id: i.id, sorte: i.type, contenu: i.content, vecteur: i.vecteur }));
 }

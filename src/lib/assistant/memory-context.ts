@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sansBloquer } from "@/lib/journal";
+import { ditQuiEstLaPersonne } from "@/modules/assistant-ia/partage";
 
 /**
  * MÉMOIRE TYPÉE DU CHIEF OF STAFF — la couche de LECTURE, volontairement légère.
@@ -75,6 +76,8 @@ export async function typedMemoryContext(userId: string): Promise<string> {
   const aliasLines: string[] = [];
   const otherLines: string[] = [];
   for (const it of items) {
+    // S1 : un souvenir qui dirait qui est la personne ne se relit pas (l'identité vient du compte).
+    if (ditQuiEstLaPersonne(it.content)) continue;
     if (it.type === "ENTITY_ALIAS" || it.type === "TERMINOLOGY") {
       const pair = aliasOf(it);
       aliasLines.push(pair ? `${pair.alias} = ${pair.target}` : it.content);

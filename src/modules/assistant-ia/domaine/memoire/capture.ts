@@ -1,4 +1,5 @@
 import { plier, termes } from "../selection-outils";
+import { ditQuiEstLaPersonne } from "./identite";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, type SorteMemoire } from "../memoire-ui";
 
 /**
@@ -198,6 +199,8 @@ export type VerdictGarde = { ok: true } | { ok: false; raison: string };
 export function garderCandidat(c: Pick<Candidat, "contenu">, message: string, p: { nom?: string | null; aujourdhui?: Date } = {}): VerdictGarde {
   const plie = plier(c.contenu).replace(/'/g, " ");
   if (CONFIDENTIEL.test(plie)) return { ok: false, raison: "confidentiel" };
+  // S1 : l'identité vient du compte — « Prénom : Amine » ne s'apprend pas d'une conversation.
+  if (ditQuiEstLaPersonne(c.contenu)) return { ok: false, raison: "identité : vient du compte" };
   // Son nom est celui du compte : « S'appelle Yacine Benali » n'apprend rien (le contexte le dit déjà).
   const nomPlie = plier(p.nom ?? "");
   if (nomPlie && plie.includes(nomPlie) && plie.replace(nomPlie, "").replace(/\b(s appelle|il|elle|est|se nomme|nom|son|prenom|la personne|personne|utilisateur|la|le|l)\b/g, "").trim().length < 4) {

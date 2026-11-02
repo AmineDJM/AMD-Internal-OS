@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ditQuiEstLaPersonne } from "../domaine/memoire/identite";
 import { attendu } from "@/lib/journal";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {
@@ -70,6 +71,7 @@ export async function consoliderMemoire(userId: string, o: { force?: boolean; ma
     const remplaces = g.remplace.map((id) => parId.get(id)).filter((f): f is FaitStocke => !!f);
     const v = validerGroupe(g, remplaces);
     if (!v.ok || censurerTexte(g.contenu).censure) { refuses.push({ contenu: g.contenu, raison: v.ok ? "confidentiel" : v.raison }); continue; }
+    if (ditQuiEstLaPersonne(g.contenu)) { refuses.push({ contenu: g.contenu, raison: "identité : vient du compte" }); continue; }
     const fait = await prisma.$transaction(async (tx) => {
       const neuf = await tx.assistantMemoryItem.create({ data: { userId, type: g.sorte, content: g.contenu, origine: "consolidation", confidence: 0.8 } });
       // ÉCRITURE CONDITIONNELLE : seuls les faits encore actifs et à CETTE personne sont repris ; sinon on défait le groupe.
