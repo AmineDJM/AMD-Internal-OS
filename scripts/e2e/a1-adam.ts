@@ -1,5 +1,5 @@
 /**
- * PREUVES DU LOT A1 (décision 0055) — « un seul assistant : Adam », sur un SERVEUR RÉEL et la base LOCALE.
+ * PREUVES DU LOT A1 (décision 0056) — « un seul assistant : Adam », sur un SERVEUR RÉEL et la base LOCALE.
  *
  *   DATABASE_URL=postgresql://amd:amd@localhost:5432/amd_internal_os BASE=http://localhost:3100 npx tsx scripts/e2e/a1-adam.ts
  *

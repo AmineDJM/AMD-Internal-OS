@@ -1,4 +1,4 @@
-# Preuves du lot A1 — « un seul assistant : Adam » (décision 0055)
+# Preuves du lot A1 — « un seul assistant : Adam » (décision 0056)
 
 Captures prises sur un **serveur réel** (`next start`, build de production) branché sur la **base locale**
 (`postgresql://amd:amd@localhost:5432/amd_internal_os`, `ADAM_SORTIE_INTERDITE=1`, aucune clé IA : rien ne part), par

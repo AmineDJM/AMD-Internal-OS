@@ -1,4 +1,4 @@
-# 0055 — « Un seul assistant : Adam » — le nom, le menu, les routes et les missions (lot A1, 02/11/2026)
+# 0056 — « Un seul assistant : Adam » — le nom, le menu, les routes et les missions (lot A1, 02/11/2026)
 
 **Décision (Direction, 02/11/2026, validée)** : « je veux merge Adam et l'assistant IA. L'assistant IA de la plateforme,
 c'est Adam. (…) dans l'ERP, tu enlèves my chief of staff, le module. (…) garde toutes les fonctionnalités d'Adam, tous,
@@ -7,7 +7,7 @@ réellement tous, mais uniquement pour le super admin. L'assistant IA pour les a
 chacun selon les missions qu'il lui a données. (…) ne supprime rien dans le code, quitte à tout masquer. »
 
 Le chantier est coupé en deux lots parallèles. **A1 (celui-ci)** : le nom, le menu, les routes, les écrans de missions.
-**A2** (`jarvis/a2-adam-complet`) : les capacités de l'ancien Adam branchées dans le moteur de l'Assistant IA, pour le
+**A2** (`jarvis/a2-adam-complet`, décision 0055) : les capacités de l'ancien Adam branchées dans le moteur de l'Assistant IA, pour le
 Super Admin seul. A1 ne touche ni au moteur ni aux outils — seule la ligne d'identité de la consigne change (le nom).
 
 ## Ce que cette décision RÉVISE de la décision 0013
@@ -15,7 +15,7 @@ Super Admin seul. A1 ne touche ni au moteur ni aux outils — seule la ligne d'i
 0013 posait « deux produits, un socle » : **Adam** (Super Admin, `/chief-of-staff`) et **l'Assistant IA** (chacun, selon
 ses droits, `/assistant`). Elle change de sens :
 
-| | 0013 (29/10) | 0055 (02/11) |
+| | 0013 (29/10) | 0056 (02/11) |
 |---|---|---|
 | Le nom | « Adam » = le chief of staff du Super Admin ; « Assistant IA » = celui de tous | **« Adam » pour tous** — l'assistant de chacun, ouvert personne par personne |
 | L'écran | deux entrées de menu (« Assistant IA », « My Chief of Staff ») | **une** : « Adam » (`/assistant`) ; le Super Admin y a des onglets (Boîte de réception, Réglages d'Adam, Bureau d'Adam) |

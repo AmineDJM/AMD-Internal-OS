@@ -6,7 +6,7 @@
 > statically from the test source plus a read-only run of the boundary scanner (`scripts/adam-boundary.ts`).
 
 > **Update 2026-11-02 — lot A1, « un seul assistant : Adam » — name, menu, routes, missions** (decision record
-> `docs/assistant/decisions/0055-adam-nom-menu-missions.md`, which REVISES decision 0013 on naming and screens) [V]:
+> `docs/assistant/decisions/0056-adam-nom-menu-missions.md`, which REVISES decision 0013 on naming and screens) [V]:
 > - **Name**: module `ASSISTANT_IA` keeps its key; label "Adam" (`MODULE_LABELS`, nav entry `/assistant`, console
 >   `/admin/ai/acces`). Identity is pure and from the ACCOUNT: `presentationAdam(prenom)`, `identiteDuModele()` (first line of
 >   the stable prompt prefix in `infra/contexte.ts`), "Ta présentation" line in `sectionProfil`, voice instructions

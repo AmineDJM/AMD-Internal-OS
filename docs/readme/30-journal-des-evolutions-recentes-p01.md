@@ -1,6 +1,6 @@
 ## 🧾 Journal des évolutions récentes
 
-### UN SEUL ASSISTANT : ADAM — LE NOM, LE MENU, LES ROUTES, LES MISSIONS (2026-11-02, lot A1, décision 0055)
+### UN SEUL ASSISTANT : ADAM — LE NOM, LE MENU, LES ROUTES, LES MISSIONS (2026-11-02, lot A1, décision 0056)
 
 Décidé par la Direction le 02/11 (« l'assistant IA de la plateforme, c'est Adam »). Aucune migration, aucun droit modifié.
 - **Le nom** : « Assistant IA » → **« Adam »** au menu, dans la console des accès (libellé du module `ASSISTANT_IA`, clé
