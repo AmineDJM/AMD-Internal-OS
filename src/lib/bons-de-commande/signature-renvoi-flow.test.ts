@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { createLegalDocument, updateLegalDocument } from "@/lib/actions/legal-actions";
@@ -84,20 +85,6 @@ suite("Bons de commande — renvoyer à l'émetteur au lieu de signer (flux rée
     ACTOR = await actorFor(actorId, role);
     return renvoyerBonDeCommande(form({ id, note }));
   };
-
-  async function attendreBloques(tx: Prisma.TransactionClient, motif: string, n: number) {
-    const debut = Date.now();
-    for (;;) {
-      await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-      const [{ k }] = await tx.$queryRaw<{ k: number }[]>`
-        SELECT count(*)::int AS k FROM pg_stat_activity
-        WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE ANY(${[`%${motif}%`]}::text[])`;
-      if (k >= n) return;
-      if (Date.now() - debut > 10_000) throw new Error(`${k} geste(s) bloqué(s) sur ${motif}, ${n} attendu(s)`);
-      await new Promise((r) => setTimeout(r, 25));
-    }
-  }
 
   beforeAll(async () => {
     const seuil = (await getAppSettings()).bcValidationThreshold;
@@ -232,7 +219,7 @@ suite("Bons de commande — renvoyer à l'émetteur au lieu de signer (flux rée
     // Le verrou SHARE arrête toute écriture de pièce sans arrêter les lectures : les deux gestes
     // relisent la même pièce « à signer » avant que l'un n'écrive.
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "LegalDocument" IN SHARE MODE`);
+      await poserBarriere(tx, "LegalDocument");
       ACTOR = finance;
       const a = signerBonDeCommande(avecCopieSignee(form({ id })));
       const b = renvoyerBonDeCommande(form({ id, note: "Montant à revoir." }));

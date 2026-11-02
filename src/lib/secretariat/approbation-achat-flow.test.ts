@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { activeStandInsFor } from "@/lib/hr/stand-in-resolve";
 import { createRequest, requestApproval, decideApproval } from "@/lib/actions/admin-request-actions";
@@ -117,25 +118,11 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
   const etat = (id: string) => prisma.adminApproval.findUniqueOrThrow({
     where: { id }, select: { status: true, decidedById: true, decidedAt: true, decisionNote: true, comment: true },
   });
-
-  async function attendreBloques(tx: Prisma.TransactionClient, table: string, n: number) {
-    const debut = Date.now();
-    for (;;) {
-      await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-      const [{ k }] = await tx.$queryRaw<{ k: number }[]>`
-        SELECT count(*)::int AS k FROM pg_stat_activity
-        WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE ANY(${[`%${table}%`]}::text[])`;
-      if (k >= n) return;
-      if (Date.now() - debut > 10_000) throw new Error(`${k} geste(s) bloqué(s) sur ${table}, ${n} attendu(s)`);
-      await new Promise((r) => setTimeout(r, 25));
-    }
-  }
   /** Un geste arrêté entre sa lecture et son écriture pendant que le détenteur du verrou écrit — déterministe. */
   async function pendantLaLecture<T>(table: string, lancer: () => Promise<T>, concurrent: (tx: Prisma.TransactionClient) => Promise<unknown>): Promise<T> {
     let geste!: Promise<T>;
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "${table}" IN SHARE MODE`);
+      await poserBarriere(tx, table);
       geste = lancer();
       geste.catch(() => undefined);
       await attendreBloques(tx, table, 1);
@@ -147,7 +134,7 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
   async function ensemble<T>(table: string, lancer: () => Promise<T>[]): Promise<T[]> {
     let gestes: Promise<T>[] = [];
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "${table}" IN SHARE MODE`);
+      await poserBarriere(tx, table);
       gestes = lancer();
       for (const g of gestes) g.catch(() => undefined);
       await attendreBloques(tx, table, gestes.length);

@@ -31,6 +31,7 @@ import {
 import { decidePayment, respondToPaymentCentre } from "./actions-centre";
 import { grantPaymentCentreSeat, revokePaymentCentreSeat } from "./actions-sieges";
 import { purgeSettledExpenseOrders } from "./actions-depenses";
+import { exclusifEntreBancs, PURGE_HISTORIQUE } from "@/lib/actions/internes/bancs-concurrents";
 import { createInvoice, setInvoicePaid, updateInvoice } from "@/lib/actions/invoice-actions";
 
 let dbOk = false;
@@ -265,7 +266,10 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
     expect((await prisma.paymentCentreSeat.findUniqueOrThrow({ where: { id: s2.id } })).note).toBe(s2.note);
   });
 
-  it("MASQUER les ordres réglés de l'historique → les ordres masqués par ce geste réapparaissent, même au-delà de 500", async () => {
+  it("MASQUER les ordres réglés de l'historique → les ordres masqués par ce geste réapparaissent, même au-delà de 500", () => exclusifEntreBancs(PURGE_HISTORIQUE, async () => {
+    // La purge masque TOUT l'historique de la base partagée : un autre banc qui la jouerait entre notre semis et notre
+    // annulation masquerait nos ordres sous SON geste — et notre annulation ne les rendrait pas (mesuré : 167 sur 520).
+    // Les bancs de ce geste global se succèdent, du semis au constat.
     // Un historique PLUS LONG que ce que le journal détaille d'un seul `updateMany` (500) : la purge procède par
     // tranches nommées, chaque ordre est journalisé, et TOUS réapparaissent.
     await prisma.expenseOrder.createMany({
@@ -279,11 +283,11 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
     expect(err(await purgeSettledExpenseOrders())).toBeNull();
     expect(await prisma.expenseOrder.count({ where: { ...nos, historiqueMasqueLe: null } })).toBe(0);
     const c = await annulerDernier();
-    // La purge masque TOUT l'historique de la base partagée : un ordre d'un autre banc, retiré par son nettoyage entre-temps,
-    // « n'existe plus » — vrai, et pas le nôtre. Les nôtres réapparaissent tous.
+    // Un ordre d'un autre banc, retiré par son nettoyage entre-temps, « n'existe plus » — vrai, et pas le nôtre. Les nôtres
+    // réapparaissent tous.
     expect(bloquants(c).filter((b) => b.includes(TAG) || !/n'existe plus/.test(b))).toEqual([]);
     expect(await prisma.expenseOrder.count({ where: { ...nos, historiqueMasqueLe: null } })).toBe(520);
-  });
+  }));
 
   it("FACTURES : enregistrer → ANNULÉE (pièce numérotée, jamais retirée — règle K10b) ; modifier → remise ; marquer payée → date retirée, le décaissement reste et un « à récupérer » le compense", async () => {
     await comme("sa");

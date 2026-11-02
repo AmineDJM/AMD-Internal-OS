@@ -22,6 +22,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { siegeAuCentreAdPro } from "../domaine/centre";
 import { addAdProItem, submitAdProItem, updateAdProItem, deleteAdProItem, requestAdProItemOrder, approveAdProItemOrder, demanderPieceSecretariat } from "../actions-postes";
@@ -213,20 +214,10 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
   async function sousBarriere<T>(lancer: () => Promise<T>[], attendus = 2): Promise<T[]> {
     let gestes: Promise<T>[] = [];
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "AdProItem" IN SHARE MODE`);
+      await poserBarriere(tx, "AdProItem");
       gestes = lancer();
       for (const g of gestes) g.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE ANY(${["%AdProItem%"]}::text[])`;
-        if (n >= attendus) break;
-        if (Date.now() - debut > 10_000) throw new Error(`les gestes n'ont pas atteint la barrière (${n} en attente sur ${attendus})`);
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, "%AdProItem%", attendus);
     }, { timeout: 20_000 });
     return Promise.all(gestes);
   }
@@ -241,20 +232,10 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
   async function pendantLaLecture<T>(lancer: () => Promise<T>, concurrent: (tx: Prisma.TransactionClient) => Promise<unknown>): Promise<T> {
     let geste!: Promise<T>;
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "AdProItem" IN SHARE MODE`);
+      await poserBarriere(tx, "AdProItem");
       geste = lancer();
       geste.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE ANY(${["%AdProItem%"]}::text[])`;
-        if (n >= 1) break;
-        if (Date.now() - debut > 10_000) throw new Error("le geste n'a pas atteint la barrière");
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, "%AdProItem%", 1);
       await concurrent(tx);
     }, { timeout: 20_000 });
     return geste;

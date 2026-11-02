@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, requireModule: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, moduleScope, userCan, type SessionUser } from "@/lib/rbac";
 import { rapporterVisite, ajouterVisiteImprevue } from "./tour-visit-actions";
 import { logVisit } from "./medical-actions";
@@ -180,26 +181,10 @@ suite("Matériel remis en visite — déduit du stock du délégué, bloqué au-
   async function sousBarriere<T>(lancer: () => Promise<T>[], attendus = 2, motifs: string[] = ["%PromoStock%"]): Promise<T[]> {
     let gestes: Promise<T>[] = [];
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "PromoStockMovement" IN SHARE MODE`);
+      await poserBarriere(tx, "PromoStockMovement");
       gestes = lancer();
       for (const g of gestes) g.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE ANY(${motifs}::text[])`;
-        if (n >= attendus) break;
-        if (Date.now() - debut > 10_000) {
-          await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-          const vues = await tx.$queryRaw<{ etat: string | null; attente: string | null; requete: string }[]>`
-            SELECT state AS etat, coalesce(wait_event_type, '') || ':' || coalesce(wait_event, '') AS attente, left(query, 90) AS requete
-            FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()`;
-          throw new Error(`les rapports n'ont pas atteint la barrière (${n} en attente sur ${attendus}) — ${JSON.stringify(vues)}`);
-        }
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, motifs, attendus);
     }, { timeout: 20_000 });
     return Promise.all(gestes);
   }

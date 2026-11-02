@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { createSponsoring } from "../actions-sponsoring";
@@ -209,28 +210,10 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
   async function sousBarriere<T>(table: string, lancer: () => Promise<T>[], attendus = 2): Promise<T[]> {
     let gestes: Promise<T>[] = [];
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "${table}" IN SHARE MODE`);
+      await poserBarriere(tx, table);
       gestes = lancer();
       for (const g of gestes) g.catch(() => undefined); // l'erreur se lit plus bas, pas en rejet orphelin
-      const debut = Date.now();
-      for (;;) {
-        // Dans une transaction, Postgres FIGE la vue des sessions au premier accès (§118.164e).
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRawUnsafe<{ n: number }[]>(
-          `SELECT count(*)::int AS n FROM pg_stat_activity
-           WHERE datname = current_database() AND pid <> pg_backend_pid()
-             AND wait_event_type = 'Lock' AND query ILIKE '%${table}%'`,
-        );
-        if (n >= attendus) break;
-        if (Date.now() - debut > 10_000) {
-          await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-          const vues = await tx.$queryRaw<{ etat: string | null; attente: string | null; requete: string }[]>`
-            SELECT state AS etat, coalesce(wait_event_type, '') || ':' || coalesce(wait_event, '') AS attente, left(query, 90) AS requete
-            FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()`;
-          throw new Error(`les gestes n'ont pas atteint la barrière (${n} en attente sur ${attendus}) — ${JSON.stringify(vues)}`);
-        }
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, `%${table}%`, attendus);
     }, { timeout: 20_000 });
     return Promise.all(gestes);
   }

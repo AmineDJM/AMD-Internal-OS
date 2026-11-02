@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { createPromoMaterial } from "./promo-material-actions";
@@ -182,20 +183,10 @@ suite("Matériel promotionnel — renvoyer, resoumettre, redemander des devis (l
   async function pendantLaLecture<T>(lancer: () => Promise<T>, concurrent: (tx: Prisma.TransactionClient) => Promise<unknown>): Promise<T> {
     let geste!: Promise<T>;
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "PromoMaterial" IN SHARE MODE`);
+      await poserBarriere(tx, "PromoMaterial");
       geste = lancer();
       geste.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE ${'%"PromoMaterial"%'}`;
-        if (n >= 1) break;
-        if (Date.now() - debut > 10_000) throw new Error("le geste n'a pas atteint la barrière");
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, '%"PromoMaterial"%', 1);
       await concurrent(tx);
     }, { timeout: 20_000 });
     return geste;
