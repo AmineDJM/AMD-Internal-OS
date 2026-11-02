@@ -68,9 +68,10 @@ export function lireLignesDemande(brut: string | null | undefined): { ok: true; 
         produitIds: textes(o.produitIds),
         autre: texte(o.autre).trim(),
         commentaire: texte(o.commentaire),
-        autreNom: texte(o.autreNom).trim(),
-        autreFamille: texte(o.autreFamille).trim(),
-        autreDescription: texte(o.autreDescription).trim(),
+        // « Autre article » : seulement quand la ligne le porte (une ligne du catalogue reste ce qu'elle était).
+        ...(texte(o.autreNom).trim() ? { autreNom: texte(o.autreNom).trim() } : {}),
+        ...(texte(o.autreFamille).trim() ? { autreFamille: texte(o.autreFamille).trim() } : {}),
+        ...(texte(o.autreDescription).trim() ? { autreDescription: texte(o.autreDescription).trim() } : {}),
       };
     }),
   };
