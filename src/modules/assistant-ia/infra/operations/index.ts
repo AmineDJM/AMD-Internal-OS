@@ -58,7 +58,7 @@ export const OPERATIONS_IA: OperationIA[] = [
   // T2 (décision 0052) : tenir l'annuaire — mise à jour en lot (Excel), fusion des doublons, annuler la dernière action.
   ...OPERATIONS_ANNUAIRE, DEMANDER_AU_TERRAIN,
 
-  // T1 (décision 0053) : ranger au Juridique en une carte (lot ≤ 12, missions au-delà) ; mettre à jour une fiche juridique.
+  // T1 (décision 0053) : ranger au Juridique en une carte (lot ≤ 30, aussi en geste d'une mission) ; mettre à jour une fiche juridique.
   RANGER_JURIDIQUE, MODIFIER_FICHE_JURIDIQUE,
 ];
 

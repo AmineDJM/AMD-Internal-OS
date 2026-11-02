@@ -116,7 +116,7 @@ secteur ne voit ni ne modifie la fiche ni la visite d'un autre panel (testé au 
 ### T1 — ADVENTUM IA RANGE, CONVERTIT, MODIFIE, RETROUVE ET DONNE LES DOCUMENTS, À LEUR PLACE (2026-11-02)
 
 « Ranger des documents dans légal, convertir, modifier, checker le drive, nous donner des documents » (Direction, 02/11).
-**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 12 pièces ou un dossier du Drive ; nature et dossier
+**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 30 pièces ou un dossier du Drive ; nature et dossier
 canoniques, dates lues sur la pièce, partie de l'annuaire, avenant créé sur son contrat) et **mettre à jour une fiche**
 (`modifier_fiche_juridique`) — par les actions de l'écran, annulables (J7/K10b). **Lire et donner** : `registre_juridique`
 (« le dernier contrat de X », échéances, dossiers ; le fichier remis par son lien, pièce restreinte jamais nommée) et

@@ -1,0 +1,82 @@
+{
+ "quand": "2026-11-02T20:41:01.915Z",
+ "modele": "gpt-6.1-terra",
+ "juge": "gpt-5-nano",
+ "budgetUsd": 0.3,
+ "budgetAtteint": false,
+ "depenseUsd": 0.061645,
+ "jugeUsd": 0,
+ "attaques": [],
+ "taches": [
+  {
+   "id": "DOC-10-lot",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger 5 pièces au Juridique — 1. Attestation CASNOS 2026.pdf: Attestation · CNAS · 2026-01-05 → 2026-12-31 · dossier « Attestations et certificats » · 2. Contrat de maintenance froid Frigomed.pdf: Contrat · Frigomed · 2026-04-01 → 2027-03-31 · dossier « Contrats » · 3. Convention de stage Université Alger 1.pdf: Convention · Université Alger 1 · 2026-02-01 → 2026-06-30 · dossier « Conventions et accords » · 4. Licence d'importation 2026.pdf: Agrément · Ministère de l'Industrie pharmaceutique · 2026-01-15 → 2027-01-14 · dossier « Agréments et autorisations » · 5. NDA BioSimilaire Lab.pdf: Acco",
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Range au Juridique toutes les pièces de mon dossier Drive « À classer — novembre », chacune à sa place."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lamia, le classement des **5 pièces** est préparé et attend votre confirmation. Les fichiers resteront dans le Drive, sans copie ; l’opération pourra être annulée.\n\n**Vérifiez les dates lues** sur les pièces :\n- Attestation CASNOS : délivrée le 05/01/2026, valable jusqu’au 31/12/2026.\n- Contrat Frigomed : du 01/04/2026 au 31/03/2027.\n- Convention de stage Université Alger 1 : du 01/02/2026 au 30/06/2026.\n- Licence d’importation : délivrée le 15/01/2026, valable jusqu’au 14/01/2027.\n- NDA BioSimilaire Lab : du 10/10/2026 au 09/10/2029.\n\nLe classement prévoit aussi les dossiers « Conventions et accords », « Agréments et autorisations » et « Confidentialité ».",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger 5 pièces au Juridique (PROPOSED) — 1. Attestation CASNOS 2026.pdf: Attestation · CNAS · 2026-01-05 → 2026-12-31 · dossier « Attestations et certificats » · 2. Contrat de maintenance froid Frigomed.pdf: Contrat · Frigomed · 2026-04-01 → 2027-03-31 · dossier « Contrats » · 3. Convention de stage Université Alger 1.pdf: Convention · Université Alger 1 · 2026-02-01 → 2026-06-30 · dossier « Conventions et accords » · 4. Licence d'importation 2026.pdf: Agrément · Ministère de l'Industrie pharmaceutique · 2026-01-15 → 2027-01-14 · dossier « Agréments et autorisations » · 5. NDA BioSimilaire Lab.pdf: Accord de confidentialité · BioSimilaire Lab · 2026-10-10 → 2029-10-09 · dossier « Confidentialité »"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 8991,
+   "coutUsd": 0.022266,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "DOC-11-mission-archives",
+   "domaine": "documents",
+   "categorie": "mission",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Lance en tâche de fond le classement au Juridique des 14 pièces de mon dossier « Archives juridiques 2025 », avec un récapitulatif à la fin."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lamia, le plan de classement attend votre approbation : il comporte **3 étapes**, dont le rangement juridique, avec un plafond de **20 USD**. Le récapitulatif reviendra dans la conversation.",
+     "outils": [
+      "Travail proposé"
+     ]
+    }
+   ],
+   "ms": 26614,
+   "coutUsd": 0.039379,
+   "appels": 7,
+   "erreur": null
+  }
+ ],
+ "nonJouees": []
+}
