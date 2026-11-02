@@ -235,6 +235,10 @@ export function classerExclusionsCircuits(): void {
     // totaux (`previsualiserApercuBcPoste`) et le PDF (`imprimerApercuBcPoste`) à blanc — des lectures d'écran, pas des gestes d'Adam.
     // Le geste « en un clic » qui émettait sans aperçu est retiré : un seul chemin, Générer → aperçu → Valider et envoyer.
     "ad-pro-item-actions:previsualiserApercuBcPoste", "ad-pro-item-actions:imprimerApercuBcPoste",
+    // LE BROUILLON EXCEL ET LA VERSION SIGNÉE (Direction, 11/2026) : la validation des lignes fait naître le brouillon Excel (numéro
+    // réservé) ; « Préparer le brouillon » le relance (`preparerBrouillonExcelPoste`) ; la personne dépose la version SIGNÉE
+    // (`deposerBcSignePoste`), qui fait naître le BC au registre déjà signé. Une signature est une attestation : un clic, jamais Adam.
+    "ad-pro-item-actions:preparerBrouillonExcelPoste", "ad-pro-item-actions:deposerBcSignePoste",
     // LE BC MODIFIÉ EN NATIF ET LA FACTURE CONTRÔLÉE PAR LUNA (Direction, 06/10) : une révision du Word et du PDF, et un
     // fichier de facture lu puis comparé au(x) BC signé(s) — des gestes devant la carte du poste, pas des appels d'Adam.
     "ad-pro-item-actions:modifierBcDuPoste", "ad-pro-item-actions:deposerFacturePoste",

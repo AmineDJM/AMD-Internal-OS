@@ -1,5 +1,35 @@
 ## 🧾 Journal des évolutions récentes
 
+### AD & PRO : LE DEVIS VALIDÉ FAIT NAÎTRE LE BROUILLON EXCEL DU BC, LA VERSION SIGNÉE ENTRE DANS LEGAL (2026-11-02)
+
+Migration `20270130100000_devis_non_retenu` (deux colonnes nullables sur `AdProItemPiece`). Sur un poste, plusieurs devis
+ou pro formas se déposent et se comparent ; valider les lignes d'un devis fait naître, sans autre clic, le **brouillon Excel**
+de son bon de commande — un par devis validé — et c'est la **version signée**, déposée sur le poste, qui entre dans Legal.
+Les droits ne changent pas : qui traite les devis du poste (le modifier, ou le valider) prépare le brouillon et dépose la
+version signée.
+- **Plus de validation d'office** (Direction, 02/11) : un devis bien lu arrive avec ses lignes COCHÉES, pas validées ; la
+  personne valide (« Valider les lignes cochées » ou « Tout valider (N) » — l'attestation « j'ai comparé » reste exigée
+  pour une ligne lue). `validerAutomatiquementLesLignesLues` est retirée.
+- **Le brouillon Excel** (`preparerLesBrouillonsExcel`, appelé par `validerLignesDuDevis` et `enregistrerLignesDuDevis` ;
+  « Préparer le brouillon » le relance, `preparerBrouillonExcelPoste`) : composé par la fabrique comme l'aperçu
+  (`composerBrouillonExcel`, `previsualiserDocument` puis `construireXlsxCommercial`, classeur à formules contrôlé au centime), avec un **numéro réservé** (`reserverNumeroDePiece` :
+  registre commun, sinon série de la fabrique) ; le .xlsx est un `Document` du POSTE (étape `BC_BROUILLON_EXCEL`), rien au
+  registre Legal. Il est refait sous le même numéro quand les lignes, la TVA ou la taxe changent (`empreinteDuBrouillonExcel`),
+  et retiré quand plus aucune ligne n'est validée. La marche du poste (centre Ad & Pro au-dessus du seuil) se prend au
+  premier brouillon. Qui a déposé le devis est notifié (`notificationBrouillonPret`).
+- **La version signée** (`deposerBcSignePoste`) : PDF ou photo + signataire ; Luna lit la copie AVANT toute écriture
+  (signature repérée, numéro du brouillon — `refusCopieSignee`) ; au-dessus du seuil, le visa du centre est attendu
+  (`refusDepotVersionSignee`). Le BC naît alors au registre **sous le numéro du brouillon** (`OptionsEmission.reservation`)
+  et **déjà signé** (`OptionsEmission.signee`, dans la même écriture) : il n'entre pas dans la file des Finances ; la copie
+  devient sa pièce (`BC_SIGNE`) et la case Facture s'ouvre. Le chemin « aperçu → Valider et envoyer aux Finances » reste
+  dans le code et reprend lui aussi le numéro réservé.
+- **Les devis non retenus** : au dépôt, chaque devis du poste sans ligne validée est marqué (`AdProItemPiece.nonRetenuAt`,
+  `nonRetenuParId` = qui a validé l'offre retenue) — dit sur le poste, la liste Legal et la fiche ; effacé si le BC est
+  annulé ou supprimé (`effacerNonRetenusDuBC`). Règles pures : `bons-de-commande/version-signee.ts` ; écriture et lecture :
+  `bons-de-commande/non-retenus.ts`.
+- Écran : `components/ad-pro/devis-bc-poste.tsx` (`BrouillonDuDevis`, « Tout valider ») ; le geste du poste « Déposer le BC
+  signé » ouvre la case BC (`items-panel.tsx`). Bancs : `bons-de-commande/version-signee.test.ts`, `ad-pro/devis-bc-flow.test.ts`
+  (« TROIS OFFRES, UNE RETENUE »), mis à jour : `audit-ad-pro-flow`, `bc-meme-piece-flow`, `bc-apercu-complet-flow`, `poste-etapes`.
 ### T3 — SUIVI DE DOSSIERS DEPUIS UN EXCEL, REGISTRE DES MOYENS GÉNÉRAUX, FICHES HÔTELLERIE ET VOYAGE AD & PRO (2026-11-02)
 
 « Mettre à jour le statut des dossiers en uploadant un Excel, suivi des moyens généraux, créer des fiches hôtellerie et

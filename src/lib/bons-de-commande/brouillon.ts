@@ -100,6 +100,65 @@ export interface BrouillonBc {
   numeroChoisi: string | null;
   /** TOUT ce que le composeur a corrigé hors lignes (voir `CorrectionsBc`) ; `null` = rien (ou un brouillon d'avant). */
   corrections: CorrectionsBc | null;
+  /** Le brouillon WORD du poste (`BrouillonExcel`), quand il a été produit ; absent ou `null` : pas encore. */
+  excel?: BrouillonExcel | null;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE BROUILLON EXCEL DU POSTE (Direction, 11/2026).
+ *
+ * « Si un devis est validé, un bon de commande est généré automatiquement en format modifiable (Excel, brouillon — « en Excel, pas en Word », Direction 11/2026) ; la
+ * personne qui a ajouté le devis est prévenue, l'imprime, le modifie ou le signe, puis le dépose — et c'est cette version
+ * finale, pas le brouillon, qui entre dans Legal. » Le brouillon naît donc à la VALIDATION des lignes, avec son numéro
+ * (il doit figurer sur le papier qu'on signe) : le numéro est RÉSERVÉ à ce moment, au registre de la société, et le BC
+ * qui naîtra au dépôt de la version signée le reprend. Le fichier vit sur le POSTE (un `Document` d'étape
+ * `ETAPE_BROUILLON_EXCEL`), jamais au registre Legal. Les lignes validées qui bougent le rendent PÉRIMÉ : il se refait,
+ * sous le même numéro.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export interface BrouillonExcel {
+  /** Le `Document` (.docx) déposé sur le poste. */
+  documentId: string;
+  /** Le numéro réservé, imprimé sur le brouillon et repris par le BC signé. */
+  numero: string;
+  /** L'entrée du registre commun qui tient ce numéro ; `null` : société hors registre (série de la fabrique). */
+  entreeRegistre: string | null;
+  /** L'empreinte de ce que le fichier imprime au moment où il a été composé (`empreinteDuBrouillonExcel`). */
+  signature: string;
+  totalTtc: number;
+  /** Composé le (ISO), par qui. */
+  le: string;
+  par: string;
+}
+
+/** L'étape (`Document.stepKey`) du fichier Excel du brouillon, sur le poste. */
+export const ETAPE_BROUILLON_EXCEL = "BC_BROUILLON_EXCEL";
+
+function excelLu(v: unknown): BrouillonExcel | null {
+  const o = objetLu(v);
+  if (!o) return null;
+  const documentId = texte(o.documentId);
+  const numero = texte(o.numero);
+  const signature = typeof o.signature === "string" ? o.signature : null;
+  const totalTtc = nombre(o.totalTtc);
+  const le = texte(o.le);
+  const par = texte(o.par);
+  if (!documentId || !numero || signature === null || totalTtc === null || !le || !par) return null;
+  return { documentId, numero, entreeRegistre: texte(o.entreeRegistre), signature, totalTtc, le, par };
+}
+
+/** Ce qui, sur le devis, change le classeur en plus des lignes : la TVA imprimée et la taxe additionnelle. */
+export interface TaxesDuDevis { tvaRate: number | null; extraTaxRate: number | null }
+
+/** L'empreinte du brouillon Excel : les lignes validées, la TVA et la taxe — ce qu'il imprime. */
+export function empreinteDuBrouillonExcel(lignesDuBon: readonly LigneCommerciale[], taxes: TaxesDuDevis): string {
+  return `${signatureDesLignes(lignesDuBon)}‖tva:${taxes.tvaRate ?? "-"}‖taxe:${taxes.extraTaxRate ?? "-"}`;
+}
+
+/** Le brouillon Excel est PÉRIMÉ quand il n'imprime plus ce que le devis valide aujourd'hui : il se refait (même numéro). */
+export function brouillonExcelPerime(w: BrouillonExcel, lignesDuBon: readonly LigneCommerciale[], taxes: TaxesDuDevis): boolean {
+  return w.signature !== empreinteDuBrouillonExcel(lignesDuBon, taxes);
 }
 
 const texte = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
@@ -189,6 +248,7 @@ export function lireBrouillon(brut: unknown): BrouillonBc | null {
     tiers: t ? { nom: texte(t.nom) ?? undefined, adresse: texte(t.adresse), telephone: texte(t.telephone), email: texte(t.email), rc: texte(t.rc), nif: texte(t.nif) } : null,
     numeroChoisi: texte(o.numeroChoisi),
     corrections: lireCorrections(o.corrections),
+    excel: excelLu(o.excel),
   };
 }
 
@@ -197,7 +257,7 @@ export function brouillonNeuf(p: { itemId: string; par: string; parNom: string |
   return {
     itemId: p.itemId, par: p.par, parNom: p.parNom, le: (p.maintenant ?? new Date()).toISOString(), modifieLe: null, modifiePar: null,
     lignes: null, signature: null, objet: null, notes: null, contact: null, modePaiement: null, conditionsPaiement: null, livraison: null, tiers: null,
-    numeroChoisi: null, corrections: null,
+    numeroChoisi: null, corrections: null, excel: null,
   };
 }
 

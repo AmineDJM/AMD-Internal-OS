@@ -15,6 +15,7 @@ import { getAppSettings } from "@/lib/settings";
 import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { refusArgentSurPosteStock } from "@/lib/promo/reservations";
 import { Prisma } from "@prisma/client";
+import { lireBrouillon } from "@/lib/bons-de-commande/brouillon";
 import { validateAttachments } from "@/lib/attach-files";
 import { createHash } from "node:crypto";
 import { ingererDevisDuPoste, phraseDeLecture } from "@/lib/pieces-lues/devis-poste-lecture";
@@ -25,7 +26,7 @@ import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factur
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
 import { apercuPourEcran, estRevisionDeNumeroSeul, previsualiserRevision, reviserDocumentDrive, type ApercuPiece } from "@/platform/ia/artifact/factory";
 import { sansBloquer } from "@/lib/journal";
-import { type ParentInfo, PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, etatBcDe, appliquerGesteVisa, lireModificationsDuBc, chargerVoyageur, filePoste, validerAutomatiquementLesLignesLues } from "./infra/postes/commun";
+import { type ParentInfo, PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, etatBcDe, appliquerGesteVisa, lireModificationsDuBc, chargerVoyageur, filePoste } from "./infra/postes/commun";
 import { actionReversible } from "@/lib/effets/reversible";
 
 /**
@@ -159,13 +160,8 @@ export async function ajouterDevisPoste(_prev: ActionResult | undefined, formDat
     if (premier && joints.failed.length < lot.length) {
       const ing = await ingererDevisDuPoste({ userId: user.id, legalDocumentId: doc.id, octets: Buffer.from(await premier.arrayBuffer()), nomFichier: premier.name });
       lecture = ing.ok ? phraseDeLecture(ing) : `Lecture du devis impossible (${ing.raison}) — saisissez ses lignes depuis la carte du poste.`;
-      // UN SEUL POSTE : les lignes bien lues sont validées d'office (voir la fonction). Un devis commun à
-      // plusieurs postes se répartit à la main — on ne devine pas à quel poste va chaque ligne. Un DOUTE du contrôle
-      // des totaux (TTC imprimé que les lignes ne font pas, TVA non imprimée…) laisse les lignes à valider à la main.
-      if (ing.ok && charges.length === 1 && ing.doutes.length === 0) {
-        const nb = await validerAutomatiquementLesLignesLues(user.id, charges[0].item.id, doc.id).catch(sansBloquer("ad-pro-item-actions.ajouterDevisPoste.validerAutomatiquementLesLignesLues", 0));
-        if (nb > 0) lecture = `Devis lu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.`;
-      }
+      // PLUS DE VALIDATION D'OFFICE (Direction, 11/2026) : valider une ligne fait naître le brouillon du BC, et plusieurs offres
+      // se comparent avant qu'on en retienne une. Les lignes bien lues arrivent COCHÉES sur la carte ; une personne valide.
       if (!unParFichier && lot.length > 1) {
         lecture += ` Seul le premier fichier (« ${premier.name} ») a été lu : les ${lot.length - 1} autre(s) sont jointes comme pages du même devis — leurs lignes se saisissent depuis la carte.`;
       }
@@ -213,6 +209,13 @@ export async function retirerDevisDuPoste(_prev: ActionResult | undefined, formD
     where: { devis: { legalDocumentId: pieceId }, validatedItemId: id },
     data: { validatedItemId: null, validatedAt: null, validatedById: null },
   });
+  // SON BROUILLON EXCEL POUR CE POSTE (Direction, 11/2026) part avec lui : le fichier quitte le poste.
+  const devisRetire = await prisma.adProDevis.findUnique({ where: { legalDocumentId: pieceId }, select: { bcBrouillon: true } });
+  const brouillonRetire = lireBrouillon(devisRetire?.bcBrouillon);
+  if (brouillonRetire && brouillonRetire.itemId === id) {
+    if (brouillonRetire.excel) await prisma.document.deleteMany({ where: { id: brouillonRetire.excel.documentId, entityType: "AD_PRO_ITEM", entityId: id } });
+    await prisma.adProDevis.updateMany({ where: { legalDocumentId: pieceId }, data: { bcBrouillon: Prisma.DbNull } });
+  }
   const restants = await prisma.adProItemPiece.count({ where: { legalDocumentId: pieceId } });
   if (restants === 0) {
     await prisma.legalDocument.updateMany({ where: { id: pieceId, status: { not: "CANCELLED" } }, data: { status: "CANCELLED", updatedById: user.id } });

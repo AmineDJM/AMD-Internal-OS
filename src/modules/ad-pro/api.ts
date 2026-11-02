@@ -24,7 +24,7 @@
 
 export * from "./partage";
 
-export { apercuDuBC, type ApercuDuBC, composerApercuDuBC, genererLesBCsDuPoste, lignesDuBCDuDevis, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis } from "./infra/bc-devis";
+export { apercuDuBC, type ApercuDuBC, composerApercuDuBC, composerBrouillonExcel, genererLesBCsDuPoste, lignesDuBCDuDevis, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis, type PosteAGenerer } from "./infra/bc-devis";
 export { annulerBcNonSigne, bcEtablisDuPoste, bcVivantsDesPostes, refusAnnulationBcDuPoste, refusBcEtabli } from "./infra/bc-etablis";
 export { businessUnitDuDemandeur, gammeImposee } from "./infra/business-unit-auto";
 

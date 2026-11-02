@@ -20,6 +20,8 @@ import { legalListScope } from "@/lib/legal/list-view";
 import { legalReaderWhere } from "@/lib/lecteurs/legal";
 import { natureFromParam, invoiceTally, PURCHASE_CHAIN_KINDS } from "@/lib/legal/invoices";
 import { totauxAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
+import { nonRetenusDesPieces } from "@/lib/bons-de-commande/non-retenus";
+import { libelleNonRetenu } from "@/lib/bons-de-commande/version-signee";
 import { perimetreLegal } from "@/lib/queries/visibilite-listes";
 import { ComposerPieceButton, type TypePieceComposable } from "@/components/pieces/composer-piece";
 import { compositionDesPieces } from "@/lib/queries/composition-pieces";
@@ -131,6 +133,8 @@ export default async function LegalPage(
   // rangé ailleurs que sa facture, et ce qu'elle doit encore n'en dépend pas. Le compte « à régler », son total et
   // le filtre de la liste lisent le NET — le même que le règlement encaisse.
   const avoirsParFacture = await totauxAvoirsActifs(docs.filter((d) => d.kind === "INVOICE").map((d) => d.id));
+  // LES DEVIS D'AD & PRO NON RETENUS (Direction, 11/2026) : l'offre écartée reste au registre, et le dit.
+  const nonRetenus = await nonRetenusDesPieces(docs.filter((d) => d.kind === "QUOTE").map((d) => d.id));
   const rows: LegalRow[] = docs.map((d) => ({
     id: d.id,
     reference: d.reference,
@@ -153,6 +157,7 @@ export default async function LegalPage(
     paidDate: d.paidDate?.toISOString() ?? null,
     expenseOrderId: d.expenseOrderId,
     avoirs: avoirsParFacture.get(d.id) ?? 0,
+    nonRetenu: (() => { const n = nonRetenus.get(d.id); return n ? libelleNonRetenu(n.le, n.par) : null; })(),
   }));
 
   // L'ARMOIRE. Le compte de documents par dossier respecte le MÊME cloisonnement que la liste :

@@ -217,11 +217,13 @@ suite("Poste Ad & Pro — l'aperçu du BC est obligatoire, et tout s'y corrige",
   it("(i) LE GESTE « EN UN CLIC » N'EXISTE PLUS, et « Générer le bon de commande » n'émet RIEN : il pose l'aperçu, sans numéro", async () => {
     expect(clesDesActions().has("ad-pro-item-actions:genererEtEnvoyerBcPoste"), "l'action qui émettait sans aperçu est retirée").toBe(false);
     ACTOR = await acteur(demId, "NATIONAL_SALES");
+    // Le brouillon WORD, né à la validation des lignes (Direction, 11/2026), a pu RÉSERVER son numéro ; l'aperçu n'en consomme aucun.
+    const seqAvant = await prisma.documentSequence.findMany({ where: { companyId }, select: { kind: true, last: true }, orderBy: { kind: "asc" } });
     const r = await genererBonDeCommandePoste(fd({ id: posteId }));
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
     expect(r.message).toMatch(/Brouillon — à vérifier par le demandeur/);
     expect(await bcsDuPoste(), "aucune pièce au registre").toBe(0);
-    expect(await prisma.documentSequence.count({ where: { companyId } }), "aucun numéro consommé").toBe(0);
+    expect(await prisma.documentSequence.findMany({ where: { companyId }, select: { kind: true, last: true }, orderBy: { kind: "asc" } }), "l'aperçu ne consomme aucun numéro").toEqual(seqAvant);
     expect(await brouillonEnBase()).not.toBeNull();
     // L'aperçu s'ouvre prêt à relire : le composeur pré-rempli de la pièce telle qu'elle serait émise.
     const v = await ouvrir();
