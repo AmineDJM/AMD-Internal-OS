@@ -17,7 +17,7 @@ import { CHAMP_SALAIRE } from "@/platform/ia/capacites/classement";
 import type { Capacite, OutilDecrit } from "@/platform/ia/capacites/types";
 import { intentSummary, persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { journaliserGeste, simulerEnDiff } from "@/platform/ia/hors-requete";
-import { familleOuverte, refusFamille, type AccesIa } from "../domaine/acces-regles";
+import { familleOuverte, famillesAJuger, GESTES_POUR_SOI, refusFamille, type AccesIa } from "../domaine/acces-regles";
 import {
   estChargeCapacite, KIND_CAPACITE, niveauDeCarte, sortieBornee, texteARessaisir, valeurAffichee, type ChargeCapacite,
 } from "../domaine/capacites";
@@ -99,7 +99,7 @@ export function capacitesOffertes(user: CurrentUser): Capacite[] {
 /** Les familles de la console : celles de la capacité, et « Salaires & paie » dès que l'entrée touche une rémunération. */
 const refusFamilleDe = (cap: Capacite, acces: AccesIa, entree: Readonly<Record<string, unknown>> = {}): string | null => {
   const salaire = !cap.familles.includes("SALAIRES") && Object.keys(entree).some((k) => CHAMP_SALAIRE.test(k));
-  const fermee = [...cap.familles, ...(salaire ? ["SALAIRES" as const] : [])].find((f) => !familleOuverte(acces, f));
+  const fermee = famillesAJuger(cap.id, [...cap.familles, ...(salaire ? ["SALAIRES" as const] : [])], entree).find((f) => !familleOuverte(acces, f));
   return fermee ? refusFamille(fermee) : null;
 };
 
@@ -109,12 +109,27 @@ function entreeNettoyee(cap: Capacite, brute: Record<string, unknown>): Record<s
   return Object.fromEntries(Object.entries(brute ?? {}).filter(([k, v]) => connus.has(k) && v !== undefined && v !== null && v !== ""));
 }
 
+/**
+ * F2 — un geste pour soi où le modèle a recopié la PERSONNE elle-même dans le champ d'autrui (« employeeId » : son nom, ou
+ * l'identifiant de sa fiche liée) : le champ est retiré, l'action prend la fiche liée au compte, la famille se juge comme
+ * pour soi. Un autre nom reste, et se juge sur les familles RH (autrui).
+ */
+async function sansSoiDesigne(user: CurrentUser, cap: Capacite, entree: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const champs = GESTES_POUR_SOI[cap.id]?.filter((k) => entree[k] !== undefined);
+  if (!champs?.length) return entree;
+  const fiche = await prisma.employee.findUnique({ where: { userId: user.id }, select: { id: true, fullName: true } });
+  if (!fiche) return entree;
+  const soi = (v: unknown) => typeof v === "string" && (v === fiche.id || v.trim().toLowerCase() === fiche.fullName.trim().toLowerCase()
+    || /^(moi|moi-m[eê]me|me|soi)$/i.test(v.trim()));
+  return Object.fromEntries(Object.entries(entree).filter(([k, v]) => !(champs.includes(k) && soi(v))));
+}
+
 /** Préparer : résoudre les noms (sous la portée de la personne), valider contre le contrat. */
 async function preparer(user: CurrentUser, cap: Capacite, brute: Record<string, unknown>) {
   const lu = CONTRAT_IA.get(cap.id);
   if (!lu) return { refus: `L'action « ${cap.id} » n'existe plus dans l'ERP.` } as const;
   const contrat = avecPersonnes(lu);
-  const r = await resoudreEntrees(user, contrat, entreeNettoyee(cap, brute));
+  const r = await resoudreEntrees(user, contrat, await sansSoiDesigne(user, cap, entreeNettoyee(cap, brute)));
   if (r.refus.length) return { refus: r.refus.join(" ") } as const;
   // Un nom resté dans un champ d'identifiant ferait agir sur rien (ou sur la mauvaise ligne) : on le demande.
   if (r.nonResolus.some((n) => contrat.champs.find((c) => c.nom === n.champ)?.type === "reference")) {
