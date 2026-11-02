@@ -28,6 +28,13 @@ const LIBELLE_ACTION: Record<string, string> = {
   LOCATION: "location", LIVRAISON: "livraison", INSTALLATION: "installation", AUTRE: "autre",
 };
 
+/** L'action fournisseur la plus probable pour un article : un support papier s'imprime, un numérique se conçoit, un durable se fabrique, le reste s'achète. */
+function actionProbable(nom: string, famille: string): string {
+  if (famille === "NUMERIQUE") return "CONCEPTION";
+  if (/fiche|carte|carnet|bloc|poster|adv|sous-main|brochure|depliant|flyer/.test(replier(nom))) return "IMPRESSION";
+  return famille === "DURABLE" ? "FABRICATION" : "ACHAT";
+}
+
 interface LigneLue { article: string; quantite: string; actions: string[]; produit: string; commentaire: string }
 
 function lignesDe(e: Record<string, unknown>): LigneLue[] {
@@ -74,8 +81,13 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
   ouverte: (u) => userCan(u, "PROMO_MATERIAL", "CREATE"),
 
   async proposer(e, user: CurrentUser): Promise<PropositionOperation> {
-    const titre = texte(e, "titre");
     const lignes = lignesDe(e);
+    // P1 bis (banc Q1 AP-03, « une hypothèse raisonnable plutôt qu'une question ») : sans titre, la carte en PROPOSE un —
+    // dit sur la carte, modifiable à la signature ; jamais une question pour un intitulé.
+    const produitCommun = [...new Set(lignes.map((l) => l.produit).filter(Boolean))];
+    const titre = texte(e, "titre") || (lignes.length ? `Matériel promotionnel${produitCommun.length === 1 ? ` — ${produitCommun[0]}` : ""}` : "");
+    const hypotheses: string[] = [];
+    if (!texte(e, "titre") && titre) hypotheses.push(`Titre proposé : « ${titre} » (modifiable).`);
     const manque: string[] = [];
     if (!titre) manque.push("le titre ou la campagne");
     if (!lignes.length) manque.push("les articles voulus (du catalogue), avec pour chacun ce qu'on attend du fournisseur et la quantité");
@@ -83,6 +95,7 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
     if (texte(e, "besoinLe") && !besoin) manque.push("une date de besoin lisible (jour, mois, année)");
 
     const resolues: { catalogueId: string; nom: string; ligne: LigneLue }[] = [];
+    const horsCatalogue: string[] = [];
     for (const [i, l] of lignes.entries()) {
       const n = i + 1;
       if (!l.article) { manque.push(`ligne ${n} : l'article du catalogue`); continue; }
@@ -93,20 +106,29 @@ export const MATERIEL_PROMO_CREATION: OperationIA = {
       });
       const exacts = trouves.filter((c) => replier(c.nom) === replier(l.article) || replier(c.reference) === replier(l.article));
       const c = exacts.length === 1 ? exacts[0] : trouves.length === 1 ? trouves[0] : null;
+      if (!c && !trouves.length) { horsCatalogue.push(l.article); continue; }
       if (!c) {
         manque.push(trouves.length > 1
           ? `ligne ${n} : quel article pour « ${l.article} » : ${trouves.map((t) => `${t.nom} (${t.reference})`).join(", ")}`
           : `ligne ${n} : « ${l.article} » n'est pas au catalogue actif — un autre article`);
         continue;
       }
-      if (!l.actions.length) manque.push(`ligne ${n} (${c.nom}) : ce qu'on attend du fournisseur (conception, impression, achat…)`);
+      if (!l.actions.length) {
+        // L'action la plus probable pour la famille de l'article — dite sur la carte, jamais une question.
+        l.actions = [actionProbable(c.nom, c.famille)];
+        hypotheses.push(`${c.nom} : ${LIBELLE_ACTION[l.actions[0]!]} retenue comme action du fournisseur (modifiable).`);
+      }
       if (c.exigeProduit && !l.produit) manque.push(`ligne ${n} (${c.nom}) : le produit concerné — cet article n'existe que pour un produit`);
       if (c.famille === "NUMERIQUE" && l.quantite) manque.push(`ligne ${n} (${c.nom}) : un support numérique n'a pas de quantité — à retirer`);
       resolues.push({ catalogueId: c.id, nom: c.nom, ligne: l });
     }
+    // Un article absent du catalogue n'arrête pas la demande quand d'autres lignes s'y trouvent : il est NOMMÉ sur la
+    // carte (non repris), la personne l'ajoute à l'écran si elle y tient. Seul, il reste une question.
+    if (horsCatalogue.length && !resolues.length) manque.push(...horsCatalogue.map((a) => `« ${a} » n'est pas au catalogue actif — un autre article`));
     if (manque.length) return { manque };
 
-    const warnings: string[] = [];
+    const warnings: string[] = [...hypotheses];
+    if (horsCatalogue.length) warnings.push(`Hors catalogue actif, non repris : ${horsCatalogue.join(", ")} — à ajouter à l'écran avec un article du catalogue si besoin.`);
     const proches = await prisma.promoMaterial.findMany({
       where: { requesterId: user.id, title: { equals: titre, mode: "insensitive" }, createdAt: { gte: new Date(Date.now() - 120 * 24 * 3600 * 1000) } },
       select: { reference: true, createdAt: true },

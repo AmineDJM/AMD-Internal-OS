@@ -24,9 +24,10 @@
 
 export * from "./partage";
 
-export { apercuDuBC, type ApercuDuBC, composerApercuDuBC, genererLesBCsDuPoste, lignesDuBCDuDevis, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis } from "./infra/bc-devis";
+export { apercuDuBC, type ApercuDuBC, composerApercuDuBC, composerBrouillonExcel, genererLesBCsDuPoste, lignesDuBCDuDevis, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis, type PosteAGenerer } from "./infra/bc-devis";
 export { annulerBcNonSigne, bcEtablisDuPoste, bcVivantsDesPostes, refusAnnulationBcDuPoste, refusBcEtabli } from "./infra/bc-etablis";
 export { businessUnitDuDemandeur, gammeImposee } from "./infra/business-unit-auto";
+
 export { getAdProEventsAsCalendar } from "./infra/calendrier";
 export { type NatureDemandeAdPro, refusCategoriePourLaDemande } from "./infra/categorie-budgetaire-serveur";
 export { lireFactureDuPoste } from "./infra/facture-poste-lecture";
@@ -45,7 +46,7 @@ export { ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME, envoiAuxFinances } from ".
 export { referentAInscrire } from "./infra/referent-de-la-gamme";
 export { demandeAttendLeCentre, demandesAuCentreAdPro, demandeurDuVisa, peutResoumettreAuCentre, visasTranchesCentreAdPro, type VisaTranche } from "./infra/requetes/centre";
 export { type CongressDetail, type CongressListRow, getCongressDetail, getCongressList } from "./infra/requetes/congres";
-export { getAdProCreateData, getAdProRequests } from "./infra/requetes/demandes";
+export { getAdProCreateData, getAdProRequests, lignesDepensesAdPro } from "./infra/requetes/demandes";
 export { devisDesPostes, empreintesDesDevis } from "./infra/requetes/devis-poste";
 export { adProEditValues } from "./infra/requetes/edition";
 export { type EventDetail, getEventDetail, getEvents, getPublicEvent } from "./infra/requetes/evenements";

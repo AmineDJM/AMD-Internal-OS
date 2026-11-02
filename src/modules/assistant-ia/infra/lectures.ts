@@ -294,6 +294,7 @@ export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | un
         properties: {
           nom: { type: "string", description: "Nom de l'employé (détail individuel) ; vide ou « moi » = soi." },
           mois: { type: "string", description: "Mois AAAA-MM (masse salariale du mois)." },
+          liste: { type: "boolean", description: "La LISTE des salariés avec leur poste et leur salaire de base (une ligne par salarié) — pour un tableau ou un export Excel (`exporter_donnees`). Réservé à qui gère les RH." },
         },
       },
     },
@@ -301,6 +302,26 @@ export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | un
     label: "Paie consultée",
     run: async (entree, u) => {
       const mois = str(entree, "mois");
+      // P1 bis (décision 0047, banc d'audit Q1 EX-03) : « exporte la liste des salariés avec leur salaire de base » — une
+      // ligne par salarié, pour qui GÈRE les RH (le droit applicatif, et la famille « Salaires » ouverte) ; chaque montant
+      // reste un repère du coffret, révélé seulement à qui a le droit de le voir (export compris).
+      if (entree.liste === true && !str(entree, "nom")) {
+        if (!familleOuverte(acces, "SALAIRES")) return refus(refusFamille("SALAIRES"));
+        if (!voitLesSalaires(u)) return refus("La liste des salaires n'est lue que par qui gère les RH.");
+        const fiches = await prisma.employee.findMany({
+          where: { AND: [await ficheScopedWhere(u.id, {} as Prisma.EmployeeWhereInput), { isActive: true }] },
+          select: { id: true, fullName: true, position: true, baseSalary: true, userId: true, company: { select: { name: true } } },
+          orderBy: { fullName: "asc" }, take: 500,
+        });
+        return JSON.stringify({
+          salaries: fiches.map((f) => ({
+            nom: f.fullName, poste: f.position ?? "", societe: f.company?.name ?? "",
+            salaireBase: f.baseSalary == null ? null : jetonOuMasque(coffret, { valeur: dzd(f.baseSalary), nature: "SALAIRE", titulaireUserId: f.userId ?? null, origine: { modele: "Employee", id: f.id, champ: "baseSalary", brut: String(f.baseSalary) } }),
+          })),
+          total: fiches.length,
+          consigne: "Pour un fichier : appelle `exporter_donnees` sur ce jeu (lire_paie). Recopie les repères tels quels.",
+        });
+      }
       if (mois && !str(entree, "nom")) {
         if (!familleOuverte(acces, "SALAIRES")) return refus(refusFamille("SALAIRES"));
         // S1 : hors droit applicatif, la masse ne couvre QUE les entités d'un périmètre nominatif en vigueur (avenant, droit daté).

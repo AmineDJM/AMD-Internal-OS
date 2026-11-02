@@ -15,7 +15,7 @@
  *   LOCAL    le même moteur, ou à défaut LibreOffice, présent dans CE processus (poste de développement, conteneur).
  *   RENDU    le rendu PDF de ce dépôt (`docxToPdf`) — Word seulement, mise en page approchée, DIT.
  *   MAISON   ce que le dépôt compose lui-même : un tableau Word → un classeur vérifié ; et, en DERNIER recours quand
- *            aucun moteur ne tourne, un PDF → un Word texte seul (c'est DIT).
+ *            aucun moteur ne tourne, un PDF → un Word texte seul, ou → un classeur de ses lignes en colonnes (c'est DIT).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -138,6 +138,45 @@ async function tableauxEnClasseur(octets: Buffer): Promise<{ octets: Buffer; not
   return { octets: c.octets, note: `${feuilles.length} tableau${feuilles.length > 1 ? "x" : ""} repris, une feuille chacun` };
 }
 
+/**
+ * DERNIER RECOURS (aucun moteur ne tourne, T1 — décision 0053) — le PDF → un classeur : chaque ligne du texte qui porte des
+ * colonnes (séparées par « | », une tabulation ou au moins deux espaces) devient une ligne, la première lue en titres ; les
+ * nombres en nombres. Mesuré au banc DOC- : sans worker, « transforme ce PDF en Excel » échouait. La note le DIT.
+ */
+async function pdfEnClasseur(octets: Buffer): Promise<{ octets: Buffer; note: string } | { erreur: string }> {
+  const lu = await lireTextePdf(octets, { max: 100 });
+  const lignes = lu.pages.flatMap((p) => p.texte.replace(/\r/g, "").split("\n"))
+    .map((l) => l.split(/\s*\|\s*|\t+|\s{2,}/).map((x) => x.trim()).filter(Boolean))
+    .filter((cells) => cells.length >= 2);
+  if (lignes.length < 2) return { erreur: "ce PDF n'a pas de tableau lisible (colonnes) à mettre dans Excel" };
+  const largeur = Math.max(...lignes.map((l) => l.length));
+  const [entete = [], ...corps] = lignes;
+  const colonnes = Array.from({ length: largeur }, (_, j) => ({ cle: `c${j + 1}`, titre: entete[j] || `Colonne ${j + 1}` }));
+  const nombre = (v: string): number | string => {
+    const t = v.replace(/[\s  ]/g, "").replace(/(DZD|DA|€|%)$/i, "").replace(",", ".");
+    return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : v;
+  };
+  const c = await construireClasseurVerifie({ feuilles: [{ nom: "Tableau", colonnes, lignes: corps.map((l) => Object.fromEntries(colonnes.map((col, j) => [col.cle, nombre(l[j] ?? "")]))) }] });
+  return { octets: c.octets, note: `secours, le moteur haute fidélité ne tourne pas : ${corps.length} ligne${corps.length > 1 ? "s" : ""} de tableau reprises du texte du PDF (colonnes repérées par leurs séparateurs) — vérifiez-les` };
+}
+
+/** DERNIER RECOURS (aucun moteur ne tourne, T1) — une image (PNG, JPEG) → un PDF d'une page A4, l'image ajustée. Sans OCR : dit. */
+async function imageEnPdf(octets: Buffer): Promise<{ octets: Buffer; note: string } | { erreur: string }> {
+  const PDFDocument = (await import("pdfkit")).default;
+  const doc = new PDFDocument({ size: "A4", margin: 28 });
+  const morceaux: Buffer[] = [];
+  doc.on("data", (c: Buffer) => morceaux.push(c));
+  const fini = new Promise<void>((ok) => doc.on("end", () => ok()));
+  try {
+    doc.image(octets, { fit: [539, 786], align: "center", valign: "center" });
+  } catch {
+    return { erreur: "image illisible (PNG ou JPEG attendu)" };
+  }
+  doc.end();
+  await fini;
+  return { octets: Buffer.concat(morceaux), note: "secours, le moteur haute fidélité ne tourne pas : l'image est mise en page sur une page A4, sans reconnaissance du texte (OCR)" };
+}
+
 /** DERNIER RECOURS (aucun moteur ne tourne) — le PDF → un Word : le texte, page par page. La mise en page ne suit pas — c'est dit. */
 async function pdfEnWord(octets: Buffer, titre: string): Promise<{ octets: Buffer; note: string } | { erreur: string }> {
   const lu = await lireTextePdf(octets, { max: 300 });
@@ -163,7 +202,8 @@ export interface SourceConversion { nodeId: string; version: number; format: str
 export async function produire(userId: string, src: SourceConversion, octets: Buffer, vers: VersFormat, voie: Voie, vision?: LecteurVision): Promise<{ octets: Buffer; note: string | null }> {
   let r: { octets: Buffer; note: string | null };
   if (voie === "MAISON") {
-    const m = vers === "XLSX" ? await tableauxEnClasseur(octets) : await pdfEnWord(octets, nomSans(src.nom));
+    const m = vers === "XLSX" ? (src.format === "PDF" ? await pdfEnClasseur(octets) : await tableauxEnClasseur(octets))
+      : src.format === "IMAGE" && vers === "PDF" ? await imageEnPdf(octets) : await pdfEnWord(octets, nomSans(src.nom));
     if ("erreur" in m) throw new Error(m.erreur);
     r = m;
   } else if (voie === "EDITEUR") {
@@ -204,7 +244,8 @@ export async function choisirVoie(format: string, vers: VersFormat): Promise<{ v
   // Le worker bat : TOUT passe par lui (le web ne convertit jamais lui-même — décision 0019).
   if (await workerActif()) return { voie: "WORKER" };
   if (parLeMoteur(format, vers) && (await etatMoteur()).pret) return { voie: "LOCAL" };
-  if (format === "PDF" && vers === "DOCX") return { voie: "MAISON" };
+  if (format === "PDF" && (vers === "DOCX" || vers === "XLSX")) return { voie: "MAISON" };
+  if (format === "IMAGE" && vers === "PDF") return { voie: "MAISON" };
   if (vers === "PDF" && format !== "IMAGE") {
     if (convertConfigured()) return { voie: "EDITEUR" };
     if (await libreOfficeLocal()) return { voie: "LOCAL" };

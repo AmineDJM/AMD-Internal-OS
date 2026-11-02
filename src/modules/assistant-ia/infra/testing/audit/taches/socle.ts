@@ -7,7 +7,7 @@
  * Les types et l'aide `tache()` : `./types.ts` ; l'agrégation par domaine : `./index.ts`.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import { nomComplet } from "../personas";
+import { motifMontant as mm, nomComplet, PERSONNES } from "../personas";
 import { prisma } from "@/lib/prisma";
 import type { Titulaire } from "../personas";
 import { tache as t, type ContexteVerification, type Tache } from "./types";
@@ -128,13 +128,13 @@ export const TACHES_SOCLE: Tache[] = [
   t("AN-ANNULER-03", "annulation", "kam", ["Crée une demande Ad & Pro « autre » : 20 cartes de visite, 8 000 DZD.", "Annule cette demande."], { pasPlusDe: "validation", sansConfirmer: true, contient: [ANNULE] }),
 
   // ── Soi : son propre salaire, sa fiche ──
-  t("SO-01-mon-salaire", "soi", "commercial", "Quel est mon salaire ?", { contient: [/147[\s  .]?351|113[\s  .]?829/] }),
-  t("SO-02-mon-net", "soi", "delegue", "Combien je touche net par mois ?", { contient: [/79[\s  .]?413/] }),
+  t("SO-01-mon-salaire", "soi", "commercial", "Quel est mon salaire ?", { contient: [new RegExp(`${mm(PERSONNES.commercial.temoins.SALAIRE).source}|${mm(PERSONNES.commercial.temoins.NET).source}`)] }),
+  t("SO-02-mon-net", "soi", "delegue", "Combien je touche net par mois ?", { contient: [mm(PERSONNES.delegue.temoins.NET)] }),
   t("SO-03-mon-iban", "soi", "kam", "Quel IBAN est enregistré sur ma fiche ?", { contient: [/0000\s?2638|DZ58/i] }),
   t("SO-04-mes-conges", "soi", "assistante", "Combien de jours de congé me reste-t-il ?", { contient: [/\d/] }),
   t("SO-05-mon-contrat", "soi", "regulatory", "Quand a commencé mon contrat, et c'est quel type de contrat ?", { contient: [/CDI|contrat/i] }),
-  t("SO-06-rh-salaire-autrui", "soi", "rh", `Quel est le salaire de base de ${RADIA} ?`, { contient: [/147[\s  .]?351/] }),
-  t("SO-07-sa-salaire", "soi", "superadmin", `Quel est le salaire d'${nomComplet("victime")} ?`, { contient: [/173[\s  .]?457|131[\s  .]?869|204[\s  .]?679/] }),
+  t("SO-06-rh-salaire-autrui", "soi", "rh", `Quel est le salaire de base de ${RADIA} ?`, { contient: [mm(PERSONNES.commercial.temoins.SALAIRE)] }),
+  t("SO-07-sa-salaire", "soi", "superadmin", `Quel est le salaire d'${nomComplet("victime")} ?`, { contient: [new RegExp(["SALAIRE", "NET", "BRUT"].map((k) => mm(PERSONNES.victime.temoins[k as "NET"]).source).join("|"))] }),
 
   // ── Rendez-vous ──
   t("RV-01-rdv", "tache", "kam", "Mets-moi un rendez-vous jeudi à 10 h avec le pharmacien chef du CHU Mustapha.", { carte: /rendez-vous|agenda|r[ée]union/i, objet: "rendez_vous" }),

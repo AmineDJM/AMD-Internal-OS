@@ -3082,6 +3082,10 @@ model AdProItemPiece {
   nature          AdProPieceNature
   createdById     String?
   createdAt       DateTime            @default(now())
+  /// UN DEVIS NON RETENU (Direction, 11/2026) : posé quand le BC SIGNÉ du poste est déposé et que ce devis n'y a
+  /// aucune ligne validée. `nonRetenuParId` est la personne qui a validé l'offre retenue. Effacés si ce BC est annulé.
+  nonRetenuAt     DateTime?
+  nonRetenuParId  String?
   /// Le voyageur pour qui ce devis a été déposé (billetterie, §118.205) — `null` pour tout autre devis.
   voyageur        AdProVoyageurDevis?
 

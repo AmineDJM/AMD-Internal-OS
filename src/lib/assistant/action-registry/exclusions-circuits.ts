@@ -144,6 +144,11 @@ export function classerExclusionsCircuits(): void {
     "fournisseurs-annuaire-actions:creerFournisseurAnnuaire", "fournisseurs-annuaire-actions:modifierFournisseurAnnuaire",
     "fournisseurs-annuaire-actions:retirerFournisseurAnnuaire", "directory-actions:updateDirectoryEndpoint",
   ]);
+  X("L'ANNUAIRE TENU EN LOT (lot T2, décision 0052) : mettre à jour N fiches, fusionner des doublons d'établissements. "
+    + "C'est l'Assistant IA (Adventum IA) qui les prépare — carte « avant → après », un geste annulable d'un coup — et "
+    + "chaque ligne repasse par l'action de l'écran qui la garde. Adam est en pause de développement (Super Admin seul).", [
+    "fournisseurs-annuaire-actions:appliquerLotAnnuaire", "fournisseurs-annuaire-actions:fusionnerEtablissementsAnnuaire",
+  ]);
   X("METTRE AU PIPELINE TOUS LES DOSSIERS NON ENTAMÉS (Direction, 06/10) : un geste du Super Admin, sur l'écran du "
     + "suivi, qui compte puis confirme avant de verrouiller un portefeuille entier. Pas un travail d'assistant.", [
     "regulatory-actions:mettreAuPipelineNonEntames", "regulatory-actions:compterDossiersNonEntames",
@@ -230,6 +235,10 @@ export function classerExclusionsCircuits(): void {
     // totaux (`previsualiserApercuBcPoste`) et le PDF (`imprimerApercuBcPoste`) à blanc — des lectures d'écran, pas des gestes d'Adam.
     // Le geste « en un clic » qui émettait sans aperçu est retiré : un seul chemin, Générer → aperçu → Valider et envoyer.
     "ad-pro-item-actions:previsualiserApercuBcPoste", "ad-pro-item-actions:imprimerApercuBcPoste",
+    // LE BROUILLON EXCEL ET LA VERSION SIGNÉE (Direction, 11/2026) : la validation des lignes fait naître le brouillon Excel (numéro
+    // réservé) ; « Préparer le brouillon » le relance (`preparerBrouillonExcelPoste`) ; la personne dépose la version SIGNÉE
+    // (`deposerBcSignePoste`), qui fait naître le BC au registre déjà signé. Une signature est une attestation : un clic, jamais Adam.
+    "ad-pro-item-actions:preparerBrouillonExcelPoste", "ad-pro-item-actions:deposerBcSignePoste",
     // LE BC MODIFIÉ EN NATIF ET LA FACTURE CONTRÔLÉE PAR LUNA (Direction, 06/10) : une révision du Word et du PDF, et un
     // fichier de facture lu puis comparé au(x) BC signé(s) — des gestes devant la carte du poste, pas des appels d'Adam.
     "ad-pro-item-actions:modifierBcDuPoste", "ad-pro-item-actions:deposerFacturePoste",

@@ -56,6 +56,8 @@ const LIBELLE_PIECE_EMISE: Record<TypePieceEmise, string> = {
 };
 import { netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { avalActif, avoirsDeLaFacture } from "@/lib/legal/aval";
+import { nonRetenusDesPieces } from "@/lib/bons-de-commande/non-retenus";
+import { libelleNonRetenu } from "@/lib/bons-de-commande/version-signee";
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +132,10 @@ export default async function LegalDocumentPage(
   // La pièce est-elle DANS la portée de cette personne ? Un refus rend 404, comme les autres :
   // dire qu'un document existe, c'est déjà en dire trop.
   if (!legalKindVisible(portee, String(doc.kind))) notFound();
+
+  // UN DEVIS D'AD & PRO NON RETENU (Direction, 11/2026) : écarté au dépôt du BC signé de son poste.
+  const nonRetenuLu = doc.kind === "QUOTE" ? (await nonRetenusDesPieces([doc.id])).get(doc.id) ?? null : null;
+  const nonRetenu = nonRetenuLu ? libelleNonRetenu(nonRetenuLu.le, nonRetenuLu.par) : null;
 
   const canEdit = legalWriteAllowed({
     onLegal: userCan(user, "LEGAL", "UPDATE"),
@@ -345,6 +351,7 @@ export default async function LegalDocumentPage(
           <p className="text-sm text-muted-foreground">
             Enregistré par {doc.createdBy?.name ?? "—"} le {formatDate(doc.createdAt)}
           </p>
+          {nonRetenu && <p className="mt-1 text-sm text-muted-foreground">{nonRetenu}</p>}
         </div>
         <div className="flex shrink-0 flex-wrap items-start gap-2">
           <PartagerButton

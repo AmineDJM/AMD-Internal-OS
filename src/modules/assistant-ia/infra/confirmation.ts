@@ -2,7 +2,7 @@ import type { CurrentUser } from "@/lib/session";
 import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
 import { estChargeOperationIA } from "../domaine/operations/types";
 import { estChargeCapacite } from "../domaine/capacites";
-import { executerOperationJournalisee } from "./operations";
+import { completerCarteOperation, executerOperationJournalisee } from "./operations";
 import { corrigerCarteCapacite, executerCapacite } from "./capacites";
 import { accesAssistantIa, verifierReperesAvantExecution } from "./role-config";
 
@@ -24,8 +24,13 @@ export async function confirmerCarte(
   if (typeof corrections === "string" && corrections) {
     let saisie: unknown;
     try { saisie = JSON.parse(corrections); } catch { return { ok: false, error: "Formulaire illisible. Rien n'a été exécuté." }; }
-    const c = await corrigerCarteCapacite(user, intentId, saisie, await accesAssistantIa(user));
-    if (!c.ok) return { ok: false, error: c.error };
+    // P1 bis : une carte d'OPÉRATION à compléter (le champ manquant rempli sur la carte) — sinon, une carte de capacité.
+    const op = await completerCarteOperation(user, intentId, saisie);
+    if (op && !op.ok) return { ok: false, error: op.error };
+    if (!op) {
+      const c = await corrigerCarteCapacite(user, intentId, saisie, await accesAssistantIa(user));
+      if (!c.ok) return { ok: false, error: c.error };
+    }
   }
   const executeur = async (stored: unknown): Promise<ResultatExecution> => {
     // Une valeur confidentielle substituée dans la carte (décision 0012) est rejugée pour qui confirme, maintenant.

@@ -118,3 +118,13 @@ describe("P1 — banc d'audit Q1 : rappels, exports, missions (présélection)",
     expect(outilsPilotageVoulus("Où en sont mes missions ?")[0]).toBe("mes_missions");
   });
 });
+
+describe("P1 bis — les demandes de fond (banc d'audit Q1 MI-02)", () => {
+  it("« en tâche de fond », « en arrière-plan » : le tour pose une mission ; une question ordinaire, non", async () => {
+    const { demandeDeFond, OUTILS_DE_FOND } = await import("./pilotage");
+    expect(demandeDeFond("Prépare en tâche de fond un rapport sur les dossiers réglementaires en retard.")).toBe(true);
+    expect(demandeDeFond("Fais-le en arrière-plan, je continue.")).toBe(true);
+    expect(demandeDeFond("Combien de dossiers en retard ?")).toBe(false);
+    expect(OUTILS_DE_FOND).toContain("lancer_un_travail");
+  });
+});

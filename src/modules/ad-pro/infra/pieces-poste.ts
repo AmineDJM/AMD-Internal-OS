@@ -9,6 +9,7 @@ import { etapeDEnsemble } from "../domaine/devis-poste";
 import { fichiersEmis } from "@/lib/lecteurs/fichiers-emis";
 import type { EtatDemandeBC } from "../domaine/poste-etapes";
 import { ETAPE_COPIE_SIGNEE, controleFactureDe, phraseVerdictSignature, verdictSignatureDe, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
+import { libelleNonRetenu } from "@/lib/bons-de-commande/version-signee";
 
 
 /**
@@ -71,6 +72,8 @@ export interface PieceDePoste {
   controle: ControleFacture | null;
   /** TOUS les fichiers de la pièce, cliquables (Direction, 07/10 : « on doit retrouver les pièces jointes cliquables »). */
   fichiersListe: { id: string; nom: string }[];
+  /** UN DEVIS NON RETENU sur ce poste (Direction, 11/2026) : la phrase à afficher (date, qui a validé l'offre retenue). */
+  nonRetenu: string | null;
 }
 
 /**
@@ -152,7 +155,7 @@ export async function piecesDesPostes(itemIds: readonly string[]): Promise<Map<s
     where: { itemId: { in: [...itemIds] } },
     orderBy: { createdAt: "asc" },
     select: {
-      itemId: true, nature: true,
+      itemId: true, nature: true, nonRetenuAt: true, nonRetenuParId: true,
       legalDocument: { select: { id: true, title: true, reference: true, amount: true, status: true, cancelledAt: true, createdAt: true, custom: true, signedAt: true, signedByName: true, signatureCheck: true } },
     },
   });
@@ -180,6 +183,11 @@ export async function piecesDesPostes(itemIds: readonly string[]): Promise<Map<s
     if (!premierFichier.has(f.entityId)) premierFichier.set(f.entityId, f.id);
     if (f.stepKey === ETAPE_COPIE_SIGNEE) copieSignee.set(f.entityId, f.id);
   }
+  // QUI A VALIDÉ L'OFFRE RETENUE — nommé à côté des devis écartés.
+  const parIds = [...new Set(liens.map((l) => l.nonRetenuParId).filter((x): x is string => Boolean(x)))];
+  const nomsNonRetenu = new Map(parIds.length
+    ? (await prisma.user.findMany({ where: { id: { in: parIds } }, select: { id: true, name: true } })).map((u) => [u.id, u.name] as const)
+    : []);
   const couverts = new Map<string, { itemId: string; label: string }[]>();
   for (const a of autres) {
     const l = couverts.get(a.legalDocumentId) ?? [];
@@ -198,6 +206,7 @@ export async function piecesDesPostes(itemIds: readonly string[]): Promise<Map<s
       emis: (() => { const f = fichiersEmis(d.custom); return { docx: f.docx !== null, pdf: f.pdf !== null }; })(),
       controle: l.nature === "FACTURE" ? controleFactureDe((d.custom as { facturePoste?: { controle?: unknown } } | null)?.facturePoste?.controle) : null,
       fichiersListe: listeFichiers.get(d.id) ?? [],
+      nonRetenu: l.nonRetenuAt ? libelleNonRetenu(l.nonRetenuAt, l.nonRetenuParId ? nomsNonRetenu.get(l.nonRetenuParId) ?? null : null) : null,
     };
     if (l.nature === "DEVIS") p.devis.push(piece);
     else if (l.nature === "FACTURE") p.factures.push(piece);

@@ -28,6 +28,7 @@ import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 import { outilsMails } from "./infra/mails/boites";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { annulerEffetSortant } from "@/lib/effets/fenetre";
+import { canalAdamOuvert, MOTS_DU_CANAL_ADAM } from "./domaine/mails/canal";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -146,7 +147,7 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     expect(await prisma.mission.findMany({ where: { principalId: sa.id }, select: { id: true, status: true, title: true }, orderBy: { id: "asc" } })).toEqual(avant);
   });
 
-  it("MAILS — sans Gmail d'Adam : « as-tu accès ? » se répond en LISANT, et RIEN ne part par une autre boîte sans qu'on le demande", async () => {
+  it("MAILS — sans Gmail d'Adam (ML-09) : « as-tu accès ? » se répond en LISANT ; le mail est préparé QUAND MÊME par l'envoi de l'ERP, et la boîte d'Adam non reliée est DITE", async () => {
     // Le Gmail d'Adam de CE banc (GOOGLE_ADAM_EMAIL) n'est pas encore relié — d'autres bancs ont pu laisser les leurs.
     process.env.GOOGLE_ADAM_EMAIL = ADAM;
     await prisma.mailAccount.create({ data: { userId: sa.id, email: `${TAG}direction@adventum.dz`, passwordEnc: "x" } });
@@ -155,12 +156,21 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     const mails = outilsMails(sa, (n) => tous.find((o) => o.def.name === n), props);
     const etat = JSON.parse(await mails.find((o) => o.def.name === "mes_boites_mail")!.run({}, sa));
     expect(etat.gmailAdam.reliee).toBe(false);
-    expect(etat.parDefaut).toBeNull();
+    expect(etat.parDefaut).toBe("erp");
     const envoyer = mails.find((o) => o.def.name === "envoyer_mail")!;
-    const refus = JSON.parse(await envoyer.run({ mails: [{ a: "redouane@adventum.dz", objet: "Planning AMD", contenu: { salutation: "Bonjour,", paragraphes: ["Bonjour."], cloture: "Bien cordialement," } }] }, sa));
-    expect(refus.statut).toBe("REFUS");
-    expect(refus.raison).toContain("Gmail d'Adam");
-    expect(props).toHaveLength(0);
+    const repli = JSON.parse(await envoyer.run({ mails: [{ a: "contact@sahge.dz", objet: "Merci pour l'organisation du congrès", contenu: { salutation: "Madame, Monsieur,", paragraphes: ["Merci pour l'organisation du congrès d'hépatologie."], cloture: "Bien cordialement," } }] }, sa));
+    console.info("[banc P1 bis] ML-09 repli :", repli.statut, repli.boite ?? repli.raison ?? "");
+    if (repli.statut !== "REFUS") {
+      expect(repli.statut, JSON.stringify(repli)).toBe("EN_ATTENTE_DE_CONFIRMATION");
+      expect(repli.boite).toBe("l'envoi de l'ERP");
+      expect(repli.boite_adam).toBe("non reliée");
+      expect(repli.consigne).toMatch(/boîte Gmail d'Adam n'est pas reliée.*Connecter Google/);
+      expect(props[0]!.proposition.title).toContain("Envoyer par l'envoi de l'ERP");
+    } else {
+      // L'envoi de l'ERP peut être fermé à ce compte par la console : le refus le DIT (jamais « rien n'est préparé » sans raison).
+      expect(repli.raison).toMatch(/activé|ouvert/);
+    }
+    props.length = 0;
     // Demandée EXPLICITEMENT, la boîte SMTP de la personne : carte « Envoyer », sans ressaisie (R3 réversible).
     const r = JSON.parse(await envoyer.run({ ...{ mails: [{ a: "redouane@adventum.dz", objet: "Planning AMD", contenu: { salutation: "Bonjour,", paragraphes: ["Voici ton planning."], cloture: "Bien cordialement," } }] }, boite: "smtp" }, sa));
     expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
@@ -251,9 +261,13 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     const tous = outilsV1(asst, props, [], [], null, undefined, { capacites: true });
     const mails = outilsMails(asst, (n) => tous.find((o) => o.def.name === n), props);
     const etat = JSON.parse(await mails.find((o) => o.def.name === "mes_boites_mail")!.run({}, asst));
-    expect(etat.gmailAdam.ouvertePourToi).toBe(false);
+    expect(etat.gmailAdam).toBeUndefined();
     expect(etat.parDefaut).toBe("erp");
-    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ mails: [{ a: "pharmacie@chu-mustapha.dz", objet: "Invitation au comité", contenu: { salutation: "Madame, Monsieur,", paragraphes: ["Nous avons le plaisir de vous convier au comité du **jeudi 12 novembre**."], tableau: { colonnes: ["Heure", "Point"], lignes: [["10 h", "Ouverture"]] }, cloture: "Bien cordialement," } }] }, asst));
+    // P1 bis (canal d'Adam = Super Admin seul) : ni l'outil, ni ses descriptions, ni l'état ne le nomment ; demandé, il est ignoré.
+    expect(tous.some((o) => o.def.name === "envoyer_gmail" && o.allowed(asst))).toBe(false);
+    expect(JSON.stringify(mails.map((o) => o.def))).not.toMatch(MOTS_DU_CANAL_ADAM);
+    expect(JSON.stringify(etat)).not.toMatch(MOTS_DU_CANAL_ADAM);
+    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ boite: "gmail_adam", mails: [{ a: "pharmacie@chu-mustapha.dz", objet: "Invitation au comité", contenu: { salutation: "Madame, Monsieur,", paragraphes: ["Nous avons le plaisir de vous convier au comité du **jeudi 12 novembre**."], tableau: { colonnes: ["Heure", "Point"], lignes: [["10 h", "Ouverture"]] }, cloture: "Bien cordialement," } }] }, asst));
     ACTEUR = sa;
     console.info("[banc P1] mail d'une assistante :", r.statut, r.raison ?? r.boite ?? "");
     if (r.statut === "REFUS") {
@@ -264,10 +278,33 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       expect(props[0]!.proposition.title).toContain("Envoyer par l'envoi de l'ERP");
       expect(JSON.stringify(props[0]!.proposition.payload)).toContain("Assistante");
       expect(JSON.stringify(props[0]!.proposition.payload)).not.toContain(" | ");
+      expect(JSON.stringify({ r, p: props[0]!.proposition })).not.toMatch(MOTS_DU_CANAL_ADAM);
     }
     await prisma.assistantActionIntent.deleteMany({ where: { userId: u.id } });
     await prisma.userAccess.deleteMany({ where: { userId: u.id } });
     await prisma.user.delete({ where: { id: u.id } });
+  });
+
+  it("CANAL D'ADAM (ML-ADAM-) — réservé au Super Admin par l'architecture : la Direction elle-même ne l'a pas", () => {
+    expect(canalAdamOuvert({ role: "SUPER_ADMIN" })).toBe(true);
+    for (const role of ["DIRECTION", "GENERAL_MANAGER", "KAM", "DIRECTION_ASSISTANT", "VIEWER"]) expect(canalAdamOuvert({ role })).toBe(false);
+    expect(MOTS_DU_CANAL_ADAM.test("envoie-le depuis la boîte d'Adam")).toBe(true);
+    expect(MOTS_DU_CANAL_ADAM.test("le Gmail d’Adam")).toBe(true);
+    expect(MOTS_DU_CANAL_ADAM.test("Adam (assistant de l'ERP) a préparé la carte")).toBe(false);
+  });
+
+  it("PIÈCES JOINTES — un fichier du Drive DONT la personne est propriétaire, par son nom ; introuvable : une question, jamais deviné", async () => {
+    const { piecesDuDrive } = await import("./infra/mails/redaction");
+    const f = await prisma.driveNode.create({ data: { name: `BC imprimerie ${TAG}.pdf`, type: "FILE", ownerId: sa.id, createdById: sa.id, mimeType: "application/pdf", size: 1234 } });
+    try {
+      const r = await piecesDuDrive(sa, [`BC imprimerie ${TAG}`]);
+      expect(r).toMatchObject({ ok: true, pieces: [{ driveNodeId: f.id, filename: `BC imprimerie ${TAG}.pdf`, mimeType: "application/pdf" }] });
+      const absent = await piecesDuDrive(sa, [`Facture inexistante ${TAG}`]);
+      expect(absent.ok).toBe(false);
+      expect((absent as { manque: string[] }).manque[0]).toMatch(/introuvable/);
+    } finally {
+      await prisma.driveNode.delete({ where: { id: f.id } });
+    }
   });
 
   it("RENDEZ-VOUS (audit Q1 RV-01) — un invité sans compte ERP ne bloque pas : invité externe dans la description, mail proposé", async () => {
@@ -279,6 +316,100 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       expect(JSON.stringify(p.carte.fields)).toContain(`Dr Externe${TAG}`);
       expect(p.carte.warnings.join(" ")).toMatch(/invité.? externe.*mail/);
       expect(p.args.description).toContain(`Invités externes : Dr Externe${TAG}`);
+    }
+  });
+
+  it("MAILS (ML-04) — « pour toute la direction » se résout par l'annuaire : les comptes actifs de la Direction, sans question", async () => {
+    const d1 = await prisma.user.create({ data: { name: `Directeur ${TAG}`, email: `${TAG}dg@t.dz`, passwordHash: "x", role: "GENERAL_MANAGER" } });
+    const { groupeDestinataires } = await import("./infra/mails/redaction");
+    for (const g of ["toute la direction", "la direction", "le comité de direction", "Codir"]) {
+      const r = await groupeDestinataires(g);
+      expect(r, g).not.toBeNull();
+      expect(r!.map((x) => x.email)).toContain(d1.email);
+    }
+    expect(await groupeDestinataires("Redouane")).toBeNull();
+    await prisma.user.delete({ where: { id: d1.id } });
+  });
+
+  it("AD & PRO (AP-01) — la question posée une fois, la réponse ne comble pas le champ : la carte s'affiche QUAND MÊME, champ à compléter ; signée avec le champ, elle se revérifie", async () => {
+    const { outilsOperations } = await import("./infra/operations");
+    const { questionDejaPosee } = await import("./infra/operations");
+    const props: PropositionPreparee[] = [];
+    const op = outilsOperations(sa, props).find((o) => o.def.name === "preparer_sponsoring")!;
+    const entree = { produits: "Daclavir", ville: "Oran", montantDemande: 600000, description: `Congrès SAHGE ${TAG}` };
+    const { OPERATIONS_IA } = await import("./infra/operations");
+    const premiere = await OPERATIONS_IA.find((o) => o.nom === "preparer_sponsoring")!.proposer(entree, sa);
+    expect("manque" in premiere).toBe(true);
+    // La question a été posée à un tour PRÉCÉDENT (il y a une minute) ; la réponse n'a pas comblé le champ.
+    questionDejaPosee(sa.id, "preparer_sponsoring", (premiere as { manque: string[] }).manque[0]!, new Set());
+    const seconde = JSON.parse(await op.run(entree, sa));
+    console.info("[banc P1 bis] AP-01 :", seconde.statut, (seconde.manque ?? []).join(" | "));
+    if (seconde.statut === "CARTE_A_COMPLETER") {
+      expect(props).toHaveLength(1);
+      const f = props[0]!.proposition.formulaire!;
+      expect(f.champs.length).toBeGreaterThan(0);
+      expect(props[0]!.proposition.libelleBouton).toBe("Compléter et créer");
+      // Signée SANS compléter : rien n'est exécuté.
+      const sans = await confirmerIntentionAssistantIA(props[0]!.intentId);
+      expect(sans.ok).toBe(false);
+    } else {
+      expect(seconde.statut).toBe("BLOQUE");
+    }
+  });
+
+  it("EXPORT RH (EX-03) — la liste des salariés avec leur salaire de base : une ligne par salarié pour qui gère les RH (repères), refusée aux autres", async () => {
+    const fiche = await prisma.employee.create({ data: { fullName: `Salarié ${TAG}`, isActive: true, baseSalary: 123456, position: "Délégué" } });
+    const props: PropositionPreparee[] = [];
+    const paie = outilsV1(sa, props).find((o) => o.def.name === "lire_paie")!;
+    const r = JSON.parse(await paie.run({ liste: true }, sa));
+    console.info("[banc P1 bis] EX-03 :", r.statut ?? `${r.total} salariés`);
+    if (r.statut !== "REFUS") {
+      const ligne = r.salaries.find((x: { nom: string }) => x.nom === `Salarié ${TAG}`);
+      expect(ligne).toBeTruthy();
+      expect(ligne.poste).toBe("Délégué");
+      expect(String(ligne.salaireBase)).not.toBe("");
+    }
+    await prisma.employee.delete({ where: { id: fiche.id } });
+  });
+
+  it("ÉQUIPE (AN-04) — « combien de tâches mon équipe a-t-elle en retard ? » : un NOMBRE, lu sur l'équipe de « Mon Équipe »", async () => {
+    const { lecturesErp } = await import("./infra/lectures-erp");
+    const membre = await prisma.user.create({ data: { name: `Membre ${TAG}`, email: `${TAG}membre@t.dz`, passwordHash: "x", role: "VIEWER" } });
+    const chef = await prisma.employee.create({ data: { fullName: `Chef ${TAG}`, isActive: true, userId: sa.id } });
+    const sous = await prisma.employee.create({ data: { fullName: `Membre ${TAG}`, isActive: true, userId: membre.id, managerId: chef.id } });
+    const hier = new Date(Date.now() - 3 * 86_400_000);
+    const t = await prisma.task.createManyAndReturn({ data: [
+      { title: `Retard ${TAG}`, assignedToId: membre.id, dueDate: hier, status: "TODO" },
+      { title: `À venir ${TAG}`, assignedToId: membre.id, dueDate: new Date(Date.now() + 5 * 86_400_000), status: "IN_PROGRESS" },
+    ] });
+    try {
+      const r = JSON.parse(await lecturesErp(sa).find((o) => o.def.name === "taches_equipe")!.run({}, sa));
+      expect(r.enRetard).toBeGreaterThanOrEqual(1);
+      expect(r.retards.some((x: { tache: string; personne: string; joursDeRetard: number }) => x.tache === `Retard ${TAG}` && x.personne === `Membre ${TAG}` && x.joursDeRetard >= 2)).toBe(true);
+      expect(r.parPersonne.find((p: { personne: string }) => p.personne === `Membre ${TAG}`)).toMatchObject({ ouvertes: 2, enRetard: 1 });
+    } finally {
+      await prisma.task.deleteMany({ where: { id: { in: t.map((x) => x.id) } } });
+      await prisma.employee.deleteMany({ where: { id: { in: [sous.id, chef.id] } } });
+    }
+  });
+
+  it("MATÉRIEL PROMO (AP-03) — une hypothèse raisonnable plutôt qu'une question : titre proposé, action probable, article hors catalogue NOMMÉ ; la carte s'affiche", async () => {
+    const { OPERATIONS_IA } = await import("./infra/operations");
+    const art = await prisma.promoCatalogueArticle.create({ data: { reference: `${TAG}STY`, nom: `Stylos ${TAG}`, famille: "CONSOMMABLE" as never } });
+    try {
+      const op = OPERATIONS_IA.find((o) => o.nom === "preparer_materiel_promo")!;
+      const r = await op.proposer({ articles: [{ article: `Brochures ${TAG}`, quantite: "200", produit: "Daclavir" }, { article: `Stylos ${TAG}`, quantite: "50", produit: "Daclavir" }] }, sa);
+      expect("carte" in r).toBe(true);
+      const c = (r as { carte: { title: string; warnings: string[]; fields: { label: string; value: string }[] } }).carte;
+      expect(c.title).toContain("Daclavir");
+      expect(c.warnings.join(" ")).toMatch(new RegExp(`Brochures ${TAG}.*non repris|non repris.*Brochures ${TAG}`));
+      expect(c.warnings.join(" ")).toMatch(/Titre proposé/);
+      expect(JSON.stringify(c.fields)).toMatch(/achat/);
+      // Seul et hors catalogue : là, une question reste légitime.
+      const seul = await op.proposer({ articles: [{ article: `Brochures ${TAG}`, quantite: "200" }] }, sa);
+      expect("manque" in seul).toBe(true);
+    } finally {
+      await prisma.promoCatalogueArticle.delete({ where: { id: art.id } });
     }
   });
 

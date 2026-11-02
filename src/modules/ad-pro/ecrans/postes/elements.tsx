@@ -104,6 +104,7 @@ export function LignePiece({ piece, retirer }: { piece: PieceDePoste; retirer?: 
           {piece.fichiers > 0 && <> · <Paperclip className="inline h-3 w-3" /> {piece.fichiers}</>}
           {piece.annulee && " · annulée"}
         </p>
+        {piece.nonRetenu && <p className="text-muted-foreground"><span className="rounded-full border border-border px-1.5 py-px text-[0.6875rem]">{piece.nonRetenu}</span></p>}
         {piece.aussiPour.length > 0 && <p className="truncate text-muted-foreground" title={piece.aussiPour.join(", ")}>Couvre aussi : {piece.aussiPour.join(", ")}</p>}
         {/* TOUS LES FICHIERS DE LA PIÈCE (Direction, 07/10) — le titre ouvre le premier ; les autres se listent ici. */}
         {piece.fichiersListe.length > 1 && (
@@ -201,11 +202,13 @@ export interface OngletChaine { cle: string; libelle: string; court?: string; et
  * Elle s'ouvre sur l'étape en cours (ou refusée), à défaut sur la dernière faite : quatre colonnes serrées obligeaient
  * à tout lire pour trouver la seule qui comptait.
  */
-export function ChaineDuPoste({ onglets }: { onglets: OngletChaine[] }) {
+export function ChaineDuPoste({ onglets, demande = null }: { onglets: OngletChaine[]; demande?: { cle: string; n: number } | null }) {
   const parDefaut = (onglets.find((o) => o.etat === "EN_COURS" || o.etat === "REFUSE")
     ?? [...onglets].reverse().find((o) => o.etat === "FAIT")
     ?? onglets[0]).cle;
   const [choisi, setChoisi] = React.useState<string | null>(null);
+  // UN GESTE DU POSTE QUI MÈNE À UNE CASE (« Déposer le BC signé ») l'ouvre — chaque clic compte (`n`).
+  React.useEffect(() => { if (demande) setChoisi(demande.cle); }, [demande]);
   const actif = onglets.find((o) => o.cle === choisi) ?? onglets.find((o) => o.cle === parDefaut) ?? onglets[0];
   return (
     <div className="space-y-2 border-t border-border/70 pt-2.5">
