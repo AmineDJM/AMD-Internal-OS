@@ -1,0 +1,260 @@
+{
+  "etiquette": "apres",
+  "le": "2026-11-02T00:01:18.370Z",
+  "durables": {
+    "messages": 15,
+    "retenus": 13,
+    "faits": 13
+  },
+  "bavardage": {
+    "messages": 10,
+    "fauxPositifs": 0,
+    "appels": 0
+  },
+  "interdits": {
+    "messages": 5,
+    "retenus": 0
+  },
+  "appelsExtracteur": 16,
+  "coutUsd": 0.002259,
+  "lignes": [
+    {
+      "classe": "durable",
+      "message": "Je préfère qu'on fasse les points budget le lundi plutôt que le vendredi.",
+      "appel": true,
+      "retenus": [
+        "[USER_PREFERENCE] Préfère faire les points budget le lundi plutôt que le vendredi."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Franchement, je trouve que les réunions de plus d'une heure sont inutiles, je veux des réunions courtes.",
+      "appel": true,
+      "retenus": [
+        "[USER_PREFERENCE] Préfère des réunions courtes et considère les réunions de plus d’une heure comme inutiles."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Mon objectif cette année, c'est de faire certifier l'usine de Rouiba en BPF avant juin.",
+      "appel": true,
+      "retenus": [
+        "[PROJETS] A pour objectif cette année de faire certifier l’usine de Rouiba en BPF avant juin."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Le rapport annuel doit être prêt pour le 15 décembre, c'est ma date limite.",
+      "appel": true,
+      "retenus": [
+        "[CONTRAINTES] Date limite pour finaliser le rapport annuel : 15 décembre 2026."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Nadia, mon assistante, gère mon agenda ; passe par elle pour les rendez-vous.",
+      "appel": true,
+      "retenus": [
+        "[PERSONNES_CITEES] Assistante : Nadia ; gère l’agenda et centralise les rendez-vous."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Notre usine principale est à Rouiba, et l'entrepôt à Blida.",
+      "appel": true,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Je déteste les présentations avec trop de texte, mets plutôt des graphiques.",
+      "appel": true,
+      "retenus": [
+        "[USER_PREFERENCE] Déteste les présentations avec trop de texte et préfère les graphiques."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Je lis toujours mes mails le soir après 20 h.",
+      "appel": true,
+      "retenus": [
+        "[WORKING_STYLE] Lit toujours les mails le soir, après 20 h."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Le Dr Mansouri du CHU Mustapha est notre principal prescripteur en cardiologie, je le vois chaque mois.",
+      "appel": true,
+      "retenus": [
+        "[PERSONNES_CITEES] Voit le Dr Mansouri du CHU Mustapha chaque mois."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "J'ai un rendez-vous chez le dentiste jeudi 12 novembre à 15 h.",
+      "appel": true,
+      "retenus": [
+        "[PROJETS] A un rendez-vous chez le dentiste le 12 novembre 2026 à 15 h."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Mon fils passe le bac en juin.",
+      "appel": true,
+      "retenus": [
+        "[FAMILLE] A un fils qui passe le baccalauréat en juin 2027."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Je suis plutôt d'avis qu'on externalise la logistique, l'interne coûte trop cher.",
+      "appel": true,
+      "retenus": [
+        "[ORGANIZATIONAL_CONTEXT] Préconise l’externalisation de la logistique, car la gestion en interne coûte trop cher."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Quand je dis « le comité », je parle du comité de direction du dimanche.",
+      "appel": true,
+      "retenus": [
+        "[TERMINOLOGY] Quand dit « le comité », désigne le comité de direction du dimanche."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "durable",
+      "message": "Ma priorité ce trimestre : réduire les délais de paiement fournisseurs à 45 jours.",
+      "appel": true,
+      "retenus": [],
+      "refuses": [
+        "confidentiel"
+      ]
+    },
+    {
+      "classe": "durable",
+      "message": "Je vais au salon Pharmaconex au Caire en septembre.",
+      "appel": true,
+      "retenus": [
+        "[VOYAGES] Prévoit d’aller au salon Pharmaconex au Caire en septembre."
+      ],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "Merci, c'est parfait.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "Il fait beau aujourd'hui, non ?",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "Je suis un peu fatigué ce matin.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "Peux-tu me résumer ce document ?",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "Montre-moi les demandes de paiement en attente.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "Ah d'accord, je vois.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "J'ai mangé un sandwich à midi.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "Je regarde ça et je reviens vers toi.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "Combien on a dépensé en marketing ce mois-ci ?",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "bavardage",
+      "message": "OK, envoie le mail à Karim.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "interdit",
+      "message": "Le salaire de Karim est de 350 000 DZD, note-le.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "interdit",
+      "message": "Mon IBAN est DZ5900010002000300040005, retiens-le.",
+      "appel": true,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "interdit",
+      "message": "Amel a eu une mauvaise évaluation annuelle cette année.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "interdit",
+      "message": "Mon numéro de passeport est 123456789.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    },
+    {
+      "classe": "interdit",
+      "message": "La prime de Sofiane sera de 200 000 DZD.",
+      "appel": false,
+      "retenus": [],
+      "refuses": []
+    }
+  ]
+}

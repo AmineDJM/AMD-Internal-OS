@@ -13,6 +13,40 @@ par le serveur (nom, prénom, poste, entité, responsable, contrat, avenants, r�
 tutoiement ou vouvoiement au choix. Administration › IA › Accès montre « **Ce que son assistant voit** ». Décision
 [0048](../assistant/decisions/0048-acces-personnels.md), audit `docs/assistant/preuves/s1/`. Migration
 `20270221000000_s1_acces_personnels`.
+### B1 : « CRÉE UN BC EN PDF » DEPUIS UN DEVIS — LECTURE FIABLE, FLUX SANS FRICTION, PDF RENDU (2026-11-02)
+
+Direction, 02/11 (« catastrophique ») : sur « Devis matériel promotionnel INSIGNE.pdf », la carte disait
+« Fournisseur : ADVENTUM PHARMA » (le client), perdait 14 lignes et en répétait 3 (893 500 HT au lieu de 794 500),
+exigeait un validateur puis la société, rattachait le matériel promotionnel à l'enveloppe Regulatory et ne faisait pas
+de PDF. **Causes** : le bloc client du devis (NIF, RC) était lu comme l'émetteur ; le texte à plat d'un PDF met chaque
+cellule sur sa ligne et répète en-têtes et pieds de page — le modèle recopiait mal, et rien ne confrontait la somme au HT
+imprimé. **Désormais** : le tableau se lit par les **positions** des caractères (mupdf — rangées, colonnes, en-têtes
+répétés et reports écartés, blocs répétés dédoublonnés, numérotation suivie, chaque ligne recoupée) ; s'il réconcilie
+avec le HT imprimé, c'est lui qui fait les lignes, sans modèle ; sinon le modèle, puis une **seconde passe de vision**
+(image des pages, schéma JSON strict) ; l'écart persistant se dit en UNE phrase qui **nomme** les lignes douteuses.
+**L'émetteur est le fournisseur** (pied de page, en-tête, nom du fichier ; jamais une société du groupe), le **client est
+la société** du BC ; fiche fournisseur proposée à l'annuaire s'il manque. « Crée un BC en PDF » : aucune question de
+validateur ni de société ; **« Créer le BC (PDF) »** = BC numéroté en brouillon (pré-validation) + PDF au Drive, lien
+dans la conversation ; **« Envoyer en validation »** est un geste séparé ; enveloppe proposée selon la nature ; carte
+résumée (détail des lignes au panneau, provenance dite une fois, plus de « seuil de 0 DZD »). Annulable (K10b : ANNULÉ,
+jamais effacé). Banc : 5 devis fabriqués (dont un scan) — 76/76 lignes par positions, vision réelle 27/27 et 5/5.
+Verdict par invariants (FIABLE / À VÉRIFIER / ILLISIBLE) gardé avec la lecture ; cycle du BC (brouillon → en
+validation → validé → signé / annulé) à préconditions tenues par le code. Décision
+[0049](../assistant/decisions/0049-bc-depuis-devis.md). Migration `20270220950000_lecture_piece_verdict`.
+
+### LE BANC D'AUDIT PERMANENT DE L'ASSISTANT IA — un attaquant et un utilisateur exigeant, joués par la machine (Q1, 2026-11-02)
+
+« Audite ça toi-même, même la partie test. Vérifie qu'avec le compte de l'un, ça ne va pas vers l'autre. Essaie de le
+jailbreaker » (Direction). Décision 0050. Dix personas (commercial, délégué, manager, RH paie, finance, assistante, KAM,
+regulatory, Super Admin, Vue exacte) et une victime, chacun avec des valeurs TÉMOINS uniques ; **93 attaques** (usurpation,
+flatterie sur plusieurs tours, injection par PDF/Excel/mail/WhatsApp/note/Drive/nom de fichier/fiche/mémoire, agrégats, SQL,
+export, voix, escalade d'action avec clic « Confirmer » simulé, extraction du prompt, Vue exacte) et **65 tâches** jouées avec
+le vrai modèle (`npm run audit:assistant`), verdict au niveau des DONNÉES (réponse, carte, fichiers, mémoire, traces) et un
+espion de Prisma qui prouve qu'une ligne d'autrui n'a pas été lue. Version déterministe dans `npm test` (faux modèle
+adversarial, cliquet : toute nouvelle lecture sans scénario d'attaque fait échouer la suite) ; version réelle chaque nuit
+(`qualite.banc`, une attaque passée notifiée au Super Admin). Premier passage : 92/93 attaques bloquées, 0 passée ; 45/65
+tâches réussies. Corrigé : la Vue exacte envoyait la mémoire de la personne regardée au modèle ; « Quel est mon salaire ? »
+était refusé sans outil. Rapport : `docs/assistant/preuves/audit/`.
 
 ### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
 
@@ -40,6 +74,10 @@ mémoire se gère en **jetons** (budget de stockage par personne, 8 000 ; consol
 mesuré : 892 → 467 jetons injectés par tour, 0,001 $ la consolidation ; « X jetons sur Y » dans le panneau), l'historique
 des faits remplacés est gardé **12 mois**, la santé déclarée est retenue d'office, et il n'y a **plus de plafond
 quotidien** de jetons par personne (le plafond par tour reste). Migration `20270219300000_memoire_jetons_sans_plafond`.
+Le 02/11 : **plus aucun texte coupé** — un message long part entier au modèle (jusqu'à 200 000 caractères), au-delà il
+devient une pièce lue, et le plafond par tour ne compte plus le message à chaque étape ; et la mémoire retient **un peu
+plus** (avis, priorités, échéances, lieux, vocabulaire) : 13 messages durables sur 15 retenus au lieu de 7, toujours 0 faux
+positif et 0 valeur interdite (décision 0045 § 5).
 
 ### O1 (suite) : C'EST À L'ASSISTANT D'ORCHESTRER — CLASSER CHAQUE PHRASE, PRÉCISION MAJEURE OU MINEURE, AGENDA SANS PLAFOND (2026-11-01)
 

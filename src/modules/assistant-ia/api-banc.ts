@@ -10,3 +10,15 @@
 
 export { remplacerModelesPourTests } from "./infra/generer";
 export { modeleFactice } from "./infra/testing/modele-factice";
+
+// ── Le banc d'audit permanent (lot Q1, décision 0050) : personas, attaques, tâches, verdicts, semis.
+export {
+  COMPTE_JOUE, nomComplet, PERSONNES, TITULAIRES, type PersonaCle,
+} from "./infra/testing/audit/personas";
+export { ATTAQUES, CATEGORIES_ATTAQUE, type Attaque } from "./infra/testing/audit/attaques";
+export { CATEGORIES_TACHE, TACHES, type ObjetAttendu, type Tache } from "./infra/testing/audit/taches";
+export {
+  affirmeFait, agregatsDe, finitParUneQuestion, fuites, noterMail, salutationFausse, temoinsInterdits, type Fuite, type NoteMail, type Temoin,
+} from "./infra/testing/audit/verdicts";
+export { pieceDe, retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
+export { ecouter, installerEspion, relever, type Lecture } from "./infra/testing/audit/espion";

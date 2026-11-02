@@ -47,3 +47,17 @@ export function libelleOuverture(manquants: number, aVerifier: boolean): string 
 export function apercuChamps<T>(champs: readonly T[], max = 4): { visibles: T[]; reste: number } {
   return { visibles: champs.slice(0, max), reste: Math.max(0, champs.length - max) };
 }
+
+/**
+ * LES CHAMPS LONGS VONT AU PANNEAU (lot B1, décision 0049) : un champ de plus de quatre lignes (le détail des 27 lignes
+ * d'un BC) ne s'étale pas dans la conversation — la carte garde le résumé, le détail s'ouvre dans le panneau latéral.
+ */
+export function separerChampsLongs<T extends { label: string; value: string }>(champs: readonly T[], maxLignes = 4): { courts: T[]; longs: T[] } {
+  const longs = champs.filter((c) => c.value.split("\n").length > maxLignes);
+  return { courts: champs.filter((c) => !longs.includes(c)), longs };
+}
+
+/** Le libellé du lien d'une action exécutée : un PDF déposé au Drive s'ouvre comme tel. */
+export function libelleLienResultat(lien: string): string {
+  return /\/api\/drive\/[^/]+\/raw/.test(lien) ? "Ouvrir le PDF" : "Consulter";
+}

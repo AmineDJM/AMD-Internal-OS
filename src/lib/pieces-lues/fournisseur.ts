@@ -25,6 +25,7 @@
 import { cleSociete } from "@/lib/quality/model";
 import type { EntetesReperes } from "@/lib/pieces-lues/entetes";
 import type { PieceLue } from "@/lib/pieces-lues/structure";
+import type { SocieteDuGroupe } from "@/lib/pieces-lues/emetteur-destinataire";
 import {
   PHRASE_FOURNISSEUR_A_CREER, phraseFournisseurAmbigu, phraseFournisseurCertain, phraseFournisseurProbable,
 } from "@/lib/pieces-lues/phrases";
@@ -89,6 +90,8 @@ export interface ResultatFournisseur {
 export interface IdentifiantsDuGroupe {
   nifs?: readonly (string | null | undefined)[];
   rcs?: readonly (string | null | undefined)[];
+  /** Les sociétés du groupe, avec leurs noms (lot B1) : un nom du groupe n'est jamais celui du fournisseur. */
+  societes?: readonly SocieteDuGroupe[];
 }
 
 const uniques = (xs: readonly (string | null)[]): string[] => [...new Set(xs.filter((x): x is string => !!x))];

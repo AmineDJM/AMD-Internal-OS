@@ -9,7 +9,7 @@
  *    porte le MARQUEUR d'une base d'essai (`BancBaseEssai`) — sinon refus, rien ne s'écrit.
  * 2. SEMIS : le jeu du banc Adam puis celui du banc Jarvis (synthétiques, retirables), dans des processus à part.
  * 3. BANCS, chacun dans son processus, chacun avec ce qui RESTE du plafond (`BANC_PLAFOND_USD`, 1 $ par défaut) :
- *    Jarvis (26 scénarios), Atelier (PowerPoint, Word), Travaux (un travail jusqu'au livrable), Bibliothèque
+ *    l'AUDIT (lot Q1, décision 0050 : attaques et tâches, échantillon tournant, la moitié du plafond), Jarvis (26 scénarios), Atelier (PowerPoint, Word), Travaux (un travail jusqu'au livrable), Bibliothèque
  *    (recherche par le contenu, faux embedder, 0 $). Un banc qui n'a plus de quoi payer n'est pas lancé : « NON JOUÉ ».
  * 4. SORTIE : le résultat NORMALISÉ (`BANC_SORTIE`), que le worker historise et compare.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -24,7 +24,7 @@ type Scenario = { scenario: string; famille: string; verdict: string; motifs: st
 
 const PLAFOND = Number(process.env.BANC_PLAFOND_USD) || 1;
 /** Ce qu'un banc coûte au plus, mesuré (J3, J2) — en dessous, il n'est pas lancé. */
-const COUT_MIN: Record<string, number> = { atelier: 0.15, travaux: 0.25 };
+const COUT_MIN: Record<string, number> = { atelier: 0.15, travaux: 0.25, audit: 0.3 };
 const debut = new Date();
 /** Un passage RÉDUIT (fumée, mise au point) : `BANC_SEULEMENT=jarvis,bibliotheque` — le reste est « NON JOUÉ », dit. */
 const SEULEMENT = (process.env.BANC_SEULEMENT ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -61,13 +61,27 @@ async function main() {
     await prisma.bancBaseEssai.create({ data: { id: "base-essai", nom: new URL(url).pathname.slice(1) } });
   }
 
-  const semis = [lancer("scripts/bench/seed-adam-bench.ts"), lancer("scripts/bench/seed-assistant-jarvis.ts")];
+  const semis = [lancer("scripts/bench/seed-adam-bench.ts"), lancer("scripts/bench/seed-assistant-jarvis.ts"), lancer("scripts/bench/audit-assistant/jouer.ts", {}, ["--semer"])];
   if (semis.some((s) => s.code !== 0)) throw new Error("le semis de la base d'essai a échoué");
   if (declarer) { console.log("Base d'essai déclarée et semée."); return; }
 
   const scenarios: Scenario[] = [];
   let budgetAtteint = false;
   const reste = async () => Math.max(0, PLAFOND - (await depense()));
+
+  // ── Le banc d'audit (lot Q1, décision 0050) : EN PREMIER, la sécurité d'abord — un échantillon tournant (n par catégorie,
+  // en une semaine tout est joué), la moitié du plafond au plus. Une attaque passée revient en « FUITE » : notifiée.
+  if (!joue("audit")) scenarios.push(exclu("audit", "audit-attaque"));
+  else {
+    const part = Math.min(await reste(), Math.max(COUT_MIN.audit!, PLAFOND / 2));
+    const rapport = fs.mkdtempSync(path.join(os.tmpdir(), "audit-"));
+    const au = lancer("scripts/bench/audit-assistant/jouer.ts", { AUDIT_BUDGET_USD: String(part), AUDIT_ECHANTILLON: process.env.AUDIT_ECHANTILLON ?? "1", AUDIT_RAPPORT_DIR: rapport });
+    const aur = au.sortie as { scenarios?: Scenario[]; budgetAtteint?: boolean } | null;
+    if (aur?.scenarios) scenarios.push(...aur.scenarios);
+    else scenarios.push({ scenario: "audit", famille: "audit-attaque", verdict: "ERREUR", motifs: [`le banc d'audit n'a rendu aucun résultat (code ${au.code})`] });
+    budgetAtteint ||= Boolean(aur?.budgetAtteint);
+    fs.rmSync(rapport, { recursive: true, force: true });
+  }
 
   // ── Jarvis ──
   const j = lancer("scripts/bench/assistant-jarvis-live.ts", { JARVIS_BUDGET_USD: String(await reste()) });

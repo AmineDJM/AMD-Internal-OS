@@ -199,6 +199,8 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   stockage `AssistantIaReglage.memoireJetonsBudget` (8 000), consolidation rare et réversible au modèle rapide
   (`domaine/memoire/consolidation.ts`, `infra/memoire-consolidation.ts`, `consolideDans`), historique purgé à 12 mois
   (`purgerHistoriqueMemoire`) — tâche `assistant.memoire`. Plafond quotidien : 0 = sans (défaut).
+- **Textes longs jamais coupés** (Direction 02/11) — `domaine/fil/texte-long.ts`, `infra/fil/texte-long.ts` (au-delà de
+  200 000 caractères : pièce `.txt` lue) ; `Budget.franchiseParAppel` (le plafond par tour compte le message une fois).
 - **Preuves** — `domaine/memoire/memoire.test.ts`, `infra/memoire-capture.test.ts`, `infra/memoire-consolidation.test.ts`, `infra/memoire.test.ts` ; audit sur
   serveur réel : `scripts/bench/m1-audit.ts` → `docs/assistant/preuves/m1/`.
 
@@ -353,3 +355,14 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   le formulaire s'ouvre dans `ecrans/panneau-lateral.tsx` (`pleinEcranMobile`) rendu par portail — un ancêtre en
   `backdrop-blur` casse le `fixed`. Règles pures et testées : `domaine/ui/carte-action.ts` (avertissements uniques, état de
   simulation affiché, libellé du bouton, aperçu des champs). Zones de texte auto-ajustées : `ecrans/formulaire-carte.tsx:ZoneAuto`.
+
+## Banc d'audit permanent (lot Q1, décision 0050)
+
+Un ATTAQUANT (93 scénarios) et un UTILISATEUR EXIGEANT (65 tâches) joués par la machine. Catalogue pur et semis partagés :
+`infra/testing/audit/` (porte `api-banc.ts`) — personas et témoins (`personas.ts`, matrice `peutVoir`), attaques, tâches,
+verdicts, espion de Prisma (`espion.ts` : la ligne d'autrui n'a jamais été lue), sondes et cliquet (`sondes.ts`).
+Déterministe dans `npm test` : `audit-assistant.test.ts` (faux modèle adversarial ; toute lecture de `outilsV1` doit avoir sa
+sonde, son scénario réel ou sa raison « sans donnée de personne »). Réel : `npm run audit:assistant`
+(`scripts/bench/audit-assistant/`, base de banc), rapport `docs/assistant/preuves/audit/`, et chaque nuit par `qualite.banc`
+(verdict `FUITE` notifié). En Vue exacte, le tour ne lit plus la mémoire, les notes ni les conversations de la personne
+regardée (`infra/fil/tour.ts`).

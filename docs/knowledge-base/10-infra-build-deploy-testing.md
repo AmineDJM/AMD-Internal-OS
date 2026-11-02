@@ -6,6 +6,12 @@
 
 ---
 
+> **Update 2026-11-02 — lot Q1 (decision 0050)**: `npm test` now includes `src/modules/assistant-ia/audit-assistant.test.ts`
+> (≈ 25 s, seeds its own tagged personas in the local test DB, fake adversarial model, Prisma spy) — its RATCHET fails the suite
+> when a new Assistant IA read tool has no attack scenario. Live audit: `npm run audit:assistant` (BENCH DB only; `--semer`,
+> `--retirer`, `AUDIT_SEULEMENT`, `AUDIT_PARTIE`, `AUDIT_ECHANTILLON`, `AUDIT_BUDGET_USD`), also run nightly by the worker task
+> `qualite.banc` through `scripts/bench/banc-programme.ts`.
+
 ## 1. Scope
 
 This page covers everything around the application code: how it is built and deployed to Render

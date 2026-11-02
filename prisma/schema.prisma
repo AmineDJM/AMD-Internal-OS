@@ -9829,7 +9829,7 @@ model AssistantIaBancReglage {
   id          String   @id @default("global")
   actif       Boolean  @default(true)
   /// QUOTIDIEN | HEBDOMADAIRE | MENSUEL
-  frequence   String   @default("HEBDOMADAIRE")
+  frequence   String   @default("QUOTIDIEN")
   /// 0 = dimanche … 6 = samedi (heure d'Alger) — HEBDOMADAIRE ; le jour du mois (1 à 28) — MENSUEL.
   jour        Int      @default(5)
   /// L'heure de départ (0 à 23, heure d'Alger).
@@ -16706,6 +16706,12 @@ model LecturePiece {
   /// Les lignes lues par le modèle, RELUES par `pieces-lues/structure.ts` — `null` tant qu'aucun modèle n'a lu.
   structure        Json?
   structureePar    String?
+  /// LE VERDICT DE LA LECTURE (lot B1, décision 0049) : FIABLE (lignes recoupées, numérotation suivie, Σ lignes = HT
+  /// imprimé, émetteur hors du groupe), A_VERIFIER (les lignes douteuses sont nommées dans `verdictDetail`) ou
+  /// ILLISIBLE (aucune ligne). Calculé par des invariants (`pieces-lues/verdict.ts`), jamais par un modèle.
+  verdict          String?
+  /// { methode, sommeLignes, htImprime, ecart, manquantes, douteuses, raisons } — ce qui fonde le verdict.
+  verdictDetail    Json?
   /// Ce que le modèle a lu d'un DOCUMENT LÉGAL (nature, titre, dates, résumé), RELU par `pieces-lues/synthese-legale.ts`
   /// — `null` tant qu'aucun modèle ne l'a lu comme pièce Legal. Une fois par empreinte : la première fait foi.
   syntheseLegale   Json?

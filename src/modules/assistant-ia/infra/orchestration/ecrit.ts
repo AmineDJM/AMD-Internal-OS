@@ -6,6 +6,7 @@ import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { auNomDe } from "../consommation";
 import { genererTexte } from "../generer";
 import { deposerMessage, ETAT, filDe, traiterFil, type PieceDuTour } from "../fil/service";
+import { texteOuPiece } from "../fil/texte-long";
 import {
   appliquerPrecisions, avancementDuTravail, enregistrerPrecision, ETAT_AGENDA, ouvrirAgenda, precisionsEnAttente, questionDeLElement, racineDe,
   repondreElement, versElement, versionsDAvant,
@@ -60,7 +61,9 @@ const demandeDe = async (racine: string) => ((await prisma.assistantIaTour.findU
  * appliquée au travail ; le reste part dans la voie parallèle (travail long) ou la file habituelle. Le message reste
  * toujours visible dans le fil, tel qu'il a été écrit.
  */
-export async function deposerEcrit(userId: string, texte: string, pieces: PieceDuTour[], conversation?: string | null) {
+export async function deposerEcrit(userId: string, texteBrut: string, piecesBrutes: PieceDuTour[], conversation?: string | null) {
+  // Direction (02/11/2026) : jamais coupé — un texte trop long devient une pièce AVANT le classement.
+  const { texte, pieces } = await texteOuPiece(userId, texteBrut ?? "", piecesBrutes);
   const fil = await filDe(userId, conversation);
   if (conversation && fil.id !== conversation) return { ok: false as const, erreur: "Conversation introuvable." };
   const [q, t] = await Promise.all([questionDuFil(userId, fil.id), travailEnCours(fil.id)]);
@@ -76,7 +79,7 @@ export async function deposerEcrit(userId: string, texte: string, pieces: PieceD
   const voie = voieDuClassement(c, { travailEnCoursDepuisMs: t?.depuisMs ?? null, questionEnAttente: !!q, travailLongMs: reglagesOrchestration().travailLongMs });
   if (voie === "precision") {
     // Le message de la personne, tel qu'écrit, reste dans le fil (traité : c'est la suite du travail).
-    const tour = await prisma.assistantIaTour.create({ data: { filId: fil.id, userId, role: "user", contenu: texte.trim().slice(0, 8_000), etat: ETAT.TRAITE } });
+    const tour = await prisma.assistantIaTour.create({ data: { filId: fil.id, userId, role: "user", contenu: texte.trim(), etat: ETAT.TRAITE } });
     await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { dernierLe: new Date() } });
     if (c.repondA && q && q.id === c.repondA) await repondreElement(userId, q, texte);
     else await enregistrerPrecision(userId, racine, c);

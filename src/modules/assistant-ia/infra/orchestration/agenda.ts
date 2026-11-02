@@ -93,12 +93,12 @@ export async function transmettrePrecision(
   const tour = await prisma.assistantIaTour.findFirst({ where: { id: tourId, userId }, select: { contenu: true, etat: true, filId: true } });
   if (!tour) return { ok: false, erreur: "Le travail n'existe plus." };
   if (tour.etat === ETAT.ATTENTE) {
-    const n = await prisma.assistantIaTour.updateMany({ where: { id: tourId, etat: ETAT.ATTENTE }, data: { contenu: `${tour.contenu}\n${prefixe} ${ligne}`.slice(0, 8_000) } });
+    const n = await prisma.assistantIaTour.updateMany({ where: { id: tourId, etat: ETAT.ATTENTE }, data: { contenu: `${tour.contenu}\n${prefixe} ${ligne}` } });
     if (n.count === 1) return { ok: true, mode: "ajoutee" };
   }
   const avant = tour.contenu.replace(/^\[[^\]]*\]\s*/, "").trim().slice(0, 300);
   const message = `${prefixe} ${ligne}\n(La personne précise sa demande précédente « ${avant} », dont la réponse est en cours ou vient d'arriver : pars de ce que tu as déjà trouvé, ne refais pas les recherches déjà faites, et réponds à la demande ainsi précisée. Si c'est en fait une autre demande, traite-la.)`;
-  const d = await deposerMessage(userId, message.slice(0, 8_000), [], null, tour.filId);
+  const d = await deposerMessage(userId, message, [], null, tour.filId);
   if (!d.ok) return d;
   void traiterFil(userId, d.conversation);
   return { ok: true, mode: "relance", tour: d.tour.id, conversation: d.conversation };
@@ -192,7 +192,7 @@ export async function appliquerPrecisions(userId: string, tourId: string): Promi
   let miseEnForme: Application["miseEnForme"] = null;
   if (aProduire.length) {
     const message = `${PREFIXE_MISE_EN_FORME} ${aProduire.join(" ")}\n(Reprends TA RÉPONSE PRÉCÉDENTE telle quelle — ne refais aucune recherche, ne relis aucune donnée — et produis seulement ce qui est demandé : le fichier, ou la carte d'envoi à confirmer.)`;
-    const d = await deposerMessage(userId, message.slice(0, 8_000), [], null, tour.filId, { parallele: true });
+    const d = await deposerMessage(userId, message, [], null, tour.filId, { parallele: true });
     if (d.ok) {
       void traiterFil(userId, d.conversation);
       miseEnForme = { tour: d.tour.id, conversation: d.conversation };
