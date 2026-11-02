@@ -20,7 +20,7 @@ import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { parseQuantity } from "@/lib/promo/stock";
 import { validerArticleDemande, type ArticleDemandeValide, type FamillePromo } from "@/lib/promo-material/achats";
 import { lireLignesDemande, ligneVide, REFUS_SANS_LIGNE } from "@/lib/promo-material/lignes-demande";
-import { creerArticleHorsCatalogue, refusArticleLibre, type ArticleLibre } from "@/lib/promo-material/article-hors-catalogue";
+import { articleLibreDeLaLigne, catalogueDesLignes, creerArticleHorsCatalogue, type ArticleLibre } from "@/lib/promo-material/article-hors-catalogue";
 import { lireDateBesoin } from "@/lib/promo-material/date-besoin";
 import { aucunPromu, designeUnProduit, type PromusChoisis } from "@/lib/promo-material/promus";
 import { resoudrePromus } from "@/lib/queries/promo-promus";
@@ -227,27 +227,14 @@ export async function createPromoMaterial(_prev: ActionResult | undefined, formD
     if (!lues.ok) return { ok: false, error: lues.error };
     const saisies = lues.lignes.filter((l) => !ligneVide(l));
     if (saisies.length === 0) manques.push(REFUS_SANS_LIGNE);
-    const idsCatalogue = [...new Set(saisies.map((l) => l.catalogueId).filter(Boolean))];
-    const catalogue = idsCatalogue.length
-      ? await prisma.promoCatalogueArticle.findMany({
-          where: { id: { in: idsCatalogue } },
-          select: { id: true, reference: true, nom: true, famille: true, exigeProduit: true, actif: true },
-        })
-      : [];
-    const parId = new Map(catalogue.map((c) => [c.id, c]));
+    // F2 (TR-LM-04) : une ligne « AUTRE ARTICLE » dès la création, comme sur la fiche (`article-hors-catalogue.ts`).
+    const parId = await catalogueDesLignes(saisies);
     const lignes: (ArticleDemandeValide & { catalogueId: string; promus: PromusChoisis; canoniques: string[] })[] = [];
-    // F2 (banc réel du 02/11, TR-LM-04) — « AUTRE ARTICLE » dès la création, comme sur la fiche : un article absent du
-    // catalogue, saisi librement (nom, famille), jugé par la même règle de ligne ; il n'entre au catalogue (archivé,
-    // hors catalogue) qu'une fois TOUTE la demande jugée recevable, juste avant d'écrire le dossier.
     const libres = new Map<number, ArticleLibre>();
     for (const [i, s] of saisies.entries()) {
-      const libre = s.catalogueId === "AUTRE" ? { nom: s.autreNom ?? "", famille: s.autreFamille ?? "", description: s.autreDescription || null } : null;
-      const refusLibre = libre ? refusArticleLibre(libre) : null;
-      if (refusLibre) { manques.push(`Ligne ${i + 1} : ${refusLibre}`); continue; }
-      if (libre) libres.set(lignes.length, libre);
-      const c = libre
-        ? { id: "AUTRE", reference: "AUTRE", nom: libre.nom, famille: libre.famille, exigeProduit: false, actif: true }
-        : parId.get(s.catalogueId) ?? null;
+      const libre = articleLibreDeLaLigne(s, libres, lignes.length);
+      if ("refus" in libre) { manques.push(`Ligne ${i + 1} : ${libre.refus}`); continue; }
+      const c = libre.catalogue ?? parId.get(s.catalogueId) ?? null;
       const quantite = s.quantite ? parseQuantity(s.quantite) : null;
       // CE QUE LA LIGNE PROMEUT (§118.204) — la société, une gamme, des produits des BU, « Autre ».
       const promus = await resoudrePromus(s.produitIds, s.autre);
