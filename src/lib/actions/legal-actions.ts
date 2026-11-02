@@ -39,6 +39,8 @@ import { sansBloquer } from "@/lib/journal";
 import { checkChainFrom, parseKind, peutEcrire } from "@/lib/actions/internes/legal/regles";
 import { phraseAiguillage } from "@/lib/actions/internes/legal/phrases";
 import { actionReversible } from "@/lib/effets/reversible";
+import { fournisseurDuDevisDepose } from "@/lib/pieces-lues/fournisseur-annuaire";
+import { phraseFournisseurAuto } from "@/lib/pieces-lues/fournisseur-auto";
 // Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/legal/{regles,phrases}` — les actions restent ici (leur clé de contrat).
 
 /**
@@ -249,6 +251,9 @@ export async function createLegalDocument(
     // fichier ne défait PAS la création : l'engagement est enregistré, on dit ce qui n'a pas suivi.
     const files = await attachFormFiles(user.id, "LEGAL_DOCUMENT", created.id, formData);
     const range = pieceExistanteId ? await rangerPiece(user, pieceExistanteId, source, created.id) : null;
+    // UN DEVIS SANS PARTIE : son fournisseur est cherché dans l'annuaire, et ajouté s'il n'y est pas (Direction, 02/11/2026).
+    const auto = devis && parties.ids.length === 0 ? await fournisseurDuDevisDepose({ userId: user.id, legalDocumentId: created.id, driveNodeId, fichier: formData.getAll("attachment").find((v): v is File => v instanceof File && v.size > 0) ?? null }) : null;
+    const fournisseur = auto ? phraseFournisseurAuto(auto) : null;
 
     revalidatePath("/legal");
     const fichiers = files.failed.length
@@ -261,7 +266,7 @@ export async function createLegalDocument(
       : null;
     for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, legalDocumentId: created.id, acteurId: user.id });
     const avertissement = garde.probables.map((p) => p.phrase).join(" ") || null;
-    const message = [fichiers ?? (aiguillage || rangement || avertissement ? "Document créé." : null), rangement, aiguillage, avertissement].filter(Boolean).join(" ");
+    const message = [fichiers ?? (aiguillage || rangement || avertissement || fournisseur ? "Document créé." : null), rangement, aiguillage, fournisseur, avertissement].filter(Boolean).join(" ");
     return { ok: true, id: created.id, message: message || undefined, ...(avertissement ? { avertissement } : {}) };
   });
 }

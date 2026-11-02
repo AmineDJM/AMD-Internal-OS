@@ -12,6 +12,7 @@ import { ACCEPT_PIECES, PAGES_MAX, TAILLE_MAX_OCTETS } from "@/lib/pieces-lues/f
 import type { ActionResult } from "@/lib/actions/types";
 import { champsPreremplis, marquesAffichees, type Gardes } from "./champs-preremplis";
 import { cn } from "@/lib/utils";
+import { retenirAnnonce } from "@/components/shared/annonce-de-creation";
 
 /**
  * « NOUVEAU DOCUMENT » ET « NOUVELLE FACTURE » — LA PIÈCE D'ABORD, LE FORMULAIRE ENSUITE.
@@ -64,6 +65,13 @@ export function NouveauDocumentLegal({
     setErreur(null); setGardes({}); touches.current = new Set();
   };
   const fermer = () => { setOpen(false); reinitialiser(); };
+  // CE QUE LA CRÉATION DIT (le fournisseur ajouté à l'annuaire, l'aiguillage d'un BC…) est retenu pour la fiche qu'elle
+  // ouvre : sans cela, la phrase partait avec le formulaire (`annonce-de-creation.tsx`).
+  const creer = React.useCallback(async (prev: ActionResult | undefined, fd: FormData): Promise<ActionResult> => {
+    const r = await action(prev, fd);
+    if (r.ok && r.id && r.message) retenirAnnonce(`legal:${r.id}`, r.message);
+    return r;
+  }, [action]);
 
   /**
    * Ce que la personne a touché, relevé dans le formulaire AVANT d'en changer la pièce. Les listes (parties, lecteurs)
@@ -256,7 +264,7 @@ export function NouveauDocumentLegal({
           <RecordForm
             key={version}
             fields={champs}
-            action={action}
+            action={creer}
             redirectBase={redirectBase}
             marques={marques}
             // LA PIÈCE LUE EN PREMIER : la garde des factures en double compare la première pièce jointe.

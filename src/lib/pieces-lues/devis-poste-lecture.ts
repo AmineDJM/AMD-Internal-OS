@@ -4,6 +4,8 @@ import { annuaireDeLecture, proposerLecture } from "@/lib/pieces-lues/service";
 import { lectureDevisPromo } from "@/lib/pieces-lues/prerempli-devis-promo";
 import { doutesDeLaLecture, lignesDepuisLaLecture, noteDeLecture } from "@/modules/ad-pro/partage";
 import { identiteUtilisable } from "@/lib/pieces-lues/emetteur";
+import { fournisseurDuDevisDansLAnnuaire } from "@/lib/pieces-lues/fournisseur-annuaire";
+import { SOURCE_NOM_DU_FICHIER, phraseFournisseurAuto } from "@/lib/pieces-lues/fournisseur-auto";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -50,6 +52,11 @@ export interface IngestionDevis {
    * avec le message de l'upload.
    */
   doutes: string[];
+  /**
+   * LE FOURNISSEUR DANS L'ANNUAIRE (Direction, 02/11/2026) — reconnu, rattaché par son nom seul, ajouté, ou pourquoi il
+   * ne l'a pas été (`phraseFournisseurAuto`). `null` : l'étape n'a pas pu se faire (journalisé, jamais bloquant).
+   */
+  fournisseur?: string | null;
 }
 
 /**
@@ -73,8 +80,17 @@ export async function ingererDevisDuPoste(i: {
     const p = lecture.prerempli;
     const lignes = lignesDepuisLaLecture(p.lignes);
     const doutes = doutesDeLaLecture(lecture.controle, p.tvaNonImprimee ?? null);
+    // LE FOURNISSEUR EST CHERCHÉ DANS L'ANNUAIRE ENTIER, ET AJOUTÉ S'IL N'Y EST PAS (Direction, 02/11/2026) : la fiche
+    // reconnue — ou créée — devient le fournisseur du devis quand la lecture n'en a retenu aucun. Un rattachement par
+    // le nom seul, ou plusieurs fiches à égalité, se DISENT au dépôt — sans devenir un doute de lecture : ceux-là gardent
+    // le devis « à revoir », et un fournisseur se corrige sur sa fiche, pas sur les lignes.
+    const auto = r.proposition.emetteur && await fournisseurDuDevisDansLAnnuaire({
+      userId: i.userId, legalDocumentId: i.legalDocumentId, identite: r.proposition.emetteur, groupe,
+      nomDuFichierSeul: r.proposition.emetteurLu?.source === SOURCE_NOM_DU_FICHIER,
+    }) || null;
+    const phraseFournisseur = auto ? phraseFournisseurAuto(auto) : null;
     const donnees = {
-      supplierId: p.fournisseurId,
+      supplierId: p.fournisseurId ?? (auto && "contactId" in auto ? auto.contactId : null),
       // RETRANSCRIRE, JAMAIS DEVINER : la TVA n'est écrite que si le devis l'imprime. Sinon `null` — il n'y a plus
       // de « 19 % par défaut » (c'est lui qui avait fait un TTC de 476 000 pour un devis de 400 000 HT sans TVA).
       tvaRate: p.tvaRate != null ? new Prisma.Decimal(p.tvaRate) : null,
@@ -114,7 +130,7 @@ export async function ingererDevisDuPoste(i: {
         data: { counterparty: r.proposition.emetteur.nom },
       });
     }
-    return { ok: true, nbLignes: ecrites, note: lecture.noteMethode, reserves: p.reserves, sansLignes: lecture.sansLignes, doutes };
+    return { ok: true, nbLignes: ecrites, note: lecture.noteMethode, reserves: p.reserves, sansLignes: lecture.sansLignes, doutes, fournisseur: phraseFournisseur };
   } catch (err) {
     console.error("[devis-poste] lecture impossible", err);
     return { ok: false, raison: "La lecture du devis a échoué (erreur technique) : saisissez ses lignes à la main." };
@@ -127,8 +143,9 @@ export async function ingererDevisDuPoste(i: {
  */
 export function phraseDeLecture(i: IngestionDevis): string {
   const sansPoint = (t: string): string => t.replace(/[.\s]+$/, "");
+  const fournisseur = i.fournisseur ? ` ${i.fournisseur}` : "";
   if (i.nbLignes === 0) {
-    return `Devis lu, mais aucune ligne n'a pu en être tirée${i.sansLignes ? ` (${sansPoint(i.sansLignes)})` : ""} : saisissez ses lignes depuis la carte du poste.`;
+    return `Devis lu, mais aucune ligne n'a pu en être tirée${i.sansLignes ? ` (${sansPoint(i.sansLignes)})` : ""} : saisissez ses lignes depuis la carte du poste.${fournisseur}`;
   }
   // LES DOUTES DU CONTRÔLE D'ABORD (un total qui ne tombe pas juste, une TVA non imprimée) : ce sont eux qui empêchent
   // la validation d'office ; les autres réserves suivent, sans redite.
@@ -137,5 +154,5 @@ export function phraseDeLecture(i: IngestionDevis): string {
   const aDire = [...doutes, ...i.reserves.filter((r) => !doutes.includes(r) && !(tvaDite && r.startsWith("TVA de ")))];
   const reserves = aDire.length > 0 ? ` À vérifier : ${aDire.slice(0, 3).join(" ")}` : "";
   return `Devis lu (${sansPoint(i.note)}) : ${i.nbLignes} ligne${i.nbLignes > 1 ? "s" : ""} proposée${i.nbLignes > 1 ? "s" : ""} — `
-    + `comparez-les au papier, puis cochez celles que vous validez : seules les lignes cochées entrent dans un bon de commande.${reserves}`;
+    + `comparez-les au papier, puis cochez celles que vous validez : seules les lignes cochées entrent dans un bon de commande.${reserves}${fournisseur}`;
 }
