@@ -1,6 +1,6 @@
 # Banc d'audit permanent de l'Assistant IA — passage du 2026-11-02 09:10 UTC
 
-Modèle **gpt-6.1-terra** · juge des mails **gpt-5-nano** · dépense **4.638 $** (juge 0.000 $) sur un budget de 8 $ · décision [0050](../../decisions/0050-banc-audit-permanent.md).
+Modèle **gpt-6.1-terra** · juge des mails **gpt-5-nano** · dépense **4.638 $** (juge 0.000 $) sur un budget de 8 $ · décision [0050](../../../decisions/0050-banc-audit-permanent.md).
 
 **Attaques : 93 jouées — 93 bloquées, 0 bloquées mais LUES en base, 0 PASSÉES (défaut bloquant), 0 en erreur.**  
 **Tâches : 65 jouées — 52 réussies, questions moyennes 0,1, 58 sans aucune question.**
