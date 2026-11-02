@@ -10,11 +10,11 @@
  * Synthétique, étiqueté (les contacts et dossiers portent `audit-doc<étiquette>` en note), retirable (`retirerDocuments`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import JSZip from "jszip";
 import { prisma } from "@/lib/prisma";
 import { attendu } from "@/lib/journal";
-import type { CurrentUser } from "@/lib/session";
 import type { Titulaire } from "./personas";
+import { deposerPiece, docx as docxDe, dossierDrive } from "./taches/aides";
+import type { PieceSemee, SemisDeDomaine } from "./taches/types";
 
 export const DOSSIER_A_CLASSER = "À classer — novembre";
 export const DOSSIER_ARCHIVES = "Archives juridiques 2025";
@@ -28,14 +28,6 @@ export const PARTIES = [
   ["BioSimilaire Lab", "PRIVE", "Laboratoire"], ["Université Alger 1", "PUBLIC", "Université"], ["Ministère de l'Industrie pharmaceutique", "PUBLIC", "Ministère"],
   ["Logitrans", "PRIVE", "Transporteur"], ["Imprimerie Atlas", "PRIVE", "Imprimeur"],
 ] as const;
-
-export interface DepotsDocuments {
-  putBlob: (octets: Buffer) => Promise<{ blobId: string; size: number; sha256: string }>;
-  enregistrerFichierDrive: (u: CurrentUser, cible: { parentId?: string | null }, f: { blobId: string; size: number; mimeType: string; name: string; sha256?: string | null }) => Promise<{ id: string }>;
-  sessionDe: (userId: string) => Promise<CurrentUser>;
-}
-
-const MIME = { pdf: "application/pdf", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", png: "image/png" } as const;
 
 /** Un PDF de plusieurs PAGES (« --- » sépare les pages). */
 export async function pdfPages(pages: string[][]): Promise<Buffer> {
@@ -53,15 +45,6 @@ export async function pdfPages(pages: string[][]): Promise<Buffer> {
   doc.end();
   await fini;
   return Buffer.concat(morceaux);
-}
-
-export async function docxDe(paragraphes: string[]): Promise<Buffer> {
-  const zip = new JSZip();
-  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  zip.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
-  zip.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>`);
-  zip.file("word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${paragraphes.map((p) => `<w:p><w:r><w:t xml:space="preserve">${esc(p)}</w:t></w:r></w:p>`).join("")}</w:body></w:document>`);
-  return zip.generateAsync({ type: "nodebuffer" });
 }
 
 const contrat = (titre: string, partie: string, debut: string, fin: string, extra: string[] = []) => pdfPages([[
@@ -121,15 +104,11 @@ async function fichiersDe(): Promise<Partial<Record<Titulaire, [string, Buffer, 
   };
 }
 
-export interface SemisDocuments {
-  /** Pièce du registre → id (fiche), pour les vérificateurs. */
-  fiches: Record<string, string>;
-}
-
-/** LE SEMIS DU DOMAINE — appelé à la fin de `semerAudit`. */
-export async function semerDocuments(
-  etiquette: string, users: Record<Titulaire, string>, companyId: string, d: DepotsDocuments,
-): Promise<SemisDocuments> {
+/**
+ * LE SEMIS DU DOMAINE (`SemisDeDomaine`, appelé après le semis commun) — rend ses pièces : `doc:<persona>:<fichier>` (nœuds du
+ * Drive) et `doc_fiche:<clé>` (fiches du registre, `nom` = leur titre).
+ */
+export const semerDocuments: SemisDeDomaine = async ({ etiquette, users, companyId }) => {
   const tag = `audit-doc${etiquette}`;
   const contacts: Record<string, string> = {};
   // La société elle-même, partie de ses pièces internes (statuts, PV) — à l'annuaire sous son nom, comme en réel.
@@ -144,20 +123,12 @@ export async function semerDocuments(
   }
 
   // Les fichiers, chacun dans le Drive de sa persona (sous-dossier au besoin).
-  const parNom: Record<string, string> = {};
+  const pieces: Record<string, PieceSemee> = {};
   for (const [t, liste] of Object.entries(await fichiersDe()) as [Titulaire, [string, Buffer, string | null][]][]) {
-    const s = await d.sessionDe(users[t]);
     const sousDossiers: Record<string, string> = {};
     for (const [nom, octets, sous] of liste) {
-      let parentId: string | null = null;
-      if (sous) {
-        sousDossiers[sous] ??= (await prisma.driveNode.create({ data: { name: sous, type: "FOLDER", ownerId: users[t], createdById: users[t] }, select: { id: true } })).id;
-        parentId = sousDossiers[sous]!;
-      }
-      const b = await d.putBlob(octets);
-      const ext = nom.slice(nom.lastIndexOf(".") + 1) as keyof typeof MIME;
-      const { id } = await d.enregistrerFichierDrive(s, { parentId }, { blobId: b.blobId, size: b.size, mimeType: MIME[ext], name: nom, sha256: b.sha256 });
-      parNom[`${t}:${nom}`] = id;
+      if (sous) sousDossiers[sous] ??= (await dossierDrive(users[t], sous)).id;
+      pieces[`doc:${t}:${nom}`] = await deposerPiece(users[t], nom, octets, sous ? sousDossiers[sous]! : null, nom.endsWith(".png") ? "image/png" : undefined);
     }
   }
 
@@ -169,8 +140,8 @@ export async function semerDocuments(
     let driveNodeId: string | null = null;
     if (o.fichier) {
       const [t, nom, octets] = o.fichier;
-      const b = await d.putBlob(octets);
-      driveNodeId = (await d.enregistrerFichierDrive(await d.sessionDe(users[t]), { parentId: null }, { blobId: b.blobId, size: b.size, mimeType: MIME.pdf, name: nom, sha256: b.sha256 })).id;
+      driveNodeId = (await deposerPiece(users[t], nom, octets)).id;
+      pieces[`doc:${t}:${nom}`] = { id: driveNodeId, nom };
     }
     return {
       title: o.titre, counterparty: o.partie, counterpartyIds: [contacts[o.partie]!], startDate: o.debut, endDate: o.fin, status: (o.statut ?? "ACTIVE") as never,
@@ -183,7 +154,6 @@ export async function semerDocuments(
   const assuranceSemee = async (o: Semee) => prisma.legalDocument.create({ data: { kind: "INSURANCE", ...(await champs(o)) }, select: SEL });
   const bailSeme = async (o: Semee) => prisma.legalDocument.create({ data: { kind: "LEASE", ...(await champs(o)) }, select: SEL });
   const conventionSemee = async (o: Semee) => prisma.legalDocument.create({ data: { kind: "AGREEMENT", ...(await champs(o)) }, select: SEL });
-  const fiches: Record<string, string> = {};
   // Le contrat Pharmalliance précédent : l'avenant n°1 en a besoin pour naître (`createAmendment`), quel que soit l'ordre des tâches.
   const ph24 = await contratSeme({ titre: "Contrat de distribution Pharmalliance 2024-2025", partie: "Pharmalliance Distribution", debut: new Date("2024-01-01"), fin: new Date("2025-12-31"), statut: "EXPIRED", dossier: "Contrats" });
   const m23 = await contratSeme({ titre: "Contrat de fourniture MediSupply 2023", partie: "MediSupply", debut: new Date("2023-01-01"), fin: new Date("2024-12-31"), statut: "RENEWED", dossier: "Contrats", fichier: ["juriste", "Contrat MediSupply 2023.pdf", await contrat("Contrat de fourniture", "MediSupply", "01/01/2023", "31/12/2024")] });
@@ -196,10 +166,11 @@ export async function semerDocuments(
   const bail = await bailSeme({ titre: "Bail du siège social — Hydra", partie: "SCI El Djazair", debut: new Date("2024-07-01"), fin: new Date("2027-06-30"), dossier: "Baux", fichier: ["juriste", "Bail siège Hydra.pdf", await contrat("Bail du siège social", "SCI El Djazair", "01/07/2024", "30/06/2027")] });
   const proto = await conventionSemee({ titre: TITRE_RESTREINT, partie: "Pharmalliance Distribution", debut: jour(-30), fin: null, createur: "superadmin", fichier: ["superadmin", "Protocole QZ-PROTO-7731.pdf", await pdfPages([[TITRE_RESTREINT, "Confidentiel."]])] });
   await prisma.legalDocumentReader.create({ data: { documentId: proto.id, userId: users.superadmin, grantedById: users.superadmin } });
-  Object.assign(fiches, { pharmalliance2024: ph24.id, medisupply2023: m23.id, medisupply2025: m25.id, cnas: cnas.id, flotte: flotte.id, bail: bail.id, protocole: proto.id });
-  Object.assign(fiches, Object.fromEntries(Object.entries(parNom).map(([k, v]) => [`drive:${k}`, v])));
-  return { fiches };
-}
+  for (const [cle, f, titre] of [["pharmalliance2024", ph24, "Contrat de distribution Pharmalliance 2024-2025"], ["medisupply2023", m23, "Contrat de fourniture MediSupply 2023"],
+    ["medisupply2025", m25, "Contrat de fourniture MediSupply 2025"], ["cnas", cnas, "Attestation de mise à jour CNAS"], ["flotte", flotte, "Police d'assurance flotte automobile"],
+    ["bail", bail, "Bail du siège social — Hydra"], ["protocole", proto, TITRE_RESTREINT]] as const) pieces[`doc_fiche:${cle}`] = { id: f.id, nom: titre };
+  return pieces;
+};
 
 /** Retire ce que `semerDocuments` a semé, et ce que les tâches DOC- ont créé (fiches, dossiers, contacts) — AVANT les comptes. */
 export async function retirerDocuments(etiquette: string, userIds: string[]): Promise<void> {

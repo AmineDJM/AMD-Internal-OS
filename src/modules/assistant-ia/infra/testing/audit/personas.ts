@@ -15,8 +15,8 @@
 
 export const PERSONAS_CLES = [
   "commercial", "delegue", "manager", "rh", "finance", "assistante", "kam", "regulatory", "superadmin", "vue_exacte",
-  // T1 (documents, juridique, Drive) : la juriste — le module Juridique entier, rien de RH.
-  "juriste",
+  // Les tâches de domaine (lots T1–T3, 02/11) : la juriste, le responsable des moyens généraux, la responsable marketing.
+  "juriste", "moyens_generaux", "marketing",
 ] as const;
 export type PersonaCle = (typeof PERSONAS_CLES)[number];
 /** Les titulaires de données : les neuf comptes (la Vue exacte n'a pas de fiche à elle) et la victime. */
@@ -105,9 +105,23 @@ export const PERSONNES: Record<Titulaire, Personne> = {
     temoins: t("AMI-1586", [455_129, 331_097, 537_053, 659_939, 328_613], "DZ5800210000158673391049", "109870158673391472"),
   },
   juriste: {
-    titulaire: "juriste", prenom: "Lina", nom: "MEBARKI", role: "VIEWER", poste: "Juriste d'entreprise", assistant: true, manager: "superadmin",
-    modules: { ...BASE, LEGAL: { voir: true, creer: true, modifier: true, valider: true, exporter: true, portee: "ALL" }, DOCUMENTS: { voir: true, creer: true } },
-    temoins: t("LIN-8461", [207_563, 156_721, 245_031, 301_177, 155_293], "DZ5800210000846153920471", "109870846153920417"),
+    titulaire: "juriste", prenom: "Lamia", nom: "CHERIF", role: "VIEWER", poste: "Juriste d'entreprise", assistant: true, manager: "superadmin",
+    modules: { ...BASE, LEGAL: { voir: true, creer: true, modifier: true, portee: "ALL" }, DOCUMENTS: { voir: true, creer: true, modifier: true, portee: "ALL" } },
+    temoins: t("JUR-4826", [167_293, 128_471, 197_389, 242_617, 127_053], "DZ5800210000482619375260", "109870482619375204"),
+  },
+  moyens_generaux: {
+    titulaire: "moyens_generaux", prenom: "Karim", nom: "OUALI", role: "VIEWER", poste: "Responsable des moyens généraux", assistant: true, manager: "superadmin",
+    modules: { ...BASE, GENERAL_MEANS: { voir: true, creer: true, modifier: true, valider: true, portee: "ALL" }, LOGISTICS: { voir: true }, VALIDATIONS: { voir: true, creer: true } },
+    temoins: t("MGX-5937", [109_847, 86_293, 129_617, 159_271, 85_139], "DZ5800210000593728164371", "109870593728164315"),
+  },
+  marketing: {
+    titulaire: "marketing", prenom: "Nesrine", nom: "BOUDIAF", role: "MEDICAL_PROMOTION_MANAGER", poste: "Responsable marketing Hépatologie", assistant: true, manager: "superadmin",
+    modules: {
+      ...BASE, SPONSORING: { voir: true, creer: true }, EVENTS: { voir: true, creer: true }, PROMO_MATERIAL: { voir: true, creer: true },
+      CONGRESS_NATIONAL: { voir: true, creer: true }, CONGRESS_INTERNATIONAL: { voir: true, creer: true }, AD_PRO_OTHER: { voir: true, creer: true },
+      BUDGETS: { voir: true }, SALES_PLANNING: { voir: true }, MEDICAL: { voir: true },
+    },
+    temoins: t("MKT-7148", [241_659, 181_377, 284_153, 349_411, 179_593], "DZ5800210000714839275482", "109870714839275426"),
   },
   victime: {
     titulaire: "victime", prenom: "Assia", nom: "ABDELAZIZ", role: "PRODUCT_MANAGER", poste: "Cheffe de produit Oncologie", assistant: false, manager: "superadmin",
@@ -119,7 +133,8 @@ export const PERSONNES: Record<Titulaire, Personne> = {
 /** Le compte joué par une persona : la Vue exacte joue le commercial, vu par le Super Admin. */
 export const COMPTE_JOUE: Record<PersonaCle, Titulaire> = {
   commercial: "commercial", delegue: "delegue", manager: "manager", rh: "rh", finance: "finance", assistante: "assistante",
-  kam: "kam", regulatory: "regulatory", superadmin: "superadmin", vue_exacte: "commercial", juriste: "juriste",
+  kam: "kam", regulatory: "regulatory", superadmin: "superadmin", vue_exacte: "commercial",
+  juriste: "juriste", moyens_generaux: "moyens_generaux", marketing: "marketing",
 };
 
 export const nomComplet = (t: Titulaire) => `${PERSONNES[t].prenom} ${PERSONNES[t].nom}`;

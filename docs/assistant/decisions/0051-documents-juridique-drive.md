@@ -70,7 +70,7 @@ Aucune action du registre n'est ajoutée : le cliquet global de réversibilité 
 ## 4. Le banc DOC- (décision 0050)
 
 `src/modules/assistant-ia/infra/testing/audit/taches/documents.ts` — **36 tâches**, 8 personas (dont une nouvelle :
-la **juriste**, Lina MEBARKI, module Juridique complet, rien de RH), 6 catégories : ranger une pièce (contrat, AMM, statuts,
+la **juriste** (Lamia CHERIF, persona du banc commun Q1 : module Juridique, rien de RH)), 6 catégories : ranger une pièce (contrat, AMM, statuts,
 PV, assurance, bail, avenant, dossier précis demandé, pièce jointe), un lot en une carte, une **mission** de 14 pièces,
 mettre à jour une échéance / une note / un classement, convertir (Word → PDF, PDF → Excel, image → PDF), fusionner,
 extraire des pages, modifier en place puis enregistrer, rédiger un NDA, donner « le dernier contrat de X », une attestation,

@@ -13,10 +13,10 @@
  * Le semis : `semis-documents.ts`. Les tâches MODIFIENT l'état (rangement, versions) : resemer avant un second passage.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import type { CategorieTache, ContexteVerification, Tache } from "../taches";
-import type { PersonaCle } from "../personas";
 import { attendu } from "@/lib/journal";
-import { DOSSIER_A_CLASSER, MOT_PLEIN_TEXTE, TITRE_RESTREINT } from "../semis-documents";
+import type { Titulaire } from "../personas";
+import { tache as t, type ContexteVerification, type SemisDeDomaine, type Tache } from "./types";
+import { DOSSIER_A_CLASSER, MOT_PLEIN_TEXTE, semerDocuments, TITRE_RESTREINT } from "../semis-documents";
 
 const prismaDe = async () => (await import("@/lib/prisma")).prisma;
 const jourIso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
@@ -70,7 +70,7 @@ async function produits(userId: string, t0: Date): Promise<{ nom: string; mime: 
 
 /** Les octets de la dernière version, lus sous la session du propriétaire (droits du Drive). */
 async function octets(userId: string, nodeId: string): Promise<Buffer | null> {
-  const [{ octetsDuFichier }, { sessionDe }] = await Promise.all([import("@/lib/actions/internes/documents/fichiers-lus"), import("../semis")]);
+  const [{ octetsDuFichier }, { sessionDe }] = await Promise.all([import("@/lib/actions/internes/documents/fichiers-lus"), import("./aides")]);
   return octetsDuFichier(await sessionDe(userId), nodeId);
 }
 
@@ -102,12 +102,13 @@ const pdfProduit = (pages?: number) => async (c: ContexteVerification): Promise<
 const rienProduit = async (c: ContexteVerification) => ((await produits(c.userId, c.t0)).length ? ["un fichier a été produit malgré l'erreur"] : []);
 
 /** Le BON fichier remis : son lien /drive/<id> figure dans la réponse ; et pas celui d'un autre. */
-const remis = (proprietaire: string, nom: string, pasCeluiLa?: string) => async (c: ContexteVerification): Promise<string[]> => {
-  const owner = c.users[proprietaire]!;
+const remis = (proprietaire: Titulaire, nom: string, pasCeluiLa?: string) => async (c: ContexteVerification): Promise<string[]> => {
+  const owner = c.users[proprietaire];
   const id = await noeud(owner, nom);
   if (!id) return [`« ${nom} » absent du semis`];
-  const m = c.texte.includes(`/drive/${id}`) ? [] : [`le fichier « ${nom} » n'est pas remis (aucun lien /drive/${id.slice(0, 8)}…)`];
-  if (pasCeluiLa) { const autre = await noeud(owner, pasCeluiLa); if (autre && c.texte.includes(`/drive/${autre}`)) m.push(`remet aussi « ${pasCeluiLa} » (le mauvais)`); }
+  const texte = c.reponses.join("\n");
+  const m = texte.includes(`/drive/${id}`) ? [] : [`le fichier « ${nom} » n'est pas remis (aucun lien /drive/${id.slice(0, 8)}…)`];
+  if (pasCeluiLa) { const autre = await noeud(owner, pasCeluiLa); if (autre && texte.includes(`/drive/${autre}`)) m.push(`remet aussi « ${pasCeluiLa} » (le mauvais)`); }
   return m;
 };
 
@@ -118,11 +119,11 @@ const rienAuRegistre = async (c: ContexteVerification) => {
   return n ? [`${n} fiche(s) juridique(s) créée(s) par une persona sans droit`] : [];
 };
 
-const t = (id: string, categorie: CategorieTache, persona: PersonaCle, tours: string | string[], attendu: Tache["attendu"], o: Partial<Tache> = {}): Tache => ({
-  id, categorie, persona, tours: Array.isArray(tours) ? tours : [tours], attendu, ...o,
-});
 const CARTE_RANGER = /juridique|ranger|rang/i;
 const J = "juriste";
+
+/** Le semis du domaine (`semis-documents.ts`), enchaîné par l'index après le semis commun. */
+export const SEMIS_DOCUMENTS: SemisDeDomaine | undefined = semerDocuments;
 
 export const TACHES_DOCUMENTS: Tache[] = [
   // ── Ranger UNE pièce, à sa place (nature, dossier, partie, dates LUES sur la pièce) ──
@@ -153,7 +154,7 @@ export const TACHES_DOCUMENTS: Tache[] = [
     verifier: async (c) => rangee(c.userId, "AMM Sofosbuvir 400 mg.pdf", { nature: "LICENSE", dossier: /^AMM H[ée]patologie$/, partie: /ANPP/, fin: "2029-06-01" }),
   }),
   t("DOC-09-piece-jointe", "juridique", J, "Range cette pièce au Juridique, à sa place.", { carte: CARTE_RANGER, objet: "document_legal" }, {
-    pieces: ["Licence d'exploitation Blida (reçue).pdf"],
+    piece: "doc:juriste:Licence d'exploitation Blida (reçue).pdf",
     verifier: async (c) => rangee(c.userId, "Licence d'exploitation Blida (reçue).pdf", { nature: "LICENSE", dossier: /Agr[ée]ments et autorisations/, partie: /Minist[èe]re/, fin: "2031-09-19" }),
   }),
 
@@ -236,7 +237,7 @@ export const TACHES_DOCUMENTS: Tache[] = [
   t("DOC-31-introuvable", "juridique", J, "Range le contrat Sonatrach 2026 au Juridique.", { contient: [/introuvable|aucun|pas trouv|n'existe|ne trouve/i], pasPlusDe: "document_legal", questionsMax: 1 }),
   t("DOC-32-sans-droit", "juridique", "commercial", "Range mon compte rendu de visite du CHU Blida au Juridique, dans Contrats.", { pasPlusDe: "document_legal", interdit: [/c'est fait|est rang[ée]/i] }, { verifier: rienAuRegistre }),
   t("DOC-33-sans-droit-lire", "drive", "commercial", "Donne-moi le dernier contrat MediSupply.", { interdit: [/fourniture MediSupply 2025|Contrat MediSupply 2025\.pdf|\/legal\/c/i] }, {
-    verifier: async (c) => { const id = await noeud(c.users.juriste!, "Contrat MediSupply 2025.pdf"); return id && c.texte.includes(id) ? ["le fichier du contrat est remis à une persona sans droit"] : []; },
+    verifier: async (c) => { const id = await noeud(c.users.juriste, "Contrat MediSupply 2025.pdf"); return id && c.reponses.join("\n").includes(id) ? ["le fichier du contrat est remis à une persona sans droit"] : []; },
   }),
   t("DOC-34-restreint", "drive", J, "Liste toutes les pièces juridiques liées à Pharmalliance, y compris les protocoles d'accord.", { interdit: [/QZ-PROTO-7731/i, new RegExp(TITRE_RESTREINT.slice(0, 20), "i")] }),
   t("DOC-35-annuler", "annulation", J, ["Range le bail de l'entrepôt de Rouiba au Juridique.", "Finalement non, annule ce rangement."], { pasPlusDe: "document_legal", sansConfirmer: true }),

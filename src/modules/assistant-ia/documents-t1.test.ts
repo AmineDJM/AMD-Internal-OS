@@ -104,12 +104,12 @@ suite("T1 — documents, juridique et Drive : exécutés puis annulés", () => {
 
   it("mettre à jour une échéance par la fiche : seule l'échéance change — l'annulation la remet", async () => {
     const { gesteId } = await confirmer(juriste, "modifier_fiche_juridique", { piece: "Bail du siège social — Hydra", fin: "30/06/2028" });
-    const b = await prisma.legalDocument.findUniqueOrThrow({ where: { id: S.documents!.fiches.bail! }, select: { endDate: true, startDate: true, counterparty: true, folder: { select: { name: true } } } });
+    const b = await prisma.legalDocument.findUniqueOrThrow({ where: { id: S.pieces["doc_fiche:bail"]!.id }, select: { endDate: true, startDate: true, counterparty: true, folder: { select: { name: true } } } });
     expect(b.endDate?.toISOString().slice(0, 10)).toBe("2028-06-30");
     expect(b.startDate?.toISOString().slice(0, 10)).toBe("2024-07-01");
     expect(b).toMatchObject({ counterparty: "SCI El Djazair", folder: { name: "Baux" } });
     await annuler(juriste, gesteId);
-    const apres = await prisma.legalDocument.findUniqueOrThrow({ where: { id: S.documents!.fiches.bail! }, select: { endDate: true } });
+    const apres = await prisma.legalDocument.findUniqueOrThrow({ where: { id: S.pieces["doc_fiche:bail"]!.id }, select: { endDate: true } });
     expect(apres.endDate?.toISOString().slice(0, 10)).toBe("2027-06-30");
   }, 120_000);
 
@@ -162,7 +162,7 @@ suite("T1 — documents, juridique et Drive : exécutés puis annulés", () => {
     expect(carte.fields.map((f) => f.value).join(" ")).toMatch(/Avenant/);
     const id = await noeud(S.users.juriste, "Avenant n°1 contrat Pharmalliance.docx");
     const a = await prisma.legalDocument.findFirstOrThrow({ where: { driveNodeId: id }, select: { kind: true, amendsId: true, counterparty: true, startDate: true, folder: { select: { name: true } } } });
-    expect(a).toMatchObject({ kind: "AMENDMENT", amendsId: S.documents!.fiches.pharmalliance2024, counterparty: "Pharmalliance Distribution", folder: { name: "Avenants" } });
+    expect(a).toMatchObject({ kind: "AMENDMENT", amendsId: S.pieces["doc_fiche:pharmalliance2024"]!.id, counterparty: "Pharmalliance Distribution", folder: { name: "Avenants" } });
     expect(a.startDate?.toISOString().slice(0, 10)).toBe("2026-03-01");
     await annuler(juriste, gesteId);
     expect(await prisma.legalDocument.count({ where: { driveNodeId: id, status: { not: "CANCELLED" } } })).toBe(0);

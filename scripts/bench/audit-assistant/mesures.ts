@@ -22,8 +22,11 @@ export const COMPTEURS: Record<ObjetAttendu, () => Promise<number>> = {
   fichier: () => prisma.driveNode.count({ where: { type: "FILE" } }),
   memoire: () => prisma.assistantMemoryItem.count({ where: { active: true } }),
   rendez_vous: () => prisma.calendarEvent.count(),
-  // T1 (décision 0051) : une fiche du registre juridique (annulée = retirée : elle ne compte pas).
-  document_legal: () => prisma.legalDocument.count({ where: { status: { not: "CANCELLED" } } }),
+  conge: () => prisma.leaveRequest.count(),
+  demande_rh: () => prisma.hrDocumentRequest.count(),
+  evenement: () => prisma.event.count(),
+  document_legal: () => prisma.legalDocument.count(),
+  demande_admin: () => prisma.administrativeRequest.count(),
 };
 
 export async function compter(): Promise<Record<ObjetAttendu, number>> {
