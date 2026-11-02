@@ -45,6 +45,10 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "moyens-generaux-registre-actions:archiverMoyenGeneral": retour("la fiche retrouve son statut d'avant"),
   "moyens-generaux-registre-actions:reserverMoyenGeneral": retour("la réservation créée est retirée : le créneau se libère"),
   "moyens-generaux-registre-actions:annulerReservationMoyenGeneral": retour("la réservation reprend son statut confirmé, si le créneau est toujours libre"),
+
+  // T2 (décision 0052) : l'annuaire tenu en lot — un geste, tout le lot revient à ses valeurs d'avant.
+  "fournisseurs-annuaire-actions:appliquerLotAnnuaire": retour("chaque fiche du lot reprend ses valeurs d'avant (journal des effets), en un geste ; refusée si une fiche a été changée depuis par quelqu'un d'autre"),
+  "fournisseurs-annuaire-actions:fusionnerEtablissementsAnnuaire": retour("les fiches absorbées sont réactivées, leurs praticiens et secteurs leur reviennent, la fiche gardée perd ce qu'elle avait reçu"),
   "budget-pole-actions:imputerBv": retour("l'ordre (ou l'écriture payée) retrouve sa catégorie budgétaire d'avant"),
   "congress-request-actions:finalDecision": compensation("l'étape de décision est rouverte ; l'ordre de paiement et la déclaration nés de l'accord sont retirés ou annulés ; le demandeur reçoit un rectificatif s'il avait lu"),
   "congress-request-actions:updateGrantedBudget": retour("le montant accordé, celui de la déclaration et celui de l'ordre non réglé reviennent"),

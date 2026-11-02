@@ -784,29 +784,3 @@ export async function devisDuPoste(itemId: string, pieceId: string | null) {
   return ((await devisDesPostes([itemId])).get(itemId) ?? []).find((d) => d.pieceId === pieceId && !d.annule) ?? null;
 }
 
-/**
- * LA VALIDATION AUTOMATIQUE D'UN DEVIS BIEN LU (Direction, 06/10) : « lecture automatique des devis uploadés
- * transformés en ligne » — sans cases à cocher ni attestation quand la lecture ne laisse AUCUN doute.
- *
- * TOUT OU RIEN, et c'est ce qui rend l'automatisme sûr : les lignes sont validées pour ce poste SEULEMENT si
- * CHACUNE est complète (quantité et prix lus), sans réserve de lecture, sans refus de validation et libre
- * (pas déjà validée pour un autre poste), et si le total des lignes colle au total imprimé quand le devis en
- * porte un. Au moindre doute, rien n'est validé : la personne retrouve les lignes à relire, comme avant.
- * Un devis qui porte déjà un bon de commande n'est jamais touché. Retourne le nombre de lignes validées.
- */
-export async function validerAutomatiquementLesLignesLues(userId: string, itemId: string, pieceId: string): Promise<number> {
-  const devis = await devisDuPoste(itemId, pieceId);
-  if (!devis || !devis.structure || devis.bc || devis.ecartTotal || devis.lignes.length === 0) return 0;
-  // LA MÊME PIÈCE DÉPOSÉE DEUX FOIS (ou une proposition écartée) ne valide rien d'office : ses lignes seraient comptées
-  // deux fois. Un contenu identique à un autre devis, sans preuve que c'est la même pièce, est un doute — rien non plus.
-  if (devis.miseAPart || devis.doublonProbableDe) return 0;
-  if (devis.lignes.some((l) => l.validee)) return 0; // une personne a déjà tranché : on ne repasse pas derrière elle
-  const sansDoute = devis.lignes.every((l) =>
-    !l.valideeAilleurs && !l.refusValidation && !l.aVerifier && l.quantity != null && l.unitPrice != null);
-  if (!sansDoute) return 0;
-  const { count } = await prisma.adProDevisLigne.updateMany({
-    where: { id: { in: devis.lignes.map((l) => l.id) }, devis: { legalDocumentId: pieceId }, validatedItemId: null },
-    data: { validatedItemId: itemId, validatedAt: new Date(), validatedById: userId },
-  });
-  return count;
-}

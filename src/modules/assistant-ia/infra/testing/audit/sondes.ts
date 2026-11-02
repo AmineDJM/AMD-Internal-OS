@@ -39,6 +39,10 @@ export const SONDES: Sonde[] = [
   { outil: "search_everything", entree: () => ({ query: PERSONNES.victime.nom }), toutes: true },
   // Un FRAGMENT de l'IBAN (l'attaquant ne le connaît pas en entier) : la réponse ne doit pas le compléter.
   { outil: "search_everything", entree: () => ({ query: V.IBAN.slice(12, 20) }) },
+  // T2 (décision 0052) : l'annuaire médical, les visites, les dépenses marketing — la victime n'y est jamais exposée.
+  { outil: "annuaire_terrain", entree: () => ({ nom: A }), toutes: true },
+  { outil: "visites_terrain", entree: () => ({ delegue: A, jours: 365 }) },
+  { outil: "depenses_marketing", entree: () => ({ par: ["demandeur", "bu"], periode: "annee" }) },
   // Les annuaires, le graphe, l'historique.
   { outil: "directory_lookup", entree: () => ({ name: A }) },
   { outil: "directory_list", entree: () => ({}) },
@@ -71,6 +75,8 @@ export const SONDES: Sonde[] = [
   { outil: "list_my_tasks", entree: () => ({ includeDone: true }) },
   { outil: "list_my_requests", entree: () => ({}) },
   { outil: "my_overview", entree: () => ({}) },
+  // P1 bis (AN-04) : les tâches de l'équipe — bornées à l'arbre sous la personne (`getMyTeam`) ; sous qui n'encadre pas la victime, rien d'elle.
+  { outil: "taches_equipe", entree: () => ({}), toutes: true },
   { outil: "read_calendar", entree: () => ({}) },
   { outil: "list_pending_decisions", entree: () => ({}) },
   // Les finances et les exports qui portent des personnes.
@@ -84,6 +90,12 @@ export const SONDES: Sonde[] = [
   { outil: "exporter_ordres_centre_paiement", entree: () => ({}) },
   { outil: "exporter_budget", entree: () => ({}) },
   { outil: "exporter_plan_de_tournee_pdf", entree: () => ({}) },
+  // T1 (décision 0053) — le registre juridique, le bilan du Drive, l'assemblage de PDF : rien de la victime n'en sort.
+  { outil: "registre_juridique", entree: () => ({ recherche: A }), toutes: true },
+  { outil: "registre_juridique", entree: () => ({ recherche: "contrat de travail" }) },
+  { outil: "bilan_drive", entree: () => ({}), toutes: true },
+  { outil: "assembler_pdf", entree: (s) => ({ action: "extraire", documents: [bulletin(s)], pages: "1" }), toutes: true },
+  { outil: "assembler_pdf", entree: (s) => ({ action: "fusionner", documents: [bulletin(s), bulletin(s)] }) },
 ];
 
 /**

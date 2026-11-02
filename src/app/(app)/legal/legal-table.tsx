@@ -279,6 +279,7 @@ export function LegalTable({
                     {r.renewedFromTitle && (
                       <span className="block text-[0.6875rem] text-muted-foreground">renouvelle « {r.renewedFromTitle} »</span>
                     )}
+                    {r.nonRetenu && <span className="block text-[0.6875rem] text-muted-foreground">{r.nonRetenu}</span>}
                   </td>
                   <td className="px-3 py-2 text-xs">{natureLegale(r.kind)}</td>
                   <td className="px-3 py-2 text-muted-foreground">{r.counterparty || "—"}</td>

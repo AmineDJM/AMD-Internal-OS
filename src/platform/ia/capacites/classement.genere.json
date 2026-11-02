@@ -5209,6 +5209,15 @@
   "annulation": "retour",
   "appelable": true
  },
+ "fournisseurs-annuaire-actions:appliquerLotAnnuaire": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "fournisseurs-annuaire-actions:creerFournisseurAnnuaire": {
   "risque": "R1",
   "familles": [
@@ -5216,6 +5225,15 @@
   ],
   "simulable": "oui",
   "annulation": "compensation",
+  "appelable": true
+ },
+ "fournisseurs-annuaire-actions:fusionnerEtablissementsAnnuaire": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
   "appelable": true
  },
  "fournisseurs-annuaire-actions:modifierFournisseurAnnuaire": {

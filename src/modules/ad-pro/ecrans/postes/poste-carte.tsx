@@ -14,7 +14,6 @@ import { canRemoveItem, ITEM_KIND_LABELS, ITEM_STATUS_LABELS, type AdProParent }
 import { updateAdProItem, deleteAdProItem, linkPromoMaterial, submitAdProItem, setAdProItemBudget, demanderPieceSecretariat, requestAdProItemOrder, approveAdProItemOrder } from "../../actions-postes";
 import { repartirPoste, retirerDemandeBC, modifierDemandeBC, annulerOrdrePoste, demanderRevisionPoste, genererDemandeDevisPoste, referenceDemandeDevisPoste } from "../../actions-postes-decision";
 import { ajouterDevisPoste, retirerDevisDuPoste, demanderPaiementPoste } from "../../actions-postes-paiement";
-import { genererBonDeCommandePoste } from "../../actions-postes-lignes";
 import { ChampReference } from "@/components/references/champ-reference";
 import { deleteDocument } from "@/lib/actions/document-actions";
 import { decideDocumentRequest } from "@/lib/actions/document-request-actions";
@@ -127,6 +126,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   const fermer = () => setPanneau(null);
   const basculer = (p: Panneau) => setPanneau((cur) => (cur === p ? null : p));
 
+  const [ongletDemande, setOngletDemande] = React.useState<{ cle: string; n: number } | null>(null);
   /** Le geste principal — un formulaire qui s'ouvre, ou une action qui part. */
   const agir = (cle: CleGeste) => {
     if (GESTES_A_FORMULAIRE.includes(cle)) {
@@ -134,8 +134,9 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
       return;
     }
     if (cle === "SOUMETTRE") void run(`submit:${item.id}`, () => submitAdProItem(undefined, fdOf()), "Poste soumis pour validation.");
-    // « Générer le BC » : un BC par devis, d'après les lignes validées (§118.206) — la même action que le CTA de la case.
-    if (cle === "GENERER_BC") void run(`gen:tous:${item.id}`, () => genererBonDeCommandePoste(fdOf()), "Aperçu du bon de commande prêt — à vérifier par le demandeur.");
+    // « Déposer le BC signé » (Direction, 11/2026) : le brouillon Excel est né avec la validation des lignes — le geste ouvre la
+    // case « Bon de commande », où il se télécharge et où sa version signée se dépose.
+    if (cle === "GENERER_BC") setOngletDemande((d) => ({ cle: "bc", n: (d?.n ?? 0) + 1 }));
   };
 
   // ── LE MENU « ⋯ » — ce qui ne crie pas, mais reste là. Chaque entrée n'apparaît que si
@@ -242,7 +243,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   // facture du premier signé sans attendre le second ; le paiement, lui, attend que tout soit signé et facturé.
   const factureOuverte = !direct && (regard.canEdit || regard.canAllocate) && !item.expenseOrderId && bcsSansFacture(item.pieces.bcs, item.pieces.factures).length > 0;
   // LA GÉNÉRATION DU BC (§118.206) : la même règle que l'action (`refusGenerationBC`), jamais une copie.
-  const peutGenerer = regard.canEdit && !stock && !direct && item.orderStage !== "ISSUED" && !item.expenseOrderId;
+  // LE BROUILLON EXCEL ET SA VERSION SIGNÉE (Direction, 11/2026) : qui traite les devis du poste — le droit même de les valider.
+  const peutTraiterBC = peutDeposerDevis && !direct && item.orderStage !== "ISSUED";
   const refusGeneration = refusGenerationBC({
     status: item.status, amountGranted: item.amountGranted, budgetCategoryId: item.budgetCategoryId, orderStage: item.orderStage,
     expenseOrderId: item.expenseOrderId, demandeChez: item.demandeBC?.assistante ?? null, demandeOuverte: item.demandeBC !== null,
@@ -754,8 +756,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                   devis={item.devisLignes}
                   accorde={item.amountGranted}
                   refusGeneration={refusGeneration}
-                  peutGenerer={peutGenerer}
-                  peutValider={regard.peutValiderBc === true && !stock && !direct && item.orderStage !== "ISSUED" && !item.expenseOrderId}
+                  peutTraiter={peutTraiterBC}
                   peutJoindre={peutJoindreBC}
                   peutModifier={regard.canEdit && !regard.fige && !item.expenseOrderId}
                   busy={busy}
@@ -816,7 +817,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
             </CasePiece>
           ),
         });
-        return <ChaineDuPoste onglets={onglets} />;
+        return <ChaineDuPoste onglets={onglets} demande={ongletDemande} />;
       })()}    </li>
   );
 }

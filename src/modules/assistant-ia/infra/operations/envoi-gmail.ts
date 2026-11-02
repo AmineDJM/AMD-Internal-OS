@@ -1,10 +1,11 @@
 import type { CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
+import { canalAdamOuvert } from "../../domaine/mails/canal";
 import { boiteGmailAdam, confirmerMailAdam, enregistrerExecuteurGmail, freinGmail, preparerMailAdam } from "@/lib/google/gmail/envoi";
 import { texte, type OperationIA } from "../../domaine/operations/types";
 import { lireContenuMail, rendreMailHtml, rendreMailTexte, type ContenuMail } from "../../domaine/mails/gabarit";
-import { charteDuMail, resoudreDestinataire, signatureDe, type Destinataire } from "../mails/redaction";
+import { charteDuMail, groupeDestinataires, piecesDuDrive, resoudreDestinataire, signatureDe, type Destinataire } from "../mails/redaction";
 
 // La boîte d'Adam lue par `mes_boites_mail`, et l'exécuteur armé là où l'on annule — par cette seule porte vers Google.
 export { boiteGmailAdam, enregistrerExecuteurGmail };
@@ -48,12 +49,13 @@ export const SCHEMA_MAILS = {
       cc: { type: "string" },
       objet: { type: "string", description: "Un objet clair et précis, choisi par toi." },
       contenu: SCHEMA_CONTENU,
+      pieces: { type: "array", items: { type: "string" }, description: "Pièces jointes : NOMS de fichiers de TON Drive (BC, facture, attestation déjà déposés). Facultatif." },
     },
     required: ["a", "objet", "contenu"],
   },
 };
 
-interface MailPrepare { destinataires: Destinataire[]; cc: Destinataire[]; objet: string; contenu: ContenuMail }
+interface MailPrepare { destinataires: Destinataire[]; cc: Destinataire[]; objet: string; contenu: ContenuMail; pieces: string[] }
 
 /** Résoudre et lire chaque mail : au plus UNE question (la première ambiguïté ou le premier nom introuvable). */
 export async function preparerMails(brut: unknown, corpsSimple?: { a: string; objet: string; corps: string; cc?: string }): Promise<{ ok: true; mails: MailPrepare[] } | { manque: string[]; precision?: string }> {
@@ -65,6 +67,12 @@ export async function preparerMails(brut: unknown, corpsSimple?: { a: string; ob
     const resoudre = async (champ: string): Promise<Destinataire[] | { manque: string[]; precision?: string }> => {
       const out: Destinataire[] = [];
       for (const qui of texte(o, champ).split(/\s*[,;]\s*|\s+et\s+/).filter(Boolean).slice(0, 20)) {
+        const groupe = await groupeDestinataires(qui);
+        if (groupe) {
+          if (!groupe.length) return { manque: [`les adresses de « ${qui} » (aucun compte actif de la Direction dans l'annuaire)`] };
+          out.push(...groupe.filter((g) => !out.some((d) => d.email === g.email)));
+          continue;
+        }
         const r = await resoudreDestinataire(qui);
         if (r.ok) out.push(r.destinataire);
         else if ("ambigu" in r) return { manque: [`laquelle de ces personnes pour « ${qui} » : ${r.ambigu.join(" ; ")}`], precision: "Plusieurs personnes portent ce nom dans l'annuaire." };
@@ -81,7 +89,8 @@ export async function preparerMails(brut: unknown, corpsSimple?: { a: string; ob
     if (!lu.ok) return { manque: lu.manque };
     const objet = texte(o, "objet").slice(0, 200);
     if (!objet) return { manque: ["l'objet du mail"] };
-    mails.push({ destinataires: a, cc, objet, contenu: lu.contenu });
+    const pieces = Array.isArray(o.pieces) ? o.pieces.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
+    mails.push({ destinataires: a, cc, objet, contenu: lu.contenu, pieces });
   }
   return { ok: true, mails };
 }
@@ -101,7 +110,8 @@ export const ENVOI_GMAIL: OperationIA = {
     },
   },
   // Les portes des outils Gmail d'Adam (`adam-tools/commun.ts EXEC`) : la Direction et le Super Admin.
-  ouverte: (u: CurrentUser) => peutUtiliserAssistantIA(u) && (u.role === "SUPER_ADMIN" || u.role === "DIRECTION"),
+  // P1 bis : le canal d'Adam n'existe que pour le Super Admin (`canalAdamOuvert`) — absent de la sélection des autres.
+  ouverte: (u: CurrentUser) => peutUtiliserAssistantIA(u) && canalAdamOuvert(u),
 
   async proposer(entree, user) {
     const boite = await boiteGmailAdam();
@@ -115,11 +125,22 @@ export const ENVOI_GMAIL: OperationIA = {
     if (frein) return { erreur: `Je ne prépare pas ces mails : ${frein}` };
     const signature = await signatureDe(user);
     const charte = await charteDuMail(user, texte(entree, "societe") || null, signature);
+    // Les pièces jointes (fichiers du Drive de la personne) : résolues AVANT toute intention — introuvable = une question.
+    const jointes = new Map<number, Awaited<ReturnType<typeof piecesDuDrive>> & { ok: true }>();
+    for (const [i, m] of prep.mails.entries()) {
+      if (!m.pieces.length) continue;
+      const r = await piecesDuDrive(user, m.pieces);
+      if (!r.ok) return { manque: r.manque };
+      jointes.set(i, r);
+    }
     const ids: string[] = [];
     const apercus: { titre: string; html: string }[] = [];
-    for (const m of prep.mails) {
+    const textes: string[] = [];
+    for (const [i, m] of prep.mails.entries()) {
       const html = rendreMailHtml(m.contenu, signature, charte, m.objet);
-      const p = await preparerMailAdam({ to: m.destinataires.map((d) => d.email), cc: m.cc.map((d) => d.email), subject: m.objet, text: rendreMailTexte(m.contenu, signature, charte), html }, { id: user.id, name: user.name ?? user.email ?? user.id });
+      const texteMail = rendreMailTexte(m.contenu, signature, charte);
+      textes.push(texteMail);
+      const p = await preparerMailAdam({ to: m.destinataires.map((d) => d.email), cc: m.cc.map((d) => d.email), subject: m.objet, text: texteMail, html, attachments: jointes.get(i)?.pieces ?? [] }, { id: user.id, name: user.name ?? user.email ?? user.id });
       ids.push(p.outboundId);
       apercus.push({ titre: `À ${m.destinataires.map((d) => d.nom ?? d.email).join(", ")} — « ${m.objet} »`, html });
     }
@@ -130,6 +151,7 @@ export const ENVOI_GMAIL: OperationIA = {
         fields: [
           { label: "De", value: `${boite.address} (Gmail d'Adam) — signé ${signature.nom}, ${charte.societe}` },
           ...prep.mails.map((m, i) => ({ label: n > 1 ? `Mail ${i + 1}` : "À", value: `${m.destinataires.map((d) => (d.nom ? `${d.nom} <${d.email}>` : d.email)).join(", ")} — « ${m.objet} »` })),
+          ...[...jointes].map(([i, r]) => ({ label: n > 1 ? `Pièces jointes (mail ${i + 1})` : "Pièces jointes", value: r.pieces.map((x) => x.filename).join(", ") })),
         ],
         warnings: brouillon
           ? ["Les brouillons attendent à l'écran d'Adam (Chief of Staff) ; rien ne part."]
@@ -137,7 +159,12 @@ export const ENVOI_GMAIL: OperationIA = {
         libelleBouton: brouillon ? "Enregistrer le brouillon" : n > 1 ? `Envoyer les ${n} mails` : "Envoyer",
         apercus,
       },
-      args: { outboundIds: JSON.stringify(ids), brouillon: brouillon ? "1" : null, destinataires: String(tous.length) },
+      // La charge dit AUSSI ce qui part (destinataires, objet, texte du premier mail) : qui relit la carte — la personne,
+      // l'audit — lit le mail, pas des identifiants. L'exécution, elle, ne part que des intentions d'Adam (`outboundIds`).
+      args: {
+        outboundIds: JSON.stringify(ids), brouillon: brouillon ? "1" : null, destinataires: String(tous.length),
+        a: tous.join(", "), objet: prep.mails[0]!.objet, corps: (textes[0] ?? "").slice(0, 6_000),
+      },
     };
   },
 
