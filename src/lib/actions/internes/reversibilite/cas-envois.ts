@@ -244,7 +244,7 @@ const COURRIELS: CasReversible[] = [
     // elle reste, et l'envoi est compensé par un rectificatif différé.
     if ("refus" in compte) throw new Error(compte.refus);
     expect(compte.complet, JSON.stringify(compte.details)).toBe(true);
-    expect(compte.details.map((d) => d.issue).sort()).toEqual(["COMPENSE", "SANS_OBJET"]);
+    expect(compte.details.map((d) => d.issue).sort(), JSON.stringify(compte.details)).toEqual(["COMPENSE", "SANS_OBJET"]);
     expect(ligne.statut).toBe("COMPENSE");
     expect(await rectificatifDe(ligne)).toMatchObject({ statut: "EN_ATTENTE", type: "courriel.api" });
     expect(partis).toHaveLength(1);

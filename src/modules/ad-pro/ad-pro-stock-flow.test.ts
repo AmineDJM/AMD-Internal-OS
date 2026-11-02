@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, requireModule: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { addAdProItem, deleteAdProItem, submitAdProItem, updateAdProItem, setAdProItemBudget, linkPromoMaterial, requestAdProItemOrder, demanderPieceSecretariat } from "./actions-postes";
@@ -159,20 +160,10 @@ suite("Matériel du stock d'un événement — réserver à l'accord, confirmer 
   async function sousBarriere<T>(lancer: () => Promise<T>[], attendus = 2): Promise<T[]> {
     let gestes: Promise<T>[] = [];
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "PromoStockMovement" IN SHARE MODE`);
+      await poserBarriere(tx, "PromoStockMovement");
       gestes = lancer();
       for (const g of gestes) g.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE ANY(${["%PromoStock%"]}::text[])`;
-        if (n >= attendus) break;
-        if (Date.now() - debut > 10_000) throw new Error(`les gestes n'ont pas atteint la barrière (${n} en attente sur ${attendus})`);
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, "%PromoStock%", attendus);
     }, { timeout: 20_000 });
     return Promise.all(gestes);
   }

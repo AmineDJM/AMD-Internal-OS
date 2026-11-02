@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { getAppSettings } from "@/lib/settings";
@@ -150,20 +151,10 @@ async function circuitSeuilSurDirecteurDesOperations(): Promise<string> {
 async function sousBarriere<T>(lancer: () => Promise<T>[]): Promise<T[]> {
   let gestes: Promise<T>[] = [];
   await prisma.$transaction(async (tx) => {
-    await tx.$executeRawUnsafe(`LOCK TABLE "WorkflowInstance" IN SHARE MODE`);
+    await poserBarriere(tx, "WorkflowInstance");
     gestes = lancer();
     for (const g of gestes) g.catch(() => undefined);
-    const debut = Date.now();
-    for (;;) {
-      await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-      const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-        SELECT count(*)::int AS n FROM pg_stat_activity
-        WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE '%WorkflowInstance%'`;
-      if (n >= gestes.length) break;
-      if (Date.now() - debut > 10_000) throw new Error(`les gestes n'ont pas atteint la barrière (${n} en attente sur ${gestes.length})`);
-      await new Promise((r) => setTimeout(r, 25));
-    }
+    await attendreBloques(tx, "%WorkflowInstance%", gestes.length);
   }, { timeout: 20_000 });
   return Promise.all(gestes);
 }

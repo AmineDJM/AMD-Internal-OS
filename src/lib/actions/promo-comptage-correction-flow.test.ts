@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, moduleScope, type SessionUser } from "@/lib/rbac";
 import { confirmerReception, declarerPerte, doter, entrerEnStock } from "./promo-stock-actions";
 import { annulerComptage, corrigerComptage, demanderComptage, saisirComptage } from "./promo-comptage-actions";
@@ -147,17 +148,7 @@ suite("Stock promotionnel — corriger un comptage saisi (lot C4b)", () => {
 
   /** Attendre que `n` gestes soient bloqués derrière le verrou de la transaction en cours (§118.65). */
   async function bloques(tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], n: number) {
-    const debut = Date.now();
-    for (;;) {
-      await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-      const [{ k }] = await tx.$queryRaw<{ k: number }[]>`
-        SELECT count(*)::int AS k FROM pg_stat_activity
-        WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE '%PromoStock%'`;
-      if (k >= n) return;
-      if (Date.now() - debut > 10_000) throw new Error(`les gestes n'ont pas atteint la barrière (${k} sur ${n})`);
-      await new Promise((r) => setTimeout(r, 25));
-    }
+    await attendreBloques(tx, "%PromoStock%", n);
   }
 
   it("PRÉMISSES : k1 détient le stock compté, sans vue globale ; ops fait compter ; dm tient le magasin", async () => {
@@ -247,7 +238,7 @@ suite("Stock promotionnel — corriger un comptage saisi (lot C4b)", () => {
       // Les écritures de lignes attendent : le premier geste s'arrête APRÈS sa lecture, verrou de
       // l'article tenu ; le second attend ce verrou. Sans la relecture SOUS le verrou, les deux
       // partiraient du même compte.
-      await tx.$executeRawUnsafe(`LOCK TABLE "PromoStockComptageLigne" IN SHARE MODE`);
+      await poserBarriere(tx, "PromoStockComptageLigne");
       gestes = [
         corrigerComptage(form({ comptageId: c.un!, itemId: [art.fiche!], compte: ["30"], motif: "Recompté : 30" })),
         corrigerComptage(form({ comptageId: c.un!, itemId: [art.fiche!], compte: ["25"], motif: "Recompté : 25" })),
@@ -276,7 +267,7 @@ suite("Stock promotionnel — corriger un comptage saisi (lot C4b)", () => {
       // L'ORDRE EST FORCÉ : la saisie du second comptage tient les verrous des articles quand la
       // correction du premier arrive. Lue hors du verrou, la question « un comptage plus récent ? »
       // aurait répondu non — la saisie n'était pas encore écrite.
-      await tx.$executeRawUnsafe(`LOCK TABLE "PromoStockComptageLigne" IN SHARE MODE`);
+      await poserBarriere(tx, "PromoStockComptageLigne");
       const s = saisirComptage(saisie);
       s.catch(() => undefined);
       await bloques(tx, 1);

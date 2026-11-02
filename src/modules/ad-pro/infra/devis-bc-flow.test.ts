@@ -160,10 +160,10 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     companyId = c.id;
     // Le demandeur est SALARIÉ de la société (c'est ce qui la nomme pour sa demande), sans le droit de l'engager.
     await Promise.all([
-      prisma.employee.create({ data: { fullName: `${TAG} kam`, userId: u.kam, companyId } }),
-      prisma.employee.create({ data: { fullName: `${TAG} kam2`, userId: u.kam2, companyId } }),
+      prisma.employee.create({ data: { fullName: `${RUN} kam`, userId: u.kam, companyId } }),
+      prisma.employee.create({ data: { fullName: `${RUN} kam2`, userId: u.kam2, companyId } }),
       // La Direction Marketing, qui VALIDE les devis, travaille pour la société : c'est sa validation qui fait naître le BC.
-      prisma.employee.create({ data: { fullName: `${TAG} dm`, userId: u.dm, companyId } }),
+      prisma.employee.create({ data: { fullName: `${RUN} dm`, userId: u.dm, companyId } }),
       prisma.companyLegalIdentity.create({
         data: {
           companyId, legalName: `${TAG} Pharma SARL`, legalForm: "SARL", shareCapital: "10 000 000 DZD", rcNumber: "16/00-1234567B21", nif: "001916012345678",
@@ -180,12 +180,12 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
         select: { id: true },
       }),
       prisma.companyContact.create({
-        data: { name: `${TAG} Imprimerie Atlas`, address: "Zone industrielle", city: "Alger", rc: "16/00-111", nif: "0001", companyId: null },
+        data: { name: `${RUN} Imprimerie Atlas`, address: "Zone industrielle", city: "Alger", rc: "16/00-111", nif: "0001", companyId: null },
         select: { id: true },
       }),
     ]);
     congres = c1.id; congres2 = c2.id; fournisseurAnnuaire = four.id;
-    catId = (await prisma.budgetCategoryLine.create({ data: { envelopeId: env.id, name: `${TAG}Imprimerie`, allocated: 50_000_000 }, select: { id: true } })).id;
+    catId = (await prisma.budgetCategoryLine.create({ data: { envelopeId: env.id, name: `${RUN}Imprimerie`, allocated: 50_000_000 }, select: { id: true } })).id;
   }, 60_000);
 
   afterAll(async () => {
@@ -220,15 +220,15 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { in: parents } } } }).catch(() => {});
     await prisma.workflowInstance.deleteMany({ where: { entityId: { in: parents } } }).catch(() => {});
     await prisma.congressNational.deleteMany({ where: { id: { in: parents } } }).catch(() => {});
-    await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
-    await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await prisma.companyContact.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: { in: ids } } } }).catch(() => {});
     await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
     await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => {});
     await prisma.documentSequence.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.officeLetterhead.deleteMany({ where: { companyId } }).catch(() => {});
-    await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
+    await prisma.employee.deleteMany({ where: { fullName: { startsWith: RUN } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
@@ -548,7 +548,7 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
       expect(f.pdf, `le PDF de ${bc.reference}`).not.toBeNull();
     }
     // Le fournisseur de l'annuaire est celui du BC B : son nom vient de la fiche.
-    expect(((bcB[0].custom as { fabrique?: { spec?: { tiers?: { nom?: string } } } }).fabrique?.spec?.tiers?.nom)).toBe(`${TAG} Imprimerie Atlas`);
+    expect(((bcB[0].custom as { fabrique?: { spec?: { tiers?: { nom?: string } } } }).fabrique?.spec?.tiers?.nom)).toBe(`${RUN} Imprimerie Atlas`);
     // Les lignes couvertes sont liées à leur BC — et seulement elles.
     const liees = await prisma.adProDevisLigne.findMany({ where: { id: { in: [...a, ...b] } }, select: { id: true, bcId: true } });
     const parId = new Map(liees.map((l) => [l.id, l.bcId]));

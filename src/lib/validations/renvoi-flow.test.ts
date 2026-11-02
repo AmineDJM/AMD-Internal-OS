@@ -11,6 +11,7 @@ vi.mock("@/lib/session", () => {
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { createDirectValidation } from "@/lib/validation";
@@ -103,21 +104,6 @@ suite("Validations — renvoyer pour correction, resoumettre, un geste à la foi
   const etapes = (id: string) => prisma.validationStep.findMany({ where: { requestId: id }, orderBy: { order: "asc" }, select: { id: true, order: true, validatorId: true, status: true, reason: true } });
   const etapeDe = async (id: string, validatorId: string) => (await etapes(id)).find((e) => e.validatorId === validatorId)!.id;
   const etat = (id: string) => prisma.validationRequest.findUniqueOrThrow({ where: { id }, select: { status: true, version: true, currentOrder: true, description: true, amount: true } });
-
-  /** Attendre que `n` sessions soient bloquées sur un verrou dont la requête nomme `motif`. */
-  async function attendreBloques(tx: Prisma.TransactionClient, motif: string, n: number) {
-    const debut = Date.now();
-    for (;;) {
-      await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-      const [{ k }] = await tx.$queryRaw<{ k: number }[]>`
-        SELECT count(*)::int AS k FROM pg_stat_activity
-        WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE ANY(${[`%${motif}%`]}::text[])`;
-      if (k >= n) return;
-      if (Date.now() - debut > 10_000) throw new Error(`${k} geste(s) bloqué(s) sur ${motif}, ${n} attendu(s)`);
-      await new Promise((r) => setTimeout(r, 25));
-    }
-  }
   /**
    * DEUX DÉCISIONS FORCÉES À SE CROISER (§118.164e) : le verrou SHARE sur les étapes arrête toute
    * écriture d'étape ; on relâche quand les deux gestes sont bloqués — chacun a lu avant que l'autre
@@ -126,7 +112,7 @@ suite("Validations — renvoyer pour correction, resoumettre, un geste à la foi
   async function ensemble<T>(lancer: () => Promise<T>[]): Promise<T[]> {
     let gestes: Promise<T>[] = [];
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "ValidationStep" IN SHARE MODE`);
+      await poserBarriere(tx, "ValidationStep");
       gestes = lancer();
       for (const g of gestes) g.catch(() => undefined);
       await attendreBloques(tx, "Validation", gestes.length);
@@ -268,7 +254,7 @@ suite("Validations — renvoyer pour correction, resoumettre, un geste à la foi
     // Le verrou SHARE sur les demandes arrête leur ÉCRITURE, pas le verrou de ligne qui la précède :
     // les deux resoumissions ont relu « à corriger » avant que l'une n'écrive.
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "ValidationRequest" IN SHARE MODE`);
+      await poserBarriere(tx, "ValidationRequest");
       gestes = [resoumettreValidation(fd({ id, note: "Devis joint." })), resoumettreValidation(fd({ id, note: "Devis joint (bis)." }))];
       for (const g of gestes) g.catch(() => undefined);
       await attendreBloques(tx, "ValidationRequest", 2);

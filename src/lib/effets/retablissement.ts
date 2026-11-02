@@ -89,7 +89,16 @@ async function refaire(e: EffetLu, d: DetailEffet, user: CurrentUser): Promise<D
       if (v === undefined) return NON(d, `« ${x} » portait un fichier, que le journal ne recopie pas`);
       data[x] = v;
     }
-    try { await delegue(c, info).create({ data }); } catch { return NON(d, "la base a refusé de la recréer (un élément lié a disparu, ou sa place est prise)"); }
+    try {
+      await delegue(c, info).create({ data });
+    } catch {
+      // K10c, LA MÊME COURSE QU'À L'ANNULATION : le compte du destinataire a disparu ENTRE la lecture ci-dessus et la
+      // recréation (la clé étrangère refuse). Relu après le refus : personne à prévenir, sans objet — jamais un échec.
+      // Mesuré sous la suite parallèle : « Autorisation de paiement demandée » va à TOUS les sièges du centre, dont ceux
+      // qu'un autre banc retire au même instant (`communications.test.ts`, `decideApproval` rétabli).
+      if (await destinataireDisparu(e.modele, apres)) return RIEN(d, "son destinataire n'a plus de compte : il n'y a plus personne à prévenir");
+      return NON(d, "la base a refusé de la recréer (un élément lié a disparu, ou sa place est prise)");
+    }
     return OK(d, "recréée à l'identique, même identifiant");
   }
   if (e.operation === "DELETE") {

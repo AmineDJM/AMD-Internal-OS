@@ -22,7 +22,10 @@ let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
-const TAG = "__cp211__";
+// UN SUFFIXE PAR RUN (§118.136) : l'étiquette fixe faisait du ménage d'ouverture (`nettoyer`) le ménage d'un AUTRE run
+// du même fichier lancé à côté (un `vitest run` du fichier pendant `test:architecture`) — ses sociétés, ses comptes et
+// ses ordres retirés en plein test, et des références d'ordre fixes (`OD-0001`…) en collision.
+const TAG = `__cp211__${Date.now().toString(36)}`;
 const session = async (id: string, role: string): Promise<SessionUser> =>
   ({ id, name: `${TAG}${role}`, email: `${TAG}${id}@t.dz`, role, secondaryRole: null, access: await getAccess(id, role as never), mustChangePassword: false }) as unknown as SessionUser;
 

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { snapshotMonth } from "@/lib/sfe-sweep";
 
 /**
@@ -48,20 +49,10 @@ suite("la clôture d'un mois SFE — une seule fois, par un seul passage", () =>
   async function sousBarriere<T>(lancer: () => Promise<T>[]): Promise<T[]> {
     let gestes: Promise<T>[] = [];
     await prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`LOCK TABLE "SalesRepMonthlyKpi" IN SHARE MODE`);
+      await poserBarriere(tx, "SalesRepMonthlyKpi");
       gestes = lancer();
       for (const g of gestes) g.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE '%SalesRepMonthlyKpi%'`;
-        if (n >= 2) break;
-        if (Date.now() - debut > 10_000) throw new Error(`les deux clôtures n'ont pas atteint la barrière (${n} en attente sur 2)`);
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      await attendreBloques(tx, "%SalesRepMonthlyKpi%", 2);
     }, { timeout: 20_000 });
     return Promise.all(gestes);
   }

@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaBrut } from "@/lib/prisma";
 import { sansBloquer } from "@/lib/journal";
 
 // Mémoïsation par requête (même patron que lib/company.ts) : une seule lecture par rendu.
@@ -64,7 +64,12 @@ async function getStage(key: string): Promise<Stage> {
     const existing = await prisma.featureFlag.findUnique({ where: { key }, select: { stage: true } });
     if (existing) return existing.stage as Stage;
     const meta = CATALOG.get(key);
-    await prisma.featureFlag.create({
+    // LE DRAPEAU MANQUANT EST UN SEMIS DU CATALOGUE, PAS L'EFFET DU GESTE QUI LE LIT. Écrit par le client capturant, il
+    // entrait au journal du premier geste réversible qui consultait le drapeau (un courriel « smart ») — et ANNULER ce
+    // courriel SUPPRIMAIT le drapeau du catalogue. Mesuré sur base neuve : `smart-mail-actions:sendMail` annulé rendait
+    // un effet « ANNULE » de trop (`communications.test.ts`), selon qu'un autre geste avait semé le drapeau avant ou non.
+    // Le client de base écrit hors de tout journal ; au stade TEST, la ligne ne change rien à qui voit quoi.
+    await prismaBrut.featureFlag.create({
       data: { key, label: meta?.label ?? key, description: meta?.description ?? null, stage: "TEST" },
     });
     return "TEST";
