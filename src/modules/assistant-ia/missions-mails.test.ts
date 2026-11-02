@@ -58,6 +58,7 @@ const outil = (nom: string, echoues = new Set<string>()) => outilsMissions(sa, e
 
 suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
   let ids: string[] = [];
+  let baux: Awaited<ReturnType<typeof prisma.tacheDeFond.findMany>> = [];
   beforeAll(async () => {
     sa = await compte("Direction");
     ACTEUR = sa;
@@ -65,7 +66,8 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     // Une sous-mission sous la troisième : arrêtée avec elle.
     const r = await proposerTravail(sa.id, PERSONA_ASSISTANT_IA, { titre: "Sous-tâche Staoueli", objectif: "x", etapes: [{ cle: "a", type: "LIVRABLE", titre: "A", consigne: "x", format: "md" }] }, { parentId: ids[2] });
     if (r.ok) { await demarrerDOffice(r.travailId, sa.id, PERSONA_ASSISTANT_IA); ids.push(r.travailId); }
-    // Aucun exécutant : le balayage des travaux n'a pas conduit depuis 20 min.
+    // Aucun exécutant : le balayage des travaux n'a pas conduit depuis 20 min (les lignes d'avant sont rendues en fin de banc).
+    baux = await prisma.tacheDeFond.findMany({ where: { OR: [{ cle: "travaux.balayage" }, { executeur: "worker" }] } });
     await prisma.tacheDeFond.upsert({
       where: { cle: "travaux.balayage" }, create: { cle: "travaux.balayage", executeur: "web", dernierDebutA: new Date(Date.now() - 20 * 60_000), dernierStatut: "OK" },
       update: { executeur: "web", dernierDebutA: new Date(Date.now() - 20 * 60_000), dernierStatut: "OK" },
@@ -73,6 +75,8 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     await prisma.tacheDeFond.updateMany({ where: { executeur: "worker" }, data: { dernierDebutA: new Date(Date.now() - 60 * 60_000) } });
   });
   afterAll(async () => {
+    if (!baux.some((b) => b.cle === "travaux.balayage")) await prisma.tacheDeFond.deleteMany({ where: { cle: "travaux.balayage" } }).catch(() => {});
+    for (const b of baux) await prisma.tacheDeFond.update({ where: { cle: b.cle }, data: { executeur: b.executeur, dernierDebutA: b.dernierDebutA, dernierStatut: b.dernierStatut } }).catch(() => {});
     await prisma.effetSortantDiffere.deleteMany({ where: { principalId: sa?.id } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId: sa?.id } }).catch(() => {});
     await prisma.mailAccount.deleteMany({ where: { userId: sa?.id } }).catch(() => {});

@@ -4,11 +4,10 @@ import type { CurrentUser } from "@/lib/session";
 import { sansBloquer } from "@/lib/journal";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {
-  annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
+  annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, MOTIF_ARRET, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
   type MissionTableau, type PersonaTravaux,
 } from "./travaux";
 import { deposerSynthese } from "./fil/service";
-import { MOTIF_ARRET } from "@/lib/missions/travaux/regles";
 import { diagnostiquerMission, silenceDesExecutants, type Diagnostic, type EtatDesExecutants } from "../domaine/missions/pilotage";
 import { etatDesExecutants } from "./missions/executants";
 import { outilLancerUnTravail, type OuvertureTravail, type OutilTravail } from "@/platform/ia/travaux/outil";

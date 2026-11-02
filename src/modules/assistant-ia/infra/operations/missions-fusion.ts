@@ -2,8 +2,6 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
-import { lirePlan } from "@/lib/missions/travaux/plan";
-import { MOTIF_FUSION } from "@/lib/missions/travaux/regles";
 import { designerMission } from "../../domaine/missions/pilotage";
 import type { OperationIA } from "../../domaine/operations/types";
 
@@ -67,7 +65,7 @@ export const FUSION_MISSIONS: OperationIA = {
     let plan: unknown = null;
     let garder: (typeof choisies)[number] | null = null;
     if (entree.plan && typeof entree.plan === "object") {
-      const { PERSONA_ASSISTANT_IA } = await import("../travaux");
+      const { PERSONA_ASSISTANT_IA, lirePlan } = await import("../travaux");
       const brut = { ...(entree.plan as Record<string, unknown>), ...(titre ? { titre } : {}) };
       const lu = lirePlan(brut, await PERSONA_ASSISTANT_IA.catalogue(user.id));
       if (!lu.ok) return { erreur: `Le plan unique ne passe pas : ${lu.fautes.slice(0, 4).join(" ")}` };
@@ -138,7 +136,7 @@ export const FUSION_MISSIONS: OperationIA = {
     const faits: string[] = [];
     const refus: string[] = [];
     for (const id of arreter) {
-      const r = await t.arreterTravail(id, user.id, `${MOTIF_FUSION} « ${reste.titre} »`);
+      const r = await t.arreterTravail(id, user.id, `${t.MOTIF_FUSION} « ${reste.titre} »`);
       if (r.ok) faits.push(id); else refus.push(r.erreur);
     }
     const titres = await prisma.mission.findMany({ where: { id: { in: faits } }, select: { title: true } });

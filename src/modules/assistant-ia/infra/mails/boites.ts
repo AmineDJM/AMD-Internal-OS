@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import type { PowerTool } from "@/platform/ia/outil";
-import { boiteGmailAdam } from "@/lib/google/gmail/envoi";
+import { boiteGmailAdam } from "../operations/envoi-gmail";
 import { registreDesCapacites } from "../capacites";
 import type { PropositionCarte } from "../operations";
 

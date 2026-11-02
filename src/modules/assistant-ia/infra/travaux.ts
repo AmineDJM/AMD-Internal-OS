@@ -37,6 +37,9 @@ export {
   type MissionTableau,
 } from "@/lib/missions/travaux/service";
 export type { PersonaTravaux } from "@/lib/missions/travaux/persona";
+// P1 (décision 0047) : la fusion relit un plan, et l'arrêt réversible a ses motifs — par cette même porte.
+export { lirePlan } from "@/lib/missions/travaux/plan";
+export { MOTIF_ARRET, MOTIF_FUSION } from "@/lib/missions/travaux/service";
 export type { FormatLivrable } from "@/lib/missions/travaux/plan";
 
 /**

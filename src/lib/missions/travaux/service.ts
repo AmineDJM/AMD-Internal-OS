@@ -393,5 +393,7 @@ export {
 export { equipeVisible, lireTravailEquipe, listerTravauxEquipe, responsableDe, type TravailDEquipe } from "@/lib/missions/travaux/equipe";
 // K3 (décision 0033) : le tableau de bord en temps réel, et ce que les sous-missions relisent du carnet et du plan.
 export { lireCarnet } from "@/lib/missions/travaux/carnet";
+// P1 (décision 0047) : les motifs de l'arrêt réversible — la porte du moteur pour l'Assistant IA.
+export { MOTIF_ARRET, MOTIF_FUSION } from "@/lib/missions/travaux/regles";
 export { planSansGeste } from "@/lib/missions/travaux/regles";
 export { signatureTableau, tableauDesTravaux, type EtapeTableau, type EtatEtapeTableau, type MissionTableau } from "@/lib/missions/travaux/tableau";

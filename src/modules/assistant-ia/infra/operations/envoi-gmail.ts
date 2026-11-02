@@ -1,9 +1,10 @@
 import type { CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
-import { prisma } from "@/lib/prisma";
-import { boiteGmailAdam, enregistrerExecuteurGmail, envoyerGmail } from "@/lib/google/gmail/envoi";
-import { checkRateLimits } from "@/lib/comms/loop-safety";
+import { boiteGmailAdam, enregistrerExecuteurGmail, envoyerGmail, freinGmail } from "@/lib/google/gmail/envoi";
+
+// La boîte d'Adam lue par `mes_boites_mail` — par cette porte (une seule arête vers le domaine Google).
+export { boiteGmailAdam };
 import { texte, type OperationIA } from "../../domaine/operations/types";
 
 /**
@@ -43,10 +44,8 @@ export const ENVOI_GMAIL: OperationIA = {
     const manque = [...(a.length ? [] : ["l'adresse e-mail du destinataire"]), ...(objet ? [] : ["l'objet"]), ...(corps ? [] : ["le texte du mail"])];
     if (manque.length) return { manque };
     // Les freins anti-boucle d'Adam : pas deux fois le même destinataire en rafale.
-    const recent = await prisma.effetSortantDiffere.findMany({ where: { type: "courriel.gmail", creeLe: { gte: new Date(Date.now() - 3_600_000) }, statut: { notIn: ["ANNULE", "ECHEC"] } }, select: { cible: true, creeLe: true } }).catch(() => []);
-    const fenetre = recent.flatMap((r) => r.cible.split(/,\s*/).map((rec) => ({ recipient: rec.toLowerCase(), threadId: null, at: r.creeLe.getTime() })));
-    const verdict = checkRateLimits({ recipients: a.map((x) => x.toLowerCase()), threadId: null }, fenetre, Date.now());
-    if (!verdict.allowed) return { erreur: `Je ne prépare pas ce mail : ${verdict.reason}` };
+    const frein = await freinGmail(a);
+    if (frein) return { erreur: `Je ne prépare pas ce mail : ${frein}` };
     return {
       carte: {
         title: `Envoyer par le Gmail d'Adam (${boite.address})`,

@@ -6,6 +6,7 @@ import { GMAIL_BASE } from "../config";
 import { googleJson } from "../client";
 import { getActiveGoogleConnection } from "../connection";
 import { buildMimeMessage, toGmailRaw } from "./mime";
+import { checkRateLimits } from "@/lib/comms/loop-safety";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -37,6 +38,17 @@ export async function boiteGmailAdam(): Promise<{ proprietaireId: string; addres
   const raison = c.status !== "connected" ? "le compte Google d'Adam doit être reconnecté" : c.paused ? "la liaison Google d'Adam est suspendue (coupe-circuit)"
     : envoi ? null : "le consentement Google n'accorde pas l'envoi (gmail.modify)";
   return { proprietaireId: c.userId, address: c.address, envoi, raison };
+}
+
+/** LES FREINS ANTI-BOUCLE D'ADAM (`comms/loop-safety.ts`) sur les mails Gmail de la dernière heure : `null` = permis. */
+export async function freinGmail(destinataires: readonly string[]): Promise<string | null> {
+  const recent = await prisma.effetSortantDiffere.findMany({
+    where: { type: "courriel.gmail", creeLe: { gte: new Date(Date.now() - 3_600_000) }, statut: { notIn: ["ANNULE", "ECHEC"] } },
+    select: { cible: true, creeLe: true },
+  });
+  const fenetre = recent.flatMap((r) => r.cible.split(/,\s*/).map((rec) => ({ recipient: rec.toLowerCase(), threadId: null, at: r.creeLe.getTime() })));
+  const v = checkRateLimits({ recipients: destinataires.map((x) => x.toLowerCase()), threadId: null }, fenetre, Date.now());
+  return v.allowed ? null : v.reason ?? "frein anti-boucle";
 }
 
 async function envoyerMaintenant(c: Charge): Promise<void> {
