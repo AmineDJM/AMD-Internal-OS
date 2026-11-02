@@ -46,8 +46,8 @@ describe("P1 — le gabarit des mails", () => {
     const c = contenu(planning);
     const t = rendreMailTexte(c, signature, charte);
     expect(t).toContain("Bonjour Redouane,");
-    expect(t).toContain("Date | Tâche | Échéance");
-    expect(t).toContain("Ven. 6/11 | Remise du dossier | 10 h");
+    expect(t).not.toContain(" | ");
+    expect(t).toContain("• Ven. 6/11 — Tâche : Remise du dossier — Échéance : 10 h");
     expect(t).not.toContain("**");
     expect(t).toContain("-- \nAmine Djemai".replace("-- \n", "--\n"));
     expect(prenomDe("Redouane Benali")).toBe("Redouane");

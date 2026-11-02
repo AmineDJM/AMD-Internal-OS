@@ -119,7 +119,9 @@ export function rendreMailTexte(c: ContenuMail, s: SignatureMail, ch: CharteMail
   const blocs: string[] = [sansGras(c.salutation), ...c.paragraphes.map(sansGras)];
   if (c.liste?.length) blocs.push(c.liste.map((x) => `• ${sansGras(x)}`).join("\n"));
   if (c.tableau) {
-    blocs.push([c.tableau.colonnes.join(" | "), ...c.tableau.lignes.map((l) => l.map(sansGras).join(" | "))].join("\n"));
+    // Pas de tableau « en pipes » (illisible dans une boîte texte, relevé par le banc d'audit) : une ligne par rangée.
+    const cols = c.tableau.colonnes;
+    blocs.push(c.tableau.lignes.map((l) => `• ${l.map((v, i) => (i === 0 ? sansGras(v) : `${cols[i]} : ${sansGras(v)}`)).join(" — ")}`).join("\n"));
   }
   blocs.push(...(c.apres ?? []).map(sansGras), sansGras(c.cloture));
   blocs.push(["--", s.nom, s.fonction, s.societe, [s.telephone, s.email].filter(Boolean).join(" · ") || null].filter(Boolean).join("\n"));

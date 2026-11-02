@@ -25,7 +25,7 @@ import { rendreMailHtml, rendreMailTexte } from "../../domaine/mails/gabarit";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export type Boite = "gmail_adam" | "microsoft" | "smtp";
+export type Boite = "gmail_adam" | "microsoft" | "smtp" | "erp";
 const EXEC = (u: CurrentUser) => u.role === "SUPER_ADMIN" || u.role === "DIRECTION";
 
 export interface EtatBoites {
@@ -45,15 +45,20 @@ export async function etatDesBoites(user: CurrentUser): Promise<EtatBoites> {
   ]);
   const gmailAdam = { reliee: !!g, adresse: g?.address ?? null, envoi: !!g?.envoi, raison: g?.raison ?? null, ouvertePourToi: EXEC(user) };
   const microsoft = { reliee: !!ms && ms.status === "connected", adresse: ms?.address ?? null, etat: ms?.status ?? null };
-  // La boîte de l'assistant est celle d'Adam — jamais un repli silencieux sur la boîte de la personne.
-  const parDefaut: Boite | null = gmailAdam.envoi && gmailAdam.ouvertePourToi ? "gmail_adam" : null;
+  // La Direction (et le Super Admin) écrit par la boîte d'ADAM — jamais un repli silencieux sur une autre boîte. Les autres
+  // (assistante, KAM, réglementaire…) n'écrivent pas au nom d'Adam : par LEUR boîte (Microsoft, puis SMTP), sinon par
+  // l'envoi de l'ERP (mesuré par le banc d'audit Q1 : sans cela, le mail restait du texte dans la réponse).
+  const parDefaut: Boite | null = gmailAdam.ouvertePourToi
+    ? (gmailAdam.envoi ? "gmail_adam" : null)
+    : microsoft.reliee ? "microsoft" : smtp ? "smtp" : "erp";
   return { gmailAdam, microsoft, smtp: { reliee: !!smtp, adresse: smtp?.email ?? null }, parDefaut };
 }
 
-const CAPACITE: Record<"microsoft" | "brouillon" | "smtp", string> = {
+const CAPACITE: Record<"microsoft" | "brouillon" | "smtp" | "erp", string> = {
   microsoft: "microsoft-mail-actions:sendMessage",
   brouillon: "microsoft-mail-actions:saveDraft",
   smtp: "mail-actions:sendMailAction",
+  erp: "smart-mail-actions:sendMail",
 };
 const nomDeCapacite = (id: string): string | undefined => registreDesCapacites().capacites.find((c) => c.id === id)?.outil;
 const json = (o: unknown) => JSON.stringify(o);
@@ -78,7 +83,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         return json({
           ...e,
           consigne: e.parDefaut
-            ? `Réponds avec cet état, tel quel. Un envoi partira par ${e.parDefaut === "gmail_adam" ? `le Gmail d'Adam (${e.gmailAdam.adresse})` : e.parDefaut === "microsoft" ? `la boîte Microsoft (${e.microsoft.adresse})` : `la boîte SMTP (${e.smtp.adresse})`} après la carte « Envoyer ».`
+            ? `Réponds avec cet état, tel quel. Un envoi partira par ${e.parDefaut === "gmail_adam" ? `le Gmail d'Adam (${e.gmailAdam.adresse})` : e.parDefaut === "microsoft" ? `la boîte Microsoft (${e.microsoft.adresse})` : e.parDefaut === "smtp" ? `la boîte SMTP (${e.smtp.adresse})` : "l'envoi de l'ERP"} après la carte « Envoyer ».`
             : `La boîte Gmail d'Adam ne peut pas envoyer (${e.gmailAdam.reliee ? e.gmailAdam.raison : "non reliée"}) : dis-le, et où la relier (Chief of Staff › Réglages › « Connecter Google »). Ne te rabats sur une autre boîte que si la personne le demande.`,
         });
       },
@@ -86,13 +91,13 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
     {
       def: {
         name: "envoyer_mail",
-        description: "ENVOIE des mails après confirmation, sans poser de questions : UNE carte « Envoyer » pour tous (aperçu réel de chaque mail), par la boîte Gmail d'ADAM (Direction, Super Admin), annulable pendant la fenêtre d'annulation. Destinataires par leurs NOMS (l'annuaire les résout) ; objet, ton, signature : choisis-les. Rédige un CONTENU STRUCTURÉ (salutation personnalisée, paragraphes courts, liste à puces ou TABLEAU pour un planning, **échéances en gras**, clôture) — jamais du HTML : le gabarit le met en page. Un mail par personne quand le contenu lui est propre. La boîte Microsoft ou SMTP de la personne SEULEMENT si elle le demande (`boite`). `brouillon: true` SEULEMENT sur demande.",
+        description: "ENVOIE des mails après confirmation, sans poser de questions : UNE carte « Envoyer » pour tous (aperçu réel de chaque mail), par la boîte Gmail d'ADAM (Direction, Super Admin), annulable pendant la fenêtre d'annulation. Destinataires par leurs NOMS (l'annuaire les résout) ; objet, ton, signature : choisis-les. Rédige un CONTENU STRUCTURÉ (salutation personnalisée, paragraphes courts, liste à puces ou TABLEAU pour un planning, **échéances en gras**, clôture) — jamais du HTML : le gabarit le met en page. Un mail par personne quand le contenu lui est propre. La Direction et le Super Admin écrivent par la boîte d'Adam (Microsoft ou SMTP seulement s'ils le demandent, `boite`) ; les autres personnes par LEUR boîte (Microsoft, sinon SMTP), sinon par l'envoi de l'ERP — même carte, même gabarit. `brouillon: true` SEULEMENT sur demande.",
         input_schema: {
           type: "object",
           properties: {
             mails: SCHEMA_MAILS,
             societe: { type: "string", description: "La société d'envoi (charte) si la demande la nomme ; sinon celle de la personne." },
-            boite: { type: "string", enum: ["gmail_adam", "microsoft", "smtp"], description: "Seulement si la personne demande EXPLICITEMENT sa propre boîte (microsoft, smtp) ; sinon le Gmail d'Adam." },
+            boite: { type: "string", enum: ["gmail_adam", "microsoft", "smtp", "erp"], description: "Seulement si la personne demande EXPLICITEMENT sa propre boîte (microsoft, smtp) ; sinon le Gmail d'Adam." },
             brouillon: { type: "boolean", description: "Un brouillon au lieu d'un envoi — seulement sur demande." },
           },
           required: ["mails"],
@@ -104,7 +109,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         const etat = await etatDesBoites(user);
         const voulue = typeof e.boite === "string" ? (e.boite as Boite) : null;
         const brouillon = e.brouillon === true;
-        const dispo = (b: Boite) => (b === "gmail_adam" ? etat.gmailAdam.envoi && etat.gmailAdam.ouvertePourToi : b === "microsoft" ? etat.microsoft.reliee : etat.smtp.reliee);
+        const dispo = (b: Boite) => (b === "gmail_adam" ? etat.gmailAdam.envoi && etat.gmailAdam.ouvertePourToi : b === "microsoft" ? etat.microsoft.reliee : b === "smtp" ? etat.smtp.reliee : true);
         const boite: Boite | null = voulue ? (dispo(voulue) ? voulue : null) : etat.parDefaut;
         if (!boite) {
           const raison = voulue ? `La boîte demandée (${voulue}) ne peut pas envoyer.`
@@ -112,7 +117,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
               : `La boîte Gmail d'Adam ne peut pas envoyer : ${etat.gmailAdam.reliee ? etat.gmailAdam.raison : "elle n'est pas reliée (Chief of Staff › Réglages › « Connecter Google »)"}.`;
           return json({ statut: "REFUS", raison, etat, consigne: "Dis-le tel quel ; rien n'est préparé. Ne propose une autre boîte (Microsoft, SMTP de la personne) que si elle te le demande." });
         }
-        if (brouillon && boite === "smtp") return json({ statut: "REFUS", raison: "La boîte SMTP ne garde pas de brouillon : Gmail d'Adam ou boîte Microsoft." });
+        if (brouillon && (boite === "smtp" || boite === "erp")) return json({ statut: "REFUS", raison: "Cette boîte ne garde pas de brouillon : Gmail d'Adam ou boîte Microsoft." });
         const nom = boite === "gmail_adam" ? "envoyer_gmail" : nomDeCapacite(CAPACITE[brouillon ? "brouillon" : boite]);
         const outil = nom ? trouver(nom) : undefined;
         if (!outil || !outil.allowed(user)) return json({ statut: "REFUS", raison: `L'envoi par cette boîte n'est pas ouvert à ton rôle (${boite}).` });
@@ -129,11 +134,12 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
           entree = boite === "microsoft"
             ? { to, ...(cc ? { cc } : {}), subject: m.objet, bodyHtml: rendreMailHtml(m.contenu, signature, charte, m.objet) }
             : { to, ...(cc ? { cc } : {}), subject: m.objet, body: rendreMailTexte(m.contenu, signature, charte) };
+          // Une boîte de la personne : un mail par carte — le second se prépare au tour suivant (une carte par tour).
         }
         const avant = propositions.length;
         const sortie = await outil.run(entree, user);
         const adresse = boite === "gmail_adam" ? etat.gmailAdam.adresse : boite === "microsoft" ? etat.microsoft.adresse : etat.smtp.adresse;
-        const dite = boite === "gmail_adam" ? `le Gmail d'Adam (${adresse})` : boite === "microsoft" ? `ta boîte Microsoft (${adresse})` : `ta boîte SMTP de l'ERP (${adresse})`;
+        const dite = boite === "gmail_adam" ? `le Gmail d'Adam (${adresse})` : boite === "microsoft" ? `ta boîte Microsoft (${adresse})` : boite === "smtp" ? `ta boîte SMTP de l'ERP (${adresse})` : "l'envoi de l'ERP";
         if (propositions.length > avant && boite !== "gmail_adam") {
           const p = propositions[propositions.length - 1]!;
           p.proposition.title = brouillon ? `Brouillon dans ${dite}` : `Envoyer par ${dite}`;

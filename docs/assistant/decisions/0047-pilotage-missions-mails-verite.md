@@ -113,6 +113,14 @@ il doit faire de BEAUX mails. »
   marque, `profilDocumentaire`), signature de la personne qui envoie via Adam (nom, fonction, société, coordonnées — fiche
   salarié), coordonnées et mentions de la société en pied, version texte jointe (multipart text + html, `OutboundMailIntent.bodyHtml`).
 - **L'aperçu de la carte est le rendu réel** : `apercus` (iframe isolée, sans script) — ce que la personne voit est ce qui part.
+- **Qui écrit par quelle boîte** : la Direction et le Super Admin par la boîte d'Adam (sans repli silencieux) ; les autres
+  personnes (assistante, KAM, réglementaire — ils n'écrivent pas au nom d'Adam) par LEUR boîte (Microsoft, sinon SMTP),
+  sinon par l'envoi de l'ERP (`smart-mail-actions:sendMail`) — même carte, même gabarit. Relevé par le banc d'audit Q1
+  (ML-04, ML-05 : le mail restait du texte dans la réponse ; ML-06 : sans signature ; corps en tableau « à pipes »).
+- La version texte n'a plus de tableau « en pipes » : une ligne par rangée (« • Lun. 2/11 — Tâche : … »).
+- **Mesuré au banc réel (app, serveur de production)** : la demande de la Direction ouvrait une question d'agenda O1
+  (« Excel ou PDF ? ») qui tenait la carte — un mail n'ouvre plus d'agenda (`agenda.ts construireAgenda`) ; et la barre
+  « Annuler l'envoi » n'était montée que dans l'ERP — elle l'est dans l'app (`app/ia/layout.tsx`).
 - Limite dite : le logo n'est pas encore incrusté (une image intégrée demande une partie MIME `cid:` que le transport
   Gmail ne porte pas encore) — le bandeau porte le nom de la société à sa couleur.
 

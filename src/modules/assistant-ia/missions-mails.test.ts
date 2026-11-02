@@ -233,12 +233,41 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     // Les destinataires viennent de l'annuaire ; chaque intention d'Adam porte le RENDU (html) et sa version texte.
     const intentions = await prisma.outboundMailIntent.findMany({ where: { recipients: { hasSome: [r1.email, r2.email] } }, select: { recipients: true, bodyHtml: true, bodyText: true } });
     expect(intentions).toHaveLength(2);
-    expect(intentions.every((i) => (i.bodyHtml ?? "").includes("<table") && i.bodyText.includes("Date | Tâche"))).toBe(true);
+    expect(intentions.every((i) => (i.bodyHtml ?? "").includes("<table") && i.bodyText.includes("— Tâche : "))).toBe(true);
     const c = await confirmerIntentionAssistantIA(props[0]!.intentId);
     expect(c.ok, c.error).toBe(true);
     expect(await prisma.effetSortantDiffere.count({ where: { type: "courriel.gmail", principalId: sa.id, statut: "EN_ATTENTE", cible: { in: [r1.email, r2.email] } } })).toBe(2);
     for (const l of await prisma.effetSortantDiffere.findMany({ where: { type: "courriel.gmail", principalId: sa.id, statut: "EN_ATTENTE" } })) await annulerEffetSortant(l.id, sa);
     await prisma.user.deleteMany({ where: { id: { in: [r1.id, r2.id] } } });
+  });
+
+  it("MAILS — une personne qui n'est pas la Direction (assistante) : PAS la boîte d'Adam, mais une carte quand même (envoi de l'ERP), mise en page, signée", async () => {
+    const u = await prisma.user.create({ data: { name: `Assistante ${TAG}`, email: `${TAG}assistante@t.dz`, passwordHash: "x", role: "DIRECTION_ASSISTANT" } });
+    await prisma.userAccess.create({ data: { userId: u.id, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
+    const access = await getAccess(u.id, u.role);
+    const asst = { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
+    ACTEUR = asst;
+    const props: PropositionPreparee[] = [];
+    const tous = outilsV1(asst, props, [], [], null, undefined, { capacites: true });
+    const mails = outilsMails(asst, (n) => tous.find((o) => o.def.name === n), props);
+    const etat = JSON.parse(await mails.find((o) => o.def.name === "mes_boites_mail")!.run({}, asst));
+    expect(etat.gmailAdam.ouvertePourToi).toBe(false);
+    expect(etat.parDefaut).toBe("erp");
+    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ mails: [{ a: "pharmacie@chu-mustapha.dz", objet: "Invitation au comité", contenu: { salutation: "Madame, Monsieur,", paragraphes: ["Nous avons le plaisir de vous convier au comité du **jeudi 12 novembre**."], tableau: { colonnes: ["Heure", "Point"], lignes: [["10 h", "Ouverture"]] }, cloture: "Bien cordialement," } }] }, asst));
+    ACTEUR = sa;
+    console.info("[banc P1] mail d'une assistante :", r.statut, r.raison ?? r.boite ?? "");
+    if (r.statut === "REFUS") {
+      // L'envoi de l'ERP peut être fermé à ce rôle par la console : le refus le DIT, rien n'est inventé.
+      expect(r.raison).toMatch(/ouvert|activé/);
+    } else {
+      expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
+      expect(props[0]!.proposition.title).toContain("Envoyer par l'envoi de l'ERP");
+      expect(JSON.stringify(props[0]!.proposition.payload)).toContain("Assistante");
+      expect(JSON.stringify(props[0]!.proposition.payload)).not.toContain(" | ");
+    }
+    await prisma.assistantActionIntent.deleteMany({ where: { userId: u.id } });
+    await prisma.userAccess.deleteMany({ where: { userId: u.id } });
+    await prisma.user.delete({ where: { id: u.id } });
   });
 
   it("MAILS — un nom introuvable : UNE question, aucune carte", async () => {
