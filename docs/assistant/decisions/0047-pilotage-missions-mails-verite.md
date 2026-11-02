@@ -187,3 +187,25 @@ Gmail d'Adam → intention préparée, approuvée par la personne, fenêtre, ann
 brouillon = DRAFT, rien ne part ; SCÉNARIO Redouane/Nesrine : deux mails, une carte, zéro question, aperçus avec tableau
 et échéance en gras, chaque intention porte le HTML et le texte ; nom introuvable → une seule question) ;
 `domaine/mails/gabarit.test.ts` (échappement, couleurs, tableau, gras, signature, pied, version texte).
+
+## P1 bis — suite du banc réel Q1 (02/11)
+
+| Défaut | Cause | Correction (architecture, pas consigne) | Fichiers |
+|---|---|---|---|
+| **ML-09** majeur — « rien n'est préparé » sans Gmail d'Adam | la boîte par défaut de la Direction était le Gmail d'Adam ou rien | REPLI : sans Gmail d'Adam relié, la carte « Envoyer par l'envoi de l'ERP » (brouillon, beau gabarit, fenêtre K10b) ; une phrase dit que la boîte d'Adam n'est pas reliée et où la relier (Chief of Staff › Réglages › « Connecter Google ») ; `boite_adam: "non reliée"` ; la carte porte `a`/`objet`/`corps` (le juge et l'écran lisent le mail) | `infra/mails/boites.ts`, `infra/operations/envoi-gmail.ts` |
+| **MI-02** majeur — « en arrière-plan » joué dans le tour, tour en erreur | aucune bascule | `demandeDeFond` (tâche de fond, arrière-plan, rapport long…) → le tour ne garde QUE `lancer_un_travail`, `recherche_approfondie`, `mes_missions`, `piloter_mission`, ≤ 8 étapes, consigne « lance la mission d'abord » ; un tour qui atteint le plafond d'un tour est REJOUÉ en mode mission (« je l'ai confiée à une mission en arrière-plan ») — plafond jamais relevé | `domaine/missions/pilotage.ts`, `infra/fil/tour.ts` |
+| **AP-01/02/03/05** moyen — « aucune carte » après une question | la garde « question déjà posée » bloquait (heuristique de temps) | la question posée UNE fois à un tour précédent (TTL 15 min, ensemble par tour) et restée sans réponse donne la **carte à compléter** : connu affiché, champs manquants en formulaire (`champsACompleter` : par les mots du champ, nom court exact compris — `fin`, `nom`), bouton « Compléter et créer » ; à la signature la saisie rejoint la demande et la proposition est REJOUÉE avant d'exécuter ; une charge à compléter ne s'exécute jamais telle quelle. AP-03 : hypothèses raisonnables — titre proposé, action fournisseur probable par famille, article hors catalogue NOMMÉ sur la carte (non repris) quand d'autres lignes s'y trouvent | `domaine/operations/a-completer.ts`, `infra/operations/index.ts` (`carteACompleter`, `completerCarteOperation`), `infra/confirmation.ts`, `infra/operations/adpro-materiel-promo.ts` |
+| **ML-04** moyen — « toute la direction » → question | aucun groupe | `groupeDestinataires` : « la direction / le codir / le comité de direction » = comptes ACTIFS Directeur général, Direction, Super Admin ; la carte les nomme un à un | `infra/mails/redaction.ts` |
+| **EX-03** moyen — export RH impossible | `lire_paie` ne listait pas | `lire_paie { liste: true }` : une ligne par salarié actif (nom, poste, société, salaire de base), même garde que la paie (famille SALAIRES ouverte + droit de voir les salaires, portée des fiches) ; consigne : exporter directement (K7) | `infra/lectures.ts`, `domaine/missions/pilotage.ts` |
+| **AN-04** mineur — retards de l'équipe illisibles | aucun outil ne comptait les tâches de l'équipe | `taches_equipe` : l'équipe de « Mon Équipe » (`getMyTeam`, tout l'arbre sous moi), ouvertes, EN RETARD, par personne, liste des retards (jours de retard) | `infra/lectures-erp.ts`, `domaine/selection-outils.ts` |
+| **AN-05 / NO-02** mineur — une question avant d'agir | consigne | `CONSIGNE_MISSIONS` : une hypothèse raisonnable dite plutôt qu'une question ; une question déjà posée n'est jamais reposée ; un rappel = une tâche datée (9 h par défaut) | `domaine/missions/pilotage.ts`, `infra/operations/routines.ts` |
+
+**Rejeu du banc réel** (base locale, `ADAM_SORTIE_INTERDITE=1`, aucune variable GOOGLE_*/SMTP/WhatsApp/VAPID, budget total ≤ 1 $,
+`AUDIT_SEULEMENT=ML-09,MI-02,AP-,ML-04,EX-03,AN-04,AN-05,NO-02`) : avant (Q1 @68cb8df6) tous en échec ; après :
+ML-04, ML-09, AP-01, AP-02, AP-04, EX-03, AN-05 réussis (NO-02 réussi au premier rejeu ; rapport : `docs/assistant/preuves/p1-bis-rejeu-reel.md`) ; AP-03, AP-05, AN-04 corrigés
+ensuite (carte à compléter sur noms courts, hypothèses du matériel promo, `taches_equipe`) et prouvés contre la base —
+budget épuisé avant leur rejeu réel, comme MI-02.
+
+**Tests** : `domaine/missions/pilotage.test.ts` (demande de fond, présélection), `domaine/operations/a-completer.test.ts`,
+`infra/operations/question-unique.test.ts`, `missions-mails.test.ts` (ML-09 repli, ML-04 groupe, AP-01 carte à
+compléter, EX-03 liste, AN-04 équipe, AP-03 hypothèses).

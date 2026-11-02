@@ -26,6 +26,8 @@ import { FUSION_MISSIONS } from "./missions-fusion";
 import { ENVOI_GMAIL } from "./envoi-gmail";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
+import { prisma } from "@/lib/prisma";
+import { champsACompleter } from "../../domaine/operations/a-completer";
 
 
 /** LE REGISTRE — chaque geste que l'Assistant IA sait préparer. */
@@ -81,18 +83,66 @@ export const REFUS_SECONDE_CARTE = JSON.stringify({
   consigne: "Ne prépare rien d'autre maintenant. Résume la carte affichée, puis dis que l'autre demande sera préparée dès que celle-ci sera confirmée ou écartée.",
 });
 
+/**
+ * LA CARTE « À COMPLÉTER » (P1 bis, décision 0047 — banc d'audit Q1 AP-01…05) : la question a été posée, la réponse ne
+ * comble pas le champ — la carte s'affiche quand même, avec ce qui est connu et un formulaire pour le(s) champ(s)
+ * manquant(s). Rien n'est exécuté avant la signature ; à la signature, `completerCarteOperation` rejoue la proposition.
+ */
+async function carteACompleter(o: OperationIA, entree: Record<string, unknown>, manque: string[], u: CurrentUser, propositions: PropositionCarte[]): Promise<string | null> {
+  const champs = champsACompleter(o.schema, manque);
+  if (!champs) return null;
+  const connus = Object.entries(entree).filter(([, v]) => typeof v === "string" || typeof v === "number").map(([k, v]) => ({ label: k, value: String(v).slice(0, 240) }));
+  const formulaire: FormulaireCarte = {
+    capacite: `operation:${o.nom}`,
+    champs: champs.map((c) => ({
+      nom: c.nom, libelle: c.libelle, type: c.type, widget: c.valeurs ? "choix" : c.type === "date" ? "date" : c.type === "nombre" ? "nombre" : "texte",
+      obligatoire: true, valeurs: c.valeurs, modele: null, propose: null, etiquettes: {}, aide: "À compléter : le reste de la demande est déjà prêt.",
+    })),
+  };
+  const titre = `${o.libelle.replace(/ préparée?$/, "")} — à compléter`;
+  const charge: ChargeOperationIA & { aCompleter: { entree: string } } = { kind: "assistant_ia_op", op: o.nom, args: {}, aCompleter: { entree: JSON.stringify(entree).slice(0, 20_000) } };
+  const [intentId] = await persistActionIntents(u.id, [{ kind: "assistant_ia_op", module: o.module, title: titre, fields: connus, payload: charge }], "text");
+  if (!intentId) return null;
+  const warnings = [`Il manque : ${champs.map((c) => c.libelle.toLowerCase()).join(", ")} — complète-le sur la carte, puis signe : la demande est revérifiée avant d'être créée.`];
+  propositions.push({ intentId, proposition: { kind: "assistant_ia_op", title: titre, fields: connus, warnings, formulaire, libelleBouton: "Compléter et créer", payload: charge } });
+  return JSON.stringify({
+    statut: "CARTE_A_COMPLETER", titre, manque,
+    consigne: "La carte est affichée avec ce qui est connu ; le champ manquant se remplit SUR la carte. Ne repose pas la question : dis en une phrase ce qui reste à compléter sur la carte. Rien n'est créé avant la signature.",
+  });
+}
+
+/**
+ * À LA SIGNATURE d'une carte à compléter : la saisie rejoint la demande d'origine, la proposition est REJOUÉE (toutes les
+ * vérifications de l'écran) ; complète, la charge de l'intention devient celle d'une carte ordinaire, puis s'exécute.
+ */
+export async function completerCarteOperation(user: CurrentUser, intentId: string, saisie: unknown): Promise<{ ok: true } | { ok: false; error: string } | null> {
+  const i = await prisma.assistantActionIntent.findFirst({ where: { id: intentId, userId: user.id, status: "PROPOSED" }, select: { payload: true } });
+  const charge = i?.payload as (ChargeOperationIA & { aCompleter?: { entree?: string } }) | null;
+  if (!charge || !estChargeOperationIA(charge) || !charge.aCompleter) return null;
+  const o = PAR_NOM.get(charge.op);
+  if (!o) return { ok: false, error: "Cette action n'existe plus." };
+  let entree: Record<string, unknown> = {};
+  try { entree = JSON.parse(charge.aCompleter.entree ?? "{}") as Record<string, unknown>; } catch { entree = {}; }
+  const ajouts = saisie && typeof saisie === "object" && !Array.isArray(saisie) ? Object.fromEntries(Object.entries(saisie as Record<string, unknown>).filter(([, v]) => v !== "" && v !== null && v !== undefined)) : {};
+  const p = await o.proposer({ ...entree, ...ajouts }, user);
+  if ("manque" in p) return { ok: false, error: `Il manque encore : ${p.manque.join(" ; ")}. Rien n'a été créé.` };
+  if ("erreur" in p) return { ok: false, error: `${p.erreur} Rien n'a été créé.` };
+  await prisma.assistantActionIntent.update({ where: { id: intentId }, data: { title: p.carte.title, payload: { kind: "assistant_ia_op", op: o.nom, args: p.args } as never } });
+  return { ok: true };
+}
+
 /** Les questions déjà posées par geste et par personne (15 min) — le processus web les tient ; un redémarrage les oublie. */
 const QUESTIONS = new Map<string, number>();
 const QUESTION_TTL_MS = 15 * 60_000;
-const MEME_TOUR_MS = 20_000;
-export function questionDejaPosee(userId: string, op: string, champ: string, maintenant = Date.now()): boolean {
+export function questionDejaPosee(userId: string, op: string, champ: string, dansCeTour: Set<string>, maintenant = Date.now()): boolean {
   for (const [k, t] of QUESTIONS) if (maintenant - t > QUESTION_TTL_MS) QUESTIONS.delete(k);
   const cle = `${userId}\u0000${op}\u0000${champ.slice(0, 120)}`;
-  const avant = QUESTIONS.get(cle);
   // Une reprise DANS le même tour (le modèle rappelle l'outil) n'est pas une question reposée : la personne ne l'a pas vue.
-  if (avant !== undefined && maintenant - avant < MEME_TOUR_MS) return false;
+  if (dansCeTour.has(cle)) return false;
+  dansCeTour.add(cle);
+  const vu = QUESTIONS.has(cle);
   QUESTIONS.set(cle, maintenant);
-  return avant !== undefined;
+  return vu;
 }
 
 /**
@@ -100,6 +150,8 @@ export function questionDejaPosee(userId: string, op: string, champ: string, mai
  * n'est pas même offerte ; celle qui l'est revérifie tout à l'exécution (action métier).
  */
 export function outilsOperations(user: CurrentUser, propositions: PropositionCarte[]): PowerTool[] {
+  // Les questions posées PENDANT ce tour (les outils sont construits à chaque tour) — la garde ne compte que les tours d'avant.
+  const questionsDuTour = new Set<string>();
   return OPERATIONS_IA.filter((o) => o.ouverte(user)).map((o) => ({
     def: { name: o.nom, description: o.description, input_schema: o.schema } as PowerTool["def"],
     allowed: (u: CurrentUser) => u.id === user.id && o.ouverte(u),
@@ -110,8 +162,11 @@ export function outilsOperations(user: CurrentUser, propositions: PropositionCar
       if ("manque" in p) {
         // P1 (décision 0047, banc d'audit Q1 AP-01…05) : LA MÊME QUESTION NE SE POSE PAS DEUX FOIS. Le même champ déjà
         // demandé par ce geste dans les 15 dernières minutes, et toujours absent : on ne le redemande pas — on le dit.
-        const deja = questionDejaPosee(u.id, o.nom, p.manque[0] ?? "");
+        const deja = questionDejaPosee(u.id, o.nom, p.manque[0] ?? "", questionsDuTour);
         if (deja) {
+          // P1 bis : la carte QUAND MÊME — ce qui est connu, et le(s) champ(s) manquant(s) à remplir sur la carte.
+          const aCompleter = await carteACompleter(o, entree ?? {}, p.manque, u, propositions);
+          if (aCompleter) return aCompleter;
           return JSON.stringify({
             statut: "BLOQUE",
             manque: p.manque,
@@ -155,6 +210,8 @@ export async function executerOperationIA(user: CurrentUser, charge: unknown): P
   if (!estChargeOperationIA(charge)) return { ok: false, error: "Action inconnue." };
   const o = PAR_NOM.get(charge.op);
   if (!o) return { ok: false, error: "Cette action n'existe plus." };
+  // Une carte à compléter ne s'exécute pas telle quelle : sa saisie doit d'abord la compléter (`completerCarteOperation`).
+  if ((charge as { aCompleter?: unknown }).aCompleter) return { ok: false, error: "Cette carte est à compléter : remplissez le champ manquant, puis signez. Rien n'a été exécuté." };
   // L'ARRÊT D'URGENCE (`aiExternalActionsDisabled`) vaut pour TOUTE action confirmée de l'IA, pas
   // seulement celles d'Adam (`performAction`) : chaque opération de ce registre change une donnée
   // métier ou prévient quelqu'un (demande, BC, message, rendez-vous, relance, dépôt, routine).

@@ -46,6 +46,22 @@ export async function resoudreDestinataire(qui: string): Promise<Resolution> {
   return { ok: false, inconnu: qui };
 }
 
+/**
+ * P1 bis (banc d'audit Q1 ML-04) : un GROUPE nommé — « toute la direction », « le comité de direction », « le codir » — se
+ * résout par l'annuaire : les comptes ACTIFS de la Direction (Directeur général, Direction, Super Admin — le PDG). Sans question ; la carte les
+ * nomme un à un, la personne retire qui elle veut. `null` : ce n'est pas un groupe connu.
+ */
+const GROUPE_DIRECTION = /^(a |pour )?(toute |tous |toutes )?(la |les |le )?(direction|directeurs?|membres? de la direction|comite de direction|codir)( generale)?$/;
+export async function groupeDestinataires(qui: string): Promise<Destinataire[] | null> {
+  if (!GROUPE_DIRECTION.test(plier(qui).replace(/[^a-z ]/g, " ").replace(/\s+/g, " ").trim())) return null;
+  const membres = await prisma.user.findMany({
+    // Le PDG est Super Admin : la Direction, c'est le Directeur général, les comptes Direction et le Super Admin.
+    where: { isActive: true, role: { in: ["GENERAL_MANAGER", "DIRECTION", "SUPER_ADMIN"] as never[] } },
+    select: { name: true, email: true }, orderBy: { name: "asc" }, take: 20,
+  });
+  return membres.map((m) => ({ email: m.email.toLowerCase(), nom: m.name, prenom: prenomDe(m.name) }));
+}
+
 /** LA SIGNATURE de la personne qui envoie via Adam. */
 export async function signatureDe(user: CurrentUser): Promise<SignatureMail & { societeId: string | null }> {
   const fiche = await prisma.employee.findFirst({ where: { userId: user.id }, select: { position: true, phone: true, company: { select: { id: true, name: true } } } })

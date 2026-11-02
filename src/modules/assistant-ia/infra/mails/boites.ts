@@ -45,11 +45,13 @@ export async function etatDesBoites(user: CurrentUser): Promise<EtatBoites> {
   ]);
   const gmailAdam = { reliee: !!g, adresse: g?.address ?? null, envoi: !!g?.envoi, raison: g?.raison ?? null, ouvertePourToi: EXEC(user) };
   const microsoft = { reliee: !!ms && ms.status === "connected", adresse: ms?.address ?? null, etat: ms?.status ?? null };
-  // La Direction (et le Super Admin) écrit par la boîte d'ADAM — jamais un repli silencieux sur une autre boîte. Les autres
-  // (assistante, KAM, réglementaire…) n'écrivent pas au nom d'Adam : par LEUR boîte (Microsoft, puis SMTP), sinon par
-  // l'envoi de l'ERP (mesuré par le banc d'audit Q1 : sans cela, le mail restait du texte dans la réponse).
+  // La Direction (et le Super Admin) écrit par la boîte d'ADAM. Les autres (assistante, KAM, réglementaire…) n'écrivent
+  // pas au nom d'Adam : par LEUR boîte (Microsoft, puis SMTP), sinon par l'envoi de l'ERP (banc d'audit Q1 : sans cela, le
+  // mail restait du texte dans la réponse). P1 bis (ML-09) : la boîte d'Adam pas reliée → REPLI sur l'envoi de l'ERP —
+  // la carte est préparée quand même, et la réponse DIT en une phrase que la boîte d'Adam n'est pas reliée (jamais
+  // « rien n'est préparé »). Ce n'est pas un repli silencieux : `repliAdam` le porte jusqu'à la consigne.
   const parDefaut: Boite | null = gmailAdam.ouvertePourToi
-    ? (gmailAdam.envoi ? "gmail_adam" : null)
+    ? (gmailAdam.envoi ? "gmail_adam" : "erp")
     : microsoft.reliee ? "microsoft" : smtp ? "smtp" : "erp";
   return { gmailAdam, microsoft, smtp: { reliee: !!smtp, adresse: smtp?.email ?? null }, parDefaut };
 }
@@ -148,7 +150,9 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         }
         let lu: Record<string, unknown> = {};
         try { lu = JSON.parse(sortie) as Record<string, unknown>; } catch { lu = { sortie }; }
-        return json({ ...lu, boite: dite, consigne: `Dis en une phrase que la carte « ${brouillon ? "Enregistrer le brouillon" : "Envoyer"} » attend sa confirmation et que le mail partira par ${dite}${brouillon ? "" : " — annulable pendant la fenêtre d'annulation (2 min par défaut)"}. Ne dis jamais qu'il est parti.` });
+        const repliAdam = boite === "erp" && !voulue && etat.gmailAdam.ouvertePourToi && !etat.gmailAdam.envoi;
+        const motAdam = repliAdam ? ` Ajoute UNE phrase : la boîte Gmail d'Adam n'est pas reliée (${etat.gmailAdam.raison ?? "aucune connexion Google"}) — elle se relie dans Chief of Staff › Réglages › « Connecter Google » ; en attendant, le mail part par l'envoi de l'ERP.` : "";
+        return json({ ...lu, boite: dite, ...(repliAdam ? { boite_adam: "non reliée" } : {}), consigne: `${motAdam ? motAdam.trim() + " " : ""}Dis en une phrase que la carte « ${brouillon ? "Enregistrer le brouillon" : "Envoyer"} » attend sa confirmation et que le mail partira par ${dite}${brouillon ? "" : " — annulable pendant la fenêtre d'annulation (2 min par défaut)"}. Ne dis jamais qu'il est parti.` });
       },
     },
   ];

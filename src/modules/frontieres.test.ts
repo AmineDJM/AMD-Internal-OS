@@ -531,6 +531,8 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/capacites.ts → src/lib/cibles/resoudre-entrees",
     "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/calendar",
     "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/queries/action-center",
+    // P1 bis (AN-04) : les tâches de l'équipe se lisent sur l'équipe de l'écran « Mon Équipe » (`getMyTeam`). Cible : la porte rh.
+    "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/queries/my-team",
     "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/queries/search-everything",
     // Le Drive (droits, dépôt, quota) : cible = un module `drive` quand il sera migré.
     "src/modules/assistant-ia/infra/lecture/voix.ts → src/lib/drive/depot",

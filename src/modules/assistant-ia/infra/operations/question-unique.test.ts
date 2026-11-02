@@ -8,18 +8,17 @@ import { lireCalendrier } from "./routines";
  * unique sans heure prend 9 h (dit sur la carte).
  */
 describe("P1 — jamais deux fois la même question", () => {
-  it("le même champ, le même geste, la même personne : la seconde fois est BLOQUÉE ; un autre champ ou une autre personne, non", () => {
-    const t = Date.now();
-    expect(questionDejaPosee("u1", "preparer_sponsoring", "le nom du médecin", t)).toBe(false);
-    // Le modèle rappelle l'outil dans le MÊME tour : pas encore posée à la personne.
-    expect(questionDejaPosee("u1", "preparer_sponsoring", "le nom du médecin", t + 1000)).toBe(false);
-    // Au tour suivant, sans la réponse : bloquée.
-    expect(questionDejaPosee("u1", "preparer_sponsoring", "le nom du médecin", t + 60_000)).toBe(true);
-    expect(questionDejaPosee("u1", "preparer_sponsoring", "le montant", t + 2000)).toBe(false);
-    expect(questionDejaPosee("u2", "preparer_sponsoring", "le nom du médecin", t + 3000)).toBe(false);
+  it("le même champ, le même geste, la même personne : au tour SUIVANT, BLOQUÉE ; dans le même tour, une reprise n'est pas une question reposée", () => {
+    const t1 = new Set<string>(), t2 = new Set<string>();
+    expect(questionDejaPosee("u1", "preparer_sponsoring", "le nom du médecin", t1)).toBe(false);
+    expect(questionDejaPosee("u1", "preparer_sponsoring", "le nom du médecin", t1)).toBe(false); // même tour
+    expect(questionDejaPosee("u1", "preparer_sponsoring", "le nom du médecin", t2)).toBe(true); // tour suivant
+    expect(questionDejaPosee("u1", "preparer_sponsoring", "le montant", t2)).toBe(false);
+    expect(questionDejaPosee("u2", "preparer_sponsoring", "le nom du médecin", new Set())).toBe(false);
     // Après 15 minutes, la question peut se reposer (un autre moment, une autre demande).
-    expect(questionDejaPosee("u3", "x", "y", t)).toBe(false);
-    expect(questionDejaPosee("u3", "x", "y", t + 16 * 60_000)).toBe(false);
+    const t = Date.now();
+    expect(questionDejaPosee("u3", "x", "y", new Set(), t)).toBe(false);
+    expect(questionDejaPosee("u3", "x", "y", new Set(), t + 16 * 60_000)).toBe(false);
   });
 
   it("un rappel UNIQUE sans heure prend 9 h ; une routine récurrente sans heure la demande toujours", () => {
