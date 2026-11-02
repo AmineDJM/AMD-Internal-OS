@@ -4723,13 +4723,17 @@
      "modele": "AccesBase",
      "libelle": "Réglage d'accès à une base (rôle ou personne, daté)",
      "sensibilite": "secret",
-     "ecritePar": []
+     "ecritePar": [
+      "acces-bases-actions"
+     ]
     },
     {
      "modele": "AccesBaseParametre",
      "libelle": "Paramètre d'une base (accès à ses propres données)",
      "sensibilite": "secret",
-     "ecritePar": []
+     "ecritePar": [
+      "acces-bases-actions"
+     ]
     },
     {
      "modele": "SupplierUser",
@@ -5512,6 +5516,7 @@
      "sensibilite": "secret",
      "pourquoi": "les valeurs avant / après de toute écriture, paie comprise",
      "ecritePar": [
+      "acces-bases-actions",
       "access-actions",
       "actualisation-soldes-actions",
       "ad-pro-centre-actions",

@@ -865,8 +865,8 @@ Qui peut se connecter, avec quels droits, sur quelles sociétés, et les connexi
 | `RowGrant` | Accès à une ligne précise | Secret | access-actions |
 | `AssistantIaAcces` | Familles de l'assistant ouvertes ou fermées (rôle ou personne) | Secret | assistant-ia-consommation-actions |
 | `AssistantIaDroitDate` | Droit daté de l'assistant sur une famille sensible | Secret | assistant-ia-consommation-actions |
-| `AccesBase` | Réglage d'accès à une base (rôle ou personne, daté) | Secret | — |
-| `AccesBaseParametre` | Paramètre d'une base (accès à ses propres données) | Secret | — |
+| `AccesBase` | Réglage d'accès à une base (rôle ou personne, daté) | Secret | acces-bases-actions |
+| `AccesBaseParametre` | Paramètre d'une base (accès à ses propres données) | Secret | acces-bases-actions |
 | `SupplierUser` | Compte du portail fournisseur | Secret | supplier-actions, supplier-portal-actions |
 | `ApiClient` | Client de l'API externe | Secret | — |
 | `MailAccount` | Boîte de courriel connectée | Secret | mail-actions |
@@ -1002,7 +1002,7 @@ Qui a fait quoi et quand : journal d'audit, activité, corbeille, appels d'API, 
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `AuditLog` | Journal d'audit | Secret — les valeurs avant / après de toute écriture, paie comprise | access-actions, actualisation-soldes-actions, ad-pro-centre-actions, ad-pro-edit-actions +154 |
+| `AuditLog` | Journal d'audit | Secret — les valeurs avant / après de toute écriture, paie comprise | acces-bases-actions, access-actions, actualisation-soldes-actions, ad-pro-centre-actions +155 |
 | `ActivityLog` | Journal d'activité | Confidentiel | adoption-actions |
 | `SessionEvent` | Événement de session | Confidentiel | — |
 | `DeletedRecord` | Élément en corbeille | Secret — copie complète de chaque ligne supprimée, de toutes les bases | ad-pro-item-actions, ad-pro-pieces-actions, admin-delete-actions, bd-project-actions +9 |
