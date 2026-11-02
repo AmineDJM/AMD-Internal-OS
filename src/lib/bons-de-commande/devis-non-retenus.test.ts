@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { devisNonRetenus, libelleNonRetenu } from "./devis-non-retenus";
+import { devisNonRetenus, libelleNonRetenu } from "./copie-signee";
 import {
   changementsDuBrouillon, changementsLus, notificationBcAVerifier, peutModifierLeBcDuPoste, REFUS_MODIFICATION_BC_POSTE,
-} from "./versions-brouillon";
+} from "./brouillon";
 import { brouillonCorrige, brouillonNeuf } from "./brouillon";
 import { bcDePosteAvantSignature } from "@/lib/lecteurs/legal";
 import type { LigneCommerciale } from "@/lib/artifact/factory/commercial";

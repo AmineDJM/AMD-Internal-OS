@@ -57,8 +57,8 @@ const LIBELLE_PIECE_EMISE: Record<TypePieceEmise, string> = {
 };
 import { netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { avalActif, avoirsDeLaFacture } from "@/lib/legal/aval";
-import { nonRetenusDesPieces } from "@/lib/bons-de-commande/non-retenus";
-import { libelleNonRetenu } from "@/lib/bons-de-commande/devis-non-retenus";
+import { nonRetenusDesPieces } from "@/lib/bons-de-commande/retenue-bc";
+import { libelleNonRetenu } from "@/lib/bons-de-commande/copie-signee";
 
 export const dynamic = "force-dynamic";
 

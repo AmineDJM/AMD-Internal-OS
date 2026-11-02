@@ -74,7 +74,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/infra/requetes/devis-poste.ts → src/lib/bons-de-commande/brouillon",
     "src/modules/ad-pro/infra/requetes/devis-poste.ts → src/lib/bons-de-commande/etat",
     "src/modules/ad-pro/infra/requetes/devis-poste.ts → src/lib/bons-de-commande/regle",
-    "src/modules/ad-pro/infra/requetes/postes.ts → src/lib/bons-de-commande/brouillon",
+    "src/modules/ad-pro/actions-postes-paiement.ts → src/lib/bons-de-commande/brouillon",
     // Le moteur de circuit (étapes, parcours, origine, statut d'une « autre » demande) : cible = la porte du circuit de validation.
     "src/modules/ad-pro/actions-autres.ts → src/lib/workflow/autre-statut",
     "src/modules/ad-pro/actions-autres.ts → src/lib/workflow/engine",

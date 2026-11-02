@@ -72,7 +72,7 @@ import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { devisDesPostes } from "./requetes/devis-poste";
 import { loadAdProItems } from "./requetes/postes";
 import { piecesDesPostes } from "./pieces-poste";
-import { effacerNonRetenusDuBC, nonRetenusDesPieces } from "@/lib/bons-de-commande/non-retenus";
+import { effacerNonRetenusDuBC, nonRetenusDesPieces } from "@/lib/bons-de-commande/retenue-bc";
 import { prochainPas, faitsDuPoste, type RegardPoste } from "../domaine/poste-etapes";
 import { refusGenerationBC } from "../domaine/devis-poste";
 import { lirePorteDg, statuerSurLeTotal } from "./porte-dg";

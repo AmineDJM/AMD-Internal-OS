@@ -2,7 +2,7 @@
 
 ### AD & PRO : LE BC DU DEVIS VALIDÉ — MODIFIÉ DANS L'APPLICATION, VALIDÉ PAR LE DÉPOSANT, SIGNÉ, PUIS DANS LEGAL (2026-11-02)
 
-Migrations `20270130100000_devis_non_retenu` (deux colonnes sur `AdProItemPiece`) et `20270226100000_bc_brouillon_versions`
+Migrations `20270226000000_devis_non_retenu` (deux colonnes sur `AdProItemPiece`) et `20270226100000_bc_brouillon_versions`
 (table `BcBrouillonVersion`). Le circuit, décidé par la Direction le 02/11 (il remplace le brouillon Excel signé et déposé
 par le déposant, publié plus tôt le même jour) :
 1. **Plusieurs devis / pro formas** se déposent sur un poste ; Luna les lit ; les lignes bien lues arrivent **cochées, pas

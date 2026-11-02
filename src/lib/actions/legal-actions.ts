@@ -23,7 +23,7 @@ import { createExpenseOrder, syncInvoiceSettlement, annulerOrdreNonRegle } from 
 import { normalizeReaderIds, canManageLegalReaders } from "@/lib/lecteurs/legal";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { PHRASE_PREVALIDATION } from "@/lib/bons-de-commande/prevalidation";
-import { libererPrevalidation, retenueOrpheline } from "@/lib/bons-de-commande/retenue-bc";
+import { libererPrevalidation, retenueOrpheline, effacerNonRetenusDuBC } from "@/lib/bons-de-commande/retenue-bc";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
 import { invoiceDirection, canSendToSettlement, canMarkPaidDirectly, cleEnvoiAuReglement, dateDeReglementAEcrire } from "@/modules/finances/partage";
 import { enSerie } from "@/lib/refs";
@@ -33,7 +33,6 @@ import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { memeNumero, nettoyerNumero, resumeChangementNumero } from "@/lib/bons-de-commande/numero-reference";
 import { champsDifferents, MENTION_NUMERO_SEUL } from "@/lib/bons-de-commande/numero-seul";
 import { inscrireNumeroBcDepose, refusNumeroBcDepose } from "@/lib/bons-de-commande/numero-depose";
-import { effacerNonRetenusDuBC } from "@/lib/bons-de-commande/non-retenus";
 import { budgetPromoDeLaPiece } from "@/lib/queries/promo-budget";
 import { reserveEtapeBC, LIBELLE_CENTRE_BC, LIBELLE_ETAT_BC, CHEMIN_CENTRE_BC } from "@/lib/bons-de-commande/regle";
 import { sansBloquer } from "@/lib/journal";
@@ -682,7 +681,7 @@ export async function cancelLegalDocument(formData: FormData): Promise<ActionRes
       // (« non retenus », Direction 11/2026) redeviennent des offres à comparer.
       if (doc.kind === "PURCHASE_ORDER") {
         await aiguillerBC(id, { acteurId: user.id });
-        await effacerNonRetenusDuBC(id).catch(() => undefined);
+        await effacerNonRetenusDuBC(id).catch(sansBloquer("legal-actions.annulation.effacerNonRetenusDuBC"));
       }
       revalidatePath("/legal");
       revalidatePath(`/legal/${id}`);
@@ -741,7 +740,7 @@ export async function deleteLegalDocument(formData: FormData): Promise<ActionRes
   // serait un arbitrage à rendre sur rien, et le clic échouerait après coup.
   if (doc.kind === "PURCHASE_ORDER") {
     await retirerPortesEnAttente(id, user.id);
-    await effacerNonRetenusDuBC(id).catch(() => undefined);
+    await effacerNonRetenusDuBC(id).catch(sansBloquer("legal-actions.effacerNonRetenusDuBC"));
   }
   await prisma.legalDocument.delete({ where: { id } });
   await recordAudit({
