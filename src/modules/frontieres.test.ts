@@ -612,11 +612,17 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/media/stt",
     // L'accès OpenAI (clé) : passerelle `lib/models`, socle IA à terme.
     "src/modules/assistant-ia/infra/modele.ts → src/lib/models/openai-acces",
+    // T3 (décision 0051) : la CAISSE D'AVANCE (« moyens généraux ») n'est pas encore un module — l'assistant la lit par la
+    // requête de l'écran (même calcul du fond que les actions) et contrôle une dépense par la règle de l'écran. Cible : un
+    // module `caisse-avance` (porte `api.ts`), qui fera tomber ces trois lignes.
+    "src/modules/assistant-ia/infra/caisse-avance.ts → src/lib/general-means/continuous-cash",
+    "src/modules/assistant-ia/infra/caisse-avance.ts → src/lib/queries/general-means",
+    "src/modules/assistant-ia/infra/operations/caisse-avance.ts → src/lib/general-means/continuous-cash",
   ],
-  "moyens-generaux": [
+  salles: [
     // T3 (décision 0051) : la numérotation des références (MG-AAAA-NNN) passe par la série partagée de toute l'application
     // (`referenceDeSerie`, comme les demandes Ad & Pro) — primitive transverse, cible : le socle.
-    "src/modules/moyens-generaux/actions.ts → src/lib/refs",
+    "src/modules/salles/actions.ts → src/lib/refs",
   ],
 };
 

@@ -1,9 +1,8 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE REGISTRE DES MOYENS GÉNÉRAUX (lot T3) — règles PURES, zéro import (l'écran, l'action et l'assistant les partagent).
+ * LES SALLES (lot T3, décision 0051 ; né « registre des moyens généraux ») — règles PURES, zéro import.
  *
  *   • la NATURE d'un moyen écrite en français (« la voiture », « l'assurance flotte », « contrat de ménage ») ;
- *   • l'ÉTAT d'une échéance : dépassée, proche (dans le délai de rappel), à venir ;
  *   • le CHEVAUCHEMENT de deux créneaux (une salle, un véhicule ne se réservent pas deux fois).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -40,25 +39,12 @@ export function lireTypeMoyen(brut: string | null | undefined): TypeMoyen | null
 }
 
 /** Les natures qui se RÉSERVENT (un créneau) — une assurance ne se réserve pas. */
-export const TYPES_RESERVABLES: readonly TypeMoyen[] = ["SALLE", "VEHICULE", "EQUIPEMENT"];
-
-export type EtatEcheance = "depassee" | "proche" | "a_venir";
-
-/** L'état d'une échéance au jour `maintenant` : dépassée, proche (≤ rappel), à venir ; `null` sans échéance. */
-export function etatEcheance(echeance: Date | null | undefined, rappelJours: number, maintenant: Date = new Date()): EtatEcheance | null {
-  if (!echeance) return null;
-  const jours = joursAvant(echeance, maintenant);
-  if (jours < 0) return "depassee";
-  return jours <= Math.max(0, rappelJours) ? "proche" : "a_venir";
-}
-
-/** Jours entiers de `maintenant` à `echeance` (négatif : dépassée), au jour près (UTC). */
-export function joursAvant(echeance: Date, maintenant: Date = new Date()): number {
-  const j = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  return Math.round((j(echeance) - j(maintenant)) / 86_400_000);
-}
-
-export const LIBELLE_ETAT_ECHEANCE: Readonly<Record<EtatEcheance, string>> = { depassee: "Dépassée", proche: "Proche", a_venir: "À venir" };
+export const TYPES_RESERVABLES: readonly TypeMoyen[] = ["SALLE"];
+/**
+ * Les natures qu'on ENREGISTRE encore (Direction, 02/11/2026 : « moyens généraux, c'est la caisse d'avance » — le registre
+ * des véhicules, assurances et contrats ne correspond pas à Adventum). Les autres natures restent lisibles en base, inertes.
+ */
+export const TYPES_ENREGISTRABLES: readonly TypeMoyen[] = ["SALLE"];
 
 /** Deux créneaux [début, fin[ se chevauchent-ils ? (bout à bout : non) */
 export function chevauche(a: { debut: Date; fin: Date }, b: { debut: Date; fin: Date }): boolean {

@@ -10,22 +10,22 @@ import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { actionReversible } from "@/lib/effets/reversible";
 import { fdNum, fdStr, type ActionResult } from "@/lib/actions/types";
 import { conflitsDeReservation } from "./infra/registre-serveur";
-import { LIBELLE_TYPE_MOYEN, libelleInstant, lireCreneau, lireTypeMoyen, TYPES_RESERVABLES } from "./domaine/registre";
+import { LIBELLE_TYPE_MOYEN, libelleInstant, lireCreneau, lireTypeMoyen, TYPES_ENREGISTRABLES, TYPES_RESERVABLES } from "./domaine/registre";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE REGISTRE DES MOYENS GÉNÉRAUX (lot T3) — créer, modifier, archiver une fiche (véhicule, assurance, contrat de
- * prestataire, entretien, salle, équipement, fournitures) ; réserver une salle ou un véhicule, annuler la réservation.
+ * LES SALLES ET LEURS RÉSERVATIONS (lot T3, décision 0051) — créer, modifier, archiver une salle ; la réserver, annuler.
  *
- * DROITS : le module « Moyens généraux » (`GENERAL_MEANS`) — CRÉER pour une fiche, MODIFIER pour la changer ou
- * l'archiver ; RÉSERVER demande seulement de VOIR le module (l'assistante, l'équipe des moyens généraux) ; annuler une
- * réservation : la personne qui l'a faite, ou qui peut MODIFIER le module.
+ * DROITS : déclarer ou modifier une salle — le module « Moyens généraux » (`GENERAL_MEANS`, créer / modifier) ; RÉSERVER —
+ * TOUT EMPLOYÉ connecté (Direction, 02/11/2026) ; annuler une réservation — la personne qui l'a faite, ou qui peut modifier
+ * le module. Seules les SALLES se créent et se réservent : le premier registre (véhicules, assurances, contrats) ne
+ * correspond pas à Adventum, ses natures restent en base, inertes.
  * RÉVERSIBLE : chaque action est un geste du journal des effets (`actionReversible`, déclarations `metiers.ts`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const PATH = "/moyens-generaux/registre";
-const revalider = () => { revalidatePath(PATH); revalidatePath("/moyens-generaux"); };
+const PATH = "/salles";
+const revalider = () => { revalidatePath(PATH); };
 
 const dateOuNull = (s: string | null): Date | null | "illisible" => {
   if (!s) return null;
@@ -47,8 +47,9 @@ async function prochaineReference(): Promise<string> {
 function lireChamps(formData: FormData, creation: boolean) {
   const type = fdStr(formData, "type");
   const t = type ? lireTypeMoyen(type) : null;
-  if (creation && !t) return { erreur: "La nature du moyen est obligatoire (véhicule, assurance, contrat de prestataire, entretien, salle, équipement, fournitures)." } as const;
+  if (creation && !t) return { erreur: "La nature est obligatoire : une salle." } as const;
   if (type && !t) return { erreur: `Nature « ${type} » inconnue.` } as const;
+  if (t && !TYPES_ENREGISTRABLES.includes(t)) return { erreur: "Seules les salles de réunion s'enregistrent ici (les « moyens généraux » d'Adventum sont la caisse d'avance)." } as const;
   const libelle = fdStr(formData, "libelle");
   if (creation && !libelle) return { erreur: "Le libellé est obligatoire." } as const;
   const montant = fdNum(formData, "montant");
@@ -79,9 +80,9 @@ function lireChamps(formData: FormData, creation: boolean) {
 }
 
 export async function creerMoyenGeneral(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
-  return actionReversible("moyens-generaux-registre-actions:creerMoyenGeneral", "Moyen général enregistré", async () => {
+  return actionReversible("moyens-generaux-registre-actions:creerMoyenGeneral", "Salle enregistrée", async () => {
     const user = await requireUser();
-    if (!userCan(user, "GENERAL_MEANS", "CREATE")) return { ok: false, error: "Non autorisé : le registre des moyens généraux demande le droit de créer dans « Moyens généraux »." };
+    if (!userCan(user, "GENERAL_MEANS", "CREATE")) return { ok: false, error: "Non autorisé : déclarer une salle demande le droit de créer dans « Moyens généraux »." };
     const lu = lireChamps(formData, true);
     if ("erreur" in lu) return { ok: false, error: lu.erreur };
     const parentId = lu.data.parentId as string | null | undefined;
@@ -91,21 +92,21 @@ export async function creerMoyenGeneral(_prev: ActionResult | undefined, formDat
       where: { type: lu.data.type as MoyenGeneralType, libelle: { equals: libelle, mode: "insensitive" }, statut: "ACTIF", ...(lu.data.identifiant ? { identifiant: lu.data.identifiant as string } : {}) },
       select: { reference: true },
     });
-    if (doublon) return { ok: false, error: `Ce moyen existe déjà au registre (${doublon.reference}) : modifiez-le plutôt.` };
+    if (doublon) return { ok: false, error: `Cette salle existe déjà (${doublon.reference}) : modifiez-la plutôt.` };
     const cree = await createWithRetry(async () => prisma.moyenGeneral.create({
       data: { ...(lu.data as object), type: lu.data.type as MoyenGeneralType, libelle, reference: await prochaineReference(), createdById: user.id },
       select: { id: true, reference: true },
     }));
     await recordAudit({ actorId: user.id, action: "CREATE", module: "Moyens généraux", entityId: cree.id, summary: `${LIBELLE_TYPE_MOYEN[lu.data.type as keyof typeof LIBELLE_TYPE_MOYEN]} « ${libelle} » enregistré (${cree.reference})` });
     revalider();
-    return { ok: true, id: cree.id, message: `${cree.reference} enregistré au registre des moyens généraux.` };
+    return { ok: true, id: cree.id, message: `Salle ${libelle} enregistrée (${cree.reference}).` };
   });
 }
 
 export async function modifierMoyenGeneral(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
-  return actionReversible("moyens-generaux-registre-actions:modifierMoyenGeneral", "Moyen général modifié", async () => {
+  return actionReversible("moyens-generaux-registre-actions:modifierMoyenGeneral", "Salle modifiée", async () => {
     const user = await requireUser();
-    if (!userCan(user, "GENERAL_MEANS", "UPDATE")) return { ok: false, error: "Non autorisé : modifier le registre demande le droit de modifier « Moyens généraux »." };
+    if (!userCan(user, "GENERAL_MEANS", "UPDATE")) return { ok: false, error: "Non autorisé : modifier une salle demande le droit de modifier « Moyens généraux »." };
     const id = fdStr(formData, "id");
     const avant = id ? await prisma.moyenGeneral.findUnique({ where: { id }, select: { id: true, reference: true } }) : null;
     if (!avant) return { ok: false, error: "Moyen introuvable." };
@@ -120,7 +121,7 @@ export async function modifierMoyenGeneral(_prev: ActionResult | undefined, form
 }
 
 export async function archiverMoyenGeneral(formData: FormData): Promise<ActionResult> {
-  return actionReversible("moyens-generaux-registre-actions:archiverMoyenGeneral", "Moyen général archivé", async () => {
+  return actionReversible("moyens-generaux-registre-actions:archiverMoyenGeneral", "Salle archivée", async () => {
     const user = await requireUser();
     if (!userCan(user, "GENERAL_MEANS", "UPDATE")) return { ok: false, error: "Non autorisé." };
     const id = fdStr(formData, "id");
@@ -137,10 +138,10 @@ export async function archiverMoyenGeneral(formData: FormData): Promise<ActionRe
 export async function reserverMoyenGeneral(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   return actionReversible("moyens-generaux-registre-actions:reserverMoyenGeneral", "Réservation enregistrée", async () => {
     const user = await requireUser();
-    if (!userCan(user, "GENERAL_MEANS", "VIEW")) return { ok: false, error: "Non autorisé : réserver une salle ou un véhicule passe par le module « Moyens généraux »." };
+    // Tout employé réserve une salle (Direction, 02/11/2026) : la session suffit.
     const moyenId = fdStr(formData, "moyenId");
     const m = moyenId ? await prisma.moyenGeneral.findUnique({ where: { id: moyenId }, select: { id: true, reference: true, libelle: true, type: true, statut: true, capacite: true } }) : null;
-    if (!m || m.statut !== "ACTIF") return { ok: false, error: "Moyen introuvable ou archivé." };
+    if (!m || m.statut !== "ACTIF") return { ok: false, error: "Salle introuvable ou archivée." };
     if (!TYPES_RESERVABLES.includes(m.type)) return { ok: false, error: `Un(e) ${LIBELLE_TYPE_MOYEN[m.type].toLowerCase()} ne se réserve pas.` };
     const objet = fdStr(formData, "objet");
     if (!objet) return { ok: false, error: "L'objet de la réservation est obligatoire." };
@@ -166,7 +167,7 @@ export async function annulerReservationMoyenGeneral(formData: FormData): Promis
     const id = fdStr(formData, "id");
     const r = id ? await prisma.moyenGeneralReservation.findUnique({ where: { id }, select: { id: true, statut: true, reserveParId: true, moyen: { select: { id: true, reference: true } } } }) : null;
     if (!r) return { ok: false, error: "Réservation introuvable." };
-    if (r.reserveParId !== user.id && !userCan(user, "GENERAL_MEANS", "UPDATE")) return { ok: false, error: "Seule la personne qui a réservé, ou l'équipe des moyens généraux, peut annuler." };
+    if (r.reserveParId !== user.id && !userCan(user, "GENERAL_MEANS", "UPDATE")) return { ok: false, error: "Seule la personne qui a réservé, ou l’équipe des moyens généraux, peut annuler." };
     if (r.statut === "ANNULEE") return { ok: true, message: "Réservation déjà annulée." };
     await prisma.moyenGeneralReservation.update({ where: { id: r.id }, data: { statut: "ANNULEE" } });
     await recordAudit({ actorId: user.id, action: "UPDATE", module: "Moyens généraux", entityId: r.moyen.id, summary: `Réservation de ${r.moyen.reference} annulée` });
