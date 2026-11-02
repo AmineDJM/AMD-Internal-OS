@@ -16,6 +16,7 @@ import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { motifNonSignable } from "@/lib/bons-de-commande/regle";
 import { bcVisiblesWhere, peutSignerBC, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
 import { apresSignatureDuBCDeDemande } from "@/lib/secretariat/bc-signe";
+import { marquerNonRetenusDuBC } from "@/lib/bons-de-commande/non-retenus";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -124,6 +125,8 @@ export async function signerBonDeCommande(formData: FormData): Promise<ActionRes
   revalidatePath("/ad-pro", "layout");
   // LE BC D'UNE DEMANDE AU SECRÉTARIAT revient « signé et validé » sur sa fiche : l'assistante et le demandeur le savent.
   await apresSignatureDuBCDeDemande(id, user.id, signataire).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.apresSignatureDuBCDeDemande"));
+  // LE BC D'UN POSTE SIGNÉ (Direction, 11/2026) : les devis du poste qui n'y ont rien fait commander sont « non retenus ».
+  await marquerNonRetenusDuBC(id).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.marquerNonRetenusDuBC"));
   revalidatePath("/demandes", "layout");
   return { ok: true, id, message: `Bon de commande ${ref} signé par ${signataire}. ${constat} Il remplace le BC non signé, et la facture peut être déposée.` };
 }

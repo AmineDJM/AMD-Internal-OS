@@ -3093,6 +3093,27 @@ model AdProItemPiece {
   @@index([legalDocumentId])
 }
 
+/// L'HISTORIQUE DU BROUILLON DU BC D'UN DEVIS DE POSTE (Direction, 11/2026) : « toute modification doit être enregistrée,
+/// et le Super Admin voit ce qui a changé ». Une ligne par geste — créé, modifié, retiré, validé — avec ce qui a changé,
+/// avant → après (`changements`, forme : `lib/bons-de-commande/versions-brouillon.ts`). `bcLegalDocumentId` : le BC né
+/// de la validation, posé à ce moment sur toutes les versions du brouillon. On ajoute, on n'efface jamais.
+model BcBrouillonVersion {
+  id                   String   @id @default(cuid())
+  itemId               String
+  devisLegalDocumentId String
+  bcLegalDocumentId    String?
+  numero               Int
+  geste                String
+  auteurId             String?
+  auteurNom            String?
+  changements          Json
+  createdAt            DateTime @default(now())
+
+  @@index([itemId])
+  @@index([devisLegalDocumentId])
+  @@index([bcLegalDocumentId])
+}
+
 model AdProItemDecision {
   id       String          @id @default(cuid())
   itemId   String

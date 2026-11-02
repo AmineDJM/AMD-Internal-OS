@@ -9,7 +9,7 @@ import { etapeDEnsemble } from "../domaine/devis-poste";
 import { fichiersEmis } from "@/lib/lecteurs/fichiers-emis";
 import type { EtatDemandeBC } from "../domaine/poste-etapes";
 import { ETAPE_COPIE_SIGNEE, controleFactureDe, phraseVerdictSignature, verdictSignatureDe, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
-import { libelleNonRetenu } from "@/lib/bons-de-commande/version-signee";
+import { libelleNonRetenu } from "@/lib/bons-de-commande/devis-non-retenus";
 
 
 /**

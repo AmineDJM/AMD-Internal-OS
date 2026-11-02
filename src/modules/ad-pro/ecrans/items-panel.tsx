@@ -180,8 +180,8 @@ export interface ContexteDesPostes {
   userId: string;
   /** La demande vient de la Direction Marketing : le second temps revient à la Direction des opérations. */
   secondTempsParOperations: boolean;
-  /** Valider l'aperçu du BC et l'envoyer aux Finances : le demandeur de la demande, ou le Super Admin. */
-  peutValiderBc: boolean;
+  /** La personne qui regarde est Super Admin : elle lit l'historique des modifications des BC. */
+  superAdmin: boolean;
   /** La porte du DG sur le total de la demande (27/10/2026) — calculée au serveur (`contextePostes`). */
   porteDg?: { etat: EtatPorteDg; phrase: string | null; total: number; seuil: number | null; note: string | null; peutStatuer: boolean };
 }
@@ -289,7 +289,9 @@ export function AdProItemsPanel({
         secondTempsParOperations: contexte.secondTempsParOperations,
         // C'est celle qui a DEMANDÉ le BC qui vérifie la pièce que l'assistante a déposée.
         verifieLeBC: Boolean(it.demandeBC) && it.demandeBC?.askedById === contexte.userId,
-        peutValiderBc: contexte.peutValiderBc,
+        // LE BC D'UN DEVIS se vérifie, se modifie et se valide par la personne qui a ajouté le devis (Direction, 11/2026).
+        moiId: contexte.userId,
+        superAdmin: contexte.superAdmin,
       }}
       freres={items.filter((x) => x.id !== it.id && !estPosteStock(x) && x.status !== "REJECTED").map((x) => ({ id: x.id, label: x.label, kind: x.kind }))}
       assistantes={contexte.assistantes}

@@ -10,15 +10,19 @@ import { notifyRoles } from "@/lib/notify";
 import { type AdProParent, VERSEMENT_SANS_BC, noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste } from "@/modules/ad-pro/partage";
 import { enSerie } from "@/lib/refs";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
-import { refusSiPorteDgFermee, lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, demandesBCDesPostes, devisDesPostes, genererLesBCsDuPoste, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis, apercuDuBC, composerApercuDuBC, lignesDuBCDuDevis, composerBrouillonExcel, type ApercuDuBC, type PosteAGenerer } from "@/modules/ad-pro/api";
+import { refusSiPorteDgFermee, lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, demandesBCDesPostes, devisDesPostes, genererLesBCsDuPoste, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis, apercuDuBC, composerApercuDuBC, lignesDuBCDuDevis, type ApercuDuBC, type PosteAGenerer } from "@/modules/ad-pro/api";
 import { motifSousLeSeuil } from "@/lib/bons-de-commande/regle";
-import { CHEMIN_BC_A_SIGNER, aiguillerBC } from "@/lib/bons-de-commande/aiguillage";
+import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { refusArgentSurPosteStock } from "@/lib/promo/reservations";
 import { Prisma } from "@prisma/client";
 import { readFileByKey } from "@/lib/storage";
 import { resolveParties } from "@/lib/queries/company-contacts";
 import { ingererDevisDuPoste, phraseDeLecture } from "@/lib/pieces-lues/devis-poste-lecture";
-import { ETAPE_BROUILLON_EXCEL, ETIQUETTE_BROUILLON, REFUS_VALIDATION_BROUILLON, brouillonCorrige, brouillonNeuf, correctionsDuBrouillon, lireBrouillon, peutValiderLeBrouillon, type BrouillonBc } from "@/lib/bons-de-commande/brouillon";
+import { ETIQUETTE_BROUILLON, brouillonCorrige, brouillonNeuf, correctionsDuBrouillon, type BrouillonBc } from "@/lib/bons-de-commande/brouillon";
+import {
+  REFUS_MODIFICATION_BC_POSTE, changementsDuBrouillon, changementsLus, notificationBcAVerifier, peutModifierLeBcDuPoste,
+  type ChangementBrouillon, type GesteBrouillon,
+} from "@/lib/bons-de-commande/versions-brouillon";
 import { refusDeLaSaisie } from "@/lib/bons-de-commande/saisie-composeur";
 import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { saisieEffective } from "@/lib/references/registre";
@@ -28,12 +32,6 @@ import { PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFerm
 import type { AdProItemKind } from "@prisma/client";
 import { notifyUser } from "@/lib/notify";
 import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
-import { persistUploadedDocument } from "@/lib/documents";
-import { validateAttachments } from "@/lib/attach-files";
-import { devisNonRetenus, notificationBrouillonPret, refusDepotVersionSignee } from "@/lib/bons-de-commande/version-signee";
-import { ETAPE_COPIE_SIGNEE, FORMATS_COPIE_SIGNEE, phraseVerdictSignature, refusCopieSignee } from "@/lib/bons-de-commande/copie-signee";
-import { verifierSignatureParLuna } from "@/lib/bons-de-commande/signature-luna";
-import { marquerNonRetenus } from "@/lib/bons-de-commande/non-retenus";
 
 /**
  * POSTES AD & PRO — LES LIGNES DES DEVIS ET LE BC GÉNÉRÉ (§118.206) : lire, corriger et valider les lignes
@@ -139,8 +137,8 @@ export async function validerLignesDuDevis(formData: FormData): Promise<ActionRe
   });
   // LE BROUILLON EXCEL NAÎT DE LA VALIDATION (Direction, 11/2026) — ou se refait, ou disparaît avec la dernière ligne décochée.
   if (!r.ok) return r;
-  const brouillon = await preparerLesBrouillonsExcel(user, { item, owner }, info).catch((e) => {
-    console.error("[ad-pro] brouillon Excel du BC", e);
+  const brouillon = await preparerLesBrouillons(user, { item, owner }, info).catch((e) => {
+    console.error("[ad-pro] BC à vérifier du devis", e);
     return "Le brouillon du bon de commande n'a pas pu être préparé : « Préparer le brouillon » le relance.";
   });
   if (brouillon) revalidate(owner.parent, owner.id);
@@ -286,7 +284,7 @@ export async function enregistrerLignesDuDevis(formData: FormData): Promise<Acti
   });
   // UNE CORRECTION (lignes, TVA, taxe) REFAIT LE BROUILLON EXCEL sous le même numéro — ou le retire s'il n'a plus de ligne validée.
   if (!r.ok) return r;
-  const brouillon = await preparerLesBrouillonsExcel(user, { item, owner }, cadre.info).catch(() => null);
+  const brouillon = await preparerLesBrouillons(user, { item, owner }, cadre.info).catch(() => null);
   if (brouillon) revalidate(owner.parent, owner.id);
   return brouillon ? { ...r, message: `${r.message ?? ""} ${brouillon}`.trim() } : r;
 }
@@ -379,7 +377,8 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
   const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
   if (porteDg) return { ok: false, error: porteDg };
-  if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
+  // VALIDER le BC revient au déposant du devis (vérifié plus bas) : qui traite les devis du poste y entre ; GÉNÉRER l'aperçu reste aux éditeurs.
+  if (!(mode === "VALIDER" ? peutTraiterLesDevis(user, owner.parent) : canEditItems(user, owner.parent))) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un bon de commande");
   if (refusStock) return { ok: false, error: refusStock };
   if (VERSEMENT_SANS_BC.includes(item.kind)) {
@@ -389,9 +388,6 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   if (!info) return { ok: false, error: "Opération introuvable." };
   const fermee = refusDemandeFermee(info);
   if (fermee) return { ok: false, error: fermee };
-  if (mode === "VALIDER" && !peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: info.requesterId })) {
-    return { ok: false, error: REFUS_VALIDATION_BROUILLON };
-  }
 
   return enSerie(filePoste(id), async () => {
     // L'ÉTAT D'ABORD (§118.18) : tout ce qui interdit de générer se lit AVANT de demander quoi que ce soit.
@@ -426,7 +422,17 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
     if (mode === "APERCU" && sansBrouillon.length === 0) {
       return { ok: true, id, message: `${ETIQUETTE_BROUILLON} : l'aperçu existe déjà — relisez-le, corrigez au besoin, puis « Valider et envoyer aux Finances ».` };
     }
-    const aFaire = mode === "APERCU" ? sansBrouillon : aFaireTous.filter((d) => d.brouillon);
+    let aFaire = mode === "APERCU" ? sansBrouillon : aFaireTous.filter((d) => d.brouillon);
+    // VALIDER LE BC : la personne qui a AJOUTÉ le devis (ou le Super Admin) — Direction, 11/2026. Les autres devis restent à elle.
+    if (mode === "VALIDER") {
+      const siens: typeof aFaire = [];
+      for (const d of aFaire) {
+        const deposant = await deposantDuDevis(id, d.pieceId);
+        if (peutModifierLeBcDuPoste({ userId: user.id, role: user.role, secondaryRole: user.secondaryRole, deposeParId: deposant?.id })) siens.push(d);
+      }
+      if (aFaire.length > 0 && siens.length === 0) return { ok: false, error: REFUS_MODIFICATION_BC_POSTE };
+      aFaire = siens;
+    }
     if (aFaire.length === 0) {
       return { ok: false, error: "Aucun aperçu de bon de commande à valider : générez d'abord l'aperçu (« Générer le bon de commande »), relisez-le, puis validez-le." };
     }
@@ -490,25 +496,23 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
     const numeroDuFormulaire = pieceVoulue && formData.has("numeroChoisi")
       ? saisieEffective(fdStr(formData, "numeroChoisi"), fdStr(formData, "numeroSuggere"))
       : undefined;
-    // UN BROUILLON EXCEL A DÉJÀ RÉSERVÉ SON NUMÉRO (Direction, 11/2026) : le BC le reprend — jamais un second numéro pour la même commande.
-    const reserve = (d: (typeof aFaire)[number]) => (d.brouillon?.excel && !d.brouillon.excelPerime ? d.brouillon.excel : null);
     const bilan = await genererLesBCsDuPoste(
       user, { item: { id, label: item.label, kind: item.kind, supplier: item.supplier, amountGranted: montantAccorde }, ref: info.ref, societe },
       aFaire.map((d) => d.pieceId),
       new Map(aFaire.filter((d) => d.brouillon).map((d) => [
         d.pieceId,
-        (d.pieceId === pieceVoulue && numeroDuFormulaire !== undefined
-          ? { ...(d.brouillon as BrouillonBc), numeroChoisi: numeroDuFormulaire }
-          : reserve(d) ? { ...(d.brouillon as BrouillonBc), numeroChoisi: reserve(d)!.numero } : d.brouillon) as BrouillonBc,
+        (d.pieceId === pieceVoulue && numeroDuFormulaire !== undefined ? { ...(d.brouillon as BrouillonBc), numeroChoisi: numeroDuFormulaire } : d.brouillon) as BrouillonBc,
       ])),
-      { reservations: new Map(aFaire.filter((d) => reserve(d)).map((d) => [d.pieceId, reserve(d)!.entreeRegistre])) },
     );
-    // Le fichier Excel du brouillon a fait son œuvre : il quitte le poste avec lui.
-    const consommes = aFaire.filter((d) => reserve(d) && bilan.bcs.some((b) => b.devisPieceId === d.pieceId)).map((d) => reserve(d)!.documentId);
-    if (consommes.length > 0) await prisma.document.deleteMany({ where: { id: { in: consommes }, entityType: "AD_PRO_ITEM", entityId: id } });
     // Les brouillons VALIDÉS sont consommés : le BC existe, l'aperçu a fait son œuvre (un échec garde le sien).
     if (bilan.bcs.length > 0) {
       await prisma.adProDevis.updateMany({ where: { legalDocumentId: { in: bilan.bcs.map((b) => b.devisPieceId) } }, data: { bcBrouillon: Prisma.DbNull } });
+      // L'HISTORIQUE suit le BC : la validation s'inscrit, et chaque version du brouillon désigne désormais le BC qu'elle a fait.
+      for (const b of bilan.bcs) {
+        await prisma.bcBrouillonVersion.updateMany({ where: { itemId: id, devisLegalDocumentId: b.devisPieceId, bcLegalDocumentId: null }, data: { bcLegalDocumentId: b.pieceId } })
+          .catch(sansBloquer("ad-pro.traiterLeBCDuPoste.historique"));
+        await inscrireVersionBrouillon({ itemId: id, pieceId: b.devisPieceId, geste: "VALIDE", auteur: user, changements: [{ champ: "Numéro", avant: "À attribuer à la validation", apres: b.reference }], bcId: b.pieceId });
+      }
     }
     // RIEN N'A PU ÊTRE COMPOSÉ : la marche prise pour rien est rendue — le poste ne reste pas « demandé » sans BC.
     if (bilan.bcs.length === 0 && marche) {
@@ -529,40 +533,65 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   });
 }
 
-// ═══════════════ LE BROUILLON EXCEL, PUIS LA VERSION SIGNÉE (Direction, 11/2026) ═══════════════
+// ═══════════════ LE BC DU DEVIS VALIDÉ : GÉNÉRÉ, MODIFIÉ DANS L'APPLICATION, VALIDÉ PAR LE DÉPOSANT (Direction, 11/2026) ═══════════════
 //
-// « Si un devis est validé, un bon de commande est généré automatiquement en format modifiable (Excel, brouillon — Direction : « en Excel, pas en Word »). La personne
-// qui a ajouté le devis est notifiée ; elle l'imprime, le modifie ou le signe, puis le dépose : c'est cette version finale qui
-// entre dans Legal, et la signature déposée suffit. » Le brouillon naît donc de la VALIDATION des lignes (aucun clic de plus),
-// sur le poste, avec un numéro réservé ; le BC n'existe au registre qu'au dépôt de la version signée — déjà signé.
+// « Quand un devis est validé, son BC est généré et montré à la personne qui l'a ajouté ; elle le modifie UNIQUEMENT dans
+// la plateforme — chaque modification enregistrée, le Super Admin voit ce qui a changé — puis le valide : il part à la page
+// Bons de commande, où son responsable le télécharge en PDF, le signe et dépose la version signée, qui entre alors dans
+// Legal. » Le BC à vérifier est l'APERÇU du composeur (aucun numéro avant la validation) ; la validation est « Valider et
+// envoyer » (`traiterLeBCDuPoste`), réservée au déposant du devis (`peutModifierLeBcDuPoste`) ; l'historique est
+// `BcBrouillonVersion`.
 
-/** Un poste prêt pour son brouillon : ce que `traiterLeBCDuPoste` lit, sans la garde « éditer » (valider suffit). */
+/** Un poste prêt pour son brouillon : ce que `traiterLeBCDuPoste` lit, sans la garde « éditer » (valider le devis suffit). */
 type PosteDuBrouillon = { item: { id: string; label: string; kind: AdProItemKind; supplier: string | null }; owner: { parent: AdProParent; id: string } };
 
+/** La personne qui a AJOUTÉ ce devis au poste — celle qui vérifie, modifie et valide son BC. */
+async function deposantDuDevis(itemId: string, pieceId: string): Promise<{ id: string; name: string } | null> {
+  const lien = await prisma.adProItemPiece.findUnique({ where: { itemId_legalDocumentId: { itemId, legalDocumentId: pieceId } }, select: { createdById: true } });
+  if (!lien?.createdById) return null;
+  return prisma.user.findUnique({ where: { id: lien.createdById }, select: { id: true, name: true } });
+}
+
+/** INSCRIRE UNE VERSION du brouillon — on ajoute, on n'efface jamais. Une panne ne fait pas échouer le geste : elle se dit au journal. */
+async function inscrireVersionBrouillon(i: {
+  itemId: string; pieceId: string; geste: GesteBrouillon; auteur: { id: string; name?: string | null }; changements: ChangementBrouillon[]; bcId?: string | null;
+}): Promise<void> {
+  try {
+    const numero = (await prisma.bcBrouillonVersion.count({ where: { itemId: i.itemId, devisLegalDocumentId: i.pieceId } })) + 1;
+    await prisma.bcBrouillonVersion.create({
+      data: {
+        itemId: i.itemId, devisLegalDocumentId: i.pieceId, bcLegalDocumentId: i.bcId ?? null, numero, geste: i.geste,
+        auteurId: i.auteur.id, auteurNom: i.auteur.name ?? null, changements: i.changements as unknown as Prisma.InputJsonValue,
+      },
+    });
+  } catch (e) {
+    console.error("[ad-pro] historique du brouillon du BC", e);
+  }
+}
+
 /**
- * PRÉPARER LES BROUILLONS WORD DU POSTE — appelé après la validation des lignes (et par « Préparer le brouillon »). Pour chaque
- * devis qui a des lignes validées et pas de BC : le brouillon est composé, ou refait (même numéro) si ses lignes ont changé ; un
- * devis qui n'a plus de ligne validée perd le sien. La marche du poste (centre de validation Ad & Pro au-dessus du seuil) est
- * prise au premier brouillon. Rend la phrase à dire, ou `null` quand il n'y avait rien à faire. Ne lève jamais.
+ * GÉNÉRER LES BC À VÉRIFIER DU POSTE — appelé après la validation des lignes (et par « Préparer le BC »). Chaque devis qui a des
+ * lignes validées et pas de BC reçoit son brouillon (l'aperçu du composeur, sans numéro), et son déposant est prévenu ; un devis
+ * qui n'a plus de ligne validée perd le sien. Rend la phrase à dire, ou `null` quand il n'y avait rien à faire. Ne lève jamais.
  */
-async function preparerLesBrouillonsExcel(user: Awaited<ReturnType<typeof requireUser>>, p: PosteDuBrouillon, info: { ref: string; requesterId?: string | null; companyId?: string | null }): Promise<string | null> {
+async function preparerLesBrouillons(user: Awaited<ReturnType<typeof requireUser>>, p: PosteDuBrouillon, info: { ref: string }): Promise<string | null> {
   const id = p.item.id;
-  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage — pas même un brouillon numéroté.
+  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage — pas même un BC à vérifier.
   const porteDg = await refusSiPorteDgFermee(p.owner.parent, p.owner.id);
-  if (porteDg) return `Brouillon du bon de commande non préparé : ${porteDg}`;
+  if (porteDg) return `Bon de commande non généré : ${porteDg}`;
   return enSerie(filePoste(id), async (): Promise<string | null> => {
     const poste = await prisma.adProItem.findUnique({
       where: { id },
-      select: { status: true, orderStage: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true, supplier: true },
+      select: { status: true, orderStage: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true },
     });
     if (!poste) return null;
     const tous = ((await devisDesPostes([id])).get(id) ?? []).filter((d) => !d.annule);
-    // UN DEVIS SANS LIGNE VALIDÉE NE GARDE PAS SON BROUILLON : le fichier quitte le poste (son numéro reste inemployé).
-    for (const d of tous.filter((x) => x.brouillon?.excel && x.etat !== "A_GENERER")) {
-      await prisma.document.deleteMany({ where: { id: d.brouillon!.excel!.documentId, entityType: "AD_PRO_ITEM", entityId: id } });
+    // UN DEVIS SANS LIGNE VALIDÉE NE GARDE PAS SON BROUILLON : il disparaît, et l'historique le dit.
+    for (const d of tous.filter((x) => x.brouillon && x.etat === "AUCUNE_LIGNE")) {
       await prisma.adProDevis.updateMany({ where: { legalDocumentId: d.pieceId }, data: { bcBrouillon: Prisma.DbNull } });
+      await inscrireVersionBrouillon({ itemId: id, pieceId: d.pieceId, geste: "RETIRE", auteur: user, changements: [] });
     }
-    const aFaire = tous.filter((d) => d.etat === "A_GENERER" && (!d.brouillon?.excel || d.brouillon.excelPerime));
+    const aFaire = tous.filter((d) => d.etat === "A_GENERER" && !d.brouillon);
     if (aFaire.length === 0) return null;
     const montantAccorde = poste.amountGranted != null ? toNumber(poste.amountGranted) : null;
     const ouverte = (await demandesBCDesPostes([id])).get(id);
@@ -570,85 +599,34 @@ async function preparerLesBrouillonsExcel(user: Awaited<ReturnType<typeof requir
       status: poste.status, amountGranted: montantAccorde, budgetCategoryId: poste.budgetCategoryId, orderStage: poste.orderStage,
       expenseOrderId: poste.expenseOrderId, demandeChez: ouverte?.assistante, demandeOuverte: Boolean(ouverte),
     });
-    if (refus) return `Brouillon du bon de commande non préparé : ${refus}`;
+    if (refus) return `Bon de commande non généré : ${refus}`;
     const posteGen: PosteAGenerer = { item: { id, label: p.item.label, kind: p.item.kind, supplier: p.item.supplier, amountGranted: montantAccorde }, ref: info.ref, societe: "" };
     const depasse = refusPlafondDuPoste(posteGen, tous, montantAccorde);
-    if (depasse) return `Brouillon du bon de commande non préparé : ${depasse}`;
-    const societe = info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
-    if (!societe) return "Brouillon du bon de commande non préparé : la société qui commande est introuvable (renseignez la société du demandeur, RH › fiche salarié).";
-    posteGen.societe = societe;
-
-    // LA MARCHE DU POSTE, prise au premier brouillon : au-dessus du seuil, le centre Ad & Pro vise pendant que la personne signe.
-    let marche: { sousLeSeuil: boolean; seuilBC: number } | null = null;
-    const etapeAvant = poste.orderStage;
-    if (poste.orderStage === "NONE" || poste.orderStage === "REFUSED") {
-      const prise = await lireLaMarcheDuBC({
-        itemId: id, montantAccorde: montantAccorde as number, userId: user.id, assistantId: null,
-        note: "Brouillon du bon de commande préparé d'après les lignes validées des devis du poste.",
-      });
-      const posee = await prisma.adProItem.updateMany({ where: prise.where, data: prise.data });
-      if (posee.count === 0) return `Brouillon du bon de commande non préparé : ${REFUS_MARCHE_PRISE}`;
-      marche = { sousLeSeuil: prise.sousLeSeuil, seuilBC: prise.seuilBC };
-    }
+    if (depasse) return `Bon de commande non généré : ${depasse}`;
 
     const prets: string[] = [];
-    const echecs: string[] = [];
     for (const d of aFaire) {
       const nom = d.reference ?? d.titre;
-      // Le brouillon PROPRE (la vue y ajoute péremption et lignes) — c'est lui qui est gardé en base.
-      const brouillon = lireBrouillon(d.brouillon) ?? brouillonNeuf({ itemId: id, par: user.id, parNom: user.name ?? null });
-      const tauxRefuse = correctionsDuBrouillon(brouillon).tvaDefaut === undefined ? refusTauxDuDevis(d.entete.tvaRate) : null;
-      if (tauxRefuse) { echecs.push(`${nom} : ${tauxRefuse}`); continue; }
-      const c = await composerBrouillonExcel(user, posteGen, d, brouillon).catch((e) => ({ ok: false as const, error: e instanceof Error ? e.message : "composition impossible" }));
-      if (!c.ok) { echecs.push(`${nom} : ${c.error}`); continue; }
-      const depot = await persistUploadedDocument(user.id, {
-        entityType: "AD_PRO_ITEM", entityId: id, category: "PURCHASE_ORDER", confidentiality: "INTERNAL", stepKey: ETAPE_BROUILLON_EXCEL,
-        file: new File([new Uint8Array(c.xlsx)], c.nomFichier.replace(/\.xlsx$/i, " — brouillon.xlsx"), { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-        buffer: c.xlsx,
-      }).catch((e) => ({ ok: false as const, error: e instanceof Error ? e.message : "dépôt impossible", documentId: undefined }));
-      if (!depot.ok || !depot.documentId) { echecs.push(`${nom} : le fichier Excel n'a pas pu être enregistré (${depot.error ?? "erreur"})`); continue; }
-      const ancien = d.brouillon?.excel?.documentId ?? null;
-      await prisma.adProDevis.updateMany({
-        where: { legalDocumentId: d.pieceId },
-        data: {
-          bcBrouillon: {
-            ...brouillon,
-            excel: { documentId: depot.documentId, numero: c.numero, entreeRegistre: c.entreeRegistre, signature: c.signature, totalTtc: c.totalTtc, le: new Date().toISOString(), par: user.id },
-          } as unknown as Prisma.InputJsonValue,
-        },
-      });
-      if (ancien) await prisma.document.deleteMany({ where: { id: ancien, entityType: "AD_PRO_ITEM", entityId: id } });
-      prets.push(c.numero);
-      // QUI A DÉPOSÉ LE DEVIS est prévenu : c'est lui qui imprime, fait signer et redépose.
-      const depose = await prisma.adProItemPiece.findUnique({ where: { itemId_legalDocumentId: { itemId: id, legalDocumentId: d.pieceId } }, select: { createdById: true } });
-      if (depose?.createdById && depose.createdById !== user.id) {
-        const n = notificationBrouillonPret({ numero: c.numero, fournisseur: c.fournisseur || d.fournisseur, poste: p.item.label, ref: info.ref, misAJour: Boolean(ancien) });
-        await notifyUser({ userId: depose.createdById, type: "GENERIC", ...n, link: lienPosteAdPro(p.owner.parent, p.owner.id, id) }).catch(() => undefined);
+      const b = brouillonNeuf({ itemId: id, par: user.id, parNom: user.name ?? null });
+      const r = await prisma.adProDevis.updateMany({ where: { legalDocumentId: d.pieceId, bcBrouillon: { equals: Prisma.DbNull } }, data: { bcBrouillon: b as unknown as Prisma.InputJsonValue } });
+      if (r.count === 0) continue;
+      await inscrireVersionBrouillon({ itemId: id, pieceId: d.pieceId, geste: "CREE", auteur: user, changements: [] });
+      prets.push(nom);
+      // LE DÉPOSANT est prévenu : c'est lui qui vérifie, modifie et valide.
+      const deposant = await deposantDuDevis(id, d.pieceId);
+      if (deposant && deposant.id !== user.id) {
+        const n = notificationBcAVerifier({ devis: nom, fournisseur: d.fournisseur, poste: p.item.label, ref: info.ref });
+        await notifyUser({ userId: deposant.id, type: "GENERIC", ...n, link: lienPosteAdPro(p.owner.parent, p.owner.id, id) }).catch(sansBloquer("ad-pro.preparerLesBrouillons.notifyUser"));
       }
     }
-    // RIEN N'A PU ÊTRE COMPOSÉ : la marche prise pour rien est rendue — le poste ne reste pas « demandé » sans brouillon.
-    if (prets.length === 0 && marche) {
-      await prisma.adProItem.updateMany({
-        where: { id, orderStage: marche.sousLeSeuil ? "DIRECTION_OK" : "REQUESTED", orderRequestedById: user.id },
-        data: { orderStage: etapeAvant, orderRequestedAt: null, orderRequestedById: null, orderNote: null, orderDecisionNote: null },
-      });
-    }
-    if (prets.length > 0 && marche && !marche.sousLeSeuil) {
-      await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], notificationDuCentreBC({ id, ref: info.ref, label: p.item.label, montantAccorde: montantAccorde as number })).catch(() => undefined);
-      revalidatePath("/centre-ad-pro");
-    }
-    if (prets.length > 0) {
-      await audit(user, p.owner.parent, p.owner.id, "UPDATE", `Brouillon${prets.length > 1 ? "s" : ""} Excel du bon de commande du poste « ${p.item.label} » préparé${prets.length > 1 ? "s" : ""} : ${prets.join(", ")} (numéro réservé, rien au registre Legal).`);
-    }
-    const dit = prets.length > 0
-      ? `Brouillon${prets.length > 1 ? "s" : ""} du bon de commande prêt${prets.length > 1 ? "s" : ""} (${prets.join(", ")}) : téléchargez le fichier Excel, faites-le signer, puis déposez la version signée.${marche && !marche.sousLeSeuil ? " Le centre de validation Ad & Pro le vise en attendant." : ""}`
-      : "";
-    return [dit, echecs.length > 0 ? `Non préparé — ${echecs.join(" ; ")}.` : ""].filter(Boolean).join(" ") || null;
+    if (prets.length === 0) return null;
+    await audit(user, p.owner.parent, p.owner.id, "UPDATE", `Bon de commande généré pour le poste « ${p.item.label} » (devis ${prets.join(", ")}) — à vérifier et valider par le déposant du devis ; aucun numéro attribué.`);
+    return `Bon de commande généré pour ${prets.length > 1 ? `les devis ${prets.join(", ")}` : `le devis ${prets[0]}`} : la personne qui l'a ajouté le vérifie, le modifie au besoin dans la plateforme, puis le valide.`;
   });
 }
 
-/** « PRÉPARER LE BROUILLON » — le même geste que la validation déclenche, rejoué à la main (un refus levé depuis, une panne). */
-export async function preparerBrouillonExcelPoste(formData: FormData): Promise<ActionResult> {
+/** « PRÉPARER LE BC » — le même geste que la validation déclenche, rejoué à la main (un refus levé depuis, une panne). */
+export async function preparerBrouillonPoste(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Poste non précisé." };
@@ -661,107 +639,38 @@ export async function preparerBrouillonExcelPoste(formData: FormData): Promise<A
   if (!info) return { ok: false, error: "Opération introuvable." };
   const fermee = refusDemandeFermee(info);
   if (fermee) return { ok: false, error: fermee };
-  const phrase = await preparerLesBrouillonsExcel(user, { item, owner }, info);
+  const phrase = await preparerLesBrouillons(user, { item, owner }, info);
   revalidate(owner.parent, owner.id);
-  if (!phrase) return { ok: true, id, message: "Chaque devis validé a déjà son brouillon, à jour." };
-  return phrase.startsWith("Brouillon du bon de commande non préparé") || phrase.startsWith("Non préparé")
-    ? { ok: false, error: phrase }
-    : { ok: true, id, message: phrase };
+  if (!phrase) return { ok: true, id, message: "Chaque devis validé a déjà son bon de commande à vérifier." };
+  return phrase.startsWith("Bon de commande non généré") ? { ok: false, error: phrase } : { ok: true, id, message: phrase };
+}
+
+/** Une version de l'historique du BC, telle que le Super Admin la lit. */
+export interface VersionBrouillonBc {
+  numero: number;
+  geste: GesteBrouillon;
+  auteur: string | null;
+  le: string;
+  changements: ChangementBrouillon[];
 }
 
 /**
- * DÉPOSER LA VERSION SIGNÉE DU BON DE COMMANDE D'UN DEVIS DE POSTE (Direction, 11/2026). Luna lit la copie (signature repérée,
- * numéro du brouillon) AVANT que rien ne s'écrive ; puis le BC naît au registre Legal — composé par la fabrique d'après les
- * lignes validées, sous le numéro réservé par le brouillon, SIGNÉ dans la même écriture (il ne passe pas par la file des
- * Finances) — et la copie déposée devient sa pièce. Le brouillon quitte le poste ; les devis sans ligne validée sont marqués
- * « non retenus ». Qui peut : qui traite les devis du poste, comme pour les valider (aucun droit nouveau).
+ * L'HISTORIQUE DES MODIFICATIONS DU BC D'UN DEVIS DE POSTE — « le Super Admin voit ce qui a changé ». Lecture réservée au
+ * Super Admin : qui a créé, modifié, retiré, validé, et chaque champ avant → après.
  */
-export async function deposerBcSignePoste(formData: FormData): Promise<ActionResult> {
+export async function historiqueBrouillonBcPoste(formData: FormData): Promise<{ ok: true; versions: VersionBrouillonBc[] } | { ok: false; error: string }> {
   const user = await requireUser();
+  if (user.role !== "SUPER_ADMIN" && user.secondaryRole !== "SUPER_ADMIN") return { ok: false, error: "L'historique des modifications du bon de commande est lu par le Super Admin." };
   const id = fdStr(formData, "id");
   const pieceId = fdStr(formData, "pieceId");
   if (!id || !pieceId) return { ok: false, error: "Poste ou devis non précisé." };
-  const found = await loadItem(id, user);
-  if (!found) return { ok: false, error: "Poste introuvable." };
-  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
-  const { item, owner } = found;
-  if (!peutTraiterLesDevis(user, owner.parent)) return { ok: false, error: "Non autorisé." };
-  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
-  if (porteDg) return { ok: false, error: porteDg };
-  const info = await PARENTS[owner.parent].load(owner.id);
-  if (!info) return { ok: false, error: "Opération introuvable." };
-  const fermee = refusDemandeFermee(info);
-  if (fermee) return { ok: false, error: fermee };
-  const signataire = fdStr(formData, "signataire");
-  const copie = formData.getAll("copieSignee").find((v): v is File => v instanceof File && v.size > 0) ?? null;
-
-  return enSerie(filePoste(id), async (): Promise<ActionResult> => {
-    // L'ÉTAT D'ABORD (§118.18), LES PIÈCES ENSUITE.
-    const poste = await prisma.adProItem.findUnique({
-      where: { id }, select: { orderStage: true, expenseOrderId: true, amountGranted: true, supplier: true },
-    });
-    if (!poste) return { ok: false, error: "Poste introuvable." };
-    const tous = ((await devisDesPostes([id])).get(id) ?? []).filter((d) => !d.annule);
-    const d = tous.find((x) => x.pieceId === pieceId);
-    if (!d) return { ok: false, error: "Ce devis n'est plus rattaché à ce poste : rechargez la fiche." };
-    const excel = d.etat === "A_GENERER" ? d.brouillon?.excel ?? null : null;
-    const refus = refusDepotVersionSignee({ orderStage: poste.orderStage, expenseOrderId: poste.expenseOrderId, excel, perime: Boolean(d.brouillon?.excelPerime) });
-    if (refus || !excel || !d.brouillon) return { ok: false, error: refus ?? "Aucun brouillon de bon de commande pour ce devis." };
-
-    if (!copie) return { ok: false, error: "Déposez le bon de commande SIGNÉ (scan ou photo de la page signée)." };
-    const ext = (copie.name.split(".").pop() ?? "").toLowerCase();
-    if (!(FORMATS_COPIE_SIGNEE as readonly string[]).includes(ext)) return { ok: false, error: `La version signée se dépose en PDF ou en image (${FORMATS_COPIE_SIGNEE.join(", ")}) — pas en .${ext || "?"}.` };
-    const refusFichier = await validateAttachments([copie]);
-    if (refusFichier) return { ok: false, error: refusFichier };
-    if (!signataire) return { ok: false, error: "Indiquez qui a signé ce bon de commande." };
-    const octets = Buffer.from(await copie.arrayBuffer());
-    const verdict = await verifierSignatureParLuna(octets, ext);
-    const refusCopie = refusCopieSignee(verdict, excel.numero);
-    if (refusCopie) return { ok: false, error: refusCopie };
-
-    // LE BC NAÎT SIGNÉ, sous le numéro du brouillon. Les lignes corrigées sur une autre base ne s'impriment pas (comme le brouillon).
-    const montantAccorde = poste.amountGranted != null ? toNumber(poste.amountGranted) : null;
-    const societe = info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
-    if (!societe) return { ok: false, error: "La société qui commande est introuvable : renseignez la société du demandeur (RH › fiche salarié)." };
-    const posteGen: PosteAGenerer = { item: { id, label: item.label, kind: item.kind, supplier: item.supplier, amountGranted: montantAccorde }, ref: info.ref, societe };
-    const propre = lireBrouillon(d.brouillon) ?? brouillonNeuf({ itemId: id, par: user.id, parNom: user.name ?? null });
-    const brouillon: BrouillonBc = { ...propre, lignes: d.brouillon.perime ? null : propre.lignes, numeroChoisi: excel.numero };
-    const bilan = await genererLesBCsDuPoste(user, posteGen, [pieceId], new Map([[pieceId, brouillon]]), {
-      reservations: new Map([[pieceId, excel.entreeRegistre]]),
-      signee: { parId: user.id, nom: signataire, verification: verdict },
-    });
-    const bc = bilan.bcs[0];
-    if (!bc) return { ok: false, error: `Le bon de commande n'a pas pu être enregistré — ${bilan.echecs.join(" ; ") || "erreur inconnue"}.` };
-
-    // LA COPIE SIGNÉE devient la pièce du BC. Sans elle, la signature ne tient pas : on la retire (il part alors à la signature).
-    const depot = await persistUploadedDocument(user.id, {
-      entityType: "LEGAL_DOCUMENT", entityId: bc.pieceId, category: "OTHER", confidentiality: "INTERNAL", stepKey: ETAPE_COPIE_SIGNEE, file: copie, buffer: octets,
-    }).catch((e) => ({ ok: false as const, error: e instanceof Error ? e.message : "Dépôt impossible.", documentId: undefined }));
-    if (!depot.ok) {
-      await prisma.legalDocument.update({ where: { id: bc.pieceId }, data: { signedAt: null, signedById: null, signedByName: null, signatureCheck: Prisma.DbNull } });
-      await aiguillerBC(bc.pieceId, { acteurId: user.id }).catch(() => undefined);
-      return { ok: false, error: `Le bon de commande ${bc.reference} est enregistré, mais sa copie signée n'a pas pu l'être (${depot.error ?? "erreur"}) : il attend la signature des Finances.` };
-    }
-
-    // LE BROUILLON A FAIT SON ŒUVRE : il quitte le poste. Les offres sans ligne validée sont marquées « non retenues ».
-    await prisma.document.deleteMany({ where: { id: excel.documentId, entityType: "AD_PRO_ITEM", entityId: id } });
-    await prisma.adProDevis.updateMany({ where: { legalDocumentId: pieceId }, data: { bcBrouillon: Prisma.DbNull } });
-    const validateur = (await prisma.adProDevisLigne.findFirst({
-      where: { devis: { legalDocumentId: pieceId }, validatedItemId: id }, orderBy: { validatedAt: "desc" }, select: { validatedById: true },
-    }))?.validatedById ?? null;
-    const ecartes = devisNonRetenus(tous.filter((x) => x.pieceId !== pieceId).map((x) => ({ pieceId: x.pieceId, nbValidees: x.nbValidees, annule: x.annule })));
-    await marquerNonRetenus(id, ecartes, validateur);
-
-    await audit(user, owner.parent, owner.id, "UPDATE",
-      `Bon de commande ${bc.reference} du poste « ${item.label} » déposé SIGNÉ par ${signataire} (${bc.totalTtc.toLocaleString("fr-FR")} DZD TTC) — ${phraseVerdictSignature(verdict)}${ecartes.length ? ` ${ecartes.length} devis non retenu${ecartes.length > 1 ? "s" : ""}.` : ""}`);
-    revalidate(owner.parent, owner.id);
-    revalidatePath("/legal");
-    revalidatePath(`/legal/${bc.pieceId}`);
-    return {
-      ok: true, id,
-      message: `Bon de commande ${bc.reference} enregistré dans Legal, signé par ${signataire}. ${phraseVerdictSignature(verdict)} La facture peut être déposée.${ecartes.length ? ` ${ecartes.length} devis non retenu${ecartes.length > 1 ? "s" : ""}.` : ""}`,
-    };
-  });
+  const lignes = await prisma.bcBrouillonVersion.findMany({ where: { itemId: id, devisLegalDocumentId: pieceId }, orderBy: { numero: "asc" } });
+  return {
+    ok: true,
+    versions: lignes.map((v) => ({
+      numero: v.numero, geste: v.geste as GesteBrouillon, auteur: v.auteurNom, le: v.createdAt.toISOString(), changements: changementsLus(v.changements),
+    })),
+  };
 }
 
 // ═══════════════ L'APERÇU DU BC — relu, corrigé, régénéré par le demandeur avant d'être validé ═══════════════
@@ -771,7 +680,10 @@ async function brouillonDuDevis(user: SessionUser, formData: FormData, ecriture:
   const cadre = await cadreDesLignes(user, formData);
   if ("error" in cadre) return { error: cadre.error } as const;
   const { id, pieceId, item, owner, info } = cadre;
-  if (ecriture && !canEditItems(user, owner.parent)) return { error: "Non autorisé." } as const;
+  if (ecriture) {
+    const deposant = await deposantDuDevis(id, pieceId);
+    if (!peutModifierLeBcDuPoste({ userId: user.id, role: user.role, secondaryRole: user.secondaryRole, deposeParId: deposant?.id })) return { error: REFUS_MODIFICATION_BC_POSTE } as const;
+  }
   const devis = await devisDuPoste(id, pieceId);
   if (!devis) return { error: "Ce devis n'est plus rattaché à ce poste : rechargez la fiche." } as const;
   if (!devis.brouillon) return { error: "Il n'y a pas d'aperçu de bon de commande pour ce devis : générez-le d'abord (« Générer le bon de commande »)." } as const;
@@ -875,6 +787,9 @@ async function ecrireApercuBcPoste(formData: FormData): Promise<ActionResult> {
     if (depasse) return { ok: false, error: depasse };
     const r = await prisma.adProDevis.updateMany({ where: { legalDocumentId: pieceId }, data: { bcBrouillon: apres as unknown as Prisma.InputJsonValue } });
     if (r.count === 0) return { ok: false, error: "Ce devis n'a plus d'aperçu : rechargez la fiche." };
+    // TOUTE MODIFICATION EST ENREGISTRÉE (Direction, 11/2026) : ce qui a changé, champ par champ — le Super Admin le lit.
+    const changements = changementsDuBrouillon(brouillon, apres, lignesDuBCDuDevis(devis, id));
+    if (changements.length > 0) await inscrireVersionBrouillon({ itemId: id, pieceId, geste: "MODIFIE", auteur: user, changements });
     await audit(user, owner.parent, owner.id, "UPDATE", `Aperçu du bon de commande du poste « ${item.label} » corrigé (devis « ${devis.reference ?? devis.titre} ») — aucun numéro attribué.`);
     revalidate(owner.parent, owner.id);
     return { ok: true, id, message: "Brouillon enregistré : relisez l'aperçu, puis « Valider et envoyer aux Finances »." };
@@ -890,6 +805,7 @@ export async function annulerApercuBcPoste(formData: FormData): Promise<ActionRe
   const { id, pieceId, item, owner, devis } = lu;
   return chez(id, pieceId, async () => {
     await prisma.adProDevis.updateMany({ where: { legalDocumentId: pieceId }, data: { bcBrouillon: Prisma.DbNull } });
+    await inscrireVersionBrouillon({ itemId: id, pieceId, geste: "RETIRE", auteur: user, changements: [] });
     await audit(user, owner.parent, owner.id, "UPDATE", `Aperçu du bon de commande du poste « ${item.label} » retiré (devis « ${devis.reference ?? devis.titre} ») — aucun numéro n'avait été attribué.`);
     revalidate(owner.parent, owner.id);
     return { ok: true, id, message: "Aperçu retiré : aucun numéro de bon de commande n'a été consommé." };

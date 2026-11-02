@@ -17,8 +17,9 @@ import { actionFailureMessage } from "@/lib/action-outcome";
  * dans le BC. » Ce panneau n'est PAS un second formulaire : c'est le COMPOSEUR de pièces (`components/pieces/composer-piece`),
  * celui de la révision d'un BC émis, ouvert en mode « brouillon » — pré-rempli de la pièce telle que la fabrique la composerait
  * (lignes validées du devis + corrections déjà gardées), le PDF rendu à blanc en tête (numéro « à attribuer à la validation »).
- * Tout se corrige ; « Enregistrer le brouillon » garde la saisie ; « Valider et envoyer aux Finances » (le demandeur, ou le Super
- * Admin) l'écrit puis émet le BC — numéro, Word, PDF, centre de validation, signature.
+ * Tout se corrige ; « Enregistrer le brouillon » garde la saisie, et chaque enregistrement s'inscrit à l'historique (avant →
+ * après, lu par le Super Admin) ; « Valider le BC » (la personne qui a ajouté le devis, ou le Super Admin — Direction, 11/2026)
+ * l'écrit puis émet le BC — numéro, PDF, centre de validation, puis la page Bons de commande pour la signature.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -31,7 +32,7 @@ export function ApercuBonDeCommande({ itemId, pieceId, nomDevis, peutEditer, peu
   nomDevis: string;
   /** Corriger, enregistrer, retirer l'aperçu. */
   peutEditer: boolean;
-  /** Valider et envoyer aux Finances : le demandeur de la demande, ou le Super Admin. */
+  /** Valider le BC et l'envoyer à la signature : la personne qui a ajouté le devis, ou le Super Admin. */
   peutValider: boolean;
   run: Run;
   onClose: () => void;
@@ -105,9 +106,9 @@ export function ApercuBonDeCommande({ itemId, pieceId, nomDevis, peutEditer, peu
         impression: (fd) => imprimerApercuBcPoste(avec(fd)),
         enregistrer: peutEditer ? (fd) => modifierApercuBcPoste(avec(fd)) : undefined,
         valider: peutValider ? valider : undefined,
-        sansValidation: "Le demandeur de la demande (ou le Super Admin) valide cet aperçu et l'envoie aux Finances.",
+        sansValidation: "La personne qui a ajouté ce devis (ou le Super Admin) modifie et valide ce bon de commande.",
         retirer: peutEditer ? () => annulerApercuBcPoste(avec(new FormData())) : undefined,
-        libelleValider: "Valider et envoyer aux Finances",
+        libelleValider: "Valider le BC — l'envoyer à la signature",
       }}
     />
   );

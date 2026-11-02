@@ -62,9 +62,12 @@ import { canEditCompanyId } from "@/lib/company";
 import { addAdProItem, submitAdProItem, requestAdProItemOrder, approveAdProItemOrder } from "../actions-postes";
 import { decideAdProItem, retirerDemandeBC } from "../actions-postes-decision";
 import { ajouterDevisPoste, retirerDevisDuPoste, demanderPaiementPoste } from "../actions-postes-paiement";
-import { validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, validerEtEnvoyerBcPoste, preparerBrouillonExcelPoste, deposerBcSignePoste } from "../actions-postes-lignes";
+import { validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, validerEtEnvoyerBcPoste, preparerBrouillonPoste, modifierApercuBcPoste, apercuBcPoste, historiqueBrouillonBcPoste } from "../actions-postes-lignes";
 import { signerBonDeCommande } from "@/lib/actions/bc-signature-actions";
 import { avecCopieSignee } from "@/lib/bons-de-commande/signature-test-outils";
+import { formulaireDuComposeur } from "@/lib/bons-de-commande/composeur-test-outils";
+import { bcDePosteAvantSignature } from "@/lib/lecteurs/legal";
+import { perimetreLegal } from "@/lib/queries/visibilite-listes";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { devisDesPostes } from "./requetes/devis-poste";
 import { loadAdProItems } from "./requetes/postes";
@@ -159,7 +162,7 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     await Promise.all([
       prisma.employee.create({ data: { fullName: `${TAG} kam`, userId: u.kam, companyId } }),
       prisma.employee.create({ data: { fullName: `${TAG} kam2`, userId: u.kam2, companyId } }),
-      // La Direction Marketing, qui VALIDE les devis, travaille pour la société : c'est sa validation qui compose le brouillon Excel.
+      // La Direction Marketing, qui VALIDE les devis, travaille pour la société : c'est sa validation qui fait naître le BC.
       prisma.employee.create({ data: { fullName: `${TAG} dm`, userId: u.dm, companyId } }),
       prisma.companyLegalIdentity.create({
         data: {
@@ -392,17 +395,16 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     expect((await prisma.adProDevisLigne.findMany({ where: { id: { in: lx } }, orderBy: { position: "asc" }, select: { validatedItemId: true } })).map((l) => l.validatedItemId)).toEqual([null, pb]);
   });
 
-  it("COCHER : les lignes complètes se valident, le BROUILLON EXCEL du BC naît (numéro réservé, rien au registre Legal), et décocher retire", async () => {
+  it("COCHER : les lignes complètes se valident, le BC à vérifier NAÎT (sans numéro, rien au registre Legal), et décocher retire", async () => {
     await comme("kam");
     const r = await validerLignesDuDevis(formValider(p1, devA, [a[0], a[1]]));
     ok(r);
     expect(r.message).toMatch(/2 lignes validées pour ce poste \(238\s000,00 DZD TTC\)/);
-    // LE BROUILLON EXCEL NAÎT DE LA VALIDATION (Direction, 11/2026) : un numéro réservé, un .docx sur le poste — et aucun BC au registre.
-    expect(r.message).toMatch(/Brouillon du bon de commande prêt (.+) : téléchargez le fichier Excel/);
-    const brouillonA = (await vue(p1, devA)).brouillon?.excel;
-    expect(brouillonA?.numero, "le brouillon porte son numéro").toBeTruthy();
-    expect(await prisma.document.count({ where: { id: brouillonA!.documentId, entityType: "AD_PRO_ITEM", entityId: p1 } }), "le classeur Excel vit sur le POSTE").toBe(1);
-    expect(await bcsDe(devA), "le brouillon n'est pas au registre Legal").toHaveLength(0);
+    // LE BC NAÎT DE LA VALIDATION (Direction, 11/2026) : à vérifier par le déposant du devis — aucun numéro, rien au registre.
+    expect(r.message).toMatch(/Bon de commande généré pour le devis .* : la personne qui l'a ajouté le vérifie/);
+    expect((await vue(p1, devA)).brouillon, "le BC à vérifier est sur le devis").not.toBeNull();
+    expect(await bcsDe(devA), "rien au registre Legal").toHaveLength(0);
+    expect(await prisma.bcBrouillonVersion.count({ where: { itemId: p1, devisLegalDocumentId: devA, geste: "CREE" } }), "la naissance s'inscrit à l'historique").toBe(1);
     ok(await validerLignesDuDevis(formValider(p1, devB, [b[0]])));
     expect(await prisma.adProDevisLigne.count({ where: { id: { in: a }, validatedItemId: p1 } })).toBe(2);
     const dA = await vue(p1, devA);
@@ -502,11 +504,8 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
   it("LA CARTE PROPOSE « Générer les BC (2) », et le geste proposé est ACCEPTÉ : un BC PAR DEVIS, avec UNIQUEMENT les lignes validées, découlant de son devis", async () => {
     const avant = await ligneP(congres, p1);
     const pas = prochainPas(faitsDuPoste(avant), REGARD_DEMANDEUR);
-    expect(pas.geste, "deux devis ont des lignes validées : un geste, pour les deux").toMatchObject({ cle: "GENERER_BC", libelle: "Déposer les BC signés (2)" });
-    // La marche du BC a été prise au PREMIER brouillon (Direction, 11/2026) : au-dessus du seuil, le centre vise pendant qu'on signe.
-    expect(avant.orderStage).toBe("REQUESTED");
-    const numerosReserves = [(await vue(p1, devA)).brouillon?.excel?.numero, (await vue(p1, devB)).brouillon?.excel?.numero];
-    expect(numerosReserves.every(Boolean), "chaque devis validé a son brouillon numéroté").toBe(true);
+    expect(pas.geste, "deux devis ont des lignes validées : un geste, pour les deux").toMatchObject({ cle: "GENERER_BC", libelle: "Vérifier et valider les BC (2)" });
+    expect(avant.orderStage).toBe("NONE");
 
     await comme("kam");
     // ÉTAPE 1 — l'APERÇU : un brouillon par devis, et RIEN d'autre (ni BC, ni numéro, ni marche, ni Finances).
@@ -515,11 +514,11 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     expect(apercu.message).toMatch(/Brouillon — à vérifier par le demandeur/);
     expect(await bcsDe(devA), "aucun BC avant la validation de l'aperçu").toHaveLength(0);
     expect(await bcsDe(devB)).toHaveLength(0);
-    expect((await poste(p1)).orderStage, "la marche prise au brouillon ne bouge pas").toBe("REQUESTED");
+    expect((await poste(p1)).orderStage, "rien n'est parti aux Finances ni au centre").toBe("NONE");
     expect((await vue(p1, devA)).brouillon, "le brouillon est sur le devis").not.toBeNull();
-    // Seul le DEMANDEUR (ou le Super Admin) valide : la Direction, qui n'a pas demandé, ne valide pas à sa place.
+    // Seule la personne qui a AJOUTÉ le devis (ou le Super Admin) valide son BC : la Direction ne valide pas à sa place.
     await comme("ops");
-    expect(refus(await validerEtEnvoyerBcPoste(fd({ id: p1 })))).toMatch(/Seul le demandeur|Non autorisé/);
+    expect(refus(await validerEtEnvoyerBcPoste(fd({ id: p1 })))).toMatch(/Seule la personne qui a ajouté ce devis|Non autorisé/);
     expect(await bcsDe(devA)).toHaveLength(0);
     // ÉTAPE 2 — le demandeur valide : le numéro est attribué, le BC part.
     await comme("kam");
@@ -539,8 +538,6 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     expect(bcA[0].chainFromId, "le BC découle de SON devis").toBe(devA);
     expect(bcB[0].chainFromId).toBe(devB);
     expect(bcA[0].reference).not.toBe(bcB[0].reference);
-    // LE BC REPREND LE NUMÉRO RÉSERVÉ PAR SON BROUILLON — jamais un second numéro pour la même commande.
-    expect([bcA[0].reference, bcB[0].reference]).toEqual(numerosReserves);
     // Sa porte est le visa du POSTE : la source est le poste, pas une pièce isolée.
     expect(bcA[0]).toMatchObject({ sourceType: "AD_PRO_ITEM", sourceId: p1, companyId });
     // Rattaché au poste, chacun avec son Word et son PDF (téléchargeables sous la porte de la pièce).
@@ -659,12 +656,13 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     const lx = await saisir(pe, x, [{ ref: "Posters", qte: "10", prix: "100" }]);
     await comme("kam");
     ok(await validerLignesDuDevis(formValider(pe, x, lx)));
-    expect(refus(await genererBonDeCommandePoste(fd({ id: pe })))).toMatch(/Le fournisseur de ce devis n'est pas nommé/);
+    // Le BC à vérifier est né de la validation (Direction, 11/2026) : c'est en le VALIDANT que le fournisseur manquant se dit.
+    expect(refus(await validerEtEnvoyerBcPoste(fd({ id: pe })))).toMatch(/Le fournisseur de ce devis n'est pas nommé/);
     expect(await bcsDe(x)).toHaveLength(0);
     expect((await poste(pe)).orderStage).toBe("NONE");
   });
 
-  it("UN DEVIS QUE LE BC NE PEUT PAS PORTER : un taux hors Algérie se refuse à la saisie ; lu de travers, il périme le brouillon Excel, qui ne se refait pas et ne se dépose pas", async () => {
+  it("UN DEVIS QUE LE BC NE PEUT PAS PORTER : un taux hors Algérie se refuse à la saisie et AVANT la marche ; un refus de la fabrique APRÈS la marche la rend", async () => {
     const ph = await posteAccorde("Poste TVA", 300_000);
     const x = await deposerDevis(ph, "DV-T", "Imprimerie Alpha");
     const lx = await saisir(ph, x, [{ ref: "Cartes", qte: "10", prix: "100" }]);
@@ -673,17 +671,17 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     expect(refus(await enregistrerLignesDuDevis(formLignes(ph, x, [{ id: lx[0], ref: "Cartes", qte: "10", prix: "100" }], { tvaRate: "19", extraTaxRate: "100" })))).toMatch(/sous 100/);
     ok(await validerLignesDuDevis(formValider(ph, x, lx)));
     // Une LECTURE de travers a pu écrire un taux ou une taxe que la saisie refuse : le décor le simule en base (nommé).
-    // Le brouillon Excel, né à la validation, n'imprime plus ce que le devis porte : il se refait — et le refait REFUSE.
     await prisma.adProDevis.update({ where: { legalDocumentId: x }, data: { tvaRate: 13 } });
-    expect((await vue(ph, x)).brouillon?.excelPerime, "la TVA changée périme le brouillon").toBe(true);
-    expect(refus(await preparerBrouillonExcelPoste(fd({ id: ph })))).toMatch(/taux de TVA du devis \(13 %\) n'existe pas en Algérie/);
-    // Une taxe de 100 % passe le pré-contrôle (rien ne la voit) : c'est la fabrique qui refuse, en composant le classeur.
+    expect(refus(await validerEtEnvoyerBcPoste(fd({ id: ph })))).toMatch(/taux de TVA du devis \(13 %\) n'existe pas en Algérie/);
+    expect((await poste(ph)).orderStage, "refusé AVANT la marche").toBe("NONE");
+    // Une taxe de 100 % passe le pré-contrôle (rien ne la voit) : c'est la fabrique qui refuse, APRÈS la prise de la marche.
     await prisma.adProDevis.update({ where: { legalDocumentId: x }, data: { tvaRate: 19, extraTaxRate: 100, extraTaxLabel: "Taxe lue de travers" } });
-    const e = refus(await preparerBrouillonExcelPoste(fd({ id: ph })));
-    expect(e).toMatch(/Non préparé/);
+    const e = refus(await validerEtEnvoyerBcPoste(fd({ id: ph })));
+    expect(e).toMatch(/Aucun bon de commande n'a pu être généré/);
     expect(e).toMatch(/Taxe additionnelle/);
-    // Un brouillon périmé ne se dépose pas : la version signée porterait l'ancien taux.
-    expect(refus(await deposerBcSignePoste(avecCopieSignee(fd({ id: ph, pieceId: x }))))).toMatch(/ont changé depuis le brouillon/);
+    const apres = await poste(ph);
+    expect(apres.orderStage, "la marche prise pour rien est rendue : le poste n'est pas laissé « demandé » sans BC").toBe("NONE");
+    expect(apres.orderRequestedById).toBeNull();
     expect(await bcsDe(x)).toHaveLength(0);
   });
 
@@ -867,9 +865,9 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     expect((await poste(ps)).orderStage, "le visa n'est pas posé porte fermée").toBe("REQUESTED");
   }, 180_000);
 
-  // ═════════════ 9. LE BROUILLON EXCEL, PUIS LA VERSION SIGNÉE (Direction, 11/2026) ═════════════
+  // ═════════════ 9. LE BC DU DEVIS VALIDÉ : MODIFIÉ DANS L'APPLICATION, VALIDÉ PAR LE DÉPOSANT, SIGNÉ, PUIS DANS LEGAL (Direction, 11/2026) ═════════════
 
-  it("TROIS OFFRES, UNE RETENUE : la validation fait naître le brouillon Excel (prévenu : qui a déposé), la version signée fait naître le BC SIGNÉ au registre, et les deux autres offres sont « non retenues »", async () => {
+  it("TROIS OFFRES, UNE RETENUE : la validation du devis fait naître son BC ; le déposant le modifie (chaque modification inscrite, lue par le Super Admin) et le valide ; signé sur la page Bons de commande, il entre dans Legal, et les deux autres offres sont « non retenues »", async () => {
     const ph = await posteAccorde("Poste hébergement", 900_000);
     const royal = await deposerDevis(ph, "DV-ROYAL", "Imprimerie Alpha");
     const meridien = await deposerDevis(ph, "PF-MERIDIEN", "Imprimerie Alpha");
@@ -878,46 +876,62 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     await saisir(ph, meridien, [{ ref: "Chambre single, nuitée", qte: "54", prix: "16800" }], { tvaRate: "9" });
     await saisir(ph, sheraton, [{ ref: "Chambre single, nuitée", qte: "54", prix: "15900" }], { tvaRate: "9" });
 
-    // LA DIRECTION MARKETING VALIDE L'OFFRE RETENUE — le brouillon naît, et c'est le DÉPOSANT du devis qui est prévenu.
+    // LA DIRECTION MARKETING VALIDE L'OFFRE RETENUE — le BC naît, et c'est le DÉPOSANT du devis (kam) qui est prévenu.
     await comme("dm");
     const v = await validerLignesDuDevis(formValider(ph, royal, lr));
     ok(v);
-    expect(v.message).toMatch(/Brouillon du bon de commande prêt/);
-    const excel = (await vue(ph, royal)).brouillon?.excel;
-    expect(excel?.numero, "un numéro réservé").toBeTruthy();
-    expect(excel?.totalTtc, "le brouillon porte le TTC des lignes validées (TVA 9 %)").toBe(853_470);
-    // « LE BC DOIT ÊTRE EN EXCEL, PAS EN WORD » (Direction, 11/2026) : le brouillon est un classeur.
-    const fichier = await prisma.document.findUniqueOrThrow({ where: { id: excel!.documentId }, select: { name: true, mimeType: true } });
-    expect(fichier.name, "le brouillon est un classeur Excel").toMatch(/\.xlsx$/);
-    expect(fichier.mimeType ?? "").toMatch(/spreadsheetml/);
-    expect(await bcsDe(royal), "le brouillon n'est pas au registre").toHaveLength(0);
-    expect(await prisma.notification.count({ where: { userId: u.kam, title: "Brouillon du bon de commande prêt" } }), "le déposant est prévenu").toBeGreaterThanOrEqual(1);
-    expect((await poste(ph)).orderStage, "au-dessus du seuil : le centre Ad & Pro vise pendant qu'on signe").toBe("REQUESTED");
+    expect(v.message).toMatch(/Bon de commande généré pour le devis/);
+    expect((await vue(ph, royal)).brouillon, "le BC à vérifier est sur le devis").not.toBeNull();
+    expect((await vue(ph, royal)).depose?.id, "le déposant est connu de la carte").toBe(u.kam);
+    expect(await bcsDe(royal), "rien au registre avant la validation du BC").toHaveLength(0);
+    expect(await prisma.notification.count({ where: { userId: u.kam, title: "Bon de commande à vérifier" } }), "le déposant est prévenu").toBeGreaterThanOrEqual(1);
 
-    // AVANT LE VISA DU CENTRE, la version signée attend ; un brouillon ne se dépose qu'avec sa copie et son signataire.
+    // LE VALIDEUR DU DEVIS NE MODIFIE PAS LE BC, NI NE LE VALIDE : c'est au déposant.
+    expect(refus(await modifierApercuBcPoste(fd({ id: ph, pieceId: royal, objet: "Tentative" })))).toMatch(/Seule la personne qui a ajouté ce devis/);
+    expect(refus(await validerEtEnvoyerBcPoste(fd({ id: ph, pieceId: royal })))).toMatch(/Seule la personne qui a ajouté ce devis/);
+    // Il le LIT : l'aperçu s'ouvre pour qui traite les devis du poste.
+    const lu = await apercuBcPoste(fd({ id: ph, pieceId: royal }));
+    expect(lu.ok, lu.ok ? "" : lu.error).toBe(true);
+
+    // LE DÉPOSANT MODIFIE DANS L'APPLICATION — la modification s'inscrit, avant → après.
     await comme("kam");
-    expect(refus(await deposerBcSignePoste(avecCopieSignee(fd({ id: ph, pieceId: royal }), "Amina K.")))).toMatch(/attend le visa du centre de validation Ad & Pro/);
+    const ouvert = await apercuBcPoste(fd({ id: ph, pieceId: royal }));
+    if (!ouvert.ok) throw new Error(ouvert.error);
+    const saisie = formulaireDuComposeur({ ...ouvert.valeurs, champs: { ...ouvert.valeurs.champs, objet: "Hébergement — Congrès de Sétif" } }, { id: ph, pieceId: royal });
+    ok(await modifierApercuBcPoste(saisie));
+    const versions = await prisma.bcBrouillonVersion.findMany({ where: { itemId: ph, devisLegalDocumentId: royal }, orderBy: { numero: "asc" } });
+    expect(versions.map((x) => x.geste)).toEqual(["CREE", "MODIFIE"]);
+    expect(JSON.stringify(versions[1].changements), "ce qui a changé, avant → après").toMatch(/Hébergement — Congrès de Sétif/);
+
+    // L'HISTORIQUE se lit par le Super Admin, et par lui seul.
+    expect(refus(await historiqueBrouillonBcPoste(fd({ id: ph, pieceId: royal })))).toMatch(/Super Admin/);
+    ACTOR = await acteur(u.gm, "SUPER_ADMIN");
+    const h = await historiqueBrouillonBcPoste(fd({ id: ph, pieceId: royal }));
+    if (!h.ok) throw new Error(h.error);
+    expect(h.versions.map((x) => x.geste)).toEqual(["CREE", "MODIFIE"]);
+    expect(h.versions[1].changements.some((c) => c.champ === "Objet" && c.apres === "Hébergement — Congrès de Sétif")).toBe(true);
+
+    // LE DÉPOSANT VALIDE : le BC est émis (numéro, PDF) et part au centre puis à la page Bons de commande.
+    await comme("kam");
+    ok(await validerEtEnvoyerBcPoste(fd({ id: ph, pieceId: royal })));
+    const [bc] = await bcsDe(royal);
+    expect(bc, "le BC est émis").toBeDefined();
+    expect(Number(bc.amount)).toBe(853_470);
+    expect(await prisma.bcBrouillonVersion.count({ where: { itemId: ph, devisLegalDocumentId: royal, bcLegalDocumentId: bc.id } }), "l'historique désigne le BC émis").toBe(3);
+    // AVANT SA SIGNATURE, IL N'EST PAS AU REGISTRE pour qui ne le signe pas.
+    expect(bcDePosteAvantSignature({ kind: String(bc.kind), sourceType: bc.sourceType, signedAt: null })).toBe(true);
+    const { where } = await perimetreLegal(await acteur(u.kam, "MEDICAL_DELEGATE"));
+    expect(where === null || (await prisma.legalDocument.count({ where: { AND: [where, { id: bc.id }] } })) === 0, "le demandeur ne le voit pas dans Legal").toBe(true);
+
+    // LE CENTRE VISE, PUIS LE SIGNATAIRE (page Bons de commande) SIGNE — la version signée fait entrer le BC dans Legal.
     await comme("gm");
     ok(await approveAdProItemOrder(undefined, fd({ id: ph, decision: "APPROVE", montantVu: "900000", prestataireVu: "Imprimerie Alpha" })));
-    await comme("kam");
-    expect(refus(await deposerBcSignePoste(fd({ id: ph, pieceId: royal, signataire: "Amina K." })))).toMatch(/Déposez le bon de commande SIGNÉ/);
-    expect(refus(await deposerBcSignePoste(fd({ id: ph, pieceId: meridien })))).toMatch(/Aucun brouillon/);
-
-    // LA VERSION SIGNÉE : le BC naît au registre, SOUS LE NUMÉRO DU BROUILLON, déjà signé — il n'entre pas dans la file des Finances.
-    const r = await deposerBcSignePoste(avecCopieSignee(fd({ id: ph, pieceId: royal }), "Amina K."));
-    ok(r);
-    expect(r.message).toMatch(/enregistré dans Legal, signé par Amina K\./);
-    expect(r.message).toMatch(/2 devis non retenus/);
-    const [bc] = await bcsDe(royal);
-    expect(bc.reference, "le numéro imprimé sur le papier signé").toBe(excel!.numero);
-    expect(Number(bc.amount)).toBe(853_470);
-    const signe = await prisma.legalDocument.findUniqueOrThrow({ where: { id: bc.id }, select: { signedAt: true, signedByName: true } });
-    expect(signe.signedAt, "signé dans la même écriture que la pièce").not.toBeNull();
-    expect(signe.signedByName).toBe("Amina K.");
-    expect((await etatDuBC(bc.id))?.etape, "la signature déposée suffit : pas de file des Finances").toBe("SIGNE");
-    expect(await prisma.document.count({ where: { entityType: "LEGAL_DOCUMENT", entityId: bc.id, stepKey: "BC_SIGNE" } }), "la copie signée est la pièce du BC").toBe(1);
-    expect(await prisma.document.count({ where: { id: excel!.documentId } }), "le brouillon a quitté le poste").toBe(0);
-    expect(await prisma.adProItemPiece.count({ where: { itemId: ph, nature: "BON_DE_COMMANDE", legalDocumentId: bc.id } })).toBe(1);
+    expect((await etatDuBC(bc.id))?.etape).toBe("A_SIGNER");
+    await comme("fin");
+    ok(await signerBonDeCommande(avecCopieSignee(fd({ id: bc.id }), "Directeur général")));
+    expect((await etatDuBC(bc.id))?.etape).toBe("SIGNE");
+    const apres = await prisma.legalDocument.findUniqueOrThrow({ where: { id: bc.id }, select: { signedAt: true } });
+    expect(bcDePosteAvantSignature({ kind: "PURCHASE_ORDER", sourceType: "AD_PRO_ITEM", signedAt: apres.signedAt }), "signé, il est au registre").toBe(false);
 
     // LES OFFRES ÉCARTÉES restent au registre, marquées — avec qui a validé l'offre retenue ; la retenue ne l'est pas.
     const liens = await prisma.adProItemPiece.findMany({ where: { itemId: ph, nature: "DEVIS" }, select: { legalDocumentId: true, nonRetenuAt: true, nonRetenuParId: true } });
@@ -945,7 +959,7 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     expect(carte, "la case BC passe par le bloc des devis").toMatch(/<BlocBonDeCommande/);
     expect(carte, "la règle lue par la carte est PASSÉE au bloc (sinon le bouton s'offrirait sans règle)").toMatch(/refusGeneration=\{refusGeneration\}/);
     const bloc = lire("src/modules/ad-pro/ecrans/devis-bc-poste.tsx");
-    expect(bloc, "la case prépare le brouillon et dépose la version signée par les actions").toMatch(/preparerBrouillonExcelPoste\([\s\S]*deposerBcSignePoste\(/);
+    expect(bloc, "la case génère le BC et l'ouvre dans le composeur, où il se modifie et se valide").toMatch(/preparerBrouillonPoste\([\s\S]*<ApercuBonDeCommande/);
     expect(bloc, "le panneau appelle les actions de validation et de saisie").toMatch(/validerLignesDuDevis\([\s\S]*enregistrerLignesDuDevis\(/);
     const actions = sourceDeLaCle("ad-pro-item-actions").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     expect(actions.match(/refusGenerationBC\(/g)?.length, "l'action lit la règle partagée").toBeGreaterThanOrEqual(1);

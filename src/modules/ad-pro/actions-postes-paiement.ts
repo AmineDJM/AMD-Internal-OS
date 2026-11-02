@@ -209,11 +209,9 @@ export async function retirerDevisDuPoste(_prev: ActionResult | undefined, formD
     where: { devis: { legalDocumentId: pieceId }, validatedItemId: id },
     data: { validatedItemId: null, validatedAt: null, validatedById: null },
   });
-  // SON BROUILLON EXCEL POUR CE POSTE (Direction, 11/2026) part avec lui : le fichier quitte le poste.
+  // LE BC À VÉRIFIER DE CE DEVIS POUR CE POSTE (Direction, 11/2026) part avec lui.
   const devisRetire = await prisma.adProDevis.findUnique({ where: { legalDocumentId: pieceId }, select: { bcBrouillon: true } });
-  const brouillonRetire = lireBrouillon(devisRetire?.bcBrouillon);
-  if (brouillonRetire && brouillonRetire.itemId === id) {
-    if (brouillonRetire.excel) await prisma.document.deleteMany({ where: { id: brouillonRetire.excel.documentId, entityType: "AD_PRO_ITEM", entityId: id } });
+  if (lireBrouillon(devisRetire?.bcBrouillon)?.itemId === id) {
     await prisma.adProDevis.updateMany({ where: { legalDocumentId: pieceId }, data: { bcBrouillon: Prisma.DbNull } });
   }
   const restants = await prisma.adProItemPiece.count({ where: { legalDocumentId: pieceId } });

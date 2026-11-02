@@ -303,7 +303,7 @@ suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée un
     expect(refusMontantDuPoste(d, 124_750), "sous les 124 750 accordés : rien ne bloque").toBeNull();
     // LA CARTE DU POSTE propose UN geste de génération, et le total des devis retenus côté voyageurs ne compte la pièce qu'une fois.
     const ligne = (await loadAdProItems("SPONSORING", spoId)).find((r) => r.id === posteId)!;
-    expect(prochainPas(faitsDuPoste(ligne), REGARD_DEMANDEUR).geste).toMatchObject({ cle: "GENERER_BC", libelle: "Déposer le BC signé" });
+    expect(prochainPas(faitsDuPoste(ligne), REGARD_DEMANDEUR).geste).toMatchObject({ cle: "GENERER_BC", libelle: "Vérifier et valider le BC" });
     const copiesVues = ligne.voyageurs.flatMap((v) => v.devis).filter((x) => x.copieDe === piece);
     expect(copiesVues.map((x) => x.id).sort()).toEqual([...copies].sort());
   });

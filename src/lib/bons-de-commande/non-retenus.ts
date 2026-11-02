@@ -1,10 +1,11 @@
 import { prisma } from "@/lib/prisma";
+import { devisNonRetenus } from "@/lib/bons-de-commande/devis-non-retenus";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LES DEVIS NON RETENUS D'UN POSTE (Direction, 11/2026) — l'écriture et la lecture.
  *
- * La règle (quels devis) est pure : `devisNonRetenus` (`bons-de-commande/version-signee.ts`). Ici, ce qu'elle écrit sur le lien
+ * La règle (quels devis) est pure : `devisNonRetenus` (`bons-de-commande/devis-non-retenus.ts`). Ici, ce qu'elle écrit sur le lien
  * poste ↔ pièce (`AdProItemPiece.nonRetenuAt`) et ce que Legal en lit. Un devis qui couvre plusieurs postes n'est « non retenu »
  * dans Legal que s'il ne l'a été sur AUCUN : retenu pour l'un, il a servi.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -57,4 +58,37 @@ export async function nonRetenusDesPieces(legalDocumentIds: readonly string[]): 
     res.set(id, { le: dernier.nonRetenuAt as Date, par: dernier.nonRetenuParId ? noms.get(dernier.nonRetenuParId) ?? null : null });
   }
   return res;
+}
+
+/**
+ * AU MOMENT OÙ LE BC D'UN POSTE EST SIGNÉ : les devis de ce poste qui n'ont AUCUNE ligne validée pour lui sont marqués « non
+ * retenus » — avec la personne qui a validé les lignes du devis retenu (celui dont le BC découle). Un BC qui ne sert aucun poste
+ * ne marque rien. Rend le nombre de devis marqués.
+ */
+export async function marquerNonRetenusDuBC(bcId: string): Promise<number> {
+  const bc = await prisma.legalDocument.findUnique({ where: { id: bcId }, select: { chainFromId: true } });
+  const liens = await prisma.adProItemPiece.findMany({ where: { legalDocumentId: bcId, nature: "BON_DE_COMMANDE" }, select: { itemId: true } });
+  let marques = 0;
+  for (const { itemId } of liens) {
+    const devis = await prisma.adProItemPiece.findMany({
+      where: { itemId, nature: "DEVIS" },
+      select: { legalDocumentId: true, legalDocument: { select: { status: true, cancelledAt: true } } },
+    });
+    const valides = await prisma.adProDevisLigne.groupBy({
+      by: ["devisId"], where: { validatedItemId: itemId, devis: { legalDocumentId: { in: devis.map((d) => d.legalDocumentId) } } }, _count: { _all: true },
+    });
+    const parDevis = new Map((await prisma.adProDevis.findMany({ where: { id: { in: valides.map((v) => v.devisId) } }, select: { id: true, legalDocumentId: true } }))
+      .map((d) => [d.legalDocumentId, valides.find((v) => v.devisId === d.id)?._count._all ?? 0]));
+    const ecartes = devisNonRetenus(devis.map((d) => ({
+      pieceId: d.legalDocumentId, nbValidees: parDevis.get(d.legalDocumentId) ?? 0,
+      annule: d.legalDocument.status === "CANCELLED" || d.legalDocument.cancelledAt !== null,
+    })));
+    const validateur = bc?.chainFromId
+      ? (await prisma.adProDevisLigne.findFirst({
+          where: { devis: { legalDocumentId: bc.chainFromId }, validatedItemId: itemId }, orderBy: { validatedAt: "desc" }, select: { validatedById: true },
+        }))?.validatedById ?? null
+      : null;
+    marques += await marquerNonRetenus(itemId, ecartes, validateur);
+  }
+  return marques;
 }
