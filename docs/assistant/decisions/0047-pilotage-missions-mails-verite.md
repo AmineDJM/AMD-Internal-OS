@@ -97,6 +97,25 @@ machine à états que l'écran d'Adam** — l'intention d'envoi `OutboundMailInt
   plus de ressaisie (`niveauDeCarte(risque, annulation)`). La ressaisie reste pour R4 (argent, production) et pour un R3
   sans annulation. Les 61 R3 du registre sont toutes réversibles.
 
+### 5 bis. Peu de questions, de BEAUX mails
+
+Direction, 02/11 : « Il ne faut pas qu'il pose tellement de questions pour faire un mail. Et le mail, quand il est fait,
+il doit faire de BEAUX mails. »
+
+- **Zéro question par défaut** : `envoyer_mail` reçoit les destinataires par leurs NOMS — l'annuaire les résout
+  (`infra/mails/redaction.ts resoudreDestinataire` : comptes actifs, puis fiches salariés). Une question SEULEMENT si un nom
+  est ambigu (les candidats sont nommés) ou introuvable. Objet, ton, signature, société : choisis ; la personne corrige
+  sur la carte. Plusieurs mails personnalisés (« Redouane et Nesrine, leur planning ») = UNE carte, une confirmation.
+- **Contenu structuré, jamais du HTML du modèle** : salutation, paragraphes, liste, tableau, suite, clôture
+  (`domaine/mails/gabarit.ts lireContenuMail`, borné, échappé ; seul `**gras**` est permis pour une échéance).
+- **Le gabarit** (`rendreMailHtml`, `rendreMailTexte`) : HTML responsive à tables et styles en ligne (600 px, fluide sur
+  iPhone, lisible dans Gmail et Outlook), bandeau et en-têtes de tableau à l'accent de la société d'envoi (registre de
+  marque, `profilDocumentaire`), signature de la personne qui envoie via Adam (nom, fonction, société, coordonnées — fiche
+  salarié), coordonnées et mentions de la société en pied, version texte jointe (multipart text + html, `OutboundMailIntent.bodyHtml`).
+- **L'aperçu de la carte est le rendu réel** : `apercus` (iframe isolée, sans script) — ce que la personne voit est ce qui part.
+- Limite dite : le logo n'est pas encore incrusté (une image intégrée demande une partie MIME `cid:` que le transport
+  Gmail ne porte pas encore) — le bandeau porte le nom de la société à sa couleur.
+
 ## 6. Le libellé « aucune donnée »
 
 Un calcul en code sans source lue (le rétroplanning de ses dates) disait « aucune donnée (paramètres de la demande
@@ -144,4 +163,6 @@ carte) ; `missions-mails.test.ts` (contre la base : 3 missions → `mes_missions
 de fusion → une seule reste, deux arrêtées avec la sous-mission, « reprendre » défait l'arrêt, renommer ; carte
 fusion refusée tout ou rien ; sans Gmail d'Adam, refus dit et aucune carte, SMTP seulement sur demande, sans ressaisie ;
 Gmail d'Adam → intention préparée, approuvée par la personne, fenêtre, annulée = CANCELLED, rétablie = APPROVED ;
-brouillon = DRAFT, rien ne part).
+brouillon = DRAFT, rien ne part ; SCÉNARIO Redouane/Nesrine : deux mails, une carte, zéro question, aperçus avec tableau
+et échéance en gras, chaque intention porte le HTML et le texte ; nom introuvable → une seule question) ;
+`domaine/mails/gabarit.test.ts` (échappement, couleurs, tableau, gras, signature, pied, version texte).

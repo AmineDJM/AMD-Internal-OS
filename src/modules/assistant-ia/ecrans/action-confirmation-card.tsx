@@ -30,6 +30,8 @@ export interface ActionIntentCardProps {
   resultMessage?: string;
   /** J11 (décision 0030) : le formulaire généré depuis le contrat — la personne corrige, puis signe. */
   formulaire?: FormulaireCarte;
+  /** P1 (décision 0047) : l'APERÇU RÉEL des mails (le rendu du gabarit, celui qui part) — affiché isolé (iframe sans script). */
+  apercus?: { titre: string; html: string }[];
   onConfirm: (intentId: string, confirmTyped?: string, corrections?: Record<string, unknown>) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
 }
 
@@ -47,6 +49,7 @@ export function ActionConfirmationCard({
   resultLink,
   resultMessage,
   formulaire,
+  apercus = [],
   onConfirm,
 }: ActionIntentCardProps) {
   const [status, setStatus] = useState(initialStatus);
@@ -302,6 +305,19 @@ export function ActionConfirmationCard({
               </span>
               <span className="font-medium text-zinc-800 dark:text-zinc-200">{f.value}</span>
             </div>
+          ))}
+        </div>
+      )}
+
+      {/* P1 — L'APERÇU RÉEL de chaque mail : le HTML que le gabarit a rendu côté serveur, isolé (aucun script, aucun lien actif). */}
+      {apercus.length > 0 && status === "PROPOSED" && (
+        <div className="mt-3 flex flex-col gap-2" data-testid="apercus-mail">
+          {apercus.map((a, i) => (
+            <details key={i} open={i === 0} className="rounded-xl border border-zinc-200 dark:border-zinc-800">
+              <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300">Aperçu — {a.titre}</summary>
+              <iframe title={`Aperçu du mail : ${a.titre}`} sandbox="" srcDoc={a.html} data-testid="apercu-mail"
+                className="h-[420px] w-full rounded-b-xl border-0 bg-white" />
+            </details>
           ))}
         </div>
       )}

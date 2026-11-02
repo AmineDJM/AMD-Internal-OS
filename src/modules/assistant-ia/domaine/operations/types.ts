@@ -32,6 +32,8 @@ export interface CarteOperation {
   confirmText?: string;
   /** Le libellé du bouton quand « Confirmer » ne dit pas le geste (« Créer la demande de validation »). */
   libelleBouton?: string;
+  /** P1 (décision 0047) : l'aperçu réel des mails préparés (rendu du gabarit côté serveur). */
+  apercus?: { titre: string; html: string }[];
 }
 
 export type PropositionOperation =

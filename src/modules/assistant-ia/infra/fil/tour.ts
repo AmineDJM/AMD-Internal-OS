@@ -56,6 +56,8 @@ export interface IntentionDuTour {
   warnings?: string[];
   confirmText?: string;
   libelleBouton?: string;
+  /** P1 (décision 0047) : l'aperçu réel des mails préparés (rendu du gabarit). */
+  apercus?: { titre: string; html: string }[];
   /** J7 : le diff réel de la simulation (capacités simulables) — ou « non simulable », dit. */
   simulation?: VueSimulation;
   fields?: { label: string; value: string }[];
@@ -296,6 +298,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
         ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),
         ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
         ...(p.proposition.libelleBouton ? { libelleBouton: p.proposition.libelleBouton } : {}),
+        ...(p.proposition.apercus?.length ? { apercus: p.proposition.apercus } : {}),
         ...(p.proposition.simulation ? { simulation: p.proposition.simulation } : {}),
         ...(p.proposition.formulaire ? { formulaire: p.proposition.formulaire } : {}),
         status: "PROPOSED",

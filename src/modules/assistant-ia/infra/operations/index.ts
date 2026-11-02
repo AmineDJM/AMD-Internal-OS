@@ -57,6 +57,8 @@ export interface PropositionCarte {
     level?: "SENSITIVE" | "CRITICAL";
     confirmText?: string;
     libelleBouton?: string;
+    /** P1 (décision 0047) : l'aperçu réel des mails préparés. */
+    apercus?: { titre: string; html: string }[];
     /** J11 (décision 0030) : le formulaire généré depuis le contrat — la carte d'une capacité le rend éditable. */
     formulaire?: FormulaireCarte;
     payload?: unknown;

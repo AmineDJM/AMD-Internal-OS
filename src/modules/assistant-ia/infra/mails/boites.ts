@@ -5,6 +5,9 @@ import type { PowerTool } from "@/platform/ia/outil";
 import { boiteGmailAdam } from "../operations/envoi-gmail";
 import { registreDesCapacites } from "../capacites";
 import type { PropositionCarte } from "../operations";
+import { preparerMails, SCHEMA_MAILS } from "../operations/envoi-gmail";
+import { charteDuMail, signatureDe } from "./redaction";
+import { rendreMailHtml, rendreMailTexte } from "../../domaine/mails/gabarit";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -53,7 +56,6 @@ const CAPACITE: Record<"microsoft" | "brouillon" | "smtp", string> = {
   smtp: "mail-actions:sendMailAction",
 };
 const nomDeCapacite = (id: string): string | undefined => registreDesCapacites().capacites.find((c) => c.id === id)?.outil;
-const html = (t: string) => t.split(/\n/).map((l) => `<p>${l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>`).join("");
 const json = (o: unknown) => JSON.stringify(o);
 
 /**
@@ -84,18 +86,16 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
     {
       def: {
         name: "envoyer_mail",
-        description: "ENVOIE un mail après confirmation (carte « Envoyer », annulable pendant la fenêtre d'annulation) par la boîte Gmail d'ADAM (Direction, Super Admin). La boîte Microsoft ou SMTP de la personne SEULEMENT si elle le demande (`boite`). Un mail par appel (un destinataire ou plusieurs). `brouillon: true` SEULEMENT si la personne demande un brouillon.",
+        description: "ENVOIE des mails après confirmation, sans poser de questions : UNE carte « Envoyer » pour tous (aperçu réel de chaque mail), par la boîte Gmail d'ADAM (Direction, Super Admin), annulable pendant la fenêtre d'annulation. Destinataires par leurs NOMS (l'annuaire les résout) ; objet, ton, signature : choisis-les. Rédige un CONTENU STRUCTURÉ (salutation personnalisée, paragraphes courts, liste à puces ou TABLEAU pour un planning, **échéances en gras**, clôture) — jamais du HTML : le gabarit le met en page. Un mail par personne quand le contenu lui est propre. La boîte Microsoft ou SMTP de la personne SEULEMENT si elle le demande (`boite`). `brouillon: true` SEULEMENT sur demande.",
         input_schema: {
           type: "object",
           properties: {
-            a: { type: "string", description: "Adresse(s) e-mail du destinataire, séparées par des virgules." },
-            cc: { type: "string" },
-            objet: { type: "string" },
-            corps: { type: "string", description: "Le texte complet du mail." },
+            mails: SCHEMA_MAILS,
+            societe: { type: "string", description: "La société d'envoi (charte) si la demande la nomme ; sinon celle de la personne." },
             boite: { type: "string", enum: ["gmail_adam", "microsoft", "smtp"], description: "Seulement si la personne demande EXPLICITEMENT sa propre boîte (microsoft, smtp) ; sinon le Gmail d'Adam." },
             brouillon: { type: "boolean", description: "Un brouillon au lieu d'un envoi — seulement sur demande." },
           },
-          required: ["a", "objet", "corps"],
+          required: ["mails"],
         },
       },
       allowed: ouvert,
@@ -112,19 +112,29 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
               : `La boîte Gmail d'Adam ne peut pas envoyer : ${etat.gmailAdam.reliee ? etat.gmailAdam.raison : "elle n'est pas reliée (Chief of Staff › Réglages › « Connecter Google »)"}.`;
           return json({ statut: "REFUS", raison, etat, consigne: "Dis-le tel quel ; rien n'est préparé. Ne propose une autre boîte (Microsoft, SMTP de la personne) que si elle te le demande." });
         }
-        const a = String(e.a ?? ""), cc = typeof e.cc === "string" ? e.cc : "", objet = String(e.objet ?? ""), corps = String(e.corps ?? "");
         if (brouillon && boite === "smtp") return json({ statut: "REFUS", raison: "La boîte SMTP ne garde pas de brouillon : Gmail d'Adam ou boîte Microsoft." });
         const nom = boite === "gmail_adam" ? "envoyer_gmail" : nomDeCapacite(CAPACITE[brouillon ? "brouillon" : boite]);
         const outil = nom ? trouver(nom) : undefined;
         if (!outil || !outil.allowed(user)) return json({ statut: "REFUS", raison: `L'envoi par cette boîte n'est pas ouvert à ton rôle (${boite}).` });
-        const entree = boite === "gmail_adam" ? { a, cc, objet, corps, ...(brouillon ? { brouillon: true } : {}) }
-          : boite === "microsoft" ? { to: a, ...(cc ? { cc } : {}), subject: objet, bodyHtml: html(corps) }
-            : { to: a, ...(cc ? { cc } : {}), subject: objet, body: corps };
+        let entree: Record<string, unknown>;
+        if (boite === "gmail_adam") entree = { mails: e.mails, ...(typeof e.societe === "string" ? { societe: e.societe } : {}), ...(brouillon ? { brouillon: true } : {}) };
+        else {
+          // La boîte de la personne (sur sa demande) : un mail par carte, le MÊME gabarit.
+          const prep = await preparerMails(Array.isArray(e.mails) ? e.mails.slice(0, 1) : []);
+          if (!("ok" in prep)) return json({ statut: "INCOMPLET", manque: prep.manque, consigne: "Pose UNE seule question : la première de `manque`." });
+          const m = prep.mails[0]!;
+          const signature = await signatureDe(user);
+          const charte = await charteDuMail(user, typeof e.societe === "string" ? e.societe : null, signature);
+          const to = m.destinataires.map((d) => d.email).join(", "), cc = m.cc.map((d) => d.email).join(", ");
+          entree = boite === "microsoft"
+            ? { to, ...(cc ? { cc } : {}), subject: m.objet, bodyHtml: rendreMailHtml(m.contenu, signature, charte, m.objet) }
+            : { to, ...(cc ? { cc } : {}), subject: m.objet, body: rendreMailTexte(m.contenu, signature, charte) };
+        }
         const avant = propositions.length;
         const sortie = await outil.run(entree, user);
         const adresse = boite === "gmail_adam" ? etat.gmailAdam.adresse : boite === "microsoft" ? etat.microsoft.adresse : etat.smtp.adresse;
         const dite = boite === "gmail_adam" ? `le Gmail d'Adam (${adresse})` : boite === "microsoft" ? `ta boîte Microsoft (${adresse})` : `ta boîte SMTP de l'ERP (${adresse})`;
-        if (propositions.length > avant) {
+        if (propositions.length > avant && boite !== "gmail_adam") {
           const p = propositions[propositions.length - 1]!;
           p.proposition.title = brouillon ? `Brouillon dans ${dite}` : `Envoyer par ${dite}`;
           p.proposition.libelleBouton = brouillon ? "Enregistrer le brouillon" : "Envoyer";

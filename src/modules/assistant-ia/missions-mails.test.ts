@@ -157,12 +157,12 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     expect(etat.gmailAdam.reliee).toBe(false);
     expect(etat.parDefaut).toBeNull();
     const envoyer = mails.find((o) => o.def.name === "envoyer_mail")!;
-    const refus = JSON.parse(await envoyer.run({ a: "redouane@adventum.dz", objet: "Planning AMD", corps: "Bonjour." }, sa));
+    const refus = JSON.parse(await envoyer.run({ mails: [{ a: "redouane@adventum.dz", objet: "Planning AMD", contenu: { salutation: "Bonjour,", paragraphes: ["Bonjour."], cloture: "Bien cordialement," } }] }, sa));
     expect(refus.statut).toBe("REFUS");
     expect(refus.raison).toContain("Gmail d'Adam");
     expect(props).toHaveLength(0);
     // Demandée EXPLICITEMENT, la boîte SMTP de la personne : carte « Envoyer », sans ressaisie (R3 réversible).
-    const r = JSON.parse(await envoyer.run({ a: "redouane@adventum.dz", objet: "Planning AMD", corps: "Bonjour Redouane,\nVoici ton planning.", boite: "smtp" }, sa));
+    const r = JSON.parse(await envoyer.run({ ...{ mails: [{ a: "redouane@adventum.dz", objet: "Planning AMD", contenu: { salutation: "Bonjour,", paragraphes: ["Voici ton planning."], cloture: "Bien cordialement," } }] }, boite: "smtp" }, sa));
     expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
     expect(props[0]!.proposition.title).toContain("Envoyer par ta boîte SMTP");
     expect(props[0]!.proposition.libelleBouton).toBe("Envoyer");
@@ -179,7 +179,7 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     const etat = JSON.parse(await mails.find((o) => o.def.name === "mes_boites_mail")!.run({}, sa));
     expect(etat.gmailAdam).toMatchObject({ reliee: true, envoi: true, adresse: ADAM });
     expect(etat.parDefaut).toBe("gmail_adam");
-    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ a: "nesrine@adventum.dz", objet: "Planning AMD", corps: "Bonjour Nesrine." }, sa));
+    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ mails: [{ a: "nesrine@adventum.dz", objet: "Planning AMD", contenu: { salutation: "Bonjour,", paragraphes: ["Ton planning suit."], cloture: "Bien cordialement," } }] }, sa));
     expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
     expect(props[0]!.proposition.title).toContain("Gmail d'Adam");
     expect(props[0]!.proposition.confirmText).toBeUndefined();
@@ -203,11 +203,59 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     await annulerEffetSortant(ligne.id, sa);
   });
 
+  it("MAILS — SCÉNARIO DE LA DIRECTION : « envoie un mail à Redouane et Nesrine avec leur planning » → DEUX beaux mails, UNE carte, ZÉRO question", async () => {
+    const r1 = await prisma.user.create({ data: { name: `Redouane Banc${TAG}`, email: `${TAG}redouane@adventum.dz`, passwordHash: "x", role: "VIEWER" } });
+    const r2 = await prisma.user.create({ data: { name: `Nesrine Banc${TAG}`, email: `${TAG}nesrine@adventum.dz`, passwordHash: "x", role: "VIEWER" } });
+    const props: PropositionPreparee[] = [];
+    const tous = outilsV1(sa, props, [], [], null, undefined, { capacites: true });
+    const mails = outilsMails(sa, (n) => tous.find((o) => o.def.name === n), props);
+    const planning = (prenom: string, taches: string[][]) => ({
+      salutation: `Bonjour ${prenom},`,
+      paragraphes: ["Voici ton planning du 2 au 8 novembre pour le suivi AMD Staoueli.", "Le point d'étape est fixé au **jeudi 5 novembre à 10 h**."],
+      tableau: { colonnes: ["Date", "Tâche"], lignes: taches },
+      cloture: "Bonne semaine,",
+    });
+    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ mails: [
+      { a: `Redouane Banc${TAG}`, objet: "Ton planning AMD — semaine du 2 novembre", contenu: planning("Redouane", [["Lun. 2/11", "Relevé sur site"], ["Mer. 4/11", "Devis fournisseurs"]]) },
+      { a: `Nesrine Banc${TAG}`, objet: "Ton planning AMD — semaine du 2 novembre", contenu: planning("Nesrine", [["Mar. 3/11", "Mise à jour du classeur"], ["Ven. 6/11", "Synthèse pour la Direction"]]) },
+    ] }, sa));
+    // ZÉRO QUESTION : pas d'« INCOMPLET », la carte est là, et une seule.
+    expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
+    expect(props).toHaveLength(1);
+    const carte = props[0]!.proposition as { title: string; libelleBouton?: string; apercus?: { titre: string; html: string }[] };
+    expect(carte.title).toContain("Envoyer 2 mails par le Gmail d'Adam");
+    expect(carte.libelleBouton).toBe("Envoyer les 2 mails");
+    expect(carte.apercus).toHaveLength(2);
+    expect(carte.apercus![0]!.html).toContain("Bonjour Redouane,");
+    expect(carte.apercus![1]!.html).toContain("Bonjour Nesrine,");
+    expect(carte.apercus![0]!.html).toContain("<strong>jeudi 5 novembre à 10 h</strong>");
+    expect(carte.apercus![0]!.html).toMatch(/<th[^>]*>Date<\/th>/);
+    // Les destinataires viennent de l'annuaire ; chaque intention d'Adam porte le RENDU (html) et sa version texte.
+    const intentions = await prisma.outboundMailIntent.findMany({ where: { recipients: { hasSome: [r1.email, r2.email] } }, select: { recipients: true, bodyHtml: true, bodyText: true } });
+    expect(intentions).toHaveLength(2);
+    expect(intentions.every((i) => (i.bodyHtml ?? "").includes("<table") && i.bodyText.includes("Date | Tâche"))).toBe(true);
+    const c = await confirmerIntentionAssistantIA(props[0]!.intentId);
+    expect(c.ok, c.error).toBe(true);
+    expect(await prisma.effetSortantDiffere.count({ where: { type: "courriel.gmail", principalId: sa.id, statut: "EN_ATTENTE", cible: { in: [r1.email, r2.email] } } })).toBe(2);
+    for (const l of await prisma.effetSortantDiffere.findMany({ where: { type: "courriel.gmail", principalId: sa.id, statut: "EN_ATTENTE" } })) await annulerEffetSortant(l.id, sa);
+    await prisma.user.deleteMany({ where: { id: { in: [r1.id, r2.id] } } });
+  });
+
+  it("MAILS — un nom introuvable : UNE question, aucune carte", async () => {
+    const props: PropositionPreparee[] = [];
+    const tous = outilsV1(sa, props, [], [], null, undefined, { capacites: true });
+    const mails = outilsMails(sa, (n) => tous.find((o) => o.def.name === n), props);
+    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ mails: [{ a: `Personne Inconnue${TAG}`, objet: "x", contenu: { salutation: "Bonjour,", paragraphes: ["x"], cloture: "A+" } }] }, sa));
+    expect(r.statut).toBe("INCOMPLET");
+    expect(r.manque).toHaveLength(1);
+    expect(props).toHaveLength(0);
+  });
+
   it("MAILS — un brouillon demandé reste un brouillon d'Adam (DRAFT) : rien ne part", async () => {
     const props: PropositionPreparee[] = [];
     const tous = outilsV1(sa, props, [], [], null, undefined, { capacites: true });
     const mails = outilsMails(sa, (n) => tous.find((o) => o.def.name === n), props);
-    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ a: "redouane@adventum.dz", objet: "Brouillon AMD", corps: "À relire.", brouillon: true }, sa));
+    const r = JSON.parse(await mails.find((o) => o.def.name === "envoyer_mail")!.run({ ...{ mails: [{ a: "redouane@adventum.dz", objet: "Brouillon AMD", contenu: { salutation: "Bonjour,", paragraphes: ["À relire."], cloture: "Bien cordialement," } }] }, brouillon: true }, sa));
     expect(r.statut, JSON.stringify(r)).toBe("EN_ATTENTE_DE_CONFIRMATION");
     expect(props[0]!.proposition.libelleBouton).toBe("Enregistrer le brouillon");
     const c = await confirmerIntentionAssistantIA(props[0]!.intentId);
