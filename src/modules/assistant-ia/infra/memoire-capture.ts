@@ -143,6 +143,7 @@ export async function plongerSouvenirs(userId: string, ids: readonly string[], p
  * confidentialité y repasse (deuxième garde). `lastUsedAt` des souvenirs servis est noté, au mieux.
  */
 export async function rappelDuTour(userId: string, question: string, deps: { plonger?: Plongeur } = {}): Promise<{ section: string | null; rappel: Rappel; censure: boolean }> {
+  // S1 (US-01) : `memoirePourContexte` écarte déjà tout souvenir d'IDENTITÉ (règle du socle, `platform/ia/memoire-identite`).
   const tous = await memoirePourContexte(userId);
   const souvenirs = tous.map((s, rang) => ({ id: s.id, sorte: s.sorte, contenu: s.contenu, rang }));
   let similarites: Map<string, number> | undefined;

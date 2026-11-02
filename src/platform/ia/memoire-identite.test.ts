@@ -8,14 +8,14 @@ describe("mémoire — l'identité ne s'apprend pas", () => {
       "Prénom : Amine", "Son prénom est Amine", "Nom : BENALI", "S'appelle Amine", "Elle s'appelle Amine", "Se fait appeler Amine",
       "Préfère être appelé Amine", "Est le DG", "Elle est directrice générale", "Poste : Directeur commercial", "Rôle : Super Admin",
       "A les droits Super Admin", "C'est Amine qui écrit", "Amine écrit depuis le poste de Radia", "Écrit au nom d'Amine",
-      "Se fait passer pour la Direction", "Identité : Amine BENALI",
+      "Se fait passer pour la Direction", "Identité : Amine BENALI", "Est Super Admin", "Fonction : directeur", "Mon prénom est Amine", "Est en réalité Amine",
     ]) expect(ditQuiEstLaPersonne(s), s).toBe(true);
   });
 
   it("les faits sur ses proches et sur elle restent retenus", () => {
     for (const s of [
       "Sa fille s'appelle Lina", "Son mari s'appelle Karim", "Part à Lyon le 12 novembre avec sa fille Lina", "Aime le café sans sucre",
-      "Est végétarienne", "Son manager est Karim", "Prépare un master en marketing", "Son fils est en terminale",
+      "Est végétarienne", "Son manager est Karim", "Prépare un master en marketing", "Son fils est en terminale", "Nom de son chat : Minou", "Poste de sa fille : stagiaire à Oran",
     ]) expect(ditQuiEstLaPersonne(s), s).toBe(false);
   });
 
