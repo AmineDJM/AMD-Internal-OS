@@ -17,7 +17,9 @@ validateur ni de société ; **« Créer le BC (PDF) »** = BC numéroté en bro
 dans la conversation ; **« Envoyer en validation »** est un geste séparé ; enveloppe proposée selon la nature ; carte
 résumée (détail des lignes au panneau, provenance dite une fois, plus de « seuil de 0 DZD »). Annulable (K10b : ANNULÉ,
 jamais effacé). Banc : 5 devis fabriqués (dont un scan) — 76/76 lignes par positions, vision réelle 27/27 et 5/5.
-Décision [0049](../assistant/decisions/0049-bc-depuis-devis.md). Aucune migration.
+Verdict par invariants (FIABLE / À VÉRIFIER / ILLISIBLE) gardé avec la lecture ; cycle du BC (brouillon → en
+validation → validé → signé / annulé) à préconditions tenues par le code. Décision
+[0049](../assistant/decisions/0049-bc-depuis-devis.md). Migration `20270222100000_lecture_piece_verdict`.
 
 ### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
 

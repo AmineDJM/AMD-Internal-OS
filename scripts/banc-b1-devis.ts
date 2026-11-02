@@ -14,7 +14,7 @@ import { repererEntetes } from "@/lib/pieces-lues/entetes";
 import { emetteurEtDestinataire } from "@/lib/pieces-lues/emetteur-destinataire";
 import { extractText } from "@/lib/regulatory/intelligence/extract/extract-text";
 import { lireTableauParVision } from "@/lib/pieces-lues/vision-lignes";
-import { callLuna, lunaConfigured } from "@/lib/openai-luna";
+import { callLuna, lunaConfigured, lunaModel } from "@/lib/openai-luna";
 import { rasterizePdf } from "@/lib/regulatory/intelligence/ocr/ocr-engine";
 
 const GROUPE = [
@@ -53,7 +53,7 @@ async function main() {
     if (doitVision) {
       const t0 = Date.now();
       const v = await lireTableauParVision(octets, "pdf", {
-        disponible: async () => lunaConfigured(), appeler: callLuna, pages: async (pdf, max) => (await rasterizePdf(pdf, max)).pages,
+        disponible: async () => lunaConfigured(), appeler: (input) => callLuna(input), pages: async (pdf, max) => (await rasterizePdf(pdf, max)).pages, modele: () => lunaModel(),
       });
       methode = `vision (${((Date.now() - t0) / 1000).toFixed(1)} s)`;
       if (v) { lu = v.lignes; ht = ht ?? v.totalHt; emetteur = emetteur ?? v.emetteur.nom; }

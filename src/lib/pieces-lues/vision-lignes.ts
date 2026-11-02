@@ -1,6 +1,3 @@
-import { callLuna, lunaConfigured, lunaModel } from "@/lib/openai-luna";
-import { rasterizePdf } from "@/lib/regulatory/intelligence/ocr/ocr-engine";
-import { disponibiliteLecturePieces } from "@/lib/lecture-pieces-ia";
 import { sansBloquer } from "@/lib/journal";
 import { analyserNombre } from "@/lib/pieces-lues/montants";
 import { consolider, recoupe, type LigneTableau } from "@/lib/pieces-lues/tableau";
@@ -121,23 +118,22 @@ export function lignesDeLaVision(b: Brut, modele: string): TableauVision {
   };
 }
 
+/** Ce que la passe de vision APPELLE — injecté par le service (`service.ts`) : ce module ne parle à aucun fournisseur. */
 export interface DependancesVision {
   disponible: () => Promise<boolean>;
-  appeler: typeof callLuna;
+  appeler: <T>(input: {
+    system?: string; user: string; images?: { buffer: Buffer; mime: string }[];
+    jsonSchema?: { name: string; schema: Record<string, unknown> }; maxOutputTokens?: number;
+  }) => Promise<{ ok: boolean; data?: T | null }>;
   pages: (pdf: Buffer, max: number) => Promise<Buffer[]>;
+  modele: () => string;
 }
-
-const REELLES: DependancesVision = {
-  disponible: async () => lunaConfigured() && (await disponibiliteLecturePieces()).disponible,
-  appeler: callLuna,
-  pages: async (pdf, max) => (await rasterizePdf(pdf, max)).pages,
-};
 
 const MIME: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp" };
 
 /** Lit le tableau par la vision ; `null` : portes fermées, format non rendu, ou réponse inexploitable. */
-export async function lireTableauParVision(octets: Buffer, ext: string, deps: DependancesVision = REELLES): Promise<TableauVision | null> {
-  if (!(await deps.disponible().catch(() => false))) return null;
+export async function lireTableauParVision(octets: Buffer, ext: string, deps: DependancesVision): Promise<TableauVision | null> {
+  if (!(await deps.disponible().catch(sansBloquer("vision-lignes.disponible", false)))) return null;
   let images: { buffer: Buffer; mime: string }[];
   if (ext === "pdf") images = (await deps.pages(octets, PAGES_MAX).catch(sansBloquer("vision-lignes.pages", [] as Buffer[]))).map((b) => ({ buffer: b, mime: "image/png" }));
   else if (MIME[ext]) images = [{ buffer: octets, mime: MIME[ext] }];
@@ -148,5 +144,5 @@ export async function lireTableauParVision(octets: Buffer, ext: string, deps: De
     jsonSchema: SCHEMA_TABLEAU_VISION as unknown as { name: string; schema: Record<string, unknown> }, maxOutputTokens: 12_000,
   }).catch(sansBloquer("vision-lignes.appel", null));
   if (!r || !r.ok || !r.data || !Array.isArray(r.data.lignes)) return null;
-  return lignesDeLaVision(r.data, lunaModel());
+  return lignesDeLaVision(r.data, deps.modele());
 }

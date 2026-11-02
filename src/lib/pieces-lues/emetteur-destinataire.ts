@@ -92,18 +92,35 @@ export function nomDuFichier(nomFichier: string): string | null {
 /** La clé de comparaison d'un nom de société : sans forme juridique, sans accents, sans ponctuation. */
 const cle = (s: string | null | undefined) => cleSociete(s ?? "");
 
-/** Le nom désigne-t-il une société du groupe ? Égalité de clé, ou la clé de l'une contient l'autre (« ADVENTUM PHARMA SPA », « Adventum »). */
+/**
+ * Le nom désigne-t-il une société du groupe ? Égalité de clé (« Adventum » = libellé court « Adventum »), ou inclusion
+ * MOT À MOT d'un nom d'au moins deux mots (« ADVENTUM PHARMA SPA » contient « adventum pharma »). Un libellé court
+ * d'un seul mot n'englobe jamais un autre nom : « AMD » ne fait pas d'« AMD Conseil » une société du groupe.
+ */
 export function estDuGroupe(nom: string | null | undefined, groupe: readonly SocieteDuGroupe[]): SocieteDuGroupe | null {
   const k = cle(nom);
   if (!k || k.length < 3) return null;
+  const mots = (x: string) => x.split(" ").length;
   for (const s of groupe) {
     for (const n of s.noms) {
       const g = cle(n);
       if (!g || g.length < 3) continue;
-      if (k === g || ` ${k} `.includes(` ${g} `) || ` ${g} `.includes(` ${k} `)) return s;
+      if (k === g) return s;
+      if (mots(g) >= 2 && ` ${k} `.includes(` ${g} `)) return s;
+      if (mots(k) >= 2 && ` ${g} `.includes(` ${k} `)) return s;
     }
   }
   return null;
+}
+
+/**
+ * UNE FICHE DE L'ANNUAIRE QUI EST UNE SOCIÉTÉ DU GROUPE (un client enregistré comme contact) : même clé de nom,
+ * ou un NIF du groupe — jamais par simple inclusion de nom (un fournisseur peut porter un nom qui en contient un autre).
+ */
+export function ficheDuGroupe(c: { nom: string; nif?: string | null }, groupe: readonly SocieteDuGroupe[]): boolean {
+  const k = cle(c.nom);
+  const nif = normaliserNif(c.nif);
+  return groupe.some((s) => s.noms.some((n) => !!k && cle(n) === k) || (!!nif && s.nifs.some((x) => normaliserNif(x) === nif)));
 }
 
 /** Le pied de page d'un émetteur algérien : « NOM — RC … — NIF … » (ou « NOM | RC … »), le nom avant le premier séparateur. */
@@ -119,7 +136,8 @@ function nomDuPied(ligne: string): string | null {
 
 /** Une ligne d'en-tête qui peut être une raison sociale : des lettres, courte, pas une rubrique. */
 function nomDEnTete(ligne: string): string | null {
-  const t = ligne.split("|")[0].trim();
+  // « SARL IMPRIMERIE DU SAHEL — Devis » : le nom s'arrête au premier tiret long ou à la première barre.
+  const t = ligne.split(/\s[—–]\s|\|/)[0].trim();
   if (t.length < 2 || t.length > 60) return null;
   const p = plier(t);
   if (/^(devis|facture|proforma|bon de commande|date|page|tel|fax|email|e-mail|adresse|objet|client|n[°o]|ref|www\.|http|rc\b|nif\b|nis\b|ai\b|capital)/.test(p)) return null;
@@ -187,7 +205,7 @@ export function emetteurEtDestinataire(args: {
     }
     return null;
   };
-  const nif = idents(/\b(?:n[°o.]?\s*)?(?:n\.?\s?i\.?\s?f\.?)\s*:?/, (s) => normaliserNif(s.replace(/\s+/g, "").slice(0, 25)), nifsGroupe);
+  const nif = idents(/\b(?:n[°o.]?\s*)?(?:n\.?\s?i\.?\s?f\.?)\s*:?/, (s) => normaliserNif((/^[\d\s.-]+/.exec(s)?.[0] ?? "").trim()), nifsGroupe);
   const rc = idents(/\b(?:n[°o.]?\s*)?(?:r\.?\s?c\.?|registre\s+(?:du\s+)?commerce)\b\s*(?:n[°o]?)?\s*:?/, (s) => normaliserRc(s.slice(0, 30)), rcsGroupe, true);
   const brutIdent = (re: RegExp) => {
     for (const l of horsZone) {

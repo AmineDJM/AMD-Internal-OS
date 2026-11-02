@@ -60,6 +60,8 @@ export interface DevisLu {
   destinataireId?: string | null;
   /** Lot B1 — les montants de taxes IMPRIMÉS, pour les comparer une fois à ceux recalculés depuis les lignes. */
   imprime?: { tva: number | null; taxe: number | null; ttc: number | null };
+  /** Lot B1 — le verdict de la lecture par invariants (FIABLE / À VÉRIFIER / ILLISIBLE). */
+  verdict?: PropositionDeLecture["verdict"];
   /** Lot B1 — ce qu'il faut pour créer la fiche du fournisseur s'il manque à l'annuaire. */
   aCreer?: { nom: string | null; nif: string | null; rc: string | null } | null;
 }
@@ -112,6 +114,7 @@ export async function lireDevis(user: CurrentUser, ref: string): Promise<DevisLu
     methodeLignes: p.methodeLignes,
     reconciliation: p.reconciliation,
     destinataireId: p.destinataire?.societeId ?? null,
+    verdict: p.verdict,
     imprime: {
       tva: p.entetes.totalTva?.valeur ?? (p.entetes.tva.length === 1 ? p.entetes.tva[0].montant.valeur : null),
       taxe: p.entetes.taxes.length === 1 ? p.entetes.taxes[0].montant.valeur : null,

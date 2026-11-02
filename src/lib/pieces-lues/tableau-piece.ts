@@ -1,4 +1,3 @@
-import { scanForInjection } from "@/lib/comms/untrusted";
 import type { EntetesReperes } from "@/lib/pieces-lues/entetes";
 import type { EmetteurLu } from "@/lib/pieces-lues/emetteur-destinataire";
 import { MAX_DESIGNATION, type LigneLue, type PieceLue } from "@/lib/pieces-lues/structure";
@@ -14,6 +13,8 @@ export function pieceDepuisTableau(
   lignes: readonly LigneTableau[],
   entetes: EntetesReperes,
   emetteur: Pick<EmetteurLu, "nom" | "nif" | "rc" | "nis" | "ai">,
+  /** Les motifs d'injection d'une désignation (`scanForInjection(…).flags`) — injecté par le service. */
+  suspecte: (designation: string) => string[],
 ): PieceLue {
   const tvas = entetes.tva.map((t) => t.taux);
   const lues: LigneLue[] = lignes.map((l, i) => {
@@ -32,7 +33,7 @@ export function pieceDepuisTableau(
       section: false,
       forfait: false,
       illisibles: l.doutes.map((d) => ({ champ: `ligne ${l.numero}`, brut: "", raison: d })),
-      suspecte: scanForInjection(designation).flags,
+      suspecte: suspecte(designation),
     };
   });
   return {

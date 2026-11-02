@@ -1,4 +1,5 @@
 import { userCan } from "@/lib/rbac";
+import { sansBloquer } from "@/lib/journal";
 import { getBudgetOverview, getEnvelopes, getEnvelopesGrandTotal } from "@/lib/queries/budget";
 import type { PowerTool } from "@/platform/ia/outil";
 import { disponible } from "@/lib/budget/marketing-vue";
@@ -83,7 +84,7 @@ export async function enveloppeProposee(user: CurrentUser, nature: NatureCommand
     const envs = await getEnvelopes(user);
     const choix = choisirEnveloppe(envs.map((x) => ({ ...x, modules: x.modules ?? [], domaine: x.domaine ?? "GENERAL" })), nature, voulue, new Date());
     if (!choix) return null;
-    const vue = await getBudgetOverview(user, choix.enveloppe.id).catch(() => null);
+    const vue = await getBudgetOverview(user, choix.enveloppe.id).catch(sansBloquer("budget.enveloppeProposee", null));
     const reste = vue ? disponible(vue.totals.total, vue.totals.consumed, vue.totals.committed) : null;
     return { id: choix.enveloppe.id, nom: choix.enveloppe.name, raison: choix.raison, reste };
   } catch {

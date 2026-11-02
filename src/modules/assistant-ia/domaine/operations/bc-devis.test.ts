@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { choisirEnveloppe, natureDeLaCommande, phraseProvenance, phraseTaxes, sansRedite, type EnveloppeCandidate } from "./bc-devis";
+import { choisirEnveloppe, etatBCDevis, natureDeLaCommande, refusTransitionBC, phraseProvenance, phraseTaxes, sansRedite, type EnveloppeCandidate } from "./bc-devis";
 
 /** CE QUE LA CARTE DU BC DIT (lot B1, décision 0049) : l'enveloppe selon la nature, les taxes une fois, sans redite. */
 const env = (o: Partial<EnveloppeCandidate> & { name: string }): EnveloppeCandidate =>
@@ -34,5 +34,27 @@ describe("la carte du BC depuis un devis", () => {
   it("la provenance se dit une fois, et une redite disparaît", () => {
     expect(phraseProvenance("positions")).toBe("Lignes et montants lus sur le tableau du PDF, à vérifier contre le papier.");
     expect(sansRedite(["Contrôle des totaux : écart", "Contrôle des totaux : écart", null, "Contrôle des totaux : écart de 99 000 DZD"])).toEqual(["Contrôle des totaux : écart de 99 000 DZD"]);
+  });
+});
+
+
+describe("le cycle du BC depuis un devis — préconditions tenues par le code", () => {
+  it("CRÉER n'exige pas de validateur ; il refuse une lecture illisible et un fournisseur du groupe", () => {
+    expect(refusTransitionBC("CREER", null, { lecture: "FIABLE", lignesChiffrees: true })).toBeNull();
+    expect(refusTransitionBC("CREER", null, { lecture: "A_VERIFIER", lignesChiffrees: true, validateurId: null })).toBeNull();
+    expect(refusTransitionBC("CREER", null, { lecture: "ILLISIBLE" })).toMatch(/Aucune ligne/);
+    expect(refusTransitionBC("CREER", null, { lecture: "FIABLE", fournisseurDuGroupe: true })).toMatch(/société du groupe/);
+  });
+  it("ENVOYER exige un brouillon ET un validateur", () => {
+    const brouillon = etatBCDevis({ annule: false, signe: false, demande: null });
+    expect(brouillon).toBe("BROUILLON");
+    expect(refusTransitionBC("ENVOYER_EN_VALIDATION", brouillon, {})).toMatch(/qui doit valider/);
+    expect(refusTransitionBC("ENVOYER_EN_VALIDATION", brouillon, { validateurId: "u1" })).toBeNull();
+    const enCours = etatBCDevis({ annule: false, signe: false, demande: { statut: "PENDING" } });
+    expect(enCours).toBe("EN_VALIDATION");
+    expect(refusTransitionBC("ENVOYER_EN_VALIDATION", enCours, { validateurId: "u1" })).toMatch(/déjà en validation/);
+    expect(etatBCDevis({ annule: false, signe: false, demande: { statut: "APPROVED" } })).toBe("VALIDE");
+    expect(etatBCDevis({ annule: false, signe: true, demande: { statut: "APPROVED" } })).toBe("SIGNE");
+    expect(refusTransitionBC("ENVOYER_EN_VALIDATION", "ANNULE", { validateurId: "u1" })).toMatch(/annulé/);
   });
 });

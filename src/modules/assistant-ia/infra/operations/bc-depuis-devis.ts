@@ -11,7 +11,7 @@ import type { PartieCommerciale } from "@/lib/artifact/factory/commercial";
 import type { CurrentUser } from "@/lib/session";
 import { champs, dzd, nombre, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 import {
-  LIBELLE_NATURE, ligneDeDetail, natureDeLaCommande, phraseProvenance, phraseTaxes, sansRedite,
+  etatBCDevis, LIBELLE_NATURE, ligneDeDetail, refusTransitionBC, natureDeLaCommande, phraseProvenance, phraseTaxes, sansRedite,
 } from "../../domaine/operations/bc-devis";
 import { fichiersDepuisDrive } from "./pieces";
 import { lireDevis, phraseReconciliation, type DevisLu, type LigneDuDevis } from "./devis-lu";
@@ -131,6 +131,12 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
 
     const lignes = lignesRetenues(d, e);
     if (!lignes.length) return { erreur: "Toutes les lignes du devis ont été écartées : il n'y a rien à commander." };
+    // LA TRANSITION « CRÉER » : ses préconditions sont tenues ICI, par le code — pas de validateur exigé.
+    const refusCreer = refusTransitionBC("CREER", null, {
+      lecture: d.verdict?.statut ?? null,
+      fournisseurDuGroupe: d.verdict?.raisons.some((r) => r.startsWith("I4 : l'émetteur lu est une société du groupe")) ?? false,
+    });
+    if (refusCreer) return { erreur: refusCreer };
     const tvaPct = nombre(e, "tva") ?? d.tvaPct;
     // UNE question à la fois, et seulement ce qui bloque vraiment la composition du BC.
     const manque = [
@@ -185,6 +191,7 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
           ["Société", `${p.profil.societe.nom}${societeDuDevis ? " (client du devis)" : ""}`],
           ["Devis", `${d.piece.nom}${d.numero ? ` · n° ${d.numero}` : ""}${d.date ? ` du ${d.date}` : ""}`],
           ["Lignes", `${lignes.length} ligne${lignes.length > 1 ? "s" : ""}${lignes.length !== d.lignes.length ? ` (sur ${d.lignes.length})` : ""}`],
+          ["Lecture", d.verdict ? (d.verdict.statut === "FIABLE" ? "fiable — lignes recoupées, numérotation suivie, Σ = HT imprimé" : d.verdict.statut === "A_VERIFIER" ? "à vérifier (voir ci-dessous)" : "illisible") : null],
           ["Total HT", dzd(ht)],
           ["TVA", `${tvaPct} % · ${dzd(tva)}${d.taxe ? ` — ${d.taxe.libelle} ${d.taxe.pct} % · ${dzd(taxe)}` : ""}`],
           ["Total TTC", dzd(ttc)],
@@ -260,16 +267,24 @@ export const BC_DEPUIS_DEVIS: OperationIA = {
 
 // ─────────────────────────────── L'envoi en validation — un geste séparé ───────────────────────────────
 
+/** L'état du BC dans son cycle (`etatBCDevis`), lu sur la pièce et sa demande de validation. */
+async function etatDe(doc: { status: string; signedAt: Date | null; bcPrevalidationRequestId: string | null }) {
+  const demande = doc.bcPrevalidationRequestId
+    ? await prisma.validationRequest.findUnique({ where: { id: doc.bcPrevalidationRequestId }, select: { status: true } })
+    : null;
+  return etatBCDevis({ annule: doc.status === "CANCELLED", signe: doc.signedAt !== null, demande: demande ? { statut: String(demande.status) } : null });
+}
+
 async function bcDesigne(user: CurrentUser, ref: string) {
   const r = ref.trim();
   const doc = await prisma.legalDocument.findFirst({
     where: { kind: "PURCHASE_ORDER", status: { not: "CANCELLED" }, OR: [{ id: r }, { reference: r }] },
-    select: { id: true, reference: true, amount: true, counterparty: true, custom: true, companyId: true, createdById: true },
+    select: { id: true, reference: true, amount: true, counterparty: true, custom: true, companyId: true, createdById: true, status: true, signedAt: true, bcPrevalidationRequestId: true },
     orderBy: { createdAt: "desc" },
   }) ?? (r ? null : await prisma.legalDocument.findFirst({
     // Sans référence : le dernier BC brouillon que CETTE personne a créé depuis un devis.
     where: { kind: "PURCHASE_ORDER", status: { not: "CANCELLED" }, createdById: user.id, custom: { path: ["depuisDevis", "nodeId"], not: Prisma.AnyNull } },
-    select: { id: true, reference: true, amount: true, counterparty: true, custom: true, companyId: true, createdById: true },
+    select: { id: true, reference: true, amount: true, counterparty: true, custom: true, companyId: true, createdById: true, status: true, signedAt: true, bcPrevalidationRequestId: true },
     orderBy: { createdAt: "desc" },
   }));
   if (!doc || !(await ficheVisible(user, "LEGAL_DOCUMENT", doc.id))) return null;
@@ -306,6 +321,9 @@ export const ENVOI_BC_VALIDATION: OperationIA = {
       const u = await prisma.user.findUnique({ where: { id: dep.validatorId }, select: { id: true, name: true, isActive: true } });
       if (u?.isActive) v = { id: u.id, nom: u.name };
     }
+    // LA TRANSITION « ENVOYER EN VALIDATION » : un brouillon, et un validateur — tenus par le code.
+    const refus = refusTransitionBC("ENVOYER_EN_VALIDATION", await etatDe(doc), { validateurId: v?.id ?? null });
+    if (refus) return v ? { erreur: refus } : { manque: [refus] };
     if (!v) return { manque: ["qui doit valider ce bon de commande (le validateur principal)"] };
     const ttc = Number(doc.amount ?? 0);
     const seuil = (await getAppSettings()).bcValidationThresholdCentre;
@@ -332,6 +350,8 @@ export const ENVOI_BC_VALIDATION: OperationIA = {
   async executer(a, user) {
     const doc = await bcDesigne(user, a.legalDocumentId ?? "");
     if (!doc) return { ok: false, error: "Ce bon de commande n'existe plus (ou a été annulé)." };
+    const refus = refusTransitionBC("ENVOYER_EN_VALIDATION", await etatDe(doc), { validateurId: a.validatorId ?? null });
+    if (refus) return { ok: false, error: refus };
     const dep = ((doc.custom as Record<string, unknown> | null)?.depuisDevis ?? null) as { nodeId?: string } | null;
     const fd = new FormData();
     fd.set("objectKind", "BON_DE_COMMANDE");

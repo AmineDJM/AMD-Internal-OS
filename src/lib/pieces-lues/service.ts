@@ -1,4 +1,6 @@
 import { Prisma } from "@prisma/client";
+import { sansBloquer } from "@/lib/journal";
+import { scanForInjection } from "@/lib/comms/untrusted";
 import { prisma } from "@/lib/prisma";
 import { enSerie } from "@/lib/refs";
 import { identiteEmetteurDuTexte, fusionnerIdentite, type IdentiteEmetteur } from "@/lib/pieces-lues/emetteur";
@@ -22,8 +24,11 @@ import type { PieceLue } from "@/lib/pieces-lues/structure";
 import { rangeesDuPdf } from "@/lib/pieces-lues/positions";
 import { lireTableau, reconcilier, type LigneTableau, type Reconciliation } from "@/lib/pieces-lues/tableau";
 import { pieceDepuisTableau } from "@/lib/pieces-lues/tableau-piece";
-import { lireTableauParVision } from "@/lib/pieces-lues/vision-lignes";
-import { emetteurEtDestinataire, estDuGroupe, type DestinataireLu, type EmetteurLu } from "@/lib/pieces-lues/emetteur-destinataire";
+import { lireTableauParVision, type DependancesVision } from "@/lib/pieces-lues/vision-lignes";
+import { callLuna, lunaConfigured, lunaModel } from "@/lib/openai-luna";
+import { rasterizePdf } from "@/lib/regulatory/intelligence/ocr/ocr-engine";
+import { verdictDeLecture, type VerdictLecture } from "@/lib/pieces-lues/verdict";
+import { emetteurEtDestinataire, estDuGroupe, ficheDuGroupe, type DestinataireLu, type EmetteurLu } from "@/lib/pieces-lues/emetteur-destinataire";
 import {
   phraseAuditConfirmation, refusDeConfirmation, verdictsDeConfirmation,
   type CibleLecture, type LigneProposee, type LigneSoumise, type VerdictDeLigne,
@@ -137,6 +142,8 @@ export interface PropositionDeLecture {
   destinataire: DestinataireLu | null;
   /** NIS, AI et la source du nom de l'émetteur (« pied de page », « en-tête »…). */
   emetteurLu: EmetteurLu;
+  /** Le VERDICT par invariants (FIABLE / À VÉRIFIER / ILLISIBLE), gardé avec la lecture (`LecturePiece.verdict`). */
+  verdict: VerdictLecture;
 }
 
 export type MethodeLignes = "positions" | "modele" | "vision";
@@ -281,6 +288,17 @@ async function lignesDeLaLecture(
   });
 }
 
+/** La passe de vision, branchée sur Luna (mêmes portes que la lecture par le modèle : interrupteur, bascule, clé). */
+const VISION: DependancesVision = {
+  disponible: async () => lunaConfigured() && (await disponibiliteLecturePieces()).disponible,
+  appeler: (input) => callLuna(input),
+  pages: async (pdf, max) => (await rasterizePdf(pdf, max)).pages,
+  modele: () => lunaModel(),
+};
+
+/** Les motifs d'injection d'une désignation lue (§104.10) : signalés, jamais suivis. */
+const SUSPECTE = (d: string): string[] => scanForInjection(d).flags;
+
 const SOURCE_POSITIONS = "lecture du tableau (positions du PDF)";
 const PREFIXE_VISION = "vision:";
 const methodeDeSource = (par: string | null): MethodeLignes =>
@@ -331,13 +349,13 @@ export async function proposerLecture(args: {
 
   // ── LE TABLEAU PAR SES POSITIONS (lot B1) : local, sans modèle — confidentielle comprise. S'il réconcilie
   // (chaque ligne recoupée, numérotation suivie, somme = HT imprimé), c'est LUI qui fait les lignes.
-  const rangees = ext === "pdf" ? await rangeesDuPdf(octets).catch(() => null) : null;
+  const rangees = ext === "pdf" ? await rangeesDuPdf(octets).catch(sansBloquer("pieces-lues.positions", null)) : null;
   const tableau = rangees ? lireTableau(rangees) : null;
   const htImprime = entetes.totalHt?.valeur ?? tableau?.totalHt ?? null;
   const etiquete = identiteEmetteurDuTexte(l.texte);
   const ed0 = emetteurEtDestinataire({ texte: l.texte, nomFichier, groupe: societes, nomEtiquete: etiquete.nom });
   const recPositions = tableau && tableau.lignes.length ? reconcilier(tableau, htImprime) : null;
-  const parPositions = tableau && recPositions?.juste ? pieceDepuisTableau(tableau.lignes, entetes, ed0.emetteur) : null;
+  const parPositions = tableau && recPositions?.juste ? pieceDepuisTableau(tableau.lignes, entetes, ed0.emetteur, SUSPECTE) : null;
 
   let lignes = await lignesDeLaLecture(l, { noteMethode, nomFichier, confidentielle: !contexte.sortieCloudPermise, userId: user.id, parPositions });
   let reconciliation: Reconciliation | null = lignes.piece
@@ -347,7 +365,7 @@ export async function proposerLecture(args: {
   // ── LA SECONDE PASSE : LA VISION. La lecture ne réconcilie pas (ou il n'y en a pas : un scan) — on relit
   // l'image des pages. Jamais pour une pièce confidentielle ; jamais deux fois pour la même lecture.
   if (!reconciliation?.juste && contexte.sortieCloudPermise && lignes.methode !== "vision" && lignes.methode !== "positions") {
-    const vision = await lireTableauParVision(octets, ext).catch(() => null);
+    const vision = await lireTableauParVision(octets, ext, VISION).catch(sansBloquer("pieces-lues.vision", null));
     if (vision && vision.lignes.length) {
       const htV = htImprime ?? vision.totalHt;
       const recV = reconcilier(vision, htV);
@@ -355,7 +373,7 @@ export async function proposerLecture(args: {
       const meilleure = recV.juste || !reconciliation || scoreReconciliation(recV) < scoreReconciliation(reconciliation);
       if (meilleure) {
         const emV = { ...ed0.emetteur, nom: ed0.emetteur.nom ?? nomV };
-        const pieceV = pieceDepuisTableau(vision.lignes, entetes, emV);
+        const pieceV = pieceDepuisTableau(vision.lignes, entetes, emV, SUSPECTE);
         if (l.etat === "LUE") await remplacerStructure(l.id, pieceV, `${PREFIXE_VISION}${vision.modele}`);
         lignes = { piece: pieceV, raison: null, sansLignes: null, methode: "vision" };
         reconciliation = recV;
@@ -364,12 +382,17 @@ export async function proposerLecture(args: {
   }
   // Une lecture positionnelle qui ne réconcilie pas, et rien de mieux : elle vaut mieux que rien (un PDF confidentiel, IA coupée).
   if (!lignes.piece && tableau && tableau.lignes.length) {
-    lignes = { piece: pieceDepuisTableau(tableau.lignes, entetes, ed0.emetteur), raison: null, sansLignes: null, methode: "positions" };
+    lignes = { piece: pieceDepuisTableau(tableau.lignes, entetes, ed0.emetteur, SUSPECTE), raison: null, sansLignes: null, methode: "positions" };
     reconciliation = recPositions;
   }
   const piece = lignes.piece;
   // L'ÉMETTEUR, relu avec ce que le modèle a dit — jamais une société du groupe.
   const ed = emetteurEtDestinataire({ texte: l.texte, nomFichier, groupe: societes, nomEtiquete: etiquete.nom, nomModele: piece?.fournisseur.nom ?? null });
+  const verdict = verdictDeLecture({
+    methode: lignes.methode ?? null, nbLignes: piece ? piece.lignes.filter((x) => !x.section).length : 0, reconciliation,
+    emetteurNom: ed.emetteur.nom, emetteurDuGroupe: Boolean(ed.emetteur.nom && estDuGroupe(ed.emetteur.nom, societes)),
+  });
+  if (l.etat === "LUE") await garderVerdict(l.id, verdict);
   const decoupe = decouperPourLecture(l.texte, BUDGET_CARACTERES);
   const chiffrees = piece ? piece.lignes.filter((x) => !x.section) : [];
 
@@ -391,7 +414,7 @@ export async function proposerLecture(args: {
       controle: piece ? controlerPiece(piece, entetes) : null,
       fournisseur: candidatsFournisseur(
         societes.length ? identiteDeLEmetteur(ed.emetteur, piece, societes) : identiteLue(piece, entetes),
-        societes.length ? contexte.annuaireVisible.filter((c) => !estDuGroupe(c.nom, societes)) : contexte.annuaireVisible,
+        societes.length ? contexte.annuaireVisible.filter((c) => !ficheDuGroupe(c, societes)) : contexte.annuaireVisible,
         contexte.groupe ?? {},
       ),
       appariement: piece && contexte.lignesAttendues
@@ -408,8 +431,17 @@ export async function proposerLecture(args: {
       reconciliation,
       destinataire: ed.destinataire,
       emetteurLu: ed.emetteur,
+      verdict,
     },
   };
+}
+
+/** Le verdict, gardé avec la lecture — réécrit à chaque proposition : une seconde passe a pu le rendre FIABLE. */
+async function garderVerdict(id: string, v: VerdictLecture): Promise<void> {
+  await prisma.lecturePiece.updateMany({
+    where: { id, etat: "LUE" },
+    data: { verdict: v.statut, verdictDetail: v as unknown as Prisma.InputJsonValue },
+  }).catch((e) => console.error("[pièces lues] verdict non gardé (non bloquant)", id, e));
 }
 
 /** Plus petit = meilleure lecture : un trou ou une ligne douteuse pèse, l'écart aussi. */

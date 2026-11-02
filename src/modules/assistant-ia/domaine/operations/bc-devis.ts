@@ -127,3 +127,52 @@ export function sansRedite(phrases: readonly (string | null | undefined | false)
   }
   return garde;
 }
+
+// ─────────────────────────────── Le cycle du BC composé depuis un devis ───────────────────────────────
+
+/**
+ * LE CYCLE DU BC DEPUIS UN DEVIS — des états lus sur la pièce, des transitions dont les PRÉCONDITIONS sont tenues
+ * par le code, jamais par la consigne du modèle :
+ *
+ *   (devis lu) ──CREER──▶ BROUILLON (numéroté, PDF au Drive, en pré-validation, sans demande)
+ *   BROUILLON ──ENVOYER_EN_VALIDATION (validateur exigé)──▶ EN_VALIDATION ──▶ VALIDE ──▶ SIGNE (circuit des BC)
+ *   tout état sauf ANNULE ──ANNULER (K10b : statut ANNULÉ, numéro consommé, fichiers gardés)──▶ ANNULE
+ *
+ * CREER n'exige PAS de validateur ; il exige une lecture qui n'est pas ILLISIBLE, des lignes chiffrées et un
+ * fournisseur qui n'est pas une société du groupe. ENVOYER_EN_VALIDATION exige un validateur et un brouillon.
+ */
+export type EtatBCDevis = "BROUILLON" | "EN_VALIDATION" | "VALIDE" | "SIGNE" | "ANNULE";
+export type TransitionBC = "CREER" | "ENVOYER_EN_VALIDATION" | "ANNULER";
+
+export function etatBCDevis(p: {
+  annule: boolean;
+  signe: boolean;
+  /** Une demande de validation retient le BC (`bcPrevalidationRequestId`) — et son statut. */
+  demande: { statut: string } | null;
+}): EtatBCDevis {
+  if (p.annule) return "ANNULE";
+  if (p.signe) return "SIGNE";
+  if (!p.demande) return "BROUILLON";
+  return p.demande.statut === "APPROVED" ? "VALIDE" : p.demande.statut === "REJECTED" || p.demande.statut === "CANCELLED" ? "BROUILLON" : "EN_VALIDATION";
+}
+
+/** `null` : la transition est permise ; sinon la phrase du refus. */
+export function refusTransitionBC(
+  t: TransitionBC,
+  etat: EtatBCDevis | null,
+  ctx: { validateurId?: string | null; lecture?: "FIABLE" | "A_VERIFIER" | "ILLISIBLE" | null; lignesChiffrees?: boolean; fournisseurDuGroupe?: boolean } = {},
+): string | null {
+  switch (t) {
+    case "CREER":
+      if (etat !== null) return "Ce bon de commande existe déjà.";
+      if (ctx.lecture === "ILLISIBLE" || ctx.lignesChiffrees === false) return "Aucune ligne chiffrée n'a été lue sur le devis : le bon de commande ne peut pas être composé.";
+      if (ctx.fournisseurDuGroupe) return "Le fournisseur lu est une société du groupe (le client du devis) : le fournisseur est l'émetteur du devis.";
+      return null; // AUCUN validateur exigé pour créer le brouillon.
+    case "ENVOYER_EN_VALIDATION":
+      if (etat !== "BROUILLON") return etat === "ANNULE" ? "Ce bon de commande est annulé." : etat === "SIGNE" ? "Ce bon de commande est déjà signé." : "Ce bon de commande est déjà en validation.";
+      if (!ctx.validateurId) return "qui doit valider ce bon de commande (le validateur principal)";
+      return null;
+    case "ANNULER":
+      return etat === "ANNULE" ? "Ce bon de commande est déjà annulé." : etat === null ? "Ce bon de commande n'existe pas." : null;
+  }
+}

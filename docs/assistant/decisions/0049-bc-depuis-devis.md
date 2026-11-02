@@ -31,6 +31,40 @@ l'émetteur est INSIGNE), des lignes manquantes (4-8, 11-13, 15, 18-20, 24-26), 
 4. **Carte illisible.** Chaque doute du contrôle devenait un avertissement, le seuil était dit même à 0, la provenance
    répétée.
 
+## L'architecture — ce que le CODE garantit (exigence de la Direction, 02/11 : « c'est l'architecture qui ne va pas »)
+
+Aucune correction de B1 ne repose sur la consigne du modèle. Trois composants, chacun testé seul :
+
+```
+ fichier ──▶ (1) PIPELINE DE LECTURE (lib/pieces-lues, hors du modèle conversationnel)
+              extraction : positions mupdf → tableau │ sinon modèle texte │ sinon VISION (schéma JSON strict)
+              normalisation : émetteur / destinataire par règles (bloc client, pied de page, NIF/RC, groupe, annuaire),
+                              dédoublonnage par numéro, numérotation
+              validation par INVARIANTS (verdict.ts) :
+                 I1 quantité × PU = montant de chaque ligne   I2 numérotation continue
+                 I3 Σ lignes = HT imprimé (au dinar)          I4 émetteur nommé ET hors du groupe destinataire
+                 (+ taxes recalculées depuis les lignes, comparées une fois au papier : controle.ts)
+              VERDICT explicite FIABLE / A_VERIFIER (lignes NOMMÉES) / ILLISIBLE,
+              gardé avec la lecture (LecturePiece.verdict, verdictDetail ; structure remplacée par une lecture qui réconcilie)
+         ──▶ objet VALIDÉ (DevisLu) — le modèle conversationnel ne lit JAMAIS les lignes : il reçoit cet objet
+         ──▶ (2) RÈGLES DE DÉRIVATION (domaine/operations/bc-devis.ts, pures) : société = destinataire du devis,
+              enveloppe = natureDeLaCommande → choisirEnveloppe, fournisseur = émetteur ; le serveur répond `manque`
+              avec LA seule question qui bloque — le modèle ne fait que la poser
+         ──▶ (3) CYCLE DU BC (etatBCDevis / refusTransitionBC, pures ; vérifiées par l'opération à la proposition ET à l'exécution)
+              (lu) ─CREER─▶ BROUILLON (numéroté, PDF au Drive, pré-validation, sans demande)
+              BROUILLON ─ENVOYER_EN_VALIDATION─▶ EN_VALIDATION ─▶ VALIDE ─▶ SIGNE   (circuit existant des BC)
+              * ─ANNULER (K10b)─▶ ANNULE (numéro consommé, fichiers gardés ; rétablissable)
+              CREER n'exige PAS de validateur (exige : lecture non ILLISIBLE, fournisseur hors groupe) ;
+              ENVOYER_EN_VALIDATION exige un BROUILLON et un validateur.
+```
+
+Garanti par le code : le fournisseur n'est jamais une société du groupe (`estDuGroupe` avant tout retenu, filtrage de
+l'annuaire, I4, refus de la transition CREER) ; une ligne répétée n'est pas comptée deux fois ; un numéro absent est dit ;
+un tableau qui ne réconcilie pas n'est pas présenté comme fiable ; une lecture faite n'est pas refaite (empreinte,
+structure et verdict gardés ; vision jamais rappelée pour la même lecture) ; le brouillon naît sans validateur et ne part
+en validation qu'avec un. Migration additive : `20270222100000_lecture_piece_verdict` (`LecturePiece.verdict`,
+`verdictDetail`).
+
 ## Ce qui est décidé
 
 ### 1. Lire le tableau par ses positions, avant tout modèle (`pieces-lues/positions.ts`, `tableau.ts`)
@@ -117,4 +151,4 @@ papier (`phraseTaxes` : rien quand elles concordent), un dépassement d'envelopp
 Code : `src/lib/pieces-lues/{positions,tableau,tableau-piece,emetteur-destinataire,vision-lignes}.ts`, `service.ts`
 (étages positions → modèle → vision), `src/modules/assistant-ia/infra/operations/{devis-lu,bc-depuis-devis}.ts`,
 `src/modules/assistant-ia/domaine/operations/bc-devis.ts`, `ecrans/action-confirmation-card.tsx` (panneau du détail,
-« Ouvrir le PDF »). Aucune migration.
+« Ouvrir le PDF »), `src/lib/pieces-lues/verdict.ts`.
