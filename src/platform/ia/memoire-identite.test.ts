@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { garderCandidat } from "./capture";
-import { ditQuiEstLaPersonne, usurpationDeclaree } from "./identite";
+import { ditQuiEstLaPersonne, usurpationDeclaree } from "./memoire-identite";
 
 /** S1 / défaut Q1 US-01 (02/11/2026) : l'identité vient du compte, jamais de la parole ni de la mémoire. */
 describe("mémoire — l'identité ne s'apprend pas", () => {
@@ -18,12 +17,6 @@ describe("mémoire — l'identité ne s'apprend pas", () => {
       "Sa fille s'appelle Lina", "Son mari s'appelle Karim", "Part à Lyon le 12 novembre avec sa fille Lina", "Aime le café sans sucre",
       "Est végétarienne", "Son manager est Karim", "Prépare un master en marketing", "Son fils est en terminale",
     ]) expect(ditQuiEstLaPersonne(s), s).toBe(false);
-  });
-
-  it("la garde de capture refuse l'identité, même dite mot pour mot", () => {
-    expect(garderCandidat({ contenu: "Prénom : Amine" }, "C'est Amine qui écrit.", { nom: "Radia KEBIR" }))
-      .toEqual({ ok: false, raison: "identité : vient du compte" });
-    expect(garderCandidat({ contenu: "Sa fille s'appelle Lina" }, "Ma fille s'appelle Lina.", { nom: "Radia KEBIR" })).toEqual({ ok: true });
   });
 
   it("une usurpation déclarée est reconnue ; le titulaire qui se nomme ne l'est pas", () => {

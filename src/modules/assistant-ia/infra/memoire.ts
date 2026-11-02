@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { ditQuiEstLaPersonne, REFUS_IDENTITE } from "../domaine/memoire/identite";
+import { ditQuiEstLaPersonne, REFUS_IDENTITE } from "@/platform/ia/memoire-identite";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {
   estSorteMemoire, MEMOIRE_MAX_CARACTERES, MEMOIRE_MAX_ELEMENTS,

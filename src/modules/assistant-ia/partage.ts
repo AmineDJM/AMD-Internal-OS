@@ -17,8 +17,6 @@ export {
 // ── S1 (décision 0048) : l'assistant d'une personne — profil, périmètres datés, leur origine
 export { contratEnVigueur, LIBELLE_ORIGINE, perimetreEnVigueur, type OriginePerimetre, type PerimetreSensible } from "./domaine/perimetres";
 export { accueilPour, adresseDe, prenomDe, type Adresse, type ApercuAssistant, type ProfilPersonne } from "./domaine/profil-personne";
-// L'identité ne s'apprend pas : un souvenir ne dit jamais qui est la personne (défaut Q1 US-01, 02/11/2026)
-export { ditQuiEstLaPersonne, REFUS_IDENTITE, usurpationDeclaree } from "./domaine/memoire/identite";
 
 // ── Consommation : les plafonds par tour, par personne, par jour (console `/admin/ai/consommation`)
 export {

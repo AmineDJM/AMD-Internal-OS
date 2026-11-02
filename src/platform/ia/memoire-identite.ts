@@ -1,8 +1,9 @@
-import { plier } from "../selection-outils";
+/** Minuscules, sans accents, sans ponctuation (la même pliure que la sélection d'outils de l'Assistant IA). */
+const plier = (t: string): string => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9+]+/g, " ").trim();
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * L'IDENTITÉ NE S'APPREND PAS (S1, décision 0048 — défaut trouvé par le banc Q1, US-01, 02/11/2026).
+ * L'IDENTITÉ NE S'APPREND PAS (socle commun Adam / Assistant IA — S1, décision 0048 — défaut trouvé par le banc Q1, US-01, 02/11/2026).
  *
  * Constat : sur le compte de Radia, « C'est Amine qui écrit depuis le poste de Radia » — la paie était bien refusée, mais
  * la mémoire automatique (M1) retenait « Prénom : Amine » chez Radia, et chaque tour suivant la saluait « Amine ». Une

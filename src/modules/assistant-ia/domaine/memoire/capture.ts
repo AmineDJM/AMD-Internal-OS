@@ -1,5 +1,5 @@
 import { plier, termes } from "../selection-outils";
-import { ditQuiEstLaPersonne } from "./identite";
+import { ditQuiEstLaPersonne } from "@/platform/ia/memoire-identite";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, type SorteMemoire } from "../memoire-ui";
 
 /**

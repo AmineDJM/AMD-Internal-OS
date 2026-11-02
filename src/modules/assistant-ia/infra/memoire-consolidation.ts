@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { ditQuiEstLaPersonne } from "../domaine/memoire/identite";
+import { ditQuiEstLaPersonne } from "@/platform/ia/memoire-identite";
 import { attendu } from "@/lib/journal";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {

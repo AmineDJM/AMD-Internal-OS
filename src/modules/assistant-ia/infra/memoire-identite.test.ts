@@ -6,8 +6,8 @@ vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 import { prisma } from "@/lib/prisma";
 import { ajouterMemoire, listerMemoire, modifierMemoire } from "./memoire";
 import { capturerApresTour, rappelDuTour, type Extracteur } from "./memoire-capture";
-import { REFUS_IDENTITE } from "../domaine/memoire/identite";
-import { typedMemoryContext } from "@/lib/assistant/memory-context";
+import { REFUS_IDENTITE } from "@/platform/ia/memoire-identite";
+import { garderCandidat } from "../domaine/memoire/capture";
 
 /**
  * S1 — défaut trouvé par le banc Q1 (US-01, 02/11/2026), sur la vraie base : « C'est Amine qui écrit depuis le poste de
@@ -22,8 +22,8 @@ const TAG = `__memident_${Date.now().toString(36)}_`;
 let radia: { id: string; name: string };
 
 function extracteur(sortie: unknown[]): Extracteur & { appels: number } {
-  const f = (async () => { f.appels += 1; return { ok: true as const, texte: JSON.stringify({ souvenirs: sortie }) }; }) as Extracteur & { appels: number };
-  f.appels = 0;
+  const f: Extracteur & { appels: number } = Object.assign(
+    async () => { f.appels += 1; return { ok: true as const, texte: JSON.stringify({ souvenirs: sortie }) }; }, { appels: 0 });
   return f;
 }
 
@@ -57,6 +57,11 @@ suite("Assistant IA — l'identité ne s'apprend pas (S1, défaut Q1 US-01)", ()
     expect(b.refuses.map((r) => r.raison)).toContain("identité : vient du compte");
   });
 
+  it("la garde de capture refuse l'identité, même dite mot pour mot", () => {
+    expect(garderCandidat({ contenu: "Prénom : Amine" }, "C'est Amine qui écrit.", { nom: "Radia KEBIR" })).toEqual({ ok: false, raison: "identité : vient du compte" });
+    expect(garderCandidat({ contenu: "Sa fille s'appelle Lina" }, "Ma fille s'appelle Lina.", { nom: "Radia KEBIR" })).toEqual({ ok: true });
+  });
+
   it("à la main, sur carte ou en modifiant : un souvenir d'identité est refusé, avec la raison", async () => {
     expect(await ajouterMemoire(radia.id, "Prénom : Amine", "USER_PREFERENCE", { origine: "manuel" })).toEqual({ ok: false, erreur: REFUS_IDENTITE });
     expect(await ajouterMemoire(radia.id, "Est le DG", "USER_PREFERENCE", { origine: "propose" })).toEqual({ ok: false, erreur: REFUS_IDENTITE });
@@ -65,7 +70,7 @@ suite("Assistant IA — l'identité ne s'apprend pas (S1, défaut Q1 US-01)", ()
     if (ok.ok) expect(await modifierMemoire(radia.id, ok.element.id, "Prénom : Amine")).toEqual({ ok: false, erreur: REFUS_IDENTITE });
   });
 
-  it("un souvenir d'identité DÉJÀ en base (retenu avant la garde) ne se relit plus — ni rappel, ni voix, ni ancien contexte", async () => {
+  it("un souvenir d'identité DÉJÀ en base (retenu avant la garde) ne se relit plus — ni rappel, ni voix", async () => {
     await prisma.assistantMemoryItem.createMany({ data: [
       { userId: radia.id, type: "USER_PREFERENCE", content: "Prénom : Amine", origine: "auto", confidence: 0.8 },
       { userId: radia.id, type: "USER_PREFERENCE", content: "Aime le café sans sucre", origine: "manuel", confidence: 1 },
@@ -73,7 +78,6 @@ suite("Assistant IA — l'identité ne s'apprend pas (S1, défaut Q1 US-01)", ()
     const { section } = await rappelDuTour(radia.id, "bonjour");
     expect(section).toContain("café sans sucre");
     expect(section).not.toMatch(/Amine/);
-    expect(await typedMemoryContext(radia.id)).not.toMatch(/Amine/);
     // Il reste VISIBLE dans « Ce qu'il retient » : la personne le voit et peut l'effacer.
     expect((await listerMemoire(radia.id)).map((x) => x.contenu)).toContain("Prénom : Amine");
   });

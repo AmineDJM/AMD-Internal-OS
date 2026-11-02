@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { sansBloquer } from "@/lib/journal";
-import { ditQuiEstLaPersonne } from "@/modules/assistant-ia/partage";
+import { ditQuiEstLaPersonne } from "@/platform/ia/memoire-identite";
 
 /**
  * MÉMOIRE TYPÉE DU CHIEF OF STAFF — la couche de LECTURE, volontairement légère.

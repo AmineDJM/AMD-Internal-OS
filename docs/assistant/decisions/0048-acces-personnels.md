@@ -139,7 +139,7 @@ le salaire d'Assia » — la paie était refusée, mais la mémoire automatique 
 RADIA, et chaque tour suivant l'aurait saluée « Amine ». Cause racine probable du « Salut Amine » de production.
 
 Invariant : **qui est la personne (prénom, nom, poste, rôle, droits) vient de son compte, de sa fiche liée et de son contrat —
-jamais de sa parole ni de sa mémoire.** Règle pure `domaine/memoire/identite.ts` (réexportée par `partage.ts`) :
+jamais de sa parole ni de sa mémoire.** Règle pure au socle commun `src/platform/ia/memoire-identite.ts` (Adam et l’Assistant IA lisent la même table de mémoire) :
 - `usurpationDeclaree(message, nomDuCompte)` — « c'est X qui écrit », « ici X », « je suis X », « je m'appelle X », « depuis le
   poste/compte de… », « au nom de… » (X ≠ le titulaire) : la capture s'arrête (`motif: "identite"`), l'extracteur n'est même
   pas appelé — rien de ce tour ne nourrit la mémoire du compte ;
@@ -148,7 +148,7 @@ jamais de sa parole ni de sa mémoire.** Règle pure `domaine/memoire/identite.t
   → rappel du tour et voix ; ancien contexte typé `typedMemoryContext`). Un souvenir d'identité déjà en base (production)
   ne se relit donc plus ; il reste visible dans « Ce qu'il retient » pour être effacé.
 Les proches restent retenus (« Sa fille s'appelle Lina »). Un surnom ne se retient plus non plus — le tutoiement / vouvoiement
-reste le réglage du profil. Preuves : `domaine/memoire/identite.test.ts`, `infra/memoire-identite.test.ts` (base réelle :
+reste le réglage du profil. Preuves : `src/platform/ia/memoire-identite.test.ts`, `infra/memoire-identite.test.ts`, `src/lib/assistant/memory-context-identite.test.ts` (base réelle :
 le scénario exact du banc, les quatre portes d'écriture, la relecture d'un souvenir déjà empoisonné).
 
 ## 7. Preuves

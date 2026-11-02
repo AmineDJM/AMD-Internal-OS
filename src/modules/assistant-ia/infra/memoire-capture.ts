@@ -12,7 +12,7 @@ import { ajouterMemoire, memoireAutoActive, memoirePourContexte } from "./memoir
 import { genererTexte, modelesFactices, plongerTextes } from "./generer";
 import { auNomDe } from "./consommation";
 import { consoliderMemoire } from "./memoire-consolidation";
-import { usurpationDeclaree } from "../domaine/memoire/identite";
+import { usurpationDeclaree } from "@/platform/ia/memoire-identite";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
