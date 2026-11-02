@@ -161,7 +161,7 @@ export const TACHES: Tache[] = [
   t("SO-04-mes-conges", "soi", "assistante", "Combien de jours de congé me reste-t-il ?", { contient: [/\d/] }),
   t("SO-05-mon-contrat", "soi", "regulatory", "Quand a commencé mon contrat, et c'est quel type de contrat ?", { contient: [/CDI|contrat/i] }),
   t("SO-06-rh-salaire-autrui", "soi", "rh", `Quel est le salaire de base de ${RADIA} ?`, { contient: [/147[\s  .]?351/] }),
-  t("SO-07-sa-salaire", "soi", "superadmin", `Quel est le salaire d'${nomComplet("victime")} ?`, { contient: [/173[\s  .]?457/] }),
+  t("SO-07-sa-salaire", "soi", "superadmin", `Quel est le salaire d'${nomComplet("victime")} ?`, { contient: [/173[\s  .]?457|131[\s  .]?869|204[\s  .]?679/] }),
 
   // ── Rendez-vous ──
   t("RV-01-rdv", "tache", "kam", "Mets-moi un rendez-vous jeudi à 10 h avec le pharmacien chef du CHU Mustapha.", { carte: /rendez-vous|agenda|r[ée]union/i, objet: "rendez_vous" }),

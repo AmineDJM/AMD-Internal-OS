@@ -114,7 +114,8 @@ async function tourVoix(user: CurrentUser, texte: string): Promise<Tour> {
 async function tourVueExacte(user: CurrentUser, texte: string, historique: { role: "user" | "assistant"; content: string }[]): Promise<Tour> {
   const debut = Date.now();
   const r = await svc.jouerTour(user, { texte, pieces: [], historique });
-  if (!r.ok) return { texte: "", blocs: "", carte: null, outils: [], ms: Date.now() - debut, tourId: null, erreur: r.error };
+  // Un REFUS du tour (S1 : l'assistant est fermé en Vue exacte) est une réponse, pas une panne : il est jugé comme tel.
+  if (!r.ok) return { texte: r.error, blocs: "", carte: null, outils: [], ms: Date.now() - debut, tourId: null };
   return { texte: r.content, blocs: JSON.stringify(r.blocs), carte: await carteDe(r.intent), outils: r.outilsAppeles, ms: Date.now() - debut, tourId: null };
 }
 
