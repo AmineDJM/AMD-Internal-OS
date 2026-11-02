@@ -58,8 +58,45 @@ const RESTANTES_K10B: readonly string[] = [];
 const CLASSEMENT = CLASSEMENT_JSON as Record<string, LigneCliche>;
 let moi: CurrentUser;
 
+/** LE MÉNAGE D'UN PASSAGE — tout ce que ses cas ont créé sous son étiquette. */
+async function menage(tag: string, personnes: string[]): Promise<void> {
+  await nettoyer(personnes);
+  for (const c of [...CAS_INTERNES, ...CAS_ENVOIS, ...CAS_DECISIONS]) await c.nettoyer?.(tag);
+  await prisma.mailEntryPiece.deleteMany({ where: { label: { startsWith: tag } } }).catch(() => undefined);
+  await prisma.mailEntry.deleteMany({ where: { title: { startsWith: tag } } }).catch(() => undefined);
+  await prisma.mailEntryFolder.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
+  await prisma.mailPartner.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
+  await prisma.driveNode.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
+  await prisma.auditLog.deleteMany({ where: { actorId: { in: personnes } } }).catch(() => undefined);
+  await prisma.user.deleteMany({ where: { id: { in: personnes } } }).catch(() => undefined);
+}
+
+/**
+ * LES RESTES D'UN PASSAGE INTERROMPU (F1, 02/11/2026). `afterAll` ne tourne pas quand le processus est tué : ses articles
+ * et offres PUBLIÉS « __k10b__<horodatage> … » restaient en base, et le rapprochement du site les comptait chez les autres
+ * bancs (`site-web/publication.test.ts` : « absent du site », repoussé). En tête de suite, chaque étiquette de plus de
+ * DEUX HEURES est ménagée comme son propre passage l'aurait fait — jamais une étiquette récente : un autre passage du
+ * fichier peut tourner à côté (la suite entière dure une vingtaine de minutes).
+ */
+async function menagerLesRestes(): Promise<void> {
+  const avant = Date.now() - 2 * 3_600_000;
+  const prefixe = { startsWith: "__k10b__" };
+  const [personnes, articles, offres] = await Promise.all([
+    prisma.user.findMany({ where: { name: prefixe }, select: { id: true, name: true } }),
+    prisma.blogArticle.findMany({ where: { title: prefixe }, select: { title: true } }),
+    prisma.jobPosting.findMany({ where: { title: prefixe }, select: { title: true } }),
+  ]);
+  const etiquette = (t: string): string | null => {
+    const m = /^__k10b__(\d{13})/.exec(t);
+    return m && Number(m[1]) < avant ? `__k10b__${m[1]}` : null;
+  };
+  const restes = new Set([...personnes.map((p) => p.name), ...articles.map((a) => a.title), ...offres.map((o) => o.title)].map(etiquette).filter((t): t is string => t !== null));
+  for (const tag of restes) await menage(tag, personnes.filter((p) => p.name.startsWith(tag)).map((p) => p.id));
+}
+
 suite("K10b — exécuter puis annuler, action par action (décision 0040)", () => {
   beforeAll(async () => {
+    await menagerLesRestes();
     moi = await personneDeTest(TAG);
     // Les écritures sensibles des fixtures vivent ICI, dans le test (voir `outilsDeTest`).
     outilsDeTest.payerOrdre = async (ordreId, parId) => {
@@ -75,17 +112,7 @@ suite("K10b — exécuter puis annuler, action par action (décision 0040)", () 
       });
     };
   });
-  afterAll(async () => {
-    await nettoyer([moi.id]);
-    for (const c of [...CAS_INTERNES, ...CAS_ENVOIS, ...CAS_DECISIONS]) await c.nettoyer?.(TAG);
-    await prisma.mailEntryPiece.deleteMany({ where: { label: { startsWith: TAG } } }).catch(() => undefined);
-    await prisma.mailEntry.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => undefined);
-    await prisma.mailEntryFolder.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => undefined);
-    await prisma.mailPartner.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => undefined);
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => undefined);
-    await prisma.auditLog.deleteMany({ where: { actorId: moi.id } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: moi.id } }).catch(() => undefined);
-  });
+  afterAll(async () => { await menage(TAG, [moi.id]); });
 
   for (const [famille, cas] of [["internes", CAS_INTERNES], ["envois", CAS_ENVOIS], ["décisions et pièces", CAS_DECISIONS]] as const) {
     describe(famille, () => {
