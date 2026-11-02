@@ -282,7 +282,10 @@ export function outilsV1(
   // LA VUE : la personne, plus en lecture les modules des familles que la Direction lui a ouvertes explicitement.
   const vue = vueDeLAssistant(user, acces);
   const sousVue = (o: PowerTool): PowerTool => ({ ...o, allowed: (u) => u.id === user.id && o.allowed(vue), run: (entree, u) => o.run(entree, u.id === user.id ? vue : u) });
-  const lecturesPower = [...DIRECTORY_TOOLS, ...REGULATORY_READ_TOOLS].filter((o) => LECTURES_POWER.has(o.def.name)).map(sousVue);
+  // S1 (décision 0048, audit D1) : EXTRAIRE le registre complet (`directory_list`, coordonnées de tous) se juge sur le DROIT
+  // RÉEL de la personne, jamais sur un module que la console ajoute à la vue de l'assistant.
+  const surDroitReel = (o: PowerTool): PowerTool => (o.def.name === "directory_list" ? { ...o, allowed: (u) => u.id === user.id && o.allowed(user), run: (entree, u) => o.run(entree, u) } : sousVue(o));
+  const lecturesPower = [...DIRECTORY_TOOLS, ...REGULATORY_READ_TOOLS].filter((o) => LECTURES_POWER.has(o.def.name)).map(surDroitReel);
   // LES LECTURES PROPRES AU MODULE (J6) : sous la vue, comme les lectures du moteur qu'elles remplacent.
   const situation = lecturesSituation(user).map((o) => (o.def.name === "read_hr_overview"
     ? { ...o, run: async (entree: Record<string, unknown>, u: CurrentUser) => situationRhSansMasse(await o.run(entree, u), u, coffret, acces) }

@@ -2,7 +2,7 @@ import type { CurrentUser } from "@/lib/session";
 import { compileContext, CONSIGNE_MEMOIRE_A_LA_CARTE } from "../contexte";
 import { memoireAutoActive } from "../memoire";
 import { accesAssistantIa, getRoleConfig, GESTE_MODELE_EN_CLAIR, resoudreConsignesRole, Revelateur } from "../role-config";
-import { consigneFamilles, type AccesIa } from "../../domaine/acces-regles";
+import { consigneFamilles, enVueExacteIa, refusAssistantVueExacte, type AccesIa } from "../../domaine/acces-regles";
 import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
 import { consigneTravaux, outilsSousMissionsDuTour } from "../travaux";
 import { outilsChantierPour } from "../chantiers";
@@ -108,6 +108,11 @@ export const CONSIGNE_PRIVEE = "### CONVERSATION PRIVÉE\nL'utilisateur a ouvert
 
 /** Les appels de modèle du tour — et ceux que ses outils déclenchent — sont imputés à la personne. */
 export function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<ResultatDuTour & { message: string }> {
+  // S1 (décision 0048) : ÉCHEC FERMÉ — un tour ne se joue jamais sous une Vue exacte, quel que soit l'appelant : le corps
+  // d'une action y porte le Super Admin réel (`visualise`), un rendu la personne vue (`impersonatedBy`). Ni l'un ni l'autre.
+  if (enVueExacteIa(user)) {
+    return Promise.resolve({ ok: false, error: refusAssistantVueExacte(user.visualise?.name ?? (user.impersonatedBy ? user.name : null)), message: d.texte ?? "" });
+  }
   const jouer = () => auNomDe(user.id, () => tourAuNomDe(user, d), d.conversation ?? null);
   return d.trace ? avecTrace(d.trace, user.id, jouer) : jouer();
 }
