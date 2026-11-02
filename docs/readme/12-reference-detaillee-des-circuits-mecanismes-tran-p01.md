@@ -416,6 +416,10 @@ signer de leur part. Si un BC se retrouve là-bas, c'est qu'il doit être signé
   `peutSignerBC` : par défaut Direction, Directeur Général et Finances ; le Directeur des Opérations a « Voir »). Les
   BC encore au centre y sont COMPTÉS, pas listés. Sont prévenus à l'ENTRÉE d'un BC dans la file (jamais à chaque
   relecture) les Finances, dont c'est le métier, et les personnes que la console désigne pour signer.
+- **LE FOURNISSEUR D'UN DEVIS DÉPOSÉ ENTRE DANS L'ANNUAIRE** (Direction, 02/11/2026) : devis d'un poste Ad & Pro, et devis
+  de « Nouveau document » sans partie. NIF ou RC identique → rattaché ; nom seul → rattaché et signalé ; plusieurs fiches →
+  rien ; inconnu avec un nom imprimé → fiche « Fournisseur » créée (note d'origine, audit), sans droit d'annuaire ; sans nom
+  → rien. Annuaire entier, une seule fiche sous dépôts simultanés. Les autres circuits proposent toujours « Créer un contact ».
 - **LE BC D'UN POSTE AD & PRO** (Direction, 02/11/2026) : valider les lignes d'un devis fait naître son BC (aperçu, sans
   numéro) ; la personne qui a ajouté le devis le modifie dans la plateforme — chaque enregistrement inscrit à
   `BcBrouillonVersion`, lu par le Super Admin — puis le valide ; il passe le centre Ad & Pro au-dessus du seuil, puis la page
