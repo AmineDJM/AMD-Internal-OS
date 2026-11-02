@@ -21,4 +21,6 @@ export {
   affirmeFait, agregatsDe, finitParUneQuestion, fuites, noterMail, salutationFausse, temoinsInterdits, type Fuite, type NoteMail, type Temoin,
 } from "./infra/testing/audit/verdicts";
 export { pieceDe, retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
+// T3 : le semis du domaine « dossiers, moyens généraux, Ad & Pro » (ses tâches et attaques sont dans TACHES / ATTAQUES).
+export { retirerDossiersMgAdpro, semerDossiersMgAdpro } from "./infra/testing/audit/taches/dossiers-mg-adpro";
 export { ecouter, installerEspion, relever, type Lecture } from "./infra/testing/audit/espion";

@@ -60,7 +60,7 @@ async function docx(paragraphes: string[]): Promise<Buffer> {
   return zip.generateAsync({ type: "nodebuffer" });
 }
 
-async function pdf(lignes: string[]): Promise<Buffer> {
+export async function pdf(lignes: string[]): Promise<Buffer> {
   const PDFDocument = (await import("pdfkit")).default;
   const doc = new PDFDocument({ size: "A4", margin: 56 });
   const morceaux: Buffer[] = [];

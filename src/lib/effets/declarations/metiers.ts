@@ -37,6 +37,14 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   // C1 (décision 0042) : la carte de validation d'un chantier (fusion, production, rollback).
   "assistant-ia-travaux-actions:validerMonChantier": compensation("rien n'a encore agi : la validation est retirée et le geste attend de nouveau ; la PR a été fusionnée : une PR de REVERT est ouverte et proposée (jamais un force-push), sa fusion repasse par la validation ; un déploiement ou un rollback de production fait se défait par un rollback ou un nouveau chantier"),
   "assistant-ia-travaux-actions:reglerPrioriteMonTravail": retour(REGLAGE),
+  // T3 : la mise à jour des dossiers en lot (Excel) — UN geste : l'annulation remet chaque dossier du lot comme avant.
+  "dossier-actions:mettreAJourDossiersEnLot": retour("chaque dossier du lot retrouve son statut, son échéance et sa priorité d'avant (journal des effets) ; un dossier modifié depuis est signalé, jamais écrasé"),
+  // T3 : le registre des moyens généraux (véhicules, assurances, contrats, entretiens, salles) et ses réservations.
+  "moyens-generaux-registre-actions:creerMoyenGeneral": retour("la fiche créée est retirée (journal des effets) ; refusée si une réservation s'y est rattachée depuis"),
+  "moyens-generaux-registre-actions:modifierMoyenGeneral": retour("la fiche retrouve ses valeurs d'avant (journal des effets), si personne ne l'a changée depuis"),
+  "moyens-generaux-registre-actions:archiverMoyenGeneral": retour("la fiche retrouve son statut d'avant"),
+  "moyens-generaux-registre-actions:reserverMoyenGeneral": retour("la réservation créée est retirée : le créneau se libère"),
+  "moyens-generaux-registre-actions:annulerReservationMoyenGeneral": retour("la réservation reprend son statut confirmé, si le créneau est toujours libre"),
   "budget-pole-actions:imputerBv": retour("l'ordre (ou l'écriture payée) retrouve sa catégorie budgétaire d'avant"),
   "congress-request-actions:finalDecision": compensation("l'étape de décision est rouverte ; l'ordre de paiement et la déclaration nés de l'accord sont retirés ou annulés ; le demandeur reçoit un rectificatif s'il avait lu"),
   "congress-request-actions:updateGrantedBudget": retour("le montant accordé, celui de la déclaration et celui de l'ordre non réglé reviennent"),

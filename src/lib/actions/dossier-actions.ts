@@ -1,6 +1,8 @@
 "use server";
 
 import { gesteReversible } from "@/lib/effets/ecran";
+import { actionReversible } from "@/lib/effets/reversible";
+import { lireChangementsAppliques } from "@/modules/suivi-dossiers/partage";
 import { revalidatePath } from "next/cache";
 import type { Priority, DossierStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -307,4 +309,52 @@ export async function editDossierMessage(formData: FormData): Promise<ActionResu
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Sujets", entityType: "DOSSIER", entityId: msg.dossierId, summary: "Message de sujet modifié" });
   revalidate(msg.dossierId);
   return { ok: true };
+}
+
+/**
+ * METTRE À JOUR DES DOSSIERS EN LOT (lot T3) — le statut, l'échéance et la priorité de plusieurs sujets en UN geste,
+ * depuis un tableau (« voici l'Excel, mets à jour les statuts ») ou une sélection. Chaque ligne passe la règle de
+ * `updateDossierStatus` (créateur, responsable ou Direction, ET dans la portée du module) ; une seule ligne refusée,
+ * RIEN n'est écrit (la liste dit lesquelles). Une ligne qui a bougé depuis la proposition (`avant` ≠ base) est
+ * écartée, jamais écrasée. Le lot entier est UN geste réversible : « Annuler » remet chaque dossier comme avant.
+ */
+export async function mettreAJourDossiersEnLot(formData: FormData): Promise<ActionResult> {
+  return actionReversible("dossier-actions:mettreAJourDossiersEnLot", "Dossiers mis à jour en lot", async () => {
+    const user = await requireUser();
+    if (!userCan(user, "DOSSIERS", "VIEW")) return { ok: false, error: "Non autorisé." };
+    const lus = lireChangementsAppliques(fdStr(formData, "changements"));
+    if ("erreur" in lus) return { ok: false, error: lus.erreur };
+    const ids = [...new Set(lus.map((c) => c.id))];
+    if (ids.length !== lus.length) return { ok: false, error: "Un même dossier figure deux fois dans le lot." };
+    const enBase = await prisma.dossier.findMany({
+      where: { AND: [{ id: { in: ids } }, scopeDossiers(user)] },
+      select: { id: true, reference: true, status: true, dueDate: true, priority: true, createdById: true, assignedToId: true, participantIds: true },
+    });
+    const parId = new Map(enBase.map((d) => [d.id, d]));
+    const refus: string[] = [];
+    const ecartes: string[] = [];
+    const aEcrire: { id: string; reference: string; data: { status?: DossierStatus; dueDate?: Date; priority?: Priority }; resume: string }[] = [];
+    for (const c of lus) {
+      const d = parId.get(c.id);
+      // Hors de la portée : la même phrase que l'absence (on ne confirme pas l'existence d'un sujet qu'on ne voit pas).
+      if (!d) { refus.push("un dossier introuvable"); continue; }
+      if (!isManager(user, d)) { refus.push(`${d.reference} (réservé au créateur, au responsable ou à la Direction)`); continue; }
+      const dueIso = d.dueDate ? d.dueDate.toISOString().slice(0, 10) : null;
+      if (d.status !== c.avant.status || dueIso !== c.avant.dueDate || d.priority !== c.avant.priority) { ecartes.push(d.reference); continue; }
+      const data: { status?: DossierStatus; dueDate?: Date; priority?: Priority } = {};
+      if (c.status && c.status !== d.status) data.status = c.status;
+      if (c.dueDate && c.dueDate !== dueIso) data.dueDate = new Date(`${c.dueDate}T00:00:00Z`);
+      if (c.priority && c.priority !== d.priority) data.priority = c.priority;
+      if (!Object.keys(data).length) continue;
+      aEcrire.push({ id: d.id, reference: d.reference, data, resume: Object.entries(data).map(([k, v]) => `${k}=${v instanceof Date ? v.toISOString().slice(0, 10) : v}`).join(", ") });
+    }
+    if (refus.length) return { ok: false, error: `Rien n'a été modifié : ${refus.length} ligne(s) refusée(s) — ${refus.slice(0, 8).join(" ; ")}${refus.length > 8 ? "…" : ""}.` };
+    for (const w of aEcrire) await prisma.dossier.update({ where: { id: w.id }, data: w.data });
+    if (aEcrire.length) {
+      await recordAudit({ actorId: user.id, action: "UPDATE", module: "Sujets", entityType: "DOSSIER", entityId: aEcrire[0]!.id, summary: `Mise à jour en lot de ${aEcrire.length} sujet(s) : ${aEcrire.map((w) => `${w.reference} (${w.resume})`).join(" ; ").slice(0, 900)}` });
+    }
+    revalidate();
+    const fin = ecartes.length ? ` ${ecartes.length} écarté(s) car modifié(s) depuis l'aperçu : ${ecartes.join(", ")}.` : "";
+    return { ok: true, message: `${aEcrire.length} dossier${aEcrire.length > 1 ? "s mis" : " mis"} à jour.${fin}` };
+  });
 }
