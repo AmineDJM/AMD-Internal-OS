@@ -32,6 +32,7 @@ import { BoutonVoixTempsReel } from "./voix-temps-reel";
 import { AlarmClock, Brain, Briefcase, MessagesSquare, History, MoreHorizontal, NotebookPen, Radar, Sparkles, Volume2, VolumeX, X } from "lucide-react";
 import { listerMesRoutines, listerMesTravaux } from "@/modules/assistant-ia/actions";
 import { confirmerActionBeta, envoyerMessageBeta } from "@/app/(app)/assistant/beta/actions";
+import { refusAssistantVueExacte } from "../domaine/acces-regles";
 import type { KpiData } from "./kpi-glass-strip";
 import { sansBloquer } from "@/lib/journal";
 
@@ -221,7 +222,9 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     nouvelleConversation(dossierOuvert);
   };
 
-  const messages = [bienvenue, ...(vueExacte ? f.locaux : fil)];
+  // S1 (décision 0048) : en Vue exacte, l'assistant est fermé — l'accueil le dit d'emblée, au lieu de saluer.
+  const accueilAffiche: ChatMessage = vueExacte ? { ...bienvenue, content: refusAssistantVueExacte(userName) } : bienvenue;
+  const messages = [accueilAffiche, ...(vueExacte ? f.locaux : fil)];
   const ouverte = conversations.conversations.find((c) => c.id === conversation) ?? conversations.archivees?.find((c) => c.id === conversation);
   const prive = nouvelle ? nouvelle.prive : !!ouverte?.prive;
   const titreCourant = nouvelle || !ouverte ? "Nouvelle conversation" : ouverte.titre;

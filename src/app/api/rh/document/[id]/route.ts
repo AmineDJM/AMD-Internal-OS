@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
 import { journal } from "@/lib/journal";
 import { accesAssistantIa } from "@/modules/assistant-ia/api";
-import { familleExplicite } from "@/modules/assistant-ia/partage";
+import { familleNominative } from "@/modules/assistant-ia/partage";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +31,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   // Décision 0012 : la Direction peut OUVRIR explicitement « Contrats & documents RH » à une personne dans la
   // console de l'Assistant IA — le lien que l'assistant lui donne doit alors s'ouvrir (société permise toujours).
   // Cette ouverture vaut pour le LIEN de l'assistant : la recherche de la bibliothèque, elle, s'en tient à la règle de base.
-  const ouvertParDirection = async () => familleExplicite(await accesAssistantIa(user), "CONTRATS_RH")
+  // S1 (décision 0048) : NOMMÉMENT à cette personne — un réglage de rôle n'ouvre pas le dossier RH d'autrui.
+  const ouvertParDirection = async () => familleNominative(await accesAssistantIa(user), "CONTRATS_RH")
     && (await entitePermisePourFiche(user.id, doc.employee.companyId));
   if (!(await peutOuvrirDocumentRh(user, doc)) && !(await ouvertParDirection())) return new NextResponse(null, { status: 403 });
 

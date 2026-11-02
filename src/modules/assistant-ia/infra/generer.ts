@@ -42,6 +42,8 @@ export interface OptionsGeneration {
    * requête non diffusée de plus de ~45 s était coupée en 502 par un mandataire ; diffusée, la connexion vit tant qu'elle écrit.
    */
   flux?: boolean;
+  /** Direction (02/11/2026) : la lecture d'un long document a son propre budget, hors du plafond par tour (borné par ses parties). */
+  horsTour?: boolean;
 }
 
 let modelesDeTest: ModeleTour[] | null = null;
@@ -76,7 +78,7 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
   // L'interrupteur général — lu ici comme dans `repondreAvecSecours` : l'autre porte vers le modèle.
   if (await interrupteurIaCoupe()) return { ok: false, raison: REFUS_IA_COUPEE };
 
-  const ouvert = await budgetDeLAppel(opts.origine ?? "redaction");
+  const ouvert = await budgetDeLAppel(opts.origine ?? "redaction", opts.horsTour === true);
   if (!ouvert.ok) return ouvert;
   const { budget, proprietaire } = ouvert;
 

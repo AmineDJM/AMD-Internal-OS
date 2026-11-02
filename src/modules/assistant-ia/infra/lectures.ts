@@ -14,7 +14,7 @@ import { AD_PRO_KINDS, AD_PRO_STATE, getAdProRequests } from "@/modules/ad-pro/a
 import { DEPENDANCES_REELLES } from "./lecture/pieces";
 import { CARACTERES_PAR_PIECE, couper, extensionDe, nomAnnonceLeCoffre, REFUS_COFFRE } from "../domaine/lecture/regles";
 import { natureSensible, REFUS_IDENTITE, REFUS_PAIE } from "./operations/documents-lus";
-import { familleExplicite, familleOuverte, refusFamille, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
+import { familleExplicite, familleNominative, familleOuverte, FAMILLES_SENSIBLES, refusFamille, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
 import { jetonnerMontants, jetonnerTexte, jetonOuMasque, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 
 /**
@@ -215,7 +215,11 @@ async function gereLesRhDe(user: CurrentUser, e: EmployeTrouve): Promise<boolean
 async function droitSurAutrui(u: CurrentUser, e: EmployeTrouve, acces: AccesIa, famille: FamilleIa, droitApplicatif: boolean, refusRegle: string): Promise<string | null> {
   if (!familleOuverte(acces, famille)) return refusFamille(famille);
   if (!(await entitePermisePourFiche(u.id, e.companyId))) return refusRegle;
-  return droitApplicatif || familleExplicite(acces, famille) ? null : refusRegle;
+  // S1 (décision 0048) : pour une famille SENSIBLE (paie, dossier RH), seule l'ouverture NOMINATIVE vaut au-delà du droit
+  // applicatif — jamais celle d'un rôle entier.
+  // Le périmètre doit couvrir l'ENTITÉ de la fiche (un avenant délègue la paie d'UNE entité), et être en vigueur.
+  const ouvertureConsole = FAMILLES_SENSIBLES.has(famille) ? familleNominative(acces, famille, e.companyId ?? null) : familleExplicite(acces, famille);
+  return droitApplicatif || ouvertureConsole ? null : refusRegle;
 }
 
 export const REFUS_PAIE_AUTRUI = "La paie d'un autre salarié n'est lue que par qui gère les RH (modifier ou valider le module) dans sa société — la même règle que l'écran de la paie.";
@@ -296,10 +300,13 @@ export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | un
       const mois = str(entree, "mois");
       if (mois && !str(entree, "nom")) {
         if (!familleOuverte(acces, "SALAIRES")) return refus(refusFamille("SALAIRES"));
-        if (!voitLesSalaires(u) && !familleExplicite(acces, "SALAIRES")) return refus("La masse salariale n'est lue que par qui gère les RH.");
+        // S1 : hors droit applicatif, la masse ne couvre QUE les entités d'un périmètre nominatif en vigueur (avenant, droit daté).
+        const entites = voitLesSalaires(u) || familleNominative(acces, "SALAIRES", null) ? null
+          : (acces.perimetres ?? []).filter((p) => p.famille === "SALAIRES" && p.companyId).map((p) => p.companyId!);
+        if (entites && !entites.length) return refus("La masse salariale n'est lue que par qui gère les RH.");
         if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mois)) return refus("Mois illisible (AAAA-MM).");
         const [y, m] = mois.split("-").map(Number);
-        const employe = await ficheScopedWhere(u.id, {} as Prisma.EmployeeWhereInput);
+        const employe = await ficheScopedWhere(u.id, (entites ? { companyId: { in: entites } } : {}) as Prisma.EmployeeWhereInput);
         const lignes = await prisma.payrollEntry.findMany({ where: { year: y, month: m, employee: employe }, select: { employerCost: true, gross: true, net: true, status: true } });
         if (!lignes.length) return JSON.stringify({ mois, salaries: 0, constat: `Aucune ligne de paie sur ${mois} dans les sociétés qui vous sont ouvertes.` });
         const masse = lignes.reduce((s, l) => s + toNumber(l.employerCost ?? l.gross), 0);
@@ -646,7 +653,7 @@ export function lecturesSituation(user: CurrentUser): PowerTool[] {
 export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret: CoffretDuTour | null | undefined, acces: AccesIa): string {
   let o: unknown;
   try { o = JSON.parse(sortie); } catch { return sortie; }
-  const voit = familleOuverte(acces, "SALAIRES") && (voitLesSalaires(user) || familleExplicite(acces, "SALAIRES"));
+  const voit = familleOuverte(acces, "SALAIRES") && (voitLesSalaires(user) || familleNominative(acces, "SALAIRES", null));
   const visiter = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(visiter);
     if (!v || typeof v !== "object") return v;

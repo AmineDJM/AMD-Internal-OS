@@ -14,6 +14,7 @@ import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
 import { demarrerLesSousMissions } from "../travaux";
 import { horsEcranSansValeur, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
+import { texteOuPiece } from "./texte-long";
 import { captureEnvisagee, capturerApresTour } from "../memoire-capture";
 import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
 import { sectionDossierDuTour } from "../conversations/dossiers";
@@ -104,7 +105,10 @@ export async function deposerMessage(
   userId: string, texte: string, pieces: PieceDuTour[], vocal?: { id: string; dureeS: number | null } | null, conversation?: string | null,
   opts: { parallele?: boolean } = {},
 ): Promise<{ ok: true; tour: AssistantIaTour; conversation: string } | { ok: false; erreur: string }> {
-  const t = (texte ?? "").trim().slice(0, 8000);
+  // Direction (02/11/2026) : un message n'est JAMAIS coupé — trop long pour un message, il devient une pièce, dite.
+  const long = await texteOuPiece(userId, (texte ?? "").trim(), pieces);
+  const t = long.texte;
+  pieces = long.pieces;
   const p = pieces.filter((x) => x && typeof x.id === "string").slice(0, PIECES_PAR_ENVOI_MAX).map((x) => ({ id: x.id, nom: String(x.nom ?? "").slice(0, 200) }));
   const v: VocalDuTour | null = vocal && typeof vocal.id === "string" && vocal.id
     ? { id: vocal.id, dureeS: Number.isFinite(vocal.dureeS) ? Math.max(0, Math.round(vocal.dureeS as number)) : null, etat: "TRANSCRIPTION" }

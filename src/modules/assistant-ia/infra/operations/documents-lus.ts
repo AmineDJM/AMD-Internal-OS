@@ -86,7 +86,8 @@ export function texteAdmissible(texte: string): { ok: true; texte: string; masqu
 /** Au-delà, le texte ne tient plus dans un tour : il se résume par parties, puis la synthèse les assemble. */
 export const TEXTE_DIRECT_MAX = 40_000;
 const PARTIE = 24_000;
-const PARTIES_MAX = 14;
+/** Direction (02/11/2026, « rien n'est coupé ») : ≈ 1 080 000 caractères lus par parties (au lieu de 336 000). */
+const PARTIES_MAX = 45;
 
 export function decouper(texte: string, taille = PARTIE): string[] {
   const parties: string[] = [];
@@ -108,7 +109,7 @@ export async function resumerTexte(texte: string, focus: string): Promise<{ part
     + (focus ? ` Attache-toi surtout à : ${focus}.` : "");
   const parties: string[] = [];
   for (const [i, t] of lues.entries()) {
-    const r = await genererTexte(consigne, `Partie ${i + 1}/${toutes.length} :\n\n${encadrerNonFiable("document déposé", t)}`);
+    const r = await genererTexte(consigne, `Partie ${i + 1}/${toutes.length} :\n\n${encadrerNonFiable("document déposé", t)}`, 60_000, { horsTour: true });
     if (!r.ok) return { erreur: `Le résumé de la partie ${i + 1} a échoué : ${r.raison}` };
     parties.push(`Partie ${i + 1} — ${r.texte}`);
   }

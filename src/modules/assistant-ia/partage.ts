@@ -10,8 +10,8 @@
 
 // ── Accès : les familles que la Direction ouvre ou ferme (décision 0012, console `/admin/ai/acces`)
 export {
-  AIDE_FAMILLE, FAMILLES_IA, FAMILLES_SENSIBLES, familleExplicite, LIBELLE_FAMILLE, normaliserReglageFamilles,
-  resoudreAccesIa, type FamilleIa, type ReglageFamilles,
+  AIDE_FAMILLE, enVueExacteIa, FAMILLES_IA, FAMILLES_SENSIBLES, familleExplicite, familleNominative, LIBELLE_FAMILLE, normaliserReglageFamilles,
+  refusAssistantVueExacte, resoudreAccesIa, type FamilleIa, type ReglageFamilles,
 } from "./domaine/acces-regles";
 
 // ── Consommation : les plafonds par tour, par personne, par jour (console `/admin/ai/consommation`)

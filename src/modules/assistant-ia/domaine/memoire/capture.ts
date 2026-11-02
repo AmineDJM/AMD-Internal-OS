@@ -54,6 +54,12 @@ const THEMES = new RegExp(`(?:^| )(?:${[
   "mon poste", "mon role", "mon service", "mon equipe", "ma societe", "mon bureau", "mon manager", "mon chef", "mon assistant",
   "disponible", "indisponible", "je ne peux pas", "je ne suis pas", "projet", "je compte", "je prevois", "je veux", "j envisage",
   "objectif", "reponds moi", "tutoie", "vouvoie", "en anglais", "en arabe", "court", "concis", "detaill",
+  // Direction (02/11/2026, « qu'il retienne un peu plus ») : opinions sur le travail, priorités, échéances, rendez-vous
+  // datés, lieux de l'entreprise, personnes citées, vocabulaire de la personne.
+  "je pense", "je trouve", "je crois", "a mon avis", "selon moi", "je suis d avis", "je suis plutot", "franchement",
+  "priorit", "date limite", "deadline", "echeance", "doit etre pret", "avant le", "rendez vous", "rdv", "dentiste", "medecin",
+  "notre usine", "notre siege", "nos bureaux", "notre entrepot", "notre site", "notre labo", "nos clients", "notre principal",
+  "quand je dis", "j appelle", "j entends par", "je vois chaque", "je rencontre", "mon contact", "mon interlocuteur",
 ].join("|")})`);
 
 /** Une demande sur l'ERP — sans fait durable, elle ne mérite pas d'appel. */
@@ -84,12 +90,15 @@ export const CONSIGNE_EXTRACTEUR = [
   "Tu es la mémoire d'un assistant. Tu lis UN échange et tu extrais les faits DURABLES que la PERSONNE dit d'ELLE-MÊME :",
   "identité, famille (prénoms, liens), études et parcours, voyages (passés ou prévus, avec leurs dates), goûts et loisirs,",
   "santé qu'elle déclare elle-même, projets, habitudes et contraintes de travail, sa société et son rôle, les personnes qu'elle",
-  "cite (prénom + lien), ses préférences de réponse, son vocabulaire.",
+  "cite (prénom + lien ou rôle), les lieux qu'elle cite (sites, villes), ses objectifs et priorités, ses échéances et",
+  "rendez-vous datés, ses opinions sur des sujets de travail récurrents, ses préférences de réponse, son vocabulaire.",
+  "Dans le doute sur un fait qui l'aidera dans les semaines à venir (une priorité, une échéance, un avis tranché), RETIENS-LE.",
   "RÈGLES :",
   "- Seulement ce que la PERSONNE a écrit ou dit. Jamais une donnée de l'entreprise.",
   "- Jamais une rémunération, une prime, un salaire, une coordonnée bancaire, un numéro de pièce d'identité, un mot de passe,",
   "  ni une donnée confidentielle sur une AUTRE personne (sa santé, son salaire, son évaluation).",
-  "- Rien de passager (« je suis fatigué aujourd'hui », « réponds à ce mail »), rien de déjà connu à l'identique.",
+  "- Rien de passager ni de bavardage (« je suis fatigué aujourd'hui », « merci », « réponds à ce mail », une question,",
+  "  ce qu'elle a mangé), rien de déjà connu à l'identique.",
   "- Chaque fait : une phrase courte, autonome, SANS pronom ni genre supposé (jamais « il » ni « elle ») — commence par le",
   "  verbe ou le sujet du fait : « Part à Lyon le 12 novembre 2026 avec sa fille Lina », « Fille : Lina », « A étudié à… ».",
   "  Dates en clair. Ne déduis rien qui n'est pas dit. Son nom (donné ci-dessus) est déjà connu : ne le retiens pas.",

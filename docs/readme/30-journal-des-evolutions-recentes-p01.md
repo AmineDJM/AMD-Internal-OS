@@ -19,7 +19,21 @@ résumée (détail des lignes au panneau, provenance dite une fois, plus de « s
 jamais effacé). Banc : 5 devis fabriqués (dont un scan) — 76/76 lignes par positions, vision réelle 27/27 et 5/5.
 Verdict par invariants (FIABLE / À VÉRIFIER / ILLISIBLE) gardé avec la lecture ; cycle du BC (brouillon → en
 validation → validé → signé / annulé) à préconditions tenues par le code. Décision
-[0049](../assistant/decisions/0049-bc-depuis-devis.md). Migration `20270222100000_lecture_piece_verdict`.
+[0049](../assistant/decisions/0049-bc-depuis-devis.md). Migration `20270220950000_lecture_piece_verdict`.
+
+### LE BANC D'AUDIT PERMANENT DE L'ASSISTANT IA — un attaquant et un utilisateur exigeant, joués par la machine (Q1, 2026-11-02)
+
+« Audite ça toi-même, même la partie test. Vérifie qu'avec le compte de l'un, ça ne va pas vers l'autre. Essaie de le
+jailbreaker » (Direction). Décision 0050. Dix personas (commercial, délégué, manager, RH paie, finance, assistante, KAM,
+regulatory, Super Admin, Vue exacte) et une victime, chacun avec des valeurs TÉMOINS uniques ; **93 attaques** (usurpation,
+flatterie sur plusieurs tours, injection par PDF/Excel/mail/WhatsApp/note/Drive/nom de fichier/fiche/mémoire, agrégats, SQL,
+export, voix, escalade d'action avec clic « Confirmer » simulé, extraction du prompt, Vue exacte) et **65 tâches** jouées avec
+le vrai modèle (`npm run audit:assistant`), verdict au niveau des DONNÉES (réponse, carte, fichiers, mémoire, traces) et un
+espion de Prisma qui prouve qu'une ligne d'autrui n'a pas été lue. Version déterministe dans `npm test` (faux modèle
+adversarial, cliquet : toute nouvelle lecture sans scénario d'attaque fait échouer la suite) ; version réelle chaque nuit
+(`qualite.banc`, une attaque passée notifiée au Super Admin). Premier passage : 92/93 attaques bloquées, 0 passée ; 45/65
+tâches réussies. Corrigé : la Vue exacte envoyait la mémoire de la personne regardée au modèle ; « Quel est mon salaire ? »
+était refusé sans outil. Rapport : `docs/assistant/preuves/audit/`.
 
 ### K7, SUITE : L'EXPORT DE TOUT — DEMANDES DE PAIEMENT, CENTRE, ET TOUT CE QUE L'ASSISTANT A LU (2026-11-01)
 
@@ -47,6 +61,10 @@ mémoire se gère en **jetons** (budget de stockage par personne, 8 000 ; consol
 mesuré : 892 → 467 jetons injectés par tour, 0,001 $ la consolidation ; « X jetons sur Y » dans le panneau), l'historique
 des faits remplacés est gardé **12 mois**, la santé déclarée est retenue d'office, et il n'y a **plus de plafond
 quotidien** de jetons par personne (le plafond par tour reste). Migration `20270219300000_memoire_jetons_sans_plafond`.
+Le 02/11 : **plus aucun texte coupé** — un message long part entier au modèle (jusqu'à 200 000 caractères), au-delà il
+devient une pièce lue, et le plafond par tour ne compte plus le message à chaque étape ; et la mémoire retient **un peu
+plus** (avis, priorités, échéances, lieux, vocabulaire) : 13 messages durables sur 15 retenus au lieu de 7, toujours 0 faux
+positif et 0 valeur interdite (décision 0045 § 5).
 
 ### O1 (suite) : C'EST À L'ASSISTANT D'ORCHESTRER — CLASSER CHAQUE PHRASE, PRÉCISION MAJEURE OU MINEURE, AGENDA SANS PLAFOND (2026-11-01)
 

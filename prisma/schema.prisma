@@ -1141,48 +1141,48 @@ model AssistantIaReception {
 }
 
 model AssistantIaTour {
-  id              String         @id @default(cuid())
-  filId           String
-  fil             AssistantIaFil @relation(fields: [filId], references: [id], onDelete: Cascade)
-  userId          String
+  id               String         @id @default(cuid())
+  filId            String
+  fil              AssistantIaFil @relation(fields: [filId], references: [id], onDelete: Cascade)
+  userId           String
   /// « user » | « assistant »
-  role            String
-  contenu         String         @default("") @db.Text
-  etat            String
-  pieces          Json?
-  blocs           Json?
-  intent          Json?
-  memoireProposee Json?
-  outils          String[]       @default([])
+  role             String
+  contenu          String         @default("") @db.Text
+  etat             String
+  pieces           Json?
+  blocs            Json?
+  intent           Json?
+  memoireProposee  Json?
+  outils           String[]       @default([])
   /// Les étapes du tour (« Annuaire consulté »), dites PENDANT qu'il travaille.
-  etapes          String[]       @default([])
+  etapes           String[]       @default([])
   /// La réponse : l'identifiant du message auquel elle répond.
-  repondA         String?
-  erreur          String?
-  ms              Int?
+  repondA          String?
+  erreur           String?
+  ms               Int?
   /// Combien de fois ce message a été PRIS pour être joué (IA-ASSISTANT-06) : au-delà de 3, il
   /// échoue et le fil passe au suivant — un tour qui lève n'est plus rejoué à chaque battement.
-  essais          Int            @default(0)
+  essais           Int            @default(0)
   /// Message VOCAL (28/10/2026) : `{ id, dureeS, etat, transcription?, erreur? }` — l'audio est un fichier du Drive.
-  vocal           Json?
+  vocal            Json?
   /// Ce que la lecture des pièces a donné : une `LecturePiece` par pièce (lue, partielle, refusée…), affichée.
-  lecture         Json?
+  lecture          Json?
   /// Réponse VOCALE de l'assistant : `{ id, dureeS, coupe?, erreur? }` — un fichier du Drive de la personne.
-  audio           Json?
+  audio            Json?
   /// « Mes notes » (décision 0026) : les identifiants des modifications de notes PROPOSÉES pendant ce tour (la carte).
-  notesProposees  Json?
+  notesProposees   Json?
   /// K3 (décision 0033) : les SOUS-MISSIONS lancées pendant ce tour (identifiants de travaux) — la carte qui se met à jour.
-  travaux         Json?
+  travaux          Json?
   /// M1 (décision 0045) : les souvenirs RETENUS d'office après ce tour (identifiants) — la ligne « Retenu : … (annuler) ».
   memoiresRetenues Json?
   /// M1 : « EN_COURS » pendant la capture (l'écran continue de lire le fil), « FAIT » ensuite, `null` sans capture.
-  memoireEtat     String?
+  memoireEtat      String?
   /// K3 : un tour de SYNTHÈSE dit la fin des sous-missions de ce tour-là (unique : une seule synthèse par tour).
-  syntheseDe      String?        @unique
+  syntheseDe       String?        @unique
   /// O1 (décision 0046) : déposé pendant un travail LONG, c'est une autre demande — jouée dans la voie parallèle.
-  parallele       Boolean        @default(false)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  parallele        Boolean        @default(false)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   @@index([filId, createdAt])
   @@index([etat, createdAt])
@@ -6339,6 +6339,8 @@ model Employee {
   orgY      Float?
 
   payrolls      PayrollEntry[]
+  /// S1 (décision 0048) : les avenants STRUCTURÉS au contrat (fonction, délégation datée d'un périmètre).
+  avenants      AvenantContrat[]
   transactions  FinanceTransaction[]
   leaveRequests LeaveRequest[]
   advances      SalaryAdvance[]
@@ -9575,6 +9577,46 @@ model AiSetting {
 /// pour une personne (prime sur son rôle) : les familles OUVERTES et FERMÉES (`acces-regles.ts`), le reste suit le défaut
 /// (droits applicatifs, salaires et contrats fermés). Réglé par le Super Admin seul (`/admin/ai/acces`), chaque
 /// changement à l'audit. Une ligne a une cible : `userId` OU `role`.
+/// S1 (décision 0048) : un AVENANT au contrat de travail, en clair pour la machine. `FONCTION` : la fonction exercée à
+/// partir de `effetLe` (le profil de l'assistant la dit). `DELEGATION` : une famille de l'assistant (`famille`, ex.
+/// SALAIRES) ouverte sur UNE entité (`companyId`) de `effetLe` à `finLe` — le seul chemin, avec le droit daté de la
+/// console (`AssistantIaDroitDate`), vers les valeurs sensibles d'autrui hors droit applicatif.
+model AvenantContrat {
+  id         String    @id @default(cuid())
+  employeeId String
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  objet      String
+  fonction   String?
+  famille    String?
+  companyId  String?
+  effetLe    DateTime
+  finLe      DateTime?
+  motif      String
+  documentId String?
+  creeParId  String?
+  createdAt  DateTime  @default(now())
+  revoqueLe  DateTime?
+
+  @@index([employeeId])
+}
+
+/// S1 (décision 0048) : un DROIT EXPLICITE ET DATÉ de la console, nommément à une personne — une famille sensible de
+/// l'assistant (paie, dossier RH) sur une entité (`companyId` NULL = les entités qui lui sont ouvertes), du `du` au `au`.
+model AssistantIaDroitDate {
+  id           String    @id @default(cuid())
+  userId       String
+  famille      String
+  companyId    String?
+  du           DateTime
+  au           DateTime?
+  motif        String
+  accordeParId String?
+  createdAt    DateTime  @default(now())
+  revoqueLe    DateTime?
+
+  @@index([userId])
+}
+
 model AssistantIaAcces {
   id                String    @id @default(cuid())
   userId            String?   @unique
@@ -9594,13 +9636,15 @@ model AssistantIaAcces {
 /// K3 (décision 0033) : les préférences PERSONNELLES de l'Assistant IA, réglées par la personne elle-même (Réglages de
 /// l'app, panneau de l'ERP). NULL = le défaut de la console (`AssistantIaAcces`).
 model AssistantIaPreference {
-  userId         String   @id
-  travauxDOffice Boolean?
+  userId              String    @id
+  travauxDOffice      Boolean?
   /// M1 (décision 0045) : « mémoire automatique » — `null` = oui (défaut), `false` = l'assistant ne retient qu'à la carte.
-  memoireAuto    Boolean?
+  memoireAuto         Boolean?
   /// M1 : la dernière consolidation de sa mémoire (rare : au plus une par jour).
   memoireConsolideeLe DateTime?
-  updatedAt      DateTime @default(now()) @updatedAt
+  /// S1 (décision 0048) : « TU » ou « VOUS » (défaut : vous) — l'accueil et les réponses de SON assistant.
+  adresse             String?
+  updatedAt           DateTime  @default(now()) @updatedAt
 }
 
 model AssistantIaReglage {
@@ -9785,7 +9829,7 @@ model AssistantIaBancReglage {
   id          String   @id @default("global")
   actif       Boolean  @default(true)
   /// QUOTIDIEN | HEBDOMADAIRE | MENSUEL
-  frequence   String   @default("HEBDOMADAIRE")
+  frequence   String   @default("QUOTIDIEN")
   /// 0 = dimanche … 6 = samedi (heure d'Alger) — HEBDOMADAIRE ; le jour du mois (1 à 28) — MENSUEL.
   jour        Int      @default(5)
   /// L'heure de départ (0 à 23, heure d'Alger).

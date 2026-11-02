@@ -2,7 +2,7 @@
   "base": "http://localhost:3100",
   "compte": "yacine.benali@adventum-bench.dz",
   "debut": "2026-11-01T13:27:38.236Z",
-  "le": "2026-11-01T16:31:06.324Z",
+  "le": "2026-11-02T00:43:26.356Z",
   "lignes": [
     {
       "fonction": "Conversation privée — rien n'est retenu",
@@ -230,16 +230,6 @@
       ]
     },
     {
-      "fonction": "Bureau — ligne « Retenu » et panneau",
-      "ecran": "bureau 1440",
-      "verdict": "marche",
-      "preuve": "conversation et panneau affichés",
-      "captures": [
-        "bureau-01-conversation-retenu.jpg",
-        "bureau-02-panneau.jpg"
-      ]
-    },
-    {
       "fonction": "Bureau — Routines, Veille, « Ce que l'assistant a fait », Documents",
       "ecran": "bureau 1440",
       "verdict": "marche",
@@ -261,32 +251,69 @@
         "iphone-26b-voix-en-appel.jpg",
         "iphone-26c-voix-raccroche.jpg"
       ]
+    },
+    {
+      "fonction": "Texte collé de 60 000 caractères — envoyé ENTIER",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "message en base : 60075 caractères sur 60075 ; réponse : « La réunion a validé les étapes 0 à 986. Le texte fourni se termine abruptement par « Po FIN-COLLEE » après le point 986. »",
+      "captures": [
+        "iphone-27-texte-60000.jpg"
+      ]
+    },
+    {
+      "fonction": "Texte collé de 600 000 caractères — devenu une pièce lue",
+      "ecran": "iPhone 13",
+      "verdict": "marche",
+      "preuve": "pièce « Texte collé — 02-11-2026 01h41 (600 041 caractères).txt » (628720 octets, texte 628720 octets) ; réponse : « Le compte rendu indique que la réunion a validé des milliers d’étapes numérotées, mais la lecture initiale de la pièce était partielle et la lecture par parties ne confirme pas certaines validations a »",
+      "captures": [
+        "iphone-28-texte-600000-piece.jpg"
+      ]
+    },
+    {
+      "fonction": "Bureau — ligne « Retenu » et panneau",
+      "ecran": "bureau 1440",
+      "verdict": "marche",
+      "preuve": "conversation et panneau affichés",
+      "captures": [
+        "bureau-01-conversation-retenu.jpg",
+        "bureau-02-panneau.jpg"
+      ]
+    },
+    {
+      "fonction": "Bureau — texte collé de 60 000 caractères envoyé ENTIER",
+      "ecran": "bureau 1440",
+      "verdict": "marche",
+      "preuve": "message en base : 60083 sur 60083 ; réponse : « 986 »",
+      "captures": [
+        "bureau-07-texte-60000.jpg"
+      ]
     }
   ],
   "couts": {
     "fil · gpt-6.1-terra": {
-      "appels": 53,
-      "entree": 473148,
-      "sortie": 7768,
-      "usd": 0.3105380000000001
+      "appels": 75,
+      "entree": 701958,
+      "sortie": 10042,
+      "usd": 0.5213059999999999
     },
     "memoire · gpt-6-luna": {
-      "appels": 6,
-      "entree": 3903,
-      "sortie": 1142,
-      "usd": 0.000962
+      "appels": 7,
+      "entree": 8238,
+      "sortie": 2222,
+      "usd": 0.001936
     },
     "memoire · text-embedding-3-small": {
       "appels": 6,
       "entree": 445,
       "sortie": 0,
-      "usd": 9e-06
+      "usd": 0.000009
     },
     "redaction · gpt-6-luna": {
-      "appels": 19,
-      "entree": 3512,
-      "sortie": 1186,
-      "usd": 0.0009440000000000002
+      "appels": 25,
+      "entree": 5481,
+      "sortie": 1600,
+      "usd": 0.0013490000000000002
     },
     "worker · gpt-5.6-terra": {
       "appels": 1,
@@ -295,10 +322,10 @@
       "usd": 0.132142
     },
     "redaction · gpt-6.1-terra": {
-      "appels": 5,
-      "entree": 20880,
-      "sortie": 7695,
-      "usd": 0.059355000000000005
+      "appels": 47,
+      "entree": 220215,
+      "sortie": 13865,
+      "usd": 0.2895399999999999
     },
     "image · gpt-image-2.5-sunburst": {
       "appels": 1,
@@ -313,6 +340,6 @@
       "usd": 0.011596
     }
   },
-  "toursRepondus": 31,
+  "toursRepondus": 37,
   "erreursConsole": []
 }

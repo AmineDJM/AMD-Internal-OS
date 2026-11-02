@@ -9,9 +9,12 @@ import { recordAudit } from "@/lib/audit";
 import { controlerLecture, journaliserLectureHorsColonne, lecteurDepuisSession, peutLire } from "@/modules/coffre/api";
 import { borner, MASQUE_CONFIDENTIEL, remplacerReperes, reperesDe, type CoffretDuTour, type EntreeJeton } from "../domaine/filtre-confidentialite";
 import {
-  familleExplicite, familleOuverte, LIBELLE_FAMILLE, normaliserReglageFamilles, resoudreAccesIa, type AccesIa, type FamilleIa, type ReglageFamilles,
+  estFamilleIa, familleOuverte, perimetreCouvrant, LIBELLE_FAMILLE, normaliserReglageFamilles, resoudreAccesIa, type AccesIa, type FamilleIa, type ReglageFamilles,
 } from "../domaine/acces-regles";
 import { modeValeursSensibles, type ModeValeursSensibles } from "../domaine/consommation-regles";
+import {
+  contratEnVigueur, LIBELLE_ORIGINE, perimetreEnVigueur, perimetresDesAvenants, type AvenantLu, type PerimetreSensible,
+} from "../domaine/perimetres";
 
 /**
  * CONFIGURATION DE L'ASSISTANT PAR RÔLE — Jalon 4 (Décisions Q4 & Q12).
@@ -190,15 +193,59 @@ export function droitsApplicatifsIa(user: CurrentUser): Record<FamilleIa, boolea
 }
 
 export async function accesAssistantIa(user: CurrentUser): Promise<AccesIa> {
+  // S1 (décision 0048) : une identité VUE (Vue exacte) n'a pas d'assistant — et donc aucun accès (échec fermé).
+  if (user.impersonatedBy || user.visualise) return { superAdmin: false, ouvertes: [], explicites: [], perimetres: [] };
   if (user.role === "SUPER_ADMIN") return resoudreAccesIa({ superAdmin: true, droits: droitsApplicatifsIa(user) });
-  const lignes = await prisma.assistantIaAcces.findMany({ where: { OR: [{ userId: user.id }, { role: user.role as UserRole }] } });
+  const [lignes, perimetres] = await Promise.all([
+    prisma.assistantIaAcces.findMany({ where: { OR: [{ userId: user.id }, { role: user.role as UserRole }] } }),
+    perimetresNominatifs(user.id),
+  ]);
   const reglage = (l?: { ouvertes: string[]; fermees: string[] }) => (l ? normaliserReglageFamilles(l.ouvertes, l.fermees) : null);
   return resoudreAccesIa({
     superAdmin: false,
     droits: droitsApplicatifsIa(user),
     role: reglage(lignes.find((l) => l.role === user.role && !l.userId)),
     personne: reglage(lignes.find((l) => l.userId === user.id)),
+    perimetres,
   });
+}
+
+const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);
+
+/** La fiche RH LIÉE au compte (jamais devinée par le nom : un lien manquant n'ouvre que moins) et ses avenants. */
+export async function ficheEtAvenantsDe(userId: string) {
+  const fiche = await prisma.employee.findUnique({
+    where: { userId },
+    select: {
+      id: true, fullName: true, position: true, isActive: true, companyId: true, contractType: true, contractStart: true, contractEnd: true, hireDate: true,
+      departmentRef: { select: { name: true } }, department: true, manager: { select: { fullName: true } },
+      company: { select: { shortName: true, name: true } },
+      avenants: { where: { revoqueLe: null }, orderBy: { effetLe: "desc" }, take: 20 },
+    },
+  });
+  if (!fiche) return null;
+  const avenants: AvenantLu[] = fiche.avenants.map((a) => ({
+    id: a.id, objet: a.objet, fonction: a.fonction, famille: a.famille, companyId: a.companyId,
+    effetLe: a.effetLe.toISOString(), finLe: iso(a.finLe), motif: a.motif, revoqueLe: iso(a.revoqueLe),
+  }));
+  return { ...fiche, avenants, contratValide: contratEnVigueur({ isActive: fiche.isActive, contractEnd: fiche.contractEnd }) };
+}
+
+/**
+ * S1 : les PÉRIMÈTRES NOMINATIFS de la personne — les délégations de SES avenants (contrat en vigueur) et SES droits
+ * datés de la console (famille sensible connue, non révoqués). Rien d'un rôle, rien d'une autre personne.
+ */
+export async function perimetresNominatifs(userId: string, maintenant = new Date()): Promise<PerimetreSensible[]> {
+  const [fiche, droits] = await Promise.all([
+    ficheEtAvenantsDe(userId),
+    prisma.assistantIaDroitDate.findMany({ where: { userId, revoqueLe: null } }),
+  ]);
+  const parAvenant = fiche ? perimetresDesAvenants(fiche.avenants, fiche.contratValide, estFamilleIa, maintenant) : [];
+  const parConsole: PerimetreSensible[] = droits
+    .filter((d) => estFamilleIa(d.famille))
+    .map((d) => ({ famille: d.famille as FamilleIa, companyId: d.companyId, du: d.du.toISOString(), au: iso(d.au), origine: "CONSOLE" as const, ref: d.id, motif: d.motif }))
+    .filter((p) => perimetreEnVigueur(p, maintenant));
+  return [...parAvenant, ...parConsole];
 }
 
 /**
@@ -301,6 +348,15 @@ export const GESTE_MODELE_EN_CLAIR = "Assistant IA — valeur transmise au modè
 /** K7 (décision 0037) : une valeur écrite dans un FICHIER exporté (Drive de la personne) — même juge que l'écran, journalisée. */
 export const GESTE_EXPORT_FICHIER = "Assistant IA — valeur écrite dans un fichier exporté";
 
+/** L'entité de la fiche du titulaire d'une valeur (le périmètre d'un avenant se juge par entité). `null` : inconnue. */
+async function entiteDuTitulaire(e: EntreeJeton): Promise<string | null> {
+  if (e.origine?.modele === "Employee") {
+    return (await prisma.employee.findUnique({ where: { id: e.origine.id }, select: { companyId: true } }))?.companyId ?? null;
+  }
+  if (e.titulaireUserId) return (await prisma.employee.findFirst({ where: { userId: e.titulaireUserId }, select: { companyId: true } }))?.companyId ?? null;
+  return null;
+}
+
 export async function peutVoirLaValeur(e: EntreeJeton, user: CurrentUser, acces: AccesIa, geste = GESTE_ASSISTANT): Promise<boolean> {
   const soi = !!e.titulaireUserId && e.titulaireUserId === user.id;
   const ferme = e.nature === "SALAIRE" && !soi && !familleOuverte(acces, "SALAIRES");
@@ -317,8 +373,11 @@ export async function peutVoirLaValeur(e: EntreeJeton, user: CurrentUser, acces:
     });
     accorde = accorde && lecture.get(e.origine.id)?.[e.origine.champ]?.lu === true;
   }
-  // L'OUVERTURE EXPLICITE de la Direction va au-delà de la politique du coffre — et cela se trace à l'audit.
-  const parOuverture = !accorde && !ferme && e.nature === "SALAIRE" && familleExplicite(acces, "SALAIRES");
+  // S1 (décision 0048) : au-delà de la politique du coffre, SEUL un périmètre nominatif en vigueur (avenant de délégation,
+  // droit daté de la console) sur l'ENTITÉ du titulaire — jamais un réglage de rôle. Tracé à l'audit avec son origine et son motif.
+  const perimetre = !accorde && !ferme && e.nature === "SALAIRE" && !acces.superAdmin
+    ? perimetreCouvrant(acces, "SALAIRES", await entiteDuTitulaire(e)) : null;
+  const parOuverture = !!perimetre;
   if (!e.origine) {
     await journaliserLectureHorsColonne({
       userId: user.id, nature: e.nature, geste: libelleGeste, autorise: accorde || parOuverture,
@@ -329,7 +388,8 @@ export async function peutVoirLaValeur(e: EntreeJeton, user: CurrentUser, acces:
   if (parOuverture) {
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Assistant IA",
-      summary: `Rémunération montrée par l'Assistant IA sur ouverture de la Direction (famille « ${LIBELLE_FAMILLE.SALAIRES} »)`
+      summary: `Rémunération montrée par l'Assistant IA sur ${LIBELLE_ORIGINE[perimetre!.origine].toLowerCase()} (famille « ${LIBELLE_FAMILLE.SALAIRES} »`
+        + `${perimetre!.ref ? `, réf. ${perimetre!.ref}` : ""} — motif : ${perimetre!.motif})`
         + `${e.origine ? ` — ${e.origine.modele}.${e.origine.champ} ${e.origine.id}` : e.source ? ` — ${e.source.modele} ${e.source.id}` : ""} · ${libelleGeste}`,
     });
   }

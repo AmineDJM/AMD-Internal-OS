@@ -112,3 +112,39 @@ pénicilline » → `SANTE_DECLAREE` retenu sans carte).
 jour on le veut ; l'écran Consommation (« Sans plafond par jour ») et Administration › IA › Consommation (« Sans plafond »,
 plus de pourcentage) le disent. **Inchangés**, et c'est voulu : le plafond **par tour** (150 000 jetons, garde-fou
 contre une boucle), les plafonds des travaux en arrière-plan (20 $/travail, mensuel), ceux des chantiers et des visuels.
+
+## 5. Direction (02/11/2026) — textes longs jamais coupés, mémoire « légèrement plus »
+
+Verbatim : « Enlève la limite de tokens par chat : quand j'envoie des textes trop longs, ça les coupe car il y aurait une
+limite. De plus, pour la mémoire, je veux qu'il retienne un peu plus — c'est parfait maintenant, mais légèrement plus. »
+
+**Textes longs.** Toutes les coupes du texte de la PERSONNE sont retirées : `deposerMessage` (8 000), l'orchestrateur
+écrit O1 (`ecrit.ts`, `agenda.ts` : 8 000), la voix (`oral.ts` 8 000, route de délégation 4 000 / 2 000, client temps réel
+4 000 / 2 000, transcription de fin de session 7 900), le résumé roulant (1 500 par échange — la réponse de l'assistant reste
+abrégée). Jusqu'à 200 000 caractères (≈ 57 000 jetons), le texte part ENTIER au modèle ; au-delà, il devient une pièce
+`.txt` déposée en entier dans le Drive de la personne (« Assistant IA — textes longs », quota vérifié ; refus de quota : le
+texte reste entier dans le message), lue par la lecture de documents, et le message le dit (`domaine/fil/texte-long.ts`,
+`infra/fil/texte-long.ts`). Le **plafond par tour** (150 000) reste, mais compte le message de la personne UNE fois et non à
+chaque étape de la boucle (`Budget.franchiseParAppel`) : un long texte légitime ne le déclenche plus ; une boucle d'outils,
+si. Tests : `infra/fil/texte-long.test.ts` (60 000 caractères arrivent entiers dans la requête du modèle ; 600 000
+deviennent une pièce de la bonne taille ; la boucle reste arrêtée). La lecture par parties d'un long document (`lire_document`)
+passe de 14 à 45 parties (≈ 1 080 000 caractères) et a son propre budget, hors du plafond par tour (elle est bornée par
+ses parties) : au banc, 600 000 caractères collés ont été lus jusqu'au bout. Playwright (serveur réel, mode app) :
+60 000 caractères arrivés entiers sur iPhone 13 et au bureau.
+
+**Mémoire « légèrement plus ».** Le filtre déterministe s'ouvre aux avis sur le travail (« je pense », « à mon avis »,
+« je suis plutôt d'avis »), aux priorités, échéances et rendez-vous datés, aux lieux de l'entreprise (« notre usine »), aux
+personnes citées et au vocabulaire (« quand je dis… ») ; la consigne de l'extracteur les nomme et dit « dans le doute sur un
+fait qui l'aidera dans les semaines à venir, retiens-le » — le bavardage et les questions restent exclus, la garde des
+valeurs interdites est inchangée. Mesuré au vrai modèle sur le MÊME jeu de 30 messages (`scripts/bench/m1-retention.ts`,
+`preuves/m1/retention-avant.json` / `retention-apres.json`) :
+
+| | Avant | Après |
+|---|---|---|
+| Messages porteurs d'un fait durable retenus (sur 15) | 7 | 13 |
+| Faux positifs — bavardage, questions (sur 10) | 0 | 0 |
+| Valeurs interdites retenues (sur 5) | 0 | 0 (une proposée par le modèle, refusée par la garde) |
+| Appels de l'extracteur (sur 30) | 10 | 16 |
+| Coût du jeu | 0,0013 $ | 0,0023 $ |
+
+Le budget en jetons tient : la consolidation (§ 4) reste la borne.

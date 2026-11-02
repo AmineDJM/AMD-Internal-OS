@@ -62,7 +62,7 @@ Garanti par le code : le fournisseur n'est jamais une société du groupe (`estD
 l'annuaire, I4, refus de la transition CREER) ; une ligne répétée n'est pas comptée deux fois ; un numéro absent est dit ;
 un tableau qui ne réconcilie pas n'est pas présenté comme fiable ; une lecture faite n'est pas refaite (empreinte,
 structure et verdict gardés ; vision jamais rappelée pour la même lecture) ; le brouillon naît sans validateur et ne part
-en validation qu'avec un. Migration additive : `20270222100000_lecture_piece_verdict` (`LecturePiece.verdict`,
+en validation qu'avec un. Migration additive : `20270220950000_lecture_piece_verdict` (`LecturePiece.verdict`,
 `verdictDetail`).
 
 ## Ce qui est décidé
