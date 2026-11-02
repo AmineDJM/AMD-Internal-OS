@@ -58,7 +58,8 @@ const caseDeRequete = cache((): { ctx: ContexteDonnees | null } => ({ ctx: null 
  * l'évaluateur branché au démarrage doit être vu par toutes.
  */
 type ConstructeurAls = typeof AsyncLocalStorage;
-function constructeur(): ConstructeurAls | null {
+/** Le constructeur des magasins asynchrones, sans import statique (partagé avec `effets/magasin.ts`). */
+export function constructeurAls(): ConstructeurAls | null {
   const g = globalThis as { AsyncLocalStorage?: ConstructeurAls; process?: { getBuiltinModule?: (n: string) => unknown } };
   if (typeof g.AsyncLocalStorage === "function") return g.AsyncLocalStorage;
   const m = g.process?.getBuiltinModule?.("node:async_hooks") as { AsyncLocalStorage?: ConstructeurAls } | undefined;
@@ -70,7 +71,7 @@ interface EtatDonnees {
   evaluateur: EvaluateurDonnees | null;
 }
 const etat: EtatDonnees = ((globalThis as { __amdGardeDonnees?: EtatDonnees }).__amdGardeDonnees ??= (() => {
-  const C = constructeur();
+  const C = constructeurAls();
   return { systeme: C ? new C<ContexteSysteme>() : null, identite: C ? new C<IdentiteDonnees>() : null, evaluateur: null };
 })());
 

@@ -53,7 +53,7 @@ un réglage restrictif sur un Super Admin sans confirmation est refusé avec la 
 - **Où** : dans le relais `prisma` (`src/lib/prisma.ts`) — le client de base reçoit une extension de requête
   (`src/platform/donnees/garde.ts`). Toute l'application lit par `prisma` : écrans, actions, exports, recherche, API,
   assistant. Pendant un geste d'agent, c'est le client du geste qui parle (journal des effets), comme avant.
-- **Un port au socle, pas d'import de module** (`src/platform/donnees/contexte.ts`) : la session pose l'identité de la
+- **Un port au socle, pas d'import de module** (`src/platform/donnees/contexte.ts`, `garde.ts` — sans dépendance ERP ; l'extension Prisma elle-même est dans `src/lib/prisma.ts`) : la session pose l'identité de la
   requête (`poserIdentiteDonnees`, une case par requête via `cache()` — la personne à l'écran pendant un rendu en Vue
   exacte, le Super Admin réel dans le corps d'une écriture : la règle de l'écran) ; le module `acces-bases` branche son
   évaluateur au démarrage (`src/instrumentation.ts`). Sans évaluateur ou sans identité, la garde ne juge RIEN.

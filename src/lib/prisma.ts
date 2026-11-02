@@ -1,6 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { estUnBancDeMesure } from "@/lib/sortie/garde";
-import { extensionGarde } from "@/platform/donnees/garde";
+import { jugerRequete, type Relations } from "@/platform/donnees/garde";
 import { etatDuGeste } from "@/lib/effets/magasin";
 
 /**
@@ -237,6 +237,38 @@ async function transactionEnPlace(tx: Record<string | symbol, unknown>, arg: unk
  * qu'appeler la requête. Pendant un geste d'agent, c'est le client du geste qui parle, comme avant.
  */
 let garde: PrismaClient | null = null;
+
+/** Les relations du modèle de données, lues une fois dans `Prisma.dmmf` : la garde suit `include` / `select`. */
+let carteRelations: Map<string, Map<string, string>> | null = null;
+const relationsPrisma: Relations = (modele) => {
+  if (!carteRelations) {
+    carteRelations = new Map();
+    try {
+      for (const m of Prisma.dmmf.datamodel.models) {
+        carteRelations.set(m.name, new Map(m.fields.filter((f) => f.kind === "object").map((f) => [f.name, String(f.type)])));
+      }
+    } catch {
+      // Client sans modèle de données : la garde juge le modèle demandé, sans ses relations.
+    }
+  }
+  return carteRelations.get(modele) ?? new Map();
+};
+
+/** L'extension de requête : chaque requête passe devant la garde (`platform/donnees/garde.ts`), puis part. */
+function extensionGarde() {
+  return Prisma.defineExtension({
+    name: "garde-acces-par-base",
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }) {
+          // D3 : OBSERVATION — le verdict est compté par l'évaluateur, jamais appliqué.
+          jugerRequete(model, operation, args, relationsPrisma);
+          return query(args);
+        },
+      },
+    },
+  });
+}
 /** Ce qu'un client étendu ne porte pas : le relais le prend au client de base (les intergiciels `$use` valent pour les deux). */
 const PROPRES_AU_CLIENT_DE_BASE: ReadonlySet<string | symbol> = new Set(["$use", "$on"]);
 function clientGarde(): PrismaClient {

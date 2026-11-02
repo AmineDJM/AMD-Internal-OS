@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { Prisma } from "@prisma/client";
 import { prisma, prismaBrut } from "@/lib/prisma";
 import { avecIdentiteDonnees, enSysteme, type IdentiteDonnees } from "@/platform/donnees/contexte";
 import { modelesTouches } from "@/platform/donnees/garde";
@@ -24,6 +25,8 @@ const reglage = (o: Partial<ReglageBase>): ReglageBase => ({
   id: `${TAG}-r`, base: "paie", userId: radiaId, role: null, niveau: "FERMEE", ecriture: false,
   du: new Date(Date.now() - 86_400_000), au: null, revoqueLe: null, ...o,
 });
+const RELATIONS = new Map(Prisma.dmmf.datamodel.models.map((m) => [m.name, new Map(m.fields.filter((f) => f.kind === "object").map((f) => [f.name, String(f.type)]))]));
+const relations = (m: string) => RELATIONS.get(m) ?? new Map<string, string>();
 const observees = () => prismaBrut.observationAccesBase.findMany({ where: { userId: radiaId } });
 
 suite("D3 — la garde des données, en observation", () => {
@@ -59,7 +62,7 @@ suite("D3 — la garde des données, en observation", () => {
 
   it("la JOINTURE compte : lire un salarié en incluant sa paie touche la base Paie", async () => {
     poserInstantaneDeTest([reglage({})]);
-    expect(modelesTouches("Employee", { include: { payrolls: true } })).toEqual(["Employee", "PayrollEntry"]);
+    expect(modelesTouches("Employee", { include: { payrolls: true } }, relations)).toEqual(["Employee", "PayrollEntry"]);
     await avecIdentiteDonnees(radia(), () => prisma.employee.findUnique({ where: { id: employeeId }, include: { payrolls: true } }));
     await envoyerObservations();
     const paie = (await observees()).find((x) => x.base === "paie" && x.geste === "lecture")!;
@@ -106,7 +109,7 @@ suite("D3 — la garde des données, en observation", () => {
     const N = 50_000;
     const t0 = performance.now();
     for (let i = 0; i < N; i++) {
-      for (const m of modelesTouches("Employee", { include: { payrolls: true, departmentRef: true } })) {
+      for (const m of modelesTouches("Employee", { include: { payrolls: true, departmentRef: true } }, relations)) {
         evaluateurAccesBases({ modele: m, geste: "lecture", operation: "findMany", contexte: id });
       }
     }
