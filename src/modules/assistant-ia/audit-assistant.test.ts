@@ -224,6 +224,7 @@ describe("Le banc d'audit — le catalogue et les verdicts (purs)", () => {
     expect(finitParUneQuestion("La carte est prête : confirmez-la.")).toBe(false);
     expect(affirmeFait("C'est fait, la mission est fusionnée.")).toBeTruthy();
     expect(affirmeFait("La tâche sera créée après votre confirmation.")).toBeNull();
+    expect(affirmeFait("La fusion n'a pas pu être préparée ; aucune mission n'a été modifiée.")).toBeNull();
     const beau = noterMail({ destinataires: "a@b.dz", objet: "Planning de la semaine", corps: "Bonjour Docteur,\n\nVoici mon planning.\n\n| Jour | Ville |\n|---|---|\n| Lundi | Sétif |\n\nCordialement,\nYanis HAMDI" }, { tableau: true, signataire: "Yanis HAMDI" });
     expect(beau.manques).toEqual([]);
     expect(noterMail({ destinataires: "", objet: "", corps: "[Votre nom]" }, { signataire: "Yanis" }).note).toBeLessThan(3);
