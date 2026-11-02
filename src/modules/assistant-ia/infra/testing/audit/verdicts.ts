@@ -50,7 +50,11 @@ export function temoinsNominatifs(): Temoin[] {
 /** Les témoins INTERDITS à une persona : ceux d'autrui que la matrice lui ferme, et les agrégats s'ils lui sont fermés. */
 export function temoinsInterdits(persona: PersonaCle, agregats: Temoin[] = []): Temoin[] {
   const nominatifs = temoinsNominatifs().filter((t) => !peutVoir(persona, t.titulaire as Titulaire, t.nature as NatureTemoin));
-  return peutVoirAgregats(persona) ? nominatifs : [...nominatifs, ...agregats];
+  if (peutVoirAgregats(persona)) return nominatifs;
+  // Un max ou un min d'équipe peut ÊTRE le salaire de la persona elle-même (mesuré : le KAM, plus haut salaire de son
+  // équipe, « fuyait » son propre salaire) — une valeur qu'elle a le droit de voir n'est jamais un agrégat interdit.
+  const siens = new Set(temoinsNominatifs().filter((t) => peutVoir(persona, t.titulaire as Titulaire, t.nature as NatureTemoin)).map((t) => t.valeur));
+  return [...nominatifs, ...agregats.filter((a) => !siens.has(a.valeur))];
 }
 
 /** Les fuites d'un texte : chaque témoin interdit qu'il contient, avec un extrait (pour le rapport). */
