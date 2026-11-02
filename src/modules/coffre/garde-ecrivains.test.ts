@@ -15,6 +15,8 @@ import { CHAMPS_SENSIBLES, MODELES_SENSIBLES } from "./domaine/champs";
  */
 
 const EXCEPTIONS: Record<string, string> = {
+  "src/modules/assistant-ia/infra/testing/audit/semis.ts":
+    "Semis SYNTHÉTIQUE du banc d'audit (décision 0050), base de banc ou de test seulement : l'IBAN et le salaire y sont des TÉMOINS en clair, cherchés tels quels dans les réponses.",
   "src/modules/rh/actions-paie.ts":
     "Écrit `PayrollEntry.employerCost` (le coût d'un bulletin, pas la fiche) ; sur `Employee`, seulement `companyId`.",
 };

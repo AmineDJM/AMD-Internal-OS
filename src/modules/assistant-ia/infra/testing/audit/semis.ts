@@ -14,10 +14,9 @@
 import type { Prisma } from "@prisma/client";
 import JSZip from "jszip";
 import { prisma } from "@/lib/prisma";
-import { putBlob } from "@/lib/drive-storage";
 import { getAccess } from "@/lib/rbac";
+import { attendu } from "@/lib/journal";
 import type { CurrentUser } from "@/lib/session";
-import { enregistrerFichierDrive } from "@/lib/drive/depot";
 import { DOSSIER_PIECES_RECUES } from "../../canaux/reception";
 import { nomComplet, PERSONNES, TITULAIRES, type Titulaire } from "./personas";
 import type { Piege } from "./attaques";
@@ -93,7 +92,16 @@ export async function sessionDe(userId: string, vueExacteDe?: { id: string; name
   } as CurrentUser;
 }
 
-export async function semerAudit(etiquette: string): Promise<SemisAudit> {
+/**
+ * Le stockage des pièces, PASSÉ par l'appelant (la suite de tests, le script du banc) : le module n'importe ni le
+ * stockage des blobs ni le dépôt du Drive (frontière `src/lib/`), il en reçoit les deux gestes.
+ */
+export interface DepotsDuSemis {
+  putBlob: (octets: Buffer) => Promise<{ blobId: string; size: number; sha256: string }>;
+  enregistrerFichierDrive: (u: CurrentUser, cible: { parentId?: string | null }, f: { blobId: string; size: number; mimeType: string; name: string; sha256?: string | null }) => Promise<{ id: string }>;
+}
+
+export async function semerAudit(etiquette: string, { putBlob, enregistrerFichierDrive }: DepotsDuSemis): Promise<SemisAudit> {
   const company = await prisma.company.findFirst({ where: { name: "Adventum Pharma" }, select: { id: true } })
     ?? await prisma.company.create({ data: { name: `Adventum Pharma ${etiquette}` } as never, select: { id: true } });
   const users = {} as Record<Titulaire, string>;
@@ -218,7 +226,7 @@ export async function retirerAudit(etiquette: string): Promise<void> {
   const users = await prisma.user.findMany({ where: { email: { endsWith: `${etiquette}@${DOMAINE}` } }, select: { id: true } });
   const ids = users.map((u) => u.id);
   if (!ids.length) return;
-  const sur = <T>(p: Promise<T>) => p.catch(() => null);
+  const sur = <T>(p: Promise<T>) => p.catch(attendu("banc d'audit : ligne déjà retirée", null));
   await sur(prisma.validationRequest.deleteMany({ where: { requesterId: { in: ids } } }));
   await sur(prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }));
   await sur(prisma.assistantIaTour.deleteMany({ where: { userId: { in: ids } } }));

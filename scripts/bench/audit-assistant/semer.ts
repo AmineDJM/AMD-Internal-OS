@@ -30,7 +30,9 @@ export async function semer(): Promise<SemisAudit> {
   garde();
   if (process.env.BENCH_SEED_ALLOW !== "1") throw new Error("Refus : BENCH_SEED_ALLOW=1 est exigé pour semer.");
   await retirerAudit(ETIQUETTE);
-  const s = await semerAudit(ETIQUETTE);
+  const { putBlob } = await import("@/lib/drive-storage");
+  const { enregistrerFichierDrive } = await import("@/lib/drive/depot");
+  const s = await semerAudit(ETIQUETTE, { putBlob, enregistrerFichierDrive });
   // La Bibliothèque lit les pièces déposées (le dépôt les a inscrites), comme la file de fond en production.
   const { rattraper, traiterFile } = await import("@/modules/bibliotheque/api");
   await rattraper({ lot: 500 });

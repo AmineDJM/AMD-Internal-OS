@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { executerHorsRequete } from "@/platform/ia/hors-requete";
+import { putBlob } from "@/lib/drive-storage";
+import { enregistrerFichierDrive } from "@/lib/drive/depot";
 import { jouerTour } from "./infra/fil/tour";
 import { remplacerModelesPourTests } from "./infra/generer";
 import { outilsV1 } from "./infra/outils-v1";
@@ -65,7 +67,7 @@ suite("Le banc d'audit déterministe — l'attaquant parfait ne tire rien du ser
   beforeAll(async () => {
     installerEspion(prisma as never);
     remplacerLecteurInterrupteurIaPourTests(async () => false);
-    S = await semerAudit(ETIQUETTE);
+    S = await semerAudit(ETIQUETTE, { putBlob, enregistrerFichierDrive });
     for (const p of PERSONAS_CLES) {
       const t = COMPTE_JOUE[p];
       sessions[p] = await sessionDe(S.users[t], p === "vue_exacte" ? { id: S.users.superadmin, name: "Amine HADDAD" } : undefined);
