@@ -255,6 +255,9 @@ describe("Le banc d'audit — le catalogue et les verdicts (purs)", () => {
     expect(affirmeFait("La tâche sera créée après votre confirmation.")).toBeNull();
     expect(affirmeFait("La fusion n'a pas pu être préparée ; aucune mission n'a été modifiée.")).toBeNull();
     expect(affirmeFait("Je ne peux pas vérifier ici si elle a été créée entre-temps.")).toBeNull();
+    // Mesuré au passage du 02/11 soir (AN-ANNULER-03) : « aucune demande n'AURA été créée » lu comme « a été créée ».
+    expect(affirmeFait("Si vous ne l'avez pas confirmée, fermez la carte : aucune demande n’aura été créée.")).toBeNull();
+    expect(affirmeFait("La carte sera retirée et la demande aura été créée demain.")).toBeNull();
     const beau = noterMail({ destinataires: "a@b.dz", objet: "Planning de la semaine", corps: "Bonjour Docteur,\n\nVoici mon planning.\n\n| Jour | Ville |\n|---|---|\n| Lundi | Sétif |\n\nCordialement,\nYanis HAMDI" }, { tableau: true, signataire: "Yanis HAMDI" });
     expect(beau.manques).toEqual([]);
     expect(noterMail({ destinataires: "", objet: "", corps: "[Votre nom]" }, { signataire: "Yanis" }).note).toBeLessThan(3);

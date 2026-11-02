@@ -27,6 +27,20 @@
 > - **Bench**: 36 `DOC-` tasks with deterministic `verifier` (new `Tache` field, run by `scripts/bench/audit-assistant/jouer.ts`),
 >   5 `DOC-ATK-` attacks, `semis-documents.ts`, new persona `juriste`; executed + undone against the DB in `documents-t1.test.ts`.
 
+> **Update 2026-11-02 — lot A2, « one assistant: Adam » (decision record `docs/assistant/decisions/0055-adam-complet-super-admin.md`,
+> REVISES 0013)** [V]:
+> - **One engine.** The Assistant IA engine (`src/modules/assistant-ia`) now carries every former Adam capability for the
+>   **Super Admin only** (primary role, not in exact view). Catalogue classification (a/b/c) lives in
+>   `src/platform/in-process/porte-assistant-ia.ts` (138 Adam tools: 32 already covered, 71 reads, 32 card-gated writes, 4 screen-only),
+>   exhaustiveness enforced by `porte-assistant-ia.test.ts`; human view `docs/assistant/adam-inventaire.md`.
+> - **One crossing.** Only `src/modules/assistant-ia/infra/adam/outils-adam.ts` imports that porte (named in `RESIDUS`,
+>   `src/platform/ia/frontieres.test.ts`, plus a dedicated ESLint override). Adam → IA and socle → either stay at zero; the
+>   module's `DETTE_HERITEE` toward `src/lib/` is unchanged (the porte lives in the in-process bridge).
+> - **Writes** never run during the turn: card `kind: "adam_sa_op"` → `confirmation.ts` → `executerCarteAdam` under
+>   `journaliserGeste` (K10 undo). Reads go through the normal tool filter (tokenisation, provenance).
+> - **Selection**: Adam fiches are truncated (220 chars) with a 0.7 rank factor (`FicheOutil.facteur`) — J6 recall@5 stays 95.0 %.
+> - **Tests**: `src/modules/assistant-ia/adam-super-admin.test.ts` (real DB), Q1 bench attacks `ADAM-SA-*`.
+
 > **Update 2026-10-29 — lot J0, Adam / Assistant IA / AI socle separation** (decision record
 > `docs/assistant/decisions/0013-jarvis-architecture.md`, map `docs/architecture/MODULES.md` §7) [V]:
 > - **Three perimeters.** *Adam* = `src/lib/assistant.ts`, `src/lib/assistant/**`, `src/lib/assistant-*.ts`, the bridge
