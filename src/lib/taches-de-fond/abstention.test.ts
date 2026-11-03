@@ -5,7 +5,7 @@ import { TACHES_PLANIFIEES } from "@/lib/scheduled";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * P1 ter (décision 0063) — LES MISSIONS À 0 % EN PRODUCTION (03/11) : web ET worker en `TACHES_DE_FOND=les-deux`, le
+ * P1 ter (décision 0066) — LES MISSIONS À 0 % EN PRODUCTION (03/11) : web ET worker en `TACHES_DE_FOND=les-deux`, le
  * worker vivant. Le web atteint `travaux.balayage` en quelques secondes (ses autres tâches sont « occupées »), PREND LE
  * BAIL, s'abstient (le worker bat) — et son départ marqué ouvre l'intervalle minimal de 45 s. Le worker, qui fait le
  * vrai travail des 60 tâches d'avant, atteint la tâche plus tard : « occupée ». Personne ne conduit : étapes « En file »,

@@ -14,10 +14,15 @@ export async function etatDesExecutants(): Promise<EtatDesExecutants & { execute
   ]);
   const workerVu = w?.dernierDebutA?.toISOString() ?? null;
   // Un passage « ignoré » n'a rien conduit : s'il s'est abstenu parce que le worker conduit, c'est le worker qui compte.
+  const ignore = b?.dernierStatut === "IGNOREE";
   const dernierPassage = !b?.dernierDebutA ? null
-    : b.dernierStatut === "IGNOREE" ? (/worker/i.test(b.dernierMessage ?? "") ? workerVu : null)
+    : ignore ? (/worker/i.test(b.dernierMessage ?? "") ? workerVu : null)
       : b.dernierDebutA.toISOString();
-  return { dernierPassage, workerVu, executeur: b?.executeur ?? null };
+  // P1 ter : le passage ignoré et SA RAISON — un balayage débrayé (TRAVAUX_SWEEP=off) n'est pas « aucun battement ».
+  return {
+    dernierPassage, workerVu, balayageVu: b?.dernierDebutA?.toISOString() ?? null, raisonIgnore: ignore ? (b?.dernierMessage ?? "passage ignoré") : null, executeur: b?.executeur ?? null,
+    dernierBalayage: b ? { qui: b.executeur, quand: b.dernierDebutA?.toISOString() ?? null, statut: b.dernierStatut, bilan: b.dernierMessage } : null,
+  };
 }
 
 
