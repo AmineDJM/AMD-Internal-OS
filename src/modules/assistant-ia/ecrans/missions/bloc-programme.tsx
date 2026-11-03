@@ -6,8 +6,8 @@ import type { MissionDuTableau } from "@/modules/assistant-ia/api";
 
 /**
  * O2 (décision 0059) : ce qu'un PROGRAMME montre au tableau « Missions d'Adam » — chaque tâche (son état, pourquoi elle
- * attend, ses dépendances, son travailleur), les recouvrements sérialisés, la file d'intégration et les coûts PAR RÔLE
- * (superviseur MiMo/Sol, travailleurs, infra). En temps réel par le même flux que les chantiers. Une intégration qui
+ * attend, ses dépendances, son travailleur), les recouvrements sérialisés, la file d'intégration et les coûts PAR NATURE
+ * (sessions cloud sur l'abonnement : nombre, quota horaire, durée, tentatives ; dollars des modèles MiMo/Sol/Terra). En temps réel par le même flux que les chantiers. Une intégration qui
  * attend la carte se valide dans la conversation (« valide » / « refuse », écrit ou oral).
  */
 
@@ -26,7 +26,8 @@ export function BlocProgramme({ p }: { p: NonNullable<MissionDuTableau["programm
         <Users aria-hidden className="h-3.5 w-3.5" /> {p.depot} → {p.cible} · {actifs}/{p.concurrence} travailleur(s) · planifié par {p.planifiePar}
       </p>
       <p className="text-[var(--aia-discret)]" data-testid="couts-programme">
-        Superviseur {usd(p.couts.superviseurUsd)} · travailleurs {usd(p.couts.travailleursUsd)} · infra : {p.couts.infra}
+        Sessions cloud (abonnement) : {p.couts.sessions.lancees} lancée(s), {p.couts.sessions.derniereHeure}/{p.couts.sessions.plafondHeure} sur l&apos;heure · {p.couts.dureeMinutes} min · {p.couts.tentatives} tentative(s)
+        <br />Modèles : superviseur {usd(p.couts.modelesUsd.superviseur)} · chantiers {usd(p.couts.modelesUsd.chantiers)} · infra : {p.couts.infra}
       </p>
       {p.attenteConsignes && <p className="text-[var(--aia-danger)]">Attend vos consignes : {p.attenteConsignes}</p>}
       <ul className="flex flex-col gap-1" aria-label="Tâches du programme">

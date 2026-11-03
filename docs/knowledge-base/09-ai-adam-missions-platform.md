@@ -930,14 +930,14 @@ Décision [0059](../assistant/decisions/0059-orchestrateur-equipe.md), architect
   `integration.ts` (`avancerFile` : tête actuelle → `claude/integration/<cible>/<id>-<tour>` → fusion → CI du résultat →
   avance fast-forward / carte pour main ; reprise par relecture de git ; `forgeGardee`) ; `integrateur.ts` (dépôt des
   tâches vertes, renvoi à la MÊME session sous reçu, réentrée sur commit vert dans le périmètre, 3ᵉ renvoi prévenu, 6ᵉ = échec).
-- **Travailleurs** : `travailleurs.ts` — `agentRoute` (posé par `portsDevBranches`) : Claude Code cloud par défaut ;
-  Managed Agents seulement si le plan le veut ET `EQUIPE_MANAGED_AGENTS=1` (+ clé, agent, environnement), sinon REFUS.
+- **Travailleurs** : `travailleurs.ts` — sessions cloud Claude Code SEULEMENT (Direction 02-03/11 : « abonnement ») ;
+  Managed Agents et Agent SDK écartés ; quota horaire `EQUIPE_SESSIONS_HEURE_MAX` (25) ; coûts par nature `coutsDuProgramme`.
 - **Outils** (Assistant IA et Adam, par la porte `chantiers/outils.ts`) : `lancer_un_programme`, `ou_en_est_programme`,
   `consigne_programme`, `valider_programme`, `annuler_programme`.
 - **Tableau** : `travaux/tableau.ts` (`ProgrammeTableau`, famille PROGRAMME, signature qui suit `IntegrationFile`) +
   `ecrans/missions/bloc-programme.tsx`.
 - **Gotchas** : la file n'ouvre pas de PR (une cible protégée qui refuse le fast-forward exige une PR existante) ; un
-  programme ne déploie jamais ; l'annulation d'une session cloud est impossible (dit), Managed Agents : `user.interrupt`.
+  programme ne déploie jamais ; l'annulation d'une session cloud est impossible (dit).
 
 ## C2 (2026-11-01) — connecteurs des chantiers de développement [V]
 

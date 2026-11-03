@@ -115,7 +115,7 @@ suite("programme de bout en bout — équipe, file d'intégration, vrai git (O2-
     fs.rmSync(forge.racine, { recursive: true, force: true });
   });
 
-  it("BUDGET : un programme à son plafond ne lance aucun travailleur ; un salarié ne valide rien", async () => {
+  it("BUDGET : un programme à son plafond ne lance aucun travailleur ; plafond relevé par la Direction → il repart ; un salarié ne valide rien", async () => {
     const r = await lancerProgramme(admin, { plan: { titre: `${TAG} budget`, objectif: "plafond", depot: { proprietaire: "banc", nom: `${TAG}-b` }, cible: "claude/b", budget: { usd: 1 }, taches: [tache("a", ["src/a/**"])] } });
     if (!r.ok) throw new Error(r.erreur);
     await compter(r.programmeId, { costUsd: 1.5 });
@@ -125,6 +125,10 @@ suite("programme de bout en bout — équipe, file d'intégration, vrai git (O2-
     expect(m?.status).toBe("PAUSED");
     expect(m?.pausedReason).toMatch(/^BUDGET_HOLD/);
     expect(await prisma.mission.count({ where: { parentMissionId: r.programmeId } })).toBe(0);
+    // La Direction RELÈVE le plafond (consigne) : le programme repart et lance son travailleur.
+    const consigne = OUTILS_PROGRAMME.find((o) => o.def.name === "consigne_programme")!;
+    expect(JSON.parse(await consigne.run({ programmeId: r.programmeId, consigne: "Je relève le plafond, continue.", plafondUsd: 5 }, admin))).toMatchObject({ statut: "TRANSMIS", message: expect.stringMatching(/Plafond porté à 5\.00 \$/) });
+    expect((await conduireProgramme(r.programmeId, { clock: new Horloge(), cerveau })).lances).toEqual(["a"]);
     const valider = OUTILS_PROGRAMME.find((o) => o.def.name === "valider_programme")!;
     expect(JSON.parse(await valider.run({ programmeId: r.programmeId, decision: "valide" }, salarie))).toMatchObject({ statut: "REFUS" });
   });

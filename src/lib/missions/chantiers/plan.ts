@@ -94,8 +94,6 @@ export interface PlanChantier {
    * posées par un programme. Présentes : réservées au lancement ET vérifiées au diff (une ressource touchée hors liste → rouge).
    */
   ressources?: string[];
-  /** O2 : le travailleur voulu (absent : Claude Code cloud). */
-  travailleur?: "managed-agents";
 }
 
 export const BORNES_CHANTIER = { etapes: 24, perimetre: 20, criteres: 12, commandes: 12, services: 6, tentativesMax: 5 } as const;
@@ -268,7 +266,7 @@ export function lirePlanChantier(brut: unknown): { ok: true; plan: PlanChantier 
     plan: {
       titre, objectif, depot, branche, brancheBase, perimetre, criteres, commandesVerif,
       migrations: o.migrations === true, services, dependances: liste(o.dependances, 10, 40), budget, etapes,
-      ...(ressources ? { ressources } : {}), ...(o.travailleur === "managed-agents" ? { travailleur: "managed-agents" as const } : {}),
+      ...(ressources ? { ressources } : {}),
     },
   };
 }

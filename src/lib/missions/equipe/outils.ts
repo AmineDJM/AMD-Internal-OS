@@ -60,11 +60,11 @@ export const OUTILS_PROGRAMME: readonly OutilChantier[] = [
     def: {
       name: "consigne_programme",
       description: "Transmet une CONSIGNE de la Direction à un programme : à une tâche précise (`tache` : elle part à la MÊME session Claude Code) ou au programme entier (gardée, utilisée à la prochaine replanification ; un programme en pause « attend tes consignes » reprend). N'appelle cet outil QUE pour une consigne que la Direction vient de donner.",
-      input_schema: { type: "object", properties: { programmeId: { type: "string" }, consigne: { type: "string" }, tache: { type: "string" }, canal: { type: "string", enum: ["ecrit", "oral"] } }, required: ["programmeId", "consigne"] },
+      input_schema: { type: "object", properties: { programmeId: { type: "string" }, consigne: { type: "string" }, tache: { type: "string" }, canal: { type: "string", enum: ["ecrit", "oral"] }, plafondUsd: { type: "number", description: "Seulement si la Direction relève elle-même le plafond en dollars des modèles : le programme en pause de plafond repart." } }, required: ["programmeId", "consigne"] },
     },
     label: "Consigne transmise au programme",
     run: async (e, userId) => {
-      const r = await donnerConsigneProgramme(String(e.programmeId ?? ""), userId, { texte: String(e.consigne ?? ""), ...(texte(e.tache) ? { tache: texte(e.tache) } : {}), canal: e.canal === "oral" ? "oral" : "ecrit" });
+      const r = await donnerConsigneProgramme(String(e.programmeId ?? ""), userId, { texte: String(e.consigne ?? ""), ...(texte(e.tache) ? { tache: texte(e.tache) } : {}), canal: e.canal === "oral" ? "oral" : "ecrit", ...(typeof e.plafondUsd === "number" ? { plafondUsd: e.plafondUsd } : {}) });
       return json(r.ok ? { statut: "TRANSMIS", message: r.message } : { statut: "REFUS", raison: r.erreur });
     },
   },

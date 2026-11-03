@@ -27,7 +27,6 @@ describe("validateur du plan de programme (déterministe)", () => {
     const r = lu(plan([tache("a"), tache("b"), tache("c")]));
     expect(r.plan.cible).toBe("main");
     expect(r.plan.concurrence).toBe(3);
-    expect(r.plan.travailleur).toBe("claude-code-cloud");
     expect(r.conflits).toEqual([]);
   });
 

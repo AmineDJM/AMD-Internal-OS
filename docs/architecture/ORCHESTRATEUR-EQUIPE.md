@@ -42,7 +42,7 @@ Direction ──parle──▶ Adam (Terra) ──outil lancer_un_programme─�
 
 | Brique | Fichier | Nature |
 |---|---|---|
-| Tableau | `src/lib/missions/travaux/tableau.ts` (`ProgrammeTableau`) + `modules/assistant-ia/ecrans/missions/bloc-programme.tsx` | tâches, travailleurs, dépendances, conflits, file, coûts par rôle — en temps réel (signature SSE) |
+| Tableau | `src/lib/missions/travaux/tableau.ts` (`ProgrammeTableau`) + `modules/assistant-ia/ecrans/missions/bloc-programme.tsx` | tâches, travailleurs, dépendances, conflits, file, coûts par nature (sessions, durée, tentatives ; dollars des modèles) — en temps réel (signature SSE) |
 | Intégrateur | `src/lib/missions/equipe/integrateur.ts` | dépose les tâches vertes, avance la file, renvoie au travailleur, rend les réservations |
 | Plan de programme, validateur | `src/lib/missions/equipe/programme.ts` | **pur** : cycles, périmètres vides, recouvrements, critères vérifiables, budget, regroupement des petites tâches liées |
 | Ressources nommées | `src/lib/missions/equipe/ressources.ts` | **pur** : `SCHEMA`, `CONTRAT`, `API`, `DEPENDANCES`, `GENERES`, `MODULE:<m>` déduites des globs ET vérifiées au diff |
@@ -50,28 +50,33 @@ Direction ──parle──▶ Adam (Terra) ──outil lancer_un_programme─�
 | Planificateur MiMo | `src/lib/missions/equipe/planificateur.ts` | JSON strict → validateur ; 2ᵉ essai avec les fautes ; Sol en recours ; jamais seul juge |
 | Programme (service, conduite) | `src/lib/missions/equipe/service.ts`, `conduite.ts` | lancer, conduire (événementiel), consigne, état, annuler |
 | File d'intégration | `src/lib/missions/equipe/integration.ts` + table `IntegrationFile` | machine à états durable, sérialisée par cible (index unique partiel), reçus |
-| Port travailleur | `src/lib/missions/equipe/travailleurs.ts` | Claude Code cloud (défaut) ; Managed Agents derrière un interrupteur COUPÉ |
+| Port travailleur | `src/lib/missions/equipe/travailleurs.ts` | sessions cloud Claude Code seulement (décision de la Direction) |
 | Outils d'Adam | `src/lib/missions/equipe/outils.ts` | `lancer_un_programme`, `ou_en_est_programme`, `consigne_programme`, `valider_programme`, `annuler_programme` |
 
-## 3. Les travailleurs — le choix, chiffré
+## 3. Les travailleurs — sessions cloud seulement (décision de la Direction, 02-03/11)
 
-Un **port unique** `Travailleur` : `lancer`, `envoyer` (message à la MÊME session), `etat`, `arreter`, idempotents (clé),
-avec le coût rendu quand le fournisseur le dit. Trois adaptateurs possibles :
+« Abonnement, garde les sessions cloud seulement. » Un **port unique** `Travailleur` (`equipe/travailleurs.ts`) :
+`lancer`, `envoyer` (message à la MÊME session), `etat`, `arreter`, idempotents (clé des reçus), avec **un seul
+adaptateur** : les sessions cloud Claude Code de C2 (Routines, relais `claude --cloud` / `claude -p --cloud <id>`,
+commentaire `@claude`). Un conteneur et une branche par session = isolation naturelle ; ressources suffisantes (c'est
+l'environnement où ce dépôt est développé et vérifié). État et arrêt n'existent pas sur l'abonnement : refusés et dits.
 
-| Adaptateur | Isolation | Ressources pour CET ERP (typecheck ~5 Go, Postgres, 17 000 tests) | Coût marginal estimé par tâche | Statut |
-|---|---|---|---|---|
-| **Claude Code cloud** (Routines / relais `claude --cloud`) | un conteneur et une branche par session — naturelle | suffisantes : c'est l'environnement où ce dépôt est développé et vérifié chaque jour | **0 $ d'API** (abonnement de la Direction ; plafonds d'usage du plan et 30 lancements/h/routine, 100/h/compte) + MiMo ≈ 0,01–0,03 $ par programme (planification ~20 k jetons en entrée, ~4 k en sortie) | **PAR DÉFAUT**, branché |
-| **Managed Agents** (API Anthropic, bêta `managed-agents-2026-04-01`) | un conteneur par session | **HYPOTHÈSE non vérifiée** : la taille du conteneur hébergé suffit-elle au typecheck de production et à un Postgres local ? | tokens au prix public + **0,08 $/h** de session active. Ordre de grandeur (Claude Opus 5.5, 4 $/20 $ le M, lecture de cache 0,20 $) pour une tâche ERP moyenne ≈ 5 M jetons lus en cache (1 $) + 0,5 M non cachés (2 $) + 0,2 M en sortie (4 $) + 2 h (0,16 $) ≈ **7 $** ; fourchette **3–15 $**. Plafond DUR par session (`budget.max_list_cost`, en cents) | **ÉCRIT, INTERRUPTEUR COUPÉ** (`EQUIPE_MANAGED_AGENTS=1` + clé API) — attend la décision de facturation de la Direction |
-| **Agent SDK auto-hébergé** (`@anthropic-ai/claude-agent-sdk`) | à construire (worktrees, conteneurs) | **insuffisant sur Render** : worker en plan « standard », relais en « starter » ; 3 agents qui compilent et testent en parallèle demandent ≥ 3 × 5 Go + Postgres ; un processus long meurt à chaque déploiement Render | mêmes jetons que Managed Agents (facturation API) **+** une machine dédiée à chiffrer | **NON construit** — option documentée |
+| Option | Statut | Raison |
+|---|---|---|
+| Sessions cloud Claude Code (abonnement) | **SEUL adaptateur**, branché | décision de la Direction ; 0 $ d'API ; quotas : 30 lancements/h par routine, 100/h par compte |
+| Managed Agents (API facturée à l'usage) | **ÉCARTÉ** (03/11) — l'adaptateur un temps écrit derrière un interrupteur coupé est retiré | abonnement (Direction) |
+| Agent SDK auto-hébergé | **ÉCARTÉ**, jamais construit | facturation API ; le worker Render (« standard ») et le relais (« starter ») ne tiennent pas 3 agents qui compilent (~5 Go chacun) et testent ; un processus long meurt à chaque déploiement |
 
-Les chiffres Managed Agents sont des ESTIMATIONS (aucune tâche réelle mesurée) ; la facturation réelle se lit sur
-`session.usage.list_cost` et est journalisée par l'adaptateur.
+**Les coûts, par nature, jamais additionnés** (`coutsDuProgramme`) : les **sessions** lancées (dont l'heure glissante,
+plafonnée par `EQUIPE_SESSIONS_HEURE_MAX`, défaut 25, borné à 90 — sous le quota des Routines), leur **durée**, les
+**tentatives** (relances, renvois) ; et les **dollars des modèles** MiMo/Sol/Terra (journal K8) — planification sur le
+programme (≈ 0,01–0,03 $ par programme, ~20 k jetons en entrée), résumés et arbitrages sur ses chantiers. Le budget en
+dollars d'un programme ne porte donc que sur les modèles ; la Direction le relève par une consigne (`plafondUsd`).
 
-**Le parallélisme vaut-il le coût ?** Sur l'abonnement, une session de plus ne coûte pas de dollars mais consomme le
-plafond d'usage et 1 lancement/h ; l'ordonnanceur ne parallélise que des tâches **indépendantes** (aucune dépendance, aucune
-ressource commune) et **regroupe** une chaîne de petites tâches liées (A → B, toutes deux « S », B ne dépend que de A, A
-n'a que B pour suite) en UNE seule session : le contexte partagé vaut plus que le temps gagné. Concurrence réglable
-(défaut 3), plafonds du programme (dollars, lancements) appliqués AVANT chaque lancement.
+**Le parallélisme vaut-il le coût ?** Une session de plus consomme le quota horaire et le plafond d'usage de
+l'abonnement ; l'ordonnanceur ne parallélise que des tâches **indépendantes** (aucune dépendance, aucune ressource
+commune) et **regroupe** une chaîne de petites tâches liées (A → B, toutes deux « S », B ne dépend que de A, A n'a que B
+pour suite) en UNE seule session : le contexte partagé vaut plus que le temps gagné. Concurrence réglable (défaut 3).
 
 ## 4. Les invariants (testés — § 7)
 
@@ -146,6 +151,5 @@ décision 0059 § 9 — les 7 preuves exigées y sont, chacune avec son test.
 ce dépôt ; GitHub déclenche la CI sur `claude/integration/**` en temps utile (le motif `claude/**` de `ci.yml` le couvre,
 vérifié par lecture) ; `main` n'autorise pas l'avance fast-forward directe (protection) — alors la fusion passe par la PR
 de la branche d'intégration au SHA attendu, précédée du contrôle de tête, avec une fenêtre résiduelle de quelques
-millisecondes entre le contrôle et la fusion (la CI de `main` sur le commit de fusion la couvre) ; la taille des conteneurs
-Managed Agents pour cet ERP ; les coûts Managed Agents (estimés, § 3). Le banc réel (`scripts/bench/equipe-reel.ts`) est
+millisecondes entre le contrôle et la fusion (la CI de `main` sur le commit de fusion la couvre). Le banc réel (`scripts/bench/equipe-reel.ts`) est
 prêt mais ne se lance qu'avec le feu vert du parent.

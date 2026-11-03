@@ -12,7 +12,7 @@ import { MOTIF_BUDGET_CHANTIER, MOTIF_CONSIGNES_CHANTIER } from "@/lib/missions/
 import { liberer, prolonger } from "@/lib/missions/chantiers/reservations";
 import { cerveauReel, type CerveauChantier } from "@/lib/missions/chantiers/cerveau";
 import { KIND_PROGRAMME, lirePlanProgramme, type PlanProgramme, type TacheProgramme } from "@/lib/missions/equipe/programme";
-import { ordonnancer } from "@/lib/missions/equipe/ordonnanceur";
+import { ordonnancer, sessionsHeureMax } from "@/lib/missions/equipe/ordonnanceur";
 import { globsDeRessource, ressourcesDeTache } from "@/lib/missions/equipe/ressources";
 import { planifier } from "@/lib/missions/equipe/planificateur";
 import { brancheDeTache, ecrireDossierProgramme, etatsDesTaches, lireLeDossierProgramme, type DossierProgramme } from "@/lib/missions/equipe/dossier";
@@ -33,6 +33,10 @@ import { brancheDeTache, ecrireDossierProgramme, etatsDesTaches, lireLeDossierPr
  */
 
 export const REPLANIFICATIONS_MAX = 3;
+
+/** Les sessions cloud lancées sur l'heure glissante (tous chantiers) — ce que les quotas des Routines comptent. */
+export const sessionsDerniereHeure = (maintenant: Date) =>
+  prisma.missionEvent.count({ where: { kind: "CHANTIER_LANCEMENT", at: { gte: new Date(maintenant.getTime() - 3600_000) }, mission: { kind: "CHANTIER" } } });
 
 export interface ContexteIntegration { programmeId: string; principalId: string; dossier: DossierProgramme; clock: Clock }
 /** La file d'intégration (O2-3) : fait avancer les entrées du programme, met à jour l'état des tâches. */
@@ -57,7 +61,6 @@ export function planDeChantier(p: PlanProgramme, t: TacheProgramme, branche: str
     objectif: `${t.objectif}\n\n(Tâche « ${t.cle} » du programme ${programmeId} : son travail sera intégré dans ${p.cible} par la file d'intégration, après une CI complète du résultat.)`,
     depot: p.depot, branche, brancheBase: p.cible, perimetre, criteres: t.criteres, commandesVerif: t.commandesVerif,
     migrations: t.migrations, services: [], fusion: false, ressources,
-    ...(p.travailleur === "managed-agents" ? { travailleur: "managed-agents" } : {}),
   };
 }
 
@@ -189,14 +192,15 @@ export async function conduireProgramme(programmeId: string, deps: DepsProgramme
       return { ...bilan, statut: "PAUSED", arret: "BUDGET" };
     }
     const lancementsMax = d.plan.budget.lancements ?? Infinity;
-    let decision = ordonnancer(d.plan, etatsDesTaches(d), { lancementsRestants: lancementsMax - conso.lancements, usdRestant: plafond - conso.usd });
+    const enveloppe = { lancementsRestants: lancementsMax - conso.lancements, usdRestant: plafond - conso.usd, sessionsHeureRestantes: sessionsHeureMax() - (await sessionsDerniereHeure(clock.now())) };
+    let decision = ordonnancer(d.plan, etatsDesTaches(d), enveloppe);
     const echecs = Object.entries(d.taches).filter(([, t]) => t.etat === "ECHEC").map(([k]) => k);
     if (echecs.length || decision.orphelines.length) {
       const raison = echecs.length ? `échec de ${echecs.join(", ")}` : `dépendance cassée pour ${decision.orphelines.join(", ")}`;
       const r = await replanifier(programmeId, principalId, d, raison, deps.cerveau ?? cerveauReel);
       if (!r.ok) return await attendreConsignes(programmeId, principalId, m.title, `${raison} — ${r.raison}`, bilan);
       d = r.dossier;
-      decision = ordonnancer(d.plan, etatsDesTaches(d), { lancementsRestants: lancementsMax - conso.lancements, usdRestant: plafond - conso.usd });
+      decision = ordonnancer(d.plan, etatsDesTaches(d), enveloppe);
     }
     for (const cle of decision.lancer) {
       const t = d.plan.taches.find((x) => x.cle === cle)!;

@@ -105,7 +105,6 @@ async function consigneDev(ctx: ContexteEtape, d: DossierChantier): Promise<Cons
   return {
     depot: p.depot, branche: p.branche, brancheBase: p.brancheBase, objectif: p.objectif, perimetre: p.perimetre,
     criteres: p.criteres, commandesVerif: p.commandesVerif, chantierId: ctx.chantierId,
-    ...(p.travailleur ? { moyenVoulu: p.travailleur } : {}),
     contexte: [
       "Travaille UNIQUEMENT sur la branche indiquée (réservée pour ce chantier) et dans le périmètre de fichiers listé.",
       "Pousse tes commits sur cette branche et ouvre une PR vers la branche de base ; n'écris jamais sur main.",

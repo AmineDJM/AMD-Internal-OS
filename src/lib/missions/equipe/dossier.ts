@@ -1,7 +1,8 @@
 import type { Prisma } from "@prisma/client";
+import { lireDossier } from "@/lib/missions/chantiers/dossier";
 import { prisma } from "@/lib/prisma";
 import type { ConflitDeclare, PlanProgramme } from "@/lib/missions/equipe/programme";
-import { ETATS_TACHE, type EtatTache } from "@/lib/missions/equipe/ordonnanceur";
+import { ETATS_TACHE, sessionsHeureMax, type EtatTache } from "@/lib/missions/equipe/ordonnanceur";
 
 /**
  * LE DOSSIER D'UN PROGRAMME (lot O2, décision 0059) — dans `Mission.carnet.programme`, écrit par UN seul écrivain : la
@@ -69,3 +70,33 @@ export async function ecrireDossierProgramme(programmeId: string, maj: (d: Dossi
 }
 
 export const etatsDesTaches = (d: DossierProgramme): Record<string, EtatTache> => Object.fromEntries(Object.entries(d.taches).map(([k, v]) => [k, v.etat]));
+
+/**
+ * LES COÛTS D'UN PROGRAMME, PAR NATURE (décision de la Direction, 02/11 : les sessions cloud sont sur l'abonnement) —
+ * jamais additionnés : les DOLLARS des modèles (MiMo/Sol/Terra : la planification sur le programme, les résumés et
+ * arbitrages sur ses chantiers — journal K8 `ModelCallLog`), et ce que l'abonnement compte : les SESSIONS lancées (dont
+ * l'heure glissante, face au quota des Routines), leur DURÉE, les TENTATIVES (relances et renvois).
+ */
+export interface CoutsProgramme {
+  modelesUsd: { superviseur: number; chantiers: number };
+  sessions: { lancees: number; derniereHeure: number; plafondHeure: number };
+  dureeMinutes: number;
+  tentatives: number;
+  infra: string;
+}
+
+export function coutsDuProgramme(
+  superviseurUsd: number, enfants: readonly { costUsd: number; startedAt: Date | null; closedAt: Date | null; carnet: unknown }[], d: DossierProgramme, maintenant: Date,
+): CoutsProgramme {
+  const arrondi = (x: number) => Math.round(x * 10_000) / 10_000;
+  const sessions = enfants.flatMap((e) => lireDossier(e.carnet)?.sessions ?? []);
+  const duree = enfants.reduce((s, e) => s + (e.startedAt ? ((e.closedAt ?? maintenant).getTime() - e.startedAt.getTime()) : 0), 0);
+  const renvois = Object.values(d.taches).reduce((s, t) => s + t.renvois, 0);
+  return {
+    modelesUsd: { superviseur: arrondi(superviseurUsd), chantiers: arrondi(enfants.reduce((s, e) => s + e.costUsd, 0)) },
+    sessions: { lancees: sessions.length, derniereHeure: sessions.filter((x) => new Date(x.le).getTime() > maintenant.getTime() - 3600_000).length, plafondHeure: sessionsHeureMax() },
+    dureeMinutes: Math.round(duree / 60_000),
+    tentatives: Math.max(0, sessions.length - enfants.length) + renvois,
+    infra: "aucun déploiement (un programme ne déploie pas) ; minutes de CI GitHub non mesurées",
+  };
+}

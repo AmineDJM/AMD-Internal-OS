@@ -10,8 +10,8 @@ sans conflit ; priorités correction → fiabilité → autonomie → coût → 
 - **File d'intégration** par branche cible : une à la fois (garantie par la base), CI COMPLÈTE sur le résultat fusionné avec
   la dernière version de la cible — elle attrape ce que Git ne voit pas (une fonction renommée par l'un, appelée par l'autre) ;
   conflit ou CI rouge → la tâche retourne à SA session, travail préservé ; `main` sous carte de la Direction.
-- **Travailleurs** : Claude Code cloud (abonnement) ; Managed Agents écrit, interrupteur COUPÉ (facturation API à décider).
-- **Tableau « Missions d'Adam »** : tâches, travailleurs, dépendances, conflits, file, coûts par rôle, en temps réel.
+- **Travailleurs** : sessions cloud Claude Code SEULEMENT (Direction : « abonnement ») ; quota horaire des sessions (25/h).
+- **Tableau « Missions d'Adam »** : tâches, travailleurs, dépendances, conflits, file, coûts par nature (sessions, durée, tentatives ; dollars des modèles), en temps réel.
 - Migration `20270232000000_o2_file_integration` (table `IntegrationFile`). Code `src/lib/missions/equipe/`. Preuves : décision 0059 § 9.
 
 ### ADAM COMPLET POUR LE SUPER ADMIN, DANS LE MOTEUR DE L'ASSISTANT IA (2026-11-02, lot A2, décision 0055)

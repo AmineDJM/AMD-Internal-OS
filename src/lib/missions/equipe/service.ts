@@ -5,17 +5,15 @@ import { annuler, reprendre } from "@/lib/missions/runtime/control";
 import { systemClock, type Clock } from "@/lib/missions/ports";
 import { refusChantier, lireReglagesConsole } from "@/lib/missions/chantiers/conduite";
 import { annulerChantier, donnerConsigneChantier } from "@/lib/missions/chantiers/service";
-import { MOTIF_CONSIGNES_CHANTIER } from "@/lib/missions/chantiers/regles";
+import { MOTIF_BUDGET_CHANTIER, MOTIF_CONSIGNES_CHANTIER } from "@/lib/missions/chantiers/regles";
 import { lireDossier } from "@/lib/missions/chantiers/dossier";
 import { cerveauReel, type CerveauChantier } from "@/lib/missions/chantiers/cerveau";
-import { portsDevBranches } from "@/lib/missions/chantiers/ports-dev";
 import type { PortsDev } from "@/lib/missions/chantiers/etapes";
 import { liberer } from "@/lib/missions/chantiers/reservations";
 import { KIND_PROGRAMME, lirePlanProgramme, type LecturePlan } from "@/lib/missions/equipe/programme";
 import { planifier } from "@/lib/missions/equipe/planificateur";
-import { managedAgentsActif } from "@/lib/missions/equipe/travailleurs";
 import { validerIntegration } from "@/lib/missions/equipe/integration";
-import { dossierProgrammeInitial, ecrireDossierProgramme, lireDossierProgramme, type DossierProgramme } from "@/lib/missions/equipe/dossier";
+import { coutsDuProgramme, type CoutsProgramme, dossierProgrammeInitial, ecrireDossierProgramme, lireDossierProgramme, type DossierProgramme } from "@/lib/missions/equipe/dossier";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -71,9 +69,6 @@ export async function lancerProgramme(principalId: string, e: DemandeProgramme, 
   } else {
     lecture = { ok: false, fautes: ["Donnez la demande (et le dépôt) ou le plan du programme."] };
   }
-  if (lecture.ok && lecture.plan.travailleur === "managed-agents" && !managedAgentsActif()) {
-    lecture = { ok: false, fautes: ["Managed Agents (facturation API) n'est pas activé : décision de la Direction (EQUIPE_MANAGED_AGENTS). Les travailleurs restent Claude Code cloud."] };
-  }
   if (!lecture.ok) {
     await prisma.mission.update({ where: { id: m.id }, data: { status: "CANCELLED", closedAt: clock.now(), title: "Programme refusé par le validateur" } });
     await journaliser(m.id, "PROGRAMME_REFUSE", `Plan refusé : ${lecture.fautes.slice(0, 5).join(" ")}`.slice(0, 900), { fautes: lecture.fautes }, principalId);
@@ -101,7 +96,7 @@ export async function lancerProgramme(principalId: string, e: DemandeProgramme, 
  * ou au programme entier (gardée ; un programme qui attendait ses consignes reprend).
  */
 export async function donnerConsigneProgramme(
-  programmeId: string, principalId: string, c: { texte: string; tache?: string; canal?: "ecrit" | "oral" },
+  programmeId: string, principalId: string, c: { texte: string; tache?: string; canal?: "ecrit" | "oral"; plafondUsd?: number },
   deps: { ports?: PortsDev | null; clock?: Clock } = {},
 ): Promise<ResultatProgramme> {
   const refus = await refusChantier(principalId);
@@ -124,40 +119,40 @@ export async function donnerConsigneProgramme(
     x.attenteConsignes = null;
   });
   await journaliser(programmeId, "PROGRAMME_CONSIGNE", `Consigne de la Direction${c.tache ? ` (tâche ${c.tache})` : ""} : ${texte}`.slice(0, 900), { tache: c.tache ?? null }, principalId);
-  if (m.status === "PAUSED" && m.pausedReason?.startsWith(MOTIF_CONSIGNES_CHANTIER)) await reprendre(programmeId, principalId, "PROGRAMME");
+  // UN PLAFOND RELEVÉ par la Direction (jamais au-delà de celui de la console × 6) fait repartir un programme au plafond.
+  if (c.plafondUsd !== undefined && Number.isFinite(c.plafondUsd) && c.plafondUsd > 0) {
+    const max = (await lireReglagesConsole()).plafondUsd * 6;
+    await prisma.mission.update({ where: { id: programmeId }, data: { plafondUsd: Math.min(c.plafondUsd, max) } });
+    message += ` Plafond porté à ${Math.min(c.plafondUsd, max).toFixed(2)} $.`;
+  }
+  if (m.status === "PAUSED" && (m.pausedReason?.startsWith(MOTIF_CONSIGNES_CHANTIER) || (c.plafondUsd !== undefined && m.pausedReason?.startsWith(MOTIF_BUDGET_CHANTIER)))) await reprendre(programmeId, principalId, "PROGRAMME");
   await signalerReveilProgramme(programmeId, clock.now());
   return { ok: true, programmeId, message };
 }
 
 /**
- * ANNULER (réversibilité, décision 0059 § 7) — les chantiers vivants sont annulés (une session Managed Agents est
- * interrompue ; une session cloud peut finir son tour, rien ne sera intégré), les entrées en file d'intégration sont
- * retirées, les réservations libérées. Une intégration DÉJÀ faite se compense par une PR de revert (chantier à part).
+ * ANNULER (réversibilité, décision 0059 § 7) — les chantiers vivants sont annulés, les entrées en file d'intégration
+ * retirées, les réservations libérées. Une session cloud déjà lancée ne s'arrête pas (aucune API sur l'abonnement) :
+ * elle peut finir son tour, rien de ce qu'elle pousse ne sera intégré. Une intégration DÉJÀ faite se compense par une
+ * PR de revert (chantier à part).
  */
-export async function annulerProgramme(programmeId: string, principalId: string, deps: { ports?: PortsDev | null } = {}): Promise<ResultatProgramme> {
+export async function annulerProgramme(programmeId: string, principalId: string): Promise<ResultatProgramme> {
   const m = await prisma.mission.findFirst({ where: ou(programmeId, principalId), select: { carnet: true } });
   const d = lireDossierProgramme(m?.carnet);
   if (!m || !d) return { ok: false, erreur: "Programme introuvable — ou il ne vous appartient pas." };
   const r = await annuler(programmeId, principalId, "à la demande de la Direction", "PROGRAMME");
   if (!r.ok) return { ok: false, erreur: r.message };
-  const ports = deps.ports === undefined ? portsDevBranches() : deps.ports;
   const enfants = await prisma.mission.findMany({ where: { parentMissionId: programmeId, kind: "CHANTIER", status: { notIn: ["COMPLETED", "CANCELLED", "FAILED"] } }, select: { id: true, carnet: true } });
-  let interrompues = 0;
-  for (const e of enfants) {
-    for (const s of lireDossier(e.carnet)?.sessions ?? []) {
-      const a = await ports?.agent.arreter?.(s.sessionId, s.moyen as never);
-      if (a?.ok) interrompues += 1;
-    }
-    await annulerChantier(e.id, principalId);
-  }
+  const sessions = enfants.reduce((n, e) => n + (lireDossier(e.carnet)?.sessions.length ?? 0), 0);
+  for (const e of enfants) await annulerChantier(e.id, principalId);
   await prisma.integrationFile.updateMany({ where: { programmeId, statut: "EN_FILE" }, data: { statut: "ANNULEE" } });
   await liberer(programmeId);
   await ecrireDossierProgramme(programmeId, (x) => {
     for (const t of Object.values(x.taches)) if (t.etat !== "INTEGREE") t.etat = "ANNULEE";
   });
   const integrees = Object.values(d.taches).filter((t) => t.etat === "INTEGREE").length;
-  await journaliser(programmeId, "PROGRAMME_ANNULE", `Programme annulé : ${enfants.length} chantier(s) arrêté(s)${interrompues ? `, ${interrompues} session(s) interrompue(s)` : ""}${integrees ? ` ; ${integrees} tâche(s) déjà intégrée(s) — compensables par une PR de revert` : ""}.`, {}, principalId);
-  return { ok: true, programmeId, message: `Programme annulé, réservations libérées.${integrees ? ` ${integrees} tâche(s) déjà intégrée(s) restent dans ${d.plan.cible} : demandez une PR de revert si besoin.` : ""}` };
+  await journaliser(programmeId, "PROGRAMME_ANNULE", `Programme annulé : ${enfants.length} chantier(s) arrêté(s)${integrees ? ` ; ${integrees} tâche(s) déjà intégrée(s) — compensables par une PR de revert` : ""}.`, {}, principalId);
+  return { ok: true, programmeId, message: `Programme annulé, réservations libérées.${sessions ? " Les sessions Claude Code déjà lancées peuvent finir leur tour : rien de ce qu'elles poussent ne sera intégré." : ""}${integrees ? ` ${integrees} tâche(s) déjà intégrée(s) restent dans ${d.plan.cible} : demandez une PR de revert si besoin.` : ""}` };
 }
 
 /**
@@ -185,7 +180,7 @@ export interface VueProgramme {
   planifiePar: DossierProgramme["planifiePar"];
   concurrence: number;
   /** Le coût par RÔLE : MiMo/Sol/Terra (planification, sur le programme), travailleurs (chantiers enfants), infra. */
-  couts: { superviseurUsd: number; travailleursUsd: number; infra: string; totalUsd: number; plafondUsd: number | null };
+  couts: CoutsProgramme & { plafondUsd: number | null };
   taches: { cle: string; titre: string; etat: string; chantierId: string | null; branche: string; dependances: string[]; raison: string | null; renvois: number; integreeSha: string | null; travailleur: { sessions: number; moyen: string | null; url: string | null } }[];
   conflits: DossierProgramme["conflits"];
   file: { tache: string; statut: string; tour: number; shaIntegration: string | null; detail: string | null }[];
@@ -196,18 +191,16 @@ export interface VueProgramme {
 export async function ouEnEstProgramme(principalId: string, programmeId?: string): Promise<VueProgramme[]> {
   const ms = await prisma.mission.findMany({
     where: { kind: KIND_PROGRAMME, principalId, ownerId: principalId, ...(programmeId ? { id: programmeId } : {}), NOT: { title: "Programme refusé par le validateur" } },
-    select: { id: true, title: true, status: true, pausedReason: true, costUsd: true, plafondUsd: true, carnet: true, subMissions: { select: { id: true, costUsd: true, carnet: true } }, integrations: { orderBy: { createdAt: "asc" }, select: { tacheCle: true, statut: true, tour: true, shaIntegration: true, detail: true } } },
+    select: { id: true, title: true, status: true, pausedReason: true, costUsd: true, plafondUsd: true, carnet: true, subMissions: { select: { id: true, costUsd: true, carnet: true, startedAt: true, closedAt: true } }, integrations: { orderBy: { createdAt: "asc" }, select: { tacheCle: true, statut: true, tour: true, shaIntegration: true, detail: true } } },
     orderBy: { createdAt: "desc" }, take: programmeId ? 1 : 6,
   });
   return ms.flatMap((m): VueProgramme[] => {
     const d = lireDossierProgramme(m.carnet);
     if (!d) return [];
-    const travailleursUsd = m.subMissions.reduce((s, e) => s + e.costUsd, 0);
-    const arrondi = (x: number) => Math.round(x * 10_000) / 10_000;
     return [{
       id: m.id, titre: m.title, statut: m.status, pause: m.pausedReason, cible: d.plan.cible, depot: `${d.plan.depot.proprietaire}/${d.plan.depot.nom}`,
       planifiePar: d.planifiePar, concurrence: d.plan.concurrence,
-      couts: { superviseurUsd: arrondi(m.costUsd), travailleursUsd: arrondi(travailleursUsd), infra: "aucun déploiement (un programme ne déploie pas) ; minutes de CI GitHub non mesurées", totalUsd: arrondi(m.costUsd + travailleursUsd), plafondUsd: m.plafondUsd },
+      couts: { ...coutsDuProgramme(m.costUsd, m.subMissions, d, new Date()), plafondUsd: m.plafondUsd },
       taches: d.plan.taches.map((t) => {
         const e = d.taches[t.cle];
         const sessions = lireDossier(m.subMissions.find((x) => x.id === e?.chantierId)?.carnet)?.sessions ?? [];

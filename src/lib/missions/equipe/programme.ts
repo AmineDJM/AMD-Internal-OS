@@ -21,8 +21,6 @@ import { ressourceValide, ressourcesCommunes, ressourcesDeTache } from "@/lib/mi
 export const KIND_PROGRAMME = "PROGRAMME";
 export const TAILLES = ["S", "M", "L"] as const;
 export type TailleTache = (typeof TAILLES)[number];
-export const MOYENS_TRAVAILLEUR = ["claude-code-cloud", "managed-agents"] as const;
-export type MoyenTravailleur = (typeof MOYENS_TRAVAILLEUR)[number];
 
 export interface TacheProgramme {
   cle: string;
@@ -49,7 +47,6 @@ export interface PlanProgramme {
   budget: { usd?: number; lancements?: number };
   /** Travailleurs en parallèle au plus (défaut 3, borné à 6). */
   concurrence: number;
-  travailleur: MoyenTravailleur;
 }
 
 export interface ConflitDeclare { a: string; b: string; motif: string }
@@ -211,14 +208,14 @@ export function lirePlanProgramme(brut: unknown, o: { plafondUsd?: number; lance
   if (budget.usd !== undefined && estime > budget.usd) fautes.push(`Budget dépassé : ${estime.toFixed(2)} $ estimés pour ${budget.usd.toFixed(2)} $ permis.`);
   const lancementsMax = Math.min(budget.lancements ?? Infinity, o.lancementsMax ?? Infinity);
   if (lues.length > lancementsMax) fautes.push(`${lues.length} tâches pour ${lancementsMax} lancements permis : chaque tâche lance au moins une session.`);
-  const travailleur = (chaine(p.travailleur, 30) || "claude-code-cloud") as MoyenTravailleur;
-  if (!(MOYENS_TRAVAILLEUR as readonly string[]).includes(travailleur)) fautes.push(`Travailleur « ${travailleur} » inconnu (${MOYENS_TRAVAILLEUR.join(", ")}).`);
+  // Décision de la Direction (02-03/11) : les travailleurs sont les sessions cloud Claude Code, sur l'abonnement, et rien d'autre.
+  if (p.travailleur !== undefined && p.travailleur !== "claude-code-cloud") fautes.push("Les travailleurs sont les sessions cloud Claude Code (abonnement) : aucune API facturée à l'usage (décision de la Direction).");
   if (fautes.length) return { ok: false, fautes };
   const { taches, regroupees } = regrouperPetitesTaches(lues);
   const concurrence = Math.min(entierPositif(p.concurrence) ?? BORNES_PROGRAMME.concurrenceDefaut, BORNES_PROGRAMME.concurrence);
   return {
     ok: true,
-    plan: { titre, objectif, depot, cible, taches, budget, concurrence, travailleur },
+    plan: { titre, objectif, depot, cible, taches, budget, concurrence },
     conflits: conflitsDeclares(taches),
     regroupees,
   };

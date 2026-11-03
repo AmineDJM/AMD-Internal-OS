@@ -4,6 +4,7 @@ import { signalerUneFois } from "@/lib/missions/travaux/signaux";
 import { cloreEcriture, reclamerEcriture } from "@/lib/missions/travaux/ecritures";
 import { lireDossier, sessionParlable } from "@/lib/missions/chantiers/dossier";
 import { horsPerimetre } from "@/lib/missions/chantiers/perimetre";
+import { travailleurCloud } from "@/lib/missions/equipe/travailleurs";
 import { ressourcesHorsReservation } from "@/lib/missions/equipe/ressources";
 import type { AgentDeveloppeur } from "@/lib/missions/chantiers/ports-moteur";
 import { cleReservation, demandesDuPlan, libererCles } from "@/lib/missions/chantiers/reservations";
@@ -46,10 +47,9 @@ async function renvoyer(programmeId: string, entreeId: string, chantierId: strin
   if (recu.etat !== "NEUF") return recu.etat === "FAIT" ? "deja" : null;
   const p = dc.plan;
   const session = sessionParlable(dc);
-  const r = await agent.relancer({
-    depot: p.depot, branche: p.branche, brancheBase: p.brancheBase, objectif: p.objectif, perimetre: p.perimetre, criteres: p.criteres, commandesVerif: p.commandesVerif,
-    chantierId, probleme: texte, ...(p.travailleur ? { moyenVoulu: p.travailleur } : {}), ...(session ? { session, sansNouvelleSession: true } : {}),
-  }, cle);
+  const r = await travailleurCloud(agent).envoyer({
+    depot: p.depot, branche: p.branche, brancheBase: p.brancheBase, objectif: p.objectif, perimetre: p.perimetre, criteres: p.criteres, commandesVerif: p.commandesVerif, chantierId,
+  }, session ?? null, texte, cle);
   await cloreEcriture(cle, r.ok ? "FAIT" : "ECHEC", r.ok ? r.valeur : { erreur: r.erreur });
   return r.ok ? r.valeur.moyen : null;
 }

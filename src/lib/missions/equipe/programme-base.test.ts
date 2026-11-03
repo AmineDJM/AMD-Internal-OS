@@ -14,7 +14,7 @@ import { annulerProgramme, lancerProgramme, ouEnEstProgramme } from "@/lib/missi
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * O2-2 (décision 0059) — LES PROGRAMMES SUR LA VRAIE BASE ET LE VRAI MOTEUR DES CHANTIERS, ports factices :
- *   • lancé par l'outil d'Adam (Super Admin seul ; un salarié est refusé ; Managed Agents refusé interrupteur coupé) ;
+ *   • lancé par l'outil d'Adam (Super Admin seul ; un salarié est refusé ; un travailleur autre que les sessions cloud est refusé) ;
  *   • TROIS tâches indépendantes → trois chantiers enfants, trois sessions lancées EN MÊME TEMPS (mesuré) ;
  *   • chaque chantier vert passe ses réservations au programme (tenues jusqu'à l'intégration) ;
  *   • deux tâches qui se recouvrent → une seule part, l'autre attend « sérialisée après … » ;
@@ -70,12 +70,12 @@ suite("programmes — une équipe de chantiers sous un ordonnanceur déterminist
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
-  it("PERMISSIONS : un salarié est refusé ; Managed Agents est refusé tant que l'interrupteur est coupé", async () => {
+  it("PERMISSIONS : un salarié est refusé ; un travailleur autre que les sessions cloud est refusé (décision de la Direction)", async () => {
     const outil = OUTILS_PROGRAMME.find((o) => o.def.name === "lancer_un_programme")!;
     expect(JSON.parse(await outil.run({ plan: planDe([tache("a", ["src/lib/a/**"])]) }, salarie))).toMatchObject({ statut: "PLAN_REFUSE", raison: "les chantiers de développement sont réservés au Super Admin" });
     const ma = await lancerProgramme(admin, { plan: planDe([tache("a", ["src/lib/a/**"])], { travailleur: "managed-agents" }) });
     expect(ma.ok).toBe(false);
-    expect(!ma.ok && ma.fautes?.join(" ")).toMatch(/Managed Agents \(facturation API\) n'est pas activé/);
+    expect(!ma.ok && ma.fautes?.join(" ")).toMatch(/sessions cloud Claude Code \(abonnement\)/);
   });
 
   it("TROIS travailleurs indépendants EN PARALLÈLE, lancés depuis l'outil d'Adam ; réservations passées au programme une fois verts", { timeout: 60_000 }, async () => {
@@ -110,6 +110,8 @@ suite("programmes — une équipe de chantiers sous un ordonnanceur déterminist
     const [vue] = await ouEnEstProgramme(admin, id);
     expect(vue!.taches.map((t) => t.travailleur.sessions)).toEqual([1, 1, 1]);
     expect(vue!.couts.infra).toMatch(/aucun déploiement/);
+    expect(vue!.couts.sessions).toMatchObject({ lancees: 3, plafondHeure: 25 });
+    expect(vue!.couts.modelesUsd).toEqual({ superviseur: 0, chantiers: 0 });
   });
 
   it("deux tâches qui SE RECOUVRENT : une seule part, l'autre attend « sérialisée » ; l'annulation libère tout", async () => {
@@ -120,7 +122,7 @@ suite("programmes — une équipe de chantiers sous un ordonnanceur déterminist
     const d = await lireLeDossierProgramme(r.programmeId);
     expect(d.conflits).toEqual([{ a: "a", b: "b", motif: "périmètres « src/lib/finance/** » et « src/lib/finance/tva.ts »" }]);
     expect(d.taches.b!.raison).toMatch(/sérialisée après « a »/);
-    const a = await annulerProgramme(r.programmeId, admin, { ports: null });
+    const a = await annulerProgramme(r.programmeId, admin);
     expect(a.ok).toBe(true);
     expect((await prisma.mission.findUnique({ where: { id: r.programmeId }, select: { status: true } }))!.status).toBe("CANCELLED");
     expect((await prisma.mission.findMany({ where: { parentMissionId: r.programmeId }, select: { status: true } })).map((m) => m.status)).toEqual(["CANCELLED"]);

@@ -3,7 +3,7 @@ import { lireCarnet } from "@/lib/missions/travaux/carnet";
 import { etatTravail, MOTIF_ARRET, phraseAttente, type EtatTravail } from "@/lib/missions/travaux/regles";
 import { prioriteDe, type PrioriteTravail } from "@/lib/missions/travaux/plan";
 import { lireDossier, vueDossier, type VueDossier } from "@/lib/missions/chantiers/dossier";
-import { lireDossierProgramme } from "@/lib/missions/equipe/dossier";
+import { coutsDuProgramme, lireDossierProgramme, type CoutsProgramme } from "@/lib/missions/equipe/dossier";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -63,7 +63,7 @@ export interface ProgrammeTableau {
   taches: { cle: string; titre: string; etat: string; raison: string | null; dependances: string[]; chantierId: string | null; branche: string; renvois: number; travailleurEnCours: boolean }[];
   conflits: { a: string; b: string; motif: string }[];
   file: { tache: string; statut: string; tour: number; sha: string | null; raison: string | null }[];
-  couts: { superviseurUsd: number; travailleursUsd: number; infra: string };
+  couts: CoutsProgramme;
   attenteConsignes: string | null;
 }
 
@@ -143,7 +143,7 @@ export async function tableauDesTravaux(principalId: string, maintenant = new Da
       id: true, parentMissionId: true, title: true, objective: true, status: true, pausedReason: true, priority: true, costUsd: true, plafondUsd: true,
       createdAt: true, startedAt: true, closedAt: true, updatedAt: true, carnet: true, kind: true,
       reservationsChantier: { select: { cle: true }, orderBy: { cle: "asc" } },
-      subMissions: { select: { id: true, costUsd: true, status: true } },
+      subMissions: { select: { id: true, costUsd: true, status: true, carnet: true, startedAt: true, closedAt: true } },
       integrations: { orderBy: { createdAt: "asc" }, select: { tacheCle: true, statut: true, tour: true, shaIntegration: true, detail: true } },
       steps: {
         where: { supersededAt: null },
@@ -216,11 +216,7 @@ export async function tableauDesTravaux(principalId: string, maintenant = new Da
           }),
           conflits: programme.conflits,
           file: m.integrations.map((i) => ({ tache: i.tacheCle, statut: i.statut, tour: i.tour, sha: i.shaIntegration, raison: (i.detail as { raison?: string } | null)?.raison ?? null })),
-          couts: {
-            superviseurUsd: Math.round(m.costUsd * 10_000) / 10_000,
-            travailleursUsd: Math.round(m.subMissions.reduce((s, x) => s + x.costUsd, 0) * 10_000) / 10_000,
-            infra: "aucun déploiement (un programme ne déploie pas) ; minutes de CI non mesurées",
-          },
+          couts: coutsDuProgramme(m.costUsd, m.subMissions, programme, maintenant),
           attenteConsignes: programme.attenteConsignes,
         },
       } : {}),

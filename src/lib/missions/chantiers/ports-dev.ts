@@ -1,5 +1,4 @@
 import type { PortsDev } from "@/lib/missions/chantiers/etapes";
-import { agentRoute } from "@/lib/missions/equipe/travailleurs";
 
 /**
  * LE POINT DE BRANCHEMENT DES CONNECTEURS (lot C1 ↔ C2, décision 0042). Les adaptateurs réels (GitHub, Render,
@@ -16,9 +15,7 @@ export function brancherPortsDev(f: (() => PortsDev | null) | null): void {
 
 export function portsDevBranches(): PortsDev | null {
   try {
-    const p = fabrique?.() ?? null;
-    // O2 (décision 0059) : l'agent est ROUTÉ par la consigne — Managed Agents seulement si le plan le veut ET l'interrupteur est ouvert.
-    return p ? { ...p, agent: agentRoute(p.agent) } : null;
+    return fabrique?.() ?? null;
   } catch {
     return null;
   }
