@@ -211,11 +211,16 @@ suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis a
     expect(l.allowed(u.superadmin)).toBe(true);
     for (const p of ["marketing", "delegue", "commercial"] as PersonaCle[]) expect(l.allowed(u[p]), p).toBe(false);
     const avant = await prisma.medicalDoctor.count({ where: { archivedAt: { not: null } } });
-    const r = JSON.stringify(await lire("doublons_medecins", u.superadmin, {}));
+    const r = JSON.stringify(await lire("doublons_medecins", u.superadmin, { nom: "KHELIF" }));
     expect(r).toMatch(/KHELIF/);
     expect(r).toContain("/annuaires/medecins/doublons");
     // Lire n'est pas fusionner : aucune fiche archivée, aucune décision prise.
     expect(await prisma.medicalDoctor.count({ where: { archivedAt: { not: null } } })).toBe(avant);
+    // Banc réel (ANN-20) : la fusion d'un doublon de PERSONNE, gardée par le Super Admin, était offerte au marketing.
+    const { registreDesCapacites, porteOuverte } = await import("./infra/capacites");
+    const fusionPersonne = registreDesCapacites().parId.get("personnes-actions:fusionnerDoublonPersonne")!;
+    expect(porteOuverte(u.marketing, fusionPersonne)).toBe(false);
+    expect(porteOuverte(u.superadmin, fusionPersonne)).toBe(true);
     // Ni geste ni capacité de fusion de médecins offerts à l'assistant, même au Super Admin.
     const noms = outilsOperations(u.superadmin, []).map((o) => o.def.name);
     expect(noms.some((n) => /fusionnerMedecins|ecarterFusion/i.test(n))).toBe(false);

@@ -8,7 +8,7 @@ import {
 import { lignesDepensesAdPro } from "@/modules/ad-pro/api";
 import { peutDeciderFusionMedecins, propositionsFusionMedecins } from "@/modules/referentiels/api";
 import {
-  agregerDepenses, bornesPeriode, motsDuNom, pourcentage, PERIODES, type AxeDepense, type Periode,
+  agregerDepenses, bornesPeriode, motsDuNom, plier, pourcentage, PERIODES, type AxeDepense, type Periode,
 } from "../../domaine/annuaire/analyse";
 
 /**
@@ -234,9 +234,12 @@ async function lireDepenses(entree: Record<string, unknown>, u: CurrentUser): Pr
 }
 
 /** Les fiches médecins en double, PROPOSÉES au Super Admin — jamais fusionnées par l'assistant (décision 0061). */
-async function lireDoublonsMedecins(_entree: Record<string, unknown>, u: CurrentUser): Promise<string> {
+async function lireDoublonsMedecins(entree: Record<string, unknown>, u: CurrentUser): Promise<string> {
   if (!peutDeciderFusionMedecins(u)) return refus("Lecture indisponible.");
-  const ps = await propositionsFusionMedecins(u);
+  // « Y a-t-il un doublon de KHELIF ? » : les paires dont l'une des fiches porte tous les mots dits.
+  const mots = motsDuNom(typeof entree.nom === "string" ? entree.nom : "").map(plier);
+  const porte = (nom: string) => mots.every((m) => plier(nom).includes(m));
+  const ps = (await propositionsFusionMedecins(u)).filter((p) => !mots.length || porte(p.garde.name) || porte(p.absorbee.name));
   return JSON.stringify({
     total: ps.length,
     propositions: ps.slice(0, 40).map((p) => ({
@@ -256,7 +259,8 @@ export function lecturesAnnuaireTerrain(): PowerTool[] {
       "LES FICHES MÉDECINS EN DOUBLE de l'annuaire, à proposer au Super Admin : pour chaque paire, la fiche gardée, la fiche absorbée, "
       + "les champs reçus, ce qui est rattaché (visites, comptes rendus…). Pour « y a-t-il des doublons de médecins ? », "
       + "« propose-moi les fusions de fiches médecins ». Le Super Admin tranche (✓ / ✗) sur la page des doublons, jamais l'assistant.",
-      {}, "Doublons de médecins proposés", (u) => peutDeciderFusionMedecins(u), lireDoublonsMedecins),
+      { nom: { type: "string", description: "Facultatif : un nom de médecin (« KHELIF ») pour ne voir que ses doublons." } },
+      "Doublons de médecins proposés", (u) => peutDeciderFusionMedecins(u), lireDoublonsMedecins),
     outil("annuaire_terrain",
       "L'ANNUAIRE MÉDICAL ET PHARMACEUTIQUE : médecins (spécialité, établissement, téléphone, délégué, secteur, dernière visite) et "
       + "pharmacies / établissements (adresse, téléphone, SECTEURS et DÉLÉGUÉS QUI LES COUVRENT, BU). Filtres : `quoi` (medecin, pharmacie, "

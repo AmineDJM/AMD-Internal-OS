@@ -430,7 +430,7 @@ wilaya from the address when absent ; the doctor grade accepts its label and tre
   - **RBAC.** `STOCKS: READ` was added to `MEDICAL_PROMOTION_MANAGER` and `PRODUCT_MANAGER`. `PRODUCT_MANAGER` still has only
     `MEDICAL: READ` (no directory write); this was reported to the Direction and not opened.
   - **Doctor merge.** `fusionnerMedecinsEnDouble` (`lib/actions/medical-directory-crud-actions.ts`) fills empty fields through
-    `updateDoctor` and moves visits, reports (`doctorIds` included), samples, observations, derogations, Ad & Pro rows,
-    segmentation and cell styles. It then archives the absorbed record. It is SA-only and reversible.
+    `updateDoctor` and moves visits, reports (`doctorIds` included), observations, derogations, Ad & Pro rows,
+    segmentation and cell styles; promo stock movements stay on the absorbed record (immutable register). It then archives the absorbed record. It is SA-only and reversible.
   - **Blast radius.** `updateDoctor` now re-derives `wilayaCode` only when the form carries a location field; the raw-SQL
     write used to block the undo of a one-field fix.

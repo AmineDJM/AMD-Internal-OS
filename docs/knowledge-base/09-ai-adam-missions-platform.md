@@ -1011,7 +1011,7 @@ would collide across parallel suites in the test DB.
     already decided (`DecisionFusionMedecin`). Read `doublons_medecins` is SA-only. The decision is made only on
     `/annuaires/medecins/doublons`: ✓ `fusionnerMedecinsEnDouble` (K10) or ✗ `ecarterFusionMedecin`. Both actions are in
     `ACTIONS_HUMAINES` (`lib/actions/generique.ts`), so they are never callable by the assistant. The whole
-    `personnes-actions` file is now in `SURFACES_HUMAINES`: the real bench saw its SA-only merge offered to marketing.
+    `personnes-actions` guard was renamed `requireSuperAdmin()`, so the contract reads it and the capability is SA-only. The real bench saw its SA-only merge offered to marketing; a guard named outside `lirePorte`'s prefixes looks unguarded.
   - **Stock-state request.** It goes through one rule, `regleDemandeEtatStock` (`lib/rbac/roles.ts`; `peutDemanderEtatStock` on the session; `canRequestStockState` in `lib/stocks/scopes.ts` is an alias): SA, PCH/global
     view, `OPERATIONS_DIRECTOR`, `NATIONAL_SALES`, `MEDICAL_PROMOTION_MANAGER`, `PRODUCT_MANAGER`; a primary
     `MEDICAL_DELEGATE` is never allowed.

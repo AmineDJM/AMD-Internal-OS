@@ -356,7 +356,8 @@ export async function fusionnerMedecinsEnDouble(formData: FormData): Promise<Act
     for (const r of await prisma.fieldReport.findMany({ where: { doctorIds: { has: absorbee.id } }, select: { id: true, doctorIds: true } })) {
       await prisma.fieldReport.update({ where: { id: r.id }, data: { doctorIds: [...new Set(r.doctorIds.map((x) => (x === absorbee.id ? garde.id : x)))] } });
     }
-    await prisma.promoStockMovement.updateMany({ where: { doctorId: absorbee.id }, data: vers });
+    // Les mouvements de stock promotionnel ne bougent PAS : leur registre ne se modifie jamais (une erreur s'annule par son
+    // inverse) ; ils restent sur la fiche absorbée, archivée et lisible.
     await prisma.hcpObservation.updateMany({ where: { doctorId: absorbee.id }, data: vers });
     await prisma.segmentationDerogation.updateMany({ where: { doctorId: absorbee.id }, data: vers });
     for (const l of await prisma.adProMedecin.findMany({ where: { doctorId: absorbee.id }, select: { id: true, entityType: true, entityId: true } })) {

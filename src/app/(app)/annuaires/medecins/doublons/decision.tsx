@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Button } from "@/components/ui/button";
 import { Retour } from "@/components/ui/retour";
 import { ecarterFusionMedecin, fusionnerMedecinsEnDouble } from "@/lib/actions/medical-directory-crud-actions";
@@ -10,13 +10,13 @@ import { ecarterFusionMedecin, fusionnerMedecinsEnDouble } from "@/lib/actions/m
 export function DecisionDoublon({ gardeId, absorbeId }: { gardeId: string; absorbeId: string }) {
   const [enCours, demarrer] = useTransition();
   const [retour, setRetour] = useState<{ ton: "succes" | "erreur"; texte: string } | null>(null);
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const agir = (fusionner: boolean) => demarrer(async () => {
     const fd = new FormData();
     if (fusionner) { fd.set("gardeId", gardeId); fd.set("absorbeId", absorbeId); } else { fd.set("medecinAId", gardeId); fd.set("medecinBId", absorbeId); }
     const r = fusionner ? await fusionnerMedecinsEnDouble(fd) : await ecarterFusionMedecin(fd);
     setRetour(r.ok ? { ton: "succes", texte: r.message ?? "Fait." } : { ton: "erreur", texte: r.error ?? "Le geste n'a pas abouti." });
-    if (r.ok) router.refresh();
+    if (r.ok) rafraichir();
   });
   return (
     <div className="space-y-2">

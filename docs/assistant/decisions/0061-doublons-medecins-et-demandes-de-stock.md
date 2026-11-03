@@ -21,16 +21,19 @@ du lot T2. Ses réponses sont devenues des règles du **code**, pas des phrases 
 - **Décision** : la page `/annuaires/medecins/doublons` (Super Admin seul, sinon `notFound()`) liste les propositions.
   - **✓ Fusionner** (`fusionnerMedecinsEnDouble`) :
     - complète les champs vides de la fiche gardée par `updateDoctor` ;
-    - déplace les visites, les comptes rendus (y compris le tableau `doctorIds`), les mouvements d'échantillons, les
+    - déplace les visites, les comptes rendus (y compris le tableau `doctorIds`), les
       observations, les dérogations de segmentation, les lignes Ad & Pro, les fiches de segmentation et les styles de
       cellule (sans doublon) ;
+    - laisse les mouvements de stock promotionnel sur la fiche absorbée : leur registre ne se modifie jamais ;
     - **archive** la fiche absorbée (jamais supprimée) ;
     - est annulable K10 (`actionReversible`), testé dans `reversibles-annuaire.test.ts` (fusion → annulation → rétablir).
   - **✗ Écarter** (`ecarterFusionMedecin`) enregistre une `DecisionFusionMedecin` ECARTEE avec l'**empreinte** des deux
     fiches. La proposition ne revient que si l'une des fiches change.
 - **Le référentiel des personnes** : le banc réel (ANN-20) a montré au marketing la fusion d'un doublon de **personne**
   (`personnes-actions:fusionnerDoublonPersonne`), refusée au clic, mais l'assistant révélait « réservée au Super Admin ».
-  Le fichier `personnes-actions` entre dans `SURFACES_HUMAINES` : ce sont des décisions prises sur l'écran de revue.
+  Cause : sa garde s'appelait `superAdmin()`, un nom que le contrat ne relève pas, et l'action passait pour ouverte. Elle
+  s'appelle désormais `requireSuperAdmin()` : le contrat la relève, la capacité devient « Super Admin seul » et n'est plus offerte
+  au marketing (test `porteOuverte`). Les surfaces humaines restent à 21 actions.
 - **Adam ne fusionne jamais** : les deux actions sont marquées `ACTIONS_HUMAINES` (`src/lib/actions/generique.ts`). Elles
   sont donc non appelables par la capacité générique, même pour le Super Admin (classement : `appelable: false`). Elles
   sont aussi exclues de la parité des circuits. La lecture ne renvoie qu'un lien vers la page et la consigne « tu
@@ -38,7 +41,7 @@ du lot T2. Ses réponses sont devenues des règles du **code**, pas des phrases 
 - La fusion des **pharmacies et établissements** (`fusionner_doublons_annuaire`, décision 0052) est inchangée : la
   réponse de la Direction porte sur les fiches médecins.
 
-Modèle : `DecisionFusionMedecin` (migration additive `20270224100000_t2_decisions_fusion_medecins`, sans clé étrangère).
+Modèle : `DecisionFusionMedecin` (migration additive `20270234000000_t2_decisions_fusion_medecins`, sans clé étrangère).
 
 ## 2. La demande formelle d'état de stock — marketing, opérations, National Sales ; jamais le délégué
 

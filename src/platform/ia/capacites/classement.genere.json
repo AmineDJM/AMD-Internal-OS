@@ -8642,7 +8642,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "personnes-actions:ecarterDoublonPersonne": {
   "risque": "R1",
@@ -8651,7 +8651,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "personnes-actions:fusionnerDoublonPersonne": {
   "risque": "R1",
@@ -8660,7 +8660,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "petty-cash-actions:allotPettyCash": {
   "risque": "R4",

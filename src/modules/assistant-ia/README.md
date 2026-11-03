@@ -411,8 +411,8 @@ Réponses de la Direction du 03/11 :
 - **Doublons de médecins.** La lecture `doublons_medecins` est réservée au Super Admin. Elle renvoie les propositions de
   `referentiels` (`proposerFusionsMedecins`, pur) et le lien `/annuaires/medecins/doublons`. Sur cette page, le Super Admin
   tranche : ✓ `fusionnerMedecinsEnDouble` (réversible K10) ou ✗ `ecarterFusionMedecin` (empreinte : la proposition revient
-  si une fiche change). Les deux actions, comme le fichier `personnes-actions`, sont non appelables par l'assistant
-  (`ACTIONS_HUMAINES` / `SURFACES_HUMAINES`). Adam ne fusionne jamais une fiche médecin.
+  si une fiche change). Les deux actions sont non appelables par l'assistant
+  (`ACTIONS_HUMAINES`). Adam ne fusionne jamais une fiche médecin.
 - **Stocks** (`infra/operations/stocks-terrain.ts`) :
   - `demande_etat_stock` : demande formelle aux KAM qui couvrent. Ouverte au marketing (`MEDICAL_PROMOTION_MANAGER`,
     `PRODUCT_MANAGER`), aux opérations, au National Sales et à la Direction, selon la règle `canRequestStockState`.

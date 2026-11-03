@@ -161,11 +161,6 @@ export const SURFACES_HUMAINES: Readonly<Record<string, string>> = {
     + "étape pourrait contenir « approuve la mission ». Ces gestes se font depuis Mission "
     + "Control ; ceux qui RÉDUISENT (suspendre, arrêter) restent accessibles dans la "
     + "conversation par le contrat de plateforme",
-  // T2 bis (décision 0061) : le référentiel des personnes — fusionner, écarter, défaire un doublon, basculer la double
-  // écriture. Des DÉCISIONS du Super Admin sur son écran de revue ; le banc réel a vu la fusion proposée au marketing
-  // (refusée au clic, mais l'assistant avait révélé qu'elle existait).
-  "personnes-actions":
-    "la revue des doublons du référentiel des personnes — une décision du Super Admin, prise sur son écran de revue",
   "adam-settings-actions":
     "les garde-fous d'Adam lui-même — l'interrupteur de sortie, celui d'entrée et celui de "
     + "connexion. Adam ne relève pas ses propres barrières, même à la demande d'une personne qui "
