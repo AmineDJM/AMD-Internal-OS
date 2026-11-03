@@ -65,6 +65,9 @@ AU3 listait 17 paires. Chacune a été **mesurée contre l'outil du moteur** :
 | `mission_create` → `lancer_un_travail` (il ne se chaînait plus qu'à `gmail_prepare_mail`, déjà couvert) | `list_reminders`, `plan_reminder` : un rappel notifie et relance autrui ; une routine rejoue une consigne en lecture seule (`cancel_reminder`, `snooze_reminder` en dépendent) |
 | | `read_finances` : trésorerie (à encaisser, à régler) ; `finance_totals` n'agrège que le payé / l'encaissé |
 
+**Les 8 gardés sont à absorber quand `lire` / `agir` les couvriront (I3/I6)** — orchestration, 03/11 : aucune coupure de
+capacité, la Direction veut plus de liberté, pas moins.
+
 Les retirés passent dans `COUVERTS` (porte) avec leur équivalent ; le code d'Adam reste (le Bureau l'emploie). Aucun
 outil gardé ne renvoie, dans sa description, vers un outil retiré (vérifié). Leur nom reste un mot réservé du banc
 (`ADAM_RETIRES_I2` dans `MOTS_RESERVES_SA`). Repli : remettre le nom dans `LECTURES_SA` / `ECRITURES_SA`.
