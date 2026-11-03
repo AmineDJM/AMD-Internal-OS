@@ -86,7 +86,9 @@ const MOTIFS_TEXTUELS: Array<{ regex: RegExp; label: string }> = [
   // commence par un CHIFFRE : mesuré le 28/10/2026, « C'est quoi le salaire d'Assia ? » devenait « C'est quoi le
   // [CONFIDENTIEL]d'Assia ? » (l'espace seule passait pour un montant) — la question n'arrivait plus au modèle.
   {
-    regex: /\b(?:salaire(?:\s+(?:de\s+base|net|brut|mensuel))?|r[ée]mun[ée]ration|net\s+[àa]\s+payer|[ée]moluments?)\s*(?:(?:est|sera|de|du|à|a)\s+(?:de\s+|d['’]\s*)?|[:=]\s*)?\d[\d\s.,]*(?:\s*(?:DZD|DA|dinars?|EUR|€|USD|\$))?\b/gi,
+    // F2 (banc réel, TR-RH-06) : « une avance sur salaire de 30 000 DZD » — le montant d'une AVANCE (ou d'un acompte), dit
+    // par la personne elle-même, n'est pas une rémunération ; masqué, il n'arrivait plus au modèle, qui le redemandait.
+    regex: /\b(?<!\b(?:avance|acompte)s?\s+sur\s+(?:le\s+|mon\s+|son\s+)?)(?:salaire(?:\s+(?:de\s+base|net|brut|mensuel))?|r[ée]mun[ée]ration|net\s+[àa]\s+payer|[ée]moluments?)\s*(?:(?:est|sera|de|du|à|a)\s+(?:de\s+|d['’]\s*)?|[:=]\s*)?\d[\d\s.,]*(?:\s*(?:DZD|DA|dinars?|EUR|€|USD|\$))?\b/gi,
     label: "SALAIRE_EXPLICITE",
   },
   // Montant associé à net/brut/salaire

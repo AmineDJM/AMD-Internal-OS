@@ -14,6 +14,21 @@ sans conflit ; priorités correction → fiabilité → autonomie → coût → 
 - **Tableau « Missions d'Adam »** : tâches, travailleurs, dépendances, conflits, file, coûts par nature (sessions, durée, tentatives ; dollars des modèles), en temps réel.
 - Migration `20270232000000_o2_file_integration` (table `IntegrationFile`). Code `src/lib/missions/equipe/`. Preuves : décision 0059 § 9.
 
+### NEUF DÉFAUTS DU BANC RÉEL CORRIGÉS PAR L'ARCHITECTURE (2026-11-02, lot F2, décision 0060)
+
+Passage réel du 02/11 au soir (224/250, 110/110 attaques bloquées) : les défauts restants venaient du produit.
+- **Voix** : ce qui est DIT et la CONSIGNE au modèle vocal sont deux champs (`pourVoix` / `consigne`). La garde de
+  sortie `sortieOrale` (`platform/ia/voix/dit-et-consigne.ts`) est appliquée au serveur et au navigateur. La consigne
+  part en contexte silencieux, jamais prononcée ni affichée.
+- **RH pour soi** : congé, absence, avance et attestation ne se jugent plus sur les familles RH quand aucun champ ne
+  désigne autrui (`GESTES_POUR_SOI`). Le montant d'une avance n'est plus masqué comme un salaire.
+- **Missions** : le compilateur de plan résout une lecture ou un geste sur le catalogue de la personne (index J4).
+  Une faute liste les noms ouverts. Un tour sans réponse du modèle dit la cause et reprend une fois.
+- **Cartes** : deux cartes indépendantes coexistent (objet comparé, nature = action). Une question ne rend rien caduc.
+  « Annule cette demande » retire la carte non confirmée.
+- **BU** désignée par son nom (entité `business_unit`). **Mail** préparé avec « À » à compléter. **Matériel promo** :
+  un article hors catalogue part en « Autre article » dès la création (`lib/promo-material/article-hors-catalogue.ts`).
+- Preuves : `src/modules/assistant-ia/f2-defauts-banc.test.ts` (base réelle), rejeu ciblé `docs/assistant/preuves/audit/f2/`.
 ### ADAM COMPLET POUR LE SUPER ADMIN, DANS LE MOTEUR DE L'ASSISTANT IA (2026-11-02, lot A2, décision 0055)
 
 Décision de la Direction du 02/11 — « un seul assistant : Adam » ; le Super Admin garde **toutes** les fonctions de l'ancien
@@ -147,7 +162,7 @@ secteur ne voit ni ne modifie la fiche ni la visite d'un autre panel (testé au 
 ### T1 — ADVENTUM IA RANGE, CONVERTIT, MODIFIE, RETROUVE ET DONNE LES DOCUMENTS, À LEUR PLACE (2026-11-02)
 
 « Ranger des documents dans légal, convertir, modifier, checker le drive, nous donner des documents » (Direction, 02/11).
-**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 12 pièces ou un dossier du Drive ; nature et dossier
+**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 30 pièces ou un dossier du Drive ; nature et dossier
 canoniques, dates lues sur la pièce, partie de l'annuaire, avenant créé sur son contrat) et **mettre à jour une fiche**
 (`modifier_fiche_juridique`) — par les actions de l'écran, annulables (J7/K10b). **Lire et donner** : `registre_juridique`
 (« le dernier contrat de X », échéances, dossiers ; le fichier remis par son lien, pièce restreinte jamais nommée) et

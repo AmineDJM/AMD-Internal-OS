@@ -153,7 +153,8 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     expect(commentaire.texte).toMatch(/attendu 200, reçu 500/);
     // Extrait court : transmis tel quel — AUCUN modèle payé pour le relire.
     expect(cerveau.appels).toEqual([]);
-    expect((await dossier(id)).compteurs.lancements).toBe(2);
+    // Un commentaire de PR n'est pas une session neuve : il ne consomme pas de lancement (4 par chantier, Direction 01/11).
+    expect((await dossier(id)).compteurs.lancements).toBe(1);
     // Le tableau « Missions » dit le tour de correction.
     expect((await tableauDesTravaux(admin)).find((x) => x.id === id)!.etapes.find((e) => e.cle === "corriger")?.essais).toBe(1);
   });
@@ -429,6 +430,8 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     expect(ordres.map((o) => o.quoi)).toEqual(["CREER", "MESSAGE"]);
     expect(ordres[1]!.d).toMatchObject({ sessionId: sid });
     expect(String(ordres[1]!.d.texte)).toMatch(/attendu 200, reçu 500/);
+    // La correction dans la MÊME session ne consomme pas de lancement.
+    expect((await dossier(id)).compteurs.lancements).toBe(1);
   });
 
   it("RELAIS HORS LIGNE et zéro routine : le lancement ATTEND (dit), rien n'est enfilé", async () => {
@@ -587,7 +590,8 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     const mots = ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"];
     const ports = fauxPortsDev({ surSession: (k) => ({ sha: `abcd00000000000${k}`, checks: "rouge", extrait: `FAIL src/z.test.ts ${mots[k] ?? "omega"} cassé` }) });
     const id = await lancer(plan());
-    const reglages = { ...REGLAGES_BANC, correctionsMax: 4, alerteApresEchecs: 3 };
+    // Le faux ouvre une session NEUVE à chaque correction (ni relais ni PR) : chacune compte comme lancement, d'où 10 ici.
+    const reglages = { ...REGLAGES_BANC, correctionsMax: 4, alerteApresEchecs: 3, lancementsMax: 10 };
     expect(await jusquAuBout(id, ports, { reglages, max: 60 })).toBe("PAUSED");
     const alerte = await prisma.notification.findFirst({ where: { userId: admin, title: { startsWith: "Chantier : 3ᵉ échec" } }, orderBy: { createdAt: "desc" } });
     expect(alerte?.body).toMatch(/Ce qui casse : .*Essayé : 2 correction\(s\).*Je continue/);

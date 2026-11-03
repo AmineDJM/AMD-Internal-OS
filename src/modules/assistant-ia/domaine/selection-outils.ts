@@ -130,7 +130,7 @@ const MOTS_CLES: Record<string, string> = {
   chercher_conversations: "conversation precedente passee avait dit discute evoque parle derniere fois semaine derniere comme on avait convenu",
   // K3 (décision 0033 § 7) : la recherche approfondie — les mots d'une étude, d'une veille, d'un rapport sourcé.
   recherche_approfondie: "recherche approfondie etude marche veille concurrence concurrents benchmark etat de l art panorama rapport complet sources tendances reglementation etrangere pays analyse sectorielle",
-  lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance",
+  lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance tache de fond arriere plan mission recapitulatif classement",
   // C1 (décision 0042) : les chantiers de développement (Super Admin) — Claude Code, GitHub, Render.
   lancer_un_chantier: "chantier claude code developpe developpement code corrige bug fonctionnalite branche depot github pull request pr implemente",
   ou_en_est_chantier: "ou en est chantier avancement developpement claude code deploiement ci checks pr statut",

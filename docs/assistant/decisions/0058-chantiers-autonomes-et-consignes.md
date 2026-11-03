@@ -8,7 +8,7 @@ lui donne des consignes il les suit. »
 Elle complète [0042](0042-chantiers-socle.md) (le socle) et [0043](0043-connecteurs-chantiers.md) (les connecteurs).
 
 > Code : réglages `lib/missions/chantiers/regles.ts` (`attenteCommitHeures` 24, `relanceSansCommitHeures` 4,
-> `correctionsMax` 8, `alerteApresEchecs` 3, `lancementsMax` 12 ; `deciderAntiBoucle`, `MOTIF_CONSIGNES_CHANTIER`) ;
+> `correctionsMax` 8, `alerteApresEchecs` 3, `lancementsMax` 4 (seules les sessions neuves comptent) ; `deciderAntiBoucle`, `MOTIF_CONSIGNES_CHANTIER`) ;
 > étapes `etapes.ts` (`commitNeuf`, `faireLePoint`, `devCorriger`) ; pause et alerte `conduite.ts` (`prevenir`,
 > `demanderConsignes`) ; réservations `reservations.ts` (`STATUTS_VIVANTS`, `reservationTenue`) ; consigne
 > `service.ts` (`donnerConsigneChantier`) et outil `outils.ts` (`consigne_chantier`, Assistant IA et Adam) ; dossier

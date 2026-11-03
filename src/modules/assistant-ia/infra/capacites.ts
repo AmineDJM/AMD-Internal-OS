@@ -17,7 +17,7 @@ import { CHAMP_SALAIRE } from "@/platform/ia/capacites/classement";
 import type { Capacite, OutilDecrit } from "@/platform/ia/capacites/types";
 import { intentSummary, persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { journaliserGeste, simulerEnDiff } from "@/platform/ia/hors-requete";
-import { familleOuverte, refusFamille, type AccesIa } from "../domaine/acces-regles";
+import { familleOuverte, famillesAJuger, GESTES_POUR_SOI, refusFamille, type AccesIa } from "../domaine/acces-regles";
 import {
   estChargeCapacite, KIND_CAPACITE, niveauDeCarte, sortieBornee, texteARessaisir, valeurAffichee, type ChargeCapacite,
 } from "../domaine/capacites";
@@ -99,7 +99,7 @@ export function capacitesOffertes(user: CurrentUser): Capacite[] {
 /** Les familles de la console : celles de la capacité, et « Salaires & paie » dès que l'entrée touche une rémunération. */
 const refusFamilleDe = (cap: Capacite, acces: AccesIa, entree: Readonly<Record<string, unknown>> = {}): string | null => {
   const salaire = !cap.familles.includes("SALAIRES") && Object.keys(entree).some((k) => CHAMP_SALAIRE.test(k));
-  const fermee = [...cap.familles, ...(salaire ? ["SALAIRES" as const] : [])].find((f) => !familleOuverte(acces, f));
+  const fermee = famillesAJuger(cap.id, [...cap.familles, ...(salaire ? ["SALAIRES" as const] : [])], entree).find((f) => !familleOuverte(acces, f));
   return fermee ? refusFamille(fermee) : null;
 };
 
@@ -109,18 +109,46 @@ function entreeNettoyee(cap: Capacite, brute: Record<string, unknown>): Record<s
   return Object.fromEntries(Object.entries(brute ?? {}).filter(([k, v]) => connus.has(k) && v !== undefined && v !== null && v !== ""));
 }
 
+/**
+ * F2 — un geste pour soi où le modèle a recopié la PERSONNE elle-même dans le champ d'autrui (« employeeId » : son nom, ou
+ * l'identifiant de sa fiche liée) : le champ est retiré, l'action prend la fiche liée au compte, la famille se juge comme
+ * pour soi. Un autre nom reste, et se juge sur les familles RH (autrui).
+ */
+async function sansSoiDesigne(user: CurrentUser, cap: Capacite, entree: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const champs = GESTES_POUR_SOI[cap.id]?.filter((k) => entree[k] !== undefined);
+  if (!champs?.length) return entree;
+  const fiche = await prisma.employee.findUnique({ where: { userId: user.id }, select: { id: true, fullName: true } });
+  if (!fiche) return entree;
+  const soi = (v: unknown) => typeof v === "string" && (v === fiche.id || v.trim().toLowerCase() === fiche.fullName.trim().toLowerCase()
+    || /^(moi|moi-m[eê]me|me|soi)$/i.test(v.trim()));
+  return Object.fromEntries(Object.entries(entree).filter(([k, v]) => !(champs.includes(k) && soi(v))));
+}
+
+/**
+ * F2 (banc réel du 02/11, TR-MU-03) — LES CHAMPS À COMPLÉTER SUR LA CARTE. « Prépare un mail au pharmacien responsable »,
+ * dont l'adresse est introuvable : rien n'était préparé (« l'adresse manque »). Un outil du serveur (jamais le modèle : la
+ * clé est un SYMBOLE, qu'aucune entrée JSON ne porte) peut demander qu'un champ obligatoire VIDE n'empêche pas la carte :
+ * la carte s'affiche, le champ « à compléter » dans son formulaire (J11) ; la confirmation rejuge tout — l'action refuse
+ * tant qu'il manque.
+ */
+export const A_COMPLETER: unique symbol = Symbol("champs à compléter sur la carte");
+const champsACompleter = (brute: Record<string | symbol, unknown>): string[] => {
+  const v = brute[A_COMPLETER];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
+};
+
 /** Préparer : résoudre les noms (sous la portée de la personne), valider contre le contrat. */
-async function preparer(user: CurrentUser, cap: Capacite, brute: Record<string, unknown>) {
+async function preparer(user: CurrentUser, cap: Capacite, brute: Record<string, unknown>, aCompleter: readonly string[] = []) {
   const lu = CONTRAT_IA.get(cap.id);
   if (!lu) return { refus: `L'action « ${cap.id} » n'existe plus dans l'ERP.` } as const;
   const contrat = avecPersonnes(lu);
-  const r = await resoudreEntrees(user, contrat, entreeNettoyee(cap, brute));
+  const r = await resoudreEntrees(user, contrat, await sansSoiDesigne(user, cap, entreeNettoyee(cap, brute)));
   if (r.refus.length) return { refus: r.refus.join(" ") } as const;
   // Un nom resté dans un champ d'identifiant ferait agir sur rien (ou sur la mauvaise ligne) : on le demande.
   if (r.nonResolus.some((n) => contrat.champs.find((c) => c.nom === n.champ)?.type === "reference")) {
     return { incomplet: r.nonResolus.map((n) => `« ${n.champ} » : ${n.raison}`) } as const;
   }
-  const fautes = validerEntree(contrat, r.entree);
+  const fautes = validerEntree(contrat, r.entree).filter((f) => !(f.champ && aCompleter.includes(f.champ) && r.entree[f.champ] === undefined));
   if (fautes.length) return { incomplet: fautes.map((f) => f.raison) } as const;
   return { entree: r.entree, affichage: new Map(r.substitutions.map((s) => [s.champ, s.cible.titre])) } as const;
 }
@@ -168,7 +196,8 @@ function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCart
       if (u.id !== user.id) return json({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." });
       const famille = refusFamilleDe(cap, acces);
       if (famille) return json({ statut: "REFUS", raison: famille });
-      const p = await preparer(u, cap, brute ?? {});
+      const aCompleter = champsACompleter((brute ?? {}) as Record<string | symbol, unknown>);
+      const p = await preparer(u, cap, brute ?? {}, aCompleter);
       if ("refus" in p) return json({ statut: "REFUS", raison: p.refus });
       if ("incomplet" in p) return json({ statut: "INCOMPLET", manque: p.incomplet, consigne: "Pose UNE question à l'utilisateur pour obtenir ce qui manque ; n'invente aucune valeur." });
 
@@ -188,12 +217,15 @@ function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCart
       if (salaire) return json({ statut: "REFUS", raison: salaire });
       if (propositions.length > 0) return REFUS_SECONDE_CARTE;
       const { fields, level, confirmText, formulaire } = carteDe(cap, p.entree, p.affichage);
+      const manquants = aCompleter.filter((k) => p.entree[k] === undefined);
       const warnings = [
+        ...(manquants.length ? [`À compléter sur la carte : ${manquants.map(libelleChamp).join(", ")} — rien ne part sans.`] : []),
         `${cap.raisonRisque.charAt(0).toUpperCase()}${cap.raisonRisque.slice(1)}.`,
         cap.annulation === "aucune" ? "Ce geste ne se défait pas." : `Annulation : ${cap.raisonAnnulation}.`,
       ];
       // LA SIMULATION (J7) : le diff RÉEL de l'action, jouée dans une transaction annulée — ou « non simulable », dit.
-      const simulation = cap.simulable === "oui" ? await simulerLaCapacite(u, cap, p.entree) : vueNonSimulable(cap.raisonSimulable);
+      const simulation = manquants.length ? vueNonSimulable("un champ reste à compléter sur la carte")
+        : cap.simulable === "oui" ? await simulerLaCapacite(u, cap, p.entree) : vueNonSimulable(cap.raisonSimulable);
       if (simulation.statut === "ECHEC") warnings.unshift(`La simulation n'a pas abouti : ${simulation.raison ?? "raison inconnue"}. Confirmer exécutera quand même l'action, qui revérifiera tout.`);
       const charge: ChargeCapacite = { kind: KIND_CAPACITE, id: cap.id, entree: p.entree, simulation };
       const [intentId] = await persistActionIntents(u.id, [{
@@ -208,7 +240,8 @@ function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCart
         champs: fields,
         avertissements: warnings,
         simulation: simulation.resume,
-        consigne: `Rien n'est exécuté : une carte de confirmation est affichée${confirmText ? ` — la personne devra ressaisir « ${confirmText} »` : ""}. Ne dis pas que c'est fait.`,
+        ...(manquants.length ? { a_completer: manquants.map(libelleChamp) } : {}),
+        consigne: `Rien n'est exécuté : une carte de confirmation est affichée${confirmText ? ` — la personne devra ressaisir « ${confirmText} »` : ""}${manquants.length ? ` ; ${manquants.map(libelleChamp).join(", ")} reste à compléter sur la carte (dis-le en une phrase, sans poser de question)` : ""}. Ne dis pas que c'est fait.`,
       });
     },
   };

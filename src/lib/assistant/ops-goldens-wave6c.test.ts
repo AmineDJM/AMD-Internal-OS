@@ -199,7 +199,9 @@ suite("ops vague 6c — planning force de vente (SFE)", () => {
 
   it("create_business_unit : le SUPERVISEUR et le TERRAIN se posent dès la création", async () => {
     const p = await buildProposal("planning_operation", {
-      op: "create_business_unit", name: `${TAG} BU Onco`, person: "Amine", mode: "hospitalier",
+      // La personne est nommée en ENTIER : « Amine » seul est un prénom que d'autres comptes de la base partagée portent
+      // (le monde du banc d'audit sème « Amine HADDAD ») — le résolveur a raison de demander lequel (F1).
+      op: "create_business_unit", name: `${TAG} BU Onco`, person: `${TAG} Amine`, mode: "hospitalier",
     }, sa());
     expect("error" in p).toBe(false);
     if (!("error" in p)) {

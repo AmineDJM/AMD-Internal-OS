@@ -46,8 +46,9 @@ export interface ReglagesChantiers {
 }
 
 export const REGLAGES_CHANTIERS_DEFAUT: ReglagesChantiers = {
-  // `lancementsMax` 12 : huit corrections et les relances d'une longue attente tiennent dans le budget d'un chantier.
-  plafondUsd: 5, lancementsMax: 12, deploiementsMax: 4, tentativesMax: 3,
+  // `lancementsMax` 4 (Direction, 01/11) : seules les sessions NEUVES comptent — corrections dans la même session, commentaires
+  // de PR et « où en es-tu ? » n'en consomment pas.
+  plafondUsd: 5, lancementsMax: 4, deploiementsMax: 4, tentativesMax: 3,
   jourUsdMax: 20, jourLancementsMax: 20, jourDeploiementsMax: 12, enParallele: 3, autofixMinutes: 15,
   attenteCommitHeures: 24, relanceSansCommitHeures: 4, correctionsMax: 8, alerteApresEchecs: 3,
 };

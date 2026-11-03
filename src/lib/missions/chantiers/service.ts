@@ -170,7 +170,7 @@ export async function donnerConsigneChantier(
     x.solPour = [];
     x.blocage = null;
     x.attenteConsignes = null;
-    if (nouvelle && !nouvelle.sessionId.startsWith("commentaire-")) {
+    if (nouvelle && nouvelle.moyen !== "commentaire-pr") {
       x.sessions.push({ ...nouvelle, motif: "reprise" });
       x.compteurs.lancements += 1;
     }

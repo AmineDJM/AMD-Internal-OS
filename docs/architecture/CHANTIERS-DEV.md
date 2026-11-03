@@ -80,6 +80,9 @@ avant de lancer, libérée à la fin, reprise par expiration — **seulement cel
 
 - Budget par chantier (dollars modèles + nombre de lancements Claude Code + déploiements), plafonds globaux par jour,
   réglables en console ; dépassement → pause `BUDGET_HOLD` (mécanisme existant) et question à la Direction.
+  **4 lancements par chantier** (Direction, 01/11) : seule une session NEUVE en consomme un (premier lancement, reprise
+  d'une session terminée, consigne sans session joignable) ; une correction dans la même session, un commentaire `@claude`
+  et un « où en es-tu ? » n'en consomment pas — les huit corrections tiennent donc dans les quatre lancements.
 - **Anti-boucle** (Direction, 02/11 : « autonome, réessayer si c'est rouge, me prévenir au bout de la 3, suivre mes
   consignes ») : signature d'échec (étape, check, première ligne d'erreur normalisée). La boucle de correction continue
   SEULE dans les plafonds de budget : même signature 2× → Sol une fois (changer d'approche) ; au 3ᵉ rouge (réglable)

@@ -22,7 +22,7 @@ interface ReglagesChantiers {
 
 const CHAMPS: { cle: keyof ReglagesChantiers; libelle: string; aide: string; pas: number }[] = [
   { cle: "plafondUsd", libelle: "Dollars de modèles par chantier", aide: "MiMo, Terra, Sol — journal K8 par chantier", pas: 0.5 },
-  { cle: "lancementsMax", libelle: "Lancements de Claude Code par chantier", aide: "premier lancement et relances de correction", pas: 1 },
+  { cle: "lancementsMax", libelle: "Lancements de Claude Code par chantier", aide: "sessions neuves seulement (premier lancement, reprise d'une session terminée)", pas: 1 },
   { cle: "deploiementsMax", libelle: "Déploiements par chantier", aide: "Render, tous services confondus", pas: 1 },
   { cle: "tentativesMax", libelle: "Tentatives par étape (pannes de connecteur)", aide: "délai croissant ; la boucle de correction a son propre plafond, plus bas", pas: 1 },
   { cle: "jourUsdMax", libelle: "Dollars par jour, tous chantiers", aide: "heure d'Alger", pas: 1 },

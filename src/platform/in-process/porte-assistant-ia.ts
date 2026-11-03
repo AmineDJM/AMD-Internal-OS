@@ -38,6 +38,7 @@ export const COUVERTS: Readonly<Record<string, string>> = {
   artifact_open: "ouvrir_dans_l_atelier", artifact_edit: "modifier_document", artifact_control: "enregistrer_document / convertir_document",
   lancer_un_chantier: "lancer_un_chantier (outilsChantierPour)", ou_en_est_chantier: "ou_en_est_chantier (outilsChantierPour)",
   valider_chantier: "valider_chantier (outilsChantierPour)", annuler_chantier: "annuler_chantier (outilsChantierPour)",
+  consigne_chantier: "consigne_chantier (outilsChantierPour)",
   mission_status: "mes_missions", mission_control: "piloter_mission", run_mission: "lancer_un_travail / demande de fond",
   gmail_prepare_mail: "envoyer_mail par le canal Adam (Super Admin)",
 };

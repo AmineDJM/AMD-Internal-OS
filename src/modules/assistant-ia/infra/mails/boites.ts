@@ -3,7 +3,7 @@ import { sansBloquer } from "@/lib/journal";
 import type { CurrentUser } from "@/lib/session";
 import type { PowerTool } from "@/platform/ia/outil";
 import { boiteGmailAdam } from "../operations/envoi-gmail";
-import { registreDesCapacites } from "../capacites";
+import { A_COMPLETER, registreDesCapacites } from "../capacites";
 import type { PropositionCarte } from "../operations";
 import { preparerMails, SCHEMA_MAILS } from "../operations/envoi-gmail";
 import { charteDuMail, signatureDe } from "./redaction";
@@ -136,10 +136,12 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         if (!outil || !outil.allowed(user)) return json({ statut: "REFUS", raison: `L'envoi par cette boîte n'est pas ouvert à ton rôle (${boite}).` });
         let entree: Record<string, unknown>;
         let piecesNonJointes: string[] = [];
+        let destinataireACompleter: string | null = null;
         if (boite === "gmail_adam") entree = { mails: e.mails, ...(typeof e.societe === "string" ? { societe: e.societe } : {}), ...(brouillon ? { brouillon: true } : {}) };
         else {
           // La boîte de la personne (sur sa demande) : un mail par carte, le MÊME gabarit.
-          const prep = await preparerMails(Array.isArray(e.mails) ? e.mails.slice(0, 1) : []);
+          // F2 (TR-MU-03) : un destinataire introuvable n'arrête pas la carte — il reste « à compléter » sur elle.
+          const prep = await preparerMails(Array.isArray(e.mails) ? e.mails.slice(0, 1) : [], undefined, { destinataireACompleter: true });
           if (!("ok" in prep)) return json({ statut: "INCOMPLET", manque: prep.manque, consigne: "Pose UNE seule question : la première de `manque`." });
           const m = prep.mails[0]!;
           // Cette boîte ne joint pas de fichier : la carte part quand même, et la pièce est DITE à joindre à la main.
@@ -148,8 +150,12 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
           const charte = await charteDuMail(user, typeof e.societe === "string" ? e.societe : null, signature);
           const to = m.destinataires.map((d) => d.email).join(", "), cc = m.cc.map((d) => d.email).join(", ");
           entree = boite === "microsoft"
-            ? { to, ...(cc ? { cc } : {}), subject: m.objet, bodyHtml: rendreMailHtml(m.contenu, signature, charte, m.objet) }
-            : { to, ...(cc ? { cc } : {}), subject: m.objet, body: rendreMailTexte(m.contenu, signature, charte) };
+            ? { ...(to ? { to } : {}), ...(cc ? { cc } : {}), subject: m.objet, bodyHtml: rendreMailHtml(m.contenu, signature, charte, m.objet) }
+            : { ...(to ? { to } : {}), ...(cc ? { cc } : {}), subject: m.objet, body: rendreMailTexte(m.contenu, signature, charte) };
+          if (m.aCompleter) {
+            destinataireACompleter = m.aCompleter;
+            Object.assign(entree, { [A_COMPLETER]: ["to"] });
+          }
           // Une boîte de la personne : un mail par carte — le second se prépare au tour suivant (une carte par tour).
         }
         const avant = propositions.length;
@@ -160,6 +166,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
           const p = propositions[propositions.length - 1]!;
           p.proposition.title = brouillon ? `Brouillon dans ${dite}` : `Envoyer par ${dite}`;
           p.proposition.libelleBouton = brouillon ? "Enregistrer le brouillon" : "Envoyer";
+          if (destinataireACompleter) p.proposition.warnings = [`Destinataire à compléter : « ${destinataireACompleter} » est introuvable dans l'annuaire — saisissez son adresse dans le champ « À » de la carte.`, ...(p.proposition.warnings ?? [])];
           if (piecesNonJointes.length) p.proposition.warnings = [...(p.proposition.warnings ?? []), `Pièce jointe non jointe : ${dite} n'envoie pas de fichier — ${piecesNonJointes.join(", ")} à transmettre depuis le Drive (lien de partage) ou par ta boîte Microsoft.`];
           await prisma.assistantActionIntent.update({ where: { id: p.intentId }, data: { title: p.proposition.title } }).catch(sansBloquer("mails.envoyer.titre-carte"));
         }
@@ -167,7 +174,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         try { lu = JSON.parse(sortie) as Record<string, unknown>; } catch { lu = { sortie }; }
         const repliAdam = boite === "erp" && !voulue && !!etat.gmailAdam && !etat.gmailAdam.envoi;
         const motAdam = repliAdam ? ` Ajoute UNE phrase : la boîte Gmail d'Adam n'est pas reliée (${etat.gmailAdam?.raison ?? "aucune connexion Google"}) — elle se relie dans Chief of Staff › Réglages › « Connecter Google » ; en attendant, le mail part par l'envoi de l'ERP.` : "";
-        return json({ ...lu, boite: dite, ...(repliAdam ? { boite_adam: "non reliée" } : {}), ...(piecesNonJointes.length ? { pieces_non_jointes: piecesNonJointes } : {}), consigne: `${motAdam ? motAdam.trim() + " " : ""}${piecesNonJointes.length ? `Dis aussi, en une phrase, que ${piecesNonJointes.join(", ")} n'est pas joint par cette boîte et se transmet depuis le Drive. ` : ""}Dis en une phrase que la carte « ${brouillon ? "Enregistrer le brouillon" : "Envoyer"} » attend sa confirmation et que le mail partira par ${dite}${brouillon ? "" : " — annulable pendant la fenêtre d'annulation (2 min par défaut)"}. Ne dis jamais qu'il est parti.` });
+        return json({ ...lu, boite: dite, ...(repliAdam ? { boite_adam: "non reliée" } : {}), ...(piecesNonJointes.length ? { pieces_non_jointes: piecesNonJointes } : {}), consigne: `${destinataireACompleter ? `L'adresse de « ${destinataireACompleter} » est introuvable : la carte est préparée avec le destinataire À COMPLÉTER (champ « À ») — dis-le en une phrase, sans poser de question. ` : ""}${motAdam ? motAdam.trim() + " " : ""}${piecesNonJointes.length ? `Dis aussi, en une phrase, que ${piecesNonJointes.join(", ")} n'est pas joint par cette boîte et se transmet depuis le Drive. ` : ""}Dis en une phrase que la carte « ${brouillon ? "Enregistrer le brouillon" : "Envoyer"} » attend sa confirmation et que le mail partira par ${dite}${brouillon ? "" : " — annulable pendant la fenêtre d'annulation (2 min par défaut)"}. Ne dis jamais qu'il est parti.` });
       },
     },
   ];

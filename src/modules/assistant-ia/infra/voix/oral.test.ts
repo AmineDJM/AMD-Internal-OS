@@ -104,14 +104,19 @@ suite("Assistant IA — la voix entièrement orale (K9)", () => {
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
+  /** F2 : ce que la voix reçoit, les deux canaux — le texte DIT et la consigne silencieuse. */
+  const tout = (r: { pourVoix: string; consigne?: string }) => [r.pourVoix, r.consigne].filter(Boolean).join(" ");
+
   /** La carte arrive avec le résultat du travail ; « non c'est tout » aux facultatifs mène au récit et à la question. */
   async function jusquALaQuestion(intentId: string): Promise<string> {
     const w = await prisma.assistantIaVoixTravail.findFirstOrThrow({ where: { userId: sa.id, session: S }, orderBy: { creeLe: "desc" } });
     const pret = await suivreTravailVocal(sa, S, w.id);
     expect(pret.etat).toBe("pret");
-    let dit = (pret as Extract<SuiviOral, { etat: "pret" }>).pourVoix;
+    // F2 : ce qui se DIT ne porte aucune consigne au modèle vocal (elles sont dans `consigne`).
+    expect((pret as Extract<SuiviOral, { etat: "pret" }>).pourVoix).not.toMatch(/Ne demande PAS|Dis-le|Récapitule/);
+    let dit = tout(pret as Extract<SuiviOral, { etat: "pret" }>);
     expect((pret as Extract<SuiviOral, { etat: "pret" }>).carte?.intentId).toBe(intentId);
-    if (/Ne demande PAS encore/.test(dit)) dit = (await traiterEnonceVocal(sa, { session: S, demande: "non c'est tout", parole: "non c'est tout" })).pourVoix;
+    if (/Ne demande PAS encore/.test(dit)) dit = tout(await traiterEnonceVocal(sa, { session: S, demande: "non c'est tout", parole: "non c'est tout" }));
     expect(dit).toContain("Tu confirmes ?");
     return dit;
   }
@@ -126,9 +131,9 @@ suite("Assistant IA — la voix entièrement orale (K9)", () => {
     expect((await traiterEnonceVocal(autre, { session: S, demande: "ok fais-le", parole: "ok fais-le" })).pourVoix).toContain("n'est plus reconnue");
     expect((await traiterEnonceVocal(sa, { session: `live_${TAG}inconnue`, demande: "ok fais-le", parole: "ok fais-le" })).pourVoix).toContain("n'est plus reconnue");
     // GARDE-FOU : rien de NEUF entendu (la transcription du oui n'est pas arrivée) → on redemande, rien n'est fait.
-    expect((await traiterEnonceVocal(sa, { session: S, demande: "non c'est tout", parole: "" })).pourVoix).toContain("Je n'ai pas entendu sa réponse");
+    expect((await traiterEnonceVocal(sa, { session: S, demande: "non c'est tout", parole: "" })).pourVoix).toContain("Je n'ai pas entendu votre réponse");
     // « oui mais attends » : la carte attend.
-    expect((await traiterEnonceVocal(sa, { session: S, demande: "oui mais attends", parole: "oui mais attends" })).pourVoix).toContain("la carte attend");
+    expect((await traiterEnonceVocal(sa, { session: S, demande: "oui mais attends", parole: "oui mais attends" })).pourVoix).toContain("j'attends votre feu vert");
     expect(await prisma.task.count({ where: { title: { contains: TAG } } })).toBe(0);
 
     // « ok fais-le » : exécutée — aucun mot imposé.

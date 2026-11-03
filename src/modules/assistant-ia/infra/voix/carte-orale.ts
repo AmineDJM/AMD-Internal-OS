@@ -92,7 +92,7 @@ export async function direLaCarte(c: CarteOraleLue): Promise<string> {
 }
 
 export type IssueOrale =
-  | { suite: "repondu"; pourVoix: string; execute?: boolean }
+  | { suite: "repondu"; pourVoix: string; consigne?: string; execute?: boolean }
   /** La parole n'est ni un oui, ni un non, ni « rien à ajouter » : c'est une réponse ou une correction, pour l'assistant. */
   | { suite: "assistant" };
 
@@ -105,7 +105,7 @@ export async function traiterParoleSurCarte(user: CurrentUser, c: CarteOraleLue,
   if (c.questionPosee && dit) {
     if (estNonExplicite(dit)) {
       await ajouterEvenement(c.id, { status: "VOIX", etape: "REFUS", transcription: dit.slice(0, 500) });
-      return { suite: "repondu", pourVoix: "La personne ne confirme pas : dis-lui simplement que rien n'est envoyé ; elle peut redemander la même chose plus tard." };
+      return { suite: "repondu", pourVoix: "Entendu, rien n'est envoyé. Vous pourrez redemander la même chose plus tard.", consigne: "La personne ne confirme pas : dis-le simplement." };
     }
     // K9 (décision 0039) : pas de mot imposé — l'élément clé d'une carte renforcée a été RELU par la voix dans le récit
     // (`texteOral`, étape QUESTION) ; un oui sans réserve suffit, la ressaisie stockée est fournie par le serveur.
@@ -124,6 +124,6 @@ async function confirmerALOral(user: CurrentUser, c: CarteOraleLue, transcriptio
     summary: `Carte « ${c.carte.titre} » confirmée à l'oral${r.ok ? "" : " — non exécutée"} · transcription : « ${transcription.slice(0, 300)} »`,
   });
   return r.ok
-    ? { suite: "repondu", execute: true, pourVoix: `C'est fait : ${r.message ?? c.carte.titre}. Annonce-le simplement, en une phrase, et dis qu'elle peut dire « annule » si elle change d'avis.` }
-    : { suite: "repondu", pourVoix: `L'action n'a pas été exécutée : ${r.error ?? "raison inconnue"}. Dis-le simplement.` };
+    ? { suite: "repondu", execute: true, pourVoix: `C'est fait : ${r.message ?? c.carte.titre}. Vous pouvez dire « annule » si vous changez d'avis.`, consigne: "Annonce-le simplement, en une phrase." }
+    : { suite: "repondu", pourVoix: `L'action n'a pas été exécutée : ${r.error ?? "raison inconnue"}.`, consigne: "Dis-le simplement." };
 }

@@ -202,6 +202,14 @@ suite("T1 — documents, juridique et Drive : exécutés puis annulés", () => {
     expect("carte" in q && q.carte.title).not.toBe("Ranger 5 pièces au Juridique");
   }, 60_000);
 
+  it("une pièce DÉJÀ au registre, désignée par son TITRE (le fichier s'appelle autrement) : rangée dans le dossier demandé", async () => {
+    const p = await preparerCarte(juriste, "ranger_au_juridique", { documents: [{ fichier: "police d'assurance flotte automobile", dossier: "Assurances" }] });
+    expect("carte" in p, JSON.stringify(p)).toBe(true);
+    const w = "carte" in p ? p.carte.warnings.join(" ") : "";
+    expect(w).toMatch(/pièce du registre « Police d'assurance flotte automobile »/);
+    expect(w).toMatch(/déjà au registre/);
+  }, 60_000);
+
   it("les mots sans accents : « bail du siege a Hydra » trouve la fiche ; « agrements » le dossier", async () => {
     const p = await preparerCarte(juriste, "modifier_fiche_juridique", { piece: "bail du siege a Hydra", fin: "2028-06-30" });
     expect("carte" in p, JSON.stringify(p)).toBe(true);

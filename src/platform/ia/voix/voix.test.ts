@@ -70,7 +70,11 @@ describe("client GPT-Live (navigateur) — flux rejoué", () => {
   it("un serveur muet : une phrase revient quand même à la voix, jamais un silence", async () => {
     const { c, envoyes } = client(async () => { throw new Error("réseau"); });
     await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "item_2", target: "client" } }));
-    expect(String(envoyes[0].content)).toContain("n'a pas répondu");
+    // F2 : la phrase DITE porte le fait ; la consigne part en contexte silencieux, jamais en parole.
+    const dits = envoyes.filter((e) => e.type === "session.commentary.append").map((e) => String(e.content));
+    expect(dits.join(" ")).toContain("n'a pas répondu");
+    expect(dits.join(" ")).not.toMatch(/Dis-le|propose de/);
+    expect(envoyes.find((e) => e.type === "session.thinking.append")?.content).toBe("Dis-le simplement.");
   });
 
   it("raccrocher : session.close, puis la consommation finale de session.closed", async () => {
@@ -127,7 +131,11 @@ describe("K9 — la voix entièrement orale (flux rejoué)", () => {
     await c.recevoir(ev(dire("Le CA des ventes ", 0)));
     await c.recevoir(ev({ type: "session.delegation.created", delegation: { id: "d1", target: "client" } }));
     // O1 : l'accusé, puis — rien d'autre à dire (agenda vide) — « je reste disponible », jamais « j'attends ».
-    expect(envoyes.at(-1)).toMatchObject({ type: "session.commentary.append", event_id: "resultat_1", delegation_id: "d1", content: expect.stringMatching(/^Travail lancé\. Puis dis en une phrase que tu restes disponible/) });
+    // F2 : ce que l'orchestrateur colle à l'accusé (« Puis dis… que tu restes disponible ») est une CONSIGNE — silencieuse.
+    const parle = envoyes.filter((e) => e.type === "session.commentary.append");
+    expect(parle.at(-1)).toMatchObject({ event_id: "resultat_1", delegation_id: "d1", content: "Travail lancé." });
+    expect(envoyes.find((e) => e.type === "session.thinking.append")?.content).toMatch(/^Puis dis en une phrase que tu restes disponible/);
+    const avantSuivi = envoyes.length;
     expect(c.travail).toEqual({ id: "t1", delegationId: "d1" });
     horloge += 10_000;
     // La voix engage la personne ; elle précise ; c'est transmis au travail en cours.
@@ -136,12 +144,13 @@ describe("K9 — la voix entièrement orale (flux rejoué)", () => {
     expect(appels).toEqual([{ demande: "Le CA des ventes", enCours: null, session: "live_x" }, { demande: "seulement Oran", enCours: "t1", session: "live_x" }]);
     expect(c.travail).toEqual({ id: "t2", delegationId: "d2" });
     await c.suivreMaintenant();
-    expect(envoyes).toHaveLength(2);
+    expect(envoyes.filter((e) => e.type === "session.commentary.append")).toHaveLength(2);
+    expect(envoyes.length).toBeGreaterThan(avantSuivi);
     etat = "pret";
     horloge += 10_000;
     await c.suivreMaintenant();
     // Deux minutes plus tard ou dix secondes : le résultat est injecté sous la dernière délégation, sans qu'on le demande.
-    expect(envoyes.at(-1)).toEqual({ type: "session.commentary.append", event_id: "resultat_3", delegation_id: "d2", content: "Le résultat est arrivé : À Oran : environ 3,1 millions." });
+    expect(envoyes.filter((e) => e.type === "session.commentary.append").at(-1)).toEqual({ type: "session.commentary.append", event_id: "resultat_3", delegation_id: "d2", content: "Le résultat est arrivé : À Oran : environ 3,1 millions." });
     expect(c.travail).toBeNull();
   });
 
