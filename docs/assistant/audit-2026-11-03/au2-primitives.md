@@ -159,6 +159,21 @@ filtre de confidentialité et repères), la réversibilité K10 (`journaliserGes
 - **Sur la demande T2** (« lecture typée des produits ») : **une primitive générique la rend inutile** — une vue de 25 lignes
   (champs + portée + champ calculé) au lieu d'un outil de plus.
 
+**Apport de la session T2 (mesuré par elle, rejeu ≈ 0,15 $ ; point 1 vérifié au code)** :
+1. « Commercialisé » est déjà une **requête d'écran** sous les droits : `clauseCommercialises(user)`
+   (`src/lib/queries/produits-360.ts:65-66` — un `Product` dont un dossier est `DECISION_OBTAINED`/`CLOSED`, sous
+   `regulatoryLockWhere`). La vue `produits` de la cible doit **réutiliser cette clause** (et non recalculer) : c'est la
+   preuve que les portées et les définitions métier existent déjà, prêtes à porter une primitive.
+2. Le mot dit ≠ le mot écrit (« infectieux » / `therapeuticSegments = Infectiologie` / `therapeuticClass = Carbapénème`) :
+   exposer au modèle le **schéma de la vue** et le laisser formuler le filtre, plutôt qu'un `contains` sur le mot de la personne.
+3. La BU est un faux ami (la BU « Infectiologie / Hématologie » porte un anticoagulant) : l'aire se lit sur le dossier — la vue
+   le décide une fois, pas chaque outil.
+4. **Masquer un outil fait mentir** : sans le module Produits, la question tombe sur `search_everything` → « aucun produit »,
+   muet sur la cause. Règle de la cible : une primitive reste **offerte** et **refuse en nommant le droit** (une vue hors portée
+   rend « fermée : droit X », jamais un jeu vide).
+5. Les entrées doivent être **naturelles et normalisées côté serveur** (mesuré par T2 : `gpt-6-luna` passe `month = « octobre
+   2026 »` à `read_payroll`, qui refuse) — la robustesse ne doit pas dépendre de la force du modèle.
+
 ### 3.5 « Donne nos 3 missions » (pour mémoire — la cause du « worker absent » est l'objet de P1, non dupliquée)
 
 `mes_missions` (`infra/missions/pilotage.ts:111-117`) rend `id, titre, etat, etapes, coutUsd` **sans lien** ; la vue `missions`
