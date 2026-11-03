@@ -59,14 +59,35 @@ suite("K7 — exporter depuis l'assistant, puis envoyer à un collègue", () => 
   });
 
   afterAll(async () => {
-    const ids = [direction?.id, collegue?.id, sansDroit?.id].filter(Boolean) as string[];
+    await menage([direction?.id, collegue?.id, sansDroit?.id].filter(Boolean) as string[], TAG);
+    // Les restes des passages d'AVANT ce correctif (et d'un passage interrompu) : toute étiquette de plus de deux heures.
+    const avant = Date.now() - 2 * 3_600_000;
+    const restes = await prisma.user.findMany({ where: { email: { startsWith: "__k7exp_" } }, select: { id: true, email: true } });
+    const parTag = new Map<string, string[]>();
+    for (const r of restes) {
+      const tag = /^(__k7exp_([0-9a-z]+)_)/.exec(r.email);
+      if (!tag || parseInt(tag[2]!, 36) >= avant) continue;
+      parTag.set(tag[1]!, [...(parTag.get(tag[1]!) ?? []), r.id]);
+    }
+    for (const [tag, ids] of parTag) await menage(ids, tag);
+  });
+
+  /** Le ménage d'un passage : ses comptes et tout ce qui leur est rattaché. */
+  async function menage(ids: string[], etiquette: string): Promise<void> {
     await prisma.message.deleteMany({ where: { senderId: { in: ids } } }).catch(() => {});
     await prisma.driveShare.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
     await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => {});
-    await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
+    await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: etiquette } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
-  });
+    // LES COMPTES DU BANC — jamais retirés jusqu'ici (F1, mesuré : 78 comptes « __k7exp_… » en base, dont un Super
+    // Admin par run, qui recevait ensuite chaque « Autorisation de paiement demandée » de la suite : 12 à 16 000
+    // notifications chacun). Leurs notifications et leurs gestes partent avec eux.
+    await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(() => {});
+    await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } }).catch(() => {});
+    await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+  }
 
   it("l'outil produit le classeur de la route, le dépose au Drive « Exports » et rend le lien de téléchargement", async () => {
     const r = await lancer(direction, "exporter_suivi_regulatory", { recherche: TAG });

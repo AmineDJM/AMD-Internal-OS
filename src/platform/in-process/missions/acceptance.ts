@@ -168,7 +168,14 @@ export async function executerAcceptance(
       await prisma.businessEvent.deleteMany({ where: { payload: { path: ["marqueur"], equals: TAG } } }).catch(sansBloquer("acceptance.executerAcceptance.businessEvent"));
       // Les utilisateurs du banc — l'acteur ET la boîte Gmail : les cascades emportent la
       // connexion, les enregistrements de courrier et leurs pièces.
-      await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(sansBloquer("acceptance.executerAcceptance.user"));
+      // La boîte s'adresse `adam-<TAG>@…` (`acceptance/courriel.ts`) : un filtre sur le seul préfixe `TAG` la laissait en
+      // base à chaque run (F1, mesuré : une boîte par run, et 12 à 16 000 notifications « à la direction » chacune).
+      await prisma.user.deleteMany({ where: { OR: [{ email: { startsWith: TAG } }, { email: { startsWith: `adam-${TAG}` } }] } }).catch(sansBloquer("acceptance.executerAcceptance.user"));
+      // Et les boîtes laissées par les runs d'AVANT ce correctif : une boîte dont l'étiquette a plus de deux heures.
+      const avant = Date.now() - 2 * 3_600_000;
+      const restees = (await prisma.user.findMany({ where: { email: { startsWith: "adam-acc", endsWith: "@amd-acceptance.dz" } }, select: { id: true, email: true } }))
+        .filter((u) => { const m = /^adam-acc([0-9a-z]+?)[0-9a-f]{4}@/.exec(u.email); return m ? parseInt(m[1]!, 36) < avant : false; });
+      if (restees.length > 0) await prisma.user.deleteMany({ where: { id: { in: restees.map((u) => u.id) } } }).catch(sansBloquer("acceptance.executerAcceptance.userRestes"));
     } catch {
       // Le nettoyage est défensif : un reliquat taggé vaut mieux qu'un run qui échoue à la fin.
     }
