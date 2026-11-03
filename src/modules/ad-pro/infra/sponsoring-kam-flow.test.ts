@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, moduleScope, userCan, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "../actions-sponsoring";
 import { updateAdProItem } from "../actions-postes";
@@ -65,7 +66,7 @@ suite("le sponsoring d'un KAM : il le dépose, il est seul à le voir, le Nation
     const spos = (await prisma.sponsoringRequest.findMany({ where: { requesterId: { in: comptes } }, select: { id: true } })).map((s) => s.id);
     await prisma.adProItem.deleteMany({ where: { sponsoringId: { in: spos } } }).catch(() => {});
     await prisma.workflowInstance.deleteMany({ where: { entityType: "SPONSORING", entityId: { in: spos } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityType: "SPONSORING", entityId: { in: spos } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "SPONSORING", entityId: { in: spos } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: { in: spos } } }).catch(() => {});
     await prisma.salesRepProfile.deleteMany({ where: { repId: { in: comptes } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: "__spokam" } } }).catch(() => {});

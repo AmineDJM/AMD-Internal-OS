@@ -5,6 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "../generer";
@@ -68,8 +69,8 @@ suite("Assistant IA — messages vocaux et réponse vocale", () => {
     await effacerJournalDe([moi?.id]);
     await prisma.assistantIaFil.deleteMany({ where: { userId: moi?.id } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: moi?.id } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: moi?.id, parentId: { not: null } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: moi?.id } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: moi?.id, parentId: { not: null } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: moi?.id } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: moi?.id } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });

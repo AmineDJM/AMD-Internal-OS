@@ -13,6 +13,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendu } from "@/lib/journal";
 import { DOSSIER_PIECES_RECUES } from "../../canaux/reception";
 import { nomComplet, PERSONNES, TITULAIRES, type Titulaire } from "./personas";
@@ -200,7 +201,7 @@ export async function retirerAudit(etiquette: string): Promise<void> {
   await sur(prisma.kpiDefinition.deleteMany({ where: { famille: { startsWith: `audit-${etiquette}-` } } }));
   await sur(prisma.mission.deleteMany({ where: { ownerId: { in: ids } } }));
   await sur(prisma.employee.deleteMany({ where: { userId: { in: ids } } }));
-  await sur(prisma.driveNode.deleteMany({ where: { ownerId: { in: ids }, type: "FILE" } }));
-  await sur(prisma.driveNode.deleteMany({ where: { ownerId: { in: ids } } }));
+  await sur(retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids }, type: "FILE" } }));
+  await sur(retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }));
   await sur(prisma.user.deleteMany({ where: { id: { in: ids } } }));
 }

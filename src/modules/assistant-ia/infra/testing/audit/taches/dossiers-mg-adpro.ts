@@ -18,6 +18,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendu } from "@/lib/journal";
 import { nomComplet, type PersonaCle, type Titulaire } from "../personas";
 import type { Attaque } from "../attaques";
@@ -182,7 +183,7 @@ async function retirerDossiersMgAdpro(etiquette: string): Promise<void> {
   // La caisse du banc : son département emporte plan, remises, rallonges et dépenses (cascade) ; les pièces d'abord.
   const deps = await prisma.department.findMany({ where: { name: { startsWith: DEPARTEMENT } }, select: { id: true } });
   const xs = await prisma.departmentBudgetExpense.findMany({ where: { departmentId: { in: deps.map((d) => d.id) } }, select: { id: true } });
-  await sur(prisma.document.deleteMany({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: xs.map((x) => x.id) } } }));
+  await sur(retirerDocumentsEtContenu({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: xs.map((x) => x.id) } } }));
   await sur(prisma.department.deleteMany({ where: { id: { in: deps.map((d) => d.id) } } }));
   await sur(prisma.moyenGeneral.deleteMany({ where: { OR: [{ reference: { startsWith: `MG-${ANNEE}-903` } }, { createdById: { in: (await idsDuBanc(etiquette)) } }] } }));
   const spo = await prisma.sponsoringRequest.findMany({ where: { reference: REF_SPONSORING(etiquette) }, select: { id: true } });

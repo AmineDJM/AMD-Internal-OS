@@ -37,6 +37,7 @@ vi.mock("@/lib/pieces-lues/prerempli-devis-promo", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBlob, putBlob } from "@/lib/drive-storage";
 import { papierEnTeteDeDemonstration } from "@/lib/artifact/factory/word";
@@ -175,7 +176,7 @@ suite("Poste Ad & Pro — l'aperçu du BC est obligatoire, et tout s'y corrige",
     await prisma.validationRequest.deleteMany({ where: { id: { in: vIds } } }).catch(() => {});
     await prisma.adProGateVisa.deleteMany({ where: { entityId: { in: lids } } }).catch(() => {});
     await prisma.documentRequest.deleteMany({ where: { entityType: "AD_PRO_ITEM", entityId: posteId } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: [spoId, posteId, ...lids] } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [spoId, posteId, ...lids] } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: posteId } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: lids } } }).catch(() => {});
     await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: spoId } } }).catch(() => {});
@@ -184,8 +185,8 @@ suite("Poste Ad & Pro — l'aperçu du BC est obligatoire, et tout s'y corrige",
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: demId } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: demId, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: demId } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: demId, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: demId } }).catch(() => {});
     await prisma.documentSequence.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.officeLetterhead.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});

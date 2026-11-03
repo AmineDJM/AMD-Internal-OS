@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -72,9 +73,9 @@ suite("ops vague 3 — Drive, Legal, Courriers", () => {
    */
   const balayer = async () => {
     await prisma.driveComment.deleteMany({ where: { body: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.driveSpace.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.officeLetterhead.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { title: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.legalFolder.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});

@@ -12,6 +12,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { sendLegalInvoiceToSettlement } from "@/lib/actions/legal-actions";
 import { consommerDepensePoste, imputerDepensePoste } from "@/lib/actions/budget-depense-poste-actions";
@@ -87,7 +88,7 @@ suite("Audit Ad & Pro — les règles du circuit tenues hors de l'écran du post
     const liens = await prisma.adProItemPiece.findMany({ where: { itemId: { in: postes } }, select: { legalDocumentId: true } }).catch(() => []);
     const tousDocs = [...new Set([...docs, ...liens.map((l) => l.legalDocumentId)])];
     await prisma.adProItemPiece.deleteMany({ where: { itemId: { in: postes } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: [...postes, ...tousDocs, ...parents] } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [...postes, ...tousDocs, ...parents] } } }).catch(() => {});
     await prisma.adProItem.updateMany({ where: { id: { in: postes } }, data: { expenseOrderId: null } }).catch(() => {});
     await prisma.legalDocument.updateMany({ where: { id: { in: tousDocs } }, data: { expenseOrderId: null } }).catch(() => {});
     const ordres = await prisma.expenseOrder.findMany({ where: { sourceId: { in: [...parents, ...tousDocs] } }, select: { id: true } }).catch(() => []);

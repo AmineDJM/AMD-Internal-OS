@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 
 /**
  * LA REPRISE DES FACTURES DÉJÀ ENREGISTRÉES — prouvée sur des données, pas sur une lecture.
@@ -134,7 +135,7 @@ suite("Reprise : les factures rejoignent le registre des documents légaux", () 
   }, 60_000);
 
   afterAll(async () => {
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "Invoice"`).catch(() => {});

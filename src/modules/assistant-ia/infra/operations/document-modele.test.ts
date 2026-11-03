@@ -5,6 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob, putBlob } from "@/lib/drive-storage";
 import { papierEnTeteDeDemonstration } from "@/lib/artifact/factory/word";
@@ -33,7 +34,7 @@ suite("Assistant IA — document depuis un modèle", () => {
 
   afterAll(async () => {
     await prisma.fileVersion.deleteMany({ where: { node: { name: { contains: TAG } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { contains: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { contains: TAG } } }).catch(() => {});
     await prisma.officeLetterhead.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: admin?.id } }).catch(() => {});

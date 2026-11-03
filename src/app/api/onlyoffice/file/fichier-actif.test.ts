@@ -14,6 +14,7 @@ process.env.ONLYOFFICE_JWT_SECRET = "secret-de-test-onlyoffice";
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { saveFile } from "@/lib/storage";
 import { makeDocReadToken } from "@/lib/onlyoffice";
 import { GET } from "./route";
@@ -39,7 +40,7 @@ suite("OnlyOffice /file — un type actif déclaré au dépôt ne s'exécute pas
 
   afterAll(async () => {
     const stored = await prisma.storedFile.findMany({ where: { key: cle }, select: { blobId: true } });
-    await prisma.document.deleteMany({ where: { id: docId } }).catch(() => undefined);
+    await retirerDocumentsEtContenu({ where: { id: docId } }).catch(() => undefined);
     await prisma.storedFile.deleteMany({ where: { key: cle } }).catch(() => undefined);
     await prisma.fileBlob.deleteMany({ where: { id: { in: stored.map((s) => s.blobId) } } }).catch(() => undefined);
     await prisma.user.deleteMany({ where: { id: userId } }).catch(() => undefined);

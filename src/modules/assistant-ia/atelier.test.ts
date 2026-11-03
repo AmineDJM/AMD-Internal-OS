@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { UserRole } from "@prisma/client";
@@ -72,9 +73,9 @@ suite("l'Atelier — droits, modification en place, nouvelle version (vraie base
     await prisma.artifactSession.deleteMany({ where: { nodeId } });
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: users.map((u) => u.id) } } });
     await prisma.atelierConversion.deleteMany({ where: { userId: { in: users.map((u) => u.id) } } });
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } });
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } });
     await prisma.piece.deleteMany({ where: { nom: { startsWith: TAG }, empreinte: { startsWith: TAG } } });
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: users.map((u) => u.id) } } });
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: users.map((u) => u.id) } } });
     await prisma.driveSpace.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
   });

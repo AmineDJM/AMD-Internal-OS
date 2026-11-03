@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { chargerPiecesLegalDeLaDemande, clausePiecesDeLaDemande } from "./pieces-legal-demande";
 
@@ -62,7 +63,7 @@ suite("les pièces Legal de la demande — hors postes, droits pièce par pièce
   const nettoyer = async () => {
     const legaux = await prisma.legalDocument.findMany({ where: { title: { startsWith: TAG } }, select: { id: true } });
     const ids = legaux.map((l) => l.id);
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.adProItemPiece.deleteMany({ where: { legalDocumentId: { in: ids } } }).catch(() => {});
     await prisma.legalDocumentReader.deleteMany({ where: { documentId: { in: ids } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: ids } } }).catch(() => {});

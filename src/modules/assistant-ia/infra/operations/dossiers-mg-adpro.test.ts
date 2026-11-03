@@ -21,6 +21,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -109,14 +110,14 @@ suite("T3 — dossiers, moyens généraux et fiches Ad & Pro, exécutés puis an
     await prisma.moyenGeneral.deleteMany({ where: { libelle: { contains: TAG } } }).catch(() => undefined);
     const deps = await prisma.department.findMany({ where: { name: { contains: TAG } }, select: { id: true } });
     const xs = await prisma.departmentBudgetExpense.findMany({ where: { departmentId: { in: deps.map((d) => d.id) } }, select: { id: true } });
-    await prisma.document.deleteMany({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: xs.map((x) => x.id) } } }).catch(() => undefined);
+    await retirerDocumentsEtContenu({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: xs.map((x) => x.id) } } }).catch(() => undefined);
     await prisma.department.deleteMany({ where: { id: { in: deps.map((d) => d.id) } } }).catch(() => undefined);
     const items = await prisma.adProItem.findMany({ where: { congressNationalId: { in: [congres, congresAutrui] } }, select: { id: true, reservationDossierId: true } });
     await prisma.adProItem.deleteMany({ where: { id: { in: items.map((i) => i.id) } } }).catch(() => undefined);
     await prisma.congressNational.deleteMany({ where: { id: { in: [congres, congresAutrui] } } }).catch(() => undefined);
     await prisma.dossier.deleteMany({ where: { OR: [{ title: { contains: TAG } }, { id: { in: items.map((i) => i.reservationDossierId).filter((x): x is string => !!x) } }] } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => undefined);
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }).catch(() => undefined);
     await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
   });
 

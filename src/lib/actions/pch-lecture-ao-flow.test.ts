@@ -39,6 +39,7 @@ vi.mock("@/lib/regulatory/intelligence/ocr/ocr-engine", async (importOriginal) =
 vi.mock("@/lib/drive/document-mirror", () => ({ mirrorDocumentsToDrive: async () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques as attendreBloquesParLaBarriere, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests, REFUS_IA_COUPEE } from "@/lib/ai-settings";
@@ -125,7 +126,7 @@ suite("PCH — lire le document d'un appel d'offres : le texte d'abord, la coupe
     const tenders = (await prisma.pchTender.findMany({ where: { reference: { startsWith: TAG } }, select: { id: true } }).catch(() => [])).map((x) => x.id);
     const docs = await prisma.document.findMany({ where: { entityType: "PCH_TENDER", entityId: { in: tenders } }, select: { id: true, fileKey: true } }).catch(() => []);
     for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
-    await prisma.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { id: { in: docs.map((d) => d.id) } } }).catch(() => {});
     await prisma.deletedRecord.deleteMany({ where: { sourceId: { in: tenders } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: tenders } } }).catch(() => {});
     await prisma.pchOrder.deleteMany({ where: { tenderId: { in: tenders } } }).catch(() => {});

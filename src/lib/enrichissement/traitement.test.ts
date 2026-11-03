@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { chiffreDeControle } from "@/modules/assistant-ia/partage";
 import { clesDepuisMaitresse } from "@/modules/coffre/api";
 import { persistUploadedDocument } from "@/lib/documents";
@@ -102,7 +103,7 @@ describe.skipIf(!dbOk)("enrichissement — du dépôt au fait (lot V2-A)", () =>
     await prisma.conflitDeFait.deleteMany({ where: { faitPropose: { extraction: { pieceId: { in: pieces.map((p) => p.id) } } } } });
     await prisma.faitConfirme.deleteMany({ where: { pieceId: { in: pieces.map((p) => p.id) } } });
     await prisma.donneeSensible.deleteMany({ where: { pieceId: { in: pieces.map((p) => p.id) } } });
-    await prisma.document.deleteMany({ where: { uploadedById: userId } });
+    await retirerDocumentsEtContenu({ where: { uploadedById: userId } });
     await prisma.piece.deleteMany({ where: { id: { in: pieces.map((p) => p.id) } } });
     await prisma.tacheEnrichissement.deleteMany({ where: { deposeParId: userId } });
     await prisma.businessEvent.deleteMany({ where: { correlationId: { in: empreintes.map((e) => `piece:${e}`) } } });

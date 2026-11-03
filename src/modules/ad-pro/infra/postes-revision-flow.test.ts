@@ -22,6 +22,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { siegeAuCentreAdPro } from "../domaine/centre";
@@ -109,7 +110,7 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
     const factures = await prisma.legalDocument.findMany({ where: { sourceId: eventId }, select: { id: true } }).catch(() => []);
     const tousDocs = [...new Set([...docs, ...factures.map((f) => f.id)])];
     await prisma.adProItemPiece.deleteMany({ where: { legalDocumentId: { in: tousDocs } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: tousDocs } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: tousDocs } } }).catch(() => {});
     await prisma.adProGateVisa.deleteMany({ where: { entityId: { in: tousDocs } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: tousDocs } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: tousDocs } } }).catch(() => {});

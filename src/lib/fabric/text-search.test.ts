@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { chercherContenu, versTsquery } from "@/lib/fabric/text-search";
 
 /**
@@ -50,7 +51,7 @@ suite("fabric/text-search — la recherche de contenu", () => {
 
   afterAll(async () => {
     await prisma.driveTextIndex.deleteMany({ where: { nodeId: { in: noeuds } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { id: { in: noeuds } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { id: { in: noeuds } } }).catch(() => {});
   }, 60_000);
 
   it("trouve par MOTS, classé, et par PRÉFIXE — « pembro » trouve « pembrolizumab »", async () => {

@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
@@ -56,8 +57,8 @@ suite("Demande au secrétariat — gestes nommés, fin gardée, réouverture mot
     await prisma.validationRequest.deleteMany({ where: { entityType: "ADMIN_REQUEST", entityId: { in: created } } }).catch(() => {});
     await prisma.comment.deleteMany({ where: { entityType: "ADMIN_REQUEST", entityId: { in: created } } }).catch(() => {});
     await prisma.administrativeRequest.deleteMany({ where: { id: { in: created } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

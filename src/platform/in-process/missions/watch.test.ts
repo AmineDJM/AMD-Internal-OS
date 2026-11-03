@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { consignerMesure } from "@/lib/evals/registre";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { recordEvent } from "@/lib/events/ledger";
@@ -54,8 +55,8 @@ suite("SURVEILLANCE DURABLE — un problème dit une fois, une fin dite une fois
     await prisma.legalDocument.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG }, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG }, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.emailRecord.deleteMany({ where: { threadId: { startsWith: TAG } } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId: pdg.id } }).catch(() => {});
     await prisma.pchTender.deleteMany({ where: { id: marcheId } }).catch(() => {});

@@ -4,6 +4,7 @@ import http from "node:http";
 import tls from "node:tls";
 import type { AddressInfo } from "node:net";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { createMailEntry, editMailEntry, setMailDate, attachDriveNodeToMail } from "@/lib/actions/mail-register-actions";
 import { addMailPiece, updateMailPiece } from "@/lib/actions/mail-piece-actions";
@@ -90,7 +91,7 @@ const nettoyerCourrier = async (tag: string) => {
   await prisma.mailEntry.deleteMany({ where: { title: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
   await prisma.mailEntryFolder.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
   await prisma.mailPartner.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
-  await prisma.driveNode.deleteMany({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
+  await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-internes"));
 };
 
 // ───────────────────────────── Les auxiliaires des autres écritures internes ─────────────────────────────

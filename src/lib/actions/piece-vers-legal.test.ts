@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { requestDocument, submitDocumentRequest, decideDocumentRequest } from "./document-request-actions";
 
@@ -43,7 +44,7 @@ suite("Une pièce acceptée rejoint le registre des engagements", () => {
   });
 
   afterAll(async () => {
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.legalDocumentReader.deleteMany({ where: { documentId: { in: legalIds } } }).catch(() => {});
     // Les PORTES des BC classés (§118.148) — leur demandeur est un compte du banc.
     await prisma.validationRequest.deleteMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: legalIds } } }).catch(() => {});

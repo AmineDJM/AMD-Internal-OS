@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan } from "@/lib/rbac";
 import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
@@ -83,7 +84,7 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const ids = (await prisma.departmentBudgetExpense.findMany({ where: { departmentId: deptId }, select: { id: true } }).catch(() => [])).map((e) => e.id);
     const docs = await prisma.document.findMany({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: ids } }, select: { fileKey: true } }).catch(() => []);
     for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: ids } } }).catch(() => {});
     const liens = await prisma.pettyCashAllotment.findMany({ where: { departmentId: deptId }, select: { expenseOrderId: true, transactionId: true } }).catch(() => []);
     const ordres = liens.map((l) => l.expenseOrderId).filter((v): v is string => Boolean(v));
     const ecritures = liens.map((l) => l.transactionId).filter((v): v is string => Boolean(v));

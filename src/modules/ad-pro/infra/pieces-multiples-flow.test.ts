@@ -9,6 +9,7 @@ vi.mock("@/lib/session", () => ({
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { addAdProComment } from "../actions-discussion";
 import { deleteComment } from "@/lib/actions/comment-actions";
@@ -76,7 +77,7 @@ suite("Pièces jointes multiples — fils, passeports, fiches saisies avec le po
   afterAll(async () => {
     const items = await prisma.adProItem.findMany({ where: { sponsoringId: spoId }, select: { id: true } }).catch(() => []);
     const ids = [spoId, intlId, ...items.map((i) => i.id)].filter(Boolean);
-    await prisma.document.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.comment.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});

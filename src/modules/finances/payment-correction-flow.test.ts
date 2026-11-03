@@ -19,6 +19,7 @@ vi.mock("@/lib/documents", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
@@ -77,7 +78,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     await prisma.paymentCentreMessage.deleteMany({ where: { orderId: { in: ordres.map((o) => o.id) } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres.map((o) => o.id) } } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { id: { in: created } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: `${TAG}piece.pdf` } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: `${TAG}piece.pdf` } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(u) } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: Object.values(u) } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

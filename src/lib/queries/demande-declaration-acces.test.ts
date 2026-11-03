@@ -7,6 +7,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { addRequestComment } from "@/lib/actions/admin-request-actions";
@@ -42,7 +43,7 @@ suite("demandes au secrétariat et déclarations — la règle de la fiche", () 
     await prisma.validationStep.deleteMany({ where: { requestId: { in: vrs.map((x) => x.id) } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { id: { in: vrs.map((x) => x.id) } } }).catch(() => {});
     await prisma.comment.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { body: { contains: TAG }, createdAt: { gte: new Date(Date.now() - 86_400_000) } } }).catch(() => {});
     await prisma.medicalInfoDocRequest.deleteMany({ where: { declarationId: { in: decls.map((x) => x.id) } } }).catch(() => {});
     await prisma.medicalInfoDeclaration.deleteMany({ where: { id: { in: decls.map((x) => x.id) } } }).catch(() => {});

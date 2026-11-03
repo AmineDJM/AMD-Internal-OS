@@ -33,6 +33,7 @@ vi.mock("@/lib/ai-settings", async (orig) => ({ ...(await orig<typeof import("@/
 vi.mock("@/lib/ai", async (orig) => ({ ...(await orig<typeof import("@/lib/ai")>()), aiConfigured: () => true, cleModeleRequise: () => "OPENAI_API_KEY" }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -76,7 +77,7 @@ suite("Lot B1 — « Crée un bc en pdf » depuis le devis INSIGNE de la Directi
     await prisma.budgetEnvelope.deleteMany({ where: { id: { in: [regulatoryId, marketingId] } } }).catch(() => {});
     await prisma.companyContact.deleteMany({ where: { OR: [{ kind: `${TAG}client` }, { createdById: direction?.id }] } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: direction?.id } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: direction?.id } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: direction?.id } }).catch(() => {});
     await prisma.lecturePiece.deleteMany({ where: { creeParId: direction?.id } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: adventumId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

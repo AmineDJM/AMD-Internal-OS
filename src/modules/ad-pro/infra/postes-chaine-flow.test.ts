@@ -39,6 +39,7 @@ vi.mock("./pieces-poste", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity, accesAuxPiecesLegal } from "@/lib/entity-access";
@@ -162,7 +163,7 @@ suite("Ad & Pro — la chaîne d'un poste : un seul temps, BC par l'assistante, 
     const demandes = await prisma.documentRequest.findMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: postes } }, select: { id: true, legalDocumentId: true } }).catch(() => []);
     const liens = await prisma.adProItemPiece.findMany({ where: { itemId: { in: postes } }, select: { legalDocumentId: true } }).catch(() => []);
     const docs = [...new Set([...demandes.map((d) => d.legalDocumentId), ...liens.map((l) => l.legalDocumentId)].filter((x): x is string => Boolean(x)))];
-    await prisma.document.deleteMany({ where: { entityId: { in: [...docs, ...demandes.map((d) => d.id), ...postes] } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [...docs, ...demandes.map((d) => d.id), ...postes] } } }).catch(() => {});
     await prisma.adProItemPiece.deleteMany({ where: { itemId: { in: postes } } }).catch(() => {});
     const aDemandes = (await prisma.administrativeRequest.findMany({ where: { linkedEntityType: "AD_PRO_ITEM", linkedEntityId: { in: postes } }, select: { id: true } }).catch(() => [])).map((r) => r.id);
     await prisma.comment.deleteMany({ where: { entityType: "ADMIN_REQUEST", entityId: { in: aDemandes } } }).catch(() => {});

@@ -12,6 +12,7 @@ import "@/lib/assistant";
 import { DOMAIN_TOOLS } from "@/lib/assistant/ops";
 import { CHEMIN_STOCK_PROMO } from "@/lib/chemins/stock-promo";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
@@ -151,7 +152,7 @@ suite("Matériel promotionnel — achats piochés dans le catalogue, facture lig
     await prisma.validationStep.deleteMany({ where: { requestId: { in: vIds } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { id: { in: vIds } } }).catch(() => {});
     await prisma.adProGateVisa.deleteMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: pieces } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { OR: [{ entityType: "LEGAL_DOCUMENT", entityId: { in: pieces } }, { entityType: "PROMO_MATERIAL", entityId: { in: pmIds } }] } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { OR: [{ entityType: "LEGAL_DOCUMENT", entityId: { in: pieces } }, { entityType: "PROMO_MATERIAL", entityId: { in: pmIds } }] } }).catch(() => {});
     await prisma.promoQuote.updateMany({ where: { promoMaterialId: { in: pmIds } }, data: { purchaseOrderId: null } }).catch(() => {});
     await prisma.legalDocument.updateMany({ where: { id: { in: pieces } }, data: { chainFromId: null } }).catch(() => {});
     // La facture détaillée et ses lignes partent avec leur pièce (Cascade).
@@ -166,8 +167,8 @@ suite("Matériel promotionnel — achats piochés dans le catalogue, facture lig
     await prisma.product.deleteMany({ where: { code: { startsWith: TAG } } }).catch(() => {});
     const ids = Object.values(u);
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: { in: ids } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }).catch(() => {});
     await prisma.documentSequence.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.employee.updateMany({ where: { fullName: { startsWith: TAG } }, data: { managerId: null } }).catch(() => {});

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -70,7 +71,7 @@ suite("ops FINANCES vague 1 — budgets, caisse, paiements, écritures, paie (go
     await prisma.paymentPiece.deleteMany({ where: { request: { reference: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.paymentRequestEvent.deleteMany({ where: { request: { reference: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { reference: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.payrollEntry.deleteMany({ where: { employee: { fullName: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.budgetExpenseLine.deleteMany({ where: { reference: { startsWith: PREFIXE } } }).catch(() => {});

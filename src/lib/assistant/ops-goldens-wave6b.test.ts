@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -67,7 +68,7 @@ suite("ops vague 6b — validations, rapports terrain, catalogue d'articles", ()
   const balayer = async () => {
     await prisma.officeSupplyArticle.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.fieldReport.deleteMany({ where: { summary: { contains: "Pr Hamidi" }, delegate: { email: { startsWith: PREFIXE } } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.validationStep.deleteMany({ where: { request: { reference: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { reference: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.validationRule.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});

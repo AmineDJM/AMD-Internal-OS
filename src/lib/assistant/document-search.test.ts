@@ -9,6 +9,7 @@ import { POWER_TOOLS } from "./power-tools";
 import { MODULES, ACTIONS, type Module, type Action } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 
 /**
  * LE CORPUS EST CONSTRUIT PAR LE TEST — plus jamais supposé. Ces tests ont longtemps reposé
@@ -49,7 +50,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.knowledgeItem.deleteMany({ where: { contentHash: `${TAG}-hash` } }).catch(() => {});
-  await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+  await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
   await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
 });
 

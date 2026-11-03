@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { ecrireCacheIntelligence, mettreEnCacheClauses } from "./index";
 
 /**
@@ -42,7 +43,7 @@ const piece = async (suffixe: string, custom: Prisma.LegalDocumentCreateInput["c
 async function nettoyer(prefixe: string) {
   await prisma.legalDocument.deleteMany({ where: { title: { startsWith: prefixe } } }).catch(() => {});
   // L'index de texte part avec son nœud (`onDelete: Cascade`).
-  await prisma.driveNode.deleteMany({ where: { name: { startsWith: prefixe } } }).catch(() => {});
+  await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: prefixe } } }).catch(() => {});
 }
 
 suite("la réserve des clauses n'écrit que `custom.intelligence`", () => {
@@ -126,7 +127,7 @@ suite("la réserve des clauses n'écrit que `custom.intelligence`", () => {
       // Retirée tout de suite : un engagement ACTIF et indexé ne doit pas rester visible des
       // passages de la réserve des bancs voisins plus longtemps que la mesure.
       await prisma.legalDocument.deleteMany({ where: { id } }).catch(() => {});
-      await prisma.driveNode.deleteMany({ where: { id: node.id } }).catch(() => {});
+      await retirerNoeudsDriveEtContenu({ where: { id: node.id } }).catch(() => {});
     }
   });
 });

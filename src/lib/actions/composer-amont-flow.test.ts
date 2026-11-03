@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { compositionDesPieces } from "@/lib/queries/composition-pieces";
 import { AMONT_HORS_PERIMETRE, piecesAmontProposees } from "@/lib/queries/legal-chain";
@@ -128,8 +129,8 @@ suite("Legal — une pièce composée suit sa pièce amont : proposée par la po
     await prisma.officeLetterhead.deleteMany({ where: { companyId: { in: [C1, C2] } } }).catch(() => {});
     const comptes = [sa?.id, dg?.id, fin?.id].filter(Boolean) as string[];
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: { in: comptes } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.userCompanyAccess.deleteMany({ where: { companyId: { in: [C1, C2] } } }).catch(() => {});
     await prisma.companyLegalIdentity.deleteMany({ where: { companyId: { in: [C1, C2] } } }).catch(() => {});

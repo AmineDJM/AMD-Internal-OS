@@ -5,6 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "../generer";
@@ -68,7 +69,7 @@ suite("Assistant IA — l'envoi de plusieurs pièces (dossier déposé)", () => 
     await effacerJournalDe(ids);
     await prisma.modelCallLog.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.assistantIaFil.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 
 /**
  * LA SORTIE DES FACTURES HORS DES BONS DE COMMANDE — prouvée sur des données, pas sur une lecture.
@@ -97,7 +98,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   const crees = [`linv_${factureA}`, `linv_${factureB}`];
-  await prisma.document.deleteMany({ where: { fileKey: { startsWith: `${TAG}/` } } });
+  await retirerDocumentsEtContenu({ where: { fileKey: { startsWith: `${TAG}/` } } });
   await prisma.auditLog.deleteMany({ where: { id: { in: [`alinv_${factureA}`, `alinv_${factureB}`] } } });
   await prisma.legalDocumentReader.deleteMany({ where: { documentId: { in: crees } } });
   await prisma.legalDocument.deleteMany({ where: { id: { in: crees } } });

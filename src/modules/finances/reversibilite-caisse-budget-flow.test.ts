@@ -10,6 +10,7 @@ vi.mock("@/lib/session", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
@@ -100,7 +101,7 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     const ids = Object.values(u);
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(() => {});
     const depenses = (await prisma.departmentBudgetExpense.findMany({ where: { departmentId: dept }, select: { id: true } }).catch(() => [])).map((e) => e.id);
-    await prisma.document.deleteMany({ where: { entityId: { in: depenses } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: depenses } } }).catch(() => {});
     await prisma.departmentExpenseLine.deleteMany({ where: { expenseId: { in: depenses } } }).catch(() => {});
     await prisma.departmentBudgetExpense.deleteMany({ where: { departmentId: dept } }).catch(() => {});
     const remises = await prisma.pettyCashAllotment.findMany({ where: { departmentId: dept }, select: { expenseOrderId: true } }).catch(() => []);

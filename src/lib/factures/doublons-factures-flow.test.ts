@@ -46,6 +46,7 @@ vi.mock("@/lib/pieces-lues/lecture-fichier", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { sealSecret } from "@/lib/crypto/secret-box";
 import { repererEntetes } from "@/lib/pieces-lues/entetes";
@@ -172,7 +173,7 @@ suite("Doublons de factures — blocage aux portes, relance unifiée, recensemen
     const demandes = (await prisma.paymentRequest.findMany({ where: { requesterId: { in: ids } }, select: { id: true } }).catch(() => [])).map((d) => d.id);
     const legaux = (await prisma.legalDocument.findMany({ where: { OR: [{ createdById: { in: ids } }, { sourceId: evId }] }, select: { id: true } }).catch(() => [])).map((d) => d.id);
     await prisma.adProItemPiece.deleteMany({ where: { itemId: posteId } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { OR: [{ uploadedById: { in: ids } }, { entityId: { in: [...demandes, ...legaux] } }] } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { OR: [{ uploadedById: { in: ids } }, { entityId: { in: [...demandes, ...legaux] } }] } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { id: { in: demandes } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: posteId } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: legaux } } }).catch(() => {});

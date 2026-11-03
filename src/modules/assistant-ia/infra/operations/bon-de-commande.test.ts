@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -51,11 +52,11 @@ suite("Assistant IA — bon de commande et demande de validation", () => {
     const vr = await prisma.validationRequest.findMany({ where: { entityId: { in: ids } }, select: { id: true } });
     await prisma.validationStep.deleteMany({ where: { requestId: { in: vr.map((v) => v.id) } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { id: { in: vr.map((v) => v.id) } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { name: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 

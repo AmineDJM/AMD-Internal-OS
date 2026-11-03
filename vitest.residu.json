@@ -1,0 +1,4 @@
+{
+  "commentaire": "Résidu toléré d'UNE suite complète (npm test), table par table, mesuré après le ménage de fin (vitest.global-setup.ts). UN PLAFOND NE SE RELÈVE JAMAIS : un dépassement se corrige dans le banc qui sème ; un chiffre qui baisse se reporte ici.",
+  "plafonds": {}
+}

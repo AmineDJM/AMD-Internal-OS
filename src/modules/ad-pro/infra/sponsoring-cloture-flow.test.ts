@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createSponsoring, cloturerSponsoring, rouvrirSponsoring } from "../actions-sponsoring";
 import { addAdProItem, setAdProItemBudget, updateAdProItem, deleteAdProItem, submitAdProItem } from "../actions-postes";
@@ -104,13 +105,13 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     // Les factures déposées sur les postes (§118.204) désignent leur ordre : elles partent d'abord.
     const factures = (await prisma.legalDocument.findMany({ where: { sourceId: { in: ids } }, select: { id: true } }).catch(() => [])).map((f) => f.id);
     await prisma.adProItemPiece.deleteMany({ where: { legalDocumentId: { in: factures } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: factures } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: factures } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: factures } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { sourceId: { in: ids } } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { label: { contains: TAG } } }).catch(() => {});
     await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { in: ids } } } }).catch(() => {});
     await prisma.workflowInstance.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     // Un transfert SABOTÉ créerait un congrès : le banc ne laisse rien derrière lui (§118.91).

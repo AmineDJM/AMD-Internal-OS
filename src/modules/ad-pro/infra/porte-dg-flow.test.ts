@@ -15,6 +15,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { addAdProItem, updateAdProItem, submitAdProItem, requestAdProItemOrder, approveAdProItemOrder } from "../actions-postes";
 import { decideAdProItem } from "../actions-postes-decision";
@@ -99,7 +100,7 @@ suite("Ad & Pro — la porte du DG sur le total de la demande", () => {
     await prisma.documentRequest.deleteMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: postes } } }).catch(() => {});
     const liens = await prisma.adProItemPiece.findMany({ where: { itemId: { in: postes } }, select: { legalDocumentId: true } }).catch(() => []);
     await prisma.adProItemPiece.deleteMany({ where: { itemId: { in: postes } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: [...postes, ...liens.map((l) => l.legalDocumentId)] } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [...postes, ...liens.map((l) => l.legalDocumentId)] } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: liens.map((l) => l.legalDocumentId) } } }).catch(() => {});
     await prisma.adProItemDecision.deleteMany({ where: { itemId: { in: postes } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: { in: postes } } }).catch(() => {});

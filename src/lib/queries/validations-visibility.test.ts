@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getPendingValidations, getSupervisedValidations } from "@/lib/queries/validations";
 import type { SessionUser } from "@/lib/rbac";
 
@@ -57,7 +58,7 @@ suite("Visibilité des demandes de validation", () => {
   });
 
   afterAll(async () => {
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });

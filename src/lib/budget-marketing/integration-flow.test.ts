@@ -18,6 +18,7 @@ vi.mock("@/lib/factures/connues", async (orig) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview, getEnvelopesGrandTotal } from "@/lib/queries/budget";
 import { rapportMarketing } from "@/lib/queries/budget-marketing-rapport";
@@ -155,7 +156,7 @@ suite("Intégration des dépenses réelles Ad & Pro 2026 — de bout en bout", (
     const lots = await prisma.adProIntegrationLot.findMany({ where: { envelopeId: envId }, include: { demandes: true } });
     for (const l of lots) for (const d of l.demandes.filter((x) => x.mode === "CREEE")) {
       const where = { where: { id: d.demandeId } };
-      await prisma.document.deleteMany({ where: { entityId: d.demandeId } });
+      await retirerDocumentsEtContenu({ where: { entityId: d.demandeId } });
       if (d.demandeType === "SPONSORING") await prisma.sponsoringRequest.deleteMany(where);
       if (d.demandeType === "CONGRESS_NATIONAL") await prisma.congressNational.deleteMany(where);
       if (d.demandeType === "CONGRESS_INTERNATIONAL") await prisma.congressInternational.deleteMany(where);
@@ -165,7 +166,7 @@ suite("Intégration des dépenses réelles Ad & Pro 2026 — de bout en bout", (
       if (d.demandeType === "MEDICAL_INFO_DECLARATION") await prisma.medicalInfoDeclaration.deleteMany(where);
     }
     await prisma.adProIntegrationLot.deleteMany({ where: { envelopeId: envId } });
-    await prisma.document.deleteMany({ where: { OR: [{ entityId: { in: [envId, posteWebinaire, spoId] } }, { name: { startsWith: TAG } }] } });
+    await retirerDocumentsEtContenu({ where: { OR: [{ entityId: { in: [envId, posteWebinaire, spoId] } }, { name: { startsWith: TAG } }] } });
     await prisma.expenseOrder.deleteMany({ where: { id: ordreId } });
     await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId } });
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } });

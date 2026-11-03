@@ -10,6 +10,7 @@ let LU: DevisLu | null = null;
 vi.mock("./devis-lu", () => ({ lireDevis: async () => LU ?? { erreur: "non lu" } }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -61,11 +62,11 @@ suite("Assistant IA — bon de commande depuis un devis", () => {
     const docs = await prisma.legalDocument.findMany({ where: { companyId: societeId }, select: { id: true } });
     const vr = await prisma.validationRequest.findMany({ where: { requesterId: admin?.id }, select: { id: true } });
     await prisma.validationStep.deleteMany({ where: { requestId: { in: vr.map((v) => v.id) } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: [...vr.map((v) => v.id), ...docs.map((d) => d.id)] } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [...vr.map((v) => v.id), ...docs.map((d) => d.id)] } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { id: { in: vr.map((v) => v.id) } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { name: { contains: TAG } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { OR: [{ name: { contains: TAG } }, { ownerId: { in: [admin?.id ?? "", valideur?.id ?? ""] } }] } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { OR: [{ name: { contains: TAG } }, { ownerId: { in: [admin?.id ?? "", valideur?.id ?? ""] } }] } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: admin?.id } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

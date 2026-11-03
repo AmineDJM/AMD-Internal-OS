@@ -2,6 +2,7 @@ import { companyIdForNew } from "@/lib/company";
 import { sansBloquer } from "@/lib/journal";
 import { expect } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { annulerGeste } from "@/lib/effets/annulation";
 import { decideApproval, finishRequest } from "@/lib/actions/admin-request-actions";
@@ -214,8 +215,8 @@ const nettoyerFabrique = async (tag: string) => {
   await prisma.auditLog.deleteMany({ where: { entityId: { in: pieces } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
   await prisma.legalDocument.deleteMany({ where: { id: { in: pieces } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
   await prisma.fileVersion.deleteMany({ where: { node: { ownerId: { in: comptes } } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
-  await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(sansBloquer("banc-k10b.cas-decisions"));
-  await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(sansBloquer("banc-k10b.cas-decisions"));
+  await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: comptes } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
   await prisma.companyLegalIdentity.deleteMany({ where: { companyId: { in: societes } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
   await prisma.company.deleteMany({ where: { id: { in: societes } } }).catch(sansBloquer("banc-k10b.cas-decisions"));
 };

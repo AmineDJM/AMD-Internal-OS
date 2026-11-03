@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { putBlob } from "@/lib/drive-storage";
@@ -71,7 +72,7 @@ suite("intelligence métier — Legal, Finance, Regulatory depuis les données r
     await prisma.paymentRequest.deleteMany({ where: { reference: { startsWith: TAG } } });
     await prisma.expenseOrder.deleteMany({ where: { reference: { startsWith: TAG } } });
     await prisma.legalDocument.deleteMany({ where: { title: { startsWith: TAG } } });
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } });
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } });
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
   });
 

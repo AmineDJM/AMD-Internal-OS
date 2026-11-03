@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   startDossierTimeline, addDossierStep, updateDossierStep, deleteDossierStep,
@@ -47,7 +48,7 @@ suite("Regulatory — frise du dossier : Réserves ANPP 1, insertion à la place
   });
 
   afterAll(async () => {
-    await prisma.document.deleteMany({ where: { entityType: "REGULATORY_PRODUCT", entityId: productId } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "REGULATORY_PRODUCT", entityId: productId } }).catch(() => {});
     await prisma.regulatoryDossierStep.deleteMany({ where: { productId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: productId } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});

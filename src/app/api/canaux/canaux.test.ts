@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { GET as verifierWebhook, POST as webhookWhatsApp } from "@/app/api/canaux/whatsapp/route";
 import { POST as webhookMail } from "@/app/api/mail/inbound/route";
@@ -128,7 +129,7 @@ suite("K6 — pièces reçues par WhatsApp et par mail, dans le contexte de la c
     vi.unstubAllGlobals();
     const uid = dirigeant?.id;
     if (!uid) return;
-    await prisma.document.deleteMany({ where: { entityId: spoId } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: spoId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } }).catch(() => {});
     await prisma.assistantIaReception.deleteMany({ where: { OR: [{ userId: uid }, { idExterne: { contains: TAG } }] } }).catch(() => {});
     await prisma.assistantIaAttentePieces.deleteMany({ where: { userId: uid } }).catch(() => {});
@@ -137,8 +138,8 @@ suite("K6 — pièces reçues par WhatsApp et par mail, dans le contexte de la c
     await prisma.assistantActionIntent.deleteMany({ where: { userId: uid } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: uid } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: uid } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: uid, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: uid } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: uid, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: uid } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: uid } }).catch(() => {});
   });
 

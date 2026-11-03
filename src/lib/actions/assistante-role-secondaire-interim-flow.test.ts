@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
@@ -90,7 +91,7 @@ suite("L'assistante de direction — rôle secondaire reconnu, intérim et réaf
   }, 60_000);
 
   afterAll(async () => {
-    await prisma.document.deleteMany({ where: { entityType: "DOCUMENT_REQUEST", entityId: { in: pieces } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "DOCUMENT_REQUEST", entityId: { in: pieces } } }).catch(() => {});
     await prisma.documentRequest.deleteMany({ where: { id: { in: pieces } } }).catch(() => {});
     await prisma.administrativeRequest.deleteMany({ where: { id: demandeAdminId } }).catch(() => {});
     await prisma.promoMaterial.deleteMany({ where: { id: promoId } }).catch(() => {});

@@ -9,6 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { legalWriteAllowed } from "@/lib/lecteurs/legal";
 import { refusPlafondAvoir } from "@/lib/lecteurs/avoir";
@@ -157,8 +158,8 @@ suite("L'avoir — la correction d'une facture émise (§118.195)", () => {
     await prisma.legalDocument.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     const comptes = [sa?.id, fin?.id].filter(Boolean) as string[];
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: { in: comptes } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.userCompanyAccess.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -128,9 +129,9 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     await prisma.dossierMessage.deleteMany({ where: { dossierId: { in: sujets.map((s) => s.id) } } }).catch(() => {});
     await prisma.dossier.deleteMany({ where: { id: { in: sujets.map((s) => s.id) } } }).catch(() => {});
     await prisma.deletedRecord.deleteMany({ where: { sourceId: { in: ids } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { OR: [{ entityId: { in: ids } }, { name: { startsWith: TAG } }] } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { OR: [{ entityId: { in: ids } }, { name: { startsWith: TAG } }] } }).catch(() => {});
     const postes = await prisma.adProItem.findMany({ where: { sponsoringId: { in: ids } }, select: { id: true } }).catch(() => []);
-    await prisma.document.deleteMany({ where: { entityId: { in: postes.map((p) => p.id) } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: postes.map((p) => p.id) } } }).catch(() => {});
     await prisma.documentRequest.deleteMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: postes.map((p) => p.id) } } }).catch(() => {});
     // LA PORTE DU DG (27/10/2026) : sa ligne par demande, et le signalement parti au DG / Super Admin de la base partagée.
     await prisma.adProPorteDg.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
@@ -140,7 +141,7 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     await prisma.auditLog.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     const legaux = await prisma.legalDocument.findMany({ where: { title: { startsWith: TAG } }, select: { id: true } }).catch(() => []);
-    await prisma.document.deleteMany({ where: { entityId: { in: legaux.map((l) => l.id) } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: legaux.map((l) => l.id) } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: legaux.map((l) => l.id) } } }).catch(() => {});
     await prisma.consultingContract.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
