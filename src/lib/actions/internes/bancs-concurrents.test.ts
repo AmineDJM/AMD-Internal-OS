@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { attendreBloques, compterBloques, poserBarriere } from "./bancs-concurrents";
+import { ecartsDesGestesSousBarriere } from "./surveillance-sous-barriere";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -27,6 +28,8 @@ const drapeau = (n: string) => ({ data: { key: `${TAG}${n}`, label: `${TAG}${n}`
 suite("la barrière de concurrence ne compte que les gestes de son processus", () => {
   afterAll(async () => {
     await prisma.featureFlag.deleteMany({ where: { key: { startsWith: TAG } } }).catch(() => {});
+    await autre.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await autre.$disconnect();
   });
 
@@ -60,5 +63,20 @@ suite("la barrière de concurrence ne compte que les gestes de son processus", (
     }, { timeout: 30_000 });
     await Promise.all([voisine, geste]);
     expect(await prisma.featureFlag.count({ where: { key: { startsWith: TAG } } })).toBe(2);
+  });
+
+  it("SOUS LA BARRIÈRE, une notification à un compte VOISIN est relevée ; au compte du banc, non (R2)", async () => {
+    // Le voisin est créé par l'AUTRE processus : ce processus ne l'a jamais vu naître — exactement un compte d'un banc voisin.
+    const voisin = await autre.user.create({ data: { email: `${TAG}voisin@t.dz`, name: `${TAG}voisin`, passwordHash: "x", role: "DIRECTION_ASSISTANT" } });
+    const duBanc = await prisma.user.create({ data: { email: `${TAG}banc@t.dz`, name: `${TAG}banc`, passwordHash: "x", role: "DIRECTION_ASSISTANT" } });
+    await prisma.notification.create({ data: { userId: voisin.id, title: `${TAG} hors barrière` } });
+    expect(ecartsDesGestesSousBarriere(), "hors barrière, rien à relever").toEqual([]);
+    await prisma.$transaction(async (tx) => {
+      await poserBarriere(tx, "FeatureFlag");
+      await prisma.notification.create({ data: { userId: duBanc.id, title: `${TAG} au banc` } });
+      expect(ecartsDesGestesSousBarriere(), "le compte du banc ne noue rien").toEqual([]);
+      await prisma.notification.createMany({ data: [{ userId: voisin.id, title: `${TAG} au voisin` }] });
+    }, { timeout: 30_000 });
+    expect(ecartsDesGestesSousBarriere()).toEqual([`${TAG}voisin@t.dz (DIRECTION_ASSISTANT)`]);
   });
 });

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { prisma, prismaBrut } from "@/lib/prisma";
+import { surveillerSousBarriere } from "./surveillance-sous-barriere";
 import { sansBloquer } from "@/lib/journal";
 import { retirerComptesEtSemis } from "./menage-de-banc";
 
@@ -82,9 +83,27 @@ export const PURGE_HISTORIQUE = "expense-actions:purgeSettledExpenseOrders";
  * verrou `SHARE` de chaque table — les lectures passent, les écritures attendent.
  */
 export async function poserBarriere(tx: Prisma.TransactionClient, ...tables: string[]): Promise<void> {
+  barrieresPosees++;
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('banc-exclusif'), hashtext('barriere-de-table'))`;
   for (const t of tables) await tx.$executeRawUnsafe(`LOCK TABLE "${t.replace(/"/g, "")}" IN SHARE MODE`);
 }
+
+// ── LE GESTE SOUS LA BARRIÈRE NE S'ADRESSE QU'AUX COMPTES DU BANC — mesuré (`surveillance-sous-barriere.ts`) ──
+
+let barrieresPosees = 0;
+
+/** Une barrière de CE processus est-elle ouverte ? (le tour consultatif de `poserBarriere`, tenu par une de ses connexions) */
+async function barriereOuverteIci(): Promise<boolean> {
+  if (barrieresPosees === 0) return false;
+  const [{ n }] = await prismaBrut.$queryRaw<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
+    WHERE l.locktype = 'advisory' AND l.granted AND l.objsubid = 2
+      AND l.classid = hashtext('banc-exclusif')::oid AND l.objid = hashtext('barriere-de-table')::oid
+      AND a.application_name = current_setting('application_name')`;
+  return n > 0;
+}
+
+if (process.env.VITEST) await surveillerSousBarriere(barriereOuverteIci);
 
 /** `"signedAt"` → `%signedAt%` ; un motif qui porte déjà ses jokers est pris tel quel. */
 const enMotif = (m: string): string => (m.includes("%") ? m : `%${m}%`);
