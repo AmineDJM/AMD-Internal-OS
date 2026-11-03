@@ -12,7 +12,9 @@ let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
-const TAG = "__eotest__";
+// UN SUFFIXE PAR RUN (§118.136) : à étiquette fixe, le ménage d'un autre passage du fichier lancé à côté retirait les
+// comptes de celui-ci en plein test — la demande partait alors sur un demandeur disparu (F1).
+const TAG = `__eotest__${Date.now().toString(36)}`;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

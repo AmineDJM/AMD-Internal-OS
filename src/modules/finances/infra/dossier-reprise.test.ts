@@ -33,16 +33,54 @@ let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
-/** Rejoue le fichier de migration, instruction par instruction (commentaires retirés d'abord). */
+/**
+ * Rejoue le fichier de migration, instruction par instruction (commentaires retirés d'abord) — SANS toucher aux autres
+ * bancs de la base partagée (F1, 02/11/2026).
+ *
+ * Cette migration date d'AVANT le compteur des séries (`SerieReference`, `lib/refs.ts`) : elle numérote les dossiers
+ * qu'elle crée « au maximum existant + n », et pour TOUS les ordres de la base qui n'ont pas de dossier. Rejouée telle
+ * quelle pendant la suite, elle prenait les numéros PAY que le compteur allait donner, pour les ordres des AUTRES bancs
+ * aussi : chaque création de demande de paiement heurtait ensuite l'unicité, six essais de suite, partout à la fois
+ * (MESURÉ sous `test:architecture` : « La demande n'a pas pu être créée » dans reversibilite-demandes-flow,
+ * demande-paiement-visible-flow, payment-submit-double-clic ; « chaque ordre a SON dossier compagnon : 0 au lieu de 12 »
+ * dans expense-orders.test).
+ *
+ * Le SQL est rejoué tel qu'il est écrit — c'est lui qu'on éprouve —, mais dans UNE transaction qui :
+ *   1. tient la ligne du compteur PAY de l'année (`FOR UPDATE`) : aucun autre banc ne tire de numéro pendant ce temps ;
+ *   2. ne lui montre que les ordres de CE banc (une vue temporaire `ExpenseOrder` filtrée sur `TAG`, cherchée avant la
+ *      table) — et, pour le fil, que les dossiers de ce banc ;
+ *   3. avance le compteur au-delà des numéros que la migration vient de prendre, avant de relâcher.
+ * Les instructions de schéma (idempotentes) restent hors de la transaction : elles y tiendraient la table verrouillée.
+ */
 async function rejouerLaMigration(): Promise<void> {
   const brut = readFileSync(SQL, "utf8");
   const sansCommentaires = brut
     .split("\n")
     .filter((l) => !l.trimStart().startsWith("--"))
     .join("\n");
-  for (const stmt of sansCommentaires.split(";")) {
-    if (stmt.trim()) await prisma.$executeRawUnsafe(stmt);
-  }
+  const instructions = sansCommentaires.split(";").filter((stmt) => stmt.trim());
+  const schema = instructions.filter((stmt) => /^\s*(ALTER|CREATE)\b/i.test(stmt));
+  const donnees = instructions.filter((stmt) => !schema.includes(stmt));
+  for (const stmt of schema) await prisma.$executeRawUnsafe(stmt);
+  const cle = `PaymentRequest:PAY-${annee}`;
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRawUnsafe(`SELECT 1 FROM "SerieReference" WHERE "cle" = $1 FOR UPDATE`, cle);
+    await tx.$executeRawUnsafe(`CREATE TEMP VIEW "ExpenseOrder" AS SELECT * FROM public."ExpenseOrder" WHERE "label" LIKE '${TAG}%'`);
+    for (const stmt of donnees) {
+      // Le fil n'est posé que sur les dossiers de ce banc : la vue de `PaymentRequest` n'existe qu'après leur création.
+      if (/INSERT INTO "PaymentRequestEvent"/.test(stmt)) {
+        await tx.$executeRawUnsafe(`CREATE TEMP VIEW "PaymentRequest" AS SELECT * FROM public."PaymentRequest" WHERE "title" LIKE '${TAG}%'`);
+      }
+      await tx.$executeRawUnsafe(stmt);
+    }
+    await tx.$executeRawUnsafe(`DROP VIEW IF EXISTS pg_temp."PaymentRequest"`);
+    await tx.$executeRawUnsafe(`DROP VIEW IF EXISTS pg_temp."ExpenseOrder"`);
+    await tx.$executeRawUnsafe(
+      `UPDATE "SerieReference" SET "dernier" = GREATEST("dernier", (
+         SELECT COALESCE(MAX(NULLIF(regexp_replace("reference", '^PAY-[0-9]+-', ''), '')::int), 0)
+         FROM "PaymentRequest" WHERE "reference" ~ ('^PAY-' || $2 || '-[0-9]+$'))), "updatedAt" = now()
+       WHERE "cle" = $1`, cle, String(annee));
+  }, { timeout: 60_000 });
 }
 
 let demandeurId = "";

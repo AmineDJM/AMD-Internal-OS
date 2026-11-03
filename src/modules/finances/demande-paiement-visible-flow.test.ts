@@ -16,7 +16,9 @@ let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
-const TAG = "__demandePaiementVue__";
+// UN SUFFIXE PAR RUN (§118.136) : à étiquette fixe, le ménage d'un autre passage du fichier lancé à côté retirait les
+// comptes de celui-ci en plein test — la demande partait alors sur un demandeur disparu (F1).
+const TAG = `__demandePaiementVue__${Date.now().toString(36)}`;
 
 async function actorFor(id: string, role: SessionUser["role"]): Promise<CurrentUser> {
   const access = await getAccess(id, role);
