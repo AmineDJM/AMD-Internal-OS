@@ -20,3 +20,6 @@ anti-verrouillage sur « Comptes & droits ».
   port du socle `src/platform/donnees/` (contexte de la requête, extension Prisma posée dans `src/lib/prisma.ts`).
   En OBSERVATION : elle compte ce qu'elle aurait refusé (`ObservationAccesBase`, `infra/observations.ts`), ne refuse rien.
 - **SQL brut** : cliquet `sql-brut.test.ts` — la liste des fichiers qui touchent une base métier hors de la garde rétrécit.
+- **Application stricte (D4)** : `AppSetting.accesBasesStrict` (AUCUNE par défaut / SENSIBLES / TOUTES), console + action
+  `reglerAccesBasesStrict`. Le plan (refus avec empreinte, colonnes de référence, ses propres données) est calculé par
+  `platform/donnees/garde.ts` et appliqué dans `lib/prisma.ts` ; l'écran d'erreur `(app)/error.tsx` lit l'empreinte.

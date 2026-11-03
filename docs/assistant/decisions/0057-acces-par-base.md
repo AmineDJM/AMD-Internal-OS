@@ -74,3 +74,32 @@ un réglage restrictif sur un Super Admin sans confirmation est refusé avec la 
   rétrécir, un fichier neuf ou une base de plus fait échouer la suite.
 - **Limite connue, à mesurer** : la case par requête repose sur `cache()` de React ; une route d'API (hors rendu) qui ne
   pose pas son identité par `avecIdentiteDonnees` n'est pas jugée. Le lot D5 la pose pour l'API v1.
+
+## D4 — l'application stricte, DÉSACTIVÉE par défaut
+
+- **L'interrupteur** : `AppSetting.accesBasesStrict` (migration `20270233000000_d4_acces_base_strict`) — `AUCUNE` (défaut :
+  la garde observe et compte, rien n'est refusé), `SENSIBLES` (bases métier secrètes et confidentielles : Paie, Personnel,
+  Recrutement, Finances, Budgets, Juridique, Coffre, Ad & Pro, Développement, Information médicale, Messagerie, Pilotage),
+  `TOUTES` (toutes les bases métier). Réglé dans la console (Administration › Accès › Par base) par le Super Admin réel
+  seulement ; activer exige une confirmation explicite, désactiver jamais ; journalisé ; annulable en un geste (K10) ;
+  modèle interdit au chemin générique de l'assistant. **La Direction fixera la date d'activation après les deux semaines
+  d'observation — rien n'est activé par ce lot.**
+- **Le plan de la garde** (`src/platform/donnees/garde.ts`, appliqué par `src/lib/prisma.ts`), quand le refus est appliqué :
+  - la table DEMANDÉE est fermée → la requête est refusée par une erreur `AccesBaseRefuse` qui porte l'empreinte
+    `ACCES_BASE:<base>:<niveau>` ; Next la garde en production, et l'écran d'erreur (`src/app/(app)/error.tsx`) dit
+    « La base « Paie & rémunérations » vous est fermée. Demandez à la Direction » au lieu d'une panne ;
+  - **nom et poste toujours visibles** (décision n° 7) : une lecture qui ne demande QUE des colonnes de référence (nom,
+    poste, titre, référence, département, entité…) passe ; une table JOINTE fermée (`include` / `select`) ne fait pas
+    tomber l'écran : ses lignes sont réduites à ces colonnes (la demande Ad & Pro garde le nom du salarié, jamais son IBAN) ;
+  - **ses propres données** (décision n° 6, paramètre de la base) : la requête est restreinte à SES lignes (son compte, sa
+    fiche RH — filtre ajouté au `where`, colonnes d'appartenance lues puis retirées) ; une ligne d'autrui demandée par son
+    identifiant est refusée ; un agrégat (`count`, `aggregate`, `groupBy`) sur une base fermée est refusé ;
+  - lecture seule → toute écriture dans la base est refusée.
+- **Aucune exception, sans verrouillage possible** : le Super Admin est jugé comme les autres, mais les bases techniques
+  (comptes et droits, journaux, plateforme, IA) ne sont jamais appliquées — la connexion et la console d'accès restent
+  ouvertes, et le garde-fou de D2 empêche de fermer « Comptes & droits » au dernier Super Admin.
+- **Bancs** : `src/modules/acces-bases/garde.test.ts` (refus réel, empreinte, propres données, jointure réduite, lecture
+  seule, portée SENSIBLES / TOUTES, base technique jamais bloquée, système et autrui non touchés) ;
+  `src/lib/effets/reversibles-acces-bases.test.ts` (l'interrupteur : employé refusé, confirmation, annulation).
+- **Limites connues** : une action serveur refusée affiche encore le message générique « n'a pas abouti » (le lot D5
+  porte le refus clair dans les actions) ; après l'annulation d'un réglage, la garde le voit au plus tard 30 s après.

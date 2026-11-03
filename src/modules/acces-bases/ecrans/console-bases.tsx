@@ -8,8 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { poserReglageBase, reglerPropresDonneesBase, revoquerReglageBase } from "@/modules/acces-bases/actions";
-import { LIBELLE_NIVEAU_BASE, type NiveauBase, type Sensibilite } from "@/modules/acces-bases/partage";
+import { poserReglageBase, reglerAccesBasesStrict, reglerPropresDonneesBase, revoquerReglageBase } from "@/modules/acces-bases/actions";
+import { LIBELLE_NIVEAU_BASE, type ModeStrict, type NiveauBase, type Sensibilite } from "@/modules/acces-bases/partage";
 
 /**
  * LA CONSOLE « ACCÈS PAR BASE » (lot D2, décision 0057) — Administration › Accès › Par base.
@@ -72,7 +72,14 @@ const TEINTE: Record<Sensibilite, string> = {
   secret: "Secret",
 };
 
-export function ConsoleBases({ bases, detail, personnes, roles }: {
+const MODES: { mode: ModeStrict; libelle: string; aide: string }[] = [
+  { mode: "AUCUNE", libelle: "Désactivée", aide: "La garde observe et compte ; rien n'est refusé." },
+  { mode: "SENSIBLES", libelle: "Bases sensibles", aide: "Refus appliqués sur les bases secrètes et confidentielles." },
+  { mode: "TOUTES", libelle: "Toutes les bases métier", aide: "Refus appliqués sur toutes les bases métier." },
+];
+
+export function ConsoleBases({ bases, detail, personnes, roles, modeStrict }: {
+  modeStrict: ModeStrict;
   bases: LigneBaseConsole[];
   detail: DetailBaseConsole | null;
   personnes: { id: string; nom: string }[];
@@ -82,6 +89,12 @@ export function ConsoleBases({ bases, detail, personnes, roles }: {
   const [erreur, setErreur] = React.useState<string | null>(null);
   const [confirmer, setConfirmer] = React.useState(false);
   const [enCours, setEnCours] = React.useState(false);
+  const [modeAConfirmer, setModeAConfirmer] = React.useState<ModeStrict | null>(null);
+  const choisirMode = (mode: ModeStrict) => void agir(async () => {
+    const r = await reglerAccesBasesStrict(mode, modeAConfirmer === mode);
+    setModeAConfirmer(!r.ok && r.confirmation ? mode : null);
+    return r;
+  });
 
   const agir = async (f: () => Promise<{ ok: boolean; error?: string; confirmation?: true }>) => {
     setErreur(null);
@@ -110,6 +123,24 @@ export function ConsoleBases({ bases, detail, personnes, roles }: {
   return (
     <div className="space-y-4" data-testid="console-bases">
       {erreur && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-sm text-destructive">{erreur}</p>}
+      <Card data-testid="mode-strict">
+        <CardHeader>
+          <CardTitle className="text-base">Application stricte</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Tant qu&apos;elle est désactivée, les réglages ci-dessous sont mesurés (« ce que la garde aurait refusé ») sans rien bloquer.
+            Activée, la garde refuse pour de bon — Super Admin compris ; les bases techniques (comptes, journaux, plateforme) restent toujours ouvertes.
+          </p>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {MODES.map((m) => (
+            <Button key={m.mode} type="button" size="sm" variant={modeStrict === m.mode ? "primary" : "outline"} disabled={enCours || modeStrict === m.mode}
+              title={m.aide} onClick={() => choisirMode(m.mode)}>
+              {modeAConfirmer === m.mode ? `Confirmer : ${m.libelle}` : m.libelle}
+            </Button>
+          ))}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader><CardTitle className="text-base">Les bases</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">

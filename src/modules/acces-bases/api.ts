@@ -5,9 +5,9 @@
  * Tables possédées : `AccesBase`, `AccesBaseParametre`. Lu par : la console Administration › Accès › Par base.
  */
 export * from "./partage";
-export { reglagesVivants, historiqueBase, propresDonnees, poserReglage, revoquerReglage, reglerPropresDonnees } from "./infra/reglages";
+export { reglagesVivants, historiqueBase, propresDonnees, poserReglage, revoquerReglage, reglerPropresDonnees, lireModeStrict, reglerModeStrict } from "./infra/reglages";
 export { quiVoitLaBase } from "./infra/qui-voit";
 export { personnesActives, nomsDe } from "./infra/requetes";
 // D3 : la garde des données (branchée au démarrage) et ce qu'elle aurait refusé.
-export { brancherGardeDonnees } from "./infra/garde";
+export { brancherGardeDonnees, rafraichirGardeMaintenant } from "./infra/garde";
 export { observationsRecentes } from "./infra/observations";

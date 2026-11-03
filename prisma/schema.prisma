@@ -10195,6 +10195,9 @@ model DeletedRecord {
 
 model AppSetting {
   id                             String    @id @default("global")
+  /// D4 (décision 0057) : l'application STRICTE de l'accès par base — « AUCUNE » (défaut : la garde observe, rien n'est
+  /// refusé), « SENSIBLES » (bases secrètes et confidentielles), « TOUTES » (toutes les bases métier). Super Admin seul.
+  accesBasesStrict               String    @default("AUCUNE")
   /// C1 (décision 0042) : les réglages des chantiers de développement (plafonds, lancements, déploiements, tentatives, jour).
   chantiersReglages              Json?
   /// ARRÊT D'URGENCE DES ACTIONS EXTERNES DE L'IA. Vrai = plus AUCUNE action de l'assistant qui

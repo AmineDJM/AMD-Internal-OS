@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Prisma } from "@prisma/client";
 import { prisma, prismaBrut } from "@/lib/prisma";
 import { avecIdentiteDonnees, enSysteme, type IdentiteDonnees } from "@/platform/donnees/contexte";
-import { modelesTouches } from "@/platform/donnees/garde";
+import { AccesBaseRefuse, modelesTouches } from "@/platform/donnees/garde";
 import { brancherGardeDonnees, debrancherGardeDonnees, evaluateurAccesBases, poserInstantaneDeTest } from "./infra/garde";
 import { envoyerObservations } from "./infra/observations";
 import type { ReglageBase } from "./domaine/types";
@@ -20,6 +20,7 @@ const TAG = `zd3garde${Date.now()}`;
 let radiaId = "";
 let assiaId = "";
 let employeeId = "";
+let radiaEmployeeId = "";
 const radia = (): IdentiteDonnees => ({ userId: radiaId, roles: ["DIRECTION_ASSISTANT", null], peut: () => true });
 const reglage = (o: Partial<ReglageBase>): ReglageBase => ({
   id: `${TAG}-r`, base: "paie", userId: radiaId, role: null, niveau: "FERMEE", ecriture: false,
@@ -35,6 +36,8 @@ suite("D3 — la garde des données, en observation", () => {
     assiaId = (await prismaBrut.user.create({ data: { name: `${TAG} Assia`, email: `${TAG}a@t.dz`, passwordHash: "x", role: "VIEWER" } })).id;
     employeeId = (await prismaBrut.employee.create({ data: { fullName: `${TAG} Assia`, userId: assiaId } })).id;
     await prismaBrut.payrollEntry.create({ data: { employeeId, year: 2026, month: 10, gross: 100_000, net: 80_000 } });
+    radiaEmployeeId = (await prismaBrut.employee.create({ data: { fullName: `${TAG} Radia`, position: "Assistante", iban: "DZ00TEST", userId: radiaId } })).id;
+    await prismaBrut.payrollEntry.create({ data: { employeeId: radiaEmployeeId, year: 2026, month: 10, gross: 60_000, net: 50_000 } });
     await prismaBrut.salaryAdvance.create({ data: { employeeId, amount: 10_000, reason: TAG } as never }).catch(() => undefined);
     brancherGardeDonnees();
   }, 60_000);
@@ -45,7 +48,8 @@ suite("D3 — la garde des données, en observation", () => {
     await prismaBrut.observationAccesBase.deleteMany({ where: { userId: { in: [radiaId, assiaId] } } });
     await prismaBrut.salaryAdvance.deleteMany({ where: { employeeId } }).catch(() => undefined);
     await prismaBrut.payrollEntry.deleteMany({ where: { employeeId } });
-    await prismaBrut.employee.deleteMany({ where: { id: employeeId } });
+    await prismaBrut.payrollEntry.deleteMany({ where: { employeeId: radiaEmployeeId } });
+    await prismaBrut.employee.deleteMany({ where: { id: { in: [employeeId, radiaEmployeeId] } } });
     await prismaBrut.user.deleteMany({ where: { id: { in: [radiaId, assiaId] } } });
   });
 
@@ -117,5 +121,73 @@ suite("D3 — la garde des données, en observation", () => {
     console.info(`[D3] surcoût de la garde : ${parRequeteUs.toFixed(2)} µs par requête (3 modèles, 40 réglages)`);
     // Une requête Prisma coûte ~1 000 µs et plus : la garde doit rester sous 50 µs (5 %), on vise bien moins.
     expect(parRequeteUs).toBeLessThan(50);
+  });
+
+  // ── D4 : l'application STRICTE (réglage du Super Admin, désactivé par défaut) ─────────────────────────────────────
+  const strict = (reglages: ReglageBase[], autre: Parameters<typeof poserInstantaneDeTest>[1] = {}) =>
+    poserInstantaneDeTest(reglages, { strict: "SENSIBLES", fiches: new Map([[radiaId, radiaEmployeeId]]), ...autre });
+  const refuse = async (p: Promise<unknown>, digest: RegExp) => {
+    const e = await p.then(() => null, (x: unknown) => x);
+    expect(e, "la requête devait être refusée").toBeInstanceOf(AccesBaseRefuse);
+    expect((e as AccesBaseRefuse).digest).toMatch(digest);
+  };
+
+  it("D4 — désactivée par défaut : même fermée, la base se lit (observation seulement)", async () => {
+    poserInstantaneDeTest([reglage({})]); // strict = AUCUNE (défaut)
+    expect(await avecIdentiteDonnees(radia(), () => prisma.payrollEntry.findMany({ where: { employeeId } }))).toHaveLength(1);
+  });
+
+  it("D4 — activée : la base fermée est REFUSÉE, avec l'empreinte que l'écran reconnaît", async () => {
+    strict([reglage({})]);
+    await refuse(avecIdentiteDonnees(radia(), () => prisma.payrollEntry.findMany({ where: { employeeId } })), /^ACCES_BASE:paie:FERMEE$/);
+    await refuse(avecIdentiteDonnees(radia(), () => prisma.payrollEntry.count()), /^ACCES_BASE:paie/);
+  });
+
+  it("D4 — ses propres données (paramètre de la base) : SES lignes seulement, jamais celles d'autrui", async () => {
+    strict([reglage({})], { propres: { paie: true } });
+    const miennes = await avecIdentiteDonnees(radia(), () => prisma.payrollEntry.findMany({ where: { employeeId: { in: [employeeId, radiaEmployeeId] } } }));
+    expect(miennes.map((l) => l.employeeId)).toEqual([radiaEmployeeId]);
+    const sansFiltre = await avecIdentiteDonnees(radia(), () => prisma.payrollEntry.findMany({ select: { net: true } }));
+    expect(sansFiltre).toHaveLength(1);
+    expect(Object.keys(sansFiltre[0])).toEqual(["net"]); // les colonnes ajoutées pour juger sont retirées
+    const autrui = await prismaBrut.payrollEntry.findFirstOrThrow({ where: { employeeId } });
+    await refuse(avecIdentiteDonnees(radia(), () => prisma.payrollEntry.findUnique({ where: { id: autrui.id } })), /^ACCES_BASE:paie/);
+    // Paramètre à « non » : même ses propres données sont fermées.
+    strict([reglage({})], { propres: { paie: false } });
+    await refuse(avecIdentiteDonnees(radia(), () => prisma.payrollEntry.findMany({ where: { employeeId: radiaEmployeeId } })), /^ACCES_BASE:paie/);
+  });
+
+  it("D4 — nom et poste restent visibles : une jointure vers une base fermée est réduite aux colonnes de référence", async () => {
+    strict([reglage({ base: "personnel" })]);
+    const lignes = await avecIdentiteDonnees(radia(), () => prisma.payrollEntry.findMany({ where: { employeeId: radiaEmployeeId }, include: { employee: true } }));
+    expect(lignes[0].employee).toMatchObject({ fullName: `${TAG} Radia`, position: "Assistante" });
+    expect((lignes[0].employee as Record<string, unknown>).iban).toBeUndefined();
+    expect((lignes[0].employee as Record<string, unknown>).baseSalary).toBeUndefined();
+    // La table elle-même : refusée en entier… sauf une lecture qui ne demande QUE le nom et le poste.
+    await refuse(avecIdentiteDonnees(radia(), () => prisma.employee.findMany({ where: { id: employeeId } })), /^ACCES_BASE:personnel/);
+    const noms = await avecIdentiteDonnees(radia(), () => prisma.employee.findMany({ where: { id: employeeId }, select: { fullName: true, position: true } }));
+    expect(noms).toHaveLength(1);
+  });
+
+  it("D4 — lecture seule : la lecture passe, l'écriture est refusée", async () => {
+    strict([reglage({ niveau: "LECTURE_SEULE" })]);
+    expect(await avecIdentiteDonnees(radia(), () => prisma.payrollEntry.findMany({ where: { employeeId } }))).toHaveLength(1);
+    await refuse(avecIdentiteDonnees(radia(), () => prisma.payrollEntry.updateMany({ where: { employeeId }, data: { notes: "x" } })), /^ACCES_BASE:paie:LECTURE_SEULE$/);
+  });
+
+  it("D4 — la portée : SENSIBLES n'applique pas une base restreinte, TOUTES oui ; une base technique jamais", async () => {
+    const stocks = reglage({ base: "stocks" });
+    strict([stocks]);
+    await expect(avecIdentiteDonnees(radia(), () => prisma.stockSnapshot.count())).resolves.toBeTypeOf("number");
+    strict([stocks], { strict: "TOUTES" });
+    await refuse(avecIdentiteDonnees(radia(), () => prisma.stockSnapshot.count()), /^ACCES_BASE:stocks/);
+    strict([reglage({ base: "comptes-et-droits" })], { strict: "TOUTES" });
+    expect(await avecIdentiteDonnees(radia(), () => prisma.user.findMany({ where: { id: radiaId } }))).toHaveLength(1);
+  });
+
+  it("D4 — le système et une autre personne ne sont pas touchés", async () => {
+    strict([reglage({})]);
+    expect(await enSysteme("banc D4", () => prisma.payrollEntry.findMany({ where: { employeeId } }))).toHaveLength(1);
+    expect(await avecIdentiteDonnees({ ...radia(), userId: assiaId }, () => prisma.payrollEntry.findMany({ where: { employeeId } }))).toHaveLength(1);
   });
 });

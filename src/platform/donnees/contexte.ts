@@ -39,7 +39,16 @@ export const estSysteme = (c: ContexteDonnees | null): c is ContexteSysteme => !
 
 /** Le verdict de la garde pour UNE requête. En observation, `refus` n'est jamais appliqué — il est compté. */
 export interface VerdictDonnees {
+  /** La phrase du refus (dite à l'écran, comptée en observation). */
   refus: string | null;
+  /** D4 : le refus est APPLIQUÉ (réglage strict du Super Admin) — sinon il n'est que compté. */
+  applique?: boolean;
+  /** D4 : l'empreinte reconnue par l'écran d'erreur (`ACCES_BASE:<base>:<niveau>`) — Next la garde en production. */
+  digest?: string;
+  /** D4 : les colonnes de RÉFÉRENCE (nom, poste…) qui restent lisibles même base fermée. */
+  reference?: readonly string[];
+  /** D4 : ses propres données restent lisibles (paramètre de la base) — l'identité de la personne et sa fiche RH. */
+  propres?: { userId: string; employeId: string | null } | null;
 }
 
 export type EvaluateurDonnees = (demande: {

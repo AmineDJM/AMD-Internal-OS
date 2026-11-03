@@ -22,6 +22,7 @@ export function classerExclusionsCircuits(): void {
     "assistant-ia-consommation-actions:apercuAssistantDe",
     // D2 (décision 0057) : l'accès par base — une IA ne règle jamais les accès, ni les siens ni ceux d'autrui.
     "acces-bases-actions:poserReglageBase", "acces-bases-actions:revoquerReglageBase", "acces-bases-actions:reglerPropresDonneesBase",
+    "acces-bases-actions:reglerAccesBasesStrict",
     // K8 (décision 0038) : la LECTURE de la consommation est l'écran lui-même (Réglages, Administration › IA) — rien à proposer.
     "assistant-ia-consommation-actions:lireConsommationIa",
   ]);
