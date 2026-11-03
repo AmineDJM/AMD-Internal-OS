@@ -127,8 +127,8 @@ export function ConsoleBases({ bases, detail, personnes, roles, modeStrict }: {
         <CardHeader>
           <CardTitle className="text-base">Application stricte</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Tant qu&apos;elle est désactivée, les réglages ci-dessous sont mesurés (« ce que la garde aurait refusé ») sans rien bloquer.
-            Activée, la garde refuse pour de bon — Super Admin compris ; les bases techniques (comptes, journaux, plateforme) restent toujours ouvertes.
+            Tant qu&apos;elle est désactivée, les réglages ci-dessous — fermetures comme ouvertures — sont mesurés (« ce que la garde aurait refusé ») sans rien changer.
+            Activée, elle s&apos;applique partout : écrans et menus, exports, API, SQL libre, Assistant IA — Super Admin compris ; les bases techniques (comptes, journaux, plateforme) restent toujours ouvertes.
           </p>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">

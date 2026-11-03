@@ -23,3 +23,5 @@ anti-verrouillage sur « Comptes & droits ».
 - **Application stricte (D4)** : `AppSetting.accesBasesStrict` (AUCUNE par défaut / SENSIBLES / TOUTES), console + action
   `reglerAccesBasesStrict`. Le plan (refus avec empreinte, colonnes de référence, ses propres données) est calculé par
   `platform/donnees/garde.ts` et appliqué dans `lib/prisma.ts` ; l'écran d'erreur `(app)/error.tsx` lit l'empreinte.
+- **Partout (D5)** : modules ouverts / masqués (`rbac.getAccess` par le port `poserModulesParBase`), familles de l'assistant
+  (`famillesParBase` → `assistant-ia` `appliquerBases`), API v1 (identité posée, 403), bac à sable SQL (`refusPourTables`).

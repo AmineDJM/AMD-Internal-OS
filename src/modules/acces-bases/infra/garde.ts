@@ -11,7 +11,8 @@
  */
 import { prismaBrut } from "@/lib/prisma";
 import { sansBloquer } from "@/lib/journal";
-import { enSysteme, estSysteme, poserEvaluateurDonnees, type EvaluateurDonnees } from "@/platform/donnees/contexte";
+import { enSysteme, estSysteme, poserEvaluateurDonnees, poserModulesParBase, type EvaluateurDonnees, type ModulesParBase } from "@/platform/donnees/contexte";
+import { CATALOGUE_BASES } from "../domaine/catalogue.genere";
 import {
   COLONNES_REFERENCE, appliqueeSur, baseDe, baseDuModele, droitEffectif, droitParModules, empreinteRefus, estModeStrict,
   niveauPour, type ModeStrict,
@@ -102,12 +103,72 @@ export const evaluateurAccesBases: EvaluateurDonnees = ({ modele, geste, context
   };
 };
 
+/** Les niveaux APPLIQUÉS des bases métier pour une personne (application stricte seulement) — `null` : rien d'appliqué. */
+function niveauxAppliques(personne: { userId: string; roles: readonly (string | null | undefined)[] }) {
+  rafraichirSiBesoin();
+  if (!instantane.reglages.length || instantane.strict === "AUCUNE") return null;
+  const maintenant = new Date();
+  return CATALOGUE_BASES.filter((b) => appliqueeSur(instantane.strict, b))
+    .map((b) => ({ base: b, n: niveauPour(personne, b.cle, instantane.reglages, maintenant) }))
+    .filter((x) => x.n.niveau !== "NORMAL");
+}
+
+/**
+ * D5 — CE QUE LES BASES FONT AUX MODULES : OUVERTE ouvre ses modules (lecture ; + créer / modifier si l'écriture est
+ * accordée) ; un module dont TOUTES les bases métier sont fermées est masqué. Les modules des bases techniques
+ * (Administration…) ne sont jamais masqués : aucun verrouillage possible.
+ */
+export const modulesParBaseAccesBases: ModulesParBase = (personne) => {
+  const niveaux = niveauxAppliques(personne);
+  if (!niveaux?.length) return null;
+  const ouvrir = niveaux.filter((x) => x.n.niveau === "OUVERTE")
+    .flatMap((x) => x.base.modules.map((module) => ({ module, gestes: x.n.ecriture ? ["VIEW", "CREATE", "UPDATE"] : ["VIEW"] })));
+  const fermees = new Set(niveaux.filter((x) => x.n.niveau === "FERMEE").map((x) => x.base.cle));
+  const basesDuModule = new Map<string, string[]>();
+  for (const b of CATALOGUE_BASES) for (const m of b.modules) basesDuModule.set(m, [...(basesDuModule.get(m) ?? []), b.cle]);
+  const masquer = [...basesDuModule].filter(([, bases]) => bases.every((b) => fermees.has(b))).map(([m]) => m);
+  return { ouvrir, masquer };
+};
+
+/**
+ * D5 — CE QUE LES BASES FONT AUX FAMILLES DE L'ASSISTANT IA : une base fermée ferme ses familles, une base ouverte les
+ * ouvre ; une ouverture NOMINATIVE d'une base porteuse d'une famille sensible (Paie → salaires, Personnel → contrats RH)
+ * devient un périmètre nommé (origine « base »), journalisé à chaque révélation comme les droits datés de S1. Une
+ * ouverture de RÔLE n'ouvre jamais les valeurs sensibles d'autrui.
+ */
+export function famillesParBase(personne: { userId: string; roles: readonly (string | null | undefined)[] }): {
+  fermees: string[]; ouvertes: string[]; perimetres: { famille: string; du: string; au: string | null; ref: string; motif: string }[];
+} | null {
+  const niveaux = niveauxAppliques(personne);
+  if (!niveaux?.length) return null;
+  const fermees = new Set<string>();
+  const ouvertes = new Set<string>();
+  const perimetres: { famille: string; du: string; au: string | null; ref: string; motif: string }[] = [];
+  for (const { base, n } of niveaux) {
+    if (n.niveau === "FERMEE") base.famillesIa.forEach((f) => fermees.add(f));
+    if (n.niveau !== "OUVERTE") continue;
+    base.famillesIa.forEach((f) => ouvertes.add(f));
+    const r = n.source === "personne" ? instantane.reglages.find((x) => x.id === n.reglageId) : null;
+    if (r) for (const f of base.famillesIa) {
+      perimetres.push({ famille: f, du: r.du.toISOString(), au: r.au ? r.au.toISOString() : null, ref: r.id, motif: r.motif ?? `Base « ${base.nom} » ouverte` });
+    }
+  }
+  // Une base fermée l'emporte sur une autre ouverte qui porte la même famille.
+  return {
+    fermees: [...fermees],
+    ouvertes: [...ouvertes].filter((f) => !fermees.has(f)),
+    perimetres: perimetres.filter((p) => !fermees.has(p.famille)),
+  };
+}
+
 /** Branche la garde (appelé au démarrage du serveur, `src/instrumentation.ts`). */
 export function brancherGardeDonnees(): void {
   poserEvaluateurDonnees(evaluateurAccesBases);
+  poserModulesParBase(modulesParBaseAccesBases);
 }
 
 /** Débranche la garde (fin de banc). */
 export function debrancherGardeDonnees(): void {
   poserEvaluateurDonnees(null);
+  poserModulesParBase(null);
 }

@@ -148,3 +148,19 @@ export function appliquerAuResultat(plan: PlanDeRequete, modele: string, operati
   }
   return r;
 }
+
+/**
+ * D5 — le SQL écrit à la main du bac à sable passe à côté des modèles : il demande, table par table (les relations de
+ * son plan d'exécution), ce que la garde refuserait. Rend les refus APPLIQUÉS (application stricte), un par base.
+ */
+export function refusPourTables(tables: readonly string[]): string[] {
+  const juge = evaluateurDonnees();
+  if (!juge) return [];
+  const contexte = contexteDonnees();
+  const refus = new Set<string>();
+  for (const t of tables) {
+    const v = juge({ modele: t, geste: "lecture", operation: "findMany", contexte });
+    if (v?.applique && v.refus) refus.add(v.refus);
+  }
+  return [...refus];
+}

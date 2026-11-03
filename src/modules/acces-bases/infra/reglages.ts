@@ -12,7 +12,7 @@ import type { NiveauStocke, ReglageBase } from "../domaine/types";
 /** Tous les réglages non révoqués (en vigueur ou à venir) — la table reste petite : quelques dizaines de lignes. */
 export async function reglagesVivants(): Promise<ReglageBase[]> {
   const l = await prisma.accesBase.findMany({ where: { revoqueLe: null }, orderBy: { du: "desc" } });
-  return l.map((r) => ({ id: r.id, base: r.base, userId: r.userId, role: r.role, niveau: r.niveau, ecriture: r.ecriture, du: r.du, au: r.au, revoqueLe: r.revoqueLe }));
+  return l.map((r) => ({ id: r.id, base: r.base, userId: r.userId, role: r.role, niveau: r.niveau, ecriture: r.ecriture, du: r.du, au: r.au, revoqueLe: r.revoqueLe, motif: r.motif }));
 }
 
 /** L'historique complet d'une base (révoqués compris), pour la console. */

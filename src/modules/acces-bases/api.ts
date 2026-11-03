@@ -9,5 +9,5 @@ export { reglagesVivants, historiqueBase, propresDonnees, poserReglage, revoquer
 export { quiVoitLaBase } from "./infra/qui-voit";
 export { personnesActives, nomsDe } from "./infra/requetes";
 // D3 : la garde des données (branchée au démarrage) et ce qu'elle aurait refusé.
-export { brancherGardeDonnees, rafraichirGardeMaintenant } from "./infra/garde";
+export { brancherGardeDonnees, famillesParBase, rafraichirGardeMaintenant } from "./infra/garde";
 export { observationsRecentes } from "./infra/observations";

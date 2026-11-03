@@ -9,8 +9,9 @@ import { recordAudit } from "@/lib/audit";
 import { controlerLecture, journaliserLectureHorsColonne, lecteurDepuisSession, peutLire } from "@/modules/coffre/api";
 import { borner, MASQUE_CONFIDENTIEL, remplacerReperes, reperesDe, type CoffretDuTour, type EntreeJeton } from "../domaine/filtre-confidentialite";
 import {
-  estFamilleIa, familleOuverte, perimetreCouvrant, LIBELLE_FAMILLE, normaliserReglageFamilles, resoudreAccesIa, type AccesIa, type FamilleIa, type ReglageFamilles,
+  appliquerBases, estFamilleIa, familleOuverte, perimetreCouvrant, LIBELLE_FAMILLE, normaliserReglageFamilles, resoudreAccesIa, type AccesIa, type FamilleIa, type ReglageFamilles,
 } from "../domaine/acces-regles";
+import { famillesParBase } from "@/modules/acces-bases/api";
 import { modeValeursSensibles, type ModeValeursSensibles } from "../domaine/consommation-regles";
 import {
   contratEnVigueur, LIBELLE_ORIGINE, perimetreEnVigueur, perimetresDesAvenants, type AvenantLu, type PerimetreSensible,
@@ -195,19 +196,22 @@ export function droitsApplicatifsIa(user: CurrentUser): Record<FamilleIa, boolea
 export async function accesAssistantIa(user: CurrentUser): Promise<AccesIa> {
   // S1 (décision 0048) : une identité VUE (Vue exacte) n'a pas d'assistant — et donc aucun accès (échec fermé).
   if (user.impersonatedBy || user.visualise) return { superAdmin: false, ouvertes: [], explicites: [], perimetres: [] };
-  if (user.role === "SUPER_ADMIN") return resoudreAccesIa({ superAdmin: true, droits: droitsApplicatifsIa(user) });
+  // D5 (décision 0057) : l'accès par base par-dessus les familles — sous l'application stricte seulement (sinon nul).
+  const bases = famillesParBase({ userId: user.id, roles: [user.role, user.secondaryRole] });
+  if (user.role === "SUPER_ADMIN") return appliquerBases(resoudreAccesIa({ superAdmin: true, droits: droitsApplicatifsIa(user) }), bases);
   const [lignes, perimetres] = await Promise.all([
     prisma.assistantIaAcces.findMany({ where: { OR: [{ userId: user.id }, { role: user.role as UserRole }] } }),
     perimetresNominatifs(user.id),
   ]);
   const reglage = (l?: { ouvertes: string[]; fermees: string[] }) => (l ? normaliserReglageFamilles(l.ouvertes, l.fermees) : null);
-  return resoudreAccesIa({
+  const personne = reglage(lignes.find((l) => l.userId === user.id));
+  return appliquerBases(resoudreAccesIa({
     superAdmin: false,
     droits: droitsApplicatifsIa(user),
     role: reglage(lignes.find((l) => l.role === user.role && !l.userId)),
-    personne: reglage(lignes.find((l) => l.userId === user.id)),
+    personne,
     perimetres,
-  });
+  }), bases, personne?.fermees ?? []);
 }
 
 const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() : null);

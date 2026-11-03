@@ -78,10 +78,11 @@ interface EtatDonnees {
   systeme: AsyncLocalStorage<ContexteSysteme> | null;
   identite: AsyncLocalStorage<IdentiteDonnees> | null;
   evaluateur: EvaluateurDonnees | null;
+  modulesParBase?: ModulesParBase | null;
 }
 const etat: EtatDonnees = ((globalThis as { __amdGardeDonnees?: EtatDonnees }).__amdGardeDonnees ??= (() => {
   const C = constructeurAls();
-  return { systeme: C ? new C<ContexteSysteme>() : null, identite: C ? new C<IdentiteDonnees>() : null, evaluateur: null };
+  return { systeme: C ? new C<ContexteSysteme>() : null, identite: C ? new C<IdentiteDonnees>() : null, evaluateur: null, modulesParBase: null };
 })());
 
 /** La session pose l'identité une fois par requête. Sans elle, la garde ne juge rien (elle ne devine jamais). */
@@ -129,3 +130,19 @@ export function poserEvaluateurDonnees(fn: EvaluateurDonnees | null): void {
 }
 
 export const evaluateurDonnees = (): EvaluateurDonnees | null => etat.evaluateur;
+
+/**
+ * D5 (décision 0057) — CE QUE LES BASES FONT AUX MODULES d'une personne : une base OUVERTE ouvre ses modules, une base
+ * FERMÉE masque un module dont TOUTES les bases le sont (le menu ne mène plus à un écran vide). Sous l'application
+ * stricte seulement ; le module `acces-bases` s'y branche au démarrage, et `rbac.getAccess` le lit — sans import de
+ * module (règle 4). Synchrone : il répond depuis l'instantané en mémoire de la garde.
+ */
+export type ModulesParBase = (personne: { userId: string; roles: readonly (string | null | undefined)[] }) => {
+  ouvrir: readonly { module: string; gestes: readonly string[] }[];
+  masquer: readonly string[];
+} | null;
+
+export function poserModulesParBase(fn: ModulesParBase | null): void {
+  etat.modulesParBase = fn;
+}
+export const modulesParBase = (): ModulesParBase | null => etat.modulesParBase ?? null;

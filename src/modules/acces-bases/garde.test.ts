@@ -3,7 +3,11 @@ import { Prisma } from "@prisma/client";
 import { prisma, prismaBrut } from "@/lib/prisma";
 import { avecIdentiteDonnees, enSysteme, type IdentiteDonnees } from "@/platform/donnees/contexte";
 import { AccesBaseRefuse, modelesTouches } from "@/platform/donnees/garde";
-import { brancherGardeDonnees, debrancherGardeDonnees, evaluateurAccesBases, poserInstantaneDeTest } from "./infra/garde";
+import { brancherGardeDonnees, debrancherGardeDonnees, evaluateurAccesBases, famillesParBase, modulesParBaseAccesBases, poserInstantaneDeTest } from "./infra/garde";
+import { refusPourTables } from "@/platform/donnees/garde";
+import { generateApiKey } from "@/lib/api/auth";
+import { handle } from "@/lib/api/http";
+import { NextRequest } from "next/server";
 import { envoyerObservations } from "./infra/observations";
 import type { ReglageBase } from "./domaine/types";
 
@@ -189,5 +193,56 @@ suite("D3 — la garde des données, en observation", () => {
     strict([reglage({})]);
     expect(await enSysteme("banc D4", () => prisma.payrollEntry.findMany({ where: { employeeId } }))).toHaveLength(1);
     expect(await avecIdentiteDonnees({ ...radia(), userId: assiaId }, () => prisma.payrollEntry.findMany({ where: { employeeId } }))).toHaveLength(1);
+  });
+
+  // ── D5 : les modules, l'assistant, le SQL libre, l'API v1 ───────────────────────────────────────────────────────
+  it("D5 — modules : OUVERTE ouvre ses modules, une base FERMÉE masque un module dont toutes les bases le sont ; rien sans l'application stricte", () => {
+    const qui = { userId: radiaId, roles: ["DIRECTION_ASSISTANT", null] };
+    poserInstantaneDeTest([reglage({ base: "recrutement", niveau: "OUVERTE" }), reglage({ id: "r2", base: "paie" }), reglage({ id: "r3", base: "personnel" })]);
+    expect(modulesParBaseAccesBases(qui)).toBeNull(); // AUCUNE (défaut)
+    strict([reglage({ base: "recrutement", niveau: "OUVERTE" }), reglage({ id: "r2", base: "paie" }), reglage({ id: "r3", base: "personnel" })]);
+    const r = modulesParBaseAccesBases(qui)!;
+    expect(r.ouvrir).toContainEqual({ module: "RECRUITMENT", gestes: ["VIEW"] });
+    expect(r.masquer).toEqual(expect.arrayContaining(["RH", "EMPLOYEES", "HR_REQUESTS", "TRAINING", "MY_TEAM"]));
+    expect(r.masquer).not.toContain("ADMIN"); // bases techniques : jamais de verrouillage
+    strict([reglage({ id: "r2", base: "paie" })]); // Paie seule fermée : RH mène aussi au Personnel → RH reste
+    expect(modulesParBaseAccesBases(qui)!.masquer).not.toContain("RH");
+  });
+
+  it("D5 — assistant : base fermée = familles fermées ; ouverture NOMINATIVE de la Paie = périmètre nommé ; de rôle = pas de périmètre", () => {
+    const qui = { userId: radiaId, roles: ["DIRECTION_ASSISTANT", null] };
+    strict([reglage({ base: "budgets" }), reglage({ id: "rp", base: "paie", niveau: "OUVERTE", motif: "Audit de paie" })]);
+    const f = famillesParBase(qui)!;
+    expect(f.fermees).toContain("BUDGETS");
+    expect(f.ouvertes).toContain("SALAIRES");
+    expect(f.perimetres).toContainEqual(expect.objectContaining({ famille: "SALAIRES", ref: "rp", motif: "Audit de paie" }));
+    strict([reglage({ id: "rr", base: "paie", niveau: "OUVERTE", userId: null, role: "DIRECTION_ASSISTANT" })]);
+    expect(famillesParBase(qui)!.perimetres).toEqual([]);
+  });
+
+  it("D5 — SQL libre : une table d'une base fermée est refusée (application stricte), pas une autre", async () => {
+    strict([reglage({})]);
+    expect(await avecIdentiteDonnees(radia(), () => refusPourTables(["PayrollEntry", "Task"]))).toEqual([expect.stringMatching(/Paie/)]);
+    expect(await avecIdentiteDonnees(radia(), () => refusPourTables(["Task"]))).toEqual([]);
+    poserInstantaneDeTest([reglage({})]); // désactivée : rien
+    expect(await avecIdentiteDonnees(radia(), () => refusPourTables(["PayrollEntry"]))).toEqual([]);
+  });
+
+  it("D5 — API v1 : l'identité de l'agent est jugée ; un refus est un 403 qui nomme la base", async () => {
+    const { key, keyHash, keyPrefix } = generateApiKey();
+    const client = await prismaBrut.apiClient.create({ data: { name: `${TAG} agent`, keyHash, keyPrefix, scopes: [], actAsUserId: radiaId } });
+    try {
+      strict([reglage({})]);
+      const route = handle({ operationId: `${TAG}-lire-paie`, scopes: [] }, () => prisma.payrollEntry.findMany({ where: { employeeId } }));
+      const req = new NextRequest("http://localhost/api/v1/test", { headers: { authorization: `Bearer ${key}` } });
+      const rep = await route(req, { params: Promise.resolve({}) });
+      expect(rep.status).toBe(403);
+      expect(JSON.stringify(await rep.json())).toMatch(/Paie & rémunérations/);
+      poserInstantaneDeTest([reglage({})]); // désactivée : l'agent lit
+      expect((await route(req, { params: Promise.resolve({}) })).status).toBe(200);
+    } finally {
+      await prismaBrut.apiCall.deleteMany({ where: { clientId: client.id } }).catch(() => undefined);
+      await prismaBrut.apiClient.delete({ where: { id: client.id } });
+    }
   });
 });

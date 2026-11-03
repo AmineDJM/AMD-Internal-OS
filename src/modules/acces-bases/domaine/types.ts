@@ -36,6 +36,8 @@ export interface ReglageBase {
   du: Date;
   au: Date | null;
   revoqueLe: Date | null;
+  /** Le motif (cité au journal quand une ouverture nominative montre une valeur sensible — S1). */
+  motif?: string;
 }
 
 /** D'où vient le niveau d'une base pour une personne. */

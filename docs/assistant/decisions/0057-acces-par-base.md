@@ -103,3 +103,29 @@ un réglage restrictif sur un Super Admin sans confirmation est refusé avec la 
   `src/lib/effets/reversibles-acces-bases.test.ts` (l'interrupteur : employé refusé, confirmation, annulation).
 - **Limites connues** : une action serveur refusée affiche encore le message générique « n'a pas abouti » (le lot D5
   porte le refus clair dans les actions) ; après l'annulation d'un réglage, la garde le voit au plus tard 30 s après.
+
+## D5 — partout où une donnée sort : modules, assistant, API v1, SQL libre
+
+Tout ce qui suit ne vaut que **sous l'application stricte** (D4, désactivée par défaut) : sans elle, fermetures ET
+ouvertures sont mesurées, rien n'est appliqué.
+
+- **Écrans et menus** (`rbac.getAccess`, par le port `platform/donnees/contexte.ts` — `poserModulesParBase`) : une base
+  OUVERTE ouvre ses modules (lecture ; créer / modifier si l'écriture est accordée), jamais par-dessus un blocage
+  explicite de la console ; un module dont TOUTES les bases métier sont FERMÉES est masqué (le menu ne mène plus à un
+  écran vide). Les modules des bases techniques (Administration…) ne sont jamais masqués.
+- **Lecture seule, exports** : un export lit par `prisma` — la garde l'a déjà ; une écriture dans une base en lecture
+  seule est refusée (D4).
+- **L'Assistant IA** (`accesAssistantIa` → `appliquerBases`, `domaine/acces-regles.ts`) : une base fermée ferme ses
+  familles — Super Admin compris (il garde le reste de sa souveraineté) ; une base ouverte les ouvre ; une ouverture
+  NOMINATIVE d'une base porteuse d'une famille sensible (Paie → salaires) devient un périmètre nommé d'origine « Base
+  ouverte nommément », journalisé à chaque révélation comme les droits datés de S1 ; une ouverture de RÔLE n'ouvre jamais
+  les valeurs sensibles d'autrui ; une fermeture nominative de la console de l'assistant prime toujours. Ses outils
+  lisent sous l'identité de la personne : la garde les juge aussi.
+- **API v1** (`lib/api/http.ts`) : l'identité de l'utilisateur au nom duquel l'agent agit est posée autour du
+  traitement (`avecIdentiteDonnees`) ; un refus devient un **403** qui nomme la base.
+- **Bac à sable SQL** (`lib/sandbox/sql.ts`) : les tables du plan d'exécution passent devant la garde
+  (`refusPourTables`) ; une table d'une base fermée refuse la requête, avec la phrase de la garde.
+- **Bancs** : `garde.test.ts` (modules ouverts / masqués, familles, SQL libre, API v1 403 / 200) ;
+  `assistant-ia/domaine/acces-par-base.test.ts` (règle pure des familles). Les attaques S1 restent bloquées (suite complète).
+- **Limite** : une ACTION serveur refusée affiche encore le message générique « n'a pas abouti » côté écran (l'empreinte
+  est dans l'erreur ; chaque écran la lira à son tour) ; une page refusée, elle, dit la base.
