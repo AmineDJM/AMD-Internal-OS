@@ -27,6 +27,8 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
     // Le siège stable du centre de validations — voir l'en-tête du fichier (§118.148).
     globalSetup: ["./vitest.global-setup.ts"],
+    // Chaque processus signe ses connexions (`application_name`) : une barrière ne compte que les gestes de SON banc.
+    setupFiles: ["./vitest.setup-processus.ts"],
     // next-auth est laissé à Node en tant que dépendance externe, et Node échoue à résoudre son
     // `import "next/server"` — ce qui faisait ÉCHOUER LE CHARGEMENT de suites entières : leurs
     // tests ne s'exécutaient pas du tout, sans que le total en rende compte. Traité par Vite,
