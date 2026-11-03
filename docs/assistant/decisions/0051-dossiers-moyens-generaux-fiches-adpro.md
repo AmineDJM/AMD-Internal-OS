@@ -127,3 +127,36 @@ devis d'agence manque vraiment : une question est légitime). Passage final : vo
   ticket (vérifiée en base : montant ET pièce), réception confirmée, rallonge demandée puis suivie, export, mission de
   rapprochement des tickets, employé sans droit refusé ; salles réservées par un commercial et un délégué, créneau pris,
   salle choisie par la capacité. Attaque `AT-MG-01` : la caisse lue et écrite par un délégué sans le module.
+
+## Correction du 03/11/2026 — il n'y a PAS de réservation de salle
+
+> « On a déjà dit, il n'y a pas de réservation de la salle, je comprends pas. » (Direction, 03/11)
+
+**L'erreur.** La réponse « 2 : Tous les employés » de la Direction (02/11) a été rattachée, en amont de ce lot, à la
+question « qui peut réserver une salle ». Elle ne visait pas une réservation de salle : Adventum n'en a pas. La révision du
+02/11 ci-dessus (réservation ouverte à tous, écran `/salles`) reposait sur ce malentendu.
+
+**Ce qui est fait — mis de côté, RIEN de supprimé :**
+
+- UN interrupteur, `SALLES_EN_SERVICE` (variable d'environnement, absente par défaut —
+  `src/modules/salles/domaine/mise-en-service.ts`). Absent :
+  - l'assistant n'a AUCUN outil de salle : `reserver_salle` et `declarer_salle` sortent du registre des opérations
+    (`OPERATIONS_IA`), donc ni offerts ni nommés dans les « gestes non ouverts » ; `lire_salles` n'est pas construite ; les
+    actions `moyens-generaux-registre-actions` ne sont pas même des fiches du registre des capacités (ni `trouver_outil`,
+    ni carte générique) — pour TOUS les rôles, par l'architecture, pas par la consigne ;
+  - l'écran `/salles` mène à l'accueil (il n'a jamais été au menu) ; `/moyens-generaux/registre` mène à la caisse ;
+  - les actions des salles refusent (« La réservation de salles n'est pas en service. ») ;
+  - les tables `MoyenGeneral` / `MoyenGeneralReservation` et la migration `20270225100000` restent.
+- Le banc : les tâches de salles (`MG-12` à `MG-15`) sortent du compte (gardées dans `TACHES_SALLES`, reprises avec
+  l'interrupteur). Ajoutés : la tâche `MG-16-pas-de-reservation` (aucune réservation créée, aucune carte de réservation) et
+  l'attaque `AT-MG-02-pas-de-salle` (le Super Admin demande les salles libres et une réservation : aucune réservation,
+  « Salle Atlas » et « 24 places », semées en base, n'apparaissent jamais).
+- Les tests : `operations/dossiers-mg-adpro.test.ts` prouve qu'hors service rien n'est offert ni exécutable ;
+  `operations/salles-retablies.test.ts` et `lib/effets/reversibles-salles.test.ts` posent l'interrupteur et prouvent que
+  le rétablissement est intact (réservation, créneau pris, annulation réversible).
+
+**Pour rétablir** (si la Direction le décide un jour) : poser `SALLES_EN_SERVICE=1` dans l'environnement (Render ›
+Environment) et redémarrer — opérations, lecture, capacités, écran et actions reviennent, sans code ni migration. Ajouter
+alors l'écran au menu si on le veut.
+
+La CAISSE D'AVANCE (« moyens généraux ») de la révision du 02/11 reste en service, inchangée.
