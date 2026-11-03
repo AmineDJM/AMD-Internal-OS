@@ -89,7 +89,7 @@ describe("cliquet — aucun banc n'emprunte un compte, une société ou un dépa
  * `${PREFIXE}${Date.now().toString(36)}_` + `retirerComptesPerimes`). Le parc hérité se mesure ; le chiffre ne fait que
  * BAISSER — un banc corrigé l'abaisse ici, un banc neuf à étiquette fixe le fait échouer.
  */
-const PLAFOND_ETIQUETTES_FIXES = 160;
+const PLAFOND_ETIQUETTES_FIXES = 159;
 
 describe("cliquet — les bancs à étiquette fixe", () => {
   it("leur nombre ne remonte pas", () => {
