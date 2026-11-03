@@ -23,8 +23,13 @@ describe("P1 — le diagnostic honnête d'une mission (jamais « En cours · 0 %
   it("jamais aucun passage → le dit (worker absent)", () => {
     expect(diagnostiquerMission(mission("EN_COURS"), { dernierPassage: null, workerVu: null }, T0).phrase).toContain("worker absent");
   });
-  it("un exécutant bat → « prête : part au prochain battement », ou l'étape en cours", () => {
-    expect(diagnostiquerMission(mission("EN_COURS"), vivant, T0).code).toBe("EN_COURS");
+  it("un exécutant bat → des FAITS datés (prête depuis…, immobile depuis…), jamais une prévision ; ou l'étape en cours", () => {
+    const prete = diagnostiquerMission(mission("EN_COURS"), vivant, T0);
+    expect(prete).toEqual({ code: "PRETE", phrase: "prête, aucune étape démarrée — dernière activité il y a 0 s" });
+    // I1 (audit AU1 C3, test C2 inversé) : immobile depuis 2 h — l'âge est LU, plus de « moins d'une minute ».
+    const immobile = diagnostiquerMission(mission("EN_COURS", { majLe: new Date(T0 - 2 * 3_600_000).toISOString() }), vivant, T0);
+    expect(immobile).toEqual({ code: "IMMOBILE", phrase: "aucune étape démarrée depuis 2 h ; le balayage est passé il y a 30 s sans la démarrer" });
+    expect(immobile.phrase).not.toMatch(/moins d.une minute|prochain battement/);
     expect(diagnostiquerMission(mission("EN_COURS", { etapes: [{ titre: "Synthèse", etat: "EN_COURS", erreur: null }] }), vivant, T0).phrase).toBe("en cours : Synthèse");
   });
   it("une étape qui RÉESSAIE dit son erreur — le crédit épuisé, en français", () => {

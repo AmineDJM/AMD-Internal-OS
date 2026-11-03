@@ -6,6 +6,8 @@ import {
 } from "../../domaine/missions/pilotage";
 import { LIBELLE_MISSION } from "../../domaine/sous-missions";
 import { etatDesExecutants } from "./executants";
+import { lienDeMission, projeterMission } from "../../domaine/observation/projecteurs";
+import { dureeLisible, type Observation } from "../../domaine/observation/contrat";
 
 export { etatDesExecutants };
 
@@ -54,6 +56,14 @@ export async function mesMissions(userId: string, opts: { toutes?: boolean; main
   return { missions, executants, alerte: enAttente && silence ? `Les missions n'avancent pas : ${silence}. Vérifier que le service worker tourne (Render › amd-worker, TACHES_DE_FOND=les-deux) ou que le web de l'ERP bat.` : null };
 }
 
+/**
+ * LA MISSION OBSERVÉE (lot I1, décision 0063) — le projecteur « mission » du contrat Observation, nourri de la lecture du
+ * moteur : la même pour `mes_missions`, la re-projection de l'historique et la vue de mission de P1. Simple et stable.
+ */
+export function observationDeMission(m: MissionLue, maintenant: Date = new Date()): Observation {
+  return projeterMission({ id: m.id, titre: m.titre, etat: m.etat, libelle: m.libelle, etapes: m.etapes, majLe: m.majLe, diagnostic: m.diagnostic.phrase }, maintenant);
+}
+
 export type ActionMission = "pause" | "reprendre" | "arreter" | "renommer";
 
 const CIBLES: Record<ActionMission, readonly string[]> = {
@@ -93,10 +103,10 @@ export async function piloterMission(user: CurrentUser, d: { action: ActionMissi
 const json = (o: unknown) => JSON.stringify(o);
 
 /**
- * LES OUTILS DE L'ÉCRIT — `echoues` reçoit les noms des outils de pilotage qui ont ÉCHOUÉ pendant le tour : la garde de
- * vérité ne compte pas un pilotage refusé comme une preuve.
+ * LES OUTILS DE L'ÉCRIT. Un pilotage refusé le dit par son statut (REFUS, AMBIGU) : le journal du tour ne le compte pas
+ * comme une preuve (`infra/observation/journal.ts`).
  */
-export function outilsMissions(user: CurrentUser, echoues: Set<string>): PowerTool[] {
+export function outilsMissions(user: CurrentUser): PowerTool[] {
   const ouvert = (u: CurrentUser) => u.id === user.id;
   return [
     {
@@ -108,12 +118,18 @@ export function outilsMissions(user: CurrentUser, echoues: Set<string>): PowerTo
       allowed: ouvert,
       label: "Missions lues",
       run: async (e) => {
-        const r = await mesMissions(user.id, { toutes: e.toutes === true });
+        const maintenant = new Date();
+        const r = await mesMissions(user.id, { toutes: e.toutes === true, maintenant });
+        // I1 (étape 3) : des faits datés et un LIEN par mission — la réponse peut les rendre cliquables.
         return json({
-          missions: r.missions.map((m) => ({ id: m.id, titre: m.titre, etat: m.libelle, etapes: `${m.etapes.faites}/${m.etapes.total}`, coutUsd: m.coutUsd, ou_elle_en_est: m.diagnostic.phrase, ...(m.parentId ? { sous_mission_de: m.parentId } : {}) })),
+          missions: r.missions.map((m) => ({
+            id: m.id, titre: m.titre, lien: lienDeMission(m.id), etat: m.libelle, etapes: `${m.etapes.faites}/${m.etapes.total}`, coutUsd: m.coutUsd,
+            ou_elle_en_est: m.diagnostic.phrase, derniere_activite: `il y a ${dureeLisible(Math.max(0, maintenant.getTime() - Date.parse(m.majLe)))}`,
+            ...(m.parentId ? { sous_mission_de: m.parentId } : {}),
+          })),
           total: r.missions.length,
           ...(r.alerte ? { alerte: r.alerte } : {}),
-          consigne: "Réponds avec CES missions, leurs titres et ce qui les bloque, tels quels. Ne demande pas leurs titres à la personne.",
+          _observations: r.missions.map((m) => observationDeMission(m, maintenant)),
         });
       },
     },
@@ -135,11 +151,10 @@ export function outilsMissions(user: CurrentUser, echoues: Set<string>): PowerTo
       label: "Mission pilotée",
       run: async (e) => {
         const action = String(e.action ?? "") as ActionMission;
-        if (!(action in CIBLES)) { echoues.add("piloter_mission"); return json({ statut: "REFUS", raison: "Action inconnue (pause, reprendre, arreter, renommer)." }); }
+        if (!(action in CIBLES)) return json({ statut: "REFUS", raison: "Action inconnue (pause, reprendre, arreter, renommer)." });
         const r = await piloterMission(user, { action, mission: String(e.mission ?? ""), titre: typeof e.titre === "string" ? e.titre : null });
         if (!r.ok) {
-          echoues.add("piloter_mission");
-          return json({ statut: r.ambigu ? "AMBIGU" : "REFUS", raison: r.erreur, ...(r.candidates ? { missions: r.candidates } : {}), consigne: r.ambigu ? "Nomme ces missions à la personne et demande LAQUELLE (par son titre) — ou choisis si la demande le dit." : "Dis-le tel quel ; rien n'a été fait." });
+          return json({ statut: r.ambigu ? "AMBIGU" : "REFUS", raison: r.erreur, ...(r.candidates ? { missions: r.candidates } : {}), ...(r.ambigu ? {} : { fait: "rien" }) });
         }
         return json({ statut: "FAIT", message: r.message, mission: r.mission });
       },

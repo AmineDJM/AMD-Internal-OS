@@ -55,6 +55,11 @@ export async function fichiersDepuisDrive(user: CurrentUser, ids: string[]): Pro
   return out;
 }
 
+/** I1 : un fichier du Drive encore visible par la personne (droits relus) — la re-projection des observations le demande. */
+export async function fichierVisible(user: CurrentUser, id: string): Promise<boolean> {
+  return canViewDrive(await resolveDriveAccess(user, id));
+}
+
 export const idsDe = (json: string | null | undefined): string[] => {
   try {
     const v = JSON.parse(json ?? "[]") as unknown;
