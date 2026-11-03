@@ -194,6 +194,18 @@ export async function runScheduledJobs(): Promise<void> {
 }
 
 /** Un passage complet de la table — le point d'entrée commun au web et au worker. */
+/**
+ * P1 ter (décision 0063) — L'ABSTENTION DU WEB, AVANT LE BAIL : en `les-deux`, le web laisse la tâche au worker dès que
+ * celui-ci bat (`webDoitSAbstenir`), sans prendre le bail ni marquer de départ.
+ */
+function abstentionDuWeb(raison: string): (ctx: ContexteExecution) => Promise<string | null> {
+  return async (ctx) => {
+    if (ctx.executeur !== "web") return null;
+    const { webDoitSAbstenir } = await import("@/lib/missions/travaux/balayage");
+    return (await webDoitSAbstenir(lireModeTachesDeFond(), "web")) ? raison : null;
+  };
+}
+
 export async function executerTachesPlanifiees(ctx: ContexteExecution): Promise<BilanPassage> {
   // Les erreurs comptées par CE processus rejoignent la base AVANT le passage — hors bail : le web
   // et le worker ont chacun leur mémoire, chacun doit verser la sienne (`incidents-repetes.ts`).
@@ -416,7 +428,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // à l'Assistant IA (plan approuvé une fois), sous ses droits relus à chaque étape, plafonds de dépense compris.
   // Pendant la bascule (`TACHES_DE_FOND=les-deux`), le web s'ABSTIENT dès que le worker bat : un travail long ne
   // tourne jamais dans le processus qui sert les pages quand le worker est là. Débrayage : TRAVAUX_SWEEP=off.
-  { cle: "travaux.balayage", bailMs: 180_000, executer: async () => {
+  // P1 ter (décision 0063) : le web s'abstient AVANT de prendre le bail — sinon son abstention, marquée comme un départ,
+  // ouvre l'intervalle minimal et le worker ne trouve jamais la tâche libre (production, 03/11 : missions à 0 %).
+  { cle: "travaux.balayage", bailMs: 180_000, sAbstenir: abstentionDuWeb("le worker conduit les travaux (TACHES_DE_FOND=les-deux)"), executer: async () => {
     if (process.env.TRAVAUX_SWEEP === "off") return ignoree("TRAVAUX_SWEEP=off");
     const { balayerTravaux } = await import("@/lib/missions/travaux/balayage");
     const { PERSONA_ASSISTANT_IA } = await import("@/modules/assistant-ia/api");
@@ -450,7 +464,8 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   { cle: "assistant.effets", executer: async () => (await import("@/lib/contexte-geste")).purgerJournalDesEffets() },
 
   // L'ATELIER (J3, décision 0017) : les conversions confiées au worker (LibreOffice de son image). Ailleurs, rien.
-  { cle: "atelier.conversions", bailMs: 300_000, executer: async () => {
+  // Même règle : le worker vivant convertit ; le web n'en prend pas le bail (il n'expire la file que si le worker se tait).
+  { cle: "atelier.conversions", bailMs: 300_000, sAbstenir: abstentionDuWeb("les conversions tournent sur le worker (moteur haute fidélité)"), executer: async () => {
     if (executeurDuProcessus() !== "worker") {
       // Le web ne convertit pas (décision 0019), mais il fait échouer EN LE DISANT une demande que le worker n'a pas
       // prise à temps (worker arrêté) — sans lui, elle resterait « en file » pour toujours.
