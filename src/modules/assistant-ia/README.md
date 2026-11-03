@@ -394,8 +394,8 @@ avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `i
   deviennent des jeux K1 (`analyser_donnees`, `exporter_donnees`).
 - **Gestes** (`infra/operations/annuaire.ts`, `demandes-terrain.ts`) : `maj_annuaire` (une ou N fiches, depuis un Excel :
   résolution par les mots du nom dans la portée de la personne, avant → après, introuvables et homonymes dits) ;
-  `fusionner_doublons_annuaire` (fiches nommées, ou toutes les paires d'une wilaya) ; `annuler_mon_action` (la carte
-  montre le plan d'annulation, `annulerGeste`) ; `demander_au_terrain` (une mission du moteur des travaux construite par le
+  `fusionner_doublons_annuaire` (fiches nommées, ou toutes les paires d'une wilaya) ; `annuler_ma_derniere_action` / `retablir_ma_derniere_annulation`
+  (exécutés tout de suite, la même porte que la voix : `infra/annulation-directe.ts` — Direction 03/11 : pas de carte, pas de pop-up) ; `demander_au_terrain` (une mission du moteur des travaux construite par le
   code : une DEMANDE par personne, relance, abandon, livrable consolidé — canal interne, jamais un mail).
 - **Actions de l'ERP** : `lib/actions/fournisseurs-annuaire-actions.ts` (`appliquerLotAnnuaire`, `fusionnerEtablissementsAnnuaire`),
   un geste `actionReversible` chacune, déclarées (`lib/effets/declarations/metiers.ts`), banc `lib/effets/reversibles-annuaire.test.ts`.

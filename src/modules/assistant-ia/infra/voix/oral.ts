@@ -1,11 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
-import { annulerEffetSortant, annulerGeste, effetsSortantsDe, gestesDeLAssistant, retablirGeste } from "@/platform/ia/hors-requete";
 import { MASQUE_CONFIDENTIEL, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { DIT_A_L_ECRAN, NON_OUVERTE, pourLaVoix } from "../../domaine/terrain/voix";
-import { lireCommandeOrale, phraseAnnulation, PREFIXE_VOCAL, resumeOralBlocs } from "../../domaine/terrain/oral";
+import { lireCommandeOrale, PREFIXE_VOCAL, resumeOralBlocs } from "../../domaine/terrain/oral";
 import { piloterMission } from "../missions/pilotage";
+import { annulerLaDerniere, retablirLaDerniere } from "../annulation-directe";
 import { lireReglagesAssistantIa } from "../consommation";
 import { carteOraleEnAttente, direLaCarte, ouvrirCarteOrale, traiterParoleSurCarte } from "./carte-orale";
 import { deposerMessage, ETAT, traiterFil } from "../fil/service";
@@ -42,9 +42,6 @@ import { classerEnonce } from "../orchestration/classement";
 const SESSION_VALIDE_MS = 2 * 60 * 60_000;
 /** Ce qui n'a pas été dit à la voix se reprend à l'ouverture suivante — pendant un jour. */
 const REPRISE_MS = 24 * 60 * 60_000;
-/** « Annule » vise la dernière action de l'assistant — faite il y a moins d'une demi-heure. */
-const ANNULATION_MS = 30 * 60_000;
-
 /** O1 (décision 0046) : avec les champs que l'orchestrateur du navigateur lit (`RetourOrchestre`). */
 export interface RetourOral extends RetourOrchestre {
   /** Ce que la voix DIT (elle paraphrase) — jamais une valeur que la personne n'a pas le droit d'entendre, jamais une consigne. */
@@ -305,35 +302,12 @@ export async function annoncesEnAppel(user: CurrentUser, sessionId: unknown): Pr
 
 // ─── LES COMMANDES ORALES ──────────────────────────────────────────────────────────────────
 
-/**
- * « ANNULE » — la DERNIÈRE chose faite au nom de la personne, de moins de 30 minutes (K10b) : un ENVOI encore dans sa
- * fenêtre (rien ne part : `annulerEffetSortant`) s'il est plus récent, sinon le dernier GESTE de l'assistant
- * (`annulerGeste`, effet par effet : un courriel déjà parti est compensé par un rectificatif, et la voix le DIT).
- */
+/** « ANNULE » / « RÉTABLIS » — la MÊME porte que l'écrit (`annulation-directe.ts`), dite à voix haute. */
 async function annulerDerniere(user: CurrentUser): Promise<RetourOral> {
-  const recent = (iso: string) => Date.now() - new Date(iso).getTime() < ANNULATION_MS;
-  const [gestes, envois] = await Promise.all([gestesDeLAssistant(user, { limite: 5 }), effetsSortantsDe(user, { depuisMinutes: 30 })]);
-  const g = gestes.find((x) => !x.annuleLe && recent(x.quand));
-  // Un envoi encore en fenêtre, hors geste de l'assistant (son geste l'annule avec lui).
-  const e = envois.find((x) => x.statut === "EN_ATTENTE" && recent(x.creeLe) && (!g || !x.gesteId || x.gesteId !== g.id));
-  if (e && (!g || new Date(e.creeLe) > new Date(g.quand))) {
-    (await import("../operations/envoi-gmail")).enregistrerExecuteurGmail();
-    const r = await annulerEffetSortant(e.id, user);
-    return { pourVoix: r.message, consigne: "Dis-le en une phrase." };
-  }
-  if (!g) return { pourVoix: "Il n'y a pas d'action récente de l'assistant à annuler." };
-  const r = await annulerGeste(g.id, user);
-  if ("refus" in r) return { pourVoix: r.refus };
-  return { pourVoix: `${phraseAnnulation(g.libelle, r.details)} Vous pouvez dire « rétablis » si vous changez d'avis.`, consigne: "Dis-le tel quel, sans enjoliver." };
+  return { pourVoix: (await annulerLaDerniere(user)).message, consigne: "Dis-le tel quel, sans enjoliver." };
 }
-
-/** « RÉTABLIS » — la dernière annulation (< 30 min) s'annule : ce qui a bougé depuis est dit, jamais écrasé (K10b). */
 async function retablirDerniere(user: CurrentUser): Promise<RetourOral> {
-  const g = (await gestesDeLAssistant(user, { limite: 10 })).find((x) => x.annuleLe && Date.now() - new Date(x.annuleLe).getTime() < ANNULATION_MS);
-  if (!g) return { pourVoix: "Il n'y a pas d'annulation récente à rétablir." };
-  const r = await retablirGeste(g.id, user);
-  if ("refus" in r) return { pourVoix: r.refus };
-  return { pourVoix: phraseAnnulation(g.libelle, r.details, true), consigne: "Dis-le tel quel." };
+  return { pourVoix: (await retablirLaDerniere(user)).message, consigne: "Dis-le tel quel." };
 }
 
 async function commandeMission(user: CurrentUser, nature: "pause_mission" | "reprendre_mission" | "arreter_mission", texte: string): Promise<RetourOral> {

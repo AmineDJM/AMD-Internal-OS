@@ -1994,15 +1994,6 @@
   "annulation": "aucune",
   "appelable": false
  },
- "assistant-ia-gestes-actions:mesGestesEtEnvoisRecents": {
-  "risque": "R1",
-  "familles": [
-   "ECRITURES"
-  ],
-  "simulable": "inconnu",
-  "annulation": "retour",
-  "appelable": false
- },
  "assistant-ia-gestes-actions:retablirMonGeste": {
   "risque": "R1",
   "familles": [

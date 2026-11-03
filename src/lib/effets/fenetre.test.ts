@@ -62,13 +62,13 @@ suite("la fenêtre d'annulation des effets sortants (K10b)", () => {
     await retirerComptesEtSemis({ where: { id: { in: ids } } });
   });
 
-  it("la charge garde les octets et les dates ; le délai est borné et vaut 120 s par défaut", async () => {
+  it("la charge garde les octets et les dates ; le délai est borné et vaut 30 s par défaut (Direction, 03/11)", async () => {
     const c = enCharge({ pj: Buffer.from("PDF"), d: new Date("2026-10-31T10:00:00Z"), x: undefined });
     expect(JSON.parse(JSON.stringify(c))).toEqual({ pj: { $octets64: Buffer.from("PDF").toString("base64") }, d: "2026-10-31T10:00:00.000Z" });
     expect((deCharge<{ pj: Buffer }>(c).pj).toString()).toBe("PDF");
     expect(borneFenetre(0)).toBe(10);
     expect(borneFenetre(99_999)).toBe(900);
-    expect(FENETRE_DEFAUT_SECONDES).toBe(120);
+    expect(FENETRE_DEFAUT_SECONDES).toBe(30);
     expect(await delaiFenetre()).toBeGreaterThanOrEqual(10);
   });
 

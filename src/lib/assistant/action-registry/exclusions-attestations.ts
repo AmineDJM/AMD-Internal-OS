@@ -264,7 +264,7 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-gestes-actions:listerGestesAssistant", "assistant-ia-gestes-actions:apercevoirAnnulation", "assistant-ia-gestes-actions:annulerGestesAssistant",
   ]);
   X("LA BARRE « ANNULER » DE L'ERP (K10b, décision 0040) — le bouton qui défait le geste qu'on vient de faire à l'écran, « Annuler l'envoi » pendant la fenêtre d'annulation, et le rétablissement. Identité prise de la session : la personne défait SES gestes ; l'assistant, lui, rend la même annulation par la carte « Annuler » de sa conversation.", [
-    "assistant-ia-gestes-actions:mesGestesEtEnvoisRecents", "assistant-ia-gestes-actions:historiqueDeLaFiche", "assistant-ia-gestes-actions:annulerMonGeste",
+    "assistant-ia-gestes-actions:historiqueDeLaFiche", "assistant-ia-gestes-actions:annulerMonGeste",
     "assistant-ia-gestes-actions:retablirMonGeste", "assistant-ia-gestes-actions:agirSurMonEnvoi",
   ]);
   X("LES MANDATS de l'Assistant IA (J12, décision 0024) — une approbation que SEULE la personne accorde ou révoque à l'écran, et le geste de la coque qui fait, dans SA requête, les gestes qu'elle a confiés (bornés, journalisés). Un assistant qui s'accorderait un mandat se donnerait un droit : jamais proposé par un assistant.", [

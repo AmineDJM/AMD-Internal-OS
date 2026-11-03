@@ -33,6 +33,7 @@ import { noteChiffresNonSources } from "../../domaine/analyse/chiffres";
 import { CONSIGNE_BOITE_ADAM, canalAdamOuvert, taireCanalAdam } from "../../domaine/mails/canal";
 import { CONSIGNE_FOND, CONSIGNE_MISSIONS, demandeDeFond, ETAPES_DE_FOND, noteActionsNonVerifiees, OUTILS_DE_FOND, outilsPilotageVoulus } from "../../domaine/missions/pilotage";
 import { outilsMissions } from "../missions/pilotage";
+import { outilsAnnulation } from "../annulation-directe";
 import { outilsMails } from "../mails/boites";
 import type { PowerTool } from "@/platform/ia/outil";
 import { outilsDAnalyseVoulus } from "../../domaine/analyse/intention";
@@ -255,7 +256,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const tousLesOutils = (): PowerTool[] => outils ?? [];
     // Leurs sorties PROUVENT ce que la réponse montre (un tableau des missions lues) — comme celles des autres lectures.
     const prouvees = (xs: PowerTool[]): PowerTool[] => xs.map((o) => ({ ...o, run: async (e, u) => { const r = await o.run(e, u); sorties.push(r); return r; } }));
-    outils.push(...prouvees([...outilsMissions(user, pilotagesEchoues), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions)]));
+    outils.push(...prouvees([...outilsMissions(user, pilotagesEchoues), ...outilsAnnulation(user, pilotagesEchoues), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions)]));
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     // M1 : la mémoire automatique retient seule — la carte « Retenir » ne sert que si la personne l'a coupée.

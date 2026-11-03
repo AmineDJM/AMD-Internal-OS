@@ -166,7 +166,7 @@ export const ENVOI_GMAIL: OperationIA = {
         ],
         warnings: brouillon
           ? ["Les brouillons attendent à l'écran d'Adam (Chief of Staff) ; rien ne part."]
-          : ["Fenêtre d'annulation : chaque mail attend le délai réglé (2 min par défaut) avant de partir — « Annuler l'envoi » dedans, rien ne part ; parti, un rectificatif peut suivre."],
+          : ["Fenêtre d'annulation : chaque mail attend le délai réglé (30 s par défaut) avant de partir — « Annuler l'envoi » dedans, rien ne part ; parti, un rectificatif peut suivre."],
         libelleBouton: brouillon ? "Enregistrer le brouillon" : n > 1 ? `Envoyer les ${n} mails` : "Envoyer",
         apercus,
       },

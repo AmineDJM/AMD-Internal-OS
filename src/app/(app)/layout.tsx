@@ -12,7 +12,6 @@ import { Topbar } from "@/components/layout/topbar";
 import { MobileTabBar } from "@/components/layout/mobile-tabbar";
 import { ActivityTracker } from "@/components/layout/activity-tracker";
 import { ExecuteurMandats } from "@/modules/assistant-ia/ecrans/executeur-mandats";
-import { BarreAnnulation } from "@/modules/assistant-ia/ecrans/barre-annulation";
 import { SessionRecorder } from "@/components/layout/session-recorder";
 import { FocusExit } from "@/components/layout/focus-mode";
 import { ScreenGuard } from "@/components/layout/screen-guard";
@@ -117,8 +116,8 @@ export default async function AppLayout({
       <ActivityTracker />
       {/* J12 : les gestes confiés par mandat à l'Assistant IA se font dans la requête de la personne (jamais en Vue exacte). */}
       {!user.impersonatedBy && peutUtiliserAssistantIA(user) && <ExecuteurMandats />}
-      {/* K10b (décision 0040) : « Annuler » le geste qu'on vient de faire, « Annuler l'envoi » pendant sa fenêtre. */}
-      {!user.impersonatedBy && <BarreAnnulation />}
+      {/* PLUS DE BARRE « ANNULER » FLOTTANTE (Direction, 03/11/2026 : « pas de pop-up, rien ») : un geste s'annule en le
+          demandant à Adam (« annule »), ou depuis l'historique de la fiche ; un envoi attend 30 s avant de partir. */}
       {/* LE REJEU DE SESSION — pour le support technique : rembobiner la suite des actions et
           voir où ça a bugué. Aucune valeur de champ n'est lue ; les champs sensibles sont
           écartés entièrement. La divulgation aux salariés relève du règlement intérieur. */}
