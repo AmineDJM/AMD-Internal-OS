@@ -44,6 +44,7 @@ vi.mock("@/lib/prisma", async (importOriginal) => {
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { totauxEnAttenteDuDg, totalDeLaDemande, statuerSurLeTotal } from "./porte-dg";
 
 let dbOk = false;
@@ -82,7 +83,7 @@ suite("ADPRO-07 — les totaux en attente du DG, en lot", () => {
     for (const id of events) await prisma.notification.deleteMany({ where: { link: { contains: id } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: dgId } }).catch(() => {});
     await prisma.event.deleteMany({ where: { id: { in: events } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: dgId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: dgId } }).catch(() => {});
   }, 60_000);
 
   it("les mêmes totaux que le calcul unitaire, en un nombre de requêtes qui ne dépend pas des demandes", async () => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { Action, EffectiveAccess, Module, SessionUser } from "@/lib/rbac";
 import { repriseOrganisations } from "../reprises/organisations";
 import { repriseOrganisationsTextes } from "../reprises/organisations-textes";
@@ -109,7 +110,7 @@ suite("reprise R2 — organisations", () => {
     await prisma.organisation.updateMany({ where: { id: { in: orgs.map((o) => o.id) } }, data: { fusionneeDansId: null } });
     await prisma.organisation.deleteMany({ where: { id: { in: orgs.map((o) => o.id) } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [ids.admin, ids.lecteur] } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
     if (interrupteurAvant !== null) await prisma.appSetting.update({ where: { id: "global" }, data: { doubleEcritureOrganisations: interrupteurAvant } });
   });
 

@@ -18,7 +18,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { adaptateurDocx } from "@/lib/artifact/adapters/docx/adapter";
@@ -131,7 +131,7 @@ suite("fabrique-actions — le bouton « Composer une pièce » des Finances", (
     await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("un COMMERCIAL qui peut engager la société est refusé quand même — la porte est le module Legal/Finances, et rien n'est écrit", async () => {

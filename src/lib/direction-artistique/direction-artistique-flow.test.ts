@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { papierEnTeteDeDemonstration } from "@/lib/artifact/factory/word";
 import { putBlob, releaseBlob } from "@/lib/drive-storage";
@@ -66,7 +67,7 @@ suite("Direction artistique — le modèle de BC déposé est celui que la fabri
     await prisma.companyDocumentProfile.deleteMany({ where: { companyId: { in: [aId, bId] } } }).catch(() => {});
     const comptes = await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [aId, bId] } } }).catch(() => {});
   }, 60_000);
 

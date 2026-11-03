@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { EFFECT_RANK } from "@/lib/missions/registry/capability-meta";
@@ -124,7 +125,7 @@ suite("lecture seule — une absence d'outil, pas une consigne", () => {
 
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { ownerId: pdg?.id } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("le plafond RETIRE des capacités, et n'en ajoute jamais", () => {

@@ -10,6 +10,7 @@ vi.mock("@/lib/session", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { gestesRecents } from "@/lib/effets/ecran";
@@ -95,7 +96,7 @@ suite("K10a — les actions d'argent se défont d'un geste", () => {
     await prisma.supplier.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(u) } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: Object.values(u) } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: Object.values(u) } } }).catch(() => {});
   }, 60_000);
 
   it("SAISIR une écriture réalisée → annuler la CONTRE-PASSE (le solde revient, les deux lignes restent) → rétablir la contre-passe à son tour", async () => {

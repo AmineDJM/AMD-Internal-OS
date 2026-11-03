@@ -9,6 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { reprendreRecurrenceComptage } from "./promo-comptage-actions";
 import { declencherComptagesRecurrents } from "@/lib/promo-stock-comptages";
@@ -65,7 +66,7 @@ suite("Une récurrence de comptage — la reprise refuse ce que le battement sus
     }
     await prisma.employee.updateMany({ where: { fullName: { startsWith: TAG } }, data: { managerId: null } });
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { id: { in: uids } } });
+    await retirerComptesEtSemis({ where: { id: { in: uids } } });
   }
 
   beforeAll(async () => {

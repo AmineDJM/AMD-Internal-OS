@@ -51,7 +51,7 @@ vi.mock("@/lib/pieces-lues/lecture-fichier", async (orig) => ({
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { POST } from "@/app/api/documents/upload/route";
@@ -111,7 +111,7 @@ suite("Luna conseille la pièce déposée par « + Pièce jointe » (route de t�
     await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   beforeEach(() => {

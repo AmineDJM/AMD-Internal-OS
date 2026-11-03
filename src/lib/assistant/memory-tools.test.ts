@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess } from "@/lib/rbac";
 import { executePowerTool } from "./power-tools";
@@ -41,7 +42,7 @@ suite("mémoire exécutive — aller-retour réel et cloisonnement", () => {
     await prisma.executiveCommitment.deleteMany({ where: { ownerId: { in: users } } }).catch(() => {});
     await prisma.assistantMessage.deleteMany({ where: { userId: { in: users } } }).catch(() => {});
     await prisma.assistantThread.deleteMany({ where: { userId: { in: users } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("« retiens que pembro = Pembrolizumab » → contexte système + expansion de recherche", async () => {

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess } from "@/lib/rbac";
 import { addLink, removeLink, linksOf, linksOfMany, linkedViews, refreshLinkLabels } from "./store";
@@ -78,7 +79,7 @@ afterAll(async () => {
   await prisma.pchOrder.deleteMany({ where: { id: bonId } });
   await prisma.legalDocument.deleteMany({ where: { id: { in: [contratId, assuranceId] } } });
   await prisma.pchTender.deleteMany({ where: { id: tenderId } });
-  await prisma.user.deleteMany({ where: { id: userId } });
+  await retirerComptesEtSemis({ where: { id: userId } });
 });
 
 describe("le registre des liens, par son vrai point d'entrée", () => {

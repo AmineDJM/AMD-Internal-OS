@@ -6,7 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { createSponsoring } from "../actions-sponsoring";
@@ -131,7 +131,7 @@ suite("Billetterie — trajet, transport, devis par voyageur, BC", () => {
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: RUN } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: RUN } } }).catch(() => {});
   }, 60_000);
 
   const voyageurVu = async (id: string) => {

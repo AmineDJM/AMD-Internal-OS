@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { assurerCompteAgent, idCompteAgent } from "@/lib/missions/agent/account";
 import { BARREAUX_AVANT_DIRIGEANT, relancerAttente } from "@/platform/in-process/missions/relance";
 
@@ -39,7 +40,7 @@ suite("échelle de relances — Adam relance, monte d'un cran, puis seulement pr
     await prisma.notification.deleteMany({ where: { userId: { in: [ownerId, raihanaId, managerId] } } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { ownerId } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [ownerId, raihanaId, managerId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [ownerId, raihanaId, managerId] } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
     void agent;
   }, 120_000);

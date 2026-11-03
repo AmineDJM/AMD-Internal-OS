@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { consignerMesure } from "@/lib/evals/registre";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { Prisma } from "@prisma/client";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
@@ -94,7 +95,7 @@ suite("CRASH À CHAQUE FRONTIÈRE — la reprise conclut, sans doublon, quelle q
     await prisma.message.deleteMany({ where: { senderId: pdg.id } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
   }, 120_000);
 

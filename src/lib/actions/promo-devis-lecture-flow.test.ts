@@ -49,7 +49,7 @@ vi.mock("@/lib/ai-settings", async (orig) => ({
 vi.mock("@/lib/ai", async (orig) => ({ ...(await orig<typeof import("@/lib/ai")>()), aiConfigured: () => true, cleModeleRequise: () => "OPENAI_API_KEY" }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
@@ -186,7 +186,7 @@ suite("Matériel promotionnel — le devis lu sur son scan, proposé puis confir
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
   }, 60_000);
 

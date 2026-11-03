@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, scopeSupport, type SessionUser } from "@/lib/rbac";
 import { canViewSupport, getSupportRequest } from "@/lib/queries/support";
 import { createSupportRequest, takeSupportRequest, answerSupportRequest, updateSupportStatus } from "./support-actions";
@@ -38,7 +39,7 @@ suite("Demandes de support — émission, prise en charge, réponse, accès", ()
   afterAll(async () => {
     await prisma.supportRequest.deleteMany({ where: { reference: { startsWith: "SUP-" }, requester: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un délégué adresse une demande à la fonction « Direction Marketing » (OPEN, rôle notifié)", async () => {

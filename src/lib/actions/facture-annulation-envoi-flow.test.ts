@@ -34,6 +34,7 @@ vi.mock("@/modules/finances/infra/expense-orders", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { cancelLegalDocument, sendLegalInvoiceToSettlement } from "./legal-actions";
 
@@ -60,7 +61,7 @@ suite("Facture — annulation et envoi au règlement simultanés", () => {
     await prisma.legalDocument.deleteMany({ where: { id: { in: factures } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: saId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: saId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: saId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: saId } }).catch(() => {});
   }, 60_000);
 
   it("annulée par un autre processus pendant l'émission : l'ordre émis est annulé, la facture reste sans paiement", async () => {

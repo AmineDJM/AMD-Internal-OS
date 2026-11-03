@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { moneyEntityOf, adventumCompanyId } from "@/lib/company";
 import { createPaymentRequest } from "@/modules/finances/actions-demandes";
@@ -101,7 +102,7 @@ suite("L'entité de l'argent", () => {
     await prisma.userAccess.deleteMany({ where: { userId: { in: [rhId, demandeurId] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [pdgId, comptableId] } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [advId, phaId] } } }).catch(() => {});
   });
 

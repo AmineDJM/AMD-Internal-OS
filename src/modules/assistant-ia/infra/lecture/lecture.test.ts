@@ -5,7 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "../generer";
@@ -77,7 +77,7 @@ suite("Assistant IA — lecture des pièces jointes (texte, scan, image, coffre,
     await prisma.assistantActionIntent.deleteMany({ where: { userId: moi?.id } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { ownerId: moi?.id } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: moi?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("une PHOTO de facture est regardée par la vision : l'image part au modèle, son contenu revient ENCADRÉ comme non fiable", async () => {

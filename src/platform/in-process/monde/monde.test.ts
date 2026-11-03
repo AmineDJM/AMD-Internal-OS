@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { recordFieldChanges } from "@/lib/audit";
@@ -66,7 +67,7 @@ suite("modèle du monde — l'histoire lue dans le journal qui existe", () => {
     await prisma.auditLog.deleteMany({ where: { entityId: produitId } }).catch(() => {});
     await prisma.businessEvent.deleteMany({ where: { entityId: produitId } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
   }, 60_000);
 
   it("compose des faits DATÉS à partir du journal, et dit ce qu'il ne couvre pas", async () => {

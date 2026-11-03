@@ -2,6 +2,7 @@
 import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { Clock } from "@/lib/missions/ports";
 import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import type { PersonaTravaux } from "@/lib/missions/travaux/persona";
@@ -53,7 +54,7 @@ suite("un vrai geste métier exécuté par un travail, hors requête (J8)", () =
     await prisma.calendarEvent.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("le défaut d'origine : l'action de l'écran, appelée nue hors requête, ne passe pas", async () => {

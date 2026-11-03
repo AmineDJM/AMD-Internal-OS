@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   ETATS_MODELE, TRANSITIONS_MODELE, TYPES_MODELE, approuver, candidats, deprecier,
   modeleFaisantAutorite, noterUsage, observer, passageAutorise, proposer,
@@ -57,7 +58,7 @@ suite("registre des modèles opérationnels", () => {
 
   afterAll(async () => {
     await prisma.operationalTemplate.deleteMany({ where: { ownerId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("OBSERVER ne donne AUCUNE autorité", async () => {

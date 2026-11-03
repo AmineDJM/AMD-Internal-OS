@@ -6,7 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { ajouterVoyageur, modifierVoyageur, ajouterHebergement } from "@/modules/ad-pro/actions-postes-voyageurs";
 import {
@@ -101,7 +101,7 @@ suite("Fiches de voyage — envoi, relance, prise, manque, modification, dépôt
     await prisma.dossier.deleteMany({ where: { id: { in: sujets } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [demId, a1Id, a2Id] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [demId, a1Id, a2Id] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [demId, a1Id, a2Id] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [demId, a1Id, a2Id] } } }).catch(() => {});
   }, 60_000);
 
   it("deux clics sur « Envoyer » : UN envoi, UNE demande, UNE ligne au fil", async () => {

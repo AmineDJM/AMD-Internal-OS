@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 
 /**
  * LA REPRISE DES ORDRES DÉJÀ ÉMIS — prouvée sur des données, pas sur une lecture.
@@ -146,7 +147,7 @@ suite("Reprise : le dossier manquant des ordres déjà émis", () => {
     await prisma.paymentRequest.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { requesterId: demandeurId } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { label: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: demandeurId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: demandeurId } }).catch(() => {});
   });
 
   it("UN ORDRE NÉ AILLEURS REÇOIT SON DOSSIER, rattaché à sa source et à son demandeur", async () => {

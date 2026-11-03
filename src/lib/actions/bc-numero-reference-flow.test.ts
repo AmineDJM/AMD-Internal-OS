@@ -8,7 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
 import { pieceEmise, valeursComposables, type ValeursComposables } from "@/lib/legal/piece-emise";
@@ -112,7 +112,7 @@ suite("Le numéro de référence d'un BC — choisi à la composition, modifié 
     await prisma.companyDocumentProfile.deleteMany({ where: { companyId: { in: [societeReg, societeSerie] } } }).catch(() => {});
     await prisma.companyLegalIdentity.deleteMany({ where: { companyId: { in: [societeReg, societeSerie] } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [societeReg, societeSerie] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 90_000);
 
   describe("au registre commun NNN/DG/AAAA", () => {

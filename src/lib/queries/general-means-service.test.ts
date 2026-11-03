@@ -15,6 +15,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { resolveGeneralMeansDepartment } from "./general-means";
 import { getBudgetOverview } from "./budget";
@@ -79,7 +80,7 @@ suite("Moyens généraux — le service, et lui seul", () => {
     await prisma.budgetEnvelope.deleteMany({ where: { id: envelopeId } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: Object.values(u) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: Object.values(u) } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: Object.values(u) } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: { in: [dService, dAutre] } } }).catch(() => {});
     SERVICE = null;
   }, 60_000);

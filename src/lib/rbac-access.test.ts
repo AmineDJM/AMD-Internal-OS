@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "./rbac";
 
 // Sonde DB ; suite sautée proprement sans base (CI sans Postgres).
@@ -46,7 +47,7 @@ suite("getAccess — un override ne rétrécit pas une portée native ALL (rôle
 
   afterAll(async () => {
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("sans override : portée ALL sur les congrès + accès Sponsoring hérités du rôle secondaire", async () => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
@@ -100,7 +101,7 @@ suite("golden queries — la couche déterministe répond d'un seul appel", () =
     await prisma.auditLog.deleteMany({ where: { entityId: { in: [productId, payId] } } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("« Où en est Pembro ? / Pourquoi est-il bloqué ? / Qui est responsable ? » — UN appel de product_360", async () => {

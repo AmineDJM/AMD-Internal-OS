@@ -14,6 +14,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
@@ -105,7 +106,7 @@ suite("K10c — matériel promotionnel : exécuter, annuler, rétablir", () => {
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { OR: [{ userId: moi.id }, { title: { contains: TAG } }, { body: { contains: TAG } }] } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: moi.id } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: moi.id } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: moi.id } }).catch(() => undefined);
   }, 60_000);
 
   it("imputer au budget : la catégorie d'avant revient (le dossier n'était imputé nulle part) ; rétablir la remet", async () => {

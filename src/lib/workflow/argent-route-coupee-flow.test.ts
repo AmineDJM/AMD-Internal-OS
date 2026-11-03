@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { ensureInstance as ensureInstanceDuMoteur, lectureDeLApprobation, stepCreate } from "./engine";
@@ -191,7 +192,7 @@ suite("La route du rang 2 (27/10/2026) — la Direction Marketing prévalide, au
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(ids) } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: Object.values(ids) } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: Object.values(ids) } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: Object.values(ids) } } }).catch(() => {});
   });
 
   it("PRÉMISSES : deux demandeurs de rang 2 sans vue globale, et une définition où AUCUNE étape ne fixe d'argent", async () => {

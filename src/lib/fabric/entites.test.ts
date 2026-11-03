@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { consignerMesure } from "@/lib/evals/registre";
 import { readFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { resoudreEntite, resoudreMentions, contexteEntitesResolues } from "./entites";
 import type { TypeEntite, Verdict } from "./entites-score";
 
@@ -21,9 +22,10 @@ async function nettoyer() {
   await prisma.regulatoryProduct.deleteMany({ where: { OR: [{ reference: { startsWith: P } }, { reference: { in: ["PRD-9101", "PRD-9102", "PRD-9103", "PRD-9104"] } }] } });
   await prisma.supplier.deleteMany({ where: { name: { startsWith: P } } });
   await prisma.employee.deleteMany({ where: { fullName: { startsWith: P } } });
-  await prisma.user.deleteMany({ where: { OR: [{ email: { startsWith: "__er__", mode: "insensitive" } }, { name: { startsWith: P } }] } });
+  await retirerComptesEtSemis({ where: { OR: [{ email: { startsWith: "__er__", mode: "insensitive" } }, { name: { startsWith: P } }] } });
   await prisma.medicalInstitution.deleteMany({ where: { name: { startsWith: P } } });
   await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: P } } });
+  await prisma.company.deleteMany({ where: { name: { startsWith: P } } }); // son département part en cascade
 }
 
 interface Cas { q: string; types?: TypeEntite[]; attendu: Verdict; id?: string; note?: string }
@@ -31,14 +33,17 @@ interface Cas { q: string; types?: TypeEntite[]; attendu: Verdict; id?: string; 
 describe("résolution d'entités — banc réaliste sur la vraie base (F9)", () => {
   beforeAll(async () => {
     await nettoyer();
-    const dept = await prisma.department.findFirst({ select: { id: true, name: true } });
-    const u = async (name: string, email: string, title?: string) => (await prisma.user.create({ data: { name: `${P} ${name}`, email, passwordHash: "x", role: "VIEWER", isActive: true, title: title ?? null, departmentId: dept?.id ?? null } })).id;
+    // La société et le département sont À CE BANC : empruntés, c'étaient souvent ceux d'un voisin, retirés en cours de route
+    // (et la création qui les désigne échouait sur la clé étrangère).
+    const company = await prisma.company.create({ data: { name: `${P} Société du banc` }, select: { id: true } });
+    const dept = await prisma.department.create({ data: { name: `${P} Département du banc`, code: `${P}DEPT`, companyId: company.id }, select: { id: true } });
+    const u = async (name: string, email: string, title?: string) => (await prisma.user.create({ data: { name: `${P} ${name}`, email, passwordHash: "x", role: "VIEWER", isActive: true, title: title ?? null, departmentId: dept.id } })).id;
     ids.raihana = await u("Raïhana Cherif", "__er__r.cherif@adventum.dz", "Chargée Regulatory");
     ids.nadir1 = await u("Nadir Benali", "__er__n.benali@adventum.dz", "RH");
     ids.nadir2 = await u("Nadir Cherif", "__er__n.cherif@adventum.dz", "Ventes");
     ids.khaled = await u("Khaled Mansouri", "__er__k.mansouri@adventum.dz", "DAF");
     ids.amine = await u("Mohamed-Amine Djouamai", "__er__a.djouamai@adventum.dz", "PDG");
-    const e = async (fullName: string, email: string, userId: string | null) => (await prisma.employee.create({ data: { fullName: `${P} ${fullName}`, email, isActive: true, baseSalary: 100000, userId, departmentId: dept?.id ?? null } })).id;
+    const e = async (fullName: string, email: string, userId: string | null) => (await prisma.employee.create({ data: { fullName: `${P} ${fullName}`, email, isActive: true, baseSalary: 100000, userId, departmentId: dept.id } })).id;
     ids.empRaihana = await e("Raïhana Cherif", "__er__r.cherif@adventum.dz", ids.raihana);
     ids.empSansCompte = await e("Yasmine Boudiaf", "__er__y.boudiaf@adventum.dz", null);
     const s = async (name: string, country: string, contactEmail: string | null) => (await prisma.supplier.create({ data: { name: `${P} ${name}`, country, contactEmail, active: true } })).id;
@@ -46,8 +51,7 @@ describe("résolution d'entités — banc réaliste sur la vraie base (F9)", () 
     ids.hikma = await s("Hikma Pharmaceuticals", "Jordanie", "sales@hikma.com");
     ids.kwality = await s("Kwality Pharma SPA", "Algérie", null);
     ids.sunPharma = await s("Sun Pharmaceutical Industries", "Inde", "info@sunpharma.com");
-    const company = await prisma.company.findFirst({ select: { id: true } });
-    const p = async (reference: string, dci: string, brandName: string | null, dosage: string, form: string) => (await prisma.regulatoryProduct.create({ data: { reference, dci, brandName, dosage, dosageUnit: "mg", pharmaceuticalForm: form, packaging: "B/30", status: "SUBMITTED", companyId: company?.id ?? null } as never })).id;
+    const p = async (reference: string, dci: string, brandName: string | null, dosage: string, form: string) => (await prisma.regulatoryProduct.create({ data: { reference, dci, brandName, dosage, dosageUnit: "mg", pharmaceuticalForm: form, packaging: "B/30", status: "SUBMITTED", companyId: company.id } as never })).id;
     /**
      * DES MOLÉCULES RÉELLES, MAIS QUI N'APPARTIENNENT QU'À CE BANC.
      *

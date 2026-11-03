@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import { ensureProduct } from "@/lib/products/resolve";
 import { voisinage, voisinageMarche, voisinagePersonne, voisinageProduit } from "./graph";
 
@@ -23,12 +24,18 @@ const suite = dbOk ? describe : describe.skip;
 const TAG = `ZZGRF${Date.now()}`;
 const produits: string[] = [];
 const marches: string[] = [];
+/**
+ * La personne est À CE BANC. Empruntée, c'était souvent un compte chargé d'affectations (les exemples rendus sont bornés :
+ * celle du banc pouvait ne pas y figurer), ou celui d'un voisin qui le retire en cours de route.
+ */
+const comptes = comptesDeBanc("__graphe_");
 
 suite("le graphe d'entreprise", () => {
   afterAll(async () => {
     await prisma.sale.deleteMany({ where: { client: { startsWith: TAG } } }).catch(() => {});
     await prisma.pchTender.deleteMany({ where: { id: { in: marches } } }).catch(() => {});
     await prisma.product.deleteMany({ where: { id: { in: produits } } }).catch(() => {});
+    await comptes.retirer();
   });
 
   it("rend les arêtes RÉELLES, et n'invente rien", async () => {
@@ -95,8 +102,7 @@ suite("le graphe d'entreprise", () => {
   it("une personne : « porte » et « a porté » ne se confondent pas", async () => {
     const p = await ensureProduct({ dci: `${TAG}pers`, dosage: "2", dosageUnit: "mg", form: "Comprimé" });
     produits.push(p!.id);
-    const u = await prisma.user.findFirst({ select: { id: true } });
-    if (!u) throw new Error("aucun utilisateur en base — le test ne peut pas se contenter de passer");
+    const u = await comptes.creer("porteur");
 
     await prisma.productAssignment.create({
       data: {

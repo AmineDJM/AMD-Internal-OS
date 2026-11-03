@@ -6,7 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createLegalDocument, adresserBCAuCentre, updateLegalDocument } from "@/lib/actions/legal-actions";
 import { etatCompletDuBC } from "./etat-bc-test-outils";
@@ -87,7 +87,7 @@ suite("Pré-validation d'un BC depuis « Demandes de validations » — le flux 
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     const comptes = await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } });
     await prisma.notification.deleteMany({ where: { userId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("importé depuis Legal : la porte du centre est RETIRÉE, la pré-validation part chez les validateurs choisis, dans l'ordre", async () => {

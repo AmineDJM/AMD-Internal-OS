@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, requireModule: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createFieldReport, deleteFieldReport, reopenFieldReport, submitFieldReport } from "./field-report-actions";
 import { entrerLot, sousVerrou, trouverOuCreerArticle } from "@/lib/promo/stock-ecriture";
@@ -89,7 +90,7 @@ suite("Compte rendu de visite — le matériel remis sort du stock du KAM, par l
       await prisma.notification.deleteMany({ where: { userId: { in: uids } } });
       await prisma.auditLog.deleteMany({ where: { actorId: { in: uids } } }).catch(() => undefined);
     }
-    await prisma.user.deleteMany({ where: { id: { in: uids } } });
+    await retirerComptesEtSemis({ where: { id: { in: uids } } });
   }
 
   const comme = async (qui: string) => { ACTOR = await actorFor(ids[qui]!); };

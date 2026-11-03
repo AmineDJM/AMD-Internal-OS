@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { ReasonRequest } from "@/lib/missions/ports";
@@ -81,7 +82,7 @@ suite("un juge qui refuse deux fois de suite FERME la replanification — plus d
     await prisma.mission.deleteMany({ where: { ownerId: pdg.id } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: pdg.id } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: pdg.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("LE CAS DE PRODUCTION, PAR LE BATTEMENT : un replan, deux notifications au plus, puis la porte fermée", async () => {

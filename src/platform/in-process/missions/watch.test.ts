@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { consignerMesure } from "@/lib/evals/registre";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { recordEvent } from "@/lib/events/ledger";
@@ -61,7 +61,7 @@ suite("SURVEILLANCE DURABLE — un problème dit une fois, une fin dite une fois
     await prisma.googleConnection.deleteMany({ where: { userId: pdg.id } }).catch(() => {});
     await prisma.pchTender.deleteMany({ where: { id: marcheId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: pdg.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: pdg.id } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: pdg.id } }).catch(() => {});
   }, 120_000);
 
   it("l'outil crée la surveillance : cible résolue par son titre, règles du type, mission-support, état initial relu", async () => {
@@ -169,7 +169,7 @@ suite("SURVEILLANCE DURABLE — un problème dit une fois, une fin dite une fois
     expect((await arreterSurveillance(pdg, c.id)).ok).toBe(true);
     expect((await prisma.mission.findUnique({ where: { id: c.missionId }, select: { status: true } }))?.status).toBe("CANCELLED");
     await prisma.task.deleteMany({ where: { id: t2.id } });
-    await prisma.user.deleteMany({ where: { id: autre.id } });
+    await retirerComptesEtSemis({ where: { id: autre.id } });
   }, 120_000);
   it("un APPEL D'OFFRES se surveille : « PCH 9999/77 », « AO 9999-77 » désignent le même marché, l'échéance est le dépôt, les règles sont celles du type", async () => {
     const m = await prisma.pchTender.create({

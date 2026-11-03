@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { executePowerTool, powerToolsFor } from "@/lib/assistant/power-tools";
@@ -59,7 +60,7 @@ suite("le runtime des skills — découverte, droit, exécution, cycle des micro
     await prisma.adamSkill.deleteMany({ where: { ownerId: { in: [pdg.id, lecteur.id] } } }).catch(() => {});
     await prisma.adamRule.deleteMany({ where: { ownerId: pdg.id } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [pdg.id, lecteur.id] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("les connecteurs déclarés sont DÉCOUVERTS par la conversation, le planificateur et la liste courte — sous le droit de leur manifeste", async () => {
@@ -240,7 +241,7 @@ suite("les connecteurs de messagerie (§37) — un même geste sous quatre noms,
   afterAll(async () => {
     __configurerPourTests({ config: null, fetchImpl: null });
     await prisma.auditLog.deleteMany({ where: { actorId: dir.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: dir.id } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: dir.id } }).catch(() => {});
   }, 60_000);
 
   it("seuls Slack et SMS sont branchés : les deux autres existent, non configurés — une limite de ressource, pas un « pas prévu »", async () => {

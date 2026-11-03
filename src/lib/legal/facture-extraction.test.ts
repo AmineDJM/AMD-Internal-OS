@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 
 /**
  * LA SORTIE DES FACTURES HORS DES BONS DE COMMANDE — prouvée sur des données, pas sur une lecture.
@@ -104,7 +104,7 @@ afterAll(async () => {
   await prisma.legalDocument.deleteMany({ where: { id: { in: crees } } });
   await prisma.legalDocument.deleteMany({ where: { id: { in: [bcId, contratId] } } });
   await prisma.legalFolder.deleteMany({ where: { id: dossierId } });
-  await prisma.user.deleteMany({ where: { id: { in: [lecteurId, deposantId] } } });
+  await retirerComptesEtSemis({ where: { id: { in: [lecteurId, deposantId] } } });
 });
 
 describe("les factures sortent des bons de commande", () => {

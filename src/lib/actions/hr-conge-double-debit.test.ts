@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { decideHrLeave } from "@/modules/rh/actions-documents";
 
@@ -45,7 +46,7 @@ suite("decideHrLeave — double clic sur « Accorder » un congé annuel", () =>
     await prisma.hrDocumentRequest.deleteMany({ where: { employeeId } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: employeeId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: rhId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("deux décisions simultanées → 10 jours débités, pas 20", async () => {

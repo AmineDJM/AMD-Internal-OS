@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { companyScopedWhere, platformScope } from "@/lib/company";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -75,7 +76,7 @@ suite("Un courrier enregistré s'ouvre — liste et fiche disent la même chose"
     await prisma.auditLog.deleteMany({ where: { actorId: userId } }).catch(() => {});
     await prisma.mailEntry.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.userCompanyAccess.deleteMany({ where: { userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 

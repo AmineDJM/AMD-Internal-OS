@@ -37,7 +37,7 @@ vi.mock("@/lib/pieces-lues/prerempli-devis-promo", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBlob, putBlob } from "@/lib/drive-storage";
 import { papierEnTeteDeDemonstration } from "@/lib/artifact/factory/word";
@@ -193,7 +193,7 @@ suite("Poste Ad & Pro — l'aperçu du BC est obligatoire, et tout s'y corrige",
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: demId } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: RUN } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: RUN } } }).catch(() => {});
     await prisma.companyLegalIdentity.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
   }, 120_000);

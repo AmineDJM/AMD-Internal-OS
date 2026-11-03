@@ -12,7 +12,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, seesLockedRegulatory, type SessionUser } from "@/lib/rbac";
 import { globalSearch, type SearchResult } from "@/lib/queries/search";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
@@ -94,7 +94,7 @@ suite("Recherche globale — le périmètre de chaque écran, et rien d'autre", 
     await prisma.regulatoryProduct.deleteMany({ where: { dci: like } }).catch(() => {});
     if (cids.length) await prisma.regulatoryFeatureAccess.deleteMany({ where: { companyId: { in: cids } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: like } }).catch(() => {});
-    if (uids.length) await prisma.user.deleteMany({ where: { id: { in: uids } } }).catch(() => {});
+    if (uids.length) await retirerComptesEtSemis({ where: { id: { in: uids } } }).catch(() => {});
     if (cids.length) await prisma.productRange.deleteMany({ where: { companyId: { in: cids } } }).catch(() => {});
     if (cids.length) await prisma.company.deleteMany({ where: { id: { in: cids } } }).catch(() => {});
   }

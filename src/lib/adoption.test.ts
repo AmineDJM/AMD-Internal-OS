@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAdoptionScores, captureAdoptionSnapshots, getUserScoreHistory, type AdoptionScore } from "./adoption";
 
 let dbOk = false;
@@ -55,7 +56,7 @@ suite("Score d'adoption — robustesse au gaming", () => {
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.activityLog.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("créer puis supprimer des tâches ne crédite AUCUN travail durable", async () => {
@@ -107,7 +108,7 @@ suite("Score d'adoption — historique stocké (monte ET descend)", () => {
   });
   afterAll(async () => {
     await prisma.adoptionSnapshot.deleteMany({ where: { userId: uid } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: HTAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: HTAG } } }).catch(() => {});
   });
 
   it("capture idempotente : un seul instantané par jour, mis à jour", async () => {

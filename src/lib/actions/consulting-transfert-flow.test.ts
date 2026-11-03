@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity, moduleDeLEntite, modulesDesEntites } from "@/lib/entity-access";
 import { getAdProRequests, demandesAuCentreAdPro, seuilAdProEnVigueur, lireVisaAdPro } from "@/modules/ad-pro/api";
@@ -100,7 +101,7 @@ suite("Transfert d'un contrat de consulting — Ad & Pro ⇄ RH, le flux réel",
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("PRÉMISSES : les deux lecteurs sont chacun d'UN seul côté ; le transféreur tient les deux", async () => {

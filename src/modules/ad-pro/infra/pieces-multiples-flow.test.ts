@@ -9,7 +9,7 @@ vi.mock("@/lib/session", () => ({
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { addAdProComment } from "../actions-discussion";
 import { deleteComment } from "@/lib/actions/comment-actions";
@@ -92,7 +92,7 @@ suite("Pièces jointes multiples — fils, passeports, fiches saisies avec le po
     await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: RUN } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: RUN } } }).catch(() => {});
     ACTOR = null;
   }, 60_000);
 

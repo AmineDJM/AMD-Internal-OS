@@ -7,7 +7,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { addRequestComment } from "@/lib/actions/admin-request-actions";
@@ -49,7 +49,7 @@ suite("demandes au secrétariat et déclarations — la règle de la fiche", () 
     await prisma.medicalInfoDeclaration.deleteMany({ where: { id: { in: decls.map((x) => x.id) } } }).catch(() => {});
     await prisma.administrativeRequest.deleteMany({ where: { id: { in: reqs.map((x) => x.id) } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }
 
   beforeAll(async () => {

@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, requireModule: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { entitePermisePourFiche } from "@/lib/company";
 import { createFieldReport, deleteFieldReport, submitFieldReport } from "./field-report-actions";
@@ -76,7 +77,7 @@ suite("Rapport terrain — la suppression est réversible, gardée par ligne et 
       await prisma.notification.deleteMany({ where: { userId: { in: uids } } });
       await prisma.auditLog.deleteMany({ where: { actorId: { in: uids } } }).catch(() => undefined);
       await prisma.employee.deleteMany({ where: { userId: { in: uids } } });
-      await prisma.user.deleteMany({ where: { id: { in: uids } } });
+      await retirerComptesEtSemis({ where: { id: { in: uids } } });
     }
     if (cids.length) await prisma.company.deleteMany({ where: { id: { in: cids } } });
   }

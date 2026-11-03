@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createExpenseOrder, dossierHrefByOrder } from "@/modules/finances/api";
 import { decidePaymentRequest, cancelPaymentRequest, nudgePaymentRequest } from "@/modules/finances/actions-demandes";
@@ -61,7 +62,7 @@ suite("Un ordre de dépense, un dossier — quelle que soit sa provenance", () =
     await prisma.expenseOrder.deleteMany({ where: { id: { in: orders } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { requesterId: { in: [requesterId, financeId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   /** Un ordre de matériel promotionnel, comme `promo-material-actions` en émet. */

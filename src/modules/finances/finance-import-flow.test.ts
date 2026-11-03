@@ -9,6 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { importTransactions } from "./actions-tresorerie";
 
@@ -47,7 +48,7 @@ suite("Import CSV des mouvements de trésorerie — compter ce qui est écrit, n
   };
 
   beforeAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     const u = await prisma.user.create({
       data: { name: `${TAG} finances`, email: `${TAG}f@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" },
       select: { id: true, name: true, email: true },
@@ -61,7 +62,7 @@ suite("Import CSV des mouvements de trésorerie — compter ce qui est écrit, n
 
   afterAll(async () => {
     if (acteurId) await purger().catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("une ligne valide et deux écartées : UN mouvement écrit, et les deux lignes nommées avec leur raison", async () => {

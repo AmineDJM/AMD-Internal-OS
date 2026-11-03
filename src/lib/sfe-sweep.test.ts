@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { snapshotMonth } from "@/lib/sfe-sweep";
 
@@ -30,7 +31,7 @@ suite("la clôture d'un mois SFE — une seule fois, par un seul passage", () =>
   async function nettoyer() {
     const comptes = (await prisma.user.findMany({ where: { email: { startsWith: "__sfeclos" } }, select: { id: true } })).map((u) => u.id);
     await prisma.salesRepMonthlyKpi.deleteMany({ where: { repId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   }
 
   beforeAll(async () => {

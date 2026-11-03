@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { avancerMission, lancerMission } from "@/platform/in-process/missions/runtime";
@@ -85,7 +86,7 @@ suite("registre des capacités — composé du réel, alimenté par de vrais éc
 
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { ownerId: pdg.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("l'échec d'une étape porte son MANQUE classé dans le journal — pas une seconde table", async () => {

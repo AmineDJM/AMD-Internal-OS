@@ -8,6 +8,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { retirerComptesPerimes } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
@@ -82,7 +83,7 @@ suite("Terrain — vocal → compte rendu prêt, photo → faits", () => {
     await prisma.medicalDoctor.deleteMany({ where: { name: { contains: TAG } } });
     // LES COMPTES DU BANC, retirés eux aussi (F1, mesuré : un compte par passage restait, et recevait les notifications
     // de rôle de toute la suite). Leurs notifications partent en cascade.
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await retirerComptesPerimes("__terrain_");
   });
 

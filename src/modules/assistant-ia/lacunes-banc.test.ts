@@ -13,6 +13,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { consigneGestesFermes, outilsV1 } from "./infra/outils-v1";
 import { accesAssistantIa } from "./infra/role-config";
@@ -62,7 +63,7 @@ suite("les manques du banc V4-H", () => {
     await prisma.leaveRequest.deleteMany({ where: { employee: { fullName: { contains: TAG } } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG }, managerId: { not: null } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("(3) l'annuaire rend le N+1 et le département — « qui est le manager d'Assia ? »", async () => {

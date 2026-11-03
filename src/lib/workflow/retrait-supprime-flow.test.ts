@@ -8,6 +8,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 import type { UserRole } from "@prisma/client";
 import { readFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { peutSupprimerUneDemandeAdPro, getAdProRequests } from "@/modules/ad-pro/api";
@@ -88,7 +89,7 @@ suite("Retirer une demande Ad & Pro la SUPPRIME — par le cœur réversible, r�
     await prisma.sponsoringRequest.deleteMany({ where: { institution: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(ids) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("PRÉMISSES — personne n'a la vue globale sauf la Direction et le Super Admin ; l'auteur ne SUPPRIME pas sa demande, il la RETIRE", async () => {

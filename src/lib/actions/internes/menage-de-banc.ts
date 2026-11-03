@@ -29,11 +29,12 @@ import { releaseBlob } from "@/lib/drive-storage";
 /**
  * Les modèles dont une colonne `pieceId` RETIENT une pièce — lus dans le schéma Prisma, pour qu'un modèle ajouté demain
  * soit compté sans y penser : tous, sauf ceux qui partent AVEC la pièce (`onDelete: Cascade` : ses fiches, ses liens,
- * ses extractions). Une colonne sans relation (`PaymentRequestEvent`, `AdProVoyageurDevis`…) retient.
+ * ses extractions, les passages de ses fiches). Une colonne sans relation (`PaymentRequestEvent`, `AdProVoyageurDevis`…) retient.
  */
 const MODELES_QUI_RETIENNENT: readonly string[] = Prisma.dmmf.datamodel.models
   .filter((m) => m.name !== "Piece" && m.fields.some((f) => f.name === "pieceId" && f.kind === "scalar"))
-  .filter((m) => !m.fields.some((f) => f.kind === "object" && f.type === "Piece" && f.relationFromFields?.includes("pieceId") && f.relationOnDelete === "Cascade"))
+  // En cascade depuis la pièce, ou depuis ce qui part avec elle (`BibliothequePassage` suit sa fiche par `pieceId`).
+  .filter((m) => !m.fields.some((f) => f.kind === "object" && f.relationFromFields?.includes("pieceId") && f.relationOnDelete === "Cascade"))
   .map((m) => m.name);
 
 type DelegueAPiece = { findMany: (a: { where: { pieceId: { in: string[] } }; select: { pieceId: true } }) => Promise<{ pieceId: string | null }[]> };
@@ -62,7 +63,14 @@ export async function retirerDocumentsEtContenu(args: { where?: Prisma.DocumentW
   const cles = [...new Set(docs.map((d) => d.fileKey).filter((k): k is string => Boolean(k)))];
   const encoreTenues = new Set((await prisma.document.findMany({ where: { fileKey: { in: cles } }, select: { fileKey: true } })).map((d) => d.fileKey));
   for (const cle of cles) if (!encoreTenues.has(cle)) await deleteFileByKey(cle).catch(sansBloquer("menage-de-banc.retirerDocumentsEtContenu.fichier"));
-  await retirerPiecesSansAttache(docs.map((d) => d.pieceId));
+  // Une pièce inscrite depuis un document peut ne tenir à lui que par un LIEN (`inscrireDocumentExistant`) : le lien part
+  // avec le document ; la pièce aussi, si plus aucun autre lien ni aucune colonne ne la désigne (mesuré : les CV de
+  // `site-web/candidatures`, trois par passage).
+  const auDocument = { sujetType: "ENTITE" as const, entityType: "DOCUMENT", sujetId: { in: docs.map((d) => d.id) } };
+  const parLien = [...new Set((await prisma.pieceLien.findMany({ where: auDocument, select: { pieceId: true } })).map((l) => l.pieceId))];
+  await prisma.pieceLien.deleteMany({ where: auDocument });
+  const encoreLiees = new Set((await prisma.pieceLien.findMany({ where: { pieceId: { in: parLien } }, select: { pieceId: true } })).map((l) => l.pieceId));
+  await retirerPiecesSansAttache([...docs.map((d) => d.pieceId), ...parLien.filter((id) => !encoreLiees.has(id))]);
   return r;
 }
 
@@ -108,4 +116,46 @@ export async function retirerPiecesDeComptesDisparus(): Promise<number> {
   const avant = await prisma.piece.count({ where: { id: { in: candidates } } });
   for (let i = 0; i < candidates.length; i += 500) await retirerPiecesSansAttache(candidates.slice(i, i + 500));
   return avant - (await prisma.piece.count({ where: { id: { in: candidates } } }));
+}
+
+// ── CE QUE LES COMPTES D'UN BANC ONT SEMÉ ─────────────────────────────────────────────────────
+
+/**
+ * CE QUE DES COMPTES DE BANC ONT SEMÉ, retiré avec eux : les documents qu'ils ont déposés (`uploadedById`), leurs nœuds
+ * Drive (`createdById`, `ownerId`) — avec le contenu, par les deux portes ci-dessus.
+ *
+ * MESURÉ (03/11, attribution par fichier de test) : les nœuds Drive qu'un passage complet laissait étaient TOUS des
+ * sous-arbres d'un seul auteur — « Mes … importés », « Dossier traité », « Terrain — vocaux et photos »… —, rangés par les
+ * flux de production au nom du compte qui agit. Le banc retirait son compte ; le nœud, lui, restait (`ownerId` passe à
+ * `null`, `createdById` n'est pas une clé étrangère), avec ses versions, ses blobs et ses pièces. Retirer le compte par
+ * cette porte retire ce qui lui pend.
+ *
+ * Un nœud du banc qui contient le nœud d'un AUTRE auteur reste, avec ses ancêtres : jamais le rangement d'un voisin ne part
+ * avec un dossier qu'un compte du banc a ouvert.
+ */
+async function retirerSemisDeComptes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await retirerDocumentsEtContenu({ where: { uploadedById: { in: ids } } });
+  const semes = await prisma.driveNode.findMany({ where: { OR: [{ createdById: { in: ids } }, { ownerId: { in: ids } }] }, select: { id: true, parentId: true } });
+  if (semes.length === 0) return;
+  const parent = new Map(semes.map((n) => [n.id, n.parentId]));
+  const gardes = new Set<string>();
+  const etrangers = await prisma.driveNode.findMany({ where: { parentId: { in: [...parent.keys()] }, id: { notIn: [...parent.keys()] } }, select: { parentId: true } });
+  for (const e of etrangers) for (let p = e.parentId; p && parent.has(p) && !gardes.has(p); p = parent.get(p) ?? null) gardes.add(p);
+  const partants = new Set([...parent.keys()].filter((id) => !gardes.has(id)));
+  const racines = [...partants].filter((id) => { const p = parent.get(id); return !p || !partants.has(p); });
+  if (racines.length > 0) await retirerNoeudsDriveEtContenu({ where: { id: { in: racines } } });
+}
+
+/**
+ * RETIRER DES COMPTES DE BANC (le `prisma.user.deleteMany` d'un banc) — et ce qu'ils ont semé : documents, nœuds Drive et
+ * leur contenu, gestes au journal et envois différés à leur nom. Même filtre, même compte rendu (`{ count }`).
+ */
+export async function retirerComptesEtSemis(args: { where?: Prisma.UserWhereInput } = {}): Promise<{ count: number }> {
+  const ids = (await prisma.user.findMany({ where: args.where, select: { id: true } })).map((u) => u.id);
+  if (ids.length === 0) return { count: 0 };
+  await retirerSemisDeComptes(ids);
+  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } });
+  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } });
+  return prisma.user.deleteMany({ where: { id: { in: ids } } });
 }

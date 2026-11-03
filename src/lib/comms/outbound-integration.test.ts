@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailSendPolicy, OutboundMailStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   createOutboundIntent,
   updateOutboundIntent,
@@ -85,7 +86,7 @@ suite("frontière d'envoi — aucun message ne part sans accord", () => {
     await prisma.outboundMailIntent.deleteMany({ where: { connectionId } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId } }).catch(() => {});
     await prisma.communicationPolicy.deleteMany({ where: { updatedById: userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("préparer n'envoie rien : l'intention attend, le transport n'est jamais appelé", async () => {

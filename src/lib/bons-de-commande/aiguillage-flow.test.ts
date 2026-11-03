@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import {
   createLegalDocument, updateLegalDocument, cancelLegalDocument, deleteLegalDocument,
@@ -111,7 +112,7 @@ suite("Tout BC passe par un centre de validation — le flux réel", () => {
     const comptes = await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } });
     await prisma.notification.deleteMany({ where: { userId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("PRÉMISSE : l'acteur écrit dans Legal et ne siège à AUCUN centre", async () => {

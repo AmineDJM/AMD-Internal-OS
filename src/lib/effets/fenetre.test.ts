@@ -2,6 +2,7 @@
 import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { personneDuGeste } from "@/lib/contexte-geste";
 import type { CurrentUser } from "@/lib/session";
 import { sendSmartEmail } from "@/lib/mail-smart";
@@ -58,7 +59,7 @@ suite("la fenêtre d'annulation des effets sortants (K10b)", () => {
     await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } });
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } });
-    await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    await retirerComptesEtSemis({ where: { id: { in: ids } } });
   });
 
   it("la charge garde les octets et les dates ; le délai est borné et vaut 120 s par défaut", async () => {

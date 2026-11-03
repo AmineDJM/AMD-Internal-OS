@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getMyTeam } from "@/lib/queries/my-team";
 import { teamMemberKpis } from "./my-team-actions";
@@ -87,7 +88,7 @@ suite("Mon Équipe montre tout l'arbre, et n'ouvre les indicateurs qu'à qui enc
     await prisma.leaveRequest.deleteMany({ where: { employeeId: { in: Object.values(emps) } } }).catch(() => {});
     await prisma.administrativeRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: { in: Object.values(emps) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 
   it("LE DEUXIÈME RANG APPARAÎT — quatre cartes ne cachent plus quarante personnes", async () => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { runAssistantReminders } from "./reminders";
 import { POWER_TOOLS } from "./power-tools";
 import type { CurrentUser } from "@/lib/session";
@@ -47,7 +48,7 @@ suite("le canal d'un rappel — l'e-mail différé cesse d'être « impossible �
   afterAll(async () => {
     await prisma.assistantReminder.deleteMany({ where: { title: { startsWith: "__canal" } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: "__canal" } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: "__canal" } } }).catch(() => {});
   });
 
   it("« dans 2 minutes, par e-mail » se planifie — l'outil ne refuse rien", async () => {

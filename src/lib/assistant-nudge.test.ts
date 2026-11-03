@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getUnreadDigest } from "./assistant-nudge";
 import { assistantNudge } from "@/lib/actions/assistant-actions";
@@ -51,7 +52,7 @@ suite("Assistant flottant — suggestion proactive (digest non lus + coût maît
 
   afterAll(async () => {
     await prisma.conversation.deleteMany({ where: { id: { in: convIds } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("le digest repère le message non lu adressé à Alice (pas les siens)", async () => {

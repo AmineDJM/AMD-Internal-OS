@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { featureEnabled, listFeatures, FEATURES } from "./features";
 
 /**
@@ -27,7 +28,7 @@ suite("Drapeaux de version — cloisonnement test / production", () => {
 
   afterAll(async () => {
     await prisma.featureFlag.deleteMany({ where: { key: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("une nouveauté inconnue est créée AU STADE TEST (jamais livrée par accident)", async () => {

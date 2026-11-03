@@ -33,6 +33,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { requireUser, getCurrentUser, getCurrentUserPourEcrire } from "@/lib/session";
 
 const TAG = "__vuex__";
@@ -43,13 +44,13 @@ const suite = dbOk ? describe : describe.skip;
 suite("Vue exacte — qui agit", () => {
   let admin = "", cible = "";
   beforeAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
     admin = (await prisma.user.create({ data: { name: `${TAG}Admin`, email: `${TAG}admin@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } })).id;
     cible = (await prisma.user.create({ data: { name: `${TAG}Cible`, email: `${TAG}cible@t.dz`, role: "MEDICAL_DELEGATE", passwordHash: "x" } })).id;
     SESSION = { user: { id: admin, role: "SUPER_ADMIN", name: `${TAG}Admin`, email: `${TAG}admin@t.dz` } };
     COOKIE = cible;
   });
-  afterAll(async () => { await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }); });
+  afterAll(async () => { await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }); });
 
   it("une LECTURE (page, téléchargement) voit l'OS comme la personne visualisée", async () => {
     EN_TETES = new Headers();

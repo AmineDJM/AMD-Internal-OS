@@ -16,6 +16,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { annulerGeste } from "@/lib/effets/annulation";
 import { mettreAJourDossiersEnLot } from "@/lib/actions/dossier-actions";
@@ -55,7 +56,7 @@ suite("T3 — salles, réservations et dossiers en lot : exécuter, puis annuler
     await prisma.moyenGeneral.deleteMany({ where: { libelle: { contains: TAG } } }).catch(() => undefined);
     await prisma.dossier.deleteMany({ where: { title: { contains: TAG } } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: MG.id } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: MG.id } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: MG.id } }).catch(() => undefined);
   });
 
   it("creerMoyenGeneral → annulé : la fiche disparaît", async () => {

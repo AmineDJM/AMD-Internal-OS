@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { deleteBudgetCategory, deleteEnvelope } from "./budget-envelope-actions";
 
@@ -47,7 +48,7 @@ suite("suppression d'une catégorie ou d'une enveloppe budgétaire — les dépe
   afterAll(async () => {
     await prisma.budgetExpenseLine.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: TAG } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("refuse de supprimer la catégorie de TÊTE dont une sous-catégorie porte une dépense — la dépense survit", async () => {

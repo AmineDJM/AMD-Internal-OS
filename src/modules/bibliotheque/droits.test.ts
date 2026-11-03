@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { canAccessConversation } from "@/lib/messaging";
@@ -122,7 +122,7 @@ suite("Bibliothèque — la recherche rend exactement ce que la règle d'ouvertu
     await prisma.feedback.deleteMany({ where: { id: ids?.retour } }).catch(() => {});
     await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.storedFile.deleteMany({ where: { key: { startsWith: `DIRECTIVE/${TAG}` } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   /** Ce que la règle d'ouverture de chaque famille ouvre à cette personne — appelée telle quelle. */

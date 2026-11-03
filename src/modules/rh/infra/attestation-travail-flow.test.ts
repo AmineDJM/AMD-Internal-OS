@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
@@ -104,7 +105,7 @@ suite("Attestation de travail — préremplie par le contrat, générée, versio
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
     const comptes = await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } });
     await prisma.notification.deleteMany({ where: { userId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("la porte : sans le droit de traiter les demandes RH, ni préparation ni génération ; une autre demande n'est pas une attestation", async () => {

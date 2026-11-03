@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, peutVoirAdam, REFUS_ADAM, type SessionUser } from "@/lib/rbac";
 import { executeAssistantAction, assistantChat } from "@/lib/actions/assistant-actions";
 import { setAdamMailPolicy } from "@/lib/actions/adam-settings-actions";
@@ -174,7 +175,7 @@ suite("les actions serveur d'Adam, appelées sans passer par l'écran", () => {
   const u: Record<string, string> = {};
 
   beforeAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
     u.dir = (await prisma.user.create({ data: { name: `${TAG} dir`, email: `${TAG}dir@t.dz`, role: "DIRECTION", passwordHash: "x" } })).id;
     u.sa = (await prisma.user.create({ data: { name: `${TAG} sa`, email: `${TAG}sa@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } })).id;
   });
@@ -182,7 +183,7 @@ suite("les actions serveur d'Adam, appelées sans passer par l'écran", () => {
   afterAll(async () => {
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("exécuter une carte : refusé à la Direction, la garde laisse passer le Super Admin", async () => {

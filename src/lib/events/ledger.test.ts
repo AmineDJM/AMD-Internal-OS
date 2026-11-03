@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { recordEvent, timelineOf } from "./ledger";
 
 /**
@@ -31,7 +32,7 @@ suite("le registre d'événements et la preuve des tâches", () => {
   afterAll(async () => {
     await prisma.businessEvent.deleteMany({ where: { actorId: userId } }).catch(() => {});
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un dépôt de contrat INSCRIT la preuve sur la tâche — sans la clore", async () => {

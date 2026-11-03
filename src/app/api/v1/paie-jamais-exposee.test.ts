@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { generateApiKey } from "@/lib/api/auth";
 import { GET as aspectGET } from "./entities/[entity]/[id]/[aspect]/route";
 
@@ -52,7 +53,7 @@ suite("API v1 — fiche employé : aucune donnée de paie", () => {
     await prisma.auditLog.deleteMany({ where: { entityId: employeId } }).catch(() => undefined);
     await prisma.payrollEntry.deleteMany({ where: { employeeId: employeId } }).catch(() => undefined);
     await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: userId } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: userId } }).catch(() => undefined);
   }, 60_000);
 
   /** Le montant comme NOMBRE (`11111`, `"11111.00"`), pas comme suite de chiffres au milieu d'un identifiant aléatoire. */

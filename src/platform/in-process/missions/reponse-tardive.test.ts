@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { assurerCompteAgent } from "@/lib/missions/agent/account";
 import { relancerAttente } from "@/platform/in-process/missions/relance";
 import { emettreMessageRecu } from "@/lib/events/messaging-events";
@@ -39,7 +40,7 @@ suite("réponse tardive après relance — rien ne se perd, rien n'est interpré
     await prisma.notification.deleteMany({ where: { userId: { in: [ownerId, raihanaId] } } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { ownerId } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [ownerId, raihanaId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [ownerId, raihanaId] } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
   }, 120_000);
 

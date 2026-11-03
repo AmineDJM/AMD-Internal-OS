@@ -2,6 +2,7 @@
 import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { executerAction } from "@/lib/actions/executer";
 import { personneDuGeste } from "@/lib/contexte-geste";
 import type { CurrentUser } from "@/lib/session";
@@ -29,7 +30,7 @@ suite("la simulation transactionnelle (J7)", () => {
   afterAll(async () => {
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("une écriture directe est capturée (avant, après, champs) puis annulée", async () => {

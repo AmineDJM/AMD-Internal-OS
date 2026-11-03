@@ -18,7 +18,7 @@ vi.mock("@/lib/factures/connues", async (orig) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview, getEnvelopesGrandTotal } from "@/lib/queries/budget";
 import { rapportMarketing } from "@/lib/queries/budget-marketing-rapport";
@@ -178,7 +178,7 @@ suite("Intégration des dépenses réelles Ad & Pro 2026 — de bout en bout", (
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } });
     await prisma.careBeneficiary.deleteMany({ where: { lastName: { startsWith: TAG } } });
     await prisma.auditLog.deleteMany({ where: { actorId: actor.id } });
-    await prisma.user.deleteMany({ where: { id: actor.id } });
+    await retirerComptesEtSemis({ where: { id: actor.id } });
   });
 
   const choix = (): ChoixDemande[] => [

@@ -21,7 +21,7 @@ vi.mock("@/lib/documents", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
@@ -121,7 +121,7 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
     await retirerDocumentsEtContenu({ where: { name: `${RUN}piece.pdf` } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
   }, 60_000);
 
   it("CRÉER une demande (brouillon) → retirée ; PRÉCISER puis CORRIGER → valeurs d'avant remises", async () => {

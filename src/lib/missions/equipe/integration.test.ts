@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { Clock } from "@/lib/missions/ports";
 import { contrat, depotDeBanc, type ForgeGitLocale } from "@/lib/missions/chantiers/integration-test-outils";
 import { avancerFile, deposerEnFile, forgeGardee, gardeEcritureRef, prendreLaTete, validerIntegration } from "@/lib/missions/equipe/integration";
@@ -47,7 +48,7 @@ suite("file d'intégration — vrai git, vraie base (O2-3)", () => {
   });
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("A renomme `f`, B appelle `f` : chacun vert, Git ne voit RIEN ; la CI du résultat intégré bloque B", { timeout: 60_000 }, async () => {

@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { createCongressRequest } from "./actions-congres";
 import { addCareBeneficiary, decideCareBeneficiary, marquerPriseEnChargeRealisee, sendCareToFinance } from "./actions-prise-en-charge";
@@ -83,7 +84,7 @@ suite("Prise en charge — « Marquer réalisée » après l'envoi aux Finances"
     await prisma.dossier.deleteMany({ where: { id: { in: sujets } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { OR: [{ user: { email: { startsWith: TAG } } }, { body: { contains: TAG } }] } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { OR: [{ actorId: { in: [pmId, saId, horsId] } }, { entityId: natId }] } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;
   });
 

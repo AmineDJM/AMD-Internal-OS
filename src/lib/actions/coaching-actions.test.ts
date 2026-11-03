@@ -8,6 +8,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import {
   creerFicheCoaching, enregistrerGrilleCoaching, finaliserFicheCoaching, modifierFicheCoaching, supprimerFicheCoaching,
@@ -102,7 +103,7 @@ suite("Fiche de coaching — grille, fiches, droits, export", () => {
     await prisma.salesRepProfile.deleteMany({ where: { repId: { in: uids } } });
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.notification.deleteMany({ where: { userId: { in: uids } } });
-    await prisma.user.deleteMany({ where: { id: { in: uids } } });
+    await retirerComptesEtSemis({ where: { id: { in: uids } } });
   }
 
   const creer = async (acteur: string, champs: Record<string, string>) => {

@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { saveFile } from "@/lib/storage";
 import { putBlob } from "@/lib/drive-storage";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "./menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "./menage-de-banc";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -32,6 +32,7 @@ suite("le ménage de banc rend le stockage", () => {
     await prisma.document.deleteMany({ where: { entityId: TAG } }).catch(() => {});
     await prisma.storedFile.deleteMany({ where: { key: { startsWith: TAG } } }).catch(() => {});
     await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un document retiré emporte sa clé de stockage et son blob", async () => {
@@ -71,5 +72,46 @@ suite("le ménage de banc rend le stockage", () => {
     expect(await blobExiste(partage.blobId), "un blob qu'un nœud hors du dossier tient doit rester").toBe(true);
     await retirerNoeudsDriveEtContenu({ where: { id: ailleurs } });
     expect(await blobExiste(partage.blobId)).toBe(false);
+  });
+
+  it("un compte retiré emporte ce qu'il a semé — documents, nœuds Drive, blobs ; un dossier qui tient le nœud d'un voisin reste", async () => {
+    const compte = (n: string) => prisma.user.create({ data: { email: `${TAG}${n}@banc.local`, name: `${TAG}${n}`, passwordHash: "!" }, select: { id: true } });
+    const banc = await compte("banc");
+    const voisin = await compte("voisin");
+    const cle = `${TAG}/depose.pdf`;
+    const { blobId: blobDoc } = await saveFile(cle, contenu());
+    await prisma.document.update({ where: { id: (await document(cle)).id }, data: { uploadedById: banc.id } });
+    const noeud = (name: string, type: "FOLDER" | "FILE", par: string, parentId: string | null = null) =>
+      prisma.driveNode.create({ data: { name: `${TAG} ${name}`, type, parentId, createdById: par, ownerId: par }, select: { id: true } });
+    const importes = await noeud("importés", "FOLDER", banc.id);
+    const fichier = await noeud("f", "FILE", banc.id, importes.id);
+    const b = await putBlob(contenu());
+    await prisma.fileVersion.create({ data: { nodeId: fichier.id, blobId: b.blobId, version: 1, size: b.size } });
+    const partage = await noeud("partagé", "FOLDER", banc.id);
+    const chezLeVoisin = await noeud("du voisin", "FILE", voisin.id, partage.id);
+
+    expect(await retirerComptesEtSemis({ where: { id: banc.id } })).toEqual({ count: 1 });
+    expect(await prisma.document.count({ where: { fileKey: cle } }), "le document déposé est resté").toBe(0);
+    expect(await blobExiste(blobDoc)).toBe(false);
+    expect(await prisma.driveNode.count({ where: { id: { in: [importes.id, fichier.id] } } }), "le sous-arbre du compte est resté").toBe(0);
+    expect(await blobExiste(b.blobId), "le blob de sa version est resté").toBe(false);
+    expect(await prisma.driveNode.count({ where: { id: { in: [partage.id, chezLeVoisin.id] } } }), "le rangement du voisin est parti avec le dossier").toBe(2);
+    await retirerComptesEtSemis({ where: { id: voisin.id } });
+    await retirerNoeudsDriveEtContenu({ where: { id: partage.id } });
+  });
+
+  it("une pièce qui ne tient au document que par un LIEN part avec lui ; une pièce qu'un autre lien désigne reste", async () => {
+    const piece = (n: string) => prisma.piece.create({ data: { empreinte: `${TAG}${n}`, nom: `${TAG}${n}.pdf` }, select: { id: true } });
+    const lien = (pieceId: string, sujetId: string) => prisma.pieceLien.create({ data: { pieceId, sujetType: "ENTITE", entityType: "DOCUMENT", sujetId, role: "OTHER" } });
+    const d = await document(`${TAG}/lie.pdf`);
+    const seule = await piece("seule");
+    const partagee = await piece("partagee");
+    await lien(seule.id, d.id);
+    await lien(partagee.id, d.id);
+    await lien(partagee.id, `${TAG}-autre-document`);
+    expect(await retirerDocumentsEtContenu({ where: { id: d.id } })).toEqual({ count: 1 });
+    expect(await prisma.piece.count({ where: { id: seule.id } }), "la pièce du seul document est restée").toBe(0);
+    expect(await prisma.piece.count({ where: { id: partagee.id } }), "une pièce qu'un autre document désigne est partie").toBe(1);
+    await prisma.piece.deleteMany({ where: { empreinte: { startsWith: TAG } } });
   });
 });

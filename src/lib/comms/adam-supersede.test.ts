@@ -1,6 +1,7 @@
 import { beforeAll, afterAll, afterEach, describe, expect, it } from "vitest";
 import { OutboundMailStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { createOutboundIntent } from "./outbound";
 import { solePendingMailIntent } from "./approve-execute";
@@ -92,7 +93,7 @@ suite("un affinage REMPLACE le brouillon — il ne le concurrence pas", () => {
   afterAll(async () => {
     await prisma.outboundMailIntent.deleteMany({ where: { connectionId } });
     await prisma.googleConnection.deleteMany({ where: { id: connectionId } });
-    await prisma.user.deleteMany({ where: { id: userId } });
+    await retirerComptesEtSemis({ where: { id: userId } });
   });
 
   it("le blocage exact du transcript : deux préparations au MÊME destinataire, « oui » doit conclure", async () => {
@@ -223,6 +224,6 @@ suite("un affinage REMPLACE le brouillon — il ne le concurrence pas", () => {
 
     await prisma.outboundMailIntent.deleteMany({ where: { connectionId: cx.id } });
     await prisma.googleConnection.deleteMany({ where: { id: cx.id } });
-    await prisma.user.deleteMany({ where: { id: autre.id } });
+    await retirerComptesEtSemis({ where: { id: autre.id } });
   });
 });

@@ -21,7 +21,7 @@ vi.mock("@/lib/budget-marketing/rapprochement-luna", async (orig) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { saveFile, deleteFileByKey } from "@/lib/storage";
 import { getBudgetOverview } from "@/lib/queries/budget";
@@ -135,7 +135,7 @@ suite("Rapprochement Ad & Pro — de bout en bout", () => {
     await prisma.budgetCategoryLine.deleteMany({ where: { envelopeId: envId } });
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [actor.id, autre.id] } } });
-    await prisma.user.deleteMany({ where: { id: { in: [actor.id, autre.id] } } });
+    await retirerComptesEtSemis({ where: { id: { in: [actor.id, autre.id] } } });
   });
 
   it("1. gardes : qui ne gère pas l'enveloppe ne voit rien et ne décide rien", async () => {

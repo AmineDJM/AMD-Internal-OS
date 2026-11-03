@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { createAccountWithInvite, issueInvite, inviteState, redeemInvite, INVITE_TTL_HOURS } from "./user-invites";
 
 /**
@@ -24,7 +25,7 @@ suite("création de compte par lien d'invitation (jamais de mot de passe transmi
   afterAll(async () => {
     await prisma.userInvite.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("crée le compte INCONNECTABLE + un lien 72 h ; l'e-mail dupliqué est refusé", async () => {

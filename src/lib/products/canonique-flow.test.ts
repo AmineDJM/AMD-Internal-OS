@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { createRegulatoryProduct, updateRegulatoryProduct, updateRegulatoryStatus } from "@/lib/actions/regulatory-actions";
 import { createPromoProduct, updatePromoProduct } from "@/lib/actions/sales-planning-actions";
@@ -108,7 +109,7 @@ suite("produit = dossier, branché aux portes qui créent et corrigent les dossi
     await prisma.regulatoryProduct.deleteMany({ where: { id: { in: dossiers } } }).catch(() => {});
     await prisma.product.deleteMany({ where: { id: { in: [...new Set([...produits, ...parTag])] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [adminId, assistId, opsId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [adminId, assistId, opsId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [adminId, assistId, opsId] } } }).catch(() => {});
   });
 
   it("un dossier COMPLET reçoit son produit à sa création — clé, nom distinctif, historique", async () => {

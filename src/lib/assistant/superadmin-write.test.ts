@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, performAction } from "@/lib/assistant";
@@ -70,7 +71,7 @@ suite("le Chief fait tout — demandes de tâches, relance, corbeille, comptes",
     await prisma.notification.deleteMany({ where: { body: { startsWith: TAG } } }).catch(() => {});
     await prisma.deletedRecord.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("DEMANDE DE TÂCHE : la carte dit le circuit (accepter/refuser) et l'exécution passe par le cœur canonique", async () => {

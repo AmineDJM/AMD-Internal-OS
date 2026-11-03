@@ -19,7 +19,7 @@ vi.mock("@/lib/documents", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createPaymentRequest, submitPaymentRequest, updatePaymentRequestDetails } from "./actions-demandes";
 import { deferExpenseOrder, resumeExpenseOrder, settleExpenseOrder } from "./actions-depenses";
@@ -70,7 +70,7 @@ suite("Demande de paiement — le dossier porte sa justification, et le règleme
     await prisma.paymentRequest.deleteMany({ where: { id: { in: created } } }).catch(() => {});
     await retirerDocumentsEtContenu({ where: { name: `${TAG}piece.pdf` } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("une demande SANS pièce qui engage est refusée — un bon de livraison ne suffit pas", async () => {

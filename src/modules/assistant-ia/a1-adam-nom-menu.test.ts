@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, peutPiloterMissionsAdam, peutUtiliserAssistantIA, peutVoirAdam } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { ADAM_TABS, MODULE_LABELS, NAVIGATION, WORKSPACE_TABS, versEcranAdam } from "@/lib/labels";
@@ -69,7 +70,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
 });
 
 describe("1 · le NOM — « Adam » partout, la clé de module et les droits inchangés", () => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
@@ -73,7 +74,7 @@ suite("what_changed — le diff tracé depuis une date, l'état actuel en face",
   afterAll(async () => {
     await prisma.auditLog.deleteMany({ where: { entityId: payId } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { reference: REF } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("est réservé au siège exécutif, comme time_travel", () => {

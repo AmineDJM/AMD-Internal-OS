@@ -5,6 +5,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { depenseDuPoste, type FaitsDepensePoste } from "@/lib/budget/depense-poste";
 import { chargerOrdresDesFinances } from "@/modules/finances/api";
 import { purgeSettledExpenseOrders } from "@/modules/finances/actions-depenses";
@@ -71,7 +72,7 @@ suite("purgeSettledExpenseOrders — un masque d'écran, jamais une suppression"
     await prisma.financeTransaction.deleteMany({ where: { id: ecriture } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: adminId } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: societe } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: adminId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: adminId } }).catch(() => {});
   });
 
   it("les ordres réglés et annulés RESTENT en base, avec leur écriture et leur dossier ; l'ordre ouvert n'est pas touché", () => exclusifEntreBancs(PURGE_HISTORIQUE, async () => {

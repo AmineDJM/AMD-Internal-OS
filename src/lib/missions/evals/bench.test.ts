@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { consignerMesure } from "@/lib/evals/registre";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { avancer } from "@/lib/missions/runtime/engine";
 import { chargerEtat, materialiser } from "@/lib/missions/runtime/store";
 import { compile } from "@/lib/missions/compiler/compile";
@@ -141,7 +142,7 @@ suite("BANC D'ESSAI — Mission Runtime", () => {
 
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.operationalTemplate.deleteMany({ where: { ownerId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("SCÉNARIO 1 — trois étapes, du premier coup", async () => {

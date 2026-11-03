@@ -1,5 +1,6 @@
 import { beforeAll, afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { executePowerTool } from "./power-tools";
@@ -96,7 +97,7 @@ suite("un effectif ne sort jamais sans son périmètre", () => {
     // On ne nettoie QUE ce que ce test a créé, par identifiant.
     await prisma.employee.deleteMany({ where: { id: { in: created.employees } } }).catch(() => undefined);
     await prisma.company.deleteMany({ where: { id: { in: created.companies } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: created.users } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: created.users } } }).catch(() => undefined);
   });
 
   it("sans filtre : le périmètre est NOMMÉ, et il dit « toute la plateforme »", async () => {

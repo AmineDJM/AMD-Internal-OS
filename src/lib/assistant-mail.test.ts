@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { buildProposal, performAction, executeReadTool } from "./assistant";
 
@@ -23,7 +24,7 @@ suite("Assistant IA — outils e-mail (Courrier)", () => {
     user = await actorFor(u.id, "MEDICAL_DELEGATE"); // utilisateur SANS boîte mail connectée
   });
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   /**

@@ -17,6 +17,7 @@ vi.mock("@/auth", () => ({ auth: async () => SESSION, signIn: async () => {}, si
 vi.mock("@/lib/vue-exacte", () => ({ effacerVueExacte: () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { supplierLogin } from "./supplier-portal-actions";
 import { changePassword } from "./auth-actions";
 import { MAX_FAILURES, cleChangementMotDePasse, cleConnexionPortail } from "@/lib/login-throttle";
@@ -45,7 +46,7 @@ suite("Limite d'essais du mot de passe — portail fournisseur et changement de 
     await prisma.userSession.deleteMany({ where: { userId: ids.salarie } }).catch(() => {});
     await prisma.supplierUser.deleteMany({ where: { supplierId: ids.fournisseur } }).catch(() => {});
     await prisma.supplier.deleteMany({ where: { id: ids.fournisseur } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: ids.salarie } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: ids.salarie } }).catch(() => {});
   }, 60_000);
 
   it("portail : après cinq échecs, le bon mot de passe est refusé ; un autre compte passe", async () => {

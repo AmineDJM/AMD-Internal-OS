@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { activeStandInsFor } from "@/lib/hr/stand-in-resolve";
@@ -63,7 +64,7 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
     await prisma.employee.updateMany({ where: { id: { in: fiches } }, data: { managerId: null } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: { in: fiches } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   }
 
   beforeAll(async () => {
@@ -363,6 +364,13 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
 
   it("R2 — UNE ANNULATION APRÈS LA PRISE, AVANT L'ORDRE : l'ordre émis est annulé, et la décision le dit", async () => {
     const { id, approval } = await approbationChiffree("Course ordre");
+    // LA DEMANDE EST CONFIÉE À L'ASSISTANTE DU BANC, pour que l'annulation ne prévienne qu'elle. Non confiée, elle
+    // prévient TOUTES les assistantes de direction actives de la base — celles des bancs voisins comprises —, et
+    // pendant que la barrière tient `ExpenseOrder` : un voisin qui retire son compte attend la barrière (le
+    // `ON DELETE SET NULL` de `ExpenseOrder.requestedById` écrit dans la table), la notification attend ce retrait (sa
+    // clé étrangère vers le compte), la barrière attend l'annulation — un cycle que Postgres ne voit pas, jusqu'au
+    // délai du test (R2, une fois par suite complète environ ; reproduit à trois connexions le 03/11).
+    await prisma.administrativeRequest.update({ where: { id }, data: { assignedToId: u.asst } });
     ACTOR = await acteur(u.n1);
     const r = await pendantLaLecture("ExpenseOrder",
       () => decideApproval(form({ approvalId: approval, decision: "APPROVED" })),

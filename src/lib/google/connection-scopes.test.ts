@@ -1,5 +1,6 @@
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getGoogleStatus, saveGoogleConnection } from "./connection";
 import { GOOGLE_SCOPES } from "./config";
 
@@ -55,7 +56,7 @@ afterEach(async () => {
 afterAll(async () => {
   if (!dbOk) return;
   await prisma.googleConnection.deleteMany({ where: { userId: { in: cree } } });
-  await prisma.user.deleteMany({ where: { id: { in: cree } } });
+  await retirerComptesEtSemis({ where: { id: { in: cree } } });
 });
 
 suite("connexion Google — l'écran de réglages après un vrai consentement", () => {

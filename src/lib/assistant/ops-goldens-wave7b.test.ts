@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -71,7 +72,7 @@ suite("ops vague 7b — réunions avancées, agenda, commentaires", () => {
     await prisma.meetingMessage.deleteMany({ where: { meeting: { title: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.meetingParticipant.deleteMany({ where: { meeting: { title: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.meeting.deleteMany({ where: { title: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
   };
   beforeAll(balayer);
   afterAll(balayer);

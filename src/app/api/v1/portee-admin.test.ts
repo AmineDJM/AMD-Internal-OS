@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { generateApiKey } from "@/lib/api/auth";
 import { GET as listGET } from "./entities/[entity]/route";
 import { GET as ficheGET } from "./entities/[entity]/[id]/route";
@@ -38,7 +39,7 @@ suite("API v1 — comptes et journal d'audit : la portée `erp.admin` est exigé
   afterAll(async () => {
     await prisma.apiCall.deleteMany({ where: { clientId: { in: clients } } }).catch(() => undefined);
     await prisma.apiClient.deleteMany({ where: { id: { in: clients } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: adminId } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: adminId } }).catch(() => undefined);
   }, 60_000);
 
   it("sans `erp.admin` : la liste des comptes et du journal est refusée, la fiche d'un compte aussi", async () => {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
@@ -70,7 +70,7 @@ suite("investigate_event — l'événement reconstitué depuis toutes ses traces
   afterAll(async () => {
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.calendarEvent.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("GOLDEN E — le SIGLE retrouve l'organisation réelle et les traces hors table Events", async () => {
@@ -136,7 +136,7 @@ suite("inspect_drive_folder — l'exploration récursive en un tour", () => {
     await prisma.driveTextIndex.deleteMany({ where: { node: { name: { in: ["scan_bc.pdf", "document2.pdf"] }, owner: { email: { startsWith: TAG } } } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { OR: [{ name: { startsWith: TAG } }, { owner: { email: { startsWith: TAG } } }] } }).catch(() => {});
     await prisma.fileBlob.deleteMany({ where: { sha256: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("GOLDEN D — déposants réels + BC stricts ≠ assimilés + récursif, EN UN SEUL APPEL", async () => {

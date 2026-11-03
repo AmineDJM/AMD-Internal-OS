@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { assurerCompteAgent, idCompteAgent } from "@/lib/missions/agent/account";
 import { relancerEngagements } from "@/platform/in-process/missions/commitments";
 import { satisfaireEngagements } from "@/lib/missions/commitments/satisfy";
@@ -93,7 +94,7 @@ suite("ENGAGEMENTS — tenus tout seuls, relancés quand ils ne le sont pas", ()
     await prisma.message.deleteMany({ where: { conversation: { members: { some: { userId: promettantId } } } } }).catch(() => {});
     await prisma.conversation.deleteMany({ where: { members: { some: { userId: promettantId } } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [ownerId, promettantId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("§29-32 — une promesse en retard est RELANCÉE par Adam, auprès de la personne qui a promis", async () => {

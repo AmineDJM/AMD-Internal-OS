@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getDriveSpacesForUser, getDriveListing, getDriveTabs } from "./drive";
 
@@ -42,7 +43,7 @@ suite("Catégories Drive : accès partagé (consultation vs gestion) + isolement
 
   afterAll(async () => {
     await prisma.driveSpace.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("getAccess ouvre le module Drive (accès implicite via la catégorie partagée)", async () => {

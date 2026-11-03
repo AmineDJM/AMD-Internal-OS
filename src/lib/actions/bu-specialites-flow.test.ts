@@ -10,6 +10,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
   createBusinessUnit, updateBusinessUnit, enregistrerSpecialitesBu,
@@ -55,7 +56,7 @@ suite("Les spécialités d'une Business Unit (§118.183)", () => {
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG, mode: "insensitive" } } }).catch(() => {});
     await prisma.medicalSpecialty.deleteMany({ where: { name: { startsWith: TAG, mode: "insensitive" } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
   };
 
   beforeAll(async () => {

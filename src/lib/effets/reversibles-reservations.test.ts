@@ -16,7 +16,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
@@ -114,7 +114,7 @@ suite("K10c — fiches de voyage : exécuter, annuler, rétablir", () => {
     await prisma.dossier.deleteMany({ where: { id: { in: tous } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { userId: { in: users } } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: users } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: users } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: users } } }).catch(() => undefined);
   }, 60_000);
 
   it("envoyerFiche (premier envoi) : la demande, le sujet ouvert pour elle et les notifications sont retirés", async () => {

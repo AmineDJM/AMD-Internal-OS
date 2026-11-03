@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { recordArtifact, cleanupRun, verifyClean } from "./manifest";
 import { seedSyntheticUsers } from "./synthetic";
 
@@ -17,8 +18,8 @@ suite("Test Center — manifeste : nettoyage garanti + invariant de sûreté", (
   afterAll(async () => {
     // Filet de sécurité : on nettoie NOS propres traces (jamais celles d'autrui).
     await prisma.testRun.deleteMany({ where: { initiatedById: TAG } }).catch(() => {});
-    if (created.length) await prisma.user.deleteMany({ where: { id: { in: created } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { contains: `@${TAG}.invalid` } } }).catch(() => {});
+    if (created.length) await retirerComptesEtSemis({ where: { id: { in: created } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { contains: `@${TAG}.invalid` } } }).catch(() => {});
   });
 
   it("supprime les ressources du manifeste et vérifie leur absence, SANS toucher une donnée hors-manifeste", async () => {

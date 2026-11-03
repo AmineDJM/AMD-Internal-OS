@@ -14,6 +14,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { annulerGeste } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
@@ -48,7 +49,7 @@ suite("T2 — l'annuaire en lot : exécuté, annulé d'un coup, rétabli", () =>
     await prisma.medicalInstitution.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.salesSector.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: `${TAG}@banc.dz` } });
+    await retirerComptesEtSemis({ where: { email: `${TAG}@banc.dz` } });
   });
 
   it("appliquerLotAnnuaire : deux fiches modifiées en un geste ; l'annulation remet les deux ; le rétablissement les refait", async () => {

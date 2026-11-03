@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { modeleFactice } from "../testing/modele-factice";
 import { effacerJournalDe } from "../testing/journal";
 import { remplacerModelesPourTests } from "../generer";
@@ -42,7 +43,7 @@ suite("résumé roulant du fil (J4)", () => {
   afterAll(async () => {
     remplacerModelesPourTests(null);
     await effacerJournalDe([userId]);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("résume les échanges sortis de la fenêtre, sans jamais une valeur sensible — et une seule fois", async () => {

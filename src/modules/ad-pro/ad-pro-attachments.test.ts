@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 
@@ -65,7 +66,7 @@ suite("Ad&Pro — joindre une pièce", () => {
     await prisma.event.deleteMany({ where: { id: eventId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: sponsoringId } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: [directionId, pmId, demandeurId, etrangerId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("LA DIRECTION JOINT SA FACTURE — elle décide du dossier", async () => {

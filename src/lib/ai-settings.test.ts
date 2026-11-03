@@ -70,6 +70,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { aiFeatureEnabled, logAiUsage, getAiSettings } from "./ai-settings";
 import { updateAiSettings } from "./actions/ai-settings-actions";
@@ -109,7 +110,7 @@ suite("Centre de contrôle IA — bascules & journal d'usage", () => {
   afterAll(async () => {
     await prisma.aiUsageLog.deleteMany({ where: { feature: { startsWith: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("le Super Admin enregistre les bascules ; un non-admin est refusé", async () => {

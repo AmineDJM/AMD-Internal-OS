@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { addRegistration, createEvent, publicRegister, setRegistrationStatus, updateEvent } from "./actions-evenements";
 import { addAdProItem } from "./actions-postes";
@@ -75,7 +76,7 @@ suite("Événements externes — par les actions", () => {
     await prisma.adProItem.deleteMany({ where: { eventId: { in: [nouveau, ancien].filter(Boolean) } } }).catch(() => {});
     await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: saId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;
   });
 

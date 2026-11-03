@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { peutEnregistrerOnlyoffice } from "@/lib/onlyoffice-session";
 
 /**
@@ -46,7 +46,7 @@ suite("onlyoffice — peutEnregistrerOnlyoffice", () => {
   afterAll(async () => {
     await prisma.driveShare.deleteMany({ where: { nodeId: noeud } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { id: noeud } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("le propriétaire du fichier peut enregistrer", async () => {

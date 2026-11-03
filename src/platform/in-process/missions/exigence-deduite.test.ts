@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { lancerMission } from "@/platform/in-process/missions/runtime";
@@ -59,7 +60,7 @@ suite("une exigence déduite d'un mot ne tue pas une mission", () => {
   }, 60_000);
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { ownerId: pdg.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: pdg.id } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: pdg.id } }).catch(() => {});
   }, 60_000);
 
   it("« un tableau » sans étape ARTIFACT : la mission PART, et la lacune est dite", async () => {

@@ -11,6 +11,7 @@ vi.mock("@/lib/session", () => ({
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   ouvrirPlanTournee, planifierVisites, soumettrePlanTournee, deciderPlanTournee, escaladerPlanTournee,
@@ -104,7 +105,7 @@ suite("Plan de tournée — écran, validation, rapport, dénominateur", () => {
     await prisma.salesRepProfile.deleteMany({ where: { businessUnit: { name: { startsWith: TAG } } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   // ── LE PANEL ────────────────────────────────────────────────────────────────────────────

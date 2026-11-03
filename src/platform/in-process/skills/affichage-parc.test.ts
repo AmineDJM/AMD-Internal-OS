@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { executePowerTool, powerToolsFor } from "@/lib/assistant/power-tools";
@@ -66,7 +67,7 @@ suite("l'écran suit les capacités qu'on n'a PAS écrites", () => {
     __configurerPourTests({ config: null, fetchImpl: null });
     await prisma.adamSkill.deleteMany({ where: { ownerId: pdg.id } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: pdg.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("UN CONNECTEUR déclaré : les lignes du service tiers arrivent à l'écran en TABLEAU, sans une ligne dans le cœur", async () => {

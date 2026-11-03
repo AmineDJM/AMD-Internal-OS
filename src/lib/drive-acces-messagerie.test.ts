@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { resolveDriveAccess } from "@/lib/drive";
 import { getDriveListing } from "@/lib/queries/drive";
@@ -71,7 +71,7 @@ suite("Drive — pièce jointe à un message : la lecture suit l'appartenance au
     await prisma.conversation.deleteMany({ where: { id: convId } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.driveSpace.deleteMany({ where: { id: espaceId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un membre présent lit le fichier du lot partagé — un non-membre, non", async () => {

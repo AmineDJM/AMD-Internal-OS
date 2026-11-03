@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   createRegulatoryProduct, checkDciDuplicate, requestRegulatoryDossierAccess,
@@ -107,7 +108,7 @@ suite("Une DCI déjà présente est signalée avant la création", () => {
     await purgerProduitsDuBanc();
     await prisma.notification.deleteMany({ where: { body: { contains: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [adminId, assistId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { shortName: TAG } }).catch(() => {});
   }, 120_000);
 

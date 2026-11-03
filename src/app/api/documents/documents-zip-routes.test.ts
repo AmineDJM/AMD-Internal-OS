@@ -33,7 +33,7 @@ vi.mock("@/lib/storage/object-storage", async (orig) => {
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { saveFile } from "@/lib/storage";
 import { GET as zipGET } from "./[id]/zip/route";
@@ -104,7 +104,7 @@ suite("Documents — parcourir un ZIP et le télécharger", () => {
     await prisma.fileBlob.deleteMany({ where: { id: { in: stored.map((s) => s.blobId) } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
     await prisma.regulatoryProduct.deleteMany({ where: { id: produit } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => undefined);
   }, 60_000);
 
   it("liste un ZIP stocké en base (forme du Drive) et en sert une entrée", async () => {

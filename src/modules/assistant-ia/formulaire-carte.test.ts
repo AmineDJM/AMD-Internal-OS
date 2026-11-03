@@ -18,6 +18,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 import { chercherReferenceCarteAssistantIA, confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
@@ -54,7 +55,7 @@ suite("le formulaire de la carte (J11)", () => {
     const ids = [sa?.id, karim?.id, samia?.id].filter(Boolean) as string[];
     await prisma.task.deleteMany({ where: { title: { contains: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("la carte porte le formulaire du contrat ; corrigée (titre, responsable) puis signée, l'action crée la version CORRIGÉE", async () => {

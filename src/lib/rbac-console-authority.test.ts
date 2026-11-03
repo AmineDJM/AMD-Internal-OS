@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 
 let dbOk = false;
@@ -62,7 +63,7 @@ suite("La console d'administration fait autorité sur l'accès aux modules", () 
 
   afterAll(async () => {
     await prisma.userAccess.deleteMany({ where: { userId: { in: [rhId, deleId, assistId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   const asUser = async (id: string, role: SessionUser["role"]) =>

@@ -19,7 +19,7 @@ vi.mock("@/lib/documents", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
@@ -81,7 +81,8 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     await retirerDocumentsEtContenu({ where: { name: `${TAG}piece.pdf` } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(u) } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: Object.values(u) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await prisma.company.deleteMany({ where: { name: { startsWith: `${TAG}entité-` } } }).catch(() => {});
   });
 
   /** Une demande déposée par le délégué : brouillon, ou transmise (facture + moyen de paiement). */
@@ -166,9 +167,9 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     expect(err(await corriger("req", { id, amount: "0" }))).toBe("Indiquez un montant positif.");
     expect(err(await corriger("req", { id, dueDate: "pas une date" }))).toBe("Échéance illisible.");
     // Une entité réelle, que le délégué n'a pas : sans elle, le cas ne mesurerait que la clé étrangère.
-    const autre = await prisma.company.findFirst({ select: { id: true } });
-    expect(autre, "décor : il faut une entité en base").not.toBeNull();
-    expect(err(await corriger("req", { id, companyId: autre!.id }))).toMatch(/ne vous est pas ouverte/);
+    // L'entité est À CE BANC : empruntée, c'était parfois celle d'un voisin, retirée avant d'être désignée.
+    const autre = await prisma.company.create({ data: { name: `${TAG}entité-${Date.now().toString(36)}` }, select: { id: true } });
+    expect(err(await corriger("req", { id, companyId: autre.id }))).toMatch(/ne vous est pas ouverte/);
     expect(Number((await demande(id)).amount)).toBe(500_000);
   });
 

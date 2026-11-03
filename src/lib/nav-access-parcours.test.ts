@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, canViewBdProjects, peutVoirAdam, type SessionUser } from "@/lib/rbac";
 import { navigationFor } from "@/lib/nav-access";
 import type { NavItem } from "@/lib/labels";
@@ -56,7 +57,7 @@ suite("le menu d'un employé ordinaire ne promet que ce qui s'ouvre", () => {
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG }, managerId: { not: null } } });
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } });
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   }
 
   it("« Projets » n'est PAS au menu de qui ne voit pas Regulatory", async () => {

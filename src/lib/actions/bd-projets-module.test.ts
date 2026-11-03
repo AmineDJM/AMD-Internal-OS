@@ -6,6 +6,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, canViewBdProjects, canManageBdProjects, MODULES, PERMISSIONS, ACTIONS, type SessionUser } from "@/lib/rbac";
 import { isRetiredModule } from "@/lib/modules-retired";
 import { NAVIGATION } from "@/lib/labels";
@@ -134,7 +135,7 @@ suite("Projets — réglé dans la console, et chaque projet appartient à une e
     await prisma.bdProject.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }
 

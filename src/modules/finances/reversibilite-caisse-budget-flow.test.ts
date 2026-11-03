@@ -10,7 +10,7 @@ vi.mock("@/lib/session", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
@@ -132,7 +132,7 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: dept } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
     ACTOR = null;
   }, 60_000);
 
@@ -466,7 +466,7 @@ suite("K10a — la dépense d'un poste Ad & Pro se défait d'un geste", () => {
     await prisma.budgetCategoryLine.deleteMany({ where: { envelopeId: envId } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: pmId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: pmId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: pmId } }).catch(() => {});
     ACTOR = null;
   }, 60_000);
 

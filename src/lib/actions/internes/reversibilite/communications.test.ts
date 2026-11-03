@@ -2,7 +2,7 @@
 import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { couvertes, nettoyer, outilsDeTest, personneDeTest } from "./banc";
 import { CAS_INTERNES } from "./cas-internes";
@@ -69,7 +69,7 @@ async function menage(tag: string, personnes: string[]): Promise<void> {
   await prisma.mailPartner.deleteMany({ where: { name: { startsWith: tag } } }).catch(() => undefined);
   await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: tag } } }).catch(() => undefined);
   await prisma.auditLog.deleteMany({ where: { actorId: { in: personnes } } }).catch(() => undefined);
-  await prisma.user.deleteMany({ where: { id: { in: personnes } } }).catch(() => undefined);
+  await retirerComptesEtSemis({ where: { id: { in: personnes } } }).catch(() => undefined);
 }
 
 /**

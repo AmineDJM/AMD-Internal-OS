@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { arreterMissionsDeDiagnostic } from "@/platform/in-process/missions/provider-smoke";
 
 /**
@@ -32,7 +33,7 @@ suite("les missions de diagnostic ne survivent pas au diagnostic", () => {
   }, 60_000);
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { ownerId: owner } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("arrête ce qui vit encore (BLOCKED, RUNNING), respecte ce qui est fini (COMPLETED), ignore les absents", async () => {

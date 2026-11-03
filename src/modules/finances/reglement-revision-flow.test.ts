@@ -19,6 +19,7 @@ vi.mock("./infra/comptes", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { reviserOrdreNonRegle } from "./infra/revision-ordre";
 import { settleExpenseOrder } from "./actions-depenses";
@@ -60,7 +61,7 @@ suite("settleExpenseOrder — une révision à la baisse pendant le règlement",
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: comptableId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: comptableId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: comptableId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: comptableId } }).catch(() => {});
   });
 
   it("PRÉMISSE : la baisse garde l'autorisation du centre", async () => {

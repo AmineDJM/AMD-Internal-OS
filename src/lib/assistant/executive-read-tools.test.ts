@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { executePowerTool } from "./power-tools";
 
@@ -81,7 +82,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.calendarEvent.deleteMany({ where: { id: { in: ids } } });
-  await prisma.user.deleteMany({ where: { id: { in: [moi, collegue] } } });
+  await retirerComptesEtSemis({ where: { id: { in: [moi, collegue] } } });
 });
 
 describe("read_calendar sur une PÉRIODE passée", () => {

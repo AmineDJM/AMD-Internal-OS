@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -71,7 +71,7 @@ suite("ops vague 8 — fichiers first-class", () => {
     await prisma.department.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: PREFIXE } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
   };
   beforeAll(balayer);
   afterAll(balayer);

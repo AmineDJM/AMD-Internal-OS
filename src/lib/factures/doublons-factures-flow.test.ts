@@ -46,7 +46,7 @@ vi.mock("@/lib/pieces-lues/lecture-fichier", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { sealSecret } from "@/lib/crypto/secret-box";
 import { repererEntetes } from "@/lib/pieces-lues/entetes";
@@ -182,7 +182,7 @@ suite("Doublons de factures — blocage aux portes, relance unifiée, recensemen
     await prisma.lecturePiece.deleteMany({ where: { empreinte: { in: empreintes } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
   });
 
   let blocage: { cible: { type: string; id: string }; jeton: string } | null = null;

@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { METRICS, metricDef, valeurDe } from "@/lib/metrics/catalog";
 import { metriquesMarche, metriquesProduit, moisEnCommun } from "./metrics";
 import { ensureProduct } from "@/lib/products/resolve";
@@ -77,7 +78,7 @@ suite("les métriques calculées", () => {
     await prisma.pchTender.deleteMany({ where: { id: { in: marches } } }).catch(() => {});
     await prisma.product.deleteMany({ where: { id: { in: produits } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: utilisateurs } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: utilisateurs } } }).catch(() => {});
   });
 
   it("ZÉRO ET « ON NE SAIT PAS » NE SE CONFONDENT PAS", async () => {

@@ -10,6 +10,7 @@ vi.mock("next/link", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { loadLegalChain, MAILLON_HORS_PERIMETRE, AMONT_HORS_PERIMETRE } from "./legal-chain";
 import { LegalChainCard } from "@/app/(app)/legal/[id]/chain-card";
@@ -50,7 +51,7 @@ suite("la chaîne d'une pièce Legal — un maillon illisible garde sa place, sa
     await prisma.expenseOrder.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.promoMaterial.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   }
 
   beforeAll(async () => {

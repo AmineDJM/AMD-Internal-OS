@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { chargerCentre, LIMITE_LIGNES_CENTRE } from "./centre-paiement";
 import { ENTITE_SANS } from "../../domaine/sections-centre";
@@ -45,7 +46,7 @@ suite("le centre de paiement : entités puis sections, par le chargeur", () => {
     await prisma.consultingContract.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.paymentCentreSeat.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.userCompanyAccess.deleteMany({ where: { companyId: { in: socIds } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: socIds } } }).catch(() => {});
   }
 

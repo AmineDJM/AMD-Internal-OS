@@ -2,6 +2,7 @@
 import "@/lib/assistant";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { CAPABILITY_OPS_IMPL } from "@/lib/assistant/ops/impl-capabilite";
@@ -66,7 +67,7 @@ suite("Désignation par le nom, dans le chemin générique", () => {
   afterAll(async () => {
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.userCompanyAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 

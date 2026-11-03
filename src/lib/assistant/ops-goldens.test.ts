@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, performAction, type AssistantActionPayload } from "@/lib/assistant";
@@ -226,7 +226,7 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
     await prisma.supplier.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.businessDevelopmentOpportunity.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
   });
 
   describe("ops Drive — résolution par nom, ACL réelle, CRITIQUE", () => {

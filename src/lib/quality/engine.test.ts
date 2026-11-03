@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { consignerMesure } from "@/lib/evals/registre";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { balayerQualite } from "./engine";
 import { REGLES, REGLES_SANS_DETECTEUR, DETECTEURS_SANS_REGLE, detecter } from "./rules";
 import { corrigerConstat, ignorerConstat } from "./decide";
@@ -31,8 +32,9 @@ async function nettoyer() {
   await prisma.supplier.deleteMany({ where: { name: { startsWith: P } } });
   await prisma.employee.deleteMany({ where: { fullName: { startsWith: P } } });
   await prisma.department.deleteMany({ where: { name: { startsWith: P } } }).catch(() => undefined);
+  await prisma.company.deleteMany({ where: { name: { startsWith: P } } });
   // Insensible à la casse : le compte « __DQ__Majuscules » du cas e-mail normalisable doit partir aussi.
-  await prisma.user.deleteMany({ where: { OR: [{ email: { startsWith: "__dq__", mode: "insensitive" } }, { name: { startsWith: P } }] } });
+  await retirerComptesEtSemis({ where: { OR: [{ email: { startsWith: "__dq__", mode: "insensitive" } }, { name: { startsWith: P } }] } });
   await prisma.auditLog.deleteMany({ where: { summary: { contains: P } } }).catch(() => undefined);
 }
 
@@ -51,7 +53,8 @@ describe("moteur de qualité des données — banc d'anomalies plantées", () =>
     const e5 = await prisma.employee.create({ data: { fullName: `${P} Sans rien`, isActive: true, baseSalary: 100000 } });
     const e6 = await prisma.employee.create({ data: { fullName: `${P} Mail cassé`, email: "pas-un-mail", isActive: true, baseSalary: 100000, hireDate: jours(-100) } });
     // Le témoin est PROPRE au sens des règles : e-mail, département, date d'embauche, dates cohérentes.
-    const dept = (await prisma.department.findFirst({ select: { id: true } })) ?? (await prisma.department.create({ data: { name: `${P} Département témoin`, code: "DQT" }, select: { id: true } }));
+    // Le département et la société sont À CE BANC : empruntés, c'étaient souvent ceux d'un voisin, retirés en cours de route.
+    const dept = await prisma.department.create({ data: { name: `${P} Département témoin`, code: "DQT" }, select: { id: true } });
     const temoin = await prisma.employee.create({ data: { fullName: `${P} Témoin Propre`, email: "temoin.propre@dq.test", isActive: true, baseSalary: 100000, hireDate: jours(-200), contractStart: jours(-200), contractEnd: jours(200), departmentId: dept.id } });
     Object.assign(ids, { e1: e1.id, e2: e2.id, e3: e3.id, e4: e4.id, e5: e5.id, e6: e6.id, temoin: temoin.id });
 
@@ -59,12 +62,12 @@ describe("moteur de qualité des données — banc d'anomalies plantées", () =>
     const s2 = await prisma.supplier.create({ data: { name: `${P} HÉTÉRO LABS`, active: true, contactEmail: null } });
     Object.assign(ids, { s1: s1.id, s2: s2.id });
 
-    const anyCompany = await prisma.company.findFirst({ select: { id: true } });
+    const anyCompany = await prisma.company.create({ data: { name: `${P} Société du banc` }, select: { id: true } });
     // Les deux molécules sont SYNTHÉTIQUES, exprès : le banc de résolution d'entités (`fabric/entites.test.ts`) exige
     // qu'aucun autre jeu de données ne porte ses molécules (« Sofosbuvir + Velpatasvir » y vit), et les deux
     // bancs tournent en parallèle sur la même base — un doublon se juge sur la DCI TRIÉE, n'importe quels deux noms font l'affaire.
-    const p1 = await prisma.regulatoryProduct.create({ data: { reference: `${P}-P1`, dci: "Alphavirine + Betavirine", dosage: "400", dosageUnit: "mg", pharmaceuticalForm: "Comprimé", packaging: "B/28", status: "SUBMITTED", companyId: anyCompany?.id ?? null, responsibleId: desactive.id, updatedAt: jours(-200) } as never });
-    const p2 = await prisma.regulatoryProduct.create({ data: { reference: `${P}-P2`, dci: "Betavirine + Alphavirine", dosage: "400", dosageUnit: "MG", pharmaceuticalForm: "comprimé", packaging: "b/28", status: "IN_PREPARATION", companyId: anyCompany?.id ?? null, targetSubmissionDate: jours(60), targetDate: jours(30) } as never });
+    const p1 = await prisma.regulatoryProduct.create({ data: { reference: `${P}-P1`, dci: "Alphavirine + Betavirine", dosage: "400", dosageUnit: "mg", pharmaceuticalForm: "Comprimé", packaging: "B/28", status: "SUBMITTED", companyId: anyCompany.id, responsibleId: desactive.id, updatedAt: jours(-200) } as never });
+    const p2 = await prisma.regulatoryProduct.create({ data: { reference: `${P}-P2`, dci: "Betavirine + Alphavirine", dosage: "400", dosageUnit: "MG", pharmaceuticalForm: "comprimé", packaging: "b/28", status: "IN_PREPARATION", companyId: anyCompany.id, targetSubmissionDate: jours(60), targetDate: jours(30) } as never });
     Object.assign(ids, { p1: p1.id, p2: p2.id });
     // `updatedAt` est géré par Prisma : on force l'ancienneté par SQL pour le cas « périmé ».
     await prisma.$executeRawUnsafe(`UPDATE "RegulatoryProduct" SET "updatedAt" = $1 WHERE id = $2`, jours(-200), p1.id);

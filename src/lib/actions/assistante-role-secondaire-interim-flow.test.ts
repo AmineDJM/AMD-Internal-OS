@@ -7,7 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
@@ -100,7 +100,7 @@ suite("L'assistante de direction — rôle secondaire reconnu, intérim et réaf
     await prisma.notification.deleteMany({ where: { createdAt: { gte: DEBUT }, OR: [{ user: { email: { startsWith: TAG } } }, { body: { contains: TAG } }] } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [pmId, daId, da2Id, interimId, horsId] } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;
   });
 

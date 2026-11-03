@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { setTenderLineBusinessUnits } from "./pch-tender-line-actions";
 
@@ -63,7 +64,7 @@ suite("Affecter un lot d'appel d'offres à une Business Unit", () => {
     await prisma.pchTenderLine.deleteMany({ where: { tenderId } }).catch(() => {});
     await prisma.pchTender.deleteMany({ where: { id: tenderId } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { id: { in: [buA, buB] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   async function affecter(...ids: string[]) {

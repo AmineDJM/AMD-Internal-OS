@@ -21,6 +21,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { remplacerModelesPourTests } from "./infra/generer";
@@ -181,7 +182,7 @@ suite("contre la base, au faux modèle", () => {
     await prisma.employeeDocument.deleteMany({ where: { employee: { fullName: { contains: TAG } } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   const outil = (u: CurrentUser, nom: string, coffret?: CoffretDuTour, props: PropositionPreparee[] = []) => {

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { IDENTITE_VIDE, type IdentiteEmetteur } from "./emetteur";
 import { fournisseurDuDevisDansLAnnuaire } from "./devis-poste-lecture";
 
@@ -35,7 +36,7 @@ afterAll(async () => {
   await prisma.legalDocument.deleteMany({ where: { id: { in: docs } } });
   await prisma.auditLog.deleteMany({ where: { actorId: userId } }).catch(() => undefined);
   await prisma.companyContact.deleteMany({ where: { OR: [{ name: { startsWith: TAG } }, { createdById: userId }] } });
-  await prisma.user.deleteMany({ where: { id: userId } });
+  await retirerComptesEtSemis({ where: { id: userId } });
 });
 
 describe("le fournisseur d'un devis déposé, dans l'annuaire", () => {

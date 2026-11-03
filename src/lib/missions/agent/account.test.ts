@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
+import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import {
   ADAM_EMAIL, SANS_MOT_DE_PASSE, assurerCompteAgent, estCompteSysteme, idCompteAgent, peutSeConnecter,
 } from "@/lib/missions/agent/account";
@@ -22,6 +24,8 @@ const suite = dbOk ? describe : describe.skip;
 
 let cree = false;
 
+const comptes = comptesDeBanc("__agentcompte_");
+
 suite("l'espace d'Adam dans l'ERP", () => {
   beforeAll(async () => {
     const avant = await idCompteAgent();
@@ -29,10 +33,11 @@ suite("l'espace d'Adam dans l'ERP", () => {
   }, 60_000);
 
   afterAll(async () => {
+    await comptes.retirer();
     // On ne supprime le compte QUE si ce banc l'a créé : sur une base où Adam travaille déjà,
     // l'effacer emporterait ses missions en cascade.
     if (cree) {
-      await prisma.user.deleteMany({ where: { email: ADAM_EMAIL, isSystem: true } }).catch(() => {});
+      await retirerComptesEtSemis({ where: { email: ADAM_EMAIL, isSystem: true } }).catch(() => {});
     }
   }, 60_000);
 
@@ -89,10 +94,9 @@ suite("l'espace d'Adam dans l'ERP", () => {
     const c = await assurerCompteAgent();
     expect(await estCompteSysteme(c!.id)).toBe(true);
 
-    const humain = await prisma.user.findFirst({
-      where: { isSystem: false }, select: { id: true },
-    });
-    if (humain) expect(await estCompteSysteme(humain.id)).toBe(false);
+    // Une personne À CE BANC : empruntée, elle pouvait disparaître avant d'être lue — et le test le prendrait pour un refus.
+    const humain = await comptes.creer("humain");
+    expect(await estCompteSysteme(humain.id)).toBe(false);
   }, 60_000);
 
   it("MALGRÉ SUPER_ADMIN, Adam ne peut PAS toucher aux droits — et la personne, si", async () => {

@@ -15,6 +15,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { annulerGeste } from "@/lib/effets/annulation";
 import { validerMonChantier } from "@/modules/assistant-ia/actions-travaux";
@@ -79,7 +80,7 @@ suite("C1 — valider un chantier : exécuter, annuler (retirer ou compenser)", 
     await prisma.mission.deleteMany({ where: { ownerId: moi.id } }).catch(() => undefined);
     await prisma.memoireTechnique.deleteMany({ where: { cle: { contains: TAG.toLowerCase() } } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: moi.id } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: moi.id } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: moi.id } }).catch(() => undefined);
   }, 60_000);
 
   it("avant la fusion : la validation est retirée, l'étape attend de nouveau la Direction", async () => {

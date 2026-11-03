@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { putBlob, getBlob, releaseBlob } from "@/lib/drive-storage";
 import { checkAttachment, MAX_ATTACHMENTS_PER_FEEDBACK } from "@/lib/files/attachment-policy";
 import { canReadFeedback, canRemoveFeedbackAttachment } from "./access";
@@ -74,7 +75,7 @@ afterAll(async () => {
   if (!dbOk) return;
   await prisma.feedbackAttachment.deleteMany({ where: { feedbackId: { in: feedbacks } } });
   await prisma.feedback.deleteMany({ where: { id: { in: feedbacks } } });
-  await prisma.user.deleteMany({ where: { id: { in: users } } });
+  await retirerComptesEtSemis({ where: { id: { in: users } } });
 });
 
 suite("retours — pièces jointes réelles", () => {

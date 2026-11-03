@@ -13,6 +13,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 import { accesAssistantIa } from "./infra/role-config";
@@ -82,7 +83,7 @@ suite("F2 · TR-RH-01/02/04/06 — son congé, son absence, son avance, son atte
     await prisma.hrDocumentRequest.deleteMany({ where: empl }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: radia?.id } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   const outil = async (nom: string, props: PropositionPreparee[]) => {
@@ -191,7 +192,7 @@ suite("F2 · TR-VX-02 — « combien de jours de congé il me reste ? » à la v
     await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: u?.id } }).catch(() => {});
     await prisma.assistantIaVoixSession.deleteMany({ where: { userId: u?.id } }).catch(() => {});
     await prisma.assistantIaFil.deleteMany({ where: { userId: u?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Voix` } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: `${TAG}Voix` } } }).catch(() => {});
   });
 
   it("le travail est lancé : la voix DIT « je regarde » ; la consigne d'attente est à part, jamais dans ce qui est dit", async () => {
@@ -243,7 +244,7 @@ suite("F2 · MI-01 — le plan du banc, relu par la persona réelle d'un KAM (ba
   });
   afterAll(async () => {
     await prisma.userAccess.deleteMany({ where: { userId: kam?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Kam` } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: `${TAG}Kam` } } }).catch(() => {});
   });
 
   it("« trouver_outil » est résolu en la lecture des demandes Ad & Pro ouverte à la personne ; le plan passe", async () => {
@@ -275,7 +276,7 @@ suite("F2 · MG-10 — le fil REPREND une demande dont le modèle n'a pas répon
     remplacerLecteurInterrupteurIaPourTests(null);
     remplacerModelesPourTests(null);
     await prisma.assistantIaFil.deleteMany({ where: { userId: u?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Reprise` } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: `${TAG}Reprise` } } }).catch(() => {});
   });
 
   it("premier appel en panne → la cause est dite, la demande est rejouée, la réponse arrive", async () => {
@@ -302,7 +303,7 @@ suite("F2 · TR-LO-01 — deux cartes indépendantes coexistent ; seule une cart
   afterAll(async () => {
     await prisma.task.deleteMany({ where: { OR: [{ title: { contains: TAG } }, { description: { contains: TAG } }] } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: sofiane?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Sofiane` } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: `${TAG}Sofiane` } } }).catch(() => {});
   });
   const tache = async (entree: Record<string, unknown>) => {
     const props: PropositionPreparee[] = [];
@@ -354,7 +355,7 @@ suite("F2 · TR-EV-01 — la BU se désigne par son nom (base réelle)", () => {
     await prisma.assistantActionIntent.deleteMany({ where: { userId: nesrine?.id } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: nom } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: nesrine?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Nesrine` } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: `${TAG}Nesrine` } } }).catch(() => {});
   });
 
   it("« BU Hépatologie » dans la demande de congrès : résolue en la gamme, jamais « quel est l'identifiant de la BU ? »", async () => {
@@ -374,7 +375,7 @@ suite("F2 · TR-MU-03 — un mail au destinataire introuvable : la carte est pr�
   beforeAll(async () => { meriem = await compte("Meriem", "REGULATORY_ASSISTANT"); });
   afterAll(async () => {
     await prisma.assistantActionIntent.deleteMany({ where: { userId: meriem?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Meriem` } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: `${TAG}Meriem` } } }).catch(() => {});
   });
 
   it("jamais « rien n'est préparé » : une carte, le destinataire à compléter ; confirmée sans lui, rien ne part", async () => {
@@ -422,7 +423,7 @@ suite("F2 · TR-LM-04 — un article hors catalogue est proposé en saisie libre
     await prisma.promoCatalogueArticle.deleteMany({ where: { nom: { contains: marque } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: yanis?.id } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: yanis?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}Yanis` } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: `${TAG}Yanis` } } }).catch(() => {});
   });
 
   it("« 3 cartons de brochures » (hors catalogue) et « 2 boîtes de stylos » : deux lignes ; confirmée, la brochure entre en « Autre article »", async () => {
@@ -459,7 +460,7 @@ suite("F2 · AN-ANNULER-03 — « annule cette demande » : la carte non confirm
   beforeAll(async () => { kam = await compte("KamAnnule", "SUPER_ADMIN"); });
   afterAll(async () => {
     await prisma.assistantActionIntent.deleteMany({ where: { userId: kam?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: `${TAG}KamAnnule` } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: `${TAG}KamAnnule` } } }).catch(() => {});
   });
   it("la dernière carte proposée passe à « annulée », la raison au journal ; une carte confirmée n'est jamais touchée", async () => {
     ACTEUR = kam;

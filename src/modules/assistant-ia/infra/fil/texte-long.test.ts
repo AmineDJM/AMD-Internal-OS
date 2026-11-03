@@ -5,7 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerModelesPourTests } from "../generer";
 import { modeleFactice } from "../testing/modele-factice";
@@ -57,7 +57,7 @@ suite("un texte long n'est jamais coupé", () => {
     await retirerNoeudsDriveEtContenu({ where: { ownerId: moi.id } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: moi.id } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: moi.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("60 000 caractères arrivent ENTIERS au modèle", async () => {

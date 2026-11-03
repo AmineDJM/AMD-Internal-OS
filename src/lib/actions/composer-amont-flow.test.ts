@@ -8,7 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { compositionDesPieces } from "@/lib/queries/composition-pieces";
 import { AMONT_HORS_PERIMETRE, piecesAmontProposees } from "@/lib/queries/legal-chain";
@@ -135,7 +135,7 @@ suite("Legal — une pièce composée suit sa pièce amont : proposée par la po
     await prisma.userCompanyAccess.deleteMany({ where: { companyId: { in: [C1, C2] } } }).catch(() => {});
     await prisma.companyLegalIdentity.deleteMany({ where: { companyId: { in: [C1, C2] } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [C1, C2] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 
   it("PRÉMISSE : le DG compose les pièces de Legal sans vue globale ; les Finances composent factures et BC sans lire les devis", () => {

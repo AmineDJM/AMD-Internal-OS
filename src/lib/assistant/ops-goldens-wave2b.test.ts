@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -84,7 +85,7 @@ suite("ops vague 2b — recrutement, formations, missions, pièces, information 
     await prisma.documentRequest.deleteMany({ where: { reference: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.medicalInfoDocRequest.deleteMany({ where: { declaration: { reference: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.medicalInfoDeclaration.deleteMany({ where: { reference: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
   };
   beforeAll(balayer);
   afterAll(balayer);

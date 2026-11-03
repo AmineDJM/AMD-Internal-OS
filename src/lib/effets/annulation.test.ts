@@ -2,7 +2,7 @@
 import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { executerAction } from "@/lib/actions/executer";
 import { personneDuGeste } from "@/lib/contexte-geste";
 import type { CurrentUser } from "@/lib/session";
@@ -79,7 +79,7 @@ suite("l'annulation honnête, sur 50 cas réels (J7)", () => {
     await prisma.meeting.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => undefined);
     await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
     // LE COMPTE, ASSERTÉ : le banc doit couvrir 50 cas, et la propriété « rien d'écrasé » doit avoir été éprouvée.
     expect(cas).toBeGreaterThanOrEqual(50);
     expect(preservations).toBeGreaterThanOrEqual(10);

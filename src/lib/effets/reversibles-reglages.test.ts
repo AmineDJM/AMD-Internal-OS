@@ -14,6 +14,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
@@ -80,7 +81,7 @@ suite("K10c — réglages et diffusion : exécuter, annuler, rétablir", () => {
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => undefined);
     await prisma.mission.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => undefined);
   }, 60_000);
 
   it("ma veille : la valeur d'avant revient ; rétablir remet la nouvelle", async () => {

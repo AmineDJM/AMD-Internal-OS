@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { creerLoteur } from "@/lib/fabric/bulk";
 import { indexDriveNodeText } from "@/lib/assistant/document-discovery";
 import { POWER_TOOLS } from "@/lib/assistant/power-tools";
@@ -120,7 +120,7 @@ suite("fabric/bulk — branché dans find_documents (le vrai point d'entrée, §
     await prisma.entityMention.deleteMany({ where: { nodeId: { in: noeuds } } }).catch(() => {});
     await prisma.driveTextIndex.deleteMany({ where: { nodeId: { in: noeuds } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { id: { in: noeuds } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("MESURE — huit candidats hydratés en UNE requête, et la couverture le DIT", async () => {

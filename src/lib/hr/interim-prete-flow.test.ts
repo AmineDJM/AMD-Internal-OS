@@ -9,6 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, estPrete, accesAttribue, PERMISSIONS, type SessionUser } from "@/lib/rbac";
 import { detenteurPourInterim } from "@/lib/hr/stand-in-resolve";
 import { modulesPretables, delegatedActions } from "@/lib/hr/stand-in";
@@ -75,7 +76,7 @@ suite("l'intérim ne prête jamais plus que ce que l'absent détient", () => {
     await prisma.notification.deleteMany({ where: { createdAt: { gte: DEBUT }, body: { contains: PREFIXE } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: { in: fiches } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
   }
 

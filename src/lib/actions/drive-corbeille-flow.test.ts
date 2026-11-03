@@ -7,7 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { putBlob, getBlob } from "@/lib/drive-storage";
 import { trashNode, restoreNode, deleteNode } from "@/lib/actions/drive-actions";
@@ -75,7 +75,7 @@ suite("Drive — corbeille du Drive, puis corbeille du Super Admin", () => {
     await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } });
     if (blobId) await prisma.fileBlob.deleteMany({ where: { id: blobId } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    await retirerComptesEtSemis({ where: { id: { in: ids } } });
   });
 
   it("la corbeille du Drive rend l'élément à sa place", async () => {

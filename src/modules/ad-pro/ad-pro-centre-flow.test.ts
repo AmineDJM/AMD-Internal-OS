@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { seuilAdProEnVigueur, lireVisaAdPro, poserVisaAdPro } from "./infra/visa";
 import { demandesAuCentreAdPro } from "./infra/requetes/centre";
@@ -104,7 +105,7 @@ suite("Centre de validation Ad & Pro — le flux réel", () => {
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.consultingTask.deleteMany({ where: { contract: { reference: { startsWith: TAG } } } }).catch(() => {});
     await prisma.consultingContract.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("AU-DESSUS du seuil : la soumission POSE le visa, et la décision est BLOQUÉE", async () => {

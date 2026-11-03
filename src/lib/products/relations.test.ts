@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import { ensureProduct } from "./resolve";
 
 /**
@@ -24,11 +25,14 @@ const suite = dbOk ? describe : describe.skip;
 const TAG = `ZZREL${Date.now()}`;
 const produits: string[] = [];
 const ventes: string[] = [];
+/** La personne qui porte le produit est À CE BANC (un compte emprunté peut partir avec son banc, et l'affectation avec lui). */
+const comptes = comptesDeBanc("__prodrel_");
 
 suite("les relations du produit canonique", () => {
   afterAll(async () => {
     await prisma.sale.deleteMany({ where: { id: { in: ventes } } }).catch(() => {});
     await prisma.product.deleteMany({ where: { id: { in: produits } } }).catch(() => {});
+    await comptes.retirer();
   });
 
   it("supprimer un produit N'EFFACE PAS la vente — elle perd sa clé, pas sa valeur", async () => {
@@ -57,8 +61,7 @@ suite("les relations du produit canonique", () => {
 
   it("supprimer un produit EMPORTE ses lignes de liaison — une imputation orpheline ne veut rien dire", async () => {
     const p = await ensureProduct({ dci: `${TAG}liaison`, dosage: "5", dosageUnit: "mg", form: "Gélule" });
-    const user = await prisma.user.findFirst({ select: { id: true } });
-    if (!user) return; // base sans utilisateur : rien à prouver ici
+    const user = await comptes.creer("liaison");
 
     const aff = await prisma.productAssignment.create({
       data: { productId: p!.id, userId: user.id, role: "DELEGATE", allocationPct: 40 },
@@ -73,8 +76,7 @@ suite("les relations du produit canonique", () => {
   it("la même personne peut RE-porter un produit plus tard — la date fait partie de l'unicité", async () => {
     const p = await ensureProduct({ dci: `${TAG}reprise`, dosage: "1", dosageUnit: "g", form: "Injectable" });
     produits.push(p!.id);
-    const user = await prisma.user.findFirst({ select: { id: true } });
-    if (!user) return;
+    const user = await comptes.creer("reprise");
 
     const hier = new Date("2024-01-01");
     const aujourdhui = new Date("2026-01-01");

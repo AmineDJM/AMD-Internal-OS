@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -75,7 +76,7 @@ suite("ops vague 5b — prises en charge, matériel promotionnel, stock", () => 
     await prisma.careBeneficiary.deleteMany({ where: { lastName: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.congressNational.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
   };
   beforeAll(balayer);
   afterAll(balayer);

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getRisks } from "./risks";
 import { runAutopilot } from "@/lib/actions/adventum-actions";
@@ -43,7 +44,7 @@ suite("Adventum Brain — Risk Radar + Autopilot", () => {
     await prisma.task.deleteMany({ where: { title: { contains: ref } } }).catch(() => {});
     await prisma.pchTender.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("détecte la caution PCH proche de l'expiration (risque critique + action Autopilot)", async () => {

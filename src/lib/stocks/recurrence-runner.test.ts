@@ -6,6 +6,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   createStockRecurrence, updateStockRecurrence, setStockRecurrenceStatus, deleteStockRecurrence,
@@ -51,7 +52,7 @@ async function nettoyer() {
   await prisma.notification.deleteMany({ where: { user: { email: { endsWith: `${TAG}.test` } } } });
   await prisma.auditLog.deleteMany({ where: { actor: { email: { endsWith: `${TAG}.test` } } } });
   await prisma.stockAnnex.deleteMany({ where: { name: { startsWith: TAG } } });
-  await prisma.user.deleteMany({ where: { email: { endsWith: `${TAG}.test` } } });
+  await retirerComptesEtSemis({ where: { email: { endsWith: `${TAG}.test` } } });
 }
 
 function fd(entries: Record<string, string | string[]>): FormData {

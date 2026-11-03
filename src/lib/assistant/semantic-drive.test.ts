@@ -31,7 +31,7 @@ vi.mock("@/lib/openai-luna", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
@@ -80,7 +80,7 @@ suite("sémantique Drive — le sens retrouve ce que le lexical rate (embedder d
   afterAll(async () => {
     await prisma.driveTextIndex.deleteMany({ where: { node: { owner: { email: { startsWith: TAG } } } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     resetDriveSemanticCache();
   });
 

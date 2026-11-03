@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { chargerPiecesLegalDeLaDemande, clausePiecesDeLaDemande } from "./pieces-legal-demande";
 
@@ -69,7 +69,7 @@ suite("les pièces Legal de la demande — hors postes, droits pièce par pièce
     await prisma.legalDocument.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { label: { startsWith: TAG } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   };
 
   beforeAll(async () => {

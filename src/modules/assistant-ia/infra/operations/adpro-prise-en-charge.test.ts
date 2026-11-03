@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { PRISE_EN_CHARGE_CREATION, dateIso } from "./adpro-prise-en-charge";
 import { lireMedecins } from "./annuaire-medical";
@@ -56,7 +57,7 @@ suite("Assistant IA — prise en charge de bout en bout", () => {
     await prisma.congressNational.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: admin?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("les dates s'écrivent comme on les dit", () => {

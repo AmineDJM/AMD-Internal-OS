@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { setRegulatoryClassification } from "./regulatory-actions";
 import { setRegulatoryHiddenColumns } from "./settings-actions";
@@ -58,7 +59,7 @@ suite("Projet BD sur un dossier réglementaire", () => {
     await prisma.bdProject.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.appSetting.updateMany({ where: { id: "global" }, data: { regulatoryHiddenColumns: [] } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 
   const fd = (o: Record<string, string>) => {
@@ -123,7 +124,7 @@ suite("Colonnes masquées du tableau Regulatory — le réglage de la maison", (
   afterAll(async () => {
     await prisma.appSetting.updateMany({ where: { id: "global" }, data: { regulatoryHiddenColumns: [] } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 
   const cols = (...keys: string[]) => {
@@ -190,7 +191,7 @@ suite("Adam range un dossier dans un projet BD", () => {
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.bdProject.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 
   it("propose puis ÉCRIT le classement — et le projet apparaît dans la carte de confirmation", async () => {

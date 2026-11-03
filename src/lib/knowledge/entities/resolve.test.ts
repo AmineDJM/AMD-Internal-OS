@@ -50,6 +50,7 @@ async function seed(
 }
 
 async function cleanup() {
+  await prisma.company.deleteMany({ where: { name: { startsWith: `${TAG}société` } } });
   const ents = await prisma.knowledgeEntity.findMany({
     where: { OR: [{ key: { contains: TAG } }, { refId: { startsWith: TAG } }] },
     select: { id: true },
@@ -137,8 +138,8 @@ describe("§10 — une mention, une entité", () => {
 
 describe("cloisonnement", () => {
   it("une entité rattachée à une autre société n'est pas proposée", async () => {
-    const company = await prisma.company.findFirst({ select: { id: true } });
-    if (!company) return; // base sans société : rien à cloisonner, le test n'a pas d'objet
+    // La société est À CE BANC : empruntée, c'était souvent celle d'un voisin, retirée en cours de route avec ce qu'elle tient.
+    const company = await prisma.company.create({ data: { name: `${TAG}société-${Date.now().toString(36)}` }, select: { id: true } });
 
     await seed("organization", "ETEST-Cloisonnee", [{ alias: "ETEST-Cloisonnee", weight: 1 }], {
       companyId: company.id,

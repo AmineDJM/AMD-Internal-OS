@@ -5,6 +5,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { deleteTransaction, updateTransaction, updateTransactionStatus } from "@/modules/finances/actions-tresorerie";
 
@@ -46,7 +47,7 @@ suite("finance-actions — l'écriture d'un règlement est figée sur ses montan
     await prisma.expenseOrder.deleteMany({ where: { id: ordre } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: cptId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: cptId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: cptId } }).catch(() => {});
   });
 
   it("supprimer l'écriture d'un ordre payé → refusé, elle reste", async () => {

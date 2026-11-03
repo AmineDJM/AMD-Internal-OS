@@ -24,6 +24,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getCurrentUser } from "@/lib/session";
 import { startImpersonation } from "@/lib/actions/impersonation-actions";
 
@@ -56,7 +57,7 @@ suite("Session : compte actif et rôle relus en base", () => {
   afterAll(async () => {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [ids.admin] } } }).catch(() => undefined);
     await prisma.userSession.deleteMany({ where: { userId: ids.admin } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: [ids.admin, ids.cible, ids.systeme] } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: [ids.admin, ids.cible, ids.systeme] } } }).catch(() => undefined);
   }, 60_000);
 
   it("témoin : un Super Admin actif voit la personne visualisée", async () => {

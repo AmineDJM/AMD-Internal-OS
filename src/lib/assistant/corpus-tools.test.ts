@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess } from "@/lib/rbac";
 import { executePowerTool } from "./power-tools";
@@ -76,7 +77,7 @@ suite("outils corpus du Chief of Staff — catégorie, lecture, honnêteté", ()
   afterAll(async () => {
     const src = await prisma.regulatorySource.findMany({ where: { code: { startsWith: TAG } }, select: { id: true } });
     await prisma.regulatorySource.deleteMany({ where: { id: { in: src.map((s) => s.id) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("search_knowledge_corpus filtre par catégorie et rend l'article AVEC sa source", async () => {

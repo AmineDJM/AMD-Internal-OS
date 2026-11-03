@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { ADAM_AGENT_NAME, agentPour, humainPour, tracerAction, tracesPour, verifierAvantAgir } from "./principal";
 import { avancer } from "@/lib/missions/runtime/engine";
 import { chargerEtat, materialiser } from "@/lib/missions/runtime/store";
@@ -72,7 +73,7 @@ suite("§29-30 — la garde au moment d'agir, et la double signature", () => {
 
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("UNE ÉTAPE INTERDITE INSÉRÉE EN BASE est refusée à l'exécution, pas exécutée", async () => {

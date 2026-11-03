@@ -6,6 +6,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { executerAction, resoudreFonction, echecDeclare } from "./executer";
 import { CONTRATS_ACTIONS } from "./contrat.genere";
@@ -61,7 +62,7 @@ suite("EXÉCUTION GÉNÉRIQUE — l'action de l'écran, appelée par son contrat
 
   afterAll(async () => {
     await prisma.administrativeRequest.deleteMany({ where: { title: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("CRÉE réellement — contrat dérivé, zéro fiche écrite, et la ligne est EN BASE", async () => {
@@ -213,7 +214,7 @@ suite("ARGUMENTS — l'exécuteur appelle positionnellement, et l'effet est en b
 
   afterAll(async () => {
     await prisma.notification.deleteMany({ where: { title: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("`markNotificationRead(id)` — un seul argument, et la ligne CHANGE", async () => {

@@ -20,6 +20,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { proposerTravail, demarrerDOffice } from "@/lib/missions/travaux/service";
 import { PERSONA_ASSISTANT_IA } from "./infra/travaux";
@@ -87,7 +88,7 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     await prisma.mailAccount.deleteMany({ where: { userId: sa?.id } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { principalId: sa?.id } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: sa?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("« je vois 3 missions » → mes_missions LIT les trois (titres, étapes) et dit pourquoi elles n'avancent pas", async () => {
@@ -248,7 +249,7 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     expect(c.ok, c.error).toBe(true);
     expect(await prisma.effetSortantDiffere.count({ where: { type: "courriel.gmail", principalId: sa.id, statut: "EN_ATTENTE", cible: { in: [r1.email, r2.email] } } })).toBe(2);
     for (const l of await prisma.effetSortantDiffere.findMany({ where: { type: "courriel.gmail", principalId: sa.id, statut: "EN_ATTENTE" } })) await annulerEffetSortant(l.id, sa);
-    await prisma.user.deleteMany({ where: { id: { in: [r1.id, r2.id] } } });
+    await retirerComptesEtSemis({ where: { id: { in: [r1.id, r2.id] } } });
   });
 
   it("MAILS — une personne qui n'est pas la Direction (assistante) : PAS la boîte d'Adam, mais une carte quand même (envoi de l'ERP), mise en page, signée", async () => {

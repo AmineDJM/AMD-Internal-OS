@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { outilsV1 } from "./outils-v1";
@@ -128,7 +129,7 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
     ad = await compte("ad", "DIRECTION_ASSISTANT");
   });
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("le corpus a 82 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {

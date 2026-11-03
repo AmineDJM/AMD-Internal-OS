@@ -19,6 +19,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 import { capacitesOffertes, executerCapacite, registreDesCapacites } from "./infra/capacites";
@@ -61,7 +62,7 @@ suite("l'appel générique d'une capacité (J6)", () => {
     await prisma.task.deleteMany({ where: { title: { contains: TAG } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("R2 « crée une tâche pour Karim » : une CARTE, la personne désignée par son nom, rien d'écrit ; confirmée → l'action de l'écran crée", async () => {

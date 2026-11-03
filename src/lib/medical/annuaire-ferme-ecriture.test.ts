@@ -13,6 +13,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { setDirectoryAccess, createDirectoryColumn, updateMedicalDirectory } from "@/lib/actions/medical-directory-crud-actions";
 
@@ -46,7 +47,7 @@ suite("Annuaire fermé : les écritures suivent la règle de lecture", () => {
   afterAll(async () => {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [ids.dehors, ids.dedans] } } }).catch(() => undefined);
     await prisma.medicalDirectory.deleteMany({ where: { id: ids.annuaire } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: [ids.dehors, ids.dedans] } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: [ids.dehors, ids.dedans] } } }).catch(() => undefined);
   }, 60_000);
 
   it("témoin : le rôle a bien le droit « Modifier » du module", async () => {

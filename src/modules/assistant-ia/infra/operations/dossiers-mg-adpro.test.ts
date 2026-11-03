@@ -21,7 +21,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -119,7 +119,7 @@ suite("T3 — dossiers, moyens généraux et fiches Ad & Pro, exécutés puis an
     await prisma.dossier.deleteMany({ where: { OR: [{ title: { contains: TAG } }, { id: { in: items.map((i) => i.reservationDossierId).filter((x): x is string => !!x) } }] } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
     await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => undefined);
   });
 
   it("Excel → aperçu exact : référence, intitulé approché, ambiguë, introuvable, lecture seule, erreur — le dossier caché n'est jamais nommé", async () => {

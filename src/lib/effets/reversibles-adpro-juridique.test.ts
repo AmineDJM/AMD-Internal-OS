@@ -19,7 +19,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
@@ -142,7 +142,7 @@ suite("K10c — Ad & Pro et juridique : exécuter, annuler, rétablir", () => {
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => undefined);
   }, 120_000);
 
   it("demanderPaiementPoste : l'ordre, son dossier et la facture sont retirés, le poste revient ; rétablir les remet", async () => {

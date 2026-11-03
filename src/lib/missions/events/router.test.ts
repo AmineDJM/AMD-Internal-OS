@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attentesEchues, fournirEntree, missionsAFaireAvancer, reveillerMissions } from "./router";
 import { avancer } from "@/lib/missions/runtime/engine";
 import { chargerEtat, materialiser } from "@/lib/missions/runtime/store";
@@ -77,7 +78,7 @@ suite("Mission Runtime — le réveil par événement", () => {
 
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("la mission dort, l'événement arrive, elle repart — sans que personne dise « il a répondu »", async () => {
@@ -315,7 +316,7 @@ suite("Mission Runtime — le réveil TEMPOREL et les attentes composées (Run 4
 
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG2 } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG2 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG2 } } }).catch(() => {});
   });
 
   async function creer(steps: PlannedStep[], titre: string) {

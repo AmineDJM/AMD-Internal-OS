@@ -27,6 +27,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   getAccess, hasGlobalView, isTopManagement, seesLockedRegulatory, userCan, type Module, type SessionUser,
 } from "@/lib/rbac";
@@ -131,7 +132,7 @@ suite("Mon Équipe : ce qui m'attend, qui manque, et des liens qui s'ouvrent", (
     await prisma.administrativeRequest.deleteMany({ where: { reference: { startsWith: TAG } } });
     await prisma.employee.deleteMany({ where: parNom });
     await Promise.all([
-      prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }),
+      retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }),
       prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }),
     ]);
   };

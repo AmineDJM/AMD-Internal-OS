@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { adminResetPassword } from "./access-actions";
 
@@ -54,7 +55,7 @@ suite("adminResetPassword — change vraiment le mot de passe", () => {
   afterAll(async () => {
     await prisma.loginAttempt.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
     await prisma.userSession.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("réinitialiser via la ligne récente met à jour AUSSI la ligne que la connexion authentifie", async () => {

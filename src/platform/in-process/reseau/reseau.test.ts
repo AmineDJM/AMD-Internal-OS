@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { Action, EffectiveAccess, Module } from "@/lib/rbac";
 import { executePowerTool } from "@/lib/assistant/power-tools";
@@ -50,7 +51,7 @@ suite("le réseau de l'entreprise — chemin réel, droits réels", () => {
     await prisma.regulatoryProduct.deleteMany({ where: { id: produitId } }).catch(() => undefined);
     await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => undefined);
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: [pdgId, rhSeulId] } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: [pdgId, rhSeulId] } } }).catch(() => undefined);
   });
 
   it("construit le graphe depuis les liens DÉCLARÉS et STRUCTURELS, et relie le produit à sa société", async () => {

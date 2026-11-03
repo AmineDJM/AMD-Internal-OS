@@ -47,6 +47,7 @@ vi.mock("@/lib/pieces-lues/vision-lignes", async (orig) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { proposerLecture, type ContexteLecture } from "../service";
 import { BANC_DEVIS, DEVIS_INSIGNE, DEVIS_SCAN, attendu, fichierDuDevis, montantImprime, type DevisFabrique } from "./devis-fabriques";
 
@@ -96,7 +97,7 @@ suite("Banc B1 — cinq devis réels : 100 % des lignes, des totaux et du fourni
   afterAll(async () => {
     const ids = (await prisma.lecturePiece.findMany({ where: { creeParId: USER.id }, select: { id: true } })).map((x) => x.id);
     await prisma.lecturePiece.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
   beforeEach(() => { vision.appels = 0; vision.reponse = null; });
 

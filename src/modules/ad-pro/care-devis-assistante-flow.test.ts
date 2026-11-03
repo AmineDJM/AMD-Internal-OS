@@ -7,7 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { createCongressRequest } from "./actions-congres";
@@ -91,7 +91,7 @@ suite("Prise en charge — les devis demandés à l'assistante de direction se s
     await prisma.dossier.deleteMany({ where: { id: { in: sujets } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { createdAt: { gte: DEBUT }, OR: [{ user: { email: { startsWith: TAG } } }, { body: { contains: TAG } }, { title: { contains: TAG } }] } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [pmId, daId, da2Id, horsId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;
   });
 

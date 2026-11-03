@@ -9,6 +9,7 @@ vi.mock("@/lib/session", () => ({ getCurrentUser: async () => ACTEUR, requireUse
 vi.mock("@/lib/drive-storage", () => ({ getBlob: async () => Buffer.from("PDF") }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { voitLesSalaires, natureDeLAbsence, voitLeTypeDesAbsences } from "@/lib/hr/confidentialite";
 import { getRhData } from "@/modules/rh/api";
@@ -90,7 +91,7 @@ suite("RH — qui voit la paie, et jusqu'où", () => {
     await prisma.salaryAdvance.deleteMany({ where: { employeeId: { in: ids } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }
 

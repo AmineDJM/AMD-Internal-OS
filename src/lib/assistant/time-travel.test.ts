@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
@@ -59,7 +60,7 @@ suite("time_travel — l'état passé, reconstruit du journal, sans rien toucher
   afterAll(async () => {
     await prisma.auditLog.deleteMany({ where: { entityId: payId } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { reference: REF } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("est enregistré au registre, réservé au siège exécutif", () => {

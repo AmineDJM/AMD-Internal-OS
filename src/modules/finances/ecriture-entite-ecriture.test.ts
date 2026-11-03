@@ -13,6 +13,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { createTransaction, updateTransaction, updateTransactionStatus, deleteTransaction } from "./actions-tresorerie";
 
@@ -43,7 +44,7 @@ suite("Livre comptable : les écritures suivent la porte de la fiche", () => {
     await prisma.financeTransaction.deleteMany({ where: { label: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.employee.deleteMany({ where: { userId: ids.fin } }).catch(() => undefined);
     await prisma.userAccess.deleteMany({ where: { userId: ids.fin } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: ids.fin } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: ids.fin } }).catch(() => undefined);
     await prisma.company.deleteMany({ where: { id: { in: [ids.A, ids.B] } } }).catch(() => undefined);
   }, 60_000);
 
