@@ -20,9 +20,22 @@ const siBase = dbOk ? describe : describe.skip;
 const MARQUE = `horizon-controle-${Math.random().toString(36).slice(2, 10)}`;
 const creees: string[] = [];
 
+/**
+ * Le propriétaire des missions est À CE BANC. Avant, `user.findFirst()` empruntait n'importe quel compte — souvent celui
+ * d'un autre banc, qui le retire pendant la suite : `Mission.owner` est en `onDelete: Cascade`, la mission disparaissait
+ * et `chargerEtat` rendait `null` (MESURÉ le 03/11 sous `npm test` : « horizonOuvert » indéfini ; 4/4 en isolé).
+ */
+let proprietaireDuBanc: string | null = null;
+async function compteDuBanc(): Promise<string> {
+  proprietaireDuBanc ??= (await prisma.user.create({
+    data: { email: `${MARQUE}@banc.local`, name: "Propriétaire — banc horizon", passwordHash: "!", role: "VIEWER", isActive: true },
+    select: { id: true },
+  })).id;
+  return proprietaireDuBanc;
+}
+
 async function missionAJalons(statut = "RUNNING"): Promise<string> {
-  const u = await prisma.user.findFirst({ select: { id: true } });
-  if (!u) throw new Error("aucun utilisateur en base");
+  const u = { id: await compteDuBanc() };
   const m = await prisma.mission.create({
     data: {
       kind: "RUNTIME", title: MARQUE, objective: MARQUE, goalRaw: MARQUE,
@@ -53,6 +66,7 @@ async function missionAJalons(statut = "RUNNING"): Promise<string> {
 siBase("pause, reprise et arrêt d'une mission à horizon", () => {
   afterAll(async () => {
     if (creees.length > 0) await prisma.mission.deleteMany({ where: { id: { in: creees } } }).catch(() => {});
+    if (proprietaireDuBanc) await prisma.user.delete({ where: { id: proprietaireDuBanc } }).catch(() => {});
   });
 
   it("un jalon vivant rend l'horizon OUVERT — c'est ce qui empêche `conclure` de juger trop tôt", async () => {
