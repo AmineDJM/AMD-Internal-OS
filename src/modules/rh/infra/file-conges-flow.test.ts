@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques } from "@/lib/actions/internes/bancs-concurrents";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { decideLeave } from "@/modules/rh/actions";
@@ -50,17 +51,8 @@ async function deuxEnsemble<T>(table: "LeaveRequest" | "Training", id: string, a
     await tx.$executeRawUnsafe(`SELECT 1 FROM "${table}" WHERE id = $1 FOR UPDATE`, id);
     ga = a(); gb = b();
     ga.catch(() => undefined); gb.catch(() => undefined);
-    const debut = Date.now();
-    for (;;) {
-      await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-      const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-        SELECT count(*)::int AS n FROM pg_stat_activity
-        WHERE datname = current_database() AND pid <> pg_backend_pid()
-          AND wait_event_type = 'Lock' AND query ILIKE ${`%"${table}"%`}`;
-      if (n >= 2) break;
-      if (Date.now() - debut > 30_000) throw new Error("les deux gestes n'ont pas atteint la barrière");
-      await new Promise((r) => setTimeout(r, 25));
-    }
+    // Seuls comptent les gestes que CETTE transaction arrête, et de CE processus (`bancs-concurrents.ts`) : l'attente locale comptait toute session de la suite.
+    await attendreBloques(tx, `"${table}"`, 2, { delaiMs: 30_000 });
   }, { timeout: 60_000 });
   return Promise.all([ga, gb]);
 }
