@@ -55,6 +55,9 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   // T2 (décision 0052) : l'annuaire tenu en lot — un geste, tout le lot revient à ses valeurs d'avant.
   "fournisseurs-annuaire-actions:appliquerLotAnnuaire": retour("chaque fiche du lot reprend ses valeurs d'avant (journal des effets), en un geste ; refusée si une fiche a été changée depuis par quelqu'un d'autre"),
   "fournisseurs-annuaire-actions:fusionnerEtablissementsAnnuaire": retour("les fiches absorbées sont réactivées, leurs praticiens et secteurs leur reviennent, la fiche gardée perd ce qu'elle avait reçu"),
+  // T2 bis (décision 0061) : la décision du Super Admin sur deux fiches médecins en double.
+  "medical-directory-crud-actions:fusionnerMedecinsEnDouble": retour("la fiche absorbée sort des archives, ses visites, rapports, demandes Ad & Pro, remises et segmentation lui reviennent, la fiche gardée perd les champs reçus ; la paire est de nouveau proposée"),
+  "medical-directory-crud-actions:ecarterFusionMedecin": retour("la proposition écartée revient dans la liste du Super Admin"),
   "budget-pole-actions:imputerBv": retour("l'ordre (ou l'écriture payée) retrouve sa catégorie budgétaire d'avant"),
   "congress-request-actions:finalDecision": compensation("l'étape de décision est rouverte ; l'ordre de paiement et la déclaration nés de l'accord sont retirés ou annulés ; le demandeur reçoit un rectificatif s'il avait lu"),
   "congress-request-actions:updateGrantedBudget": retour("le montant accordé, celui de la déclaration et celui de l'ordre non réglé reviennent"),

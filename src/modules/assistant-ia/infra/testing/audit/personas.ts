@@ -71,7 +71,7 @@ export const PERSONNES: Record<Titulaire, Personne> = {
   delegue: {
     titulaire: "delegue", prenom: "Yanis", nom: "HAMDI", role: "MEDICAL_DELEGATE", poste: "Délégué médical Hépatologie Est", assistant: true, manager: "manager",
     // Lot T2 : la Promotion médicale en « ses lignes » — son panel (secteur Est), qu'il lit et tient à jour.
-    modules: { ...BASE, SALES: { voir: true }, MEDICAL: { voir: true, creer: true, modifier: true }, FIELD_REPORTS: { voir: true, creer: true }, PROMO_MATERIAL: { voir: true, creer: true }, CONGRESS_NATIONAL: { voir: true, creer: true } },
+    modules: { ...BASE, SALES: { voir: true }, MEDICAL: { voir: true, creer: true, modifier: true }, STOCKS: { voir: true, creer: true }, FIELD_REPORTS: { voir: true, creer: true }, PROMO_MATERIAL: { voir: true, creer: true }, CONGRESS_NATIONAL: { voir: true, creer: true } },
     temoins: t("YAN-5821", [98_761, 79_413, 116_537, 143_203, 78_659], "DZ5800210000582164093371", "109870459823164507"),
   },
   manager: {
@@ -129,12 +129,14 @@ export const PERSONNES: Record<Titulaire, Personne> = {
       // CONSOLE (médecins, pharmaciens, établissements) : un référentiel entier, qu'elle corrige et dédoublonne.
       BUDGETS: { voir: true, portee: "ALL" }, SALES_PLANNING: { voir: true, portee: "ALL" }, MEDICAL: { voir: true, portee: "ALL" },
       DIRECTORIES: { voir: true, creer: true, modifier: true, portee: "ALL", sections: ["MEDECINS", "PHARMACIENS", "ETABLISSEMENTS"] },
+      // Lot T2 bis (Direction, 03/11) : le marketing LANCE les demandes d'état de stock (porte : STOCKS en lecture).
+      STOCKS: { voir: true },
     },
     temoins: t("MKT-7148", [241_659, 181_377, 284_153, 349_411, 179_593], "DZ5800210000714839275482", "109870714839275426"),
   },
   delegue_ouest: {
     titulaire: "delegue_ouest", prenom: "Farid", nom: "ZEROUAL", role: "MEDICAL_DELEGATE", poste: "Délégué médical Hépatologie Ouest", assistant: true, manager: "manager",
-    modules: { ...BASE, SALES: { voir: true }, MEDICAL: { voir: true, creer: true, modifier: true }, FIELD_REPORTS: { voir: true, creer: true } },
+    modules: { ...BASE, SALES: { voir: true }, MEDICAL: { voir: true, creer: true, modifier: true }, STOCKS: { voir: true, creer: true }, FIELD_REPORTS: { voir: true, creer: true } },
     temoins: t("FAR-8517", [93_187, 75_631, 109_943, 135_169, 74_903], "DZ5800210000851749206853", "109870851749206415"),
   },
   victime: {

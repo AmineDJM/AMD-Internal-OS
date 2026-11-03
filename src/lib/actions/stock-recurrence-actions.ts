@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView } from "@/lib/rbac";
-import { canRequestStockState } from "@/lib/stocks/scopes";
+import { peutPiloterDemandesStocks } from "@/lib/queries/demande-stocks";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
@@ -32,12 +31,7 @@ import type { Recurrence } from "@/lib/scheduler/contract";
 
 const PATH = "/stocks";
 
-const peutReclamer = (user: { role: string; access: Parameters<typeof userCan>[0]["access"] }) =>
-  canRequestStockState({
-    canSeeSupplyChain: userCan(user as Parameters<typeof userCan>[0], "PCH", "VIEW"),
-    hasGlobalView: hasGlobalView(user.role as Parameters<typeof hasGlobalView>[0]),
-    isSuperAdmin: user.role === "SUPER_ADMIN",
-  });
+const peutReclamer = peutPiloterDemandesStocks;
 
 const REFUS = "Réservé à la Direction / au Super Admin — poser une récurrence, c'est demander tous les mois sans repasser par personne.";
 

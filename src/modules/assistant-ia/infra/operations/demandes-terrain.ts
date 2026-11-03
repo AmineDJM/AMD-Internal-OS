@@ -3,6 +3,8 @@ import type { CurrentUser } from "@/lib/session";
 import { liste, nombre, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 import { joursJusqua, planDemandesTerrain } from "../../domaine/annuaire/demandes";
 import { motsDuNom } from "../../domaine/annuaire/analyse";
+import { REFUS_DEMANDE_STOCK } from "@/lib/rbac";
+import { DEMANDE_D_ETAT_DE_STOCK, peutLancerDemandeStock } from "./stocks-terrain";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -62,6 +64,8 @@ export const DEMANDER_AU_TERRAIN: OperationIA = {
     const question = texte(entree, "question");
     if (!noms.length) return { manque: ["à qui faut-il demander"] };
     if (!question) return { manque: ["ce qu'il faut leur demander"] };
+    // T2 bis (décision 0061) : demander un état de stock à d'autres, c'est la demande formelle — même règle, même refus.
+    if (DEMANDE_D_ETAT_DE_STOCK.test(question) && !peutLancerDemandeStock(user)) return { erreur: REFUS_DEMANDE_STOCK };
     const trouves: string[] = [];
     const fautes: string[] = [];
     for (const n of noms.slice(0, 15)) {

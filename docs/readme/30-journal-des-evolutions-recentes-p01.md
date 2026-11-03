@@ -1,5 +1,27 @@
 ## 🧾 Journal des évolutions récentes
 
+### T2 BIS — DOUBLONS DE MÉDECINS AU SUPER ADMIN, DEMANDE DE STOCK RÉSERVÉE, RELEVÉ DU DÉLÉGUÉ (2026-11-03, décision 0061)
+
+Réponses de la Direction du 03/11 :
+- **Fiches médecins en double.** Adam les détecte et les propose au **Super Admin seul**, sur la page
+  `/annuaires/medecins/doublons` et par la lecture `doublons_medecins`. Chaque proposition indique la fiche gardée, la fiche
+  absorbée, les champs repris et les rattachements.
+  - ✓ fusionne : annulable, la fiche absorbée est archivée.
+  - ✗ écarte : la proposition ne revient que si l'une des fiches change.
+  - Adam ne fusionne jamais lui-même. Les actions sont non appelables par l'assistant, et un employé qui demande la fusion
+    est refusé sans que la fonction lui soit révélée.
+- **Demande formelle d'état de stock** (une seule règle, `canRequestStockState`).
+  - Peuvent la lancer : le marketing (`MEDICAL_PROMOTION_MANAGER`, `PRODUCT_MANAGER`, qui reçoivent `STOCKS: READ`), les
+    opérations (`OPERATIONS_DIRECTOR`), le National Sales et la Direction.
+  - Le délégué est refusé, y compris s'il passe par « demander au terrain ».
+  - Gestes : `demande_etat_stock` (marketing) et `releve_stock` (le délégué relève lui-même son stock).
+- **Droit manquant signalé, non ouvert** : `PRODUCT_MANAGER` n'a que `MEDICAL: READ` et ne peut donc pas tenir l'annuaire.
+- **Correctif annexe** : `updateDoctor` ne recalcule le code wilaya que si le lieu change. Une correction d'un seul champ
+  redevient annulable.
+- **Banc** : 5 tâches nouvelles (ANN-19, ANN-20, TER-08, TER-09, TER-10). Le rejeu réel ciblé a trouvé 3 défauts, corrigés
+  dans le code : la fusion du référentiel des personnes était offerte au marketing ; le délégué contournait le refus par
+  « demander au terrain » ; il manquait le geste typé de la demande. Ensuite, 7 / 7 réussies (≈ 0,46 $).
+
 ### UNE ÉQUIPE DE CLAUDE CODE SOUS ADAM : PROGRAMMES ET FILE D'INTÉGRATION (2026-11-02, lot O2, décision 0059)
 
 Demande de la Direction du 02/11 : Adam délègue à MiMo (superviseur) une équipe de travailleurs Claude Code en parallèle,

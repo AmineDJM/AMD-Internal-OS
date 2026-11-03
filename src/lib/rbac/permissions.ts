@@ -143,6 +143,9 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     WORKSPACE: WORKSPACE_USER, FEEDBACK: FEEDBACK_USER, MESSAGING: MESSAGING_USER, VALIDATIONS: VALIDATION_USER, DRIVE: DRIVE_USER, ADMIN_REQUESTS: REQUEST_USER, MEDICAL: MANAGE, FIELD_REPORTS: MANAGE, SALES_PLANNING: MANAGE, EVENTS: MANAGE, CONGRESS_NATIONAL: CONTRIBUTE, CONGRESS_INTERNATIONAL: CONTRIBUTE, PROMO_MATERIAL: CONTRIBUTE, CONSULTING: CONTRIBUTE, AD_PRO_OTHER: CONTRIBUTE, DOCUMENTS: CONTRIBUTE, DIRECTIVES: DIRECTIVES_USER, SUPPORT: SUPPORT_USER, DOSSIERS: DOSSIERS_USER, NOTIFICATIONS: ["VIEW"],
     // Son stock et celui de son équipe (portée ASSIGNÉE, carte `assigned`) — §118.164.
     PROMO_STOCK: CONTRIBUTE,
+    // LA DEMANDE D'ÉTAT DE STOCK (Direction, 03/11/2026 — « ça peut être le marketing ») : le module en LECTURE est la
+    // porte de l'écran « Demandes de stocks » ; le droit de LANCER est la règle `canRequestStockState` (rôles nommés).
+    STOCKS: READ,
   },
   // KAM / délégué médical : accède à SON tableau de bord de force de vente (Pilotage — lecture,
   // portée limitée à lui-même par la couche métier ; il édite ses propres affectations via `canEditRep`).
@@ -217,6 +220,8 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     WORKSPACE: WORKSPACE_USER, FEEDBACK: FEEDBACK_USER, MESSAGING: MESSAGING_USER, VALIDATIONS: VALIDATION_USER, DRIVE: DRIVE_USER, ADMIN_REQUESTS: REQUEST_USER,
     SPONSORING: MANAGE, CONGRESS_INTERNATIONAL: MANAGE, CONGRESS_NATIONAL: MANAGE, EVENTS: MANAGE, PROMO_MATERIAL: MANAGE, CONSULTING: MANAGE, AD_PRO_OTHER: MANAGE,
     MEDICAL: READ, FIELD_REPORTS: READ, BUDGETS: READ, DOCUMENTS: CONTRIBUTE, DIRECTIVES: DIRECTIVES_USER, SUPPORT: SUPPORT_USER, DOSSIERS: DOSSIERS_USER, NOTIFICATIONS: ["VIEW"],
+    // LA DEMANDE D'ÉTAT DE STOCK (Direction, 03/11/2026) : la porte de l'écran ; lancer = `canRequestStockState`.
+    STOCKS: READ,
     // LE MAGASIN CENTRAL du matériel promotionnel (décision de la Direction, 01/10/2026) : « c'est la
     // directrice marketing » qui le gère. Le module est ouvert à la Direction Marketing entière (la
     // vue globale) ; la règle (`promo/stock-acces.ts`) réserve le magasin à sa CHEFFE.

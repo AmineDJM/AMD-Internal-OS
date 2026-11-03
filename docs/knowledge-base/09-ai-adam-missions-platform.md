@@ -1005,6 +1005,20 @@ LIVRABLE; card confirmation = plan approval). **Blast radius**: `lib/cibles/reso
 Gotcha: the T2 seed is only sown with `semerAudit(…, { t2: true })` (real bench + `annuaire-terrain.test.ts`) — its names
 would collide across parallel suites in the test DB.
 
+- **T2 bis (Direction, 03/11; decision [0061](../assistant/decisions/0061-doublons-medecins-et-demandes-de-stock.md))**:
+  - **Duplicate doctors.** Detection is pure (`modules/referentiels/domaine/medecins/doublons.ts`). Proposals come from
+    `referentiels/infra/medecins/doublons.ts`, return `[]` for anyone but the real Super Admin, and exclude pairs
+    already decided (`DecisionFusionMedecin`). Read `doublons_medecins` is SA-only. The decision is made only on
+    `/annuaires/medecins/doublons`: ✓ `fusionnerMedecinsEnDouble` (K10) or ✗ `ecarterFusionMedecin`. Both actions are in
+    `ACTIONS_HUMAINES` (`lib/actions/generique.ts`), so they are never callable by the assistant. The whole
+    `personnes-actions` file is now in `SURFACES_HUMAINES`: the real bench saw its SA-only merge offered to marketing.
+  - **Stock-state request.** It goes through one rule, `regleDemandeEtatStock` (`lib/rbac/roles.ts`; `peutDemanderEtatStock` on the session; `canRequestStockState` in `lib/stocks/scopes.ts` is an alias): SA, PCH/global
+    view, `OPERATIONS_DIRECTOR`, `NATIONAL_SALES`, `MEDICAL_PROMOTION_MANAGER`, `PRODUCT_MANAGER`; a primary
+    `MEDICAL_DELEGATE` is never allowed.
+  - **Gestures** (`assistant-ia/infra/operations/stocks-terrain.ts`): `demande_etat_stock` (names → ids, calls
+    `creerDemandeStocks`) and `releve_stock` (delegate's own snapshot → `recordStockSnapshot`).
+  - **Gotcha**: `demander_au_terrain` refuses a stock-state question for non-allowed users (`DEMANDE_D_ETAT_DE_STOCK`).
+
 - **Revision (Direction, 02/11)**: « moyens généraux » at Adventum = the **petty cash** (caisse d'avance) held by the
   executive assistant (`petty-cash-actions`). The `MoyenGeneral` registry (vehicles, insurance, contracts) was removed
   from the assistant, bench and screens (tables kept, inert); the module is now `src/modules/salles` (meeting rooms only,

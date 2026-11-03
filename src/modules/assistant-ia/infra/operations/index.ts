@@ -30,6 +30,7 @@ import { DECLARER_SALLE, RESERVER_SALLE } from "./salles";
 import { DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE } from "./caisse-avance";
 import { OPERATIONS_ANNUAIRE } from "./annuaire";
 import { DEMANDER_AU_TERRAIN } from "./demandes-terrain";
+import { DEMANDE_ETAT_STOCK, RELEVE_STOCK } from "./stocks-terrain";
 
 import { MODIFIER_FICHE_JURIDIQUE, RANGER_JURIDIQUE } from "./juridique";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
@@ -57,6 +58,8 @@ export const OPERATIONS_IA: OperationIA[] = [
 
   // T2 (décision 0052) : tenir l'annuaire — mise à jour en lot (Excel), fusion des doublons, annuler la dernière action.
   ...OPERATIONS_ANNUAIRE, DEMANDER_AU_TERRAIN,
+  // T2 bis (décision 0061) : le délégué relève lui-même un état de stock (produit de sa gamme, lieu de ses secteurs).
+  RELEVE_STOCK, DEMANDE_ETAT_STOCK,
 
   // T1 (décision 0053) : ranger au Juridique en une carte (lot ≤ 30, aussi en geste d'une mission) ; mettre à jour une fiche juridique.
   RANGER_JURIDIQUE, MODIFIER_FICHE_JURIDIQUE,

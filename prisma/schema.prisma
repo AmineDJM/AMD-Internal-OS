@@ -5268,6 +5268,25 @@ enum InstitutionSector {
   PRIVE
 }
 
+/// Lot T2 (décision 0061) — LA DÉCISION DU SUPER ADMIN sur une paire de fiches médecins en double. Les propositions
+/// se CALCULENT (`lib/medical/doublons-medecins.ts`) ; seule la décision s'écrit : FUSIONNEE (la fiche absorbée est
+/// archivée, ses rattachements passent à la fiche gardée) ou ECARTEE (la paire ne revient que si l'une des deux fiches
+/// change — `empreinte`). `cle` = les deux identifiants triés « A|B ». Pas de clé étrangère : une fiche archivée reste.
+model DecisionFusionMedecin {
+  id          String   @id @default(cuid())
+  cle         String   @unique
+  medecinAId  String
+  medecinBId  String
+  /// FUSIONNEE | ECARTEE
+  decision    String
+  empreinte   String
+  gardeId     String?
+  decideParId String?
+  decideLe    DateTime @default(now())
+
+  @@index([decision])
+}
+
 model MedicalInstitution {
   id             String            @id @default(cuid())
   /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).

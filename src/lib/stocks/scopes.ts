@@ -29,6 +29,8 @@
  * Module PUR : ni base, ni session. Testé.
  */
 
+import { regleDemandeEtatStock } from "@/lib/rbac/roles";
+
 export type StockScope = "PCH" | "HOSPITAL" | "ANNEX";
 
 /** Ce que sait faire la personne, réduit à ce qui compte ici. */
@@ -63,9 +65,11 @@ export function canSeeStockScope(viewer: StockViewer, scope: StockScope): boolea
  * droit de SUPPRESSION sur le module ne suffit donc plus à l'ouvrir — il pouvait être accordé
  * pour de tout autres raisons.
  */
-export function canRequestStockState(viewer: StockViewer & { isSuperAdmin?: boolean }): boolean {
-  return viewer.isSuperAdmin === true || seesSupplyChain(viewer);
-}
+// QUI LANCE UNE DEMANDE D'ÉTAT DE STOCK FORMELLE (Direction, 03/11/2026, décision 0061) : la règle vit au socle des droits
+// (`lib/rbac/roles.ts`, `regleDemandeEtatStock`) — un module la lit sans dépendre des stocks ; ici, son nom historique.
+export { REFUS_DEMANDE_STOCK } from "@/lib/rbac/roles";
+export const canRequestStockState = (viewer: StockViewer & { isSuperAdmin?: boolean; roles?: readonly (string | null | undefined)[] }): boolean =>
+  regleDemandeEtatStock(viewer);
 
 export interface ScopedSnapshot {
   scope: string;

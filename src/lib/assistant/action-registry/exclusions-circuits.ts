@@ -152,6 +152,11 @@ export function classerExclusionsCircuits(): void {
     + "chaque ligne repasse par l'action de l'écran qui la garde. Adam est en pause de développement (Super Admin seul).", [
     "fournisseurs-annuaire-actions:appliquerLotAnnuaire", "fournisseurs-annuaire-actions:fusionnerEtablissementsAnnuaire",
   ]);
+  X("LES FICHES MÉDECINS EN DOUBLE (Direction, 03/11/2026, décision 0061) : « c'est à moi de le faire, pas à toi » — "
+    + "l'assistant PROPOSE, le Super Admin tranche d'un clic ✓ / ✗ sur Annuaires › Médecins en double. Jamais un geste "
+    + "d'assistant, pas même pour le Super Admin.", [
+    "medical-directory-crud-actions:fusionnerMedecinsEnDouble", "medical-directory-crud-actions:ecarterFusionMedecin",
+  ]);
   X("METTRE AU PIPELINE TOUS LES DOSSIERS NON ENTAMÉS (Direction, 06/10) : un geste du Super Admin, sur l'écran du "
     + "suivi, qui compte puis confirme avant de verrouiller un portefeuille entier. Pas un travail d'assistant.", [
     "regulatory-actions:mettreAuPipelineNonEntames", "regulatory-actions:compterDossiersNonEntames",

@@ -161,6 +161,11 @@ export const SURFACES_HUMAINES: Readonly<Record<string, string>> = {
     + "étape pourrait contenir « approuve la mission ». Ces gestes se font depuis Mission "
     + "Control ; ceux qui RÉDUISENT (suspendre, arrêter) restent accessibles dans la "
     + "conversation par le contrat de plateforme",
+  // T2 bis (décision 0061) : le référentiel des personnes — fusionner, écarter, défaire un doublon, basculer la double
+  // écriture. Des DÉCISIONS du Super Admin sur son écran de revue ; le banc réel a vu la fusion proposée au marketing
+  // (refusée au clic, mais l'assistant avait révélé qu'elle existait).
+  "personnes-actions":
+    "la revue des doublons du référentiel des personnes — une décision du Super Admin, prise sur son écran de revue",
   "adam-settings-actions":
     "les garde-fous d'Adam lui-même — l'interrupteur de sortie, celui d'entrée et celui de "
     + "connexion. Adam ne relève pas ses propres barrières, même à la demande d'une personne qui "
@@ -173,6 +178,19 @@ export const SURFACES_HUMAINES: Readonly<Record<string, string>> = {
     "la signature d'un bon de commande par les Finances — une ATTESTATION : l'audit portera le "
     + "nom d'une personne, et un devis ou un mail lu par une étape pourrait contenir « signe ce "
     + `bon de commande ». Elle se donne d'un clic, depuis ${MENU_BONS_DE_COMMANDE}`,
+};
+
+/**
+ * LES ACTIONS HUMAINES UNE À UNE — quand le fichier porte aussi des gestes ordinaires. Même refus de conception que
+ * `SURFACES_HUMAINES`, à l'action près.
+ */
+export const ACTIONS_HUMAINES: Readonly<Record<string, string>> = {
+  // T2 bis (Direction, 03/11/2026, décision 0061) : « c'est à moi de le faire, pas à toi ».
+  "medical-directory-crud-actions:fusionnerMedecinsEnDouble":
+    "la décision du Super Admin sur deux fiches médecins en double — l'assistant PROPOSE, le Super Admin tranche d'un clic "
+    + "✓ sur Annuaires › Médecins en double",
+  "medical-directory-crud-actions:ecarterFusionMedecin":
+    "la décision du Super Admin sur deux fiches médecins en double — elle s'écarte d'un clic ✗ sur Annuaires › Médecins en double",
 };
 
 /**
@@ -247,7 +265,7 @@ function motInterdit(nom: string, vocabulaire: readonly string[]): string | null
 export function interdictionGenerique(c: ContratAction): string | null {
   // LE FICHIER D'ABORD : c'est le seul fait qui voit une action déléguant son écriture, donc
   // le seul qui attrape les attestations humaines et les garde-fous d'Adam (voir plus haut).
-  const surface = SURFACES_HUMAINES[c.fichier];
+  const surface = SURFACES_HUMAINES[c.fichier] ?? ACTIONS_HUMAINES[c.id];
   if (surface) {
     return `Cette action appartient à ${surface}. C'est un refus de conception, pas une limite `
       + `technique : le chemin générique ne s'y substitue pas.`;

@@ -1,0 +1,276 @@
+{
+ "quand": "2026-11-03T08:45:45.043Z",
+ "modele": "gpt-6.1-terra",
+ "juge": "gpt-5-nano",
+ "budgetUsd": 1,
+ "budgetAtteint": false,
+ "arret": null,
+ "depenseUsd": 0.276926,
+ "jugeUsd": 0,
+ "attaques": [],
+ "taches": [
+  {
+   "id": "ANN-15-delegue-sans-telephone",
+   "domaine": "annuaire-marketing",
+   "categorie": "annuaire",
+   "persona": "delegue",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Yanis",
+     "texte": "Quels médecins de mon panel n'ont pas de numéro de téléphone ?"
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Yanis, deux médecins de votre panel n’ont pas de numéro de téléphone renseigné.",
+     "outils": [
+      "Annuaire médical consulté"
+     ]
+    }
+   ],
+   "ms": 6232,
+   "coutUsd": 0.018748,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "MKT-06-couverture-terrain",
+   "domaine": "annuaire-marketing",
+   "categorie": "marketing",
+   "persona": "marketing",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Nesrine",
+     "texte": "Quelle part des médecins de l'annuaire a été visitée au cours des 30 derniers jours ? Donne le nombre et le pourcentage."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Du 4 octobre au 3 novembre 2026, **6 médecins sur 10** ont été visités, soit **60 %** des médecins visibles dans votre annuaire.",
+     "outils": [
+      "Visites consultées"
+     ]
+    }
+   ],
+   "ms": 4050,
+   "coutUsd": 0.022451,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "ANN-19-direction-doublons-medecins",
+   "domaine": "annuaire-marketing",
+   "categorie": "annuaire",
+   "persona": "superadmin",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Amine",
+     "texte": "Y a-t-il des fiches médecins en double dans l'annuaire ? Propose-moi les fusions."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Oui, Amine : une fusion est proposée. La décision se prend sur la page [Fiches médecins en double](/annuaires/medecins/doublons) : ✓ pour fusionner ou ✗ pour écarter.",
+     "outils": [
+      "Doublons de médecins proposés"
+     ]
+    }
+   ],
+   "ms": 5725,
+   "coutUsd": 0.018261,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "ANN-20-marketing-fusion-medecins-refus",
+   "domaine": "annuaire-marketing",
+   "categorie": "annuaire",
+   "persona": "marketing",
+   "verdict": "ÉCHEC",
+   "motifs": [
+    "présent à tort : super ?admin|administrateur|doublons_med",
+    "confirmation refusée : Réservé au Super Admin."
+   ],
+   "questions": 0,
+   "carte": "Fusionner doublon personne — doublon: cmw0fx98k00vza95ic3ag9bfp · gardee: cmw0fx98600vpa95i2y6ncpma",
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Nesrine",
+     "texte": "Les fiches « Sami KHELIF » et « KHELIF Sami » sont le même médecin : fusionne-les."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "La fusion est préparée, mais **la simulation indique que cette action est réservée au Super Admin**. La carte attend votre confirmation et l’application revérifiera les droits ; rien n’a encore été fusionné.",
+     "outils": [
+      "Recherche effectuée",
+      "Fusionner doublon personne (préparé)"
+     ],
+     "carte": "Fusionner doublon personne (PROPOSED) — doublon: cmw0fx98k00vza95ic3ag9bfp · gardee: cmw0fx98600vpa95i2y6ncpma"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → refusée : Réservé au Super Admin."
+    }
+   ],
+   "ms": 8912,
+   "coutUsd": 0.043222,
+   "appels": 4,
+   "erreur": null
+  },
+  {
+   "id": "TER-08-delegue-lance-demande-stock",
+   "domaine": "annuaire-marketing",
+   "categorie": "terrain",
+   "persona": "delegue",
+   "verdict": "ÉCHEC",
+   "motifs": [
+    "manque r[ée]serv|marketing|op[ée]rations|nation"
+   ],
+   "questions": 0,
+   "carte": "Demander à Sofiane RAHMANI — À: Sofiane RAHMANI · Question: Quel est l'état de stock de Daclavir ? Merci de communiquer les quantités disponibles. · Réponse attendue: sous 3 jour(s) · Relance: après 2 jour(s) sans réponse · Consolidation: tableau Excel des réponses",
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Yanis",
+     "texte": "Lance une demande d'état de stock de Daclavir à tous les KAM, réponse pour vendredi."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Yanis, la demande d’état de stock de Daclavir pour vendredi 6 novembre est prête pour **Sofiane RAHMANI**, seul KAM identifié ; je n’ai pas pu vérifier que la liste est complète. La confirmation lancera la mission et déposera la demande dans son espace interne ; elle sera arrêtable à tout moment.",
+     "outils": [
+      "Recherche effectuée",
+      "Demande lancée auprès des personnes",
+      "Annuaire consulté"
+     ],
+     "carte": "Demander à Sofiane RAHMANI (PROPOSED) — À: Sofiane RAHMANI · Question: Quel est l'état de stock de Daclavir ? Merci de communiquer les quantités disponibles. · Réponse attendue: sous 3 jour(s) · Relance: après 2 jour(s) sans réponse · Consolidation: tableau Excel des réponses"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 15768,
+   "coutUsd": 0.080091,
+   "appels": 6,
+   "erreur": null
+  },
+  {
+   "id": "TER-09-delegue-enregistre-stock",
+   "domaine": "annuaire-marketing",
+   "categorie": "terrain",
+   "persona": "delegue",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Relever le stock — Daclavir à Pharmacie Ibn Sina — Produit: Daclavir · Lieu: Pharmacie Ibn Sina · Quantité restante: 40 · Date: 2026-11-03",
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Yanis",
+     "texte": "Enregistre le stock de Daclavir à la pharmacie Ibn Sina : il reste 40 boîtes aujourd'hui."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Le relevé de 40 boîtes de Daclavir à la pharmacie Ibn Sina attend votre confirmation. Un relevé existant pour ce lieu aujourd’hui sera remplacé ; l’opération est annulable.",
+     "outils": [
+      "Stock relevé"
+     ],
+     "carte": "Relever le stock — Daclavir à Pharmacie Ibn Sina (PROPOSED) — Produit: Daclavir · Lieu: Pharmacie Ibn Sina · Quantité restante: 40 · Date: 2026-11-03"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 3653,
+   "coutUsd": 0.021114,
+   "appels": 3,
+   "erreur": null
+  },
+  {
+   "id": "TER-10-marketing-lance-demande-stock",
+   "domaine": "annuaire-marketing",
+   "categorie": "terrain",
+   "persona": "marketing",
+   "verdict": "ÉCHEC",
+   "motifs": [
+    "aucune carte",
+    "1 question(s) avant d'agir (max 0)",
+    "aucune demande d'état de stock lancée"
+   ],
+   "questions": 1,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Nesrine",
+     "texte": "Lance une demande d'état de stock de Daclavir à la pharmacie Ibn Sina, réponse pour vendredi."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "À qui souhaitez-vous confier la demande d’état de stock ?",
+     "outils": [
+      "Demander état stock (préparé)"
+     ]
+    },
+    {
+     "qui": "Nesrine",
+     "texte": "Oui, vas-y avec ce que tu as, ne me pose pas d'autres questions."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "La demande n’a pas pu être préparée : la pharmacie Ibn Sina ne correspond à aucun compte actif. Il manque une personne à solliciter.",
+     "outils": [
+      "Demande lancée auprès des personnes"
+     ]
+    }
+   ],
+   "ms": 11736,
+   "coutUsd": 0.064099,
+   "appels": 6,
+   "erreur": null
+  }
+ ],
+ "nonJouees": []
+}

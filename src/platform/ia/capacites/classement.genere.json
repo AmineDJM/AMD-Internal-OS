@@ -6775,6 +6775,24 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "medical-directory-crud-actions:ecarterFusionMedecin": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "medical-directory-crud-actions:fusionnerMedecinsEnDouble": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "medical-directory-crud-actions:moveDoctorsToDirectory": {
   "risque": "R1",
   "familles": [
@@ -8624,7 +8642,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": true
+  "appelable": false
  },
  "personnes-actions:ecarterDoublonPersonne": {
   "risque": "R1",
@@ -8633,7 +8651,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": true
+  "appelable": false
  },
  "personnes-actions:fusionnerDoublonPersonne": {
   "risque": "R1",
@@ -8642,7 +8660,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": true
+  "appelable": false
  },
  "petty-cash-actions:allotPettyCash": {
   "risque": "R4",

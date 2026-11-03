@@ -42,6 +42,7 @@ export const SONDES: Sonde[] = [
   // T2 (décision 0052) : l'annuaire médical, les visites, les dépenses marketing — la victime n'y est jamais exposée.
   { outil: "annuaire_terrain", entree: () => ({ nom: A }), toutes: true },
   { outil: "visites_terrain", entree: () => ({ delegue: A, jours: 365 }) },
+  { outil: "doublons_medecins", entree: () => ({}) },
   { outil: "depenses_marketing", entree: () => ({ par: ["demandeur", "bu"], periode: "annee" }) },
   // Les annuaires, le graphe, l'historique.
   { outil: "directory_lookup", entree: () => ({ name: A }) },

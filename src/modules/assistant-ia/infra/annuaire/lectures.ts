@@ -6,6 +6,7 @@ import {
   annuaireOuvertParConsole, peutAnnuaire, scopeMedicalDoctors, scopeMedicalVisits, userCan,
 } from "@/lib/rbac";
 import { lignesDepensesAdPro } from "@/modules/ad-pro/api";
+import { peutDeciderFusionMedecins, propositionsFusionMedecins } from "@/modules/referentiels/api";
 import {
   agregerDepenses, bornesPeriode, motsDuNom, pourcentage, PERIODES, type AxeDepense, type Periode,
 } from "../../domaine/annuaire/analyse";
@@ -48,8 +49,9 @@ const wilaya = (w: string) => (w ? { OR: [{ wilaya: { equals: w, mode: "insensit
 
 /** Les praticiens que la personne voit : tout l'annuaire s'il lui est ouvert par la console, sinon sa portée (panel). */
 export function porteeMedecins(u: CurrentUser): Prisma.MedicalDoctorWhereInput {
-  if (annuaireOuvertParConsole(u, "MEDECINS", "VIEW")) return {};
-  return userCan(u, "MEDICAL", "VIEW") ? scopeMedicalDoctors(u) : { id: "__aucun__" };
+  // Une fiche ARCHIVÉE (supprimée de la feuille, ou absorbée par une fusion) n'est plus dans l'annuaire.
+  if (annuaireOuvertParConsole(u, "MEDECINS", "VIEW")) return { archivedAt: null };
+  return userCan(u, "MEDICAL", "VIEW") ? { AND: [scopeMedicalDoctors(u), { archivedAt: null }] } : { id: "__aucun__" };
 }
 export const voitEtablissements = (u: CurrentUser) => peutAnnuaire(u, "ETABLISSEMENTS", "VIEW") || peutAnnuaire(u, "PHARMACIENS", "VIEW");
 export const voitAnnuaire = (u: CurrentUser) => userCan(u, "MEDICAL", "VIEW") || annuaireOuvertParConsole(u, "MEDECINS", "VIEW") || voitEtablissements(u);
@@ -231,8 +233,30 @@ async function lireDepenses(entree: Record<string, unknown>, u: CurrentUser): Pr
   });
 }
 
+/** Les fiches médecins en double, PROPOSÉES au Super Admin — jamais fusionnées par l'assistant (décision 0061). */
+async function lireDoublonsMedecins(_entree: Record<string, unknown>, u: CurrentUser): Promise<string> {
+  if (!peutDeciderFusionMedecins(u)) return refus("Lecture indisponible.");
+  const ps = await propositionsFusionMedecins(u);
+  return JSON.stringify({
+    total: ps.length,
+    propositions: ps.slice(0, 40).map((p) => ({
+      garder: p.garde.name, absorber: p.absorbee.name, raisons: p.raisons,
+      recoit: p.champsRecus, rattachesAbsorbee: p.absorbee.rattaches, rattachesGardee: p.garde.rattaches,
+      wilaya: p.garde.wilaya ?? p.absorbee.wilaya, specialite: p.garde.specialite ?? p.absorbee.specialite,
+    })),
+    lien: "/annuaires/medecins/doublons",
+    consigne: "Tu PROPOSES seulement : chaque fusion se décide par le Super Admin, d'un clic ✓ (fusionner, réversible) ou ✗ (écarter) "
+      + "sur la page « Fiches médecins en double » — donne son lien en Markdown. Tu ne fusionnes JAMAIS toi-même, et tu ne dis pas que c'est fait.",
+  });
+}
+
 export function lecturesAnnuaireTerrain(): PowerTool[] {
   return [
+    outil("doublons_medecins",
+      "LES FICHES MÉDECINS EN DOUBLE de l'annuaire, à proposer au Super Admin : pour chaque paire, la fiche gardée, la fiche absorbée, "
+      + "les champs reçus, ce qui est rattaché (visites, rapports, demandes Ad & Pro…). Pour « y a-t-il des doublons de médecins ? », "
+      + "« propose-moi les fusions de fiches médecins ». La décision (✓ / ✗) se prend sur la page dédiée, jamais par l'assistant.",
+      {}, "Doublons de médecins proposés", (u) => peutDeciderFusionMedecins(u), lireDoublonsMedecins),
     outil("annuaire_terrain",
       "L'ANNUAIRE MÉDICAL ET PHARMACEUTIQUE : médecins (spécialité, établissement, téléphone, délégué, secteur, dernière visite) et "
       + "pharmacies / établissements (adresse, téléphone, SECTEURS et DÉLÉGUÉS QUI LES COUVRENT, BU). Filtres : `quoi` (medecin, pharmacie, "
