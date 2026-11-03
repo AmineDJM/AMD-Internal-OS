@@ -79,11 +79,17 @@ async function fichiersDe(): Promise<Partial<Record<Titulaire, [string, Buffer, 
       ["Contrat de prestation Atlas.docx", await docxDe(["CONTRAT DE PRESTATION D'IMPRESSION", "Entre Adventum Pharma SPA et Imprimerie Atlas.", "Article 4 — Paiement : les factures sont réglées à 30 jours fin de mois.", "Article 5 — Durée : un an à compter de la signature."]), null],
       ["Contrat de transport Logitrans.docx", await docxDe(["CONTRAT DE TRANSPORT", "Entre Adventum Pharma SPA et Logitrans.", "Le transporteur assure la livraison sous température dirigée."]), null],
       ["Contrat consultant Benyahia.docx", await docxDe(["CONTRAT DE CONSULTANT", "Mission de conseil réglementaire.", `Article 9 — Le consultant est tenu par une clause de ${MOT_PLEIN_TEXTE} à compter de la fin du contrat.`]), null],
+      ["Convention de partenariat Clinique El Fath.pdf", await contrat("Convention de partenariat", "la Clinique El Fath, Oran", "01/11/2026", "31/10/2027"), null],
+      ["Agrément établissement pharmaceutique Blida.pdf", await pdfPages([["DÉCISION D'AGRÉMENT D'UN ÉTABLISSEMENT PHARMACEUTIQUE", "Ministère de l'Industrie pharmaceutique.", "Établissement de Blida — Adventum Pharma SPA.", "Délivré le 01/06/2026, valable jusqu'au 31/05/2031."]]), null],
       ["Licence d'exploitation Blida (reçue).pdf", await pdfPages([["DÉCISION — LICENCE D'EXPLOITATION D'UN ÉTABLISSEMENT", "Ministère de l'Industrie pharmaceutique.", "Établissement de Blida. Délivrée le 20/09/2026, valable jusqu'au 19/09/2031."]]), null],
     ],
     assistante: [
       ["PV AGO 2025.pdf", await pdfPages([["PROCÈS-VERBAL DE L'ASSEMBLÉE GÉNÉRALE ORDINAIRE", "Adventum Pharma SPA — séance du 28/06/2025.", "Approbation des comptes de l'exercice 2024."]]), null],
       ["Grille tarifaire 2026.pdf", await pdfPages([["GRILLE TARIFAIRE 2026", "Produit | Prix grossiste (DZD) | Prix public (DZD)", "Daclavir 60 mg | 18 500 | 22 900", "Sofosbuvir 400 mg | 24 000 | 29 700"]]), null],
+    ],
+    finance: [
+      // Direction, 03/11 : le DAF (« Responsable Finance / Budget ») range au Juridique et ajoute le partenaire manquant.
+      ["Contrat de prestation Medilog Services.pdf", await contrat("Contrat de prestation logistique", "Medilog Services, Rouiba", "01/10/2026", "30/09/2027"), null],
     ],
     superadmin: [
       ["Attestation assurance RC SAA 2026.pdf", await pdfPages([["ATTESTATION D'ASSURANCE RESPONSABILITÉ CIVILE", "SAA Assurances certifie que Adventum Pharma SPA est assurée.", "Période de garantie : du 01/01/2026 au 31/12/2026. Police n° RC-2026-0091."]]), null],
@@ -164,11 +170,19 @@ export const semerDocuments: SemisDeDomaine = async ({ etiquette, users, company
   await prisma.driveShare.create({ data: { nodeId: cnas.driveNodeId!, userId: users.assistante, access: "VIEW" as never } });
   const flotte = await assuranceSemee({ titre: "Police d'assurance flotte automobile", partie: "SAA Assurances", debut: jour(-405), fin: jour(-40), fichier: ["juriste", "Police flotte automobile SAA.pdf", await contrat("Police d'assurance flotte automobile", "SAA Assurances", "01/01/2025", "31/12/2025")] });
   const bail = await bailSeme({ titre: "Bail du siège social — Hydra", partie: "SCI El Djazair", debut: new Date("2024-07-01"), fin: new Date("2027-06-30"), dossier: "Baux", fichier: ["juriste", "Bail siège Hydra.pdf", await contrat("Bail du siège social", "SCI El Djazair", "01/07/2024", "30/06/2027")] });
+  const ammSemee = async (o: Semee) => prisma.legalDocument.create({ data: { kind: "MARKETING_AUTHORIZATION", ...(await champs(o)) }, select: SEL });
+  const amm = await ammSemee({ titre: "AMM Ribavirine 200 mg", partie: "ANPP", debut: new Date("2023-04-10"), fin: new Date("2028-04-09"), fichier: ["juriste", "AMM Ribavirine 200 mg.pdf", await pdfPages([["AMM RIBAVIRINE 200 MG", "ANPP.", "Délivrée le 10/04/2023, valable jusqu'au 09/04/2028."]])] });
+  // Le DAF tient le Juridique aujourd'hui (Direction, 03/11) : le droit de ranger, posé par la console comme en réel.
+  await prisma.userAccess.upsert({
+    where: { userId_module: { userId: users.finance, module: "LEGAL" } } as never,
+    update: { canView: true, canCreate: true, canUpdate: true },
+    create: { userId: users.finance, module: "LEGAL", canView: true, canCreate: true, canUpdate: true, scope: "ALL" } as never,
+  });
   const proto = await conventionSemee({ titre: TITRE_RESTREINT, partie: "Pharmalliance Distribution", debut: jour(-30), fin: null, createur: "superadmin", fichier: ["superadmin", "Protocole QZ-PROTO-7731.pdf", await pdfPages([[TITRE_RESTREINT, "Confidentiel."]])] });
   await prisma.legalDocumentReader.create({ data: { documentId: proto.id, userId: users.superadmin, grantedById: users.superadmin } });
   for (const [cle, f, titre] of [["pharmalliance2024", ph24, "Contrat de distribution Pharmalliance 2024-2025"], ["medisupply2023", m23, "Contrat de fourniture MediSupply 2023"],
     ["medisupply2025", m25, "Contrat de fourniture MediSupply 2025"], ["cnas", cnas, "Attestation de mise à jour CNAS"], ["flotte", flotte, "Police d'assurance flotte automobile"],
-    ["bail", bail, "Bail du siège social — Hydra"], ["protocole", proto, TITRE_RESTREINT]] as const) pieces[`doc_fiche:${cle}`] = { id: f.id, nom: titre };
+    ["bail", bail, "Bail du siège social — Hydra"], ["protocole", proto, TITRE_RESTREINT], ["amm_ribavirine", amm, "AMM Ribavirine 200 mg"]] as const) pieces[`doc_fiche:${cle}`] = { id: f.id, nom: titre };
   return pieces;
 };
 

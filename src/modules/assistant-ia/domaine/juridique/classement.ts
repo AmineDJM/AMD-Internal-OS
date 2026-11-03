@@ -4,8 +4,8 @@
  *
  * « Qu'il range parfaitement les documents à leurs places » (Direction, 02/11/2026). La place d'une pièce juridique,
  * c'est trois choses que le modèle ne doit pas deviner chacun à sa façon :
- *   • sa NATURE au registre (`LegalDocKind`) — « statuts », « PV d'AG », « AMM », « agrément » n'existent pas comme
- *     natures : ils se rangent sous la nature la plus proche (OTHER, LICENSE) ET dans le dossier qui les nomme ;
+ *   • sa NATURE au registre (`LegalDocKind`) — « statuts », « PV d'AG », « AMM », « agrément » en sont depuis le 03/11
+ *     (Direction, décision 0061 : STATUTES, MINUTES, MARKETING_AUTHORIZATION, APPROVAL) ;
  *   • son DOSSIER de classement (`LegalFolder`) — un nom par famille de pièces, toujours le même (« Agréments et
  *     autorisations », jamais « AMM » un jour et « Autorisations » le lendemain) ;
  *   • ses DATES — lues sur la pièce, au format AAAA-MM-JJ, et cohérentes (la fin après le début).
@@ -15,7 +15,8 @@
  */
 
 export type NatureRegistre =
-  | "CONTRACT" | "QUOTE" | "PURCHASE_ORDER" | "INVOICE" | "CREDIT_NOTE" | "AMENDMENT" | "AGREEMENT" | "NDA" | "INSURANCE" | "LICENSE" | "LEASE" | "OTHER";
+  | "CONTRACT" | "QUOTE" | "PURCHASE_ORDER" | "INVOICE" | "CREDIT_NOTE" | "AMENDMENT" | "AGREEMENT" | "NDA" | "INSURANCE" | "LICENSE" | "LEASE"
+  | "APPROVAL" | "MARKETING_AUTHORIZATION" | "STATUTES" | "MINUTES" | "OTHER";
 
 export interface FamillePiece {
   /** Le mot que la personne emploie (« statuts »). */
@@ -31,10 +32,12 @@ export interface FamillePiece {
 /** L'ordre compte : la première famille dont un motif répond l'emporte (« avenant au contrat » est un avenant). */
 const FAMILLES: readonly (FamillePiece & { motifs: RegExp })[] = [
   { cle: "avenant", nature: "AMENDMENT", dossier: "Avenants", libelle: "Avenant", partieAttendue: true, motifs: /avenant/ },
-  { cle: "statuts", nature: "OTHER", dossier: "Statuts et PV", libelle: "Statuts", partieAttendue: false, motifs: /\bstatuts?\b(?! (du|de la) (dossier|demande))/ },
-  { cle: "pv", nature: "OTHER", dossier: "Statuts et PV", libelle: "Procès-verbal", partieAttendue: false, motifs: /\bpv\b|proces[- ]verbal|assemblee generale|\bago\b|\bage\b|conseil d.administration/ },
-  { cle: "amm", nature: "LICENSE", dossier: "Agréments et autorisations", libelle: "Autorisation de mise sur le marché", partieAttendue: true, motifs: /\bamm\b|mise sur le marche|enregistrement/ },
-  { cle: "agrement", nature: "LICENSE", dossier: "Agréments et autorisations", libelle: "Agrément", partieAttendue: true, motifs: /agrement|autorisation|licence|license|decision d.homologation|homologation/ },
+  { cle: "statuts", nature: "STATUTES", dossier: "Statuts et PV", libelle: "Statuts", partieAttendue: false, motifs: /\bstatuts?\b(?! (du|de la) (dossier|demande))/ },
+  { cle: "pv", nature: "MINUTES", dossier: "Statuts et PV", libelle: "Procès-verbal", partieAttendue: false, motifs: /\bpv\b|proces[- ]verbal|assemblee generale|\bago\b|\bage\b|conseil d.administration/ },
+  { cle: "amm", nature: "MARKETING_AUTHORIZATION", dossier: "Agréments et autorisations", libelle: "Autorisation de mise sur le marché", partieAttendue: true, motifs: /\bamm\b|mise sur le marche|enregistrement/ },
+  // Agrément et licence, deux natures du registre depuis le 03/11 (Direction) — rangés dans le même dossier.
+  { cle: "agrement", nature: "APPROVAL", dossier: "Agréments et autorisations", libelle: "Agrément", partieAttendue: true, motifs: /agrement|decision d.homologation|homologation/ },
+  { cle: "licence", nature: "LICENSE", dossier: "Agréments et autorisations", libelle: "Licence / autorisation", partieAttendue: true, motifs: /autorisation|licence|license/ },
   { cle: "assurance", nature: "INSURANCE", dossier: "Assurances", libelle: "Police d'assurance", partieAttendue: true, motifs: /assurance|police\b|attestation d.assurance/ },
   { cle: "bail", nature: "LEASE", dossier: "Baux", libelle: "Bail", partieAttendue: true, motifs: /\bbail\b|\bbaux\b|location|loyer/ },
   { cle: "nda", nature: "NDA", dossier: "Confidentialité", libelle: "Accord de confidentialité", partieAttendue: true, motifs: /\bnda\b|confidentialit/ },

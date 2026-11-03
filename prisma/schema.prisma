@@ -14031,6 +14031,12 @@ enum LegalDocKind {
   INSURANCE // police d'assurance
   LICENSE // licence / autorisation
   LEASE // bail
+  /// T1 (Direction, 03/11/2026, décision 0061) : les pièces de la société et de ses produits, reconnues au rangement et
+  /// filtrables au registre — elles allaient sous OTHER / LICENSE, la nature dite en note.
+  APPROVAL // agrément (établissement, activité)
+  MARKETING_AUTHORIZATION // autorisation de mise sur le marché (AMM, décision d'enregistrement)
+  STATUTES // statuts de la société
+  MINUTES // procès-verbal (AG, conseil d'administration)
   OTHER
 }
 

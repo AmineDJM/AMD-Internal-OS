@@ -308,6 +308,18 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
   }
   const numerotee = MODELES_PIECES_NUMEROTEES.has(e.modele ?? "");
   if (numerotee) ctx.gardes.add(id);
+  // LE DOSSIER DE CLASSEMENT JURIDIQUE CRÉÉ PAR LE GESTE (Direction, 03/11/2026, décision 0061 : « un dossier vide est supprimé
+  // quand on annule un rangement ») : il ne contient plus que les pièces que CE geste a créées — annulées, gardées comme
+  // trace — et aucun sous-dossier : il est RETIRÉ, ses pièces annulées passent « non classées ». Un dossier qui contient
+  // autre chose, ou qui existait avant le geste (il n'est alors pas une création du geste), n'est jamais touché.
+  // (Un sous-dossier est un rattachement : `rattaches` le compte, sauf s'il est né du même geste.)
+  if (e.modele === Prisma.ModelName.LegalFolder && !touches.length && !(await rattaches(ctx.c, info, id, new Set([...ctx.crees, ...ctx.gardes]), ctx.remis)).n) {
+    if (ctx.appliquer) {
+      const fait = await ecrireVerrouille(info, id, (relue) => !!relue, (t) => delegue(t, info).delete({ where: { [info.cle!]: id } }));
+      if (!fait) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "le dossier a changé au moment même de l'annulation : laissé tel quel", aLaPlace: verdict.compensation };
+    }
+    return { effetId: e.id, issue: "ANNULE", quoi, pourquoi: "dossier créé par le rangement, vide une fois les pièces annulées : retiré (les pièces annulées restent, non classées)" };
+  }
   // LE DOCUMENT D'UNE PIÈCE NUMÉROTÉE (K10b) : le Word, le PDF, le dossier « Factures émises » nés du même geste restent
   // AVEC la pièce annulée, comme sa trace — ils ne bloquent pas l'annulation et ne sont pas retirés.
   if (!numerotee && lies.n && !touches.length && ctx.gardes.size && !(await rattaches(ctx.c, info, id, new Set([...ctx.crees, ...ctx.gardes]), ctx.remis)).n) {

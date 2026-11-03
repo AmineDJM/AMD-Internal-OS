@@ -417,7 +417,10 @@ avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `i
   entité, lecteurs désignés : une pièce restreinte n'est jamais nommée) ; le fichier est remis par son lien `/drive/<id>`.
 - **Assembler** : `assembler_pdf` (fusion, extraction de pages — `domaine/juridique/pdf.ts` —, images → PDF), nouveau
   fichier sous journal J7. Convertir et modifier en place restent l'Atelier (J3).
-- **Banc** : 36 tâches `DOC-` à vérificateur déterministe (`infra/testing/audit/taches/documents.ts`), 5 attaques
+- **Direction, 03/11** ([0061](../../../docs/assistant/decisions/0061-juridique-reponses-direction.md)) : le partenaire manquant
+  s'ajoute pour le DAF (`FINANCE_BUDGET_MANAGER`, par l'annuaire des Moyens généraux), refus propre aux autres ; natures
+  agrément / AMM / statuts / PV au registre ; l'annulation d'un rangement retire le dossier de classement qu'il avait créé, vide.
+- **Banc** : 40 tâches `DOC-` à vérificateur déterministe (`infra/testing/audit/taches/documents.ts`), 5 attaques
   `DOC-ATK-` (`attaques-documents.ts`), le semis (`semis-documents.ts`), la persona « juriste ». Exécuté puis annulé contre
   la base : `documents-t1.test.ts`.
 
