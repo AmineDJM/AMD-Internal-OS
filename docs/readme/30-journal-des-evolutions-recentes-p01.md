@@ -163,6 +163,11 @@ les mouvements, les justificatifs manquants et l'alerte de solde bas, enregistre
 réception, demande une rallonge (actions existantes, réversibles) ; la caisse n'est plus fermée à sa détentrice par la
 famille « Budgets ». Le registre véhicules / assurances / contrats est retiré (tables inertes) ; seules restent les
 **salles de réunion** (`/salles`), réservables par **tous les employés**.
+**Correction (Direction, 03/11) : il n'y a pas de réservation de salle.** La réponse « tous les employés » avait été
+rattachée à la mauvaise question. Les salles sont **mises de côté**, rien n'est supprimé : interrupteur `SALLES_EN_SERVICE`
+(absent par défaut) — l'assistant n'a plus aucun outil de salle, pour aucun rôle ; l'écran `/salles` mène à l'accueil ; les
+actions refusent ; les tables restent. `SALLES_EN_SERVICE=1` rétablit tout. Banc : tâches de salles hors du compte, une
+tâche et une attaque vérifient que l'assistant ne propose jamais de réserver une salle.
 
 ### T2 — ADVENTUM IA TIENT LES ANNUAIRES, ANALYSE LE MARKETING ET INTERROGE LE TERRAIN (2026-11-02)
 

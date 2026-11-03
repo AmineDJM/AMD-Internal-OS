@@ -1,17 +1,22 @@
+import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { libelleInstant } from "@/modules/salles/partage";
+import { libelleInstant, sallesEnService } from "@/modules/salles/partage";
 import { sallesEtReservations } from "@/modules/salles/api";
 
 /**
+ * MIS DE CÔTÉ (Direction, 03/11/2026 : « il n'y a pas de réservation de la salle ») : hors service, l'adresse mène à l'accueil ;
+ * `SALLES_EN_SERVICE=1` la rétablit (décision 0051, « Correction du 03/11 »).
+ *
  * LES SALLES DE RÉUNION (lot T3, décision 0051) — ouvertes à TOUS les employés (Direction, 02/11/2026) : les salles et
  * leur capacité, les réservations à venir. On réserve par Adventum IA (« réserve la salle du conseil jeudi de 10 h à
  * 12 h ») : le créneau est vérifié, une salle prise propose les salles libres, la réservation s'annule d'un geste.
  */
 export default async function Salles() {
   await requireUser();
+  if (!sallesEnService()) redirect("/");
   const { salles, reservations } = await sallesEtReservations();
   return (
     <div className="space-y-6">

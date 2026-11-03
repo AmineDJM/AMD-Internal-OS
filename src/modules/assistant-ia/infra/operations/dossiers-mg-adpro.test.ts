@@ -27,9 +27,10 @@ import { enregistrerFichierDrive } from "@/lib/drive/depot";
 import { annulerGeste } from "@/lib/effets/annulation";
 import { DOSSIERS_EXCEL } from "./dossiers-excel";
 import { FICHES_VOYAGE } from "./adpro-fiches-voyage";
-import { DECLARER_SALLE, RESERVER_SALLE } from "./salles";
 import { DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE } from "./caisse-avance";
-import { executerOperationJournalisee } from "./";
+import { consigneGestesFermes } from "../outils-v1";
+import { registreDesCapacites } from "../capacites";
+import { executerOperationJournalisee, OPERATIONS_IA, outilsOperations } from "./";
 import { lecturesDossiersEtMoyens } from "../lectures-dossiers-mg";
 import { creerMoyenGeneral } from "@/modules/salles/actions";
 import { updateDossierStatus } from "@/lib/actions/dossier-actions";
@@ -245,35 +246,16 @@ suite("T3 — dossiers, moyens généraux et fiches Ad & Pro, exécutés puis an
     expect(await prisma.pettyCashTopUpRequest.count({ where: { allotment: { departmentId: dep.id }, status: "PENDING" } })).toBe(0);
   });
 
-  it("salles : déclarées par l'assistante ; réservées par TOUT employé ; prise → salles libres proposées ; annulation libère le créneau", async () => {
-    expect(DECLARER_SALLE.ouverte(SANS_DROIT)).toBe(false);
-    for (const [nom, capacite] of [[`Salle du conseil ${TAG}`, 14], [`Salle Atlas ${TAG}`, 8], [`Salle Tassili ${TAG}`, 20]] as const) {
-      const p = await DECLARER_SALLE.proposer({ nom, capacite }, ASSISTANTE);
-      if (!("carte" in p)) throw new Error(JSON.stringify(p));
-      expect((await confirmer(ASSISTANTE, DECLARER_SALLE.nom, p.args)).r.ok).toBe(true);
-    }
-    // Un salarié SANS le module réserve (Direction, 02/11/2026).
-    expect(RESERVER_SALLE.ouverte(SANS_DROIT)).toBe(true);
-    const p = await RESERVER_SALLE.proposer({ salle: `conseil ${TAG}`, debut: "2027-03-12T10:00", fin: "12:00", objet: "Rendez-vous client", participants: 12 }, SANS_DROIT);
-    if (!("carte" in p)) throw new Error(JSON.stringify(p));
-    expect(JSON.stringify(p.carte.fields)).toMatch(/12\/03\/2027 10:00 → 12\/03\/2027 12:00/);
-    const c = await confirmer(SANS_DROIT, RESERVER_SALLE.nom, p.args);
-    expect(c.r.ok, c.r.error).toBe(true);
-    const deux = await RESERVER_SALLE.proposer({ salle: `Salle du conseil ${TAG}`, debut: "2027-03-12T11:00", fin: "13:00", objet: "Point RH", participants: 10 }, ASSISTANTE);
-    expect("erreur" in deux && deux.erreur).toMatch(/déjà réservée[\s\S]*Libres sur ce créneau : [\s\S]*Tassili/);
-    expect("erreur" in deux && deux.erreur).not.toMatch(/Atlas/);
-    const auto = await RESERVER_SALLE.proposer({ debut: "2027-03-12T11:00", fin: "12:00", objet: "Point RH", participants: 6 }, ASSISTANTE);
-    if (!("carte" in auto)) throw new Error(JSON.stringify(auto));
-    expect(auto.carte.title).toContain("Atlas");
-    const libres = JSON.parse(await lecture(SANS_DROIT, "lire_salles").run({ debut: "2027-03-12T10:30", fin: "11:30" }, SANS_DROIT)) as { salles_libres: string[] };
-    expect(libres.salles_libres.some((x) => x.includes("Atlas"))).toBe(true);
-    expect(libres.salles_libres.some((x) => x.includes(`conseil ${TAG}`))).toBe(false);
-    expect("refus" in (await annulerGeste(c.gesteId, SANS_DROIT))).toBe(false);
-    expect(await prisma.moyenGeneralReservation.count({ where: { moyen: { libelle: `Salle du conseil ${TAG}` }, statut: "CONFIRMEE" } })).toBe(0);
-    // Le premier registre est retiré : on ne déclare plus un véhicule.
+  it("salles MISES DE CÔTÉ (Direction, 03/11) : ni opération, ni lecture, ni capacité générique ; les actions refusent", async () => {
+    const noms = outilsOperations(ASSISTANTE, []).map((o) => o.def.name);
+    expect(noms.some((n) => /salle/.test(n))).toBe(false);
+    expect(OPERATIONS_IA.some((o) => /salle/.test(o.nom))).toBe(false);
+    expect(consigneGestesFermes(SANS_DROIT) ?? "").not.toMatch(/salle/i);
+    expect(lecturesDossiersEtMoyens(ASSISTANTE).some((o) => o.def.name === "lire_salles")).toBe(false);
+    expect(registreDesCapacites().capacites.some((c) => c.id.startsWith("moyens-generaux-registre-actions:"))).toBe(false);
     ACTOR = ASSISTANTE;
-    const fd = new FormData(); fd.set("type", "VEHICULE"); fd.set("libelle", `Kangoo ${TAG}`);
-    expect((await creerMoyenGeneral(undefined, fd)).ok).toBe(false);
+    const fd = new FormData(); fd.set("type", "SALLE"); fd.set("libelle", `Salle ${TAG}`);
+    expect(await creerMoyenGeneral(undefined, fd)).toEqual({ ok: false, error: "La réservation de salles n'est pas en service." });
   });
 
   it("fiches hôtellerie et voyage : contrôles, nuits calculées, poste hôtellerie créé, puis annulation", async () => {

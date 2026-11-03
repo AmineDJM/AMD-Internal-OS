@@ -441,7 +441,8 @@ seule, erreurs listées), application par l'action de lot `dossier-actions:mettr
 annulation. « Moyens généraux » = la CAISSE D'AVANCE de l'assistante (Direction, 02/11) : `lire_caisse_avance`
 (`infra/caisse-avance.ts`, vue de l'écran) et `depenser_caisse_avance` (avec justificatif), `demander_rallonge_caisse`,
 `confirmer_reception_caisse` (`infra/operations/caisse-avance.ts`, actions `petty-cash-actions`). Salles de réunion
-(module `salles`, réservation ouverte à tous) : `reserver_salle`, `declarer_salle`, `lire_salles`. Fiches hôtellerie et
+(module `salles`) : **mises de côté** (Direction, 03/11 : pas de réservation de salle) — `reserver_salle`, `declarer_salle`,
+`lire_salles` et les capacités des salles n'existent pour l'assistant qu'avec `SALLES_EN_SERVICE=1`. Fiches hôtellerie et
 voyage en lot : `preparer_fiches_hotellerie_voyage`. Lecture du suivi : `lire_dossiers_suivi`
 (`infra/lectures-dossiers-mg.ts`). Banc du domaine : `infra/testing/audit/taches/dossiers-mg-adpro.ts`. Tests qui
 exécutent puis annulent : `infra/operations/dossiers-mg-adpro.test.ts`, `lib/effets/reversibles-salles.test.ts`.

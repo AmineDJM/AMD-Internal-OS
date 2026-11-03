@@ -1037,3 +1037,7 @@ would collide across parallel suites in the test DB.
   pause `ATTEND_CONSIGNES` (no hard failure). `deciderAntiBoucle` → CORRIGER | ESCALADER_SOL | CONSIGNES with `alerte` at the
   3rd red (`prevenir`), `correctionsMax` 8. Reservations of a live chantier never expire (`STATUTS_VIVANTS`). Tool
   `consigne_chantier` → `donnerConsigneChantier` (same session / PR thread / new session with history; resets tours).
+- **Correction (Direction, 03/11)**: there is NO room booking at Adventum (the 02/11 answer "all employees" had been
+  attached to the wrong question). `src/modules/salles` is set aside behind `SALLES_EN_SERVICE` (env, off by default):
+  off → no room operations/read/capability for any role (`OPERATIONS_IA`, `lecturesDossiersEtMoyens`, `CONTRATS_IA`
+  filtered), `/salles` redirects home, actions refuse; tables kept. `SALLES_EN_SERVICE=1` restores everything.

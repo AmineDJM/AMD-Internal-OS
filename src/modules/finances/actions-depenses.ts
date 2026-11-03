@@ -48,7 +48,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   if (order.status !== "PENDING") return { ok: false, error: "Cet ordre a été annulé." };
 
   // QUI DEMANDE OU AUTORISE NE RÈGLE PAS (audit 27/10, ARGENT-06) — réglage du Super Admin, actif par défaut.
-  const separation = refusSeparationDesTaches("REGLER", order, user.id, (await getAppSettings()).separationTachesPaiement);
+  const separation = refusSeparationDesTaches("REGLER", order, user.id, (await getAppSettings()).separationTachesPaiement, user.role === "SUPER_ADMIN");
   if (separation) return { ok: false, error: separation };
 
   // LE VERROU DU CENTRE DE PAIEMENT — la dernière porte avant que l'argent sorte.

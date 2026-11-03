@@ -98,6 +98,15 @@ export function etatDuGeste(): EtatGeste | null {
   return magasin?.getStore() ?? null;
 }
 
+/**
+ * HORS DE TOUT GESTE — ce qui part APRÈS la fenêtre d'annulation (le réveil du processus, l'exécution d'un effet dû) ne
+ * doit pas hériter du geste qui l'a programmé : sinon la poussée, revoyant « sous un geste réversible », se différait
+ * À NOUVEAU au lieu de partir — une fenêtre « part dans 1:53 » qui recommençait sans fin (production, 03/11/2026).
+ */
+export function horsGeste<T>(fn: () => T): T {
+  return magasin ? magasin.exit(fn) : fn();
+}
+
 export function sousGeste<T>(etat: EtatGeste, fn: () => T): T {
   if (!magasin) throw new Error("Un geste d'agent s'exécute côté serveur seulement (contexte asynchrone indisponible).");
   return magasin.run(etat, fn);

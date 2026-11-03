@@ -12,8 +12,9 @@ import { retablirGeste } from "./retablissement";
 import { gesteReversible, gestesRecents } from "./ecran";
 import {
   annulerEffetSortant, borneFenetre, deCharge, delaiFenetre, differerEffetSortant, enCharge, enregistrerExecuteur,
-  executerEffetsSortantsDus, FENETRE_DEFAUT_SECONDES, retablirEffetSortant,
+  differerSiFenetre, executerEffetsSortantsDus, FENETRE_DEFAUT_SECONDES, retablirEffetSortant,
 } from "./fenetre";
+import { etatDuGeste } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -85,6 +86,27 @@ suite("la fenêtre d'annulation des effets sortants (K10b)", () => {
     // Le plan le dit AVANT le clic : il ne partira pas.
     const plan = await planDAnnulation(gesteId!, moi);
     expect("refus" in plan ? null : plan.details[0]?.issue).toBe("ANNULE");
+  });
+
+  it("PARTI POUR DE BON : l'effet dû s'exécute HORS du geste qui l'a différé — il ne se re-diffère jamais (boucle de production du 03/11)", async () => {
+    // Le réveil du processus web naît SOUS le geste (setTimeout hérite du contexte asynchrone) : avant, la poussée
+    // exécutée voyait encore « sous un geste réversible » et se différait À NOUVEAU — « part dans 1:53 » sans fin,
+    // et la notification n'arrivait jamais. On rejoue ce cas : l'exécution est lancée DEPUIS un geste à fenêtre.
+    const vus: { geste: unknown; redifere: unknown }[] = [];
+    enregistrerExecuteur("push.reentrant", {
+      executer: async (c) => {
+        vus.push({ geste: etatDuGeste(), redifere: await differerSiFenetre({ type: "push.reentrant", acte: "NOTIFICATION_PUSH", cible: moi.id, apercu: "encore", charge: c }) });
+      },
+    });
+    const { gesteId } = await journaliserGeste(moi, { origine: "ecran", libelle: "poussée réentrante" }, async () => {
+      await differerSiFenetre({ type: "push.reentrant", acte: "NOTIFICATION_PUSH", cible: moi.id, apercu: "Autorisation de paiement demandée", charge: { n: 1 } });
+    });
+    const [l] = await envoisDuGeste(gesteId!);
+    expect(l?.statut).toBe("EN_ATTENTE");
+    await journaliserGeste(moi, { origine: "ecran", libelle: "le minuteur hérite du geste" }, () => executerEffetsSortantsDus({ maintenant: plusTard(), ids: [l!.id] }));
+    expect(vus).toEqual([{ geste: null, redifere: null }]);
+    expect((await ligneDe(l!.id)).statut).toBe("PARTI");
+    expect(await prisma.effetSortantDiffere.count({ where: { principalId: moi.id, type: "push.reentrant", statut: "EN_ATTENTE" } }), "aucune nouvelle fenêtre ouverte").toBe(0);
   });
 
   it("annulé dans la fenêtre : RIEN n'est parti, l'audit le garde, le worker ne l'envoie jamais", async () => {
