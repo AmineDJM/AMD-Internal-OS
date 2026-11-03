@@ -157,6 +157,7 @@ export async function retirerComptesEtSemis(args: { where?: Prisma.UserWhereInpu
   await retirerSemisDeComptes(ids);
   await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } });
   await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } });
+  await retirerCeQuIlsOntDepose(ids);
   try {
     return await prisma.user.deleteMany({ where: { id: { in: ids } } });
   } catch (e) {
@@ -174,6 +175,21 @@ export async function retirerComptesEtSemis(args: { where?: Prisma.UserWhereInpu
     }
   }
   return { count };
+}
+
+/**
+ * CE QUE LES COMPTES DU BANC ONT EUX-MÊMES DÉPOSÉ et qui les RETIENT (`onDelete: Restrict` vers leur compte) : leurs
+ * demandes de validation (`requesterId` — étapes et participants partent en cascade), leurs retours (`Feedback`, ses
+ * pièces jointes), les compléments qu'ils ont demandés sur un recrutement. MESURÉ (03/11) : `signature-renvoi-flow`
+ * échouait à retirer ses comptes (« ValidationRequest_requesterId_fkey ») — ses demandes, nées des circuits qu'il joue,
+ * n'étaient pas toutes liées à ses documents. Rien de ce qu'un AUTRE a déposé ne part ici (un valideur désigné par un
+ * voisin : retrait différé, ci-dessous).
+ */
+async function retirerCeQuIlsOntDepose(ids: string[]): Promise<void> {
+  await prisma.validationRequest.deleteMany({ where: { requesterId: { in: ids } } });
+  await prisma.feedbackAttachment.deleteMany({ where: { uploadedById: { in: ids } } });
+  await prisma.feedback.deleteMany({ where: { userId: { in: ids } } });
+  await prisma.recruitmentInfoRequest.deleteMany({ where: { askedById: { in: ids } } });
 }
 
 const estCleEtrangere = (e: unknown) => (e as { code?: string } | null)?.code === "P2003";

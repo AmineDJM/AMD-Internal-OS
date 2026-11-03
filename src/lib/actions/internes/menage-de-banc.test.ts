@@ -135,4 +135,13 @@ suite("le ménage de banc rend le stockage", () => {
     expect(await prisma.user.count({ where: { id: banc.id } })).toBe(0);
     await retirerComptesEtSemis({ where: { id: voisin.id } });
   });
+
+  it("ce qu'un compte du banc a lui-même DÉPOSÉ (sa demande de validation) part avec lui — elle ne le retient plus", async () => {
+    const banc = await prisma.user.create({ data: { email: `${TAG}demandeur@banc.local`, name: `${TAG}demandeur`, passwordHash: "!" }, select: { id: true } });
+    const demande = await prisma.validationRequest.create({ data: { reference: `${TAG}VAL-SIENNE`, module: "TEST", title: `${TAG} sa demande`, requesterId: banc.id }, select: { id: true } });
+    await prisma.validationStep.create({ data: { requestId: demande.id, order: 1, validatorId: banc.id } });
+    expect(await retirerComptesEtSemis({ where: { id: banc.id } })).toEqual({ count: 1 });
+    expect(await prisma.validationRequest.count({ where: { id: demande.id } }), "sa demande le retenait (Restrict)").toBe(0);
+  });
 });
+

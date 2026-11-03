@@ -81,3 +81,24 @@ describe("cliquet — aucun banc n'emprunte un compte, une société ou un dépa
     expect(emprunts(), "poser le compte / la société au banc (`comptesDeBanc`) et le retirer, au lieu de l'emprunter").toEqual([]);
   });
 });
+
+/**
+ * CLIQUET — LES BANCS À ÉTIQUETTE FIXE NE SONT PAS PLUS NOMBREUX. Une étiquette littérale (`const TAG = "__x__"`) dans les
+ * e-mails des comptes du banc : un passage interrompu laisse ses comptes, et le suivant tombe sur l'unicité de l'e-mail,
+ * ses cas sautés (mesuré : `signature-renvoi-flow`, 03/11). Le remède : une étiquette PAR PASSAGE (`comptesDeBanc`, ou
+ * `${PREFIXE}${Date.now().toString(36)}_` + `retirerComptesPerimes`). Le parc hérité se mesure ; le chiffre ne fait que
+ * BAISSER — un banc corrigé l'abaisse ici, un banc neuf à étiquette fixe le fait échouer.
+ */
+const PLAFOND_ETIQUETTES_FIXES = 160;
+
+describe("cliquet — les bancs à étiquette fixe", () => {
+  it("leur nombre ne remonte pas", () => {
+    const fixes = FICHIERS.filter((f) => {
+      const s = readFileSync(f, "utf8");
+      return [...s.matchAll(/^const (\w+)\s*=\s*"[^"]+";/gm)].some((m) => new RegExp(`email:\\s*\`[^\`]*\\$\\{${m[1]}\\}`).test(s));
+    });
+    expect(fixes.length, `bancs à étiquette fixe dans les e-mails : ${fixes.length} (plafond ${PLAFOND_ETIQUETTES_FIXES}) — une étiquette par passage`).toBeLessThanOrEqual(PLAFOND_ETIQUETTES_FIXES);
+    if (fixes.length < PLAFOND_ETIQUETTES_FIXES) console.warn(`[cliquet] ${fixes.length} bancs à étiquette fixe : abaisser PLAFOND_ETIQUETTES_FIXES.`);
+  });
+});
+
