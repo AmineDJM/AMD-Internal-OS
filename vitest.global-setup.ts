@@ -116,6 +116,10 @@ export async function teardown(): Promise<void> {
     return;
   }
   try {
+    // D'ABORD les comptes dont un banc a DIFFÉRÉ le retrait (retenus par la ligne d'un voisin, `menage-de-banc.ts`) :
+    // plus aucun banc ne tourne, plus rien ne les retient — et leurs gestes partent juste après, avec ceux des disparus.
+    const { retirerComptesDifferes } = await import("./src/lib/actions/internes/menage-de-banc");
+    const differes = await retirerComptesDifferes();
     const sortants = await prisma.$executeRaw`
       DELETE FROM "EffetSortantDiffere" e
       WHERE e."principalId" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u.id = e."principalId")`;
@@ -128,7 +132,7 @@ export async function teardown(): Promise<void> {
     const pieces = await retirerPiecesDeComptesDisparus();
     const { purgeOrphanBlobs } = await import("./src/lib/drive-storage");
     const blobs = await purgeOrphanBlobs();
-    console.log(`[ménage de fin de suite] ${gestes} geste(s) et ${sortants} envoi(s) différé(s) de comptes disparus ; ${boites.count} notification(s) des comptes permanents ; ${pieces} pièce(s) de comptes disparus ; ${blobs.count} blob(s) orphelin(s) (${Math.round(blobs.bytes / 1_048_576)} Mo).`);
+    console.log(`[ménage de fin de suite] ${differes} compte(s) au retrait différé ; ${gestes} geste(s) et ${sortants} envoi(s) différé(s) de comptes disparus ; ${boites.count} notification(s) des comptes permanents ; ${pieces} pièce(s) de comptes disparus ; ${blobs.count} blob(s) orphelin(s) (${Math.round(blobs.bytes / 1_048_576)} Mo).`);
     if (ouverture) {
       const fermeture = await compterLesTables(prisma);
       const residu = Object.fromEntries(TABLES_SURVEILLEES.map((t) => [t, (fermeture[t] ?? 0) - (ouverture![t] ?? 0)]));

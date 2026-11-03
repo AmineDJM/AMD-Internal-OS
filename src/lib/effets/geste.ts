@@ -72,6 +72,7 @@ export function etatPour(user: CurrentUser | null, ctx: ContexteDuGeste): EtatGe
     client: parent?.client ?? null,
     gesteId: parent?.gesteId ?? null,
     fenetre: parent?.fenetre ?? false,
+    essai: parent?.essai ?? false,
   };
 }
 

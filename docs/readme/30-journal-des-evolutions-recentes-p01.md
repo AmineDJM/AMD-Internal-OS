@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### ESSAYER L'AGENT D'UNE PERSONNE — LE SUPER ADMIN, AVANT LA PRODUCTION (2026-11-03)
+
+Demande de la Direction : tester l'agent de chacun **exactement**, pour qu'aucune personne n'accède en production à une
+donnée que l'essai n'a pas montrée. Carte « **Essayer son agent** » dans Administration › Contrôle de l'IA › Adam — accès.
+- Le vrai chemin de la personne, sous son identité, ses droits et la garde de ses données ; la réponse dessinée par l'écran
+  même de l'assistant. Rien n'est enregistré chez elle, rien ne sort ; une carte se lit, elle ne s'exécute pas.
+- Le socle des effets gagne un **mode essai** : le modèle répond (lui seul sort), chaque requête est isolée par un point de
+  sauvegarde. Et un envoi **différé** ne se programme plus sous une simulation (il s'écrivait hors de la transaction annulée).
+- Prouvé contre la base : même prompt et mêmes outils que le vrai chemin, au mot près ; la paie d'autrui refusée à l'essai
+  comme en production, alors que le Super Admin qui essaie la verrait ; rien ne reste chez la personne.
+
 ### T2 BIS — DOUBLONS DE MÉDECINS AU SUPER ADMIN, DEMANDE DE STOCK RÉSERVÉE, RELEVÉ DU DÉLÉGUÉ (2026-11-03, décision 0062)
 
 Réponses de la Direction du 03/11 :

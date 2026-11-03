@@ -20,6 +20,8 @@ export function classerExclusionsCircuits(): void {
     "assistant-ia-consommation-actions:accorderDroitDateIa", "assistant-ia-consommation-actions:revoquerDroitDateIa",
     "assistant-ia-consommation-actions:enregistrerAvenantIa", "assistant-ia-consommation-actions:revoquerAvenantIa",
     "assistant-ia-consommation-actions:apercuAssistantDe",
+    // L'essai de l'agent d'une personne : le geste du Super Admin qui vérifie, avant la production — jamais d'une IA.
+    "assistant-ia-consommation-actions:essayerAgentDeLaPersonne",
     // D2 (décision 0057) : l'accès par base — une IA ne règle jamais les accès, ni les siens ni ceux d'autrui.
     "acces-bases-actions:poserReglageBase", "acces-bases-actions:revoquerReglageBase", "acces-bases-actions:reglerPropresDonneesBase",
     "acces-bases-actions:reglerAccesBasesStrict",

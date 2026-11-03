@@ -9,7 +9,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
-import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
+import { attendreBloques, poserBarriere, retirerComptesPerimes } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
   createRequest, updateRequestStatus, startRequestProcessing, finishRequest, rouvrirDemande,
@@ -20,7 +20,9 @@ let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
-const TAG = "__secgestes__";
+/** Une étiquette PAR PASSAGE : fixe, un passage interrompu laissait ses comptes, et le suivant tombait sur l'unicité de l'e-mail. */
+const PREFIXE = "__secgestes__";
+const TAG = `${PREFIXE}${Date.now().toString(36)}_`;
 
 async function actorFor(id: string, role: SessionUser["role"]): Promise<CurrentUser> {
   const access = await getAccess(id, role);
@@ -46,6 +48,10 @@ suite("Demande au secrétariat — gestes nommés, fin gardée, réouverture mot
   const comme = async (k: string) => { ACTOR = await actorFor(u[k]!, roles[k]!); };
 
   beforeAll(async () => {
+    // Les comptes de l'ANCIENNE étiquette fixe (`__secgestes__req@t.dz`…), qu'un passage interrompu laissait.
+    const anciens = (await prisma.user.findMany({ where: { email: { startsWith: PREFIXE } }, select: { id: true, email: true } }))
+      .filter((c) => !/^__secgestes__[0-9a-z]+_/.test(c.email)).map((c) => c.id);
+    if (anciens.length) await retirerComptesEtSemis({ where: { id: { in: anciens } } });
     for (const [k, role] of Object.entries(roles)) {
       const x = await prisma.user.create({ data: { name: `${TAG}${k}`, email: `${TAG}${k}@t.dz`, role, passwordHash: "x" } });
       u[k] = x.id;
@@ -62,6 +68,7 @@ suite("Demande au secrétariat — gestes nommés, fin gardée, réouverture mot
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesPerimes(PREFIXE);
   });
 
   async function nouvelle(titre: string, assignee = true): Promise<string> {

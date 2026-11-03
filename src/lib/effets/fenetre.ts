@@ -2,7 +2,7 @@ import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { journaliser, sansBloquer } from "@/lib/journal";
 import type { CurrentUser } from "@/lib/session";
-import { etatDuGeste, horsGeste, type EffetExterneCapture } from "./magasin";
+import { etatDuGeste, horsGeste, noterEffetExterne, type EffetExterneCapture } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -124,6 +124,12 @@ export async function differerEffetSortant(d: DemandeEffetSortant): Promise<Effe
   const etat = etatDuGeste();
   const delaiSecondes = d.delaiSecondes !== undefined ? Math.max(0, Math.round(d.delaiSecondes)) : await delaiFenetre();
   const executeLe = new Date(Date.now() + delaiSecondes * 1000);
+  // SOUS UNE SIMULATION (une carte qui montre son diff, l'essai d'un agent), RIEN NE SE PROGRAMME : la file s'écrit par le
+  // client de base — hors de la transaction annulée —, et le worker l'enverrait pour de bon. L'envoi est noté, neutralisé.
+  if (etat?.mode === "SIMULATION") {
+    noterEffetExterne({ acte: d.acte, cible: d.cible.slice(0, 500), apercu: d.apercu?.slice(0, 500), origine: `différé (${d.type})` });
+    return { id: "simulation", executeLe, delaiSecondes };
+  }
   const ligne = await prismaBrut.effetSortantDiffere.create({
     data: {
       type: d.type, acte: d.acte, cible: d.cible.slice(0, 500), apercu: d.apercu?.slice(0, 500) ?? null,
