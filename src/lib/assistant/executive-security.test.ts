@@ -53,6 +53,41 @@ describe("outils exécutifs — fermés aux comptes qui n'y ont pas droit", () =
     expect(r).toMatch(/ne vous est pas ouvert/i);
   });
 
+  it("la masse salariale d'un mois se VENTILE par société, et `societe` donne le total d'une seule (Direction, 03/11 : « non, que Adventum »)", async () => {
+    let base = true;
+    try { await prisma.$queryRaw`SELECT 1`; } catch { base = false; }
+    if (!base) return;
+    const TAG = `__paiesoc_${Date.now().toString(36)}_`;
+    const [adv, life] = await Promise.all([
+      prisma.company.create({ data: { name: `${TAG}Adventum Pharma`, shortName: `${TAG}Adventum` } }),
+      prisma.company.create({ data: { name: `${TAG}AMD Life Sciences`, shortName: `${TAG}Life` } }),
+    ]);
+    try {
+      const salarie = async (nom: string, companyId: string, cout: number, net: number) => {
+        const e = await prisma.employee.create({ data: { fullName: `${TAG}${nom}`, companyId } });
+        await prisma.payrollEntry.create({ data: { employeeId: e.id, year: 2099, month: 1, employerCost: cout, gross: cout, net } });
+      };
+      await salarie("A1", adv.id, 300_000, 200_000);
+      await salarie("A2", adv.id, 100_000, 70_000);
+      await salarie("L1", life.id, 50_000, 40_000);
+      const rh = userWith({ RH: ["VIEW"] }, "SUPER_ADMIN");
+      const tout = JSON.parse(await executePowerTool("read_payroll", { month: "2099-01" }, rh)) as { parSociete: { societe: string; masseSalarialeDzd: number; salaries: number }[]; masseSalarialeDzd: number };
+      const deCeBanc = tout.parSociete.filter((g) => g.societe.startsWith(TAG));
+      expect(deCeBanc).toEqual([
+        expect.objectContaining({ societe: `${TAG}Adventum`, masseSalarialeDzd: 400_000, salaries: 2 }),
+        expect.objectContaining({ societe: `${TAG}Life`, masseSalarialeDzd: 50_000, salaries: 1 }),
+      ]);
+      const seule = JSON.parse(await executePowerTool("read_payroll", { month: "2099-01", societe: `${TAG}Adventum` }, rh)) as { perimetre: string; masseSalarialeDzd: number; totalNetDzd: number; salaries: number };
+      expect(seule).toMatchObject({ masseSalarialeDzd: 400_000, totalNetDzd: 270_000, salaries: 2 });
+      expect(seule.perimetre).toMatch(/seule/);
+      const aucune = JSON.parse(await executePowerTool("read_payroll", { month: "2099-01", societe: `${TAG}Inconnue` }, rh)) as { introuvable?: string };
+      expect(aucune.introuvable).toMatch(/Aucune ligne de paie/);
+    } finally {
+      await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } });
+      await prisma.company.deleteMany({ where: { id: { in: [adv.id, life.id] } } });
+    }
+  });
+
   it("la recherche fédérée reste OUVERTE à tous — c'est son contenu qui est cloisonné", () => {
     const names = powerToolsFor(userWith({})).map((t) => t.name);
     expect(names).toContain("search_everything");

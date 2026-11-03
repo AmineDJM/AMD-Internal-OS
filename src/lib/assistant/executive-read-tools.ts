@@ -483,13 +483,15 @@ export const EXECUTIVE_READ_TOOLS: PowerTool[] = [
       description:
         "Lit la PAIE (données confidentielles, réservées aux détenteurs du module RH) : " +
         "avec `name`, le salaire actuel d'une personne (base, net, coût employeur) et ses 6 derniers mois de paie ; " +
-        "avec `month` (AAAA-MM), la masse salariale de ce mois (somme des coûts employeur) et le nombre de salariés payés. " +
+        "avec `month` (AAAA-MM), la masse salariale de ce mois (somme des coûts employeur) et le nombre de salariés payés, " +
+        "TOUJOURS détaillée PAR SOCIÉTÉ du groupe (`parSociete`) ; `societe` (ex. « Adventum ») restreint le total à cette société. " +
         "À utiliser AVANT toute modification de salaire (update_salary) : la carte doit montrer l'AVANT.",
       input_schema: {
         type: "object",
         properties: {
           name: { type: "string", description: "Nom de l'employé (détail individuel)." },
           month: { type: "string", description: "Mois AAAA-MM (masse salariale du mois)." },
+          societe: { type: "string", description: "Société du groupe (nom ou nom court, ex. « Adventum ») : le total de cette société seule." },
         },
       },
     },
@@ -531,19 +533,39 @@ export const EXECUTIVE_READ_TOOLS: PowerTool[] = [
       if (month) {
         if (!YM_RE.test(month)) return "Mois illisible (AAAA-MM).";
         const [y, m] = month.split("-").map(Number);
-        const entries = await prisma.payrollEntry.findMany({
+        const toutes = await prisma.payrollEntry.findMany({
           where: { year: y, month: m },
-          select: { employerCost: true, gross: true, net: true, status: true },
+          select: { employerCost: true, gross: true, net: true, status: true, employee: { select: { company: { select: { name: true, shortName: true } } } } },
         });
-        if (entries.length === 0) return `Aucune ligne de paie sur ${month}.`;
-        const masse = entries.reduce((s, e) => s + (e.employerCost != null ? toNumber(e.employerCost) : toNumber(e.gross)), 0);
-        const net = entries.reduce((s, e) => s + toNumber(e.net), 0);
-        const sansCout = entries.filter((e) => e.employerCost == null).length;
+        if (toutes.length === 0) return `Aucune ligne de paie sur ${month}.`;
+        // LA SOCIÉTÉ DE CHAQUE LIGNE (celle du salarié) — le groupe a plusieurs sociétés : un total sans ventilation ne
+        // répond pas à « la masse salariale d'Adventum » (Direction, 03/11/2026 : l'assistant n'a pu que se rétracter).
+        const societeDe = (e: (typeof toutes)[number]) => e.employee.company?.shortName ?? e.employee.company?.name ?? "Société non renseignée";
+        const cout = (e: (typeof toutes)[number]) => (e.employerCost != null ? toNumber(e.employerCost) : toNumber(e.gross));
+        const resume = (xs: typeof toutes) => ({
+          salaries: xs.length,
+          masseSalarialeDzd: Math.round(xs.reduce((s, e) => s + cout(e), 0)),
+          totalNetDzd: Math.round(xs.reduce((s, e) => s + toNumber(e.net), 0)),
+          payes: xs.filter((e) => e.status === "PAID").length,
+        });
+        const groupes = new Map<string, typeof toutes>();
+        for (const e of toutes) groupes.set(societeDe(e), [...(groupes.get(societeDe(e)) ?? []), e]);
+        const parSociete = [...groupes].map(([societe, xs]) => ({ societe, ...resume(xs) })).sort((a, b) => b.masseSalarialeDzd - a.masseSalarialeDzd);
+        const filtre = str(input, "societe");
+        const norm = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+        const visee = filtre
+          ? toutes.filter((e) => [e.employee.company?.shortName, e.employee.company?.name].some((n) => n && (norm(n).includes(norm(filtre)) || norm(filtre).includes(norm(n)))))
+          : null;
+        if (filtre && !visee!.length) {
+          return JSON.stringify({ mois: month, societe: filtre, introuvable: `Aucune ligne de paie de « ${filtre} » sur ${month}.`, societesPayees: parSociete.map((g) => g.societe), parSociete, lien: "/rh/paie" });
+        }
+        const lignes = visee ?? toutes;
+        const sansCout = lignes.filter((e) => e.employerCost == null).length;
         return JSON.stringify({
-          mois: month, salaries: entries.length,
-          masseSalarialeDzd: Math.round(masse),
-          totalNetDzd: Math.round(net),
-          payes: entries.filter((e) => e.status === "PAID").length,
+          mois: month,
+          perimetre: filtre ? `société « ${[...new Set(visee!.map(societeDe))].join(", ")} » seule` : `toutes les sociétés du groupe (${parSociete.length})`,
+          ...resume(lignes),
+          parSociete,
           precision: sansCout > 0 ? `${sansCout} ligne(s) sans coût employeur : le brut a servi de repli pour celles-ci.` : undefined,
           lien: "/rh/paie",
         });
