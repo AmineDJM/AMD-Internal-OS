@@ -29,11 +29,12 @@ import { releaseBlob } from "@/lib/drive-storage";
 /**
  * Les modèles dont une colonne `pieceId` RETIENT une pièce — lus dans le schéma Prisma, pour qu'un modèle ajouté demain
  * soit compté sans y penser : tous, sauf ceux qui partent AVEC la pièce (`onDelete: Cascade` : ses fiches, ses liens,
- * ses extractions). Une colonne sans relation (`PaymentRequestEvent`, `AdProVoyageurDevis`…) retient.
+ * ses extractions, les passages de ses fiches). Une colonne sans relation (`PaymentRequestEvent`, `AdProVoyageurDevis`…) retient.
  */
 const MODELES_QUI_RETIENNENT: readonly string[] = Prisma.dmmf.datamodel.models
   .filter((m) => m.name !== "Piece" && m.fields.some((f) => f.name === "pieceId" && f.kind === "scalar"))
-  .filter((m) => !m.fields.some((f) => f.kind === "object" && f.type === "Piece" && f.relationFromFields?.includes("pieceId") && f.relationOnDelete === "Cascade"))
+  // En cascade depuis la pièce, ou depuis ce qui part avec elle (`BibliothequePassage` suit sa fiche par `pieceId`).
+  .filter((m) => !m.fields.some((f) => f.kind === "object" && f.relationFromFields?.includes("pieceId") && f.relationOnDelete === "Cascade"))
   .map((m) => m.name);
 
 type DelegueAPiece = { findMany: (a: { where: { pieceId: { in: string[] } }; select: { pieceId: true } }) => Promise<{ pieceId: string | null }[]> };
@@ -62,7 +63,14 @@ export async function retirerDocumentsEtContenu(args: { where?: Prisma.DocumentW
   const cles = [...new Set(docs.map((d) => d.fileKey).filter((k): k is string => Boolean(k)))];
   const encoreTenues = new Set((await prisma.document.findMany({ where: { fileKey: { in: cles } }, select: { fileKey: true } })).map((d) => d.fileKey));
   for (const cle of cles) if (!encoreTenues.has(cle)) await deleteFileByKey(cle).catch(sansBloquer("menage-de-banc.retirerDocumentsEtContenu.fichier"));
-  await retirerPiecesSansAttache(docs.map((d) => d.pieceId));
+  // Une pièce inscrite depuis un document peut ne tenir à lui que par un LIEN (`inscrireDocumentExistant`) : le lien part
+  // avec le document ; la pièce aussi, si plus aucun autre lien ni aucune colonne ne la désigne (mesuré : les CV de
+  // `site-web/candidatures`, trois par passage).
+  const auDocument = { sujetType: "ENTITE" as const, entityType: "DOCUMENT", sujetId: { in: docs.map((d) => d.id) } };
+  const parLien = [...new Set((await prisma.pieceLien.findMany({ where: auDocument, select: { pieceId: true } })).map((l) => l.pieceId))];
+  await prisma.pieceLien.deleteMany({ where: auDocument });
+  const encoreLiees = new Set((await prisma.pieceLien.findMany({ where: { pieceId: { in: parLien } }, select: { pieceId: true } })).map((l) => l.pieceId));
+  await retirerPiecesSansAttache([...docs.map((d) => d.pieceId), ...parLien.filter((id) => !encoreLiees.has(id))]);
   return r;
 }
 

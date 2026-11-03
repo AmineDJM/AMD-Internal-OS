@@ -46,7 +46,9 @@ async function deposer(nom: string, mimeType: string, octets: Buffer): Promise<{
 
 suite("l'index de contenu ne confond jamais « rien lu » et « rien dedans »", () => {
   beforeAll(async () => {
-    const u = await prisma.user.create({ data: { name: `${TAG} pdg`, email: `${TAG}@t.dz`, passwordHash: "x", role: "SUPER_ADMIN" } });
+    // Un simple propriétaire suffit. En SUPER_ADMIN, le compte était désigné valideur par les circuits des bancs voisins
+    // (mesuré, F1 : `ValidationStep_validatorId_fkey` refusait son retrait ; 77 notifications de rôle par passage).
+    const u = await prisma.user.create({ data: { name: `${TAG} pdg`, email: `${TAG}@t.dz`, passwordHash: "x", role: "VIEWER" } });
     ownerId = u.id;
   });
   afterAll(async () => {

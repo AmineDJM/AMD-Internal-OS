@@ -99,4 +99,19 @@ suite("le ménage de banc rend le stockage", () => {
     await retirerComptesEtSemis({ where: { id: voisin.id } });
     await retirerNoeudsDriveEtContenu({ where: { id: partage.id } });
   });
+
+  it("une pièce qui ne tient au document que par un LIEN part avec lui ; une pièce qu'un autre lien désigne reste", async () => {
+    const piece = (n: string) => prisma.piece.create({ data: { empreinte: `${TAG}${n}`, nom: `${TAG}${n}.pdf` }, select: { id: true } });
+    const lien = (pieceId: string, sujetId: string) => prisma.pieceLien.create({ data: { pieceId, sujetType: "ENTITE", entityType: "DOCUMENT", sujetId, role: "OTHER" } });
+    const d = await document(`${TAG}/lie.pdf`);
+    const seule = await piece("seule");
+    const partagee = await piece("partagee");
+    await lien(seule.id, d.id);
+    await lien(partagee.id, d.id);
+    await lien(partagee.id, `${TAG}-autre-document`);
+    expect(await retirerDocumentsEtContenu({ where: { id: d.id } })).toEqual({ count: 1 });
+    expect(await prisma.piece.count({ where: { id: seule.id } }), "la pièce du seul document est restée").toBe(0);
+    expect(await prisma.piece.count({ where: { id: partagee.id } }), "une pièce qu'un autre document désigne est partie").toBe(1);
+    await prisma.piece.deleteMany({ where: { empreinte: { startsWith: TAG } } });
+  });
 });
