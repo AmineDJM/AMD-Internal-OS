@@ -26,7 +26,7 @@ export default async function StocksPage() {
   // terrain. Un délégué médical relève les hôpitaux qu'il visite — il n'a rien à faire dans la
   // position de la centrale d'achat, ni dans celle de ses annexes. La règle est portée par
   // `lib/stocks/scopes.ts` : elle ne nomme aucun rôle, elle lit l'accès à la chaîne.
-  const viewer = { canSeeSupplyChain: userCan(user, "PCH", "VIEW"), hasGlobalView: hasGlobalView(user.role), isSuperAdmin };
+  const viewer = { canSeeSupplyChain: userCan(user, "PCH", "VIEW"), hasGlobalView: hasGlobalView(user.role), isSuperAdmin, roles: [user.role, user.secondaryRole] };
   const scopes = visibleStockScopes(viewer);
   // Demander un état de stock est une RÉQUISITION adressée à quelqu'un : elle appartient à qui
   // tient la chaîne, jamais à qui y contribue. Le droit de suppression ne l'ouvre plus.

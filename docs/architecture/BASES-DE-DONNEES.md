@@ -69,9 +69,9 @@ par base :
    du coffre et est journalisée (`AccesDonneeSensible`) ; aucun modèle d'IA ne le lit jamais.
 
 <!-- BASES:DEBUT -->
-_Généré par `npm run bases:generer` — 519 tables, 29 bases. Ne pas éditer à la main._
+_Généré par `npm run bases:generer` — 520 tables, 29 bases. Ne pas éditer à la main._
 
-### Bases métier (381 tables)
+### Bases métier (382 tables)
 
 | Base | Tables | Sensibilité | Modules qui l'ouvrent aujourd'hui |
 |---|---:|---|---|
@@ -83,7 +83,7 @@ _Généré par `npm run bases:generer` — 519 tables, 29 bases. Ne pas éditer 
 | Juridique, contrats & courriers (`juridique`) | 8 | Confidentiel | Legal, Courriers, Bons de commande |
 | Sociétés du groupe & organisation interne (`societes`) | 5 | Restreint (jusqu'à secret) | Administration, Business Units |
 | Coffre des données sensibles (`coffre`) | 2 | Secret | Administration |
-| Annuaires, personnes & organisations (`annuaires`) | 20 | Restreint (jusqu'à secret) | Annuaires |
+| Annuaires, personnes & organisations (`annuaires`) | 21 | Restreint (jusqu'à secret) | Annuaires |
 | Ad & Pro, congrès & événements (`ad-pro`) | 36 | Confidentiel | Sponsoring, Prises en charge Internationales, Prises en charge Nationales, Événements, Consulting, Ad & Pro — autres demandes, Centre de validation Ad & Pro |
 | Matériel promotionnel (`materiel-promo`) | 19 | Restreint | Matériel promotionnel, Stock promotionnel, Catalogue promotionnel |
 | Réglementaire (`reglementaire`) | 44 | Restreint | Regulatory, Pipeline réglementaire |
@@ -305,7 +305,7 @@ La copie chiffrée des IBAN, RIB, NIN et salaires, et le journal de qui les a lu
 | `DonneeSensible` | Donnée sensible chiffrée (IBAN, RIB, NIN, salaire) | Secret | — |
 | `AccesDonneeSensible` | Journal des lectures d'une donnée sensible | Secret | — |
 
-#### Annuaires, personnes & organisations — `annuaires` (20 tables, restreint)
+#### Annuaires, personnes & organisations — `annuaires` (21 tables, restreint)
 
 Le référentiel unique des personnes et organisations réelles (médecins, fournisseurs, partenaires), leurs adresses et contacts, et les annuaires.
 
@@ -335,7 +335,8 @@ Le référentiel unique des personnes et organisations réelles (médecins, four
 | `MedicalDirectoryColumn` | Colonne d'un annuaire | Restreint | medical-directory-crud-actions |
 | `MedicalDirectoryAccess` | Accès d'une personne à un annuaire | Restreint | medical-directory-crud-actions |
 | `DirectoryEntry` | Entrée d'annuaire | Restreint | directory-actions |
-| `DirectoryCellStyle` | Mise en forme d'une cellule d'annuaire | Restreint | annuaire-couleurs-actions |
+| `DirectoryCellStyle` | Mise en forme d'une cellule d'annuaire | Restreint | annuaire-couleurs-actions, medical-directory-crud-actions |
+| `DecisionFusionMedecin` | Décision du Super Admin sur deux fiches médecins en double | Restreint | medical-directory-crud-actions |
 | `DirectoryEndpoint` | Point de diffusion d'un annuaire | Restreint | directory-actions |
 | `CompanyContact` | Contact d'un partenaire | Secret — RIB du partenaire (copié au coffre) | company-contact-actions |
 | `Supplier` | Fournisseur | Restreint | fournisseurs-annuaire-actions, regulatory-actions, supplier-actions |
@@ -361,7 +362,7 @@ Les dépenses de promotion auprès des professionnels de santé : sponsoring, co
 | `AdProVoyageur` | Voyageur d'une demande Ad & Pro | Confidentiel | ad-pro-item-actions |
 | `AdProVoyageurDevis` | Devis de voyage d'un voyageur | Confidentiel | ad-pro-item-actions |
 | `AdProHebergement` | Hébergement d'une demande Ad & Pro | Confidentiel | ad-pro-item-actions |
-| `AdProMedecin` | Médecin bénéficiaire d'une demande Ad & Pro | Confidentiel | ad-pro-medecins-actions |
+| `AdProMedecin` | Médecin bénéficiaire d'une demande Ad & Pro | Confidentiel | ad-pro-medecins-actions, medical-directory-crud-actions |
 | `AdProDevis` | Devis Ad & Pro | Confidentiel | ad-pro-item-actions |
 | `AdProDevisLigne` | Ligne d'un devis Ad & Pro | Confidentiel | ad-pro-item-actions |
 | `AdProGateVisa` | Visa d'une porte Ad & Pro | Confidentiel | ad-pro-centre-actions, ad-pro-edit-actions, ad-pro-item-actions, ad-pro-other-actions +5 |
@@ -416,7 +417,7 @@ Le matériel promotionnel : catalogue, devis et factures fournisseurs, stock par
 | `PromoStockItem` | Article en stock promotionnel | Restreint | promo-execution-actions, promo-stock-actions |
 | `PromoStockItemProduct` | Produit associé à un article en stock | Restreint | — |
 | `PromoStockLot` | Lot de stock promotionnel | Restreint | promo-execution-actions, promo-stock-actions |
-| `PromoStockMovement` | Mouvement de stock promotionnel | Restreint | ad-pro-item-actions, promo-execution-actions, promo-stock-actions |
+| `PromoStockMovement` | Mouvement de stock promotionnel | Restreint | ad-pro-item-actions, medical-directory-crud-actions, promo-execution-actions, promo-stock-actions |
 | `PromoStockTransfer` | Transfert de stock promotionnel | Restreint | promo-stock-actions |
 | `PromoStockRequest` | Demande de sortie de stock promotionnel | Restreint | mission-actions, promo-stock-actions |
 | `PromoStockComptage` | Inventaire du stock promotionnel | Restreint | promo-comptage-actions |
@@ -565,7 +566,7 @@ Les états de stock datés chez les établissements, les niveaux d'ouverture, mo
 
 - **Écrite par** : Stocks (écran Stocks, demandes d'inventaire aux établissements)
 - **Modules** : Stocks PCH (`STOCKS`)
-- **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Ventes, Commercial, Responsable Logistique, Délégué Médical, National Sales, Responsable Finance / Budget
+- **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Ventes, Commercial, Responsable Logistique, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Responsable Finance / Budget
 - **Écriture par défaut** : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Ventes, Responsable Logistique, Délégué Médical, National Sales
 - Destinataires nommés d'une demande d'inventaire (`StockCountRequestRecipient`)
 
@@ -599,12 +600,12 @@ Les médecins et établissements visités, les visites, plans de tournée, secte
 | `MedicalDoctor` | Médecin (professionnel de santé) | Restreint | care-actions, custom-field-actions, force-de-vente-actions, fournisseurs-annuaire-actions +5 |
 | `MedicalInstitution` | Établissement de santé | Restreint | fournisseurs-annuaire-actions, medical-actions, segmentation-actions |
 | `MedicalInstitutionService` | Service d'un établissement | Restreint | etablissement-services-actions |
-| `MedicalVisit` | Visite médicale | Restreint | custom-field-actions, medical-actions, tour-plan-actions, tour-visit-actions |
+| `MedicalVisit` | Visite médicale | Restreint | custom-field-actions, medical-actions, medical-directory-crud-actions, tour-plan-actions +1 |
 | `MedicalVisitProduct` | Produit présenté en visite | Restreint | tour-visit-actions |
 | `MedicalVisitMessage` | Message promotionnel délivré en visite | Restreint | tour-visit-actions |
 | `MedicalVisitSupportNumerique` | Support numérique utilisé en visite | Restreint | field-report-actions, medical-actions, tour-visit-actions |
 | `MedicalDelegatePlan` | Plan de visite d'un délégué | Restreint | delegate-plan-actions |
-| `FieldReport` | Rapport terrain | Restreint | field-report-actions, tour-visit-actions |
+| `FieldReport` | Rapport terrain | Restreint | field-report-actions, medical-directory-crud-actions, tour-visit-actions |
 | `FieldReportAttachment` | Pièce d'un rapport terrain | Restreint | field-report-actions |
 | `BusinessUnitSpecialty` | Spécialité ciblée par une business unit | Restreint | medical-actions, sales-planning-actions |
 | `PromoProduct` | Produit promu | Restreint | pch-tender-line-actions, product-catalog-actions, sales-planning-actions, segmentation-actions |
@@ -626,11 +627,11 @@ Les médecins et établissements visités, les visites, plans de tournée, secte
 | `SegmentationStrategie` | Stratégie de segmentation | Restreint | segmentation-actions |
 | `SegmentationStrategieProduit` | Produit d'une stratégie de segmentation | Restreint | segmentation-actions |
 | `SegmentationRegle` | Règle de segmentation | Restreint | segmentation-actions |
-| `SegmentationFiche` | Fiche de segmentation d'un médecin | Restreint | segmentation-actions |
-| `SegmentationDerogation` | Dérogation de segmentation | Restreint | segmentation-actions |
+| `SegmentationFiche` | Fiche de segmentation d'un médecin | Restreint | medical-directory-crud-actions, segmentation-actions |
+| `SegmentationDerogation` | Dérogation de segmentation | Restreint | medical-directory-crud-actions, segmentation-actions |
 | `SegmentationImport` | Import de segmentation | Restreint | segmentation-actions |
 | `SegmentationCycle` | Cycle de segmentation | Restreint | segmentation-actions |
-| `HcpObservation` | Observation sur un médecin | Restreint | segmentation-actions, tour-visit-actions |
+| `HcpObservation` | Observation sur un médecin | Restreint | medical-directory-crud-actions, segmentation-actions, tour-visit-actions |
 | `ConsommationImport` | Import de consommation | Restreint | consommation-actions |
 | `ConsommationLigne` | Ligne de consommation | Restreint | consommation-actions |
 | `ConsommationMemoire` | Rapprochement de consommation retenu | Restreint | consommation-actions |

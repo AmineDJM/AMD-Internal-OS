@@ -424,3 +424,13 @@ fails on « nom obligatoire ») ; `createInstitution` infers the type from the n
 wilaya from the address when absent ; the doctor grade accepts its label and treats « Dr / Docteur » as no specific grade
 (`gradeDuTexte`, `lib/medical/directory-grid.ts`). Batch updates / establishment merges: `lib/actions/fournisseurs-annuaire-actions.ts`
 (decision [0052](../assistant/decisions/0052-annuaires-marketing-terrain.md)).
+- **T2 bis (03/11, decision [0062](../assistant/decisions/0062-doublons-medecins-et-demandes-de-stock.md))**:
+  - **Stock requests.** Who may launch a formal stock-state request is decided by `regleDemandeEtatStock` alone (`lib/rbac/roles.ts`, alias `canRequestStockState`) (stocks
+    page, recurrence, runner, `peutPiloterDemandesStocks`, actions); every refusal returns the shared `REFUS_DEMANDE_STOCK`.
+  - **RBAC.** `STOCKS: READ` was added to `MEDICAL_PROMOTION_MANAGER` and `PRODUCT_MANAGER`. `PRODUCT_MANAGER` still has only
+    `MEDICAL: READ` (no directory write); this was reported to the Direction and not opened.
+  - **Doctor merge.** `fusionnerMedecinsEnDouble` (`lib/actions/medical-directory-crud-actions.ts`) fills empty fields through
+    `updateDoctor` and moves visits, reports (`doctorIds` included), observations, derogations, Ad & Pro rows,
+    segmentation and cell styles; promo stock movements stay on the absorbed record (immutable register). It then archives the absorbed record. It is SA-only and reversible.
+  - **Blast radius.** `updateDoctor` now re-derives `wilayaCode` only when the form carries a location field; the raw-SQL
+    write used to block the undo of a one-field fix.

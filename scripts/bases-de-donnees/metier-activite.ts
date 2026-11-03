@@ -38,6 +38,7 @@ export const BASES_ACTIVITE: BaseDef[] = [
       MedicalDirectoryAccess: "Accès d'une personne à un annuaire",
       DirectoryEntry: "Entrée d'annuaire",
       DirectoryCellStyle: "Mise en forme d'une cellule d'annuaire",
+      DecisionFusionMedecin: "Décision du Super Admin sur deux fiches médecins en double",
       DirectoryEndpoint: "Point de diffusion d'un annuaire",
       CompanyContact: "Contact d'un partenaire",
       Supplier: "Fournisseur",

@@ -1,5 +1,5 @@
 {
- "schemaModeles": 519,
+ "schemaModeles": 520,
  "bases": [
   {
    "cle": "personnel",
@@ -1018,7 +1018,7 @@
      "Coffre : le RIB d'un partenaire ne se lit en clair que par la porte de lecture du coffre"
     ]
    },
-   "nombreTables": 20,
+   "nombreTables": 21,
    "tables": [
     {
      "modele": "Personne",
@@ -1137,7 +1137,16 @@
      "libelle": "Mise en forme d'une cellule d'annuaire",
      "sensibilite": "restreint",
      "ecritePar": [
-      "annuaire-couleurs-actions"
+      "annuaire-couleurs-actions",
+      "medical-directory-crud-actions"
+     ]
+    },
+    {
+     "modele": "DecisionFusionMedecin",
+     "libelle": "Décision du Super Admin sur deux fiches médecins en double",
+     "sensibilite": "restreint",
+     "ecritePar": [
+      "medical-directory-crud-actions"
      ]
     },
     {
@@ -1296,7 +1305,8 @@
      "libelle": "Médecin bénéficiaire d'une demande Ad & Pro",
      "sensibilite": "confidentiel",
      "ecritePar": [
-      "ad-pro-medecins-actions"
+      "ad-pro-medecins-actions",
+      "medical-directory-crud-actions"
      ]
     },
     {
@@ -1723,6 +1733,7 @@
      "sensibilite": "restreint",
      "ecritePar": [
       "ad-pro-item-actions",
+      "medical-directory-crud-actions",
       "promo-execution-actions",
       "promo-stock-actions"
      ]
@@ -2573,8 +2584,10 @@
      "HEAD_OF_SALES",
      "SALES_USER",
      "LOGISTICS_MANAGER",
+     "MEDICAL_PROMOTION_MANAGER",
      "MEDICAL_DELEGATE",
      "NATIONAL_SALES",
+     "PRODUCT_MANAGER",
      "FINANCE_BUDGET_MANAGER"
     ],
     "rolesEcritureParDefaut": [
@@ -2799,6 +2812,7 @@
      "ecritePar": [
       "custom-field-actions",
       "medical-actions",
+      "medical-directory-crud-actions",
       "tour-plan-actions",
       "tour-visit-actions"
      ]
@@ -2843,6 +2857,7 @@
      "sensibilite": "restreint",
      "ecritePar": [
       "field-report-actions",
+      "medical-directory-crud-actions",
       "tour-visit-actions"
      ]
     },
@@ -3026,6 +3041,7 @@
      "libelle": "Fiche de segmentation d'un médecin",
      "sensibilite": "restreint",
      "ecritePar": [
+      "medical-directory-crud-actions",
       "segmentation-actions"
      ]
     },
@@ -3034,6 +3050,7 @@
      "libelle": "Dérogation de segmentation",
      "sensibilite": "restreint",
      "ecritePar": [
+      "medical-directory-crud-actions",
       "segmentation-actions"
      ]
     },
@@ -3058,6 +3075,7 @@
      "libelle": "Observation sur un médecin",
      "sensibilite": "restreint",
      "ecritePar": [
+      "medical-directory-crud-actions",
       "segmentation-actions",
       "tour-visit-actions"
      ]

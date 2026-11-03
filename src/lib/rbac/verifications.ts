@@ -7,7 +7,7 @@
 import type { AccessScope } from "@prisma/client";
 import { peutAnnuaire as regleAnnuaire, ouvertParSection, type AnnuaireAccordable, type FaitsAnnuaire, type GesteAnnuaire } from "../annuaires/acces"; // module PUR, zéro import → aucun cycle
 import { MODULES, type Action, type Module } from "./modules";
-import { hasRole } from "./roles";
+import { hasGlobalView, hasRole, regleDemandeEtatStock } from "./roles";
 import type { EffectiveAccess, SessionUser } from "./acces";
 
 /**
@@ -142,4 +142,14 @@ export function accessibleModules(user: SessionUser): Module[] {
 
 export function moduleScope(user: SessionUser, module: Module): AccessScope | null {
   return user.access.modules.get(module)?.scope ?? null;
+}
+
+/** La demande formelle d'état de stock (décision 0062) : la règle pure `regleDemandeEtatStock`, sur l'accès résolu. */
+export function peutDemanderEtatStock(user: SessionUser): boolean {
+  return regleDemandeEtatStock({
+    canSeeSupplyChain: userCan(user, "PCH", "VIEW"),
+    hasGlobalView: hasGlobalView(user),
+    isSuperAdmin: user.role === "SUPER_ADMIN",
+    roles: [user.role, user.secondaryRole],
+  });
 }

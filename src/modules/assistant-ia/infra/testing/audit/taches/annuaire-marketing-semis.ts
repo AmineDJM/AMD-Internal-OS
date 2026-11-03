@@ -96,6 +96,14 @@ export const SEMIS_T2: SemisDeDomaine = async ({ etiquette, users, companyId }):
     touati: await medecin("Leila TOUATI", users.delegue_ouest, "Oran", { specialtyId: gastro }),
   };
 
+  // T2 bis (décision 0062) : un DOUBLON de fiche — « KHELIF Sami », hors de tout panel, avec le téléphone qui manque à la
+  // première ; seul le Super Admin se le verra proposer (✓ / ✗), rien ne fusionne sans son clic.
+  await medecin("KHELIF Sami", users.marketing, "Constantine", { specialtyId: gastro, phone: "0665 55 44 33" })
+    .then((id) => prisma.medicalDoctor.update({ where: { id }, data: { delegateId: null } }));
+  // Le produit de la BU Hépatologie, pour les stocks (relevé du délégué, demande formelle du marketing).
+  const dac = await prisma.regulatoryProduct.create({ data: { reference: `REG-T2${etiquette}-DAC`, dci: "Daclatasvir", brandName: "Daclavir", status: "DECISION_OBTAINED" }, select: { id: true } });
+  await prisma.promoProduct.create({ data: { name: "Daclavir", businessUnitId: hepato.id, regulatoryProductId: dac.id, isActive: true } as never });
+
   const visite = (doctorId: string, delegateId: string, jours: number, report: string, products = "Daclavir") => prisma.medicalVisit.create({ data: {
     date: ilYA(jours), doctorId, delegateId, status: "COMPLETED", presentedProducts: products, report, createdById: delegateId,
   } });
@@ -110,7 +118,8 @@ export const SEMIS_T2: SemisDeDomaine = async ({ etiquette, users, companyId }):
   // ── Les dépenses Ad & Pro (montants demandés, aucun accordé : une seule base de calcul, dite) ──
   const depenses: [string, "hepato" | "onco", string, number, number][] = [
     // [titre, BU, produit, montant, mois en arrière]
-    ["Congrès SAHGE — stand", "hepato", "Daclavir", 640_000, 0],
+    // Pas « SAHGE » : le domaine T3 sème déjà un sponsoring de ce congrès — deux homonymes rendaient ses cartes ambiguës.
+    ["Journées d'hépatologie d'Oran — stand", "hepato", "Daclavir", 640_000, 0],
     ["Journée hépatologie Sétif", "hepato", "Daclavir", 215_000, 1],
     ["Symposium oncologie Alger", "onco", "Nivolumab", 480_000, 0],
     ["Atelier immunothérapie Oran", "onco", "Nivolumab", 330_000, 1],
@@ -152,6 +161,9 @@ export async function retirerT2(etiquette: string, userIds: string[]): Promise<v
   await sur(prisma.medicalDirectory.deleteMany({ where: { name: `Annuaire banc T2${etiquette}` } }));
   const etabs = await prisma.medicalInstitution.findMany({ where: { notes: { startsWith: tag } }, select: { id: true } });
   await sur(prisma.salesSectorInstitution.deleteMany({ where: { institutionId: { in: etabs.map((e) => e.id) } } }));
+  // Les lieux de stock posés par un relevé (T2 bis) et leurs états.
+  await sur(prisma.stockSnapshot.deleteMany({ where: { annex: { institutionId: { in: etabs.map((e) => e.id) } } } as never }));
+  await sur(prisma.stockAnnex.deleteMany({ where: { institutionId: { in: etabs.map((e) => e.id) } } }));
   await sur(prisma.medicalInstitution.deleteMany({ where: { id: { in: etabs.map((e) => e.id) } } }));
   const bus = await prisma.businessUnit.findMany({ where: { code: { in: [`T2-HEP${etiquette}`, `T2-ONC${etiquette}`] } }, select: { id: true } });
   const buIds = bus.map((b) => b.id);
@@ -160,6 +172,11 @@ export async function retirerT2(etiquette: string, userIds: string[]): Promise<v
   await sur(prisma.salesSectorRep.deleteMany({ where: { sector: { businessUnitId: { in: buIds } } } }));
   await sur(prisma.salesSector.deleteMany({ where: { businessUnitId: { in: buIds } } }));
   await sur(prisma.salesRepProfile.deleteMany({ where: { repId: { in: userIds } } }));
+  await sur(prisma.stockSnapshot.deleteMany({ where: { product: { reference: { startsWith: `REG-T2${etiquette}-` } } } as never }));
+  await sur(prisma.stockCountRequest.deleteMany({ where: { createdById: { in: userIds } } }));
+  await sur(prisma.promoProduct.deleteMany({ where: { businessUnitId: { in: buIds } } }));
+  await sur(prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: `REG-T2${etiquette}-` } } }));
+  await sur(prisma.decisionFusionMedecin.deleteMany({ where: { OR: [{ medecinAId: { in: ids } }, { medecinBId: { in: ids } }] } }));
   await sur(prisma.businessUnit.deleteMany({ where: { id: { in: buIds } } }));
   await sur(prisma.supplier.deleteMany({ where: { notes: tag } }));
 }

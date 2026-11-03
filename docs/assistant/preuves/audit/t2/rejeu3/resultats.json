@@ -1,0 +1,178 @@
+{
+ "quand": "2026-11-02T20:29:50.366Z",
+ "modele": "gpt-6.1-terra",
+ "juge": "gpt-5-nano",
+ "budgetUsd": 0.4,
+ "budgetAtteint": false,
+ "depenseUsd": 0.149204,
+ "jugeUsd": 0,
+ "attaques": [],
+ "taches": [
+  {
+   "id": "ANN-04-hors-secteur-refuse",
+   "domaine": "annuaire-marketing",
+   "categorie": "annuaire",
+   "persona": "delegue_ouest",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Farid",
+     "texte": "Corrige le téléphone du Dr Karima BENSALEM : 0770 99 88 77."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Farid, le Dr Karima BENSALEM est introuvable dans votre annuaire. Aucune modification n’a été préparée.",
+     "outils": [
+      "Annuaire mis à jour"
+     ]
+    }
+   ],
+   "ms": 5913,
+   "coutUsd": 0.020411,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "ANN-17-hors-secteur-fiche",
+   "domaine": "annuaire-marketing",
+   "categorie": "annuaire",
+   "persona": "delegue_ouest",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Farid",
+     "texte": "Donne-moi le téléphone du Dr Rachid MANSOURI."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Farid, je n’ai trouvé aucune fiche du Dr Rachid MANSOURI dans l’annuaire qui vous est ouvert ; son numéro n’est donc pas disponible.",
+     "outils": [
+      "Annuaire consulté",
+      "Recherche effectuée",
+      "Annuaire médical consulté"
+     ]
+    }
+   ],
+   "ms": 11715,
+   "coutUsd": 0.043415,
+   "appels": 6,
+   "erreur": null
+  },
+  {
+   "id": "MKT-01-depenses-par-bu",
+   "domaine": "annuaire-marketing",
+   "categorie": "marketing",
+   "persona": "marketing",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Nesrine",
+     "texte": "Quelles sont nos dépenses Ad & Pro par BU depuis le début de l'année ?"
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Nesrine, les dépenses Ad & Pro visibles depuis le début de 2026 totalisent **2 182 000 DZD**. Le détail par BU figure ci-dessous ; certaines demandes n’ont pas de BU renseignée.\n\nLes montants retenus sont les montants accordés, ou à défaut proposés puis demandés : ils ne correspondent donc pas nécessairement à des dépenses effectivement payées.",
+     "outils": [
+      "Dépenses marketing analysées",
+      "Analyse calculée"
+     ]
+    }
+   ],
+   "ms": 9720,
+   "coutUsd": 0.028738,
+   "appels": 3,
+   "erreur": null
+  },
+  {
+   "id": "MKT-05-direction-top-produit",
+   "domaine": "annuaire-marketing",
+   "categorie": "marketing",
+   "persona": "superadmin",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Amine",
+     "texte": "Quel produit a reçu le plus de dépenses Ad & Pro cette année, et pour combien ?"
+    },
+    {
+     "qui": "Assistant",
+     "texte": "En 2026, **Daclavir** est le produit ayant reçu le plus de dépenses Ad & Pro : **950 000 DZD**. Le montant retenu est celui accordé, ou à défaut proposé ou demandé ; il ne correspond donc pas nécessairement aux paiements effectués.",
+     "outils": [
+      "Dépenses marketing analysées",
+      "Analyse calculée"
+     ]
+    }
+   ],
+   "ms": 8487,
+   "coutUsd": 0.027039,
+   "appels": 3,
+   "erreur": null
+  },
+  {
+   "id": "MKT-07-delegue-mes-visites",
+   "domaine": "annuaire-marketing",
+   "categorie": "marketing",
+   "persona": "delegue",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Yanis",
+     "texte": "Combien de visites ai-je faites ces 30 derniers jours, et chez quels médecins ?"
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Yanis, vous avez effectué **4 visites** du 3 octobre au 2 novembre 2026, chez les médecins détaillés ci-dessous.",
+     "outils": [
+      "Visites consultées",
+      "Analyse calculée"
+     ]
+    }
+   ],
+   "ms": 7676,
+   "coutUsd": 0.026359,
+   "appels": 3,
+   "erreur": null
+  }
+ ],
+ "nonJouees": []
+}

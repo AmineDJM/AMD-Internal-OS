@@ -291,7 +291,7 @@ export const CORPUS_ERP: [string, string[]][] = [
   ["Valide le rapport terrain de Walid.", ["field-report__validateFieldReport"]],
   ["Supprime le rapport terrain brouillon.", ["field-report__deleteFieldReport"]],
   ["Crée une annexe de stock à Oran.", ["stock-snapshot__createStockAnnex"]],
-  ["Enregistre un relevé de stock à l'hôpital Mustapha.", ["stock-snapshot__recordStockSnapshot", "stock-pch__enregistrerStockPch"]],
+  ["Enregistre un relevé de stock à l'hôpital Mustapha.", ["stock-snapshot__recordStockSnapshot", "stock-pch__enregistrerStockPch", "releve_stock"]],
   ["Demande l'état du stock à l'annexe d'Oran.", ["stock-snapshot__requestStockState"]],
   ["Crée une récurrence de relevé de stock mensuel.", ["stock-recurrence__createStockRecurrence"]],
   ["Entre 500 boîtes d'échantillons en stock.", ["promo-stock__entrerEnStock"]],

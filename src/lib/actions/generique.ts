@@ -176,6 +176,19 @@ export const SURFACES_HUMAINES: Readonly<Record<string, string>> = {
 };
 
 /**
+ * LES ACTIONS HUMAINES UNE À UNE — quand le fichier porte aussi des gestes ordinaires. Même refus de conception que
+ * `SURFACES_HUMAINES`, à l'action près.
+ */
+export const ACTIONS_HUMAINES: Readonly<Record<string, string>> = {
+  // T2 bis (Direction, 03/11/2026, décision 0062) : « c'est à moi de le faire, pas à toi ».
+  "medical-directory-crud-actions:fusionnerMedecinsEnDouble":
+    "la décision du Super Admin sur deux fiches médecins en double — l'assistant PROPOSE, le Super Admin tranche d'un clic "
+    + "✓ sur Annuaires › Médecins en double",
+  "medical-directory-crud-actions:ecarterFusionMedecin":
+    "la décision du Super Admin sur deux fiches médecins en double — elle s'écarte d'un clic ✗ sur Annuaires › Médecins en double",
+};
+
+/**
  * LES MOTS D'UN IDENTIFIANT — `updateUserRole` → `update`, `user`, `role`.
  *
  * On coupe sur les tirets bas, les chiffres ET les bosses de casse, parce que le parc écrit ses
@@ -247,7 +260,7 @@ function motInterdit(nom: string, vocabulaire: readonly string[]): string | null
 export function interdictionGenerique(c: ContratAction): string | null {
   // LE FICHIER D'ABORD : c'est le seul fait qui voit une action déléguant son écriture, donc
   // le seul qui attrape les attestations humaines et les garde-fous d'Adam (voir plus haut).
-  const surface = SURFACES_HUMAINES[c.fichier];
+  const surface = SURFACES_HUMAINES[c.fichier] ?? ACTIONS_HUMAINES[c.id];
   if (surface) {
     return `Cette action appartient à ${surface}. C'est un refus de conception, pas une limite `
       + `technique : le chemin générique ne s'y substitue pas.`;

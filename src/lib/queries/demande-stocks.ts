@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
-import { canRequestStockState } from "@/lib/stocks/scopes";
+import { userCan, hasGlobalView, peutDemanderEtatStock, type SessionUser } from "@/lib/rbac";
 import {
   TYPES_HOSPITALIERS, couvertureDepuisAffectations, avancementGlobal, avancementParKam, consolider, ligneRemplie,
   type AffectationKam, type PorteurKam, type AvancementKam, type AvancementGlobal, type Matrice,
@@ -20,11 +19,17 @@ import {
  * Le directeur des opérations l'a (PCH et STOCKS en gestion).
  */
 export function peutPiloterDemandesStocks(user: SessionUser): boolean {
-  return canRequestStockState({
+  return peutDemanderEtatStock(user);
+}
+
+/** Ce que les règles de stock (`lib/stocks/scopes.ts`, pures) savent d'une personne — un seul endroit pour le construire. */
+export function lecteurDeStocks(user: SessionUser) {
+  return {
     canSeeSupplyChain: userCan(user, "PCH", "VIEW"),
     hasGlobalView: hasGlobalView(user),
     isSuperAdmin: user.role === "SUPER_ADMIN",
-  });
+    roles: [user.role, user.secondaryRole],
+  };
 }
 
 export interface CouvertureKams {

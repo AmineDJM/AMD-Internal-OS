@@ -102,6 +102,7 @@ export async function declencherRecurrencesStock(maintenant: Date = new Date()):
         canSeeSupplyChain: userCan({ role: auteur.role, access: await getAccess(auteur.id, auteur.role) } as never, "PCH", "VIEW"),
         hasGlobalView: hasGlobalView(auteur.role as never),
         isSuperAdmin: auteur.role === "SUPER_ADMIN",
+        roles: [auteur.role],
       })
       : false;
     if (!autorise) {
