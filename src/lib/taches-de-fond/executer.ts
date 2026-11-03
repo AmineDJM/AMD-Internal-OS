@@ -47,7 +47,7 @@ export type TachePlanifiee = {
   /** Écart minimal entre deux départs, tous exécutants confondus. Défaut `INTERVALLE_MIN_MS`. */
   intervalleMs?: number;
   /**
-   * S'ABSTENIR, DÉCIDÉ AVANT LE BAIL (P1 ter, décision 0063). Une raison rendue = cet exécutant laisse la tâche à un
+   * S'ABSTENIR, DÉCIDÉ AVANT LE BAIL (P1 ter, décision 0066). Une raison rendue = cet exécutant laisse la tâche à un
    * autre SANS prendre le bail ni marquer le départ. MESURÉ en production (03/11) : le web prenait le bail des travaux
    * chaque minute pour s'abstenir aussitôt (le worker bat) ; son départ marqué ouvrait l'intervalle minimal, et le worker,
    * qui atteint la tâche plus tard dans son passage, la trouvait toujours « occupée » — aucune mission ne bougeait.

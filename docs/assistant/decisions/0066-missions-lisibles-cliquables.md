@@ -1,4 +1,4 @@
-# 0063 — Les missions qui ne s'exécutaient pas, et la vérité sur l'exécutant (lot P1 ter)
+# 0066 — Les missions qui ne s'exécutaient pas, et la vérité sur l'exécutant (lot P1 ter)
 
 **Date** : 2026-11-03 · **Statut** : appliquée (cause, diagnostic, nom) ; contenu et cartes cliquables EN ATTENTE du
 contrat `Observation` (session I1) · **Suite de** : [0047](0047-pilotage-missions-mails-verite.md)

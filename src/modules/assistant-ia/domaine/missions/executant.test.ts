@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { diagnostiquerMission, phraseDernierBalayage, silenceDesExecutants } from "./pilotage";
 
-/** P1 ter (décision 0063) — la vérité sur l'exécutant, la candidature au balayage, le dernier balayage. */
+/** P1 ter (décision 0066) — la vérité sur l'exécutant, la candidature au balayage, le dernier balayage. */
 const T0 = Date.parse("2026-11-03T10:00:00Z");
 const il = (min: number) => new Date(T0 - min * 60_000).toISOString();
 

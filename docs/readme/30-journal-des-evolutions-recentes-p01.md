@@ -217,7 +217,7 @@ ni ne se relit (rappel, voix, ancien contexte) — ceux déjà en base sont neut
 
 ### P1 ter — LES MISSIONS QUI NE S'EXÉCUTAIENT PAS, ET LA VÉRITÉ SUR L'EXÉCUTANT (2026-11-03)
 
-Décision [0063](../assistant/decisions/0063-missions-lisibles-cliquables.md). **Cause des missions à 0 % en production** :
+Décision [0066](../assistant/decisions/0066-missions-lisibles-cliquables.md). **Cause des missions à 0 % en production** :
 le web prenait le bail du balayage des travaux pour s'abstenir aussitôt (le worker bat) — son départ marqué ouvrait
 l'intervalle de 45 s et le worker trouvait la tâche « occupée » à chaque passage ; l'abstention se décide désormais AVANT
 le bail (`sAbstenir`, travaux et conversions). **Diagnostic** : « prête » seulement si le balayage prendra la mission

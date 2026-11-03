@@ -195,7 +195,7 @@ export async function runScheduledJobs(): Promise<void> {
 
 /** Un passage complet de la table — le point d'entrée commun au web et au worker. */
 /**
- * P1 ter (décision 0063) — L'ABSTENTION DU WEB, AVANT LE BAIL : en `les-deux`, le web laisse la tâche au worker dès que
+ * P1 ter (décision 0066) — L'ABSTENTION DU WEB, AVANT LE BAIL : en `les-deux`, le web laisse la tâche au worker dès que
  * celui-ci bat (`webDoitSAbstenir`), sans prendre le bail ni marquer de départ.
  */
 function abstentionDuWeb(raison: string): (ctx: ContexteExecution) => Promise<string | null> {
@@ -428,7 +428,7 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // à l'Assistant IA (plan approuvé une fois), sous ses droits relus à chaque étape, plafonds de dépense compris.
   // Pendant la bascule (`TACHES_DE_FOND=les-deux`), le web s'ABSTIENT dès que le worker bat : un travail long ne
   // tourne jamais dans le processus qui sert les pages quand le worker est là. Débrayage : TRAVAUX_SWEEP=off.
-  // P1 ter (décision 0063) : le web s'abstient AVANT de prendre le bail — sinon son abstention, marquée comme un départ,
+  // P1 ter (décision 0066) : le web s'abstient AVANT de prendre le bail — sinon son abstention, marquée comme un départ,
   // ouvre l'intervalle minimal et le worker ne trouve jamais la tâche libre (production, 03/11 : missions à 0 %).
   { cle: "travaux.balayage", bailMs: 180_000, sAbstenir: abstentionDuWeb("le worker conduit les travaux (TACHES_DE_FOND=les-deux)"), executer: async () => {
     if (process.env.TRAVAUX_SWEEP === "off") return ignoree("TRAVAUX_SWEEP=off");
