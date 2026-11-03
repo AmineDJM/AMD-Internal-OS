@@ -38,5 +38,5 @@ export { chargerFichesPersonnes } from "./infra/personnes/fiches-doublons";
 export { doublonsOrganisationsARevoir, doublonsPersonnesARevoir, etatDuReferentiel } from "./infra/requetes";
 export { LIBELLE_ROLE, LIBELLE_SOURCE } from "./infra/personnes/sources";
 
-// ── Fiches médecins en double (lot T2, décision 0061) : les propositions du Super Admin, la paire relue au clic ──
+// ── Fiches médecins en double (lot T2, décision 0062) : les propositions du Super Admin, la paire relue au clic ──
 export { peutDeciderFusionMedecins, propositionDeLaPaire, propositionsFusionMedecins } from "./infra/medecins/doublons";

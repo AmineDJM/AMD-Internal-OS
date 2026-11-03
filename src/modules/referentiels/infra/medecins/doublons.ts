@@ -4,7 +4,7 @@ import { clePaire, proposerFusionsMedecins, type FicheMedecinComparee, type Prop
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES PROPOSITIONS DE FUSION DE FICHES MÉDECINS — pour le SUPER ADMIN SEUL (lot T2, décision 0061).
+ * LES PROPOSITIONS DE FUSION DE FICHES MÉDECINS — pour le SUPER ADMIN SEUL (lot T2, décision 0062).
  *
  * Elles se CALCULENT à chaque lecture sur l'annuaire vivant (fiches non archivées) ; la décision seule s'écrit
  * (`DecisionFusionMedecin`). Une paire FUSIONNÉE ne revient pas (la fiche absorbée est archivée) ; une paire ÉCARTÉE

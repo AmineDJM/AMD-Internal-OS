@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES FICHES MÉDECINS EN DOUBLE — la détection, PURE (lot T2, décision 0061).
+ * LES FICHES MÉDECINS EN DOUBLE — la détection, PURE (lot T2, décision 0062).
  *
  * Décision de la Direction (03/11/2026) : « Oui, on fusionne les fiches médecins en double, mais c'est à moi de le faire,
  * pas à toi. Toi, tu me proposes juste tout. Évidemment, tu proposes ça qu'à l'administrateur. Et après, moi, j'ai juste

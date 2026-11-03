@@ -16,7 +16,7 @@ export {
   type FicheOrganisation, type FichePersonne, type NiveauDoublon, type PropositionDoublon, type ResultatLot,
 } from "./domaine/doublons";
 
-// ── Fiches MÉDECINS en double (lot T2, décision 0061) : détection pure, proposée au Super Admin seul ─────────
+// ── Fiches MÉDECINS en double (lot T2, décision 0062) : détection pure, proposée au Super Admin seul ─────────
 export {
   CHAMPS_FUSION, COLONNE_FORMULAIRE_FUSION, LIBELLE_CHAMP_FUSION, type ChampFusion,
 } from "./domaine/medecins/doublons";
