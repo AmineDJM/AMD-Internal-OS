@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, performAction, type AssistantActionPayload } from "@/lib/assistant";
@@ -209,7 +210,7 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
     await prisma.auditLog.deleteMany({ where: { entityId: { in: tasks.map((t) => t.id) } } }).catch(() => {});
     await prisma.task.deleteMany({ where: { title: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { body: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.pettyCashTopUpRequest.deleteMany({ where: { allotment: { department: { name: { startsWith: PREFIXE } } } } }).catch(() => {});
     await prisma.pettyCashAllotment.deleteMany({ where: { department: { name: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.departmentBudgetRequest.deleteMany({ where: { department: { name: { startsWith: PREFIXE } } } }).catch(() => {});

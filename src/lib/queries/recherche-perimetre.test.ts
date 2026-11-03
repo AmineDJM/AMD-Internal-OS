@@ -12,6 +12,7 @@ vi.mock("next/headers", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, seesLockedRegulatory, type SessionUser } from "@/lib/rbac";
 import { globalSearch, type SearchResult } from "@/lib/queries/search";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
@@ -72,7 +73,7 @@ suite("Recherche globale — le périmètre de chaque écran, et rien d'autre", 
     const like = { contains: TAG };
     await prisma.message.deleteMany({ where: { body: like } }).catch(() => {});
     await prisma.conversation.deleteMany({ where: { title: like } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: like } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: like } }).catch(() => {});
     await prisma.task.deleteMany({ where: { title: like } }).catch(() => {});
     await prisma.directive.deleteMany({ where: { title: like } }).catch(() => {});
     await prisma.pchOrder.deleteMany({ where: { products: like } }).catch(() => {});

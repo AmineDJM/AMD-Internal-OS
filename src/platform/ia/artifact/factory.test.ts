@@ -11,6 +11,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import type { CurrentUser } from "@/lib/session";
@@ -83,8 +84,8 @@ suite("la fabrique de documents — émission, registre, Drive, reprise, révisi
     await prisma.legalDocument.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.officeLetterhead.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: user.id } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: user.id, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: user.id } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: user.id, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: user.id } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);

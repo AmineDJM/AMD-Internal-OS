@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { consignerMesure } from "@/lib/evals/registre";
@@ -74,7 +75,7 @@ suite("médias et documents (§38) — paliers sur un PDF réel, transcription p
     if (cleSauvee !== undefined) process.env.OPENAI_API_KEY = cleSauvee;
     __forcerFfmpeg(null);
     await prisma.mediaTranscript.deleteMany({ where: { nodeId: { in: [audioId, videoId] } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: user.id } }).catch(() => {});
   }, 60_000);
 

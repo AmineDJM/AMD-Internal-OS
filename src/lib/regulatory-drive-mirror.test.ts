@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { mirrorToProductDrive, cleanPathSegments, mimeFromName, REG_DRIVE_ROOT } from "@/lib/regulatory-drive-mirror";
 
 /**
@@ -22,7 +23,7 @@ suite("mirrorToProductDrive — arborescence, versionnage, partage", () => {
     stakeholderId = (await prisma.user.create({ data: { name: `${TAG}s`, email: `${TAG}s@t.dz`, passwordHash: "x", role: "REGULATORY_ASSISTANT" } })).id;
   });
   afterAll(async () => {
-    await prisma.driveNode.deleteMany({ where: { OR: [{ ownerId }, { createdById: ownerId }] } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { OR: [{ ownerId }, { createdById: ownerId }] } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 

@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { myPaymentRequests } from "./infra/requetes/my-payment-requests";
@@ -75,7 +76,7 @@ suite("Une demande de paiement envoyée reste visible de son demandeur", () => {
     const ids = reqs.map((r) => r.id);
     await prisma.paymentPiece.deleteMany({ where: { requestId: { in: ids } } }).catch(() => {});
     await prisma.paymentRequestEvent.deleteMany({ where: { requestId: { in: ids } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityType: "PAYMENT_REQUEST", entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "PAYMENT_REQUEST", entityId: { in: ids } } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({
       where: { id: { in: reqs.map((r) => r.expenseOrderId).filter((x): x is string => Boolean(x)) } },

@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { createCongressRequest } from "./actions-congres";
 import { addCareBeneficiary, decideCareBeneficiary, setCareCellStatus, creerProfilProfessionnel } from "./actions-prise-en-charge";
@@ -60,7 +61,7 @@ suite("Prise en charge — professionnels proposés et pièces par personne", ()
   });
 
   afterAll(async () => {
-    await prisma.document.deleteMany({ where: { entityId: { in: [intlId, natId].filter(Boolean) } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [intlId, natId].filter(Boolean) } } }).catch(() => {});
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.congressNational.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [pmId, delegueId] } } }).catch(() => {});

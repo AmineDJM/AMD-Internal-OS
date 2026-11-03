@@ -21,6 +21,7 @@ vi.mock("@/lib/documents", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { retablirGeste } from "@/lib/effets/retablissement";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
@@ -117,7 +118,7 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
     await prisma.financeTransaction.deleteMany({ where: { id: { in: ecritures } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: factures.map((f) => f.id) } } }).catch(() => {});
     await prisma.paymentCentreSeat.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: `${RUN}piece.pdf` } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: `${RUN}piece.pdf` } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});

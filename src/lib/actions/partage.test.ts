@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { partagerParMessagerie, listerDestinatairesPartage } from "./partage-actions";
 import { AD_PRO_ENTITY_TYPE } from "@/modules/ad-pro/partage";
@@ -72,7 +73,7 @@ suite("Partage par messagerie", () => {
     await prisma.conversation.deleteMany({ where: { createdBy: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.messageAttachment.deleteMany({ where: { driveNode: { name: { startsWith: TAG } } } }).catch(() => {});
     await prisma.driveShare.deleteMany({ where: { node: { name: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});

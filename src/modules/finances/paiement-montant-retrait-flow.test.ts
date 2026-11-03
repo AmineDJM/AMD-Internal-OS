@@ -47,6 +47,7 @@ vi.mock("@/lib/factures/connues", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   createPaymentRequest, submitPaymentRequest, addPaymentPiece, corrigerDemandePaiement, decidePaymentRequest,
@@ -99,7 +100,7 @@ suite("Demande de paiement — le montant est celui de la facture ; retirée, el
     await prisma.paymentRequest.deleteMany({ where: { id: { in: demandes } } }).catch(() => {});
     await prisma.paymentCentreMessage.deleteMany({ where: { orderId: { in: ordres } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.deletedRecord.deleteMany({ where: { name: { contains: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { apercuDeSuppression, restoreDeletedRecord, superAdminDelete } from "@/lib/actions/admin-delete-actions";
 import { deleteEvent } from "@/modules/ad-pro/actions-evenements";
@@ -54,7 +55,7 @@ async function nettoyer() {
   await ok(prisma.auditLog.deleteMany({ where: { summary: { contains: TAG } } }));
   await ok(prisma.mailEntryPiece.deleteMany({ where: { label: { startsWith: TAG } } }));
   await ok(prisma.mailEntry.deleteMany({ where: { title: { startsWith: TAG } } }));
-  await ok(prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }));
+  await ok(retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }));
   await ok(prisma.comment.deleteMany({ where: { body: { startsWith: TAG } } }));
   await ok(prisma.legalDocument.deleteMany({ where: { title: { startsWith: TAG } } }));
   await ok(prisma.medicalInfoDeclaration.deleteMany({ where: { reference: { startsWith: TAG } } }));

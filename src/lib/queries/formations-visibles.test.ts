@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { clauseFormationsVisibles } from "@/lib/queries/visibilite-listes";
@@ -35,7 +36,7 @@ suite("Formations — la liste et la fiche lisent la même règle", () => {
 
   async function nettoyer() {
     const ts = await prisma.training.findMany({ where: { reference: { startsWith: TAG } }, select: { id: true } });
-    await prisma.document.deleteMany({ where: { entityId: { in: ts.map((x) => x.id) } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ts.map((x) => x.id) } } }).catch(() => {});
     await prisma.trainingParticipant.deleteMany({ where: { trainingId: { in: ts.map((x) => x.id) } } }).catch(() => {});
     await prisma.training.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});

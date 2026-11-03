@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan } from "@/lib/rbac";
 import { scopeRegulatory, scopeSponsoring } from "@/lib/rbac/portees";
 import type { CurrentUser } from "@/lib/session";
@@ -161,7 +162,7 @@ suite("Graphe de l'entreprise (J9) — banc sur la base", () => {
     await prisma.faitConfirme.deleteMany({ where: { sujetId: { in: orgIds } } }).catch(() => {});
     await prisma.pieceLien.deleteMany({ where: { pieceId: { in: pieces } } }).catch(() => {});
     await prisma.bibliothequeFiche.deleteMany({ where: { pieceId: { in: pieces } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.piece.deleteMany({ where: { id: { in: pieces } } }).catch(() => {});
     await prisma.employeeDocument.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});

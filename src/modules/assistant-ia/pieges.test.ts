@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { putBlob } from "@/lib/drive-storage";
@@ -75,7 +76,7 @@ suite("Le corpus piégé par le chemin du produit — 0 carte trompeuse non sign
     remplacerModelesPourTests(null);
     await effacerJournalDe([moi?.id]);
     await prisma.assistantActionIntent.deleteMany({ where: { userId: moi?.id } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: moi?.id } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: moi?.id } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { ensureNodeIndexed } from "@/lib/assistant/document-discovery";
 import { putBlob } from "@/lib/drive-storage";
 import fs from "node:fs";
@@ -54,7 +55,7 @@ suite("l'index de contenu ne confond jamais « rien lu » et « rien dedans »",
     await prisma.driveTextIndex.deleteMany({ where: { nodeId: { in: ids } } }).catch(() => {});
     await prisma.mediaTranscript.deleteMany({ where: { nodeId: { in: ids } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { nodeId: { in: ids } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 

@@ -17,6 +17,7 @@ const ENV = { S3_ENDPOINT: "https://compte.r2.cloudflarestorage.com", S3_BUCKET:
 for (const [k, v] of Object.entries(ENV)) process.env[k] = v;
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { cleObjetDirect } from "@/lib/drive-storage";
 import type { ClientS3Direct } from "@/lib/storage/televersement-direct";
@@ -88,14 +89,14 @@ suite("Documents — envoi direct au bucket", () => {
   afterAll(async () => {
     const docs = await prisma.document.findMany({ where: { entityId: { in: [produit, produitEtranger] } }, select: { id: true, fileKey: true } });
     const stored = await prisma.storedFile.findMany({ where: { key: { in: docs.map((d) => d.fileKey!).filter(Boolean) } }, select: { blobId: true } });
-    await prisma.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
+    await retirerDocumentsEtContenu({ where: { id: { in: docs.map((d) => d.id) } } });
     await prisma.storedFile.deleteMany({ where: { key: { in: docs.map((d) => d.fileKey!).filter(Boolean) } } });
     // Un dépôt Regulatory se range AUSSI dans le dossier Drive du produit (383a4ef5), EN ARRIÈRE-PLAN et sur le MÊME blob
     // (une `FileVersion`, clé étrangère RESTRICT) : le dossier du produit part d'abord — créé au nom de l'acteur du banc —,
     // et tant qu'un rangement encore en vol retient le blob, on laisse finir puis on recommence.
     const blobIds = stored.map((s) => s.blobId);
     for (let essai = 0; ; essai++) {
-      await prisma.driveNode.deleteMany({ where: { OR: [{ ownerId: { in: ids } }, { versions: { some: { blobId: { in: blobIds } } } }] } });
+      await retirerNoeudsDriveEtContenu({ where: { OR: [{ ownerId: { in: ids } }, { versions: { some: { blobId: { in: blobIds } } } }] } });
       try {
         await prisma.fileBlob.deleteMany({ where: { id: { in: blobIds } } });
         break;

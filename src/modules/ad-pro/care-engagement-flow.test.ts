@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { ensureInstance } from "@/lib/workflow/engine";
@@ -118,7 +119,7 @@ suite("Prise en charge — rien ne s'engage avant la prévalidation et l'accord 
     ].map((s) => s.careReservationDossierId).filter((v): v is string => Boolean(v));
     const docs = await prisma.document.findMany({ where: { entityId: { in: ids } }, select: { fileKey: true } }).catch(() => []);
     for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.demandeReservation.deleteMany({ where: { operationId: { in: ids } } }).catch(() => {});
     await prisma.careQuote.deleteMany({ where: { OR: [{ congressNationalId: { in: ids } }, { congressInternationalId: { in: ids } }] } }).catch(() => {});
     await prisma.careBeneficiary.deleteMany({ where: { OR: [{ congressNationalId: { in: ids } }, { congressInternationalId: { in: ids } }] } }).catch(() => {});

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -59,7 +60,7 @@ suite("Assistant IA — gestes du quotidien", () => {
     await prisma.comment.deleteMany({ where: { entityId: demandeId } }).catch(() => {});
     await prisma.validationStep.deleteMany({ where: { requestId: demandeId } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { id: demandeId } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: spoId } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: spoId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } }).catch(() => {});
     await prisma.message.deleteMany({ where: { conversationId: { in: [convAvecCollegue, convDesAutres] } } }).catch(() => {});
     await prisma.conversationMember.deleteMany({ where: { conversationId: { in: [convAvecCollegue, convDesAutres] } } }).catch(() => {});
@@ -68,7 +69,7 @@ suite("Assistant IA — gestes du quotidien", () => {
     await prisma.calendarInvite.deleteMany({ where: { eventId: { in: evts.map((e) => e.id) } } }).catch(() => {});
     await prisma.calendarEvent.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { name: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: [assistante?.id, directeur?.id].filter(Boolean) as string[] } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [assistante?.id, directeur?.id, collegue?.id].filter(Boolean) as string[] } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

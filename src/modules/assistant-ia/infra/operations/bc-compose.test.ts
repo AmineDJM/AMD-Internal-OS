@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { BC_COMPOSE, lignesDictees } from "./bc-compose";
 import { executerOperationIA } from "./";
@@ -35,7 +36,7 @@ suite("Assistant IA — bon de commande dicté, sans pièce", () => {
     await prisma.documentReference.deleteMany({ where: { companyId: societeId } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: admin?.id } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: admin?.id } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: admin?.id } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: admin?.id } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

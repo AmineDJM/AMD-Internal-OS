@@ -48,6 +48,7 @@ vi.mock("@/lib/pieces-lues/lecture-fichier", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { saveFile, deleteFileByKey } from "@/lib/storage";
@@ -120,7 +121,7 @@ suite("Luna — conseiller une pièce déposée (vraie action)", () => {
   });
 
   afterAll(async () => {
-    await prisma.document.deleteMany({ where: { id: { in: [docBillet, docAutre, docConfidentiel, docPiece, docPieceAutre] } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { id: { in: [docBillet, docAutre, docConfidentiel, docPiece, docPieceAutre] } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: legaux } } }).catch(() => {});
     for (const k of cles) await deleteFileByKey(k).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: { in: [spoId, autreSpoId] } } }).catch(() => {});

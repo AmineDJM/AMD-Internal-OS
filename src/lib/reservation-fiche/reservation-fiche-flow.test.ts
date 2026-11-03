@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { ajouterVoyageur, modifierVoyageur, ajouterHebergement } from "@/modules/ad-pro/actions-postes-voyageurs";
 import {
@@ -91,7 +92,7 @@ suite("Fiches de voyage — envoi, relance, prise, manque, modification, dépôt
       (await prisma.congressNational.findUnique({ where: { id: congres }, select: { careReservationDossierId: true } }))?.careReservationDossierId,
     ].filter((x): x is string => Boolean(x));
     const reqs = await prisma.documentRequest.findMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: [posteBillet, posteHotel] } }, select: { id: true } });
-    await prisma.document.deleteMany({ where: { entityId: { in: [posteBillet, posteHotel, congres, ...reqs.map((r) => r.id)] } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [posteBillet, posteHotel, congres, ...reqs.map((r) => r.id)] } } }).catch(() => {});
     await prisma.documentRequest.deleteMany({ where: { id: { in: reqs.map((r) => r.id) } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: { in: [posteBillet, posteHotel] } } }).catch(() => {});
     await prisma.careQuote.deleteMany({ where: { congressNationalId: congres } }).catch(() => {});

@@ -16,6 +16,7 @@ const ENV = { S3_ENDPOINT: "https://compte.r2.cloudflarestorage.com", S3_BUCKET:
 for (const [k, v] of Object.entries(ENV)) process.env[k] = v;
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import type { ClientS3Direct } from "@/lib/storage/televersement-direct";
 import type { PartieRecue } from "@/lib/storage/object-storage";
@@ -58,7 +59,7 @@ suite("Drive — envoi direct au bucket", () => {
 
   afterAll(async () => {
     const nodes = await prisma.driveNode.findMany({ where: { name: { startsWith: TAG } }, select: { id: true, versions: { select: { blobId: true } } } });
-    await prisma.driveNode.deleteMany({ where: { id: { in: nodes.map((n) => n.id) } } });
+    await retirerNoeudsDriveEtContenu({ where: { id: { in: nodes.map((n) => n.id) } } });
     await prisma.fileBlob.deleteMany({ where: { id: { in: nodes.flatMap((n) => n.versions.map((v) => v.blobId)) } } });
     await prisma.directUpload.deleteMany({ where: { userId: { in: ids } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);

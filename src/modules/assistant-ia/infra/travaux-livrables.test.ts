@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import PizZip from "pizzip";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { deposerLivrableTravail, DOSSIER_TRAVAUX, nomDuLivrable } from "./travaux-livrables";
 import { blocsWord } from "./operations/document-modele";
 
@@ -38,8 +39,8 @@ suite("le dépôt d'un livrable au Drive (J8)", () => {
     alice = (await prisma.user.create({ data: { name: `${TAG}Alice`, email: `${TAG}a@t.dz`, passwordHash: "x", role: "SALES_USER" } })).id;
   });
   afterAll(async () => {
-    await prisma.driveNode.deleteMany({ where: { ownerId: alice, type: "FILE" } }).catch(() => undefined);
-    await prisma.driveNode.deleteMany({ where: { ownerId: alice } }).catch(() => undefined);
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: alice, type: "FILE" } }).catch(() => undefined);
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: alice } }).catch(() => undefined);
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 

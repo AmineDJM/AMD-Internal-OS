@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
@@ -133,7 +134,7 @@ suite("inspect_drive_folder — l'exploration récursive en un tour", () => {
 
   afterAll(async () => {
     await prisma.driveTextIndex.deleteMany({ where: { node: { name: { in: ["scan_bc.pdf", "document2.pdf"] }, owner: { email: { startsWith: TAG } } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { OR: [{ name: { startsWith: TAG } }, { owner: { email: { startsWith: TAG } } }] } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { OR: [{ name: { startsWith: TAG } }, { owner: { email: { startsWith: TAG } } }] } }).catch(() => {});
     await prisma.fileBlob.deleteMany({ where: { sha256: { startsWith: TAG } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });

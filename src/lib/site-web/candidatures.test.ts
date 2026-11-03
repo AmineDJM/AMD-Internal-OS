@@ -8,6 +8,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { deleteFileByKey, readFileByKey } from "@/lib/storage";
 import {
@@ -124,7 +125,7 @@ suite("Candidatures du site — réception, rattachement, tri", () => {
   async function nettoyer() {
     const lignes = await prisma.siteCandidature.findMany({ where: { siteId: { startsWith: `banc${RUN}` } }, select: { cvCle: true } });
     const docs = await prisma.document.findMany({ where: { fileKey: { startsWith: `site-candidatures/banc${RUN}` } }, select: { id: true, fileKey: true } });
-    await prisma.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
+    await retirerDocumentsEtContenu({ where: { id: { in: docs.map((d) => d.id) } } });
     for (const k of new Set([...lignes.map((l) => l.cvCle), ...docs.map((d) => d.fileKey)])) if (k) await deleteFileByKey(k).catch(() => undefined);
     await prisma.siteCandidature.deleteMany({ where: { siteId: { startsWith: `banc${RUN}` } } });
     await prisma.jobPosting.deleteMany({ where: { title: { startsWith: TAG } } });

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createLegalDocument, adresserBCAuCentre, updateLegalDocument } from "@/lib/actions/legal-actions";
 import { etatCompletDuBC } from "./etat-bc-test-outils";
@@ -81,7 +82,7 @@ suite("Pré-validation d'un BC depuis « Demandes de validations » — le flux 
     await prisma.validationRequest.deleteMany({ where: { id: { in: vIds } } }).catch(() => {});
     await prisma.adProGateVisa.deleteMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: docs } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityType: { in: ["LEGAL_DOCUMENT", "VALIDATION_REQUEST"] }, entityId: { in: [...docs, ...vIds] } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: docs } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: docs } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: docs } } }).catch(() => {});
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     const comptes = await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } });

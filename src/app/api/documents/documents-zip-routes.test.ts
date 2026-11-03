@@ -33,6 +33,7 @@ vi.mock("@/lib/storage/object-storage", async (orig) => {
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { saveFile } from "@/lib/storage";
 import { GET as zipGET } from "./[id]/zip/route";
@@ -98,7 +99,7 @@ suite("Documents — parcourir un ZIP et le télécharger", () => {
   afterAll(async () => {
     const docs = await prisma.document.findMany({ where: { entityId: produit }, select: { id: true, fileKey: true } });
     const stored = await prisma.storedFile.findMany({ where: { key: { in: docs.map((d) => d.fileKey!).filter(Boolean) } }, select: { blobId: true } });
-    await prisma.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
+    await retirerDocumentsEtContenu({ where: { id: { in: docs.map((d) => d.id) } } });
     await prisma.storedFile.deleteMany({ where: { key: { in: docs.map((d) => d.fileKey!).filter(Boolean) } } });
     await prisma.fileBlob.deleteMany({ where: { id: { in: stored.map((s) => s.blobId) } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);

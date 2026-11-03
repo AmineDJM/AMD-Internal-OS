@@ -10,6 +10,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "../actions-sponsoring";
 import { businessUnitDuDemandeur } from "./business-unit-auto";
@@ -76,7 +77,7 @@ suite("Une demande de sponsoring INCOMPLÈTE est refusée par le serveur", () =>
     const demandes = await prisma.sponsoringRequest.findMany({ where: { institution: { startsWith: TAG } }, select: { id: true } });
     const ids = demandes.map((d) => d.id);
     if (ids.length) {
-      await prisma.document.deleteMany({ where: { entityType: "SPONSORING", entityId: { in: ids } } }).catch(() => {});
+      await retirerDocumentsEtContenu({ where: { entityType: "SPONSORING", entityId: { in: ids } } }).catch(() => {});
       await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { in: ids } } } }).catch(() => {});
       await prisma.workflowInstance.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
       await prisma.sponsoringRequest.deleteMany({ where: { id: { in: ids } } }).catch(() => {});

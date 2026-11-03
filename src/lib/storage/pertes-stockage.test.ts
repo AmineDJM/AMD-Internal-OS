@@ -41,6 +41,7 @@ vi.mock("@/lib/settings", async (orig) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
 import { putBlob, releaseBlob, getBlob, purgeOrphanBlobs, retainBlob } from "@/lib/drive-storage";
@@ -78,11 +79,11 @@ suite("stockage — aucune perte silencieuse", () => {
     CASSER = false;
     const docs = await prisma.document.findMany({ where: { name: { startsWith: TAG } }, select: { fileKey: true } });
     for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => undefined);
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } });
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } });
     await prisma.notification.deleteMany({ where: { userId } }).catch(() => undefined);
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => undefined);
     const nodes = await prisma.driveNode.findMany({ where: { name: { startsWith: TAG } }, select: { id: true, versions: { select: { blobId: true } } } });
-    await prisma.driveNode.deleteMany({ where: { id: { in: nodes.map((n) => n.id) } } });
+    await retirerNoeudsDriveEtContenu({ where: { id: { in: nodes.map((n) => n.id) } } });
     await prisma.officeLetterhead.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.anppReserveBatch.deleteMany({ where: { sourceFilename: { startsWith: TAG } } });
     await prisma.companyDocumentProfile.deleteMany({ where: { company: { name: { startsWith: TAG } } } });

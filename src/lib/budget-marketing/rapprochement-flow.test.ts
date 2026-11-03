@@ -21,6 +21,7 @@ vi.mock("@/lib/budget-marketing/rapprochement-luna", async (orig) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { saveFile, deleteFileByKey } from "@/lib/storage";
 import { getBudgetOverview } from "@/lib/queries/budget";
@@ -124,7 +125,7 @@ suite("Rapprochement Ad & Pro — de bout en bout", () => {
     const shas = (await prisma.fileBlob.findMany({ where: { id: { in: blobs.map((b) => b.blobId) } }, select: { sha256: true } })).map((b) => b.sha256);
     await prisma.adProRapprochementLecture.deleteMany({ where: { empreinte: { in: shas } } });
     await prisma.adProIntegrationLot.deleteMany({ where: { envelopeId: envId } });
-    await prisma.document.deleteMany({ where: { id: { in: [docFacture, docVirement, docNotes].filter(Boolean) } } });
+    await retirerDocumentsEtContenu({ where: { id: { in: [docFacture, docVirement, docNotes].filter(Boolean) } } });
     for (const k of cles) await deleteFileByKey(k).catch(() => undefined);
     await prisma.legalDocument.deleteMany({ where: { id: legal } });
     await prisma.adProItem.deleteMany({ where: { sponsoringId: { in: [spo1, spo2] } } });

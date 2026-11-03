@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview } from "@/lib/queries/budget";
 import { depensesPostesMarketing } from "@/lib/queries/budget-marketing-depenses";
@@ -96,7 +97,7 @@ suite("Budget Marketing — la dépense d'un poste Ad & Pro, de l'imputation au 
     const ids = Object.values(postes).filter(Boolean);
     const pieces = await prisma.adProItemPiece.findMany({ where: { itemId: { in: ids } }, select: { legalDocumentId: true } }).catch(() => []);
     const tousDocs = [...new Set([...docs, ...pieces.map((p) => p.legalDocumentId)])];
-    await prisma.document.deleteMany({ where: { entityId: { in: tousDocs } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: tousDocs } } }).catch(() => {});
     await prisma.adProItemPiece.deleteMany({ where: { itemId: { in: ids } } }).catch(() => {});
     await prisma.adProItem.updateMany({ where: { id: { in: ids } }, data: { expenseOrderId: null } }).catch(() => {});
     await prisma.legalDocument.updateMany({ where: { id: { in: tousDocs } }, data: { expenseOrderId: null } }).catch(() => {});

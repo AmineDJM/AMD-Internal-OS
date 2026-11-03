@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { createCongressRequest } from "./actions-congres";
@@ -82,7 +83,7 @@ suite("Prise en charge — les devis demandés à l'assistante de direction se s
     const ids = [natId, autreId].filter(Boolean);
     const docs = await prisma.document.findMany({ where: { entityId: { in: ids } }, select: { fileKey: true } }).catch(() => []);
     for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ids } } }).catch(() => {});
     const sujets = (await prisma.congressNational.findMany({ where: { id: { in: ids } }, select: { careReservationDossierId: true } }).catch(() => []))
       .map((s) => s.careReservationDossierId).filter((v): v is string => Boolean(v));
     await prisma.careQuote.deleteMany({ where: { congressNationalId: { in: ids } } }).catch(() => {});

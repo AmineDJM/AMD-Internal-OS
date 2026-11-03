@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getMyHrDossier } from "@/modules/rh/api";
 import {
@@ -74,7 +75,7 @@ suite("Note de frais : un montant, une pièce, quinze minutes, et les RH", () =>
 
   afterAll(async () => {
     await prisma.documentRequest.deleteMany({ where: { entityType: "HR_REQUEST", entityId: noteId } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityType: "HR_REQUEST", entityId: noteId } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "HR_REQUEST", entityId: noteId } }).catch(() => {});
     await prisma.hrDocumentRequest.deleteMany({ where: { employeeId: employeId } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [salarieId, rhId] } } }).catch(() => {});

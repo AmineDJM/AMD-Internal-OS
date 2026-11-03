@@ -19,6 +19,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
@@ -122,7 +123,7 @@ suite("K10c — Ad & Pro et juridique : exécuter, annuler, rétablir", () => {
       ...(await prisma.legalDocument.findMany({ where: { OR: [{ sourceId: eventId }, { title: { startsWith: TAG } }, { createdById: { in: comptes } }] }, select: { id: true } })).map((d) => d.id),
     ])];
     await prisma.adProItemPiece.deleteMany({ where: { OR: [{ itemId: { in: tous } }, { legalDocumentId: { in: docs } }] } }).catch(() => undefined);
-    await prisma.document.deleteMany({ where: { entityId: { in: [...docs, ...tous] } } }).catch(() => undefined);
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [...docs, ...tous] } } }).catch(() => undefined);
     await prisma.adProGateVisa.deleteMany({ where: { entityId: { in: docs } } }).catch(() => undefined);
     await prisma.adProItem.updateMany({ where: { id: { in: tous } }, data: { expenseOrderId: null } }).catch(() => undefined);
     await prisma.legalDocument.updateMany({ where: { id: { in: docs } }, data: { expenseOrderId: null } }).catch(() => undefined);

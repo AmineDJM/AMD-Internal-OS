@@ -10,6 +10,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
 import { deleteFileByKey } from "@/lib/storage";
@@ -135,8 +136,8 @@ suite("Bons de commande — modifiables de A à Z, et les coordonnées de la soc
     await prisma.documentSequence.deleteMany({ where: { companyId: { in: [societeX, societeY] } } }).catch(() => {});
     if (sa) {
       await prisma.fileVersion.deleteMany({ where: { node: { ownerId: sa.id } } }).catch(() => {});
-      await prisma.driveNode.deleteMany({ where: { ownerId: sa.id, type: "FILE" } }).catch(() => {});
-      await prisma.driveNode.deleteMany({ where: { ownerId: sa.id } }).catch(() => {});
+      await retirerNoeudsDriveEtContenu({ where: { ownerId: sa.id, type: "FILE" } }).catch(() => {});
+      await retirerNoeudsDriveEtContenu({ where: { ownerId: sa.id } }).catch(() => {});
       await prisma.auditLog.deleteMany({ where: { actorId: sa.id } }).catch(() => {});
     }
     await prisma.companyLegalIdentity.deleteMany({ where: { companyId: { in: [societeX, societeY] } } }).catch(() => {});

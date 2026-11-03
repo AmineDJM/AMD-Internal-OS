@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, scopeMedicalInfo, type SessionUser } from "@/lib/rbac";
 import { createMedicalInfoDeclaration } from "@/lib/medical-info";
 import { canViewDeclaration, getDeclaration } from "@/lib/queries/medical-info";
@@ -48,7 +49,7 @@ suite("PRIM — circuit information médicale (déclaration → pièces → phar
   afterAll(async () => {
     await prisma.expenseOrder.deleteMany({ where: { reference: { startsWith: "OD-" }, label: { contains: TAG } } }).catch(() => {});
     await prisma.medicalInfoDeclaration.deleteMany({ where: { OR: [{ reference: { contains: "DIM-" }, sourceId: sponsoringId }] } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: declId } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: declId } }).catch(() => {});
     await prisma.comment.deleteMany({ where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: declId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});

@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getRequestList } from "@/lib/queries/admin-requests";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
@@ -43,7 +44,7 @@ suite("le bureau de l'assistante : tout ce qui est ouvert, ce que personne n'a p
 
   async function nettoyer() {
     const comptes = (await prisma.user.findMany({ where: { email: { startsWith: "__bureauasst" } }, select: { id: true } })).map((u) => u.id);
-    await prisma.document.deleteMany({ where: { name: { startsWith: "__bureauasst" } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: "__bureauasst" } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { label: { startsWith: "__bureauasst" } } }).catch(() => {});
     await prisma.dossier.deleteMany({ where: { title: { startsWith: "__bureauasst" } } }).catch(() => {});
     await prisma.event.deleteMany({ where: { name: { startsWith: "__bureauasst" } } }).catch(() => {});

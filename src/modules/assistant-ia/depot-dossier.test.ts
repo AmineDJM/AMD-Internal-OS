@@ -15,6 +15,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -59,7 +60,7 @@ suite("le dépôt de dossier (J11)", () => {
   beforeAll(async () => { moi = await compte("Moi"); autre = await compte("Autre"); });
   afterAll(async () => {
     const lots = await prisma.assistantIaDepotDossier.findMany({ where: { userId: { in: [moi?.id, autre?.id].filter(Boolean) as string[] } }, select: { racineId: true } });
-    await prisma.driveNode.deleteMany({ where: { id: { in: lots.map((l) => l.racineId) } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { id: { in: lots.map((l) => l.racineId) } } }).catch(() => {});
     await prisma.assistantIaDepotDossier.deleteMany({ where: { userId: { in: [moi?.id, autre?.id].filter(Boolean) as string[] } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });

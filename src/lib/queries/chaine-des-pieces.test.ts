@@ -11,6 +11,7 @@ vi.mock("@/lib/session", () => ({
 
 import { LegalDocKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { DOCUMENT_CATEGORY, LEGAL_DOC_KIND, natureLegale } from "@/lib/labels";
 import { accesAuxPiecesLegal, canAccessEntity } from "@/lib/entity-access";
@@ -165,7 +166,7 @@ suite("les pièces liées d'une fiche — droits pièce par pièce, et « Créer
   const nettoyer = async () => {
     const legaux = await prisma.legalDocument.findMany({ where: { title: { startsWith: TAG } }, select: { id: true } });
     const ids = legaux.map((l) => l.id);
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.legalDocumentReader.deleteMany({ where: { documentId: { in: ids } } }).catch(() => {});
     await prisma.legalDocument.updateMany({ where: { id: { in: ids } }, data: { chainFromId: null } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: ids } } }).catch(() => {});

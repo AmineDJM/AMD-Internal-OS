@@ -12,6 +12,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createExpenseOrder } from "./infra/expense-orders";
 import { cancelPaymentRequest, decidePaymentRequest } from "./actions-demandes";
@@ -58,7 +59,7 @@ suite("ordres fermés, factures vues, factures renvoyées", () => {
     await prisma.legalDocument.updateMany({ where: { id: { in: legal } }, data: { expenseOrderId: null } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { label: { startsWith: TAG } } }).catch(() => {});
     await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.paymentCentreMessage.deleteMany({ where: { orderId: { in: ordres } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
     await prisma.promoFacture.deleteMany({ where: { legalDocumentId: { in: legal } } }).catch(() => {});

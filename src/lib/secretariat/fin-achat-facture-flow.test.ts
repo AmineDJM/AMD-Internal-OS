@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { createRequest, requestApproval, decideApproval, finishRequest } from "@/lib/actions/admin-request-actions";
 import { createPurchaseRequest } from "@/lib/actions/purchase-request-actions";
@@ -66,7 +67,7 @@ suite("Secrétariat — la fin d'un achat trouve sa facture où l'écran la rang
     await prisma.paymentRequest.deleteMany({ where: { OR: [{ expenseOrderId: { in: ordres } }, { requesterId: { in: comptes } }] } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { label: { contains: PREFIXE } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { OR: [{ name: { startsWith: PREFIXE } }, { entityId: { in: [...pieces, ...ordres, ...demandes] } }] } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { OR: [{ name: { startsWith: PREFIXE } }, { entityId: { in: [...pieces, ...ordres, ...demandes] } }] } }).catch(() => {});
     await prisma.legalDocument.updateMany({ where: { id: { in: pieces } }, data: { chainFromId: null } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: pieces } } }).catch(() => {});
     await prisma.departmentBudgetExpense.deleteMany({ where: { adminRequestId: { in: demandes } } }).catch(() => {});

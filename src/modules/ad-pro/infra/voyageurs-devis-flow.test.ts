@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { createSponsoring } from "../actions-sponsoring";
@@ -120,7 +121,7 @@ suite("Billetterie — trajet, transport, devis par voyageur, BC", () => {
     const legaux = await prisma.legalDocument.findMany({ where: { OR: [{ sourceId: spoId }, { title: { contains: TAG } }] }, select: { id: true } }).catch(() => []);
     const lids = legaux.map((l) => l.id);
     await prisma.documentRequest.deleteMany({ where: { entityType: "AD_PRO_ITEM", entityId: posteId } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: [spoId, posteId, ...lids] } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [spoId, posteId, ...lids] } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: posteId } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: lids } } }).catch(() => {});
     await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: spoId } } }).catch(() => {});
@@ -228,11 +229,11 @@ suite("Billetterie — trajet, transport, devis par voyageur, BC", () => {
     expect(v.passeports.map((d) => d.name)).toEqual([`${TAG}passeport.pdf`]);
     expect(v.autresDocuments.map((d) => d.name).sort()).toEqual([`${TAG}assurance.pdf`, `${TAG}visa.pdf`]);
     // Sans pièce d'identité, un visa seul ne vaut PAS passeport.
-    await prisma.document.deleteMany({ where: { entityId: posteId, category: "ID_DOCUMENT", name: { startsWith: TAG } } });
+    await retirerDocumentsEtContenu({ where: { entityId: posteId, category: "ID_DOCUMENT", name: { startsWith: TAG } } });
     const sans = await voyageurVu(amel);
     expect(sans.passeports).toEqual([]);
     expect(sans.autresDocuments).toHaveLength(2);
-    await prisma.document.deleteMany({ where: { entityId: posteId, name: { startsWith: TAG } } });
+    await retirerDocumentsEtContenu({ where: { entityId: posteId, name: { startsWith: TAG } } });
   });
 
   it("le devis d'un voyageur EST un devis du poste — sans fichier, rien n'est écrit", async () => {

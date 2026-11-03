@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { saveFile, deleteFileByKey } from "@/lib/storage";
 import { repriseRattrapagePieces } from "./rattrapage-pieces";
 
@@ -34,7 +35,7 @@ describe.skipIf(!dbOk)("reprise « rattrapage des pièces existantes »", () => 
     await prisma.appSetting.update({ where: { id: "global" }, data: { enrichissementActif: actifAvant } }).catch(() => undefined);
     await prisma.tacheEnrichissement.deleteMany({ where: { empreinte } });
     await prisma.businessEvent.deleteMany({ where: { correlationId: `piece:${empreinte}` } });
-    await prisma.document.deleteMany({ where: { id: documentId } });
+    await retirerDocumentsEtContenu({ where: { id: documentId } });
     await deleteFileByKey(key).catch(() => undefined);
   });
 

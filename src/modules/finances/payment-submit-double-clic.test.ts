@@ -17,6 +17,7 @@ vi.mock("@/lib/documents", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { createPaymentRequest, submitPaymentRequest } from "./actions-demandes";
 
@@ -58,7 +59,7 @@ suite("submitPaymentRequest — un double clic ne crée qu'un ordre de dépense"
     const ordres = await prisma.expenseOrder.findMany({ where: { sourceType: "PAYMENT_REQUEST", sourceId: { in: created } }, select: { id: true } });
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres.map((o) => o.id) } } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { id: { in: created } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: "__paydbl__piece.pdf" } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: "__paydbl__piece.pdf" } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: reqUserId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: reqUserId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

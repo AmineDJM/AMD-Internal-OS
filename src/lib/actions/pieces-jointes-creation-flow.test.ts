@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { createRequest } from "./admin-request-actions";
@@ -49,15 +50,15 @@ suite("Pièces jointes à la création — tout type sauf les programmes", () =>
     const ids = [...secretariat, ...autres];
     const docs = await prisma.document.findMany({ where: { entityId: { in: ids } }, select: { fileKey: true } });
     for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.adProGateVisa.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.administrativeRequest.deleteMany({ where: { id: { in: secretariat } } }).catch(() => {});
     await prisma.adProOtherRequest.deleteMany({ where: { id: { in: autres } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { createdAt: { gte: T0 }, body: { contains: TAG } } }).catch(() => {});
     const comptes = (await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } })).map((u) => u.id);
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: comptes } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: comptes }, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: comptes } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});

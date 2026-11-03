@@ -10,6 +10,7 @@ vi.mock("@/lib/session", () => ({
 
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
 import { POST as routeRegulatory } from "@/app/api/regulatory/export/route";
@@ -76,8 +77,8 @@ suite("K7 — exporter depuis l'assistant, puis envoyer à un collègue", () => 
   async function menage(ids: string[], etiquette: string): Promise<void> {
     await prisma.message.deleteMany({ where: { senderId: { in: ids } } }).catch(() => {});
     await prisma.driveShare.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { ownerId: { in: ids } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: etiquette } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     // LES COMPTES DU BANC — jamais retirés jusqu'ici (F1, mesuré : 78 comptes « __k7exp_… » en base, dont un Super

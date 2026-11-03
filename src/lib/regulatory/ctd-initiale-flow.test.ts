@@ -23,6 +23,7 @@ vi.mock("@/lib/regulatory-drive-mirror", () => ({ mirrorRegulatoryUpload: async 
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { canAccessEntity } from "@/lib/entity-access";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { POST } from "@/app/api/documents/upload/route";
@@ -91,7 +92,7 @@ async function purgerFichiers(cles: string[]) {
 async function viderLaCtd(id: string) {
   const docs = await prisma.document.findMany({ where: { entityId: id }, select: { id: true, fileKey: true } });
   const recs = await prisma.deletedRecord.findMany({ where: { kind: KIND_CORBEILLE_CTD, sourceId: id }, select: { documents: true } });
-  await prisma.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
+  await retirerDocumentsEtContenu({ where: { id: { in: docs.map((d) => d.id) } } });
   await prisma.deletedRecord.deleteMany({ where: { kind: KIND_CORBEILLE_CTD, sourceId: id } });
   await purgerFichiers([
     ...docs.map((d) => d.fileKey),
@@ -130,7 +131,7 @@ suite("CTD initiale — dépôt, arborescence, ajout, remplacement, suppression,
       ...recs.flatMap((r) => ((r.documents as { fileKey?: string | null }[] | null) ?? []).map((x) => x.fileKey)),
     ].filter((k): k is string => Boolean(k));
     const stored = await prisma.storedFile.findMany({ where: { key: { in: cles } }, select: { blobId: true } });
-    await prisma.document.deleteMany({ where: { entityId: { in: prods } } });
+    await retirerDocumentsEtContenu({ where: { entityId: { in: prods } } });
     await prisma.deletedRecord.deleteMany({ where: { kind: KIND_CORBEILLE_CTD, sourceId: { in: prods } } });
     await prisma.storedFile.deleteMany({ where: { key: { in: cles } } });
     await prisma.fileBlob.deleteMany({ where: { id: { in: stored.map((s) => s.blobId) } } });

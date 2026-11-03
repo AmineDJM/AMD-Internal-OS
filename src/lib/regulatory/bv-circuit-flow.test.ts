@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { requestBV } from "@/lib/actions/regulatory-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
@@ -77,7 +78,7 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
     await prisma.paymentRequestEvent.deleteMany({ where: { requestId: { in: dossiers } } }).catch(() => undefined);
     await prisma.paymentRequest.deleteMany({ where: { id: { in: dossiers } } }).catch(() => undefined);
     const docs = await prisma.document.findMany({ where: { OR: [{ entityId: { in: oIds } }, { entityId: produitId }] }, select: { id: true, fileKey: true } });
-    await prisma.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } }).catch(() => undefined);
+    await retirerDocumentsEtContenu({ where: { id: { in: docs.map((d) => d.id) } } }).catch(() => undefined);
     await prisma.storedFile.deleteMany({ where: { key: { in: docs.map((d) => d.fileKey).filter((k): k is string => Boolean(k)) } } }).catch(() => undefined);
     await prisma.expenseOrder.deleteMany({ where: { id: { in: oIds } } }).catch(() => undefined);
     const tx = ordres.map((o) => o.transactionId).filter((t): t is string => Boolean(t));

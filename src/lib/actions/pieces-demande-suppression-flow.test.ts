@@ -9,6 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { supprimerReversible } from "@/lib/suppression/coeur";
@@ -79,7 +80,7 @@ suite("supprimer une pièce Legal d'une demande Ad & Pro (flux réel)", () => {
   const nettoyer = async () => {
     const ids = (await prisma.legalDocument.findMany({ where: { title: { startsWith: TAG } }, select: { id: true } })).map((d) => d.id);
     await prisma.deletedRecord.deleteMany({ where: { kind: "LEGAL_DOCUMENT", name: { contains: TAG } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.adProGateVisa.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.adProItemPiece.deleteMany({ where: { legalDocumentId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
 import { advanceWorkflow, faireAppelAdPro } from "@/lib/actions/workflow-actions";
@@ -55,7 +56,7 @@ suite("ADPRO-06 — l'étape du National Sales et la porte de la fiche", () => {
     await prisma.workflowStepEvent.deleteMany({ where: { instanceId: { in: instances } } }).catch(() => {});
     await prisma.workflowInstance.deleteMany({ where: { id: { in: instances } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { sponsoringId: { in: spos } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { entityId: { in: spos } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityId: { in: spos } } }).catch(() => {});
     for (const id of [...spos, ...congres]) await prisma.notification.deleteMany({ where: { link: { contains: id } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: { in: spos } } }).catch(() => {});
     await prisma.congressNational.deleteMany({ where: { id: { in: congres } } }).catch(() => {});

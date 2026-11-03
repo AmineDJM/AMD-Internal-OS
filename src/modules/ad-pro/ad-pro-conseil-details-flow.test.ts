@@ -51,6 +51,7 @@ vi.mock("@/lib/pieces-lues/lecture-fichier", async (orig) => ({
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { POST } from "@/app/api/documents/upload/route";
@@ -105,7 +106,7 @@ suite("Luna conseille la pièce déposée par « + Pièce jointe » (route de t�
   afterAll(async () => {
     const docs = await prisma.document.findMany({ where: { entityType: "SPONSORING", entityId: spoId }, select: { id: true, fileKey: true } });
     for (const d of docs) if (d.fileKey) cles.push(d.fileKey);
-    await prisma.document.deleteMany({ where: { entityType: "SPONSORING", entityId: spoId } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "SPONSORING", entityId: spoId } }).catch(() => {});
     for (const k of cles) await deleteFileByKey(k).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } }).catch(() => {});

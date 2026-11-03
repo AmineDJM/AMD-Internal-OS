@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
 import { pieceEmise, valeursComposables, type ValeursComposables } from "@/lib/legal/piece-emise";
@@ -104,8 +105,8 @@ suite("Le numéro de référence d'un BC — choisi à la composition, modifié 
     await prisma.documentSequence.deleteMany({ where: { companyId: { in: [societeReg, societeSerie] } } }).catch(() => {});
     if (sa) {
       await prisma.fileVersion.deleteMany({ where: { node: { ownerId: sa.id } } }).catch(() => {});
-      await prisma.driveNode.deleteMany({ where: { ownerId: sa.id, type: "FILE" } }).catch(() => {});
-      await prisma.driveNode.deleteMany({ where: { ownerId: sa.id } }).catch(() => {});
+      await retirerNoeudsDriveEtContenu({ where: { ownerId: sa.id, type: "FILE" } }).catch(() => {});
+      await retirerNoeudsDriveEtContenu({ where: { ownerId: sa.id } }).catch(() => {});
       await prisma.auditLog.deleteMany({ where: { actorId: sa.id } }).catch(() => {});
     }
     await prisma.companyDocumentProfile.deleteMany({ where: { companyId: { in: [societeReg, societeSerie] } } }).catch(() => {});

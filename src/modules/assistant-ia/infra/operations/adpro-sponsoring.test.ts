@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -63,13 +64,13 @@ suite("Assistant IA — demande de sponsoring de bout en bout", () => {
   afterAll(async () => {
     const spo = await prisma.sponsoringRequest.findMany({ where: { institution: { startsWith: TAG } }, select: { id: true } });
     const ids = spo.map((s) => s.id);
-    await prisma.document.deleteMany({ where: { entityType: "SPONSORING", entityId: { in: ids } } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "SPONSORING", entityId: { in: ids } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { sponsoringId: { in: ids } } }).catch(() => {});
     await prisma.workflowInstance.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { name: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: [admin?.id, assistante?.id].filter(Boolean) as string[] } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { body: { contains: TAG } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

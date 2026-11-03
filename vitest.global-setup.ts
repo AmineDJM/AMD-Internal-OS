@@ -21,6 +21,39 @@
  */
 export const SIEGE_DE_BANC = "siege-dg@banc-de-tests.local";
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE RÉSIDU D'UN PASSAGE — mesuré à chaque suite, et TENU sur une suite complète (F1, 03/11/2026).
+ *
+ * Les tables que les bancs faisaient grossir sont comptées à l'ouverture, puis à la fermeture APRÈS le ménage de fin :
+ * la différence est ce que ce passage laisse en base, dit table par table. Sur une suite COMPLÈTE (aucun fichier ni
+ * filtre sur la ligne de commande — `npm test`), le résidu de chaque table ne dépasse pas son plafond
+ * (`vitest.residu.json`) : un banc neuf qui laisse ses pièces, ses blobs ou ses comptes fait échouer la suite en le
+ * nommant. ⚠ UN PLAFOND NE SE RELÈVE JAMAIS : un dépassement se corrige dans le banc qui sème (`menage-de-banc.ts`,
+ * `retirerComptesPerimes`), et un chiffre qui baisse se reporte dans le fichier.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export const TABLES_SURVEILLEES = [
+  "User", "Notification", "Document", "StoredFile", "DriveNode", "FileVersion", "FileBlob", "FileBlobChunk", "Piece",
+  "PieceLien", "BibliothequeFiche", "AssistantGesteJournal", "AssistantEffet", "EffetSortantDiffere",
+] as const;
+let ouverture: Record<string, number> | null = null;
+
+type ClientDeComptage = { $queryRawUnsafe: <T>(q: string) => Promise<T> };
+async function compterLesTables(prisma: ClientDeComptage): Promise<Record<string, number>> {
+  const lignes = await prisma.$queryRawUnsafe<{ t: string; n: number }[]>(
+    TABLES_SURVEILLEES.map((t) => `SELECT '${t}' AS t, count(*)::int AS n FROM "${t}"`).join(" UNION ALL "));
+  return Object.fromEntries(lignes.map((l) => [l.t, l.n]));
+}
+
+/** Une suite COMPLÈTE : `vitest run` sans fichier ni filtre (les options, elles, ne restreignent rien). */
+function suiteComplete(argv: readonly string[] = process.argv): boolean {
+  const apres = argv.slice(argv.findIndex((a) => a === "run") + 1);
+  return argv.includes("run") && !apres.some((a) => !a.startsWith("-") && !/^\w+=/.test(a))
+    && !apres.some((a) => /^(-t|--testNamePattern|--project|--dir)\b/.test(a));
+}
+
+
 export async function setup(): Promise<void> {
   if (!process.env.DATABASE_URL) return;
   const { prisma } = await import("./src/lib/prisma");
@@ -39,6 +72,7 @@ export async function setup(): Promise<void> {
     },
     update: { role: "GENERAL_MANAGER", isActive: true, createdAt: doyen },
   });
+  ouverture = await compterLesTables(prisma);
   await prisma.$disconnect();
 }
 
@@ -65,6 +99,11 @@ export async function setup(): Promise<void> {
  *     demandée »…), aucun banc ne peut retirer ce que les autres leur envoient, et rien ne lit leur boîte d'un passage
  *     à l'autre. Mesuré : 16 231 et 11 705 notifications.
  *
+   • LES PIÈCES DU REGISTRE déposées par un compte qui n'existe plus et que plus rien ne désigne
+ *     (`retirerPiecesDeComptesDisparus`, `menage-de-banc.ts`) : le registre survit par conception à ses documents, et
+ *     un passage en laissait ~1 000. Les nœuds Drive sans auteur, eux, ne sont JAMAIS ménagés ici : un dossier système
+ *     sans auteur peut contenir les fichiers d'un monde persistant (le banc d'audit) — chaque banc retire les siens.
+ *
  * Rien d'autre n'est retiré à un compte qui existe encore, ni à un blob que quelque chose tient.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -85,9 +124,24 @@ export async function teardown(): Promise<void> {
       WHERE NOT EXISTS (SELECT 1 FROM "User" u WHERE u.id = g."principalId")`;
     const { ADAM_EMAIL } = await import("./src/lib/missions/agent/account");
     const boites = await prisma.notification.deleteMany({ where: { user: { email: { in: [SIEGE_DE_BANC, ADAM_EMAIL] } } } });
+    const { retirerPiecesDeComptesDisparus } = await import("./src/lib/actions/internes/menage-de-banc");
+    const pieces = await retirerPiecesDeComptesDisparus();
     const { purgeOrphanBlobs } = await import("./src/lib/drive-storage");
     const blobs = await purgeOrphanBlobs();
-    console.log(`[ménage de fin de suite] ${gestes} geste(s) et ${sortants} envoi(s) différé(s) de comptes disparus ; ${boites.count} notification(s) des comptes permanents ; ${blobs.count} blob(s) orphelin(s) (${Math.round(blobs.bytes / 1_048_576)} Mo).`);
+    console.log(`[ménage de fin de suite] ${gestes} geste(s) et ${sortants} envoi(s) différé(s) de comptes disparus ; ${boites.count} notification(s) des comptes permanents ; ${pieces} pièce(s) de comptes disparus ; ${blobs.count} blob(s) orphelin(s) (${Math.round(blobs.bytes / 1_048_576)} Mo).`);
+    if (ouverture) {
+      const fermeture = await compterLesTables(prisma);
+      const residu = Object.fromEntries(TABLES_SURVEILLEES.map((t) => [t, (fermeture[t] ?? 0) - (ouverture![t] ?? 0)]));
+      console.log(`[résidu du passage] ${TABLES_SURVEILLEES.map((t) => `${t} ${residu[t]! >= 0 ? "+" : ""}${residu[t]}`).join(" · ")}`);
+      if (suiteComplete()) {
+        const { readFileSync } = await import("node:fs");
+        const plafonds = JSON.parse(readFileSync(new URL("./vitest.residu.json", import.meta.url), "utf8")) as { plafonds: Record<string, number>; sansPlafond?: string[] };
+        const depasses = TABLES_SURVEILLEES.filter((t) => !plafonds.sansPlafond?.includes(t) && residu[t]! > (plafonds.plafonds[t] ?? 0));
+        if (depasses.length) {
+          throw new Error(`Résidu d'une suite complète au-dessus du plafond (vitest.residu.json) — ${depasses.map((t) => `${t} +${residu[t]} > ${plafonds.plafonds[t] ?? 0}`).join(", ")}. Le banc qui sème doit retirer ce qu'il sème (menage-de-banc.ts) ; un plafond ne se relève jamais.`);
+        }
+      }
+    }
   } finally {
     await prisma.$disconnect();
   }

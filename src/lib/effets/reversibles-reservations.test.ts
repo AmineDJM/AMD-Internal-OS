@@ -16,6 +16,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
 import { retablirGeste } from "@/lib/effets/retablissement";
@@ -106,7 +107,7 @@ suite("K10c — fiches de voyage : exécuter, annuler, rétablir", () => {
     const tous = [...new Set([...sujets, ...items.map((x) => x.reservationDossierId).filter((x): x is string => !!x)])];
     const reqs = await prisma.documentRequest.findMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: [posteBillet, posteHotel] } }, select: { id: true } });
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: users } } }).catch(() => undefined);
-    await prisma.document.deleteMany({ where: { entityId: { in: [posteBillet, posteHotel, congres, ...reqs.map((r) => r.id)] } } }).catch(() => undefined);
+    await retirerDocumentsEtContenu({ where: { entityId: { in: [posteBillet, posteHotel, congres, ...reqs.map((r) => r.id)] } } }).catch(() => undefined);
     await prisma.documentRequest.deleteMany({ where: { id: { in: reqs.map((r) => r.id) } } }).catch(() => undefined);
     await prisma.adProItem.deleteMany({ where: { id: { in: [posteBillet, posteHotel] } } }).catch(() => undefined);
     await prisma.congressNational.deleteMany({ where: { id: congres } }).catch(() => undefined);

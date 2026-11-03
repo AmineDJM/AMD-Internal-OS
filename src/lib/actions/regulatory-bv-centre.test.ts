@@ -6,6 +6,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { requestBV } from "./regulatory-actions";
 
@@ -32,7 +33,7 @@ suite("Demande de BV — centre de paiement d'abord", () => {
   });
   afterAll(async () => {
     const ordres = await prisma.expenseOrder.findMany({ where: { sourceId: produitId }, select: { id: true } });
-    await prisma.document.deleteMany({ where: { entityId: { in: ordres.map((o) => o.id) } } }).catch(() => undefined);
+    await retirerDocumentsEtContenu({ where: { entityId: { in: ordres.map((o) => o.id) } } }).catch(() => undefined);
     await prisma.expenseOrder.deleteMany({ where: { sourceId: produitId } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: userId } }).catch(() => undefined);
     await prisma.regulatoryProduct.deleteMany({ where: { id: produitId } }).catch(() => undefined);

@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob, putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -92,12 +93,12 @@ suite("Assistant IA — documents au-delà de l'édition", () => {
 
   afterAll(async () => {
     await effacerJournalDe([admin?.id]);
-    await prisma.document.deleteMany({ where: { entityType: "AD_PRO_ITEM", entityId: posteId } }).catch(() => {});
+    await retirerDocumentsEtContenu({ where: { entityType: "AD_PRO_ITEM", entityId: posteId } }).catch(() => {});
     await prisma.adProVoyageur.deleteMany({ where: { itemId: posteId } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { node: { name: { contains: TAG } } } }).catch(() => {});
-    await prisma.driveNode.deleteMany({ where: { name: { contains: TAG } } }).catch(() => {});
+    await retirerNoeudsDriveEtContenu({ where: { name: { contains: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: admin?.id } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
