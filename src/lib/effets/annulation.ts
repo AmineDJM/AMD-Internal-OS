@@ -312,8 +312,8 @@ async function defaireCreation(e: EffetLu, info: InfoModele, ctx: Contexte): Pro
   // quand on annule un rangement ») : il ne contient plus que les pièces que CE geste a créées — annulées, gardées comme
   // trace — et aucun sous-dossier : il est RETIRÉ, ses pièces annulées passent « non classées ». Un dossier qui contient
   // autre chose, ou qui existait avant le geste (il n'est alors pas une création du geste), n'est jamais touché.
-  if (e.modele === "LegalFolder" && !touches.length && !(await rattaches(ctx.c, info, id, new Set([...ctx.crees, ...ctx.gardes]), ctx.remis)).n
-    && (await (ctx.c.legalFolder as { count: (a: object) => Promise<number> }).count({ where: { parentId: id } })) === 0) {
+  // (Un sous-dossier est un rattachement : `rattaches` le compte, sauf s'il est né du même geste.)
+  if (e.modele === Prisma.ModelName.LegalFolder && !touches.length && !(await rattaches(ctx.c, info, id, new Set([...ctx.crees, ...ctx.gardes]), ctx.remis)).n) {
     if (ctx.appliquer) {
       const fait = await ecrireVerrouille(info, id, (relue) => !!relue, (t) => delegue(t, info).delete({ where: { [info.cle!]: id } }));
       if (!fait) return { effetId: e.id, issue: "IMPOSSIBLE", quoi, pourquoi: "le dossier a changé au moment même de l'annulation : laissé tel quel", aLaPlace: verdict.compensation };

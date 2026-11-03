@@ -5,7 +5,7 @@
 Le **DAF** (rôle « Responsable Finance / Budget », qui tient l'annuaire des partenaires par les Moyens généraux) ajoute un
 partenaire manquant en rangeant une pièce au Juridique ; les autres reçoivent un refus qui le nomme. Le registre reçoit
 quatre natures — **agrément, AMM, statuts, procès-verbal** — créables, filtrables, reconnues au rangement (migration
-`20270223100000_t1_natures_juridiques`). **Annuler un rangement retire le dossier de classement qu'il avait créé**, s'il est
+`20270234000000_t1_natures_juridiques`). **Annuler un rangement retire le dossier de classement qu'il avait créé**, s'il est
 vide (jamais un dossier préexistant ni un dossier qui contient autre chose). Décision
 [0061](../assistant/decisions/0061-juridique-reponses-direction.md).
 

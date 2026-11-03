@@ -26,7 +26,9 @@ aujourd'hui, donc c'est le directeur administratif et financier. »
 
 `LegalDocKind` reçoit **`APPROVAL`** (agrément), **`MARKETING_AUTHORIZATION`** (AMM, décision d'enregistrement),
 **`STATUTES`** (statuts), **`MINUTES`** (procès-verbal) — migration additive et idempotente
-`20270223100000_t1_natures_juridiques` (`ALTER TYPE … ADD VALUE IF NOT EXISTS`). Créables au formulaire et **filtrables**
+`20270234000000_t1_natures_juridiques` (`ALTER TYPE … ADD VALUE IF NOT EXISTS`) — nommée AU-DESSUS de la dernière
+migration, hors de la plage 20270223 attribuée au lot : le cliquet `derive-schema/ordre-migrations.test.ts` exige qu'une
+migration neuve suive l'ordre des noms. Créables au formulaire et **filtrables**
 à l'écran Juridique (`LEGAL_DOC_KIND`, `lib/labels/juridique.ts` ; `KINDS`, `actions/internes/legal/regles.ts`), reconnues
 au rangement (`domaine/juridique/classement.ts` : agrément et licence deviennent deux familles, rangées dans le même
 dossier « Agréments et autorisations »), lisibles et filtrables par l'assistant (`registre_juridique`, nature « AMM »…).

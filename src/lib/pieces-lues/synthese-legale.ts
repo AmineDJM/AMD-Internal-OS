@@ -30,7 +30,9 @@ import { normaliserNif, normaliserRc } from "@/lib/pieces-lues/fournisseur";
 
 /** Les natures d'un document Legal, dans l'ordre de `LEGAL_DOC_KIND` (un banc tient l'accord). */
 export const NATURES_LEGALES_LUES = [
-  "CONTRACT", "QUOTE", "PURCHASE_ORDER", "INVOICE", "AGREEMENT", "NDA", "INSURANCE", "LICENSE", "LEASE", "OTHER",
+  "CONTRACT", "QUOTE", "PURCHASE_ORDER", "INVOICE", "AGREEMENT", "NDA", "INSURANCE", "LICENSE", "LEASE",
+  // T1 (décision 0061) : agrément, AMM, statuts, procès-verbal — lus comme ils se créent.
+  "APPROVAL", "MARKETING_AUTHORIZATION", "STATUTES", "MINUTES", "OTHER",
 ] as const;
 export type NatureLegaleLue = (typeof NATURES_LEGALES_LUES)[number];
 
