@@ -17,6 +17,10 @@
  * le Super Admin touche, depuis Réglages & diffusion — par exemple le temps qu'un second siège soit
  * nommé. La suspension est journalisée.
  *
+ * LE SUPER ADMIN N'Y EST PAS SOUMIS (décision de la Direction, 03/11/2026 : « enlève-moi cette histoire de si c'est
+ * moi qui fais une demande, je ne peux pas la valider… je suis super admin ») : il autorise et règle ses propres
+ * demandes. La règle reste entière pour tous les autres comptes, Direction comprise.
+ *
  * Module PUR : aucun import. Lu par `decidePayment` et `settleExpenseOrder` ; le testé est ici.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -35,9 +39,12 @@ export const REFUS_REGLER_SA_DEMANDE =
 export const REFUS_REGLER_SON_AUTORISATION =
   "Vous avez autorisé ce paiement au centre : un autre membre de la comptabilité le règle (séparation des tâches).";
 
-/** La phrase du refus, ou `null` quand le geste est permis. `active` = le réglage du Super Admin. */
-export function refusSeparationDesTaches(geste: GesteDArgent, ordre: OrdreAuxMains, acteurId: string, active: boolean): string | null {
-  if (!active) return null;
+/**
+ * La phrase du refus, ou `null` quand le geste est permis. `active` = le réglage du Super Admin ; `superAdmin` = l'acteur
+ * EST le Super Admin (le compte réel, jamais une « Vue exacte » : ces gestes d'écriture y sont déjà refusés).
+ */
+export function refusSeparationDesTaches(geste: GesteDArgent, ordre: OrdreAuxMains, acteurId: string, active: boolean, superAdmin = false): string | null {
+  if (!active || superAdmin) return null;
   if (geste === "AUTORISER") return ordre.requestedById === acteurId ? REFUS_AUTORISER_SA_DEMANDE : null;
   if (ordre.requestedById === acteurId) return REFUS_REGLER_SA_DEMANDE;
   if (ordre.centralDecidedById === acteurId) return REFUS_REGLER_SON_AUTORISATION;

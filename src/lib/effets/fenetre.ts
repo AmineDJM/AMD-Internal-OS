@@ -2,7 +2,7 @@ import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { journaliser, sansBloquer } from "@/lib/journal";
 import type { CurrentUser } from "@/lib/session";
-import { etatDuGeste, type EffetExterneCapture } from "./magasin";
+import { etatDuGeste, horsGeste, type EffetExterneCapture } from "./magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -206,7 +206,23 @@ const lire = (id: string) => prismaBrut.effetSortantDiffere.findUnique({ where: 
 
 const peutAgir = (l: { principalId: string | null }, user: CurrentUser) => l.principalId === user.id || user.role === "SUPER_ADMIN";
 const libelleActe = (acte: string, type?: string): string => type?.startsWith("inverse.graph") ? "le geste dans la boîte Microsoft" :
-  ({ COURRIEL: "le courriel", NOTIFICATION_PUSH: "la notification poussée", ECRITURE_EXTERNE: "la publication", RESEAU: "l'appel externe", PAIEMENT: "l'ordre de paiement", INVITATION_AGENDA: "l'invitation" } as Record<string, string>)[acte] ?? "l'effet";
+  ({ COURRIEL: "le courriel", NOTIFICATION_PUSH: "la notification", ECRITURE_EXTERNE: "la publication", RESEAU: "l'appel externe", PAIEMENT: "l'ordre de paiement", INVITATION_AGENDA: "l'invitation" } as Record<string, string>)[acte] ?? "l'effet";
+
+/**
+ * LE DESTINATAIRE DIT PAR SON NOM. Une notification poussée a pour cible l'IDENTIFIANT du compte (c'est ce que le port
+ * pousse) : l'écran et les messages disent le nom de la personne, jamais l'identifiant (retour Direction du 03/11 : une
+ * barre « La notification poussée à cmqv3781e002… » illisible). Sans nom trouvé : « une personne », jamais l'identifiant.
+ */
+async function nomsDesDestinataires(lignes: readonly { acte: string; cible: string }[]): Promise<Map<string, string>> {
+  const ids = [...new Set(lignes.filter((l) => l.acte === "NOTIFICATION_PUSH").map((l) => l.cible))];
+  if (ids.length === 0) return new Map();
+  const comptes = await prismaBrut.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } })
+    .catch(sansBloquer("effets.fenetre.nomsDesDestinataires", [] as { id: string; name: string | null }[]));
+  return new Map(comptes.filter((c) => c.name).map((c) => [c.id, c.name!]));
+}
+const cibleVue = (l: { acte: string; cible: string }, noms: ReadonlyMap<string, string>): string =>
+  l.acte === "NOTIFICATION_PUSH" ? noms.get(l.cible) ?? "une personne" : l.cible;
+const cibleDite = async (l: { acte: string; cible: string }): Promise<string> => cibleVue(l, await nomsDesDestinataires([l]));
 
 /** L'état métier d'un effet annulé ou rétabli (P1) — jamais bloquant : la file fait foi. */
 async function crochetMetier(l: LigneEffet, quand: "surAnnulation" | "surRetablissement", parId: string): Promise<void> {
@@ -216,7 +232,7 @@ async function crochetMetier(l: LigneEffet, quand: "surAnnulation" | "surRetabli
 }
 
 async function auditer(user: CurrentUser, l: { id: string; acte: string; type: string; cible: string; apercu: string | null }, quoi: string) {
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte, l.type)} à ${l.cible}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT_IA", entityId: l.id, summary: `${quoi} — ${libelleActe(l.acte, l.type)} à ${await cibleDite(l)}${l.apercu ? ` ${l.apercu}` : ""}`.slice(0, 500) });
 }
 
 /**
@@ -231,7 +247,7 @@ export async function annulerEffetSortant(id: string, user: CurrentUser, opts: {
   if (prise.count === 1) {
     await crochetMetier(l, "surAnnulation", user.id);
     await auditer(user, l, "Envoi annulé dans la fenêtre : rien n'est parti");
-    return { ok: true, issue: "ANNULE", message: `${majuscule(libelleActe(l.acte, l.type))} à ${l.cible} est annulé : rien n'est parti.` };
+    return { ok: true, issue: "ANNULE", message: `${majuscule(libelleActe(l.acte, l.type))} à ${await cibleDite(l)} est annulé${l.acte === "NOTIFICATION_PUSH" ? "e" : ""} : rien n'est parti.` };
   }
   const relue = (await lire(id))!;
   if (relue.statut === "ANNULE") return { ok: true, issue: "SANS_OBJET", message: "Cet envoi était déjà annulé : rien n'est parti." };
@@ -296,7 +312,7 @@ export async function retablirEffetSortant(id: string, user: CurrentUser): Promi
   programmerReveil(delai);
   await crochetMetier(l, "surRetablissement", user.id);
   await auditer(user, l, "Envoi rétabli (l'annulation est annulée)");
-  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte, l.type))} à ${l.cible} repart dans ${delai} s (annulable d'ici là).` };
+  return { ok: true, issue: "RETABLI", message: `${majuscule(libelleActe(l.acte, l.type))} à ${await cibleDite(l)} repart dans ${delai} s (annulable d'ici là).` };
 }
 
 // ── LE WORKER ────────────────────────────────────────────────────────────────────────────
@@ -329,7 +345,8 @@ export async function executerEffetsSortantsDus(opts: { maintenant?: Date; limit
       continue;
     }
     try {
-      await ex.executer(deCharge(l.charge), ligneVue(l));
+      // L'EFFET PART POUR DE BON : hors du geste qui l'avait différé (sinon il se re-différait sans fin).
+      await horsGeste(() => ex.executer(deCharge(l.charge), ligneVue(l)));
       await prismaBrut.effetSortantDiffere.update({ where: { id }, data: { statut: "PARTI", parti: new Date(), erreur: null } });
       partis++;
     } catch (e) {
@@ -349,10 +366,11 @@ let reveil: ReturnType<typeof setTimeout> | null = null;
 /** Le processus web se réveille à l'échéance (le battement de la tâche de fond reste le filet). */
 function programmerReveil(delaiSecondes: number): void {
   if (process.env.VITEST || process.env.NODE_ENV === "test" || reveil) return;
-  reveil = setTimeout(() => {
+  // Le minuteur naît SOUS le geste (le différé l'arme) : sans `horsGeste`, son rappel en hérite.
+  reveil = horsGeste(() => setTimeout(() => {
     reveil = null;
-    void executerEffetsSortantsDus().catch((e) => journaliser("erreur", "effets.sortants.reveil", {}, e));
-  }, (delaiSecondes + 1) * 1000);
+    void horsGeste(() => executerEffetsSortantsDus()).catch((e) => journaliser("erreur", "effets.sortants.reveil", {}, e));
+  }, (delaiSecondes + 1) * 1000));
   reveil.unref?.();
 }
 
@@ -364,6 +382,8 @@ export interface EffetSortantVu {
   acte: string;
   quoi: string;
   cible: string;
+  /** Le destinataire tel que l'écran le dit : le NOM de la personne pour une notification, jamais son identifiant. */
+  cibleVue: string;
   apercu: string | null;
   statut: StatutEffetSortant;
   creeLe: string;
@@ -376,9 +396,9 @@ export interface EffetSortantVu {
   objet: { modele: string; id: string } | null;
 }
 
-function ligneVue(l: LigneEffet): EffetSortantVu {
+function ligneVue(l: LigneEffet, noms: ReadonlyMap<string, string> = new Map()): EffetSortantVu {
   return {
-    id: l.id, type: l.type, acte: l.acte, quoi: libelleActe(l.acte, l.type), cible: l.cible, apercu: l.apercu, statut: l.statut as StatutEffetSortant,
+    id: l.id, type: l.type, acte: l.acte, quoi: libelleActe(l.acte, l.type), cible: l.cible, cibleVue: cibleVue(l, noms), apercu: l.apercu, statut: l.statut as StatutEffetSortant,
     creeLe: l.creeLe.toISOString(), executeLe: l.executeLe.toISOString(), parti: l.parti?.toISOString() ?? null,
     compensation: l.compensation, erreur: l.erreur, gesteId: l.gesteId, principalId: l.principalId,
     objet: l.objetModele && l.objetId ? { modele: l.objetModele, id: l.objetId } : null,
@@ -396,7 +416,8 @@ export async function effetsSortantsDe(user: CurrentUser, opts: { objet?: { mode
     },
     orderBy: { creeLe: "desc" }, take: 30,
   });
-  return lignes.map(ligneVue);
+  const noms = await nomsDesDestinataires(lignes);
+  return lignes.map((l) => ligneVue(l, noms));
 }
 
 // ── LES EXÉCUTEURS ───────────────────────────────────────────────────────────────────────

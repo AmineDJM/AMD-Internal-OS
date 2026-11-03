@@ -45,13 +45,50 @@ function useGestesAnnulables(charger: () => Promise<void>) {
   }, [charger]);
   const annuler = (g: Geste) => agir(g.id, () => annulerMonGeste(g.id) as never, (r) => (r.compte as { resume: string }).resume);
   const retablir = (g: Geste) => agir(g.id, () => retablirMonGeste(g.id) as never, (r) => (r.compte as { resume: string }).resume);
-  const envoi = (e: Envoi, geste: "annuler" | "retablir") => agir(e.id, () => agirSurMonEnvoi(e.id, geste) as never, (r) => (r.issue as { message: string }).message);
+  /** Un envoi — ou un GROUPE (la même notification à plusieurs personnes) : un seul bouton, chaque envoi traité. */
+  const envoi = (grp: GroupeEnvois, geste: "annuler" | "retablir") => agir(grp.cle, async () => {
+    const issues: { ok: boolean; message: string }[] = [];
+    for (const e of grp.envois) {
+      const r = await agirSurMonEnvoi(e.id, geste);
+      issues.push(r.ok ? { ok: r.issue.ok, message: r.issue.message } : { ok: false, message: r.error });
+    }
+    if (issues.length === 1) return { ok: true, message: issues[0]!.message } as never;
+    const reussis = issues.filter((i) => i.ok).length;
+    const echecs = issues.filter((i) => !i.ok);
+    const fait = geste === "annuler" ? "annulé : rien n'est parti" : "rétabli";
+    return { ok: true, message: `${reussis} sur ${issues.length} ${fait}.${echecs.length ? ` ${echecs[0]!.message}` : ""}` } as never;
+  }, (r) => r.message as string);
   return { occupe, messages, annuler, retablir, envoi };
 }
 
-function LigneEnvoi({ e, decalage, occupe, message, agir }: { e: Envoi; decalage: number; occupe: boolean; message?: string; agir: (g: "annuler" | "retablir") => void }) {
+/**
+ * LA MÊME NOTIFICATION À PLUSIEURS PERSONNES = UNE LIGNE (retour Direction du 03/11 : six lignes « La notification poussée
+ * à cmqv3781e002… » pour une seule demande de paiement). Même geste, même nature, même objet, même état : un groupe,
+ * dit « à 6 personnes (Karim B., Sarah M., Amine D. et 3 autres) », avec un seul bouton.
+ */
+export interface GroupeEnvois { cle: string; envois: Envoi[] }
+export function grouperEnvois(envois: readonly Envoi[]): GroupeEnvois[] {
+  const groupes = new Map<string, Envoi[]>();
+  for (const e of envois) {
+    const cle = e.acte === "NOTIFICATION_PUSH" ? `${e.gesteId ?? e.id}|${e.acte}|${e.apercu ?? ""}|${e.statut}` : e.id;
+    groupes.set(cle, [...(groupes.get(cle) ?? []), e]);
+  }
+  return [...groupes].map(([cle, liste]) => ({ cle, envois: liste }));
+}
+const NOMS_MONTRES = 3;
+export function destinataires(envois: readonly Envoi[]): string {
+  const noms = [...new Set(envois.map((e) => e.cibleVue))];
+  if (noms.length === 1) return noms[0]!;
+  const montres = noms.slice(0, NOMS_MONTRES).join(", ");
+  const autres = noms.length - NOMS_MONTRES;
+  return `${noms.length} personnes (${autres > 0 ? `${montres} et ${autres} autre${autres > 1 ? "s" : ""}` : montres})`;
+}
+const entreGuillemets = (t: string) => (t.startsWith("«") ? t : `« ${t} »`);
+
+function LigneEnvoi({ grp, decalage, occupe, message, agir }: { grp: GroupeEnvois; decalage: number; occupe: boolean; message?: string; agir: (g: "annuler" | "retablir") => void }) {
+  const e = grp.envois.reduce((a, b) => (new Date(b.executeLe) < new Date(a.executeLe) ? b : a));
   const secondes = reste(e.executeLe, decalage);
-  const quoi = `${majuscule(e.quoi)} à ${e.cible}${e.apercu ? ` ${e.apercu}` : ""}`;
+  const quoi = `${majuscule(e.quoi)}${e.apercu ? ` ${e.acte === "NOTIFICATION_PUSH" ? entreGuillemets(e.apercu) : e.apercu}` : ""} à ${destinataires(grp.envois)}`;
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       <Send className="h-4 w-4 shrink-0" aria-hidden />
@@ -96,7 +133,7 @@ export function BarreAnnulation() {
     if (r && r.ok) { setD(r); setDecalage(Date.now() - new Date(r.maintenant).getTime()); }
   }, []);
   const g = useGestesAnnulables(charger);
-  const enFenetre = (d?.envois ?? []).some((e) => e.statut === "EN_ATTENTE" || e.statut === "EN_COURS");
+  const enFenetre = (d?.envois ?? []).some((e) => e.acte !== "NOTIFICATION_PUSH" && (e.statut === "EN_ATTENTE" || e.statut === "EN_COURS"));
   const recent = (d?.gestes ?? []).some((x) => Date.now() - new Date(x.quand).getTime() < MONTRER_GESTE_MS);
   useEffect(() => {
     void charger();
@@ -112,8 +149,10 @@ export function BarreAnnulation() {
   }, [enFenetre]);
   if (!d) return null;
   const maintenant = Date.now();
-  const envois = d.envois.filter((e) => !fermes.has(e.id) && (e.statut === "EN_ATTENTE" || e.statut === "EN_COURS"
-    || ((e.statut === "ANNULE" || g.messages[e.id]) && maintenant - new Date(e.creeLe).getTime() < MONTRER_ENVOI_ANNULE_MS)));
+  // LES NOTIFICATIONS AUX COLLÈGUES NE S'AFFICHENT PAS ICI (Direction, 03/11/2026 : « ça n'a rien à faire sur mon
+  // écran ») : elles suivent le geste — l'annuler les retire — et l'historique de la fiche les garde, chacune annulable.
+  const envois = d.envois.filter((e) => e.acte !== "NOTIFICATION_PUSH" && !fermes.has(e.id) && (e.statut === "EN_ATTENTE" || e.statut === "EN_COURS"
+    || ((e.statut === "ANNULE" || Object.keys(g.messages).some((k) => k === e.id || k.startsWith(`${e.gesteId ?? e.id}|`))) && maintenant - new Date(e.creeLe).getTime() < MONTRER_ENVOI_ANNULE_MS)));
   const gestes = d.gestes.filter((x) => !fermes.has(x.id) && (maintenant - new Date(x.quand).getTime() < MONTRER_GESTE_MS || g.messages[x.id])).slice(0, 1);
   if (!envois.length && !gestes.length) return null;
   const fermer = (id: string) => setFermes((s) => new Set(s).add(id));
@@ -126,10 +165,10 @@ export function BarreAnnulation() {
             <button type="button" onClick={() => fermer(x.id)} className="rounded p-1 opacity-70 hover:opacity-100 focus-ring" aria-label="Fermer"><X className="h-3.5 w-3.5" /></button>
           </div>
         ))}
-        {envois.map((e) => (
-          <div key={e.id} className="flex items-start gap-1">
-            <div className="min-w-0 flex-1"><LigneEnvoi e={e} decalage={decalage} occupe={g.occupe === e.id} message={g.messages[e.id]} agir={(x) => void g.envoi(e, x)} /></div>
-            {e.statut !== "EN_ATTENTE" && <button type="button" onClick={() => fermer(e.id)} className="rounded p-1 opacity-70 hover:opacity-100 focus-ring" aria-label="Fermer"><X className="h-3.5 w-3.5" /></button>}
+        {grouperEnvois(envois).map((grp) => (
+          <div key={grp.cle} className="flex items-start gap-1">
+            <div className="min-w-0 flex-1"><LigneEnvoi grp={grp} decalage={decalage} occupe={g.occupe === grp.cle} message={g.messages[grp.cle]} agir={(x) => void g.envoi(grp, x)} /></div>
+            <button type="button" onClick={() => grp.envois.forEach((e) => fermer(e.id))} className="rounded p-1 opacity-70 hover:opacity-100 focus-ring" aria-label="Fermer (l'envoi suit son cours)" title="Fermer : l'envoi suit son cours"><X className="h-3.5 w-3.5" /></button>
           </div>
         ))}
       </div>
@@ -150,7 +189,7 @@ export function HistoriqueAnnulable({ modele, id, titre = "Historique — annule
   return (
     <section className="space-y-2 rounded-lg border p-3" aria-label={titre}>
       <h3 className="text-sm font-semibold">{titre}</h3>
-      {d.envois.map((e) => <LigneEnvoi key={e.id} e={e} decalage={0} occupe={g.occupe === e.id} message={g.messages[e.id]} agir={(x) => void g.envoi(e, x)} />)}
+      {grouperEnvois(d.envois).map((grp) => <LigneEnvoi key={grp.cle} grp={grp} decalage={0} occupe={g.occupe === grp.cle} message={g.messages[grp.cle]} agir={(x) => void g.envoi(grp, x)} />)}
       {d.gestes.map((x) => <LigneGeste key={x.id} g={x} occupe={g.occupe === x.id} message={g.messages[x.id]} annuler={() => void g.annuler(x)} retablir={() => void g.retablir(x)} />)}
     </section>
   );

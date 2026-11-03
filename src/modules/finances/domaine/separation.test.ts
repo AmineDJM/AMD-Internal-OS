@@ -21,6 +21,13 @@ describe("séparation des tâches au centre de paiement (ARGENT-06)", () => {
     expect(refusSeparationDesTaches("AUTORISER", { requestedById: null, centralDecidedById: null }, "siege", true)).toBeNull();
   });
 
+  it("le SUPER ADMIN autorise et règle ses propres demandes (Direction, 03/11/2026) — les autres restent tenus", () => {
+    expect(refusSeparationDesTaches("AUTORISER", ordre, "demandeur", true, true)).toBeNull();
+    expect(refusSeparationDesTaches("REGLER", ordre, "demandeur", true, true)).toBeNull();
+    expect(refusSeparationDesTaches("REGLER", ordre, "siege", true, true)).toBeNull();
+    expect(refusSeparationDesTaches("AUTORISER", ordre, "demandeur", true, false)).toBe(REFUS_AUTORISER_SA_DEMANDE);
+  });
+
   it("suspendue par le Super Admin, la règle ne refuse rien", () => {
     expect(refusSeparationDesTaches("AUTORISER", ordre, "demandeur", false)).toBeNull();
     expect(refusSeparationDesTaches("REGLER", ordre, "siege", false)).toBeNull();

@@ -9,6 +9,8 @@ import type { CurrentUser } from "@/lib/session";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+// Les salles sont mises de côté (Direction, 03/11/2026) : ce banc les rétablit le temps de prouver leur réversibilité.
+vi.hoisted(() => { process.env.SALLES_EN_SERVICE = "1"; });
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));

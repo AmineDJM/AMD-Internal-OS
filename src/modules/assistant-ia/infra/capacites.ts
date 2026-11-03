@@ -7,6 +7,7 @@ import { MODULE_LABELS } from "@/lib/labels";
 import { sansBloquer } from "@/lib/journal";
 import { CONTRAT_PAR_ID, CONTRATS_ACTIONS } from "@/lib/actions/contrat.genere";
 import { contratVuParLAssistantIa, interdictionDeLAssistantIa, validerEntree } from "@/lib/actions/generique";
+import { CLE_ACTIONS_SALLES, sallesEnService } from "@/modules/salles/partage";
 import { prisma } from "@/lib/prisma";
 import { executerAction } from "@/lib/actions/executer";
 import { annulationDeclaree, classerGeste } from "@/lib/annulation/reversibilite";
@@ -55,7 +56,9 @@ import { FICHES_EXPORTS } from "./exports";
  * LE CONTRAT VU PAR L'ASSISTANT IA — celui de l'ERP, moins les champs que l'assistant ne remplit jamais
  * (`GESTES_DE_FICHE` : le rattachement d'une fiche à un compte reste un geste d'écran).
  */
-const CONTRATS_IA = CONTRATS_ACTIONS.map(contratVuParLAssistantIa);
+// Les salles MISES DE CÔTÉ (Direction, 03/11/2026) : leurs actions ne sont pas même des fiches — ni offertes, ni trouvées par
+// `trouver_outil`, ni nommées. `SALLES_EN_SERVICE=1` les rétablit.
+const CONTRATS_IA = CONTRATS_ACTIONS.filter((c) => sallesEnService() || c.fichier !== CLE_ACTIONS_SALLES).map(contratVuParLAssistantIa);
 const CONTRAT_IA = new Map(CONTRATS_IA.map((c) => [c.id, c]));
 
 let registre: Registre | null = null;

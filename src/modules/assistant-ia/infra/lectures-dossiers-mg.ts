@@ -4,7 +4,7 @@ import type { CurrentUser } from "@/lib/session";
 import { scopeDossiers, userCan } from "@/lib/rbac";
 import { resultatVide } from "@/platform/ia/lectures/empty-result";
 import { LIBELLE_PRIORITE_DOSSIER, LIBELLE_STATUT_DOSSIER, lireStatutDossier, replierTexte, type PrioriteDossier, type StatutDossier } from "@/modules/suivi-dossiers/partage";
-import { libelleInstant, lireCreneau } from "@/modules/salles/partage";
+import { libelleInstant, lireCreneau, sallesEnService } from "@/modules/salles/partage";
 import { conflitsDeReservation } from "@/modules/salles/api";
 import { lectureCaisseAvance } from "./caisse-avance";
 
@@ -16,7 +16,8 @@ import { lectureCaisseAvance } from "./caisse-avance";
  *     abouti), à relancer (sans mouvement depuis N jours), par statut, responsable, catégorie, mot ; les COMPTES par
  *     statut et par responsable sont faits par le code (le modèle ne compte pas) ;
  *   • `lire_caisse_avance` — la caisse d'avance (« moyens généraux » chez Adventum, Direction 02/11/2026), `./caisse-avance.ts` ;
- *   • `lire_salles` — les salles de réunion, leurs réservations et les salles libres d'un créneau (tous les employés).
+ *   • `lire_salles` — les salles de réunion et leurs réservations : MISE DE CÔTÉ (Direction, 03/11/2026), offerte seulement
+ *     avec `SALLES_EN_SERVICE=1`.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -32,6 +33,10 @@ export const OUTIL_DOSSIERS_SUIVI = "lire_dossiers_suivi";
 export const OUTIL_SALLES = "lire_salles";
 
 export function lecturesDossiersEtMoyens(user: CurrentUser): PowerTool[] {
+  return lectures(user).filter((o) => o.def.name !== OUTIL_SALLES || sallesEnService());
+}
+
+function lectures(user: CurrentUser): PowerTool[] {
   return [
     lectureCaisseAvance(user),
     {
