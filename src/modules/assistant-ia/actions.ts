@@ -127,8 +127,8 @@ export async function executerMaRoutine(id: string) {
   if (!p.ok) return p;
   if (typeof id !== "string" || !id) return { ok: false as const, erreur: "Routine introuvable." };
   const { executerMaintenant } = await import("@/modules/assistant-ia/api");
-  const r = await executerMaintenant(p.user.id, id);
-  return r.ok ? { ok: true as const, statut: r.statut, runId: r.runId } : { ok: false as const, erreur: r.erreur };
+  const r = await executerMaintenant(p.user.id, id, { attendre: false });
+  return r.ok ? { ok: true as const, statut: r.statut, runId: r.runId ?? undefined } : { ok: false as const, erreur: r.erreur };
 }
 
 // ─────────────────────────────── Le fil gardé ───────────────────────────────

@@ -77,6 +77,9 @@ export function sourcesEnFin(sorties: string[]): string {
   return `\n\n**Sources (web)**\n${[...vues].slice(0, 12).map(([url, titre]) => `- [${titre}](${url})`).join("\n")}`;
 }
 
+/** Le temps laissé à un passage de routine (voir l'appel) — exporté pour le banc qui le compare à la prise périmée. */
+export const DELAI_PASSAGE_MS = 10 * 60_000;
+
 export interface DemandePassage {
   titre: string;
   consigne: string;
@@ -87,7 +90,12 @@ export interface DemandePassage {
   now: Date;
 }
 
-type IssuePassage = { ok: true; contenu: string; blocs: unknown[]; outils: string[] } | { ok: false; raison: string };
+/**
+ * `reessayable` : l'échec tient au FOURNISSEUR ou à l'instant (crédit épuisé, quota, réseau, délai, réponse vide, contexte
+ * momentanément indisponible) — un nouvel essai plus tard peut réussir. Un modèle non configuré ou le plafond du jour, non :
+ * réessayer ne changerait rien, la phrase dit le remède.
+ */
+type IssuePassage = { ok: true; contenu: string; blocs: unknown[]; outils: string[] } | { ok: false; raison: string; reessayable: boolean };
 
 /** Le passage — et la comparaison qu'il demande ensuite — sont imputés à la personne (journal, plafonds). */
 export function passageDeRoutine(user: CurrentUser, d: DemandePassage): Promise<IssuePassage> {
@@ -96,7 +104,7 @@ export function passageDeRoutine(user: CurrentUser, d: DemandePassage): Promise<
 
 async function passageAuNomDe(user: CurrentUser, d: DemandePassage): Promise<IssuePassage> {
   const modeles = modelesEffectifs();
-  if (!modeles.length) return { ok: false, raison: IA_NON_CONFIGUREE };
+  if (!modeles.length) return { ok: false, raison: IA_NON_CONFIGUREE, reessayable: false };
   let instructions: string;
   let config;
   try {
@@ -104,7 +112,7 @@ async function passageAuNomDe(user: CurrentUser, d: DemandePassage): Promise<Iss
     instructions = `${(await compileContext({ user, consignesRole: resoudreConsignesRole(config) })).systemPrompt}\n\n${CONSIGNE_ROUTINE}`;
   } catch (e) {
     console.error("[routines] contexte indisponible", e);
-    return { ok: false, raison: "Le contexte de l'assistant était indisponible." };
+    return { ok: false, raison: "Le contexte de l'assistant était indisponible.", reessayable: true };
   }
   const message = [
     d.consigne,
@@ -116,12 +124,15 @@ async function passageAuNomDe(user: CurrentUser, d: DemandePassage): Promise<Iss
   const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
   try {
     const r = await repondreAvecSecours({
-      user, message, historique: [], instructions, outils, modeles, delaiMs: 150_000, config,
+      // 10 min : une routine tourne en arrière-plan, personne n'attend — une veille de marché (recherche web, plusieurs
+      // sources) dépassait les 150 s d'un tour de conversation (production, 03/11/2026 : « délai dépassé (150000 ms) »).
+      // Sous la prise périmée (15 min) : un passage long n'est jamais repris par une autre instance en cours de route.
+      user, message, historique: [], instructions, outils, modeles, delaiMs: DELAI_PASSAGE_MS, config,
       propositionsFaites: () => 0, maxEtapes: 10, origine: "routine",
     });
     const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
     const contenu = ui.message?.trim();
-    if (!contenu && !ui.blocs.length) return { ok: false, raison: "Le modèle n'a rédigé aucun rapport." };
+    if (!contenu && !ui.blocs.length) return { ok: false, raison: "Le modèle n'a rédigé aucun rapport.", reessayable: true };
     let corps = contenu || "Rapport en blocs ci-dessous.";
     if (d.precedent && contenu) {
       const c = await genererTexte(CONSIGNE_COMPARAISON, `RAPPORT PRÉCÉDENT${d.precedentLe ? ` (${dateLongue(new Date(d.precedentLe))})` : ""} :\n"""\n${d.precedent}\n"""\n\nNOUVEAU RAPPORT (${dateLongue(d.now)}) :\n"""\n${contenu}\n"""`);
@@ -132,7 +143,7 @@ async function passageAuNomDe(user: CurrentUser, d: DemandePassage): Promise<Iss
     return { ok: true, contenu: texte, blocs: ui.blocs, outils: [...new Set(r.outilsAppeles.map((n) => libelles.get(n) ?? n))] };
   } catch (e) {
     // Le plafond du jour se dit tel quel : la phrase nomme déjà son remède.
-    if (e instanceof PlafondIaAtteint) return { ok: false, raison: e.message };
-    return { ok: false, raison: `Le modèle n'a pas répondu (${e instanceof Error ? e.message : String(e)}).` };
+    if (e instanceof PlafondIaAtteint) return { ok: false, raison: e.message, reessayable: false };
+    return { ok: false, raison: `Le modèle n'a pas répondu (${e instanceof Error ? e.message : String(e)}).`, reessayable: true };
   }
 }
