@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques } from "@/lib/actions/internes/bancs-concurrents";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { lunaConfigured } from "@/lib/openai-luna";
@@ -178,13 +179,8 @@ suite("Couche de connaissance — pannes, boîte morte, rattrapages", () => {
     const [r1, r2] = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM "KnowledgeJob" WHERE id = ANY(${[ja.id, jb.id]}::text[]) FOR UPDATE`;
       const gestes = Promise.all([relancerTravauxMorts({ cle }), relancerTravauxMorts({ cle })]);
-      for (let i = 0; i < 300 && !barriere; i += 1) {
-        const [{ n }] = await prisma.$queryRaw<{ n: bigint }[]>`
-          SELECT count(*)::bigint AS n FROM pg_stat_activity
-          WHERE wait_event_type = 'Lock' AND query ILIKE '%UPDATE "KnowledgeJob"%depuis la boîte morte%'`;
-        if (Number(n) >= 2) barriere = true;
-        else await new Promise((r) => setTimeout(r, 50));
-      }
+      // Seuls comptent les gestes que CETTE transaction arrête, et de CE processus (`bancs-concurrents.ts`) : l'attente locale comptait toute session de la suite.
+      barriere = (await attendreBloques(tx, '%UPDATE "KnowledgeJob"%depuis la boîte morte%', 2, { delaiMs: 15_000, exiger: false })) >= 2;
       return { gestes };
     }, { timeout: 30_000 }).then(({ gestes }) => gestes);
     expect(barriere, "les deux relances doivent avoir été arrêtées ENSEMBLE sur leur écriture").toBe(true);

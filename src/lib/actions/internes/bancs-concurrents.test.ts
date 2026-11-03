@@ -1,5 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
+import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { prisma } from "@/lib/prisma";
 import { attendreBloques, compterBloques, poserBarriere } from "./bancs-concurrents";
 import { ecartsDesGestesSousBarriere } from "./surveillance-sous-barriere";
@@ -80,3 +82,25 @@ suite("la barrière de concurrence ne compte que les gestes de son processus", (
     expect(ecartsDesGestesSousBarriere()).toEqual([`${TAG}voisin@t.dz (DIRECTION_ASSISTANT)`]);
   });
 });
+
+/**
+ * CLIQUET — UN BANC NE COMPTE PAS LUI-MÊME LES SESSIONS « EN ATTENTE DE VERROU ». Sept bancs avaient leur propre boucle
+ * (`wait_event_type = 'Lock' AND query ILIKE …`) : elle comptait TOUTE session de la suite arrêtée sur la table — une
+ * écriture voisine ouvrait leur barrière avant leur geste, et le croisement prétendu n'avait pas lieu (la faille de R2,
+ * corrigée dans la porte commune au début de F1, restée vive dans les boucles locales). La porte : `attendreBloques`.
+ * Un banc qui rattache lui-même l'attente à sa transaction (`pg_blocking_pids`) est juste, et passe.
+ */
+describe("cliquet — les barrières passent par la porte commune", () => {
+  const bancs = execFileSync("git", ["ls-files", "src/**/*.test.ts"], { encoding: "utf8" }).split("\n")
+    .filter((f) => f && f !== "src/lib/actions/internes/bancs-concurrents.test.ts");
+  it("aucune boucle locale ne compte les attentes de verrou de toute la suite", () => {
+    const sansCommentaires = (t: string) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    const fautifs = bancs.filter((f) => {
+      const t = sansCommentaires(readFileSync(f, "utf8"));
+      return /wait_event_type\s*=\s*'Lock'/.test(t) && !/pg_blocking_pids/.test(t);
+    });
+    expect(bancs.length).toBeGreaterThan(1000);
+    expect(fautifs, "compter par `attendreBloques` (bancs-concurrents.ts) : seuls les gestes que la barrière arrête, et de ce processus").toEqual([]);
+  });
+});
+

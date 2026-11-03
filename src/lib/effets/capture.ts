@@ -37,7 +37,8 @@ const ECRITURES = new Set(["create", "update", "upsert", "delete", "createMany",
 const SQL_BRUT = new Set(["$executeRaw", "$executeRawUnsafe"]);
 const SQL_LECTURE = new Set(["$queryRaw", "$queryRawUnsafe"]);
 /** Une requête « de lecture » qui ÉCRIT (`UPDATE … RETURNING` par `$queryRaw`) : notée comme du SQL brut. */
-const SQL_LECTURE_SEULE = /^\s*select\b/i;
+/** Une lecture, ou un point de sauvegarde de l'essai d'un agent (`effets/sauvegarde.ts`) : rien n'est écrit. */
+const SQL_LECTURE_SEULE = /^\s*(select|savepoint|release\s+savepoint|rollback\s+to\s+savepoint)\b/i;
 const SQL_ECRIT = /^\s*(with\b[\s\S]*\b)?(insert|update|delete|merge)\b/i;
 const texteSql = (args: unknown): string => {
   if (typeof args === "string") return args;

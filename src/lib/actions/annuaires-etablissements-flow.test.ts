@@ -13,6 +13,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques } from "@/lib/actions/internes/bancs-concurrents";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { Prisma } from "@prisma/client";
 import { getAccess, peutAnnuaire, userCan, type SessionUser } from "@/lib/rbac";
@@ -84,23 +85,8 @@ suite("Établissements, services et liens des praticiens (§118.172)", () => {
       await tx.$queryRaw`SELECT id FROM "MedicalDoctor" WHERE id = ${ficheId} FOR UPDATE`;
       geste = lancer();
       geste.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE '%UPDATE%MedicalDoctor%'`;
-        if (n >= 1) break;
-        if (Date.now() - debut > 10_000) {
-          await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-          const vues = await tx.$queryRaw<{ etat: string | null; attente: string | null; requete: string }[]>`
-            SELECT state AS etat, coalesce(wait_event_type, '') || ':' || coalesce(wait_event, '') AS attente, left(query, 90) AS requete
-            FROM pg_stat_activity WHERE datname = current_database() AND pid <> pg_backend_pid()`;
-          throw new Error(`le geste n'a pas atteint la barrière — ${JSON.stringify(vues)}`);
-        }
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      // Seuls comptent les gestes que CETTE transaction arrête, et de CE processus (`bancs-concurrents.ts`) : l'attente locale comptait toute session de la suite.
+      await attendreBloques(tx, "%UPDATE%MedicalDoctor%", 1, { delaiMs: 10_000 });
       await entretemps(tx);
     }, { timeout: 20_000 });
     return geste;

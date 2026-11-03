@@ -55,6 +55,7 @@ async function menage(tag: string, exacte = false): Promise<void> {
   await prisma.paymentRequest.deleteMany({ where: { expenseOrderId: { in: ordres } } }).catch(() => {});
   await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
   await prisma.financeTransaction.deleteMany({ where: { id: { in: ecritures } } }).catch(() => {});
+  await prisma.treasuryAccount.deleteMany({ where: { companyId: { in: societes } } }).catch(() => {});
   await prisma.departmentBudget.deleteMany({ where: { departmentId: { in: departements } } }).catch(() => {});
   await prisma.budgetCategoryLine.deleteMany({ where: { envelopeId: { in: enveloppes } } }).catch(() => {});
   await prisma.budgetEnvelope.deleteMany({ where: { id: { in: enveloppes } } }).catch(() => {});
@@ -157,6 +158,11 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
       prisma.company.create({ data: { name: `${TAG} Tierce`, shortName: `${TAG}TRC` } }),
     ]);
     aId = a.id; bId = b.id; cId = c.id;
+    // CHAQUE ENTITÉ DU BANC A SON COMPTE PRINCIPAL. Sans lui, la règle du compte d'une écriture neuve (`compteParDefaut`)
+    // retombait sur « le compte unique » de la base — sous la suite, celui d'un banc voisin, qui le retire en cours de
+    // route : le versement de la remise échouait sur `FinanceTransaction_treasuryAccountId_fkey` (mesuré le 03/11 sous
+    // `test:architecture`), et, à l'inverse, l'écriture du banc aurait empêché le voisin de retirer son compte (Restrict).
+    await prisma.treasuryAccount.createMany({ data: [aId, bId, cId].map((companyId, i) => ({ name: `${TAG} Banque ${"ABC"[i]}`, companyId, principal: true })) });
     const [dA, dB] = await Promise.all([
       prisma.department.create({ data: { name: `${TAG} Administration A`, code: `${TAG}A`, companyId: aId } }),
       prisma.department.create({ data: { name: `${TAG} Administration B`, code: `${TAG}B`, companyId: bId } }),
