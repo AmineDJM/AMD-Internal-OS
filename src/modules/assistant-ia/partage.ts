@@ -17,6 +17,8 @@ export {
 // ── S1 (décision 0048) : l'assistant d'une personne — profil, périmètres datés, leur origine
 export { contratEnVigueur, LIBELLE_ORIGINE, perimetreEnVigueur, type OriginePerimetre, type PerimetreSensible } from "./domaine/perimetres";
 export { accueilPour, adresseDe, NOM_ASSISTANT, prenomDe, presentationAdam, type Adresse, type ApercuAssistant, type ProfilPersonne } from "./domaine/profil-personne";
+// ── L'essai de l'agent d'une personne par le Super Admin : ses bornes, ce qu'il rend
+export { echangeDe, ESSAI_ECHANGES_MAX, ESSAI_MESSAGE_MAX, type EchangeEssai, type IssueEssai, type TourEssai } from "./domaine/essai";
 
 // ── Consommation : les plafonds par tour, par personne, par jour (console `/admin/ai/consommation`)
 export {
