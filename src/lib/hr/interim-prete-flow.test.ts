@@ -9,6 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques } from "@/lib/actions/internes/bancs-concurrents";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, estPrete, accesAttribue, PERMISSIONS, type SessionUser } from "@/lib/rbac";
 import { detenteurPourInterim } from "@/lib/hr/stand-in-resolve";
@@ -139,17 +140,8 @@ suite("l'intérim ne prête jamais plus que ce que l'absent détient", () => {
       await tx.$executeRawUnsafe(`SELECT 1 FROM "LeaveRequest" WHERE id = $1 FOR UPDATE`, id);
       geste = lancer();
       geste.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE '%"standInDecidedById"%'`;
-        if (n >= 1) break;
-        if (Date.now() - debut > 15_000) throw new Error("le geste n'a pas atteint la barrière");
-        await new Promise((r) => setTimeout(r, 25));
-      }
+      // Seuls comptent les gestes que CETTE transaction arrête, et de CE processus (`bancs-concurrents.ts`) : l'attente locale comptait toute session de la suite.
+      await attendreBloques(tx, '"standInDecidedById"', 1, { delaiMs: 15_000 });
       await concurrent(tx);
     }, { timeout: 30_000 });
     return geste;

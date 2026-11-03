@@ -7,6 +7,7 @@ import { clientCapturant } from "./client";
 import { construireDiff, type DiffSimulation } from "./diff";
 import { sousGeste, type Capture } from "./magasin";
 import { installerPortReseau } from "./reseau";
+import { clientAvecPointsDeSauvegarde } from "./sauvegarde";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -57,7 +58,11 @@ export async function simulerGeste<T>(
   user: CurrentUser,
   ctx: Omit<ContexteDuGeste, "mode">,
   geste: () => Promise<T>,
-  opts: { delaiMs?: number } = {},
+  /**
+   * `essai` : l'ESSAI D'UN AGENT (« Essayer l'agent de… ») — le modèle répond (`reseau.ts`) et chaque requête est isolée
+   * par un point de sauvegarde (`sauvegarde.ts`), pour qu'un refus rattrapé n'interrompe pas la suite du tour.
+   */
+  opts: { delaiMs?: number; essai?: boolean } = {},
 ): Promise<IssueSimulation<T>> {
   installerPortReseau();
   const capture: Capture = { ecritures: [], effets: [] };
@@ -65,7 +70,8 @@ export async function simulerGeste<T>(
   let issue: { ok: boolean; resultat?: T; erreur?: string; invalidations: string[] } = { ok: false, erreur: "la simulation n'a pas démarré", invalidations: [] };
   try {
     await clientCapturant().$transaction(async (tx) => {
-      const etat = { ...etatPour(user, { ...ctx, mode: "SIMULATION" }), mode: "SIMULATION" as const, capture, client: tx, debut };
+      const client = opts.essai ? clientAvecPointsDeSauvegarde(tx) : tx;
+      const etat = { ...etatPour(user, { ...ctx, mode: "SIMULATION" }), mode: "SIMULATION" as const, capture, client, debut, ...(opts.essai ? { essai: true } : {}) };
       try {
         const r = await sousGeste(etat, () => avecStoreHorsRequete(ctx.origine, geste, true));
         issue = { ok: true, resultat: r.resultat, invalidations: r.invalidations };
@@ -106,4 +112,21 @@ export async function simulerEnDiff<T>(
   const refus = issue.ok ? echecDeclare(issue.resultat as T) : issue.erreur ?? "erreur inconnue";
   const noms = await nomsDesDestinataires(issue.capture);
   return { diff: construireDiff(issue.capture, { debut: issue.debut, fin: issue.fin }, noms, refus ?? undefined), issue };
+}
+
+/**
+ * L'ESSAI D'UN AGENT (« Essayer l'agent de… ») — la simulation en mode essai (le modèle répond, chaque requête a son point
+ * de sauvegarde) et son DIFF lisible, les modèles `horsDuDiff` écartés (la conversation de l'essai se montre en clair,
+ * elle n'est pas « ce qui serait écrit »).
+ */
+export async function simulerEnEssai<T>(
+  user: CurrentUser,
+  ctx: Omit<ContexteDuGeste, "mode">,
+  geste: () => Promise<T>,
+  opts: { delaiMs?: number; horsDuDiff?: ReadonlySet<string> } = {},
+): Promise<{ diff: DiffSimulation; issue: IssueSimulation<T> }> {
+  const issue = await simulerGeste(user, ctx, geste, { delaiMs: opts.delaiMs, essai: true });
+  const noms = await nomsDesDestinataires(issue.capture);
+  const ecritures = issue.capture.ecritures.filter((e) => !opts.horsDuDiff?.has(e.modele));
+  return { diff: construireDiff({ ...issue.capture, ecritures }, { debut: issue.debut, fin: issue.fin }, noms), issue };
 }

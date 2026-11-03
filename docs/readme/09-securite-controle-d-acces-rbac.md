@@ -64,4 +64,14 @@ les Missions d'Adam, Mon Équipe, le Pipeline ou l'Analyse CTD peuvent y être p
   jamais un réglage de rôle (`domaine/perimetres.ts`, `perimetreCouvrant`). Révélation auditée avec origine et motif.
 - **Profil** : `infra/profil-personne.ts` — la section « INTERLOCUTEUR » de chaque tour. Console : `/admin/ai/acces`,
   carte « Ce que son assistant voit ».
+- **Essayer son agent** (Super Admin, hors Vue exacte — carte de `/admin/ai/acces`) : le message part par le **vrai** chemin
+  de la personne (`deposerMessage` → `traiterFil` → `jouerTour`, puis `lireFil` → `filPourEcran`, ce que son écran reçoit),
+  sous **son** identité (`proprietaire`) et la **garde de ses données** (`avecIdentiteDonnees(identiteDonneesDe(…))` —
+  sinon la garde aurait jugé le Super Admin). Une **simulation en mode essai** (`simulerGeste(…, { essai: true })`) :
+  toute écriture annulée (conversation, cartes, mémoire, notifications, consommation), courriel / poussée / appel sortant
+  neutralisés, seul le fournisseur de modèles appelé (`reseau.ts`, `estHoteDeModele`), chaque requête isolée par un point
+  de sauvegarde (`effets/sauvegarde.ts` : un refus rattrapé n'interrompt pas la suite). Audit au nom du Super Admin, avec le
+  coût. Service : `modules/assistant-ia/infra/essai/service.ts` ; preuve de parité (même prompt, mêmes outils, au mot près ;
+  paie d'autrui refusée comme en production) : `essai-agent.test.ts`. Le modèle peut formuler deux réponses autrement ; ce
+  qu'il peut lire est le même.
 

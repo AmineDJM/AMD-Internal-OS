@@ -9,6 +9,7 @@ import { chargerConsoleAccesIa } from "@/modules/assistant-ia/api";
 import { ConsoleProactivite } from "@/modules/assistant-ia/ecrans/console-proactivite";
 import { AccesAssistantIaForm, type LignePersonne, type LigneRole } from "./acces-form";
 import { AssistantDeLaPersonne } from "./assistant-de-la-personne";
+import { EssaiAgent } from "./essai-agent";
 
 export const metadata = { title: "Adam — accès — AMD Internal OS" };
 export const dynamic = "force-dynamic";
@@ -57,6 +58,7 @@ export default async function AccesAssistantIaPage() {
       </div>
       <AccesAssistantIaForm roles={roles} personnes={personnes} plafondsGlobaux={plafondsGlobaux} managerVoitEquipe={managerVoitEquipe} retentionEffetsJours={retentionEffetsJours} fenetreAnnulationSecondes={fenetreAnnulationSecondes} valeursSensibles={valeursSensibles} />
       <AssistantDeLaPersonne personnes={personnes} />
+      <EssaiAgent personnes={personnes} />
       <ConsoleProactivite />
     </div>
   );
