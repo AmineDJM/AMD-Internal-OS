@@ -1,4 +1,11 @@
-# Module « salles » — les salles de réunion et leurs réservations (lot T3, décision 0051)
+# Module « salles » — MIS DE CÔTÉ (Direction, 03/11/2026 : « il n'y a pas de réservation de la salle »)
+
+> Hors service par défaut. L'interrupteur `SALLES_EN_SERVICE=1` (variable d'environnement, `domaine/mise-en-service.ts`)
+> rétablit tout : opérations et lecture de l'assistant, capacités génériques, écran `/salles`, actions. Absent : l'assistant
+> n'a aucun outil de salle (pour tous les rôles), l'écran mène à l'accueil, les actions refusent. Les tables restent.
+> Décision 0051, « Correction du 03/11 ».
+
+## Ce que le module porte (en service)
 
 Les salles (capacité) et leurs RÉSERVATIONS, ouvertes à **tous les employés** (Direction, 02/11/2026) : un créneau ne se
 réserve qu'une fois (jamais deux réservations confirmées qui se chevauchent), la capacité est contrôlée, l'annulation

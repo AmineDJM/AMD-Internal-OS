@@ -27,6 +27,7 @@ import { ENVOI_GMAIL } from "./envoi-gmail";
 import { DOSSIERS_EXCEL } from "./dossiers-excel";
 import { FICHES_VOYAGE } from "./adpro-fiches-voyage";
 import { DECLARER_SALLE, RESERVER_SALLE } from "./salles";
+import { sallesEnService } from "@/modules/salles/partage";
 import { DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE } from "./caisse-avance";
 import { OPERATIONS_ANNUAIRE } from "./annuaire";
 import { DEMANDER_AU_TERRAIN } from "./demandes-terrain";
@@ -53,7 +54,10 @@ export const OPERATIONS_IA: OperationIA[] = [
   FUSION_MISSIONS, ENVOI_GMAIL,
   // T3 (décision 0051) : le suivi de dossiers depuis un tableau, les fiches hôtellerie et voyage d'une demande Ad & Pro, la caisse
   // d'avance (« moyens généraux ») de l'assistante, les salles de réunion (réservation ouverte à tous).
-  DOSSIERS_EXCEL, FICHES_VOYAGE, DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE, RESERVER_SALLE, DECLARER_SALLE,
+  DOSSIERS_EXCEL, FICHES_VOYAGE, DEPENSE_CAISSE, RALLONGE_CAISSE, RECEPTION_CAISSE,
+  // Les salles sont MISES DE CÔTÉ (Direction, 03/11/2026 : pas de réservation de salle) : hors du registre — ni offertes, ni
+  // nommées dans les gestes fermés. `SALLES_EN_SERVICE=1` les rétablit.
+  ...(sallesEnService() ? [RESERVER_SALLE, DECLARER_SALLE] : []),
 
   // T2 (décision 0052) : tenir l'annuaire — mise à jour en lot (Excel), fusion des doublons, annuler la dernière action.
   ...OPERATIONS_ANNUAIRE, DEMANDER_AU_TERRAIN,

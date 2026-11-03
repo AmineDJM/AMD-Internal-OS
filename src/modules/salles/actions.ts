@@ -10,6 +10,7 @@ import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { actionReversible } from "@/lib/effets/reversible";
 import { fdNum, fdStr, type ActionResult } from "@/lib/actions/types";
 import { conflitsDeReservation } from "./infra/registre-serveur";
+import { REFUS_SALLES_HORS_SERVICE, sallesEnService } from "./domaine/mise-en-service";
 import { LIBELLE_TYPE_MOYEN, libelleInstant, lireCreneau, lireTypeMoyen, TYPES_ENREGISTRABLES, TYPES_RESERVABLES } from "./domaine/registre";
 
 /**
@@ -81,6 +82,8 @@ function lireChamps(formData: FormData, creation: boolean) {
 
 export async function creerMoyenGeneral(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   return actionReversible("moyens-generaux-registre-actions:creerMoyenGeneral", "Salle enregistrée", async () => {
+    // Mises de côté (Direction, 03/11/2026) : `SALLES_EN_SERVICE=1` les rétablit.
+    if (!sallesEnService()) return { ok: false, error: REFUS_SALLES_HORS_SERVICE };
     const user = await requireUser();
     if (!userCan(user, "GENERAL_MEANS", "CREATE")) return { ok: false, error: "Non autorisé : déclarer une salle demande le droit de créer dans « Moyens généraux »." };
     const lu = lireChamps(formData, true);
@@ -105,6 +108,8 @@ export async function creerMoyenGeneral(_prev: ActionResult | undefined, formDat
 
 export async function modifierMoyenGeneral(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   return actionReversible("moyens-generaux-registre-actions:modifierMoyenGeneral", "Salle modifiée", async () => {
+    // Mises de côté (Direction, 03/11/2026) : `SALLES_EN_SERVICE=1` les rétablit.
+    if (!sallesEnService()) return { ok: false, error: REFUS_SALLES_HORS_SERVICE };
     const user = await requireUser();
     if (!userCan(user, "GENERAL_MEANS", "UPDATE")) return { ok: false, error: "Non autorisé : modifier une salle demande le droit de modifier « Moyens généraux »." };
     const id = fdStr(formData, "id");
@@ -122,6 +127,8 @@ export async function modifierMoyenGeneral(_prev: ActionResult | undefined, form
 
 export async function archiverMoyenGeneral(formData: FormData): Promise<ActionResult> {
   return actionReversible("moyens-generaux-registre-actions:archiverMoyenGeneral", "Salle archivée", async () => {
+    // Mises de côté (Direction, 03/11/2026) : `SALLES_EN_SERVICE=1` les rétablit.
+    if (!sallesEnService()) return { ok: false, error: REFUS_SALLES_HORS_SERVICE };
     const user = await requireUser();
     if (!userCan(user, "GENERAL_MEANS", "UPDATE")) return { ok: false, error: "Non autorisé." };
     const id = fdStr(formData, "id");
@@ -137,6 +144,8 @@ export async function archiverMoyenGeneral(formData: FormData): Promise<ActionRe
 
 export async function reserverMoyenGeneral(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   return actionReversible("moyens-generaux-registre-actions:reserverMoyenGeneral", "Réservation enregistrée", async () => {
+    // Mises de côté (Direction, 03/11/2026) : `SALLES_EN_SERVICE=1` les rétablit.
+    if (!sallesEnService()) return { ok: false, error: REFUS_SALLES_HORS_SERVICE };
     const user = await requireUser();
     // Tout employé réserve une salle (Direction, 02/11/2026) : la session suffit.
     const moyenId = fdStr(formData, "moyenId");
@@ -163,6 +172,8 @@ export async function reserverMoyenGeneral(_prev: ActionResult | undefined, form
 
 export async function annulerReservationMoyenGeneral(formData: FormData): Promise<ActionResult> {
   return actionReversible("moyens-generaux-registre-actions:annulerReservationMoyenGeneral", "Réservation annulée", async () => {
+    // Mises de côté (Direction, 03/11/2026) : `SALLES_EN_SERVICE=1` les rétablit.
+    if (!sallesEnService()) return { ok: false, error: REFUS_SALLES_HORS_SERVICE };
     const user = await requireUser();
     const id = fdStr(formData, "id");
     const r = id ? await prisma.moyenGeneralReservation.findUnique({ where: { id }, select: { id: true, statut: true, reserveParId: true, moyen: { select: { id: true, reference: true } } } }) : null;
