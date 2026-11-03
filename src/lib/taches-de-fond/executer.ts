@@ -39,6 +39,13 @@ export type TachePlanifiee = {
   bailMs?: number;
   /** Écart minimal entre deux départs, tous exécutants confondus. Défaut `INTERVALLE_MIN_MS`. */
   intervalleMs?: number;
+  /**
+   * S'ABSTENIR, DÉCIDÉ AVANT LE BAIL (P1 ter, décision 0063). Une raison rendue = cet exécutant laisse la tâche à un
+   * autre SANS prendre le bail ni marquer le départ. MESURÉ en production (03/11) : le web prenait le bail des travaux
+   * chaque minute pour s'abstenir aussitôt (le worker bat) ; son départ marqué ouvrait l'intervalle minimal, et le worker,
+   * qui atteint la tâche plus tard dans son passage, la trouvait toujours « occupée » — aucune mission ne bougeait.
+   */
+  sAbstenir?: (ctx: ContexteExecution) => Promise<string | null>;
 };
 
 export type ContexteExecution = {
@@ -50,7 +57,7 @@ export type ContexteExecution = {
   doitSArreter?: () => boolean;
 };
 
-export type IssueExecution = "ok" | "echec" | "ignoree" | "occupee" | "bail-indisponible";
+export type IssueExecution = "ok" | "echec" | "ignoree" | "occupee" | "bail-indisponible" | "abstenue";
 
 export type BilanTache = { cle: string; issue: IssueExecution; dureeMs: number };
 
@@ -63,6 +70,12 @@ export const SEUIL_TACHE_LENTE_MS = 2_000;
 export async function executerTache(tache: TachePlanifiee, ctx: ContexteExecution): Promise<BilanTache> {
   const journal = ctx.journal ?? journalConsole;
   const bailMs = tache.bailMs ?? BAIL_TACHE_MS;
+
+  // L'ABSTENTION D'ABORD : elle ne touche ni le bail ni le départ — l'exécutant qui doit tenir la tâche la trouve libre.
+  if (tache.sAbstenir) {
+    const raison = await tache.sAbstenir(ctx).catch((e) => { journal("avertissement", "tache.abstention-illisible", { tache: tache.cle, erreur: messageErreur(e) }); return null; });
+    if (raison) return { cle: tache.cle, issue: "abstenue", dureeMs: 0 };
+  }
 
   let pris: boolean;
   try {
@@ -87,7 +100,7 @@ export async function executerTache(tache: TachePlanifiee, ctx: ContexteExecutio
   renouvellement.unref?.();
 
   const debut = performance.now();
-  let issue: Exclude<IssueExecution, "occupee" | "bail-indisponible">;
+  let issue: Exclude<IssueExecution, "occupee" | "bail-indisponible" | "abstenue">;
   let message: string | null = null;
   try {
     const r = await tache.executer();
@@ -136,6 +149,7 @@ export async function executerPassage(taches: readonly TachePlanifiee[], ctx: Co
     executees: executees.length,
     echecs: compte("echec"),
     occupees: compte("occupee"),
+    abstenues: compte("abstenue"),
     // La durée de chaque tâche exécutée, en une ligne : le passage lent se lit sans requête.
     durees: Object.fromEntries(executees.map((b) => [b.cle, b.dureeMs])),
   });
