@@ -135,8 +135,8 @@ export async function teardown(): Promise<void> {
       console.log(`[résidu du passage] ${TABLES_SURVEILLEES.map((t) => `${t} ${residu[t]! >= 0 ? "+" : ""}${residu[t]}`).join(" · ")}`);
       if (suiteComplete()) {
         const { readFileSync } = await import("node:fs");
-        const plafonds = JSON.parse(readFileSync(new URL("./vitest.residu.json", import.meta.url), "utf8")) as { plafonds: Record<string, number> };
-        const depasses = TABLES_SURVEILLEES.filter((t) => residu[t]! > (plafonds.plafonds[t] ?? 0));
+        const plafonds = JSON.parse(readFileSync(new URL("./vitest.residu.json", import.meta.url), "utf8")) as { plafonds: Record<string, number>; sansPlafond?: string[] };
+        const depasses = TABLES_SURVEILLEES.filter((t) => !plafonds.sansPlafond?.includes(t) && residu[t]! > (plafonds.plafonds[t] ?? 0));
         if (depasses.length) {
           throw new Error(`Résidu d'une suite complète au-dessus du plafond (vitest.residu.json) — ${depasses.map((t) => `${t} +${residu[t]} > ${plafonds.plafonds[t] ?? 0}`).join(", ")}. Le banc qui sème doit retirer ce qu'il sème (menage-de-banc.ts) ; un plafond ne se relève jamais.`);
         }

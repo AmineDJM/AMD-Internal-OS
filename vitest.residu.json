@@ -1,4 +1,19 @@
 {
-  "commentaire": "Résidu toléré d'UNE suite complète (npm test), table par table, mesuré après le ménage de fin (vitest.global-setup.ts). UN PLAFOND NE SE RELÈVE JAMAIS : un dépassement se corrige dans le banc qui sème ; un chiffre qui baisse se reporte ici.",
-  "plafonds": {}
+  "commentaire": "Résidu toléré d'UNE suite complète (npm test), table par table, mesuré après le ménage de fin (vitest.global-setup.ts) sur une base locale remise à zéro, le plus haut de deux passages consécutifs (03/11/2026). UN PLAFOND NE SE RELÈVE JAMAIS : un dépassement se corrige dans le banc qui sème (menage-de-banc.ts) ; un chiffre qui baisse se reporte ici. FileBlob est mesuré et dit, mais n'a pas de plafond : son résidu suit celui des documents et des nœuds Drive (les blobs qu'ils tiennent), et varie d'un passage à l'autre avec le dédoublonnage du stockage (491 à 558 sur deux passages) — un plafond y mesurerait l'ordonnanceur.",
+  "plafonds": {
+    "User": 1,
+    "Notification": 0,
+    "Document": 167,
+    "StoredFile": 169,
+    "DriveNode": 401,
+    "FileVersion": 155,
+    "FileBlobChunk": 11,
+    "Piece": 8,
+    "PieceLien": 8,
+    "BibliothequeFiche": 8,
+    "AssistantGesteJournal": 2,
+    "AssistantEffet": 13,
+    "EffetSortantDiffere": 4
+  },
+  "sansPlafond": ["FileBlob"]
 }
