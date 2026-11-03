@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 import { INSTANCE } from "@/lib/missions/runtime/bail";
 import { journaliser } from "@/lib/missions/runtime/store";
 import type { Clock } from "@/lib/missions/ports";
@@ -145,7 +146,7 @@ async function apresErreur(e: Entree, quoi: string, r: Extract<Resultat<unknown>
 
 /** Abandonne la branche d'intégration (elle n'a servi qu'à la CI) ; un échec de suppression n'arrête rien. */
 async function nettoyer(e: Entree, deps: DepsFile): Promise<void> {
-  if (e.brancheIntegration) await forgeGardee(deps.forge, e.cible).supprimerBranche(refDe(e.depot), e.brancheIntegration).catch(() => undefined);
+  if (e.brancheIntegration) await forgeGardee(deps.forge, e.cible).supprimerBranche(refDe(e.depot), e.brancheIntegration).catch(sansBloquer("equipe.integration.nettoyer"));
 }
 
 /**
