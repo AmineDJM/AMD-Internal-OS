@@ -254,8 +254,8 @@ export function lecturesAnnuaireTerrain(): PowerTool[] {
   return [
     outil("doublons_medecins",
       "LES FICHES MÉDECINS EN DOUBLE de l'annuaire, à proposer au Super Admin : pour chaque paire, la fiche gardée, la fiche absorbée, "
-      + "les champs reçus, ce qui est rattaché (visites, rapports, demandes Ad & Pro…). Pour « y a-t-il des doublons de médecins ? », "
-      + "« propose-moi les fusions de fiches médecins ». La décision (✓ / ✗) se prend sur la page dédiée, jamais par l'assistant.",
+      + "les champs reçus, ce qui est rattaché (visites, comptes rendus…). Pour « y a-t-il des doublons de médecins ? », "
+      + "« propose-moi les fusions de fiches médecins ». Le Super Admin tranche (✓ / ✗) sur la page des doublons, jamais l'assistant.",
       {}, "Doublons de médecins proposés", (u) => peutDeciderFusionMedecins(u), lireDoublonsMedecins),
     outil("annuaire_terrain",
       "L'ANNUAIRE MÉDICAL ET PHARMACEUTIQUE : médecins (spécialité, établissement, téléphone, délégué, secteur, dernière visite) et "
