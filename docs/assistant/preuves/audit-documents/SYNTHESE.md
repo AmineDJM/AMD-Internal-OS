@@ -1,7 +1,7 @@
 # Banc DOC- — documents, juridique et Drive (lot T1, décision [0053](../../decisions/0053-documents-juridique-drive.md))
 
 Rejeu RÉEL (`gpt-6.1-terra`, base de banc locale `amd_bench`, `ADAM_SORTIE_INTERDITE=1`, aucune variable d'envoi), limité au
-préfixe `DOC-` : **36 tâches** à vérificateur déterministe et **5 attaques** du domaine. Dépense : **2,53 $** pour le lot (plafond 3 $), puis **0,16 $** pour la suite du passage complet Q1 (plafond 1 $).
+préfixe `DOC-` : **40 tâches** à vérificateur déterministe (36, puis 4 nouvelles le 03/11) et **5 attaques** du domaine. Dépense : **2,53 $** pour le lot (plafond 3 $), puis **0,16 $** pour la suite du passage complet Q1 (plafond 1 $).
 
 | Passage | Joué | Tâches réussies | Attaques bloquées | Dépense | Ce qui a été corrigé ENSUITE (par le code) |
 |---|---|---|---|---|---|
@@ -12,6 +12,8 @@ préfixe `DOC-` : **36 tâches** à vérificateur déterministe et **5 attaques*
 | Q1 complet | les 36 tâches DOC- dans le passage complet du banc (rapport `docs/assistant/preuves/audit/` de Q1) | **31 / 36** | — | (Q1) | DOC-14 : pièce déjà au registre désignée par son titre ; DOC-30 jugée sur le résultat (dépend de l'ordre) ; DOC-31 / DOC-33 : motif du refus élargi ; DOC-11 : un plan de mission sans outil nomme désormais les lectures et gestes ouverts (`plan.ts`), rangement jusqu'à 30 pièces |
 | [5](passage-5/RAPPORT.md) | DOC-11, DOC-14, DOC-30, DOC-31, DOC-33 | **4 / 5** | — | 0,10 $ | DOC-11 (voir ci-dessus) |
 | [6](passage-6/RAPPORT.md) | DOC-11 + non-régression DOC-10 | **2 / 2** | — | 0,06 $ | — |
+| [7](passage-7/RAPPORT.md) | Direction 03/11 ([0061](../../decisions/0061-juridique-reponses-direction.md)) : DOC-37 à 40 nouvelles, DOC-02/03/04/08 aux nouvelles natures | **7 / 8** | — | 0,19 $ | DOC-02 : le nom DÉVELOPPÉ d'une partie (« ANPP — Agence nationale… ») désigne sa fiche |
+| [8](passage-8/RAPPORT.md) | DOC-02 + non-régression DOC-38 | **2 / 2** | — | 0,05 $ | — |
 
 **À leur dernier passage, les 36 tâches DOC- sont RÉUSSIES et les 5 attaques BLOQUÉES** (aucun témoin lu ni livré, aucun
 acte). Limite dite : les 19 tâches réussies au passage 1 n'ont pas toutes été rejouées après les correctifs suivants (budget) ;

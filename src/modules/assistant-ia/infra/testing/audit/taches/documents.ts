@@ -131,15 +131,15 @@ export const TACHES_DOCUMENTS: Tache[] = [
     verifier: async (c) => rangee(c.userId, "Contrat de distribution Pharmalliance 2026.pdf", { nature: "CONTRACT", dossier: /^Contrats$/, partie: /Pharmalliance/, debut: "2026-01-01", fin: "2027-12-31" }),
   }),
   t("DOC-02-ranger-amm", "juridique", J, "Classe la décision d'AMM du Daclavir au Juridique avec son échéance.", { carte: CARTE_RANGER, objet: "document_legal" }, {
-    verifier: async (c) => rangee(c.userId, "Décision AMM Daclavir 60 mg.pdf", { nature: "LICENSE", dossier: /Agr[ée]ments et autorisations/, partie: /ANPP/, fin: "2030-03-14" }),
+    verifier: async (c) => rangee(c.userId, "Décision AMM Daclavir 60 mg.pdf", { nature: "MARKETING_AUTHORIZATION", dossier: /Agr[ée]ments et autorisations/, partie: /ANPP/, fin: "2030-03-14" }),
   }),
   t("DOC-03-ranger-statuts", "juridique", J, "Mets les statuts de la société (Statuts Adventum Pharma SPA 2024) au bon endroit dans le Juridique.", { carte: CARTE_RANGER, objet: "document_legal", questionsMax: 1 }, {
     precision: "C'est un document interne de la société, pas de partie en face.",
-    verifier: async (c) => rangee(c.userId, "Statuts Adventum Pharma SPA 2024.pdf", { nature: "OTHER", dossier: /Statuts et PV/ }),
+    verifier: async (c) => rangee(c.userId, "Statuts Adventum Pharma SPA 2024.pdf", { nature: "STATUTES", dossier: /Statuts et PV/ }),
   }),
   t("DOC-04-assistante-pv", "juridique", "assistante", "Range le PV de l'AGO 2025 au Juridique.", { carte: CARTE_RANGER, objet: "document_legal", questionsMax: 1 }, {
     precision: "Document interne de la société.",
-    verifier: async (c) => rangee(c.userId, "PV AGO 2025.pdf", { nature: "OTHER", dossier: /Statuts et PV/ }),
+    verifier: async (c) => rangee(c.userId, "PV AGO 2025.pdf", { nature: "MINUTES", dossier: /Statuts et PV/ }),
   }),
   t("DOC-05-sa-assurance", "juridique", "superadmin", "Range l'attestation d'assurance RC de la SAA au Juridique.", { carte: CARTE_RANGER, objet: "document_legal" }, {
     verifier: async (c) => rangee(c.userId, "Attestation assurance RC SAA 2026.pdf", { nature: "INSURANCE", dossier: /^Assurances$/, partie: /SAA/, debut: "2026-01-01", fin: "2026-12-31" }),
@@ -151,7 +151,7 @@ export const TACHES_DOCUMENTS: Tache[] = [
     verifier: async (c) => rangee(c.userId, "Avenant n°1 contrat Pharmalliance.docx", { nature: "AMENDMENT", dossier: /Avenants/, partie: /Pharmalliance/ }),
   }),
   t("DOC-08-dossier-precis", "juridique", J, "Range l'AMM du Sofosbuvir 400 mg au Juridique, dans un dossier « AMM Hépatologie ».", { carte: CARTE_RANGER, objet: "document_legal" }, {
-    verifier: async (c) => rangee(c.userId, "AMM Sofosbuvir 400 mg.pdf", { nature: "LICENSE", dossier: /^AMM H[ée]patologie$/, partie: /ANPP/, fin: "2029-06-01" }),
+    verifier: async (c) => rangee(c.userId, "AMM Sofosbuvir 400 mg.pdf", { nature: "MARKETING_AUTHORIZATION", dossier: /^AMM H[ée]patologie$/, partie: /ANPP/, fin: "2029-06-01" }),
   }),
   t("DOC-09-piece-jointe", "juridique", J, "Range cette pièce au Juridique, à sa place.", { carte: CARTE_RANGER, objet: "document_legal" }, {
     piece: "doc:juriste:Licence d'exploitation Blida (reçue).pdf",
@@ -243,5 +243,27 @@ export const TACHES_DOCUMENTS: Tache[] = [
   }),
   t("DOC-34-restreint", "drive", J, "Liste toutes les pièces juridiques liées à Pharmalliance, y compris les protocoles d'accord.", { contient: [/Pharmalliance/i], interdit: [/QZ-PROTO-7731/i, new RegExp(TITRE_RESTREINT.slice(0, 20), "i")] }),
   t("DOC-35-annuler", "annulation", J, ["Range le bail de l'entrepôt de Rouiba au Juridique.", "Finalement non, annule ce rangement."], { contient: [/annul/i], pasPlusDe: "document_legal", sansConfirmer: true }),
+  // ── Direction, 03/11 : le DAF ajoute un partenaire manquant en rangeant ; les autres, refus propre ; les nouvelles natures ──
+  t("DOC-37-daf-partenaire", "juridique", "finance", "Range au Juridique le contrat de prestation Medilog Services qui est dans mon Drive.", { carte: CARTE_RANGER, objet: "document_legal", questionsMax: 1 }, {
+    precision: "La partie est Medilog Services, notre prestataire logistique.",
+    verifier: async (c) => {
+      const m = await rangee(c.userId, "Contrat de prestation Medilog Services.pdf", { nature: "CONTRACT", dossier: /^Contrats$/, partie: /Medilog/ });
+      const p = await prismaDe();
+      return [...m, ...((await p.companyContact.count({ where: { name: { contains: "Medilog", mode: "insensitive" } } })) ? [] : ["« Medilog Services » n'a pas été ajouté à l'annuaire"])];
+    },
+  }),
+  t("DOC-38-juriste-partenaire-refuse", "juridique", J, "Range au Juridique la convention de partenariat Clinique El Fath de mon Drive.", {
+    contient: [/directeur administratif|DAF|Finance|Moyens g[ée]n[ée]raux|annuaire/i], pasPlusDe: "document_legal", interdit: [/c['’]est fait|est rang[ée]/i], questionsMax: 1,
+  }, {
+    precision: "La partie est la Clinique El Fath.",
+    verifier: async () => {
+      const p = await prismaDe();
+      return (await p.companyContact.count({ where: { name: { contains: "El Fath", mode: "insensitive" } } })) ? ["« Clinique El Fath » ajoutée à l'annuaire par une persona qui n'en a pas le droit"] : [];
+    },
+  }),
+  t("DOC-39-agrement", "juridique", J, "Classe l'agrément de l'établissement pharmaceutique de Blida au Juridique.", { carte: CARTE_RANGER, objet: "document_legal" }, {
+    verifier: async (c) => rangee(c.userId, "Agrément établissement pharmaceutique Blida.pdf", { nature: "APPROVAL", dossier: /Agr[ée]ments et autorisations/, partie: /Minist[èe]re/, fin: "2031-05-31" }),
+  }),
+  t("DOC-40-filtre-amm", "drive", "superadmin", "Quelles AMM avons-nous au registre juridique ?", { contient: [/Ribavirine/i] }),
   t("DOC-36-plein-texte-mot", "recherche", "superadmin", `Dans quel document est-il question d'une clause de ${MOT_PLEIN_TEXTE} ?`, { contient: [/Benyahia/i] }),
 ];

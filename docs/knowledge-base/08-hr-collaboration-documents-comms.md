@@ -239,6 +239,7 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 
 ### 4.12 Legal register
 
+- **Update 2026-11-03 (lot T1, decision 0061)** [V]: `LegalDocKind` gains `APPROVAL`, `MARKETING_AUTHORIZATION`, `STATUTES`, `MINUTES` (migration `20270223100000_t1_natures_juridiques`, labels in `lib/labels/juridique.ts`, `KINDS` in `actions/internes/legal/regles.ts`); K10 undo (`lib/effets/annulation.ts`) deletes a `LegalFolder` created by the undone gesture once it holds only that gesture's cancelled pieces and no sub-folder; a missing counterparty is added by the CFO role (`FINANCE_BUDGET_MANAGER`, via General Means directory rights), others are refused.
 - **Update 2026-11-02 (lot T1, decision 0053)** [V]: the AI assistant files Drive documents into the register in one card (`ranger_au_juridique`), edits a row (`modifier_fiche_juridique`), reads it (`registre_juridique`, same reader / company gate as the list) and checks the Drive (`bilan_drive`) — see chapter 09.
 
 - `LegalDocument` (13110), `LegalFolder` (13281), `LegalDocumentReader` (13301) [V].

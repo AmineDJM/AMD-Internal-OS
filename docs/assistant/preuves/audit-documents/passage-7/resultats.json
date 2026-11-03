@@ -1,0 +1,302 @@
+{
+ "quand": "2026-11-03T08:29:06.041Z",
+ "modele": "gpt-6.1-terra",
+ "juge": "gpt-5-nano",
+ "budgetUsd": 0.4,
+ "budgetAtteint": false,
+ "arret": null,
+ "depenseUsd": 0.196258,
+ "jugeUsd": 0,
+ "attaques": [],
+ "taches": [
+  {
+   "id": "DOC-02-ranger-amm",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "ÉCHEC",
+   "motifs": [
+    "aucune carte",
+    "aucun objet « document_legal » créé en base",
+    "« Décision AMM Daclavir 60 mg.pdf » n'est PAS au registre juridique"
+   ],
+   "questions": 0,
+   "carte": null,
+   "objetCree": false,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Classe la décision d'AMM du Daclavir au Juridique avec son échéance."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Le classement n’a pas été effectué : l’ANPP ne figure pas dans l’annuaire des partenaires. Le directeur administratif et financier ou les Moyens généraux doivent l’y ajouter avant de recommencer.\n\nLa décision d’AMM du Daclavir expire le **14 mars 2030**.",
+     "outils": [
+      "Bibliothèque consultée",
+      "Registre juridique lu",
+      "Document ouvert",
+      "Rangement juridique préparé"
+     ]
+    }
+   ],
+   "ms": 15467,
+   "coutUsd": 0.036381,
+   "appels": 5,
+   "erreur": null
+  },
+  {
+   "id": "DOC-03-ranger-statuts",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — Statuts Adventum Pharma SPA 2024 — Pièce: Statuts Adventum Pharma SPA 2024.pdf · Titre: Statuts Adventum Pharma SPA 2024 · Nature: Statuts · Partie: Adventum Pharma SPA · Échéance: sans échéance · Dossier: Statuts et PV",
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Mets les statuts de la société (Statuts Adventum Pharma SPA 2024) au bon endroit dans le Juridique."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "La carte de classement des statuts dans « Statuts et PV » attend votre confirmation. Le dossier sera créé ; le fichier restera dans le Drive, sans copie, et l’opération pourra être annulée.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — Statuts Adventum Pharma SPA 2024 (PROPOSED) — Pièce: Statuts Adventum Pharma SPA 2024.pdf · Titre: Statuts Adventum Pharma SPA 2024 · Nature: Statuts · Partie: Adventum Pharma SPA · Échéance: sans échéance · Dossier: Statuts et PV"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 5269,
+   "coutUsd": 0.022483,
+   "appels": 3,
+   "erreur": null
+  },
+  {
+   "id": "DOC-04-assistante-pv",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "assistante",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — PV AGO 2025 — Pièce: PV AGO 2025.pdf · Titre: PV AGO 2025 · Nature: Procès-verbal · Partie: Adventum Pharma SPA · Échéance: sans échéance · Dossier: Statuts et PV",
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Imene",
+     "texte": "Range le PV de l'AGO 2025 au Juridique."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Imene, je vous propose de ranger le PV de l’AGO 2025 au Juridique ; la carte attend votre confirmation. Le fichier restera dans le Drive, sans copie, et « Annule » défera l’opération.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — PV AGO 2025 (PROPOSED) — Pièce: PV AGO 2025.pdf · Titre: PV AGO 2025 · Nature: Procès-verbal · Partie: Adventum Pharma SPA · Échéance: sans échéance · Dossier: Statuts et PV"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 6480,
+   "coutUsd": 0.022914,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "DOC-08-dossier-precis",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — AMM Sofosbuvir 400 mg — Pièce: AMM Sofosbuvir 400 mg.pdf · Titre: AMM Sofosbuvir 400 mg · Nature: Autorisation de mise sur le marché · Partie: ANPP · Début: 2024-06-02 · Échéance: 2029-06-01 · Dossier: AMM Hépatologie",
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Range l'AMM du Sofosbuvir 400 mg au Juridique, dans un dossier « AMM Hépatologie »."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lamia, je vous propose de ranger l’AMM du Sofosbuvir 400 mg dans « AMM Hépatologie » ; la carte attend votre confirmation.\n\n- Le dossier « AMM Hépatologie » sera créé au Juridique.\n- Dates lues sur la pièce à vérifier : délivrée le 02/06/2024, valable jusqu’au 01/06/2029.\n- Le fichier reste dans le Drive : la fiche juridique pointera vers lui, sans copie. L’action est annulable.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — AMM Sofosbuvir 400 mg (PROPOSED) — Pièce: AMM Sofosbuvir 400 mg.pdf · Titre: AMM Sofosbuvir 400 mg · Nature: Autorisation de mise sur le marché · Partie: ANPP · Début: 2024-06-02 · Échéance: 2029-06-01 · Dossier: AMM Hépatologie"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 6073,
+   "coutUsd": 0.021935,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "DOC-37-daf-partenaire",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "finance",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — Contrat de prestation Medilog Services — Pièce: Contrat de prestation Medilog Services.pdf · Titre: Contrat de prestation Medilog Services · Nature: Contrat · Partie: Medilog Services · Début: 2026-10-01 · Échéance: 2027-09-30 · Dossier: Contrats",
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Mourad",
+     "texte": "Range au Juridique le contrat de prestation Medilog Services qui est dans mon Drive."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Mourad, la carte de classement du contrat de prestation Medilog Services au Juridique attend votre confirmation.\n\n**À vérifier :** les dates lues sont du 01/10/2026 au 30/09/2027. Medilog Services sera ajouté à l’annuaire des partenaires. Le fichier restera dans votre Drive, sans copie ; l’annulation défait l’opération.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — Contrat de prestation Medilog Services (PROPOSED) — Pièce: Contrat de prestation Medilog Services.pdf · Titre: Contrat de prestation Medilog Services · Nature: Contrat · Partie: Medilog Services · Début: 2026-10-01 · Échéance: 2027-09-30 · Dossier: Contrats"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 4861,
+   "coutUsd": 0.021562,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "DOC-38-juriste-partenaire-refuse",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Range au Juridique la convention de partenariat Clinique El Fath de mon Drive."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lamia, la convention n’a pas pu être rangée : **Clinique El Fath ne figure pas dans l’annuaire des partenaires**. Demandez au directeur administratif et financier ou aux Moyens généraux de l’ajouter, puis nous pourrons réessayer.",
+     "outils": [
+      "Rangement juridique préparé"
+     ]
+    }
+   ],
+   "ms": 4049,
+   "coutUsd": 0.020856,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "DOC-39-agrement",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — Agrément établissement pharmaceutique Blida — Pièce: Agrément établissement pharmaceutique Blida.pdf · Titre: Agrément établissement pharmaceutique Blida · Nature: Agrément · Partie: Ministère de l'Industrie pharmaceutique · Début: 2026-06-01 · Échéance: 2031-05-31 · Dossier: Agréments et autorisations",
+   "objetCree": true,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Classe l'agrément de l'établissement pharmaceutique de Blida au Juridique."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "L’agrément de l’établissement pharmaceutique de Blida est prêt à être classé au Juridique ; la carte attend votre confirmation. Vérifiez les dates lues sur la pièce : délivrance le 01/06/2026 et validité jusqu’au 31/05/2031. Le classement prévoit le dossier « Agréments et autorisations » ; le fichier restera dans le Drive.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — Agrément établissement pharmaceutique Blida (PROPOSED) — Pièce: Agrément établissement pharmaceutique Blida.pdf · Titre: Agrément établissement pharmaceutique Blida · Nature: Agrément · Partie: Ministère de l'Industrie pharmaceutique · Début: 2026-06-01 · Échéance: 2031-05-31 · Dossier: Agréments et autorisations"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 5668,
+   "coutUsd": 0.0227,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "DOC-40-filtre-amm",
+   "domaine": "documents",
+   "categorie": "drive",
+   "persona": "superadmin",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Amine",
+     "texte": "Quelles AMM avons-nous au registre juridique ?"
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Amine, le registre juridique contient **2 AMM**, toutes deux actives. Leurs fichiers sont accessibles depuis le tableau.",
+     "outils": [
+      "Registre juridique lu"
+     ]
+    }
+   ],
+   "ms": 5267,
+   "coutUsd": 0.021645,
+   "appels": 2,
+   "erreur": null
+  }
+ ],
+ "nonJouees": []
+}

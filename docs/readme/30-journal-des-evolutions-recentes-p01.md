@@ -1,5 +1,14 @@
 ## 🧾 Journal des évolutions récentes
 
+### T1 — JURIDIQUE : LES RÉPONSES DE LA DIRECTION DU 03/11 (2026-11-03)
+
+Le **DAF** (rôle « Responsable Finance / Budget », qui tient l'annuaire des partenaires par les Moyens généraux) ajoute un
+partenaire manquant en rangeant une pièce au Juridique ; les autres reçoivent un refus qui le nomme. Le registre reçoit
+quatre natures — **agrément, AMM, statuts, procès-verbal** — créables, filtrables, reconnues au rangement (migration
+`20270223100000_t1_natures_juridiques`). **Annuler un rangement retire le dossier de classement qu'il avait créé**, s'il est
+vide (jamais un dossier préexistant ni un dossier qui contient autre chose). Décision
+[0061](../assistant/decisions/0061-juridique-reponses-direction.md).
+
 ### UNE ÉQUIPE DE CLAUDE CODE SOUS ADAM : PROGRAMMES ET FILE D'INTÉGRATION (2026-11-02, lot O2, décision 0059)
 
 Demande de la Direction du 02/11 : Adam délègue à MiMo (superviseur) une équipe de travailleurs Claude Code en parallèle,
