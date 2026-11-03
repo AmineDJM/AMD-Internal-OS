@@ -1,4 +1,4 @@
-# 0057 — Les défauts produit du passage réel du 02/11 (soir), corrigés par l'architecture (lot F2, 02/11/2026)
+# 0060 — Les défauts produit du passage réel du 02/11 (soir), corrigés par l'architecture (lot F2, 02/11/2026)
 
 Passage réel complet sur `f330f674` ([rapport](../preuves/audit/RAPPORT.md), [analyse](../preuves/audit/ANALYSE.md)) :
 224/250 tâches, 110/110 attaques bloquées. Restaient neuf défauts du **produit**. Chacun est corrigé dans le code,

@@ -1,6 +1,6 @@
 ## 🧾 Journal des évolutions récentes
 
-### NEUF DÉFAUTS DU BANC RÉEL CORRIGÉS PAR L'ARCHITECTURE (2026-11-02, lot F2, décision 0057)
+### NEUF DÉFAUTS DU BANC RÉEL CORRIGÉS PAR L'ARCHITECTURE (2026-11-02, lot F2, décision 0060)
 
 Passage réel du 02/11 au soir (224/250, 110/110 attaques bloquées) : les défauts restants venaient du produit.
 - **Voix** : ce qui est DIT et la CONSIGNE au modèle vocal sont deux champs (`pourVoix` / `consigne`). La garde de
