@@ -124,3 +124,24 @@ export async function attendreBloques(
     await new Promise((r) => setTimeout(r, 25));
   }
 }
+
+// ── LES RESTES D'UN PASSAGE INTERROMPU ──────────────────────────────────────────────────────
+
+/**
+ * RETIRER LES COMPTES D'UN BANC LAISSÉS PAR UN PASSAGE DE PLUS DE DEUX HEURES — étiquette `<prefixe><horodatage
+ * base 36>_…`. Un compte de banc laissé en base reçoit ensuite les notifications de RÔLE de toute la suite (mesuré, F1 :
+ * des milliers par compte et par passage). Jamais une étiquette récente : un autre passage du même fichier peut tourner
+ * à côté. Rend le nombre de comptes retirés (leurs notifications partent en cascade).
+ */
+export async function retirerComptesPerimes(prefixe: string): Promise<number> {
+  const avant = Date.now() - 2 * 3_600_000;
+  const comptes = await prisma.user.findMany({ where: { email: { startsWith: prefixe } }, select: { id: true, email: true } });
+  const perimes = comptes.filter((c) => {
+    const m = /^([0-9a-z]+)_/.exec(c.email.slice(prefixe.length));
+    return m ? parseInt(m[1]!, 36) < avant : false;
+  }).map((c) => c.id);
+  if (perimes.length === 0) return 0;
+  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: perimes } } }).catch(() => undefined);
+  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: perimes } } }).catch(() => undefined);
+  return (await prisma.user.deleteMany({ where: { id: { in: perimes } } }).catch(() => ({ count: 0 }))).count;
+}

@@ -5,6 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesPerimes } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "../generer";
@@ -72,6 +73,10 @@ suite("Assistant IA — voix GPT-Live", () => {
     await prisma.assistantIaFil.deleteMany({ where: { userId: kam?.id } });
     await prisma.assistantIaVoixSession.deleteMany({ where: { userId: kam?.id } });
     await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: kam?.id } });
+    // LES COMPTES DU BANC, retirés eux aussi (F1, mesuré : un compte par passage restait, et recevait les notifications
+    // de rôle de toute la suite). Leurs notifications partent en cascade.
+    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesPerimes("__iavoixlive_");
   });
 
   it("la session : gpt-live-1, délégation client, aucun outil donné à la voix, SDP échangé côté serveur ; refusée sans l'Assistant IA", async () => {
