@@ -46,6 +46,14 @@ export interface LigneQuiVoitConsole {
   niveau: NiveauBase;
   chemin: string;
 }
+export interface ObservationConsole {
+  jour: string;
+  nom: string;
+  geste: string;
+  niveau: string;
+  nombre: number;
+  modeles: string[];
+}
 export interface DetailBaseConsole {
   cle: string;
   nom: string;
@@ -54,6 +62,7 @@ export interface DetailBaseConsole {
   reglages: ReglageConsole[];
   quiVoit: LigneQuiVoitConsole[];
   propresDonnees: boolean;
+  observations: ObservationConsole[];
 }
 
 const TEINTE: Record<Sensibilite, string> = {
@@ -167,6 +176,25 @@ export function ConsoleBases({ bases, detail, personnes, roles }: {
               <Button type="button" size="sm" variant="outline" disabled={enCours} onClick={() => void agir(() => reglerPropresDonneesBase(detail.cle, !detail.propresDonnees))}>
                 {detail.propresDonnees ? "Ne plus les laisser visibles" : "Les laisser visibles"}
               </Button>
+            </section>
+
+            <section className="space-y-2" data-testid="observations-base">
+              <h3 className="text-sm font-semibold">Ce que la garde aurait refusé (14 derniers jours)</h3>
+              <p className="text-xs text-muted-foreground">
+                Mode observation : rien n&apos;est bloqué. Chaque ligne compte les requêtes qu&apos;un réglage de cette base aurait refusées,
+                y compris par la jointure d&apos;un autre écran (tables en cause entre parenthèses). L&apos;application stricte attend la décision de la Direction.
+              </p>
+              <ul className="divide-y text-sm">
+                {detail.observations.length === 0 && <li className="text-muted-foreground">Rien d&apos;observé.</li>}
+                {detail.observations.map((o) => (
+                  <li key={`${o.jour}-${o.nom}-${o.geste}`} className="flex flex-wrap items-center gap-2 py-1">
+                    <span className="text-muted-foreground">{o.jour}</span>
+                    <span className="font-medium">{o.nom}</span>
+                    <Badge tone="warning">{o.geste === "lecture" ? "Lecture" : "Écriture"} × {o.nombre}</Badge>
+                    <span className="text-muted-foreground">{LIBELLE_NIVEAU_BASE[o.niveau as NiveauBase] ?? o.niveau} ({o.modeles.join(", ")})</span>
+                  </li>
+                ))}
+              </ul>
             </section>
 
             <section className="space-y-2">

@@ -19272,3 +19272,20 @@ model AccesBaseParametre {
   updatedById    String?
   updatedAt      DateTime @default(now()) @updatedAt
 }
+
+/// D3 (décision 0057) — CE QUE LA GARDE AURAIT REFUSÉ : une ligne par jour, base, personne et geste, avec un compteur.
+/// Mode OBSERVATION : rien n'est bloqué, tout est mesuré — la console le montre avant que la Direction n'applique (D4).
+model ObservationAccesBase {
+  id        String   @id @default(cuid())
+  jour      DateTime @db.Date
+  base      String
+  userId    String
+  geste     String
+  niveau    String
+  modeles   String[] @default([])
+  nombre    Int      @default(0)
+  dernierLe DateTime @default(now())
+
+  @@unique([jour, base, userId, geste])
+  @@index([base, jour])
+}

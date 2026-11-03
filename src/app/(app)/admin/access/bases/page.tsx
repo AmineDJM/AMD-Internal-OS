@@ -5,7 +5,7 @@ import { ROLE_LABELS, MODULE_LABELS } from "@/lib/labels";
 import { PageHeader } from "@/components/shared/page-header";
 import { BackLink } from "@/components/shared/back-link";
 import {
-  CATALOGUE_BASES, baseDe, enVigueur, historiqueBase, nomsDe, personnesActives, propresDonnees, quiVoitLaBase, reglagesVivants,
+  CATALOGUE_BASES, baseDe, enVigueur, historiqueBase, nomsDe, observationsRecentes, personnesActives, propresDonnees, quiVoitLaBase, reglagesVivants,
 } from "@/modules/acces-bases/api";
 import { ConsoleBases, type DetailBaseConsole } from "@/modules/acces-bases/ecrans/console-bases";
 
@@ -31,8 +31,9 @@ export default async function AccesParBasePage({ searchParams }: { searchParams:
   let detail: DetailBaseConsole | null = null;
   const b = choisie ? baseDe(choisie) : null;
   if (b) {
-    const [historique, quiVoit] = await Promise.all([historiqueBase(b.cle), quiVoitLaBase(b.cle, maintenant)]);
-    const noms = await nomsDe(historique.flatMap((r) => (r.userId ? [r.userId] : [])));
+    const [historique, quiVoit, vues] = await Promise.all([historiqueBase(b.cle), quiVoitLaBase(b.cle, maintenant), observationsRecentes()]);
+    const observees = vues.filter((o) => o.base === b.cle);
+    const noms = await nomsDe([...historique.flatMap((r) => (r.userId ? [r.userId] : [])), ...observees.map((o) => o.userId)]);
     const jour = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
     detail = {
       cle: b.cle, nom: b.nom, tables: [...b.tables], modules: b.modules.map((m) => MODULE_LABELS[m as keyof typeof MODULE_LABELS] ?? m),
@@ -43,6 +44,9 @@ export default async function AccesParBasePage({ searchParams }: { searchParams:
         revoque: !!r.revoqueLe, enVigueur: enVigueur(r, maintenant),
       })),
       quiVoit: (quiVoit ?? []).map((l) => ({ ...l, role: ROLE_LABELS[l.role] ?? l.role })),
+      observations: observees.map((o) => ({
+        jour: jour(o.jour)!, nom: noms.get(o.userId) ?? "personne", geste: o.geste, niveau: o.niveau, nombre: o.nombre, modeles: o.modeles,
+      })),
     };
   }
 
@@ -53,7 +57,7 @@ export default async function AccesParBasePage({ searchParams }: { searchParams:
       </BackLink>
       <PageHeader
         title="Accès par base"
-        description="Ouvrir, fermer ou mettre en lecture seule une base entière (une famille de tables), pour un rôle ou une personne — en plus des accès par module. Chaque réglage est daté, motivé, journalisé et se défait en un geste. Phase actuelle : réglage et lecture ; l'application aux données est mesurée avant d'être activée."
+        description="Ouvrir, fermer ou mettre en lecture seule une base entière (une famille de tables), pour un rôle ou une personne — en plus des accès par module. Chaque réglage est daté, motivé, journalisé et se défait en un geste. Phase actuelle : la garde OBSERVE (elle compte ce qu'elle aurait refusé, sans rien bloquer) ; l'application stricte attend la décision de la Direction."
       />
       <ConsoleBases
         bases={bases}

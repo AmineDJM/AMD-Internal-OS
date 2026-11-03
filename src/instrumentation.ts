@@ -16,6 +16,8 @@ export async function register(): Promise<void> {
   // La forme `if (NEXT_RUNTIME === "nodejs") { … }` est celle que la compilation élague pour l'edge : rien de Node n'y entre.
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("@/platform/ia/telemetry/usage-sink");
+    // D3 (décision 0057) : la garde de l'accès par base, en OBSERVATION — elle compte, elle ne refuse rien.
+    (await import("@/modules/acces-bases/api")).brancherGardeDonnees();
     const { battementWebArme } = await import("@/lib/taches-de-fond/mode");
     if (battementWebArme()) await import("@/lib/scheduled");
   }

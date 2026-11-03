@@ -180,6 +180,7 @@ export const BASES_TECHNIQUES: BaseDef[] = [
       DeletedRecord: "Élément en corbeille",
       ApiCall: "Appel de l'API externe",
       IncidentRepete: "Incident répété",
+      ObservationAccesBase: "Ce que la garde de l'accès par base aurait refusé (observation)",
       DataQualityFinding: "Anomalie de qualité des données",
       DataQualitySweep: "Passage de contrôle de qualité des données",
     },
