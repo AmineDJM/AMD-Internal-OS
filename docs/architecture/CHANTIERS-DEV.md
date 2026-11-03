@@ -72,6 +72,9 @@ avant de lancer, libérée à la fin, reprise par expiration — **seulement cel
   complète (tests, build) sur le SHA EXACT déployé ; deux chantiers fusionnés → revérification ensemble.
 - Claude Code garde son orchestration native : Adam lance UNE session principale par chantier ; c'est elle qui
   fan-out ses sous-agents. Adam ne lance plusieurs sessions que pour des chantiers indépendants, réservations faites.
+- **Plusieurs sessions coordonnées (O2, décision 0059)** : un PROGRAMME (mission parente) ordonne plusieurs chantiers,
+  réserve aussi des ressources NOMMÉES (schéma, contrat, dépendances, module) et intègre leur travail par une file
+  sérialisée par cible (CI du résultat fusionné) — [ORCHESTRATEUR-EQUIPE.md](ORCHESTRATEUR-EQUIPE.md).
 
 ## 5. Coûts et boucles
 

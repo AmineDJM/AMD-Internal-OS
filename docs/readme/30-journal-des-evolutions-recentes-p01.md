@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### UNE ÉQUIPE DE CLAUDE CODE SOUS ADAM : PROGRAMMES ET FILE D'INTÉGRATION (2026-11-02, lot O2, décision 0059)
+
+Demande de la Direction du 02/11 : Adam délègue à MiMo (superviseur) une équipe de travailleurs Claude Code en parallèle,
+sans conflit ; priorités correction → fiabilité → autonomie → coût → vitesse.
+- **« Lance un programme… »** (`lancer_un_programme`) : MiMo décompose, le CODE valide (cycles, périmètres, critères, budget,
+  aucun déploiement), les tâches indépendantes partent en parallèle (3 au plus), celles qui se recouvrent (fichiers,
+  schéma, contrat, dépendances, module) sont SÉRIALISÉES avant tout conflit.
+- **File d'intégration** par branche cible : une à la fois (garantie par la base), CI COMPLÈTE sur le résultat fusionné avec
+  la dernière version de la cible — elle attrape ce que Git ne voit pas (une fonction renommée par l'un, appelée par l'autre) ;
+  conflit ou CI rouge → la tâche retourne à SA session, travail préservé ; `main` sous carte de la Direction.
+- **Travailleurs** : Claude Code cloud (abonnement) ; Managed Agents écrit, interrupteur COUPÉ (facturation API à décider).
+- **Tableau « Missions d'Adam »** : tâches, travailleurs, dépendances, conflits, file, coûts par rôle, en temps réel.
+- Migration `20270232000000_o2_file_integration` (table `IntegrationFile`). Code `src/lib/missions/equipe/`. Preuves : décision 0059 § 9.
+
 ### ADAM COMPLET POUR LE SUPER ADMIN, DANS LE MOTEUR DE L'ASSISTANT IA (2026-11-02, lot A2, décision 0055)
 
 Décision de la Direction du 02/11 — « un seul assistant : Adam » ; le Super Admin garde **toutes** les fonctions de l'ancien

@@ -910,6 +910,35 @@ Gotchas [V]:
 [U] `node:vm` + worker sandbox strength against hostile model-generated code.
 [U] Production `AiSetting` / `AppSetting` values (switch states) — not read.
 
+## O2 (2026-11-02) — orchestrateur d'équipe : programmes, travailleurs parallèles, file d'intégration [V]
+
+Décision [0059](../assistant/decisions/0059-orchestrateur-equipe.md), architecture `docs/architecture/ORCHESTRATEUR-EQUIPE.md`.
+- **Programme** = `Mission kind "PROGRAMME"` (persona ADAM, Super Admin) ; ses tâches = chantiers ENFANTS (`parentMissionId`,
+  préservé par `approuverChantier` qui rematérialise). Dossier : `carnet.programme` (`equipe/dossier.ts`), un seul écrivain
+  sous le bail du programme (`prendreBail`).
+- **Plan** : `equipe/programme.ts` (`lirePlanProgramme` — validateur déterministe ; `regrouperPetitesTaches`) ; MiMo
+  planifie à la demande (`planificateur.ts`, 2ᵉ essai avec les fautes, Sol en recours) ; Terra peut donner le plan tel quel.
+- **Ressources nommées** : `equipe/ressources.ts` — SCHEMA, CONTRAT, API, DEPENDANCES, GENERES, MODULE:<m> ; réservées
+  `RESSOURCE:<dépôt>:<nom>` (nouvelle ressource de `reservations.ts`) et vérifiées au diff par `DEV_VERIFIER` (rouge
+  « ressources ») quand le plan du chantier porte `ressources`.
+- **Ordonnanceur** pur (`ordonnanceur.ts`) : dépendances INTÉGRÉES, aucune gêne avec une tâche vivante non intégrée,
+  concurrence (défaut 3), budget. **Conduite** événementielle (`conduite.ts`) : battement `chantiers.balayage` et boucle
+  courte des réveils (`scheduled.ts` → `equipe/api.ts`) ; la fin d'un chantier enfant réveille son programme (`clore`).
+- **Réservations d'un enfant vert** TRANSFÉRÉES au programme au rapport (`transfererAuProgramme`), rendues à
+  l'intégration (`libererCles`).
+- **File d'intégration** : table `IntegrationFile` (index unique PARTIEL : une entrée active par dépôt+cible) ;
+  `integration.ts` (`avancerFile` : tête actuelle → `claude/integration/<cible>/<id>-<tour>` → fusion → CI du résultat →
+  avance fast-forward / carte pour main ; reprise par relecture de git ; `forgeGardee`) ; `integrateur.ts` (dépôt des
+  tâches vertes, renvoi à la MÊME session sous reçu, réentrée sur commit vert dans le périmètre, 3ᵉ renvoi prévenu, 6ᵉ = échec).
+- **Travailleurs** : `travailleurs.ts` — `agentRoute` (posé par `portsDevBranches`) : Claude Code cloud par défaut ;
+  Managed Agents seulement si le plan le veut ET `EQUIPE_MANAGED_AGENTS=1` (+ clé, agent, environnement), sinon REFUS.
+- **Outils** (Assistant IA et Adam, par la porte `chantiers/outils.ts`) : `lancer_un_programme`, `ou_en_est_programme`,
+  `consigne_programme`, `valider_programme`, `annuler_programme`.
+- **Tableau** : `travaux/tableau.ts` (`ProgrammeTableau`, famille PROGRAMME, signature qui suit `IntegrationFile`) +
+  `ecrans/missions/bloc-programme.tsx`.
+- **Gotchas** : la file n'ouvre pas de PR (une cible protégée qui refuse le fast-forward exige une PR existante) ; un
+  programme ne déploie jamais ; l'annulation d'une session cloud est impossible (dit), Managed Agents : `user.interrupt`.
+
 ## C2 (2026-11-01) — connecteurs des chantiers de développement [V]
 
 - **Contract** `src/platform/dev/ports.ts` (zero import, L0 socle): `AgentDeveloppeur` (Claude Code), `ForgeGit` (GitHub),

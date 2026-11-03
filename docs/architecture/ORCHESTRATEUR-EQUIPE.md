@@ -42,6 +42,8 @@ Direction ──parle──▶ Adam (Terra) ──outil lancer_un_programme─�
 
 | Brique | Fichier | Nature |
 |---|---|---|
+| Tableau | `src/lib/missions/travaux/tableau.ts` (`ProgrammeTableau`) + `modules/assistant-ia/ecrans/missions/bloc-programme.tsx` | tâches, travailleurs, dépendances, conflits, file, coûts par rôle — en temps réel (signature SSE) |
+| Intégrateur | `src/lib/missions/equipe/integrateur.ts` | dépose les tâches vertes, avance la file, renvoie au travailleur, rend les réservations |
 | Plan de programme, validateur | `src/lib/missions/equipe/programme.ts` | **pur** : cycles, périmètres vides, recouvrements, critères vérifiables, budget, regroupement des petites tâches liées |
 | Ressources nommées | `src/lib/missions/equipe/ressources.ts` | **pur** : `SCHEMA`, `CONTRAT`, `API`, `DEPENDANCES`, `GENERES`, `MODULE:<m>` déduites des globs ET vérifiées au diff |
 | Ordonnanceur | `src/lib/missions/equipe/ordonnanceur.ts` | **pur** : qui part maintenant (dépendances intégrées, aucune ressource commune avec une tâche non intégrée, concurrence, budget) |
@@ -49,7 +51,7 @@ Direction ──parle──▶ Adam (Terra) ──outil lancer_un_programme─�
 | Programme (service, conduite) | `src/lib/missions/equipe/service.ts`, `conduite.ts` | lancer, conduire (événementiel), consigne, état, annuler |
 | File d'intégration | `src/lib/missions/equipe/integration.ts` + table `IntegrationFile` | machine à états durable, sérialisée par cible (index unique partiel), reçus |
 | Port travailleur | `src/lib/missions/equipe/travailleurs.ts` | Claude Code cloud (défaut) ; Managed Agents derrière un interrupteur COUPÉ |
-| Outils d'Adam | `src/lib/missions/equipe/outils.ts` | `lancer_un_programme`, `ou_en_est_programme`, `consigne_programme`, `annuler_programme` |
+| Outils d'Adam | `src/lib/missions/equipe/outils.ts` | `lancer_un_programme`, `ou_en_est_programme`, `consigne_programme`, `valider_programme`, `annuler_programme` |
 
 ## 3. Les travailleurs — le choix, chiffré
 
@@ -136,9 +138,9 @@ connaît pas nos ressources nommées et ne renvoie pas le conflit à la session 
 
 ## 7. Testé / hypothèse
 
-**Testé** (base locale, ports factices — une forge de test adossée à un VRAI dépôt git local, un vrai `git merge`, une
-« CI » qui exécute vraiment le code fusionné) : voir la liste exacte des tests dans la décision 0059 § 9, à jour à chaque
-incrément.
+**Testé** (base locale, ports factices — une forge de test adossée à un VRAI dépôt git local, un vrai `git merge-tree`,
+une « CI » qui exécute vraiment le code fusionné, deux vrais processus et un SIGKILL) : la table exacte est dans la
+décision 0059 § 9 — les 7 preuves exigées y sont, chacune avec son test.
 
 **Hypothèses (non prouvées en réel)** : les plafonds d'usage de l'abonnement supportent 3 sessions cloud simultanées sur
 ce dépôt ; GitHub déclenche la CI sur `claude/integration/**` en temps utile (le motif `claude/**` de `ci.yml` le couvre,
