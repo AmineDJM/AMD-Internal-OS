@@ -21,6 +21,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+import { refusPourTables } from "@/platform/donnees/garde";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { hasGlobalView, type SessionUser } from "@/lib/rbac";
@@ -119,6 +120,10 @@ export async function executerSqlLectureSeule(user: SessionUser, brut: string, o
       const relations = relationsDuPlan(plan.map((p) => p["QUERY PLAN"]));
       const interdites = relations.filter((r) => !r.startsWith("fn:") && !TABLES_AUTORISEES.has(r));
       if (interdites.length) throw new Error(`table hors du bac à sable : ${interdites.join(", ")}`);
+      // D5 (décision 0057) : l'accès par base vaut aussi pour le SQL libre — une table d'une base fermée à la personne
+      // (application stricte) est refusée, avec la phrase de la garde.
+      const fermees = refusPourTables(relations.filter((r) => !r.startsWith("fn:")));
+      if (fermees.length) throw new Error(fermees.join(" "));
       const fonctions = relations.filter((r) => r.startsWith("fn:")).map((r) => r.slice(3));
       if (fonctions.some((f) => /^pg_|^dblink|^lo_/i.test(f))) throw new Error(`fonction hors du bac à sable : ${fonctions.join(", ")}`);
       const brutes = await tx.$queryRawUnsafe<Record<string, unknown>[]>(requete);

@@ -5,7 +5,7 @@ import { ROLE_LABELS, MODULE_LABELS } from "@/lib/labels";
 import { PageHeader } from "@/components/shared/page-header";
 import { BackLink } from "@/components/shared/back-link";
 import {
-  CATALOGUE_BASES, baseDe, enVigueur, historiqueBase, nomsDe, observationsRecentes, personnesActives, propresDonnees, quiVoitLaBase, reglagesVivants,
+  CATALOGUE_BASES, baseDe, enVigueur, historiqueBase, lireModeStrict, nomsDe, observationsRecentes, personnesActives, propresDonnees, quiVoitLaBase, reglagesVivants,
 } from "@/modules/acces-bases/api";
 import { ConsoleBases, type DetailBaseConsole } from "@/modules/acces-bases/ecrans/console-bases";
 
@@ -21,7 +21,7 @@ export default async function AccesParBasePage({ searchParams }: { searchParams:
   if (admin.role !== "SUPER_ADMIN") redirect("/admin");
   const { base: choisie } = await searchParams;
   const maintenant = new Date();
-  const [reglages, propres, personnes] = await Promise.all([reglagesVivants(), propresDonnees(), personnesActives()]);
+  const [reglages, propres, personnes, modeStrict] = await Promise.all([reglagesVivants(), propresDonnees(), personnesActives(), lireModeStrict()]);
 
   const bases = CATALOGUE_BASES.map((b) => ({
     cle: b.cle, nom: b.nom, nature: b.nature, sensibilite: b.sensibilite, tables: b.tables.length,
@@ -57,9 +57,10 @@ export default async function AccesParBasePage({ searchParams }: { searchParams:
       </BackLink>
       <PageHeader
         title="Accès par base"
-        description="Ouvrir, fermer ou mettre en lecture seule une base entière (une famille de tables), pour un rôle ou une personne — en plus des accès par module. Chaque réglage est daté, motivé, journalisé et se défait en un geste. Phase actuelle : la garde OBSERVE (elle compte ce qu'elle aurait refusé, sans rien bloquer) ; l'application stricte attend la décision de la Direction."
+        description="Ouvrir, fermer ou mettre en lecture seule une base entière (une famille de tables), pour un rôle ou une personne — en plus des accès par module. Chaque réglage est daté, motivé, journalisé et se défait en un geste. La garde compte toujours ce qu'elle aurait refusé ; elle ne refuse pour de bon que si l'application stricte est activée (désactivée par défaut)."
       />
       <ConsoleBases
+        modeStrict={modeStrict}
         bases={bases}
         detail={detail}
         personnes={personnes.map((p) => ({ id: p.id, nom: p.name }))}

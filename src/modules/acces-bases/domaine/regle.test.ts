@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { CATALOGUE_BASES } from "./catalogue.genere";
 import {
   baseDe, baseDuModele, droitEffectif, droitParModules, enVigueur, niveauPour, propresDonneesParDefaut,
-  refusVerrouillage, touchePlusRestrictifSuperAdmin,
+  refusVerrouillage, touchePlusRestrictifSuperAdmin, appliqueeSur, empreinteRefus, lireRefusBase,
 } from "./regle";
 import type { ReglageBase } from "./types";
 
@@ -104,5 +104,22 @@ describe("garde-fous", () => {
   it("ses propres données : oui par défaut pour Personnel, Paie, Recrutement", () => {
     expect(["personnel", "paie", "recrutement"].every(propresDonneesParDefaut)).toBe(true);
     expect(propresDonneesParDefaut("finances")).toBe(false);
+  });
+});
+
+describe("D4 — application stricte et refus clair", () => {
+  it("SENSIBLES : bases secrètes et confidentielles ; TOUTES : toutes les métier ; jamais une technique", () => {
+    expect(appliqueeSur("AUCUNE", baseDe("paie")!)).toBe(false);
+    expect(appliqueeSur("SENSIBLES", baseDe("paie")!)).toBe(true);
+    expect(appliqueeSur("SENSIBLES", baseDe("personnel")!)).toBe(true);
+    expect(appliqueeSur("SENSIBLES", baseDe("stocks")!)).toBe(false);
+    expect(appliqueeSur("TOUTES", baseDe("stocks")!)).toBe(true);
+    expect(appliqueeSur("TOUTES", baseDe("comptes-et-droits")!)).toBe(false);
+  });
+  it("l'écran reconnaît l'empreinte et nomme la base", () => {
+    expect(lireRefusBase(empreinteRefus("paie", "FERMEE"))?.phrase).toMatch(/« Paie & rémunérations » vous est fermée/);
+    expect(lireRefusBase(empreinteRefus("paie", "LECTURE_SEULE"))?.phrase).toMatch(/lecture seule/);
+    expect(lireRefusBase("1234567890")).toBeNull();
+    expect(lireRefusBase(undefined)).toBeNull();
   });
 });
