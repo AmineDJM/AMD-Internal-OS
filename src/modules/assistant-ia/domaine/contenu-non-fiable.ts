@@ -49,6 +49,9 @@ export const OUTILS_A_CONTENU_TIERS: Readonly<Record<string, string>> = {
   modifier_document: "document modifié dans l'Atelier",
   // J8 : la question d'une demande est écrite par le travail d'un COLLÈGUE — une donnée, jamais une consigne.
   mes_demandes_recues: "demandes reçues du travail d'un collègue",
+  // I3 (décision 0065) : l'OBSERVATION d'un fichier rend son texte — écrit par qui l'a rédigé, une donnée, jamais une consigne.
+  fichier: "fichier modifié, converti ou copié (son texte observé)",
+  observer: "fichier observé (son texte)",
 };
 
 /**

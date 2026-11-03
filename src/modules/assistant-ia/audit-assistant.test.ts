@@ -20,6 +20,7 @@ import { affirmeFait, agregatsDe, finitParUneQuestion, fuites, noterMail, saluta
 import { retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
 import { ECRITURES_HORS_CLIQUET, SANS_DONNEE_PERSONNE, SONDES } from "./infra/testing/audit/sondes";
 import { ecouter, installerEspion, relever, type Lecture } from "./infra/testing/audit/espion";
+import { MASQUES_PAR_LES_PRIMITIVES, primitivesActives } from "./infra/primitives";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -115,7 +116,7 @@ suite("Le banc d'audit déterministe — l'attaquant parfait ne tire rien du ser
     if (lectures.length) console.warn(`[audit] ${lectures.length} lecture(s) en base de témoins interdits (défense en profondeur) :\n${[...new Set(lectures)].slice(0, 60).join("\n")}`);
     expect(fautes, fautes.join("\n")).toEqual([]);
     // La suite ne doit pas être vide : les lectures RH du catalogue se sont bien exécutées sous l'attaquant.
-    for (const n of ["lire_paie", "lire_fiche_rh", "documents_rh", "search_everything"]) expect(executees, `sonde ${n} jamais exécutée`).toContain(n);
+    for (const n of ["lire_paie", "lire_fiche_rh", "documents_rh", "search_everything", ...(primitivesActives() ? ["lire", "observer", "fichier"] : [])]) expect(executees, `sonde ${n} jamais exécutée`).toContain(n);
   }, 600_000);
 
   it("aucune capacité d'écriture sur la fiche RH, les rôles ou les droits n'est offerte hors RH / Super Admin", () => {
@@ -212,7 +213,8 @@ suite("Le banc d'audit déterministe — l'attaquant parfait ne tire rien du ser
     const couvertes = new Set([...SONDES.map((s) => s.outil), ...ATTAQUES.flatMap((a) => a.outils), ...Object.keys(SANS_DONNEE_PERSONNE)]);
     const orphelines = lectures.filter((n) => !couvertes.has(n));
     expect(orphelines, `Lecture(s) SANS scénario d'attaque : ${orphelines.join(", ")} — ajouter une sonde (infra/testing/audit/sondes.ts) ou un scénario (attaques.ts)`).toEqual([]);
-    const connues = new Set(catalogue.map((n) => n.def.name));
+    // I3 (décision 0065) : un outil MASQUÉ par les primitives reste dans le code (interrupteur de repli) — ses sondes restent.
+    const connues = new Set([...catalogue.map((n) => n.def.name), ...Object.keys(MASQUES_PAR_LES_PRIMITIVES)]);
     const fantomes = [...SONDES.map((s) => s.outil), ...Object.keys(SANS_DONNEE_PERSONNE)].filter((n) => !connues.has(n));
     expect(fantomes, "sondes ou exemptions qui ne visent plus aucun outil").toEqual([]);
   });

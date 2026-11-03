@@ -39,10 +39,10 @@ export const ATTEINTS_PAR_LES_TESTS_SEULS: Readonly<Record<string, string>> = {
 };
 
 export const PLAFONDS = {
-  /** jscpd : nombre de clones dans `src/` (hors tests). Avant le lot : 1 506. Ramené au lot J2 (30/10) : coque commune des panneaux de l'Assistant IA ; 1 437 à la fusion J0 + J2. */
-  clones: 1437,
-  /** jscpd : lignes dupliquées dans `src/` (hors tests). Avant le lot : 13 719. Mesuré à la fusion J0 + J2 (30/10) : 12 959. */
-  lignesDupliquees: 12959,
+  /** jscpd : nombre de clones dans `src/` (hors tests). Avant le lot : 1 506. Ramené au lot J2 (30/10) : coque commune des panneaux de l'Assistant IA ; 1 437 à la fusion J0 + J2 ; 1 435 au lot I3 (03/11, la sélection d'un établissement partagée par l'annuaire et la vue `etablissements`). */
+  clones: 1435,
+  /** jscpd : lignes dupliquées dans `src/` (hors tests). Avant le lot : 13 719. Mesuré à la fusion J0 + J2 (30/10) : 12 959 ; 12 949 au lot I3 (03/11). */
+  lignesDupliquees: 12949,
 } as const;
 
 const RACINE = process.cwd();

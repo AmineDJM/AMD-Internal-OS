@@ -4,6 +4,7 @@ import { getAccess } from "@/lib/rbac";
 import { outilsV1 } from "./outils-v1";
 import { outilConversationsPassees } from "./conversations/outil";
 import { REGLES } from "./contexte";
+import { estMasqueParLesPrimitives } from "./primitives";
 import {
   CONSIGNE_CONTENU_NON_FIABLE, encadrerNonFiable, neutraliser, NOM_EVOQUANT_UN_TIERS, OUTILS_A_CONTENU_TIERS,
   OUTILS_INTERNES_NOMMES, sortiePourModele,
@@ -46,7 +47,8 @@ describe("cliquet : tout outil qui ramène un contenu tiers est classé", () => 
     const nonClasses = noms.filter((n) => NOM_EVOQUANT_UN_TIERS.test(n) && !(n in OUTILS_A_CONTENU_TIERS) && !OUTILS_INTERNES_NOMMES.includes(n));
     expect(nonClasses, `Outils non classés (contenu tiers ou interne ?) : ${nonClasses.join(", ")}`).toEqual([]);
     // Et aucune entrée morte : un nom classé qui n'existe plus ne protège rien.
-    const morts = [...Object.keys(OUTILS_A_CONTENU_TIERS), ...OUTILS_INTERNES_NOMMES].filter((n) => !noms.includes(n));
+    // I3 (décision 0065) : un outil MASQUÉ par les primitives garde sa classe (il revient avec `ADAM_PRIMITIVES=0`).
+    const morts = [...Object.keys(OUTILS_A_CONTENU_TIERS), ...OUTILS_INTERNES_NOMMES].filter((n) => !noms.includes(n) && !estMasqueParLesPrimitives(n));
     expect(morts).toEqual([]);
   });
 

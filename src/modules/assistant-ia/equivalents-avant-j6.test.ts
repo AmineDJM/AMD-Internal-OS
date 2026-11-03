@@ -5,6 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 import AVANT from "./infra/equivalents-avant-j6.json";
 import { porteOuverte, registreDesCapacites } from "./infra/capacites";
 import { outilsV1 } from "./infra/outils-v1";
+import { couvertParUnePrimitive } from "./infra/primitives";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -61,7 +62,8 @@ describe("aucune régression de capacité — avant J6 → après", () => {
     const sa = personne("SUPER_ADMIN", await getAccess("__avant_j6_SUPER_ADMIN", "SUPER_ADMIN"));
     const noms = new Set(outilsV1(sa, []).map((o) => o.def.name));
     const propres = LIGNES.flatMap(([, l]) => l.apres.filter((x) => x.startsWith("outil:")).map((x) => x.slice(6)));
-    for (const n of [...new Set([...propres, ...LECTURES_AVANT])]) expect(noms.has(n), n).toBe(true);
+    // I3 (décision 0065) : masqué par une primitive offerte à sa place = aucune régression de capacité.
+    for (const n of [...new Set([...propres, ...LECTURES_AVANT])]) expect(noms.has(n) || couvertParUnePrimitive(n, noms), n).toBe(true);
   });
 
   it.skipIf(!dbOk)("la porte de chaque équivalent s'ouvre à chaque rôle que la porte d'Adam laissait passer", async () => {

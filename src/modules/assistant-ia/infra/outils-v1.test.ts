@@ -9,6 +9,7 @@ import { OPERATIONS_IA } from "./operations";
 import { capacitesOffertes } from "./capacites";
 import { CATALOGUE_EXPORTS } from "@/platform/ia/exports";
 import { ecrituresAdam, lecturesAdam } from "./adam/outils-adam";
+import { estMasqueParLesPrimitives, OUTILS_PRIMITIVES, primitivesActives } from "./primitives";
 
 /**
  * LES OUTILS V1 SUR LA VRAIE BASE DE TEST (Q17) — sans Prisma simulé.
@@ -68,7 +69,9 @@ describe("outils V1", () => {
       // « Mes notes » (décision 0026) : lire, et PROPOSER des modifications que la personne accepte.
       "lire_notes", "ajouter_note", "modifier_note", "cocher_note", "deplacer_note", "supprimer_note", "creer_page", "renommer_page",
       ...OPERATIONS_IA.map((o) => o.nom),
-    ].sort());
+      // I3 (décision 0065) — les primitives ; ce qu'elles rendent inutile est MASQUÉ (`ADAM_PRIMITIVES=0` : la liste d'avant).
+      ...(primitivesActives() ? OUTILS_PRIMITIVES : []),
+    ].filter((n) => !estMasqueParLesPrimitives(n)).sort());
     expect(new Set(noms).size).toBe(noms.length);
   });
 
@@ -82,7 +85,7 @@ describe("outils V1", () => {
     // A2 (décision 0055) : l'auteur est Super Admin — la conversation reçoit en plus les fonctions d'Adam (lui seul).
     const adam = [...lecturesAdam(auteur), ...ecrituresAdam(auteur, [], "")].map((o) => o.def.name);
     expect(adam.length).toBeGreaterThan(90);
-    expect([...avec].sort()).toEqual([...sans, ...capacites, "corriger_carte", ...exports, ...adam].sort());
+    expect([...avec].sort()).toEqual([...sans, ...capacites, "corriger_carte", ...exports, ...adam].filter((n) => !estMasqueParLesPrimitives(n)).sort());
     expect(sans.filter((n) => n.startsWith("exporter_"))).toEqual([]);
     expect(new Set(avec).size).toBe(avec.length);
     expect(avec).toEqual(expect.arrayContaining(["task__createTask", "regulatory__createRegulatoryProduct", "admin-request__createRequest", "hr__requestLeave"]));

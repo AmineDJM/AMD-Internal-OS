@@ -1,0 +1,108 @@
+{
+  "modele": "(défaut du produit)",
+  "coutTotalUsd": 0.217026,
+  "resultats": [
+    {
+      "mode": "primitives",
+      "id": "PRODUITS",
+      "demande": "Quels sont nos produits commercialisés en infectiologie ?",
+      "ms": 6316,
+      "coutUsd": 0.019953,
+      "appels": 2,
+      "reponse": "Deux produits sont commercialisés en infectiologie :\n- [Amoxil 1 g](/produits/cmw1bdvnf000396bs0rm38qi2)\n- [Azitrom 500 mg](/produits/cmw1bdvnm000796bsfgjivh9m)",
+      "outils": [
+        "Données lues"
+      ],
+      "fichiers": []
+    },
+    {
+      "mode": "primitives",
+      "id": "ANNUAIRE",
+      "demande": "Copie l'annuaire des pharmacies d'Oran en Excel, ajoute une colonne statut et range-le dans ton Drive.",
+      "ms": 7944,
+      "coutUsd": 0.025918,
+      "appels": 3,
+      "reponse": "La copie Excel est rangée dans mon Drive, dans **Copies / Annuaires**. Elle contient 3 pharmacies et une colonne « statut » vide.\n\n[Ouvrir le fichier](/drive/cmw1be4wx001896bsrshvubxa)",
+      "outils": [
+        "Données lues",
+        "Fichier produit"
+      ],
+      "fichiers": [
+        {
+          "nom": "Annuaire pharmacies Oran.xlsx",
+          "dossier": "Annuaires",
+          "espace": "Espace d'Adam",
+          "versions": 1
+        }
+      ]
+    },
+    {
+      "mode": "primitives",
+      "id": "WORD",
+      "demande": "Convertis le Word « Convocation comité » en PDF et remplace la date par le 20 novembre 2026.",
+      "ms": 13608,
+      "coutUsd": 0.048368,
+      "appels": 5,
+      "reponse": "La date a été remplacée par le **20 novembre 2026** dans une copie, puis le document a été converti en PDF. L’original est inchangé.\n\n[Télécharger le PDF](/drive/cmw1bef5p002e96bsad748ori)",
+      "outils": [
+        "Document ouvert dans l'Atelier",
+        "Fichier modifié"
+      ],
+      "fichiers": [
+        {
+          "nom": "Convocation comité - 20 novembre 2026.pdf",
+          "dossier": "Copies",
+          "espace": "Espace d'Adam",
+          "versions": 1
+        },
+        {
+          "nom": "Convocation comité - 20 novembre 2026.docx",
+          "dossier": "Copies",
+          "espace": "Espace d'Adam",
+          "versions": 2
+        }
+      ]
+    },
+    {
+      "mode": "avant",
+      "id": "PRODUITS",
+      "demande": "Quels sont nos produits commercialisés en infectiologie ?",
+      "ms": 9283,
+      "coutUsd": 0.041798,
+      "appels": 4,
+      "reponse": "Je ne peux pas confirmer de produit commercialisé en infectiologie à partir du catalogue consulté. Il contient deux dossiers de **posaconazole** en infectiologie et réanimation, mais tous deux sont au stade de pré-soumission, et non indiqués comme commercialisés.",
+      "outils": [
+        "Catalogue consulté",
+        "Recherche effectuée"
+      ],
+      "fichiers": []
+    },
+    {
+      "mode": "avant",
+      "id": "ANNUAIRE",
+      "demande": "Copie l'annuaire des pharmacies d'Oran en Excel, ajoute une colonne statut et range-le dans ton Drive.",
+      "ms": 8842,
+      "coutUsd": 0.047533,
+      "appels": 3,
+      "reponse": "La copie de « Annuaire pharmacies Oran.xlsx » est prête et attend votre confirmation. Je pourrai ensuite ajouter la colonne « Statut » à la copie.\n\nAvertissements : écriture interne réversible ; l’ancien emplacement est journalisé pour permettre l’annulation.",
+      "outils": [
+        "Recherche effectuée",
+        "Copier éléments du Drive (préparé)"
+      ],
+      "fichiers": []
+    },
+    {
+      "mode": "avant",
+      "id": "WORD",
+      "demande": "Convertis le Word « Convocation comité » en PDF et remplace la date par le 20 novembre 2026.",
+      "ms": 5158,
+      "coutUsd": 0.033456,
+      "appels": 2,
+      "reponse": "Amine, quel fichier Word souhaitez-vous modifier et convertir : **« Convocation comité.docx »** ou **« Convocation comité - 20 novembre 2026.docx »** ?",
+      "outils": [
+        "Document ouvert dans l'Atelier"
+      ],
+      "fichiers": []
+    }
+  ]
+}

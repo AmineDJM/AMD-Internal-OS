@@ -36,6 +36,18 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   seul Super Admin (rôle principal, hors Vue exacte) — lectures dans la conversation, écritures par carte `adam_sa_op` exécutées
   à la confirmation sous le journal des effets ; consigne `CONSIGNE_ADAM_SA` ; inventaire `docs/assistant/adam-inventaire.md`.
 
+## Les primitives — lire, produire, fichier, observer ; l'espace d'Adam (lot I3, décision 0065)
+
+- `infra/primitives/` : `lire` (vues déclarées : produits, établissements, missions, tâches, demandes — portée = la clause de
+  l'écran, obligatoire par type ; vue fermée = refus qui nomme le droit), `produire` (xlsx/csv d'un jeu, docx/pdf d'un HTML
+  libre assaini, dans l'espace d'Adam), `fichier` (nouvelle version Drive, conversion, copie — annulable K10), `observer`
+  (le fichier tel que la personne le verra). Règles pures : `domaine/primitives/` (vues, observation, HTML).
+- Interrupteur de repli : `ADAM_PRIMITIVES=0` (catalogue d'avant à l'identique). Masqués quand actif :
+  `MASQUES_PAR_LES_PRIMITIVES` (`infra/primitives/index.ts`).
+- Espace d'Adam : `src/lib/drive/espace-adam.ts` (pur), `src/lib/actions/internes/primitives/` (écriture, produits, Office).
+- Tests : `domaine/primitives/primitives.test.ts`, `primitives-i3.test.ts` ; rejeu au vrai modèle :
+  `scripts/bench/i3-primitives/rejouer.ts`.
+
 ## Consommation précise — jetons et dollars (lot K8, décision 0035)
 
 - **Grille** datée par modèle et par type de jeton : `src/lib/models/tarifs.ts` (pure ; vue du socle
