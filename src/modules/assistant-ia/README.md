@@ -405,6 +405,21 @@ avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `i
   semis `annuaire-marketing-semis.ts` ; personas `marketing` (Nesrine BOUDIAF) et `delegue_ouest` (Farid ZEROUAL, hors
   secteur). Suite exécutée contre la base : `annuaire-terrain.test.ts`.
 
+## Doublons de médecins et demandes de stock (lot T2 bis, décision 0062)
+
+Réponses de la Direction du 03/11 :
+- **Doublons de médecins.** La lecture `doublons_medecins` est réservée au Super Admin. Elle renvoie les propositions de
+  `referentiels` (`proposerFusionsMedecins`, pur) et le lien `/annuaires/medecins/doublons`. Sur cette page, le Super Admin
+  tranche : ✓ `fusionnerMedecinsEnDouble` (réversible K10) ou ✗ `ecarterFusionMedecin` (empreinte : la proposition revient
+  si une fiche change). Les deux actions sont non appelables par l'assistant
+  (`ACTIONS_HUMAINES`). Adam ne fusionne jamais une fiche médecin.
+- **Stocks** (`infra/operations/stocks-terrain.ts`) :
+  - `demande_etat_stock` : demande formelle aux KAM qui couvrent. Ouverte au marketing (`MEDICAL_PROMOTION_MANAGER`,
+    `PRODUCT_MANAGER`), aux opérations, au National Sales et à la Direction, selon la règle `canRequestStockState`.
+    Le délégué reçoit `REFUS_DEMANDE_STOCK`, y compris par `demander_au_terrain`.
+  - `releve_stock` : le délégué relève lui-même un état de stock (produit de sa gamme, lieu de ses secteurs).
+- **Banc** : ANN-19, ANN-20, TER-08, TER-09, TER-10 (40 tâches T2 au total).
+
 ## Documents, juridique et Drive (lot T1, décision 0053)
 
 « Ranger parfaitement les documents à leur place, convertir, modifier, checker le Drive, nous donner des documents. »

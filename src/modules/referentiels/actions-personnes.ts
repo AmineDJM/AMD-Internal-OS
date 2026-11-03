@@ -21,7 +21,7 @@ import { MODULE_JOURNAL_REFONTE, RefusFusionPersonne, annulerFusionPersonnes, ec
 
 const PATHS = ["/personnes/doublons", "/admin/refonte-donnees"];
 
-async function superAdmin() {
+async function requireSuperAdmin() {
   const user = await requireUser();
   return user.role === "SUPER_ADMIN" ? user : null;
 }
@@ -32,7 +32,7 @@ const refus = (e: unknown): ActionResult => {
 };
 
 export async function fusionnerDoublonPersonne(doublonId: string, gardeeId: string): Promise<ActionResult> {
-  const user = await superAdmin();
+  const user = await requireSuperAdmin();
   if (!user) return { ok: false, error: "Réservé au Super Admin." };
   try {
     const r = await prisma.$transaction((tx) => fusionnerPersonnes(tx, { doublonId, gardeeId, parId: user.id }));
@@ -48,7 +48,7 @@ export async function fusionnerDoublonPersonne(doublonId: string, gardeeId: stri
 }
 
 export async function ecarterDoublonPersonne(doublonId: string): Promise<ActionResult> {
-  const user = await superAdmin();
+  const user = await requireSuperAdmin();
   if (!user) return { ok: false, error: "Réservé au Super Admin." };
   try {
     await ecarterDoublon(prisma, { doublonId, parId: user.id });
@@ -61,7 +61,7 @@ export async function ecarterDoublonPersonne(doublonId: string): Promise<ActionR
 }
 
 export async function defaireFusionPersonne(doublonId: string): Promise<ActionResult> {
-  const user = await superAdmin();
+  const user = await requireSuperAdmin();
   if (!user) return { ok: false, error: "Réservé au Super Admin." };
   try {
     const r = await prisma.$transaction((tx) => annulerFusionPersonnes(tx, { doublonId, parId: user.id }));
@@ -74,7 +74,7 @@ export async function defaireFusionPersonne(doublonId: string): Promise<ActionRe
 }
 
 export async function basculerDoubleEcriturePersonnes(actif: boolean): Promise<ActionResult> {
-  const user = await superAdmin();
+  const user = await requireSuperAdmin();
   if (!user) return { ok: false, error: "Réservé au Super Admin." };
   await prisma.appSetting.upsert({
     where: { id: "global" },

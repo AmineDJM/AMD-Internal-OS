@@ -182,8 +182,14 @@ suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis a
     expect(sansTel).not.toMatch(/TOUATI/);
     // Hors secteur : ni la fiche, ni la visite (ni son compte rendu) d'un autre panel.
     expect(JSON.stringify(await lire("annuaire_terrain", u.delegue_ouest, { nom: "MANSOURI" }))).not.toMatch(/0661/);
-    const visitesOuest = JSON.stringify(await lire("visites_terrain", u.delegue_ouest, { medecin: "MANSOURI", jours: 365 }));
+    const visitesOuest = JSON.stringify(await lire("visites_terrain", u.delegue_ouest, { delegue: "Yanis HAMDI", jours: 365 }));
     expect(visitesOuest).not.toContain(TEMOIN_VISITE);
+    // Régression du banc réel (MKT-07) : « moi », son propre nom, une date illisible — jamais un zéro silencieux.
+    for (const e of [{ delegue: "moi" }, { delegue: "Yanis HAMDI", jours: 30 }, { depuis: "03/10", jours: 30 }]) {
+      expect((await lire("visites_terrain", u.delegue, e)).totalVisites, JSON.stringify(e)).toBe(4);
+    }
+    expect((await lire("visites_terrain", u.delegue, { delegue: "Personne INCONNUE" })).statut).toBe("INTROUVABLE");
+    expect((await lire("visites_terrain", u.delegue_ouest, { medecin: "Rachid MANSOURI" })).statut).toBe("INTROUVABLE");
     const derniere = await lire("visites_terrain", u.superadmin, { medecin: "Rachid MANSOURI", jours: 365 });
     expect(JSON.stringify(derniere.parMedecin)).toMatch(/Yanis HAMDI/);
     expect(lecture("visites_terrain").allowed(u.commercial)).toBe(false);
@@ -199,9 +205,83 @@ suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis a
     expect(hep).toMatchObject({ totalDzd: 735_000, periodePrecedenteDzd: 215_000 });
     expect(lecture("depenses_marketing").allowed(u.commercial)).toBe(false);
   }, 60_000);
+
+  it("T2 bis (décision 0062) — les doublons de médecins : proposés au Super Admin seul, jamais fusionnés par l'assistant", async () => {
+    const l = lecture("doublons_medecins");
+    expect(l.allowed(u.superadmin)).toBe(true);
+    for (const p of ["marketing", "delegue", "commercial"] as PersonaCle[]) expect(l.allowed(u[p]), p).toBe(false);
+    const avant = await prisma.medicalDoctor.count({ where: { archivedAt: { not: null } } });
+    const r = JSON.stringify(await lire("doublons_medecins", u.superadmin, { nom: "KHELIF" }));
+    expect(r).toMatch(/KHELIF/);
+    expect(r).toContain("/annuaires/medecins/doublons");
+    // Lire n'est pas fusionner : aucune fiche archivée, aucune décision prise.
+    expect(await prisma.medicalDoctor.count({ where: { archivedAt: { not: null } } })).toBe(avant);
+    // Banc réel (ANN-20) : la fusion d'un doublon de PERSONNE, gardée par le Super Admin, était offerte au marketing.
+    const { registreDesCapacites, porteOuverte } = await import("./infra/capacites");
+    const fusionPersonne = registreDesCapacites().parId.get("personnes-actions:fusionnerDoublonPersonne")!;
+    expect(porteOuverte(u.marketing, fusionPersonne)).toBe(false);
+    expect(porteOuverte(u.superadmin, fusionPersonne)).toBe(true);
+    // Ni geste ni capacité de fusion de médecins offerts à l'assistant, même au Super Admin.
+    const noms = outilsOperations(u.superadmin, []).map((o) => o.def.name);
+    expect(noms.some((n) => /fusionnerMedecins|ecarterFusion/i.test(n))).toBe(false);
+  }, 60_000);
+
+  it("T2 bis — la demande d'état de stock : marketing oui, délégué refusé ; le délégué relève lui-même son stock", async () => {
+    const { peutPiloterDemandesStocks } = await import("@/lib/queries/demande-stocks");
+    const { creerDemandeStocks } = await import("@/lib/actions/demande-stocks-actions");
+    const { REFUS_DEMANDE_STOCK } = await import("@/lib/stocks/scopes");
+    const { RELEVE_STOCK } = await import("./infra/operations/stocks-terrain");
+    expect(peutPiloterDemandesStocks(u.marketing)).toBe(true);
+    expect(peutPiloterDemandesStocks(u.delegue)).toBe(false);
+    const fd = new FormData();
+    fd.set("titre", "Banc T2 bis — refus attendu");
+    const { resultat: refus } = await executerHorsRequete(u.delegue, "banc-t2", () => creerDemandeStocks(fd));
+    expect(refus).toEqual({ ok: false, error: REFUS_DEMANDE_STOCK });
+    expect(await prisma.stockCountRequest.count({ where: { createdById: u.delegue.id } })).toBe(0);
+
+    // Le relevé : produit de SA gamme, lieu de SES secteurs, une carte, puis l'action de l'écran.
+    expect(RELEVE_STOCK.ouverte(u.delegue)).toBe(true);
+    const p = await RELEVE_STOCK.proposer({ produit: "Daclavir", etablissement: "pharmacie Ibn Sina", quantite: 40 }, u.delegue);
+    expect("carte" in p, JSON.stringify(p)).toBe(true);
+    if (!("carte" in p)) return;
+    expect(p.carte.title).toMatch(/Daclavir.*Ibn Sina/);
+    const r = await confirmerOperation(u.delegue, RELEVE_STOCK.nom, p.args);
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    const s = await prisma.stockSnapshot.findFirst({ where: { quantity: 40, productId: p.args.productId!, annex: { institutionId: p.args.institutionId! } } });
+    expect(s).not.toBeNull();
+    // Le contournement fermé : « demander au terrain » un état de stock, pour un délégué, est le même refus.
+    const { DEMANDER_AU_TERRAIN } = await import("./infra/operations/demandes-terrain");
+    const { DEMANDE_ETAT_STOCK } = await import("./infra/operations/stocks-terrain");
+    const contour = await DEMANDER_AU_TERRAIN.proposer({ destinataires: [adresseDe("delegue_ouest", ETIQUETTE)], question: "Quel est l'état de stock de Daclavir ?" }, u.delegue);
+    expect(contour).toEqual({ erreur: REFUS_DEMANDE_STOCK });
+    expect(await DEMANDE_ETAT_STOCK.proposer({ produits: ["Daclavir"] }, u.delegue)).toEqual({ erreur: REFUS_DEMANDE_STOCK });
+    // Le marketing : la carte nomme le KAM qui couvre ; confirmée, la demande formelle existe, Yanis destinataire.
+    const dm = await DEMANDE_ETAT_STOCK.proposer({ produits: ["Daclavir"], etablissements: ["pharmacie Ibn Sina"], echeance: "vendredi" }, u.marketing);
+    expect("carte" in dm, JSON.stringify(dm)).toBe(true);
+    if (!("carte" in dm)) return;
+    expect(JSON.stringify(dm.carte.fields)).toMatch(/Yanis HAMDI/);
+    const rm = await confirmerOperation(u.marketing, DEMANDE_ETAT_STOCK.nom, dm.args);
+    expect(rm.ok, JSON.stringify(rm)).toBe(true);
+    const dem = await prisma.stockCountRequest.findFirstOrThrow({ where: { createdById: u.marketing.id }, orderBy: { createdAt: "desc" }, select: { hopitaux: { select: { name: true } }, destinataires: { select: { kam: { select: { name: true } } } } } });
+    expect(dem.hopitaux.map((h) => h.name)).toContain("Pharmacie Ibn Sina");
+    expect(dem.destinataires.map((d) => d.kam.name)).toContain("Yanis HAMDI");
+    // Un lieu hors de ses secteurs : jamais proposé.
+    const hors = await RELEVE_STOCK.proposer({ produit: "Daclavir", etablissement: "Pharmacie du Port", quantite: 3 }, u.delegue);
+    expect("erreur" in hors, JSON.stringify(hors)).toBe(true);
+  }, 60_000);
 });
 
 describe("Lot T2 — les règles pures et le catalogue du banc", () => {
+  it("T2 bis — qui lance une demande d'état de stock (Direction, 03/11)", async () => {
+    const { canRequestStockState } = await import("@/lib/stocks/scopes");
+    const v = (role: string, extra: Record<string, boolean> = {}) => canRequestStockState({ canSeeSupplyChain: false, hasGlobalView: false, roles: [role], ...extra });
+    for (const r of ["NATIONAL_SALES", "MEDICAL_PROMOTION_MANAGER", "PRODUCT_MANAGER", "OPERATIONS_DIRECTOR"]) expect(v(r), r).toBe(true);
+    expect(v("MEDICAL_DELEGATE")).toBe(false);
+    expect(v("MEDICAL_DELEGATE", { hasGlobalView: true })).toBe(false);
+    expect(v("REGULATORY")).toBe(false);
+    expect(v("X", { isSuperAdmin: true })).toBe(true);
+  });
+
   it("les mots d'un nom, la clé de doublon, les périodes, les agrégats", () => {
     expect(motsDuNom("le Dr Karima BENSALEM")).toEqual(["Karima", "BENSALEM"]);
     expect(cleDeDoublon("Pharmacie Es-Salam", "Oran")).toBe(cleDeDoublon("PHARMACIE ES SALAM", "oran"));

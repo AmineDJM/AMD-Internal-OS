@@ -19,6 +19,7 @@ import { porteeGlobale, etablissementDansPortee, produitDansPortee } from "@/lib
 import { assurerLieuDeStock } from "@/lib/stocks/lieux";
 import { ecrireEtatDuJour } from "@/lib/stocks/etat-jour";
 import { sansBloquer } from "@/lib/journal";
+import { REFUS_DEMANDE_STOCK } from "@/lib/stocks/scopes";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -44,7 +45,7 @@ const jour = (d: Date) => d.toLocaleDateString("fr-FR", { timeZone: "Africa/Algi
  */
 export async function creerDemandeStocks(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutPiloterDemandesStocks(user)) return { ok: false, error: "Réservé à la Direction des opérations / au Super Admin." };
+  if (!peutPiloterDemandesStocks(user)) return { ok: false, error: REFUS_DEMANDE_STOCK };
 
   const titre = fdStr(formData, "titre");
   if (!titre) return { ok: false, error: "Donnez un titre à la demande." };
@@ -255,7 +256,7 @@ export async function saisirStocksDemande(formData: FormData): Promise<ActionRes
  */
 export async function relancerDemandeStocks(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutPiloterDemandesStocks(user)) return { ok: false, error: "Réservé à la Direction des opérations / au Super Admin." };
+  if (!peutPiloterDemandesStocks(user)) return { ok: false, error: REFUS_DEMANDE_STOCK };
   const demandeId = fdStr(formData, "demandeId");
   if (!demandeId) return { ok: false, error: "Demande manquante." };
   const cibles = formData.getAll("kamId").map(String).filter(Boolean);
@@ -291,7 +292,7 @@ export async function relancerDemandeStocks(formData: FormData): Promise<ActionR
 /** CLÔTURER — la demande ne se renseigne plus et sort de « Mon espace » des KAM. Les états envoyés restent. */
 export async function cloreDemandeStocks(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutPiloterDemandesStocks(user)) return { ok: false, error: "Réservé à la Direction des opérations / au Super Admin." };
+  if (!peutPiloterDemandesStocks(user)) return { ok: false, error: REFUS_DEMANDE_STOCK };
   const demandeId = fdStr(formData, "demandeId");
   if (!demandeId) return { ok: false, error: "Demande manquante." };
   const d = await prisma.stockCountRequest.findUnique({ where: { id: demandeId }, select: { id: true, title: true, status: true } });
@@ -310,7 +311,7 @@ export async function cloreDemandeStocks(formData: FormData): Promise<ActionResu
  */
 export async function supprimerDemandeStocks(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!peutPiloterDemandesStocks(user)) return { ok: false, error: "Réservé à la Direction des opérations / au Super Admin." };
+  if (!peutPiloterDemandesStocks(user)) return { ok: false, error: REFUS_DEMANDE_STOCK };
   const demandeId = fdStr(formData, "demandeId");
   if (!demandeId) return { ok: false, error: "Demande manquante." };
   const d = await prisma.stockCountRequest.findUnique({ where: { id: demandeId }, select: { id: true, title: true, createdById: true } });

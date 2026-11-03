@@ -250,3 +250,23 @@ export function defaultScope(role: UserRole, module: Module): AccessScope {
   };
   return assigned[module]?.includes(role) ? "ASSIGNED" : "ALL";
 }
+
+/**
+ * QUI LANCE UNE DEMANDE D'ÉTAT DE STOCK FORMELLE — décision de la Direction (03/11/2026, lot T2) : « ça peut être le
+ * marketing, ça peut être les opérations, ça peut être le National Sales Manager. Évidemment, ça peut pas être le
+ * délégué. Par contre, le délégué peut enregistrer de lui-même des stocks. » Les rôles NOMMÉS s'ajoutent à la chaîne
+ * d'approvisionnement (PCH) et à la vue globale : la Direction Marketing (chef de produit, responsable de la promotion
+ * médicale), le directeur des opérations, le National Sales. Le délégué médical, jamais — il RELÈVE ses stocks
+ * (`recordStockSnapshot`, sa portée), il ne les RÉQUISITIONNE pas.
+ */
+const ROLES_DEMANDE_STOCK = ["OPERATIONS_DIRECTOR", "NATIONAL_SALES", "MEDICAL_PROMOTION_MANAGER", "PRODUCT_MANAGER"] as const;
+
+/** Le refus, dit une fois : à qui revient la demande, et ce que le délégué fait, lui. */
+export const REFUS_DEMANDE_STOCK = "Lancer une demande d'état de stock revient au marketing, aux opérations, au National Sales et à la Direction. Un délégué ne la lance pas : il relève lui-même ses stocks (Stocks › relevé d'un hôpital ou d'une pharmacie de son secteur).";
+
+export function regleDemandeEtatStock(viewer: { canSeeSupplyChain: boolean; hasGlobalView?: boolean; isSuperAdmin?: boolean; roles?: readonly (string | null | undefined)[] }): boolean {
+  if (viewer.isSuperAdmin === true) return true;
+  const roles = (viewer.roles ?? []).filter((r): r is string => !!r);
+  if (roles[0] === "MEDICAL_DELEGATE") return false;
+  return viewer.hasGlobalView === true || viewer.canSeeSupplyChain || roles.some((r) => (ROLES_DEMANDE_STOCK as readonly string[]).includes(r));
+}

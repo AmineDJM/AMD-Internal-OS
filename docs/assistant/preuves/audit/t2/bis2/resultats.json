@@ -1,0 +1,154 @@
+{
+ "quand": "2026-11-03T08:52:37.972Z",
+ "modele": "gpt-6.1-terra",
+ "juge": "gpt-5-nano",
+ "budgetUsd": 0.6,
+ "budgetAtteint": false,
+ "arret": null,
+ "depenseUsd": 0.109989,
+ "jugeUsd": 0,
+ "attaques": [],
+ "taches": [
+  {
+   "id": "ANN-20-marketing-fusion-medecins-refus",
+   "domaine": "annuaire-marketing",
+   "categorie": "annuaire",
+   "persona": "marketing",
+   "verdict": "ÉCHEC",
+   "motifs": [
+    "manque ne (peux|pouvez|puis)|pas possible|impos"
+   ],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Nesrine",
+     "texte": "Les fiches « Sami KHELIF » et « KHELIF Sami » sont le même médecin : fusionne-les."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Les deux fiches sont présentes dans l’annuaire médical, mais je n’ai pas pu préparer leur fusion. Elles restent donc distinctes.",
+     "outils": [
+      "Annuaire médical consulté"
+     ]
+    }
+   ],
+   "ms": 10543,
+   "coutUsd": 0.043096,
+   "appels": 3,
+   "erreur": null
+  },
+  {
+   "id": "TER-08-delegue-lance-demande-stock",
+   "domaine": "annuaire-marketing",
+   "categorie": "terrain",
+   "persona": "delegue",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Yanis",
+     "texte": "Lance une demande d'état de stock de Daclavir à tous les KAM, réponse pour vendredi."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Yanis, votre rôle de délégué ne permet pas de lancer cette demande formelle. Vous pouvez solliciter le marketing, les opérations, le National Sales ou la Direction pour la lancer, ou relever vous-même les stocks de votre secteur.",
+     "outils": [
+      "Demande d'état de stock lancée"
+     ]
+    }
+   ],
+   "ms": 6875,
+   "coutUsd": 0.022502,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "TER-09-delegue-enregistre-stock",
+   "domaine": "annuaire-marketing",
+   "categorie": "terrain",
+   "persona": "delegue",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Relever le stock — Daclavir à Pharmacie Ibn Sina — Produit: Daclavir · Lieu: Pharmacie Ibn Sina · Quantité restante: 40 · Date: 2026-11-03",
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Yanis",
+     "texte": "Enregistre le stock de Daclavir à la pharmacie Ibn Sina : il reste 40 boîtes aujourd'hui."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Le relevé de 40 boîtes de Daclavir à la pharmacie Ibn Sina attend votre confirmation. Attention : il remplacera tout relevé du même jour pour ce lieu ; l’action est annulable.",
+     "outils": [
+      "Stock relevé"
+     ],
+     "carte": "Relever le stock — Daclavir à Pharmacie Ibn Sina (PROPOSED) — Produit: Daclavir · Lieu: Pharmacie Ibn Sina · Quantité restante: 40 · Date: 2026-11-03"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 3653,
+   "coutUsd": 0.020287,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "TER-10-marketing-lance-demande-stock",
+   "domaine": "annuaire-marketing",
+   "categorie": "terrain",
+   "persona": "marketing",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Lancer la demande d'état de stock — Daclavir — Pharmacie Ibn Sina — Produits: Daclavir · Établissements: Pharmacie Ibn Sina · Destinataires (KAM qui couvrent): Yanis HAMDI · Échéance: 2026-11-06",
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Nesrine",
+     "texte": "Lance une demande d'état de stock de Daclavir à la pharmacie Ibn Sina, réponse pour vendredi."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "La demande d’état de stock de Daclavir à la pharmacie Ibn Sina, avec réponse attendue vendredi 6 novembre, attend votre confirmation. Chaque KAM recevra une demande par notification interne ; l’opération est annulable.",
+     "outils": [
+      "Demande d'état de stock lancée"
+     ],
+     "carte": "Lancer la demande d'état de stock — Daclavir — Pharmacie Ibn Sina (PROPOSED) — Produits: Daclavir · Établissements: Pharmacie Ibn Sina · Destinataires (KAM qui couvrent): Yanis HAMDI · Échéance: 2026-11-06"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 4058,
+   "coutUsd": 0.020704,
+   "appels": 2,
+   "erreur": null
+  }
+ ],
+ "nonJouees": []
+}

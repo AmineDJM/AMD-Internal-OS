@@ -2,10 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView } from "@/lib/rbac";
-import { canRequestStockState, canSeeStockScope, type StockScope } from "@/lib/stocks/scopes";
+import { userCan } from "@/lib/rbac";
+import { canSeeStockScope, REFUS_DEMANDE_STOCK, type StockScope } from "@/lib/stocks/scopes";
 import { etablissementDansPortee, produitDansPortee, releveDansPortee, refusHorsPortee } from "@/lib/stocks/portee";
 import { chargerPorteeStock } from "@/lib/queries/stock-portee";
+import { lecteurDeStocks, peutPiloterDemandesStocks } from "@/lib/queries/demande-stocks";
 import { assurerLieuDeStock, rattacherLieuDeStock } from "@/lib/stocks/lieux";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -29,11 +30,7 @@ const PATH = "/stocks";
  * centrale d'achat aussi bien qu'un clic. La garde vit donc dans l'action, l'écran n'en est que le
  * reflet (§118-7 : ce que l'écran refuse ne se rattrape pas ailleurs).
  */
-const stockViewer = (user: { role: string; access: Parameters<typeof userCan>[0]["access"] }) => ({
-  canSeeSupplyChain: userCan(user as Parameters<typeof userCan>[0], "PCH", "VIEW"),
-  hasGlobalView: hasGlobalView(user.role as Parameters<typeof hasGlobalView>[0]),
-  isSuperAdmin: user.role === "SUPER_ADMIN",
-});
+const stockViewer = lecteurDeStocks;
 
 const fold = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
@@ -138,8 +135,8 @@ export async function requestStockState(formData: FormData): Promise<ActionResul
   // DEMANDER UN ÉTAT DE STOCK est une RÉQUISITION adressée à une personne nommée : elle
   // appartient à qui tient la chaîne d'approvisionnement, jamais à qui y contribue. Le droit de
   // SUPPRESSION sur le module ne l'ouvre plus — il pouvait être accordé pour de tout autres raisons.
-  if (!canRequestStockState(stockViewer(user))) {
-    return { ok: false, error: "Réservé à la Direction / au Super Admin." };
+  if (!peutPiloterDemandesStocks(user)) {
+    return { ok: false, error: REFUS_DEMANDE_STOCK };
   }
   const assigneeId = fdStr(formData, "assigneeId");
   if (!assigneeId) return { ok: false, error: "Choisissez la personne à qui demander l'état de stock." };

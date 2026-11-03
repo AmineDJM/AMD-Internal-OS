@@ -6,8 +6,9 @@ import {
   annuaireOuvertParConsole, peutAnnuaire, scopeMedicalDoctors, scopeMedicalVisits, userCan,
 } from "@/lib/rbac";
 import { lignesDepensesAdPro } from "@/modules/ad-pro/api";
+import { peutDeciderFusionMedecins, propositionsFusionMedecins } from "@/modules/referentiels/api";
 import {
-  agregerDepenses, bornesPeriode, motsDuNom, pourcentage, PERIODES, type AxeDepense, type Periode,
+  agregerDepenses, bornesPeriode, motsDuNom, plier, pourcentage, PERIODES, type AxeDepense, type Periode,
 } from "../../domaine/annuaire/analyse";
 
 /**
@@ -48,8 +49,9 @@ const wilaya = (w: string) => (w ? { OR: [{ wilaya: { equals: w, mode: "insensit
 
 /** Les praticiens que la personne voit : tout l'annuaire s'il lui est ouvert par la console, sinon sa portée (panel). */
 export function porteeMedecins(u: CurrentUser): Prisma.MedicalDoctorWhereInput {
-  if (annuaireOuvertParConsole(u, "MEDECINS", "VIEW")) return {};
-  return userCan(u, "MEDICAL", "VIEW") ? scopeMedicalDoctors(u) : { id: "__aucun__" };
+  // Une fiche ARCHIVÉE (supprimée de la feuille, ou absorbée par une fusion) n'est plus dans l'annuaire.
+  if (annuaireOuvertParConsole(u, "MEDECINS", "VIEW")) return { archivedAt: null };
+  return userCan(u, "MEDICAL", "VIEW") ? { AND: [scopeMedicalDoctors(u), { archivedAt: null }] } : { id: "__aucun__" };
 }
 export const voitEtablissements = (u: CurrentUser) => peutAnnuaire(u, "ETABLISSEMENTS", "VIEW") || peutAnnuaire(u, "PHARMACIENS", "VIEW");
 export const voitAnnuaire = (u: CurrentUser) => userCan(u, "MEDICAL", "VIEW") || annuaireOuvertParConsole(u, "MEDECINS", "VIEW") || voitEtablissements(u);
@@ -150,15 +152,34 @@ async function lireAnnuaire(entree: Record<string, unknown>, u: CurrentUser): Pr
 
 async function lireVisites(entree: Record<string, unknown>, u: CurrentUser): Promise<string> {
   const jours = Math.min(Math.max(nb(entree, "jours") ?? 30, 1), 730);
-  const depuis = str(entree, "depuis") ? new Date(str(entree, "depuis")) : new Date(Date.now() - jours * 86_400_000);
+  // Une date illisible (« 03/10 », « début octobre ») ne filtre pas tout en silence : on retombe sur `jours`.
+  // Seul AAAA-MM-JJ est lu : « 03/10 » donnait le 10 mars 2001 (le moteur JS devine), donc des mois de trop.
+  const dite = /^\d{4}-\d{2}-\d{2}/.test(str(entree, "depuis")) ? new Date(str(entree, "depuis")) : null;
+  const depuis = dite && !Number.isNaN(dite.getTime()) ? dite : new Date(Date.now() - jours * 86_400_000);
   const medecin = str(entree, "medecin");
   const del = str(entree, "delegue");
   const visibles = porteeMedecins(u);
+  // LE DÉLÉGUÉ DÉSIGNÉ (banc réel 02/11, MKT-07 : « aucune visite » rendu au délégué qui en avait 4) : « moi », ou son
+  // propre nom, c'est la personne elle-même ; un nom qui ne désigne aucun compte est DIT — jamais un zéro silencieux.
+  let delegues: string[] | null = null;
+  if (del) {
+    const mots = motsDuNom(del);
+    const moi = /^(moi|me|mes|moi-m[eê]me|self|je)$/i.test(del.trim()) || (mots.length > 0 && mots.every((m) => (u.name ?? "").toLowerCase().includes(m.toLowerCase())));
+    if (moi) delegues = [u.id];
+    else {
+      const us = mots.length ? await prisma.user.findMany({ where: { AND: mots.map((m) => ({ name: { contains: m, mode: "insensitive" as const } })) }, select: { id: true }, take: 10 }) : [];
+      if (!us.length) return JSON.stringify({ statut: "INTROUVABLE", raison: `Aucun délégué « ${del} » parmi les comptes : relis le nom, ou omets « delegue » pour tes propres visites.` });
+      delegues = us.map((x) => x.id);
+    }
+  }
+  if (medecin && !(await prisma.medicalDoctor.count({ where: { AND: [visibles, parMots(medecin)] } }))) {
+    return JSON.stringify({ statut: "INTROUVABLE", raison: `Aucun médecin « ${medecin} » dans l'annuaire visible par la personne (son panel, ou l'annuaire qui lui est ouvert).` });
+  }
   const where: Prisma.MedicalVisitWhereInput = { AND: [
     scopeMedicalVisits(u), { doctor: visibles }, { date: { gte: depuis, lte: new Date(Date.now() + (oui(entree, "aVenir") ? 365 : 0) * 86_400_000) } },
     oui(entree, "aVenir") ? {} : { status: "COMPLETED" },
     medecin ? { doctor: parMots(medecin) } : {},
-    del ? { delegate: { AND: motsDuNom(del).map((m) => ({ name: { contains: m, mode: "insensitive" as const } })) } } : {},
+    delegues ? { delegateId: { in: delegues } } : {},
   ] };
   const vs = await prisma.medicalVisit.findMany({
     where, orderBy: { date: "desc" }, take: 500,
@@ -212,8 +233,34 @@ async function lireDepenses(entree: Record<string, unknown>, u: CurrentUser): Pr
   });
 }
 
+/** Les fiches médecins en double, PROPOSÉES au Super Admin — jamais fusionnées par l'assistant (décision 0062). */
+async function lireDoublonsMedecins(entree: Record<string, unknown>, u: CurrentUser): Promise<string> {
+  if (!peutDeciderFusionMedecins(u)) return refus("Lecture indisponible.");
+  // « Y a-t-il un doublon de KHELIF ? » : les paires dont l'une des fiches porte tous les mots dits.
+  const mots = motsDuNom(typeof entree.nom === "string" ? entree.nom : "").map(plier);
+  const porte = (nom: string) => mots.every((m) => plier(nom).includes(m));
+  const ps = (await propositionsFusionMedecins(u)).filter((p) => !mots.length || porte(p.garde.name) || porte(p.absorbee.name));
+  return JSON.stringify({
+    total: ps.length,
+    propositions: ps.slice(0, 40).map((p) => ({
+      garder: p.garde.name, absorber: p.absorbee.name, raisons: p.raisons,
+      recoit: p.champsRecus, rattachesAbsorbee: p.absorbee.rattaches, rattachesGardee: p.garde.rattaches,
+      wilaya: p.garde.wilaya ?? p.absorbee.wilaya, specialite: p.garde.specialite ?? p.absorbee.specialite,
+    })),
+    lien: "/annuaires/medecins/doublons",
+    consigne: "Tu PROPOSES seulement : chaque fusion se décide par le Super Admin, d'un clic ✓ (fusionner, réversible) ou ✗ (écarter) "
+      + "sur la page « Fiches médecins en double » — donne son lien en Markdown. Tu ne fusionnes JAMAIS toi-même, et tu ne dis pas que c'est fait.",
+  });
+}
+
 export function lecturesAnnuaireTerrain(): PowerTool[] {
   return [
+    outil("doublons_medecins",
+      "LES FICHES MÉDECINS EN DOUBLE de l'annuaire, à proposer au Super Admin : pour chaque paire, la fiche gardée, la fiche absorbée, "
+      + "les champs reçus, ce qui est rattaché (visites, comptes rendus…). Pour « y a-t-il des doublons de médecins ? », "
+      + "« propose-moi les fusions de fiches médecins ». Le Super Admin tranche (✓ / ✗) sur la page des doublons, jamais l'assistant.",
+      { nom: { type: "string", description: "Facultatif : un nom de médecin (« KHELIF ») pour ne voir que ses doublons." } },
+      "Doublons de médecins proposés", (u) => peutDeciderFusionMedecins(u), lireDoublonsMedecins),
     outil("annuaire_terrain",
       "L'ANNUAIRE MÉDICAL ET PHARMACEUTIQUE : médecins (spécialité, établissement, téléphone, délégué, secteur, dernière visite) et "
       + "pharmacies / établissements (adresse, téléphone, SECTEURS et DÉLÉGUÉS QUI LES COUVRENT, BU). Filtres : `quoi` (medecin, pharmacie, "
@@ -234,7 +281,8 @@ export function lecturesAnnuaireTerrain(): PowerTool[] {
       + "`depuis` (AAAA-MM-JJ), `aVenir` (visites planifiées). Pour « quel délégué a vu le Dr X en dernier ? », « mes visites du mois », "
       + "« quel délégué a fait le plus de visites ? », « quelle part des médecins a été visitée ? ».",
       {
-        medecin: { type: "string" }, delegue: { type: "string" }, jours: { type: "number" }, depuis: { type: "string" }, aVenir: { type: "boolean" },
+        medecin: { type: "string" }, delegue: { type: "string", description: "Nom du délégué ; omis = toutes les visites visibles (un délégué : les siennes)." },
+        jours: { type: "number" }, depuis: { type: "string", description: "AAAA-MM-JJ." }, aVenir: { type: "boolean" },
       },
       "Visites consultées", (u) => userCan(u, "MEDICAL", "VIEW"), lireVisites),
     outil("depenses_marketing",

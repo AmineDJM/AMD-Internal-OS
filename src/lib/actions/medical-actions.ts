@@ -710,7 +710,10 @@ export async function updateDoctor(formData: FormData): Promise<ActionResult> {
       updatedById: user.id,
     },
   });
-  await reposerWilayaCode("MedicalDoctor", id); // double écriture des lieux (V2-D)
+  // Double écriture des lieux (V2-D) — seulement si le formulaire porte la wilaya ou la région, comme `updateInstitution`
+  // (T2 bis : le recalcul est une écriture SQL directe, que le journal des effets ne sait pas défaire — il bloquait
+  // l'annulation de toute correction d'un téléphone ou d'une spécialité).
+  if (formData.has("wilaya") || formData.has("region")) await reposerWilayaCode("MedicalDoctor", id);
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Promotion médicale",
     entityType: "DOCTOR", entityId: id, summary: `Médecin « ${name} » mis à jour`,
