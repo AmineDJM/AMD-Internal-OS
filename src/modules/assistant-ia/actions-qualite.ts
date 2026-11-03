@@ -1,5 +1,6 @@
 "use server";
 
+import { roleSuperAdmin } from "./domaine/profil-acces";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -17,7 +18,7 @@ import {
  */
 async function superAdmin() {
   const u = await requireUser();
-  return userCan(u, "ADMIN", "UPDATE") && u.role === "SUPER_ADMIN" ? u : null;
+  return userCan(u, "ADMIN", "UPDATE") && roleSuperAdmin(u) ? u : null;
 }
 const REFUS = { ok: false as const, error: "Réservé au Super Admin." };
 

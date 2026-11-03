@@ -1,3 +1,4 @@
+import { roleSuperAdmin } from "../domaine/profil-acces";
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { getCurrentUser } from "@/lib/session";
@@ -76,7 +77,7 @@ export function registreDesCapacites(outils: readonly OutilDecrit[] = []): Regis
 
 /** LA PORTE D'ÉCRAN : l'un des modules de la capacité est ouvert à la personne (Super Admin : tout). */
 export function porteOuverte(user: CurrentUser, cap: Capacite): boolean {
-  if (user.role === "SUPER_ADMIN") return true;
+  if (roleSuperAdmin(user)) return true;
   if (cap.superAdminSeul || cap.modules.length === 0) return false;
   const verbe = (cap.verbe ?? "VIEW") as Action;
   return cap.modules.some((m) => userCan(user, m as Module, verbe));

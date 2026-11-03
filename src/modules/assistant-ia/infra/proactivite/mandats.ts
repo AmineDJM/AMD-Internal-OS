@@ -1,3 +1,4 @@
+import { roleSuperAdmin } from "../../domaine/profil-acces";
 import { Prisma, type AssistantMandat, type AssistantSignal } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -68,7 +69,7 @@ export async function accorderMandat(user: CurrentUser, entree: Record<string, u
 
 /** Révoquer : la personne (le sien) ou le Super Admin (n'importe lequel). Immédiat. */
 export async function revoquerMandat(par: CurrentUser, id: string, now = new Date()): Promise<boolean> {
-  const where = par.role === "SUPER_ADMIN" ? { id } : { id, userId: par.id };
+  const where = roleSuperAdmin(par) ? { id } : { id, userId: par.id };
   const r = await prisma.assistantMandat.updateMany({ where: { ...where, statut: { in: ["ACTIF", "EN_ATTENTE_CONSOLE"] } }, data: { statut: "REVOQUE", revoqueLe: now, revoqueParId: par.id } });
   if (r.count) await recordAudit({ actorId: par.id, action: "UPDATE", module: MODULE_AUDIT, summary: `Mandat ${id} révoqué` });
   return r.count === 1;
@@ -76,7 +77,7 @@ export async function revoquerMandat(par: CurrentUser, id: string, now = new Dat
 
 /** L'accord de la console (Super Admin) pour une capacité sensible. */
 export async function approuverMandat(admin: CurrentUser, id: string, now = new Date()): Promise<boolean> {
-  if (admin.role !== "SUPER_ADMIN") return false;
+  if (!roleSuperAdmin(admin)) return false;
   const r = await prisma.assistantMandat.updateMany({ where: { id, statut: "EN_ATTENTE_CONSOLE", expireLe: { gt: now } }, data: { statut: "ACTIF", consoleParId: admin.id, consoleLe: now } });
   if (r.count) await recordAudit({ actorId: admin.id, action: "VALIDATE", module: MODULE_AUDIT, summary: `Mandat ${id} approuvé par la console` });
   return r.count === 1;

@@ -1,3 +1,4 @@
+import { roleSuperAdmin } from "../domaine/profil-acces";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
@@ -39,7 +40,7 @@ export async function travauxDOfficePour(user: Pick<CurrentUser, "id" | "role">)
     prisma.assistantIaAcces.findUnique({ where: { userId: user.id }, select: { travauxDOffice: true } }),
     prisma.assistantIaAcces.findUnique({ where: { role: user.role as never }, select: { travauxDOffice: true } }),
   ]);
-  return reglageDOffice({ preference: pref?.travauxDOffice ?? null, personne: parPersonne?.travauxDOffice ?? null, role: parRole?.travauxDOffice ?? null, superAdmin: user.role === "SUPER_ADMIN" });
+  return reglageDOffice({ preference: pref?.travauxDOffice ?? null, personne: parPersonne?.travauxDOffice ?? null, role: parRole?.travauxDOffice ?? null, superAdmin: roleSuperAdmin(user) });
 }
 
 /** La préférence de la personne (null = le défaut de la console), et ce défaut — pour l'écran des réglages. */

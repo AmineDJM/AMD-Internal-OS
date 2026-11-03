@@ -1,3 +1,4 @@
+import { profilDAcces } from "../../domaine/profil-acces";
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
@@ -241,7 +242,8 @@ export async function executerOperationIA(user: CurrentUser, charge: unknown): P
   // métier ou prévient quelqu'un (demande, BC, message, rendez-vous, relance, dépôt, routine).
   // Même lecture que `performAction` — un réglage illisible ne bloque pas plus qu'il ne bloque Adam.
   const reglages = await getAppSettings().catch(sansBloquer("operations.executerOperationIA.getAppSettings", null));
-  if (reglages?.aiExternalActionsDisabled) return { ok: false, error: REFUS_ARRET_URGENCE };
+  // Lu par la table des accès (lot I2) : l'arrêt d'urgence est une ligne du profil, relue à l'exécution (jamais celle du tour).
+  if (profilDAcces(user, { arretUrgence: reglages?.aiExternalActionsDisabled === true }).arretUrgence) return { ok: false, error: REFUS_ARRET_URGENCE };
   if (!o.ouverte(user)) return { ok: false, error: "Vous n'avez plus le droit de faire ce geste." };
   try {
     // Une opération qui rédige (traduction, document) appelle le modèle : imputé à la personne qui confirme.
