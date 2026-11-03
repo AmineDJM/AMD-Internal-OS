@@ -71,16 +71,16 @@ describe("outils exécutifs — fermés aux comptes qui n'y ont pas droit", () =
       await salarie("A2", adv.id, 100_000, 70_000);
       await salarie("L1", life.id, 50_000, 40_000);
       const rh = userWith({ RH: ["VIEW"] }, "SUPER_ADMIN");
-      const tout = JSON.parse(await executePowerTool("read_payroll", { month: "2099-01" }, rh)) as { parSociete: { societe: string; masseSalarialeDzd: number; salaries: number }[]; masseSalarialeDzd: number };
+      const tout = JSON.parse((await executePowerTool("read_payroll", { month: "2099-01" }, rh)) ?? "{}") as { parSociete: { societe: string; masseSalarialeDzd: number; salaries: number }[]; masseSalarialeDzd: number };
       const deCeBanc = tout.parSociete.filter((g) => g.societe.startsWith(TAG));
       expect(deCeBanc).toEqual([
         expect.objectContaining({ societe: `${TAG}Adventum`, masseSalarialeDzd: 400_000, salaries: 2 }),
         expect.objectContaining({ societe: `${TAG}Life`, masseSalarialeDzd: 50_000, salaries: 1 }),
       ]);
-      const seule = JSON.parse(await executePowerTool("read_payroll", { month: "2099-01", societe: `${TAG}Adventum` }, rh)) as { perimetre: string; masseSalarialeDzd: number; totalNetDzd: number; salaries: number };
+      const seule = JSON.parse((await executePowerTool("read_payroll", { month: "2099-01", societe: `${TAG}Adventum` }, rh)) ?? "{}") as { perimetre: string; masseSalarialeDzd: number; totalNetDzd: number; salaries: number };
       expect(seule).toMatchObject({ masseSalarialeDzd: 400_000, totalNetDzd: 270_000, salaries: 2 });
       expect(seule.perimetre).toMatch(/seule/);
-      const aucune = JSON.parse(await executePowerTool("read_payroll", { month: "2099-01", societe: `${TAG}Inconnue` }, rh)) as { introuvable?: string };
+      const aucune = JSON.parse((await executePowerTool("read_payroll", { month: "2099-01", societe: `${TAG}Inconnue` }, rh)) ?? "{}") as { introuvable?: string };
       expect(aucune.introuvable).toMatch(/Aucune ligne de paie/);
     } finally {
       await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } });
