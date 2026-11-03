@@ -1,4 +1,31 @@
 {
+ "acces-bases-actions:poserReglageBase": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "acces-bases-actions:reglerPropresDonneesBase": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "acces-bases-actions:revoquerReglageBase": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "access-actions:adminResetPassword": {
   "risque": "R4",
   "familles": [

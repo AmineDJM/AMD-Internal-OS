@@ -19228,3 +19228,47 @@ model MoyenGeneralReservation {
   @@index([moyenId, debut])
   @@index([reserveParId])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ACCÈS PAR BASE (lots D1-D5, décision 0057) — un niveau « base » au-dessus des modules.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Le niveau d'un réglage d'accès à une base. Pas de réglage en vigueur = « normal » : les modules décident seuls.
+enum NiveauAccesBase {
+  LECTURE_SEULE
+  FERMEE
+  OUVERTE
+}
+
+/// D2 (décision 0057) — UN RÉGLAGE D'ACCÈS À UNE BASE (famille de tables du catalogue `docs/architecture/BASES-DE-DONNEES.md`),
+/// pour UN rôle OU UNE personne (exactement un des deux, contrainte en base) ; la personne prime sur son rôle. DATÉ (`du` → `au`),
+/// MOTIVÉ, révocable (`revoqueLe`) — la forme des droits datés de S1. Jamais supprimé : révoqué, il reste au journal.
+/// `ecriture` : pour OUVERTE seulement, accorde aussi l'écriture sur toute la base.
+model AccesBase {
+  id           String          @id @default(cuid())
+  base         String
+  userId       String?
+  role         UserRole?
+  niveau       NiveauAccesBase
+  ecriture     Boolean         @default(false)
+  du           DateTime
+  au           DateTime?
+  motif        String
+  accordeParId String?
+  createdAt    DateTime        @default(now())
+  revoqueLe    DateTime?
+  revoqueParId String?
+
+  @@index([base])
+  @@index([userId])
+  @@index([role])
+}
+
+/// D2 — LES PARAMÈTRES D'UNE BASE : une personne garde-t-elle l'accès à SES PROPRES données quand la base lui est fermée ?
+/// Absente = le défaut du catalogue (oui pour Personnel, Paie, Recrutement — son dossier ; non ailleurs).
+model AccesBaseParametre {
+  base           String   @id
+  propresDonnees Boolean
+  updatedById    String?
+  updatedAt      DateTime @default(now()) @updatedAt
+}

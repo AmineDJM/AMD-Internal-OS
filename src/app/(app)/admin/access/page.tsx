@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ArrowLeft, ShieldCheck, Coins } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -129,7 +130,9 @@ export default async function AccessByModulePage() {
       <PageHeader
         title="Accès par module"
         description="Choisissez un module, voyez qui peut voir / modifier / supprimer, et ajustez. Les colonnes affichées sont celles que ce module autorise réellement — pas une liste figée."
-      />
+      >
+        <Link href="/admin/access/bases" className="text-sm font-medium text-primary underline-offset-2 hover:underline">Accès par base →</Link>
+      </PageHeader>
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /> Qui peut quoi sur ce module</CardTitle>
