@@ -1,5 +1,6 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
 import { constructeurAls } from "@/platform/donnees/contexte";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -50,7 +51,7 @@ export function clientAvecPointsDeSauvegarde<T extends object>(tx: T): T {
         return r;
       } catch (e) {
         // La transaction revient où elle était avant la requête ; l'erreur, elle, est celle que le code aurait reçue.
-        await executer(`ROLLBACK TO SAVEPOINT ${point}`).catch(() => undefined);
+        await executer(`ROLLBACK TO SAVEPOINT ${point}`).catch(sansBloquer("effets.sauvegarde.retour"));
         throw e;
       }
     }

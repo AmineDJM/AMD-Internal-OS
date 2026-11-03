@@ -29,7 +29,7 @@ const reseau = vi.fn(async () => new Response("{}", { status: 200 }));
 describe("un fournisseur de modèles (l'hôte de l'appel qui part à l'essai)", () => {
   it("les domaines connus et l'hôte d'une URL de base réglée — rien d'autre", () => {
     expect(estHoteDeModele("api.openai.com")).toBe(true);
-    expect(estHoteDeModele("api.anthropic.com")).toBe(true);
+    expect(estHoteDeModele("console.anthropic.com")).toBe(true);
     expect(estHoteDeModele("token-plan-ams.xiaomimimo.com")).toBe(true);
     expect(estHoteDeModele("generativelanguage.googleapis.com")).toBe(true);
     expect(estHoteDeModele("hooks.exemple.dz")).toBe(false);
@@ -58,7 +58,7 @@ suite("le mode essai d'une simulation", () => {
     reseau.mockClear();
     const statuts: number[] = [];
     const essai = await simulerGeste(moi, { origine: "test" }, async () => {
-      statuts.push((await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", body: "{}" })).status);
+      statuts.push((await fetch("https://api.openai.com/v1/essai", { method: "POST", body: "{}" })).status);
       statuts.push((await fetch("https://hooks.exemple.dz/commande", { method: "POST", body: "{}" })).status);
     }, { essai: true });
     expect(essai.ok, essai.erreur).toBe(true);
@@ -68,7 +68,7 @@ suite("le mode essai d'une simulation", () => {
 
     reseau.mockClear();
     const simple = await simulerGeste(moi, { origine: "test" }, async () => {
-      statuts.push((await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", body: "{}" })).status);
+      statuts.push((await fetch("https://api.openai.com/v1/essai", { method: "POST", body: "{}" })).status);
     });
     expect(simple.ok).toBe(true);
     expect(statuts.at(-1)).toBe(202);

@@ -107,7 +107,7 @@ export function EssaiAgent({ personnes }: { personnes: LignePersonne[] }) {
             )}
             {erreur && <p role="alert" className="text-sm text-destructive">{erreur}</p>}
             {dernier && !dernier.refus && (
-              <div className="grid gap-2 text-sm sm:grid-cols-2" data-testid="essai-bilan">
+              <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2" data-testid="essai-bilan">
                 <div className="rounded-md bg-muted/60 p-3">
                   <p className="font-medium">Ce que ce tour aurait écrit — annulé</p>
                   {dernier.ecritures.length ? (

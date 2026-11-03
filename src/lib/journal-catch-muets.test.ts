@@ -51,6 +51,10 @@ const EXCEPTIONS_SERVEUR: Record<string, { n: number; raison: string }> = {
     n: 1,
     raison: "fermeture d'une connexion IMAP inactive : si `logout` échoue, on ferme la socket — l'erreur n'a plus de destinataire",
   },
+  "src/lib/effets/sauvegarde.ts": {
+    n: 1,
+    raison: "la file des requêtes de l'essai d'un agent continue après une requête en échec ; l'erreur elle-même est rendue à l'appelant, qui attend la même promesse",
+  },
   "src/lib/storage/zip-reponse.ts": {
     n: 1,
     raison: "le cache oublie une lecture d'archive en échec ; l'erreur elle-même est rendue à l'appelant qui attend la même promesse",
