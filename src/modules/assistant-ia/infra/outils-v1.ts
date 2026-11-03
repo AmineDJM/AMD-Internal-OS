@@ -36,8 +36,9 @@ import { outilExporterDonnees } from "./analyse/exporter";
 import { outilsAnalyse, OUTILS_ANALYSE, type ContexteAnalyseTour } from "./analyse/outils";
 import { ecrituresAdam, lecturesAdam } from "./adam/outils-adam";
 import { censurerTexte, jetonnerSortie, type CoffretDuTour } from "../domaine/filtre-confidentialite";
-import { FAMILLES_IA, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
-import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
+import { FAMILLES_IA, familleOuverte, refusFamille, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
+import { gesteReserveFerme, profilDuCompte } from "../domaine/profil-acces";
+import { accesParDefaut, ajouterReperesAIntention, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
 
 /**
  * LES OUTILS DE L'ASSISTANT IA — les siens, et les CAPACITÉS de l'ERP (lot J6, décision 0020).
@@ -47,8 +48,9 @@ import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, trace
  * (`operations/budget.ts`), situation RH et agrégats financiers, fiche / paie / documents RH (`lectures.ts`).
  * Écriture : les opérations de l'Assistant IA (`operations/`) et, depuis J6, toute action serveur de l'ERP par son
  * CONTRAT (`capacites.ts`, registre `platform/ia/capacites/`) — préparée en carte, exécutée à la confirmation par
- * l'action elle-même (`lib/actions/executer.ts`), sous la session de la personne. L'Assistant IA n'emprunte plus rien
- * au catalogue d'Adam : `RESIDUS` de `platform/ia/frontieres.test.ts` est vide.
+ * l'action elle-même (`lib/actions/executer.ts`), sous la session de la personne. Le catalogue d'Adam n'entre que par UNE
+ * porte (décision 0055 : `adam/outils-adam.ts` → `porte-assistant-ia`, seul `RESIDUS` de `platform/ia/frontieres.test.ts`),
+ * pour le seul compte que la table des accès lui ouvre (`domaine/profil-acces.ts`, lot I2).
  *
  * Tout ce qui revient au modèle passe le filtre : une rémunération, une coordonnée bancaire, un n° de pièce
  * d'identité y deviennent des REPÈRES (`filtre-confidentialite.ts` — repères) que le serveur ne remplace, à l'affichage, que pour qui
@@ -100,9 +102,8 @@ export const famillesDuGeste = (nom: string): FamilleIa[] => famillesDe(nom, !SA
 /** Les familles qu'une LECTURE exige (J2 : le plan d'un travail n'offre que les lectures ouvertes à la personne). */
 export const famillesDeLaLecture = (nom: string): FamilleIa[] => famillesDe(nom, false);
 
-/** L'accès par défaut (sans réglage lu) : droits applicatifs, familles sensibles fermées. Un tour passe toujours le réglage relu. */
-export const accesParDefaut = (user: CurrentUser): AccesIa =>
-  resoudreAccesIa({ superAdmin: user.role === "SUPER_ADMIN", droits: droitsApplicatifsIa(user) });
+/** L'accès par défaut (sans réglage lu) — `role-config.ts`, la même règle pour tous les catalogues. */
+export { accesParDefaut };
 
 /** Les familles qu'un outil exige — celles de la table, et les écritures pour tout geste préparé. */
 function famillesDe(nom: string, ecriture: boolean): FamilleIa[] {
@@ -368,12 +369,21 @@ export function outilsV1(
 }
 
 /**
- * LES GESTES QUE L'APPLICATION NE LUI OUVRE PAS (banc V4-H : « je ne peux pas… avec les outils disponibles ») — une
+ * L'INTERRUPTEUR DE REPLI DU LOT I2 (décision 0064) : `ASSISTANT_IA_ACCES_EN_PROSE=1` remet la prose d'accès dans la
+ * consigne (`consigneGestesFermes`, `CONSIGNE_ADAM_SA`, `CONSIGNE_BOITE_ADAM`), telle qu'avant I2. Absent (défaut) : rien
+ * n'est dit — un geste fermé n'est pas offert, et `trouver_outil` le nomme en refus (`refus-nomme.ts`).
+ */
+export const accesEnProse = (env: Readonly<Record<string, string | undefined>> = process.env): boolean => env.ASSISTANT_IA_ACCES_EN_PROSE === "1";
+
+/**
+ * REPLI SEULEMENT (`ASSISTANT_IA_ACCES_EN_PROSE=1`) — LES GESTES QUE L'APPLICATION NE LUI OUVRE PAS (banc V4-H : « je ne peux pas… avec les outils disponibles ») — une
  * opération de l'Assistant IA dont la personne n'a pas le droit d'écran n'est pas offerte ; le contexte le dit, pour que
  * le refus nomme le DROIT et non « les outils ».
  */
 export function consigneGestesFermes(user: CurrentUser): string | null {
-  const fermes = OPERATIONS_IA.filter((o) => !o.ouverte(user)).map((o) => `« ${o.libelle.replace(/ préparée?$/, "")} »`);
+  // Même en repli, un geste réservé par le profil (le canal d'Adam) n'existe pas pour la personne : il n'est pas nommé.
+  const profil = profilDuCompte(user);
+  const fermes = OPERATIONS_IA.filter((o) => !gesteReserveFerme(o.nom, profil) && !o.ouverte(user)).map((o) => `« ${o.libelle.replace(/ préparée?$/, "")} »`);
   if (!fermes.length) return null;
   return `GESTES NON OUVERTS À SON RÔLE dans l'application (droit de l'écran, réglé en Administration › Accès) : ${fermes.join(", ")}. `
     + "Une demande de ce genre : dis que son rôle n'a pas ce droit dans l'application — jamais « je n'ai pas l'outil ».";

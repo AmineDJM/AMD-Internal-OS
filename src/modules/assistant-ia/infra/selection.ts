@@ -10,6 +10,7 @@ import { MOTS_EXPORTS } from "./exports";
 import { NAVIGATION } from "@/lib/labels";
 import { CATALOGUE_EXPORTS } from "@/platform/ia/exports";
 import { autoriseParLaConfig } from "../domaine/capacites";
+import { QUI_OUVRE_UN_GESTE, type GesteFerme } from "./refus-nomme";
 
 /**
  * LA SÉLECTION D'OUTILS D'UN TOUR (J4, décision 0018) — la règle est pure (`domaine/selection-outils.ts`) ; ici, on
@@ -54,6 +55,11 @@ const jetonsDe = (d: PowerTool["def"]): number => {
 export function selectionDuTour(
   outils: readonly PowerTool[], user: CurrentUser, demande: string, config?: { allowedTools?: string[] } | null, precedente = "",
   prioritaires: readonly string[] = [],
+  /**
+   * Lot I2 (décision 0064) : les gestes qui EXISTENT pour la personne mais que son rôle n'ouvre pas — lus à la demande, au
+   * premier `trouver_outil` qui en a besoin. Ils ne sont jamais offerts ni récités : `trouver_outil` les NOMME en refus.
+   */
+  fermes?: () => readonly GesteFerme[],
 ): SelectionDuTour {
   const fiches = fichesOffertes(outils, user, config);
   const disponibles = new Set([OUTIL_TROUVER, ...fiches.map((f) => f.nom)]);
@@ -64,6 +70,26 @@ export function selectionDuTour(
   const initiaux = preselectionner(demande, fiches, undefined, precedente, poids, prioritaires).filter((n) => disponibles.has(n));
   const actifs = new Set<string>([OUTIL_TROUVER, ...initiaux]);
   const trouves: string[] = [];
+  // Le refus nommé (I2) : un index commun aux outils offerts ET aux gestes fermés, pour savoir si la demande vise d'abord un
+  // geste fermé. Construit au premier besoin seulement ; l'index des outils offerts (la sélection, J6) n'en est pas changé.
+  let refus: { index: ReturnType<typeof indexer>; parNom: Map<string, GesteFerme> } | null = null;
+  const fermesVises = (intention: string): GesteFerme[] => {
+    if (!fermes) return [];
+    if (!refus) {
+      const liste = fermes().filter((f) => !disponibles.has(f.nom));
+      refus = { index: indexer([...fiches, ...liste]), parNom: new Map(liste.map((f) => [f.nom, f])) };
+    }
+    const r = refus;
+    const vises: GesteFerme[] = [];
+    // Seuls les gestes fermés classés AVANT le premier outil offert : la demande les vise d'abord.
+    for (const c of classer(intention, r.index, 3)) {
+      const f = r.parNom.get(c.nom);
+      if (!f) break;
+      vises.push(f);
+    }
+    return vises;
+  };
+  const nommer = (f: GesteFerme) => ({ geste: f.libelle, droit: f.droit, quiOuvre: QUI_OUVRE_UN_GESTE });
 
   const outil: PowerTool = {
     def: {
@@ -82,6 +108,17 @@ export function selectionDuTour(
     run: async (entree) => {
       const intention = typeof entree.intention === "string" ? entree.intention.slice(0, 300) : "";
       const classes = classer(intention, index, TROUVES_MAX);
+      const vises = fermesVises(intention);
+      if (vises.length && !classes.length) {
+        const ecrans = ecransPour(intention);
+        return JSON.stringify({
+          trouves: [],
+          fermes: vises.map(nommer),
+          ...(ecrans.length ? { ecrans } : {}),
+          consigne: "Ce geste existe dans l'ERP mais n'est pas ouvert à cette personne : dis-le en nommant le geste, le droit qui manque et qui l'ouvre (`fermes`) "
+            + "— jamais « je ne peux pas » ni « je n'ai pas l'outil » sans cela.",
+        });
+      }
       if (!classes.length) {
         const ecrans = ecransPour(intention);
         return JSON.stringify({
@@ -99,7 +136,10 @@ export function selectionDuTour(
       const regles = reglesAjoutees(avant, classes.map((c) => c.nom));
       return JSON.stringify({
         trouves: classes.map((c) => ({ outil: c.nom, quoi: (parNom.get(c.nom)?.description ?? "").slice(0, 160) })),
-        consigne: "Ces outils sont disponibles maintenant : appelle celui qui convient.",
+        consigne: vises.length
+          ? "Ces outils sont disponibles maintenant. Si la demande vise un geste de `fermes`, il n'est pas ouvert à cette personne : dis-le en le nommant, avec le droit et qui l'ouvre ; sinon appelle l'outil qui convient."
+          : "Ces outils sont disponibles maintenant : appelle celui qui convient.",
+        ...(vises.length ? { fermes: vises.map(nommer) } : {}),
         ...(regles.length ? { regles } : {}),
       });
     },

@@ -1,4 +1,4 @@
-import { adamOuvert, CONSIGNE_ADAM_SA } from "../adam/outils-adam";
+import { CONSIGNE_ADAM_SA } from "../adam/outils-adam";
 import type { CurrentUser } from "@/lib/session";
 import { compileContext, CONSIGNE_MEMOIRE_A_LA_CARTE } from "../contexte";
 import { profilDeLaPersonne } from "../profil-personne";
@@ -6,7 +6,9 @@ import { memoireAutoActive } from "../memoire";
 import { OUTILS_NOTES } from "../notes/outils";
 import { accesAssistantIa, getRoleConfig, GESTE_MODELE_EN_CLAIR, resoudreConsignesRole, Revelateur } from "../role-config";
 import { consigneFamilles, enVueExacteIa, refusAssistantVueExacte, type AccesIa } from "../../domaine/acces-regles";
-import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
+import { accesEnProse, consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
+import { gestesFermesPour } from "../refus-nomme";
+import { profilDAcces, type ProfilDAcces } from "../../domaine/profil-acces";
 import { consigneTravaux, outilsSousMissionsDuTour } from "../travaux";
 import { outilsChantierPour } from "../chantiers";
 import { selectionDuTour, type SelectionDuTour } from "../selection";
@@ -30,7 +32,7 @@ import { lirePieces, type DependancesLecture } from "../lecture/pieces";
 import { ProvenanceDuTour } from "../provenance";
 import { JeuxDuTour } from "../analyse/outils";
 import { noteChiffresNonSources } from "../../domaine/analyse/chiffres";
-import { CONSIGNE_BOITE_ADAM, canalAdamOuvert, taireCanalAdam } from "../../domaine/mails/canal";
+import { CONSIGNE_BOITE_ADAM, taireCanalAdam } from "../../domaine/mails/canal";
 import { CONSIGNE_FOND, CONSIGNE_MISSIONS, demandeDeFond, ETAPES_DE_FOND, noteActionsNonVerifiees, OUTILS_DE_FOND, outilsPilotageVoulus } from "../../domaine/missions/pilotage";
 import { outilsMissions } from "../missions/pilotage";
 import { outilsAnnulation } from "../annulation-directe";
@@ -178,8 +180,12 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const texteSaisi = saisie.texte;
   // P1 bis (MI-02) : « en tâche de fond », ou la bascule décidée par le serveur — le tour pose une mission.
   const fond = d.modeFond === true || demandeDeFond(texteSaisi);
-  // P1 bis : le canal d'Adam n'existe que pour le Super Admin — pour tout autre, la réponse ne le nomme jamais (garde serveur).
-  const sortieDuCanal = (t: string) => (canalAdamOuvert(user) ? t : taireCanalAdam(t));
+  // LE PROFIL D'ACCÈS DU COMPTE (lot I2, décision 0064) — la table, lue ici une fois ; les familles s'y ajoutent plus bas.
+  let profil: ProfilDAcces = profilDAcces(user);
+  // P1 bis : le canal d'Adam n'existe que pour le Super Admin — pour tout autre, la réponse ne le nomme jamais. GARDE DE
+  // SORTIE (invariant, AU3 §5) : gardée même quand plus rien ne le dit au modèle — une injection indirecte (mail reçu)
+  // peut encore le lui faire écrire.
+  const sortieDuCanal = (t: string) => (profil.canaux.gmailAdam ? t : taireCanalAdam(t));
   const dit = d.vocal && texteSaisi ? `[Message vocal, transcrit automatiquement — un nom propre peut y être écorché]\n${texteSaisi}` : texteSaisi;
   if (!dit && !pieces.length) return { ok: false, error: "Message vide.", message: dit };
 
@@ -238,6 +244,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const pilotagesEchoues = new Set<string>();
   try {
     acces = await accesAssistantIa(user);
+    // Le profil du tour : le compte, plus les familles (S1) et les bases (D2–D5) relues dans la console.
+    profil = profilDAcces(user, { familles: acces });
     config = await getRoleConfig(user.role);
     // M1 (décision 0045) : mémoire automatique (défaut) — retenue d'office après le tour ; coupée, la carte « Retenir ».
     const memoireAuto = d.prive || vueExacte ? false : await memoireAutoActive(user.id);
@@ -269,17 +277,24 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
     // P1 bis (MI-02) : une demande DE FOND ne se joue pas dans le tour — seuls les outils qui POSENT la mission sont offerts.
     if (fond) outils = outils.filter((o) => OUTILS_DE_FOND.includes(o.def.name));
-    selection = selectionDuTour(outils, user, message, config, precedente, fond ? [...OUTILS_DE_FOND] : [...outilsPilotageVoulus(texteSaisi), ...outilsDAnalyseVoulus(texteSaisi, analyse.pieces)]);
+    const profilDuTour = profil;
+    selection = selectionDuTour(outils, user, message, config, precedente, fond ? [...OUTILS_DE_FOND] : [...outilsPilotageVoulus(texteSaisi), ...outilsDAnalyseVoulus(texteSaisi, analyse.pieces)],
+      // I2 : un geste fermé n'est ni offert ni dit — `trouver_outil` le nomme en refus quand la personne le demande.
+      () => gestesFermesPour(user, profilDuTour));
     outils.push(selection.outil);
     // LE PRÉFIXE STABLE (J4) : identité, règles, présentation, consignes générales, puis la personne ; la partie
     // variable du tour (indice de travail long, résumé de la conversation, heure) ferme la consigne.
     const sauf = (xs: (string | null | undefined)[]) => xs.filter((c): c is string => !!c);
     // S1 (décision 0048) : à qui il parle — le profil construit par le serveur (compte de la session, fiche LIÉE, avenants).
-    const { section: profil } = await profilDeLaPersonne(user, acces);
+    const { section: sectionProfil } = await profilDeLaPersonne(user, acces);
+    // I2 (décision 0064) : l'ACCÈS N'EST PLUS DIT EN PROSE — un outil fermé n'est pas offert, un canal fermé n'existe pas.
+    // Repli : `ASSISTANT_IA_ACCES_EN_PROSE=1` remet les trois consignes d'avant (gestes non ouverts, boîte et catalogue d'Adam).
+    const prose = accesEnProse();
     instructions = (await compileContext({
-      user, profil, consignesRole: resoudreConsignesRole(config),
-      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, canalAdamOuvert(user) ? CONSIGNE_BOITE_ADAM : null, adamOuvert(user) ? CONSIGNE_ADAM_SA : null, d.consigne, fond ? CONSIGNE_FOND : null]),
-      consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
+      user, profil: sectionProfil, consignesRole: resoudreConsignesRole(config),
+      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS,
+        prose && profil.canaux.gmailAdam ? CONSIGNE_BOITE_ADAM : null, prose && profil.catalogues.adam ? CONSIGNE_ADAM_SA : null, d.consigne, fond ? CONSIGNE_FOND : null]),
+      consignesPersonne: sauf([consigneFamilles(acces), prose ? consigneGestesFermes(user) : null, !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
       sectionsDuTour: sauf([noteAnnulee, consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
     })).systemPrompt;

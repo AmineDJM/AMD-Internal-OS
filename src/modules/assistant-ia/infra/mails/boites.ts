@@ -8,7 +8,7 @@ import type { PropositionCarte } from "../operations";
 import { preparerMails, SCHEMA_MAILS } from "../operations/envoi-gmail";
 import { charteDuMail, signatureDe } from "./redaction";
 import { rendreMailHtml, rendreMailTexte } from "../../domaine/mails/gabarit";
-import { canalAdamOuvert } from "../../domaine/mails/canal";
+import { canalAdamOuvert, OU_RELIER_GMAIL_ADAM } from "../../domaine/mails/canal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -93,7 +93,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         return json({
           ...(gmailAdam ? e : autres),
           consigne: e.parDefaut
-            ? `Réponds avec cet état, tel quel. Un envoi partira par ${e.parDefaut === "gmail_adam" ? `le Gmail d'Adam (${e.gmailAdam?.adresse})` : e.parDefaut === "microsoft" ? `la boîte Microsoft (${e.microsoft.adresse})` : e.parDefaut === "smtp" ? `la boîte SMTP (${e.smtp.adresse})` : "l'envoi de l'ERP"} après la carte « Envoyer ».${e.gmailAdam && !e.gmailAdam.envoi ? ` La boîte Gmail d'Adam n'est pas reliée (${e.gmailAdam.raison ?? "aucune connexion Google"}) : dis-le, et qu'elle se relie dans Chief of Staff › Réglages › « Connecter Google ».` : ""}`
+            ? `Réponds avec cet état, tel quel. Un envoi partira par ${e.parDefaut === "gmail_adam" ? `le Gmail d'Adam (${e.gmailAdam?.adresse})` : e.parDefaut === "microsoft" ? `la boîte Microsoft (${e.microsoft.adresse})` : e.parDefaut === "smtp" ? `la boîte SMTP (${e.smtp.adresse})` : "l'envoi de l'ERP"} après la carte « Envoyer ».${e.gmailAdam && !e.gmailAdam.envoi ? ` La boîte Gmail d'Adam n'est pas reliée (${e.gmailAdam.raison ?? "aucune connexion Google"}) : dis-le, et qu'elle se relie dans ${OU_RELIER_GMAIL_ADAM}.` : ""}`
             : "Aucune boîte ne peut envoyer pour l'instant : dis-le tel quel.",
         });
       },
@@ -127,7 +127,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         if (!boite) {
           const raison = voulue ? `La boîte demandée (${voulue}) ne peut pas envoyer.`
             : !etat.gmailAdam ? "Aucune boîte ne peut envoyer pour l'instant."
-              : `La boîte Gmail d'Adam ne peut pas envoyer : ${etat.gmailAdam.reliee ? etat.gmailAdam.raison : "elle n'est pas reliée (Chief of Staff › Réglages › « Connecter Google »)"}.`;
+              : `La boîte Gmail d'Adam ne peut pas envoyer : ${etat.gmailAdam.reliee ? etat.gmailAdam.raison : `elle n'est pas reliée (${OU_RELIER_GMAIL_ADAM})`}.`;
           return json({ statut: "REFUS", raison, ...(etat.gmailAdam ? { etat } : {}), consigne: "Dis-le tel quel ; rien n'est préparé. Ne propose une autre boîte (Microsoft, SMTP de la personne) que si elle te le demande." });
         }
         if (brouillon && (boite === "smtp" || boite === "erp")) return json({ statut: "REFUS", raison: adam ? "Cette boîte ne garde pas de brouillon : Gmail d'Adam ou boîte Microsoft." : "Cette boîte ne garde pas de brouillon : seule une boîte Microsoft reliée le permet." });
@@ -173,7 +173,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         let lu: Record<string, unknown> = {};
         try { lu = JSON.parse(sortie) as Record<string, unknown>; } catch { lu = { sortie }; }
         const repliAdam = boite === "erp" && !voulue && !!etat.gmailAdam && !etat.gmailAdam.envoi;
-        const motAdam = repliAdam ? ` Ajoute UNE phrase : la boîte Gmail d'Adam n'est pas reliée (${etat.gmailAdam?.raison ?? "aucune connexion Google"}) — elle se relie dans Chief of Staff › Réglages › « Connecter Google » ; en attendant, le mail part par l'envoi de l'ERP.` : "";
+        const motAdam = repliAdam ? ` Ajoute UNE phrase : la boîte Gmail d'Adam n'est pas reliée (${etat.gmailAdam?.raison ?? "aucune connexion Google"}) — elle se relie dans ${OU_RELIER_GMAIL_ADAM} ; en attendant, le mail part par l'envoi de l'ERP.` : "";
         return json({ ...lu, boite: dite, ...(repliAdam ? { boite_adam: "non reliée" } : {}), ...(piecesNonJointes.length ? { pieces_non_jointes: piecesNonJointes } : {}), consigne: `${destinataireACompleter ? `L'adresse de « ${destinataireACompleter} » est introuvable : la carte est préparée avec le destinataire À COMPLÉTER (champ « À ») — dis-le en une phrase, sans poser de question. ` : ""}${motAdam ? motAdam.trim() + " " : ""}${piecesNonJointes.length ? `Dis aussi, en une phrase, que ${piecesNonJointes.join(", ")} n'est pas joint par cette boîte et se transmet depuis le Drive. ` : ""}Dis en une phrase que la carte « ${brouillon ? "Enregistrer le brouillon" : "Envoyer"} » attend sa confirmation et que le mail partira par ${dite}${brouillon ? "" : " — annulable pendant la fenêtre d'annulation (30 s par défaut)"}. Ne dis jamais qu'il est parti.` });
       },
     },
