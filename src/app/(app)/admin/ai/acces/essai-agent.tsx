@@ -40,7 +40,11 @@ export function EssaiAgent({ personnes }: { personnes: LignePersonne[] }) {
     setEnvoi(texte);
     setErreur(null);
     try {
-      const r = await essayerAgentDeLaPersonne(id, texte, echanges);
+      const fd = new FormData();
+      fd.set("personneId", id);
+      fd.set("message", texte);
+      fd.set("precedents", JSON.stringify(echanges));
+      const r = await essayerAgentDeLaPersonne(fd);
       if (!r.ok) { setErreur(r.erreur); return; }
       setDernier(r);
       if (r.refus) { setErreur(`Ce que la personne verrait : ${r.refus}`); return; }

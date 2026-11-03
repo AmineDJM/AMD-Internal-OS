@@ -489,8 +489,16 @@ export async function apercuAssistantDe(personneId: string): Promise<{ ok: true;
  * ESSAYER L'AGENT D'UNE PERSONNE (Super Admin, hors Vue exacte) — son vrai tour, sous son identité, ses droits et la garde
  * de ses données ; rien n'est enregistré chez elle, rien ne sort, l'essai est inscrit à l'audit (`infra/essai/service.ts`).
  */
-export async function essayerAgentDeLaPersonne(personneId: string, message: string, precedents: EchangeEssai[]): Promise<IssueEssai> {
+export async function essayerAgentDeLaPersonne(formData: FormData): Promise<IssueEssai> {
   const admin = await exigerSuperAdmin();
   if (!admin) return { ok: false, erreur: "Réservé au Super Admin, hors « Vue exacte »." };
-  return essayerAgentDe(admin, personneId, message, precedents);
+  // Les échanges précédents de l'essai, tels que l'écran les a reçus (le service les borne et les vérifie).
+  let precedents: EchangeEssai[] = [];
+  try {
+    const p = JSON.parse(String(formData.get("precedents") ?? "[]"));
+    if (Array.isArray(p)) precedents = p as EchangeEssai[];
+  } catch {
+    return { ok: false, erreur: "Les échanges précédents de l'essai sont illisibles : recommencez l'essai." };
+  }
+  return essayerAgentDe(admin, String(formData.get("personneId") ?? ""), String(formData.get("message") ?? ""), precedents);
 }

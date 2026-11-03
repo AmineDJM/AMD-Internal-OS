@@ -3,9 +3,7 @@ import { identiteDonneesDe } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { sansBloquer } from "@/lib/journal";
-import { simulerGeste } from "@/lib/contexte-geste";
-import { construireDiff } from "@/lib/effets/diff";
-import { nomsDesDestinataires } from "@/lib/effets/simulation";
+import { simulerEnEssai } from "@/platform/ia/hors-requete";
 import { avecIdentiteDonnees } from "@/platform/donnees/contexte";
 import { proprietaire } from "@/platform/ia/proprietaire";
 import { deposerMessage, ETAT, lireFil, nouvelleConversation, traiterFil } from "../fil/service";
@@ -34,7 +32,7 @@ import {
  *
  * ── RIEN NE RESTE, RIEN NE SORT ──────────────────────────────────────────────────────────
  *
- * Une SIMULATION transactionnelle (`simulerGeste`, mode essai) : toute écriture (sa conversation, ses cartes, sa mémoire,
+ * Une SIMULATION transactionnelle (`simulerEnEssai`) : toute écriture (sa conversation, ses cartes, sa mémoire,
  * ses notifications, sa consommation) est annulée à la fin ; courriel, poussée, stockage, site, appels sortants sont
  * notés et neutralisés. Seul l'appel au fournisseur de modèles part (sinon il n'y a rien à juger), et chaque requête est
  * isolée par un point de sauvegarde (un refus rattrapé n'interrompt pas la suite, comme en vrai). Son assistant à elle
@@ -72,7 +70,7 @@ export async function essayerAgentDe(admin: CurrentUser, cibleId: string, messag
 
   essaisEnCours++;
   try {
-    const issue = await simulerGeste(cible, { origine: "essai-agent" }, () => avecIdentiteDonnees(identiteDonneesDe(cible), async () => {
+    const { issue, diff } = await simulerEnEssai(cible, { origine: "essai-agent" }, () => avecIdentiteDonnees(identiteDonneesDe(cible), async () => {
       const debut = new Date();
       const c = await nouvelleConversation(cible.id);
       if (!c.ok) return { refus: c.erreur, ecran: null, consommation: null };
@@ -99,10 +97,8 @@ export async function essayerAgentDe(admin: CurrentUser, cibleId: string, messag
         refus: null, ecran,
         consommation: { appels: conso._count._all, jetonsEntree: conso._sum.inputTokens ?? 0, jetonsSortie: conso._sum.outputTokens ?? 0, coutUsd: Number(conso._sum.costUsd ?? 0) },
       };
-    }), { delaiMs: DELAI_ESSAI_MS, essai: true });
+    }), { delaiMs: DELAI_ESSAI_MS, horsDuDiff: MODELES_DE_LA_CONVERSATION });
 
-    const noms = await nomsDesDestinataires(issue.capture);
-    const diff = construireDiff({ ...issue.capture, ecritures: issue.capture.ecritures.filter((e) => !MODELES_DE_LA_CONVERSATION.has(e.modele)) }, { debut: issue.debut, fin: issue.fin }, noms);
     const r = issue.resultat;
     const echec = !issue.ok ? issue.erreur ?? "l'essai n'a pas abouti" : r?.refus ?? null;
     await recordAudit({

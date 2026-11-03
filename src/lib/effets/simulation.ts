@@ -113,3 +113,20 @@ export async function simulerEnDiff<T>(
   const noms = await nomsDesDestinataires(issue.capture);
   return { diff: construireDiff(issue.capture, { debut: issue.debut, fin: issue.fin }, noms, refus ?? undefined), issue };
 }
+
+/**
+ * L'ESSAI D'UN AGENT (« Essayer l'agent de… ») — la simulation en mode essai (le modèle répond, chaque requête a son point
+ * de sauvegarde) et son DIFF lisible, les modèles `horsDuDiff` écartés (la conversation de l'essai se montre en clair,
+ * elle n'est pas « ce qui serait écrit »).
+ */
+export async function simulerEnEssai<T>(
+  user: CurrentUser,
+  ctx: Omit<ContexteDuGeste, "mode">,
+  geste: () => Promise<T>,
+  opts: { delaiMs?: number; horsDuDiff?: ReadonlySet<string> } = {},
+): Promise<{ diff: DiffSimulation; issue: IssueSimulation<T> }> {
+  const issue = await simulerGeste(user, ctx, geste, { delaiMs: opts.delaiMs, essai: true });
+  const noms = await nomsDesDestinataires(issue.capture);
+  const ecritures = issue.capture.ecritures.filter((e) => !opts.horsDuDiff?.has(e.modele));
+  return { diff: construireDiff({ ...issue.capture, ecritures }, { debut: issue.debut, fin: issue.fin }, noms), issue };
+}
