@@ -1,0 +1,76 @@
+/** AU2 — rejeu, au vrai modèle, de demandes réelles de la Direction (persona Super Admin du banc, base amd_bench). */
+process.env.ASSISTANT_IA_PRICE_IN ||= "2";
+process.env.ASSISTANT_IA_PRICE_OUT ||= "12";
+import fs from "node:fs";
+import { prisma } from "@/lib/prisma";
+import * as svc from "@/modules/assistant-ia/api";
+import { sessionDe } from "@/modules/assistant-ia/api-banc";
+import { docx, brancherDepots, deposerPiece } from "@/modules/assistant-ia/infra/testing/audit/taches/aides";
+
+const s = JSON.parse(fs.readFileSync("bench-out/audit-assistant-semis.json", "utf8"));
+const SA = s.users.superadmin as string;
+const OUT = process.env.OUT!;
+const BUDGET = Number(process.env.BUDGET ?? "2.5");
+
+async function semer() {
+  const { putBlob } = await import("@/lib/drive-storage");
+  const { enregistrerFichierDrive } = await import("@/lib/drive/depot");
+  brancherDepots({ putBlob, enregistrerFichierDrive } as never);
+  const deja = await prisma.driveNode.findFirst({ where: { ownerId: SA, name: "Note de cadrage séminaire.docx" } });
+  if (!deja) await deposerPiece(SA, "Note de cadrage séminaire.docx", await docx([
+    "Note de cadrage — séminaire commercial", "Date : 14 octobre 2026", "Lieu : Oran, hôtel Méridien.",
+    "Objet : préparer le plan d'action du premier trimestre 2027 avec les délégués de l'Ouest.",
+  ]));
+  const produits = [
+    { code: "AU2-AMOX", canonicalName: "Amoxil 1 g", dci: "Amoxicilline", lifecycle: "MARKETED", seg: ["Infectiologie"] },
+    { code: "AU2-AZI", canonicalName: "Azitrom 500 mg", dci: "Azithromycine", lifecycle: "MARKETED", seg: ["Infectiologie"] },
+    { code: "AU2-CEF", canonicalName: "Ceftrix 1 g", dci: "Ceftriaxone", lifecycle: "STUDY", seg: ["Infectiologie"] },
+    { code: "AU2-ATO", canonicalName: "Atorva 20 mg", dci: "Atorvastatine", lifecycle: "MARKETED", seg: ["Cardiologie"] },
+  ];
+  for (const p of produits) {
+    const prod = await prisma.product.upsert({ where: { code: p.code }, update: {}, create: { code: p.code, canonicalName: p.canonicalName, dci: p.dci, identityKey: p.code, lifecycle: p.lifecycle, companyId: s.companyId } });
+    const rp = await prisma.regulatoryProduct.findFirst({ where: { productId: prod.id } });
+    if (!rp) await prisma.regulatoryProduct.create({ data: { reference: p.code, dci: p.dci, brandName: p.canonicalName, companyId: s.companyId, productId: prod.id, therapeuticSegments: p.seg, status: p.lifecycle === "MARKETED" ? "DECISION_OBTAINED" : "PRE_SUBMISSION" } as never });
+  }
+}
+
+async function tour(texte: string) {
+  const t0 = Date.now();
+  const dep = await svc.deposerEcrit(SA, texte, [], null);
+  if (!dep.ok) return { texte: `REFUS DÉPÔT ${dep.erreur}`, outils: [], ms: 0 };
+  for (;;) {
+    const r = await prisma.assistantIaTour.findFirst({ where: { repondA: dep.tour.id, role: "assistant" }, orderBy: { createdAt: "desc" } });
+    if (r && (r.etat === svc.ETAT.TERMINE || r.etat === svc.ETAT.ECHEC)) {
+      const i = r.intent as { id?: string } | null;
+      const carte = i?.id ? await prisma.assistantActionIntent.findUnique({ where: { id: i.id }, select: { title: true, kind: true, payload: true, status: true } }) : null;
+      return { texte: r.contenu, blocs: r.blocs, outils: r.outils ?? [], carte, erreur: r.erreur, ms: Date.now() - t0 };
+    }
+    if (Date.now() - t0 > 240_000) return { texte: r?.contenu ?? "", outils: r?.outils ?? [], erreur: "délai", ms: Date.now() - t0 };
+    await new Promise((ok) => setTimeout(ok, 500));
+  }
+}
+
+const CONVERSATIONS: { id: string; tours: string[] }[] = JSON.parse(process.env.CONV!);
+
+async function main() {
+  await semer();
+  const depuis = new Date();
+  const res: unknown[] = [];
+  for (const c of CONVERSATIONS) {
+    await svc.nouvelleConversation(SA);
+    const t0 = new Date();
+    const drive0 = await prisma.driveNode.count({ where: { ownerId: SA } });
+    const tours = [];
+    for (const t of c.tours) { const r = await tour(t); tours.push({ demande: t, ...r }); console.log(`[${c.id}] ${t}\n → outils ${JSON.stringify(r.outils)}\n → ${String(r.texte).slice(0, 600)}\n`); }
+    const fichiers = await prisma.driveNode.findMany({ where: { ownerId: SA, createdAt: { gte: t0 } }, select: { name: true, parentId: true, mimeType: true } });
+    const cout = await prisma.modelCallLog.aggregate({ where: { userId: SA, at: { gte: t0 } }, _sum: { costUsd: true }, _count: true });
+    res.push({ id: c.id, tours, fichiersCrees: fichiers, driveAvant: drive0, coutUsd: Number(cout._sum.costUsd ?? 0), appels: cout._count });
+    fs.writeFileSync(OUT, JSON.stringify(res, null, 2));
+    const total = await prisma.modelCallLog.aggregate({ where: { userId: SA, at: { gte: depuis } }, _sum: { costUsd: true } });
+    console.log(`coût cumulé ${Number(total._sum.costUsd ?? 0).toFixed(4)} $`);
+    if (Number(total._sum.costUsd ?? 0) > BUDGET) { console.log("BUDGET ATTEINT"); break; }
+  }
+  await new Promise((ok) => setTimeout(ok, 5000));
+  process.exit(0);
+}
+main().catch((e) => { console.error(e); process.exit(1); });

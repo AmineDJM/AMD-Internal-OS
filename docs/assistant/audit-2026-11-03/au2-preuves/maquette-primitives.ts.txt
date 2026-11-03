@@ -1,0 +1,221 @@
+/**
+ * AU2 — MAQUETTE (hors dépôt) : trois primitives génériques, le VRAI modèle, la base de banc.
+ * But : mesurer si le modèle exprime les demandes réelles de la Direction avec 3 outils au lieu de ~240,
+ * et si une OBSERVATION du résultat réel (rendue par la primitive) lui permet de se corriger.
+ * Aucune écriture en base ; les fichiers produits vont dans le scratchpad.
+ */
+import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+import ExcelJS from "/home/user/AMD-Internal-OS/node_modules/exceljs";
+import JSZip from "/home/user/AMD-Internal-OS/node_modules/jszip";
+import { prisma } from "@/lib/prisma";
+import { getBlob } from "@/lib/drive-storage";
+import { etapeCycle } from "@/lib/products/fiche-360";
+
+const OUT = process.env.OUT_DIR!;
+const MODELE = process.env.MODELE ?? "gpt-6.1-terra";
+const SA = JSON.parse(fs.readFileSync("bench-out/audit-assistant-semis.json", "utf8")).users.superadmin as string;
+let coutUsd = 0;
+
+// ─── (a) LIRE : des VUES déclarées (champs nommés, portée de la personne), jamais du SQL ───
+type Ligne = Record<string, unknown>;
+const VUES: Record<string, { description: string; champs: string[]; lire: () => Promise<Ligne[]> }> = {
+  etablissements: {
+    description: "Annuaire des établissements (hôpitaux, cliniques, pharmacies, grossistes).",
+    champs: ["id", "nom", "type", "wilaya", "ville", "adresse", "telephone", "email"],
+    // Portée réelle : la fonction `where` de l'écran de l'annuaire, sous la session de la personne.
+    lire: async () => (await prisma.medicalInstitution.findMany({ where: { isActive: true }, take: 2000 })).map((i) => ({
+      id: i.id, nom: i.name, type: i.type, wilaya: i.wilaya, ville: i.city, adresse: i.address, telephone: i.phone, email: i.email,
+    })),
+  },
+  produits: {
+    description: "Catalogue des produits de la société, avec l'étape de cycle de vie calculée par la règle de l'ERP (ETUDE, ENREGISTREMENT, COMMERCIALISE, FIN_DE_VIE) et les aires thérapeutiques.",
+    champs: ["id", "nom", "dci", "etape", "aires", "societe"],
+    lire: async () => (await prisma.product.findMany({ include: { regulatoryProfiles: { select: { status: true, therapeuticSegments: true, therapeuticClass: true } }, company: { select: { shortName: true } } } })).map((p) => ({
+      id: p.id, nom: p.canonicalName, dci: p.dci,
+      etape: etapeCycle({ lifecycle: p.lifecycle, isActive: p.isActive, statutsDossiers: p.regulatoryProfiles.map((r) => r.status) }),
+      aires: [...new Set(p.regulatoryProfiles.flatMap((r) => [...r.therapeuticSegments, r.therapeuticClass ?? ""]).filter(Boolean))],
+      societe: p.company?.shortName ?? null,
+    })),
+  },
+  missions: {
+    description: "Les missions confiées à Adam par la personne (titre, état, lien cliquable).",
+    champs: ["id", "titre", "etat", "lien"],
+    lire: async () => (await prisma.mission.findMany({ where: { ownerId: SA }, orderBy: { createdAt: "desc" }, take: 50 })).map((m) => ({ id: m.id, titre: m.title, etat: m.status, lien: `/missions/${m.id}` })),
+  },
+};
+const norm = (v: unknown) => String(v ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+function filtrer(l: Ligne[], filtres: { champ: string; op: string; valeur: string }[]) {
+  return l.filter((x) => filtres.every((f) => {
+    const v = x[f.champ];
+    const vs = Array.isArray(v) ? v.map(norm) : [norm(v)];
+    if (f.op === "=") return vs.some((s) => s === norm(f.valeur));
+    if (f.op === "contient") return vs.some((s) => s.includes(norm(f.valeur)));
+    if (f.op === "!=") return vs.every((s) => s !== norm(f.valeur));
+    return true;
+  }));
+}
+const JEUX = new Map<string, Ligne[]>();
+
+// ─── (c) PRODUIRE : HTML libre → assaini (liste blanche, CSS en ligne borné) → rendu → OBSERVATION ───
+const BALISES = new Set(["p", "br", "div", "span", "strong", "b", "em", "i", "u", "ul", "ol", "li", "table", "thead", "tbody", "tr", "th", "td", "h1", "h2", "h3", "hr", "a"]);
+const CSS_PERMIS = new Set(["color", "background", "background-color", "border", "border-collapse", "padding", "margin", "font-weight", "font-size", "font-family", "text-align", "width"]);
+function assainir(html: string): string {
+  return html
+    .replace(/<(script|style|iframe|object|embed|svg)\b[\s\S]*?<\/\1\s*>/gi, "")
+    .replace(/<\/?([a-z0-9]+)([^>]*)>/gi, (tout, b: string, attrs: string) => {
+      const balise = b.toLowerCase();
+      if (!BALISES.has(balise)) return "";
+      if (tout.startsWith("</")) return `</${balise}>`;
+      const style = /style\s*=\s*"([^"]*)"/i.exec(attrs)?.[1] ?? "";
+      const propre = style.split(";").map((d) => d.trim()).filter((d) => CSS_PERMIS.has(d.split(":")[0]!.trim().toLowerCase()) && !/url\(|expression/i.test(d)).join(";");
+      const href = balise === "a" ? /href\s*=\s*"(https?:\/\/[^"]+|\/[^"]*)"/i.exec(attrs)?.[1] : undefined;
+      return `<${balise}${propre ? ` style="${propre}"` : ""}${href ? ` href="${href}"` : ""}>`;
+    });
+}
+/** Ce que la personne verra, décrit SANS le modèle : la boucle d'observation. */
+function observerHtml(html: string) {
+  const styles = [...html.matchAll(/<([a-z0-9]+) style="([^"]*)"/g)].map((m) => m[1]);
+  const parBalise = styles.reduce<Record<string, number>>((a, b) => ((a[b] = (a[b] ?? 0) + 1), a), {});
+  return {
+    tableaux: (html.match(/<table/g) ?? []).length,
+    lignesDeTableau: (html.match(/<tr/g) ?? []).length,
+    paragraphes: (html.match(/<p[ >]/g) ?? []).length,
+    elementsStyles: parBalise,
+    paragraphesStyles: (html.match(/<p style=/g) ?? []).length,
+    couleurs: [...new Set([...html.matchAll(/(#[0-9a-f]{3,6})/gi)].map((m) => m[1]!.toUpperCase()))],
+    texte: html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 400),
+  };
+}
+
+async function versionCourante(nodeId: string) {
+  const v = await prisma.fileVersion.findFirst({ where: { nodeId }, orderBy: { version: "desc" } });
+  return v ? await getBlob(v.blobId) : null;
+}
+
+const OUTILS = [
+  {
+    type: "function", name: "lire",
+    description: `LIRE les données de l'ERP sous les droits de la personne, par une VUE déclarée. Vues : ${Object.entries(VUES).map(([k, v]) => `${k} (${v.description} Champs : ${v.champs.join(", ")})`).join(" ; ")}. Le résultat devient un jeu nommé réutilisable par produire.`,
+    parameters: {
+      type: "object", additionalProperties: false, required: ["vue", "filtres", "champs", "jeu"],
+      properties: {
+        vue: { type: "string", enum: Object.keys(VUES) },
+        filtres: { type: "array", items: { type: "object", additionalProperties: false, required: ["champ", "op", "valeur"], properties: { champ: { type: "string" }, op: { type: "string", enum: ["=", "!=", "contient"] }, valeur: { type: "string" } } } },
+        champs: { type: "array", items: { type: "string" } },
+        jeu: { type: "string", description: "Nom du jeu produit." },
+      },
+    },
+  },
+  {
+    type: "function", name: "produire",
+    description: "PRODUIRE un livrable dans l'espace d'Adam (dossier « Adam/Brouillons » par défaut, invisible des autres) : mail (HTML LIBRE : tu décides la mise en page, partie aux couleurs ou non ; assaini à la sortie), xlsx (depuis un jeu, colonnes ajoutées permises), docx, pdf. Rend une OBSERVATION du rendu réel : vérifie-la contre la demande AVANT de répondre ; si elle ne correspond pas, rappelle produire.",
+    parameters: {
+      type: "object", additionalProperties: false, required: ["format", "nom", "html", "jeu", "colonnesAjoutees"],
+      properties: {
+        format: { type: "string", enum: ["mail", "xlsx", "docx", "pdf"] },
+        nom: { type: "string" },
+        html: { type: "string", description: "Pour mail/docx/pdf : le corps HTML (styles en ligne). Vide sinon." },
+        jeu: { type: "string", description: "Pour xlsx : le jeu lu. Vide sinon." },
+        colonnesAjoutees: { type: "array", items: { type: "string" }, description: "Pour xlsx : colonnes vides ajoutées (ex. statut)." },
+      },
+    },
+  },
+  {
+    type: "function", name: "fichier",
+    description: "MODIFIER ou CONVERTIR un fichier du Drive de la personne : une NOUVELLE VERSION est écrite (l'ancienne reste : annulable). Opérations : remplacer (texte → texte), convertir (vers pdf|docx|xlsx). Rend une observation (occurrences remplacées, texte de la nouvelle version).",
+    parameters: {
+      type: "object", additionalProperties: false, required: ["nomFichier", "remplacements", "versFormat"],
+      properties: {
+        nomFichier: { type: "string" },
+        remplacements: { type: "array", items: { type: "object", additionalProperties: false, required: ["avant", "apres"], properties: { avant: { type: "string" }, apres: { type: "string" } } } },
+        versFormat: { type: "string", enum: ["", "pdf", "docx", "xlsx"] },
+      },
+    },
+  },
+];
+
+async function executer(nom: string, a: any): Promise<unknown> {
+  if (nom === "lire") {
+    const v = VUES[a.vue];
+    if (!v) return { erreur: `vue inconnue ; vues : ${Object.keys(VUES).join(", ")}` };
+    const inconnus = [...a.champs, ...a.filtres.map((f: any) => f.champ)].filter((c: string) => !v.champs.includes(c));
+    if (inconnus.length) return { erreur: `champ(s) inconnu(s) : ${inconnus.join(", ")} ; champs de ${a.vue} : ${v.champs.join(", ")}` };
+    const l = filtrer(await v.lire(), a.filtres).map((x) => Object.fromEntries(a.champs.map((c: string) => [c, x[c]])));
+    JEUX.set(a.jeu, l);
+    return { jeu: a.jeu, lignes: l.length, apercu: l.slice(0, 30) };
+  }
+  if (nom === "produire") {
+    const fichier = path.join(OUT, a.nom.replace(/[\\/]/g, "-"));
+    if (a.format === "xlsx") {
+      const l = JEUX.get(a.jeu);
+      if (!l) return { erreur: `jeu « ${a.jeu} » inconnu ; jeux : ${[...JEUX.keys()].join(", ")}` };
+      const cols = [...Object.keys(l[0] ?? {}), ...a.colonnesAjoutees];
+      const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet(a.nom.replace(/\.xlsx$/, "").slice(0, 31));
+      ws.addRow(cols); for (const x of l) ws.addRow(cols.map((c) => { const v = x[c]; return Array.isArray(v) ? v.join(", ") : v ?? ""; }));
+      await wb.xlsx.writeFile(fichier.endsWith(".xlsx") ? fichier : `${fichier}.xlsx`);
+      return { ecrit: `Adam/Brouillons/${path.basename(fichier)}`, observation: { colonnes: cols, lignes: l.length, totaux: "aucun (aucune colonne additionnée sans demande)" } };
+    }
+    const propre = assainir(a.html);
+    fs.writeFileSync(`${fichier}.html`, propre);
+    return { ecrit: `Adam/Brouillons/${path.basename(fichier)}`, retireParAssainissement: a.html.length - propre.length, observation: observerHtml(propre) };
+  }
+  if (nom === "fichier") {
+    const n = await prisma.driveNode.findFirst({ where: { ownerId: SA, type: "FILE", name: { contains: a.nomFichier.replace(/\.docx$/i, ""), mode: "insensitive" } } });
+    if (!n) return { erreur: "fichier introuvable dans le Drive de la personne" };
+    const octets = await versionCourante(n.id);
+    const zip = await JSZip.loadAsync(octets!);
+    let xml = await zip.file("word/document.xml")!.async("string");
+    const compte: Record<string, number> = {};
+    for (const r of a.remplacements) { const n0 = xml.split(r.avant).length - 1; compte[r.avant] = n0; xml = xml.split(r.avant).join(r.apres); }
+    zip.file("word/document.xml", xml);
+    const docx = path.join(OUT, n.name);
+    fs.writeFileSync(docx, await zip.generateAsync({ type: "nodebuffer" }));
+    let pdf: string | null = null;
+    if (a.versFormat === "pdf") { execFileSync("soffice", ["--headless", "--convert-to", "pdf", "--outdir", OUT, docx], { stdio: "ignore", timeout: 120_000 }); pdf = docx.replace(/\.docx$/, ".pdf"); }
+    const texte = xml.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    return { nouvelleVersion: `${n.name} v2 (v1 conservée : annulable)`, pdf: pdf ? `Adam/Brouillons/${path.basename(pdf)}` : null, observation: { remplacements: compte, texte: texte.slice(0, 400), pdfOctets: pdf ? fs.statSync(pdf).size : null } };
+  }
+  return { erreur: "outil inconnu" };
+}
+
+async function appeler(input: unknown[]) {
+  const r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST", headers: { "content-type": "application/json", authorization: "Bearer sk-proxy" },
+    body: JSON.stringify({ model: MODELE, reasoning: { effort: "low" }, tools: OUTILS, input, instructions: "Tu es Adam, l'assistant de la Direction d'Adventum Pharma (couleur de la charte : #087084, texte blanc sur la couleur). Tu fais ce que la personne demande, avec tes outils génériques. Tu vérifies l'OBSERVATION rendue par un outil contre la demande avant de dire que c'est fait ; si elle ne correspond pas, tu corriges. Réponds en français, brièvement." }),
+  });
+  const j = await r.json() as any;
+  if (j.error) throw new Error(JSON.stringify(j.error));
+  coutUsd += (j.usage.input_tokens * 2 + j.usage.output_tokens * 12) / 1e6;
+  return j;
+}
+
+async function jouer(id: string, tours: string[]) {
+  const input: any[] = [];
+  const journal: unknown[] = [];
+  for (const t of tours) {
+    input.push({ role: "user", content: t });
+    for (let i = 0; i < 8; i++) {
+      const j = await appeler(input);
+      const appels = j.output.filter((o: any) => o.type === "function_call");
+      input.push(...j.output);
+      if (!appels.length) { journal.push({ demande: t, reponse: j.output_text ?? j.output.map((o: any) => o.content?.map((c: any) => c.text).join("")).join("") }); break; }
+      for (const c of appels) {
+        const args = JSON.parse(c.arguments);
+        const res = await executer(c.name, args).catch((e) => ({ erreur: String(e) }));
+        journal.push({ outil: c.name, args, res });
+        input.push({ type: "function_call_output", call_id: c.call_id, output: JSON.stringify(res) });
+      }
+    }
+  }
+  return { id, journal };
+}
+
+async function main() {
+  const conv: { id: string; tours: string[] }[] = JSON.parse(process.env.CONV!);
+  const res = [];
+  for (const c of conv) { res.push(await jouer(c.id, c.tours)); fs.writeFileSync(path.join(OUT, "maquette.json"), JSON.stringify({ coutUsd, res }, null, 2)); console.log(c.id, "coût cumulé", coutUsd.toFixed(4)); }
+  process.exit(0);
+}
+main().catch((e) => { console.error(e); process.exit(1); });

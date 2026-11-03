@@ -1,0 +1,337 @@
+{
+  "coutUsd": 0.034454,
+  "res": [
+    {
+      "id": "MAIL",
+      "journal": [
+        {
+          "outil": "produire",
+          "args": {
+            "format": "mail",
+            "nom": "Mail à Nadir Belkacem - planning de la semaine",
+            "html": "<p>Bonjour Nadir,</p><p>Voici le planning de la semaine :</p><table style=\"border-collapse:collapse;\"><thead><tr style=\"background-color:#087084;color:#ffffff;\"><th style=\"padding:8px;border:1px solid #087084;\">Jour</th><th style=\"padding:8px;border:1px solid #087084;\">Planning</th><th style=\"padding:8px;border:1px solid #087084;\">Responsable</th></tr></thead><tbody><tr><td style=\"padding:8px;border:1px solid #087084;\">Lundi</td><td style=\"padding:8px;border:1px solid #087084;\">9h — Réunion d’équipe</td><td style=\"padding:8px;border:1px solid #087084;\">Nadir</td></tr><tr><td style=\"padding:8px;border:1px solid #087084;\">Mardi</td><td style=\"padding:8px;border:1px solid #087084;\">Visite CHU Oran</td><td style=\"padding:8px;border:1px solid #087084;\">Farid</td></tr><tr><td style=\"padding:8px;border:1px solid #087084;\">Jeudi</td><td style=\"padding:8px;border:1px solid #087084;\">Rapport mensuel</td><td style=\"padding:8px;border:1px solid #087084;\">Radia</td></tr></tbody></table><p>Bien cordialement,</p>",
+            "jeu": "",
+            "colonnesAjoutees": []
+          },
+          "res": {
+            "ecrit": "Adam/Brouillons/Mail à Nadir Belkacem - planning de la semaine",
+            "retireParAssainissement": 14,
+            "observation": {
+              "tableaux": 1,
+              "lignesDeTableau": 4,
+              "paragraphes": 3,
+              "elementsStyles": {
+                "table": 1,
+                "tr": 1,
+                "th": 3,
+                "td": 9
+              },
+              "paragraphesStyles": 0,
+              "couleurs": [
+                "#087084",
+                "#FFFFFF"
+              ],
+              "texte": "Bonjour Nadir, Voici le planning de la semaine : Jour Planning Responsable Lundi 9h — Réunion d’équipe Nadir Mardi Visite CHU Oran Farid Jeudi Rapport mensuel Radia Bien cordialement,"
+            }
+          }
+        },
+        {
+          "demande": "Fais-moi un mail pour Nadir Belkacem avec juste le planning en tableau aux couleurs d Adventum et le reste en texte simple. Planning de la semaine : lundi 9h réunion d équipe (Nadir) ; mardi visite CHU Oran (Farid) ; jeudi rapport mensuel (Radia).",
+          "reponse": "Le brouillon du mail pour Nadir Belkacem est prêt dans **Adam/Brouillons**."
+        }
+      ]
+    },
+    {
+      "id": "ANNUAIRE",
+      "journal": [
+        {
+          "outil": "lire",
+          "args": {
+            "vue": "etablissements",
+            "filtres": [
+              {
+                "champ": "type",
+                "op": "=",
+                "valeur": "pharmacie"
+              },
+              {
+                "champ": "wilaya",
+                "op": "=",
+                "valeur": "Oran"
+              }
+            ],
+            "champs": [
+              "id",
+              "nom",
+              "type",
+              "wilaya",
+              "ville",
+              "adresse",
+              "telephone",
+              "email"
+            ],
+            "jeu": "pharmacies_oran"
+          },
+          "res": {
+            "jeu": "pharmacies_oran",
+            "lignes": 8,
+            "apercu": [
+              {
+                "id": "cmw12u92a00w19apg3xhabej9",
+                "nom": "Pharmacie El Amel",
+                "type": "PHARMACIE",
+                "wilaya": "Oran",
+                "ville": "Oran",
+                "adresse": "5 rue Larbi Ben M'hidi, Oran",
+                "telephone": "041 30 11 22",
+                "email": null
+              },
+              {
+                "id": "cmw12u92e00w59apguve7dkjx",
+                "nom": "Pharmacie Es-Salam",
+                "type": "PHARMACIE",
+                "wilaya": "Oran",
+                "ville": "Oran",
+                "adresse": null,
+                "telephone": "041 28 76 54",
+                "email": null
+              },
+              {
+                "id": "cmw12u92h00w99apg2egcdm2i",
+                "nom": "PHARMACIE ES SALAM",
+                "type": "PHARMACIE",
+                "wilaya": "Oran",
+                "ville": "Oran",
+                "adresse": "9 avenue de l'ALN, Oran",
+                "telephone": null,
+                "email": null
+              },
+              {
+                "id": "cmw12u92j00wb9apggpwb3di1",
+                "nom": "Pharmacie Ibn Rochd",
+                "type": "PHARMACIE",
+                "wilaya": "Oran",
+                "ville": "Oran",
+                "adresse": null,
+                "telephone": "041 51 10 10",
+                "email": null
+              },
+              {
+                "id": "cmw12u92l00wd9apga9jvknbn",
+                "nom": "Pharmacie Ibn-Rochd",
+                "type": "PHARMACIE",
+                "wilaya": "Oran",
+                "ville": "Oran",
+                "adresse": "3 place du 1er Novembre, Oran",
+                "telephone": null,
+                "email": null
+              },
+              {
+                "id": "cmw12u92m00wf9apg54gywbln",
+                "nom": "Pharmacie Belle Vue",
+                "type": "PHARMACIE",
+                "wilaya": "Oran",
+                "ville": "Oran",
+                "adresse": "40 boulevard de la Soummam, Oran",
+                "telephone": "041 39 00 00",
+                "email": null
+              },
+              {
+                "id": "cmw12u92q00wj9apg97xcehon",
+                "nom": "Pharmacie du Port",
+                "type": "PHARMACIE",
+                "wilaya": "Oran",
+                "ville": "Oran",
+                "adresse": null,
+                "telephone": "041 33 90 90",
+                "email": null
+              },
+              {
+                "id": "cmw12u92s00wl9apgu3iu64op",
+                "nom": "Pharmacie Du Port",
+                "type": "PHARMACIE",
+                "wilaya": "Oran",
+                "ville": "Oran",
+                "adresse": "1 rue du Port, Oran",
+                "telephone": "041 33 90 90",
+                "email": null
+              }
+            ]
+          }
+        },
+        {
+          "outil": "produire",
+          "args": {
+            "format": "xlsx",
+            "nom": "Annuaire des pharmacies d'Oran.xlsx",
+            "html": "",
+            "jeu": "pharmacies_oran",
+            "colonnesAjoutees": [
+              "statut"
+            ]
+          },
+          "res": {
+            "ecrit": "Adam/Brouillons/Annuaire des pharmacies d'Oran.xlsx",
+            "observation": {
+              "colonnes": [
+                "id",
+                "nom",
+                "type",
+                "wilaya",
+                "ville",
+                "adresse",
+                "telephone",
+                "email",
+                "statut"
+              ],
+              "lignes": 8,
+              "totaux": "aucun (aucune colonne additionnée sans demande)"
+            }
+          }
+        },
+        {
+          "demande": "Copie l annuaire des pharmacies d Oran en Excel, ajoute une colonne statut et range-le dans ton Drive.",
+          "reponse": "L’annuaire Excel est enregistré dans **Adam/Brouillons** avec une colonne « statut ». Il contient 8 entrées."
+        }
+      ]
+    },
+    {
+      "id": "WORD",
+      "journal": [
+        {
+          "outil": "fichier",
+          "args": {
+            "nomFichier": "Note de cadrage séminaire",
+            "remplacements": [],
+            "versFormat": "pdf"
+          },
+          "res": {
+            "nouvelleVersion": "Note de cadrage séminaire.docx v2 (v1 conservée : annulable)",
+            "pdf": "Adam/Brouillons/Note de cadrage séminaire.pdf",
+            "observation": {
+              "remplacements": {},
+              "texte": "Note de cadrage — séminaire commercial Date : 14 octobre 2026 Lieu : Oran, hôtel Méridien. Objet : préparer le plan d'action du premier trimestre 2027 avec les délégués de l'Ouest.",
+              "pdfOctets": 10817
+            }
+          }
+        },
+        {
+          "outil": "fichier",
+          "args": {
+            "nomFichier": "Note de cadrage séminaire.docx",
+            "remplacements": [
+              {
+                "avant": "14 octobre 2026",
+                "apres": "20 novembre 2026"
+              }
+            ],
+            "versFormat": "pdf"
+          },
+          "res": {
+            "nouvelleVersion": "Note de cadrage séminaire.docx v2 (v1 conservée : annulable)",
+            "pdf": "Adam/Brouillons/Note de cadrage séminaire.pdf",
+            "observation": {
+              "remplacements": {
+                "14 octobre 2026": 1
+              },
+              "texte": "Note de cadrage — séminaire commercial Date : 20 novembre 2026 Lieu : Oran, hôtel Méridien. Objet : préparer le plan d'action du premier trimestre 2027 avec les délégués de l'Ouest.",
+              "pdfOctets": 10585
+            }
+          }
+        },
+        {
+          "demande": "Convertis le Word « Note de cadrage séminaire » en PDF et remplace la date par le 20 novembre 2026.",
+          "reponse": "La date a été remplacée par le 20 novembre 2026 et le document converti en PDF.\n\n[Ouvrir le PDF](Adam/Brouillons/Note%20de%20cadrage%20s%C3%A9minaire.pdf)"
+        }
+      ]
+    },
+    {
+      "id": "PRODUITS",
+      "journal": [
+        {
+          "outil": "lire",
+          "args": {
+            "vue": "produits",
+            "filtres": [
+              {
+                "champ": "etape",
+                "op": "=",
+                "valeur": "COMMERCIALISE"
+              },
+              {
+                "champ": "aires",
+                "op": "contient",
+                "valeur": "infectiologie"
+              }
+            ],
+            "champs": [
+              "nom",
+              "dci",
+              "aires"
+            ],
+            "jeu": "produits_infectiologie_commercialises"
+          },
+          "res": {
+            "jeu": "produits_infectiologie_commercialises",
+            "lignes": 2,
+            "apercu": [
+              {
+                "nom": "Amoxil 1 g",
+                "dci": "Amoxicilline",
+                "aires": [
+                  "Infectiologie"
+                ]
+              },
+              {
+                "nom": "Azitrom 500 mg",
+                "dci": "Azithromycine",
+                "aires": [
+                  "Infectiologie"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "demande": "Nos produits commercialisés en infectiologie ?",
+          "reponse": "Vos produits commercialisés en infectiologie sont :\n\n- **Amoxil 1 g** — amoxicilline\n- **Azitrom 500 mg** — azithromycine"
+        }
+      ]
+    },
+    {
+      "id": "MISSIONS",
+      "journal": [
+        {
+          "outil": "lire",
+          "args": {
+            "vue": "missions",
+            "filtres": [],
+            "champs": [
+              "id",
+              "titre",
+              "etat",
+              "lien"
+            ],
+            "jeu": "missions_recentes"
+          },
+          "res": {
+            "jeu": "missions_recentes",
+            "lignes": 1,
+            "apercu": [
+              {
+                "id": "cmw12u6d900689apgga5j4qtq",
+                "titre": "Suivi Président-directeur général (QZ-MISSION-AMI-1586)",
+                "etat": "RUNNING",
+                "lien": "/missions/cmw12u6d900689apgga5j4qtq"
+              }
+            ]
+          }
+        },
+        {
+          "demande": "Donne nos 3 dernières missions.",
+          "reponse": "Je ne trouve qu’une mission :\n\n- [Suivi Président-directeur général (QZ-MISSION-AMI-1586)](/missions/cmw12u6d900689apgga5j4qtq) — en cours."
+        }
+      ]
+    }
+  ]
+}
