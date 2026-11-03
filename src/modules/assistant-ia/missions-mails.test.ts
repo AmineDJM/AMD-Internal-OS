@@ -165,7 +165,7 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       expect(repli.statut, JSON.stringify(repli)).toBe("EN_ATTENTE_DE_CONFIRMATION");
       expect(repli.boite).toBe("l'envoi de l'ERP");
       expect(repli.boite_adam).toBe("non reliée");
-      expect(repli.consigne).toMatch(/boîte Gmail d'Adam n'est pas reliée.*Connecter Google/);
+      expect(repli.consigne).toMatch(/boîte Gmail d'Adam n'est pas reliée.*\/adam\/reglages.*Connecter le compte Google/);
       expect(props[0]!.proposition.title).toContain("Envoyer par l'envoi de l'ERP");
     } else {
       // L'envoi de l'ERP peut être fermé à ce compte par la console : le refus le DIT (jamais « rien n'est préparé » sans raison).
