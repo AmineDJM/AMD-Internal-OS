@@ -244,7 +244,7 @@ Covered:
   Bench V4-H gaps closed: directory returns manager/department (`findPeople`), `list_pending_decisions` exposed,
   `demandes_adpro` / `etat_dossier_reglementaire` (`lecturesMetier`, `lectures.ts`, under the elevated view, perimeter-
   scoped — `product_360` not lent), leave requests on the HR card, cached input billed at `cacheParM`
-  (`ASSISTANT_IA_PRICE_CACHED`, defaults `TARIFS_PAR_DEFAUT` 2/12/0.2 $ per M), `consigneGestesFermes` (refusals name the right). Bench: `src/lib/agent/droits-metier.test.ts`.
+  (`ASSISTANT_IA_PRICE_CACHED`, defaults `TARIFS_PAR_DEFAUT` 2/12/0.2 $ per M), `consigneGestesFermes` (refusals name the right — since I2/0064 a fallback only, behind `ASSISTANT_IA_ACCES_EN_PROSE=1`; the named refusal comes from `trouver_outil` via `infra/refus-nomme.ts`). Bench: `src/lib/agent/droits-metier.test.ts`.
   **Voice notes & reading attachments (decision 0011, 2026-10-28)**: `src/lib/agent/lecture/` — `pieces.ts` READS each
   attachment before the turn (text/Office/PPTX/CSV natively, scanned PDF and images by VISION through the `genererTexte`
   door with role `vision`, audio/video by STT + ffmpeg key frames), after vault gates (local nature, CONFIDENTIAL, file
@@ -1041,3 +1041,13 @@ would collide across parallel suites in the test DB.
   attached to the wrong question). `src/modules/salles` is set aside behind `SALLES_EN_SERVICE` (env, off by default):
   off → no room operations/read/capability for any role (`OPERATIONS_IA`, `lecturesDossiersEtMoyens`, `CONTRATS_IA`
   filtered), `/salles` redirects home, actions refuse; tables kept. `SALLES_EN_SERVICE=1` restores everything.
+- **Lot I2 — one engine, access profiles (decision 0064, 03/11)**: `src/modules/assistant-ia/domaine/profil-acces.ts` (pure,
+  fail-closed) is the ONLY "who has what" rule of the module: SA in person, Exact View, emergency stop, families S1 + bases
+  D2–D5 (carried), channels `erp/microsoft/smtp/gmailAdam/whatsapp`, catalogues `adam/chantiers`. `adamOuvert`,
+  `canalAdamOuvert` (now also closed in Exact View), chantiers and the emergency stop read it; consoles read
+  `roleSuperAdmin`. `profil-acces.test.ts` forbids `=== "SUPER_ADMIN"` elsewhere in the module. No access prose in the
+  turn prompt any more (`consigneGestesFermes`, `CONSIGNE_ADAM_SA`, `CONSIGNE_BOITE_ADAM` only under
+  `ASSISTANT_IA_ACCES_EN_PROSE=1`); `trouver_outil` returns `fermes: [{geste, droit, quiOuvre}]` for closed gestures
+  (`GESTES_RESERVES` like `envoyer_gmail` are never named); `taireCanalAdam` stays as output guard. Gmail link path:
+  `OU_RELIER_GMAIL_ADAM` (`/adam/reglages`). Porte: 9 SA duplicates moved to `COUVERTS`, 8 kept (not covered by the
+  engine: Gmail reads, `resolve_person`, `episodic_recall`, reminders, `read_finances`). Bench: `au3-moteur-unique.test.ts`.
