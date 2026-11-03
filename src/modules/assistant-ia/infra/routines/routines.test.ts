@@ -11,8 +11,8 @@ import { remplacerModelesPourTests } from "../generer";
 import { modeleFactice } from "../testing/modele-factice";
 import { executerOperationIA } from "../operations";
 import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "../operations/routines";
-import { outilsDeRoutine, sourcesEnFin } from "./passage";
-import { changerStatut, executerRoutinesDues, supprimerRoutine } from "./service";
+import { DELAI_PASSAGE_MS, outilsDeRoutine, sourcesEnFin } from "./passage";
+import { changerStatut, DELAIS_REESSAI_MIN, executerRoutinesDues, executerMaintenant, PRISE_PERIMEE_ROUTINE_MS, supprimerRoutine } from "./service";
 import { effacerJournalDe } from "../testing/journal";
 
 /**
@@ -89,6 +89,11 @@ suite("Assistant IA — routines programmées", () => {
     expect(noms).toContain("web_research");
   });
 
+  it("une veille de marché a le TEMPS : 10 min par passage (plus de 150 s), et la prise périmée reste plus longue que le passage", () => {
+    expect(DELAI_PASSAGE_MS).toBe(10 * 60_000);
+    expect(PRISE_PERIMEE_ROUTINE_MS).toBeGreaterThan(DELAI_PASSAGE_MS);
+  });
+
   it("les sources du web s'ajoutent au rapport depuis la sortie de l'outil — jamais une adresse non https", () => {
     const sortie = JSON.stringify({ reponse: "…", sources: [{ url: "https://www.aps.dz/sante/marche", titre: "APS — marché" }, { url: "http://non-sur.example", titre: "x" }, { url: "https://www.aps.dz/sante/marche", titre: "doublon" }] });
     const fin = sourcesEnFin(["pas du JSON", sortie]);
@@ -134,6 +139,78 @@ suite("Assistant IA — routines programmées", () => {
     expect(dernier.statut).toBe("ECHEC");
     expect(dernier.erreur).toBeTruthy();
     expect(await prisma.notification.count({ where: { userId: assistante.id, title: { contains: "passage en échec" } } })).toBe(1);
+  });
+
+  it("CRÉDIT ÉPUISÉ CHEZ LE FOURNISSEUR : le passage planifié se RÉESSAIE seul (10 min, 30 min…), sans compter un passage de plus — puis le calendrier reprend (Direction, 03/11)", async () => {
+    const routine = await prisma.assistantRoutine.findFirstOrThrow({ where: { userId: assistante.id } });
+    const lundi8h = new Date(Date.now() - 60_000);
+    await prisma.assistantRoutine.update({ where: { id: routine.id }, data: { prochaineLe: lundi8h, echecsConsecutifs: 0 } });
+    const avant = await prisma.assistantRoutine.findUniqueOrThrow({ where: { id: routine.id } });
+    const plusDeCredit = () => { throw new Error("You have no credits remaining. Add credits to continue using the API."); };
+    const enPanne = { ...modeleFactice([{ texte: "jamais" }]).modele, doGenerate: plusDeCredit, doStream: plusDeCredit };
+    remplacerModelesPourTests([enPanne as never]);
+    const t0 = new Date();
+    const avisAvant = await prisma.notification.count({ where: { userId: assistante.id, title: { contains: "nouvel essai" } } });
+    await executerRoutinesDues(t0);
+    const apresEchec = await prisma.assistantRoutine.findUniqueOrThrow({ where: { id: routine.id } });
+    const echec = await prisma.assistantRoutineRun.findFirstOrThrow({ where: { routineId: routine.id }, orderBy: { debutLe: "desc" } });
+    expect(echec.statut).toBe("ECHEC");
+    expect(echec.erreur).toMatch(/no credits remaining/);
+    // Le nouvel essai est dans 10 min — pas lundi prochain — et l'échéance du calendrier est gardée pour après.
+    expect(apresEchec.prochaineLe!.getTime() - t0.getTime()).toBe(DELAIS_REESSAI_MIN[0] * 60_000);
+    const reprise = (apresEchec.etat as { reprise?: { normale: string; tentative: number } }).reprise!;
+    expect(reprise.tentative).toBe(1);
+    expect(new Date(reprise.normale).getTime()).toBeGreaterThan(t0.getTime() + 24 * 3_600_000);
+    expect(apresEchec.executions).toBe(avant.executions + 1);
+    expect(await prisma.notification.count({ where: { userId: assistante.id, title: { contains: "nouvel essai" } } })).toBe(avisAvant + 1);
+
+    // Second essai, toujours sans crédit : 30 min plus tard, toujours un seul passage compté, aucune notification de plus.
+    const t1 = new Date(apresEchec.prochaineLe!.getTime() + 1_000);
+    await executerRoutinesDues(t1);
+    const apres2 = await prisma.assistantRoutine.findUniqueOrThrow({ where: { id: routine.id } });
+    expect(apres2.prochaineLe!.getTime() - t1.getTime()).toBe(DELAIS_REESSAI_MIN[1] * 60_000);
+    expect(apres2.executions).toBe(avant.executions + 1);
+    expect(apres2.echecsConsecutifs).toBe(1);
+    expect(await prisma.notification.count({ where: { userId: assistante.id, title: { contains: "nouvel essai" } } })).toBe(avisAvant + 1);
+
+    // Le crédit est remis : l'essai suivant RÉUSSIT, le rapport dit le passage rattrapé, le calendrier reprend à lundi prochain.
+    const faux = modeleFactice([{ texte: "## Briefing\nAppel d'offres PCH oncologie publié (source : PCH, 02/11)." }]);
+    remplacerModelesPourTests([faux.modele as never]);
+    const t2 = new Date(apres2.prochaineLe!.getTime() + 1_000);
+    await executerRoutinesDues(t2);
+    const fin = await prisma.assistantRoutine.findUniqueOrThrow({ where: { id: routine.id } });
+    const ok = await prisma.assistantRoutineRun.findFirstOrThrow({ where: { routineId: routine.id }, orderBy: { debutLe: "desc" } });
+    expect(ok.statut).toBe("SUCCES");
+    expect(JSON.stringify(faux.promptsRecus)).toContain("Passage rattrapé");
+    expect(fin.prochaineLe!.toISOString()).toBe(reprise.normale);
+    expect(fin.executions).toBe(avant.executions + 1);
+    expect(fin.echecsConsecutifs).toBe(0);
+    expect((fin.etat as { reprise?: unknown }).reprise).toBeUndefined();
+  });
+
+  it("un échec NON passager (aucun modèle configuré) ne se réessaie pas ; « Exécuter maintenant » qui réussit annule l'essai en attente", async () => {
+    const routine = await prisma.assistantRoutine.findFirstOrThrow({ where: { userId: assistante.id } });
+    await prisma.assistantRoutine.update({ where: { id: routine.id }, data: { prochaineLe: new Date(Date.now() - 60_000) } });
+    remplacerModelesPourTests([]);
+    const t0 = new Date();
+    await executerRoutinesDues(t0);
+    const sansModele = await prisma.assistantRoutine.findUniqueOrThrow({ where: { id: routine.id } });
+    expect(sansModele.prochaineLe!.getTime() - t0.getTime()).toBeGreaterThan(24 * 3_600_000);
+    expect((sansModele.etat as { reprise?: unknown }).reprise).toBeUndefined();
+
+    // Un essai en attente (crédit épuisé), puis la personne clique « Exécuter maintenant » : le calendrier reprend.
+    await prisma.assistantRoutine.update({ where: { id: routine.id }, data: { prochaineLe: new Date(Date.now() - 60_000) } });
+    const plusDeCredit = () => { throw new Error("insufficient_quota"); };
+    remplacerModelesPourTests([{ ...modeleFactice([{ texte: "x" }]).modele, doGenerate: plusDeCredit, doStream: plusDeCredit } as never]);
+    await executerRoutinesDues();
+    const enAttente = await prisma.assistantRoutine.findUniqueOrThrow({ where: { id: routine.id } });
+    const normale = (enAttente.etat as { reprise: { normale: string } }).reprise.normale;
+    remplacerModelesPourTests([modeleFactice([{ texte: "## Briefing\nRapport complet." }]).modele as never]);
+    const m = await executerMaintenant(assistante.id, routine.id);
+    expect(m.ok && m.statut).toBe("SUCCES");
+    const apres = await prisma.assistantRoutine.findUniqueOrThrow({ where: { id: routine.id } });
+    expect(apres.prochaineLe!.toISOString()).toBe(normale);
+    expect((apres.etat as { reprise?: unknown }).reprise).toBeUndefined();
   });
 
   it("LIMITE : l'assistant retiré entre deux passages → rien n'est lu, la routine passe en pause, et c'est dit", async () => {

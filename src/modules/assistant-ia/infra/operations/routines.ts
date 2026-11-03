@@ -229,8 +229,8 @@ export const GERER_ROUTINE: OperationIA = {
     const id = a.id ?? "";
     if (a.action === "SUPPRIMER") return (await supprimerRoutine(user.id, id)) ? { ok: true, message: "Routine supprimée." } : { ok: false, error: "Routine introuvable." };
     if (a.action === "EXECUTER") {
-      const r = await executerMaintenant(user.id, id);
-      return r.ok ? { ok: true, message: r.statut === "ECHEC" ? "Le passage a échoué : la cause est dans l'onglet Routines." : "Passage fait : le rapport est dans l'onglet Routines.", link: `/assistant?routine=${id}` } : { ok: false, error: r.erreur };
+      const r = await executerMaintenant(user.id, id, { attendre: false });
+      return r.ok ? { ok: true, message: "Passage lancé : le rapport prend quelques minutes — vous serez prévenu quand il sera prêt (onglet Routines).", link: `/assistant?routine=${id}` } : { ok: false, error: r.erreur };
     }
     const r = await changerStatut(user.id, id, a.action === "PAUSE" ? "PAUSED" : "ACTIVE");
     if (!r.ok) return { ok: false, error: r.erreur };

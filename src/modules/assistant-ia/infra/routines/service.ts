@@ -4,7 +4,7 @@ import { notifyUser } from "@/lib/notify";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { proprietaire } from "@/platform/ia/proprietaire";
 import { decrireCalendrier, prochaineExecution, type Calendrier, type Frequence } from "../../domaine/routines/calendrier";
-import { passageDeRoutine } from "./passage";
+import { DELAI_PASSAGE_MS, passageDeRoutine } from "./passage";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -25,6 +25,16 @@ import { sansBloquer } from "@/lib/journal";
  * disent plus fort ; la routine n'est jamais éteinte en douce. Elle n'est mise en pause que si
  * l'assistant ne lui est plus ouvert — et la notification le dit.
  *
+ * ── UN ÉCHEC DU FOURNISSEUR SE RÉESSAIE ──────────────────────────────────────────────────
+ *
+ * Un passage PLANIFIÉ qui échoue pour une raison passagère (crédit épuisé chez le fournisseur, quota, réseau, délai,
+ * réponse vide) est REJOUÉ seul : 10 min, 30 min, 1 h, 2 h, 4 h, puis 8 h après — jamais au-delà de l'échéance suivante,
+ * qui reste celle du calendrier (Direction, 03/11/2026 : « il est censé réessayer, prendre ses précautions » — le briefing
+ * du lundi 08:00 avait échoué faute de crédit, et attendait le lundi suivant alors que le crédit avait été remis). Un
+ * nouvel essai n'est pas un passage de plus (le compteur du calendrier ne bouge pas) ; la personne est prévenue au premier
+ * échec (« nouvel essai à … ») et quand les essais sont épuisés, pas à chaque essai. « Exécuter maintenant » qui réussit
+ * annule les essais en attente. L'état de la reprise vit dans `etat.reprise` (aucune migration).
+ *
  * ── LA PRISE EST ATOMIQUE ────────────────────────────────────────────────────────────────
  *
  * Même motif que le planificateur de l'ERP : la prochaine échéance est avancée DANS l'écriture
@@ -40,6 +50,19 @@ const PASSAGES_GARDES = 60;
 const ECHECS_ALERTE = 3;
 /** Au-delà de ce retard, le passage est dit « rattrapé » (serveur arrêté, instance en veille). */
 const RETARD_DIT_MS = 30 * 60_000;
+/** Les délais des nouveaux essais d'un passage planifié en échec passager (minutes, après chaque échec). */
+export const DELAIS_REESSAI_MIN = [10, 30, 60, 120, 240, 480] as const;
+
+/** Un nouvel essai en attente : à quelle heure (`aLe`), l'échéance du calendrier à reprendre ensuite, l'échéance d'origine. */
+export interface Reprise { aLe: string; normale: string | null; tentative: number; prevuLe: string }
+type EtatRoutine = { dernierRapport?: string; dernierLe?: string; reprise?: Reprise };
+const etatDe = (r: Pick<AssistantRoutine, "etat">): EtatRoutine => (r.etat && typeof r.etat === "object" ? r.etat as EtatRoutine : {});
+/** La reprise de cette échéance-ci — seulement si la routine est due À L'HEURE de l'essai (une reprise, une modification l'annulent). */
+const repriseDue = (r: Pick<AssistantRoutine, "etat" | "prochaineLe">): Reprise | null => {
+  const rep = etatDe(r).reprise;
+  return rep && r.prochaineLe && rep.aLe === r.prochaineLe.toISOString() ? rep : null;
+};
+const heureAlger = (d: Date) => d.toLocaleString("fr-FR", { timeZone: "Africa/Algiers", weekday: "long", hour: "2-digit", minute: "2-digit" });
 
 export const calendrierDe = (r: Pick<AssistantRoutine, "frequence" | "intervalle" | "jours" | "jourDuMois" | "heure" | "minute" | "debutLe" | "finLe" | "maxExecutions">): Calendrier => ({
   frequence: r.frequence as Frequence, intervalle: r.intervalle, jours: r.jours, jourDuMois: r.jourDuMois,
@@ -161,7 +184,7 @@ async function notifier(r: AssistantRoutine, titre: string, corps: string, toujo
 /**
  * JOUE UN PASSAGE d'une routine déjà prise (ou demandée à la main) — et le consigne. Ne lève jamais.
  */
-export async function jouerRoutine(r: AssistantRoutine, declenchement: "PLANIFIE" | "MANUEL", now = new Date(), prevuLe: Date | null = null): Promise<{ statut: Statut; runId: string }> {
+export async function jouerRoutine(r: AssistantRoutine, declenchement: "PLANIFIE" | "MANUEL", now = new Date(), prevuLe: Date | null = null, reprise: Reprise | null = null): Promise<{ statut: Statut; runId: string }> {
   const debut = Date.now();
   let statut: Statut;
   let contenu: string | null = null;
@@ -169,6 +192,7 @@ export async function jouerRoutine(r: AssistantRoutine, declenchement: "PLANIFIE
   let erreur: string | null = null;
   let outils: string[] = [];
   let pause = false;
+  let reessayable = false;
 
   const user = await proprietaire(r.userId);
   if (!user) {
@@ -188,8 +212,30 @@ export async function jouerRoutine(r: AssistantRoutine, declenchement: "PLANIFIE
       statut = /^\s*\**\s*rien de nouveau/i.test(p.contenu) ? "RIEN_DE_NOUVEAU" : "SUCCES";
     } else {
       [statut, erreur] = ["ECHEC", p.raison];
+      reessayable = p.reessayable;
     }
   }
+
+  // LE NOUVEL ESSAI : passage planifié, échec passager, essais restants, et avant l'échéance suivante du calendrier.
+  const tentative = reprise?.tentative ?? 0;
+  // L'essai qui attend VRAIMENT (celui de l'échéance en cours) — une reprise périmée par une modification ou une pause ne compte plus.
+  const enAttente = repriseDue(r);
+  let nouvelEssai: Date | null = null;
+  if (declenchement === "PLANIFIE" && statut === "ECHEC" && reessayable && tentative < DELAIS_REESSAI_MIN.length) {
+    const a = new Date(now.getTime() + DELAIS_REESSAI_MIN[tentative]! * 60_000);
+    if (!r.prochaineLe || a < r.prochaineLe) nouvelEssai = a;
+  }
+  // « Exécuter maintenant » qui réussit pendant qu'un essai attend : l'essai est annulé, le calendrier reprend.
+  const manuelRattrape = declenchement === "MANUEL" && (statut === "SUCCES" || statut === "RIEN_DE_NOUVEAU") && enAttente !== null;
+  const { reprise: _ancienne, ...etatSansReprise } = etatDe(r);
+  void _ancienne;
+  const etat: EtatRoutine = {
+    ...etatSansReprise,
+    ...(contenu ? { dernierRapport: contenu.slice(0, 2000), dernierLe: now.toISOString() } : {}),
+    ...(nouvelEssai ? { reprise: { aLe: nouvelEssai.toISOString(), normale: r.prochaineLe?.toISOString() ?? null, tentative: tentative + 1, prevuLe: (prevuLe ?? now).toISOString() } } : {}),
+    // Un passage MANUEL en échec ne touche pas à l'essai qui attend.
+    ...(declenchement === "MANUEL" && !manuelRattrape && enAttente ? { reprise: enAttente } : {}),
+  };
 
   const run = await prisma.assistantRoutineRun.create({
     data: {
@@ -197,14 +243,17 @@ export async function jouerRoutine(r: AssistantRoutine, declenchement: "PLANIFIE
       ...(blocs !== undefined ? { blocs } : {}), outils,
     },
   });
-  const echecs = statut === "ECHEC" ? r.echecsConsecutifs + 1 : 0;
-  const fin = declenchement === "PLANIFIE" && !r.prochaineLe;
+  // Un passage et ses nouveaux essais comptent UN échec, pas un par essai.
+  const echecs = statut === "ECHEC" ? (reprise ? r.echecsConsecutifs : r.echecsConsecutifs + 1) : 0;
+  const fin = declenchement === "PLANIFIE" && !r.prochaineLe && !nouvelEssai;
   await prisma.assistantRoutine.update({
     where: { id: r.id },
     data: {
       priseLe: null, derniereLe: now, echecsConsecutifs: echecs,
-      ...(declenchement === "PLANIFIE" ? { executions: { increment: 1 } } : {}),
-      ...(contenu ? { etat: { dernierRapport: contenu.slice(0, 2000), dernierLe: now.toISOString() } } : {}),
+      ...(declenchement === "PLANIFIE" && !reprise ? { executions: { increment: 1 } } : {}),
+      etat: etat as Prisma.InputJsonValue,
+      ...(nouvelEssai ? { prochaineLe: nouvelEssai } : {}),
+      ...(manuelRattrape ? { prochaineLe: enAttente!.normale ? new Date(enAttente!.normale) : null } : {}),
       ...(pause ? { statut: "PAUSED" } : fin ? { statut: "ENDED" } : {}),
     },
   }).catch((e) => console.error("[routines] mise à jour", r.id, e));
@@ -215,8 +264,15 @@ export async function jouerRoutine(r: AssistantRoutine, declenchement: "PLANIFIE
   if (statut === "SUCCES") await notifier(r, `Routine « ${r.titre} » : rapport prêt`, contenu!.replace(/[#*_`>]/g, "").trim());
   else if (statut === "RIEN_DE_NOUVEAU") await notifier(r, `Routine « ${r.titre} » : rien de nouveau`, "Le passage a eu lieu ; rien n'a changé depuis le précédent rapport.");
   else if (statut === "ECHEC") {
-    await notifier(r, echecs >= ECHECS_ALERTE ? `Routine « ${r.titre} » : ${echecs} échecs d'affilée` : `Routine « ${r.titre} » : passage en échec`,
-      `${erreur}${echecs >= ECHECS_ALERTE ? " — vérifiez-la, ou mettez-la en pause." : " Elle repassera à l'échéance suivante."}`, true);
+    if (nouvelEssai) {
+      // Prévenue au PREMIER échec seulement — les essais suivants ne la dérangent pas.
+      if (tentative === 0) await notifier(r, `Routine « ${r.titre} » : passage en échec — nouvel essai ${heureAlger(nouvelEssai)}`,
+        `${erreur} Nouvel essai automatique ${heureAlger(nouvelEssai)} (heure d'Alger), puis jusqu'à ${DELAIS_REESSAI_MIN.length} fois avant l'échéance suivante. Vous pouvez aussi l'exécuter maintenant.`, true);
+    } else {
+      const epuise = reprise !== null;
+      await notifier(r, echecs >= ECHECS_ALERTE ? `Routine « ${r.titre} » : ${echecs} échecs d'affilée` : `Routine « ${r.titre} » : passage en échec${epuise ? " après plusieurs essais" : ""}`,
+        `${erreur}${echecs >= ECHECS_ALERTE ? " — vérifiez-la, ou mettez-la en pause." : epuise ? ` ${tentative} nouveaux essais ont échoué ; elle repassera à l'échéance suivante.` : " Elle repassera à l'échéance suivante."}`, true);
+    }
   } else if (user) await notifier(r, `Routine « ${r.titre} » : passage ignoré`, erreur ?? "", true);
   return { statut, runId: run.id };
 }
@@ -232,13 +288,16 @@ export async function executerRoutinesDues(now = new Date(), parPassage = PAR_PA
       });
       let prise: AssistantRoutine | null = null;
       let prevuLe: Date | null = null;
+      let reprise: Reprise | null = null;
       for (const c of candidates) {
-        const suivante = prochaineExecution(calendrierDe(c), now, c.executions + 1);
+        // UN NOUVEL ESSAI : l'échéance suivante est celle du calendrier, gardée à l'échec — pas une de plus.
+        const rep = repriseDue(c);
+        const suivante = rep ? (rep.normale ? new Date(rep.normale) : null) : prochaineExecution(calendrierDe(c), now, c.executions + 1);
         const ok = await prisma.assistantRoutine.updateMany({ where: { id: c.id, priseLe: null, statut: "ACTIVE" }, data: { priseLe: now, prochaineLe: suivante } });
-        if (ok.count === 1) { prise = { ...c, prochaineLe: suivante }; prevuLe = c.prochaineLe; break; }
+        if (ok.count === 1) { prise = { ...c, prochaineLe: suivante }; prevuLe = rep ? new Date(rep.prevuLe) : c.prochaineLe; reprise = rep; break; }
       }
       if (!prise) break;
-      await jouerRoutine(prise, "PLANIFIE", now, prevuLe);
+      await jouerRoutine(prise, "PLANIFIE", now, prevuLe, reprise);
       jouees++;
     }
   } catch (e) {
@@ -247,12 +306,25 @@ export async function executerRoutinesDues(now = new Date(), parPassage = PAR_PA
   return { jouees };
 }
 
-/** « Exécuter maintenant » — hors calendrier : ne compte pas dans le nombre de passages, ne déplace pas l'échéance. */
-export async function executerMaintenant(userId: string, id: string): Promise<{ ok: true; statut: Statut; runId: string } | { ok: false; erreur: string }> {
+/** La prise d'une routine est libérée au-delà de ce délai : il doit rester plus long que le passage le plus long. */
+export const PRISE_PERIMEE_ROUTINE_MS = PRISE_PERIMEE_MS;
+void DELAI_PASSAGE_MS;
+
+/**
+ * « Exécuter maintenant » — hors calendrier : ne compte pas dans le nombre de passages, ne déplace pas l'échéance.
+ * `attendre: false` (l'écran, Adam) : le passage est LANCÉ et la réponse revient tout de suite — un rapport de veille prend
+ * plusieurs minutes, l'écran ne reste pas suspendu ; la personne est prévenue quand il est prêt (sa notification).
+ */
+export async function executerMaintenant(userId: string, id: string, opts: { attendre?: boolean } = {}): Promise<{ ok: true; statut: Statut | "EN_COURS"; runId: string | null } | { ok: false; erreur: string }> {
   const r = await prisma.assistantRoutine.findFirst({ where: { id, userId } });
   if (!r) return { ok: false, erreur: "Routine introuvable." };
   const pris = await prisma.assistantRoutine.updateMany({ where: { id, priseLe: null }, data: { priseLe: new Date() } });
   if (pris.count !== 1) return { ok: false, erreur: "Cette routine est déjà en cours d'exécution." };
+  if (opts.attendre === false) {
+    // Toujours prévenue à la fin d'un passage lancé à la main en arrière-plan : elle n'est plus devant l'écran.
+    void jouerRoutine({ ...r, notifier: true }, "MANUEL").catch(sansBloquer("routines-service.executerMaintenant.arrierePlan"));
+    return { ok: true, statut: "EN_COURS", runId: null };
+  }
   const j = await jouerRoutine(r, "MANUEL");
   return { ok: true, ...j };
 }

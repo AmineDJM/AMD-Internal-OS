@@ -38,6 +38,7 @@ export function RoutinesPanel({ ouvert, onFermer, routineInitiale, onNonLus }: {
 }) {
   const [routines, setRoutines] = useState<Routine[] | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [occupe, setOccupe] = useState<string | null>(null);
   const [passage, setPassage] = useState<Passage | null>(null);
   const [aSupprimer, setASupprimer] = useState<string | null>(null);
@@ -66,9 +67,10 @@ export function RoutinesPanel({ ouvert, onFermer, routineInitiale, onNonLus }: {
     if (dernier) void ouvrir(dernier.id);
   }, [ouvert, routineInitiale, initialeVue, routines, ouvrir]);
 
-  const agir = async (cle: string, f: () => Promise<{ ok: boolean; erreur?: string; runId?: string }>) => {
+  const agir = async (cle: string, f: () => Promise<{ ok: boolean; erreur?: string; runId?: string; statut?: string }>) => {
     setOccupe(cle);
-    let r: { ok: boolean; erreur?: string; runId?: string };
+    setInfo(null);
+    let r: { ok: boolean; erreur?: string; runId?: string; statut?: string };
     try {
       r = await f();
     } catch {
@@ -79,6 +81,8 @@ export function RoutinesPanel({ ouvert, onFermer, routineInitiale, onNonLus }: {
     }
     if (!r.ok) { setErreur(r.erreur ?? "Opération impossible."); return; }
     setErreur(null);
+    // Un passage lancé à la main tourne en arrière-plan (plusieurs minutes pour une veille) : c'est dit, et il prévient.
+    if (r.statut === "EN_COURS") setInfo("Passage lancé : le rapport prend quelques minutes. Vous serez prévenu quand il sera prêt.");
     await charger();
     if (r.runId) await ouvrir(r.runId);
   };
@@ -93,6 +97,7 @@ export function RoutinesPanel({ ouvert, onFermer, routineInitiale, onNonLus }: {
       pied={passage ? null : <>Une routine lit l&apos;ERP avec vos droits du moment et cherche sur le web ; elle n&apos;envoie rien et ne crée rien. Heures d&apos;Alger.</>}
     >
       {erreur && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 dark:bg-red-950/40 dark:text-red-400">{erreur}</p>}
+      {info && <p role="status" className="rounded-lg bg-violet-50 px-3 py-2 text-[13px] text-violet-800 dark:bg-violet-950/40 dark:text-violet-300">{info}</p>}
 
       {passage ? (
         <article className="space-y-3">
