@@ -1,7 +1,8 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { attendreBloques, compterBloques, ecartsDesGestesSousBarriere, poserBarriere } from "./bancs-concurrents";
+import { attendreBloques, compterBloques, poserBarriere } from "./bancs-concurrents";
+import { ecartsDesGestesSousBarriere } from "./surveillance-sous-barriere";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

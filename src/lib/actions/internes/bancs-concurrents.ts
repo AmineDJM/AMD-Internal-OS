@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma, prismaBrut } from "@/lib/prisma";
-import { ADAM_EMAIL } from "@/lib/missions/agent/account";
+import { surveillerSousBarriere } from "./surveillance-sous-barriere";
 import { sansBloquer } from "@/lib/journal";
 import { retirerComptesEtSemis } from "./menage-de-banc";
 
@@ -88,17 +88,13 @@ export async function poserBarriere(tx: Prisma.TransactionClient, ...tables: str
   for (const t of tables) await tx.$executeRawUnsafe(`LOCK TABLE "${t.replace(/"/g, "")}" IN SHARE MODE`);
 }
 
-// ── LE GESTE SOUS LA BARRIÈRE NE S'ADRESSE QU'AUX COMPTES DU BANC — mesuré, pas promis ──────────
+// ── LE GESTE SOUS LA BARRIÈRE NE S'ADRESSE QU'AUX COMPTES DU BANC — mesuré (`surveillance-sous-barriere.ts`) ──
 
-/** Les comptes PERMANENTS de la base de tests, qu'aucun banc ne retire : les notifier sous une barrière ne noue rien. */
-const COMPTES_PERMANENTS = ["siege-dg@banc-de-tests.local", ADAM_EMAIL];
-/** Les comptes que ce processus a créés (ses bancs) — par le client de base, que voient aussi les transactions. */
-const comptesDuProcessus = new Set<string>();
-const ecartsSousBarriere: string[] = [];
 let barrieresPosees = 0;
 
 /** Une barrière de CE processus est-elle ouverte ? (le tour consultatif de `poserBarriere`, tenu par une de ses connexions) */
 async function barriereOuverteIci(): Promise<boolean> {
+  if (barrieresPosees === 0) return false;
   const [{ n }] = await prismaBrut.$queryRaw<{ n: number }[]>`
     SELECT count(*)::int AS n FROM pg_locks l JOIN pg_stat_activity a ON a.pid = l.pid
     WHERE l.locktype = 'advisory' AND l.granted AND l.objsubid = 2
@@ -107,57 +103,7 @@ async function barriereOuverteIci(): Promise<boolean> {
   return n > 0;
 }
 
-const destinatairesDe = (data: unknown): string[] =>
-  [data].flat().map((d) => (d as { userId?: unknown } | null)?.userId).filter((u): u is string => typeof u === "string");
-
-/**
- * LA SURVEILLANCE (tests seulement, installée avec ce module — avant que les bancs ne créent leurs comptes). Une
- * notification écrite pendant qu'une barrière de ce processus tient sa table, à un compte que ce processus n'a pas
- * créé, est le premier maillon du cycle R2 : ce compte appartient à un banc voisin, qui peut le retirer à cet instant
- * et attendre la barrière (`ON DELETE SET NULL` vers la table tenue) — la notification attend ce retrait, la barrière
- * attend la notification, et rien ne bouge jusqu'au délai. L'écart est noté AVANT l'écriture (une écriture prise dans
- * le cycle ne revient jamais) et fait échouer le cas qui l'a commis, avec le destinataire.
- */
-function surveillerLesDestinataires(): void {
-  prismaBrut.$use(async (params, next) => {
-    if (params.model === "Notification" && barrieresPosees > 0 && ["create", "createMany", "upsert"].includes(params.action)) {
-      const a = params.args as { data?: unknown; create?: unknown };
-      const etrangers = [...new Set(destinatairesDe(a.data ?? a.create))].filter((u) => !comptesDuProcessus.has(u));
-      if (etrangers.length > 0 && (await barriereOuverteIci())) {
-        const qui = await prismaBrut.user.findMany({ where: { id: { in: etrangers }, email: { notIn: COMPTES_PERMANENTS } }, select: { email: true, role: true } });
-        for (const u of qui) ecartsSousBarriere.push(`${u.email} (${u.role})`);
-      }
-    }
-    const r = await next(params);
-    // Les comptes NÉS ici, pas ceux qu'on y lit (la liste des assistantes que l'annulation va prévenir en est une lecture).
-    if (params.model === "User" && ["create", "createMany", "upsert"].includes(params.action)) {
-      for (const u of [r].flat()) if (u && typeof (u as { id?: unknown }).id === "string") comptesDuProcessus.add((u as { id: string }).id);
-      if (params.action === "createMany") {
-        const emails = [(params.args as { data?: unknown }).data].flat().map((d) => (d as { email?: unknown } | null)?.email).filter((e): e is string => typeof e === "string");
-        for (const u of await prismaBrut.user.findMany({ where: { email: { in: emails } }, select: { id: true } })) comptesDuProcessus.add(u.id);
-      }
-    }
-    return r;
-  });
-}
-
-/** Les écarts relevés depuis le dernier appel — et la liste remise à zéro (le cas suivant repart propre). */
-export function ecartsDesGestesSousBarriere(): string[] {
-  return ecartsSousBarriere.splice(0);
-}
-
-if (process.env.VITEST) {
-  surveillerLesDestinataires();
-  const { afterEach } = await import("vitest");
-  afterEach(() => {
-    const e = ecartsDesGestesSousBarriere();
-    if (e.length > 0) {
-      throw new Error(`Sous la barrière, le geste a notifié ${e.length} compte(s) qui ne sont pas à ce banc : ${[...new Set(e)].join(", ")}. `
-        + "Un compte voisin retiré à cet instant noue un cycle de verrous que Postgres ne voit pas (R2) : le geste joué sous la barrière ne "
-        + "s'adresse qu'aux comptes du banc — une demande confiée, un destinataire nommé (bancs-concurrents.ts).");
-    }
-  });
-}
+if (process.env.VITEST) await surveillerSousBarriere(barriereOuverteIci);
 
 /** `"signedAt"` → `%signedAt%` ; un motif qui porte déjà ses jokers est pris tel quel. */
 const enMotif = (m: string): string => (m.includes("%") ? m : `%${m}%`);
