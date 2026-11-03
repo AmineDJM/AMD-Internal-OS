@@ -41,3 +41,55 @@ export async function setup(): Promise<void> {
   });
   await prisma.$disconnect();
 }
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE MÉNAGE DE FIN DE SUITE — ce qu'aucun banc ne peut ranger seul (F1, 03/11/2026).
+ *
+ * La base de tests grossissait sans fin d'un passage à l'autre (mesuré chez le parent : 22 Go, jusqu'au disque plein
+ * — ENOSPC — et des bancs qui tombaient pour cela). Deux résidus ne relèvent d'AUCUN banc en particulier :
+ *
+ *   • LES BLOBS ORPHELINS. Un banc retire ses documents ; le contenu (FileBlob, FileBlobChunk) reste, parce que le
+ *     ramasse-miettes du stockage est, par conception, un geste d'administration (`purgeOrphanBlobs`). Mesuré ici :
+ *     18 228 blobs sur 20 728 que plus rien ne tient (1,5 Go). On passe LE RAMASSE-MIETTES DE PRODUCTION, tel quel :
+ *     il lit dans le schéma tout ce qui peut tenir un blob et épargne un blob pris depuis moins d'une heure — ceux de
+ *     ce passage partiront au suivant.
+ *   • LE JOURNAL DES GESTES D'UN COMPTE DISPARU. Les bancs retirent leurs comptes, pas toujours le journal des gestes
+ *     (`AssistantGesteJournal`, ses `AssistantEffet`) ni les envois différés (`EffetSortantDiffere`) faits en leur nom :
+ *     `principalId` n'est pas une clé étrangère. Mesuré : 70 556 envois et 55 746 effets au nom de comptes qui
+ *     n'existent plus. Un geste dont le principal n'existe plus ne peut plus être ni annulé ni rétabli par personne :
+ *     c'est un reste de banc, et seulement cela ici (`prisma.ts` refuse toute base de tests qui ne soit pas LOCALE).
+ *
+   • LA BOÎTE DES DEUX COMPTES PERMANENTS de la base de tests : le siège DG posé ci-dessus et le compte système
+ *     d'Adam (`lib/missions/agent/account.ts`). Ils sont notifiés PAR RÔLE par chaque banc (« Autorisation de paiement
+ *     demandée »…), aucun banc ne peut retirer ce que les autres leur envoient, et rien ne lit leur boîte d'un passage
+ *     à l'autre. Mesuré : 16 231 et 11 705 notifications.
+ *
+ * Rien d'autre n'est retiré à un compte qui existe encore, ni à un blob que quelque chose tient.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export async function teardown(): Promise<void> {
+  if (!process.env.DATABASE_URL) return;
+  const { prisma } = await import("./src/lib/prisma");
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+  } catch {
+    return;
+  }
+  try {
+    const sortants = await prisma.$executeRaw`
+      DELETE FROM "EffetSortantDiffere" e
+      WHERE e."principalId" IS NOT NULL AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u.id = e."principalId")`;
+    const gestes = await prisma.$executeRaw`
+      DELETE FROM "AssistantGesteJournal" g
+      WHERE NOT EXISTS (SELECT 1 FROM "User" u WHERE u.id = g."principalId")`;
+    const { ADAM_EMAIL } = await import("./src/lib/missions/agent/account");
+    const boites = await prisma.notification.deleteMany({ where: { user: { email: { in: [SIEGE_DE_BANC, ADAM_EMAIL] } } } });
+    const { purgeOrphanBlobs } = await import("./src/lib/drive-storage");
+    const blobs = await purgeOrphanBlobs();
+    console.log(`[ménage de fin de suite] ${gestes} geste(s) et ${sortants} envoi(s) différé(s) de comptes disparus ; ${boites.count} notification(s) des comptes permanents ; ${blobs.count} blob(s) orphelin(s) (${Math.round(blobs.bytes / 1_048_576)} Mo).`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+

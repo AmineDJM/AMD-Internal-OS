@@ -8,6 +8,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesPerimes } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "../generer";
@@ -79,6 +80,10 @@ suite("Terrain — vocal → compte rendu prêt, photo → faits", () => {
     await prisma.promoStockItem.deleteMany({ where: { id: articleId } });
     await prisma.promoCatalogueArticle.deleteMany({ where: { id: catId } });
     await prisma.medicalDoctor.deleteMany({ where: { name: { contains: TAG } } });
+    // LES COMPTES DU BANC, retirés eux aussi (F1, mesuré : un compte par passage restait, et recevait les notifications
+    // de rôle de toute la suite). Leurs notifications partent en cascade.
+    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesPerimes("__terrain_");
   });
 
   it("darija mêlée de français : transcription avec indice, médecin résolu, trois cartes, rien d'écrit, sous 30 s", async () => {
