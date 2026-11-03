@@ -29,7 +29,7 @@ import { PanneauDuDossier } from "./conversations/dossier-panneau";
 import "./app/theme.css";
 import { EnregistreurVocal } from "./enregistreur-vocal";
 import { BoutonVoixTempsReel } from "./voix-temps-reel";
-import { AlarmClock, Brain, Briefcase, MessagesSquare, History, MoreHorizontal, NotebookPen, Radar, Sparkles, Volume2, VolumeX, X } from "lucide-react";
+import { AlarmClock, Brain, Briefcase, MessagesSquare, History, LayoutGrid, NotebookPen, Radar, Sparkles, Volume2, VolumeX, X } from "lucide-react";
 import { listerMesRoutines, listerMesTravaux } from "@/modules/assistant-ia/actions";
 import { confirmerActionBeta, envoyerMessageBeta } from "@/app/(app)/assistant/beta/actions";
 import { refusAssistantVueExacte } from "../domaine/acces-regles";
@@ -425,56 +425,55 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille
   ].filter(Boolean);
   const libelleTravaux = enAttente.length ? `Mes travaux (${enAttente.join(", ")})` : "Mes travaux";
   const pointTravaux = aApprouver + demandes > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-500" />;
+  // UNE SEULE ICÔNE « Outils » (Direction, 03/11/2026 : « rassemble les différentes icônes en une icône, et une icône pour
+  // les pièces jointes ») — sur ordinateur comme sur téléphone. Le trombone reste à part (`BoutonJoindre`).
+  const item = "flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800";
   return (
-    <>
-      <div className="hidden sm:contents">
-        <button type="button" onClick={onMemoire} aria-label="Ma mémoire" title="Ma mémoire" className={bouton}><Brain className="h-4 w-4" /></button>
-        <button type="button" onClick={onRoutines} aria-label={libelleRoutines} title="Mes routines" className={bouton}><AlarmClock className="h-4 w-4" />{point}</button>
-        <button type="button" onClick={onTravaux} aria-label={libelleTravaux} title="Mes travaux" className={bouton}><Briefcase className="h-4 w-4" />{pointTravaux}</button>
-        <button type="button" onClick={onVeille} aria-label="Ce qu'Adam surveille" title="Ce qu'Adam surveille" className={bouton}><Radar className="h-4 w-4" /></button>
-        <a href="/assistant/gestes" aria-label="Ce qu'Adam a fait" title="Ce qu'Adam a fait" className={bouton}><History className="h-4 w-4" /></a>
-        {!vueExacte && <button type="button" onClick={onAtelier} aria-pressed={atelierOuvert} aria-label="Atelier — documents" title="Atelier — documents" className={`${bouton} ${atelierOuvert ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300" : ""}`}><Sparkles className="h-4 w-4" /></button>}
-        {!vueExacte && (
-          <button type="button" onClick={onReponseVocale} aria-pressed={reponseVocale} aria-label={libelleVoix} title={libelleVoix}
-            className={`${bouton} ${reponseVocale ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : ""}`}>
-            <IconeVoix className="h-4 w-4" />
-          </button>
-        )}
-      </div>
-      <div className="relative sm:hidden">
-        <button type="button" onClick={onBasculer} aria-expanded={ouvert} aria-label="Plus d'outils" title="Plus d'outils" className={bouton}>
-          <MoreHorizontal className="h-4 w-4" />{point || pointTravaux}
+    <MenuOutils ouvert={ouvert} onBasculer={onBasculer} bouton={bouton} signal={point || pointTravaux}>
+      <button type="button" role="menuitem" onClick={onMemoire} className={item}><Brain className="h-4 w-4" /> Ma mémoire</button>
+      <button type="button" role="menuitem" onClick={onRoutines} className={item}>
+        <AlarmClock className="h-4 w-4" /> <span className="flex-1">{libelleRoutines}</span>{nonLus > 0 && <span className="h-2 w-2 rounded-full bg-violet-600" />}
+      </button>
+      <button type="button" role="menuitem" onClick={onTravaux} className={item}>
+        <Briefcase className="h-4 w-4" /> <span className="flex-1">{libelleTravaux}</span>{aApprouver + demandes > 0 && <span className="h-2 w-2 rounded-full bg-amber-500" />}
+      </button>
+      <button type="button" role="menuitem" onClick={onVeille} className={item}><Radar className="h-4 w-4" /> Ce qu&apos;Adam surveille</button>
+      <a role="menuitem" href="/assistant/gestes" className={item}><History className="h-4 w-4" /> Ce qu&apos;Adam a fait</a>
+      {!vueExacte && (
+        <button type="button" role="menuitemcheckbox" aria-checked={atelierOuvert} onClick={onAtelier} className={`${item} ${atelierOuvert ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300" : ""}`}>
+          <Sparkles className="h-4 w-4" /> Atelier — documents{atelierOuvert ? " (ouvert)" : ""}
         </button>
-        {ouvert && (
-          <div role="menu" className="absolute bottom-12 left-0 z-40 w-60 rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
-            <button type="button" role="menuitem" onClick={onMemoire} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-              <Brain className="h-4 w-4" /> Ma mémoire
-            </button>
-            <button type="button" role="menuitem" onClick={onRoutines} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-              <AlarmClock className="h-4 w-4" /> {libelleRoutines}
-            </button>
-            <button type="button" role="menuitem" onClick={onTravaux} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-              <Briefcase className="h-4 w-4" /> {libelleTravaux}
-            </button>
-            <button type="button" role="menuitem" onClick={onVeille} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-              <Radar className="h-4 w-4" /> Ce qu'Adam surveille
-            </button>
-            <a role="menuitem" href="/assistant/gestes" className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-              <History className="h-4 w-4" /> Ce qu&apos;Adam a fait
-            </a>
-            {!vueExacte && (
-              <button type="button" role="menuitem" onClick={onAtelier} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-                <Sparkles className="h-4 w-4" /> Atelier — documents
-              </button>
-            )}
-            {!vueExacte && (
-              <button type="button" role="menuitemcheckbox" aria-checked={reponseVocale} onClick={onReponseVocale} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-                <IconeVoix className="h-4 w-4" /> Réponses vocales : {reponseVocale ? "activées" : "désactivées"}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </>
+      )}
+      {!vueExacte && (
+        <button type="button" role="menuitemcheckbox" aria-checked={reponseVocale} onClick={onReponseVocale} className={`${item} ${reponseVocale ? "text-emerald-700 dark:text-emerald-400" : ""}`}>
+          <IconeVoix className="h-4 w-4" /> Réponses vocales : {reponseVocale ? "activées" : "désactivées"}
+        </button>
+      )}
+    </MenuOutils>
+  );
+}
+
+/** Le bouton « Outils » et son menu — fermé par Échap ou un clic à côté (le menu des outils de la barre de saisie). */
+function MenuOutils({ ouvert, onBasculer, bouton, signal, children }: { ouvert: boolean; onBasculer: () => void; bouton: string; signal: React.ReactNode; children: React.ReactNode }) {
+  const zone = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ouvert) return;
+    const dehors = (e: PointerEvent) => { if (zone.current && !zone.current.contains(e.target as Node)) onBasculer(); };
+    const echap = (e: KeyboardEvent) => { if (e.key === "Escape") onBasculer(); };
+    document.addEventListener("pointerdown", dehors);
+    document.addEventListener("keydown", echap);
+    return () => { document.removeEventListener("pointerdown", dehors); document.removeEventListener("keydown", echap); };
+  }, [ouvert, onBasculer]);
+  return (
+    <div ref={zone} className="relative">
+      <button type="button" onClick={onBasculer} aria-expanded={ouvert} aria-haspopup="menu" aria-label="Outils" title="Outils" className={`${bouton} ${ouvert ? "bg-slate-100 dark:bg-zinc-800" : ""}`}>
+        <LayoutGrid className="h-4 w-4" />{signal}
+      </button>
+      {ouvert && (
+        <div role="menu" aria-label="Outils" className="absolute bottom-12 left-0 z-40 w-64 rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
