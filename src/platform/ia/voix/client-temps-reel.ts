@@ -33,14 +33,17 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+import { separerDitEtConsigne, sortieOrale } from "./dit-et-consigne";
 import { decider, etatInitial, transition, vieillir, type Action, type ElementAgenda, type EtatConversation, type Evenement as EvenementOrchestre, type RetourOrchestre } from "../conversation/orchestrateur";
 
 export type EtatVoix = "INACTIF" | "CONNEXION" | "ECOUTE" | "REFLEXION" | "PAROLE" | "FERMETURE" | "ERREUR" | "TERMINE";
 
 /** O1 (décision 0046) : avec les champs que l'orchestrateur lit (`RetourOrchestre`). */
 export interface ResultatDelegation extends RetourOrchestre {
-  /** Ce que la voix reçoit (et paraphrase) : jamais une valeur que la personne n'a pas le droit d'entendre. */
+  /** Ce que la voix DIT (et paraphrase) : jamais une valeur que la personne n'a pas le droit d'entendre, jamais une consigne. */
   pourVoix: string;
+  /** F2 (TR-VX-02) : la consigne au modèle vocal — envoyée en contexte silencieux, jamais dite ni affichée. */
+  consigne?: string;
   /** Une carte préparée — résumée à l'oral ; l'écran la montre aussi. */
   carte?: unknown;
   /** La réponse écrite de l'assistant — pour la conversation (l'écran n'est jamais requis). */
@@ -57,7 +60,7 @@ export interface ResultatDelegation extends RetourOrchestre {
 export type SuiviTravail =
   | { etat: "en_cours"; etapes?: string[]; agenda?: ElementAgenda[]; avancement?: string | null }
   | ({ etat: "pret" } & ResultatDelegation)
-  | { etat: "echec"; pourVoix: string }
+  | { etat: "echec"; pourVoix: string; consigne?: string }
   | { etat: "remplace"; par: string }
   | { etat: "inconnu" };
 
@@ -126,6 +129,8 @@ export class ClientVoixTempsReel {
   private finParoleMs: number | null = null;
   private reponseAttendue = false;
   private numero = 0;
+  /** F2 : le compteur des consignes silencieuses (les paroles gardent leur numérotation). */
+  private silences = 0;
   private dernierFragment = 0;
   private fermeture: (() => void) | null = null;
   private audio: HTMLAudioElement | null = null;
@@ -326,10 +331,13 @@ export class ClientVoixTempsReel {
     try {
       r = await this.deps.deleguer(demande, delegationId, { session: this.session, enCours, parole, question: this.orchestre.question?.element ?? null });
     } catch {
-      r = { pourVoix: "Le serveur n'a pas répondu : dis-le simplement et propose de réessayer." };
+      r = { pourVoix: "Le serveur n'a pas répondu : vous pouvez réessayer.", consigne: "Dis-le simplement." };
     }
+    // F2 — la garde de sortie, ici aussi : rien de ce qui se dit ne porte une consigne ; la consigne part en silence.
+    r = sortieOrale(r);
     this.rappels.delegation?.(demande, r);
     if (r.commande) this.appliquer(r.commande);
+    this.consigner(delegationId, r.consigne);
     // Une précision qui a relancé le travail (serveur K9 sans `change`) : le nouveau travail remplace l'ancien.
     const change = r.change ?? (r.travail && enCours && r.travail !== enCours && !r.lance ? { travail: enCours, nouveau: r.travail } : null);
     if (change?.nouveau && change.nouveau !== change.travail) this.suivis.delete(change.travail);
@@ -337,7 +345,7 @@ export class ClientVoixTempsReel {
     if (r.travail) this.suivreTravail(r.travail, delegationId);
     // « stop » : on ne relance pas la parole — le résultat reste silencieux (contexte seulement).
     if (r.commande === "stop") {
-      this.envoyer({ type: "session.thinking.append", event_id: `resultat_${++this.numero}`, delegation_id: delegationId, content: r.pourVoix.slice(0, MAX_COMMENTAIRE) });
+      if (r.pourVoix) this.consigner(delegationId, r.pourVoix);
       this.orchestrer_({ type: "reponse_prise_en_compte", ms: this.maintenant(), accuse: "", delegationId, silencieux: true, change, lance });
       return;
     }
@@ -350,10 +358,22 @@ export class ClientVoixTempsReel {
     this.orchestrer();
   }
 
-  /** Dit (la voix paraphrase) — sous une délégation, ou pour toute la session (`null`). */
+  /**
+   * Dit (la voix paraphrase) — sous une délégation, ou pour toute la session (`null`). F2 : une consigne glissée dans le
+   * contenu (celles que l'orchestrateur compose, « Dis où ça en est… ») part en contexte silencieux, jamais en parole.
+   */
   private dire(delegationId: string | null, contenu: string) {
+    const { dit, consigne } = separerDitEtConsigne(contenu);
+    this.consigner(delegationId, consigne);
+    if (!dit) return;
     const id = `resultat_${++this.numero}`;
-    this.envoyer({ type: "session.commentary.append", event_id: id, delegation_id: delegationId, content: contenu.slice(0, MAX_COMMENTAIRE) });
+    this.envoyer({ type: "session.commentary.append", event_id: id, delegation_id: delegationId, content: dit.slice(0, MAX_COMMENTAIRE) });
+  }
+
+  /** F2 : une CONSIGNE au modèle vocal — contexte silencieux (`thinking`), jamais prononcée ni transcrite comme parole. */
+  private consigner(delegationId: string | null, consigne?: string) {
+    if (!consigne?.trim()) return;
+    this.envoyer({ type: "session.thinking.append", event_id: `silence_${++this.silences}`, delegation_id: delegationId, content: consigne.slice(0, MAX_COMMENTAIRE) });
   }
 
   /** « stop » : la voix se tait (interruption) ; « plus court » : la consigne vaut pour toute la suite de la session. */
@@ -414,6 +434,8 @@ export class ClientVoixTempsReel {
         }
         this.suivis.delete(id);
         if (s.etat === "inconnu") continue;
+        if (s.etat === "pret" || s.etat === "echec") s = sortieOrale(s);
+        if (s.etat === "pret" || s.etat === "echec") this.consigner(t.delegationId, s.consigne);
         if (s.etat === "pret") this.rappels.delegation?.(this.derniereDemande, s);
         this.orchestrer_({ type: "resultat", ms: this.maintenant(), travail: id, contenu: s.pourVoix || "le travail est fini, sans rien à dire de plus.", echec: s.etat === "echec" });
         // O1 : la mise en forme demandée (un fichier, une carte d'envoi) se prépare d'après ce résultat — suivie à son tour.

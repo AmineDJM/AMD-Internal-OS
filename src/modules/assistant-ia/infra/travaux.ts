@@ -20,6 +20,7 @@ import { droitsSurDocument } from "@/platform/ia/artifact/ports";
 import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, type OutilTravail } from "@/platform/ia/travaux/outil";
 import { conclureSousMissions, demarrerSousMissionsDuTour, outilSousMissionsPour, outilsSousMissionsPour } from "./sous-missions";
 import { deposerLivrableTravail } from "./travaux-livrables";
+import { classer, type FicheOutil } from "../domaine/selection-outils";
 
 // J8 (décision 0023) : la porte du moteur des travaux pour le reste du module — délégation, équipe, priorité.
 export {
@@ -153,6 +154,18 @@ export async function plafondsDe(principalId: string, now = new Date()): Promise
   };
 }
 
+/**
+ * F2 (banc réel du 02/11, MI-01) — le RÉSOLVEUR d'une étape du plan : l'index de sélection des outils (J4), borné au
+ * catalogue de la personne. Le meilleur outil n'est retenu que s'il se DÉTACHE (≥ 1,25 × le second) : un indice ambigu
+ * reste une faute, qui liste alors les noms ouverts au modèle.
+ */
+function resolveur(fiches: readonly FicheOutil[]): (indice: string) => string | null {
+  return (indice) => {
+    const [premier, second] = classer(indice, fiches, 2);
+    return premier && (!second || premier.score >= 1.25 * second.score) ? premier.nom : null;
+  };
+}
+
 export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
   persona: "ASSISTANT_IA",
   nom: "Assistant IA",
@@ -167,12 +180,16 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
     const p = await personne(principalId);
     if (!p) return { lectures: [], gestes: [] };
     const vue = vueDeLAssistant(p.user, p.acces);
+    const lectures = lecturesDe(p);
+    const gestes = GESTES_TRAVAIL.filter((o) => o.ouverte(vue) && !refusFamilleGeste(o.nom, p.acces));
     return {
-      lectures: lecturesDe(p).map((o) => ({ nom: o.def.name, libelle: o.label })),
-      gestes: GESTES_TRAVAIL.filter((o) => o.ouverte(vue) && !refusFamilleGeste(o.nom, p.acces)).map((o) => {
+      lectures: lectures.map((o) => ({ nom: o.def.name, libelle: o.label })),
+      gestes: gestes.map((o) => {
         const famille = famillesDuGeste(o.nom).find((f) => f !== "ECRITURES") ?? "ECRITURES";
         return { nom: o.nom, libelle: o.libelle, famille, libelleFamille: LIBELLE_FAMILLE[famille] };
       }),
+      resoudreLecture: resolveur(lectures.map((o) => ({ nom: o.def.name, libelle: o.label, description: o.def.description }))),
+      resoudreGeste: resolveur(gestes.map((o) => ({ nom: o.nom, libelle: o.libelle, description: o.nom.replace(/_/g, " ") }))),
     };
   },
 

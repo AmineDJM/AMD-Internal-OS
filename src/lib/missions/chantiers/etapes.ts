@@ -5,12 +5,14 @@ import type { EtatEtape, EtatMission } from "@/lib/missions/runtime/store";
 import { cloreEcriture, reclamerEcriture } from "@/lib/missions/travaux/ecritures";
 import type { AgentDeveloppeur, ConsigneDev, ForgeGit, Hebergeur, Resultat } from "@/lib/missions/chantiers/ports-moteur";
 import type { ServiceChantier, TypeEtapeChantier } from "@/lib/missions/chantiers/plan";
-import { court, jugerPreuves, composerRapport, type DossierChantier, type PreuveDeploiement } from "@/lib/missions/chantiers/dossier";
-import { deciderAntiBoucle, delaiCroissantMs, motifBudgetChantier, signatureEchec, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
+import { court, jugerPreuves, composerRapport, sessionParlable, type DossierChantier, type PreuveDeploiement } from "@/lib/missions/chantiers/dossier";
+import { deciderAntiBoucle, delaiCroissantMs, estMigrationSql, gesteDestructif, motifBudgetChantier, signatureEchec, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
 import { horsPerimetre } from "@/lib/missions/chantiers/perimetre";
+import { ressourcesDeTache, ressourcesHorsReservation } from "@/lib/missions/equipe/ressources";
+import type { ForgeIntegration } from "@/lib/missions/equipe/integration";
 import { routerModele } from "@/lib/missions/chantiers/routeur";
 import type { CerveauChantier } from "@/lib/missions/chantiers/cerveau";
-import { demandesDuPlan, liberer, nomDepot, reserver } from "@/lib/missions/chantiers/reservations";
+import { demandesDuPlan, liberer, nomDepot, reservationTenue, reserver, transfererAuProgramme } from "@/lib/missions/chantiers/reservations";
 import { extraitMemoire, memoriser, noterEvenementDev } from "@/lib/missions/chantiers/memoire";
 
 /**
@@ -30,7 +32,8 @@ import { extraitMemoire, memoriser, noterEvenementDev } from "@/lib/missions/cha
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export interface PortsDev { agent: AgentDeveloppeur; forge: ForgeGit; hebergeur: Hebergeur }
+/** `integration` (O2, décision 0059) : les gestes de branche de la file d'intégration des programmes, quand la forge les porte. */
+export interface PortsDev { agent: AgentDeveloppeur; forge: ForgeGit; hebergeur: Hebergeur; integration?: ForgeIntegration }
 
 /** Le dépôt du rapport au Drive (dossier « Travaux » de la personne) — `reprise` : un dépôt interrompu, à RETROUVER d'abord. */
 export type DeposerRapport = (principalId: string, d: { chantierId: string; cle: string; titre: string; contenu: string; reprise: boolean }) =>
@@ -57,6 +60,10 @@ export interface ContexteEtape {
   compterModele(niveau: string, coutUsd: number | null): Promise<void>;
   /** Une validation de la Direction est demandée (carte écrite ou orale). */
   demanderValidation(geste: string, texte: string): Promise<void>;
+  /** La Direction est PRÉVENUE (notification + carte de la conversation), une fois par clé ; le chantier continue. */
+  prevenir(cle: string, titre: string, corps: string): Promise<void>;
+  /** Adam ne sait plus avancer seul : pause « attend tes consignes » à la fin de la vague, branche gardée, Direction prévenue. */
+  demanderConsignes(raison: string, detail: string): Promise<void>;
 }
 
 type Etat = Record<string, unknown>;
@@ -65,8 +72,6 @@ const num = (v: unknown, d = 0) => (typeof v === "number" && Number.isFinite(v) 
 
 /** Le délai d'attente d'un sondage : 1 min, 2, 4… jusqu'à 10 min. */
 const SONDAGE_MAX_MS = 10 * 60_000;
-/** Une session qui ne pousse rien en 6 h est un blocage réel, dit. */
-const ATTENTE_COMMIT_MAX_MS = 6 * 3600_000;
 const VALIDATION_RELUE_MS = 30 * 60_000;
 
 function attendre(ctx: ContexteEtape, raison: string, ms: number, etat: Etat): StepOutcome {
@@ -162,7 +167,7 @@ async function devLancer(ctx: ContexteEtape): Promise<StepOutcome> {
   if (r.etat === "ECHEC" && !r.r.incertain) return apresEchecPort(ctx, "Lancement de Claude Code", r.r, etat);
   if (r.etat === "INTERROMPU" || r.etat === "ECHEC") {
     // ON NE SAIT PAS si la session est partie : la branche le dit. Rien poussé → on attend quand même (la session
-    // peut tourner) ; le blocage à 6 h et l'anti-boucle bornent le cas où elle n'est jamais partie.
+    // peut tourner) ; l'attente bornée (24 h par défaut, puis les consignes de la Direction) borne le cas où elle n'est jamais partie.
     await ctx.journal("CHANTIER_REPRISE", "Lancement interrompu ou incertain (redémarrage, délai dépassé) : la session n'est pas relancée, GitHub dira si elle travaille.");
     return { status: "DONE", result: { session: null, reprise: true }, receipt: "CHANTIER_LANCER" };
   }
@@ -179,19 +184,72 @@ async function devLancer(ctx: ContexteEtape): Promise<StepOutcome> {
 
 // ─────────────────────────────── DEV_ATTENDRE ───────────────────────────────
 
-/** Attend un commit NEUF sur la branche (SHA différent de `base`). Partagée par DEV_ATTENDRE et DEV_CORRIGER. */
+/** Une session que le relais dit archivée ou introuvable est MORTE (doc d'Anthropic : « Session not found », « archived »). */
+const SESSION_MORTE = /archived|not found|introuvable|archiv/i;
+
+/**
+ * UN COMMIT NEUF SUR LA BRANCHE (SHA ≠ `base`) — partagée par DEV_ATTENDRE et DEV_CORRIGER. Direction, 02/11 : « l'ERP est
+ * très gros, ça prend parfois 7, 8… 14 heures : mets plutôt 24 heures ; il doit être autonome ».
+ *   • toutes les `relanceSansCommitHeures` (4 h) sans commit : « où en es-tu ? » à la MÊME session (relais, sinon fil de
+ *     la PR) — JAMAIS une session neuve pour une question (elle doublerait une session qui travaille) ;
+ *   • la session est MORTE (le relais répond « archivée » / « introuvable ») : relance, dans le budget ;
+ *   • à `attenteCommitHeures` (24 h) : pas d'échec sec — pause « attend tes consignes », la branche reste réservée ;
+ *   • une consigne de la Direction relance l'horloge (nouvelle approche).
+ */
 async function commitNeuf(ctx: ContexteEtape, base: string | null, etat: Etat): Promise<{ sha: string } | StepOutcome> {
   const d = await ctx.dossier();
-  const debut = typeof etat.attenteDepuis === "string" ? etat.attenteDepuis : ctx.clock.now().toISOString();
+  const maintenant = ctx.clock.now();
+  let e: Etat = etat;
+  if (d.consignes.length > num(e.consignesVues)) {
+    e = { ...e, consignesVues: d.consignes.length, attenteDepuis: maintenant.toISOString(), points: 0, pointOrdre: null, consignesDemandees: false };
+  }
+  const debut = typeof e.attenteDepuis === "string" ? e.attenteDepuis : maintenant.toISOString();
+  e = { ...e, attenteDepuis: debut };
   const r = await ctx.ports.forge.branche(d.plan.depot, d.plan.branche);
-  if (!r.ok) return apresEchecPort(ctx, "Lecture de la branche", r, { ...etat, attenteDepuis: debut });
+  if (!r.ok) return apresEchecPort(ctx, "Lecture de la branche", r, e);
   const sha = r.valeur.existe ? r.valeur.sha : null;
   if (sha && sha !== base) return { sha };
-  if (ctx.clock.now().getTime() - new Date(debut).getTime() > ATTENTE_COMMIT_MAX_MS) {
-    await ctx.ecrire((x) => { x.blocage = `aucun commit sur ${d.plan.branche} en ${ATTENTE_COMMIT_MAX_MS / 3600_000} h`; });
-    return echoue(`aucun commit poussé sur ${d.plan.branche} en ${ATTENTE_COMMIT_MAX_MS / 3600_000} h`);
+  const ecoule = maintenant.getTime() - new Date(debut).getTime();
+  const heures = ctx.reglages.attenteCommitHeures;
+  if (ecoule >= heures * 3600_000) {
+    const raison = `aucun commit poussé sur ${d.plan.branche} en ${heures} h`;
+    if (!e.consignesDemandees) {
+      await ctx.demanderConsignes(raison, `La session a été interrogée ${num(e.points)} fois sans pousser. La branche reste réservée. Dites-moi quoi faire : attendre encore, relancer une session, changer d'approche (« dis-lui de … »), ou arrêter.`);
+    }
+    return attendre(ctx, `attend tes consignes : ${raison}`, 3600_000, { ...e, consignesDemandees: true });
   }
-  return sonder(ctx, `attend un commit sur ${d.plan.branche}`, { ...etat, attenteDepuis: debut });
+  const tick = Math.floor(ecoule / (ctx.reglages.relanceSansCommitHeures * 3600_000));
+  if (tick > num(e.points)) e = await faireLePoint(ctx, d, tick, Math.round(ecoule / 3600_000), e);
+  return sonder(ctx, `attend un commit sur ${d.plan.branche} (depuis ${Math.floor(ecoule / 3600_000)} h, au plus ${heures} h)`, e);
+}
+
+/** Le point d'étape d'une longue attente : relance d'une session morte (dans le budget), sinon « où en es-tu ? ». */
+async function faireLePoint(ctx: ContexteEtape, d: DossierChantier, tick: number, heures: number, e: Etat): Promise<Etat> {
+  const p = d.plan;
+  const consigne = await consigneDev(ctx, d);
+  const cle = `${ctx.chantierId}|${ctx.step.key}|point-${num(e.consignesVues)}-${tick}`;
+  // L'issue du point précédent : un relais qui répond « archivée / introuvable » dit que la session est MORTE.
+  const prec = typeof e.pointOrdre === "string" && ctx.ports.agent.ordre ? await ctx.ports.agent.ordre(e.pointOrdre) : null;
+  const morte = !!prec && prec.ok && prec.valeur.statut === "ECHEC" && SESSION_MORTE.test(prec.valeur.erreur ?? "");
+  if (morte) {
+    const motif = motifBudgetChantier(await ctx.conso(), ctx.reglages, ctx.plafondUsd, "lancement");
+    if (motif) { ctx.plafond(motif); return { ...e, points: tick }; }
+    const r = await sousRecu(ctx, `point-${num(e.consignesVues)}-${tick}`, () => ctx.ports.agent.lancer({ ...consigne, contexte: [consigne.contexte, `## Reprise\nLa session précédente est terminée sans avoir poussé depuis ${heures} h (${prec!.ok ? prec!.valeur.erreur : ""}). Reprends la branche ${p.branche} là où elle en est, et pousse dès qu'une étape est vérifiée.`].filter(Boolean).join("\n\n") }, cle));
+    if (r.etat === "FAIT") {
+      await ctx.ecrire((x) => { x.sessions.push({ sessionId: r.valeur.sessionId, url: r.valeur.url, le: r.valeur.lanceeLe, moyen: r.valeur.moyen, motif: "reprise" }); x.compteurs.lancements += 1; });
+      await ctx.journal("CHANTIER_REPRISE", `Session morte (${prec!.ok ? prec!.valeur.erreur : "?"}) : nouvelle session sur ${p.branche} après ${heures} h sans commit : ${r.valeur.url}`, { heures });
+    }
+    return { ...e, points: tick, pointOrdre: null };
+  }
+  const session = sessionParlable(d);
+  const texte = `Point d'étape d'Adventum : aucun commit sur ${p.branche} depuis ${heures} h. Où en es-tu ? Si tu avances, pousse un commit intermédiaire dès qu'une étape passe les vérifications ; si tu es bloqué, dis-le dans la PR (ce qui bloque, ce que tu as essayé).`;
+  const r = await sousRecu(ctx, `point-${num(e.consignesVues)}-${tick}`, () => ctx.ports.agent.relancer({ ...consigne, probleme: texte, sansNouvelleSession: true, ...(d.pr ? { pr: d.pr.numero } : {}), ...(session ? { session } : {}) }, cle));
+  if (r.etat === "FAIT") {
+    await ctx.journal("CHANTIER_POINT", `Aucun commit depuis ${heures} h : « où en es-tu ? » envoyé (${r.valeur.moyen}).`, { heures, moyen: r.valeur.moyen });
+    return { ...e, points: tick, pointOrdre: r.valeur.ordreId ?? null };
+  }
+  if (!e.injoignableDit) await ctx.journal("CHANTIER_POINT", `Aucun commit depuis ${heures} h ; la session ne peut pas être jointe (routine sans PR) : Adam attend, sans en ouvrir une seconde.`, { heures });
+  return { ...e, points: tick, injoignableDit: true };
 }
 
 async function devAttendre(ctx: ContexteEtape): Promise<StepOutcome> {
@@ -222,6 +280,9 @@ async function controler(ctx: ContexteEtape, etat: Etat): Promise<Controle> {
   const hors = horsPerimetre(b.valeur.fichiers, p.perimetre);
   const rouge = (check: string | null, extrait: string): Controle => ({ issue: "rouge", sha, check, extrait, signature: signatureEchec({ etape: "verifier", check, erreur: extrait }) });
   if (hors.length) return rouge("perimetre", `fichiers hors du périmètre réservé : ${hors.slice(0, 10).join(", ")}`);
+  // O2 (décision 0059 § 5) : une ressource partagée NOMMÉE touchée sans réservation — rouge (le programme replanifie).
+  const nonReservees = p.ressources ? ressourcesHorsReservation(b.valeur.fichiers, ressourcesDeTache({ perimetre: [], ressources: p.ressources })) : [];
+  if (nonReservees.length) return rouge("ressources", `ressources partagées touchées sans réservation : ${nonReservees.join(", ")}`);
   let pr = d.pr;
   const lu = await ctx.ports.forge.pr(p.depot, p.branche);
   if (lu.ok && lu.valeur) {
@@ -284,6 +345,13 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
     const r = (amont?.result ?? {}) as Etat;
     etat = { ...etat, phase: "DECIDER", tour: 0, echec: { sha: r.sha, signature: r.signature, check: r.check, extrait: r.extrait } };
   }
+  // UNE CONSIGNE DE LA DIRECTION (`consigne_chantier`) a été transmise à la session : nouvelle approche — les tours
+  // repartent de zéro, et l'on attend le commit qu'elle produit (la consigne EST la relance : rien n'est relancé en plus).
+  const lu = await ctx.dossier();
+  if (lu.consignes.length > num(etat.consignesVues)) {
+    const echec0 = etat.echec as { sha: string | null } | undefined;
+    etat = { ...etat, consignesVues: lu.consignes.length, phase: "ATTENDRE", tour: 0, base: echec0?.sha ?? lu.shaVu, attenteDepuis: ctx.clock.now().toISOString(), sondages: 0, graceFaite: false, consignesDemandees: false, points: 0, alerteFaite: false, signatureNotee: false };
+  }
   for (let garde = 0; garde < 5; garde++) {
     const echec = etat.echec as { sha: string | null; signature: string; check: string | null; extrait: string };
     // L'AUTO-FIX D'ABORD : une fois par tour, on laisse à la session le temps de corriger SA PR elle-même (gratuit).
@@ -305,13 +373,23 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
     }
     if (etat.phase === "DECIDER") {
       const d = await ctx.dossier();
-      const decision = deciderAntiBoucle({ historique: d.signatures, nouvelle: echec.signature, tours: num(etat.tour), tentativesMax: ctx.reglages.tentativesMax, solDejaPour: d.solPour });
-      await ctx.ecrire((x) => { x.signatures.push(echec.signature); });
-      if (decision.action === "BLOQUER") {
-        await ctx.ecrire((x) => { x.blocage = decision.raison; });
-        await memoriser("incident", `${nomDepot(d.plan.depot)}:${echec.signature}`.slice(0, 200), `Blocage réel du chantier « ${d.plan.titre} » : ${decision.raison}.\nDernier extrait :\n${echec.extrait.slice(0, 1_500)}`, { source: "chantier", missionId: ctx.chantierId });
-        await ctx.journal("CHANTIER_BLOQUE", `Blocage réel : ${decision.raison}.`, { signature: echec.signature });
-        return echoue(`blocage réel : ${decision.raison}`);
+      const decision = deciderAntiBoucle({ historique: d.signatures, nouvelle: echec.signature, tours: num(etat.tour), correctionsMax: ctx.reglages.correctionsMax, alerteApresEchecs: ctx.reglages.alerteApresEchecs, solDejaPour: d.solPour });
+      if (!etat.signatureNotee) await ctx.ecrire((x) => { x.signatures.push(echec.signature); });
+      etat = { ...etat, signatureNotee: true };
+      const panne = `${echec.check ?? "ci"} sur ${court(echec.sha)} : ${(echec.extrait.split("\n").map((l) => l.trim()).find(Boolean) ?? "").slice(0, 200)}`;
+      if (decision.action === "CONSIGNES") {
+        // JAMAIS UN ÉCHEC SEC : Adam s'arrête, garde la branche, dit ce qu'il sait, et attend les consignes de la Direction.
+        if (!etat.consignesDemandees) {
+          await memoriser("incident", `${nomDepot(d.plan.depot)}:${echec.signature}`.slice(0, 200), `Chantier « ${d.plan.titre} » en attente de consignes : ${decision.raison}.\nDernier extrait :\n${echec.extrait.slice(0, 1_500)}`, { source: "chantier", missionId: ctx.chantierId });
+          await ctx.demanderConsignes(decision.raison, `Ce qui casse : ${panne}. Essayé : ${num(etat.tour)} correction(s)${d.solPour.length ? ", dont une analyse de Sol" : ""}. Dites-moi quoi faire (« dis-lui de … », « change d'approche, fais … »), ou arrêtez.`);
+        }
+        return attendre(ctx, `attend tes consignes : ${decision.raison}`, 3600_000, { ...etat, consignesDemandees: true });
+      }
+      if (decision.alerte && !etat.alerteFaite) {
+        // AU 3ᵉ ROUGE (réglable) : la Direction est PRÉVENUE — sans arrêt. Ce qui casse, ce qui a été essayé, ce qui suit.
+        await ctx.prevenir(`alerte:${ctx.step.key}:${num(etat.consignesVues)}`, `Chantier : ${num(etat.tour) + 1}ᵉ échec — « ${d.plan.titre} »`,
+          `Ce qui casse : ${panne}. Essayé : ${num(etat.tour)} correction(s)${d.solPour.length ? " (dont Sol)" : ""}. Je continue : ${decision.action === "ESCALADER_SOL" ? "analyse de Sol puis nouvelle correction" : "nouvelle correction"}, jusqu'à ${ctx.reglages.correctionsMax} tentatives. Vous pouvez me donner une consigne à tout moment.`);
+        etat = { ...etat, alerteFaite: true };
       }
       const motif = motifBudgetChantier(await ctx.conso(), ctx.reglages, ctx.plafondUsd, "lancement");
       if (motif) { ctx.plafond(motif); return attendre(ctx, `plafond : ${motif}`, 3600_000, etat); }
@@ -325,18 +403,22 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
       const texte = `Le contrôle est rouge sur ${court(echec.sha)} (${echec.check ?? "ci"}). Corrige sur cette branche, dans le périmètre réservé, puis pousse :\n\n${probleme}`;
       const cle = `${ctx.chantierId}|${ctx.step.key}|tour-${tour}`;
       // LA MÊME SESSION d'abord (relais CLI, contexte gardé), sinon le fil de la PR, sinon une session neuve — l'adaptateur choisit.
-      const session = [...d.sessions].reverse().find((x) => x.moyen !== "commentaire-pr" && !x.sessionId.startsWith("commentaire-"))?.sessionId;
+      const session = sessionParlable(d);
       const r = await sousRecu(ctx, `tour-${tour}`, () => ctx.ports.agent.relancer({ ...consigne, probleme: texte, ...(d.pr ? { pr: d.pr.numero } : {}), ...(session ? { session } : {}) }, cle));
       if (r.etat === "ECHEC" && !r.r.incertain) return apresEchecPort(ctx, "Relance de Claude Code", r.r, etat);
       if (r.etat === "FAIT") {
         const s = r.valeur;
         await ctx.ecrire((x) => {
-          if (!x.sessions.some((y) => y.sessionId === s.sessionId)) x.sessions.push({ sessionId: s.sessionId, url: s.url, le: s.lanceeLe, moyen: s.moyen, motif: "correction" });
-          x.compteurs.lancements += 1;
+          // Seule une session NEUVE compte comme lancement : un message à la même session ou un commentaire de PR non (01/11 :
+          // 4 lancements par chantier, et les huit corrections doivent y tenir).
+          if (!x.sessions.some((y) => y.sessionId === s.sessionId) && s.moyen !== "commentaire-pr") {
+            x.sessions.push({ sessionId: s.sessionId, url: s.url, le: s.lanceeLe, moyen: s.moyen, motif: "correction" });
+            x.compteurs.lancements += 1;
+          }
         });
         await ctx.journal("CHANTIER_LANCEMENT", `Correction demandée (tour ${tour}${sol ? ", analyse Sol" : ""}) : ${s.url}`, { tour, sol, signature: echec.signature });
       }
-      etat = { ...etat, phase: "ATTENDRE", tour, base: echec.sha, attenteDepuis: ctx.clock.now().toISOString(), sondages: 0, graceFaite: false };
+      etat = { ...etat, phase: "ATTENDRE", tour, base: echec.sha, attenteDepuis: ctx.clock.now().toISOString(), sondages: 0, graceFaite: false, signatureNotee: false, points: 0, pointOrdre: null };
     }
     if (etat.phase === "ATTENDRE") {
       const r = await commitNeuf(ctx, (etat.base as string | null) ?? null, etat);
@@ -355,6 +437,33 @@ async function devCorriger(ctx: ContexteEtape): Promise<StepOutcome> {
   }
   return attendre(ctx, "reprise de la boucle de correction", 60_000, etat);
 }
+
+// ─────────────────────────────── LES MIGRATIONS À RISQUE ───────────────────────────────
+
+/**
+ * LES MIGRATIONS DU DIFF, LUES AVANT DE FUSIONNER OU DE DÉPLOYER (`gestesCritiques` : « destructive refusée sans
+ * validation »). Chaque fichier SQL de migration touché par la branche (par rapport à la base) est lu au SHA vérifié :
+ * un geste destructeur (DROP, TRUNCATE, DELETE FROM, ALTER … DROP / TYPE) — ou un fichier ILLISIBLE, par prudence — est
+ * un risque, dit sur la carte de validation. Le résultat est gardé dans l'état de l'étape (une seule lecture).
+ */
+async function migrationsARisque(ctx: ContexteEtape, sha: string, etat: Etat): Promise<{ risques: string[]; etat: Etat } | StepOutcome> {
+  if (Array.isArray(etat.migrationsRisque)) return { risques: etat.migrationsRisque as string[], etat };
+  const p = (await ctx.dossier()).plan;
+  const b = await ctx.ports.forge.branche(p.depot, p.branche, p.brancheBase);
+  if (!b.ok) return apresEchecPort(ctx, "Lecture des fichiers de la branche", b, etat);
+  const risques: string[] = [];
+  for (const f of b.valeur.fichiers.filter(estMigrationSql).slice(0, 20)) {
+    const r = await ctx.ports.forge.fichier(p.depot, sha, f);
+    const geste = r.ok ? gesteDestructif(r.valeur.octets.toString("utf8")) : null;
+    if (!r.ok) risques.push(`${f} (illisible : ${r.erreur.slice(0, 120)})`);
+    else if (geste) risques.push(`${f} (${geste})`);
+  }
+  if (risques.length) await ctx.journal("CHANTIER_MIGRATION_DESTRUCTIVE", `Migration à risque dans ${p.branche} : ${risques.join(" ; ")} — validation de la Direction exigée.`, { risques });
+  return { risques, etat: { ...etat, migrationsRisque: risques } };
+}
+
+const avertissementMigrations = (risques: readonly string[]): string =>
+  risques.length ? ` — ⚠ MIGRATION DESTRUCTIVE : ${risques.join(" ; ")} (votre accord vaut aussi pour elle)` : "";
 
 // ─────────────────────────────── DEV_FUSIONNER ───────────────────────────────
 
@@ -384,7 +493,11 @@ async function devFusionner(ctx: ContexteEtape): Promise<StepOutcome> {
     } else {
       if (pr.mergeable === false) return echoue(`la PR #${pr.numero} est en conflit avec ${p.brancheBase} : rien n'est fusionné`);
       if (d.shaVu && d.shaVu !== d.vert.sha) return echoue(`la tête de ${p.branche} (${court(d.shaVu)}) n'est plus celle vérifiée (${court(d.vert.sha)})`);
-      const v = await validation(ctx, "FUSION", `Fusionner la PR #${pr.numero}${pr.titre ? ` (« ${pr.titre} »)` : ""} dans ${p.brancheBase} — SHA vérifié ${court(d.vert.sha)}`, etat);
+      // Une migration destructive dans le diff est DITE sur la carte : l'accord de la Direction la couvre en connaissance.
+      const m = await migrationsARisque(ctx, d.vert.sha, etat);
+      if ("status" in m) return m;
+      etat = m.etat;
+      const v = await validation(ctx, "FUSION", `Fusionner la PR #${pr.numero}${pr.titre ? ` (« ${pr.titre} »)` : ""} dans ${p.brancheBase} — SHA vérifié ${court(d.vert.sha)}${avertissementMigrations(m.risques)}`, etat);
       if (v !== "ACCORDEE") return v;
       const f = await sousRecu(ctx, "fusion", () => ctx.ports.forge.fusionnerPr(p.depot, pr.numero, d.vert!.sha));
       if (f.etat === "INTERROMPU") return echoue("fusion interrompue par un redémarrage : vérifiez la PR avant de relancer (elle n'est pas rejouée)");
@@ -462,16 +575,26 @@ async function renderDeployer(ctx: ContexteEtape): Promise<StepOutcome> {
     }
     etat = { ...etat, shaIntegre: tete };
   }
-  if (s.production) {
+  // UNE BRANCHE DÉPLOYÉE SANS FUSION applique ses migrations telles quelles : une migration destructive exige la carte,
+  // même hors production (après une fusion, la carte de la fusion l'a déjà dite).
+  let risques: string[] = [];
+  if (!d.fusion && !etat.deployId) {
+    const m = await migrationsARisque(ctx, (etat.shaIntegre as string | undefined) ?? d.vert!.sha, etat);
+    if ("status" in m) return m;
+    etat = m.etat;
+    risques = m.risques;
+  }
+  if (s.production || risques.length) {
     const sha0 = (etat.shaIntegre as string | undefined) ?? d.vert!.sha;
-    const v = await validation(ctx, "DEPLOIEMENT_PRODUCTION", `déployer ${s.nom} en PRODUCTION (SHA vérifié ${court(sha0)})`, etat);
+    const v = await validation(ctx, s.production ? "DEPLOIEMENT_PRODUCTION" : "DEPLOIEMENT_MIGRATION",
+      `déployer ${s.nom}${s.production ? " en PRODUCTION" : ""} (SHA vérifié ${court(sha0)})${avertissementMigrations(risques)}`, etat);
     if (v !== "ACCORDEE") return v;
   }
   const sha = (etat.shaIntegre as string | undefined) ?? d.vert!.sha;
   // LE SERVICE EST EXCLUSIF, et l'app attend une migration en vol (ERP d'abord).
   if (!etat.deployId) {
     const autre = await prisma.chantierReservation.findFirst({
-      where: { missionId: { not: ctx.chantierId }, OR: [{ cle: `DEPLOIEMENT:${s.id}` }, ...(s.role !== "erp" ? [{ cle: `MIGRATIONS:${nomDepot(p.depot)}` }] : [])], expireLe: { gt: ctx.clock.now() } },
+      where: { missionId: { not: ctx.chantierId }, AND: [{ OR: [{ cle: `DEPLOIEMENT:${s.id}` }, ...(s.role !== "erp" ? [{ cle: `MIGRATIONS:${nomDepot(p.depot)}` }] : [])] }, reservationTenue(ctx.clock.now())] },
       select: { cle: true, mission: { select: { title: true } } },
     });
     if (autre) return sonder(ctx, `en file : ${autre.cle} est tenu par « ${autre.mission.title} »`, etat);
@@ -600,6 +723,8 @@ export async function rapporter(
   if (d.plan.commandesVerif.length) {
     await memoriser("depot", depot, `Branche de base ${d.plan.brancheBase}. Commandes de vérification : ${d.plan.commandesVerif.join(" ; ")}.`, { source: "chantier", missionId: ctx.chantierId });
   }
+  // O2 (décision 0059) : livré, l'enfant d'un programme PASSE ses réservations au programme (tenues jusqu'à l'intégration).
+  if (issue === "LIVRE") await transfererAuProgramme(ctx.chantierId, ctx.clock.now());
   await liberer(ctx.chantierId);
   await ctx.journal("CHANTIER_RAPPORT", `Rapport : ${issue}${document ? ` — ${document.nom} (${document.lien})` : ""}.`, { issue, manquantes: verdict.manquantes, ...(document ? { nodeId: document.nodeId } : {}) });
   return { issue, texte, document };

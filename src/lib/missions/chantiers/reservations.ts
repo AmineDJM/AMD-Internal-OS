@@ -18,12 +18,22 @@ import type { RefDepot } from "@/lib/missions/chantiers/ports-moteur";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export type RessourceChantier = "BRANCHE" | "PERIMETRE" | "MIGRATIONS" | "DEPLOIEMENT";
+/** O2 (décision 0059 § 5) : `RESSOURCE:<dépôt>:<nom>` — une ressource partagée NOMMÉE (schéma, contrat…), exclusive. */
+export type RessourceChantier = "BRANCHE" | "PERIMETRE" | "MIGRATIONS" | "DEPLOIEMENT" | "RESSOURCE";
 
 export interface DemandeReservation { ressource: RessourceChantier; depot?: string; valeur: string }
 
-/** Une réservation tenue : 6 h, prolongée à chaque passage du chantier. */
+/** Une réservation tenue : 6 h, prolongée à chaque passage du chantier (même en pause). */
 export const DUREE_RESERVATION_MS = 6 * 3600_000;
+
+/**
+ * Les états d'un chantier VIVANT : sa réservation ne se reprend JAMAIS, même échue (une attente de 24 h, une pause
+ * « attend tes consignes », un processus arrêté le temps d'un déploiement). Seule celle d'un chantier fini se reprend.
+ */
+export const STATUTS_VIVANTS = ["AWAITING_APPROVAL", "READY", "RUNNING", "RETRYING", "WAITING_EVENT", "WAITING_INPUT", "WAITING_DEPENDENCY", "PAUSED"] as const;
+
+/** Une réservation encore TENUE : non échue, ou tenue par un chantier vivant (filtre Prisma). */
+export const reservationTenue = (maintenant: Date) => ({ OR: [{ expireLe: { gt: maintenant } }, { mission: { status: { in: [...STATUTS_VIVANTS] } } }] });
 
 export const nomDepot = (d: RefDepot): string => `${d.proprietaire}/${d.nom}`.toLowerCase();
 
@@ -46,7 +56,8 @@ export async function reserver(missionId: string, demandes: readonly DemandeRese
   try {
     return await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${VERROU})`;
-      await tx.chantierReservation.deleteMany({ where: { expireLe: { lt: maintenant } } });
+      // Reprise par expiration : seulement celles d'un chantier FINI (ou disparu) — un chantier vivant garde les siennes.
+      await tx.chantierReservation.deleteMany({ where: { expireLe: { lt: maintenant }, mission: { status: { notIn: [...STATUTS_VIVANTS] } } } });
       const autres = await tx.chantierReservation.findMany({
         where: { missionId: { not: missionId }, OR: [{ cle: { in: voulues.map((v) => v.cle) } }, { ressource: "PERIMETRE", depot: { in: [...new Set(voulues.map((v) => v.depot ?? ""))] } }] },
         select: { cle: true, ressource: true, valeur: true, depot: true, missionId: true, mission: { select: { title: true } } },
@@ -93,6 +104,24 @@ export async function liberer(missionId: string, ressource?: RessourceChantier):
   return tenues.map((t) => t.cle);
 }
 
+/**
+ * O2 (décision 0059 § 4.6) — UN CHANTIER ENFANT D'UN PROGRAMME FINI VERT : ses réservations PASSENT au programme (une
+ * instruction, aucune fenêtre où un autre chantier pourrait les prendre) jusqu'à l'intégration de son travail. Rend le
+ * nombre de réservations transférées (0 : pas de programme parent).
+ */
+export async function transfererAuProgramme(chantierId: string, maintenant = new Date()): Promise<number> {
+  return prisma.$executeRaw`
+    UPDATE "ChantierReservation" r SET "missionId" = m."parentMissionId", "expireLe" = ${new Date(maintenant.getTime() + DUREE_RESERVATION_MS)}, "updatedAt" = ${maintenant}
+    FROM "Mission" m JOIN "Mission" p ON p."id" = m."parentMissionId" AND p."kind" = 'PROGRAMME'
+    WHERE r."missionId" = m."id" AND m."id" = ${chantierId}`;
+}
+
+/** Libère des réservations précises d'une mission (un programme rend celles d'une tâche intégrée). */
+export async function libererCles(missionId: string, cles: readonly string[]): Promise<number> {
+  if (!cles.length) return 0;
+  return (await prisma.chantierReservation.deleteMany({ where: { missionId, cle: { in: [...cles] } } })).count;
+}
+
 /** Un chantier vivant prolonge ses réservations (chaque passage) : elles n'expirent que s'il meurt. */
 export async function prolonger(missionId: string, maintenant = new Date()): Promise<void> {
   await prisma.chantierReservation.updateMany({ where: { missionId }, data: { expireLe: new Date(maintenant.getTime() + DUREE_RESERVATION_MS) } });
@@ -108,11 +137,12 @@ export async function reservationsDe(missionIds: readonly string[]): Promise<Map
 }
 
 /** Les demandes d'un plan, au lancement : branche, chaque glob du périmètre, et les migrations si le plan en écrit. */
-export function demandesDuPlan(p: { depot: RefDepot; branche: string; perimetre: readonly string[]; migrations: boolean }): DemandeReservation[] {
+export function demandesDuPlan(p: { depot: RefDepot; branche: string; perimetre: readonly string[]; migrations: boolean; ressources?: readonly string[] }): DemandeReservation[] {
   const depot = nomDepot(p.depot);
   return [
     { ressource: "BRANCHE", depot, valeur: p.branche },
     ...p.perimetre.map((g) => ({ ressource: "PERIMETRE" as const, depot, valeur: g })),
     ...(p.migrations ? [{ ressource: "MIGRATIONS" as const, depot, valeur: "migrations" }] : []),
+    ...(p.ressources ?? []).map((r) => ({ ressource: "RESSOURCE" as const, depot, valeur: r })),
   ];
 }

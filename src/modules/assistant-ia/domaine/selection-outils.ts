@@ -130,12 +130,19 @@ const MOTS_CLES: Record<string, string> = {
   chercher_conversations: "conversation precedente passee avait dit discute evoque parle derniere fois semaine derniere comme on avait convenu",
   // K3 (décision 0033 § 7) : la recherche approfondie — les mots d'une étude, d'une veille, d'un rapport sourcé.
   recherche_approfondie: "recherche approfondie etude marche veille concurrence concurrents benchmark etat de l art panorama rapport complet sources tendances reglementation etrangere pays analyse sectorielle",
-  lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance",
+  lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance tache de fond arriere plan mission recapitulatif classement",
   // C1 (décision 0042) : les chantiers de développement (Super Admin) — Claude Code, GitHub, Render.
   lancer_un_chantier: "chantier claude code developpe developpement code corrige bug fonctionnalite branche depot github pull request pr implemente",
   ou_en_est_chantier: "ou en est chantier avancement developpement claude code deploiement ci checks pr statut",
   valider_chantier: "valide valider accorde autorise deploie deployer production fusionne fusion main rollback refuse chantier",
   annuler_chantier: "annule arrete stoppe suspend pause chantier developpement",
+  consigne_chantier: "consigne dis lui demande change approche fais plutot attends encore pousse corrige chantier claude session",
+  // O2 (décision 0059) : les programmes — une équipe de sessions Claude Code en parallèle.
+  lancer_un_programme: "programme equipe plusieurs taches paralleles travailleurs sessions claude code ensemble lot developpements decompose mimo superviseur integration",
+  ou_en_est_programme: "ou en est programme equipe taches travailleurs file integration conflits dependances couts",
+  consigne_programme: "consigne programme equipe tache dis aux travailleurs change approche",
+  valider_programme: "valide valider accorde fusionne integre integration main programme refuse",
+  annuler_programme: "annule arrete stoppe programme equipe travailleurs",
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",

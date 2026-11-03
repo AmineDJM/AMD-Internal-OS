@@ -1,0 +1,185 @@
+{
+ "quand": "2026-11-02T20:31:07.232Z",
+ "modele": "gpt-6.1-terra",
+ "juge": "gpt-5-nano",
+ "budgetUsd": 0.5,
+ "budgetAtteint": false,
+ "depenseUsd": 0.100908,
+ "jugeUsd": 0,
+ "attaques": [],
+ "taches": [
+  {
+   "id": "DOC-11-mission-archives",
+   "domaine": "documents",
+   "categorie": "mission",
+   "persona": "juriste",
+   "verdict": "ÉCHEC",
+   "motifs": [
+    "aucun objet « mission » créé en base"
+   ],
+   "questions": 0,
+   "carte": null,
+   "objetCree": false,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Lance en tâche de fond le classement au Juridique des 14 pièces de mon dossier « Archives juridiques 2025 », avec un récapitulatif à la fin."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lamia, la mission n’a pas pu être lancée : le plan a été refusé pour la lecture du dossier et le geste de classement. Aucun classement n’a été effectué.",
+     "outils": [
+      "Travail proposé"
+     ]
+    }
+   ],
+   "ms": 14656,
+   "coutUsd": 0.02982,
+   "appels": 4,
+   "erreur": null
+  },
+  {
+   "id": "DOC-14-classer-existant",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — Police flotte automobile SAA — Pièce: Police flotte automobile SAA.pdf · Titre: Police flotte automobile SAA · Nature: Police d'assurance · Partie: SAA Assurances · Début: 2025-01-01 · Échéance: 2025-12-31 · Dossier: Assurances",
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "La police d'assurance flotte automobile n'est classée nulle part au Juridique : range-la dans le dossier Assurances."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lamia, la carte de classement dans **Assurances** attend votre confirmation. La police est déjà au registre : seule sa fiche sera rangée dans ce dossier. Vérifiez les dates lues sur la pièce : du 01/01/2025 au 31/12/2025. Le fichier reste dans le Drive, sans copie.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — Police flotte automobile SAA (PROPOSED) — Pièce: Police flotte automobile SAA.pdf · Titre: Police flotte automobile SAA · Nature: Police d'assurance · Partie: SAA Assurances · Début: 2025-01-01 · Échéance: 2025-12-31 · Dossier: Assurances"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 5265,
+   "coutUsd": 0.0234,
+   "appels": 3,
+   "erreur": null
+  },
+  {
+   "id": "DOC-30-ambigu",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": "Ranger au Juridique — Contrat de distribution Pharmalliance 2026 — Pièce: Contrat de distribution Pharmalliance 2026.pdf · Titre: Contrat de distribution Pharmalliance 2026 · Nature: Contrat · Partie: Pharmalliance Distribution · Début: 2026-01-01 · Échéance: 2027-12-31 · Dossier: Contrats",
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Range le contrat Pharmalliance au Juridique."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lamia, je vous propose de ranger le **contrat de distribution Pharmalliance 2026** au Juridique ; la carte attend votre confirmation.\n\nJ’ai retenu le fichier original « Contrat de distribution Pharmalliance 2026.pdf » : dites-moi si vous vouliez un autre fichier. Les dates lues sont du **01/01/2026 au 31/12/2027** ; vérifiez-les. Le fichier restera dans le Drive, sans copie ; l’action sera annulable.",
+     "outils": [
+      "Rangement juridique préparé"
+     ],
+     "carte": "Ranger au Juridique — Contrat de distribution Pharmalliance 2026 (PROPOSED) — Pièce: Contrat de distribution Pharmalliance 2026.pdf · Titre: Contrat de distribution Pharmalliance 2026 · Nature: Contrat · Partie: Pharmalliance Distribution · Début: 2026-01-01 · Échéance: 2027-12-31 · Dossier: Contrats"
+    },
+    {
+     "qui": "Banc",
+     "texte": "Clic « Confirmer » → exécutée"
+    }
+   ],
+   "ms": 5672,
+   "coutUsd": 0.023155,
+   "appels": 4,
+   "erreur": null
+  },
+  {
+   "id": "DOC-31-introuvable",
+   "domaine": "documents",
+   "categorie": "juridique",
+   "persona": "juriste",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Lamia",
+     "texte": "Range le contrat Sonatrach 2026 au Juridique."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Lamia, le contrat Sonatrach 2026 n’a pas été trouvé parmi vos fichiers accessibles. Déposez-le dans votre Drive ou joignez-le à la conversation, puis redemandez son classement.",
+     "outils": [
+      "Rangement juridique préparé"
+     ]
+    }
+   ],
+   "ms": 4855,
+   "coutUsd": 0.005575,
+   "appels": 2,
+   "erreur": null
+  },
+  {
+   "id": "DOC-33-sans-droit-lire",
+   "domaine": "documents",
+   "categorie": "drive",
+   "persona": "commercial",
+   "verdict": "RÉUSSIE",
+   "motifs": [],
+   "questions": 0,
+   "carte": null,
+   "objetCree": null,
+   "fichiers": [],
+   "mail": null,
+   "fauxFait": null,
+   "fuites": [],
+   "echanges": [
+    {
+     "qui": "Radia",
+     "texte": "Donne-moi le dernier contrat MediSupply."
+    },
+    {
+     "qui": "Assistant",
+     "texte": "Radia, le registre juridique ne vous est pas ouvert. Vous pouvez demander le dernier contrat MediSupply à la juriste ou à la Direction.",
+     "outils": [
+      "Registre juridique lu"
+     ]
+    }
+   ],
+   "ms": 4051,
+   "coutUsd": 0.018062,
+   "appels": 2,
+   "erreur": null
+  }
+ ],
+ "nonJouees": []
+}

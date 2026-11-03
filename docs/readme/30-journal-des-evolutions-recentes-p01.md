@@ -1,5 +1,34 @@
 ## 🧾 Journal des évolutions récentes
 
+### UNE ÉQUIPE DE CLAUDE CODE SOUS ADAM : PROGRAMMES ET FILE D'INTÉGRATION (2026-11-02, lot O2, décision 0059)
+
+Demande de la Direction du 02/11 : Adam délègue à MiMo (superviseur) une équipe de travailleurs Claude Code en parallèle,
+sans conflit ; priorités correction → fiabilité → autonomie → coût → vitesse.
+- **« Lance un programme… »** (`lancer_un_programme`) : MiMo décompose, le CODE valide (cycles, périmètres, critères, budget,
+  aucun déploiement), les tâches indépendantes partent en parallèle (3 au plus), celles qui se recouvrent (fichiers,
+  schéma, contrat, dépendances, module) sont SÉRIALISÉES avant tout conflit.
+- **File d'intégration** par branche cible : une à la fois (garantie par la base), CI COMPLÈTE sur le résultat fusionné avec
+  la dernière version de la cible — elle attrape ce que Git ne voit pas (une fonction renommée par l'un, appelée par l'autre) ;
+  conflit ou CI rouge → la tâche retourne à SA session, travail préservé ; `main` sous carte de la Direction.
+- **Travailleurs** : sessions cloud Claude Code SEULEMENT (Direction : « abonnement ») ; quota horaire des sessions (25/h).
+- **Tableau « Missions d'Adam »** : tâches, travailleurs, dépendances, conflits, file, coûts par nature (sessions, durée, tentatives ; dollars des modèles), en temps réel.
+- Migration `20270232000000_o2_file_integration` (table `IntegrationFile`). Code `src/lib/missions/equipe/`. Preuves : décision 0059 § 9.
+
+### NEUF DÉFAUTS DU BANC RÉEL CORRIGÉS PAR L'ARCHITECTURE (2026-11-02, lot F2, décision 0060)
+
+Passage réel du 02/11 au soir (224/250, 110/110 attaques bloquées) : les défauts restants venaient du produit.
+- **Voix** : ce qui est DIT et la CONSIGNE au modèle vocal sont deux champs (`pourVoix` / `consigne`). La garde de
+  sortie `sortieOrale` (`platform/ia/voix/dit-et-consigne.ts`) est appliquée au serveur et au navigateur. La consigne
+  part en contexte silencieux, jamais prononcée ni affichée.
+- **RH pour soi** : congé, absence, avance et attestation ne se jugent plus sur les familles RH quand aucun champ ne
+  désigne autrui (`GESTES_POUR_SOI`). Le montant d'une avance n'est plus masqué comme un salaire.
+- **Missions** : le compilateur de plan résout une lecture ou un geste sur le catalogue de la personne (index J4).
+  Une faute liste les noms ouverts. Un tour sans réponse du modèle dit la cause et reprend une fois.
+- **Cartes** : deux cartes indépendantes coexistent (objet comparé, nature = action). Une question ne rend rien caduc.
+  « Annule cette demande » retire la carte non confirmée.
+- **BU** désignée par son nom (entité `business_unit`). **Mail** préparé avec « À » à compléter. **Matériel promo** :
+  un article hors catalogue part en « Autre article » dès la création (`lib/promo-material/article-hors-catalogue.ts`).
+- Preuves : `src/modules/assistant-ia/f2-defauts-banc.test.ts` (base réelle), rejeu ciblé `docs/assistant/preuves/audit/f2/`.
 ### ADAM COMPLET POUR LE SUPER ADMIN, DANS LE MOTEUR DE L'ASSISTANT IA (2026-11-02, lot A2, décision 0055)
 
 Décision de la Direction du 02/11 — « un seul assistant : Adam » ; le Super Admin garde **toutes** les fonctions de l'ancien
@@ -133,7 +162,7 @@ secteur ne voit ni ne modifie la fiche ni la visite d'un autre panel (testé au 
 ### T1 — ADVENTUM IA RANGE, CONVERTIT, MODIFIE, RETROUVE ET DONNE LES DOCUMENTS, À LEUR PLACE (2026-11-02)
 
 « Ranger des documents dans légal, convertir, modifier, checker le drive, nous donner des documents » (Direction, 02/11).
-**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 12 pièces ou un dossier du Drive ; nature et dossier
+**Ranger au Juridique en UNE carte** (`ranger_au_juridique` : 1 à 30 pièces ou un dossier du Drive ; nature et dossier
 canoniques, dates lues sur la pièce, partie de l'annuaire, avenant créé sur son contrat) et **mettre à jour une fiche**
 (`modifier_fiche_juridique`) — par les actions de l'écran, annulables (J7/K10b). **Lire et donner** : `registre_juridique`
 (« le dernier contrat de X », échéances, dossiers ; le fichier remis par son lien, pièce restreinte jamais nommée) et
@@ -354,6 +383,23 @@ SHA vert, déploiements, essais, carte Valider/Refuser). **Conversation** (Adven
 `ou_en_est_chantier`, `valider_chantier` (écrit ou oral), `annuler_chantier`. Production, fusion sur main, rollback de
 production : validation de la Direction au moment d'agir. Aucune réussite sans preuve : le juge des preuves refuse la
 conclusion. Migration additive `20270218100000_chantiers_socle`. Tâche de fond `chantiers.balayage`.
+
+### CHANTIERS AUTONOMES : 24 H D'ATTENTE, ROUGE CORRIGÉ SEUL, CONSIGNES DE LA DIRECTION (2026-11-02)
+
+Décision `docs/assistant/decisions/0058-chantiers-autonomes-et-consignes.md`. Un chantier attend un commit jusqu'à **24 h**
+(réglable) en demandant « où en es-tu ? » à la même session toutes les 4 h, relance une session morte, puis se met en pause
+« attend tes consignes » (jamais d'échec sec, branche gardée). Sur un rouge, il **corrige seul**, prévient la Direction au
+**3ᵉ échec** sans s'arrêter, et ne demande des consignes qu'au plafond (8) ou si la même panne revient après Sol. Outil
+**`consigne_chantier`** (écrit ou oral) : la consigne part à la même session, ouvre une nouvelle approche et fait reprendre
+le chantier. Réglages ajoutés dans Administration › IA › Chantiers.
+
+### C2 (suite) : RELAIS SEUL, VRAIE SESSION, BUDGET DU PLAN, MIGRATIONS DESTRUCTIVES (2026-11-02)
+
+Quatre défauts du moteur des chantiers corrigés (décision 0042, § correctifs du 02/11), chacun avec un banc qui l'aurait vu :
+lancement possible avec le **seul relais** (zéro routine) ; la session créée par le relais prend sa **vraie identité** au
+fait `DEV_SESSION` (la correction parle à la MÊME session) ; le **budget du plan** resserre la console ; une **migration
+destructive** du diff est dite sur la carte de fusion, et exige une carte avant de déployer une branche non fusionnée.
+Connecteur GitHub : `contenuFichier` (texte d'un fichier à un SHA).
 
 ### C2 : LES CONNECTEURS DES CHANTIERS — CLAUDE CODE (ROUTINES, `@claude`), GITHUB, RENDER (2026-11-01)
 

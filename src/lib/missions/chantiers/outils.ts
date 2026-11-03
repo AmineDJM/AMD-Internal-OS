@@ -1,5 +1,5 @@
 import {
-  annulerChantier, approuverChantier, demanderRevertFusion, ouEnEstChantier, pauserChantier, proposerChantier, validerGesteChantier, type VueChantier,
+  annulerChantier, donnerConsigneChantier, approuverChantier, demanderRevertFusion, ouEnEstChantier, pauserChantier, proposerChantier, validerGesteChantier, type VueChantier,
 } from "@/lib/missions/chantiers/service";
 
 /**
@@ -120,6 +120,29 @@ export const OUTILS_CHANTIER: readonly OutilChantier[] = [
     },
     {
       def: {
+        name: "consigne_chantier",
+        description: "Transmet une CONSIGNE de la Direction à un chantier de développement (« dis-lui de … », « change d'approche, fais … », « attends encore », à l'écrit ou à l'oral) : elle part à la MÊME session Claude Code (sinon dans le fil de la PR, sinon à une session neuve avec l'historique), est journalisée, ouvre une nouvelle approche (tentatives remises à zéro) et fait reprendre un chantier en pause « attend tes consignes ». N'appelle cet outil QUE pour une consigne que la Direction vient de donner — jamais de ta propre initiative ; reformule-la fidèlement, sans rien ajouter.",
+        input_schema: {
+          type: "object",
+          properties: {
+            chantierId: { type: "string" },
+            consigne: { type: "string", description: "La consigne, fidèle à ce que la Direction a dit." },
+            canal: { type: "string", enum: ["ecrit", "oral"], description: "oral si la Direction l'a dite en conversation vocale." },
+            durable: { type: "boolean", description: "Vrai si elle vaut pour l'avenir (« toujours », « désormais ») : gardée aussi dans la mémoire technique du dépôt." },
+          },
+          required: ["chantierId", "consigne"],
+        },
+      },
+      label: "Consigne transmise au chantier",
+      run: async (entree, userId) => {
+        const r = await donnerConsigneChantier(String(entree.chantierId ?? ""), userId, {
+          texte: String(entree.consigne ?? ""), canal: entree.canal === "oral" ? "oral" : "ecrit", durable: entree.durable === true,
+        });
+        return json(r.ok ? { statut: "TRANSMIS", message: r.message } : { statut: "REFUS", raison: r.erreur });
+      },
+    },
+    {
+      def: {
         name: "annuler_chantier",
         description: "Arrête (annule : réservations libérées, rapport « annulé ») ou suspend (pause) un chantier de développement, à la demande de la Direction — ou COMPENSE sa fusion (`annulerFusion`) : une PR de revert est ouverte et proposée, jamais un force-push.",
         input_schema: { type: "object", properties: { chantierId: { type: "string" }, pause: { type: "boolean", description: "Vrai : suspendre seulement." }, annulerFusion: { type: "boolean", description: "Vrai : compenser la fusion déjà faite par une PR de revert." } }, required: ["chantierId"] },
@@ -136,3 +159,5 @@ export const OUTILS_CHANTIER: readonly OutilChantier[] = [
 
 /** La porte pour les écrans (console, carte de validation) — le module ne passe que par ce fichier. */
 export { etatMimo, lireReglagesChantiers, lireReglagesConsole, validerGesteChantier } from "@/lib/missions/chantiers/service";
+/** O2 (décision 0059) : les outils des programmes passent par la MÊME porte (aucun couplage neuf du module). */
+export { OUTILS_PROGRAMME } from "@/lib/missions/equipe/outils";

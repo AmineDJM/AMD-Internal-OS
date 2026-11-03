@@ -80,8 +80,10 @@ const enMotif = (m: string): string => (m.includes("%") ? m : `%${m}%`);
 
 /**
  * Les sessions qui attendent un verrou PAR CETTE TRANSACTION — directement, ou derrière une session qu'elle bloque (le
- * second geste attend souvent le verrou de ligne du premier, qui attend la barrière) —, et dont la requête nomme un des
- * motifs. L'instantané de `pg_stat_activity` est rafraîchi : dans une transaction, Postgres le fige au premier accès.
+ * second geste attend souvent le verrou de ligne du premier, qui attend la barrière) —, dont la requête nomme un des
+ * motifs, et qui sont de CE PROCESSUS : un verrou de table arrête aussi les écritures des autres fichiers de la suite, et
+ * une insertion voisine bloquée là ouvrait la barrière avant le geste du banc. Chaque processus signe ses connexions
+ * (`application_name`, `vitest.setup-processus.ts`) ; sans signature, tout est compté, comme avant. L'instantané de `pg_stat_activity` est rafraîchi : dans une transaction, Postgres le fige au premier accès.
  */
 export async function compterBloques(tx: Prisma.TransactionClient, motifs: string | string[]): Promise<number> {
   await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
@@ -92,7 +94,8 @@ export async function compterBloques(tx: Prisma.TransactionClient, motifs: strin
       SELECT a.pid FROM pg_stat_activity a JOIN bloquees b ON b.pid = ANY(pg_blocking_pids(a.pid))
     )
     SELECT count(*)::int AS n FROM pg_stat_activity a JOIN bloquees b ON b.pid = a.pid
-    WHERE a.wait_event_type = 'Lock' AND a.query ILIKE ANY(${[motifs].flat().map(enMotif)}::text[])`;
+    WHERE a.wait_event_type = 'Lock' AND a.query ILIKE ANY(${[motifs].flat().map(enMotif)}::text[])
+      AND (current_setting('application_name') = '' OR a.application_name = current_setting('application_name'))`;
   return n;
 }
 

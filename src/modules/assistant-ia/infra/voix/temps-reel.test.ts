@@ -44,6 +44,9 @@ async function compte(nom: string, assistant: boolean): Promise<CurrentUser> {
   return { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
 }
 
+/** F2 : ce que la voix reçoit, les deux canaux — le texte DIT et la consigne silencieuse. */
+const tout = (r: { pourVoix: string; consigne?: string }) => [r.pourVoix, r.consigne].filter(Boolean).join(" ");
+
 describe("ce que la voix peut dire d'une réponse écrite", () => {
   it("une valeur révélée à l'écran ne repart jamais à la voix ; ni Markdown ni adresse", () => {
     const v = reponsePourVoix(`**Salaire de base** : ${BORNE_REVELEE}185 000 DZD${BORNE_REVELEE}, voir [la fiche](/rh/1) https://x.dz`);
@@ -138,8 +141,8 @@ suite("Assistant IA — voix GPT-Live", () => {
     const f = fin as Extract<typeof fin, { etat: "pret" }>;
     expect(f.carte?.intentId).toBeTruthy();
     // La carte orale (K4) : un résumé à dire, puis la question — jamais un renvoi à l'écran.
-    expect(f.pourVoix).toMatch(/Ne demande PAS encore de confirmer|Tu confirmes \?/);
-    expect(f.pourVoix).not.toMatch(/regarde l'écran|affichée à l'écran/);
+    expect(tout(f)).toMatch(/Ne demande PAS encore de confirmer|Tu confirmes \?/);
+    expect(tout(f)).not.toMatch(/regarde l'écran|affichée à l'écran/);
     expect(await prisma.fieldReport.count({ where: { delegateId: kam.id } })).toBe(0);
   });
 

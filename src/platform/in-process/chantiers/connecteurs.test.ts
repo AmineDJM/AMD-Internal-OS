@@ -217,6 +217,49 @@ describe("GitHub REST v3", () => {
   });
 });
 
+describe("GitHub — contenu d'un fichier à un SHA", () => {
+  it("GET /contents/{chemin}?ref= en média raw ; 404 → null", async () => {
+    gerer = (r) => (r.chemin === "/repos/adventum/banc/contents/prisma/migrations/x/migration.sql"
+      ? { entetes: { "content-type": "application/vnd.github.raw+json" }, texte: 'DROP TABLE "X";' }
+      : { statut: 404, corps: { message: "Not Found" } });
+    const f = creerForgeGithub({ jeton: JETON_GITHUB, base });
+    expect(await f.contenuFichier("adventum/banc", "prisma/migrations/x/migration.sql", "abc123")).toEqual({ ok: true, valeur: 'DROP TABLE "X";' });
+    expect(appels[0]!.requete.get("ref")).toBe("abc123");
+    expect(appels[0]!.entetes.accept).toBe("application/vnd.github.raw+json");
+    expect(await f.contenuFichier("adventum/banc", "absent.sql", "abc123")).toEqual({ ok: true, valeur: null });
+  });
+});
+
+describe("GitHub — les gestes de la file d'intégration (O2, décision 0059)", () => {
+  it("créer une branche (422 au même SHA = déjà faite), fusionner (201 / 204 / 409 conflit), avancer en fast-forward seul, supprimer", async () => {
+    const f = creerForgeGithub({ jeton: JETON_GITHUB, base });
+    gerer = (r): Reponse => {
+      if (r.methode === "POST" && r.chemin.endsWith("/git/refs")) return JSON.parse(r.corps).ref.endsWith("deja") ? { statut: 422, corps: { message: "Reference already exists" } } : { statut: 201, corps: { ref: JSON.parse(r.corps).ref } };
+      if (r.methode === "GET" && r.chemin.includes("/git/ref/heads/claude/integration/deja")) return { corps: { object: { sha: "s1" } } };
+      if (r.methode === "POST" && r.chemin.endsWith("/merges")) return JSON.parse(r.corps).head === "conflit" ? { statut: 409, corps: { message: "Merge conflict" } } : JSON.parse(r.corps).head === "rien" ? { statut: 204, texte: "" } : { statut: 201, corps: { sha: "m1" } };
+      if (r.methode === "PATCH") return JSON.parse(r.corps).sha === "nonff" ? { statut: 422, corps: { message: "Update is not a fast forward" } } : JSON.parse(r.corps).sha === "protege" ? { statut: 422, corps: { message: "Protected branch update failed" } } : { corps: { object: { sha: JSON.parse(r.corps).sha } } };
+      if (r.methode === "DELETE") return { statut: 204, texte: "" };
+      return { statut: 404 };
+    };
+    const d = "aminedjm/amd-internal-os" as const;
+    expect(await f.creerBranche!(d, "claude/integration/main/a-1", "s1")).toEqual({ ok: true, valeur: true });
+    expect(await f.creerBranche!(d, "claude/integration/deja", "s1")).toEqual({ ok: true, valeur: true });
+    expect(await f.creerBranche!(d, "claude/integration/deja", "autre")).toMatchObject({ ok: false, erreur: { code: "CONFLIT" } });
+    expect(await f.fusionnerBranches!(d, "claude/integration/main/a-1", "claude/a", "m")).toEqual({ ok: true, valeur: { sha: "m1" } });
+    expect(await f.fusionnerBranches!(d, "claude/integration/main/a-1", "conflit", "m")).toEqual({ ok: true, valeur: { conflit: true } });
+    expect(await f.fusionnerBranches!(d, "claude/integration/main/a-1", "rien", "m")).toEqual({ ok: true, valeur: { rienAFusionner: true } });
+    expect(await f.avancerBranche!(d, "claude/cible", "s2")).toEqual({ ok: true, valeur: true });
+    expect(await f.avancerBranche!(d, "claude/cible", "nonff")).toMatchObject({ ok: false, erreur: { code: "CONFLIT", message: expect.stringMatching(/non fast-forward/) } });
+    expect(await f.avancerBranche!(d, "main", "protege")).toMatchObject({ ok: false, erreur: { code: "INTERDIT" } });
+    expect(await f.supprimerBranche!(d, "claude/integration/main/a-1")).toEqual({ ok: true, valeur: true });
+    const patch = appels.find((a) => a.methode === "PATCH")!;
+    expect(patch.chemin).toBe("/repos/aminedjm/amd-internal-os/git/refs/heads/claude/cible");
+    expect(JSON.parse(patch.corps)).toEqual({ sha: "s2", force: false });
+    expect(JSON.parse(appels.find((a) => a.chemin.endsWith("/merges"))!.corps)).toEqual({ base: "claude/integration/main/a-1", head: "claude/a", commit_message: "m" });
+    expect(appels.find((a) => a.methode === "DELETE")!.chemin).toBe("/repos/aminedjm/amd-internal-os/git/refs/heads/claude/integration/main/a-1");
+  });
+});
+
 describe("Render API v1", () => {
   const render = () => creerHebergeurRender({ jeton: JETON_RENDER, base });
   const DEPLOY = { id: "dep-d0123", commit: { id: "abc1234def", message: "feat: x\n\ncorps", createdAt: "2026-11-01T10:00:00Z" }, status: "live", trigger: "api", createdAt: "2026-11-01T10:00:00Z", finishedAt: "2026-11-01T10:05:00Z" };

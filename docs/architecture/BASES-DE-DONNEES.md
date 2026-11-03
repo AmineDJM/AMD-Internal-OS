@@ -69,7 +69,7 @@ par base :
    du coffre et est journalisée (`AccesDonneeSensible`) ; aucun modèle d'IA ne le lit jamais.
 
 <!-- BASES:DEBUT -->
-_Généré par `npm run bases:generer` — 518 tables, 29 bases. Ne pas éditer à la main._
+_Généré par `npm run bases:generer` — 519 tables, 29 bases. Ne pas éditer à la main._
 
 ### Bases métier (381 tables)
 
@@ -100,7 +100,7 @@ _Généré par `npm run bases:generer` — 518 tables, 29 bases. Ne pas éditer 
 | Pilotage, KPI & intelligence de direction (`pilotage`) | 20 | Confidentiel (jusqu'à secret) | KPI & bilans, Adventum Brain, Process Intelligence, Cockpit Opérations, My Chief of Staff (bureau d'Adam) |
 | Site web public (`site-web`) | 6 | Public interne | Site web |
 
-### Bases techniques (137 tables)
+### Bases techniques (138 tables)
 
 | Base | Tables | Sensibilité | Modules qui l'ouvrent aujourd'hui |
 |---|---:|---|---|
@@ -108,7 +108,7 @@ _Généré par `npm run bases:generer` — 518 tables, 29 bases. Ne pas éditer 
 | Assistant IA — conversations, notes & mémoire personnelles (`ia-conversations`) | 31 | Confidentiel | Adam, My Chief of Staff (bureau d'Adam) |
 | IA — moteur, missions, connaissances & réglages (`ia-moteur`) | 56 | Restreint (jusqu'à confidentiel) | Administration, Adam, Recettes |
 | Journaux & traçabilité (`journaux`) | 9 | Confidentiel (jusqu'à secret) | Administration |
-| Plateforme, réglages, files & intégrations (`plateforme`) | 22 | Restreint (jusqu'à secret) | Administration, Feedback |
+| Plateforme, réglages, files & intégrations (`plateforme`) | 23 | Restreint (jusqu'à secret) | Administration, Feedback |
 
 ### Détail, base par base
 
@@ -406,7 +406,7 @@ Le matériel promotionnel : catalogue, devis et factures fournisseurs, stock par
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
 | `PromoMaterial` | Article de matériel promotionnel | Restreint | expense-actions, medical-info-actions, promo-budget-actions, promo-circuit-actions +4 |
-| `PromoCatalogueArticle` | Article du catalogue promotionnel | Restreint | promo-catalogue-actions, promo-demande-actions |
+| `PromoCatalogueArticle` | Article du catalogue promotionnel | Restreint | promo-catalogue-actions, promo-demande-actions, promo-material-actions |
 | `PromoQuote` | Devis de matériel promotionnel | Restreint | promo-circuit-actions, promo-devis-actions, promo-execution-actions |
 | `PromoQuoteLine` | Ligne d'un devis de matériel | Restreint | promo-devis-actions |
 | `PromoRequestItem` | Demande de matériel promotionnel | Restreint | promo-demande-actions |
@@ -1012,7 +1012,7 @@ Qui a fait quoi et quand : journal d'audit, activité, corbeille, appels d'API, 
 | `DataQualityFinding` | Anomalie de qualité des données | Confidentiel | — |
 | `DataQualitySweep` | Passage de contrôle de qualité des données | Confidentiel | — |
 
-#### Plateforme, réglages, files & intégrations — `plateforme` (22 tables, restreint)
+#### Plateforme, réglages, files & intégrations — `plateforme` (23 tables, restreint)
 
 Les réglages de l'application, les champs personnalisés, les tâches de fond, webhooks, notifications poussées, le centre de test et les chantiers de développement.
 
@@ -1042,6 +1042,7 @@ Les réglages de l'application, les champs personnalisés, les tâches de fond, 
 | `TestArtifact` | Pièce d'un passage de test | Restreint | — |
 | `TestFinding` | Constat d'un passage de test | Restreint | — |
 | `ChantierReservation` | Réservation d'une ressource par un chantier | Restreint | — |
+| `IntegrationFile` | File d'intégration des programmes (une entrée active par branche cible) | Restreint | — |
 | `MemoireTechnique` | Mémoire technique des chantiers | Restreint | — |
 | `DevLancement` | Lancement de Claude Code | Restreint | — |
 | `ClaudeRelaisOrdre` | Ordre pour le relais Claude Code | Restreint | — |

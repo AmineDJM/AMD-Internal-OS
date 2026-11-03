@@ -14,7 +14,7 @@ vi.mock("@/lib/documents", async (orig) => ({
   ...(await orig<Record<string, unknown>>()),
   persistUploadedDocument: async () => {
     const doc = await (await import("@/lib/prisma")).prisma.document.create({
-      data: { name: "__k10a_dem__piece.pdf", entityType: "PAYMENT_REQUEST", entityId: "x", fileKey: "k", mimeType: "application/pdf", sizeBytes: 10, category: "OTHER", confidentiality: "INTERNAL" },
+      data: { name: `${RUN}piece.pdf`, entityType: "PAYMENT_REQUEST", entityId: "x", fileKey: "k", mimeType: "application/pdf", sizeBytes: 10, category: "OTHER", confidentiality: "INTERNAL" },
     });
     return { ok: true, documentId: doc.id };
   },
@@ -39,6 +39,9 @@ try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
 const TAG = "__k10a_dem__";
+// TOUT ce que le banc crée et nettoie porte RUN, jamais le seul TAG : un ménage par TAG retirait, en plein test, les
+// lignes d'un AUTRE passage du fichier lancé à côté (mesuré, F1 : ses 520 ordres réglés supprimés pendant « MASQUER »,
+// « expected +0 to be 520 »).
 const RUN = `${TAG}${Date.now().toString(36)}`;
 
 /** Les effets que l'annulation n'a pas pu défaire — hors la notification poussée déjà partie (effet sortant, K10b). */
@@ -86,7 +89,7 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
   async function nouvelle(titre: string, transmise: boolean): Promise<string> {
     await comme("req");
     const r = await createPaymentRequest(undefined, form({
-      title: `${TAG}${titre}`, payee: "SARL Atlas", amount: "500000", submit: transmise ? "1" : "0", paymentMethodStated: "on", dueDate: "2026-11-15",
+      title: `${RUN}${titre}`, payee: "SARL Atlas", amount: "500000", submit: transmise ? "1" : "0", paymentMethodStated: "on", dueDate: "2026-11-15",
     }, [{ kind: "QUOTE" }]));
     expect(err(r)).toBeNull();
     demandes.push(r.id!);
@@ -102,19 +105,19 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
   afterAll(async () => {
     const ids = Object.values(u);
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(() => {});
-    const ordres = (await prisma.expenseOrder.findMany({ where: { OR: [{ sourceId: { in: demandes } }, { reference: { startsWith: TAG } }] }, select: { id: true } })).map((o) => o.id);
+    const ordres = (await prisma.expenseOrder.findMany({ where: { OR: [{ sourceId: { in: demandes } }, { reference: { startsWith: RUN } }] }, select: { id: true } })).map((o) => o.id);
     await prisma.paymentCentreMessage.deleteMany({ where: { orderId: { in: ordres } } }).catch(() => {});
     await prisma.paymentRequest.deleteMany({ where: { id: { in: demandes } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
-    await prisma.expenseOrder.deleteMany({ where: { reference: { startsWith: `${TAG}OD${RUN.slice(-5)}-` } } }).catch(() => {});
-    const factures = (await prisma.legalDocument.findMany({ where: { title: { startsWith: TAG } }, select: { id: true, settlementTxId: true } }));
+    await prisma.expenseOrder.deleteMany({ where: { reference: { startsWith: `${RUN}OD-` } } }).catch(() => {});
+    const factures = (await prisma.legalDocument.findMany({ where: { title: { startsWith: RUN } }, select: { id: true, settlementTxId: true } }));
     await prisma.legalDocument.updateMany({ where: { id: { in: factures.map((f) => f.id) } }, data: { settlementTxId: null } }).catch(() => {});
-    const ecritures = (await prisma.financeTransaction.findMany({ where: { OR: [{ createdById: { in: ids } }, { label: { contains: TAG } }] }, select: { id: true } })).map((t) => t.id);
+    const ecritures = (await prisma.financeTransaction.findMany({ where: { OR: [{ createdById: { in: ids } }, { label: { contains: RUN } }] }, select: { id: true } })).map((t) => t.id);
     await prisma.financeTransaction.updateMany({ where: { id: { in: ecritures } }, data: { compensationDeId: null } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { id: { in: ecritures } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: factures.map((f) => f.id) } } }).catch(() => {});
     await prisma.paymentCentreSeat.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.document.deleteMany({ where: { name: `${TAG}piece.pdf` } }).catch(() => {});
+    await prisma.document.deleteMany({ where: { name: `${RUN}piece.pdf` } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
@@ -274,35 +277,35 @@ suite("K10a — demandes de paiement, centre, sièges, factures : exécuter puis
     // tranches nommées, chaque ordre est journalisé, et TOUS réapparaissent.
     await prisma.expenseOrder.createMany({
       data: Array.from({ length: 520 }, (_, i) => ({
-        reference: `${TAG}OD${RUN.slice(-5)}-${i}`, label: `${TAG} réglé ${i}`, amount: 1_000, category: "AUTRE" as const, status: "PAID" as const,
+        reference: `${RUN}OD-${i}`, label: `${RUN} réglé ${i}`, amount: 1_000, category: "AUTRE" as const, status: "PAID" as const,
         centralStatus: "APPROVED", requestedById: u.req,
       })),
     });
-    const nos = { reference: { startsWith: `${TAG}OD${RUN.slice(-5)}-` } };
+    const nos = { reference: { startsWith: `${RUN}OD-` } };
     await comme("sa");
     expect(err(await purgeSettledExpenseOrders())).toBeNull();
     expect(await prisma.expenseOrder.count({ where: { ...nos, historiqueMasqueLe: null } })).toBe(0);
     const c = await annulerDernier();
     // Un ordre d'un autre banc, retiré par son nettoyage entre-temps, « n'existe plus » — vrai, et pas le nôtre. Les nôtres
     // réapparaissent tous.
-    expect(bloquants(c).filter((b) => b.includes(TAG) || !/n'existe plus/.test(b))).toEqual([]);
+    expect(bloquants(c).filter((b) => b.includes(RUN) || !/n'existe plus/.test(b))).toEqual([]);
     expect(await prisma.expenseOrder.count({ where: { ...nos, historiqueMasqueLe: null } })).toBe(520);
   }));
 
   it("FACTURES : enregistrer → ANNULÉE (pièce numérotée, jamais retirée — règle K10b) ; modifier → remise ; marquer payée → date retirée, le décaissement reste et un « à récupérer » le compense", async () => {
     await comme("sa");
-    const c = await createInvoice(undefined, form({ title: `${TAG}Facture Atlas`, number: `${RUN}-F1`, amount: "80000", direction: "OUT", counterparty: "SARL Atlas" }));
+    const c = await createInvoice(undefined, form({ title: `${RUN}Facture Atlas`, number: `${RUN}-F1`, amount: "80000", direction: "OUT", counterparty: "SARL Atlas" }));
     expect(err(c)).toBeNull();
     expect(bloquants(await annulerDernier())).toEqual([]);
     // Une facture est une PIÈCE NUMÉROTÉE (K10b, `MODELES_PIECES_NUMEROTEES`) : annulée, elle reste, avec ses fichiers.
     expect((await prisma.legalDocument.findUniqueOrThrow({ where: { id: c.id! } })).status).toBe("CANCELLED");
 
-    const f = await createInvoice(undefined, form({ title: `${TAG}Facture Ziryab`, number: `${RUN}-F2`, amount: "60000", direction: "OUT", counterparty: "EURL Ziryab" }));
+    const f = await createInvoice(undefined, form({ title: `${RUN}Facture Ziryab`, number: `${RUN}-F2`, amount: "60000", direction: "OUT", counterparty: "EURL Ziryab" }));
     expect(err(f)).toBeNull();
-    expect(err(await updateInvoice(form({ id: f.id!, title: `${TAG}Facture Ziryab corrigée`, number: `${RUN}-F2`, amount: "65000", direction: "OUT", counterparty: "EURL Ziryab" })))).toBeNull();
+    expect(err(await updateInvoice(form({ id: f.id!, title: `${RUN}Facture Ziryab corrigée`, number: `${RUN}-F2`, amount: "65000", direction: "OUT", counterparty: "EURL Ziryab" })))).toBeNull();
     expect(bloquants(await annulerDernier())).toEqual([]);
     const remise = await prisma.legalDocument.findUniqueOrThrow({ where: { id: f.id! } });
-    expect([remise.title, Number(remise.amount)]).toEqual([`${TAG}Facture Ziryab`, 60_000]);
+    expect([remise.title, Number(remise.amount)]).toEqual([`${RUN}Facture Ziryab`, 60_000]);
 
     expect(err(await setInvoicePaid({ id: f.id!, paidDate: "2026-10-30" }))).toBeNull();
     const payee = await prisma.legalDocument.findUniqueOrThrow({ where: { id: f.id! } });

@@ -11,6 +11,7 @@ import { avancement, duree, gestesPermis, LIBELLE_ETAPE, LIBELLE_MISSION, missio
 import { useMissions, type ModeFlux } from "./use-missions";
 import { useEchap } from "../use-echap";
 import { ReglageDOffice } from "./reglage-d-office";
+import { BlocProgramme } from "./bloc-programme";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -189,6 +190,7 @@ function CarteMission({ m, ouverte, onBasculer, gestes, onOuvrirLivrable, onOuvr
       {ouverte && (
         <div className="flex flex-col gap-3 border-t border-[var(--aia-filet)] px-3.5 pb-3.5 pt-3">
           {m.chantier && <BlocChantier m={m} gestes={gestes} />}
+          {m.programme && <BlocProgramme p={m.programme} />}
           <ol className="flex flex-col gap-1" aria-label={`Étapes de ${m.titre}`}>
             {m.etapes.map((e) => (
               <li key={e.cle} className="flex items-start gap-2 rounded-lg px-1.5 py-1.5" data-testid="etape" data-etape={e.cle} data-etat={e.etat}>

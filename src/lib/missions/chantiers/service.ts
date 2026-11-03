@@ -7,8 +7,11 @@ import { enParallele } from "@/lib/missions/runtime/engine/ordonnancement";
 import { systemClock, type Clock } from "@/lib/missions/ports";
 import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import { compilerChantier, gestesCritiques, lirePlanChantier, type PlanChantier } from "@/lib/missions/chantiers/plan";
-import { dossierInitial, lireDossier, vueDossier, type DossierChantier, type ValidationDirection, type VueDossier } from "@/lib/missions/chantiers/dossier";
-import { MOTIF_BUDGET_CHANTIER, motifBudgetChantier } from "@/lib/missions/chantiers/regles";
+import { dossierInitial, lireDossier, sessionParlable, vueDossier, type DossierChantier, type ValidationDirection, type VueDossier } from "@/lib/missions/chantiers/dossier";
+import { MOTIF_BUDGET_CHANTIER, MOTIF_CONSIGNES_CHANTIER, motifBudgetChantier } from "@/lib/missions/chantiers/regles";
+import { portsDevBranches } from "@/lib/missions/chantiers/ports-dev";
+import { memoriser } from "@/lib/missions/chantiers/memoire";
+import type { PortsDev } from "@/lib/missions/chantiers/etapes";
 import { clore, conduireChantier, ecrireDossier, KIND_CHANTIER, lireReglagesConsole, PERSONA_CHANTIER, refusChantier, type BilanChantier, type DepsChantier } from "@/lib/missions/chantiers/conduite";
 import { liberer, reservationsDe } from "@/lib/missions/chantiers/reservations";
 import { configMimo } from "@/lib/models/mimo";
@@ -39,7 +42,8 @@ export async function signalerReveilChantier(chantierId: string, maintenant = ne
   await prisma.mission.updateMany({ where: { id: chantierId, kind: KIND_CHANTIER }, data: { reveilDemandeLe: maintenant } });
 }
 
-export async function proposerChantier(principalId: string, brut: unknown, opts: { origine?: string | null } = {}): Promise<
+/** `parentMissionId` (O2, décision 0059) : le PROGRAMME dont ce chantier est une tâche — son travail passe par la file d'intégration. */
+export async function proposerChantier(principalId: string, brut: unknown, opts: { origine?: string | null; parentMissionId?: string } = {}): Promise<
   { ok: true; chantierId: string; plan: PlanChantier; gestesCritiques: string[]; plafondUsd: number } | { ok: false; fautes: string[] }
 > {
   const refus = await refusChantier(principalId);
@@ -47,7 +51,8 @@ export async function proposerChantier(principalId: string, brut: unknown, opts:
   const lu = lirePlanChantier(brut);
   if (!lu.ok) return lu;
   const reglages = await lireReglagesConsole();
-  const plafondUsd = lu.plan.budget.usd ?? reglages.plafondUsd;
+  // Le plus strict du plan et de la console (un plan ne relâche jamais un plafond).
+  const plafondUsd = Math.min(lu.plan.budget.usd ?? reglages.plafondUsd, reglages.plafondUsd);
   const critiques = gestesCritiques(lu.plan);
   const m = await prisma.mission.create({
     data: {
@@ -57,6 +62,7 @@ export async function proposerChantier(principalId: string, brut: unknown, opts:
       carnet: { chantier: dossierInitial(lu.plan) } as unknown as Prisma.InputJsonValue,
       gestesAutorises: critiques.map((c) => ({ nom: c, libelle: c, famille: "CHANTIER", libelleFamille: "Validation au moment d'agir" })) as unknown as Prisma.InputJsonValue,
       context: opts.origine ?? null,
+      ...(opts.parentMissionId ? { parentMissionId: opts.parentMissionId } : {}),
     },
     select: { id: true },
   });
@@ -66,7 +72,7 @@ export async function proposerChantier(principalId: string, brut: unknown, opts:
 }
 
 export async function approuverChantier(chantierId: string, principalId: string, clock: Clock = systemClock): Promise<ResultatChantier> {
-  const m = await prisma.mission.findFirst({ where: ou(chantierId, principalId), select: { status: true, carnet: true } });
+  const m = await prisma.mission.findFirst({ where: ou(chantierId, principalId), select: { status: true, carnet: true, parentMissionId: true } });
   if (!m) return { ok: false, erreur: "Chantier introuvable — ou il ne vous appartient pas." };
   if (m.status !== "AWAITING_APPROVAL") return m.status === "CANCELLED" ? { ok: false, erreur: "Ce chantier a été annulé." } : { ok: true, chantierId, message: "Ce chantier est déjà lancé." };
   const refus = await refusChantier(principalId);
@@ -77,6 +83,8 @@ export async function approuverChantier(chantierId: string, principalId: string,
   const maintenant = clock.now();
   await materialiser(compilerChantier(relu.plan), {
     kind: KIND_CHANTIER, missionId: chantierId, ownerId: principalId, title: relu.plan.titre, goalRaw: relu.plan.objectif, maxConcurrency: 1,
+    // O2 : le programme parent survit à la matérialisation (qui réécrit la mission).
+    parentMissionId: m.parentMissionId,
   });
   await rendreBail(chantierId);
   await prisma.mission.update({ where: { id: chantierId }, data: { planApprouveLe: maintenant, planApprouvePar: principalId, startedAt: maintenant } });
@@ -106,6 +114,80 @@ export async function validerGesteChantier(chantierId: string, principalId: stri
     `${d.decision === "ACCORDEE" ? "Validé" : "Refusé"} par la Direction (${v.canal}) : ${visee.texte}`, { stepKey: visee.cle, canal: v.canal }, principalId);
   await signalerReveilChantier(chantierId, clock.now());
   return { ok: true, chantierId, message: d.decision === "ACCORDEE" ? "Validé : le geste part maintenant." : "Refusé : le geste est écarté, le chantier continue sans lui." };
+}
+
+/**
+ * LA CONSIGNE DE LA DIRECTION (02/11 : « si je lui donne des consignes, il les suit ») — « dis-lui de … », « change
+ * d'approche, fais … », à l'écrit ou à l'oral (outil `consigne_chantier`) :
+ *   1. TRANSMISE à la MÊME session Claude Code (relais : message, contexte gardé), sinon dans le fil de la PR
+ *      (`@claude`), sinon à une session neuve qui reçoit l'historique (consignes, dernier blocage) ;
+ *   2. JOURNALISÉE au chantier et gardée au dossier ; elle ouvre une NOUVELLE APPROCHE : tentatives de correction,
+ *      signatures et analyse de Sol repartent de zéro ;
+ *   3. DURABLE (« toujours », « désormais ») : gardée aussi dans la mémoire technique du dépôt ;
+ *   4. un chantier en pause « attend tes consignes » REPREND ; ses étapes en attente repartent tout de suite.
+ */
+export async function donnerConsigneChantier(
+  chantierId: string, principalId: string, c: { texte: string; canal?: "ecrit" | "oral"; durable?: boolean },
+  deps: { ports?: PortsDev | null; clock?: Clock } = {},
+): Promise<ResultatChantier> {
+  const refus = await refusChantier(principalId);
+  if (refus) return { ok: false, erreur: refus };
+  const texte = c.texte.trim().slice(0, 4_000);
+  if (texte.length < 3) return { ok: false, erreur: "Consigne vide." };
+  const clock = deps.clock ?? systemClock;
+  const m = await prisma.mission.findFirst({ where: ou(chantierId, principalId), select: { status: true, pausedReason: true, carnet: true } });
+  if (!m) return { ok: false, erreur: "Chantier introuvable — ou il ne vous appartient pas." };
+  if (["COMPLETED", "CANCELLED", "FAILED", "BLOCKED", "PARTIAL"].includes(m.status)) return { ok: false, erreur: "Ce chantier est terminé : lancez-en un nouveau avec cette consigne." };
+  const d = lireDossier(m.carnet);
+  if (!d) return { ok: false, erreur: "Dossier du chantier illisible." };
+  const p = d.plan;
+  const n = d.consignes.length + 1;
+  const historique = [
+    ...d.consignes.map((x, i) => `Consigne ${i + 1} : ${x.texte}`),
+    ...(d.attenteConsignes ? [`Où en était le chantier : ${d.attenteConsignes}`] : []),
+    ...(d.blocage ? [`Dernier blocage : ${d.blocage}`] : []),
+  ].join("\n");
+  const ports = deps.ports === undefined ? portsDevBranches() : deps.ports;
+  let transmise: string | null = null;
+  let nouvelle: { sessionId: string; url: string; le: string; moyen: string } | null = null;
+  if (ports) {
+    const session = sessionParlable(d);
+    const r = await ports.agent.relancer({
+      depot: p.depot, branche: p.branche, brancheBase: p.brancheBase, objectif: p.objectif, perimetre: p.perimetre, criteres: p.criteres,
+      commandesVerif: p.commandesVerif, chantierId, ...(historique ? { contexte: `## Historique du chantier\n${historique}` } : {}),
+      probleme: `Consigne de la Direction (à suivre en priorité) : ${texte}`, ...(d.pr ? { pr: d.pr.numero } : {}), ...(session ? { session } : {}),
+    }, `${chantierId}|consigne-${n}`);
+    if (r.ok) {
+      transmise = r.valeur.moyen;
+      if (!d.sessions.some((x) => x.sessionId === r.valeur.sessionId)) nouvelle = { sessionId: r.valeur.sessionId, url: r.valeur.url, le: r.valeur.lanceeLe, moyen: r.valeur.moyen };
+    }
+  }
+  const le = clock.now().toISOString();
+  await ecrireDossier(chantierId, (x) => {
+    x.consignes.push({ texte, par: principalId, le, canal: c.canal ?? "ecrit", transmise });
+    // UNE NOUVELLE APPROCHE : l'anti-boucle repart de zéro (les étapes lisent le compte des consignes et remettent leurs tours).
+    x.signatures = [];
+    x.solPour = [];
+    x.blocage = null;
+    x.attenteConsignes = null;
+    if (nouvelle && nouvelle.moyen !== "commentaire-pr") {
+      x.sessions.push({ ...nouvelle, motif: "reprise" });
+      x.compteurs.lancements += 1;
+    }
+  });
+  await journaliser(chantierId, "CHANTIER_CONSIGNE", `Consigne de la Direction (${c.canal ?? "ecrit"}) : ${texte}`.slice(0, 900),
+    { n, transmise, canal: c.canal ?? "ecrit", durable: c.durable === true }, principalId);
+  if (c.durable) await memoriser("decision", `${p.depot.proprietaire}/${p.depot.nom}:consigne:${le.slice(0, 19)}`.toLowerCase(), `Consigne durable de la Direction pour ce dépôt : ${texte}`, { source: "chantier", missionId: chantierId });
+  // LA REPRISE : un chantier qui attendait ses consignes repart ; une étape qui attendait relit tout de suite.
+  if (m.status === "PAUSED" && m.pausedReason?.startsWith(MOTIF_CONSIGNES_CHANTIER)) await reprendre(chantierId, principalId, "CHANTIER");
+  await prisma.missionStep.updateMany({ where: { missionId: chantierId, status: "WAITING", nodeType: "WORKER" }, data: { status: "READY", attempt: 0 } });
+  await signalerReveilChantier(chantierId, clock.now());
+  return {
+    ok: true, chantierId,
+    message: transmise
+      ? `Consigne transmise (${transmise === "relais-cli" ? "à la même session" : transmise === "commentaire-pr" ? "dans le fil de la PR" : "à une nouvelle session, avec l'historique"}) ; le chantier repart sur cette approche.`
+      : "Consigne enregistrée ; Claude Code n'a pas pu être joint maintenant : elle sera dans la prochaine relance.",
+  };
 }
 
 export async function pauserChantier(chantierId: string, principalId: string): Promise<ResultatChantier> {

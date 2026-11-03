@@ -12,6 +12,7 @@ import { appelVoix, auNomDe, budgetDeLAppel, fermerBudget, jetonsAudio, lireRegl
 import { cleFournisseurVoix } from "../modele";
 import { ETAT, filDe } from "../fil/service";
 import { capturerApresTour, memoirePourVoix } from "../memoire-capture";
+import { sortieOrale } from "@/platform/ia/voix/dit-et-consigne";
 import { enregistrerSessionVoix, fermerSessionVoix, reponsePourVoix, reprisesOrales, traiterEnonceVocal, type RetourOral } from "./oral";
 import { presentationAdam, prenomDe } from "../../domaine/profil-personne";
 
@@ -92,10 +93,11 @@ export type ResultatDelegationVoix = RetourOral;
  */
 export async function deleguerALaVoix(user: CurrentUser, demande: string, d: { session: unknown; delegationId?: string | null; enCours?: string | null; parole?: string | null; question?: string | null }): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);
-  if (refus) return { pourVoix: `Refus : ${refus.erreur}` };
+  if (refus) return { pourVoix: refus.erreur };
   const texte = demande.trim();
-  if (!texte) return { pourVoix: "Je n'ai pas compris la demande : demande à la personne de la répéter." };
-  return traiterEnonceVocal(user, { ...d, demande: texte });
+  if (!texte) return { pourVoix: "Je n'ai pas compris la demande : pouvez-vous la répéter ?" };
+  // F2 (TR-VX-02) — LA GARDE DE SORTIE : ce qui est dit ne porte jamais une consigne au modèle vocal.
+  return sortieOrale(await traiterEnonceVocal(user, { ...d, demande: texte }));
 }
 
 /**

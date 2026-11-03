@@ -1,5 +1,5 @@
 {
- "schemaModeles": 518,
+ "schemaModeles": 519,
  "bases": [
   {
    "cle": "personnel",
@@ -1639,7 +1639,8 @@
      "sensibilite": "restreint",
      "ecritePar": [
       "promo-catalogue-actions",
-      "promo-demande-actions"
+      "promo-demande-actions",
+      "promo-material-actions"
      ]
     },
     {
@@ -5810,7 +5811,7 @@
      "Réglages réservés au Super Admin ; retours (Feedback) lus par leur auteur et l'Administration"
     ]
    },
-   "nombreTables": 22,
+   "nombreTables": 23,
    "tables": [
     {
      "modele": "AppSetting",
@@ -5978,6 +5979,12 @@
     {
      "modele": "ChantierReservation",
      "libelle": "Réservation d'une ressource par un chantier",
+     "sensibilite": "restreint",
+     "ecritePar": []
+    },
+    {
+     "modele": "IntegrationFile",
+     "libelle": "File d'intégration des programmes (une entrée active par branche cible)",
      "sensibilite": "restreint",
      "ecritePar": []
     },
