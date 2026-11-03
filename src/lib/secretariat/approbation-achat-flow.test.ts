@@ -364,6 +364,13 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
 
   it("R2 — UNE ANNULATION APRÈS LA PRISE, AVANT L'ORDRE : l'ordre émis est annulé, et la décision le dit", async () => {
     const { id, approval } = await approbationChiffree("Course ordre");
+    // LA DEMANDE EST CONFIÉE À L'ASSISTANTE DU BANC, pour que l'annulation ne prévienne qu'elle. Non confiée, elle
+    // prévient TOUTES les assistantes de direction actives de la base — celles des bancs voisins comprises —, et
+    // pendant que la barrière tient `ExpenseOrder` : un voisin qui retire son compte attend la barrière (le
+    // `ON DELETE SET NULL` de `ExpenseOrder.requestedById` écrit dans la table), la notification attend ce retrait (sa
+    // clé étrangère vers le compte), la barrière attend l'annulation — un cycle que Postgres ne voit pas, jusqu'au
+    // délai du test (R2, une fois par suite complète environ ; reproduit à trois connexions le 03/11).
+    await prisma.administrativeRequest.update({ where: { id }, data: { assignedToId: u.asst } });
     ACTOR = await acteur(u.n1);
     const r = await pendantLaLecture("ExpenseOrder",
       () => decideApproval(form({ approvalId: approval, decision: "APPROVED" })),

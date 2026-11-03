@@ -40,6 +40,15 @@ import { retirerComptesEtSemis } from "./menage-de-banc";
  *     `pg_blocking_pids`. Une écriture voisine ne l'ouvre plus, et elle s'ouvre dès que les gestes du banc y sont ;
  *   • une barrière à la fois dans toute la suite : le premier geste de sa transaction prend un verrou consultatif
  *     commun, AVANT la table. Le cycle (3) n'a plus de second participant ; et le verrou tombe avec la transaction.
+ *
+ * ── CE QUE LE GESTE CONCURRENT NE DOIT PAS TOUCHER ───────────────────────────────────────────
+ *
+ * Pendant que la barrière tient sa table, une écriture d'un AUTRE banc peut y être arrêtée en tenant ses propres
+ * verrous — un compte qu'il retire (`ON DELETE SET NULL` écrit dans la table tenue : `ExpenseOrder.requestedById`…).
+ * Si le geste joué SOUS la barrière écrit une ligne qui désigne ce compte (une notification « à toutes les assistantes
+ * actives »), il attend ce voisin, qui attend la barrière, qui l'attend : Postgres ne voit pas le cycle (la barrière
+ * sonde, elle n'attend pas un verrou), et le banc tombe au délai (R2, `approbation-achat-flow`, reproduit le 03/11). Le
+ * geste joué sous la barrière ne s'adresse qu'aux comptes DU BANC : une demande confiée, un destinataire nommé.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
