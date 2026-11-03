@@ -1,20 +1,20 @@
 {
-  "commentaire": "Résidu toléré d'UNE suite complète (npm test), table par table, mesuré après le ménage de fin (vitest.global-setup.ts) sur une base locale remise à zéro (03/11/2026). UN PLAFOND NE SE RELÈVE JAMAIS : un dépassement se corrige dans le banc qui sème ; un chiffre qui baisse se reporte ici. Ne sont PLAFONNÉES que les tables dont le résidu est IDENTIQUE sur trois passages complets (un plafond sur un chiffre qui bouge mesurerait l'ordonnanceur). Les autres sont mesurées et dites à chaque suite, sans plafond, jusqu'à ce que leurs bancs retirent ce qu'ils sèment (menage-de-banc.ts) : Document 163-167, StoredFile 169-170, DriveNode 401-403, FileVersion 155-156, FileBlob 273-558 (il suit les précédentes et le dédoublonnage du stockage), FileBlobChunk 0-11.",
+  "commentaire": "Résidu toléré d'UNE suite complète (npm test), table par table, mesuré après le ménage de fin (vitest.global-setup.ts) sur une base locale (03/11/2026). UN PLAFOND NE SE RELÈVE JAMAIS : un dépassement se corrige dans le banc qui sème ; un chiffre qui baisse se reporte ici. Ne sont PLAFONNÉES que les tables dont le résidu est identique sur des passages complets consécutifs (un plafond sur un chiffre qui bouge mesurerait l'ordonnanceur). Avant que les bancs ne retirent ce qu'ils sèment (menage-de-banc.ts : retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu), un passage laissait Document +163, StoredFile +169, DriveNode +401, FileVersion +155, Piece +8. StoredFile +10 : des documents que des chemins de PRODUCTION retirent sans rendre leur clé de stockage (signalé à la Direction, hors bancs). Sans plafond : FileBlob et FileBlobChunk, dont les orphelins attendent une heure avant la purge (purgeOrphanBlobs) — leur compte dépend de l'heure du passage précédent, pas des bancs.",
   "plafonds": {
     "User": 1,
     "Notification": 0,
-    "Piece": 8,
-    "PieceLien": 8,
-    "BibliothequeFiche": 8,
+    "Document": 0,
+    "StoredFile": 10,
+    "DriveNode": 0,
+    "FileVersion": 0,
+    "Piece": 0,
+    "PieceLien": 0,
+    "BibliothequeFiche": 0,
     "AssistantGesteJournal": 2,
     "AssistantEffet": 13,
     "EffetSortantDiffere": 4
   },
   "sansPlafond": [
-    "Document",
-    "StoredFile",
-    "DriveNode",
-    "FileVersion",
     "FileBlob",
     "FileBlobChunk"
   ]
