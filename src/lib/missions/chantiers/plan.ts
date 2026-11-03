@@ -1,6 +1,7 @@
 import type { CompiledMission, CompiledStep } from "@/lib/missions/compiler/compile";
 import type { StepCondition } from "@/lib/missions/planner/contract";
 import type { RefDepot } from "@/lib/missions/chantiers/ports-moteur";
+import { ressourceValide } from "@/lib/missions/equipe/ressources";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -88,22 +89,29 @@ export interface PlanChantier {
   dependances: string[];
   budget: BudgetChantier;
   etapes: EtapeChantier[];
+  /**
+   * O2 (décision 0059 § 5) : les ressources nommées RÉSERVÉES (SCHEMA, CONTRAT, API, DEPENDANCES, GENERES, MODULE:<m>) —
+   * posées par un programme. Présentes : réservées au lancement ET vérifiées au diff (une ressource touchée hors liste → rouge).
+   */
+  ressources?: string[];
+  /** O2 : le travailleur voulu (absent : Claude Code cloud). */
+  travailleur?: "managed-agents";
 }
 
 export const BORNES_CHANTIER = { etapes: 24, perimetre: 20, criteres: 12, commandes: 12, services: 6, tentativesMax: 5 } as const;
 
-const CLE = /^[a-z0-9][a-z0-9_-]{0,47}$/;
-const NOM_DEPOT = /^[A-Za-z0-9_.-]{1,100}$/;
-const BRANCHE = /^(?!.*\.\.)(?!\/)[A-Za-z0-9._/-]{1,120}$/;
+export const CLE = /^[a-z0-9][a-z0-9_-]{0,47}$/;
+export const NOM_DEPOT = /^[A-Za-z0-9_.-]{1,100}$/;
+export const BRANCHE = /^(?!.*\.\.)(?!\/)[A-Za-z0-9._/-]{1,120}$/;
 
-const chaine = (v: unknown, max = 300): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
-const objet = (v: unknown): Record<string, unknown> | null =>
+export const chaine = (v: unknown, max = 300): string => (typeof v === "string" ? v.trim().slice(0, max) : "");
+export const objet = (v: unknown): Record<string, unknown> | null =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
-const liste = (v: unknown, max: number, long = 300): string[] =>
+export const liste = (v: unknown, max: number, long = 300): string[] =>
   (Array.isArray(v) ? v : []).map((x) => chaine(x, long)).filter(Boolean).slice(0, max);
-const entierPositif = (v: unknown): number | undefined =>
+export const entierPositif = (v: unknown): number | undefined =>
   typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : undefined;
-const montant = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : undefined);
+export const montant = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : undefined);
 
 /**
  * LE PLAN TYPE — ce que Terra n'a pas à écrire étape par étape : lancer, attendre, vérifier, corriger si rouge,
@@ -252,12 +260,15 @@ export function lirePlanChantier(brut: unknown): { ok: true; plan: PlanChantier 
   };
   const etapes = Array.isArray(o.etapes) && o.etapes.length > 0 ? lireEtapes(o.etapes, services, fautes) : etapesParDefaut(services, o.fusion !== false);
   if (etapes.length > 0) controlerEnchainement(etapes, services, fautes);
+  const ressources = Array.isArray(o.ressources) ? [...new Set(liste(o.ressources, 12, 80))] : null;
+  for (const r of ressources ?? []) if (!ressourceValide(r)) fautes.push(`Ressource « ${r} » inconnue.`);
   if (fautes.length > 0) return { ok: false, fautes };
   return {
     ok: true,
     plan: {
       titre, objectif, depot, branche, brancheBase, perimetre, criteres, commandesVerif,
       migrations: o.migrations === true, services, dependances: liste(o.dependances, 10, 40), budget, etapes,
+      ...(ressources ? { ressources } : {}), ...(o.travailleur === "managed-agents" ? { travailleur: "managed-agents" as const } : {}),
     },
   };
 }

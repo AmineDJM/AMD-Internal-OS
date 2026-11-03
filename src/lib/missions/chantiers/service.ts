@@ -42,7 +42,8 @@ export async function signalerReveilChantier(chantierId: string, maintenant = ne
   await prisma.mission.updateMany({ where: { id: chantierId, kind: KIND_CHANTIER }, data: { reveilDemandeLe: maintenant } });
 }
 
-export async function proposerChantier(principalId: string, brut: unknown, opts: { origine?: string | null } = {}): Promise<
+/** `parentMissionId` (O2, décision 0059) : le PROGRAMME dont ce chantier est une tâche — son travail passe par la file d'intégration. */
+export async function proposerChantier(principalId: string, brut: unknown, opts: { origine?: string | null; parentMissionId?: string } = {}): Promise<
   { ok: true; chantierId: string; plan: PlanChantier; gestesCritiques: string[]; plafondUsd: number } | { ok: false; fautes: string[] }
 > {
   const refus = await refusChantier(principalId);
@@ -61,6 +62,7 @@ export async function proposerChantier(principalId: string, brut: unknown, opts:
       carnet: { chantier: dossierInitial(lu.plan) } as unknown as Prisma.InputJsonValue,
       gestesAutorises: critiques.map((c) => ({ nom: c, libelle: c, famille: "CHANTIER", libelleFamille: "Validation au moment d'agir" })) as unknown as Prisma.InputJsonValue,
       context: opts.origine ?? null,
+      ...(opts.parentMissionId ? { parentMissionId: opts.parentMissionId } : {}),
     },
     select: { id: true },
   });
@@ -70,7 +72,7 @@ export async function proposerChantier(principalId: string, brut: unknown, opts:
 }
 
 export async function approuverChantier(chantierId: string, principalId: string, clock: Clock = systemClock): Promise<ResultatChantier> {
-  const m = await prisma.mission.findFirst({ where: ou(chantierId, principalId), select: { status: true, carnet: true } });
+  const m = await prisma.mission.findFirst({ where: ou(chantierId, principalId), select: { status: true, carnet: true, parentMissionId: true } });
   if (!m) return { ok: false, erreur: "Chantier introuvable — ou il ne vous appartient pas." };
   if (m.status !== "AWAITING_APPROVAL") return m.status === "CANCELLED" ? { ok: false, erreur: "Ce chantier a été annulé." } : { ok: true, chantierId, message: "Ce chantier est déjà lancé." };
   const refus = await refusChantier(principalId);
@@ -81,6 +83,8 @@ export async function approuverChantier(chantierId: string, principalId: string,
   const maintenant = clock.now();
   await materialiser(compilerChantier(relu.plan), {
     kind: KIND_CHANTIER, missionId: chantierId, ownerId: principalId, title: relu.plan.titre, goalRaw: relu.plan.objectif, maxConcurrency: 1,
+    // O2 : le programme parent survit à la matérialisation (qui réécrit la mission).
+    parentMissionId: m.parentMissionId,
   });
   await rendreBail(chantierId);
   await prisma.mission.update({ where: { id: chantierId }, data: { planApprouveLe: maintenant, planApprouvePar: principalId, startedAt: maintenant } });

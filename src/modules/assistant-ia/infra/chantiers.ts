@@ -1,6 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
 import type { OutilTravail } from "@/platform/ia/travaux/outil";
-import { etatMimo, lireReglagesChantiers, lireReglagesConsole, OUTILS_CHANTIER, validerGesteChantier } from "@/lib/missions/chantiers/outils";
+import { etatMimo, lireReglagesChantiers, lireReglagesConsole, OUTILS_CHANTIER, OUTILS_PROGRAMME, validerGesteChantier } from "@/lib/missions/chantiers/outils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -27,7 +27,8 @@ const json = (o: unknown) => JSON.stringify(o);
 export function outilsChantierPour(user: CurrentUser, lances?: string[]): OutilTravail[] {
   if (user.role !== "SUPER_ADMIN") return [];
   const pourLui = (u: { id: string }) => u.id === user.id;
-  return OUTILS_CHANTIER.map((o) => ({
+  // O2 (décision 0059) : les programmes — une équipe de sessions Claude Code, la même règle (Super Admin).
+  return [...OUTILS_CHANTIER, ...OUTILS_PROGRAMME].map((o) => ({
     def: o.def, label: o.label, allowed: pourLui,
     run: async (entree, u) => {
       if (!pourLui(u)) return json({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." });

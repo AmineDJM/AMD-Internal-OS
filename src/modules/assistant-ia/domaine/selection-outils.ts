@@ -137,6 +137,12 @@ const MOTS_CLES: Record<string, string> = {
   valider_chantier: "valide valider accorde autorise deploie deployer production fusionne fusion main rollback refuse chantier",
   annuler_chantier: "annule arrete stoppe suspend pause chantier developpement",
   consigne_chantier: "consigne dis lui demande change approche fais plutot attends encore pousse corrige chantier claude session",
+  // O2 (décision 0059) : les programmes — une équipe de sessions Claude Code en parallèle.
+  lancer_un_programme: "programme equipe plusieurs taches paralleles travailleurs sessions claude code ensemble lot developpements decompose mimo superviseur integration",
+  ou_en_est_programme: "ou en est programme equipe taches travailleurs file integration conflits dependances couts",
+  consigne_programme: "consigne programme equipe tache dis aux travailleurs change approche",
+  valider_programme: "valide valider accorde fusionne integre integration main programme refuse",
+  annuler_programme: "annule arrete stoppe programme equipe travailleurs",
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",

@@ -129,11 +129,11 @@ export function creerForgeGithub(opts: OptionsForge = {}): ForgeGit & { quota():
     return { ok: true, valeur: acc };
   }
 
-  async function ecrire<T>(methode: "POST" | "PUT", route: string, corps: unknown, libelle: string): Promise<Resultat<ReponseHttp<T>>> {
+  async function ecrire<T>(methode: "POST" | "PUT" | "PATCH" | "DELETE", route: string, corps: unknown, libelle: string, accepter?: number[]): Promise<Resultat<ReponseHttp<T>>> {
     if (noterEffetExterne({ acte: "ECRITURE_EXTERNE", cible: `GitHub : ${libelle}`.slice(0, 200), origine: "chantiers" })) {
       return echec("SIMULE", `simulation : ${libelle} — rien n'a été envoyé à GitHub`);
     }
-    const r = await appeler<T>(cfg, methode, route, { corps });
+    const r = await appeler<T>(cfg, methode, route, { corps, ...(accepter ? { accepter } : {}) });
     if (r.ok) noterQuota(r.valeur.entetes);
     return r;
   }
@@ -255,6 +255,44 @@ export function creerForgeGithub(opts: OptionsForge = {}): ForgeGit & { quota():
       const c = o(r.valeur.corps);
       if (c.merged === false || !s(c.sha)) return echec("INVALIDE", `fusion de #${numero} non faite : ${s(c.message) ?? "réponse sans SHA"}`);
       return { ok: true, valeur: { sha: s(c.sha)!, methode: m } };
+    },
+
+    // O2 (décision 0059) : les gestes de la FILE D'INTÉGRATION — la file ne les fait que sur ses branches
+    // `claude/integration/…` et sur sa cible (garde `gardeEcritureRef`), jamais un force-push.
+    async creerBranche(depot, branche, sha): Promise<Resultat<true>> {
+      const r = await ecrire<Brut>("POST", chemin(depot, "/git/refs"), { ref: `refs/heads/${branche}`, sha }, `création de ${depot}@${branche}`, [422]);
+      if (!r.ok) return r;
+      if (r.valeur.statut === 422) {
+        const t = await lire<Brut>(chemin(depot, `/git/ref/heads/${segments(branche)}`), undefined, { accepter: [404] });
+        if (t.ok && s(o(o(t.valeur.corps).object).sha) === sha) return { ok: true, valeur: true };
+        return echec("CONFLIT", `la branche ${branche} existe déjà à un autre SHA`);
+      }
+      return { ok: true, valeur: true };
+    },
+
+    async supprimerBranche(depot, branche): Promise<Resultat<true>> {
+      const r = await ecrire<unknown>("DELETE", chemin(depot, `/git/refs/heads/${segments(branche)}`), undefined, `suppression de ${depot}@${branche}`, [404, 422]);
+      return r.ok ? { ok: true, valeur: true } : r;
+    },
+
+    async fusionnerBranches(depot, base, tete, message): Promise<Resultat<{ sha: string } | { conflit: true } | { rienAFusionner: true }>> {
+      const r = await ecrire<Brut>("POST", chemin(depot, "/merges"), { base, head: tete, commit_message: message }, `fusion de ${tete} dans ${depot}@${base}`, [409]);
+      if (!r.ok) return r;
+      if (r.valeur.statut === 409) return { ok: true, valeur: { conflit: true } };
+      if (r.valeur.statut === 204) return { ok: true, valeur: { rienAFusionner: true } };
+      const sha = s(o(r.valeur.corps).sha);
+      return sha ? { ok: true, valeur: { sha } } : echec("INVALIDE", "fusion sans SHA dans la réponse");
+    },
+
+    async avancerBranche(depot, branche, sha): Promise<Resultat<true>> {
+      const r = await ecrire<Brut>("PATCH", chemin(depot, `/git/refs/heads/${segments(branche)}`), { sha, force: false }, `avance de ${depot}@${branche} à ${sha.slice(0, 7)}`, [422]);
+      if (!r.ok) return r;
+      if (r.valeur.statut === 422) {
+        const m = s(o(r.valeur.corps).message) ?? "refus";
+        // « Update is not a fast forward » : la branche a bougé ; autre refus (branche protégée) : interdit, dit tel quel.
+        return /fast.?forward/i.test(m) ? echec("CONFLIT", `non fast-forward : ${branche} a bougé (${m})`) : echec("INTERDIT", `${branche} protégée : avance directe refusée (${m})`);
+      }
+      return { ok: true, valeur: true };
     },
 
     // C1 (décision 0042) : la compensation — une PR de revert ouverte (GraphQL), jamais un force-push.

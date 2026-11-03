@@ -48,7 +48,7 @@ const introuvable: ResultatControle = {
  * la même main sur le même moteur. Le `where` garde la famille : un geste sur un travail ne touche jamais une
  * mission d'Adam, et l'inverse. C1 (décision 0042) : `CHANTIER`, les chantiers de développement du Super Admin.
  */
-export type FamilleMission = "RUNTIME" | "TRAVAIL" | "CHANTIER";
+export type FamilleMission = "RUNTIME" | "TRAVAIL" | "CHANTIER" | "PROGRAMME";
 
 async function etat(missionId: string, ownerId: string, kind: FamilleMission = "RUNTIME"): Promise<MissionState | null> {
   const m = await prisma.mission.findFirst({
