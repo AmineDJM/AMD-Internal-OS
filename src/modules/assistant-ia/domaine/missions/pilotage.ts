@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * PILOTER SES MISSIONS À L'ÉCRIT ET À L'ORAL (lot P1, décision 0047) — règles PURES, zéro import.
+ * PILOTER SES MISSIONS À L'ÉCRIT ET À L'ORAL (lot P1, décision 0047) — règles PURES (le seul import : la durée datée du contrat Observation).
  *
  * Constat de la Direction (02/11) : l'assistant lançait une TROISIÈME mission au lieu de fusionner, affirmait « je prends
  * en compte la mission unique que tu as déjà fusionnée » sans rien avoir lu, puis lui demandait les titres de ses propres
@@ -17,6 +17,8 @@
  *   • la présélection des outils de missions (les mots d'une demande qui parle de ses missions).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+
+import { dureeLisible } from "../observation/contrat";
 
 const plier = (t: string): string => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[’']/g, " ");
 
@@ -42,7 +44,7 @@ export interface EtatDesExecutants {
 }
 
 export type CodeDiagnostic =
-  | "A_APPROUVER" | "ATTENTE_EXECUTANT" | "PLAFOND" | "BLOQUEE" | "REESSAIE" | "EN_PAUSE" | "ARRETEE" | "ATTENTE" | "EN_COURS" | "FINIE";
+  | "A_APPROUVER" | "ATTENTE_EXECUTANT" | "PLAFOND" | "BLOQUEE" | "REESSAIE" | "EN_PAUSE" | "ARRETEE" | "ATTENTE" | "EN_COURS" | "PRETE" | "IMMOBILE" | "FINIE";
 
 export interface Diagnostic { code: CodeDiagnostic; phrase: string }
 
@@ -94,7 +96,17 @@ export function diagnostiquerMission(m: MissionDiagnostiquee, ex: EtatDesExecuta
   if (m.attente && m.etat === "EN_ATTENTE") return { code: "ATTENTE", phrase: m.attente };
   if (silence) return { code: "ATTENTE_EXECUTANT", phrase: `en attente du worker — ${silence}` };
   const enCours = m.etapes.find((e) => e.etat === "EN_COURS");
-  return { code: "EN_COURS", phrase: enCours ? `en cours : ${enCours.titre}` : "prête : la prochaine étape part au prochain battement (moins d'une minute)" };
+  if (enCours) return { code: "EN_COURS", phrase: `en cours : ${enCours.titre}` };
+  // I1 (décision 0063, audit AU1 C3) : DES FAITS DATÉS, jamais une prévision. L'âge de la mission est LU (`majLe`) : une
+  // mission immobile depuis 2 h ne reçoit plus « part dans moins d'une minute » parce que le balayage global bat.
+  const immobile = depuis(m.majLe, maintenant);
+  const faites = m.etapes.filter((e) => e.etat === "FAITE").length;
+  const rien = faites ? `aucune étape en cours (${faites}/${m.etapes.length} faites)` : "aucune étape démarrée";
+  if (!Number.isFinite(immobile) || immobile <= SILENCE_EXECUTANT_MS) {
+    return { code: "PRETE", phrase: `prête, ${rien} — dernière activité il y a ${dureeLisible(Number.isFinite(immobile) ? immobile : 0)}` };
+  }
+  const balayage = ex.dernierPassage ? ` ; le balayage est passé il y a ${dureeLisible(depuis(ex.dernierPassage, maintenant))} sans la démarrer` : "";
+  return { code: "IMMOBILE", phrase: `${rien} depuis ${dureeLisible(immobile)}${balayage}` };
 }
 
 // ─────────────────────────────── 2. Désigner une mission ───────────────────────────────
@@ -188,9 +200,9 @@ export const CONSIGNE_MISSIONS = [
   "### TES MISSIONS ET TES MAILS — VÉRITÉ D'ABORD",
   "- Tes missions (tâches de fond), tu les LIS avec `mes_missions` : titre, état, étapes, coût, ce qui bloque. Ne demande JAMAIS à la personne le titre ou l'état d'une mission : lis-les. « Je vois 3 missions » → appelle `mes_missions` et réponds avec ce que tu lis.",
   "- Pause, reprise, arrêt, renommage : `piloter_mission` (par identifiant ou par nom). « Fusionne-les », « mets-les dans un seul tableau » : `fusionner_missions` — JAMAIS une nouvelle mission de plus par `lancer_un_travail` quand des missions sur le même sujet existent.",
-  "- Une mission qui n'avance pas : dis EXACTEMENT ce que `mes_missions` rapporte (« en attente du worker », « attend ton approbation », « plafond », « bloquée : … ») — jamais « elle tourne ».",
-  "- Mails : `mes_boites_mail` lit l'état réel des boîtes par lesquelles tu peux envoyer (réponds à « as-tu accès à ta boîte ? » en le LISANT ; ne cite AUCUNE boîte que l'outil ne rend pas). « Envoie un mail à Redouane et Nesrine avec leur planning » → `envoyer_mail` TOUT DE SUITE, sans question : destinataires par leurs noms (l'annuaire les résout), objet, ton et signature choisis par toi, contenu tiré de la conversation, un mail par personne quand il lui est propre, en CONTENU STRUCTURÉ (salutation au prénom, paragraphes courts, tableau pour un planning, **échéances en gras**). Une question SEULEMENT si un destinataire est introuvable ou ambigu. La personne corrige sur la carte. La boîte qu'emploie `envoyer_mail` est celle que l'outil choisit : une boîte réclamée que `mes_boites_mail` ne rend pas, prépare QUAND MÊME la carte par `envoyer_mail` et ne nomme pas la boîte réclamée ; brouillon seulement sur demande.",
-  "- « Rédige / écris / fais un mail » : `envoyer_mail` — la CARTE est la rédaction (aperçu mis en page, la personne corrige et signe) ; jamais le mail en texte dans la réponse. Une PIÈCE JOINTE nommée (un BC, une facture, une attestation, un fichier de son Drive) : son nom dans `pieces`, sans la chercher d'abord — l'outil la retrouve dans le Drive et le dit s'il ne la trouve pas.",
+  "- Une mission qui n'avance pas : dis ce que `mes_missions` rapporte (« en attente du worker », « attend ton approbation », « plafond », « aucune étape démarrée depuis 2 h ») — jamais « elle tourne ». Chaque mission a un lien (`/missions/<id>`).",
+  "- Mails : `mes_boites_mail` lit l'état réel des boîtes par lesquelles tu peux envoyer (réponds à « as-tu accès à ta boîte ? » en le LISANT ; ne cite AUCUNE boîte que l'outil ne rend pas). « Envoie un mail à Redouane et Nesrine avec leur planning » → `envoyer_mail` TOUT DE SUITE, sans question : destinataires par leurs noms (l'annuaire les résout), objet, ton et signature choisis par toi, contenu tiré de la conversation, un mail par personne quand il lui est propre, composé en blocs dans le style que la demande dit (sobre par défaut ; la charte sur tout, une partie ou rien ; texte brut ; HTML libre). Une question SEULEMENT si un destinataire est introuvable ou ambigu. La personne corrige sur la carte. La boîte qu'emploie `envoyer_mail` est celle que l'outil choisit : une boîte réclamée que `mes_boites_mail` ne rend pas, prépare QUAND MÊME la carte par `envoyer_mail` et ne nomme pas la boîte réclamée ; brouillon seulement sur demande.",
+  "- « Rédige / écris / fais un mail » : `envoyer_mail` — la CARTE est la rédaction (l'aperçu est ce qui part, la personne corrige et signe ; la sortie de l'outil te le décrit) ; jamais le mail en texte dans la réponse. Une PIÈCE JOINTE nommée (un BC, une facture, une attestation, un fichier de son Drive) : son nom dans `pieces`, sans la chercher d'abord — l'outil la retrouve dans le Drive et le dit s'il ne la trouve pas.",
   "- « Rappelle-moi lundi d'appeler X » : une TÂCHE datée (task__createTask, échéance = ce jour, que tu calcules depuis la date du jour) — pas une routine, aucune question sur l'heure. « Exporte la liste … en Excel » : lis les données puis `exporter_donnees`, tout de suite — jamais un travail de fond pour un export simple (la liste des salariés et de leur salaire de base : `lire_paie` avec `liste: true`).",
   "- Une HYPOTHÈSE RAISONNABLE vaut mieux qu'une question (banc d'audit Q1 AN-05, NO-02) : une période non dite = le dernier mois disponible ; une liste de notes introuvable = la créer ; dis l'hypothèse en une phrase, la personne corrige. Ne pose une question que si rien de raisonnable ne s'impose.",
   "- Une question déjà posée et restée sans réponse ne se repose pas : dis ce qui manque (champ obligatoire) et que la carte ou l'écran le complète.",

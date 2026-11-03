@@ -1177,6 +1177,9 @@ model AssistantIaTour {
   memoiresRetenues Json?
   /// M1 : « EN_COURS » pendant la capture (l'écran continue de lire le fil), « FAIT » ensuite, `null` sans capture.
   memoireEtat      String?
+  /// I1 (décision 0063) : les OBSERVATIONS du tour (contrat `domaine/observation/contrat.ts`) — ce que ses gestes ont
+  /// produit (carte, mail, fichier, mission, effet, lecture), relu en base et re-projeté dans l'historique du tour suivant.
+  observations     Json?
   /// K3 : un tour de SYNTHÈSE dit la fin des sous-missions de ce tour-là (unique : une seule synthèse par tour).
   syntheseDe       String?        @unique
   /// O1 (décision 0046) : déposé pendant un travail LONG, c'est une autre demande — jouée dans la voie parallèle.

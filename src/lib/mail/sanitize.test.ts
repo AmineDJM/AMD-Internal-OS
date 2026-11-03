@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeMailHtml, htmlToText } from "./sanitize";
+import { assainirStyle, sanitizeMailHtml, htmlToText } from "./sanitize";
 
 describe("Un mail est du code écrit par un inconnu", () => {
   it("retire les scripts ET leur contenu", () => {
@@ -100,5 +100,19 @@ describe("La version texte, pour l'aperçu et la citation", () => {
 
   it("un vide reste un vide", () => {
     expect(htmlToText(null)).toBe("");
+  });
+});
+
+describe("Un mail COMPOSÉ par l'ERP garde sa mise en page — par liste blanche (I1, décision 0063)", () => {
+  it("un mail REÇU ne garde aucun style (défaut inchangé)", () => {
+    expect(sanitizeMailHtml('<p style="color:red" class="x">a</p>')).toBe("<p>a</p>");
+  });
+  it("styles en ligne filtrés : propriétés de la liste, valeurs inertes", () => {
+    expect(assainirStyle("color:#087084; position:absolute; background:url(x); width:expression(1); font-size:15px !important")).toBe("color:#087084;font-size:15px");
+    expect(assainirStyle("background:url&#40;x&#41;")).toBeNull();
+    expect(assainirStyle("color:red;behavior:url(x.htc)")).toBe("color:red");
+    expect(assainirStyle("display:flex")).toBeNull();
+    expect(sanitizeMailHtml('<table width="600" cellpadding="0" onload="x()" style="border-collapse:collapse"><tr><td valign="top" class="marge ok">a</td></tr></table>', { styles: true }))
+      .toBe('<table width="600" cellpadding="0" style="border-collapse:collapse"><tr><td valign="top" class="marge ok">a</td></tr></table>');
   });
 });

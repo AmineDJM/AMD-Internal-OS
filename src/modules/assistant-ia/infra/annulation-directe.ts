@@ -43,8 +43,8 @@ export async function retablirLaDerniere(user: CurrentUser): Promise<{ ok: boole
   return { ok: true, message: phraseAnnulation(g.libelle, r.details, true) };
 }
 
-/** Les deux outils de l'écrit — `echoues` reçoit ceux qui ont échoué (la garde de vérité ne les compte pas comme faits). */
-export function outilsAnnulation(user: CurrentUser, echoues: Set<string>): PowerTool[] {
+/** Les deux outils de l'écrit — un échec le dit par son statut (« RIEN ») : le journal du tour ne le compte pas comme fait. */
+export function outilsAnnulation(user: CurrentUser): PowerTool[] {
   const ouvert = (u: CurrentUser) => u.id === user.id && !u.impersonatedBy;
   const outil = (name: string, description: string, label: string, f: (u: CurrentUser) => Promise<{ ok: boolean; message: string }>): PowerTool => ({
     def: { name, description, input_schema: { type: "object", properties: {} } },
@@ -52,8 +52,7 @@ export function outilsAnnulation(user: CurrentUser, echoues: Set<string>): Power
     label,
     run: async () => {
       const r = await f(user);
-      if (!r.ok) echoues.add(name);
-      return JSON.stringify({ statut: r.ok ? "FAIT" : "RIEN", message: r.message, consigne: "Dis ce message tel quel, en une phrase." });
+      return JSON.stringify({ statut: r.ok ? "FAIT" : "RIEN", message: r.message });
     },
   });
   return [
