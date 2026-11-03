@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -141,7 +142,7 @@ export async function retirerComptesPerimes(prefixe: string): Promise<number> {
     return m ? parseInt(m[1]!, 36) < avant : false;
   }).map((c) => c.id);
   if (perimes.length === 0) return 0;
-  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: perimes } } }).catch(() => undefined);
-  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: perimes } } }).catch(() => undefined);
-  return (await prisma.user.deleteMany({ where: { id: { in: perimes } } }).catch(() => ({ count: 0 }))).count;
+  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.gestes"));
+  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.sortants"));
+  return (await prisma.user.deleteMany({ where: { id: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.comptes", { count: 0 }))).count;
 }
