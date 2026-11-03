@@ -39,6 +39,7 @@ import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
 import { journaliserGeste } from "@/lib/effets/journal";
 import { annulerGeste } from "@/lib/effets/annulation";
+import { retablirGeste } from "@/lib/effets/retablissement";
 import { DEVIS_INSIGNE, attendu, fichierDuDevis } from "@/lib/pieces-lues/banc/devis-fabriques";
 import { BC_DEPUIS_DEVIS } from "./bc-depuis-devis";
 import { executerOperationIA } from "./";
@@ -133,5 +134,18 @@ suite("Lot B1 — « Crée un bc en pdf » depuis le devis INSIGNE de la Directi
     const apres = await prisma.legalDocument.findUniqueOrThrow({ where: { id: bc.id } });
     expect(apres.status).toBe("CANCELLED");
     expect(apres.reference).toBe(bc.reference);
+    // TOUT LE RESTE EST DÉFAIT (Direction, 03/11 : « vérifie que ça marche bien, l'annulation ») : la fiche fournisseur
+    // créée pour ce BC, le PDF déposé au Drive. Rien d'« impossible » : la lecture en cache du devis (partagée par
+    // empreinte) n'est pas un effet du geste — elle faisait dire « ce n'est PAS une annulation complète ».
+    expect(an.details.filter((d) => d.issue === "IMPOSSIBLE"), JSON.stringify(an.details.filter((d) => d.issue === "IMPOSSIBLE"))).toEqual([]);
+    expect(an.resume).not.toMatch(/PAS une annulation complète/);
+    expect(await prisma.companyContact.findUnique({ where: { id: fiche.id } }), "la fiche fournisseur créée pour ce BC est retirée").toBeNull();
+    expect(await prisma.driveNode.findUnique({ where: { id: pdf.id } }), "le PDF déposé au Drive est retiré").toBeNull();
+    // « RÉTABLIR » refait le geste : le BC redevient un brouillon actif, sa fiche fournisseur revient.
+    const re = await retablirGeste(gesteId!, direction);
+    if ("refus" in re) throw new Error(re.refus);
+    expect(re.resume).toMatch(/^Rétabli/);
+    expect((await prisma.legalDocument.findUniqueOrThrow({ where: { id: bc.id } })).status).not.toBe("CANCELLED");
+    expect(await prisma.companyContact.count({ where: { name: "INSIGNE", createdById: direction.id } })).toBe(1);
   }, 60_000);
 });

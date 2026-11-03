@@ -468,6 +468,16 @@ async function issueEffet(e: EffetLu, ctx: Contexte): Promise<DetailEffet> {
   if (e.operation === "SQL" && e.modele === "BibliothequeFiche") {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "indexation de la bibliothèque (file technique d'ingestion) : elle suit sa pièce, retirée ou gardée avec elle" };
   }
+  // LA LECTURE EN CACHE D'UN FICHIER (`pieces-lues/lecture-fichier.ts`, réservée par empreinte) : partagée par tous ceux qui
+  // déposent les mêmes octets, recalculable — pas un effet du geste. Avant : « impossible », et « Bon de commande créé depuis
+  // un devis — Annuler » disait « ce n'est PAS une annulation complète » pour une ligne de cache (Direction, 03/11/2026).
+  if (e.operation === "SQL" && e.modele === "LecturePiece") {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "lecture en cache du fichier (partagée par empreinte, recalculable) : rien de métier à défaire" };
+  }
+  // Une écriture SQL qui n'a touché AUCUNE ligne (un `ON CONFLICT DO NOTHING`, un `UPDATE` sans correspondance) : rien à défaire.
+  if (e.operation === "SQL" && e.nombre === 0) {
+    return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "l'écriture n'a touché aucune ligne : il n'y a rien à défaire" };
+  }
   if (e.operation === "SQL" && OCTETS.has(e.modele ?? "")) {
     return { effetId: e.id, issue: "SANS_OBJET", quoi, pourquoi: "compteur de références des octets d'une pièce : la purge des fichiers orphelins s'en charge" };
   }
