@@ -13,6 +13,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { decideCareQuote } from "@/modules/ad-pro/actions-prise-en-charge";
 import { demanderBCPriseEnCharge, retenirDevisPriseEnCharge } from "@/modules/ad-pro/actions-prise-en-charge-logistique";
@@ -83,7 +84,7 @@ suite("Prise en charge — la porte du DG sur le total, devis de personnes compr
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [dirId, gmId] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [dirId, gmId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("un devis seulement REÇU ne compte pas dans le total — plusieurs se concurrencent pour les mêmes cases", async () => {

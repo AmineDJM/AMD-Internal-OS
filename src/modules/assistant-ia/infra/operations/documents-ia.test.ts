@@ -7,7 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob, putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -100,7 +100,7 @@ suite("Assistant IA — documents au-delà de l'édition", () => {
     await prisma.fileVersion.deleteMany({ where: { node: { name: { contains: TAG } } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { name: { contains: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: admin?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("LIMITE : le passeport devient un voyageur — le modèle n'en reçoit ni nom, ni numéro, ni date", async () => {

@@ -5,6 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerModelesPourTests } from "../generer";
 import { modeleFactice } from "../testing/modele-factice";
@@ -46,7 +47,7 @@ suite("Assistant IA — le fil gardé, joué en arrière-plan", () => {
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("deux messages d'affilée : aucun n'est annulé, ils sont répondus dans l'ordre, le second voit le premier", async () => {

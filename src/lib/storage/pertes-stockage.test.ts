@@ -41,7 +41,7 @@ vi.mock("@/lib/settings", async (orig) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
 import { putBlob, releaseBlob, getBlob, purgeOrphanBlobs, retainBlob } from "@/lib/drive-storage";
@@ -92,7 +92,7 @@ suite("stockage — aucune perte silencieuse", () => {
     for (const id of new Set([...blobsCrees, ...nodes.flatMap((n) => n.versions.map((v) => v.blobId))])) {
       await prisma.fileBlob.deleteMany({ where: { id } }).catch(() => undefined);
     }
-    await prisma.user.deleteMany({ where: { id: userId } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: userId } }).catch(() => undefined);
   }, 60_000);
 
   // ── 1 ──────────────────────────────────────────────────────────────────────────────────

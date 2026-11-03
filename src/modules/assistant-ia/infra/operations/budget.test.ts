@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { avertissementBudget } from "./budget";
@@ -22,7 +23,7 @@ beforeAll(async () => {
   assistante = await compte("assistante", "DIRECTION_ASSISTANT");
   admin = await compte("admin", "SUPER_ADMIN");
 });
-afterAll(async () => { await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {}); });
+afterAll(async () => { await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {}); });
 
 describe("avertissementBudget", () => {
   it("LIMITE : sans le module Budgets, aucun chiffre d'enveloppe — la Direction arbitre", async () => {

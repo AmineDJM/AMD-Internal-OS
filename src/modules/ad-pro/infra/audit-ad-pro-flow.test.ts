@@ -54,7 +54,7 @@ vi.mock("@/lib/pieces-lues/service", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { addAdProItem, submitAdProItem } from "../actions-postes";
 import { decideAdProItem, annulerOrdrePoste } from "../actions-postes-decision";
@@ -213,7 +213,7 @@ suite("Audit Ad & Pro — devis multiples lus en natif, TVA jamais inventée, fa
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { OR: [{ actorId: { in: ids } }, { entityId: { in: [...docs, ...parents, ...postes] } }] } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.companyLegalIdentity.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
   }, 120_000);

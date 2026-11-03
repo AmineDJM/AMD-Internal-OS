@@ -22,7 +22,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { siegeAuCentreAdPro } from "../domaine/centre";
@@ -124,7 +124,7 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
     await prisma.event.deleteMany({ where: { id: eventId } }).catch(() => {});
     await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.$disconnect().catch(() => {});
   });
 

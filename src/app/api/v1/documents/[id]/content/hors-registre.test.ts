@@ -12,7 +12,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { generateApiKey } from "@/lib/api/auth";
 import { saveFile } from "@/lib/storage";
 import { GET } from "./route";
@@ -47,7 +47,7 @@ suite("API v1 — contenu d'une pièce hors registre", () => {
     await retirerDocumentsEtContenu({ where: { id: docId } }).catch(() => undefined);
     await prisma.storedFile.deleteMany({ where: { key: cle } }).catch(() => undefined);
     await prisma.fileBlob.deleteMany({ where: { id: { in: stored.map((s) => s.blobId) } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: userId } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: userId } }).catch(() => undefined);
   }, 60_000);
 
   it("une demande RH d'autrui : introuvable, pas téléchargée", async () => {

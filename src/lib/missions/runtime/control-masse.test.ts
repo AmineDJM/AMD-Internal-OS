@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   arreterBloquees, compterPourLesGestesDeMasse, mettreEnPauseToutes, ouBloquee, ouSuspendable, reprendre,
 } from "@/lib/missions/runtime/control";
@@ -47,7 +48,7 @@ suite("suspendre tout ce qui tourne, arrêter tout ce qui est bloqué — sur SO
   }, 60_000);
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { ownerId: { in: [a, b, tiers] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("SUSPENDRE TOUTES : les vivantes passent PAUSED avec leur trace, les closes et celles d'autrui ne bougent pas", async () => {

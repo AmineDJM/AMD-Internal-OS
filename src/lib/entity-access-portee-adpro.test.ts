@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 
@@ -65,7 +66,7 @@ suite("canAccessEntity — la portée de ligne des dossiers Ad & Pro", () => {
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.congressNational.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   }
 
   const ACTIONS = ["VIEW", "UPLOAD", "UPDATE"] as const;

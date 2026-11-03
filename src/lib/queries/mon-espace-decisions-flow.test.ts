@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, isTopManagement, userCan, type SessionUser } from "@/lib/rbac";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { getManagerOfUser } from "@/lib/departments";
@@ -97,7 +98,7 @@ suite("« Mon espace » — ce qui m'attend, une ligne par objet, et depuis quan
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: [...vals, ...validations, ...reqs] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
   }
 

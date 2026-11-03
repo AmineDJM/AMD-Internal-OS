@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, REFUS_MISSIONS_ADAM, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { ReasonRequest } from "@/lib/missions/ports";
@@ -91,7 +92,7 @@ suite("§118.136 — la porte : la Direction ne lance rien, ne détache rien, ne
     }
     await prisma.businessEvent.deleteMany({ where: { entityType: "TASK", entityId: taskId } }).catch(() => {});
     await prisma.task.deleteMany({ where: { id: taskId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("lancerMission REFUSE la Direction avant toute écriture, et le refus nomme la règle", async () => {
@@ -161,7 +162,7 @@ suite("§118.136 — l'autorité relue : ce qui tournait pour quelqu'un qui perd
     await prisma.mission.deleteMany({ where: { ownerId: pdg2.id } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: pdg2.id } }).catch(() => {});
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: pdg2.id } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: pdg2.id } }).catch(() => {});
   }, 60_000);
 
   it("LE BATTEMENT met la mission en PAUSE, motif au journal — il ne conduit rien en son nom", async () => {

@@ -12,7 +12,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import PizZip from "pizzip";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { ACCENT_DEFAUT } from "@/lib/brand/model";
@@ -87,7 +87,7 @@ suite("la couleur d'une pièce émise, sur une vraie base", () => {
     await retirerNoeudsDriveEtContenu({ where: { ownerId: user.id } }).catch(() => {});
     await prisma.companyDocumentProfile.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   let premiere: { id: string; nodeId: string; reference: string };

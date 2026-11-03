@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { notifyRoles } from "./notify";
 
 // Sonde DB ; suite sautée proprement sans base (CI sans Postgres).
@@ -28,7 +29,7 @@ suite("notifyRoles — cible le rôle principal ET le rôle secondaire", () => {
 
   afterAll(async () => {
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("une demande de congrès notifie le National Sales, que le rôle soit principal ou secondaire", async () => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { avancer } from "./engine";
 import { chargerEtat, materialiser } from "./store";
 import { compile } from "@/lib/missions/compiler/compile";
@@ -60,7 +61,7 @@ suite("la tuyauterie {{cle_etape.chemin}} — résolue par le moteur", () => {
   });
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("la capacité reçoit la VALEUR lue en amont — clé avec deux-points, indice de liste, texte composé — et le reçu la conserve", async () => {

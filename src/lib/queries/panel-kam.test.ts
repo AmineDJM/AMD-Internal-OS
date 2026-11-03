@@ -9,6 +9,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { clausePanelDuKam, getAccess, scopeMedicalDoctors, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { loadPanelPlanifiable } from "@/lib/queries/tour-schedule";
@@ -75,7 +76,7 @@ suite("Le panel du KAM — une définition, tous ses lecteurs (§118.179)", () =
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.salesRepProfile.deleteMany({ where: { repId: { in: ids } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   };
 
   beforeAll(async () => {

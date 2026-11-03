@@ -7,6 +7,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { lecteursDeLaSuite } from "@/lib/lecteurs/legal";
 import { statutRetabli } from "@/lib/legal/lifecycle";
@@ -57,7 +58,7 @@ suite("Legal — les vraies portes", () => {
     await prisma.legalDocument.updateMany({ where: { id: { in: docs.map((x) => x.id) } }, data: { renewedFromId: null } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: docs.map((x) => x.id) } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }
 

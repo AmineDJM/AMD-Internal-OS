@@ -21,6 +21,7 @@ vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import
 vi.mock("next/headers", () => ({ headers: async () => new Headers(), cookies: async () => ({ get: () => undefined, getAll: () => [] }) }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "../generer";
@@ -130,7 +131,7 @@ suite("la carte à l'oral, contre la base", () => {
     await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: { in: ids } } });
     await prisma.assistantIaVoixSession.deleteMany({ where: { userId: { in: ids } } });
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("de la carte à l'exécution : résumé, facultatifs, récit, « tu confirmes ? » ; sans oui rien ; oui → fait, au journal", async () => {

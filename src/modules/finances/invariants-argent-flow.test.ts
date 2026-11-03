@@ -6,6 +6,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAu
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { createExpenseOrder } from "./infra/expense-orders";
 import { decidePayment } from "./actions-centre";
@@ -85,7 +86,7 @@ suite("la chaîne réelle émission → centre → règlement tient l'invariant"
     const ids = Object.values(u).map((x) => x.id);
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
   }, 60_000);
 
   it("chaque ordre naît en attente du centre ; le règlement d'un ordre non autorisé est refusé", async () => {

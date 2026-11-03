@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailSendPolicy, OutboundMailStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { scanForInjection, neutralizeBoundaries, wrapUntrusted, wrapAttachmentText, deballerUntrusted } from "./untrusted";
 import { analyzeEmail, deservesAttention } from "./email-intelligence";
 import { isAutomatedSender, isBounce, shouldReplyTo, checkRateLimits, DEFAULT_LIMITS } from "./loop-safety";
@@ -199,7 +200,7 @@ suite("red team — forcer un envoi non autorisé", () => {
     await prisma.outboundMailIntent.deleteMany({ where: { connectionId } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId } }).catch(() => {});
     await prisma.communicationPolicy.deleteMany({ where: { updatedById: userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   const draft = () => ({

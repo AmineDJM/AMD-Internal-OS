@@ -11,7 +11,7 @@ vi.mock("@/lib/session", () => ({
 
 import { LegalDocKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { DOCUMENT_CATEGORY, LEGAL_DOC_KIND, natureLegale } from "@/lib/labels";
 import { accesAuxPiecesLegal, canAccessEntity } from "@/lib/entity-access";
@@ -174,7 +174,7 @@ suite("les pièces liées d'une fiche — droits pièce par pièce, et « Créer
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   };
 
   beforeAll(async () => {

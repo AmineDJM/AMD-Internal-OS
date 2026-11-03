@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, moduleScope, type SessionUser } from "@/lib/rbac";
 import { creerArticleCatalogue } from "./promo-catalogue-actions";
 import { annulerDemande, demanderMateriel, entrerEnStock, servirDemande } from "./promo-stock-actions";
@@ -81,7 +82,7 @@ suite("Stock promotionnel — servir une demande que son auteur annule", () => {
       await prisma.userAccess.deleteMany({ where: { userId: { in: users } } });
       await prisma.auditLog.deleteMany({ where: { actorId: { in: users } } }).catch(() => undefined);
     }
-    await prisma.user.deleteMany({ where: { id: { in: users } } });
+    await retirerComptesEtSemis({ where: { id: { in: users } } });
   }
 
   beforeAll(async () => {

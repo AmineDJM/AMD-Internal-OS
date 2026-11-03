@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { ensureNodeIndexed } from "@/lib/assistant/document-discovery";
 import { putBlob } from "@/lib/drive-storage";
 import fs from "node:fs";
@@ -56,7 +56,7 @@ suite("l'index de contenu ne confond jamais « rien lu » et « rien dedans »",
     await prisma.mediaTranscript.deleteMany({ where: { nodeId: { in: ids } } }).catch(() => {});
     await prisma.fileVersion.deleteMany({ where: { nodeId: { in: ids } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { id: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un texte vide est indexé AVEC sa raison — jamais un silence", async () => {

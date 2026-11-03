@@ -11,6 +11,7 @@ vi.mock("@/lib/session", () => {
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -87,7 +88,7 @@ suite("Validations — renvoyer pour correction, resoumettre, un geste à la foi
     await prisma.leaveRequest.deleteMany({ where: { id: { in: conges } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: { in: employes } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.$disconnect().catch(() => {});
   }, 120_000);
 

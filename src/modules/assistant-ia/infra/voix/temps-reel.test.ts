@@ -5,6 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { retirerComptesPerimes } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
@@ -75,7 +76,7 @@ suite("Assistant IA — voix GPT-Live", () => {
     await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: kam?.id } });
     // LES COMPTES DU BANC, retirés eux aussi (F1, mesuré : un compte par passage restait, et recevait les notifications
     // de rôle de toute la suite). Leurs notifications partent en cascade.
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await retirerComptesPerimes("__iavoixlive_");
   });
 

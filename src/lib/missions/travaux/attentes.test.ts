@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { recordEvent } from "@/lib/events/ledger";
 import { CATALOGUE } from "@/lib/events/catalogue";
 import type { Clock } from "@/lib/missions/ports";
@@ -86,7 +87,7 @@ suite("travaux — attentes avancées (J8)", () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.businessEvent.deleteMany({ where: { payload: { path: ["marqueur"], string_starts_with: TAG } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it(`WAIT_EVENT sur prédicat, pour CHACUN des ${CATALOGUE.length} types du catalogue des faits`, { timeout: 180_000 }, async () => {

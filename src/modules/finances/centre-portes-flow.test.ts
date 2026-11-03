@@ -10,6 +10,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createExpenseOrder } from "./infra/expense-orders";
 import { updateInvoice } from "@/lib/actions/invoice-actions";
@@ -88,7 +89,7 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
     await prisma.department.deleteMany({ where: { code: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [saId, dirId, autreId] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [saId, dirId, autreId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   // ── 1. UNE FACTURE PARTIE AU CENTRE NE SE MARQUE PAS RÉGLÉE DEPUIS SON FORMULAIRE ─────────────

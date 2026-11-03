@@ -20,6 +20,7 @@ vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => null, getCurrentUser: async () => null }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "./infra/generer";
@@ -114,7 +115,7 @@ suite("S1 — contournement : Radia (non privilégiée) contre la paie et le dos
     await prisma.payrollEntry.deleteMany({ where: { employeeId: assiaId } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: radia.id } });
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } });
-    await prisma.user.deleteMany({ where: { id: radia.id } });
+    await retirerComptesEtSemis({ where: { id: radia.id } });
   });
 
   for (const a of ATTAQUES) {

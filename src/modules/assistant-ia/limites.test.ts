@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { executerOperationIA } from "./infra/operations";
@@ -70,7 +71,7 @@ afterAll(async () => {
   await prisma.assistantActionIntent.deleteMany({ where: { userId: assistante?.id } }).catch(() => {});
   await prisma.assistantMemoryItem.deleteMany({ where: { content: { startsWith: TAG } } }).catch(() => {});
   await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => {});
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
 });
 
 /** Un tour complet : le faux modèle appelle `outil`, puis répond. Rend tout ce que le modèle a reçu. */

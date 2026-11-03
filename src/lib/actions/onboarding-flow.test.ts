@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { completeOnboarding, saveOnboardingProfile } from "./onboarding-actions";
 import { requestOnboarding } from "./access-actions";
@@ -33,7 +34,7 @@ suite("Onboarding — demande (admin), complétion et profil (self-service)", ()
 
   afterAll(async () => {
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("le Super Admin déclenche l'onboarding (mustOnboard = true)", async () => {

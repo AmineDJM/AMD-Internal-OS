@@ -10,6 +10,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { colorerCellulesAnnuaire } from "@/lib/actions/annuaire-couleurs-actions";
 import { saveDirectoryCustomCell, addDirectoryDoctor } from "@/lib/actions/medical-directory-actions";
@@ -83,7 +84,7 @@ suite("Feuille des annuaires — couleurs, colonnes sur mesure, wilaya", () => {
     await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.medicalInstitution.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.medicalDirectory.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   // ── LES PRÉMISSES DES ACTEURS, vérifiées : sans elles, les cas ci-dessous ne prouvent rien. ──

@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { generateApiKey } from "@/lib/api/auth";
 import { GET as listGET } from "./entities/[entity]/route";
 
@@ -57,7 +58,7 @@ suite("API v1 — notifications et tâches : celles de l'identité, pas celles d
     await prisma.apiClient.deleteMany({ where: { id: clientId } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { userId: { in: users } } }).catch(() => undefined);
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: users } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: users } } }).catch(() => undefined);
   }, 60_000);
 
   it("notifications : seulement les miennes", async () => {

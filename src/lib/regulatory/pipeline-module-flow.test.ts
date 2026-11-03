@@ -24,6 +24,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   PERMISSIONS, accesAttribue, defaultScope, getAccess, scopeRegulatory, seesLockedRegulatory, userCan,
   type LigneAccesAttribue, type Module, type SessionUser,
@@ -120,7 +121,7 @@ suite("Pipeline et Suivi des dossiers se règlent à part dans la console", () =
   async function nettoyer() {
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } });
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   }
 
   beforeAll(async () => {

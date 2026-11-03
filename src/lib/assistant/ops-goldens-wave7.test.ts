@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -69,7 +69,7 @@ suite("ops vague 7 — demandes administratives et achats", () => {
     await retirerDocumentsEtContenu({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.adminApproval.deleteMany({ where: { request: { reference: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.administrativeRequest.deleteMany({ where: { reference: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
   };
   beforeAll(balayer);
   afterAll(balayer);

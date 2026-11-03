@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { lancerMission, avancerMission } from "@/platform/in-process/missions/runtime";
@@ -134,7 +135,7 @@ suite("#88 — le classeur et le deck d'une mission portent les MÊMES chiffres"
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
   }, 120_000);
 

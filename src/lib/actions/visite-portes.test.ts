@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, requireModule: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { logVisit, createVisit, updateVisit } from "./medical-actions";
 import { fdDate } from "./types";
@@ -70,7 +71,7 @@ suite("Visite faite — la fenêtre de 48 h et la gamme tiennent à TOUTES les p
       await prisma.notification.deleteMany({ where: { userId: { in: uids } } });
       await prisma.auditLog.deleteMany({ where: { actorId: { in: uids } } }).catch(() => undefined);
     }
-    await prisma.user.deleteMany({ where: { id: { in: uids } } });
+    await retirerComptesEtSemis({ where: { id: { in: uids } } });
   }
 
   beforeAll(async () => {

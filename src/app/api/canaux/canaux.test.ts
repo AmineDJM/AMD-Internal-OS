@@ -7,7 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { GET as verifierWebhook, POST as webhookWhatsApp } from "@/app/api/canaux/whatsapp/route";
 import { POST as webhookMail } from "@/app/api/mail/inbound/route";
@@ -140,7 +140,7 @@ suite("K6 — pièces reçues par WhatsApp et par mail, dans le contexte de la c
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: uid } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { ownerId: uid, type: "FILE" } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { ownerId: uid } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: uid } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: uid } }).catch(() => {});
   });
 
   it("abonnement : le défi n'est rendu qu'au bon jeton ; sans secret, le POST est refusé ; non signé, aussi", async () => {

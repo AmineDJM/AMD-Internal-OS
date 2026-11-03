@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -82,7 +83,7 @@ suite("ops vague 6c — planning force de vente (SFE)", () => {
     await prisma.salesRepProfile.deleteMany({ where: { repId: { in: testUsers.map((u) => u.id) } } }).catch(() => {});
     await prisma.promoProduct.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: "__ops6c__" } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: "__ops6c__" } } }).catch(() => {});
   });
 
   it("update_promo_product : sans canal donné, le canal EXISTANT est rejoué (le défaut-piège BOTH ne s'applique pas)", async () => {

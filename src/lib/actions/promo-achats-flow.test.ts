@@ -12,7 +12,7 @@ import "@/lib/assistant";
 import { DOMAIN_TOOLS } from "@/lib/assistant/ops";
 import { CHEMIN_STOCK_PROMO } from "@/lib/chemins/stock-promo";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
@@ -176,7 +176,7 @@ suite("Matériel promotionnel — achats piochés dans le catalogue, facture lig
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
   }, 60_000);
 

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { createLegalDocument, updateLegalDocument, adresserBCAuCentre } from "@/lib/actions/legal-actions";
 import { decideValidation } from "@/lib/actions/validation-actions";
@@ -148,7 +149,7 @@ suite("Seuil des bons de commande et signature des Finances — le flux réel", 
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("PRÉMISSES : le signataire a la signature du module « Bons de commande » et n'est pas Super Admin ; l'auteur n'a PAS le droit de signer", async () => {

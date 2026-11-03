@@ -2,6 +2,7 @@
 import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { demarrerLesSousMissions, outilsSousMissionsDuTour, outilTravailPour, PERSONA_ASSISTANT_IA } from "./travaux";
 import { lireDemandeRecherche, ORIGINE_RECHERCHE, planRecherche } from "../domaine/recherche-approfondie";
@@ -109,7 +110,7 @@ suite("les sous-missions — plusieurs par tour, d'office, conclues dans la conv
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { principalId: { in: [chef.id, agent.id] } } }).catch(() => undefined);
     await prisma.assistantIaPreference.deleteMany({ where: { userId: { in: [chef.id, agent.id] } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("PRÉMISSE : une lecture à mettre au plan", () => expect(lecture).not.toBe(""));

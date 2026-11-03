@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { executePowerTool } from "@/lib/assistant/power-tools";
@@ -56,7 +57,7 @@ suite("objectif durable — ce qui survit aux missions, par le vrai chemin", () 
 
   afterAll(async () => {
     await prisma.executiveObjective.deleteMany({ where: { statement: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG.toLowerCase() } } });
   });
 
   it("crée un objectif, le retrouve, et rend une probabilité QUI NE SORT JAMAIS SEULE", async () => {

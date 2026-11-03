@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, scopeDirectives, type SessionUser } from "@/lib/rbac";
 import { canViewDirective, getDirective } from "@/lib/queries/directives";
 import {
@@ -55,7 +56,7 @@ suite("Directives — rédaction, validation du DG, diffusion, relance", () => {
     }
     await prisma.directive.deleteMany({ where: { from: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("RIEN NE PART SANS LE DG : la Direction rédige, la note attend — aucun destinataire notifié", async () => {

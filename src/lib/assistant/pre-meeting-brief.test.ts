@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess } from "@/lib/rbac";
 import { EXECUTIVE_BRIEF_TOOLS } from "./executive-brief-tools";
@@ -95,7 +96,7 @@ suite("pre_meeting_brief — le brief avant réunion à trois niveaux", () => {
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.executiveCommitment.deleteMany({ where: { who: { startsWith: TAG } } }).catch(() => {});
     await prisma.meeting.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("STANDARD par défaut pour la direction : la réunion, l'ordre du jour, les points OUVERTS par participant, les notes et actions de la dernière réunion, les décisions liées", async () => {

@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canReadLegalDocument } from "@/lib/lecteurs/legal";
 import { setLegalReaders } from "./legal-actions";
@@ -70,7 +71,7 @@ suite("Accès d'un document Legal", () => {
     await prisma.auditLog.deleteMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: docId } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: docId } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: [ownerId, otherId, readerId, adminId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   const readers = async () => (await prisma.legalDocumentReader.findMany({ where: { documentId: docId }, select: { userId: true } })).map((r) => r.userId);

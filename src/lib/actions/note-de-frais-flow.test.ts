@@ -7,7 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getMyHrDossier } from "@/modules/rh/api";
 import {
@@ -80,7 +80,7 @@ suite("Note de frais : un montant, une pièce, quinze minutes, et les RH", () =>
     await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [salarieId, rhId] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [salarieId, rhId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 
   // ─────────────────────────── LE DÉPÔT ───────────────────────────

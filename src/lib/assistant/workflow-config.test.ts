@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess } from "@/lib/rbac";
 import { buildProposal } from "@/lib/assistant";
@@ -71,7 +72,7 @@ suite("administration des circuits et des formulaires par le Chief", () => {
     }
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.customFieldDef.deleteMany({ where: { label: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("GOLDEN « Ajoute Finance après Information Médicale » : carte AVANT → APRÈS, liste complète recomposée", async () => {

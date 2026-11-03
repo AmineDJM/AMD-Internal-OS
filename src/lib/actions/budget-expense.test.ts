@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview } from "@/lib/queries/budget";
 import { addBudgetExpense, updateBudgetExpense, deleteBudgetExpense } from "./budget-envelope-actions";
@@ -54,7 +55,7 @@ suite("addBudgetExpense — dépense budgétaire (découplée des Finances) qui 
 
   afterAll(async () => {
     await prisma.budgetEnvelope.deleteMany({ where: { name: TAG } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("crée une ligne budgétaire (sans FinanceTransaction) → consommation reflétée", async () => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { MODULES, ACTIONS } from "@/lib/rbac";
@@ -144,7 +145,7 @@ suite("voix temps réel — instructions de session (même conversation, budget 
   afterAll(async () => {
     await prisma.assistantMessage.deleteMany({ where: { userId: ceoId } }).catch(() => {});
     await prisma.assistantThread.deleteMany({ where: { userId: ceoId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("mêmes règles de fond que le texte, identité vocale, consignes d'appel — SANS le digest géant", async () => {

@@ -8,6 +8,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { ACTIONS, MODULES, PERMISSIONS, getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { MODULE_LABELS, NAVIGATION } from "@/lib/labels";
 import { canOpenModule, isHideable } from "@/lib/modules-visibility";
@@ -113,7 +114,7 @@ suite("Recettes — masquer, rétablir, ouvrir depuis la console (base locale)",
     await prisma.recette.deleteMany({ where: { circuit: { startsWith: "VAL:__R1RECETTES" } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: "__r1recettes" } } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: "__r1recettes" } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: "__r1recettes" } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: "__r1recettes" } } }).catch(() => {});
   }
 
   /** La console « par module » — le geste exact du Super Admin (Administration › Accès › Recettes). */

@@ -23,7 +23,7 @@ vi.mock("@/lib/regulatory-drive-mirror", () => ({ mirrorRegulatoryUpload: async 
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { canAccessEntity } from "@/lib/entity-access";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { POST } from "@/app/api/documents/upload/route";
@@ -138,7 +138,7 @@ suite("CTD initiale — dépôt, arborescence, ajout, remplacement, suppression,
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
     await prisma.regulatoryProduct.deleteMany({ where: { id: { in: prods } } }).catch(() => undefined);
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } });
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => undefined);
   }, 60_000);
 
   it("prémisses : les acteurs sont ce que le banc dit qu'ils sont", async () => {

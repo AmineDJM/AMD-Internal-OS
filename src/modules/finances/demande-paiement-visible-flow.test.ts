@@ -7,7 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { myPaymentRequests } from "./infra/requetes/my-payment-requests";
@@ -82,7 +82,7 @@ suite("Une demande de paiement envoyée reste visible de son demandeur", () => {
       where: { id: { in: reqs.map((r) => r.expenseOrderId).filter((x): x is string => Boolean(x)) } },
     }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   /** Le formulaire « Demander un paiement », tel qu'il part — envoi direct, sans brouillon. */

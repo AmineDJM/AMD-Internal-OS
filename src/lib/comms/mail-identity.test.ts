@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailSendPolicy, OutboundMailStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   createOutboundIntent,
   approveOutboundIntent,
@@ -90,7 +91,7 @@ suite("identité d'envoi — l'expéditeur ne se devine jamais", () => {
     await prisma.outboundMailIntent.deleteMany({ where: { connectionId: { in: [connectionId, autreConnectionId] } } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId: { in: [userId, autreUserId] } } }).catch(() => {});
     await prisma.communicationPolicy.deleteMany({ where: { updatedById: userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { contains: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { contains: TAG } } }).catch(() => {});
   }, 30_000);
 
   // ─────────────────── 1. L'expéditeur est celui d'Adam ───────────────────
@@ -245,7 +246,7 @@ suite("un seul envoi par contenu — la double confirmation ne fabrique pas de d
     await prisma.outboundMailIntent.deleteMany({ where: { connectionId: c2 } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId: u2 } }).catch(() => {});
     await prisma.communicationPolicy.deleteMany({ where: { updatedById: u2 } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: T2 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: T2 } } }).catch(() => {});
   }, 30_000);
 
   const same = () => ({

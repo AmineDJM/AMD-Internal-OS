@@ -16,6 +16,7 @@ import "@/lib/assistant";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { CAPABILITY_OPS_IMPL, refusDuCheminGenerique, MAX_REFUSEES_DEVANT, MAX_REFUSEES_NOMMEES } from "./impl-capabilite";
 import { CONTRATS_ACTIONS, chercherCapacites } from "@/platform/in-process/capacites";
@@ -221,7 +222,7 @@ suite("DE LA CARTE À LA LIGNE EN BASE — le trajet complet", () => {
 
   afterAll(async () => {
     await prisma.administrativeRequest.deleteMany({ where: { title: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("propose une carte qui DIT ce qui sera touché, puis exécute et la ligne existe", async () => {
@@ -302,7 +303,7 @@ suite("RELECTURE — la phrase porte ce qui a été CONSTATÉ, ou dit qu'elle n'
 
   afterAll(async () => {
     await prisma.administrativeRequest.deleteMany({ where: { title: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("la phrase porte des valeurs RELUES en base, pas un « exécutée » nu", async () => {

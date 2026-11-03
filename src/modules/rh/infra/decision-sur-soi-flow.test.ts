@@ -13,6 +13,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { decideAdvance, updateLeaveRequest } from "@/modules/rh/actions";
 import { decideHrLeave, decideExpenseReport } from "@/modules/rh/actions-documents";
@@ -54,7 +55,7 @@ suite("Décisions RH : jamais sur sa propre demande", () => {
     await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: userId } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { userId } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: userId } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: userId } }).catch(() => undefined);
   }, 60_000);
 
   it("avance sur salaire : refusée, et toujours en attente", async () => {

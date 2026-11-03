@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { platformScope } from "@/lib/company";
 import { getRequestList } from "@/lib/queries/admin-requests";
@@ -148,7 +149,7 @@ suite("les demandes au secrétariat arrivent dans le bureau cloisonné", () => {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => undefined);
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } });
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } });
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } });
   }
 
   it("PRÉMISSES : la liste de ces personnes est cloisonnée par société, et le délégué crée des demandes", async () => {

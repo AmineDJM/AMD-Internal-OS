@@ -6,7 +6,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { requestBV } from "./regulatory-actions";
 
@@ -38,7 +38,7 @@ suite("Demande de BV — centre de paiement d'abord", () => {
     await prisma.auditLog.deleteMany({ where: { actorId: userId } }).catch(() => undefined);
     await prisma.regulatoryProduct.deleteMany({ where: { id: produitId } }).catch(() => undefined);
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: userId } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: userId } }).catch(() => undefined);
   });
 
   const fd = (o: Record<string, string>, fichier?: File) => {

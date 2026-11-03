@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { mapMessage, messageInclude, type MessageRow } from "@/lib/queries/messaging";
 import { deleteMessage } from "./messaging-actions";
@@ -80,7 +81,7 @@ suite("Messagerie & notifications — la suppression du Super Admin", () => {
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { summary: { contains: TAG } } }).catch(() => {});
     await prisma.conversation.deleteMany({ where: { id: { in: [groupeId, directId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un membre ordinaire ne retire pas le message d'un collègue", async () => {

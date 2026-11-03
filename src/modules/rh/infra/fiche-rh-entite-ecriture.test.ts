@@ -15,6 +15,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { deleteEmployeeDocument, setEmployeeDocumentVisibility } from "@/modules/rh/actions-documents";
@@ -46,7 +47,7 @@ suite("Dossier RH d'une autre société : aucune écriture", () => {
     await prisma.auditLog.deleteMany({ where: { actorId: ids.rh } }).catch(() => undefined);
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => undefined);
     await prisma.userAccess.deleteMany({ where: { userId: ids.rh } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: ids.rh } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: ids.rh } }).catch(() => undefined);
     await prisma.company.deleteMany({ where: { id: { in: [ids.A, ids.B] } } }).catch(() => undefined);
   }, 60_000);
 

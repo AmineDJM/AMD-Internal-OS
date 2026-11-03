@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { MODULES, ACTIONS } from "@/lib/rbac";
@@ -56,7 +57,7 @@ suite("assistant/hot-alerts — les signaux précalculés, branchés partout", (
   afterAll(async () => {
     await prisma.assistantHotState.deleteMany({ where: { subjectId: dirigeantId } }).catch(() => {});
     await prisma.userSession.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("le BATTEMENT réchauffe le dirigeant récemment actif — l'état existe AVANT la question", async () => {

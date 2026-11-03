@@ -12,7 +12,7 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { sendLegalInvoiceToSettlement } from "@/lib/actions/legal-actions";
 import { consommerDepensePoste, imputerDepensePoste } from "@/lib/actions/budget-depense-poste-actions";
@@ -115,7 +115,7 @@ suite("Audit Ad & Pro — les règles du circuit tenues hors de l'écran du post
     await prisma.budgetCategoryLine.deleteMany({ where: { envelopeId: envId } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
   }, 60_000);
 
   /** Un congrès national PRÉVALIDÉ (requestStatus APPROVED), au nom du délégué. */

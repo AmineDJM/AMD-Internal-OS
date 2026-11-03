@@ -8,7 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { createCongressRequest } from "./actions-congres";
 import { addCareBeneficiary, decideCareBeneficiary, setCareCellStatus, creerProfilProfessionnel } from "./actions-prise-en-charge";
@@ -67,7 +67,7 @@ suite("Prise en charge — professionnels proposés et pièces par personne", ()
     await prisma.notification.deleteMany({ where: { userId: { in: [pmId, delegueId] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [pmId, delegueId] } } }).catch(() => {});
     await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;
   });
 

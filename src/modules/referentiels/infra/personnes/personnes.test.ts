@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { reprisesPersonnes } from "../reprises/personnes";
 import { repriseDoublonsPersonnes } from "./reprise-doublons";
@@ -65,8 +66,8 @@ suite("Personnes — reprise, doublons, fusion, double écriture, fiche", () => 
     await prisma.adProVoyageur.deleteMany({ where: { id: { startsWith: P } } });
     await prisma.medicalDoctor.deleteMany({ where: { id: { startsWith: P } } });
     await prisma.employee.deleteMany({ where: { id: { startsWith: P } } });
-    await prisma.user.deleteMany({ where: { id: { startsWith: P } } });
-    await prisma.user.deleteMany({ where: { id: { startsWith: A } } });
+    await retirerComptesEtSemis({ where: { id: { startsWith: P } } });
+    await retirerComptesEtSemis({ where: { id: { startsWith: A } } });
     if (personnes.size) {
       await prisma.personne.updateMany({ where: { id: { in: [...personnes] } }, data: { fusionneeDansId: null } });
       await prisma.personne.deleteMany({ where: { id: { in: [...personnes] } } });

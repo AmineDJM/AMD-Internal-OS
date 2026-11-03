@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview, getEnvelopesGrandTotal } from "@/lib/queries/budget";
 import { getEntityMissions } from "@/lib/queries/missions";
@@ -84,7 +85,7 @@ suite("Équipe Adventum — les frais de l'équipe interne vont au budget Operat
     await prisma.auditLog.deleteMany({ where: { actorId: { in: users } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: users } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: users } } }).catch(() => {});
   });
 
   it("inviter un collaborateur pose l'imputation par défaut : Operations & Sales de l'année, ouverte d'office", async () => {

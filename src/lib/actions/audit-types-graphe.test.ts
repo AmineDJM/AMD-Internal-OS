@@ -13,6 +13,7 @@ vi.mock("@/lib/session", () => ({
 
 import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity, ENTITY_MODULE } from "@/lib/entity-access";
 import { createInstitution, updateInstitution, deleteInstitution } from "@/lib/actions/medical-actions";
@@ -151,7 +152,7 @@ suite("Les actions de l'écran écrivent le bon type ET le bon identifiant", () 
     await prisma.salesSector.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.medicalInstitution.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   });
 
   const journal = (type: EntityType, entityId: string) =>
@@ -210,7 +211,7 @@ suite("Ces types nomment une ligne d'historique — ce ne sont pas des portes", 
   });
 
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { id: compteId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: compteId } }).catch(() => {});
   });
 
   it("refusés même au Super Admin, qui a tous les modules — VIEW comme UPLOAD", async () => {

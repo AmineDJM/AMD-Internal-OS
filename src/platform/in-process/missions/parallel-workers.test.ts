@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { avancerMission } from "@/platform/in-process/missions/runtime";
@@ -112,7 +113,7 @@ suite("le parallélisme MODÈLE, mesuré — et son sabotage", () => {
     await prisma.missionEvent.deleteMany({ where: { missionId: { in: missions } } }).catch(() => {});
     await prisma.missionStep.deleteMany({ where: { missionId: { in: missions } } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { id: { in: missions } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   async function missionDeuxWorkers(titre: string, maxConcurrency: number): Promise<string> {

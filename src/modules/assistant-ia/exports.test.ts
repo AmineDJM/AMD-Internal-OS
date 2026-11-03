@@ -10,7 +10,7 @@ vi.mock("@/lib/session", () => ({
 
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
 import { POST as routeRegulatory } from "@/app/api/regulatory/export/route";
@@ -87,7 +87,7 @@ suite("K7 — exporter depuis l'assistant, puis envoyer à un collègue", () => 
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(() => {});
     await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
   }
 
   it("l'outil produit le classeur de la route, le dépose au Drive « Exports » et rend le lien de téléchargement", async () => {

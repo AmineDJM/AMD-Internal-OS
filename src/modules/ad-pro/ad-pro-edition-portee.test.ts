@@ -14,6 +14,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { updateEvent } from "./actions-evenements";
@@ -97,7 +98,7 @@ suite("Événement et demande Ad & Pro — les vraies portes", () => {
     await prisma.promoMaterial.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }
 

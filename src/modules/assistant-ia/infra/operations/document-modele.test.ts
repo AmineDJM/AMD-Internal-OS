@@ -5,7 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob, putBlob } from "@/lib/drive-storage";
 import { papierEnTeteDeDemonstration } from "@/lib/artifact/factory/word";
@@ -38,7 +38,7 @@ suite("Assistant IA — document depuis un modèle", () => {
     await prisma.officeLetterhead.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: admin?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("le texte dicté devient des paragraphes, intertitres et puces", () => {

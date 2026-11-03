@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import {
   addContractLine, addOrderLine, createAmendment, createContractFromAward, createDelivery,
@@ -91,7 +92,7 @@ suite("Market 360° — la chaîne AO → contrat → avenant → BC → livrais
     await prisma.legalDocument.deleteMany({ where: { title: { contains: TAG } } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.product.deleteMany({ where: { code: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("la soumission se versionne, se dépose, se VERROUILLE — et fige la photo des lignes", async () => {

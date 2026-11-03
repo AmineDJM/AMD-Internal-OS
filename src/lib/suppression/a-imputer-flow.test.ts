@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { superAdminDeleteMany, apercuSuppressionGroupee, restoreDeletedRecord } from "@/lib/actions/admin-delete-actions";
 
@@ -94,7 +95,7 @@ suite("Écritures « à imputer » — suppression groupée par le Super Admin",
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
     const comptes = (await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } })).map((u) => u.id);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   });
 
   it("LE GESTE EST AU SUPER ADMIN : un financier qui supprime dans les Finances est refusé, et rien ne part", async () => {

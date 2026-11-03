@@ -16,6 +16,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 
@@ -47,7 +48,7 @@ suite("canAccessEntity — contrat de consulting et demande « Autre » d'une au
     await prisma.adProOtherRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { userId: ids.u } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: ids.u } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: ids.u } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: ids.u } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [ids.A, ids.B] } } }).catch(() => {});
   }, 60_000);
 

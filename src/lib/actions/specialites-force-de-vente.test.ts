@@ -14,6 +14,7 @@ import fs from "node:fs";
 import React from "react";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, peutGererSpecialites, userCan, type SessionUser } from "@/lib/rbac";
 import {
   createSpecialty, updateSpecialty, deleteSpecialty, fusionnerSpecialite, rattacherLibelleSpecialite,
@@ -123,7 +124,7 @@ suite("la Direction Marketing gère le référentiel depuis la Force de vente �
     await prisma.auditLog.deleteMany({ where: { entityType: "SPECIALTY", entityId: { in: ids } } }).catch(() => {});
     await prisma.medicalSpecialty.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG.toLowerCase() } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
   };
 
   beforeAll(async () => {

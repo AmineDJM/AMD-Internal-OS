@@ -6,7 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { requestBV } from "@/lib/actions/regulatory-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
@@ -89,7 +89,7 @@ suite("BV d'un dossier réglementaire — étape → centre de paiement → Fina
     await prisma.regulatoryProduct.deleteMany({ where: { id: produitId } }).catch(() => undefined);
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => undefined);
     await prisma.paymentCentreSeat.deleteMany({ where: { userId: siegeId } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => undefined);
   });
 
   it("demande depuis l'étape, avec commentaire et pièce : ordre EN ATTENTE du centre, produit lisible, pièce ouverte au siège", async () => {

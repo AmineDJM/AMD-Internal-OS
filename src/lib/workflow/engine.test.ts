@@ -4,6 +4,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { SessionUser } from "@/lib/rbac";
 import { advanceWorkflowInstance, ensureInstance, getDefinition, orderedSteps, ouvrirLeCircuit } from "./engine";
 import { defaultDefinition } from "./defaults";
@@ -51,7 +52,7 @@ suite("Moteur — le parcours d'un délégué (KAM) : National Sales → Directe
     await prisma.expenseOrder.deleteMany({ where: { sourceId: congressId } }).catch(() => {});
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("AUCUNE borne, et un TAMIS qui ne retire que la porte du DG", async () => {
@@ -189,7 +190,7 @@ suite("Moteur — le parcours d'un demandeur ORDINAIRE : Directeur des opératio
     await prisma.expenseOrder.deleteMany({ where: { sourceId: congressId } }).catch(() => {});
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: TAG1B } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG1B } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG1B } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG1B } } }).catch(() => {});
   });
 
   it("LA DEMANDE NAÎT CHEZ LE DIRECTEUR DES OPÉRATIONS — jamais posée sur la porte du DG hors route", async () => {
@@ -264,7 +265,7 @@ suite("Moteur — le parcours du NATIONAL SALES lui-même : Directeur des opéra
     await prisma.expenseOrder.deleteMany({ where: { sourceId: congressId } }).catch(() => {});
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: TAG1C } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG1C } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG1C } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG1C } } }).catch(() => {});
   });
 
   it("SON préliminaire disparaît, le Directeur des opérations RESTE — le tamis, pas une borne", async () => {
@@ -347,7 +348,7 @@ suite("Moteur — prévalidée d'office (Direction Marketing), prévalidation se
     await prisma.congressNational.deleteMany({ where: { name: { startsWith: TAG1D } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG1D } } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG1D } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG1D } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG1D } } }).catch(() => {});
   });
 
   it("LA DEMANDE DE LA DIRECTION MARKETING EST PRÉVALIDÉE D'OFFICE à la naissance — tracé à son nom, sans montant ni ordre global", async () => {
@@ -429,7 +430,7 @@ suite("Moteur — avis défavorable non éliminatoire + refus final d'événemen
     await prisma.workflowInstance.deleteMany({ where: { entityId: eventId } }).catch(() => {});
     await prisma.event.deleteMany({ where: { name: { startsWith: TAG2 } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG2 } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG2 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG2 } } }).catch(() => {});
   });
 
   it("l'avis défavorable du National Sales n'est PAS éliminatoire : le circuit avance", async () => {
@@ -500,7 +501,7 @@ suite("Moteur — sauter une étape (tracé & noté, anti-bureaucratie)", () => 
     await prisma.workflowInstance.deleteMany({ where: { entityId: { in: [congressId, dirCongressId] } } }).catch(() => {});
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: TAG3 } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG3 } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG3 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG3 } } }).catch(() => {});
   });
 
   it("le préliminaire n'est plus une désignation : il se saute AVEC raison, et c'est tracé", async () => {
@@ -607,7 +608,7 @@ suite("Moteur — franchissement automatique par seuil de montant (anti-bureaucr
     await prisma.workflowInstance.deleteMany({ where: { entityId: { in: [lowId, highId, kamLowId] } } }).catch(() => {});
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: TAG4 } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG4 } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG4 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG4 } } }).catch(() => {});
   });
 
   it("À LA NAISSANCE, montant estimé ≤ seuil de l'étape : le Directeur des opérations est franchi (tracé) → on se pose sur la prévalidation", async () => {
@@ -709,7 +710,7 @@ suite("Moteur — une émission portée par une étape HORS ROUTE est honorée p
     await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: TAG6 } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: TAG6 } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG6 } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG6 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG6 } } }).catch(() => {});
   });
 
   it("LA PRÉMISSE : le décor porte bien l'argent et l'émission sur l'étape que le délégué ne traverse pas", async () => {
@@ -779,7 +780,7 @@ suite("Moteur — auto-accord si le demandeur détient l'autorité de l'étape (
     await prisma.workflowInstance.deleteMany({ where: { entityId: congressId } }).catch(() => {});
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: TAG5 } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG5 } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG5 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG5 } } }).catch(() => {});
   });
 
   it("l'étape dont le demandeur détient déjà le rôle est approuvée automatiquement en son nom (tracé), sans franchir l'étape qui CONCLUT", async () => {
@@ -867,7 +868,7 @@ suite("Moteur — étape validée par le N+1 réel du demandeur", () => {
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG_MGR } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { code: { startsWith: TAG_MGR } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG_MGR } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG_MGR } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG_MGR } } }).catch(() => {});
   });
 
   it("un COLLÈGUE du même département ne peut pas valider", async () => {
@@ -938,7 +939,7 @@ suite("Moteur — une définition VIDE est resemée, jamais rendue telle quelle"
     await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { startsWith: TAGV } } } }).catch(() => {});
     await prisma.workflowInstance.deleteMany({ where: { entityId: { startsWith: TAGV } } }).catch(() => {});
     await prisma.congressNational.deleteMany({ where: { name: { startsWith: TAGV } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAGV } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAGV } } }).catch(() => {});
   });
 
   it("le circuit vidé est RESEMÉ à la lecture suivante — avec ses positions", async () => {

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { addAdProItem, submitAdProItem } from "../actions-postes";
 import { decideAdProItem } from "../actions-postes-decision";
@@ -64,7 +65,7 @@ suite("Postes Ad & Pro — ceux qui décident sont prévenus (validation et lect
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => undefined);
     await prisma.congressNational.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    await retirerComptesEtSemis({ where: { id: { in: ids } } });
   }
 
   it("PRÉMISSE : la Direction Marketing décide les postes d'un congrès national", async () => {

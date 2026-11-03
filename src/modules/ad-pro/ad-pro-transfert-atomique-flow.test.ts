@@ -43,6 +43,7 @@ vi.mock("@/lib/refs", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { transferAdProRequest } from "./actions-transfert";
 
@@ -72,7 +73,7 @@ suite("ADPRO-09 — deux transferts simultanés de la même demande, sans file c
     await prisma.congressNational.deleteMany({ where: { id: sourceId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [saId, kamId] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: saId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [saId, kamId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [saId, kamId] } } }).catch(() => {});
   }, 60_000);
 
   it("une seule demande cible ; l'autre transfert est refusé, la source close une fois", async () => {

@@ -34,6 +34,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, isTopManagement, userCan, type SessionUser } from "@/lib/rbac";
 import {
   abandonnerCleSite, enregistrerArticle, genererCleSite, leverBlocageSite, rapprocherSiteMaintenant, relancerEnvoiSite, supprimerArticle,
@@ -307,7 +308,7 @@ suite("Site Adventum — file, disjoncteur, recrutement, réconciliation", () =>
     const users = await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } });
     const uids = users.map((u) => u.id);
     await prisma.notification.deleteMany({ where: { userId: { in: uids } } });
-    await prisma.user.deleteMany({ where: { id: { in: uids } } });
+    await retirerComptesEtSemis({ where: { id: { in: uids } } });
   }
 
   beforeAll(async () => {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan } from "@/lib/rbac";
 import { scopeRegulatory, scopeSponsoring } from "@/lib/rbac/portees";
 import type { CurrentUser } from "@/lib/session";
@@ -170,7 +170,7 @@ suite("Graphe de l'entreprise (J9) — banc sur la base", () => {
     await prisma.regulatoryProduct.deleteMany({ where: { reference: "REG-9026-014" } }).catch(() => {});
     await prisma.supplier.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.product.deleteMany({ where: { identityKey: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.personne.deleteMany({ where: { creeParId: { in: [TAG, `${TAG}perf`] } } }).catch(() => {});
     await prisma.organisation.deleteMany({ where: { creeParId: { in: [TAG, `${TAG}perf`] } } }).catch(() => {});
     oublierIndex();

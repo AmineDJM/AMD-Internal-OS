@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, isTopManagement, userCan, type SessionUser } from "@/lib/rbac";
 import {
@@ -64,7 +65,7 @@ suite("Recrutement — renvoyer, corriger, rouvrir, annuler l'embauche, un geste
     await prisma.auditLog.deleteMany({ where: { actorId: { in: uids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: uids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: uids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }
 
   beforeAll(async () => {

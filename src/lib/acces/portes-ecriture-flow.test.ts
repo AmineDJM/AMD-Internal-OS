@@ -22,6 +22,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { UserRole } from "@prisma/client";
 import { getAccess } from "@/lib/rbac";
 import { addRegistration, setRegistrationStatus, deleteRegistration, deleteEvent } from "@/modules/ad-pro/actions-evenements";
@@ -70,7 +71,7 @@ suite("Écritures par identifiant : la société de l'objet", () => {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [ids.A, ids.B] } } }).catch(() => {});
   }, 60_000);
 

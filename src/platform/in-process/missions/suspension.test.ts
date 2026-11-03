@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { ReasonRequest } from "@/lib/missions/ports";
@@ -73,7 +74,7 @@ suite("l'interrupteur global : quatre lecteurs, un fait", () => {
     await prisma.mission.deleteMany({ where: { ownerId: pdg.id } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: pdg.id } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: pdg.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("LE MOTEUR : sous suspension, aucune étape ne tourne et l'état ne bouge pas ; levé, la MÊME mission va au bout", async () => {

@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { generateApiKey } from "@/lib/api/auth";
 import { GET as aspectGET } from "./entities/[entity]/[id]/[aspect]/route";
 
@@ -35,7 +36,7 @@ suite("API v1 — department/related : la projection des membres", () => {
     await prisma.apiClient.deleteMany({ where: { id: ids.client } }).catch(() => undefined);
     await prisma.employee.deleteMany({ where: { departmentId: ids.dept } }).catch(() => undefined);
     await prisma.department.deleteMany({ where: { id: ids.dept } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: ids.user } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: ids.user } }).catch(() => undefined);
   }, 60_000);
 
   it("les membres sont listés, sans adresse ni téléphone", async () => {

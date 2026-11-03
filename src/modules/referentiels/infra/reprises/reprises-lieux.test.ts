@@ -5,6 +5,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireModule: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { repriseLieuxWilaya } from "./lieux-wilaya";
@@ -88,7 +89,7 @@ suite("reprises V2-D — lieux et coordonnées", () => {
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.personne.deleteMany({ where: { nom: { startsWith: TAG } } });
     await prisma.organisation.deleteMany({ where: { raisonSociale: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("le registre suit le contrat : clés uniques, l'ordre de lancement", () => {

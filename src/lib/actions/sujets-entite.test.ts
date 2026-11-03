@@ -13,6 +13,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { MODULE_LABELS, NAVIGATION } from "@/lib/labels";
 import { getDossiers } from "@/lib/queries/dossiers";
@@ -142,7 +143,7 @@ suite("Sujets — chacun a son entité, et la liste la respecte sans perdre les 
     await prisma.dossier.deleteMany({ where: { OR: [{ reference: { startsWith: TAG } }, { title: { startsWith: TAG } }] } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
     await prisma.userCompanyAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }
 
@@ -224,7 +225,7 @@ suite("Validation — un libellé réemployé n'ouvre pas le module qu'il nomme 
 
   async function nettoyer() {
     await prisma.validationRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }
 
   /** Une demande EN ATTENTE sur le lecteur, avec ce libellé et ce lien — puis l'accès qu'il en tire. */

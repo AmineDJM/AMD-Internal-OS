@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { cancelLegalDocument, restoreLegalDocument, renewLegalDocument } from "./legal-actions";
@@ -83,7 +84,7 @@ suite("Legal — les Finances annulent, rétablissent et renouvellent leurs piè
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   });
 
   it("PRÉMISSES : les Finances écrivent par le module Finances, pas par Legal ; l'éditeur modifie Legal sans y créer", async () => {

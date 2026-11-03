@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { recordEvent } from "@/lib/events/ledger";
 import type { PersonaTravaux } from "@/lib/missions/travaux/persona";
 import { approuverTravail, proposerTravail } from "@/lib/missions/travaux/service";
@@ -103,7 +104,7 @@ suite("travaux — robustesse sur de vrais processus (J8)", () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.businessEvent.deleteMany({ where: { type: { startsWith: "TEST_ROB" } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
     fs.rmSync(dossier, { recursive: true, force: true });
   });
 

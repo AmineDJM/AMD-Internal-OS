@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { lancerMission, avancerMission, replanifierMission } from "@/platform/in-process/missions/runtime";
@@ -95,7 +95,7 @@ suite("VÉRITÉ & PREUVE — les dix non-régressions du lot truth/evidence", ()
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.assistantArtifact.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 
   // ═══════════════════════════════════════════════════════════════════════════════════════

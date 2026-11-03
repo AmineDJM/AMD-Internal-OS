@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { appendExchange, getThreadMessages, ensurePrimaryThread } from "@/lib/assistant-memory";
 import { elaguerFil, lireWorkspaceRange } from "@/lib/assistant/workspace/turn";
 
@@ -40,7 +41,7 @@ suite("REPRISE — un tour rechargé retrouve son écran, pas seulement sa phras
   });
 
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   /** Ce que lit un ÉCRAN : le texte ET ce qui a été construit. */

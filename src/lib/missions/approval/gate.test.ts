@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { approbationsEnAttente, decider, demanderApprobation, porteApprobation, prevenir } from "./gate";
 import { perimetre } from "./scope";
 import { avancer } from "@/lib/missions/runtime/engine";
@@ -79,7 +80,7 @@ suite("Mission Runtime — la porte d'approbation", () => {
   afterAll(async () => {
     await prisma.notification.deleteMany({ where: { userId: ownerId } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("RIEN NE PART avant l'accord — puis UN accord suffit pour les 33", async () => {

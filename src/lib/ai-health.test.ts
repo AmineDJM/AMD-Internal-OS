@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { performAiHealthCheck } from "@/lib/ai-health";
 import type { AiHealthResult } from "@/lib/ai";
 
@@ -23,14 +24,14 @@ suite("performAiHealthCheck — gating + alerte Super Admin", () => {
   beforeEach(async () => {
     await prisma.aiHealthCheck.deleteMany({});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     adminId = (await prisma.user.create({ data: { name: `${TAG}sa`, email: `${TAG}sa@t.dz`, passwordHash: "x", role: "SUPER_ADMIN" } })).id;
   });
 
   afterAll(async () => {
     await prisma.aiHealthCheck.deleteMany({});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("échec → journalise + ALERTE le Super Admin avec le message EXACT", async () => {

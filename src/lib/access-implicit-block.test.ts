@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 
 let dbOk = false;
@@ -55,7 +56,7 @@ suite("un module BLOQUÉ ne revient pas par une règle implicite", () => {
 
   afterAll(async () => {
     await prisma.userAccess.deleteMany({ where: { userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("sans blocage, la règle implicite ouvre bien le Recrutement", async () => {

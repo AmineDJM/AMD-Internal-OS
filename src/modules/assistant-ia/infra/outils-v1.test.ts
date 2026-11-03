@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { APRES_LA_PREVALIDATION, circuitLisible, outilsV1, type PropositionPreparee } from "./outils-v1";
@@ -29,7 +30,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.assistantActionIntent.deleteMany({ where: { userId: auteur?.id } }).catch(() => {});
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
 });
 
 const outil = (nom: string, props: PropositionPreparee[]) => {

@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { addAdProItem, submitAdProItem, setAdProItemBudget } from "../actions-postes";
 import { decideAdProItem } from "../actions-postes-decision";
@@ -86,7 +87,7 @@ suite("Ad & Pro — la catégorie budgétaire doit convenir à la nature, à l'e
     await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.$disconnect().catch(() => {});
   });
 

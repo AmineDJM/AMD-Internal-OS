@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getActiveConnection, getConnectionStatus, saveConnection, disconnect, markNeedsReconnect, readDeltaToken, writeFolderState } from "./connection";
 import { MailError } from "./provider";
 import { openSecret } from "@/lib/crypto/secret-box";
@@ -34,7 +35,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.mailConnection.deleteMany({ where: { userId: { in: [amineId, karimId] } } });
-  await prisma.user.deleteMany({ where: { id: { in: [amineId, karimId] } } });
+  await retirerComptesEtSemis({ where: { id: { in: [amineId, karimId] } } });
 });
 
 describe("Chacun sa boîte, et rien d'autre", () => {

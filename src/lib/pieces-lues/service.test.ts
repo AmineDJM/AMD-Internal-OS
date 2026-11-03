@@ -73,6 +73,7 @@ vi.mock("@/lib/ai", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { REFUS_IA_COUPEE, remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { buildSimplePdf } from "@/lib/pdf/simple-pdf";
 import { phraseSansLignes, refusFormatDePiece } from "./phrases";
@@ -128,7 +129,7 @@ const nettoyer = async () => {
   const ids = (await prisma.lecturePiece.findMany({ where: { creeParId: { startsWith: TAG } }, select: { id: true } })).map((l) => l.id);
   await prisma.lecturePieceConfirmation.deleteMany({ where: { lectureId: { in: ids } } });
   await prisma.lecturePiece.deleteMany({ where: { id: { in: ids } } });
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
 };
 
 suite("Le service de lecture des pièces — proposer, une fois, sans rien écrire ni rien laisser sortir", () => {

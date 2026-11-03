@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sansBloquer } from "@/lib/journal";
+import { retirerComptesEtSemis } from "./menage-de-banc";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -144,12 +145,10 @@ export async function retirerComptesPerimes(prefixe: string): Promise<number> {
   return retirerComptes(perimes);
 }
 
-/** Des comptes de banc retirés, avec ce que le journal des gestes et les envois différés tiennent d'eux. */
+/** Des comptes de banc retirés, avec ce qu'ils ont semé (`retirerComptesEtSemis`). */
 async function retirerComptes(ids: string[]): Promise<number> {
   if (ids.length === 0) return 0;
-  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(sansBloquer("bancs.retirerComptes.gestes"));
-  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } }).catch(sansBloquer("bancs.retirerComptes.sortants"));
-  return (await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(sansBloquer("bancs.retirerComptes.comptes", { count: 0 }))).count;
+  return (await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(sansBloquer("bancs.retirerComptes", { count: 0 }))).count;
 }
 
 // ── LES COMPTES D'UN BANC ───────────────────────────────────────────────────────────────────

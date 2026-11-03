@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
@@ -78,7 +79,7 @@ suite("Secrétariat — le demandeur corrige, annule, et sa parole arrive à que
     await prisma.expenseOrder.deleteMany({ where: { id: { in: tous.map((o) => o.id) } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: demandes } } }).catch(() => {});
     await prisma.administrativeRequest.deleteMany({ where: { id: { in: demandes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.$disconnect().catch(() => {});
   });
 

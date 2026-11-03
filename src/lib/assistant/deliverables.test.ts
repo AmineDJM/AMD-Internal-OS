@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import PizZip from "pizzip";
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { executePowerTool } from "./power-tools";
@@ -70,7 +70,7 @@ suite("livrables universels + simulation — fichiers réels, zéro écriture si
     await prisma.assistantArtifact.deleteMany({ where: { ownerId: { in: [ceoId, otherId] } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: [ceoId, otherId] } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("parseSpec borne tout et refuse le vide", () => {

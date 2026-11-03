@@ -8,6 +8,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { clausePanelDuKam, getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
   enregistrerTerritoireKam, saveRepProfile, deleteRepProfile, createSector, updateSector, deleteSector,
@@ -51,7 +52,7 @@ async function nettoyer() {
   await prisma.medicalInstitution.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
-  await prisma.user.deleteMany({ where: { id: { in: comptes.map((c) => c.id) } } }).catch(() => {});
+  await retirerComptesEtSemis({ where: { id: { in: comptes.map((c) => c.id) } } }).catch(() => {});
 }
 
 suite("le territoire d'un KAM — l'action de l'écran, puis le panel en base", () => {
@@ -256,7 +257,7 @@ suite("un panel vide dit sa VRAIE cause", () => {
     await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: T } } }).catch(() => {});
     await prisma.medicalInstitution.deleteMany({ where: { name: { startsWith: T } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: T } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes.map((c) => c.id) } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes.map((c) => c.id) } } }).catch(() => {});
   }
 
   const secteur = async (buId: string, nom: string, reps: string[], liens: { institutionId: string; tous?: boolean; services?: string[] }[], actif = true) => {

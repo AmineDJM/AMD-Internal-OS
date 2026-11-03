@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { porteAttentionPour } from "@/platform/in-process/missions/attention";
 import { PLAFOND_QUOTIDIEN } from "@/lib/missions/attention/policy";
 import type { NiveauSignal, SignalAttention } from "@/lib/missions/ports";
@@ -65,7 +66,7 @@ suite("UNE JOURNÉE SIMULÉE — la porte d'attention ne devient jamais du bruit
   afterAll(async () => {
     await prisma.notification.deleteMany({ where: { userId: pdgId } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { ownerId: pdgId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: pdgId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: pdgId } }).catch(() => {});
   }, 60_000);
 
   it("trente-six signaux dignes d'attention, cinq arbitrages, des redites, puis le lendemain", async () => {

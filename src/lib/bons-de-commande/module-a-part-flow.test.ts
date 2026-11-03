@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, PERMISSIONS, type SessionUser } from "@/lib/rbac";
 import { createLegalDocument } from "@/lib/actions/legal-actions";
 import { decideValidation } from "@/lib/actions/validation-actions";
@@ -135,7 +136,7 @@ suite("Bons de commande — module à part, accès donnés par le Super Admin", 
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("1. PERSONNE NE PERD RIEN : les défauts du module sont, rôle par rôle, le périmètre d'hier", () => {

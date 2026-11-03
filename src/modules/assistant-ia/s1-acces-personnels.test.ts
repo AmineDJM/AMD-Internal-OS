@@ -26,6 +26,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "./infra/generer";
@@ -167,7 +168,7 @@ suite("S1 — le scénario du 02/11 contre la base", () => {
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("VUE EXACTE — l'action du message (corps = Super Admin réel + `visualise`) refuse, sans appeler le modèle", async () => {

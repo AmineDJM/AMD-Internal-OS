@@ -35,6 +35,7 @@ vi.mock("@/lib/queries/porte-ecriture", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { settleExpenseOrder, deferExpenseOrder, resumeExpenseOrder } from "@/modules/finances/actions-depenses";
 import { decidePayment, respondToPaymentCentre } from "@/modules/finances/actions-centre";
@@ -93,7 +94,7 @@ suite("Argent : la porte de l'ordre, la séparation des tâches, la réponse au 
     await prisma.paymentCentreSeat.deleteMany({ where: { userId: ids.siege } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { userId: { in: [ids.cpt, ids.siege] } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: [ids.cpt, ids.siege] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [ids.cpt, ids.siege] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [ids.cpt, ids.siege] } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [ids.A, ids.B] } } }).catch(() => {});
   }, 60_000);
 

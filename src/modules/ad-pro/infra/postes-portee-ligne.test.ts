@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { addAdProItem, updateAdProItem, submitAdProItem, deleteAdProItem } from "../actions-postes";
@@ -95,7 +96,7 @@ suite("Postes Ad & Pro — un geste sur un poste exige de VOIR sa demande", () =
     await prisma.congressNational.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    await retirerComptesEtSemis({ where: { id: { in: ids } } });
   }
 
   it("PRÉMISSES : le refus ne peut venir QUE de la portée de ligne", async () => {

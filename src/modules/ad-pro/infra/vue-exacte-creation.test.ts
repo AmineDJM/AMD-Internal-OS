@@ -51,6 +51,7 @@ vi.mock("@/auth", () => ({
 const ROLES: Record<string, string> = {};
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { requireUser } from "@/lib/session";
 import { personneVisualisee } from "@/lib/vue-exacte";
 import { createSponsoring } from "../actions-sponsoring";
@@ -143,7 +144,7 @@ suite("Vue exacte — créer une demande n'a de sens qu'en son propre nom", () =
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: Object.values(ids) } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(ids) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: Object.values(ids) } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: Object.values(ids) } } }).catch(() => {});
   }, 60_000);
 
   // ── 1. CE QUI N'EST PAS LA CAUSE : un vrai KAM, après suppression et recréation ─────────────────────────

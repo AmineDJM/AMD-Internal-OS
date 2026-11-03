@@ -1,6 +1,7 @@
 import { gzipSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
@@ -36,7 +37,7 @@ suite("Les traces rejouables de l'Assistant IA", () => {
     remplacerModelesPourTests(null);
     await effacerJournalDe([moi?.id]);
     await prisma.assistantIaTrace.deleteMany({ where: { userId: moi?.id } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("un tour joué se rejoue à l'identique, sans modèle, et une sortie altérée se voit", async () => {

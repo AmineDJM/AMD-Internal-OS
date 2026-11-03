@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { avancer } from "@/lib/missions/runtime/engine";
@@ -74,7 +75,7 @@ suite("ingestion universelle — autoriser, dédoublonner, associer, inscrire, r
     await prisma.mission.deleteMany({ where: { ownerId: owner.id } }).catch(() => {});
     await prisma.supplier.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: owner.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: owner.id } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: owner.id } }).catch(() => {});
   }, 60_000);
 
   it("autoriser : source inconnue 400, sans secret 503, signature fausse 401, signature juste OK — et le secret propre prime sur le commun", () => {

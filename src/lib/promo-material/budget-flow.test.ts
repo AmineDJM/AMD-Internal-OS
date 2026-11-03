@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { imputerBudgetMaterielPromo } from "@/lib/actions/promo-budget-actions";
 import { engagementsDesCategories } from "@/lib/queries/budget-sources";
@@ -78,7 +79,7 @@ suite("Matériel promotionnel — imputé au Budget Marketing : BC signé en eng
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.$disconnect().catch(() => {});
   });
 

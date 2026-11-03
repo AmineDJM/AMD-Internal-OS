@@ -17,7 +17,7 @@ const ENV = { S3_ENDPOINT: "https://compte.r2.cloudflarestorage.com", S3_BUCKET:
 for (const [k, v] of Object.entries(ENV)) process.env[k] = v;
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { cleObjetDirect } from "@/lib/drive-storage";
 import type { ClientS3Direct } from "@/lib/storage/televersement-direct";
@@ -108,7 +108,7 @@ suite("Documents — envoi direct au bucket", () => {
     await prisma.directUpload.deleteMany({ where: { userId: { in: ids } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
     await prisma.regulatoryProduct.deleteMany({ where: { id: { in: [produit, produitEtranger] } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => undefined);
   }, 60_000);
 
   it("accepte 3 Go (la limite du chemin en mémoire ne s'applique plus) et inscrit UN document dont le blob est « direct »", async () => {

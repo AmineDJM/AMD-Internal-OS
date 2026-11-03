@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { executeRun } from "./runner";
 
 // Environnement déterministe : ce test valide un mode d'écriture ; on force « development »
@@ -30,7 +31,7 @@ suite("Test Center — runner : run de bout en bout (création → nettoyage gar
   afterAll(async () => {
     // Filet de sécurité : on supprime NOS runs (cascade → artefacts + constats) et, par
     // prudence extrême, tout compte synthétique de ces runs qui aurait survécu (jamais attendu).
-    for (const id of runIds) await prisma.user.deleteMany({ where: { email: { contains: `qa_${id}_` } } }).catch(() => {});
+    for (const id of runIds) await retirerComptesEtSemis({ where: { email: { contains: `qa_${id}_` } } }).catch(() => {});
     for (const id of runIds) await prisma.testRun.delete({ where: { id } }).catch(() => {});
     if (initiatorId) await prisma.user.delete({ where: { id: initiatorId } }).catch(() => {});
   });

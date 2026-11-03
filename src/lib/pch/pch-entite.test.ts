@@ -9,6 +9,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { createTender, updateTender, deleteTender, createOrder } from "@/lib/actions/pch-actions";
@@ -49,7 +50,7 @@ suite("PCH — un marché ne sort pas de sa société", () => {
     await prisma.pchTenderLine.deleteMany({ where: { tenderId: { in: ids } } }).catch(() => {});
     await prisma.pchTender.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }
 

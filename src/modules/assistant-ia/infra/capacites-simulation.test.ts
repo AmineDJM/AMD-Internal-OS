@@ -2,6 +2,7 @@
 import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { executerHorsRequete, personneDuGeste } from "@/lib/contexte-geste";
 import type { CurrentUser } from "@/lib/session";
 import { executerCapacite, outilsCapacites, registreDesCapacites } from "./capacites";
@@ -38,7 +39,7 @@ suite("la carte d'une capacité simulable (J7)", () => {
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: moi.id } }).catch(() => undefined);
     await prisma.assistantActionIntent.deleteMany({ where: { userId: moi.id } }).catch(() => undefined);
     await prisma.task.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("montre le diff réel, refuse ce qui a changé depuis, puis exécute sous journal ce qui a été revu", { timeout: 60_000 }, async () => {

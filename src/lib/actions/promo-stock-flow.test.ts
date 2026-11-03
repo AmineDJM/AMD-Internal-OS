@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, moduleScope, userCan, type SessionUser } from "@/lib/rbac";
 import { creerArticleCatalogue, modifierArticleCatalogue } from "./promo-catalogue-actions";
@@ -112,7 +113,7 @@ suite("Stock promotionnel — magasin, dotations confirmées, équipes, attestat
       await prisma.userAccess.deleteMany({ where: { userId: { in: uids } } });
       await prisma.auditLog.deleteMany({ where: { actorId: { in: uids } } }).catch(() => undefined);
     }
-    await prisma.user.deleteMany({ where: { id: { in: uids } } });
+    await retirerComptesEtSemis({ where: { id: { in: uids } } });
   }
 
   const comme = async (qui: string) => { ACTOR = await actorFor(ids[qui]!); };

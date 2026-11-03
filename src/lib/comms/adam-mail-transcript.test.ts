@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailSendPolicy, OutboundMailStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import {
   buildProposal,
@@ -80,7 +81,7 @@ suite("transcript réel — l'envoi, l'expéditeur et la confirmation unique", (
     await prisma.googleConnection.deleteMany({ where: { userId } }).catch(() => {});
     await prisma.communicationPolicy.deleteMany({ where: { updatedById: userId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { contains: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { contains: TAG } } }).catch(() => {});
   }, 30_000);
 
   // ═════════════ TRANSCRIPT 1 — « Envoie un mail à … » ═════════════

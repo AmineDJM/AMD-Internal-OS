@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { createDossierRecord } from "@/lib/dossiers-core";
 import { demanderReservationPriseEnCharge } from "@/modules/ad-pro/actions-prise-en-charge-logistique";
@@ -97,7 +98,7 @@ suite("Réservation par fiche seule — l'envoi en bloc fermé, ses données rep
     await prisma.dossier.deleteMany({ where: { id: { in: [sujetCare, sujetBloc, sujetFiche] } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { OR: [{ actorId: dmId }, { entityId: natId }] } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;
   });
 

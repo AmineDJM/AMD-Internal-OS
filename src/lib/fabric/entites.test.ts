@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { consignerMesure } from "@/lib/evals/registre";
 import { readFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { resoudreEntite, resoudreMentions, contexteEntitesResolues } from "./entites";
 import type { TypeEntite, Verdict } from "./entites-score";
 
@@ -21,7 +22,7 @@ async function nettoyer() {
   await prisma.regulatoryProduct.deleteMany({ where: { OR: [{ reference: { startsWith: P } }, { reference: { in: ["PRD-9101", "PRD-9102", "PRD-9103", "PRD-9104"] } }] } });
   await prisma.supplier.deleteMany({ where: { name: { startsWith: P } } });
   await prisma.employee.deleteMany({ where: { fullName: { startsWith: P } } });
-  await prisma.user.deleteMany({ where: { OR: [{ email: { startsWith: "__er__", mode: "insensitive" } }, { name: { startsWith: P } }] } });
+  await retirerComptesEtSemis({ where: { OR: [{ email: { startsWith: "__er__", mode: "insensitive" } }, { name: { startsWith: P } }] } });
   await prisma.medicalInstitution.deleteMany({ where: { name: { startsWith: P } } });
   await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: P } } });
   await prisma.company.deleteMany({ where: { name: { startsWith: P } } }); // son département part en cascade

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { mirrorToProductDrive, cleanPathSegments, mimeFromName, REG_DRIVE_ROOT } from "@/lib/regulatory-drive-mirror";
 
 /**
@@ -24,7 +24,7 @@ suite("mirrorToProductDrive — arborescence, versionnage, partage", () => {
   });
   afterAll(async () => {
     await retirerNoeudsDriveEtContenu({ where: { OR: [{ ownerId }, { createdById: ownerId }] } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("recrée l'arborescence exacte sous un dossier nommé d'après le produit", async () => {

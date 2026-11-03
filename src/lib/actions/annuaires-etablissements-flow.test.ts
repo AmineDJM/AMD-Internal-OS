@@ -13,6 +13,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { Prisma } from "@prisma/client";
 import { getAccess, peutAnnuaire, userCan, type SessionUser } from "@/lib/rbac";
 import { updateInstitution, updateDoctor } from "@/lib/actions/medical-actions";
@@ -113,7 +114,7 @@ suite("Établissements, services et liens des praticiens (§118.172)", () => {
     // Le profil KAM n'a pas de clé étrangère vers son compte : supprimer le compte le laisserait.
     const comptes = await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } }).catch(() => []);
     await prisma.salesRepProfile.deleteMany({ where: { repId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   };
 
   beforeAll(async () => {

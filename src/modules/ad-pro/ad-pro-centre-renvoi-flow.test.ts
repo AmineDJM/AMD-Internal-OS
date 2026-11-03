@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -128,7 +129,7 @@ suite("Centre Ad & Pro — renvoyer, resoumettre, réexaminer (flux réel)", () 
     const comptes = (await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } })).map((c) => c.id);
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   });
 
   it("PRÉMISSES : le porteur a le consulting sans siège ; le délégué ne peut pas modifier la fiche, la Direction si", async () => {

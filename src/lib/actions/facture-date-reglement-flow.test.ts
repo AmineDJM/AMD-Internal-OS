@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { userCan, type EffectiveAccess } from "@/lib/rbac";
 import { updateLegalDocument } from "./legal-actions";
 import { createInvoice, setInvoicePaid, updateInvoice } from "./invoice-actions";
@@ -58,7 +59,7 @@ suite("La date de règlement d'une facture appartient à qui règle aux Finances
     await prisma.financeTransaction.deleteMany({ where: { id: { in: docs.map((d) => d.settlementTxId).filter((v): v is string => Boolean(v)) } } }).catch(() => {});
     await prisma.legalDocument.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [JURISTE?.id, COMPTABLE?.id].filter(Boolean) as string[] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;
   });
 

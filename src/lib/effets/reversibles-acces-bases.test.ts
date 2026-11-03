@@ -12,6 +12,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { annulerGeste } from "@/lib/effets/annulation";
 import { poserReglageBase, reglerAccesBasesStrict, reglerPropresDonneesBase, revoquerReglageBase } from "@/modules/acces-bases/actions";
@@ -44,7 +45,7 @@ suite("D2 — accès par base : réglages, annulation, garde-fous, attaques", ()
     const ids = [sa.id, employe.id];
     await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(() => undefined);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: ids } } });
+    await retirerComptesEtSemis({ where: { id: { in: ids } } });
   });
 
   it("ATTAQUE — un employé ne s'ouvre pas une base (ni la paie, ni rien)", async () => {

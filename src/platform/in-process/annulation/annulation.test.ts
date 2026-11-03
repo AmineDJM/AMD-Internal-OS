@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { recordFieldChanges } from "@/lib/audit";
@@ -110,7 +111,7 @@ suite("annulation — défaire ce qu'Adam a fait, sans effacer ce qu'un humain a
     // étape : on retire ces étapes avant les comptes, sinon la clé étrangère refuse la suppression.
     const nous = (await prisma.user.findMany({ where: { email: { startsWith: TAG.toLowerCase() } }, select: { id: true } })).map((u) => u.id);
     await prisma.validationStep.deleteMany({ where: { validatorId: { in: nous } } });
-    await prisma.user.deleteMany({ where: { id: { in: nous } } });
+    await retirerComptesEtSemis({ where: { id: { in: nous } } });
   });
 
   it("« voir » n'écrit RIEN, et sépare ce qui se défait de ce qui ne se défait pas", async () => {

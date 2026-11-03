@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { decidePaymentRequest } from "@/modules/finances/actions-demandes";
@@ -69,7 +70,7 @@ suite("Règlements simultanés — une seule sortie d'argent, une seule décisio
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: sa } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: sa } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: sa } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: sa } }).catch(() => {});
   }, 60_000);
 
   it("cinq règlements lancés ensemble sur un ordre autorisé : UNE écriture, l'ordre payé une fois, chacun reçoit « réglé »", async () => {

@@ -5,6 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { composerInbox } from "@/platform/in-process/inbox/compose";
@@ -81,7 +82,7 @@ suite("la boîte de décision — composée depuis les files réelles", () => {
     await prisma.notification.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.dataQualityFinding.deleteMany({ where: { titre: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("chaque file donne sa carte, avec le bon genre, la bonne urgence et des gestes VALIDES vers des lignes réelles", async () => {

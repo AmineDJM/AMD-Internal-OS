@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { syncInvoiceSettlement } from "./settle-invoice";
 
 /**
@@ -24,7 +25,7 @@ suite("syncInvoiceSettlement — deux règlements simultanés, une seule écritu
     await prisma.legalDocument.deleteMany({ where: { title: TAG } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { createdById: actorId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("la facture ne nomme qu'une écriture, et le livre n'en porte qu'une", async () => {

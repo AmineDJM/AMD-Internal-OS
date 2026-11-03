@@ -8,6 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { seuilAdProEnVigueur, lireVisaAdPro, getAdProRequests } from "@/modules/ad-pro/api";
@@ -145,7 +146,7 @@ suite("Consulting — renvoyer, corriger, resoumettre, prolonger, annuler (flux 
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   });
 
   it("PRÉMISSES : aucun acteur n'a la vue globale, hors le siège ; les RH n'ont que les RH", async () => {

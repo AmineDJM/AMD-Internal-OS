@@ -36,6 +36,7 @@ let ACTEUR: CurrentUser;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR , requireUserAuNomDeLaVue: async () => ACTEUR}));
 
 const { prisma } = await import("@/lib/prisma");
+const { retirerComptesEtSemis } = await import("@/lib/actions/internes/menage-de-banc");
 const { getAccess } = await import("@/lib/rbac");
 const { lancerMission } = await import("@/platform/in-process/missions/runtime");
 const { RaisonneurScripte, pour, planScripte } = await import("@/platform/in-process/missions/fake-reasoner");
@@ -180,7 +181,7 @@ suite("LA MAIN HUMAINE SUR UNE MISSION — accord, élément, pause, reprise, ar
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
   }, 180_000);
 

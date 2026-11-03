@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
   setTreasuryOpeningBalance, modifierCompteTresorerie, corrigerAncrageTresorerie, deleteTreasuryAccount, createTransaction,
@@ -89,7 +90,7 @@ suite("Trésorerie ancrée — comptes, règlement, solde et disponible", () => 
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(u) } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: Object.values(u) } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: Object.values(u) } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: Object.values(u) } } }).catch(() => {});
   }, 60_000);
 
   const ouvrir = (champs: Record<string, string | string[]>) => setTreasuryOpeningBalance(undefined, fd(champs));

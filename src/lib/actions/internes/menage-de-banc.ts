@@ -109,3 +109,45 @@ export async function retirerPiecesDeComptesDisparus(): Promise<number> {
   for (let i = 0; i < candidates.length; i += 500) await retirerPiecesSansAttache(candidates.slice(i, i + 500));
   return avant - (await prisma.piece.count({ where: { id: { in: candidates } } }));
 }
+
+// ── CE QUE LES COMPTES D'UN BANC ONT SEMÉ ─────────────────────────────────────────────────────
+
+/**
+ * CE QUE DES COMPTES DE BANC ONT SEMÉ, retiré avec eux : les documents qu'ils ont déposés (`uploadedById`), leurs nœuds
+ * Drive (`createdById`, `ownerId`) — avec le contenu, par les deux portes ci-dessus.
+ *
+ * MESURÉ (03/11, attribution par fichier de test) : les nœuds Drive qu'un passage complet laissait étaient TOUS des
+ * sous-arbres d'un seul auteur — « Mes … importés », « Dossier traité », « Terrain — vocaux et photos »… —, rangés par les
+ * flux de production au nom du compte qui agit. Le banc retirait son compte ; le nœud, lui, restait (`ownerId` passe à
+ * `null`, `createdById` n'est pas une clé étrangère), avec ses versions, ses blobs et ses pièces. Retirer le compte par
+ * cette porte retire ce qui lui pend.
+ *
+ * Un nœud du banc qui contient le nœud d'un AUTRE auteur reste, avec ses ancêtres : jamais le rangement d'un voisin ne part
+ * avec un dossier qu'un compte du banc a ouvert.
+ */
+async function retirerSemisDeComptes(ids: string[]): Promise<void> {
+  if (ids.length === 0) return;
+  await retirerDocumentsEtContenu({ where: { uploadedById: { in: ids } } });
+  const semes = await prisma.driveNode.findMany({ where: { OR: [{ createdById: { in: ids } }, { ownerId: { in: ids } }] }, select: { id: true, parentId: true } });
+  if (semes.length === 0) return;
+  const parent = new Map(semes.map((n) => [n.id, n.parentId]));
+  const gardes = new Set<string>();
+  const etrangers = await prisma.driveNode.findMany({ where: { parentId: { in: [...parent.keys()] }, id: { notIn: [...parent.keys()] } }, select: { parentId: true } });
+  for (const e of etrangers) for (let p = e.parentId; p && parent.has(p) && !gardes.has(p); p = parent.get(p) ?? null) gardes.add(p);
+  const partants = new Set([...parent.keys()].filter((id) => !gardes.has(id)));
+  const racines = [...partants].filter((id) => { const p = parent.get(id); return !p || !partants.has(p); });
+  if (racines.length > 0) await retirerNoeudsDriveEtContenu({ where: { id: { in: racines } } });
+}
+
+/**
+ * RETIRER DES COMPTES DE BANC (le `prisma.user.deleteMany` d'un banc) — et ce qu'ils ont semé : documents, nœuds Drive et
+ * leur contenu, gestes au journal et envois différés à leur nom. Même filtre, même compte rendu (`{ count }`).
+ */
+export async function retirerComptesEtSemis(args: { where?: Prisma.UserWhereInput } = {}): Promise<{ count: number }> {
+  const ids = (await prisma.user.findMany({ where: args.where, select: { id: true } })).map((u) => u.id);
+  if (ids.length === 0) return { count: 0 };
+  await retirerSemisDeComptes(ids);
+  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } });
+  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } });
+  return prisma.user.deleteMany({ where: { id: { in: ids } } });
+}

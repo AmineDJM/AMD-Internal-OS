@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { lunaConfigured } from "@/lib/openai-luna";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
@@ -54,7 +55,7 @@ async function nettoyer() {
   const users = await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } });
   if (users.length) {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: users.map((u) => u.id) } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: users.map((u) => u.id) } } }).catch(() => undefined);
   }
 }
 

@@ -2,6 +2,7 @@
 import "@/lib/async-local-storage-global";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { approuverTravail } from "@/lib/missions/travaux/service";
 import { outilTravailPour, PERSONA_ASSISTANT_IA } from "./travaux";
@@ -41,7 +42,7 @@ suite("un tour, un plan — le plan suivant du même tour remplace le précéden
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { principalId: moi.id } }).catch(() => undefined);
     await prisma.assistantIaPreference.deleteMany({ where: { userId: moi.id } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("PRÉMISSE : la personne a une lecture à mettre au plan", () => {

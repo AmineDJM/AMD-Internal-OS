@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { departDe, prochaineSequence, validerDepart, formaterNumero, DEPART_MAX } from "@/lib/artifact/factory/commercial";
@@ -104,7 +104,7 @@ suite("le plancher de numérotation, sur une vraie base", () => {
     await prisma.fileVersion.deleteMany({ where: { node: { ownerId: user.id } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { ownerId: user.id } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("sans départ réglé, la série commence à 001 ; le motif seul n'y change rien", async () => {

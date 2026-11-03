@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { avancer, BAIL_MS, StepHandlers } from "./engine";
 import { chargerEtat, materialiser } from "./store";
 import { compile } from "@/lib/missions/compiler/compile";
@@ -102,7 +103,7 @@ suite("Mission Runtime — le moteur d'exécution durable", () => {
 
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("exécute une mission linéaire de trois étapes, dans l'ordre", async () => {

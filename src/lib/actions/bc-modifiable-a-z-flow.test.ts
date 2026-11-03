@@ -10,7 +10,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
 import { deleteFileByKey } from "@/lib/storage";
@@ -142,7 +142,7 @@ suite("Bons de commande — modifiables de A à Z, et les coordonnées de la soc
     }
     await prisma.companyLegalIdentity.deleteMany({ where: { companyId: { in: [societeX, societeY] } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [societeX, societeY] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 90_000);
 
   describe("chaque société imprime SES coordonnées — jamais celles d'une autre", () => {

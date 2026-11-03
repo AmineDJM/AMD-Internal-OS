@@ -6,7 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getPendingValidations, getMyValidationRequests } from "@/lib/queries/validations";
 import { reviewValidationItem, clearValidationItem } from "./validation-actions";
@@ -59,7 +59,7 @@ suite("reviewValidationItem — décision par élément", () => {
   afterAll(async () => {
     await retirerDocumentsEtContenu({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("le validateur approuve le MESSAGE et demande une révision d'une PIÈCE (commentaire optionnel)", async () => {

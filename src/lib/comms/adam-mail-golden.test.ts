@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { MailSendPolicy, OutboundMailStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { buildProposal, performAction, resolveSpokenMailApproval } from "@/lib/assistant";
 import { solePendingMailIntent } from "./approve-execute";
@@ -86,7 +87,7 @@ suite("scénario golden — préparer, confirmer une seule fois, partir une seul
     await prisma.auditLog.deleteMany({ where: { actorId: userId } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId } }).catch(() => {});
     await prisma.communicationPolicy.deleteMany({ where: { updatedById: userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { contains: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { contains: TAG } } }).catch(() => {});
   }, 30_000);
 
   it("la journée entière : une préparation, une confirmation, un envoi", async () => {

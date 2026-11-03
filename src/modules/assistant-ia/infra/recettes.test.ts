@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, MODULES, userCan, type Module } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { PowerTool } from "@/platform/ia/outil";
@@ -295,7 +296,7 @@ suite("Recettes (J10) — banc sur base réelle, corpus semé, faux modèle", ()
     await prisma.missionPlanPattern.deleteMany({ where: { id: { in: semes.formes } } });
     await effacerJournalDe(utilisateurs.map((u) => u.id));
     await prisma.auditLog.deleteMany({ where: { actorId: { in: utilisateurs.map((u) => u.id) } } });
-    await prisma.user.deleteMany({ where: { id: { in: utilisateurs.map((u) => u.id) } } });
+    await retirerComptesEtSemis({ where: { id: { in: utilisateurs.map((u) => u.id) } } });
   }, 120_000);
 
   it("1 · extraction : ≥ 10 recettes justes sur le corpus semé, rien sous le seuil, une seconde extraction ne propose rien", async () => {

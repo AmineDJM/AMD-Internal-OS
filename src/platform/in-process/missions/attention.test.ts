@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { porteAttentionPour } from "@/platform/in-process/missions/attention";
 import { journaliser } from "@/lib/missions/runtime/store";
 
@@ -30,7 +31,7 @@ suite("porte d'attention — niveaux, canaux, dédoublonnage, plafond", () => {
   afterAll(async () => {
     await prisma.notification.deleteMany({ where: { userId: { in: [ownerId, ownerCanaux] } } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { ownerId: { in: [ownerId, ownerCanaux] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [ownerId, ownerCanaux] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [ownerId, ownerCanaux] } } }).catch(() => {});
   }, 60_000);
 
   it("une mission terminée avec effets : INFO, notification + push, pas d'e-mail, journal NOTIFIED ; la redite est supprimée", async () => {

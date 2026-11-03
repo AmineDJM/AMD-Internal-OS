@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { documentLisibleParApi } from "./document-lisible";
 
@@ -42,7 +43,7 @@ suite("documentLisibleParApi — pièces hors registre", () => {
   afterAll(async () => {
     await prisma.hrDocumentRequest.deleteMany({ where: { employee: { fullName: { startsWith: TAG } } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un collègue sans droit RH ne lit pas la pièce de la demande RH d'un autre", async () => {

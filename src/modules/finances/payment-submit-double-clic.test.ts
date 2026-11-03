@@ -17,7 +17,7 @@ vi.mock("@/lib/documents", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { createPaymentRequest, submitPaymentRequest } from "./actions-demandes";
 
@@ -62,7 +62,7 @@ suite("submitPaymentRequest — un double clic ne crée qu'un ordre de dépense"
     await retirerDocumentsEtContenu({ where: { name: "__paydbl__piece.pdf" } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: reqUserId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: reqUserId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("deux transmissions simultanées du même brouillon → un seul ordre, et c'est lui que la demande nomme", async () => {

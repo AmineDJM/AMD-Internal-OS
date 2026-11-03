@@ -26,6 +26,7 @@ vi.mock("@/lib/medical-info", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canViewDeclaration, getDeclaration, dernierRefusFinal } from "@/lib/queries/medical-info";
 import { OBJET_DECISION_INFO_MED } from "@/lib/medical-info/decideur";
@@ -86,7 +87,7 @@ suite("Information médicale — le Directeur des Opérations tranche ce que le 
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   }
 
   beforeAll(async () => {

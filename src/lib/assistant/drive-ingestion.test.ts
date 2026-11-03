@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
@@ -68,7 +68,7 @@ suite("ingestion Drive — le contenu rend trouvable ce que le nom cache", () =>
     await prisma.driveTextIndex.deleteMany({ where: { nodeId: { in: [nodeId, orphanNodeId] } } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { id: { in: [nodeId, orphanNodeId] } } }).catch(() => {});
     await prisma.fileBlob.deleteMany({ where: { sha256: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("§150 — « scan_0234.pdf » se retrouve par CONTENU via find_documents, avec sa nature détectée", async () => {

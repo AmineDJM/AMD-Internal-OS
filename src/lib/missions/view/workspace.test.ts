@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { missionsEnCours, vueMission } from "./workspace";
 import { avancer } from "@/lib/missions/runtime/engine";
 import { materialiser } from "@/lib/missions/runtime/store";
@@ -73,7 +74,7 @@ suite("l'écran d'une mission", () => {
 
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un éventail de 33 dont 2 échouent compte 33 étapes, jamais 1", async () => {

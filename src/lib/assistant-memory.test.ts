@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   createThread, appendExchange, listThreads, getThreadMessages, deleteThread,
   saveMemory, getMemory, recentMessages, forgetEverything, personalContext,
@@ -35,7 +36,7 @@ suite("Mémoire assistant — cloisonnement strict entre personnes", () => {
     await prisma.assistantMessage.deleteMany({ where: { userId: { in: [dirUser, pmUser] } } }).catch(() => {});
     await prisma.assistantThread.deleteMany({ where: { userId: { in: [dirUser, pmUser] } } }).catch(() => {});
     await prisma.assistantMemory.deleteMany({ where: { userId: { in: [dirUser, pmUser] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("chacun ne voit QUE ses propres fils", async () => {

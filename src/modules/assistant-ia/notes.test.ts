@@ -22,6 +22,7 @@ vi.mock("@/lib/session", async (orig) => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { UserRole } from "@prisma/client";
 import { outilsNotes } from "./infra/notes/outils";
@@ -91,7 +92,7 @@ suite("Mes notes — privé, rien d'écrit sans acceptation (vraie base)", () =>
     await prisma.assistantIaFil.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("une page « Mes notes » par défaut ; lire_notes rend les lignes avec leurs références", async () => {

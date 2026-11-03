@@ -8,7 +8,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, scopeMedicalInfo, type SessionUser } from "@/lib/rbac";
 import { createMedicalInfoDeclaration } from "@/lib/medical-info";
 import { canViewDeclaration, getDeclaration } from "@/lib/queries/medical-info";
@@ -56,7 +56,7 @@ suite("PRIM — circuit information médicale (déclaration → pièces → phar
     // Le Directeur des Opérations du banc, actif pendant son passage, a pu être saisi par les demandes
     // d'information médicale des bancs voisins (tous les directeurs actifs le sont) : ses étapes partent avec lui.
     await prisma.validationStep.deleteMany({ where: { validator: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("la validation définitive crée une déclaration et NE crée PAS encore d'ordre de dépense", async () => {

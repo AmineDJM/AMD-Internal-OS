@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { typedMemoryContext } from "./memory-context";
 
 /**
@@ -22,7 +23,7 @@ suite("Adam — la mémoire relue ne dit jamais qui est la personne", () => {
   });
   afterAll(async () => {
     await prisma.assistantMemoryItem.deleteMany({ where: { userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("le souvenir d'identité est écarté, le reste est servi", async () => {

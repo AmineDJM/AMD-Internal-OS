@@ -19,6 +19,7 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { deleteDoctor } from "./medical-actions";
 import { restoreDeletedRecord } from "./admin-delete-actions";
@@ -43,7 +44,7 @@ suite("deleteDoctor — refus quand l'histoire compte, corbeille sinon", () => {
     await prisma.medicalDoctor.deleteMany({ where: { id: { in: docs } } }).catch(() => {});
     await prisma.deletedRecord.deleteMany({ where: { deletedById: saId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: saId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: saId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: saId } }).catch(() => {});
   }, 60_000);
 
   it("visites rapportées ou montant Ad & Pro : refusé, rien n'est effacé", async () => {

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
@@ -126,7 +126,7 @@ suite("ops vague 7d — administration profonde", () => {
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: PREFIXE } } }).catch(() => {});
     await prisma.companyLegalIdentity.deleteMany({ where: { company: { name: { startsWith: PREFIXE } } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: PREFIXE } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: PREFIXE } } }).catch(() => {});
   });
 
   it("update_company : renommer SEUL rejoue nom court, couleur et activation (FUSION)", async () => {

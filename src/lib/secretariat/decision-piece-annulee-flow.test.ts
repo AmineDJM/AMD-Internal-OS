@@ -9,6 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { createRequest, startRequestProcessing, annulerDemandeAuSecretariat, deleteRequests } from "@/lib/actions/admin-request-actions";
 import { decideValidation } from "@/lib/actions/validation-actions";
@@ -96,7 +97,7 @@ suite("Une pièce validée pendant l'annulation de sa demande — le paiement ne
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.businessEvent.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }
 

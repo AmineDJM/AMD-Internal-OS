@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { envoyerPaieAuCentre, markSalaryPaid, unmarkSalaryPaid, updatePayrollEntry } from "@/modules/rh/actions-paie";
 import { allotPettyCash, confirmPettyCashReceipt, closePettyCash } from "@/lib/actions/petty-cash-actions";
@@ -63,7 +64,7 @@ async function menage(tag: string, exacte = false): Promise<void> {
   await prisma.userCompanyAccess.deleteMany({ where: { OR: [{ userId: { in: comptes } }, { companyId: { in: societes } }] } }).catch(() => {});
   await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
   await prisma.department.deleteMany({ where: { id: { in: departements } } }).catch(() => {});
-  await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+  await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   await prisma.company.deleteMany({ where: { id: { in: societes } } }).catch(() => {});
 }
 

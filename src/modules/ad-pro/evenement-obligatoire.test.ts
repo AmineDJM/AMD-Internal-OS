@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createEvent, updateEvent } from "./actions-evenements";
 import { CHAMPS_MEDECINS, CHAMPS_PRODUITS, MULTI_SEP } from "./domaine/pickers";
@@ -70,7 +71,7 @@ suite("Un événement Ad & Pro — les champs que la Direction a rendus obligato
     await prisma.event.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [demandeurId, responsableId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;
   });
 

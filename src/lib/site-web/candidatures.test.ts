@@ -8,7 +8,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { deleteFileByKey, readFileByKey } from "@/lib/storage";
 import {
@@ -134,7 +134,7 @@ suite("Candidatures du site — réception, rattachement, tri", () => {
     const uids = users.map((u) => u.id);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: uids } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { userId: { in: uids } } });
-    await prisma.user.deleteMany({ where: { id: { in: uids } } });
+    await retirerComptesEtSemis({ where: { id: { in: uids } } });
   }
 
   const demande = (n: string, stage: string) => prisma.recruitmentRequest.create({

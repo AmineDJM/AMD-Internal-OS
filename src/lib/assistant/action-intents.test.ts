@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess } from "@/lib/rbac";
 import { POWER_TOOLS } from "./power-tools";
@@ -45,7 +46,7 @@ suite("action intents — mémoire et cohérence canoniques (Redouane / Khaled)"
   });
   afterAll(async () => {
     await prisma.assistantActionIntent.deleteMany({ where: { userId: ceoId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("FAILURE A — la demande Redouane laisse une trace STRUCTURÉE, retrouvable avec son état exact", async () => {

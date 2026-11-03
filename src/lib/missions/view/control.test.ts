@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { attentesDeMission, centreDeMissions, journalDeMission } from "./control";
 
 /**
@@ -79,7 +80,7 @@ async function etape(
 suite("le parc de missions", () => {
   afterAll(async () => {
     if (creees.length > 0) await prisma.mission.deleteMany({ where: { id: { in: creees } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { in: [`${TAG}@t.dz`, `${TAG}-autre@t.dz`] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { in: [`${TAG}@t.dz`, `${TAG}-autre@t.dz`] } } }).catch(() => {});
     proprietaireDuBanc = null;
     autreDuBanc = null;
   });
@@ -228,7 +229,7 @@ suite("le parc de missions", () => {
 suite("le journal et les attentes", () => {
   afterAll(async () => {
     if (creees.length > 0) await prisma.mission.deleteMany({ where: { id: { in: creees } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { in: [`${TAG}@t.dz`, `${TAG}-autre@t.dz`] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { in: [`${TAG}@t.dz`, `${TAG}-autre@t.dz`] } } }).catch(() => {});
     proprietaireDuBanc = null;
     autreDuBanc = null;
   });

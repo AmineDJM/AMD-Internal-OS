@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import {
   balayerMentions, dictionnaireCanonique, documentsLies, enregistrerMentions,
   extraireMentions, resoudreEntitesDe, viderCacheDictionnaire,
@@ -90,7 +90,7 @@ suite("fabric/mentions — entités canoniques & liens persistés", () => {
     await retirerNoeudsDriveEtContenu({ where: { id: { in: noeuds } } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { id: produitId } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: ownerId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: ownerId } }).catch(() => {});
     viderCacheDictionnaire();
   }, 60_000);
 

@@ -1,7 +1,7 @@
 import { sansBloquer } from "@/lib/journal";
 import { expect } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import type { CurrentUser } from "@/lib/session";
 import { sealSecret } from "@/lib/crypto/secret-box";
 import { annulerGeste, type CompteRenduAnnulation } from "@/lib/effets/annulation";
@@ -424,7 +424,7 @@ const nettoyerEnvois = async (tag: string) => {
   await retirerNoeudsDriveEtContenu({ where: { name: { startsWith: tag } } }).catch(sansBloquer("banc-k10b.cas-envois"));
   const dests = await prisma.user.findMany({ where: { name: { startsWith: `${tag}dest` } }, select: { id: true } });
   await prisma.notification.deleteMany({ where: { userId: { in: dests.map((u) => u.id) } } }).catch(sansBloquer("banc-k10b.cas-envois"));
-  await prisma.user.deleteMany({ where: { id: { in: dests.map((u) => u.id) } } }).catch(sansBloquer("banc-k10b.cas-envois"));
+  await retirerComptesEtSemis({ where: { id: { in: dests.map((u) => u.id) } } }).catch(sansBloquer("banc-k10b.cas-envois"));
 };
 
 export const CAS_ENVOIS: CasReversible[] = [...COURRIELS, ...MICROSOFT, ...DIRECTIVES, ...SITE].map((c, i) => (i === 0 ? { ...c, nettoyer: nettoyerEnvois } : c));

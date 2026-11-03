@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { demanderPassage, enregistrerReglageBanc, remplacerLanceurBancPourTests, tacheBancProgramme, type DemandeLancement } from "./banc";
 import { changerModeleRole, modelesEnService, revenirModeleEnvironnement } from "./modeles";
 import type { ResultatBanc, ScenarioBanc } from "../../domaine/qualite/resultat";
@@ -49,7 +50,7 @@ suite("Le banc programmé et le protocole A/B", () => {
     await prisma.assistantIaModeleRole.deleteMany({});
     await prisma.assistantIaBancReglage.deleteMany({});
     await prisma.notification.deleteMany({ where: { userId: admin } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   });
 
   it("ne tourne que sur le worker", async () => {

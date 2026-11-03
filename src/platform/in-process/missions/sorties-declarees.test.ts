@@ -1,6 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { executePowerTool } from "@/lib/assistant/power-tools";
 import { SORTIES } from "@/platform/in-process/missions/catalog";
@@ -74,7 +75,7 @@ beforeAll(async () => {
 const SERVICE_ABSENT = /n'est pas connecté|non configuré|pas configuré/i;
 
 afterAll(async () => {
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
 });
 
 /**

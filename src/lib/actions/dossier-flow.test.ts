@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { canViewDossier, getDossier } from "@/lib/queries/dossiers";
 import { createDossierRecord } from "@/lib/dossiers-core";
@@ -35,7 +36,7 @@ suite("Dossiers — création, visibilité, échange, pilotage, proposition IA",
     await prisma.dossier.deleteMany({ where: { reference: { startsWith: "DOS-" }, createdBy: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("ouverture d'un dossier (référence DOS-, responsable notifié)", async () => {

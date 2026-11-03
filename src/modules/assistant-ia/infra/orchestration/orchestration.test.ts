@@ -7,6 +7,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { ClientVoixTempsReel } from "@/platform/ia/voix/client-temps-reel";
@@ -167,7 +168,7 @@ suite("Assistant IA — l'orchestrateur de conversation (O1), de bout en bout", 
     await prisma.assistantIaVoixSession.deleteMany({ where: { userId: { in: ids } } });
     await prisma.assistantIaFil.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("ORAL — un long travail : la conversation continue UTILEMENT (plus de deux précisions) ; mineure portée, majeure RÉINJECTÉE, le résultat dit tient compte de tout", async () => {

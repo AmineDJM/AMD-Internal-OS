@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import {
   ADAM_EMAIL, SANS_MOT_DE_PASSE, assurerCompteAgent, estCompteSysteme, idCompteAgent, peutSeConnecter,
@@ -36,7 +37,7 @@ suite("l'espace d'Adam dans l'ERP", () => {
     // On ne supprime le compte QUE si ce banc l'a créé : sur une base où Adam travaille déjà,
     // l'effacer emporterait ses missions en cascade.
     if (cree) {
-      await prisma.user.deleteMany({ where: { email: ADAM_EMAIL, isSystem: true } }).catch(() => {});
+      await retirerComptesEtSemis({ where: { email: ADAM_EMAIL, isSystem: true } }).catch(() => {});
     }
   }, 60_000);
 

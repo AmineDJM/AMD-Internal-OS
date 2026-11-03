@@ -8,6 +8,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { signBlob } from "@/lib/messaging";
 import { sendMessage } from "./messaging-actions";
@@ -66,7 +67,7 @@ suite("Messagerie — chaque message reçu fait une notification", () => {
     await prisma.message.deleteMany({ where: { conversationId: convId } }).catch(() => {});
     await prisma.conversationMember.deleteMany({ where: { conversationId: convId } }).catch(() => {});
     await prisma.conversation.deleteMany({ where: { id: convId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 30000);
 
   it("un message ordinaire prévient les membres en « Tous les messages », et personne d'autre", async () => {

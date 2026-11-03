@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   createPromoMaterial, submitQuotes, chooseAgency, submitBcForFinance, validateBc, confirmBcSent,
@@ -75,7 +76,7 @@ suite("Matériel promotionnel — circuit complet (Marketing → Assistante → 
     await prisma.administrativeRequest.deleteMany({ where: { title: { contains: TAG } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("Marketing crée la demande de prospection", async () => {

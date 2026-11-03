@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { notifyRoles } from "@/lib/notify";
 import { rejouerNotifications } from "./ecrire";
 
@@ -29,7 +30,7 @@ suite("un destinataire disparu ne fait pas taire l'envoi", () => {
 
   afterAll(async () => {
     await prisma.notification.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   const ligne = (userId: string, titre: string) =>

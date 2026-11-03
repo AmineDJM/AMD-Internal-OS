@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { loadEngagementsAilleurs, reserveEngagement } from "./pch-engagements";
 
@@ -75,7 +76,7 @@ suite("engagements ailleurs — la cardinalité, au moment du chiffrage", () => 
     await prisma.pchTenderLine.deleteMany({ where: { designation: { startsWith: TAG } } }).catch(() => {});
     await prisma.pchTender.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.product.deleteMany({ where: { code: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("l'AO COURANT est exclu — on ne se signale pas à soi-même", async () => {

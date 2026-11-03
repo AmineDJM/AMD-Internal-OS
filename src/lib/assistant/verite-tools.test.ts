@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { executePowerTool } from "@/lib/assistant/power-tools";
@@ -43,7 +44,7 @@ suite("verite_reconcilier — réconcilier, tracer, et ne jamais choisir au hasa
 
   afterAll(async () => {
     await prisma.executiveDecision.deleteMany({ where: { ownerId: pdg.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
   }, 60_000);
 
   it("l'ERP, le classeur et l'e-mail : le moteur tranche AVEC sa raison", async () => {

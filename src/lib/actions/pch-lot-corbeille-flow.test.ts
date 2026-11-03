@@ -6,6 +6,7 @@ let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { createOrderFromLine, deleteTenderLine, updateTenderLine } from "@/lib/actions/pch-tender-line-actions";
 import { restaurerLotDeLaCorbeille } from "@/lib/suppression/coeur";
@@ -50,7 +51,7 @@ suite("le lot d'un appel d'offres — corbeille, refus nommé, écriture partiel
     await prisma.businessUnit.deleteMany({ where: { code: { startsWith: TAG } } }).catch(() => {});
     const comptes = (await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } })).map((c) => c.id);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   }
 
   beforeAll(async () => {

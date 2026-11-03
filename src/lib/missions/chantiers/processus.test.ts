@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { approuverChantier, proposerChantier } from "@/lib/missions/chantiers/service";
 import { lireDossier } from "@/lib/missions/chantiers/dossier";
 
@@ -67,7 +68,7 @@ suite("chantiers — vrais processus : réservations concurrentes, reprise aprè
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.memoireTechnique.deleteMany({ where: { cle: { contains: TAG } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
     fs.rmSync(dossierTmp, { recursive: true, force: true });
   });
 

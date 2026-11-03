@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { Clock } from "@/lib/missions/ports";
 import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import { conduireChantier, type DepsChantier } from "@/lib/missions/chantiers/conduite";
@@ -106,7 +107,7 @@ suite("chantiers — le moteur des travaux conduit Claude Code, GitHub et Render
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.memoireTechnique.deleteMany({ where: { cle: { contains: TAG } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("réservé au Super Admin", async () => {

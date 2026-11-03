@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { generateApiKey } from "@/lib/api/auth";
 import { GET as listGET } from "./entities/[entity]/route";
 import { GET as searchGET } from "./search/route";
@@ -45,7 +46,7 @@ suite("API v1 — la recherche plein texte reste dans la portée de l'identité"
     await prisma.apiCall.deleteMany({ where: { clientId } }).catch(() => undefined);
     await prisma.apiClient.deleteMany({ where: { id: clientId } }).catch(() => undefined);
     await prisma.medicalVisit.deleteMany({ where: { delegateId: { in: users } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { id: { in: users } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { id: { in: users } } }).catch(() => undefined);
   }, 60_000);
 
   it("la portée « mes visites » s'applique d'abord (sans recherche)", async () => {

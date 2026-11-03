@@ -5,7 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
 import { exporterDemandesPaiement, exporterOrdresCentre } from "@/lib/exports/paiements";
@@ -66,7 +66,7 @@ suite("K7 — l'export de tout : exporter_donnees, et les demandes de paiement",
     await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids }, type: "FILE" } }).catch(() => {});
     await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   const medecins = () => {

@@ -40,7 +40,7 @@ vi.mock("@/lib/pieces-lues/prerempli-devis-promo", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "../actions-sponsoring";
 import { addAdProItem } from "../actions-postes";
@@ -211,7 +211,7 @@ suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée un
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: nsId } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: RUN } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: RUN } } }).catch(() => {});
     await prisma.companyLegalIdentity.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
   }, 90_000);

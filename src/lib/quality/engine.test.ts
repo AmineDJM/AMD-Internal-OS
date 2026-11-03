@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { consignerMesure } from "@/lib/evals/registre";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { balayerQualite } from "./engine";
 import { REGLES, REGLES_SANS_DETECTEUR, DETECTEURS_SANS_REGLE, detecter } from "./rules";
 import { corrigerConstat, ignorerConstat } from "./decide";
@@ -33,7 +34,7 @@ async function nettoyer() {
   await prisma.department.deleteMany({ where: { name: { startsWith: P } } }).catch(() => undefined);
   await prisma.company.deleteMany({ where: { name: { startsWith: P } } });
   // Insensible à la casse : le compte « __DQ__Majuscules » du cas e-mail normalisable doit partir aussi.
-  await prisma.user.deleteMany({ where: { OR: [{ email: { startsWith: "__dq__", mode: "insensitive" } }, { name: { startsWith: P } }] } });
+  await retirerComptesEtSemis({ where: { OR: [{ email: { startsWith: "__dq__", mode: "insensitive" } }, { name: { startsWith: P } }] } });
   await prisma.auditLog.deleteMany({ where: { summary: { contains: P } } }).catch(() => undefined);
 }
 

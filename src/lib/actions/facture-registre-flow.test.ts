@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser, type EffectiveAccess } from "@/lib/rbac";
 import { createLegalDocument, updateLegalDocument, sendLegalInvoiceToSettlement } from "./legal-actions";
 import { createInvoice, setInvoicePaid } from "./invoice-actions";
@@ -104,7 +105,7 @@ suite("Une facture est un document légal de nature « facture »", () => {
     await prisma.paymentRequest.deleteMany({ where: { title: { contains: TAG } } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { label: { contains: TAG } } }).catch(() => {});
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("LE FORMULAIRE ORDINAIRE DE LEGAL enregistre une facture — pas un écran à part", async () => {

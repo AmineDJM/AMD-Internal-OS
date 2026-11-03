@@ -26,7 +26,7 @@ vi.mock("@/lib/refs", async (importOriginal) => {
 // d'initialisation `ops/index.ts` ↔ `lib/assistant.ts` par l'autre bout.
 import "@/lib/assistant";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { faitsStock, peutRecevoirDuStock } from "@/lib/queries/promo-stock";
 import { decouperActions } from "./contrat";
@@ -175,7 +175,7 @@ suite("Matériel promotionnel — les restes : annulation commune, file des BC, 
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { OR: [{ actorId: { in: ids } }, { entityId: { in: [...pmIds, ...reqIds, ...pieces, ...ordres] } }] } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: ids } } }).catch(() => {});
     if (companyId) {
       await prisma.companyLegalIdentity.deleteMany({ where: { companyId } }).catch(() => {});
       await prisma.company.delete({ where: { id: companyId } }).catch(() => {});

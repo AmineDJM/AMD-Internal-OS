@@ -13,6 +13,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import {
   createSpecialty, updateSpecialty, deleteSpecialty, fusionnerSpecialite, rattacherLibelleSpecialite,
@@ -123,7 +124,7 @@ suite("Le référentiel des spécialités et la feuille de l'annuaire (§118.180
     // raison qui n'est pas la sienne (§118.117).
     await prisma.medicalSpecialty.deleteMany({ where: { name: { startsWith: TAG, mode: "insensitive" } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes.map((c) => c.id) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
   };
 
   beforeAll(async () => {

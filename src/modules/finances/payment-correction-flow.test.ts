@@ -19,7 +19,7 @@ vi.mock("@/lib/documents", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import {
@@ -81,7 +81,7 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
     await retirerDocumentsEtContenu({ where: { name: `${TAG}piece.pdf` } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: Object.values(u) } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: Object.values(u) } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: `${TAG}entité-` } } }).catch(() => {});
   });
 

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { emettreMessageRecu } from "@/lib/events/messaging-events";
 
 /**
@@ -35,7 +36,7 @@ suite("réveil par message interne", () => {
     await prisma.message.deleteMany({ where: { conversationId: convId } }).catch(() => {});
     await prisma.conversation.deleteMany({ where: { id: convId } }).catch(() => {});
     await prisma.mission.deleteMany({ where: { ownerId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [ownerId, raihanaId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [ownerId, raihanaId] } } }).catch(() => {});
   }, 60_000);
 
   it("un message de quelqu'un d'autre ne réveille pas ; le message de Raihana règle l'attente", async () => {

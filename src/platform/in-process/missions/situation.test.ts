@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { viderCacheDictionnaire } from "@/lib/fabric";
@@ -44,7 +45,7 @@ suite("enquête — la situation d'une demande vague est établie par le code, s
 
   afterAll(async () => {
     await prisma.regulatoryProduct.deleteMany({ where: { dci: DCI } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: companyId } }).catch(() => {});
     viderCacheDictionnaire();
   }, 120_000);

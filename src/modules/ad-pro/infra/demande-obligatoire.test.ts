@@ -10,7 +10,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "../actions-sponsoring";
 import { businessUnitDuDemandeur } from "./business-unit-auto";
@@ -86,7 +86,7 @@ suite("Une demande de sponsoring INCOMPLÈTE est refusée par le serveur", () =>
     await prisma.salesRepProfile.deleteMany({ where: { repId: { in: [kamId, nsId, autreId] } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("chaque champ RETIRÉ est NOMMÉ dans le refus — et tous en une fois, pas un par aller-retour", async () => {
@@ -265,7 +265,7 @@ suite("La gamme d'une demande se DÉDUIT de son auteur — quand elle se déduit
   afterAll(async () => {
     await prisma.salesRepProfile.deleteMany({ where: { repId: { in: [kamId, nsUneId, nsDeuxId] } } }).catch(() => {});
     await prisma.businessUnit.deleteMany({ where: { name: { startsWith: TAG2 } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG2 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG2 } } }).catch(() => {});
   });
 
   it("un KAM : sa gamme vient de sa FICHE force de vente, et la phrase le DIT", async () => {

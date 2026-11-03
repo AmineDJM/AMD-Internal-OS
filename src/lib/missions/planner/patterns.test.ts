@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   formeDuPlan,
   signatureDeForme,
@@ -50,7 +51,7 @@ afterAll(async () => {
   await prisma.missionPlanPattern.deleteMany({ where: { dernierMissionId: { startsWith: TAG } } }).catch(() => undefined);
   await prisma.missionStep.deleteMany({ where: { mission: { title: { startsWith: TAG } } } }).catch(() => undefined);
   await prisma.mission.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => undefined);
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
 });
 
 describe("la forme d'un plan — structurelle, jamais le contenu", () => {

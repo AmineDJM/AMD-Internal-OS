@@ -7,7 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { ensureInstance } from "@/lib/workflow/engine";
@@ -132,7 +132,7 @@ suite("Prise en charge — rien ne s'engage avant la prévalidation et l'accord 
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [dirId, demId, daId] } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [dirId, demId, daId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("PRÉMISSE : la Direction a la vue globale (seule la garde d'engagement peut la refuser)", () => {

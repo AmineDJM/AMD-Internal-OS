@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { decideCareQuote } from "./actions-prise-en-charge";
 
@@ -65,7 +66,7 @@ suite("decideCareQuote — deux devis rivaux acceptés ensemble, un seul ordre",
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: dirId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: dirId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: dirId } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: dirId } }).catch(() => {});
   }, 60_000);
 
   it("le PDG accepte A, le DG accepte B, au même instant → un seul ordre, et l'hôtel porte son devis", async () => {

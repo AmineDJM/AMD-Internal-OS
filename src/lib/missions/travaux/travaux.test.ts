@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { recordEvent } from "@/lib/events/ledger";
 import { reveillerAttentesTemporelles } from "@/lib/missions/events/router";
 import type { Clock } from "@/lib/missions/ports";
@@ -132,7 +133,7 @@ suite("travaux — le Mission Runtime pour tous (J2)", () => {
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.assistantIaAcces.deleteMany({ where: { userId: { in: [alice, bruno] } } }).catch(() => undefined);
     await prisma.businessEvent.deleteMany({ where: { type: { startsWith: "TEST_TRV" } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("refuse un plan faux en disant pourquoi — lecture inconnue, dépendance en avant, pas de livrable", async () => {

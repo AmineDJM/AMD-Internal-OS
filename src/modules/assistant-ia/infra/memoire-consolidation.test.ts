@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { annulerSouvenir, jetonsDeLaMemoire, listerMemoire, purgerHistoriqueMemoire } from "./memoire";
 import { consoliderMemoire, oublierDerniereTacheMemoire, tacheMemoire, type Consolideur } from "./memoire-consolidation";
 import { capturerApresTour } from "./memoire-capture";
@@ -56,7 +57,7 @@ suite("mémoire — jetons, consolidation, historique 12 mois, sans plafond quot
     await prisma.assistantIaPreference.deleteMany({ where: { userId: moi } });
   });
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("l'historique est purgé après 12 mois — un fait ACTIF ne l'est jamais par l'âge", async () => {

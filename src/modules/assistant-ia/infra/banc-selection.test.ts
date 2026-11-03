@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { outilsV1 } from "./outils-v1";
@@ -73,7 +74,7 @@ suite("le banc Jarvis au faux modèle, pour la sélection (J6)", () => {
     comptes.AD = await compte("AD");
   });
   afterAll(async () => {
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("≥ 22 / 26 scénarios : l'outil juste est à portée (présélection ou `trouver_outil`), l'outil fermé ne l'est pas", async () => {

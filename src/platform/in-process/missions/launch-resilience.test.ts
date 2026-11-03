@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { Reasoner, ReasonRequest, ReasonResult } from "@/lib/missions/ports";
@@ -60,7 +61,7 @@ suite("résilience du lancement — une panne transitoire retient la demande", (
   }, 60_000);
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { ownerId: pdg.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: pdg.id } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: pdg.id } }).catch(() => {});
   }, 60_000);
 
   it("lancement direct : HTTP 502 pendant la planification → talon PLANNING, PLANNING_DEFERRED, rien de perdu", async () => {

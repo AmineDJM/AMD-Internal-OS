@@ -4,6 +4,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { advanceWorkflowInstance, ensureInstance } from "./engine";
 
 let dbOk = false;
@@ -45,7 +46,7 @@ suite("le sponsoring d'un délégué traverse le National Sales PUIS le Directeu
     await prisma.congressNational.deleteMany({ where: { id: { in: congres } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
   }
 
   beforeAll(async () => {

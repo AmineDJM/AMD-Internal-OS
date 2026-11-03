@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { lireTravailEquipe, listerTravauxEquipe } from "@/lib/missions/travaux/equipe";
 
 /**
@@ -42,7 +43,7 @@ suite("travaux — la vue d'un responsable sur son équipe (J8)", () => {
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [chef, autre] } } }).catch(() => undefined);
     await prisma.employee.updateMany({ where: { fullName: { startsWith: TAG } }, data: { managerId: null } }).catch(() => undefined);
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("fermé par défaut : rien n'est lu, rien n'est audité", async () => {

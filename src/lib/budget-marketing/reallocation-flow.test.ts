@@ -6,6 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview } from "@/lib/queries/budget";
 import { arbreCategories } from "@/lib/budget/marketing-vue";
@@ -79,7 +80,7 @@ suite("Budget Marketing — réallouer, borné à ce qu'une catégorie peut céd
     await prisma.budgetCategoryLine.deleteMany({ where: { id: { in: cats } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [pmId, finId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [pmId, finId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [pmId, finId] } } }).catch(() => {});
   });
 
   it("la part cessible : Sponsoring comprend ses Webinaires — 5 M − max(1,5 M payés, 3 M répartis) = 2 M", async () => {

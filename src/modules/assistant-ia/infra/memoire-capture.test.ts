@@ -5,6 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { compileContext } from "./contexte";
 import { annulerSouvenir, effacerMemoire, listerMemoire, reglerMemoireAuto, souvenirsParIds, toutEffacerMemoire } from "./memoire";
@@ -61,7 +62,7 @@ suite("Assistant IA — la mémoire automatique (M1)", () => {
     await prisma.assistantIaFil.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("retient d'office les faits personnels dits par la personne — et refuse ceux d'autrui lus dans l'ERP", async () => {

@@ -39,7 +39,7 @@ vi.mock("@/lib/regulatory/intelligence/ocr/ocr-engine", async (importOriginal) =
 vi.mock("@/lib/drive/document-mirror", () => ({ mirrorDocumentsToDrive: async () => {} }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { attendreBloques as attendreBloquesParLaBarriere, poserBarriere } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests, REFUS_IA_COUPEE } from "@/lib/ai-settings";
@@ -139,7 +139,7 @@ suite("PCH — lire le document d'un appel d'offres : le texte d'abord, la coupe
     const comptes = (await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } }).catch(() => [])).map((x) => x.id);
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes }, createdAt: { gte: new Date(T0.getTime() - 86_400_000) } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
   }
 

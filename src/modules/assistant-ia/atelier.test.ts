@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { UserRole } from "@prisma/client";
@@ -77,7 +77,7 @@ suite("l'Atelier — droits, modification en place, nouvelle version (vraie base
     await prisma.piece.deleteMany({ where: { nom: { startsWith: TAG }, empreinte: { startsWith: TAG } } });
     await retirerNoeudsDriveEtContenu({ where: { ownerId: { in: users.map((u) => u.id) } } });
     await prisma.driveSpace.deleteMany({ where: { name: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
+    await retirerComptesEtSemis({ where: { id: { in: users.map((u) => u.id) } } });
   });
 
   it("un collaborateur SANS droit ne peut ni ouvrir ni modifier — et rien n'est créé à son nom", async () => {

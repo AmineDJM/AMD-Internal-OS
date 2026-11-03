@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { compileContext } from "./contexte";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
@@ -20,7 +21,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
 });
 
 describe("mémoire personnelle", () => {

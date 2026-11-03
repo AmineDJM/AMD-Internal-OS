@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MailSendPolicy, MissionStatus, OutboundMailStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   createMission, markMissionAsked, recordMissionReply, recomputeMissionStatus,
   missionSnapshot, activeMissions, nudgeCandidates, setMissionExtracted,
@@ -70,7 +71,7 @@ suite("une journée de PDG — de la demande à la consolidation, et l'état qui
     await prisma.mission.deleteMany({ where: { ownerId: ceoId } }).catch(() => {});
     await prisma.googleConnection.deleteMany({ where: { userId: ceoId } }).catch(() => {});
     await prisma.communicationPolicy.deleteMany({ where: { updatedById: ceoId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("MATIN — « demande à Regulatory ce qu'il leur faut de Deepak » : une mission naît, rien n'est envoyé", async () => {

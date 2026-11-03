@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, peutUtiliserAssistantIA, peutVoirAdam } from "@/lib/rbac";
 import { isDelegatable } from "@/lib/hr/stand-in";
 import type { CurrentUser } from "@/lib/session";
@@ -34,7 +35,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
 });
 
 const nomsOfferts = (u: CurrentUser) => Object.keys(outilsPour(outilsV1(u, []), u)).sort();

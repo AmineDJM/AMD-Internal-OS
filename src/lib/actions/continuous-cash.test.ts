@@ -7,6 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
@@ -94,7 +95,7 @@ suite("Caisse d'avance continue", () => {
     await prisma.userAccess.deleteMany({ where: { userId: { in: [adminId, holderId] } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   const remettre = async (amount: string, period: string) => {

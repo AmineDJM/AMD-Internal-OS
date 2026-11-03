@@ -12,6 +12,7 @@ vi.mock("@/lib/session", () => ({
 import fs from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, hasGlobalView, peutGererSpecialites, userCan, type SessionUser } from "@/lib/rbac";
 import { visibleTabs } from "@/lib/nav-tabs";
 import { ANNUAIRES_TABS, MARKETING_COCKPIT_TABS } from "@/lib/labels";
@@ -83,7 +84,7 @@ suite("le référentiel des spécialités — les deux directeurs des opération
     await prisma.auditLog.deleteMany({ where: { entityType: "SPECIALTY", entityId: { in: spes.map((s) => s.id) } } }).catch(() => {});
     await prisma.medicalSpecialty.deleteMany({ where: { id: { in: spes.map((s) => s.id) } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actor: { email: { startsWith: TAG.toLowerCase() } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG.toLowerCase() } } }).catch(() => {});
   };
 
   beforeAll(async () => {

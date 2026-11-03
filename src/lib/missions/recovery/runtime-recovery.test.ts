@@ -37,6 +37,7 @@
 
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { avancer, type StepOutcome } from "@/lib/missions/runtime/engine";
 import type {
   CapabilityCall, CapabilityOutcome, CapabilityRunner, MissionActor, RegistreRecours,
@@ -55,7 +56,7 @@ let compteurUsers = 0;
 afterAll(async () => {
   if (!dbOk) return;
   await prisma.mission.deleteMany({ where: { id: { in: cree } } });
-  await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+  await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
 });
 
 /** Un acteur humain : ni agent, ni auto-escalade — le recours ne doit rien y changer. */

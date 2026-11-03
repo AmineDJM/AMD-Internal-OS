@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { CLE_MASSE_SALARIALE } from "@/lib/budget-operations/force-de-vente";
 import { assurerEnveloppeAnnuelle } from "./enveloppes-pole";
@@ -28,7 +29,7 @@ suite("Budget Operations & Sales — l'enveloppe de l'année existe d'emblée", 
     await prisma.budgetCategoryLine.deleteMany({ where: { envelopeId: { in: envs } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { id: { in: envs } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [dirOpsId, lecteurId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   const acteur = async (id: string, role: SessionUser["role"]) => ({ id, role, access: await getAccess(id, role) });

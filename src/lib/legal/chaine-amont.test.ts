@@ -9,6 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { legalReaderWhere } from "@/lib/lecteurs/legal";
 import { updateLegalDocument } from "@/lib/actions/legal-actions";
@@ -54,7 +55,7 @@ suite("La chaîne d'une facture survit à sa modification", () => {
 
   async function nettoyer() {
     await prisma.legalDocument.deleteMany({ where: { title: { startsWith: TAG } } });
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } });
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } });
   }
 
   beforeAll(async () => {

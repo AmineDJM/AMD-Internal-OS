@@ -20,7 +20,7 @@ import { execFileSync } from "node:child_process";
  */
 
 const FICHIERS = execFileSync("git", ["ls-files", "src/**/*.test.ts", "src/**/*.test.tsx"], { encoding: "utf8" })
-  .split("\n").filter(Boolean);
+  .split("\n").filter((f) => f && f !== "src/lib/actions/internes/comptes-empruntes.test.ts"); // ses propres exemples
 
 /** Le texte sans ses commentaires (un en-tête qui CITE le motif n'est pas un usage). */
 const sansCommentaires = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");

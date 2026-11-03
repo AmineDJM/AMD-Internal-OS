@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import type { Clock } from "@/lib/missions/ports";
 import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import { balayerChantiers } from "@/lib/missions/chantiers/service";
@@ -67,7 +68,7 @@ suite("programmes — une équipe de chantiers sous un ordonnanceur déterminist
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => undefined);
     await prisma.memoireTechnique.deleteMany({ where: { cle: { contains: TAG.toLowerCase() } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("PERMISSIONS : un salarié est refusé ; un travailleur autre que les sessions cloud est refusé (décision de la Direction)", async () => {

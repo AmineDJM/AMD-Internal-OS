@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import {
   createThread, ensurePrimaryThread, messagesApres, personalContext,
 } from "@/lib/assistant-memory";
@@ -93,7 +94,7 @@ suite("MÉMOIRE ÉPISODIQUE — d'un vrai échange à un contexte composé", () 
 
   afterAll(async () => {
     // La cascade emporte fils, messages et épisodes ; on ne touche à rien d'autre.
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("§97 — le POINT D'ENTRÉE RÉEL de la conversation déclenche le découpage", async () => {

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 
 /**
@@ -37,7 +38,7 @@ suite("Blocage de module : absolu, même contre le rôle secondaire", () => {
 
   afterAll(async () => {
     await prisma.userAccess.deleteMany({ where: { userId: { in: [viaSecondaryId, blockedId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [viaSecondaryId, blockedId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [viaSecondaryId, blockedId] } } }).catch(() => {});
   });
 
   it("sans blocage, le rôle secondaire donne bien accès au module", async () => {

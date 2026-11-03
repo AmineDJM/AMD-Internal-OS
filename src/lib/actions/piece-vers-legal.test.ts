@@ -7,7 +7,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { requestDocument, submitDocumentRequest, decideDocumentRequest } from "./document-request-actions";
 
@@ -52,7 +52,7 @@ suite("Une pièce acceptée rejoint le registre des engagements", () => {
     await prisma.legalDocument.deleteMany({ where: { id: { in: legalIds } } }).catch(() => {});
     await prisma.documentRequest.deleteMany({ where: { id: { in: requests } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   /** Réclamer une pièce d'une nature donnée, la déposer, et la faire accepter. */

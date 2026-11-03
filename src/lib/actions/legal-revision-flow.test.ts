@@ -9,7 +9,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canEditDrive, resolveDriveAccess } from "@/lib/drive";
 import { legalWriteAllowed } from "@/lib/lecteurs/legal";
@@ -196,7 +196,7 @@ suite("Legal — une pièce émise se révise depuis sa fiche, et le formulaire 
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.userCompanyAccess.deleteMany({ where: { companyId } }).catch(() => {});
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 90_000);
 
   describe("le formulaire de la fiche ne réécrit pas le fichier", () => {

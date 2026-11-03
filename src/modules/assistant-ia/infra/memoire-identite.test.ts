@@ -4,6 +4,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { ajouterMemoire, listerMemoire, modifierMemoire } from "./memoire";
 import { capturerApresTour, rappelDuTour, type Extracteur } from "./memoire-capture";
 import { REFUS_IDENTITE } from "@/platform/ia/memoire-identite";
@@ -36,7 +37,7 @@ suite("Assistant IA — l'identité ne s'apprend pas (S1, défaut Q1 US-01)", ()
   afterAll(async () => {
     await prisma.assistantMemoryItem.deleteMany({ where: { userId: radia?.id } }).catch(() => {});
     await prisma.assistantIaPreference.deleteMany({ where: { userId: radia?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("le scénario du banc : « C'est Amine qui écrit… » — rien n'est appelé, rien n'est retenu chez Radia", async () => {

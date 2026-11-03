@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { aCompacter, appliquerFidelite, assemblerContexte, enregistrerEpisode } from "./store";
 import type { Episode } from "./compact";
 import { aRelancer, noterRelance } from "@/lib/missions/commitments/satisfy";
@@ -45,7 +46,7 @@ suite("mémoire — la couche base", () => {
     await prisma.assistantEpisode.deleteMany({ where: { userId } }).catch(() => {});
     await prisma.executiveCommitment.deleteMany({ where: { ownerId: userId } }).catch(() => {});
     await prisma.assistantMemoryItem.deleteMany({ where: { userId } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("UNE TRANCHE N'EST COMPACTÉE QU'UNE FOIS — sinon le contexte la compte deux fois", async () => {

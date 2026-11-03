@@ -12,6 +12,7 @@ vi.mock("@/lib/session", () => ({
 }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { rattacherLegalAFiche, detacherLegalDeFiche } from "../actions-rattacher-legal";
 // ⚠ ORDRE D'IMPORT IMPORTANT (documenté dans `assistant/capability-audit.test.ts`) :
@@ -73,7 +74,7 @@ suite("Rattacher un document Legal existant à une fiche Ad & Pro", () => {
     await prisma.legalDocument.deleteMany({ where: { title: { startsWith: TAG } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("un document LIBRE se rattache — et RIEN n'est recréé", async () => {
@@ -195,7 +196,7 @@ suite("Le même rattachement depuis la conversation (legal_operation)", () => {
     await prisma.legalDocument.deleteMany({ where: { title: { startsWith: TAG2 } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG2 } } }).catch(() => {});
     await prisma.event.deleteMany({ where: { name: { startsWith: TAG2 } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG2 } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG2 } } }).catch(() => {});
   });
 
   // `ops[nom]` porte { meta, impl } : on passe par CE chemin, celui que le runtime emprunte.

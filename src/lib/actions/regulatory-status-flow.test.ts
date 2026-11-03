@@ -7,6 +7,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => {} }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { setRegulatoryStepState, setRegulatoryPresubOutcome, updateRegulatoryStatus } from "./regulatory-actions";
 
@@ -58,7 +59,7 @@ suite("Regulatory — le niveau de process se déduit des étapes cochées", () 
     await prisma.auditLog.deleteMany({ where: { entityId: productId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { link: `/regulatory/${productId}` } }).catch(() => {});
     await prisma.regulatoryProduct.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("sans avis de présoumission, cocher le dépôt ne fait PAS avancer le dossier", async () => {

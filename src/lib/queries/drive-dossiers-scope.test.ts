@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 
 /**
@@ -45,7 +46,7 @@ suite("Drive & Projets : portée ALL neutralisée hors vue globale", () => {
 
   afterAll(async () => {
     await prisma.userAccess.deleteMany({ where: { userId: { in: [ordinaryId, directionId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: [ordinaryId, directionId] } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { id: { in: [ordinaryId, directionId] } } }).catch(() => {});
   });
 
   it("un rôle ordinaire avec override ALL est ramené à ASSIGNED (Drive + Projets)", async () => {

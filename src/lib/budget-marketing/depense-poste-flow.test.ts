@@ -6,7 +6,7 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview } from "@/lib/queries/budget";
 import { depensesPostesMarketing } from "@/lib/queries/budget-marketing-depenses";
@@ -116,7 +116,7 @@ suite("Budget Marketing — la dépense d'un poste Ad & Pro, de l'imputation au 
     await prisma.budgetEnvelope.deleteMany({ where: { id: envId } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: [pmId, finId] } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: [pmId, finId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 60_000);
 
   it("BC pas tous signés : hors de l'écran ; tous signés : « À imputer », sans peser sur le budget", async () => {

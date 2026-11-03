@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { contrat, depotDeBanc, type ForgeGitLocale } from "@/lib/missions/chantiers/integration-test-outils";
 
 /**
@@ -65,7 +66,7 @@ suite("file d'intégration — vrais processus, vrai git (O2-5)", () => {
   });
   afterAll(async () => {
     await prisma.mission.deleteMany({ where: { owner: { email: { startsWith: TAG } } } }).catch(() => undefined);
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => undefined);
   });
 
   it("DEUX complétions simultanées, deux processus : une intégration à la fois, deux avances, aucune double fusion", { timeout: 150_000 }, async () => {

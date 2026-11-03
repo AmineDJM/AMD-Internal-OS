@@ -12,6 +12,7 @@ vi.mock("@/lib/session", () => ({
 
 import { readFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, userCan, peutAnnuaire, type SessionUser } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -72,7 +73,7 @@ suite("Accès par annuaire — écrans, actions, console, conversation", () => {
     await prisma.medicalInstitution.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.companyContact.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   };
 
   beforeAll(async () => {

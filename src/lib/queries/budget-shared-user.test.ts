@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getEnvelopes, getBudgetOverview } from "./budget";
 
@@ -62,7 +63,7 @@ suite("Budget partagé nommément : la vue par défaut tombe sur l'enveloppe VIS
 
   afterAll(async () => {
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("getAccess ouvre le module Budget (accès implicite via l'enveloppe partagée)", async () => {

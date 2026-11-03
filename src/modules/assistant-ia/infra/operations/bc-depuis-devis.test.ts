@@ -10,7 +10,7 @@ let LU: DevisLu | null = null;
 vi.mock("./devis-lu", () => ({ lireDevis: async () => LU ?? { erreur: "non lu" } }));
 
 import { prisma } from "@/lib/prisma";
-import { retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
 import { getAccess } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -69,7 +69,7 @@ suite("Assistant IA — bon de commande depuis un devis", () => {
     await retirerNoeudsDriveEtContenu({ where: { OR: [{ name: { contains: TAG } }, { ownerId: { in: [admin?.id ?? "", valideur?.id ?? ""] } }] } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: societeId } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: admin?.id } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
   it("une TVA que le devis n'imprime pas n'est jamais supposée : elle se demande", async () => {
