@@ -3,7 +3,7 @@ import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { saveFile } from "@/lib/storage";
 import { putBlob } from "@/lib/drive-storage";
-import { retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "./menage-de-banc";
+import { MARQUE_RETRAIT_DIFFERE, retirerComptesDifferes, retirerComptesEtSemis, retirerDocumentsEtContenu, retirerNoeudsDriveEtContenu } from "./menage-de-banc";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -113,5 +113,26 @@ suite("le ménage de banc rend le stockage", () => {
     expect(await prisma.piece.count({ where: { id: seule.id } }), "la pièce du seul document est restée").toBe(0);
     expect(await prisma.piece.count({ where: { id: partagee.id } }), "une pièce qu'un autre document désigne est partie").toBe(1);
     await prisma.piece.deleteMany({ where: { empreinte: { startsWith: TAG } } });
+  });
+
+  it("un compte RETENU par la ligne d'un voisin (son valideur désigné) : désactivé, vidé, marqué — puis retiré en fin de suite", async () => {
+    const banc = await prisma.user.create({ data: { email: `${TAG}sa@banc.local`, name: `${TAG}sa`, passwordHash: "!", role: "SUPER_ADMIN" }, select: { id: true } });
+    const voisin = await prisma.user.create({ data: { email: `${TAG}voisin2@banc.local`, name: `${TAG}voisin2`, passwordHash: "!" }, select: { id: true } });
+    // Le circuit d'un banc VOISIN l'a désigné valideur (résolution par rôle) : `ValidationStep` le retient (Restrict).
+    const demande = await prisma.validationRequest.create({ data: { reference: `${TAG}VAL`, module: "TEST", title: `${TAG} demande voisine`, requesterId: voisin.id }, select: { id: true } });
+    await prisma.validationStep.create({ data: { requestId: demande.id, order: 1, validatorId: banc.id } });
+    await prisma.notification.create({ data: { userId: banc.id, title: `${TAG} notification de rôle` } });
+
+    expect(await retirerComptesEtSemis({ where: { id: banc.id } })).toEqual({ count: 0 });
+    const differe = await prisma.user.findUniqueOrThrow({ where: { id: banc.id }, select: { isActive: true, name: true } });
+    expect(differe.isActive, "resté actif, il serait encore désigné et notifié par toute la suite").toBe(false);
+    expect(differe.name.startsWith(MARQUE_RETRAIT_DIFFERE)).toBe(true);
+    expect(await prisma.notification.count({ where: { userId: banc.id } })).toBe(0);
+
+    // Le voisin a fini (sa demande part) : le ménage de fin de suite retire le compte différé.
+    await prisma.validationRequest.delete({ where: { id: demande.id } });
+    expect(await retirerComptesDifferes()).toBeGreaterThanOrEqual(1);
+    expect(await prisma.user.count({ where: { id: banc.id } })).toBe(0);
+    await retirerComptesEtSemis({ where: { id: voisin.id } });
   });
 });
