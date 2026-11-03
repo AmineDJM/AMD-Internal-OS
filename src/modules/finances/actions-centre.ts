@@ -131,7 +131,7 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
   if (!order) return { ok: false, error: "Ordre de dépense introuvable." };
   // QUI DEMANDE N'AUTORISE PAS (audit 27/10, ARGENT-06) — refuser son propre paiement reste permis.
   if (decision === "APPROVE") {
-    const separation = refusSeparationDesTaches("AUTORISER", order, user.id, (await getAppSettings()).separationTachesPaiement);
+    const separation = refusSeparationDesTaches("AUTORISER", order, user.id, (await getAppSettings()).separationTachesPaiement, user.role === "SUPER_ADMIN");
     if (separation) return { ok: false, error: separation };
   }
   // UN ORDRE ANNULÉ (demande retirée) OU RÉGLÉ NE SE DÉCIDE PLUS : son autorisation est restée « en attente », jamais
