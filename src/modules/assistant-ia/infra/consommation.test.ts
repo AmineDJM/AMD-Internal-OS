@@ -146,28 +146,40 @@ describe("le journal et les plafonds, au faux modèle", () => {
     remplacerReglagesPourTests({ plafondJetonsJour: 1_000 });
     await prisma.modelCallLog.create({ data: { feature: "assistant_ia", userId: u.id, role: "fil", provider: "factice", model: "modele-factice", inputTokens: 900, outputTokens: 200 } });
     const f = modeleFactice([{ texte: "Ne doit pas partir." }]);
-    const refuser = async () => {
-      const e = await tour(u, f.modele).catch((x: unknown) => x);
-      expect(e).toBeInstanceOf(PlafondIaAtteint);
-      expect((e as Error).message).toBe(refusPlafondJour(1_000));
-    };
-    // Les Super Admins actifs sont un fait GLOBAL : d'autres bancs en créent et en retirent pendant ce test. Les compter
-    // APRÈS le refus mesurait l'ordonnanceur (MESURÉ, F1 : 26 attendus, 25 reçus sous `test:architecture`). On juge ce que
-    // la règle dit : au premier refus, un avis par Super Admin — chacun une fois, à des Super Admins seulement, aucun
-    // présent avant ET après oublié —, et au second, AUCUN de plus.
-    const avant = new Set((await prisma.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true } })).map((x) => x.id));
-    await refuser();
-    const premiers = avis.envoyes.map((a) => a.userId);
-    expect(premiers.length, "le Super Admin est prévenu").toBeGreaterThan(0);
-    expect(new Set(premiers).size, "un avis par Super Admin, jamais deux").toBe(premiers.length);
-    const apres = new Set((await prisma.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true } })).map((x) => x.id));
-    const autres = await prisma.user.findMany({ where: { id: { in: premiers }, NOT: { role: "SUPER_ADMIN" } }, select: { id: true } });
-    expect(autres, "aucun avis à quelqu'un qui n'est pas Super Admin").toEqual([]);
-    expect([...avant].filter((id) => apres.has(id) && !premiers.includes(id)), "aucun Super Admin présent avant ET après n'est oublié").toEqual([]);
-    await refuser();
-    expect(avis.envoyes, "pas un avis de plus au second refus").toHaveLength(premiers.length);
-    expect(f.toursJoues()).toBe(0);
-    expect(await prisma.assistantIaPlafondAtteint.count({ where: { userId: u.id } })).toBe(1);
+    // Un Super Admin À CE BANC : sur une base vide (celle de la CI, ou juste après une remise à zéro), il n'y en a aucun
+    // d'actif, et « le Super Admin est prévenu » ne mesurait que les restes des passages précédents (MESURÉ le 03/11 :
+    // 0 avis reçu, base remise à zéro). Il est retiré après le test ; les avis étant interceptés, aucun n'est écrit.
+    const veilleur = await prisma.user.create({
+      data: { email: `${TAG}veilleur@banc.local`, name: "Super Admin — banc consommation", passwordHash: "!", role: "SUPER_ADMIN", isActive: true },
+      select: { id: true },
+    });
+    try {
+      const refuser = async () => {
+        const e = await tour(u, f.modele).catch((x: unknown) => x);
+        expect(e).toBeInstanceOf(PlafondIaAtteint);
+        expect((e as Error).message).toBe(refusPlafondJour(1_000));
+      };
+      // Les Super Admins actifs sont un fait GLOBAL : d'autres bancs en créent et en retirent pendant ce test. Les compter
+      // APRÈS le refus mesurait l'ordonnanceur (MESURÉ, F1 : 26 attendus, 25 reçus sous `test:architecture`). On juge ce que
+      // la règle dit : au premier refus, un avis par Super Admin — chacun une fois, à des Super Admins seulement, aucun
+      // présent avant ET après oublié —, et au second, AUCUN de plus.
+      const avant = new Set((await prisma.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true } })).map((x) => x.id));
+      await refuser();
+      const premiers = avis.envoyes.map((a) => a.userId);
+      expect(premiers.length, "le Super Admin est prévenu").toBeGreaterThan(0);
+      expect(new Set(premiers).size, "un avis par Super Admin, jamais deux").toBe(premiers.length);
+      const apres = new Set((await prisma.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true } })).map((x) => x.id));
+      const autres = await prisma.user.findMany({ where: { id: { in: premiers }, NOT: { role: "SUPER_ADMIN" } }, select: { id: true } });
+      expect(autres, "aucun avis à quelqu'un qui n'est pas Super Admin").toEqual([]);
+      expect([...avant].filter((id) => apres.has(id) && !premiers.includes(id)), "aucun Super Admin présent avant ET après n'est oublié").toEqual([]);
+      await refuser();
+      expect(avis.envoyes, "pas un avis de plus au second refus").toHaveLength(premiers.length);
+      expect(f.toursJoues()).toBe(0);
+      expect(await prisma.assistantIaPlafondAtteint.count({ where: { userId: u.id } })).toBe(1);
+      expect(premiers, "le Super Admin de ce banc est prévenu").toContain(veilleur.id);
+    } finally {
+      await prisma.user.delete({ where: { id: veilleur.id } });
+    }
   });
 
   it("franchir le plafond du jour PENDANT un tour : le tour finit dans ce qui reste, l'avis part", async () => {
