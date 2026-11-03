@@ -43,7 +43,7 @@ export const FUSION_MISSIONS: OperationIA = {
 
   async proposer(entree, user) {
     const { mesMissions } = await import("../missions/pilotage");
-    const { missions } = await mesMissions(user.id);
+    const { missions, alerte } = await mesMissions(user.id);
     const vivantes = missions.filter((m) => VIVANTES.has(m.etat) && !m.parentId);
     if (vivantes.length < 2) return { erreur: `Il n'y a pas plusieurs missions à fusionner (${vivantes.length} mission vivante${vivantes.length > 1 ? "s" : ""}${vivantes.length ? ` : « ${vivantes[0]!.titre} »` : ""}).` };
     // Les missions désignées — chaque désignation doit en viser UNE (sinon on nomme les candidates, on ne devine pas).
@@ -91,6 +91,8 @@ export const FUSION_MISSIONS: OperationIA = {
         warnings: [
           "Les missions arrêtées le sont avec leurs sous-missions ; rien de ce qu'elles ont déjà fait n'est perdu.",
           "Réversible : « reprendre » relance une mission arrêtée ; l'annulation du geste (Ce que l'assistant a fait) remet tout comme avant.",
+          // P1 ter : l'état de l'exécutant, dit par la MÊME lecture que `mes_missions` — deux tours, une seule vérité.
+          ...(alerte ? [alerte] : []),
           ...(plan ? ["La nouvelle mission démarre d'office si son plan n'a aucun geste et que votre réglage le permet ; sinon elle attend votre approbation au tableau « Missions »."] : []),
         ],
         libelleBouton: "Fusionner",

@@ -215,6 +215,17 @@ ne nourrit pas la mémoire ; aucun souvenir d'identité ne s'écrit (capture, vo
 ni ne se relit (rappel, voix, ancien contexte) — ceux déjà en base sont neutralisés. Décision
 [0048 §6 bis](../assistant/decisions/0048-acces-personnels.md) ; `src/platform/ia/memoire-identite.ts` (socle commun, Adam compris).
 
+### P1 ter — LES MISSIONS QUI NE S'EXÉCUTAIENT PAS, ET LA VÉRITÉ SUR L'EXÉCUTANT (2026-11-03)
+
+Décision [0063](../assistant/decisions/0063-missions-lisibles-cliquables.md). **Cause des missions à 0 % en production** :
+le web prenait le bail du balayage des travaux pour s'abstenir aussitôt (le worker bat) — son départ marqué ouvrait
+l'intervalle de 45 s et le worker trouvait la tâche « occupée » à chaque passage ; l'abstention se décide désormais AVANT
+le bail (`sAbstenir`, travaux et conversions). **Diagnostic** : « prête » seulement si le balayage prendra la mission
+(sa requête même) et a battu dans les 3 min ; sinon la vraie raison (`TRAVAUX_SWEEP=off`, worker muet…) ;
+`mes_missions` dit si chaque mission sera prise, son étape suivante et le dernier balayage (qui, quand, bilan) ; même
+phrase à l'écran et sur la carte de fusion. Le journal dit « Adam ». Contenu et cartes cliquables : en attente du
+contrat `Observation`.
+
 ### P1 bis — LE BANC RÉEL Q1, SUITE : REPLI D'ENVOI, MISSIONS DE FOND, CARTES À COMPLÉTER (2026-11-02)
 
 Décision [0047](../assistant/decisions/0047-pilotage-missions-mails-verite.md) § P1 bis. **ML-09** : sans Gmail d'Adam

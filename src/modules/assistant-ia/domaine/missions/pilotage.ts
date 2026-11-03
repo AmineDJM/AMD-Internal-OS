@@ -31,6 +31,12 @@ export interface MissionDiagnostiquee {
   etapes: readonly { titre: string; etat: string; erreur: string | null }[];
   /** Dernière écriture de la mission ou d'une étape (ISO). */
   majLe: string;
+  /**
+   * P1 ter : la mission est-elle CANDIDATE au balayage (la requête même du moteur, `travauxAFaireAvancer`) ? `false` :
+   * jamais « prête », la raison est dite. Absent : non vérifié (ancien appelant).
+   */
+  candidate?: boolean;
+  raisonNonCandidate?: string | null;
 }
 
 /** Qui conduit les travaux : le dernier passage EFFECTIF du balayage (pas un passage « ignoré »), et le worker. */
@@ -39,6 +45,23 @@ export interface EtatDesExecutants {
   dernierPassage: string | null;
   /** Dernière tâche prise par le service worker (ISO) ; null : jamais vu. */
   workerVu: string | null;
+  /**
+   * P1 ter (Direction, 03/11) : le DERNIER PASSAGE DU BALAYAGE, même « ignoré » (ISO) — et la RAISON d'un passage ignoré
+   * (« TRAVAUX_SWEEP=off », « le worker conduit… »). Sans elles, un balayage débrayé passait pour « aucun battement ».
+   */
+  balayageVu?: string | null;
+  raisonIgnore?: string | null;
+  /** P1 ter : le dernier passage du balayage, tel qu'écrit sur sa ligne — qui (web, worker), statut, bilan. */
+  dernierBalayage?: { qui: string | null; quand: string | null; statut: string | null; bilan: string | null } | null;
+}
+
+/** LE DERNIER BALAYAGE, dit en une ligne (« par le worker il y a 2 min — examinés 3, conduits 3 »). */
+export function phraseDernierBalayage(ex: EtatDesExecutants, maintenant: number): string {
+  const b = ex.dernierBalayage;
+  if (!b?.quand) return "aucun balayage des travaux enregistré";
+  const qui = b.qui === "worker" ? "le worker" : b.qui === "web" ? "le web" : "un exécutant";
+  const etat = b.statut === "IGNOREE" ? `ignoré (${b.bilan ?? "sans raison"})` : b.statut === "ECHEC" ? `en échec (${b.bilan ?? "erreur"})` : b.statut === "EN_COURS" ? "en cours" : (b.bilan ?? "fait");
+  return `par ${qui} il y a ${minutes(depuis(b.quand, maintenant))} min — ${etat}`;
 }
 
 export type CodeDiagnostic =
@@ -61,13 +84,26 @@ export function erreurLisible(erreur: string): string {
   return e.length > 160 ? `${e.slice(0, 157)}…` : e;
 }
 
-/** Les exécutants conduisent-ils les travaux ? `null` : oui ; sinon la phrase qui dit depuis quand personne ne bat. */
+/**
+ * Les exécutants conduisent-ils les travaux ? `null` : oui — un passage EFFECTIF du balayage dans les 3 dernières minutes ;
+ * sinon la phrase qui dit CE QUI MANQUE, avec la vraie raison (P1 ter) : balayage débrayé, web qui s'abstient pour un
+ * worker muet, aucun exécutant jamais vu, ou silence depuis N min. Une seule fonction : toutes les vues (mes_missions,
+ * carte de fusion, tableau, Administration) disent la même chose pour le même état.
+ */
 export function silenceDesExecutants(ex: EtatDesExecutants, maintenant: number): string | null {
   const d = depuis(ex.dernierPassage, maintenant);
   if (d <= SILENCE_EXECUTANT_MS) return null;
-  return ex.dernierPassage === null
-    ? "worker absent : aucun battement enregistré"
-    : `aucun battement du worker depuis ${minutes(d)} min`;
+  const vuIl = depuis(ex.balayageVu ?? null, maintenant);
+  const raison = ex.raisonIgnore?.trim() || null;
+  // Le balayage passe, mais s'abstient pour une raison qui n'est PAS le worker (débrayage, réglage) : la dire.
+  if (raison && !/worker/i.test(raison) && vuIl <= SILENCE_EXECUTANT_MS) return `le balayage des travaux est arrêté : ${raison} — personne ne conduit les missions`;
+  // Le web s'abstient parce que le worker conduirait — mais le worker ne bat pas.
+  if (raison && /worker/i.test(raison) && vuIl <= SILENCE_EXECUTANT_MS) {
+    const w = depuis(ex.workerVu, maintenant);
+    return ex.workerVu === null ? "le web laisse le worker conduire, mais le worker n'a jamais battu" : `le web laisse le worker conduire, mais le worker ne bat plus depuis ${minutes(w)} min`;
+  }
+  if (ex.dernierPassage === null) return ex.balayageVu ? `aucun passage effectif du balayage (dernier essai il y a ${minutes(vuIl)} min)` : "worker absent : aucun battement enregistré (ni le web ni le worker n'ont conduit les travaux)";
+  return `aucun battement du worker depuis ${minutes(d)} min`;
 }
 
 /**
@@ -92,6 +128,8 @@ export function diagnostiquerMission(m: MissionDiagnostiquee, ex: EtatDesExecuta
   const reessaie = echec ?? m.etapes.find((e) => e.etat === "EN_COURS" && e.erreur);
   if (reessaie) return { code: "REESSAIE", phrase: `l'étape « ${reessaie.titre} » réessaie : ${erreurLisible(reessaie.erreur!)}` };
   if (m.attente && m.etat === "EN_ATTENTE") return { code: "ATTENTE", phrase: m.attente };
+  // P1 ter : une mission que le balayage ne prendra pas n'est jamais « prête » — dire pourquoi.
+  if (m.candidate === false) return { code: "ATTENTE", phrase: `pas prise par le balayage des travaux : ${m.raisonNonCandidate ?? "aucune étape prête à partir"}` };
   if (silence) return { code: "ATTENTE_EXECUTANT", phrase: `en attente du worker — ${silence}` };
   const enCours = m.etapes.find((e) => e.etat === "EN_COURS");
   return { code: "EN_COURS", phrase: enCours ? `en cours : ${enCours.titre}` : "prête : la prochaine étape part au prochain battement (moins d'une minute)" };

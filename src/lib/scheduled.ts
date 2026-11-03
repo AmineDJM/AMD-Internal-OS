@@ -41,7 +41,7 @@ import { balayerSurveillances } from "@/platform/in-process/missions/watch";
 import { vieillirMemoire } from "@/platform/in-process/missions/memory";
 import { relancerEngagements } from "@/platform/in-process/missions/commitments";
 import { assurerProduitsDesDossiersAuDemarrage } from "@/lib/products/canonique";
-import { executerPassage, ignoree, type BilanPassage, type ContexteExecution, type TachePlanifiee } from "@/lib/taches-de-fond/executer";
+import { bilan, executerPassage, ignoree, type BilanPassage, type ContexteExecution, type TachePlanifiee } from "@/lib/taches-de-fond/executer";
 import { identiteDuProcessus } from "@/lib/taches-de-fond/bail";
 import { battementWebArme, executeurAutorise, executeurDuProcessus, lireModeTachesDeFond } from "@/lib/taches-de-fond/mode";
 import { traiterFileEnrichissement } from "@/lib/taches-de-fond/enrichissement";
@@ -436,6 +436,8 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     const { PERSONA_ASSISTANT_IA } = await import("@/modules/assistant-ia/api");
     const r = await balayerTravaux({ personas: { ASSISTANT_IA: PERSONA_ASSISTANT_IA }, mode: lireModeTachesDeFond(), executeur: executeurDuProcessus() });
     if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
+    // P1 ter : le bilan du passage, lu par le diagnostic des missions (« examinés 3, conduits 3 »).
+    return bilan(`examinés ${r.examines}, conduits ${r.conduits.length}${r.conduits.some((c) => c.echouees) ? `, étapes en échec ${r.conduits.reduce((n, c) => n + c.echouees, 0)}` : ""}`);
   } },
 
   // LES CHANTIERS DE DÉVELOPPEMENT (C1, décision 0042) — le même moteur conduit Claude Code, GitHub et Render pour le

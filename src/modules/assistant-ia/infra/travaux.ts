@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
+import { NOM_ASSISTANT } from "../domaine/profil-personne";
 import { proprietaire } from "@/platform/ia/proprietaire";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { accesAssistantIa, vueDeLAssistant } from "./role-config";
@@ -42,6 +43,8 @@ export {
 export type { PersonaTravaux } from "@/lib/missions/travaux/persona";
 // P1 (décision 0047) : la fusion relit un plan, et l'arrêt réversible a ses motifs — par cette même porte.
 export { lirePlan } from "@/lib/missions/travaux/plan";
+// P1 ter (décision 0063) : la requête MÊME du balayage — « cette mission sera-t-elle prise ? » se lit, ne se devine pas.
+export { travauxAFaireAvancer } from "@/lib/missions/travaux/balayage";
 export { MOTIF_ARRET, MOTIF_FUSION } from "@/lib/missions/travaux/service";
 export type { FormatLivrable } from "@/lib/missions/travaux/plan";
 
@@ -168,7 +171,8 @@ function resolveur(fiches: readonly FicheOutil[]): (indice: string) => string | 
 
 export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
   persona: "ASSISTANT_IA",
-  nom: "Assistant IA",
+  // P1 ter (décision A1 : le nom partout) — le journal, le tableau et les consignes disent « Adam », jamais « Assistant IA ».
+  nom: NOM_ASSISTANT,
 
   async refusTravail(principalId) {
     const user = await proprietaire(principalId);
