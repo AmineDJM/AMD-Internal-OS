@@ -141,8 +141,45 @@ export async function retirerComptesPerimes(prefixe: string): Promise<number> {
     const m = /^([0-9a-z]+)_/.exec(c.email.slice(prefixe.length));
     return m ? parseInt(m[1]!, 36) < avant : false;
   }).map((c) => c.id);
-  if (perimes.length === 0) return 0;
-  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.gestes"));
-  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.sortants"));
-  return (await prisma.user.deleteMany({ where: { id: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.comptes", { count: 0 }))).count;
+  return retirerComptes(perimes);
+}
+
+/** Des comptes de banc retirés, avec ce que le journal des gestes et les envois différés tiennent d'eux. */
+async function retirerComptes(ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } }).catch(sansBloquer("bancs.retirerComptes.gestes"));
+  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } }).catch(sansBloquer("bancs.retirerComptes.sortants"));
+  return (await prisma.user.deleteMany({ where: { id: { in: ids } } }).catch(sansBloquer("bancs.retirerComptes.comptes", { count: 0 }))).count;
+}
+
+// ── LES COMPTES D'UN BANC ───────────────────────────────────────────────────────────────────
+
+/**
+ * LES COMPTES QU'UN BANC POSE ET RETIRE — jamais un compte EMPRUNTÉ à la base (`user.findFirst()`).
+ *
+ * Un compte pris au hasard est souvent celui d'un AUTRE banc, qui le retire pendant la suite : ce qui en dépend part en
+ * cascade (`Mission.owner`, `Task.assignedTo`…) ou change de droits sous le test (MESURÉ le 03/11 : la mission de
+ * `horizon/controle.test.ts` disparaissait avec le compte d'un voisin, « horizonOuvert » indéfini sous `npm test`, 4/4
+ * en isolé). Et un compte seulement « trouvé » ne dit rien de ce que le test suppose de lui (rôle, droits, société).
+ *
+ * L'étiquette `<prefixe><horodatage base 36>_<aléa>_` est propre au passage : deux passages du même fichier ne se
+ * retirent pas leurs comptes, et un passage interrompu est rattrapé plus de deux heures après (`retirerComptesPerimes`).
+ */
+export function comptesDeBanc(prefixe: string) {
+  const etiquette = `${prefixe}${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}_`;
+  return {
+    etiquette,
+    /** Un compte du banc ; `VIEWER` actif par défaut, `data` pour ce que le test suppose de lui. */
+    async creer(nom = "compte", data: Partial<Omit<Prisma.UserUncheckedCreateInput, "email">> = {}) {
+      return prisma.user.create({
+        data: { name: `${etiquette}${nom}`, passwordHash: "!", role: "VIEWER", isActive: true, ...data, email: `${etiquette}${nom}@banc.local` },
+        select: { id: true, name: true, email: true, role: true },
+      });
+    },
+    /** Retire les comptes de CE passage, puis ceux d'un passage du même banc interrompu il y a plus de deux heures. */
+    async retirer(): Promise<number> {
+      const ids = (await prisma.user.findMany({ where: { email: { startsWith: etiquette } }, select: { id: true } })).map((u) => u.id);
+      return (await retirerComptes(ids)) + (await retirerComptesPerimes(prefixe));
+    },
+  };
 }

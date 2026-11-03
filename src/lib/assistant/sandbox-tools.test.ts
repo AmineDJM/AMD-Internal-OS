@@ -1,6 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import { executePowerTool, POWER_TOOLS, powerToolsFor } from "./power-tools";
 import { SANDBOX_TOOLS } from "./sandbox-tools";
 import { shortlistNames } from "./context/tool-shortlist";
@@ -17,9 +18,13 @@ import { stripDisplayPayload } from "./workspace/compose";
  */
 const salarie = { id: "sandbox-tools-salarie", name: "Salarié", email: "s@test.dz", role: "VIEWER", access: { modules: new Map() } } as unknown as CurrentUser;
 
-async function directionReelle(): Promise<CurrentUser | null> {
-  const admin = await prisma.user.findFirst({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true, name: true, email: true, role: true } });
-  return admin ? ({ ...admin, access: { modules: new Map() } } as unknown as CurrentUser) : null;
+/** La direction est À CE BANC : un Super Admin emprunté peut être celui d'un voisin, retiré avant que l'audit ne s'écrive. */
+const comptes = comptesDeBanc("__sandboxsql_");
+afterAll(() => comptes.retirer());
+
+async function directionReelle(): Promise<CurrentUser> {
+  const admin = await comptes.creer("direction", { role: "SUPER_ADMIN" });
+  return { ...admin, access: { modules: new Map() } } as unknown as CurrentUser;
 }
 
 const lignes = [
@@ -144,7 +149,6 @@ describe("run_code et chart_advice", () => {
 describe("sql_query, pour la direction", () => {
   it("lit, compose le tableau, porte la provenance, et laisse une ligne d'audit au nom de la personne", async () => {
     const direction = await directionReelle();
-    if (!direction) return; // base sans Super Admin actif : rien à prouver ici
     const marque = `sandbox-audit-${Date.now()}`;
     const raw = await executePowerTool("sql_query", { sql: `SELECT id, name, '${marque}' AS marque FROM "Company" ORDER BY name LIMIT 2`, titre: "Sociétés" }, direction);
     const out = JSON.parse(raw!);

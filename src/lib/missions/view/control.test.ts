@@ -38,6 +38,11 @@ function proprietaire(): Promise<string> {
   return proprietaireDuBanc;
 }
 
+/** « Une autre personne », à ce banc aussi : un compte emprunté ne dit pas ce qu'il voit, ni s'il existera encore. */
+let autreDuBanc: Promise<{ id: string }> | null = null;
+const autrePersonne = (): Promise<{ id: string }> => (autreDuBanc ??= prisma.user
+  .create({ data: { name: `${TAG}-autre`, email: `${TAG}-autre@t.dz`, passwordHash: "x" }, select: { id: true } }));
+
 async function mission(
   ownerId: string,
   over: Partial<{ status: string; priority: number; title: string; replanBloque: boolean }> = {},
@@ -74,8 +79,9 @@ async function etape(
 suite("le parc de missions", () => {
   afterAll(async () => {
     if (creees.length > 0) await prisma.mission.deleteMany({ where: { id: { in: creees } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: `${TAG}@t.dz` } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { in: [`${TAG}@t.dz`, `${TAG}-autre@t.dz`] } } }).catch(() => {});
     proprietaireDuBanc = null;
+    autreDuBanc = null;
   });
 
   it("compte les étapes RÉELLES : un modèle d'éventail ne vaut pas un, ce sont ses filles qui comptent", async () => {
@@ -211,8 +217,7 @@ suite("le parc de missions", () => {
 
   it("le parc d'une personne ne contient QUE ses missions", async () => {
     const owner = await proprietaire();
-    const autre = await prisma.user.findFirst({ where: { id: { not: owner } }, select: { id: true } });
-    if (!autre) return;
+    const autre = await autrePersonne();
     const id = await mission(owner, { title: `${TAG}-mienne` });
     const c = await centreDeMissions(autre.id, { limite: 200 });
     expect(c.vivantes.some((l) => l.id === id)).toBe(false);
@@ -223,8 +228,9 @@ suite("le parc de missions", () => {
 suite("le journal et les attentes", () => {
   afterAll(async () => {
     if (creees.length > 0) await prisma.mission.deleteMany({ where: { id: { in: creees } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { email: `${TAG}@t.dz` } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: { in: [`${TAG}@t.dz`, `${TAG}-autre@t.dz`] } } }).catch(() => {});
     proprietaireDuBanc = null;
+    autreDuBanc = null;
   });
 
   it("le journal ÉCARTE la comptabilité du moteur et DIT combien", async () => {
@@ -276,8 +282,7 @@ suite("le journal et les attentes", () => {
 
   it("le journal d'autrui est INTROUVABLE, pas « vide »", async () => {
     const owner = await proprietaire();
-    const autre = await prisma.user.findFirst({ where: { id: { not: owner } }, select: { id: true } });
-    if (!autre) return;
+    const autre = await autrePersonne();
     const id = await mission(owner, { title: `${TAG}-prive` });
     expect(await journalDeMission(id, autre.id)).toBeNull();
     expect(await attentesDeMission(id, autre.id)).toBeNull();

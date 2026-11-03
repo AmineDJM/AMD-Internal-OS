@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import { recordAudit, recordFieldChanges } from "@/lib/audit";
 
 /**
@@ -22,11 +23,14 @@ const suite = dbOk ? describe : describe.skip;
 
 const TAG = `ZZAUD${Date.now()}`;
 const taches: string[] = [];
+/** La personne à qui la tâche est confiée est À CE BANC — jamais un compte emprunté, qu'un voisin retire en cours de route. */
+const comptes = comptesDeBanc("__auditledger_");
 
 suite("l'audit alimente le registre des faits", () => {
   afterAll(async () => {
     await prisma.businessEvent.deleteMany({ where: { entityId: { startsWith: TAG } } }).catch(() => {});
     await prisma.task.deleteMany({ where: { id: { in: taches } } }).catch(() => {});
+    await comptes.retirer();
   });
 
   it("un téléversement inscrit un fait — sans qu'aucun appelant ait à y penser", async () => {
@@ -67,8 +71,7 @@ suite("l'audit alimente le registre des faits", () => {
   });
 
   it("LE CAS D'ORIGINE : la tâche qui attendait le document se clôt toute seule", async () => {
-    const user = await prisma.user.findFirst({ select: { id: true } });
-    if (!user) return;
+    const user = await comptes.creer("assignee");
 
     const t = await prisma.task.create({
       data: {

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import PizZip from "pizzip";
 import { prisma } from "@/lib/prisma";
+import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import type { CurrentUser } from "@/lib/session";
 import { getMyCompanies } from "@/lib/company";
 import { definirLogo, definirMarque, marqueDe } from "./index";
@@ -24,9 +25,11 @@ let settingsAvant: unknown = null;
 let profilExistait = false;
 const salarie = { id: "brand-test-viewer", name: "Vue", email: "v@test.dz", role: "VIEWER", access: { modules: new Map() } } as unknown as CurrentUser;
 
+/** La direction est À CE BANC : un Super Admin emprunté peut être celui d'un voisin, retiré en cours de route. */
+const comptes = comptesDeBanc("__brand_");
+
 beforeAll(async () => {
-  const a = await prisma.user.findFirst({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true, name: true, email: true, role: true } });
-  if (!a) return;
+  const a = await comptes.creer("direction", { role: "SUPER_ADMIN" });
   admin = { ...a, access: { modules: new Map() } } as unknown as CurrentUser;
   const societes = await getMyCompanies(admin.id);
   if (!societes.length) return;
@@ -37,6 +40,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await comptes.retirer();
   if (!companyId) return;
   // La société ressort comme elle est entrée : le profil retrouve ses réglages, ou disparaît s'il n'existait pas.
   if (profilExistait) await prisma.companyDocumentProfile.update({ where: { companyId }, data: { settings: (settingsAvant ?? undefined) as object | undefined } }).catch(() => undefined);

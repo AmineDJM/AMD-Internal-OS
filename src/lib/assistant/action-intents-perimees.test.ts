@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import { persistActionIntents, retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
 
 /**
@@ -18,6 +19,8 @@ import { persistActionIntents, retirerCaduquesAvantLeTour } from "@/platform/ia/
 
 const TAG = `perim-${Date.now()}`;
 let userId = "";
+/** Le compte est À CE BANC : emprunté, ses intentions partaient avec lui quand son banc le retirait (cascade). */
+const comptes = comptesDeBanc("__intentsperim_");
 
 const graine = (titre: string) => ({
   kind: "create_task", module: "Tasks", title: titre,
@@ -26,14 +29,13 @@ const graine = (titre: string) => ({
 
 describe("le retrait des cartes caduques rend ce que l\'écran doit éteindre", () => {
   beforeEach(async () => {
-    const u = await prisma.user.findFirst({ select: { id: true } });
-    if (!u) throw new Error("aucun compte en base de test");
-    userId = u.id;
+    userId ||= (await comptes.creer("auteur")).id;
     await prisma.assistantActionIntent.deleteMany({ where: { userId, title: { contains: TAG } } });
   });
 
   afterAll(async () => {
     await prisma.assistantActionIntent.deleteMany({ where: { title: { contains: TAG } } }).catch(() => undefined);
+    await comptes.retirer();
   });
 
   it("rend les IDENTIFIANTS retirés, pas un compte — c\'est ce que l\'écran consomme", async () => {

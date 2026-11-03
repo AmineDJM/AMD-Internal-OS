@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { comptesDeBanc } from "@/lib/actions/internes/bancs-concurrents";
 import { missionsAFaireAvancer } from "@/lib/missions/events/router";
 import { consignerMesure } from "@/lib/evals/registre";
 
@@ -30,11 +31,10 @@ const siBase = dbOk ? describe : describe.skip;
 const MARQUE = `battement-replan-${Math.random().toString(36).slice(2, 10)}`;
 const creees: string[] = [];
 
-async function proprietaire(): Promise<string> {
-  const u = await prisma.user.findFirst({ select: { id: true } });
-  if (!u) throw new Error("aucun utilisateur en base");
-  return u.id;
-}
+/** Le propriétaire est À CE BANC : un compte emprunté part avec son banc, et ses missions en cascade (`Mission.owner`). */
+const comptes = comptesDeBanc("__battreplan_");
+let proprietaireDuBanc: Promise<string> | null = null;
+const proprietaire = (): Promise<string> => (proprietaireDuBanc ??= comptes.creer("proprietaire").then((u) => u.id));
 
 async function missionAvec(opts: {
   statut: string; planVersion?: number; replanBloque?: boolean; etapes: { statut: string }[];
@@ -63,6 +63,7 @@ async function missionAvec(opts: {
 siBase("la requête du battement atteint ce qui doit être replanifié", () => {
   afterAll(async () => {
     if (creees.length > 0) await prisma.mission.deleteMany({ where: { id: { in: creees } } }).catch(() => {});
+    await comptes.retirer();
   });
 
   it("LE CAS CENTRAL : toutes les étapes abouties, mission BLOCKED — elle est candidate", async () => {
