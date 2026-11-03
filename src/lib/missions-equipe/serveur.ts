@@ -154,7 +154,7 @@ export async function synchroniserOrdreEmis(requestId: string, actorId: string):
     const a = await prisma.missionAssignment.findUnique({ where: { id: req.missionAssignmentId }, select: { entityType: true, entityId: true, createdById: true, userId: true } });
     if (!a) return;
     const p = await parentMission(a.entityType, a.entityId);
-    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Ordre de mission émis — votre mission est ouverte", body: p.label, link: lienMission(req.missionAssignmentId) }).catch(sansBloquer("missions-equipe-serveur.synchroniserOrdreEmis.notifyUser"));
+    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Ordre de mission émis — votre mission terrain est ouverte", body: p.label, link: lienMission(req.missionAssignmentId) }).catch(sansBloquer("missions-equipe-serveur.synchroniserOrdreEmis.notifyUser"));
     if (a.createdById && a.createdById !== a.userId) {
       await notifyUser({ userId: a.createdById, type: "GENERIC", title: "Ordre de mission émis", body: p.label, link: lienMission(req.missionAssignmentId) }).catch(sansBloquer("missions-equipe-serveur.synchroniserOrdreEmis.notifyUser"));
     }

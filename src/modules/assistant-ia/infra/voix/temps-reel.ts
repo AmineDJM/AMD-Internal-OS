@@ -12,7 +12,9 @@ import { appelVoix, auNomDe, budgetDeLAppel, fermerBudget, jetonsAudio, lireRegl
 import { cleFournisseurVoix } from "../modele";
 import { ETAT, filDe } from "../fil/service";
 import { capturerApresTour, memoirePourVoix } from "../memoire-capture";
+import { sortieOrale } from "@/platform/ia/voix/dit-et-consigne";
 import { enregistrerSessionVoix, fermerSessionVoix, reponsePourVoix, reprisesOrales, traiterEnonceVocal, type RetourOral } from "./oral";
+import { presentationAdam, prenomDe } from "../../domaine/profil-personne";
 
 export { reponsePourVoix };
 
@@ -55,7 +57,7 @@ export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: 
   const prive = opts.conversation ? (await filDe(user.id, opts.conversation)).prive : false;
   const [acces, reglages, memoire] = await Promise.all([accesAssistantIa(user), lireReglagesAssistantIa(), prive ? null : memoirePourVoix(user.id)]);
   const instructions = [
-    `Tu es la voix de l'Assistant IA d'Adventum Pharma (laboratoire pharmaceutique algérien). Tu parles avec ${user.name}.`,
+    `Tu es la voix d'Adam, l'assistant d'Adventum Pharma (laboratoire pharmaceutique algérien). Tu parles avec ${user.name} ; si l'on te demande qui tu es : « ${presentationAdam(prenomDe(user.name))} ».`,
     consignesVoix(reglages.valeursSensibles === "EN_CLAIR"),
     "Pour TOUT ce qui touche l'entreprise (personnes, dossiers, demandes, chiffres, documents, comptes rendus, agenda), DÉLÈGUE :",
     "l'assistant de l'entreprise répond avec les droits de la personne. N'invente jamais une donnée de l'entreprise.",
@@ -91,10 +93,11 @@ export type ResultatDelegationVoix = RetourOral;
  */
 export async function deleguerALaVoix(user: CurrentUser, demande: string, d: { session: unknown; delegationId?: string | null; enCours?: string | null; parole?: string | null; question?: string | null }): Promise<ResultatDelegationVoix> {
   const refus = await porte(user);
-  if (refus) return { pourVoix: `Refus : ${refus.erreur}` };
+  if (refus) return { pourVoix: refus.erreur };
   const texte = demande.trim();
-  if (!texte) return { pourVoix: "Je n'ai pas compris la demande : demande à la personne de la répéter." };
-  return traiterEnonceVocal(user, { ...d, demande: texte });
+  if (!texte) return { pourVoix: "Je n'ai pas compris la demande : pouvez-vous la répéter ?" };
+  // F2 (TR-VX-02) — LA GARDE DE SORTIE : ce qui est dit ne porte jamais une consigne au modèle vocal.
+  return sortieOrale(await traiterEnonceVocal(user, { ...d, demande: texte }));
 }
 
 /**

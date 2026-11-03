@@ -476,3 +476,47 @@ export async function lecturesAgeesDeMission(
     phrase: v.phrase,
   }));
 }
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LA VUE GLOBALE — le Super Admin SEUL (Direction, 02/11/2026).
+ *
+ * « Tout le monde verra les missions d'Adam, chacun selon les missions qu'il lui a données » : chacun lit les siennes
+ * (`centreDeMissions(ownerId)`, les travaux de l'assistant filtrés par personne). Le Super Admin garde EN PLUS le parc
+ * entier, toutes personnes confondues, avec le nom du propriétaire. Cette lecture n'a AUCUN filtre de propriétaire :
+ * l'appelant la garde par `peutPiloterMissionsAdam` — la page, et elle seule, l'appelle.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export interface LigneGlobale {
+  id: string;
+  titre: string;
+  statut: string;
+  etat: string;
+  /** RUNTIME (exécution), TRAVAIL (travail long de l'assistant), WATCH (surveillance)… */
+  genre: string;
+  proprietaire: { id: string; nom: string };
+  majLe: string;
+}
+
+export async function vueGlobaleDesMissions(opts: { limite?: number } = {}): Promise<{ lignes: LigneGlobale[]; vivantes: number; personnes: number }> {
+  const limite = Math.min(Math.max(1, opts.limite ?? 60), 200);
+  const vivantes = { status: { notIn: [...TERMINALES] as never[] } };
+  const [missions, nVivantes, parPersonne] = await Promise.all([
+    prisma.mission.findMany({
+      where: { parentMissionId: null },
+      select: { id: true, title: true, status: true, kind: true, updatedAt: true, owner: { select: { id: true, name: true } } },
+      orderBy: { updatedAt: "desc" },
+      take: limite,
+    }),
+    prisma.mission.count({ where: { parentMissionId: null, ...vivantes } }),
+    prisma.mission.groupBy({ by: ["ownerId"], where: { parentMissionId: null, ...vivantes } }),
+  ]);
+  return {
+    lignes: missions.map((m) => ({
+      id: m.id, titre: m.title, statut: m.status, etat: MISSION_STATUS_LABEL[m.status] ?? m.status, genre: m.kind,
+      proprietaire: { id: m.owner.id, nom: m.owner.name }, majLe: m.updatedAt.toISOString(),
+    })),
+    vivantes: nVivantes,
+    personnes: parPersonne.length,
+  };
+}

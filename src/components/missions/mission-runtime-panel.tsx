@@ -1,5 +1,6 @@
 import { AlertTriangle, Check, CircleAlert, FileSpreadsheet, Loader2, X } from "lucide-react";
 import type { CurrentUser } from "@/lib/session";
+import { peutPiloterMissionsAdam } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { vueMission } from "@/lib/missions/view/workspace";
 import { attentesDeMission, journalDeMission, lecturesAgeesDeMission } from "@/lib/missions/view/control";
@@ -50,24 +51,34 @@ const LIVRABLE_ETAT: Record<string, { texte: string; classe: string }> = {
  * Rend `null` quand la mission n'existe pas OU ne lui appartient pas — les deux cas sont
  * indiscernables de l'extérieur, comme partout ailleurs dans ce produit.
  */
-export async function MissionRuntimePanel({ user, missionId }: { user: CurrentUser; missionId: string }) {
-  const vue = await vueMission(missionId, user.id);
+export async function MissionRuntimePanel({ user, missionId, proprietaireId = user.id }: {
+  user: CurrentUser; missionId: string;
+  /**
+   * À QUI EST LA MISSION — la session elle-même, sauf pour le SUPER ADMIN qui lit celle d'un autre (vue globale,
+   * 02/11/2026). La page seule le pose, après sa garde ; chaque lecture ci-dessous reste filtrée par cet identifiant.
+   */
+  proprietaireId?: string;
+}) {
+  const vue = await vueMission(missionId, proprietaireId);
   if (!vue) return null;
+  // LES GESTES DE CONDUITE suivent le droit (`peutPiloterMissionsAdam`, comme leurs actions) ET la propriété : ailleurs,
+  // la fiche se LIT — un bouton que l'action refuserait n'est pas montré (§118.71).
+  const pilotable = peutPiloterMissionsAdam(user) && proprietaireId === user.id;
 
   const maintenant = new Date();
   const [attentes, journal, lectures, chiffres] = await Promise.all([
-    attentesDeMission(missionId, user.id),
-    journalDeMission(missionId, user.id),
-    lecturesAgeesDeMission(missionId, user.id, maintenant),
+    attentesDeMission(missionId, proprietaireId),
+    journalDeMission(missionId, proprietaireId),
+    lecturesAgeesDeMission(missionId, proprietaireId, maintenant),
     prisma.mission.findFirst({
-      where: { id: missionId, ownerId: user.id },
+      where: { id: missionId, ownerId: proprietaireId },
       select: { priority: true, costUsd: true, modelCalls: true },
     }),
   ]);
 
   // L'accord se cherche dans la liste de CETTE personne : l'identifiant de mission ne suffit
   // pas à en obtenir un, et c'est voulu.
-  const accord = vue.attente?.nodeType === "APPROVAL"
+  const accord = pilotable && vue.attente?.nodeType === "APPROVAL"
     ? (await approbationsEnAttente(user.id)).find((a) => a.missionId === missionId) ?? null
     : null;
 
@@ -89,8 +100,15 @@ export async function MissionRuntimePanel({ user, missionId }: { user: CurrentUs
               (§118.40). Deux endroits qui calculent la même phrase finissent par diverger. */}
           <p className="mt-0.5 text-sm text-slate-600">{vue.subtitle}</p>
         </div>
-        <ConduiteControls missionId={missionId} statut={vue.statut} />
+        {pilotable ? <ConduiteControls missionId={missionId} statut={vue.statut} /> : null}
       </header>
+      {pilotable ? null : (
+        <p className="mt-2 text-xs text-slate-500" data-testid="mission-lecture-seule">
+          {proprietaireId === user.id
+            ? "Lecture seule : la conduite de cette mission (pause, reprise, arrêt) se fait depuis « Missions d'Adam »."
+            : "Lecture seule : vue globale du Super Admin sur la mission d'une autre personne."}
+        </p>
+      )}
 
       {/* LA JAUGE COMPTE LES ÉTAPES RÉELLES. Une mission de trente-trois envois dont deux ont
           échoué affiche 31/33 — jamais « 2/2 étapes du plan ». Sur une mission à horizon, c'est
@@ -117,7 +135,7 @@ export async function MissionRuntimePanel({ user, missionId }: { user: CurrentUs
         </div>
       ) : null}
 
-      {vue.attente?.nodeType === "WAIT_INPUT" ? (
+      {pilotable && vue.attente?.nodeType === "WAIT_INPUT" ? (
         <div className="mt-4 rounded-md border border-slate-300 bg-slate-50 p-3">
           <ElementControls
             missionId={missionId}
@@ -237,7 +255,7 @@ export async function MissionRuntimePanel({ user, missionId }: { user: CurrentUs
       {/* LES GESTES DE CONDUITE FINE. Ils ne sont proposés que sur une mission VIVANTE :
           repriorisier ou modifier une mission terminée n'a pas de sens, et un bouton qui ne
           peut rien faire apprend à ne plus faire confiance aux boutons. */}
-      {vue.statut !== "COMPLETED" && vue.statut !== "CANCELLED" ? (
+      {pilotable && vue.statut !== "COMPLETED" && vue.statut !== "CANCELLED" ? (
         <div className="mt-4 border-t border-slate-100 pt-3">
           <PrioriteControls missionId={missionId} priorite={chiffres?.priority ?? 0} />
           <ModificationControls missionId={missionId} />

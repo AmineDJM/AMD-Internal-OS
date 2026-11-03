@@ -25,7 +25,7 @@ export interface AiSettings {
 type FeatureKey = Exclude<keyof AiSettings, "masterEnabled">;
 
 const FEATURES: { key: FeatureKey; label: string; desc: string }[] = [
-  { key: "assistantEnabled", label: "Assistant IA (chatbot + bulle flottante)", desc: "Conversation, recherche et actions à confirmer." },
+  { key: "assistantEnabled", label: "Adam — l'assistant (chatbot + bulle flottante)", desc: "Conversation, recherche et actions à confirmer." },
   { key: "proactiveNudgesEnabled", label: "Suggestions proactives", desc: "Analyse des messages non lus et propositions d'actions." },
   { key: "brainEnabled", label: "Adventum Brain", desc: "Briefing de direction, copilote et synthèses de risques." },
   { key: "processIntelEnabled", label: "Process Intelligence", desc: "Synthèse IA des ralentissements et de la charge." },

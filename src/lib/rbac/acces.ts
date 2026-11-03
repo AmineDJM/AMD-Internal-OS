@@ -15,6 +15,7 @@ import { carrierAccess } from "../regulatory/assignment";
 import { NAVIGATION, NAV_LEGACY_LABELS } from "../labels"; // labels n'importe de rbac QUE le type `Module` → aucun cycle runtime
 import { lireSections } from "../annuaires/acces"; // module PUR, zéro import → aucun cycle
 import { sansBloquer } from "@/lib/journal"; // module PUR, zéro import → aucun cycle
+import { modulesParBase } from "@/platform/donnees/contexte"; // D5 : le port de l'accès par base (aucun import de module)
 import { MODULES, type Action, type Module } from "./modules";
 import { PERMISSIONS } from "./permissions";
 import { defaultScope, hasGlobalView, recruitmentAccessFor, seesWholeSecretariat } from "./roles";
@@ -617,6 +618,16 @@ export const getAccess = perRequest(
     // sont synchrones et servent partout (tableau, recherche, sélecteurs de produits,
     // assistant). Un droit qui exigerait une requête à chaque appel ne pourrait pas y vivre.
     // (`pipeline` est résolu plus haut : le porteur d'un dossier verrouillé en dépend.)
+
+    // ── L'ACCÈS PAR BASE (D5, décision 0057) ───────────────────────────────────
+    // Sous l'application stricte (réglée par le Super Admin), une base OUVERTE à la personne ouvre ses modules — jamais
+    // par-dessus un blocage explicite (`grantImplicit`) — et une base FERMÉE masque un module dont toutes les bases le
+    // sont. Le juge est le module `acces-bases`, branché au démarrage ; sans lui (tests, scripts), rien ne change.
+    const parBase = modulesParBase()?.({ userId, roles: [role, secondaryRole] });
+    if (parBase) {
+      for (const o of parBase.ouvrir) grantImplicit(o.module as Module, o.gestes as Action[], "ALL");
+      for (const m of parBase.masquer) modules.delete(m as Module);
+    }
 
     return {
       modules, rowGrants, secondaryRole, role,

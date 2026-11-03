@@ -324,6 +324,8 @@ export async function enregistrerReglagesChantiers(formData: FormData): Promise<
     plafondUsd: formData.get("plafondUsd"), lancementsMax: formData.get("lancementsMax"), deploiementsMax: formData.get("deploiementsMax"),
     tentativesMax: formData.get("tentativesMax"), jourUsdMax: formData.get("jourUsdMax"), jourLancementsMax: formData.get("jourLancementsMax"),
     jourDeploiementsMax: formData.get("jourDeploiementsMax"), enParallele: formData.get("enParallele"), autofixMinutes: formData.get("autofixMinutes"),
+    attenteCommitHeures: formData.get("attenteCommitHeures"), relanceSansCommitHeures: formData.get("relanceSansCommitHeures"),
+    correctionsMax: formData.get("correctionsMax"), alerteApresEchecs: formData.get("alerteApresEchecs"),
   });
   const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { chantiersReglages: true } });
   const json = { ...r } as Record<string, number>;
@@ -331,7 +333,7 @@ export async function enregistrerReglagesChantiers(formData: FormData): Promise<
   const dire = (x: unknown) => JSON.stringify(lireReglagesChantiers(x));
   await recordAudit({
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Chantiers de développement — plafonds",
-    oldValue: dire(avant?.chantiersReglages ?? null), newValue: dire(r), summary: `Plafonds des chantiers : ${r.plafondUsd} $ par chantier, ${r.lancementsMax} lancements, ${r.deploiementsMax} déploiements, ${r.tentativesMax} tentatives ; jour ${r.jourUsdMax} $`,
+    oldValue: dire(avant?.chantiersReglages ?? null), newValue: dire(r), summary: `Plafonds des chantiers : ${r.plafondUsd} $ par chantier, ${r.lancementsMax} lancements, ${r.deploiementsMax} déploiements, ${r.tentativesMax} tentatives, ${r.correctionsMax} corrections (alerte au ${r.alerteApresEchecs}ᵉ échec), ${r.attenteCommitHeures} h sans commit ; jour ${r.jourUsdMax} $`,
   });
   revalidatePath("/admin/ai");
   return { ok: true };

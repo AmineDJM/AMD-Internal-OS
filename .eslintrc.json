@@ -957,9 +957,43 @@
     },
     {
       "files": [
+        "src/modules/assistant-ia/infra/adam/outils-adam.ts"
+      ],
+      "plugins": [
+        "@typescript-eslint"
+      ],
+      "rules": {
+        "@typescript-eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/lib/assistant",
+                  "@/lib/assistant/**",
+                  "@/lib/assistant-*",
+                  "@/components/chief/**",
+                  "@/app/(app)/chief-of-staff/**",
+                  "@/app/api/assistant/**",
+                  "@/platform/in-process/*",
+                  "!@/platform/in-process/porte-assistant-ia",
+                  "@/platform/in-process/*/**"
+                ],
+                "message": "Décision 0055 : ce fichier — le SEUL de l'Assistant IA qui lit Adam — ne lit que la porte @/platform/in-process/porte-assistant-ia (RESIDUS exact de src/platform/ia/frontieres.test.ts)."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
         "src/modules/assistant-ia/**",
         "src/app/(app)/assistant/**",
         "src/app/api/assistant-ia/**"
+      ],
+      "excludedFiles": [
+        "src/modules/assistant-ia/infra/adam/outils-adam.ts"
       ],
       "plugins": [
         "@typescript-eslint"
@@ -979,7 +1013,7 @@
                   "@/app/api/assistant/**",
                   "@/platform/in-process/**"
                 ],
-                "message": "L'Assistant IA n'importe jamais Adam (lib/assistant*, son écran, son pont in-process) : ce que les deux partagent vit au socle src/platform/ia/ — décision 0013, src/platform/ia/frontieres.test.ts."
+                "message": "L'Assistant IA n'importe jamais Adam (lib/assistant*, son écran, son pont in-process) : ce que les deux partagent vit au socle src/platform/ia/ — décision 0013 ; seule exception, la porte lue par infra/adam/outils-adam.ts (décision 0055)."
               }
             ]
           }

@@ -5,6 +5,26 @@
 > Tests were NOT run (the vitest `globalSetup` touches Postgres); test outcomes below are derived
 > statically from the test source plus a read-only run of the boundary scanner (`scripts/adam-boundary.ts`).
 
+> **Update 2026-11-02 — lot A1, « un seul assistant : Adam » — name, menu, routes, missions** (decision record
+> `docs/assistant/decisions/0056-adam-nom-menu-missions.md`, which REVISES decision 0013 on naming and screens) [V]:
+> - **Name**: module `ASSISTANT_IA` keeps its key; label "Adam" (`MODULE_LABELS`, nav entry `/assistant`, console
+>   `/admin/ai/acces`). Identity is pure and from the ACCOUNT: `presentationAdam(prenom)`, `identiteDuModele()` (first line of
+>   the stable prompt prefix in `infra/contexte.ts`), "Ta présentation" line in `sectionProfil`, voice instructions
+>   (`infra/voix/temps-reel.ts`). Notification titles "Adam : …". Engine/tools untouched (lot A2 plugs old-Adam capabilities).
+> - **Menu**: `NavItem.masque` (new) hides an entry for everyone incl. Super Admin (`navigationFor`, onboarding); used on
+>   `CHIEF_OF_STAFF`. "Missions d'Adam" now `module: "ASSISTANT_IA"`, no gate (gate `adamMissions` still resolved in
+>   `nav-access.ts`). Palette "Demander à Adam" gets `bureauAdam = peutVoirAdam(user)` from the layout.
+> - **Routes**: old bodies of `/chief-of-staff`, `/inbox`, `/reglages` moved (`git mv`) to `app/(app)/adam/{bureau,boite,
+>   reglages}/page.tsx` (segment guard `exigerAdamVisible` in `adam/layout.tsx`, tab bar `OngletsAdam`, CSS `.adam-corps`).
+>   `chief-of-staff/*` pages now `redirect(versEcranAdam(...))` (pure, `lib/labels/onglets.ts`, re-exported by the bridge
+>   `platform/in-process/visibilite-adam.ts` to keep the boundary count). `app/(app)/adam/` added to ADAM perimeters
+>   (`boundary-scan.ts`, `frontieres.test.ts`). `/assistant` shows `OngletsAdam` iff `peutVoirAdam(user)`.
+> - **Missions**: `/centre-de-missions` = `peutUtiliserAssistantIA || SA`; everyone: `mesMissions(user.id)` (TRAVAIL, client
+>   list `ecrans/missions/liste-missions-adam.tsx`, gestures by `gestesPermis`) + own RUNTIME (`centreDeMissions(user.id)`);
+>   SA only: accords, bulk, kill switch, `vueGlobaleDesMissions()` (`lib/missions/view/control.ts`, no owner filter — caller
+>   guards). `/missions/<id>`: owner, or SA via `proprietaireDeMission` (read-only panel when not owner: `pilotable` prop of
+>   `MissionRuntimePanel`). Team missions tab renamed "Missions terrain" (labels/notifications only).
+
 > **Update 2026-11-02 — lot T1, documents / juridique / Drive** (decision record
 > `docs/assistant/decisions/0053-documents-juridique-drive.md`) [V]:
 > - **Operations** (`src/modules/assistant-ia/infra/operations/juridique.ts`, in `OPERATIONS_IA`, journaled J7 like every
@@ -26,6 +46,20 @@
 >   `src/lib/office/conversions-atelier.ts`) when no engine runs.
 > - **Bench**: 36 `DOC-` tasks with deterministic `verifier` (new `Tache` field, run by `scripts/bench/audit-assistant/jouer.ts`),
 >   5 `DOC-ATK-` attacks, `semis-documents.ts`, new persona `juriste`; executed + undone against the DB in `documents-t1.test.ts`.
+
+> **Update 2026-11-02 — lot A2, « one assistant: Adam » (decision record `docs/assistant/decisions/0055-adam-complet-super-admin.md`,
+> REVISES 0013)** [V]:
+> - **One engine.** The Assistant IA engine (`src/modules/assistant-ia`) now carries every former Adam capability for the
+>   **Super Admin only** (primary role, not in exact view). Catalogue classification (a/b/c) lives in
+>   `src/platform/in-process/porte-assistant-ia.ts` (138 Adam tools: 32 already covered, 71 reads, 32 card-gated writes, 4 screen-only),
+>   exhaustiveness enforced by `porte-assistant-ia.test.ts`; human view `docs/assistant/adam-inventaire.md`.
+> - **One crossing.** Only `src/modules/assistant-ia/infra/adam/outils-adam.ts` imports that porte (named in `RESIDUS`,
+>   `src/platform/ia/frontieres.test.ts`, plus a dedicated ESLint override). Adam → IA and socle → either stay at zero; the
+>   module's `DETTE_HERITEE` toward `src/lib/` is unchanged (the porte lives in the in-process bridge).
+> - **Writes** never run during the turn: card `kind: "adam_sa_op"` → `confirmation.ts` → `executerCarteAdam` under
+>   `journaliserGeste` (K10 undo). Reads go through the normal tool filter (tokenisation, provenance).
+> - **Selection**: Adam fiches are truncated (220 chars) with a 0.7 rank factor (`FicheOutil.facteur`) — J6 recall@5 stays 95.0 %.
+> - **Tests**: `src/modules/assistant-ia/adam-super-admin.test.ts` (real DB), Q1 bench attacks `ADAM-SA-*`.
 
 > **Update 2026-10-29 — lot J0, Adam / Assistant IA / AI socle separation** (decision record
 > `docs/assistant/decisions/0013-jarvis-architecture.md`, map `docs/architecture/MODULES.md` §7) [V]:
@@ -876,6 +910,35 @@ Gotchas [V]:
 [U] `node:vm` + worker sandbox strength against hostile model-generated code.
 [U] Production `AiSetting` / `AppSetting` values (switch states) — not read.
 
+## O2 (2026-11-02) — orchestrateur d'équipe : programmes, travailleurs parallèles, file d'intégration [V]
+
+Décision [0059](../assistant/decisions/0059-orchestrateur-equipe.md), architecture `docs/architecture/ORCHESTRATEUR-EQUIPE.md`.
+- **Programme** = `Mission kind "PROGRAMME"` (persona ADAM, Super Admin) ; ses tâches = chantiers ENFANTS (`parentMissionId`,
+  préservé par `approuverChantier` qui rematérialise). Dossier : `carnet.programme` (`equipe/dossier.ts`), un seul écrivain
+  sous le bail du programme (`prendreBail`).
+- **Plan** : `equipe/programme.ts` (`lirePlanProgramme` — validateur déterministe ; `regrouperPetitesTaches`) ; MiMo
+  planifie à la demande (`planificateur.ts`, 2ᵉ essai avec les fautes, Sol en recours) ; Terra peut donner le plan tel quel.
+- **Ressources nommées** : `equipe/ressources.ts` — SCHEMA, CONTRAT, API, DEPENDANCES, GENERES, MODULE:<m> ; réservées
+  `RESSOURCE:<dépôt>:<nom>` (nouvelle ressource de `reservations.ts`) et vérifiées au diff par `DEV_VERIFIER` (rouge
+  « ressources ») quand le plan du chantier porte `ressources`.
+- **Ordonnanceur** pur (`ordonnanceur.ts`) : dépendances INTÉGRÉES, aucune gêne avec une tâche vivante non intégrée,
+  concurrence (défaut 3), budget. **Conduite** événementielle (`conduite.ts`) : battement `chantiers.balayage` et boucle
+  courte des réveils (`scheduled.ts` → `equipe/api.ts`) ; la fin d'un chantier enfant réveille son programme (`clore`).
+- **Réservations d'un enfant vert** TRANSFÉRÉES au programme au rapport (`transfererAuProgramme`), rendues à
+  l'intégration (`libererCles`).
+- **File d'intégration** : table `IntegrationFile` (index unique PARTIEL : une entrée active par dépôt+cible) ;
+  `integration.ts` (`avancerFile` : tête actuelle → `claude/integration/<cible>/<id>-<tour>` → fusion → CI du résultat →
+  avance fast-forward / carte pour main ; reprise par relecture de git ; `forgeGardee`) ; `integrateur.ts` (dépôt des
+  tâches vertes, renvoi à la MÊME session sous reçu, réentrée sur commit vert dans le périmètre, 3ᵉ renvoi prévenu, 6ᵉ = échec).
+- **Travailleurs** : `travailleurs.ts` — sessions cloud Claude Code SEULEMENT (Direction 02-03/11 : « abonnement ») ;
+  Managed Agents et Agent SDK écartés ; quota horaire `EQUIPE_SESSIONS_HEURE_MAX` (25) ; coûts par nature `coutsDuProgramme`.
+- **Outils** (Assistant IA et Adam, par la porte `chantiers/outils.ts`) : `lancer_un_programme`, `ou_en_est_programme`,
+  `consigne_programme`, `valider_programme`, `annuler_programme`.
+- **Tableau** : `travaux/tableau.ts` (`ProgrammeTableau`, famille PROGRAMME, signature qui suit `IntegrationFile`) +
+  `ecrans/missions/bloc-programme.tsx`.
+- **Gotchas** : la file n'ouvre pas de PR (une cible protégée qui refuse le fast-forward exige une PR existante) ; un
+  programme ne déploie jamais ; l'annulation d'une session cloud est impossible (dit).
+
 ## C2 (2026-11-01) — connecteurs des chantiers de développement [V]
 
 - **Contract** `src/platform/dev/ports.ts` (zero import, L0 socle): `AgentDeveloppeur` (Claude Code), `ForgeGit` (GitHub),
@@ -949,3 +1012,14 @@ would collide across parallel suites in the test DB.
   file), `demander_rallonge_caisse`, `confirmer_reception_caisse`, `reserver_salle`, `declarer_salle`, `lire_salles`.
   `classement.ts` no longer files `petty-cash-actions` under BUDGETS (`SANS_FAMILLE_METIER`): it closed the cash box to its
   own holder.
+- C2 fixes (02/11): `agentDe.disponible()` = routine OR relay alive & connected; `DEV_SESSION` wakes the chantier via
+  `ORDRE:`/`SESSION:` refs and `adopterSessionDuRelais` replaces `ordre-<id>` with the real `session_…` (ledger now
+  passes `payload` to `reveillerChantiersSurFait`; `relancer` re-reads the order if the event was lost);
+  `reglagesDuPlan` = stricter of plan budget and console; destructive SQL migrations in the diff (read with
+  `ForgeGit.fichier` → C2 `contenuFichier`) are stated on the merge card and require a card before deploying an
+  unmerged branch (`DEPLOIEMENT_MIGRATION`).
+- Decision 0058 (02/11): commit wait 24 h (`attenteCommitHeures`), "where are you?" to the same session every 4 h
+  (`relancer({ sansNouvelleSession })` never opens a new session), dead session (relay "archived/not found") relaunched; at 24 h,
+  pause `ATTEND_CONSIGNES` (no hard failure). `deciderAntiBoucle` → CORRIGER | ESCALADER_SOL | CONSIGNES with `alerte` at the
+  3rd red (`prevenir`), `correctionsMax` 8. Reservations of a live chantier never expire (`STATUTS_VIVANTS`). Tool
+  `consigne_chantier` → `donnerConsigneChantier` (same session / PR thread / new session with history; resets tours).

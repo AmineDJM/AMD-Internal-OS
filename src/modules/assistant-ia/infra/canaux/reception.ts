@@ -191,7 +191,7 @@ export async function recevoirPieces(e: EntreeReception, maintenant = new Date()
     const user = await proprietaire(userId);
     if (!user || !peutUtiliserAssistantIA(user)) {
       await clore("REFUS_ACCES", { userId, raison: "Assistant IA non ouvert à ce compte" });
-      return { issue: "REFUS_ACCES", reponse: "Votre compte n'a pas accès à l'Assistant IA : rien n'a été enregistré.", userId };
+      return { issue: "REFUS_ACCES", reponse: "Votre compte n'a pas accès à Adam : rien n'a été enregistré.", userId };
     }
     if (e.automatique) {
       await clore("REFUS_AUTOMATIQUE", { userId, raison: "expéditeur automatique" });
@@ -200,7 +200,7 @@ export async function recevoirPieces(e: EntreeReception, maintenant = new Date()
     const fichiers = typeof e.fichiers === "function" ? await e.fichiers() : e.fichiers;
     if (!fichiers.length) {
       await clore("SANS_PIECE", { userId });
-      return { issue: "SANS_PIECE", reponse: "Je reçois ici les pièces jointes (document, photo). Pour me parler, utilisez l'Assistant IA.", userId };
+      return { issue: "SANS_PIECE", reponse: "Je reçois ici les pièces jointes (document, photo). Pour me parler, utilisez Adam (menu « Adam »).", userId };
     }
     return await deposerEtAnnoncer(user, { ...e, fichiers }, journal.id, maintenant);
   } catch (err) {
@@ -302,7 +302,7 @@ async function deposerEtAnnoncer(user: CurrentUser, e: EntreeReception & { fichi
   }).catch(sansBloquer("canaux.deposer.journal-fil"));
 
   // 6. NOTIFIER — jamais le contenu de la pièce, seulement son nom et la question.
-  await notifierConversation(user.id, fil.id, gardees.length ? `Assistant IA : pièce reçue par ${canal}` : `Assistant IA : pièce non reçue (${canal})`, contenu);
+  await notifierConversation(user.id, fil.id, gardees.length ? `Adam : pièce reçue par ${canal}` : `Adam : pièce non reçue (${canal})`, contenu);
 
   if (!gardees.length) return { issue: "REFUS_TAILLE", reponse: `Pièce non enregistrée : ${refusees.join(" ; ")}`.slice(0, 900), userId: user.id, conversation: fil.id, tourId: reponse.id };
   return {

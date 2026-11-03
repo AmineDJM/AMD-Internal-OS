@@ -11,7 +11,7 @@ import type { JugeObjectif } from "@/lib/missions/goal/evaluate";
 import { signalerUneFois } from "@/lib/missions/travaux/signaux";
 import { TYPES_ETAPE_CHANTIER, type TypeEtapeChantier } from "@/lib/missions/chantiers/plan";
 import { jugerPreuves, lireDossier, type DossierChantier } from "@/lib/missions/chantiers/dossier";
-import { MOTIF_BUDGET_CHANTIER, lireReglagesChantiers, motifBudgetChantier, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
+import { MOTIF_BUDGET_CHANTIER, MOTIF_CONSIGNES_CHANTIER, lireReglagesChantiers, motifBudgetChantier, reglagesDuPlan, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
 import { executerEtape, rapporter, type ContexteEtape, type DeposerRapport, type PortsDev } from "@/lib/missions/chantiers/etapes";
 import { cerveauReel, type CerveauChantier } from "@/lib/missions/chantiers/cerveau";
 import { portsDevBranches } from "@/lib/missions/chantiers/ports-dev";
@@ -60,7 +60,7 @@ export interface BilanChantier {
   statut: string | null;
   vagues: number;
   executees: number;
-  arret?: "DROITS" | "BUDGET" | "BAIL" | "INTERRUPTEUR" | "DUREE" | "NON_APPROUVE" | "EN_PAUSE" | "PORTS";
+  arret?: "DROITS" | "BUDGET" | "CONSIGNES" | "BAIL" | "INTERRUPTEUR" | "DUREE" | "NON_APPROUVE" | "EN_PAUSE" | "PORTS";
 }
 
 const TERMINAUX = new Set(["COMPLETED", "CANCELLED"]);
@@ -148,12 +148,15 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
   await traiterRevert(chantierId, m.principalId, m.title, deps.ports === undefined ? portsDevBranches() : deps.ports, clock);
   if (TERMINAUX.has(m.status)) return bilan;
   const principalId = m.principalId;
-  const reglages = deps.reglages ?? (await lireReglagesConsole());
   let d = await lireLeDossier(chantierId);
+  // LE PLUS STRICT du budget du plan et des réglages : lancements, déploiements, tentatives, dollars.
+  const reglages = reglagesDuPlan(deps.reglages ?? (await lireReglagesConsole()), d.plan.budget);
 
   const motifBudget = async (prochain?: "lancement" | "deploiement") =>
     motifBudgetChantier(await consommation(chantierId, d, clock.now()), reglages, m.plafondUsd, prochain);
 
+  // Un chantier EN PAUSE (plafond, consignes attendues) garde sa branche et son périmètre : prolongés à chaque passage.
+  if (m.status === "PAUSED") await prolonger(chantierId, clock.now());
   if (m.status === "PAUSED") {
     if (!m.pausedReason?.startsWith(MOTIF_BUDGET_CHANTIER) || (await motifBudget()) !== null) return { ...bilan, arret: "EN_PAUSE" };
     await reprendre(chantierId, principalId, "CHANTIER");
@@ -174,6 +177,8 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
   await prolonger(chantierId, clock.now());
 
   let plafond: string | null = null;
+  /** Posée par une étape (`demanderConsignes`) : le chantier se met en pause « attend tes consignes » en fin de vague. */
+  let consignes: string | null = null;
   const contexte = (ctx: StepContext): ContexteEtape => ({
     chantierId, principalId, mission: ctx.mission, step: ctx.step, clock, ports, cerveau, reglages, plafondUsd: m.plafondUsd,
     ...(deps.deposerRapport ? { deposerRapport: deps.deposerRapport } : {}),
@@ -189,6 +194,16 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
     demanderValidation: async (geste, texte) => {
       await journaliser(chantierId, "CHANTIER_VALIDATION_DEMANDEE", `Validation demandée : ${texte}.`, { stepKey: ctx.step.key, geste }, principalId);
       await signalerUneFois(chantierId, principalId, `validation:${ctx.step.key}`, `Validation demandée — « ${m.title} »`, `${texte}. Répondez dans la conversation (« valide » / « refuse »), à l'écrit ou à l'oral.`);
+    },
+    prevenir: async (cle, titre, corps) => {
+      await journaliser(chantierId, "CHANTIER_ALERTE", `${titre} — ${corps}`.slice(0, 900), { stepKey: ctx.step.key, cle }, principalId);
+      await signalerUneFois(chantierId, principalId, cle, titre, corps);
+    },
+    demanderConsignes: async (raison, detail) => {
+      await ecrireDossier(chantierId, (x) => { x.attenteConsignes = `${raison}. ${detail}`.slice(0, 900); });
+      await journaliser(chantierId, "CHANTIER_CONSIGNES_DEMANDEES", `Attend les consignes de la Direction : ${raison}.`, { stepKey: ctx.step.key }, principalId);
+      await signalerUneFois(chantierId, principalId, `consignes:${ctx.step.key}:${raison}`.slice(0, 190), `Chantier en attente de vos consignes : « ${m.title} »`, `${raison}. ${detail}`);
+      consignes = raison;
     },
   });
 
@@ -228,6 +243,12 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
   try {
     while (bilan.vagues < (deps.vagues ?? 12)) {
       if (Date.now() - debut > (deps.dureeMaxMs ?? 45_000)) { bilan.arret = "DUREE"; break; }
+      if (consignes) {
+        // PAS D'ÉCHEC SEC : en pause, branche et périmètre GARDÉS (réservations d'un chantier vivant, `reservations.ts`).
+        await mettreEnPause(chantierId, principalId, `${MOTIF_CONSIGNES_CHANTIER} — ${consignes}`, "CHANTIER");
+        bilan.arret = "CONSIGNES";
+        break;
+      }
       const motif = plafond ?? (await motifBudget());
       if (motif) {
         await mettreEnPause(chantierId, principalId, `${MOTIF_BUDGET_CHANTIER} — ${motif}`, "CHANTIER");
@@ -241,7 +262,7 @@ export async function conduireChantier(chantierId: string, deps: DepsChantier = 
       if (coupe) { bilan.arret = coupe; break; }
       if (TERMINAUX.has(t.status) || t.status === "PAUSED") break;
       // Un plafond posé par une étape : la vague suivante le lit en tête et met le chantier en pause.
-      if (plafond || t.executees + t.echouees + t.deployees > 0) { vides = 0; continue; }
+      if (plafond || consignes || t.executees + t.echouees + t.deployees > 0) { vides = 0; continue; }
       if (!OCCUPE.has(t.status) || ++vides >= 2) break;
     }
   } finally {
@@ -290,6 +311,9 @@ export async function clore(chantierId: string, principalId: string, titre: stri
     }, coutUsd, statut === "CANCELLED" ? "ANNULE" : undefined);
   }
   await liberer(chantierId);
+  // O2 (décision 0059) : la fin d'un chantier enfant RÉVEILLE son programme (ses réservations lui sont passées au rapport).
+  const parent = (await prisma.mission.findUnique({ where: { id: chantierId }, select: { parentMissionId: true } }))?.parentMissionId;
+  if (parent) await prisma.mission.updateMany({ where: { id: parent, kind: "PROGRAMME" }, data: { reveilDemandeLe: clock.now() } });
   if (statut !== "COMPLETED") {
     const r = (await lireLeDossier(chantierId)).rapport;
     await signalerUneFois(chantierId, principalId, `fin:${statut}`, `Chantier ${statut === "CANCELLED" ? "annulé" : "arrêté"} : « ${titre} »`, (r?.texte ?? "").slice(0, 280));

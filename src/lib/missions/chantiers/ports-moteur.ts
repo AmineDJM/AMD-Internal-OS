@@ -17,10 +17,21 @@ export type Resultat<T> =
   /** `incertain` : la demande a PU partir (délai dépassé) — ne jamais la relancer à l'aveugle. */
   | { ok: false; erreur: string; reessayerApresMs?: number; definitif?: boolean; incertain?: boolean };
 export interface RefDepot { proprietaire: string; nom: string }
-export interface ConsigneDev { depot: RefDepot; branche: string; brancheBase: string; objectif: string; perimetre: string[]; criteres: string[]; commandesVerif: string[]; contexte?: string; chantierId: string }
-export interface SessionDev { sessionId: string; url: string; lanceeLe: string; moyen: "routine" | "commentaire-pr" | "relais-cli" | "managed-agents" }
-/** `cle` : la clé d'idempotence du geste (chantier | étape | tour) — la même clé ne lance jamais deux sessions. */
-export interface AgentDeveloppeur { disponible(): Promise<{ ok: boolean; raison?: string; moyens: SessionDev["moyen"][] }>; lancer(c: ConsigneDev, cle: string): Promise<Resultat<SessionDev>>; relancer(c: ConsigneDev & { probleme: string; pr?: number; session?: string }, cle: string): Promise<Resultat<SessionDev>>; }
+export interface ConsigneDev { depot: RefDepot; branche: string; brancheBase: string; objectif: string; perimetre: string[]; criteres: string[]; commandesVerif: string[]; contexte?: string; chantierId: string; }
+/** `ordreId` : l'ordre du relais CLI qui porte ce geste (son issue se relit par `ordre`). */
+export interface SessionDev { sessionId: string; url: string; lanceeLe: string; moyen: "routine" | "commentaire-pr" | "relais-cli" | "managed-agents"; ordreId?: string }
+/**
+ * `cle` : la clé d'idempotence du geste (chantier | étape | tour) — la même clé ne lance jamais deux sessions.
+ * `relancer(… sansNouvelleSession)` : JOINDRE la session (même session, sinon fil de la PR) sans jamais en ouvrir une
+ * neuve — refus `injoignable` sinon (la question « où en es-tu ? » ne doit pas doubler une session qui travaille).
+ * `ordre` : l'issue d'un ordre du relais (une session archivée / introuvable est MORTE : on peut relancer).
+ */
+export interface AgentDeveloppeur {
+  disponible(): Promise<{ ok: boolean; raison?: string; moyens: SessionDev["moyen"][] }>;
+  lancer(c: ConsigneDev, cle: string): Promise<Resultat<SessionDev>>;
+  relancer(c: ConsigneDev & { probleme: string; pr?: number; session?: string; sansNouvelleSession?: boolean }, cle: string): Promise<Resultat<SessionDev>>;
+  ordre?(ordreId: string): Promise<Resultat<{ statut: "EN_ATTENTE" | "EN_COURS" | "FAIT" | "ECHEC" | "INCERTAIN"; erreur: string | null }>>;
+}
 export interface EtatBranche { existe: boolean; sha: string | null; commits: { sha: string; message: string; le: string }[]; fichiers: string[] }
 export interface EtatChecks { statut: "vert" | "rouge" | "en_cours" | "aucun"; echecs: { nom: string; url: string; extrait: string }[] }
 export interface ForgeGit { branche(d: RefDepot, b: string, depuisSha?: string): Promise<Resultat<EtatBranche>>; pr(d: RefDepot, b: string): Promise<Resultat<{ numero: number; url: string; titre?: string; mergeable: boolean | null; etat: "ouverte" | "fusionnee" | "fermee" } | null>>; checks(d: RefDepot, sha: string): Promise<Resultat<EtatChecks>>; commenterPr(d: RefDepot, numero: number, texte: string): Promise<Resultat<{ url: string }>>; ouvrirPr(d: RefDepot, b: string, base: string, titre: string, corps: string): Promise<Resultat<{ numero: number; url: string }>>; fusionnerPr(d: RefDepot, numero: number, shaAttendu: string): Promise<Resultat<{ sha: string }>>; proposerRevert(d: RefDepot, numero: number, titre: string, corps: string): Promise<Resultat<{ numero: number; url: string }>>; fichier(d: RefDepot, sha: string, chemin: string): Promise<Resultat<{ octets: Buffer; mime: string }>>; }

@@ -153,7 +153,7 @@ export function categorieProposee(description: string, explicite?: string | null
 export const REFUS_INCONNU_WHATSAPP =
   "Bonjour, ce numéro n'est pas reconnu par l'assistant d'Adventum Pharma : rien n'a été enregistré. "
   + "Si vous êtes collaborateur, faites ajouter ce numéro à votre fiche dans l'ERP.";
-export const ACCUSE_WHATSAPP = "Bien reçu — la pièce est dans votre conversation avec l'Assistant IA.";
+export const ACCUSE_WHATSAPP = "Bien reçu — la pièce est dans votre conversation avec Adam.";
 
 export function messageDeReception(d: {
   canal: CanalEntrant; noms: string[]; description?: string | null; cibleLibelle?: string | null; carte: boolean;

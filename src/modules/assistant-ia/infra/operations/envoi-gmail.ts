@@ -55,15 +55,24 @@ export const SCHEMA_MAILS = {
   },
 };
 
-interface MailPrepare { destinataires: Destinataire[]; cc: Destinataire[]; objet: string; contenu: ContenuMail; pieces: string[] }
+interface MailPrepare {
+  destinataires: Destinataire[]; cc: Destinataire[]; objet: string; contenu: ContenuMail; pieces: string[];
+  /** F2 (TR-MU-03) : le destinataire introuvable, à compléter sur la carte (« le pharmacien responsable »). */
+  aCompleter?: string;
+}
 
 /** Résoudre et lire chaque mail : au plus UNE question (la première ambiguïté ou le premier nom introuvable). */
-export async function preparerMails(brut: unknown, corpsSimple?: { a: string; objet: string; corps: string; cc?: string }): Promise<{ ok: true; mails: MailPrepare[] } | { manque: string[]; precision?: string }> {
+export async function preparerMails(
+  brut: unknown, corpsSimple?: { a: string; objet: string; corps: string; cc?: string },
+  /** F2 : un destinataire introuvable (ou absent) n'arrête pas la carte — il reste à compléter sur elle. */
+  opts: { destinataireACompleter?: boolean } = {},
+): Promise<{ ok: true; mails: MailPrepare[] } | { manque: string[]; precision?: string }> {
   const liste = Array.isArray(brut) ? brut.slice(0, MAILS_MAX) : corpsSimple ? [{ a: corpsSimple.a, cc: corpsSimple.cc, objet: corpsSimple.objet, contenu: { salutation: "Bonjour,", paragraphes: corpsSimple.corps.split(/\n{2,}/), cloture: "Bien cordialement," } }] : [];
   if (!liste.length) return { manque: ["le destinataire et le contenu du mail"] };
   const mails: MailPrepare[] = [];
   for (const m of liste) {
     const o = (m && typeof m === "object" ? m : {}) as Record<string, unknown>;
+    let aCompleter: string | undefined;
     const resoudre = async (champ: string): Promise<Destinataire[] | { manque: string[]; precision?: string }> => {
       const out: Destinataire[] = [];
       for (const qui of texte(o, champ).split(/\s*[,;]\s*|\s+et\s+/).filter(Boolean).slice(0, 20)) {
@@ -76,13 +85,15 @@ export async function preparerMails(brut: unknown, corpsSimple?: { a: string; ob
         const r = await resoudreDestinataire(qui);
         if (r.ok) out.push(r.destinataire);
         else if ("ambigu" in r) return { manque: [`laquelle de ces personnes pour « ${qui} » : ${r.ambigu.join(" ; ")}`], precision: "Plusieurs personnes portent ce nom dans l'annuaire." };
+        else if (opts.destinataireACompleter && champ === "a") aCompleter = [aCompleter, r.inconnu].filter(Boolean).join(", ");
         else return { manque: [`l'adresse e-mail de « ${r.inconnu} » (personne de ce nom dans l'annuaire)`] };
       }
       return out;
     };
     const a = await resoudre("a");
     if (!Array.isArray(a)) return a;
-    if (!a.length) return { manque: ["le destinataire du mail"] };
+    if (!a.length && !aCompleter && opts.destinataireACompleter) aCompleter = texte(o, "a") || "le destinataire";
+    if (!a.length && !aCompleter) return { manque: ["le destinataire du mail"] };
     const cc = await resoudre("cc");
     if (!Array.isArray(cc)) return cc;
     const lu = lireContenuMail(o.contenu);
@@ -90,7 +101,7 @@ export async function preparerMails(brut: unknown, corpsSimple?: { a: string; ob
     const objet = texte(o, "objet").slice(0, 200);
     if (!objet) return { manque: ["l'objet du mail"] };
     const pieces = Array.isArray(o.pieces) ? o.pieces.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
-    mails.push({ destinataires: a, cc, objet, contenu: lu.contenu, pieces });
+    mails.push({ destinataires: a, cc, objet, contenu: lu.contenu, pieces, ...(aCompleter ? { aCompleter } : {}) });
   }
   return { ok: true, mails };
 }

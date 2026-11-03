@@ -14,12 +14,13 @@
  */
 import type { FamilleIa } from "@/platform/ia/capacites/familles";
 
-export type OriginePerimetre = "ROLE" | "AVENANT" | "CONSOLE";
+export type OriginePerimetre = "ROLE" | "AVENANT" | "CONSOLE" | "BASE";
 
 export const LIBELLE_ORIGINE: Record<OriginePerimetre | "CONTRAT" | "DEFAUT" | "REGLAGE_ROLE" | "REGLAGE_PERSONNE", string> = {
   ROLE: "Droit applicatif du rôle",
   AVENANT: "Avenant au contrat",
   CONSOLE: "Droit daté de la console",
+  BASE: "Base ouverte nommément (accès par base)",
   CONTRAT: "Contrat de travail",
   DEFAUT: "Droits applicatifs (défaut)",
   REGLAGE_ROLE: "Réglage du rôle (console)",

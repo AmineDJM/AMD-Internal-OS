@@ -29,8 +29,12 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   (privées : aucune porte pour un autre compte). Les intentions
   (`AssistantActionIntent`) sont au socle IA (`src/platform/ia/intentions/`), partagées avec Adam.
 - **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12), `assistant.conversations-privees` (0027, purge à 30 jours) (`src/lib/scheduled.ts`).
-- **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
-  `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
+- **Frontière** : le module n'importe pas Adam — SAUF une porte depuis A2 (décision 0055, qui révise 0013) : le seul fichier
+  `infra/adam/outils-adam.ts` lit `platform/in-process/porte-assistant-ia.ts` (`RESIDUS` exact dans
+  `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent d'autre vit au socle `src/platform/ia/`.
+- **Adam complet pour le Super Admin (A2, décision 0055)** : les fonctions de l'ancien Adam sont des outils du moteur offerts au
+  seul Super Admin (rôle principal, hors Vue exacte) — lectures dans la conversation, écritures par carte `adam_sa_op` exécutées
+  à la confirmation sous le journal des effets ; consigne `CONSIGNE_ADAM_SA` ; inventaire `docs/assistant/adam-inventaire.md`.
 
 ## Consommation précise — jetons et dollars (lot K8, décision 0035)
 
@@ -404,7 +408,7 @@ avec vérificateur en base, 3 attaques). Tests qui exécutent puis annulent : `i
 ## Documents, juridique et Drive (lot T1, décision 0053)
 
 « Ranger parfaitement les documents à leur place, convertir, modifier, checker le Drive, nous donner des documents. »
-- **Ranger** : `ranger_au_juridique` (`infra/operations/juridique.ts`) — 1 à 12 pièces en UNE carte ; nature et dossier
+- **Ranger** : `ranger_au_juridique` (`infra/operations/juridique.ts`) — 1 à 30 pièces en UNE carte ; nature et dossier
   canoniques (`domaine/juridique/classement.ts`, pur), dates lues sur la pièce si le modèle ne les a pas, partie résolue à
   l'annuaire (la société elle-même pour les statuts et PV), entité, lecteurs ; au-delà, une mission (le geste est offert
   aux travaux). `modifier_fiche_juridique` : échéance, notes, dossier… seuls les champs donnés changent. Exécution par les

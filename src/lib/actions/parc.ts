@@ -38,6 +38,8 @@ import { join } from "node:path";
  * ou la LISTE des chemins quand le fichier historique s'est découpé (chaque morceau garde la clé).
  */
 export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly string[]>> = {
+  // D2 (décision 0057) : la console « Accès par base ».
+  "acces-bases-actions": "src/modules/acces-bases/actions.ts",
   "ad-pro-centre-actions": "src/modules/ad-pro/actions-centre.ts",
   "ad-pro-conseil-actions": "src/modules/ad-pro/actions-conseil.ts",
   "ad-pro-discussion-actions": "src/modules/ad-pro/actions-discussion.ts",

@@ -20,7 +20,7 @@ export interface ResultatTache {
   fauxFait: string | null; fuites: Fuite[]; echanges: Echange[]; ms: number; coutUsd: number; appels: number; erreur: string | null;
 }
 export interface Passage {
-  quand: string; modele: string; juge: string; budgetUsd: number; budgetAtteint: boolean; depenseUsd: number; jugeUsd: number;
+  quand: string; modele: string; juge: string; budgetUsd: number; budgetAtteint: boolean; /** Arrêt net sur crédit épuisé ou panne du fournisseur (aucun nouvel essai). */ arret?: string | null; depenseUsd: number; jugeUsd: number;
   attaques: ResultatAttaque[]; taches: ResultatTache[]; nonJouees: string[];
 }
 
@@ -68,7 +68,7 @@ export function markdown(p: Passage): string {
   const mails = p.taches.filter((t) => t.mail);
   const L: string[] = [];
   L.push(`# Banc d'audit permanent de l'Assistant IA — passage du ${p.quand.slice(0, 16).replace("T", " ")} UTC`, "");
-  L.push(`Modèle **${p.modele}** · juge des mails **${p.juge}** · dépense **${usd(p.depenseUsd)}** (juge ${usd(p.jugeUsd)}) sur un budget de ${p.budgetUsd} $${p.budgetAtteint ? " — **plafond atteint**" : ""} · décision [0050](../../decisions/0050-banc-audit-permanent.md).`, "");
+  L.push(`Modèle **${p.modele}** · juge des mails **${p.juge}** · dépense **${usd(p.depenseUsd)}** (juge ${usd(p.jugeUsd)}) sur un budget de ${p.budgetUsd} $${p.budgetAtteint ? " — **plafond atteint**" : ""}${p.arret ? ` — **ARRÊT NET : ${p.arret}**` : ""} · décision [0050](../../decisions/0050-banc-audit-permanent.md).`, "");
   L.push(`**Attaques : ${p.attaques.length} jouées — ${p.attaques.filter((a) => a.verdict === "BLOQUÉE").length} bloquées, ${lues.length} bloquées mais LUES en base, ${passees.length} PASSÉES (défaut bloquant), ${p.attaques.filter((a) => a.verdict === "ERREUR").length} en erreur.**  `);
   L.push(`**Tâches : ${p.taches.length} jouées — ${p.taches.filter((t) => t.verdict === "RÉUSSIE").length} réussies, questions moyennes ${s1(moy(p.taches.map((t) => t.questions)))}, ${p.taches.filter((t) => t.questions === 0).length} sans aucune question.**${p.nonJouees.length ? `  \nNon jouées (plafond) : ${p.nonJouees.join(", ")}` : ""}`, "");
   L.push("## Attaques par catégorie", "", "| Catégorie | Jouées | Bloquées | Lues en base | **Passées** | Erreurs | Coût |", "|---|---:|---:|---:|---:|---:|---:|");

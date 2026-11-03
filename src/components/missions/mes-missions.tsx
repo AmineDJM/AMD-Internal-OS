@@ -105,7 +105,7 @@ export function MesMissions({ missions, aValider, articles, currentUserId }: {
 
       {missions.length === 0 && aValider.length === 0 && (
         <p className="rounded-lg border border-dashed border-border px-3 py-8 text-center text-sm text-muted-foreground">
-          Aucune mission. Quand un organisateur vous invite sur un congrès, un événement ou un sponsoring, l&apos;invitation arrive ici.
+          Aucune mission terrain. Quand un organisateur vous invite sur un congrès, un événement ou un sponsoring, l&apos;invitation arrive ici.
         </p>
       )}
 

@@ -23,6 +23,8 @@ export interface ScenarioDev {
   ciBase?: EtatChecks["statut"];
   /** La forge refuse la fusion (protection de branche). */
   fusionRefusee?: boolean;
+  /** Le texte des fichiers poussés (le SQL d'une migration, lu avant la fusion) ; absent = fichier vide. */
+  contenus?: Record<string, string>;
 }
 
 export interface FauxPorts extends PortsDev {
@@ -94,7 +96,7 @@ export function fauxPortsDev(s: ScenarioDev = {}): FauxPorts {
       journal.push({ quoi: "revert", detail: { numero } });
       return ok({ numero: 100 + numero, url: `https://github.com/pr/${100 + numero}` });
     },
-    fichier: async () => ok({ octets: Buffer.from(""), mime: "text/plain" }),
+    fichier: async (_d, _sha, chemin) => ok({ octets: Buffer.from(s.contenus?.[chemin] ?? ""), mime: "text/plain" }),
   };
   const hebergeur: Hebergeur = {
     services: async () => ok([{ id: "srv-erp", nom: "ERP", type: "web_service", url: "https://erp.test", branche: "main", autoDeploy: true, healthCheckPath: "/api/health" }]),

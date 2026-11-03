@@ -5,6 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 
 import { prisma } from "@/lib/prisma";
+import { retirerComptesPerimes } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess } from "@/lib/rbac";
 import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { remplacerModelesPourTests } from "../generer";
@@ -44,6 +45,9 @@ async function compte(nom: string, assistant: boolean): Promise<CurrentUser> {
   return { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
 }
 
+/** F2 : ce que la voix reçoit, les deux canaux — le texte DIT et la consigne silencieuse. */
+const tout = (r: { pourVoix: string; consigne?: string }) => [r.pourVoix, r.consigne].filter(Boolean).join(" ");
+
 describe("ce que la voix peut dire d'une réponse écrite", () => {
   it("une valeur révélée à l'écran ne repart jamais à la voix ; ni Markdown ni adresse", () => {
     const v = reponsePourVoix(`**Salaire de base** : ${BORNE_REVELEE}185 000 DZD${BORNE_REVELEE}, voir [la fiche](/rh/1) https://x.dz`);
@@ -69,6 +73,10 @@ suite("Assistant IA — voix GPT-Live", () => {
     await prisma.assistantIaFil.deleteMany({ where: { userId: kam?.id } });
     await prisma.assistantIaVoixSession.deleteMany({ where: { userId: kam?.id } });
     await prisma.assistantIaVoixTravail.deleteMany({ where: { userId: kam?.id } });
+    // LES COMPTES DU BANC, retirés eux aussi (F1, mesuré : un compte par passage restait, et recevait les notifications
+    // de rôle de toute la suite). Leurs notifications partent en cascade.
+    await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+    await retirerComptesPerimes("__iavoixlive_");
   });
 
   it("la session : gpt-live-1, délégation client, aucun outil donné à la voix, SDP échangé côté serveur ; refusée sans l'Assistant IA", async () => {
@@ -138,8 +146,8 @@ suite("Assistant IA — voix GPT-Live", () => {
     const f = fin as Extract<typeof fin, { etat: "pret" }>;
     expect(f.carte?.intentId).toBeTruthy();
     // La carte orale (K4) : un résumé à dire, puis la question — jamais un renvoi à l'écran.
-    expect(f.pourVoix).toMatch(/Ne demande PAS encore de confirmer|Tu confirmes \?/);
-    expect(f.pourVoix).not.toMatch(/regarde l'écran|affichée à l'écran/);
+    expect(tout(f)).toMatch(/Ne demande PAS encore de confirmer|Tu confirmes \?/);
+    expect(tout(f)).not.toMatch(/regarde l'écran|affichée à l'écran/);
     expect(await prisma.fieldReport.count({ where: { delegateId: kam.id } })).toBe(0);
   });
 

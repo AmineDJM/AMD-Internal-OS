@@ -42,7 +42,7 @@ export function BoutonVoixTempsReel({ desactive, conversation, className }: {
   return (
     <>
       <button type="button" onClick={() => setOuvert(true)} disabled={desactive} data-testid="voix-temps-reel"
-        aria-label="Conversation vocale avec l'assistant" title="Conversation vocale (gpt-live-1)"
+        aria-label="Conversation vocale avec Adam" title="Conversation vocale (gpt-live-1)"
         className={className ?? "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-slate-600 hover:bg-slate-100 disabled:opacity-40 dark:text-zinc-300 dark:hover:bg-zinc-800"}>
         <AudioLines className="h-5 w-5" />
       </button>
@@ -72,7 +72,7 @@ function PanneauVoix({ onFermer, conversation }: { onFermer: () => void; convers
 
   const deleguer = useCallback(async (demande: string, delegationId: string, ctx?: { session: string | null; enCours: string | null; parole: string; question?: string | null }): Promise<ResultatDelegation> => {
     const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande, delegationId, session: ctx?.session, enCours: ctx?.enCours, parole: ctx?.parole, question: ctx?.question ?? null }) });
-    if (!r.ok) return { pourVoix: "Le serveur n'a pas répondu : dis-le et propose de réessayer." };
+    if (!r.ok) return { pourVoix: "Le serveur n'a pas répondu : vous pouvez réessayer.", consigne: "Dis-le simplement." };
     return (await r.json()) as ResultatDelegation;
   }, []);
 

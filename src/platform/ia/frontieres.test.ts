@@ -29,6 +29,8 @@ import { cibleInterne, specificateurs } from "@/platform/imports";
 const ADAM = [
   "src/lib/assistant/", "src/lib/assistant.ts", "src/lib/assistant-",
   "src/components/chief/", "src/app/(app)/chief-of-staff/", "src/app/api/assistant/",
+  // Les onglets d'Adam du Super Admin (boîte, réglages, bureau), déplacés de `/chief-of-staff` le 02/11/2026.
+  "src/app/(app)/adam/",
   "src/platform/in-process/",
   // Le fichier d'actions serveur d'Adam (cartes, mémoire, pièces jointes de sa conversation).
   "src/lib/actions/assistant-actions.ts",
@@ -49,7 +51,16 @@ const SOCLE = ["src/platform/ia/"];
  * (`infra/lectures-erp.ts`…) l'ont remplacé : Assistant IA → Adam = 0. Une entrée qui reviendrait ici est un couplage
  * ajouté — ce que les deux partagent va au socle.
  */
-const RESIDUS: string[] = [];
+/*
+ * A2 (décision 0055, RÉVISE 0013 — « un seul assistant : Adam ») : la Direction a fusionné les deux produits — le Super
+ * Admin garde TOUTES les fonctions d'Adam, dans le moteur de l'Assistant IA. Le catalogue d'Adam (~150 outils, ~60 k
+ * lignes) ne se déménage pas au socle sans le réécrire : il est lu par UNE porte d'Adam, par UN fichier de l'Assistant
+ * IA. C'est le SEUL franchissement permis, et il est EXACT : un second fichier de l'Assistant IA qui lirait la porte, ou
+ * ce fichier qui lirait autre chose d'Adam, fait échouer ce test. Adam → IA et le socle restent à zéro.
+ */
+const RESIDUS: string[] = [
+  "src/modules/assistant-ia/infra/adam/outils-adam.ts → src/platform/in-process/porte-assistant-ia",
+];
 
 const dans = (f: string, perimetre: string[]): boolean =>
   perimetre.some((p) => f.startsWith(p) || `${f}/`.startsWith(p) || (/\.tsx?$/.test(p) && f === p.replace(/\.tsx?$/, "")));

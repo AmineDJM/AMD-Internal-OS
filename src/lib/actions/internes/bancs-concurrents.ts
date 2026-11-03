@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -80,8 +81,10 @@ const enMotif = (m: string): string => (m.includes("%") ? m : `%${m}%`);
 
 /**
  * Les sessions qui attendent un verrou PAR CETTE TRANSACTION — directement, ou derrière une session qu'elle bloque (le
- * second geste attend souvent le verrou de ligne du premier, qui attend la barrière) —, et dont la requête nomme un des
- * motifs. L'instantané de `pg_stat_activity` est rafraîchi : dans une transaction, Postgres le fige au premier accès.
+ * second geste attend souvent le verrou de ligne du premier, qui attend la barrière) —, dont la requête nomme un des
+ * motifs, et qui sont de CE PROCESSUS : un verrou de table arrête aussi les écritures des autres fichiers de la suite, et
+ * une insertion voisine bloquée là ouvrait la barrière avant le geste du banc. Chaque processus signe ses connexions
+ * (`application_name`, `vitest.setup-processus.ts`) ; sans signature, tout est compté, comme avant. L'instantané de `pg_stat_activity` est rafraîchi : dans une transaction, Postgres le fige au premier accès.
  */
 export async function compterBloques(tx: Prisma.TransactionClient, motifs: string | string[]): Promise<number> {
   await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
@@ -92,7 +95,8 @@ export async function compterBloques(tx: Prisma.TransactionClient, motifs: strin
       SELECT a.pid FROM pg_stat_activity a JOIN bloquees b ON b.pid = ANY(pg_blocking_pids(a.pid))
     )
     SELECT count(*)::int AS n FROM pg_stat_activity a JOIN bloquees b ON b.pid = a.pid
-    WHERE a.wait_event_type = 'Lock' AND a.query ILIKE ANY(${[motifs].flat().map(enMotif)}::text[])`;
+    WHERE a.wait_event_type = 'Lock' AND a.query ILIKE ANY(${[motifs].flat().map(enMotif)}::text[])
+      AND (current_setting('application_name') = '' OR a.application_name = current_setting('application_name'))`;
   return n;
 }
 
@@ -120,4 +124,25 @@ export async function attendreBloques(
     }
     await new Promise((r) => setTimeout(r, 25));
   }
+}
+
+// ── LES RESTES D'UN PASSAGE INTERROMPU ──────────────────────────────────────────────────────
+
+/**
+ * RETIRER LES COMPTES D'UN BANC LAISSÉS PAR UN PASSAGE DE PLUS DE DEUX HEURES — étiquette `<prefixe><horodatage
+ * base 36>_…`. Un compte de banc laissé en base reçoit ensuite les notifications de RÔLE de toute la suite (mesuré, F1 :
+ * des milliers par compte et par passage). Jamais une étiquette récente : un autre passage du même fichier peut tourner
+ * à côté. Rend le nombre de comptes retirés (leurs notifications partent en cascade).
+ */
+export async function retirerComptesPerimes(prefixe: string): Promise<number> {
+  const avant = Date.now() - 2 * 3_600_000;
+  const comptes = await prisma.user.findMany({ where: { email: { startsWith: prefixe } }, select: { id: true, email: true } });
+  const perimes = comptes.filter((c) => {
+    const m = /^([0-9a-z]+)_/.exec(c.email.slice(prefixe.length));
+    return m ? parseInt(m[1]!, 36) < avant : false;
+  }).map((c) => c.id);
+  if (perimes.length === 0) return 0;
+  await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.gestes"));
+  await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.sortants"));
+  return (await prisma.user.deleteMany({ where: { id: { in: perimes } } }).catch(sansBloquer("bancs.retirerComptesPerimes.comptes", { count: 0 }))).count;
 }

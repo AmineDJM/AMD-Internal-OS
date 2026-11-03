@@ -1,5 +1,6 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { estUnBancDeMesure } from "@/lib/sortie/garde";
+import { appliquerAuResultat, planDeRequete, type Relations } from "@/platform/donnees/garde";
 import { etatDuGeste } from "@/lib/effets/magasin";
 
 /**
@@ -230,10 +231,97 @@ async function transactionEnPlace(tx: Record<string | symbol, unknown>, arg: unk
   return out;
 }
 
+/**
+ * LE CLIENT GARDÉ (D3, décision 0057) — le client de base, plus la garde de l'accès par base. Construit une fois, à la
+ * première requête. Sans évaluateur branché (aucun module ne s'est inscrit : tests, scripts), la garde ne fait
+ * qu'appeler la requête. Pendant un geste d'agent, c'est le client du geste qui parle, comme avant.
+ */
+let garde: PrismaClient | null = null;
+
+/** Les relations du modèle de données, lues une fois dans `Prisma.dmmf` : la garde suit `include` / `select`. */
+let carteRelations: Map<string, Map<string, string>> | null = null;
+let carteScalaires: Map<string, Set<string>> | null = null;
+function lireModeleDeDonnees(): void {
+  carteRelations = new Map();
+  carteScalaires = new Map();
+  try {
+    for (const m of Prisma.dmmf.datamodel.models) {
+      carteRelations.set(m.name, new Map(m.fields.filter((f) => f.kind === "object").map((f) => [f.name, String(f.type)])));
+      carteScalaires.set(m.name, new Set(m.fields.filter((f) => f.kind !== "object").map((f) => f.name)));
+    }
+  } catch {
+    // Client sans modèle de données : la garde juge le modèle demandé, sans ses relations.
+  }
+}
+const relationsPrisma: Relations = (modele) => {
+  if (!carteRelations) lireModeleDeDonnees();
+  return carteRelations!.get(modele) ?? new Map();
+};
+const scalaires = (modele: string): ReadonlySet<string> => {
+  if (!carteScalaires) lireModeleDeDonnees();
+  return carteScalaires!.get(modele) ?? new Set();
+};
+
+/**
+ * SES PROPRES DONNÉES (D4, décision de la Direction n° 6) — la requête ne cherche QUE ses lignes : le filtre
+ * d'appartenance s'ajoute à `where` (son compte, sa fiche RH) ; un `select` lit en plus ce qu'il faut pour vérifier.
+ * Une table sans colonne d'appartenance ne peut rien avoir à elle : refus.
+ */
+function restreindreAuxSiennes(modele: string, args: Record<string, unknown>, p: { userId: string; employeId: string | null }, refus: Error, filtrer: boolean) {
+  const cols = scalaires(modele);
+  const ou: Record<string, unknown>[] = [];
+  if (cols.has("userId")) ou.push({ userId: p.userId });
+  if (cols.has("employeeId") && p.employeId) ou.push({ employeeId: p.employeId });
+  if (modele === "Employee" && p.employeId) ou.push({ id: p.employeId });
+  if (modele === "User") ou.push({ id: p.userId });
+  if (!ou.length) throw refus;
+  // findUnique n'accepte pas un AND : il garde son `where`, et le résultat est vérifié ligne à ligne.
+  const where = !filtrer ? args.where : args.where ? { AND: [args.where, { OR: ou }] } : { OR: ou };
+  const ajoutees: string[] = [];
+  let select = args.select as Record<string, unknown> | undefined;
+  if (select) {
+    select = { ...select };
+    for (const c of ["id", "userId", "employeeId"]) if (cols.has(c) && !select[c]) { select[c] = true; ajoutees.push(c); }
+  }
+  return { args: { ...args, where, ...(select ? { select } : {}) }, ajoutees };
+}
+
+/** L'extension de requête : chaque requête passe devant la garde (`platform/donnees/garde.ts`), puis part. */
+function extensionGarde() {
+  return Prisma.defineExtension({
+    name: "garde-acces-par-base",
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }) {
+          // D3 : l'évaluateur COMPTE toujours ce qu'il aurait refusé. D4 : un plan n'existe que si le Super Admin a activé
+          // l'application stricte — sinon rien ne change, la requête part telle quelle.
+          const plan = planDeRequete(model, operation, args, relationsPrisma);
+          if (!plan) return query(args);
+          if (plan.refus) throw plan.refus;
+          let a = args as Record<string, unknown>;
+          let ajoutees: readonly string[] = [];
+          if (plan.propres && model) {
+            const filtrer = operation !== "findUnique" && operation !== "findUniqueOrThrow";
+            ({ args: a, ajoutees } = restreindreAuxSiennes(model, a ?? {}, plan.propres, plan.propres.refus, filtrer));
+          }
+          return appliquerAuResultat(plan, model ?? "", operation, await query(a), ajoutees);
+        },
+      },
+    },
+  });
+}
+/** Ce qu'un client étendu ne porte pas : le relais le prend au client de base (les intergiciels `$use` valent pour les deux). */
+const PROPRES_AU_CLIENT_DE_BASE: ReadonlySet<string | symbol> = new Set(["$use", "$on"]);
+function clientGarde(): PrismaClient {
+  return (garde ??= prismaBrut.$extends(extensionGarde()) as unknown as PrismaClient);
+}
+
 export const prisma: PrismaClient = new Proxy(prismaBrut, {
   get(cible, prop) {
     const geste = clientDuGeste();
-    const source = (geste && prop in geste ? geste : cible) as Record<string | symbol, unknown>;
+    // Hors geste : le client gardé ; ce qu'il n'a pas (`$use`, `$on` — un client étendu ne les porte pas), le client de base.
+    const garde = clientGarde() as unknown as Record<string | symbol, unknown>;
+    const source = (geste && prop in geste ? geste : PROPRES_AU_CLIENT_DE_BASE.has(prop) ? cible : garde) as Record<string | symbol, unknown>;
     if (geste && prop === "$transaction" && typeof geste.$transaction !== "function") {
       return (arg: unknown) => transactionEnPlace(geste, arg);
     }

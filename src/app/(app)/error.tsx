@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { AlertTriangle, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { lireRefusBase } from "@/modules/acces-bases/partage";
 
 /**
  * QUAND UNE PAGE CASSE — on le dit, on propose de réessayer, on ne perd pas le menu.
@@ -19,10 +20,29 @@ import { Button } from "@/components/ui/button";
  * la panne.
  */
 export default function AppError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  // D4 (décision 0057) : un REFUS de l'accès par base n'est pas une panne — on dit quelle base, et à qui demander.
+  const refus = lireRefusBase(error.digest);
   React.useEffect(() => {
     // Journal côté navigateur aussi : une page cassée sans trace ne se corrige pas.
     console.error("[page] rendu impossible", error);
   }, [error]);
+
+  if (refus) {
+    return (
+      <div className="space-y-5" data-testid="refus-acces-base">
+        <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-warning/30 bg-warning/5 px-6 py-14 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning/10 text-warning">
+            <AlertTriangle className="h-6 w-6" />
+          </div>
+          <p className="text-sm font-medium text-foreground">Accès refusé à cette donnée.</p>
+          <p className="max-w-md text-sm text-muted-foreground">{refus.phrase}</p>
+          <Link href="/" className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-card px-4 text-sm font-medium hover:bg-secondary">
+            Revenir à l&apos;accueil
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

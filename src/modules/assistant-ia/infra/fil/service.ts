@@ -351,7 +351,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
   }
   const texteDit = texteDuTour({ contenu: tour.contenu, vocal: vocal as unknown as Prisma.JsonValue });
 
-  const r = await jouerTour(user, {
+  const jouer = async () => jouerTour(user, {
     texte: texteDit,
     prive: fil.prive,
     sectionDossier: await sectionDossierDuTour(user, fil.dossierId),
@@ -374,6 +374,17 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     surTexte: (brut) => { partiel = messagePartiel(brut); publier(); },
     surOutil: (libelle) => { if (!etapes.includes(libelle)) etapes.push(libelle); publier(true); },
   });
+  let r = await jouer();
+  // F2 (banc réel, MG-10) — LA REPRISE : le modèle n'a pas répondu (délai, réseau) ; la cause est dite sur la réponse en
+  // cours, puis la demande est rejouée UNE fois, dans la même réponse (aucune carte n'a été confirmée entre-temps).
+  if (!r.ok && r.transitoire) {
+    console.warn("[assistant-fil] tour sans réponse du modèle : reprise", { tour: tour.id });
+    partiel = `${r.error} Je reprends la demande…`;
+    publier(true);
+    await enVol;
+    const second = await jouer();
+    r = second.ok || !second.transitoire ? second : { ...second, error: `${second.error} La reprise a échoué aussi : réessayez dans un moment, ou reformulez la demande.` };
+  }
   await enVol;
 
   // M1 (décision 0045) : la capture de mémoire suit la réponse — annoncée sur le tour pour que l'écran continue de lire.
@@ -425,7 +436,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     const sujet = texteDit.replace(/\s+/g, " ").trim().slice(0, 60) || (vocal ? "message vocal" : "pièces jointes");
     await notifyUser({
       userId, type: "GENERIC",
-      title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
+      title: r.ok ? `Adam : réponse prête — « ${sujet} »` : `Adam : la demande n'a pas abouti — « ${sujet} »`,
       // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
       body: (enClair ? horsEcranSansValeur : sansValeursRevelees)(r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
       // LA BONNE CONVERSATION (décision 0027) : l'ERP l'ouvre sur `/assistant`, l'app Adventum IA renvoie ce lien vers `/ia`.

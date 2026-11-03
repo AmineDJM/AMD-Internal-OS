@@ -1,3 +1,5 @@
+import { avecIdentiteDonnees } from "@/platform/donnees/contexte";
+import { AccesBaseRefuse } from "@/platform/donnees/garde";
 import { createHash, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -75,7 +77,14 @@ export function handle<P = Record<string, string>>(
       }
 
       // Next 15 : les paramètres de route arrivent en PROMESSE (l'accès synchrone n'est qu'une compatibilité dépréciée).
-      const data = await fn({ req, ctx, params: await routeCtx.params, mark: (i) => Object.assign(marks, i) });
+      // D5 (décision 0057) : la garde de l'accès par base juge l'utilisateur AU NOM DUQUEL l'agent agit — une route d'API
+      // n'a pas de case par requête, l'identité est posée ici, autour du traitement.
+      const u = ctx.user;
+      const params = await routeCtx.params;
+      const data = await avecIdentiteDonnees(
+        { userId: u.id, roles: [u.role, u.secondaryRole], peut: (m, g) => u.access.modules.get(m as never)?.actions.has(g as never) ?? false },
+        () => fn({ req, ctx: ctx!, params, mark: (i) => Object.assign(marks, i) }),
+      );
 
       // Une réponse BINAIRE (téléchargement) sort du cadre JSON : elle est rendue telle quelle,
       // après la même authentification, les mêmes portées et la même journalisation.
@@ -98,8 +107,9 @@ export function handle<P = Record<string, string>>(
       await log(ctx, req, options, marks, status, true, null, Date.now() - started, correlationId);
       return json(body, status, correlationId);
     } catch (err) {
-      const apiErr = err instanceof ApiError ? err : errors.internal();
-      if (!(err instanceof ApiError)) console.error(`[api] ${options.operationId} a échoué`, err);
+      // Un refus de l'accès par base est un 403 qui dit quelle base — pas une panne interne.
+      const apiErr = err instanceof ApiError ? err : err instanceof AccesBaseRefuse ? errors.forbidden(err.message) : errors.internal();
+      if (!(err instanceof ApiError) && !(err instanceof AccesBaseRefuse)) console.error(`[api] ${options.operationId} a échoué`, err);
       await log(ctx, req, options, marks, apiErr.status, false, apiErr.code, Date.now() - started, correlationId);
       return json(apiErr.body(correlationId), apiErr.status, correlationId);
     }

@@ -21,9 +21,63 @@ let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
-const TAG = "__centrepaie__";
+/**
+ * UN SUFFIXE PAR RUN (§118.136), et un MÉNAGE QUI SE LIT EN BASE. L'étiquette fixe faisait tomber tout second passage :
+ * le ménage ne connaissait que les salariés semés en tête (A1, A2, B1) — « Salarié A3 », créé par un cas, restait, et la
+ * clé étrangère refusait EN SILENCE (`.catch`) la suppression de sa société, de son département, de ses comptes. Le
+ * ménage part désormais de l'étiquette : les sociétés qui la portent, et tout ce qui y est rattaché. En tête de suite,
+ * les restes d'un passage de plus de deux heures (ou de l'ancienne étiquette fixe) sont ménagés de la même façon.
+ */
+const PREFIXE = "__centrepaie__";
+const TAG = `${PREFIXE}${Date.now().toString(36)}__`;
 const YEAR = 2033;
 const MONTH = 3;
+
+/** Le ménage d'une étiquette — exacte (`exacte`) pour l'ancienne étiquette fixe, sinon par préfixe. */
+async function menage(tag: string, exacte = false): Promise<void> {
+  const nomDe = (n: string) => !exacte || n.startsWith(`${tag} `) || n === tag;
+  const societes = (await prisma.company.findMany({ where: { name: { startsWith: `${tag} ` } }, select: { id: true } })).map((c) => c.id);
+  const departements = (await prisma.department.findMany({ where: { companyId: { in: societes } }, select: { id: true } })).map((d) => d.id);
+  const comptes = (await prisma.user.findMany({ where: { email: { startsWith: tag } }, select: { id: true, email: true } }))
+    .filter((u) => !exacte || !/^__centrepaie__[0-9a-z]+__/.test(u.email)).map((u) => u.id);
+  const salaries = (await prisma.employee.findMany({ where: { OR: [{ companyId: { in: societes } }, { userId: { in: comptes } }] }, select: { id: true } })).map((e) => e.id);
+  const enveloppes = (await prisma.budgetEnvelope.findMany({ where: { name: { startsWith: `${tag} ` } }, select: { id: true, name: true } })).filter((e) => nomDe(e.name)).map((e) => e.id);
+  const remises = await prisma.pettyCashAllotment.findMany({ where: { departmentId: { in: departements } }, select: { expenseOrderId: true, transactionId: true } }).catch(() => []);
+  const wires = await prisma.payrollWire.findMany({ where: { companyId: { in: societes } }, select: { expenseOrderId: true, transactionId: true } }).catch(() => []);
+  const ordres = [...remises, ...wires].map((x) => x.expenseOrderId).filter((v): v is string => Boolean(v));
+  const ordresTx = (await prisma.expenseOrder.findMany({ where: { id: { in: ordres } }, select: { transactionId: true } }).catch(() => [])).map((o) => o.transactionId);
+  const ecritures = [...remises, ...wires].map((x) => x.transactionId).concat(ordresTx).filter((v): v is string => Boolean(v));
+  if (!exacte) await prisma.financeTransaction.deleteMany({ where: { reference: { startsWith: tag } } }).catch(() => {});
+  await prisma.pettyCashAllotment.deleteMany({ where: { departmentId: { in: departements } } }).catch(() => {});
+  await prisma.payrollEntry.deleteMany({ where: { employeeId: { in: salaries } } }).catch(() => {});
+  await prisma.payrollWire.deleteMany({ where: { companyId: { in: societes } } }).catch(() => {});
+  await prisma.paymentRequest.deleteMany({ where: { expenseOrderId: { in: ordres } } }).catch(() => {});
+  await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
+  await prisma.financeTransaction.deleteMany({ where: { id: { in: ecritures } } }).catch(() => {});
+  await prisma.departmentBudget.deleteMany({ where: { departmentId: { in: departements } } }).catch(() => {});
+  await prisma.budgetCategoryLine.deleteMany({ where: { envelopeId: { in: enveloppes } } }).catch(() => {});
+  await prisma.budgetEnvelope.deleteMany({ where: { id: { in: enveloppes } } }).catch(() => {});
+  await prisma.employee.deleteMany({ where: { id: { in: salaries } } }).catch(() => {});
+  await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
+  await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
+  await prisma.userCompanyAccess.deleteMany({ where: { OR: [{ userId: { in: comptes } }, { companyId: { in: societes } }] } }).catch(() => {});
+  await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
+  await prisma.department.deleteMany({ where: { id: { in: departements } } }).catch(() => {});
+  await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
+  await prisma.company.deleteMany({ where: { id: { in: societes } } }).catch(() => {});
+}
+
+/** Les restes des passages précédents : l'ancienne étiquette fixe, et toute étiquette de plus de deux heures. */
+async function menagerLesRestes(): Promise<void> {
+  const avant = Date.now() - 2 * 3_600_000;
+  const noms = (await prisma.company.findMany({ where: { name: { startsWith: PREFIXE } }, select: { name: true } })).map((c) => c.name);
+  const tags = new Set(noms.map((n) => /^(__centrepaie__(?:[0-9a-z]+__)?) /.exec(n)?.[1]).filter((t): t is string => Boolean(t)));
+  for (const t of tags) {
+    if (t === PREFIXE) { await menage(t, true); continue; }
+    const ms = parseInt(t.slice(PREFIXE.length, -2), 36);
+    if (Number.isFinite(ms) && ms < avant) await menage(t);
+  }
+}
 
 async function actorFor(id: string, role: SessionUser["role"]): Promise<CurrentUser> {
   const access = await getAccess(id, role);
@@ -95,6 +149,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
   };
 
   beforeAll(async () => {
+    await menagerLesRestes();
     const [a, b, c] = await Promise.all([
       prisma.company.create({ data: { name: `${TAG} Adventum`, shortName: `${TAG}ADV` } }),
       prisma.company.create({ data: { name: `${TAG} Pharmagène`, shortName: `${TAG}PHA` } }),
@@ -132,37 +187,7 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
     categoryId = (await prisma.budgetCategoryLine.create({ data: { envelopeId: env.id, name: `${TAG} Salaires`, allocated: 10_000_000 } })).id;
   });
 
-  afterAll(async () => {
-    const remises = await prisma.pettyCashAllotment.findMany({
-      where: { departmentId: { in: [deptAId, deptBId] } }, select: { expenseOrderId: true, transactionId: true },
-    }).catch(() => []);
-    const wires = await prisma.payrollWire.findMany({
-      where: { companyId: { in: [aId, bId, cId] } }, select: { expenseOrderId: true, transactionId: true },
-    }).catch(() => []);
-    const ordres = [...remises, ...wires].map((x) => x.expenseOrderId).filter((v): v is string => Boolean(v));
-    const ordresTx = (await prisma.expenseOrder.findMany({ where: { id: { in: ordres } }, select: { transactionId: true } }).catch(() => []))
-      .map((o) => o.transactionId);
-    const ecritures = [...remises, ...wires].map((x) => x.transactionId).concat(ordresTx).filter((v): v is string => Boolean(v));
-    await prisma.financeTransaction.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
-    await prisma.pettyCashAllotment.deleteMany({ where: { departmentId: { in: [deptAId, deptBId] } } }).catch(() => {});
-    await prisma.payrollEntry.deleteMany({ where: { employeeId: { in: [empA1, empA2, empB1] } } }).catch(() => {});
-    await prisma.payrollWire.deleteMany({ where: { companyId: { in: [aId, bId, cId] } } }).catch(() => {});
-    await prisma.paymentRequest.deleteMany({ where: { expenseOrderId: { in: ordres } } }).catch(() => {});
-    await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
-    await prisma.financeTransaction.deleteMany({ where: { id: { in: ecritures } } }).catch(() => {});
-    await prisma.departmentBudget.deleteMany({ where: { departmentId: { in: [deptAId, deptBId] } } }).catch(() => {});
-    await prisma.budgetCategoryLine.deleteMany({ where: { envelopeId } }).catch(() => {});
-    await prisma.budgetEnvelope.deleteMany({ where: { id: envelopeId } }).catch(() => {});
-    const comptes = (await prisma.user.findMany({ where: { email: { startsWith: TAG } }, select: { id: true } })).map((u) => u.id);
-    await prisma.employee.deleteMany({ where: { OR: [{ id: { in: [empA1, empA2, empB1] } }, { userId: { in: comptes } }] } }).catch(() => {});
-    await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.userCompanyAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
-    await prisma.department.deleteMany({ where: { id: { in: [deptAId, deptBId] } } }).catch(() => {});
-    await prisma.user.deleteMany({ where: { id: { in: comptes } } }).catch(() => {});
-    await prisma.company.deleteMany({ where: { id: { in: [aId, bId, cId] } } }).catch(() => {});
-  });
+  afterAll(async () => { await menage(TAG); });
 
   describe("la paie — un bouton par entité, avec la somme des salaires à virer", () => {
     it("RIEN DE SAISI, RIEN À ENVOYER — le refus dit le geste qui précède", async () => {

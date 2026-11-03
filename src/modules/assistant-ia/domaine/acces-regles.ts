@@ -111,6 +111,42 @@ export function resoudreAccesIa(d: {
   return { superAdmin: false, ouvertes, explicites, perimetres: perimetres.filter((p) => !d.personne?.fermees.includes(p.famille)) };
 }
 
+/**
+ * D5 (décision 0057) — L'ACCÈS PAR BASE PAR-DESSUS LES FAMILLES (sous l'application stricte seulement ; `bases` nul
+ * sinon). Une base FERMÉE ferme ses familles — Super Admin compris (la Direction : « aucune exception ») ; une base
+ * OUVERTE les ouvre ; une ouverture NOMINATIVE d'une base porteuse d'une famille sensible devient un périmètre nommé
+ * (origine « BASE »), sur les entités ouvertes à la personne. Une fermeture nominative de la console de l'assistant
+ * prime toujours sur une ouverture par base.
+ */
+export function appliquerBases(
+  a: AccesIa,
+  bases: { fermees: readonly string[]; ouvertes: readonly string[]; perimetres: readonly { famille: string; du: string; au: string | null; ref: string; motif: string }[] } | null,
+  fermeesNominatives: readonly FamilleIa[] = [],
+): AccesIa {
+  if (!bases) return a;
+  const fermees = new Set(bases.fermees.filter(estFamilleIa));
+  if (a.superAdmin) {
+    if (!fermees.size) return a;
+    // Un Super Admin dont une base est fermée perd sa souveraineté sur CES familles : il garde le reste, sur toutes les entités.
+    const ouvertes = FAMILLES_IA.filter((f) => !fermees.has(f));
+    const perimetres: PerimetreSensible[] = [...FAMILLES_SENSIBLES].filter((f) => !fermees.has(f))
+      .map((f) => ({ famille: f, companyId: null, du: null, au: null, origine: "ROLE" as const, ref: null, motif: "Super Admin" }));
+    return { superAdmin: false, ouvertes, explicites: ouvertes, perimetres };
+  }
+  const ouvertes = new Set(a.ouvertes);
+  for (const f of bases.ouvertes) if (estFamilleIa(f) && !fermeesNominatives.includes(f)) ouvertes.add(f);
+  for (const f of fermees) ouvertes.delete(f);
+  const parBase: PerimetreSensible[] = bases.perimetres
+    .filter((p) => estFamilleIa(p.famille) && FAMILLES_SENSIBLES.has(p.famille as FamilleIa) && !fermees.has(p.famille) && !fermeesNominatives.includes(p.famille as FamilleIa))
+    .map((p) => ({ famille: p.famille as FamilleIa, companyId: null, du: p.du, au: p.au, origine: "BASE" as const, ref: p.ref, motif: p.motif }));
+  return {
+    superAdmin: false,
+    ouvertes: FAMILLES_IA.filter((f) => ouvertes.has(f)),
+    explicites: a.explicites.filter((f) => !fermees.has(f)),
+    perimetres: [...(a.perimetres ?? []).filter((p) => !fermees.has(p.famille)), ...parBase],
+  };
+}
+
 export const familleOuverte = (a: AccesIa, f: FamilleIa): boolean => a.superAdmin || a.ouvertes.includes(f);
 export const familleExplicite = (a: AccesIa, f: FamilleIa): boolean => a.superAdmin || a.explicites.includes(f);
 /**
@@ -125,10 +161,37 @@ export function perimetreCouvrant(a: AccesIa, f: FamilleIa, companyId?: string |
 /** S1 : un périmètre nominatif quelconque sur `f` (jamais un réglage de rôle). */
 export const familleNominative = (a: AccesIa, f: FamilleIa, companyId?: string | null): boolean => perimetreCouvrant(a, f, companyId) !== null;
 
+/**
+ * F2 (banc réel du 02/11, TR-RH-01/02/04/06) — LES GESTES POUR SOI. « Pose-moi un congé », « mets-moi en absence maladie »,
+ * « une avance de 30 000 DZD », « une attestation de travail » étaient refusés « famille Fiches collaborateurs (ou Salaires &
+ * paie) fermée » : la famille de l'ACTION (son fichier `hr-actions`, son modèle `salaryAdvance`) était jugée comme si la
+ * personne agissait sur AUTRUI. Règle S1 (décision 0048) : la personne a toujours accès à SON dossier et à SES demandes ; les
+ * familles RH fermées concernent autrui. Un geste de cette table, SANS le champ qui désigne autrui, ne se juge donc pas sur
+ * ses familles RH (« Écritures métier » et toute autre famille restent exigées) ; AVEC ce champ (une RH qui dépose pour un
+ * salarié), il se juge comme avant. L'action, elle, ne regarde ce champ que pour qui gère les RH, et prend sinon la fiche
+ * LIÉE au compte (`Employee.userId`) : aucun chemin vers le dossier d'autrui ne s'ouvre ici.
+ */
+export const GESTES_POUR_SOI: Readonly<Record<string, readonly string[]>> = {
+  "hr-actions:requestLeave": ["employeeId"],
+  "hr-actions:requestAdvance": ["employeeId"],
+  "hr-document-actions:requestHrDocument": [],
+};
+const FAMILLES_DU_DOSSIER: ReadonlySet<FamilleIa> = new Set<FamilleIa>(["FICHES", "SALAIRES", "CONTRATS_RH"]);
+
+/** Le geste vise-t-il la personne elle-même (aucun champ d'autrui rempli) ? */
+export function gestePourSoi(id: string, entree: Readonly<Record<string, unknown>> = {}): boolean {
+  const autrui = GESTES_POUR_SOI[id];
+  return autrui !== undefined && autrui.every((k) => entree[k] === undefined || entree[k] === null || entree[k] === "");
+}
+
+/** Les familles à juger pour ce geste : sans les familles du dossier RH quand il vise la personne elle-même. */
+export const famillesAJuger = (id: string, familles: readonly FamilleIa[], entree: Readonly<Record<string, unknown>> = {}): FamilleIa[] =>
+  gestePourSoi(id, entree) ? familles.filter((f) => !FAMILLES_DU_DOSSIER.has(f)) : [...familles];
+
 /** Le refus, dit tel quel par l'assistant : quelle famille, et qui l'ouvre. */
 export function refusFamille(f: FamilleIa): string {
-  return `La famille « ${LIBELLE_FAMILLE[f]} » est fermée à l'Assistant IA pour vous. C'est la Direction qui l'ouvre, dans la console : `
-    + "Administration › Contrôle de l'IA › Assistant IA — accès.";
+  return `La famille « ${LIBELLE_FAMILLE[f]} » est fermée à Adam pour vous. C'est la Direction qui l'ouvre, dans la console : `
+    + "Administration › Contrôle de l'IA › Adam — accès.";
 }
 
 /**
@@ -148,7 +211,7 @@ export function consigneFamilles(a: AccesIa): string | null {
     "Une demande qui relève d'une famille OUVERTE : appelle l'outil (un salaire relève de « Salaires & paie », une pièce du DOSSIER RH d'autrui de "
       + "« Contrats & documents RH », même si « Fiches collaborateurs » est fermée ; un fichier joint ou du Drive à ouvrir ou modifier — même un contrat — "
       + "de « Drive & documents », les droits du fichier décident). Une demande d'une famille FERMÉE : dis-le directement, "
-      + "en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Assistant IA — accès.",
+      + "en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Adam — accès.",
     // Lot Q1 (décision 0050) : mesuré par le banc d'audit, « Quel est mon salaire ? » était refusé SANS appel d'outil
     // (« Salaires & paie » fermée) — alors que l'outil rend toujours sa propre paie à la personne dont la fiche est liée.
     "SON PROPRE DOSSIER reste toujours ouvert à la personne, quelles que soient les familles : « mon salaire », « ma fiche », "
@@ -168,7 +231,7 @@ export function consigneFamilles(a: AccesIa): string | null {
 export function refusAssistantVueExacte(nomVisualise?: string | null): string {
   const qui = nomVisualise?.trim() ? ` de ${nomVisualise.trim()}` : "";
   return `L'assistant est fermé en « Vue exacte » : il répondrait avec votre identité et vos droits de Super Admin, pas avec ceux${qui}. `
-    + "Pour vérifier ce que son assistant voit (profil, familles, périmètres) : Administration › Contrôle de l'IA › Assistant IA — accès.";
+    + "Pour vérifier ce que son assistant voit (profil, familles, périmètres) : Administration › Contrôle de l'IA › Adam — accès.";
 }
 
 /** Une identité « vue » (impersonation honorée) ou un Super Admin qui en visualise une autre : l'assistant ne joue pas. */

@@ -36,7 +36,7 @@ import { groupIntoPoles, itemsOfGroup, poleOfPath, OPEN_POLES_KEY, FLAT_GROUPS, 
 const PRIMARY: { href: string; label: string; icon: React.ComponentType<{ className?: string }>; match: string[]; suitLeMenu?: true }[] = [
   { href: "/mon-espace", label: "Espace", icon: LayoutGrid, match: ["/mon-espace", "/mon-travail", "/mon-dossier", "/missions"] },
   { href: "/messages", label: "Messages", icon: MessageSquare, match: ["/messages"] },
-  { href: "/assistant", label: "Assistant", icon: Sparkles, match: ["/assistant"], suitLeMenu: true },
+  { href: "/assistant", label: "Adam", icon: Sparkles, match: ["/assistant", "/adam"], suitLeMenu: true },
 ];
 
 const isActive = (pathname: string, targets: string[]) =>

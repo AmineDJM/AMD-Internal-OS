@@ -141,6 +141,22 @@ export const ENTITIES: EntityDef[] = [
     orderBy: { name: "asc" },
   },
   {
+    // F2 (banc réel du 02/11, TR-EV-01) — LA GAMME (BU) d'une demande Ad & Pro : un référentiel, pas une donnée personnelle.
+    // Sans entité déclarée, « BU Hépatologie » ne se résolvait pas et l'assistant demandait « l'identifiant de la BU ».
+    // Lisible par qui dépose une demande Ad & Pro ou tient les ventes : ce que le sélecteur de leur formulaire leur montre.
+    name: "business_unit",
+    model: "BusinessUnit",
+    module: "BUSINESS_UNITS",
+    label: "Business unit (gamme)",
+    description: "Gamme commerciale (BU) : nom, code, société, terrain couvert. Rattache une demande Ad & Pro, un budget, une force de vente.",
+    scope: moduleOnly,
+    lisiblePar: ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENTS", "AD_PRO_OTHER", "PROMO_MATERIAL", "SALES"],
+    listFields: ["id", "name", "code", "companyId", "channel"],
+    detailFields: ["id", "name", "code", "companyId", "channel"],
+    searchFields: ["name", "code"],
+    orderBy: { name: "asc" },
+  },
+  {
     name: "employee",
     model: "Employee",
     module: "RH",

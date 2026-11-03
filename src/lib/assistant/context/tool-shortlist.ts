@@ -152,6 +152,13 @@ export const TOOL_DOMAINS: Record<string, Domain[]> = {
   ou_en_est_chantier: ["MISSION"],
   valider_chantier: ["MISSION"],
   annuler_chantier: ["MISSION"],
+  consigne_chantier: ["MISSION"],
+  // O2 (décision 0059) : les programmes — une équipe de chantiers, la file d'intégration.
+  lancer_un_programme: ["MISSION"],
+  ou_en_est_programme: ["MISSION"],
+  consigne_programme: ["MISSION"],
+  valider_programme: ["MISSION"],
+  annuler_programme: ["MISSION"],
   list_commitments: ["MISSION"],
   record_commitment: ["MISSION"],
   close_commitment: ["MISSION"],

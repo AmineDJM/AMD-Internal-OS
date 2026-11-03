@@ -62,7 +62,7 @@ export function texteOral(c: CarteOrale, etape: EtapeOrale): string {
   const recit = recitDeCarte(c);
   const ton = "Dis-le avec tes mots, naturellement, en une ou deux phrases courtes — ne lis pas une liste de champs.";
   if (etape === "MANQUANTS") {
-    return `Une demande est en préparation (${recit}) ${ton} Il manque « ${c.manquants[0]} » : pose UNE seule question pour l'obtenir.`;
+    return `Une demande est en préparation : ${recit} ${ton} Il manque « ${c.manquants[0]} » : pose UNE seule question pour l'obtenir.`;
   }
   if (etape === "FACULTATIFS") {
     const q = c.facultatifs.slice(0, 3).map((f) => `« ${f} »`).join(", ");

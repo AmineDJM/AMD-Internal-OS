@@ -97,6 +97,7 @@ async function jusqua<T>(f: () => Promise<T | null | undefined | false>, quoi: s
 function appel(session: string) {
   let horloge = 0;
   const dits: { contenu: string; questionEnAttente: boolean; accuse: boolean }[] = [];
+  let consigne = "";
   const c = new ClientVoixTempsReel({
     ouvrir: async () => ({ sdp: "" }),
     deleguer: (demande, delegationId, ctx) => traiterEnonceVocal(sa, { session, demande, delegationId, enCours: ctx?.enCours ?? null, parole: ctx?.parole ?? demande, question: ctx?.question ?? null }),
@@ -107,10 +108,14 @@ function appel(session: string) {
   (c as unknown as { dc: unknown }).dc = {
     readyState: "open", close: () => {},
     send: (brut: string) => {
-      const e = JSON.parse(brut) as { type: string; content?: string };
+      const e = JSON.parse(brut) as { type: string; content?: string; event_id?: string };
+      // F2 (TR-VX-02) : la CONSIGNE au modèle vocal part en contexte silencieux (`thinking`, « silence_… »), jamais en
+      // parole ; ce banc lit ce que la voix REÇOIT — la consigne en attente, puis la parole qu'elle accompagne.
+      if (e.type === "session.thinking.append" && e.event_id?.startsWith("silence_")) { consigne = `${consigne} ${String(e.content)}`.trim(); return; }
       if (e.type !== "session.commentary.append") return;
       // LA MESURE : au moment où ça part, une question de l'assistant attendait-elle sa réponse ?
-      dits.push({ contenu: String(e.content), questionEnAttente: c.orchestre.question != null, accuse: c.orchestre.accuse != null });
+      dits.push({ contenu: [consigne, String(e.content)].filter(Boolean).join(" "), questionEnAttente: c.orchestre.question != null, accuse: c.orchestre.accuse != null });
+      consigne = "";
     },
   };
   let t = 0;
@@ -174,7 +179,7 @@ suite("Assistant IA — l'orchestrateur de conversation (O1), de bout en bout", 
 
     await a.personne("Prépare-moi un rapport des ventes par wilaya", "d1");
     // L'accusé, collé à LA question utile dérivée de la demande (pas « la période, le but, le périmètre » au hasard).
-    expect(a.dits[0].contenu).toMatch(/tu regardes.*Excel ou PDF \?/s);
+    expect(a.dits[0].contenu).toMatch(/[Jj]e regarde.*Excel ou PDF \?/s);
     await a.voix("Je regarde et je te préviens. Tu préfères un rendu Excel ou PDF ?");
     const w1 = a.c.travail!.id;
 

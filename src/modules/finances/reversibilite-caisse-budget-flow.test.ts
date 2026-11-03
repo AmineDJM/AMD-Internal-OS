@@ -33,6 +33,8 @@ try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
 const TAG = "__k10a_cb__";
+// TOUT ce que le banc crée, cherche et nettoie porte RUN, jamais le seul TAG : un ménage ou une lecture par TAG
+// touchait les écritures d'un AUTRE passage du fichier lancé à côté (F1).
 const RUN = `${TAG}${Date.now().toString(36)}`;
 const YEAR = 2034;
 
@@ -113,8 +115,8 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     await prisma.paymentRequest.deleteMany({ where: { expenseOrderId: { in: ordres } } }).catch(() => {});
     await prisma.payrollWire.deleteMany({ where: { id: { in: wires } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
-    await prisma.financeTransaction.updateMany({ where: { OR: [{ treasuryAccountId: compte }, { label: { startsWith: TAG } }, { companyId: { in: [soc, soc2] } }] }, data: { compensationDeId: null } }).catch(() => {});
-    await prisma.financeTransaction.deleteMany({ where: { OR: [{ treasuryAccountId: compte }, { label: { startsWith: TAG } }, { companyId: { in: [soc, soc2] } }] } }).catch(() => {});
+    await prisma.financeTransaction.updateMany({ where: { OR: [{ treasuryAccountId: compte }, { label: { startsWith: RUN } }, { companyId: { in: [soc, soc2] } }] }, data: { compensationDeId: null } }).catch(() => {});
+    await prisma.financeTransaction.deleteMany({ where: { OR: [{ treasuryAccountId: compte }, { label: { startsWith: RUN } }, { companyId: { in: [soc, soc2] } }] } }).catch(() => {});
     await prisma.demandeActualisationSoldes.deleteMany({ where: { companyId: soc } }).catch(() => {});
     await prisma.treasuryAccount.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.budgetProposal.deleteMany({ where: { poleLabel: { startsWith: RUN } } }).catch(() => {});
@@ -191,13 +193,13 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: remise.id } })).status).toBe("ALLOTTED");
     await prisma.pettyCashAllotment.update({ where: { id: remise.id }, data: { status: "RECEIVED" } });
 
-    const dep = await spendFromPettyCash(fd({ cashId: remise.id, label: `${TAG} fournitures`, amount: "5000", year: "2026" }, [pdf()]));
+    const dep = await spendFromPettyCash(fd({ cashId: remise.id, label: `${RUN} fournitures`, amount: "5000", year: "2026" }, [pdf()]));
     expect(dep.ok, dep.error).toBe(true);
     expect(await prisma.departmentBudgetExpense.count({ where: { departmentId: dept } })).toBe(1);
     expect(bloquants(await annulerDernier())).toEqual([]);
     expect(await prisma.departmentBudgetExpense.count({ where: { departmentId: dept } })).toBe(0);
 
-    const dem = await requestPettyCashTopUp(fd({ cashId: remise.id, amount: "10000", reason: `${TAG} rallonge` }));
+    const dem = await requestPettyCashTopUp(fd({ cashId: remise.id, amount: "10000", reason: `${RUN} rallonge` }));
     expect(dem.ok, dem.error).toBe(true);
     const rallonge = await prisma.pettyCashTopUpRequest.findFirstOrThrow({ where: { allotmentId: remise.id } });
     const retrait = await annulerRallongeCaisse(fd({ id: rallonge.id }));
@@ -255,25 +257,25 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
   // ── BUDGET DU DÉPARTEMENT ────────────────────────────────────────────────────────────────
   it("DÉPENSE DE DÉPARTEMENT : ajouter → retirée ; modifier → remise ; supprimer → recréée", async () => {
     await commeSa();
-    const a = await addDepartmentExpense(fd({ departmentId: dept, kind: "OPERATING", label: `${TAG} papeterie`, amount: "2500", year: "2026" }, [pdf()]));
+    const a = await addDepartmentExpense(fd({ departmentId: dept, kind: "OPERATING", label: `${RUN} papeterie`, amount: "2500", year: "2026" }, [pdf()]));
     expect(a.ok, a.error).toBe(true);
     expect(bloquants(await annulerDernier())).toEqual([]);
     expect(await prisma.departmentBudgetExpense.findUnique({ where: { id: a.id! } })).toBeNull();
 
-    const b = await addDepartmentExpense(fd({ departmentId: dept, kind: "OPERATING", label: `${TAG} toner`, amount: "4000", year: "2026" }, [pdf()]));
+    const b = await addDepartmentExpense(fd({ departmentId: dept, kind: "OPERATING", label: `${RUN} toner`, amount: "4000", year: "2026" }, [pdf()]));
     expect(b.ok, b.error).toBe(true);
-    const m = await updateDepartmentExpense(fd({ id: b.id!, label: `${TAG} toner couleur`, amount: "4500" }));
+    const m = await updateDepartmentExpense(fd({ id: b.id!, label: `${RUN} toner couleur`, amount: "4500" }));
     expect(m.ok, m.error).toBe(true);
     expect(bloquants(await annulerDernier())).toEqual([]);
     const relue = await prisma.departmentBudgetExpense.findUniqueOrThrow({ where: { id: b.id! } });
-    expect([relue.label, Number(relue.amount)]).toEqual([`${TAG} toner`, 4000]);
+    expect([relue.label, Number(relue.amount)]).toEqual([`${RUN} toner`, 4000]);
 
     const s = await deleteDepartmentExpense(fd({ id: b.id! }));
     expect(s.ok, s.error).toBe(true);
     expect(await prisma.departmentBudgetExpense.findUnique({ where: { id: b.id! } })).toBeNull();
     const c = await annulerDernier();
     expect(bloquants(c)).toEqual([]);
-    expect((await prisma.departmentBudgetExpense.findUniqueOrThrow({ where: { id: b.id! } })).label).toBe(`${TAG} toner`);
+    expect((await prisma.departmentBudgetExpense.findUniqueOrThrow({ where: { id: b.id! } })).label).toBe(`${RUN} toner`);
   });
 
   // ── TRÉSORERIE ET BUDGETS ────────────────────────────────────────────────────────────────
@@ -281,11 +283,11 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     await commeSa();
     const r = await importTransactions(undefined, fd({ csv: [
       "date,direction,category,label,amount,method,account,counterparty",
-      `2026-10-02,OUT,LOYER,${TAG} loyer,90000,BANK_TRANSFER,${RUN} Banque,Propriétaire`,
-      `2026-10-03,IN,RECETTE,${TAG} client,15000,BANK_TRANSFER,${RUN} Banque,Client`,
+      `2026-10-02,OUT,LOYER,${RUN} loyer,90000,BANK_TRANSFER,${RUN} Banque,Propriétaire`,
+      `2026-10-03,IN,RECETTE,${RUN} client,15000,BANK_TRANSFER,${RUN} Banque,Client`,
     ].join("\n") }));
     expect(r.ok, r.error).toBe(true);
-    const importees = await prisma.financeTransaction.findMany({ where: { label: { in: [`${TAG} loyer`, `${TAG} client`] } } });
+    const importees = await prisma.financeTransaction.findMany({ where: { label: { in: [`${RUN} loyer`, `${RUN} client`] } } });
     expect(importees.length).toBe(2);
     const c = await annulerDernier();
     expect(bloquants(c)).toEqual([]);
@@ -306,10 +308,10 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     await commeSa();
     const env = await prisma.budgetEnvelope.create({
       data: { name: `${RUN} Fonctionnement`, modules: ["FINANCES"], periodStart: new Date("2026-01-01"), periodEnd: new Date("2026-12-31"), totalAmount: 1_000_000,
-        categories: { create: [{ name: `${TAG} Frais`, module: "FINANCES", allocated: 1_000_000 }] } },
+        categories: { create: [{ name: `${RUN} Frais`, module: "FINANCES", allocated: 1_000_000 }] } },
       include: { categories: true },
     });
-    const t = await createTransaction(undefined, fd({ label: `${TAG} à classer`, amount: "8000", direction: "OUT", companyId: soc, treasuryAccountId: compte }));
+    const t = await createTransaction(undefined, fd({ label: `${RUN} à classer`, amount: "8000", direction: "OUT", companyId: soc, treasuryAccountId: compte }));
     expect(t.ok, t.error).toBe(true);
     const a = await attributeTransaction(fd({ transactionId: t.id!, budgetCategoryId: env.categories[0].id }));
     expect(a.ok, a.error).toBe(true);
@@ -360,7 +362,7 @@ suite("K10a — caisse, budgets et paie se défont d'un geste", () => {
     expect(bloquants(await annulerDernier())).toEqual([]);
     expect(await prisma.pchFournisseurProduit.count({ where: { productId: produit.id } })).toBe(0);
 
-    const dossier = await prisma.regulatoryProduct.create({ data: { dci: `${TAG}dci`, reference: `${RUN}REG`, companyId: soc } });
+    const dossier = await prisma.regulatoryProduct.create({ data: { dci: `${RUN}dci`, reference: `${RUN}REG`, companyId: soc } });
     const v = await updateSupplierView(fd({ productId: dossier.id, externalStatus: "SUBMITTED", externalComment: "déposé", portalVisible: "on" }));
     expect(v.ok, v.error).toBe(true);
     expect(bloquants(await annulerDernier())).toEqual([]);

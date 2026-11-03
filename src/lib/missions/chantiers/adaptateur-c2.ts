@@ -3,6 +3,7 @@ import { construireConsigne } from "@/platform/dev/consigne";
 import { routineDuDepot, type Env } from "@/platform/dev/config";
 import type { AgentDeveloppeur, DeploiementRender, ForgeGit, Hebergeur, RefDepot, Resultat } from "@/lib/missions/chantiers/ports-moteur";
 import type { PortsDev } from "@/lib/missions/chantiers/etapes";
+import type { ForgeIntegration } from "@/lib/missions/equipe/integration";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -11,6 +12,7 @@ import type { PortsDev } from "@/lib/missions/chantiers/etapes";
  * Elle reçoit les trois connecteurs (`platform/in-process/chantiers/connecteurs.ts`, composés par `scheduled.ts`) et
  * rend le contrat du moteur (`ports-moteur.ts`). Ce que le moteur demande et que les connecteurs n'ont pas est dit :
  *   • ouvrir une PR : Claude Code l'ouvre (sa consigne le dit) — refus « non pris en charge », le moteur continue ;
+ *   • lire un fichier : son TEXTE au SHA donné (le SQL des migrations, avant la fusion) ;
  *   • fusionner : APRÈS la carte de validation, au SHA vérifié (`fusionnerPr` du connecteur, décision 0042) ;
  *   • la santé d'un service : un GET de son URL publique (`fetch` injecté, délai borné), rien d'autre.
  * Relancer suit l'ordre de la Direction : message à la MÊME session par le relais CLI (s'il est vivant), sinon commentaire
@@ -66,7 +68,12 @@ function forgeDe(f: C2.ForgeGit): ForgeGit {
     // La fusion VALIDÉE, au SHA vérifié (GitHub refuse si la tête a bougé) ; sa compensation, une PR de revert.
     fusionnerPr: async (d, numero, shaAttendu) => vers(await f.fusionnerPr(nom(d), numero, { shaAttendu }), (x) => ({ sha: x.sha })),
     proposerRevert: async (d, numero, titre, corps) => vers(await f.proposerRevert(nom(d), numero, { titre, corps }), (x) => x),
-    fichier: async () => nonPrisEnCharge("lire un fichier"),
+    // Le texte d'un fichier au SHA donné (le SQL d'une migration, lu avant la fusion) ; absent à ce SHA = erreur définitive.
+    fichier: async (d, sha, chemin) => {
+      const r = await f.contenuFichier(nom(d), chemin, sha);
+      if (!r.ok) return erreur(r.erreur);
+      return r.valeur === null ? { ok: false, erreur: `${chemin} absent à ${sha.slice(0, 7)}`, definitif: true } : { ok: true, valeur: { octets: Buffer.from(r.valeur, "utf8"), mime: "text/plain" } };
+    },
   };
 }
 
@@ -128,35 +135,92 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
     const seules = a.routines();
     return routineDuDepot(nom(d), env)?.alias ?? (seules.length === 1 ? seules[0]! : null);
   };
-  const ordre = (o: C2.OrdreCli, cle: string) => ({ sessionId: o.sessionId ?? `ordre-${o.ordreId}`, url: o.sessionUrl ?? "", lanceeLe: new Date().toISOString(), moyen: "relais-cli" as const, cle });
+  const ordre = (o: C2.OrdreCli, cle: string) => ({ sessionId: o.sessionId ?? `ordre-${o.ordreId}`, url: o.sessionUrl ?? "", lanceeLe: new Date().toISOString(), moyen: "relais-cli" as const, cle, ordreId: o.ordreId });
   const session = (s: C2.SessionLancee, moyen: "routine" | "commentaire-pr") => ({
     sessionId: s.sessionId ?? (s.commentaireId ? `commentaire-${s.commentaireId}` : s.cleIdempotence), url: s.sessionUrl ?? s.commentaireUrl ?? "",
     lanceeLe: new Date().toISOString(), moyen,
   });
-  const relaisVivant = async () => (await a.relais()).vivant;
+  /** Le relais peut prendre un ordre : vivant (a tiré depuis 2 min) ET pas déclaré déconnecté de claude.ai. */
+  const relaisVivant = async () => { const r = await a.relais(); return r.vivant && r.connecte !== false; };
+  /**
+   * LA VRAIE SESSION d'un lancement par le relais : à l'enfilement, le dossier ne connaît que `ordre-<id>` (l'identifiant
+   * `session_…` n'existe qu'une fois `claude --cloud` passé). Le fait `DEV_SESSION` réécrit le dossier (`reveil.ts`) ;
+   * s'il s'est perdu, on relit l'ordre ici. Ni l'un ni l'autre : `null` (pas de message à une session inconnue).
+   */
+  const sessionReelle = async (s: string | undefined): Promise<string | null> => {
+    if (!s) return null;
+    if (!s.startsWith("ordre-")) return s;
+    const o = await a.ordreCli(s.slice("ordre-".length));
+    return o.ok && o.valeur.statut === "FAIT" && o.valeur.sessionId ? o.valeur.sessionId : null;
+  };
   const lancer: AgentDeveloppeur["lancer"] = async (c, cle) => {
     const texte = construireConsigne({ depot: nom(c.depot), branche: c.branche, objectif: c.objectif, perimetre: c.perimetre, criteres: c.criteres, commandes: c.commandesVerif, contexte: c.contexte ?? null, autoFix: true });
     const a2 = alias(c.depot);
     if (a2) return vers(await a.lancer({ alias: a2, texte, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "routine"));
     // SANS ROUTINE pour ce dépôt : le relais CLI de la Direction (`claude --cloud`), s'il est vivant.
     if (await relaisVivant()) return vers(await a.lancerParCli({ depot: nom(c.depot), branche: c.branche, texte, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
-    // Le relais peut être HORS LIGNE (machine de la Direction éteinte) : on attend, sans basculer en échec définitif.
-    if (a.routines().length === 0 && (await a.relais()).configure) return { ok: false, erreur: "relais CLI hors ligne : le lancement attend la machine de la Direction", reessayerApresMs: 5 * 60_000 };
+    // Le relais peut être HORS LIGNE ou DÉCONNECTÉ (service claude-relais arrêté, connexion claude.ai expirée) : on attend.
+    if (a.routines().length === 0 && (await a.relais()).configure) return { ok: false, erreur: "relais CLI hors ligne ou non connecté à claude.ai : le lancement attend", reessayerApresMs: 5 * 60_000 };
     return { ok: false, erreur: `aucune routine Claude Code pour ${nom(c.depot)} (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN / _DEPOT) et relais CLI absent`, definitif: true };
   };
   return {
+    // UN MOYEN DE LANCER suffit : une routine, OU le relais CLI vivant et connecté (Direction, 01/11 : « Routines + CLI »).
     disponible: async () => {
-      const routines = a.routines();
-      return routines.length ? { ok: true, moyens: ["routine", "commentaire-pr"] } : { ok: false, raison: "aucune routine Claude Code configurée (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN)", moyens: ["commentaire-pr"] };
+      const r = await a.relais();
+      const relais = r.vivant && r.connecte !== false;
+      if (a.routines().length) return { ok: true, moyens: ["routine", "commentaire-pr", ...(relais ? ["relais-cli" as const] : [])] };
+      if (relais) return { ok: true, moyens: ["relais-cli", "commentaire-pr"] };
+      const raison = !r.configure ? "aucune routine Claude Code (CLAUDE_ROUTINE_<ALIAS>_ID / _TOKEN) et relais CLI non configuré (CLAUDE_RELAIS_TOKEN)"
+        : !r.vivant ? "aucune routine Claude Code et relais CLI hors ligne (service claude-relais arrêté ?)"
+          : "aucune routine Claude Code et relais CLI non connecté à claude.ai (Render › claude-relais › Shell › claude auth login)";
+      return { ok: false, raison, moyens: ["commentaire-pr"] };
     },
     lancer,
+    ordre: async (id) => vers(await a.ordreCli(id), (o) => ({ statut: o.statut, erreur: o.erreur })),
     relancer: async (c, cle) => {
       // ORDRE DE LA DIRECTION (01/11) : la MÊME session par le relais (contexte gardé), puis le fil de la PR, puis une neuve.
-      if (c.session && !c.session.startsWith("ordre-") && (await relaisVivant())) {
-        return vers(await a.envoyerMessage({ sessionId: c.session, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
+      const meme = await sessionReelle(c.session);
+      if (meme && (await relaisVivant())) {
+        return vers(await a.envoyerMessage({ sessionId: meme, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (o) => ordre(o, cle));
       }
       if (c.pr) return vers(await a.relancerDansPr({ depot: nom(c.depot), numeroPr: c.pr, texte: c.probleme, cleIdempotence: cle, missionId: c.chantierId }), (s) => session(s, "commentaire-pr"));
+      if (c.sansNouvelleSession) return { ok: false, erreur: "session injoignable (pas de relais vers elle, pas de PR) : aucune session neuve n'est ouverte pour une question", definitif: true };
       return lancer({ ...c, contexte: [c.contexte, `## Problème à corriger\n${c.probleme}`].filter(Boolean).join("\n\n") }, cle);
+    },
+  };
+}
+
+/**
+ * O2 (décision 0059) — LA FORGE DE LA FILE D'INTÉGRATION depuis le connecteur GitHub de C2 ; `null` s'il ne porte pas les
+ * gestes de branche. La cible protégée (main) que GitHub refuse d'avancer directement passe par la PR de la branche
+ * d'intégration, fusionnée AU SHA vérifié.
+ */
+export function forgeIntegrationDe(f: C2.ForgeGit): ForgeIntegration | null {
+  if (!f.creerBranche || !f.supprimerBranche || !f.fusionnerBranches || !f.avancerBranche) return null;
+  const [creer, supprimer, fusionner, avancer] = [f.creerBranche.bind(f), f.supprimerBranche.bind(f), f.fusionnerBranches.bind(f), f.avancerBranche.bind(f)];
+  const moteur = forgeDe(f);
+  return {
+    tete: async (d, b) => vers(await f.teteDeBranche(nom(d), b), (x) => x),
+    creerBranche: async (d, b, sha) => vers(await creer(nom(d), b, sha), () => true as const),
+    supprimerBranche: async (d, b) => vers(await supprimer(nom(d), b), () => true as const),
+    fusionnerDans: async (d, base, tete, message) => {
+      const r = await fusionner(nom(d), base, tete, message);
+      if (!r.ok) return erreur(r.erreur);
+      if ("rienAFusionner" in r.valeur) return vers(await f.teteDeBranche(nom(d), base), (sha) => ({ sha: sha ?? "" }));
+      return { ok: true, valeur: r.valeur };
+    },
+    estAncetre: async (d, a, sha) => vers(await f.comparer(nom(d), a, sha), (c) => c.statut === "ahead" || c.statut === "identical"),
+    fichiersModifies: async (d, base, tete) => vers(await f.comparer(nom(d), base, tete), (c) => c.fichiers.map((x) => x.chemin)),
+    avancer: async (d, b, sha) => {
+      const r = await avancer(nom(d), b, sha);
+      return r.ok ? { ok: true, valeur: true } : { ...erreur(r.erreur), ...(r.erreur.code === "CONFLIT" || r.erreur.code === "INTERDIT" ? { definitif: true } : {}) };
+    },
+    checks: (d, sha) => moteur.checks(d, sha),
+    fusionnerParPr: async (d, branche, cible, sha, titre) => {
+      const ouverte = await f.prDeBranche(nom(d), branche);
+      if (!ouverte.ok) return erreur(ouverte.erreur);
+      if (!ouverte.valeur) return nonPrisEnCharge(`ouvrir la PR ${branche} → ${cible} (à ouvrir par Claude Code ou à la main)`);
+      return vers(await f.fusionnerPr(nom(d), ouverte.valeur.numero, { shaAttendu: sha }), (x) => ({ sha: x.sha }));
     },
   };
 }
@@ -164,5 +228,6 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
 /** LES PORTS DU MOTEUR depuis les connecteurs de C2. Sans forge (GitHub non configuré), aucun chantier ne peut être vérifié : `null`. */
 export function portsDepuisConnecteurs(c: { agent: C2.AgentDeveloppeur; forge: C2.ForgeGit | null; hebergeur: C2.Hebergeur | null }, o: { env?: Env; fetch?: typeof fetch } = {}): PortsDev | null {
   if (!c.forge) return null;
-  return { agent: agentDe(c.agent, o.env ?? process.env), forge: forgeDe(c.forge), hebergeur: hebergeurDe(c.hebergeur, o.fetch ?? fetch) };
+  const integration = forgeIntegrationDe(c.forge);
+  return { agent: agentDe(c.agent, o.env ?? process.env), forge: forgeDe(c.forge), hebergeur: hebergeurDe(c.hebergeur, o.fetch ?? fetch), ...(integration ? { integration } : {}) };
 }

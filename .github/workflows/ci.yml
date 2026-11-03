@@ -83,11 +83,14 @@ jobs:
       # `src/platform/qualite-code.ts` (tenus aussi par `qualite-code.test.ts`, dans `tests`).
       - run: npm run qualite:mort
       - run: npm run qualite:doublons
-      # Contrat des server actions : le fichier généré est-il celui du code ?
-      - name: Contrat des actions à jour
+      # Les FICHIERS GÉNÉRÉS sont-ils ceux du code ? (contrat des server actions, classement des capacités) — O2 (décision
+      # 0059) : sur une branche d'intégration `claude/integration/**`, c'est ce qui attrape deux tâches vertes chacune
+      # dont les fichiers générés divergent une fois fusionnées.
+      - name: Fichiers générés à jour (contrat des actions, classement des capacités)
         run: |
           npm run actions:contrat
-          git diff --exit-code -- src/lib/actions/
+          npm run capacites:classement
+          git diff --exit-code -- src/lib/actions/ src/platform/ia/capacites/classement.genere.json
       # Les deux typechecks : complet (tests, scripts, e2e) et celui du build de production.
       # Tas mesuré le 30/10 : 6,45 Go pour le typecheck complet (6 144 Mo ne suffisaient plus) — runner à 16 Go.
       - run: npm run typecheck

@@ -236,7 +236,7 @@ export function Atelier({ ouvert, travaille, aOuvrir, pleinEcran, onAfficher, on
                   <Icone format={o.vue.format} className="h-3.5 w-3.5 shrink-0 text-violet-600" />
                   <span className="truncate" title={`${o.vue.nom} (${nomFormat(o.vue.format)})`}>{o.vue.nom}</span>
                   {o.vue.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" aria-label="modifié" />}
-                  {animant[o.vue.sessionId] && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-violet-500" aria-label="l'assistant modifie ce document" />}
+                  {animant[o.vue.sessionId] && <Loader2 className="h-3 w-3 shrink-0 animate-spin text-violet-500" aria-label="Adam modifie ce document" />}
                 </button>
                 <button type="button" onClick={() => void fermerOnglet(o)} aria-label={`Fermer ${o.vue.nom}`} className="mr-1 flex h-5 w-5 items-center justify-center rounded text-slate-400 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-zinc-800"><X className="h-3 w-3" /></button>
               </div>
@@ -252,7 +252,7 @@ export function Atelier({ ouvert, travaille, aOuvrir, pleinEcran, onAfficher, on
       {!courant && (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-sm text-slate-500 dark:text-zinc-400">
           <Sparkles className="h-6 w-6 text-violet-500" aria-hidden />
-          <p>Aucun document ouvert. Ouvrez une pièce (« Ouvrir dans l&apos;Atelier ») ou demandez à l&apos;assistant de modifier un document : il s&apos;affichera ici, et chaque modification apparaîtra en direct.</p>
+          <p>Aucun document ouvert. Ouvrez une pièce (« Ouvrir dans l&apos;Atelier ») ou demandez à Adam de modifier un document : il s&apos;affichera ici, et chaque modification apparaîtra en direct.</p>
         </div>
       )}
       {courant && (

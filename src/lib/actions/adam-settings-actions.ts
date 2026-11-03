@@ -25,7 +25,7 @@ import { leverSuspensionMissions, suspendreMissions } from "@/lib/interrupteurs/
  * tout seul ? », la réponse est dans le journal, avec un nom et une heure.
  */
 
-const PATH = "/chief-of-staff/reglages";
+const PATH = "/adam/reglages"; // l'onglet « Réglages d'Adam » (ex-`/chief-of-staff/reglages`, 02/11/2026)
 
 // La phrase EXACTE à ressaisir pour armer l'envoi autonome, identique à celle du chat. Elle
 // n'est PAS exportée : un module « use server » ne peut exporter que des fonctions async, et

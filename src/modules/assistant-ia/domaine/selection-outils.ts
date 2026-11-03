@@ -27,6 +27,11 @@ export interface FicheOutil {
   mots?: string;
   /** Son contexte (fichier, champs) — pesé comme une description : il départage, il ne désigne pas. */
   contexte?: string;
+  /**
+   * A2 (décision 0055) : un facteur de RANG (< 1) — les fonctions d'Adam du Super Admin (~100 outils aux descriptions
+   * riches) ne passent devant un outil de l'ERP que si la demande les vise nettement. Absent : 1.
+   */
+  facteur?: number;
 }
 
 export interface OutilClasse {
@@ -125,12 +130,19 @@ const MOTS_CLES: Record<string, string> = {
   chercher_conversations: "conversation precedente passee avait dit discute evoque parle derniere fois semaine derniere comme on avait convenu",
   // K3 (décision 0033 § 7) : la recherche approfondie — les mots d'une étude, d'une veille, d'un rapport sourcé.
   recherche_approfondie: "recherche approfondie etude marche veille concurrence concurrents benchmark etat de l art panorama rapport complet sources tendances reglementation etrangere pays analyse sectorielle",
-  lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance",
+  lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance tache de fond arriere plan mission recapitulatif classement",
   // C1 (décision 0042) : les chantiers de développement (Super Admin) — Claude Code, GitHub, Render.
   lancer_un_chantier: "chantier claude code developpe developpement code corrige bug fonctionnalite branche depot github pull request pr implemente",
   ou_en_est_chantier: "ou en est chantier avancement developpement claude code deploiement ci checks pr statut",
   valider_chantier: "valide valider accorde autorise deploie deployer production fusionne fusion main rollback refuse chantier",
   annuler_chantier: "annule arrete stoppe suspend pause chantier developpement",
+  consigne_chantier: "consigne dis lui demande change approche fais plutot attends encore pousse corrige chantier claude session",
+  // O2 (décision 0059) : les programmes — une équipe de sessions Claude Code en parallèle.
+  lancer_un_programme: "programme equipe plusieurs taches paralleles travailleurs sessions claude code ensemble lot developpements decompose mimo superviseur integration",
+  ou_en_est_programme: "ou en est programme equipe taches travailleurs file integration conflits dependances couts",
+  consigne_programme: "consigne programme equipe tache dis aux travailleurs change approche",
+  valider_programme: "valide valider accorde fusionne integre integration main programme refuse",
+  annuler_programme: "annule arrete stoppe programme equipe travailleurs",
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",
@@ -217,7 +229,7 @@ const estGeste = (nom: string) => /^(preparer_|create_|update_|send_|assign_|set
 
 interface Index {
   /** `tete` : le premier mot du libellé — le verbe d'une capacité (« Créer », « Supprimer »). */
-  fiches: { nom: string; poids: Map<string, number>; tete: string | undefined }[];
+  fiches: { nom: string; poids: Map<string, number>; tete: string | undefined; facteur: number }[];
   idf: Map<string, number>;
 }
 
@@ -254,7 +266,7 @@ export function indexer(fiches: readonly FicheOutil[]): Index {
   const out = fiches.map((f) => {
     const { poids, tete } = poidsDe(f);
     for (const m of poids.keys()) df.set(m, (df.get(m) ?? 0) + 1);
-    return { nom: f.nom, poids, tete };
+    return { nom: f.nom, poids, tete, facteur: f.facteur ?? 1 };
   });
   const n = Math.max(1, fiches.length);
   const idf = new Map([...df].map(([m, d]) => [m, Math.log(1 + n / d)]));
@@ -278,6 +290,7 @@ export function classer(demande: string, fiches: readonly FicheOutil[] | Index, 
       if (s > 0 && f.tete && f.tete === premier) s *= MEME_VERBE;
       if (s > 0 && geste && estGeste(f.nom)) s *= 1.35;
       if (s > 0 && !geste && estGeste(f.nom)) s *= 0.8;
+      s *= f.facteur;
       return { nom: f.nom, score: Math.round(s * 100) / 100 };
     })
     .filter((x) => x.score > 0)

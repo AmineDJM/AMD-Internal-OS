@@ -34,6 +34,7 @@ import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { doSignOut } from "@/lib/actions/auth-actions";
 import { DialoguesProvider } from "@/components/ui/dialogue";
 import "./theme.css";
+import { presentationAdam } from "../../domaine/profil-personne";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -264,7 +265,7 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
                   <Radar className="h-4 w-4" aria-hidden /> Veille
                 </button>
                 <button type="button" onClick={() => { setGestes(true); setListeOuverte(false); }} className="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-[14px] hover:bg-[var(--aia-survol)]">
-                  <History className="h-4 w-4" aria-hidden /> Ce que l&apos;assistant a fait
+                  <History className="h-4 w-4" aria-hidden /> Ce qu&apos;Adam a fait
                 </button>
                 <button type="button" onClick={() => { setReglages(true); setListeOuverte(false); }} className="flex items-center gap-2 rounded-lg px-2 py-2 text-left text-[14px] hover:bg-[var(--aia-survol)]">
                   <Settings className="h-4 w-4" aria-hidden /> Réglages · voix, notifications
@@ -286,7 +287,7 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
           <button
             type="button" onClick={() => void basculerPrive()} aria-pressed={prive} disabled={commencee} data-testid="bouton-prive"
             aria-label={commencee ? "Conversation commencée : son caractère privé ne change plus" : "Conversation privée"}
-            title={commencee ? "Une conversation commencée ne peut plus devenir privée, ni cesser de l'être." : "Conversation privée : l'assistant n'utilise pas votre mémoire et ne retient rien ; supprimée après 30 jours."}
+            title={commencee ? "Une conversation commencée ne peut plus devenir privée, ni cesser de l'être." : "Conversation privée : Adam n'utilise pas votre mémoire et ne retient rien ; supprimée après 30 jours."}
             className={`${bouton} aria-pressed:bg-[var(--aia-prive-doux)] aria-pressed:text-[var(--aia-prive)] disabled:cursor-not-allowed disabled:opacity-50`}
           >
             <EyeOff className="h-4 w-4" />
@@ -304,6 +305,8 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
             {/* eslint-disable-next-line @next/next/no-img-element -- le logo provisoire, remplaçable tel quel */}
             <img src="/adventum-ia/logo-marque.png" alt="" width={48} height={48} className="h-12 w-12" />
             <h2 className="text-[24px] font-semibold tracking-tight">Bonjour{prenom(userName) ? ` ${prenom(userName)}` : ""}, par quoi on commence ?</h2>
+            {/* « Adam » pour tous (Direction, 02/11/2026) — l'identité vient du compte, pas du modèle. */}
+            <p className="text-[14px] text-[var(--aia-discret)]" data-testid="presentation-adam">{presentationAdam(prenom(userName))}.</p>
             {dossier && <p className="text-[13px] text-[var(--aia-accent)]">Dans le dossier « {dossier.nom} » : ses consignes et ses documents s&apos;appliquent.</p>}
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">
               {SUGGESTIONS.map((s) => (
@@ -311,7 +314,7 @@ function Application({ userName, superAdmin }: { userName?: string; superAdmin: 
                   className="rounded-xl border border-[var(--aia-filet)] px-3 py-2.5 text-left text-[13.5px] hover:bg-[var(--aia-survol)]">{s}</button>
               ))}
             </div>
-            {prive && <p className="text-[13px] text-[var(--aia-prive)]">Conversation privée : l&apos;assistant n&apos;utilise pas votre mémoire et ne retient rien. Elle est supprimée après 30 jours.</p>}
+            {prive && <p className="text-[13px] text-[var(--aia-prive)]">Conversation privée : Adam n&apos;utilise pas votre mémoire et ne retient rien. Elle est supprimée après 30 jours.</p>}
           </div>
         )}
 

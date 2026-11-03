@@ -1,3 +1,4 @@
+import { adamOuvert, CONSIGNE_ADAM_SA } from "../adam/outils-adam";
 import type { CurrentUser } from "@/lib/session";
 import { compileContext, CONSIGNE_MEMOIRE_A_LA_CARTE } from "../contexte";
 import { profilDeLaPersonne } from "../profil-personne";
@@ -20,7 +21,7 @@ import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "../modele";
 import { modelesEffectifs } from "../generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "../repondre";
 import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "../consommation";
-import { retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
+import { retirerCaduquesAvantLeTour, retirerCarteAnnuleeAvantLeTour } from "@/platform/ia/intentions/action-intents";
 import { carteOraleEnAttente } from "../voix/carte-orale";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import type { VueSimulation } from "../../domaine/simulation";
@@ -77,7 +78,8 @@ export type ResultatDuTour =
     /** K3 (décision 0033) : les sous-missions lancées pendant ce tour (la carte qui se met à jour). */
     travaux: string[];
   }
-  | { ok: false; error: string };
+  /** F2 (MG-10) : `transitoire` — le modèle n'a pas répondu (délai, réseau) : le fil REPREND la demande, une fois. */
+  | { ok: false; error: string; transitoire?: boolean };
 
 export interface DemandeDuTour {
   texte: string;
@@ -196,6 +198,11 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   // cliquable). Une carte retirée se redemande ; une mauvaise action exécutée ne se reprend pas.
   // Décision 0035 : à l'oral, la carte en cours de conversation (complétée, corrigée) n'est pas caduque — et l'en-tête de
   // la délégation (qui la nomme) ne compte pas comme « en reparler ».
+  // F2 (AN-ANNULER-03) : « annule cette demande » face à une carte qui attend — le serveur la retire lui-même, et le dit.
+  const annulee = await retirerCarteAnnuleeAvantLeTour(user.id, texteSaisi.replace(/^\[[^\]]*\]\s*/, ""));
+  const noteAnnulee = annulee
+    ? `CARTE RETIRÉE : la personne vient d'annuler la carte « ${annulee.title} », qui attendait sa confirmation ; le serveur l'a RETIRÉE — rien n'a été créé ni envoyé. Dis-le en une phrase ; ne lui demande pas de la fermer.`
+    : null;
   if (reglages.retirerCartesCaduques) {
     const orale = texteSaisi.startsWith("[Conversation vocale") ? await carteOraleEnAttente(user) : null;
     await retirerCaduquesAvantLeTour(user.id, texteSaisi.replace(/^\[Conversation vocale[^\]]*\]\s*/, ""), orale ? [orale.id] : []);
@@ -270,10 +277,10 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const { section: profil } = await profilDeLaPersonne(user, acces);
     instructions = (await compileContext({
       user, profil, consignesRole: resoudreConsignesRole(config),
-      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, canalAdamOuvert(user) ? CONSIGNE_BOITE_ADAM : null, d.consigne, fond ? CONSIGNE_FOND : null]),
+      consignesGenerales: sauf([enClair ? CONSIGNE_EN_CLAIR : CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, CONSIGNE_MISSIONS, canalAdamOuvert(user) ? CONSIGNE_BOITE_ADAM : null, adamOuvert(user) ? CONSIGNE_ADAM_SA : null, d.consigne, fond ? CONSIGNE_FOND : null]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user), !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
-      sectionsDuTour: sauf([consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
+      sectionsDuTour: sauf([noteAnnulee, consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
     })).systemPrompt;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
@@ -349,8 +356,16 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     if (/insufficient_quota|credit_balance_exhausted|no credits remaining|exceeded your current quota/i.test(String((e as Error)?.message ?? e))) {
       return { ok: false, error: "L'assistant est indisponible : le crédit du compte OpenAI est épuisé. L'administrateur doit le recharger (platform.openai.com › Billing).", message };
     }
-    return { ok: false, error: "L'assistant n'a pas pu répondre. Réessayez dans un instant.", message };
+    // F2 (banc réel, MG-10) : un message HONNÊTE — ce qui s'est passé (délai dépassé, ou modèle muet) ; le fil reprend.
+    return { ok: false, error: messageDEchec(e), message, transitoire: true };
   }
+}
+
+/** Ce que la personne lit quand le modèle n'a pas répondu : la cause, dite simplement. */
+export function messageDEchec(e: unknown): string {
+  const m = /délai dépassé \((\d+) ms\)/.exec(String((e as Error)?.message ?? e));
+  if (m) return `L'assistant n'a pas pu terminer : la réponse a dépassé le délai (${Math.round(Number(m[1]) / 60_000) || 1} min) et a été interrompue. Aucune action n'a été confirmée.`;
+  return "L'assistant n'a pas pu répondre : le modèle n'a pas répondu (incident passager). Aucune action n'a été confirmée.";
 }
 
 // La révélation vit avec les accès (`role-config.ts`) : la carte et la confirmation la consultent aussi.

@@ -419,7 +419,7 @@ export const MODULES_TERRAIN_ET_ADMINISTRATION: readonly ModulePlateforme[] = [
     liens: [{ vers: "admin", pourquoi: "Réglages" }],
   },
   {
-    id: "adam", nom: "Adam (chief of staff)", route: "/chief-of-staff", domaine: "systeme", rbac: ["CHIEF_OF_STAFF"],
+    id: "adam", nom: "Bureau d'Adam (ex-« My Chief of Staff », Super Admin)", route: "/adam/bureau", domaine: "systeme", rbac: ["CHIEF_OF_STAFF"],
     resume: "« My Chief of Staff » : lire, proposer des actions, rédiger. EN PAUSE de développement.",
     pourQui: "Le SEUL Super Admin (rôle principal). Ni la Direction, ni un Super Admin en rôle secondaire.",
     gestes: [
@@ -430,7 +430,7 @@ export const MODULES_TERRAIN_ET_ADMINISTRATION: readonly ModulePlateforme[] = [
     liens: [{ vers: "admin", pourquoi: "Contrôle IA" }],
   },
   {
-    id: "assistant-ia", nom: "Assistant IA", route: "/assistant", domaine: "systeme", rbac: ["ASSISTANT_IA"],
+    id: "assistant-ia", nom: "Adam", route: "/assistant", domaine: "systeme", rbac: ["ASSISTANT_IA"],
     resume: "L'assistant de conversation (Mastra + MiMo) : lire ce que la personne peut lire, préparer une tâche ou un message.",
     pourQui: "Le Super Admin, et chaque personne à qui il ouvre le module dans Administration › Accès.",
     gestes: [

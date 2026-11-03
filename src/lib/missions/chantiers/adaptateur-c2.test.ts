@@ -25,6 +25,7 @@ const forge = {
   journalDeJob: async () => ok(`${"x".repeat(5_000)}\nFAIL src/a.test.ts attendu 1 reçu 2`),
   commenterPr: async () => ok({ id: 1, url: "u" }),
   relancerEchecs: async () => ok(true as const),
+  contenuFichier: async (_d: string, chemin: string, ref: string) => { appels.push({ quoi: "contenuFichier", args: [chemin, ref] }); return ok(chemin.endsWith(".sql") ? 'DROP TABLE "X";' : null); },
   fusionnerPr: async (_d: string, numero: number, o: { shaAttendu: string; methode?: C2.MethodeFusion }) => {
     appels.push({ quoi: "fusionnerPr", args: [numero, o] });
     return o.shaAttendu === "abc1234567" ? ok({ sha: "f00d000000", methode: "merge" as const }) : ko("CONFLIT");
@@ -134,5 +135,37 @@ describe("adaptateur C2 → moteur des chantiers", () => {
     const sansRelais = portsDepuisConnecteurs({ agent: { ...agent, routines: () => [], relais: async () => ({ configure: false, vivant: false, connecte: null, vuIlYaMs: null }) }, forge, hebergeur }, { env: {}, fetch: http })!;
     expect(await sansRelais.agent.lancer(consigne, "k")).toMatchObject({ ok: false, definitif: true });
     expect(await aucune.agent.disponible()).toMatchObject({ ok: false });
+  });
+
+  it("disponible() : une routine OU le relais vivant ET connecté suffit — zéro routine + relais vivant n'est PLUS « indisponible »", async () => {
+    const avec = (r: Awaited<ReturnType<C2.AgentDeveloppeur["relais"]>>, routines: string[] = []) =>
+      portsDepuisConnecteurs({ agent: { ...agent, routines: () => routines, relais: async () => r }, forge, hebergeur }, { env: {}, fetch: http })!.agent.disponible();
+    expect(await avec({ configure: true, vivant: true, connecte: true, vuIlYaMs: 1 })).toEqual({ ok: true, moyens: ["relais-cli", "commentaire-pr"] });
+    expect(await avec({ configure: true, vivant: true, connecte: true, vuIlYaMs: 1 }, ["AMD"])).toEqual({ ok: true, moyens: ["routine", "commentaire-pr", "relais-cli"] });
+    expect(await avec({ configure: true, vivant: false, connecte: null, vuIlYaMs: null })).toMatchObject({ ok: false, raison: expect.stringMatching(/hors ligne/) });
+    expect(await avec({ configure: true, vivant: true, connecte: false, vuIlYaMs: 1 })).toMatchObject({ ok: false, raison: expect.stringMatching(/non connecté à claude\.ai/) });
+    expect(await avec({ configure: false, vivant: false, connecte: null, vuIlYaMs: null })).toMatchObject({ ok: false, raison: expect.stringMatching(/non configuré/) });
+  });
+
+  it("la session provisoire « ordre-… » : relue par l'ordre (FAIT → la vraie session) ; inconnue → pas de message, fil de la PR", async () => {
+    relaisVivant = true;
+    try {
+      appels.length = 0;
+      const relu = portsDepuisConnecteurs({ agent: { ...agent, ordreCli: async () => ok({ ordreId: "o9", type: "CREER" as const, statut: "FAIT" as const, sessionId: "session_01VRAIE", sessionUrl: "https://claude.ai/code/session_01VRAIE", erreur: null, deja: true }) }, forge, hebergeur }, { env: {}, fetch: http })!;
+      expect(await relu.agent.relancer({ ...consigne, probleme: "corrige", pr: 7, session: "ordre-o9" }, "k3")).toMatchObject({ ok: true, valeur: { moyen: "relais-cli", sessionId: "session_01VRAIE" } });
+      expect(appels.find((a) => a.quoi === "envoyerMessage")!.args).toMatchObject({ sessionId: "session_01VRAIE" });
+      appels.length = 0;
+      expect(await ports.agent.relancer({ ...consigne, probleme: "corrige", pr: 7, session: "ordre-o9" }, "k4")).toMatchObject({ ok: true, valeur: { moyen: "commentaire-pr" } });
+      expect(appels.some((a) => a.quoi === "envoyerMessage")).toBe(false);
+    } finally {
+      relaisVivant = false;
+    }
+  });
+
+  it("fichier() : le TEXTE au SHA demandé (SQL d'une migration) ; absent à ce SHA → erreur définitive", async () => {
+    const f = await ports.forge.fichier(depot, "abc1234567", "prisma/migrations/x/migration.sql");
+    expect(f.ok && f.valeur.octets.toString("utf8")).toBe('DROP TABLE "X";');
+    expect(appels.find((a) => a.quoi === "contenuFichier")!.args).toEqual(["prisma/migrations/x/migration.sql", "abc1234567"]);
+    expect(await ports.forge.fichier(depot, "abc1234567", "README.md")).toMatchObject({ ok: false, definitif: true });
   });
 });

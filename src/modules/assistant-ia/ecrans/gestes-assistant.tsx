@@ -89,7 +89,7 @@ export function GestesAssistant({ initiaux, superAdmin }: { initiaux: Liste; sup
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-4 py-6 sm:px-0">
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold">Ce que l&apos;assistant a fait</h1>
+        <h1 className="text-xl font-semibold">Ce qu&apos;Adam a fait</h1>
         <p className="text-sm text-muted-foreground">
           Chaque geste de l&apos;assistant en votre nom — cartes confirmées, étapes de travaux, gestes sous mandat — avec ce
           qu&apos;il a écrit. « Annuler » défait ce qui est encore tel qu&apos;il l&apos;a laissé, compense ce qui se compense, et dit
@@ -113,7 +113,7 @@ export function GestesAssistant({ initiaux, superAdmin }: { initiaux: Liste; sup
         {erreur && <p className="rounded-lg bg-destructive/10 p-2 text-xs font-medium text-destructive">{erreur}</p>}
       </header>
 
-      {gestes.length === 0 && <p className="text-sm text-muted-foreground">L&apos;assistant n&apos;a encore rien fait en votre nom.</p>}
+      {gestes.length === 0 && <p className="text-sm text-muted-foreground">Adam n&apos;a encore rien fait en votre nom.</p>}
 
       <ul className="flex flex-col gap-3">
         {gestes.map((g) => {
