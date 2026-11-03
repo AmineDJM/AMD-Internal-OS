@@ -1,0 +1,249 @@
+{
+  "catalogue": {
+    "superadmin": {
+      "offerts": 1259,
+      "jetonsCatalogue": 215992
+    },
+    "commercial": {
+      "offerts": 598,
+      "jetonsCatalogue": 89283
+    },
+    "rh": {
+      "offerts": 363,
+      "jetonsCatalogue": 54400
+    },
+    "finance": {
+      "offerts": 793,
+      "jetonsCatalogue": 117416
+    },
+    "delegue": {
+      "offerts": 725,
+      "jetonsCatalogue": 110318
+    }
+  },
+  "doublons": [
+    "search_drive ↔ chercher_documents",
+    "find_documents ↔ chercher_documents",
+    "search_documents ↔ chercher_documents",
+    "read_document ↔ ouvrir_documents",
+    "pdf_read ↔ ouvrir_documents",
+    "sheet_read ↔ lire_tableur",
+    "format_convertir ↔ convertir_document",
+    "format_lire ↔ ouvrir_documents",
+    "gmail_search ↔ mes_boites_mail",
+    "gmail_read_thread ↔ mes_boites_mail",
+    "gmail_pending_mail ↔ mes_boites_mail",
+    "mission_create ↔ lancer_un_travail",
+    "list_reminders ↔ gerer_routine",
+    "plan_reminder ↔ programmer_routine",
+    "episodic_recall ↔ mes_conversations",
+    "read_finances ↔ finance_totals",
+    "resolve_person ↔ directory_lookup"
+  ],
+  "tour": {
+    "superadmin": {
+      "consigneJetons": [
+        6182,
+        6061,
+        6182,
+        6260,
+        6182
+      ],
+      "outilsEnvoyes": [
+        17,
+        17,
+        14,
+        15,
+        13
+      ],
+      "jetonsOutilsEnvoyes": [
+        2123,
+        2528,
+        3790,
+        3116,
+        2286
+      ]
+    },
+    "commercial": {
+      "consigneJetons": [
+        6699,
+        6579,
+        6699,
+        6908,
+        6699
+      ],
+      "outilsEnvoyes": [
+        17,
+        16,
+        15,
+        14,
+        13
+      ],
+      "jetonsOutilsEnvoyes": [
+        2123,
+        2468,
+        3601,
+        3610,
+        1888
+      ]
+    }
+  },
+  "rejeu": {
+    "superadmin": [
+      {
+        "texte": "Envoie un mail simple, sans design, à Karim pour lui dire que la réunion est décalée à jeudi.",
+        "ms": 5656,
+        "appels": 2,
+        "entree": 16098,
+        "cache": 7782,
+        "sortie": 204,
+        "coutUsd": 0.0097,
+        "ok": true,
+        "outils": [
+          "Mail préparé"
+        ],
+        "carte": "Envoyer par l'envoi de l'ERP",
+        "reponse": "Le mail simple à Karim attend votre confirmation sur la carte « Envoyer ». La simulation a échoué ; l’action sera revérifiée à la confirmation. Le mail partira par l’envoi de l’ERP et restera annulable pendant la fenêtre prévue (2 minutes par défaut).\n\nLa boîte Gmail d’Adam n’est pas reliée ; vous pouvez la connecter dans Chief of Staff › Réglages › « Connecter Google »."
+      },
+      {
+        "texte": "Donne-moi nos 3 missions en cours, avec leur état.",
+        "ms": 4814,
+        "appels": 2,
+        "entree": 15515,
+        "cache": 7655,
+        "sortie": 163,
+        "coutUsd": 0.0091,
+        "ok": true,
+        "outils": [
+          "Missions lues"
+        ],
+        "carte": null,
+        "reponse": "Amine, je ne vois qu’une mission en cours, et non trois. Elle est en attente du worker, sans battement enregistré."
+      },
+      {
+        "texte": "Quels sont nos produits infectieux commercialisés ?",
+        "ms": 10519,
+        "appels": 4,
+        "entree": 41931,
+        "cache": 19596,
+        "sortie": 238,
+        "coutUsd": 0.0245,
+        "ok": true,
+        "outils": [
+          "Catalogue consulté",
+          "Recherche effectuée"
+        ],
+        "carte": null,
+        "reponse": "Amine, je ne peux pas confirmer la liste de nos produits infectieux commercialisés à partir du catalogue Regulatory consulté. Il mentionne le **posaconazole** en infectiologie, mais ses deux dossiers sont en **pré-soumission** : ce statut ne confirme pas sa commercialisation."
+      },
+      {
+        "texte": "Quelle est la masse salariale d'Adventum ce mois-ci ?",
+        "ms": 4045,
+        "appels": 2,
+        "entree": 15950,
+        "cache": 7930,
+        "sortie": 85,
+        "coutUsd": 0.0088,
+        "ok": true,
+        "outils": [
+          "Paie consultée"
+        ],
+        "carte": null,
+        "reponse": "Amine, aucune ligne de paie n’est disponible pour novembre 2026 dans les sociétés qui vous sont ouvertes. Je ne peux donc pas établir la masse salariale d’Adventum pour ce mois."
+      },
+      {
+        "texte": "Cherche le dernier contrat signé avec Pharmagène dans le Drive.",
+        "ms": 9102,
+        "appels": 4,
+        "entree": 31475,
+        "cache": 14656,
+        "sortie": 277,
+        "coutUsd": 0.0189,
+        "ok": true,
+        "outils": [
+          "Registre juridique lu",
+          "Recherche effectuée",
+          "Bibliothèque consultée"
+        ],
+        "carte": null,
+        "reponse": "Amine, je n’ai pas trouvé de contrat signé avec Pharmagène dans les documents accessibles du Drive ni dans le registre juridique."
+      }
+    ],
+    "commercial": [
+      {
+        "texte": "Envoie un mail simple, sans design, à Karim pour lui dire que la réunion est décalée à jeudi.",
+        "ms": 2451,
+        "appels": 1,
+        "entree": 8204,
+        "cache": 0,
+        "sortie": 72,
+        "coutUsd": 0.0086,
+        "ok": true,
+        "outils": [],
+        "carte": null,
+        "reponse": "Radia, votre rôle ne dispose pas du droit « une boîte qui ne vous est pas ouverte » dans l’application. Je ne peux donc pas préparer cet envoi."
+      },
+      {
+        "texte": "Donne-moi nos 3 missions en cours, avec leur état.",
+        "ms": 4731,
+        "appels": 2,
+        "entree": 16171,
+        "cache": 7981,
+        "sortie": 112,
+        "coutUsd": 0.0091,
+        "ok": true,
+        "outils": [
+          "Missions lues"
+        ],
+        "carte": null,
+        "reponse": "Radia, je ne vois qu’une mission en cours, et non trois. Elle est bloquée : le worker est absent."
+      },
+      {
+        "texte": "Quels sont nos produits infectieux commercialisés ?",
+        "ms": 7348,
+        "appels": 3,
+        "entree": 28267,
+        "cache": 9877,
+        "sortie": 182,
+        "coutUsd": 0.0198,
+        "ok": true,
+        "outils": [
+          "Recherche effectuée"
+        ],
+        "carte": null,
+        "reponse": "Radia, je n’ai trouvé aucun produit anti-infectieux commercialisé dans les données consultées. Cela ne permet pas de conclure qu’il n’y en a pas."
+      },
+      {
+        "texte": "Quelle est la masse salariale d'Adventum ce mois-ci ?",
+        "ms": 2328,
+        "appels": 1,
+        "entree": 8973,
+        "cache": 0,
+        "sortie": 48,
+        "coutUsd": 0.0092,
+        "ok": true,
+        "outils": [],
+        "carte": null,
+        "reponse": "Radia, la famille « Salaires & paie » ne vous est pas ouverte. La Direction peut l’activer dans Administration › Contrôle de l’IA › Adam — accès."
+      },
+      {
+        "texte": "Cherche le dernier contrat signé avec Pharmagène dans le Drive.",
+        "ms": 9932,
+        "appels": 5,
+        "entree": 37571,
+        "cache": 29766,
+        "sortie": 259,
+        "coutUsd": 0.0106,
+        "ok": true,
+        "outils": [
+          "Registre juridique lu",
+          "Bibliothèque consultée",
+          "Recherche effectuée"
+        ],
+        "carte": null,
+        "reponse": "Radia, je n’ai trouvé aucun contrat avec Pharmagène parmi les documents que vous pouvez ouvrir dans le Drive. Le module Juridique n’est pas ouvert à votre rôle ; vous pouvez demander à la juriste ou à la Direction de vérifier le dernier contrat signé."
+      }
+    ]
+  },
+  "rejeuCoutTotalUsd": 0.1284
+}
