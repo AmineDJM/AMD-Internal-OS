@@ -98,7 +98,7 @@ export function AssistantDeLaPersonne({ personnes }: { personnes: LignePersonne[
         {apercu && personne && (
           <div className="space-y-4">
             {!apercu.assistantOuvert && (
-              <p className="rounded-md bg-muted px-3 py-2 text-sm">L&apos;Assistant IA n&apos;est pas ouvert à cette personne (Administration › Accès).</p>
+              <p className="rounded-md bg-muted px-3 py-2 text-sm">Adam n&apos;est pas ouvert à cette personne (Administration › Accès).</p>
             )}
             <section>
               <h3 className="mb-1 text-sm font-semibold">Profil reçu par l&apos;assistant</h3>

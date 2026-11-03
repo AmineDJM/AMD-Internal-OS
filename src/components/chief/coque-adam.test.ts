@@ -33,7 +33,8 @@ import { NAVIGATION } from "@/lib/labels";
 const lire = (rel: string): string => fs.readFileSync(path.join(process.cwd(), rel), "utf8");
 const existe = (rel: string): boolean => fs.existsSync(path.join(process.cwd(), rel));
 
-const PAGE = "src/app/(app)/chief-of-staff/page.tsx";
+// Le BUREAU d'Adam a déménagé dans l'onglet « Bureau d'Adam » du Super Admin (02/11/2026) — même corps, même coque.
+const PAGE = "src/app/(app)/adam/bureau/page.tsx";
 const CHAT = "src/components/chief/assistant-chat.tsx";
 /**
  * La conversation est découpée en `assistant-chat/` (la porte ne fait que réexporter) : les règles de
@@ -56,15 +57,27 @@ describe("la coque d'Adam — un module comme les autres", () => {
     expect(layout).toContain("<MobileTabBar items={navItems}");
   });
 
-  it("le menu latéral LISTE Adam : on y entre comme dans n'importe quel module", () => {
+  it("le menu latéral LISTE Adam (l'assistant de tous) ; « My Chief of Staff » est MIS DE CÔTÉ, pas supprimé (02/11/2026)", () => {
+    const adam = NAVIGATION.find((n) => n.href === "/assistant");
+    expect(adam?.label).toBe("Adam");
+    expect(adam?.match).toContain("/adam");
+    // L'entrée reste au catalogue, avec sa clé de module : la rétablir = retirer `masque`.
     const entree = NAVIGATION.find((n) => n.href === "/chief-of-staff");
-    expect(entree, "« /chief-of-staff » doit être une entrée de navigation, pas une adresse à connaître").toBeTruthy();
     expect(entree?.module).toBe("CHIEF_OF_STAFF");
+    expect(entree?.masque).toBeTruthy();
   });
 
-  it("les sous-pages ont suivi — les réglages et la boîte restent atteignables sous la même URL", () => {
-    expect(existe("src/app/(app)/chief-of-staff/reglages/page.tsx")).toBe(true);
-    expect(existe("src/app/(app)/chief-of-staff/inbox/page.tsx")).toBe(true);
+  it("les anciennes adresses restent servies — elles mènent aux onglets d'Adam, paramètres compris", () => {
+    for (const p of ["src/app/(app)/chief-of-staff/page.tsx", "src/app/(app)/chief-of-staff/reglages/page.tsx", "src/app/(app)/chief-of-staff/inbox/page.tsx"]) {
+      expect(existe(p), p).toBe(true);
+      expect(lire(p), p).toContain("redirect(versEcranAdam(");
+    }
+    for (const p of ["src/app/(app)/adam/bureau/page.tsx", "src/app/(app)/adam/reglages/page.tsx", "src/app/(app)/adam/boite/page.tsx"]) {
+      expect(existe(p), p).toBe(true);
+    }
+    // Le gabarit du segment `/chief-of-staff` passe AVANT la redirection : le refus d'un non-Super-Admin ne change pas.
+    expect(lire("src/app/(app)/chief-of-staff/layout.tsx")).toContain("await exigerAdamVisible();");
+    expect(lire("src/app/(app)/adam/layout.tsx")).toContain("await exigerAdamVisible();");
   });
 
   it("la hauteur est MESURÉE, jamais écrite en dur — sinon le composeur passe sous la barre d'onglets", () => {

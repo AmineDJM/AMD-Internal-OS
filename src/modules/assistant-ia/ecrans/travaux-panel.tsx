@@ -293,7 +293,7 @@ export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver, d
       ) : travaux.length === 0 ? (
         <div className="space-y-2 py-6 text-center text-[13px] text-slate-500">
           <p>Aucun travail pour l&apos;instant.</p>
-          <p>Confiez à l&apos;assistant un chantier qui dépasse une réponse : « Analyse toutes les demandes Ad &amp; Pro de l&apos;année et fais-moi un rapport », « relance l&apos;agence si le BC n&apos;est pas signé sous 48 h ».</p>
+          <p>Confiez à Adam un chantier qui dépasse une réponse : « Analyse toutes les demandes Ad &amp; Pro de l&apos;année et fais-moi un rapport », « relance l&apos;agence si le BC n&apos;est pas signé sous 48 h ».</p>
         </div>
       ) : (
         <ul className="space-y-3">

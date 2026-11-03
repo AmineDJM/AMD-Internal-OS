@@ -42,7 +42,7 @@ export function modeleOpenAi(env: NodeJS.ProcessEnv = process.env, role: RoleMod
  * Ce que l'Assistant IA répond quand aucun modèle n'est configuré : le geste EXACT (§118.128), pas
  * « l'IA n'est pas configurée » — phrase vraie qui ne dit ni quelle clé ni où la poser.
  */
-export const IA_NON_CONFIGUREE = phraseIaNonConfiguree("OPENAI_API_KEY", "l'Assistant IA");
+export const IA_NON_CONFIGUREE = phraseIaNonConfiguree("OPENAI_API_KEY", "Adam");
 
 /** Les modèles à essayer, dans l'ordre. Vide = IA non configurée. */
 export function modelesAssistant(role: RoleModele = "standard"): ModeleConfig[] {

@@ -13,7 +13,7 @@ import { dernierLivretGeneral } from "@/lib/livret/serveur";
 import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Mission — Mon espace" };
+export const metadata = { title: "Mission terrain — Mon espace" };
 
 /**
  * UNE MISSION DE L'ÉQUIPE ADVENTUM (Direction, 10/2026) — la destination de ses notifications : la demande de
@@ -47,7 +47,7 @@ export default async function MissionEquipePage(props: { params: Promise<{ id: s
     <div className="mx-auto w-full max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Link href={CHEMIN_MES_MISSIONS} className="inline-flex w-fit items-center gap-1.5 py-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" aria-hidden /> Mes missions
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Missions terrain
         </Link>
         {livret && (
           <a href={`/api/documents/${livret}`} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1.5 text-sm font-medium text-primary hover:underline sm:min-h-0">

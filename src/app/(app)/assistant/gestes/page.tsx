@@ -5,7 +5,7 @@ import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { listerGestesAssistant } from "@/modules/assistant-ia/actions-gestes";
 import { GestesAssistant } from "@/modules/assistant-ia/ecrans/gestes-assistant";
 
-export const metadata: Metadata = { title: "Ce que l'assistant a fait — Assistant IA" };
+export const metadata: Metadata = { title: "Ce qu'Adam a fait — Adam" };
 export const dynamic = "force-dynamic";
 
 /**

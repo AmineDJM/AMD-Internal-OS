@@ -86,7 +86,7 @@ export function ChiefHeader({
         </button>
       )}
 
-      <Link href="/chief-of-staff" className="flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ outlineColor: "hsl(var(--chief-accent))" }}>
+      <Link href="/adam/bureau" className="flex min-w-0 items-center gap-2.5 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" style={{ outlineColor: "hsl(var(--chief-accent))" }}>
         <AdamMark />
         <span className="flex min-w-0 items-baseline gap-2">
           <span className="text-[15px] font-semibold tracking-[-0.01em]" style={{ color: "hsl(var(--chief-text))" }}>

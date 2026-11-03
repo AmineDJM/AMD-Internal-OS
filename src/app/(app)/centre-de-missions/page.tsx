@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireModule } from "@/lib/session";
-import { hasGlobalView, peutPiloterMissionsAdam } from "@/lib/rbac";
+import { requireUser } from "@/lib/session";
+import { hasGlobalView, peutPiloterMissionsAdam, peutUtiliserAssistantIA } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { centreDeMissions } from "@/lib/missions/view/control";
+import { centreDeMissions, vueGlobaleDesMissions } from "@/lib/missions/view/control";
+import { mesMissions } from "@/modules/assistant-ia/api";
+import { ListeMissionsAdam } from "@/modules/assistant-ia/ecrans/missions/liste-missions-adam";
+import { VueGlobaleMissions } from "@/components/missions/mission-control-list";
 import { compterPourLesGestesDeMasse } from "@/lib/missions/runtime/control";
 import { ECRAN_REGLAGES_ADAM, lireInterrupteurMissions } from "@/lib/interrupteurs/missions";
 import { listerAccordsMission } from "@/lib/actions/mission-runtime-actions";
@@ -40,31 +43,44 @@ export const metadata = { title: "Missions d'Adam — AMD Internal OS" };
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 export default async function CentreDeMissionsPage() {
-  const user = await requireModule("WORKSPACE");
-  // RÉSERVÉ AU SUPER ADMIN (décision de la Direction, 09/2026 — `peutPiloterMissionsAdam`). Le
-  // menu n'envoie pas l'entrée aux autres ; une adresse tapée à la main rend la même page qu'une
-  // adresse inexistante : on ne dit pas « il y a un parc, mais pas pour vous ».
-  if (!peutPiloterMissionsAdam(user)) notFound();
+  const user = await requireUser();
+  // OUVERT À QUI A ADAM (Direction, 02/11/2026 : « tout le monde verra les missions d'Adam, chacun selon les missions
+  // qu'il lui a données »). Sans Adam, la page n'existe pas — même réponse qu'une adresse inconnue.
+  //
+  // CE QUE CHACUN LIT : SES missions, et elles seules — chaque lecture ci-dessous est filtrée par SON identifiant
+  // (`centreDeMissions`, `mesMissions`, par `user.id`). CE QUI RESTE AU SUPER ADMIN (`peutPiloterMissionsAdam`,
+  // §118.136) : la vue globale, l'interrupteur général, les accords et les gestes de masse — non chargés pour les autres.
+  const superAdmin = peutPiloterMissionsAdam(user);
+  if (!superAdmin && !peutUtiliserAssistantIA(user)) notFound();
   const maintenant = new Date();
 
-  const [centre, accords, interrupteur, masse] = await Promise.all([
+  const [centre, mes, interrupteur] = await Promise.all([
     centreDeMissions(user.id),
-    listerAccordsMission(),
+    mesMissions(user.id, { toutes: true, maintenant }).catch(sansBloquer("centre-de-missions-page.CentreDeMissionsPage.mesMissions", null)),
     // L'INTERRUPTEUR GLOBAL (§118.132) : s'il est posé, l'écran doit le dire AVANT les
     // compteurs — sinon « 3 en cours » se lit comme trois missions qui avancent.
     lireInterrupteurMissions(),
-    // Les nombres des boutons de masse viennent du MÊME prédicat que les gestes (§118.51).
-    compterPourLesGestesDeMasse(user.id),
   ]);
+  const [accords, masse, globale] = superAdmin
+    ? await Promise.all([
+        listerAccordsMission(),
+        // Les nombres des boutons de masse viennent du MÊME prédicat que les gestes (§118.51).
+        compterPourLesGestesDeMasse(user.id),
+        vueGlobaleDesMissions(),
+      ])
+    : [[], null, null] as const;
   const poseur = interrupteur.parId
     ? await prisma.user.findUnique({ where: { id: interrupteur.parId }, select: { name: true } }).catch(sansBloquer("centre-de-missions-page.CentreDeMissionsPage.user", null))
     : null;
+  const executionVisible = superAdmin || centre.vivantes.length + centre.closes.length > 0;
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Missions d'Adam"
-        description="Tout ce qu'Adam exécute pour vous : ce qui attend une décision de votre part en premier, puis ce qui est bloqué, puis ce qui avance. Une mission longue s'y lit en JALONS — pas en étapes du sous-plan en cours, qui ne diraient qu'un septième de l'histoire."
+        description={superAdmin
+          ? "Tout ce qu'Adam exécute pour vous : ce qui attend une décision de votre part en premier, puis ce qui est bloqué, puis ce qui avance — et, plus bas, la vue globale de toutes les personnes. Une mission longue s'y lit en JALONS."
+          : "Les missions que vous avez confiées à Adam, avec leur état réel. Vous pouvez les mettre en pause, les reprendre ou les arrêter."}
       />
 
       {interrupteur.suspendues ? (
@@ -92,6 +108,18 @@ export default async function CentreDeMissionsPage() {
         </section>
       ) : null}
 
+      {/* ── MES MISSIONS — à tout le monde : les travaux confiés à Adam, et leurs gestes permis. */}
+      <section className="space-y-2" aria-labelledby="mes-missions-titre">
+        <h2 id="mes-missions-titre" className="text-sm font-semibold text-foreground">Mes missions</h2>
+        {superAdmin && mes?.alerte ? (
+          <p role="alert" className="rounded-md border border-rose-300 bg-rose-50 px-3 py-2 text-sm text-rose-800">{mes.alerte}</p>
+        ) : null}
+        {mes ? <ListeMissionsAdam missions={mes.missions} /> : (
+          <p className="text-sm text-slate-500">Vos missions n&apos;ont pas pu être lues — réessayez dans un instant.</p>
+        )}
+      </section>
+
+      {superAdmin ? (
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard
           label="En attente de vous" value={centre.compteurs.attendentVous} icon="TriangleAlert"
@@ -109,9 +137,10 @@ export default async function CentreDeMissionsPage() {
           hint="Elles ne consomment rien"
         />
       </div>
+      ) : null}
 
-      {/* ── LES GESTES DE MASSE (§118.132) — le confort du bouton, sur le même prédicat que le geste. */}
-      <MissionBulkControls suspendables={masse.suspendables} bloquees={masse.bloquees} />
+      {/* ── LES GESTES DE MASSE (§118.132) — le confort du bouton, sur le même prédicat que le geste. Super Admin seul. */}
+      {masse ? <MissionBulkControls suspendables={masse.suspendables} bloquees={masse.bloquees} /> : null}
 
       {/* ── LES ACCORDS, DÉCIDABLES ICI ────────────────────────────────────────────────
           L'accord est une ATTESTATION : il exige une vraie session humaine (§118.15), donc il
@@ -143,6 +172,9 @@ export default async function CentreDeMissionsPage() {
         </section>
       ) : null}
 
+      {executionVisible ? (
+      <>
+      <h2 className="text-sm font-semibold text-foreground">Missions d&apos;exécution</h2>
       <MissionControlList
         lignes={centre.vivantes}
         maintenant={maintenant}
@@ -156,6 +188,11 @@ export default async function CentreDeMissionsPage() {
       />
 
       <MissionsCloses lignes={centre.closes} maintenant={maintenant} />
+      </>
+      ) : null}
+
+      {/* ── LA VUE GLOBALE — le Super Admin seul : toutes les personnes, avec le propriétaire de chaque mission. */}
+      {globale ? <VueGlobaleMissions vue={globale} maintenant={maintenant} moi={user.id} /> : null}
     </div>
   );
 }

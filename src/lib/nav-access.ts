@@ -144,6 +144,8 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     modules.includes(n.module as (typeof modules)[number]);
 
   return NAVIGATION.reduce<NavItem[]>((acc, n) => {
+    // MISE DE CÔTÉ (`masque`) : pour tout le monde, Super Admin compris — la route reste servie, l'entrée ne s'affiche plus.
+    if (n.masque) return acc;
     if (n.gate && !gateOpen[n.gate]) return acc;
     const kids = allowedChildren(n);
     if (!n.tabs) {

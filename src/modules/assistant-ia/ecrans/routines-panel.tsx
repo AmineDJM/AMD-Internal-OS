@@ -111,7 +111,7 @@ export function RoutinesPanel({ ouvert, onFermer, routineInitiale, onNonLus }: {
       ) : routines.length === 0 ? (
         <div className="space-y-2 py-6 text-center text-[13px] text-slate-500">
           <p>Aucune routine pour l&apos;instant.</p>
-          <p>Demandez-la à l&apos;assistant : « Chaque dimanche à 8 h, fais-moi un briefing du marché pharmaceutique en Algérie. »</p>
+          <p>Demandez-la à Adam : « Chaque dimanche à 8 h, fais-moi un briefing du marché pharmaceutique en Algérie. »</p>
         </div>
       ) : (
         <ul className="space-y-3">

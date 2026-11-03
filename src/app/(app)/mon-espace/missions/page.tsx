@@ -9,7 +9,7 @@ import { MesMissions } from "@/components/missions/mes-missions";
 import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Mes missions — Mon espace" };
+export const metadata = { title: "Missions terrain — Mon espace" };
 
 /**
  * MON ESPACE › MES MISSIONS (Direction, 10/2026) — les missions Ad & Pro de la personne : invitations à confirmer,
@@ -32,7 +32,7 @@ export default async function MesMissionsPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Mes missions"
+        title="Missions terrain"
         description={`${aVenir} mission${aVenir > 1 ? "s" : ""}${invitations ? ` · ${invitations} invitation${invitations > 1 ? "s" : ""}` : ""}${aValider.length ? ` · ${aValider.length} ordre${aValider.length > 1 ? "s" : ""} à valider` : ""}`}
       />
       <ModuleTabs tabs={tabs} />

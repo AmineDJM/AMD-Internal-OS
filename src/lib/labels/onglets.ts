@@ -57,9 +57,11 @@ export const WORKSPACE_TABS: NavTab[] = [
   // TOUTES LES TÂCHES EN UN SEUL ENDROIT (Direction, 07/10) — à accepter, à faire, demandées, partagées, terminées.
   // Le compteur de l'onglet est posé par `ongletsEspace` (`queries/mes-taches.ts`).
   { module: "WORKSPACE", label: "Tâches", href: "/mon-espace/taches" },
-  // MES MISSIONS (Direction, 10/2026) — les missions Ad & Pro reliées au profil : invitations, ordre de mission
+  // MISSIONS TERRAIN (ex-« Mes missions », renommé le 02/11/2026 : « Missions d'Adam » nomme désormais les missions de
+  // l'IA ; celles-ci sont les missions d'ÉQUIPE confiées entre collègues — MissionAssignment, données et droits inchangés).
+  // (Direction, 10/2026) — les missions Ad & Pro reliées au profil : invitations, ordre de mission
   // (N+1 → RH), et les étapes que la personne ajoute. `/missions` y renvoie.
-  { module: "WORKSPACE", label: "Mes missions", href: "/mon-espace/missions" },
+  { module: "WORKSPACE", label: "Missions terrain", href: "/mon-espace/missions" },
   { module: "WORKSPACE", label: "Mon dossier RH", href: "/mon-dossier" },
   // MON BILAN (KPI sans code, Direction 08/10) : ses KPI en continu, sa revue signée, ses déclarations.
   { module: "KPI", label: "Mon bilan", href: "/mon-espace/bilan" },
@@ -335,3 +337,37 @@ export const SITE_WEB_TABS: NavTab[] = [
   { module: "SITE_WEB", label: "Offres d'emploi", href: "/site-web/offres" },
   { module: "SITE_WEB", label: "Audience", href: "/site-web/audience" },
 ];
+
+/**
+ * L'ÉCRAN D'ADAM DU SUPER ADMIN (Direction, 02/11/2026 : « un seul assistant : Adam ») — la conversation, et ce que
+ * « My Chief of Staff » portait à part : la boîte de réception, les réglages et l'ancien bureau, intact, en onglet
+ * transitoire. Ces onglets ne s'affichent QU'AU Super Admin (`peutVoirAdam`, lu par l'écran) : un employé qui a Adam
+ * voit la conversation, sans barre d'onglets. Les adresses `/chief-of-staff/*` y mènent (`versEcranAdam`).
+ */
+export const ADAM_TABS: NavTab[] = [
+  { module: "ASSISTANT_IA", label: "Conversation", href: "/assistant" },
+  { module: "CHIEF_OF_STAFF", label: "Boîte de réception", href: "/adam/boite" },
+  { module: "CHIEF_OF_STAFF", label: "Réglages d'Adam", href: "/adam/reglages" },
+  { module: "CHIEF_OF_STAFF", label: "Bureau d'Adam", href: "/adam/bureau" },
+];
+
+/** Les paramètres d'un lien `/chief-of-staff?…` qui parlent au BUREAU (question, référence, appel, planche de rendu). */
+const PARAMS_DU_BUREAU = ["q", "ref", "call", "apercu"] as const;
+
+/**
+ * OÙ MÈNE UNE ANCIENNE ADRESSE `/chief-of-staff/*` — pure, testée. Les paramètres suivent (retour Google `?connecte=`).
+ * La racine sans paramètre du bureau mène à la conversation : c'est l'écran d'Adam ; avec une question, une référence
+ * ou un appel, elle mène au bureau, qui sait les traiter.
+ */
+export function versEcranAdam(
+  onglet: "bureau" | "boite" | "reglages",
+  params: Record<string, string | string[] | undefined>,
+): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    for (const x of Array.isArray(v) ? v : v === undefined ? [] : [v]) q.append(k, x);
+  }
+  const suite = q.toString() ? `?${q.toString()}` : "";
+  if (onglet === "bureau" && !PARAMS_DU_BUREAU.some((k) => q.has(k))) return `/assistant${suite}`;
+  return `/adam/${onglet}${suite}`;
+}

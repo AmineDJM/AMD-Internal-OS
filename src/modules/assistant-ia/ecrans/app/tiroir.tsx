@@ -88,7 +88,7 @@ function OngletTravaux({ onOuvrir, onDemandes }: { onOuvrir: (id?: string) => vo
           </button>
         );
       })}
-      {tableau && !missions.length && <p className="text-[13px] text-[var(--aia-discret)]">Aucune mission. Confiez une analyse longue à l&apos;assistant : elle tourne sur le serveur, même app fermée, et vous continuez de discuter.</p>}
+      {tableau && !missions.length && <p className="text-[13px] text-[var(--aia-discret)]">Aucune mission. Confiez une analyse longue à Adam : elle tourne sur le serveur, même app fermée, et vous continuez de discuter.</p>}
       <button type="button" onClick={() => onOuvrir()} className="mt-1 min-h-11 self-start text-[13px] text-[var(--aia-accent)] underline">Ouvrir le tableau de bord des missions</button>
       {onDemandes && <button type="button" onClick={onDemandes} className="min-h-11 self-start text-[13px] text-[var(--aia-discret)] underline">Demandes reçues, travaux de l&apos;équipe</button>}
     </>

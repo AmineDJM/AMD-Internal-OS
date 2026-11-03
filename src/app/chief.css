@@ -437,3 +437,10 @@
   .chief-inbox-actions .chief-btn { flex: 1 1 calc(50% - 8px); }
   .chief-inbox-timing { margin-left: 0; width: 100%; }
 }
+
+/* L'ÉCRAN D'ADAM EN ONGLETS (02/11/2026) — le bureau, écrit pour occuper seul la fenêtre (`app-viewport-flush` et
+   marges négatives), est ramené à la place que laisse la barre d'onglets. Deux classes : plus spécifique que l'utilitaire. */
+.adam-corps > .app-viewport-flush {
+  height: 100%;
+  margin: 0;
+}

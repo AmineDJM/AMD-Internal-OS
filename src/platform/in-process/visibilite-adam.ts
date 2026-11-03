@@ -24,6 +24,11 @@ export { peutVoirAdam, REFUS_ADAM } from "@/lib/rbac";
 // L'ASSISTANT IA (/assistant) n'est pas Adam : sa règle est un module ouvert personne par personne, et
 // il la lit dans `@/lib/rbac` directement (lot J0) — il ne passe plus par le pont d'Adam.
 
+// L'ÉCRAN D'ADAM EN ONGLETS (02/11/2026) — la barre et la règle des anciennes adresses `/chief-of-staff/*` passent par le
+// PONT, pour la même raison que la règle : un import direct depuis une page d'Adam serait un franchissement compté.
+export { versEcranAdam } from "@/lib/labels";
+export { OngletsAdam } from "@/components/shared/onglets-adam";
+
 export async function exigerAdamVisible() {
   const user = await requireUser();
   if (!peutVoirAdam(user)) notFound();
