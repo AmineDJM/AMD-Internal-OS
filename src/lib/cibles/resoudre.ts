@@ -180,7 +180,8 @@ export async function resoudreCible(
 }
 
 /** Les titres et mots vides d'une désignation (« le Dr », « la Pharmacie de ») — retirés avant la recherche par mots. */
-const MOTS_VIDES = new Set(["dr", "dr.", "docteur", "pr", "pr.", "professeur", "mme", "mme.", "madame", "m", "m.", "mr", "monsieur", "mlle", "le", "la", "les", "l", "de", "du", "des", "d", "et", "à", "a", "au"]);
+// F2 (TR-EV-01) : « la BU Hépatologie », « la gamme Hépatologie » — la catégorie dite devant le nom n'en fait pas partie.
+const MOTS_VIDES = new Set(["dr", "dr.", "docteur", "pr", "pr.", "professeur", "mme", "mme.", "madame", "m", "m.", "mr", "monsieur", "mlle", "le", "la", "les", "l", "de", "du", "des", "d", "et", "à", "a", "au", "bu", "gamme"]);
 export function motsDeDesignation(q: string): string[] {
   return q.toLowerCase().split(/[\s'’,;:()«»"]+/).map((m) => m.trim()).filter((m) => m.length >= 2 && !MOTS_VIDES.has(m)).slice(0, 6);
 }

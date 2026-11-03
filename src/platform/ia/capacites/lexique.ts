@@ -194,6 +194,8 @@ export const SYNONYMES: Readonly<Record<string, string>> = {
   rapport: "compte rendu CR", stock: "inventaire quantités", formation: "training", recrutement: "embauche poste offre",
   candidat: "candidature CV", pharmacovigilance: "effet indésirable PV", circuit: "workflow validation",
   validation: "valider approbation", projet: "project", société: "entreprise entité", département: "service",
+  // F2 (banc réel, TR-RH-04) : « une attestation de travail pour la banque » ne trouvait pas « Demander document RH ».
+  "document RH": "attestation certificat travail salaire domiciliation CNAS relevé titre de congé",
   notification: "alerte", statut: "terminée terminé fait en cours", mission: "déplacement ordre de mission", avance: "acompte", caisse: "petite caisse",
 };
 

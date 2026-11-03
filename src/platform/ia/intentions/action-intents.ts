@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { PowerTool, UtilisateurOutil as CurrentUser } from "@/platform/ia/outil";
-import { caduquesParMessage, natureComparable, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/platform/ia/intentions/proposition-perimee";
+import { annuleLaCarte, caduquesParMessage, natureComparable, objetDeLaCharge, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/platform/ia/intentions/proposition-perimee";
 import { sansBloquer } from "@/lib/journal";
 import { matchesConfirmText } from "./confirm";
 
@@ -116,7 +116,7 @@ async function retirerPerimees(userId: string, seeds: IntentSeed[], ids: (string
   if (retraitDesPerimeesDesactive()) return;
   const nouvelles: PropositionComparable[] = seeds.flatMap((seed, i) => {
     const id = ids[i];
-    return id ? [{ id, kind: natureComparable(seed.kind, seed.payload), title: seed.title, summary: intentSummary(seed) }] : [];
+    return id ? [{ id, kind: natureComparable(seed.kind, seed.payload), title: seed.title, summary: intentSummary(seed), objet: objetDeLaCharge(seed.payload) }] : [];
   });
   if (nouvelles.length === 0) return;
 
@@ -132,7 +132,7 @@ async function retirerPerimees(userId: string, seeds: IntentSeed[], ids: (string
     orderBy: { proposedAt: "desc" },
     take: 20,
   });
-  const morts = propositionsPerimees(nouvelles, enAttente.map((p) => ({ ...p, kind: natureComparable(p.kind, p.payload) })));
+  const morts = propositionsPerimees(nouvelles, enAttente.map((p) => ({ ...p, kind: natureComparable(p.kind, p.payload), objet: objetDeLaCharge(p.payload) })));
   if (morts.length === 0) return;
 
   for (const id of morts) {
@@ -169,6 +169,32 @@ const FENETRE_PERIMEES_MS = 2 * 60 * 60 * 1000;
  * devenus sans objet. Sans eux, le serveur refusait un geste que l'interface proposait encore.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+/**
+ * F2 (AN-ANNULER-03) — LA CARTE QUE LA PERSONNE ANNULE EST RETIRÉE PAR LE SERVEUR, avant le modèle : la dernière carte
+ * proposée (moins de 30 minutes), passée à CANCELLED avec la raison au journal. Rend la carte retirée (son titre est dit
+ * au modèle, qui l'annonce), ou `null`. Une carte déjà confirmée n'est pas touchée (le filtre `PROPOSED`).
+ */
+export async function retirerCarteAnnuleeAvantLeTour(userId: string, message: string): Promise<{ id: string; title: string } | null> {
+  if (!annuleLaCarte(message)) return null;
+  try {
+    // LA DERNIÈRE carte, quel que soit son état : si elle a été confirmée (exécutée), « annule » vise ce geste-là — c'est
+    // l'annulation du journal des effets (K10), pas ce retrait.
+    const carte = await prisma.assistantActionIntent.findFirst({
+      where: { userId, proposedAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+      orderBy: { proposedAt: "desc" }, select: { id: true, title: true, events: true, status: true },
+    });
+    if (!carte || carte.status !== "PROPOSED") return null;
+    const n = await prisma.assistantActionIntent.updateMany({
+      where: { id: carte.id, status: "PROPOSED" },
+      data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(carte.events, "CANCELLED_BY_USER_MESSAGE") as object },
+    });
+    return n.count === 1 ? { id: carte.id, title: carte.title } : null;
+  } catch (e) {
+    console.error("[assistant] retrait de la carte annulée impossible", e);
+    return null;
+  }
+}
+
 export async function retirerCaduquesAvantLeTour(userId: string, message: string, garder: readonly string[] = []): Promise<string[]> {
   if (retraitDesPerimeesDesactive()) return [];
   const texte = (message ?? "").trim();
@@ -176,13 +202,13 @@ export async function retirerCaduquesAvantLeTour(userId: string, message: string
   try {
     const enAttente = await prisma.assistantActionIntent.findMany({
       where: { userId, status: "PROPOSED", proposedAt: { gte: new Date(Date.now() - FENETRE_PERIMEES_MS) } },
-      select: { id: true, kind: true, title: true, summary: true },
+      select: { id: true, kind: true, title: true, summary: true, payload: true },
       orderBy: { proposedAt: "desc" },
       take: 20,
     });
     if (enAttente.length === 0) return [];
     // `garder` (décision 0035) : la carte dont la personne PARLE à l'oral (elle la complète) n'est pas caduque.
-    const morts = caduquesParMessage(enAttente.filter((i) => !garder.includes(i.id)), texte);
+    const morts = caduquesParMessage(enAttente.filter((i) => !garder.includes(i.id)).map((i) => ({ ...i, objet: objetDeLaCharge(i.payload) })), texte);
     for (const id of morts) {
       const avant = await prisma.assistantActionIntent.findUnique({ where: { id }, select: { events: true } });
       await prisma.assistantActionIntent.updateMany({

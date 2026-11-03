@@ -125,6 +125,33 @@ export function perimetreCouvrant(a: AccesIa, f: FamilleIa, companyId?: string |
 /** S1 : un périmètre nominatif quelconque sur `f` (jamais un réglage de rôle). */
 export const familleNominative = (a: AccesIa, f: FamilleIa, companyId?: string | null): boolean => perimetreCouvrant(a, f, companyId) !== null;
 
+/**
+ * F2 (banc réel du 02/11, TR-RH-01/02/04/06) — LES GESTES POUR SOI. « Pose-moi un congé », « mets-moi en absence maladie »,
+ * « une avance de 30 000 DZD », « une attestation de travail » étaient refusés « famille Fiches collaborateurs (ou Salaires &
+ * paie) fermée » : la famille de l'ACTION (son fichier `hr-actions`, son modèle `salaryAdvance`) était jugée comme si la
+ * personne agissait sur AUTRUI. Règle S1 (décision 0048) : la personne a toujours accès à SON dossier et à SES demandes ; les
+ * familles RH fermées concernent autrui. Un geste de cette table, SANS le champ qui désigne autrui, ne se juge donc pas sur
+ * ses familles RH (« Écritures métier » et toute autre famille restent exigées) ; AVEC ce champ (une RH qui dépose pour un
+ * salarié), il se juge comme avant. L'action, elle, ne regarde ce champ que pour qui gère les RH, et prend sinon la fiche
+ * LIÉE au compte (`Employee.userId`) : aucun chemin vers le dossier d'autrui ne s'ouvre ici.
+ */
+export const GESTES_POUR_SOI: Readonly<Record<string, readonly string[]>> = {
+  "hr-actions:requestLeave": ["employeeId"],
+  "hr-actions:requestAdvance": ["employeeId"],
+  "hr-document-actions:requestHrDocument": [],
+};
+const FAMILLES_DU_DOSSIER: ReadonlySet<FamilleIa> = new Set<FamilleIa>(["FICHES", "SALAIRES", "CONTRATS_RH"]);
+
+/** Le geste vise-t-il la personne elle-même (aucun champ d'autrui rempli) ? */
+export function gestePourSoi(id: string, entree: Readonly<Record<string, unknown>> = {}): boolean {
+  const autrui = GESTES_POUR_SOI[id];
+  return autrui !== undefined && autrui.every((k) => entree[k] === undefined || entree[k] === null || entree[k] === "");
+}
+
+/** Les familles à juger pour ce geste : sans les familles du dossier RH quand il vise la personne elle-même. */
+export const famillesAJuger = (id: string, familles: readonly FamilleIa[], entree: Readonly<Record<string, unknown>> = {}): FamilleIa[] =>
+  gestePourSoi(id, entree) ? familles.filter((f) => !FAMILLES_DU_DOSSIER.has(f)) : [...familles];
+
 /** Le refus, dit tel quel par l'assistant : quelle famille, et qui l'ouvre. */
 export function refusFamille(f: FamilleIa): string {
   return `La famille « ${LIBELLE_FAMILLE[f]} » est fermée à Adam pour vous. C'est la Direction qui l'ouvre, dans la console : `

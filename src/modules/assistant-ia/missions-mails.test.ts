@@ -402,12 +402,14 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       expect("carte" in r).toBe(true);
       const c = (r as { carte: { title: string; warnings: string[]; fields: { label: string; value: string }[] } }).carte;
       expect(c.title).toContain("Daclavir");
-      expect(c.warnings.join(" ")).toMatch(new RegExp(`Brochures ${TAG}.*non repris|non repris.*Brochures ${TAG}`));
+      // F2 (banc réel, TR-LM-04) : hors catalogue → proposé en SAISIE LIBRE (« Autre article »), jamais retiré de la demande.
+      expect(c.warnings.join(" ")).toMatch(new RegExp(`Brochures ${TAG}.*Autre article`));
+      expect(JSON.stringify(c.fields)).toContain(`Brochures ${TAG} (saisie libre, hors catalogue)`);
       expect(c.warnings.join(" ")).toMatch(/Titre proposé/);
       expect(JSON.stringify(c.fields)).toMatch(/achat/);
-      // Seul et hors catalogue : là, une question reste légitime.
+      // Seul et hors catalogue : la carte s'affiche aussi, en saisie libre (F2).
       const seul = await op.proposer({ articles: [{ article: `Brochures ${TAG}`, quantite: "200" }] }, sa);
-      expect("manque" in seul).toBe(true);
+      expect("carte" in seul).toBe(true);
     } finally {
       await prisma.promoCatalogueArticle.delete({ where: { id: art.id } });
     }

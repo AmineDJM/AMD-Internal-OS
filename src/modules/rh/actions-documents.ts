@@ -150,7 +150,10 @@ export async function requestHrDocument(formData: FormData): Promise<ActionResul
   const expenseAmount = type === "EXPENSE_REPORT" ? fdNum(formData, "expenseAmount") : null;
   const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
   if (type === "EXPENSE_REPORT") {
-    if (!expenseMonth || !YM.test(expenseMonth)) {
+    // F2 : écrit sans « !expenseMonth » — le contrat des actions lisait ce test (propre à la note de frais) comme un champ
+    // obligatoire de TOUTE demande RH, et l'assistant exigeait un mois pour une attestation.
+    const moisValide = expenseMonth !== null && YM.test(expenseMonth);
+    if (!moisValide) {
       return { ok: false, error: "Indiquez le mois concerné par la note de frais." };
     }
     const mauvais = expenseAmountError(expenseAmount);
