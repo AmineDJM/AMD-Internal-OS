@@ -17,6 +17,11 @@ export const LEGAL_DOC_KIND: Record<string, string> = {
   INSURANCE: "Assurance",
   LICENSE: "Licence / autorisation",
   LEASE: "Bail",
+  // T1 (Direction, 03/11/2026) : les pièces de la société et de ses produits.
+  APPROVAL: "Agrément",
+  MARKETING_AUTHORIZATION: "Autorisation de mise sur le marché (AMM)",
+  STATUTES: "Statuts",
+  MINUTES: "Procès-verbal",
   OTHER: "Autre",
 };
 

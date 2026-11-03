@@ -76,9 +76,20 @@ async function partieDe(user: CurrentUser, nom: string, texteLu: string): Promis
     const r = await partieParNom(user, nom);
     if (r.ok) return { id: r.id, nom: r.name };
     if (/ne figure pas/.test(r.error)) {
+      // LE NOM DÉVELOPPÉ (banc DOC-02 : « ANPP — Agence nationale des produits pharmaceutiques » face à la fiche « ANPP ») : une
+      // fiche de l'annuaire dont le nom figure, en mots entiers, dans le nom donné — ou l'inverse — et une seule.
+      const q = ` ${replierTexte(nom).replace(/[^a-z0-9]+/g, " ").trim()} `;
+      const proches = (await contactsDuPerimetre(user)).filter((c) => {
+        const n = replierTexte(c.name).replace(/[^a-z0-9]+/g, " ").trim();
+        return n.length >= 3 && (q.includes(` ${n} `) || ` ${n} `.includes(q));
+      });
+      if (proches.length === 1) return { id: proches[0]!.id, nom: proches[0]!.name };
       return peutAnnuaire(user, estInstitutionPublique(nom) ? "PARTENAIRES_PUBLICS" : "PARTENAIRES", "CREATE")
         ? { creer: nom.trim().slice(0, 160) }
-        : { erreur: `${r.error} (vous n'avez pas le droit d'écrire l'annuaire : demandez aux Moyens généraux de l'ajouter).` };
+        // Direction (03/11/2026, décision 0061) : la création d'un partenaire manquant revient à l'équipe juridique — aujourd'hui
+        // le DIRECTEUR ADMINISTRATIF ET FINANCIER (rôle « Responsable Finance / Budget », qui tient l'annuaire des partenaires par
+        // les Moyens généraux). Les autres : le refus le dit, sans rien créer.
+        : { erreur: `« ${nom.trim()} » ne figure pas dans l'annuaire des partenaires, et vous ne pouvez pas l'y ajouter : c'est le directeur administratif et financier (ou les Moyens généraux) qui ajoute un partenaire manquant. Demandez-lui de l'ajouter, puis recommencez — rien n'a été rangé.` };
     }
     return { erreur: r.error };
   }
@@ -261,7 +272,7 @@ async function proposerRangement(e: Record<string, unknown>, user: CurrentUser):
       sphere: partie && "creer" in partie && estInstitutionPublique(partie.creer) ? "PUBLIC" : "PRIVE",
       debut, fin, montant: montant !== null ? String(montant) : null,
       reference: texte(d, "reference") || null,
-      notes: [famille.nature === "OTHER" || famille.nature === "LICENSE" ? `Nature : ${famille.libelle}.` : null, texte(d, "notes") || null].filter(Boolean).join(" ") || null,
+      notes: [famille.nature === "OTHER" ? `Nature : ${famille.libelle}.` : null, texte(d, "notes") || null].filter(Boolean).join(" ") || null,
       dossier, dossierId: await dossierExistant(user, dossier), existantId: existant?.id ?? null,
       entiteId: entite && "id" in entite ? entite.id : null, preuve, amendsId,
     });
@@ -272,7 +283,7 @@ async function proposerRangement(e: Record<string, unknown>, user: CurrentUser):
   if (nouveauxDossiers.length) avertissements.push(`Dossier(s) créé(s) au Juridique : ${nouveauxDossiers.map((d) => `« ${d} »`).join(", ")}.`);
   if (nouvellesParties.length) avertissements.push(`Ajouté(s) à l'annuaire des partenaires : ${nouvellesParties.join(", ")}.`);
   for (const p of pieces.filter((x) => x.preuve)) avertissements.push(`« ${p.fichier} » : dates lues sur la pièce (« ${p.preuve!.slice(0, 120)} ») — vérifiez-les.`);
-  for (const p of pieces.filter((x) => !x.fin && x.nature !== "OTHER")) avertissements.push(`« ${p.fichier} » : aucune échéance lue — enregistré sans échéance (jamais rappelé).`);
+  for (const p of pieces.filter((x) => !x.fin && !["OTHER", "STATUTES", "MINUTES"].includes(x.nature))) avertissements.push(`« ${p.fichier} » : aucune échéance lue — enregistré sans échéance (jamais rappelé).`);
   if (lecteurs.length) avertissements.push(`Restreint à : ${lecteurs.map((l) => l.nom).join(", ")} (et vous).`);
 
   const ligne = (p: PieceARanger) => [

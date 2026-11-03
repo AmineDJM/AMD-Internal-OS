@@ -15,7 +15,11 @@ import { legalWriteAllowed } from "@/lib/legal/invoices";
 // CREDIT_NOTE non plus, pour la même raison : un avoir naît de SA facture, par la fabrique (§118.195), qui reprend son
 // calcul et vérifie ce qui reste à créditer. Saisi ici et chaîné par « Fait suite à », il serait retiré du règlement de
 // la facture sans être passé par ce plafond — un crédit que personne n'a borné.
-export const KINDS: LegalDocKind[] = ["CONTRACT", "QUOTE", "PURCHASE_ORDER", "INVOICE", "AGREEMENT", "NDA", "INSURANCE", "LICENSE", "LEASE", "OTHER"];
+export const KINDS: LegalDocKind[] = [
+  "CONTRACT", "QUOTE", "PURCHASE_ORDER", "INVOICE", "AGREEMENT", "NDA", "INSURANCE", "LICENSE", "LEASE",
+  // T1 (décision 0061) : agrément, AMM, statuts, procès-verbal.
+  "APPROVAL", "MARKETING_AUTHORIZATION", "STATUTES", "MINUTES", "OTHER",
+];
 export const parseKind = (v: string | null): LegalDocKind =>
   v && KINDS.includes(v as LegalDocKind) ? (v as LegalDocKind) : "CONTRACT";
 

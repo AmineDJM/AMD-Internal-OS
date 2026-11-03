@@ -5,9 +5,11 @@ import { pagesDemandees } from "./pdf";
 describe("T1 — la place d'une pièce juridique (pur)", () => {
   it("la famille : nature et dossier canoniques, l'avenant avant le contrat", () => {
     expect(familleDe("Avenant n°1 au contrat Pharmalliance")).toMatchObject({ nature: "AMENDMENT", dossier: "Avenants" });
-    expect(familleDe("Décision AMM Daclavir 60 mg.pdf")).toMatchObject({ nature: "LICENSE", dossier: "Agréments et autorisations" });
-    expect(familleDe("Statuts Adventum Pharma SPA 2024.pdf")).toMatchObject({ nature: "OTHER", dossier: "Statuts et PV" });
-    expect(familleDe("PV AGO 2025.pdf")).toMatchObject({ dossier: "Statuts et PV" });
+    expect(familleDe("Décision AMM Daclavir 60 mg.pdf")).toMatchObject({ nature: "MARKETING_AUTHORIZATION", dossier: "Agréments et autorisations" });
+    expect(familleDe("Agrément établissement pharmaceutique Blida.pdf")).toMatchObject({ nature: "APPROVAL", dossier: "Agréments et autorisations" });
+    expect(familleDe("Licence d'importation 2026.pdf")).toMatchObject({ nature: "LICENSE", dossier: "Agréments et autorisations" });
+    expect(familleDe("Statuts Adventum Pharma SPA 2024.pdf")).toMatchObject({ nature: "STATUTES", dossier: "Statuts et PV" });
+    expect(familleDe("PV AGO 2025.pdf")).toMatchObject({ nature: "MINUTES", dossier: "Statuts et PV" });
     expect(familleDe("Bail entrepôt Rouiba.pdf")).toMatchObject({ nature: "LEASE", dossier: "Baux" });
     expect(familleDe("NDA BioSimilaire Lab.pdf")).toMatchObject({ nature: "NDA" });
     expect(familleDe("", null, "Contrat de maintenance froid Frigomed.pdf")).toMatchObject({ nature: "CONTRACT", dossier: "Contrats" });

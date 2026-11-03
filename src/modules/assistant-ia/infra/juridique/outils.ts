@@ -28,7 +28,8 @@ import { resoudrePiece } from "../operations/pieces";
 
 const NATURE_FR: Record<string, string> = {
   CONTRACT: "Contrat", QUOTE: "Devis", PURCHASE_ORDER: "Bon de commande", INVOICE: "Facture", CREDIT_NOTE: "Avoir", AMENDMENT: "Avenant",
-  AGREEMENT: "Convention", NDA: "Confidentialité", INSURANCE: "Assurance", LICENSE: "Agrément / licence", LEASE: "Bail", OTHER: "Autre",
+  AGREEMENT: "Convention", NDA: "Confidentialité", INSURANCE: "Assurance", LICENSE: "Licence / autorisation", LEASE: "Bail", OTHER: "Autre",
+  APPROVAL: "Agrément", MARKETING_AUTHORIZATION: "AMM", STATUTES: "Statuts", MINUTES: "Procès-verbal",
 };
 const jour = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const def = (name: string, description: string, properties: Record<string, unknown>, required: string[] = []) =>

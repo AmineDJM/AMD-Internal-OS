@@ -76,6 +76,8 @@ suite("T1 — documents, juridique et Drive : exécutés puis annulés", () => {
     await annuler(juriste, gesteId);
     // Une pièce créée ne se retire pas en silence : elle passe ANNULÉE (règle K10b), ou disparaît — jamais active.
     expect(await prisma.legalDocument.count({ where: { driveNodeId: id, status: { not: "CANCELLED" } } })).toBe(0);
+    // Le dossier « Contrats » EXISTAIT avant le rangement : l'annulation ne le retire jamais.
+    expect(await prisma.legalFolder.count({ where: { companyId: S.companyId, name: "Contrats" } })).toBe(1);
     // Ranger de nouveau après l'annulation : une fiche NEUVE (la fiche annulée n'est pas « déjà au registre »).
     const again = await preparerCarte(juriste, "ranger_au_juridique", { documents: [{ fichier: "Contrat de distribution Pharmalliance 2026.pdf" }] });
     expect("carte" in again && again.carte.warnings.join(" ")).not.toMatch(/déjà au registre/);
@@ -92,11 +94,13 @@ suite("T1 — documents, juridique et Drive : exécutés puis annulés", () => {
     const lic = await fiche("Licence d'importation 2026.pdf");
     expect(lic).toMatchObject({ kind: "LICENSE", folder: { name: "Agréments et autorisations" } });
     expect(lic.endDate?.toISOString().slice(0, 10)).toBe("2027-01-14");
-    expect(await fiche("Statuts Adventum Pharma SPA 2024.pdf")).toMatchObject({ kind: "OTHER", folder: { name: "Statuts et PV" } });
+    expect(await fiche("Statuts Adventum Pharma SPA 2024.pdf")).toMatchObject({ kind: "STATUTES", folder: { name: "Statuts et PV" } });
     // Les dossiers créés en rangeant appartiennent à l'entité de la pièce (ici, la société du semis).
     expect(await prisma.legalFolder.count({ where: { companyId: S.companyId } })).toBe(dossiersAvant + 3);
     await annuler(juriste, gesteId);
-    // Règle K10b : une pièce du registre ne s'efface pas, elle passe ANNULÉE ; ses dossiers restent avec elle, comme sa trace.
+    // Direction, 03/11 (décision 0061) : les dossiers CRÉÉS par le rangement, vides une fois ses pièces annulées, sont retirés.
+    expect(await prisma.legalFolder.count({ where: { companyId: S.companyId } })).toBe(dossiersAvant);
+    // Règle K10b : une pièce du registre ne s'efface pas, elle passe ANNULÉE (non classée, ses dossiers créés retirés).
     for (const nom of ["NDA BioSimilaire Lab.pdf", "Licence d'importation 2026.pdf", "Statuts Adventum Pharma SPA 2024.pdf"]) {
       expect(await prisma.legalDocument.count({ where: { driveNodeId: await noeud(S.users.juriste, nom), status: { not: "CANCELLED" } } }), nom).toBe(0);
     }
@@ -189,6 +193,31 @@ suite("T1 — documents, juridique et Drive : exécutés puis annulés", () => {
     const x = await demanderConversion(assistante, await noeud(S.users.assistante, "Grille tarifaire 2026.pdf"), "XLSX", null, {});
     expect(x.ok, JSON.stringify(x)).toBe(true);
   }, 120_000);
+
+  it("Direction, 03/11 — le DAF ajoute le partenaire manquant en rangeant ; la juriste reçoit un refus propre, rien n'est créé", async () => {
+    const daf = await sessionDe(S.users.finance);
+    const avant = await prisma.companyContact.count({ where: { name: "Medilog Services" } });
+    const { carte, gesteId } = await confirmer(daf, "ranger_au_juridique", { documents: [{ fichier: "Contrat de prestation Medilog Services.pdf", partie: "Medilog Services" }] });
+    expect(carte.warnings.join(" ")).toMatch(/Ajouté\(s\) à l'annuaire des partenaires : Medilog Services/);
+    const f = await prisma.legalDocument.findFirstOrThrow({ where: { driveNodeId: await noeud(S.users.finance, "Contrat de prestation Medilog Services.pdf") }, select: { counterparty: true, kind: true } });
+    expect(f).toMatchObject({ counterparty: "Medilog Services", kind: "CONTRACT" });
+    expect(await prisma.companyContact.count({ where: { name: "Medilog Services" } })).toBe(avant + 1);
+    await annuler(daf, gesteId);
+    // La juriste n'a ni les Moyens généraux ni l'annuaire : le refus nomme le DAF, et rien ne naît.
+    const r = await preparerCarte(juriste, "ranger_au_juridique", { documents: [{ fichier: "Convention de partenariat Clinique El Fath.pdf", partie: "Clinique El Fath" }] });
+    expect("erreur" in r && r.erreur).toMatch(/directeur administratif et financier/);
+    expect(await prisma.companyContact.count({ where: { name: { contains: "El Fath" } } })).toBe(0);
+  }, 120_000);
+
+  it("Direction, 03/11 — l'agrément, l'AMM, les statuts et le PV sont des natures du registre, filtrables", async () => {
+    const p = await preparerCarte(juriste, "ranger_au_juridique", { documents: [{ fichier: "Agrément établissement pharmaceutique Blida.pdf" }] });
+    expect("carte" in p && p.carte.fields.find((x) => x.label === "Nature")?.value, JSON.stringify(p)).toBe("Agrément");
+    // Le nom DÉVELOPPÉ d'une partie de l'annuaire (« ANPP — Agence nationale… ») désigne la fiche « ANPP ».
+    const a = await preparerCarte(juriste, "ranger_au_juridique", { documents: [{ fichier: "Décision AMM Daclavir 60 mg.pdf", partie: "ANPP — Agence nationale des produits pharmaceutiques" }] });
+    expect("carte" in a && a.carte.fields.find((x) => x.label === "Partie")?.value, JSON.stringify(a)).toBe("ANPP");
+    const r = await lire(juriste, "registre_juridique", { nature: "AMM" });
+    expect((r.pieces as { titre: string; nature: string }[]).map((x) => `${x.titre} · ${x.nature}`)).toContain("AMM Ribavirine 200 mg · AMM");
+  }, 60_000);
 
   // ── Ce que le premier passage réel a appris (corrigé par le code) ──
   it("un DOSSIER du Drive se range en UNE carte (chaque pièce sa nature), sans mission", async () => {
