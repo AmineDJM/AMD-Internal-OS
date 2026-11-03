@@ -23,7 +23,7 @@ effets sortants, geste d'écran réversible, rétablissement).
 ## La fenêtre d'annulation — `differerEffetSortant`
 
 Un courriel, une notification poussée, une publication, une diffusion, un appel d'API externe ou un ordre transmis
-**ne part pas au moment du geste** : il attend `AssistantIaReglage.fenetreAnnulationSecondes` (défaut **120 s**, réglable
+**ne part pas au moment du geste** : il attend `AssistantIaReglage.fenetreAnnulationSecondes` (défaut **30 s**, Direction 03/11/2026, réglable
 par le Super Admin dans Administration › IA › Accès, 10 s à 15 min) dans la table `EffetSortantDiffere`.
 
 ```ts

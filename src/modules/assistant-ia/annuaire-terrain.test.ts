@@ -6,7 +6,8 @@ import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
 import { appliquerLotAnnuaire } from "@/lib/actions/fournisseurs-annuaire-actions";
 import { executerOperationJournalisee, outilsOperations } from "./infra/operations";
-import { ANNULER_DERNIERE, FUSION_DOUBLONS, MAJ_ANNUAIRE } from "./infra/operations/annuaire";
+import { FUSION_DOUBLONS, MAJ_ANNUAIRE } from "./infra/operations/annuaire";
+import { annulerLaDerniere } from "./infra/annulation-directe";
 import { lecturesAnnuaireTerrain } from "./infra/annuaire/lectures";
 import { agregerDepenses, bornesPeriode, cleDeDoublon, motsDuNom } from "./domaine/annuaire/analyse";
 import { COMPTE_JOUE, type PersonaCle } from "./infra/testing/audit/personas";
@@ -19,7 +20,7 @@ import { idsDuMondeT2 } from "./infra/testing/audit/taches/annuaire-marketing";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LOT T2 (décision 0052) — L'ANNUAIRE, LE MARKETING ET LE TERRAIN, EXÉCUTÉS CONTRE LA BASE LOCALE, PUIS ANNULÉS.
  *
- * Les gestes de l'assistant (`maj_annuaire`, `fusionner_doublons_annuaire`, `annuler_mon_action`) sont préparés par
+ * Les gestes de l'assistant (`maj_annuaire`, `fusionner_doublons_annuaire`) sont préparés par
  * leur `proposer` (la carte), confirmés sous la session de la personne et SOUS LE JOURNAL DES EFFETS (le chemin du clic),
  * relus en base, puis annulés — tout le lot d'un coup. Les lectures sont jugées sur leurs portées : le délégué d'un autre
  * secteur ne voit ni la fiche ni la visite d'un autre panel ; un compte sans Ad & Pro n'a pas les dépenses.
@@ -63,12 +64,9 @@ suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis a
     const d = await prisma.medicalDoctor.findUniqueOrThrow({ where: { id: t2().medecins.bensalem } });
     expect(d.phone).toBe("0550 12 34 56");
     expect(d.institutionId).toBe(t2().etablissements.chuConstantine);
-    // « Annule cette mise à jour » : la carte d'annulation, confirmée.
-    const a = await ANNULER_DERNIERE.proposer({ quoi: "annuaire" }, u.delegue);
-    expect("carte" in a, JSON.stringify(a)).toBe(true);
-    if (!("carte" in a)) return;
-    const ra = await confirmerOperation(u.delegue, ANNULER_DERNIERE.nom, a.args);
-    expect(ra.ok, JSON.stringify(ra)).toBe(true);
+    // « Annule cette mise à jour » : annulé TOUT DE SUITE, sans carte (Direction, 03/11 : « il le fait lui-même »).
+    const ra = await annulerLaDerniere(u.delegue);
+    expect(ra.ok, ra.message).toBe(true);
     expect((await prisma.medicalDoctor.findUniqueOrThrow({ where: { id: t2().medecins.bensalem } })).phone).toBe(INITIAL.bensalem.phone);
   }, 60_000);
 
@@ -107,9 +105,7 @@ suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis a
     // Régression (banc réel 02/11) : corriger la spécialité n'efface plus ni le téléphone ni le délégué.
     expect(aissaoui.phone).toBe("0664 11 22 33");
     expect(aissaoui.delegateId).toBe(S.users.delegue);
-    const a = await ANNULER_DERNIERE.proposer({}, u.marketing);
-    if (!("carte" in a)) throw new Error(JSON.stringify(a));
-    expect((await confirmerOperation(u.marketing, ANNULER_DERNIERE.nom, a.args)).ok).toBe(true);
+    expect((await annulerLaDerniere(u.marketing)).ok).toBe(true);
     const apres = await prisma.medicalInstitution.findMany({ where: { id: { in: [t2().etablissements.elAmel, t2().etablissements.belleVue] } } });
     expect(apres.map((e) => e.phone).sort()).toEqual([INITIAL.belleVue.phone, INITIAL.elAmel.phone].sort());
     expect((await prisma.medicalDoctor.findUniqueOrThrow({ where: { id: t2().medecins.aissaoui } })).specialtyId).toBeNull();
@@ -144,9 +140,7 @@ suite("Lot T2 — l'annuaire tenu par l'assistant (base locale, exécuté puis a
     // Es-Salam : la fiche gardée (celle du secteur) a reçu l'adresse de l'autre.
     const salam = await prisma.medicalInstitution.findUniqueOrThrow({ where: { id: e.esSalamA } });
     expect(salam.isActive && salam.address).toBe(INITIAL.esSalamB.address);
-    const a = await ANNULER_DERNIERE.proposer({ quoi: "doublons" }, u.marketing);
-    if (!("carte" in a)) throw new Error(JSON.stringify(a));
-    expect((await confirmerOperation(u.marketing, ANNULER_DERNIERE.nom, a.args)).ok).toBe(true);
+    expect((await annulerLaDerniere(u.marketing)).ok).toBe(true);
     expect(await prisma.medicalInstitution.count({ where: { id: { in: ids }, isActive: true } })).toBe(6);
     expect((await prisma.medicalInstitution.findUniqueOrThrow({ where: { id: e.esSalamA } })).address).toBeNull();
   }, 90_000);
