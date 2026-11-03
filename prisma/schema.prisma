@@ -14777,36 +14777,38 @@ model Mission {
   updatedAt   DateTime      @updatedAt
 
   /// COORDINATION (poursuivre des humains) | RUNTIME (exécuter un DAG durable).
-  kind            String    @default("COORDINATION")
+  kind            String            @default("COORDINATION")
   /// L'objectif tel que le PDG l'a formulé, MOT POUR MOT. `objective` est la reformulation ;
   /// c'est le brut qui fait foi quand on juge si l'objectif est atteint (§20).
-  goalRaw         String?   @db.Text
+  goalRaw         String?           @db.Text
   /// Les critères d'acceptation, produits par le planner et VÉRIFIÉS avant COMPLETED.
-  acceptance      Json      @default("[]")
+  acceptance      Json              @default("[]")
   /// Les deux axes INDÉPENDANTS (§1) : A|B|C pour le raisonnement, S|M|L|XL|MASSIVE pour l'échelle.
   complexity      String?
   scale           String?
   /// Incrémentée à chaque replan. Une étape d'un plan périmé n'est pas supprimée : elle est
   /// marquée — l'historique d'une mission compte autant que son état.
-  planVersion     Int       @default(1)
+  planVersion     Int               @default(1)
   parentMissionId String?
-  parentMission   Mission?  @relation("SubMissions", fields: [parentMissionId], references: [id], onDelete: SetNull)
-  subMissions     Mission[] @relation("SubMissions")
+  parentMission   Mission?          @relation("SubMissions", fields: [parentMissionId], references: [id], onDelete: SetNull)
+  /// O2 (décision 0059) : la file d'intégration d'un PROGRAMME (`kind = "PROGRAMME"`).
+  integrations    IntegrationFile[] @relation("IntegrationsDuProgramme")
+  subMissions     Mission[]         @relation("SubMissions")
   /// `null` = pas encore évalué, ce qui n'est PAS `false`.
   goalSatisfied   Boolean?
   qaPassed        Boolean?
-  goalVerdict     String?   @db.Text
+  goalVerdict     String?           @db.Text
   /// Observabilité (§54) — ce que la mission a réellement coûté.
-  modelCalls      Int       @default(0)
-  toolCalls       Int       @default(0)
-  tokensIn        Int       @default(0)
-  tokensOut       Int       @default(0)
-  costUsd         Float     @default(0)
+  modelCalls      Int               @default(0)
+  toolCalls       Int               @default(0)
+  tokensIn        Int               @default(0)
+  tokensOut       Int               @default(0)
+  costUsd         Float             @default(0)
   startedAt       DateTime?
   /// Limite OPÉRATIONNELLE de parallélisme, jamais une limite d'architecture (§4).
-  maxConcurrency  Int       @default(6)
+  maxConcurrency  Int               @default(6)
   /// PRIORITÉ d'ordonnancement : le battement sert les priorités hautes d'abord. 0 = normal.
-  priority        Int       @default(0)
+  priority        Int               @default(0)
   /// BAIL multi-instances : l'instance qui détient le bail fait avancer, les autres passent.
   /// La sûreté ne dépend PAS du bail (les étapes se réservent en base) — il évite le travail
   /// en double quand plusieurs battements tournent.
@@ -14818,7 +14820,7 @@ model Mission {
   /// LA CARTE DU PLAN telle que le planificateur l'a rendue : axes de travail, livrables
   /// attendus, stratégie d'accord, critère arithmétique de fin. Lue par le contrôle qualité et
   /// par le juge — quatre informations qui naissent ensemble et dont aucune ne s'interroge seule.
-  planMeta        Json      @default("{}")
+  planMeta        Json              @default("{}")
 
   /// LA PAUSE SAIT DEPUIS QUAND, POURQUOI, ET D'OÙ ELLE REPART.
   ///
@@ -19043,6 +19045,38 @@ model AssistantIaAgenda {
 /// LA RÉSERVATION D'UNE RESSOURCE PAR UN CHANTIER (lot C1, décision 0042) — atomique par la contrainte d'unicité de `cle` :
 /// `BRANCHE:<dépôt>:<branche>`, `PERIMETRE:<dépôt>:<glob>` (le recouvrement se juge sous verrou consultatif),
 /// `MIGRATIONS:<dépôt>`, `DEPLOIEMENT:<service>`. Libérée à la fin du chantier ; une réservation EXPIRÉE se reprend.
+/// O2 (décision 0059) : la FILE D'INTÉGRATION des programmes — une entrée par (chantier, SHA) ; une seule ACTIVE
+/// (EN_COURS, CI, A_VALIDER) par (dépôt, cible) — index unique PARTIEL posé par la migration (Prisma ne l'exprime pas).
+model IntegrationFile {
+  id                 String    @id @default(cuid())
+  programmeId        String
+  programme          Mission   @relation("IntegrationsDuProgramme", fields: [programmeId], references: [id], onDelete: Cascade)
+  chantierId         String
+  tacheCle           String
+  depot              String
+  cible              String
+  branche            String
+  shaTache           String
+  /// EN_FILE, EN_COURS, CI, A_VALIDER, FUSIONNEE, RENVOYEE, ANNULEE
+  statut             String    @default("EN_FILE")
+  brancheIntegration String?
+  shaBase            String?
+  shaIntegration     String?
+  /// Le n° de tentative d'intégration (la cible a bougé → on recommence : tour + 1, branche d'intégration neuve).
+  tour               Int       @default(0)
+  essais             Int       @default(0)
+  detail             Json?
+  bailJusqua         DateTime?
+  bailPar            String?
+  reessayerA         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @default(now()) @updatedAt
+
+  @@unique([chantierId, shaTache])
+  @@index([depot, cible, statut, createdAt])
+  @@index([programmeId])
+}
+
 model ChantierReservation {
   id        String   @id @default(cuid())
   cle       String   @unique

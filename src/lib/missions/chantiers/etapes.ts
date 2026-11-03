@@ -8,9 +8,11 @@ import type { ServiceChantier, TypeEtapeChantier } from "@/lib/missions/chantier
 import { court, jugerPreuves, composerRapport, sessionParlable, type DossierChantier, type PreuveDeploiement } from "@/lib/missions/chantiers/dossier";
 import { deciderAntiBoucle, delaiCroissantMs, estMigrationSql, gesteDestructif, motifBudgetChantier, signatureEchec, type ConsommationChantier, type ReglagesChantiers } from "@/lib/missions/chantiers/regles";
 import { horsPerimetre } from "@/lib/missions/chantiers/perimetre";
+import { ressourcesDeTache, ressourcesHorsReservation } from "@/lib/missions/equipe/ressources";
+import type { ForgeIntegration } from "@/lib/missions/equipe/integration";
 import { routerModele } from "@/lib/missions/chantiers/routeur";
 import type { CerveauChantier } from "@/lib/missions/chantiers/cerveau";
-import { demandesDuPlan, liberer, nomDepot, reservationTenue, reserver } from "@/lib/missions/chantiers/reservations";
+import { demandesDuPlan, liberer, nomDepot, reservationTenue, reserver, transfererAuProgramme } from "@/lib/missions/chantiers/reservations";
 import { extraitMemoire, memoriser, noterEvenementDev } from "@/lib/missions/chantiers/memoire";
 
 /**
@@ -30,7 +32,8 @@ import { extraitMemoire, memoriser, noterEvenementDev } from "@/lib/missions/cha
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export interface PortsDev { agent: AgentDeveloppeur; forge: ForgeGit; hebergeur: Hebergeur }
+/** `integration` (O2, décision 0059) : les gestes de branche de la file d'intégration des programmes, quand la forge les porte. */
+export interface PortsDev { agent: AgentDeveloppeur; forge: ForgeGit; hebergeur: Hebergeur; integration?: ForgeIntegration }
 
 /** Le dépôt du rapport au Drive (dossier « Travaux » de la personne) — `reprise` : un dépôt interrompu, à RETROUVER d'abord. */
 export type DeposerRapport = (principalId: string, d: { chantierId: string; cle: string; titre: string; contenu: string; reprise: boolean }) =>
@@ -277,6 +280,9 @@ async function controler(ctx: ContexteEtape, etat: Etat): Promise<Controle> {
   const hors = horsPerimetre(b.valeur.fichiers, p.perimetre);
   const rouge = (check: string | null, extrait: string): Controle => ({ issue: "rouge", sha, check, extrait, signature: signatureEchec({ etape: "verifier", check, erreur: extrait }) });
   if (hors.length) return rouge("perimetre", `fichiers hors du périmètre réservé : ${hors.slice(0, 10).join(", ")}`);
+  // O2 (décision 0059 § 5) : une ressource partagée NOMMÉE touchée sans réservation — rouge (le programme replanifie).
+  const nonReservees = p.ressources ? ressourcesHorsReservation(b.valeur.fichiers, ressourcesDeTache({ perimetre: [], ressources: p.ressources })) : [];
+  if (nonReservees.length) return rouge("ressources", `ressources partagées touchées sans réservation : ${nonReservees.join(", ")}`);
   let pr = d.pr;
   const lu = await ctx.ports.forge.pr(p.depot, p.branche);
   if (lu.ok && lu.valeur) {
@@ -717,6 +723,8 @@ export async function rapporter(
   if (d.plan.commandesVerif.length) {
     await memoriser("depot", depot, `Branche de base ${d.plan.brancheBase}. Commandes de vérification : ${d.plan.commandesVerif.join(" ; ")}.`, { source: "chantier", missionId: ctx.chantierId });
   }
+  // O2 (décision 0059) : livré, l'enfant d'un programme PASSE ses réservations au programme (tenues jusqu'à l'intégration).
+  if (issue === "LIVRE") await transfererAuProgramme(ctx.chantierId, ctx.clock.now());
   await liberer(ctx.chantierId);
   await ctx.journal("CHANTIER_RAPPORT", `Rapport : ${issue}${document ? ` — ${document.nom} (${document.lien})` : ""}.`, { issue, manquantes: verdict.manquantes, ...(document ? { nodeId: document.nodeId } : {}) });
   return { issue, texte, document };

@@ -218,6 +218,7 @@ export const BASES_TECHNIQUES: BaseDef[] = [
       TestArtifact: "Pièce d'un passage de test",
       TestFinding: "Constat d'un passage de test",
       ChantierReservation: "Réservation d'une ressource par un chantier",
+      IntegrationFile: "File d'intégration des programmes (une entrée active par branche cible)",
       MemoireTechnique: "Mémoire technique des chantiers",
       DevLancement: "Lancement de Claude Code",
       ClaudeRelaisOrdre: "Ordre pour le relais Claude Code",

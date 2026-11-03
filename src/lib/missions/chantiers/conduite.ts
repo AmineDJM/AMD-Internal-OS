@@ -311,6 +311,9 @@ export async function clore(chantierId: string, principalId: string, titre: stri
     }, coutUsd, statut === "CANCELLED" ? "ANNULE" : undefined);
   }
   await liberer(chantierId);
+  // O2 (décision 0059) : la fin d'un chantier enfant RÉVEILLE son programme (ses réservations lui sont passées au rapport).
+  const parent = (await prisma.mission.findUnique({ where: { id: chantierId }, select: { parentMissionId: true } }))?.parentMissionId;
+  if (parent) await prisma.mission.updateMany({ where: { id: parent, kind: "PROGRAMME" }, data: { reveilDemandeLe: clock.now() } });
   if (statut !== "COMPLETED") {
     const r = (await lireLeDossier(chantierId)).rapport;
     await signalerUneFois(chantierId, principalId, `fin:${statut}`, `Chantier ${statut === "CANCELLED" ? "annulé" : "arrêté"} : « ${titre} »`, (r?.texte ?? "").slice(0, 280));

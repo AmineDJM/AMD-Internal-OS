@@ -154,6 +154,9 @@ export function armerReveilsTravaux(executeur: "web" | "worker"): () => void {
         const { balayerChantiers } = await import("@/lib/missions/chantiers/service");
         await brancherConnecteursDev();
         await balayerChantiers({ seulementSignales: true, deps: await depsFinChantier() });
+        // O2 (décision 0059) : un programme signalé (un enfant fini, une consigne) avance dans la même boucle.
+        const { balayerProgrammes, depsProgrammeReelles } = await import("@/lib/missions/equipe/api");
+        await balayerProgrammes({ seulementSignales: true, deps: depsProgrammeReelles() });
       }
     })().catch((e) => console.error("[travaux] boucle des réveils", e)).finally(() => { enCours = false; });
   }, BOUCLE_REVEILS_MS);
@@ -429,7 +432,10 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     const { balayerChantiers } = await import("@/lib/missions/chantiers/service");
     await brancherConnecteursDev();
     const r = await balayerChantiers({ deps: await depsFinChantier() });
-    if (r.length === 0) return ignoree("aucun chantier à conduire");
+    // O2 (décision 0059) : les programmes après leurs chantiers (une fin d'enfant fait avancer le parent).
+    const { balayerProgrammes, depsProgrammeReelles } = await import("@/lib/missions/equipe/api");
+    const p = await balayerProgrammes({ deps: depsProgrammeReelles() });
+    if (r.length === 0 && p.length === 0) return ignoree("aucun chantier à conduire");
   } },
 
   // LE BANC PROGRAMMÉ (J5, décision 0022) : le banc de l'Assistant IA, selon le calendrier du Super Admin (Administration ›
