@@ -45,7 +45,7 @@ export const CARTE = {
    * confirmées, la console d'accès. Lit Ad & Pro (ses créations, par les actions de l'écran) et le coffre (ce qui
    * ne déchiffre pas). La Bibliothèque lit sa règle de confidentialité (ce qui ne part jamais à un modèle).
    */
-  "assistant-ia": ["ad-pro", "coffre", "recettes", "salles", "suivi-dossiers"],
+  "assistant-ia": ["ad-pro", "coffre", "recettes", "salles", "suivi-dossiers", "acces-bases"],
   /**
    * Graphe de l'entreprise (J9, décision 0021) : une VUE sur les fiches canoniques et les arêtes déjà écrites, faits
    * datés. Lit les référentiels (normaliser un nom) et la Bibliothèque (la règle d'ouverture d'une pièce et d'un fait).

@@ -6,13 +6,13 @@
 import type { NiveauAccesBase, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { CATALOGUE_BASES } from "../domaine/catalogue.genere";
-import { BASE_CONSOLE, baseDe, niveauPour, propresDonneesParDefaut, refusVerrouillage, touchePlusRestrictifSuperAdmin } from "../domaine/regle";
+import { BASE_CONSOLE, baseDe, estModeStrict, niveauPour, type ModeStrict, propresDonneesParDefaut, refusVerrouillage, touchePlusRestrictifSuperAdmin } from "../domaine/regle";
 import type { NiveauStocke, ReglageBase } from "../domaine/types";
 
 /** Tous les réglages non révoqués (en vigueur ou à venir) — la table reste petite : quelques dizaines de lignes. */
 export async function reglagesVivants(): Promise<ReglageBase[]> {
   const l = await prisma.accesBase.findMany({ where: { revoqueLe: null }, orderBy: { du: "desc" } });
-  return l.map((r) => ({ id: r.id, base: r.base, userId: r.userId, role: r.role, niveau: r.niveau, ecriture: r.ecriture, du: r.du, au: r.au, revoqueLe: r.revoqueLe }));
+  return l.map((r) => ({ id: r.id, base: r.base, userId: r.userId, role: r.role, niveau: r.niveau, ecriture: r.ecriture, du: r.du, au: r.au, revoqueLe: r.revoqueLe, motif: r.motif }));
 }
 
 /** L'historique complet d'une base (révoqués compris), pour la console. */
@@ -126,3 +126,30 @@ export async function reglerPropresDonnees(base: string, propres: boolean, auteu
   return { ok: true, id: base, resume: `Base « ${b.nom} » fermée : ses propres données restent ${propres ? "visibles" : "fermées"} à la personne` };
 }
 
+
+/** D4 — le mode de l'application stricte (« AUCUNE » par défaut : la garde observe seulement). */
+export async function lireModeStrict(): Promise<ModeStrict> {
+  const r = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { accesBasesStrict: true } });
+  return estModeStrict(r?.accesBasesStrict) ? r.accesBasesStrict : "AUCUNE";
+}
+
+const LIBELLE_MODE: Record<ModeStrict, string> = {
+  AUCUNE: "désactivée (la garde observe, rien n'est refusé)",
+  SENSIBLES: "active sur les bases secrètes et confidentielles",
+  TOUTES: "active sur toutes les bases métier",
+};
+
+/** D4 — règle l'application stricte. Activer exige une confirmation explicite ; désactiver, jamais (c'est le geste qui protège). */
+export async function reglerModeStrict(mode: string, confirme: boolean): Promise<ResultatReglage> {
+  if (!estModeStrict(mode)) return { ok: false, erreur: "Mode inconnu." };
+  const avant = await lireModeStrict();
+  if (mode === avant) return { ok: false, erreur: "C'est déjà le réglage en vigueur." };
+  if (mode !== "AUCUNE" && !confirme) {
+    return {
+      ok: false, confirmation: true,
+      erreur: `Activer l'application stricte (${LIBELLE_MODE[mode]}) : les lectures et écritures qu'elle refuse seront BLOQUÉES pour tous, Super Admin compris (les bases techniques restent toujours ouvertes). Confirmez pour l'appliquer — elle se désactive en un geste.`,
+    };
+  }
+  await prisma.appSetting.upsert({ where: { id: "global" }, create: { id: "global", accesBasesStrict: mode }, update: { accesBasesStrict: mode } });
+  return { ok: true, id: "global", resume: `Accès par base — application stricte : ${LIBELLE_MODE[avant]} → ${LIBELLE_MODE[mode]}` };
+}

@@ -14,8 +14,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import { annulerGeste } from "@/lib/effets/annulation";
-import { poserReglageBase, reglerPropresDonneesBase, revoquerReglageBase } from "@/modules/acces-bases/actions";
-import { niveauPour, propresDonnees, quiVoitLaBase, reglagesVivants } from "@/modules/acces-bases/api";
+import { poserReglageBase, reglerAccesBasesStrict, reglerPropresDonneesBase, revoquerReglageBase } from "@/modules/acces-bases/actions";
+import { lireModeStrict, niveauPour, propresDonnees, quiVoitLaBase, reglagesVivants } from "@/modules/acces-bases/api";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -127,5 +127,23 @@ suite("D2 — accès par base : réglages, annulation, garde-fous, attaques", ()
       expect((r as { error: string }).error).toMatch(/dernier Super Admin/);
     }
     expect(await prisma.accesBase.count({ where: { base: "comptes-et-droits", motif: { contains: TAG } } })).toBe(0);
+  });
+
+  it("D4 — l'application stricte : employé refusé ; activer exige une confirmation ; l'annulation la désactive", async () => {
+    const avant = await lireModeStrict();
+    expect(avant).toBe("AUCUNE"); // désactivée par défaut
+    ACTOR = employe;
+    expect((await reglerAccesBasesStrict("SENSIBLES", true)).ok).toBe(false);
+    ACTOR = sa;
+    expect(await reglerAccesBasesStrict("SENSIBLES", false)).toMatchObject({ ok: false, confirmation: true });
+    expect(await lireModeStrict()).toBe("AUCUNE");
+    const r = await reglerAccesBasesStrict("SENSIBLES", true);
+    expect(r.ok, JSON.stringify(r)).toBe(true);
+    expect(await lireModeStrict()).toBe("SENSIBLES");
+    const annule = await annulerGeste((r as { annulable?: { gesteId: string } }).annulable!.gesteId, sa);
+    expect("refus" in annule, JSON.stringify(annule)).toBe(false);
+    expect(await lireModeStrict()).toBe("AUCUNE");
+    // Désactiver ne demande jamais de confirmation (c'est le geste qui protège) — ici déjà désactivée : refusé comme sans effet.
+    expect((await reglerAccesBasesStrict("AUCUNE", false)).ok).toBe(false);
   });
 });

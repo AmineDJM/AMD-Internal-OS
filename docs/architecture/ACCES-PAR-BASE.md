@@ -2,7 +2,9 @@
 
 > **Statut : DÉCIDÉ (Direction, 02/11/2026) — voir la décision [0057](../assistant/decisions/0057-acces-par-base.md)**, qui
 > tranche les neuf questions (§9) : la base OUVRE et FERME, par rôle et par personne, datée et motivée, sans exception
-> pour le Super Admin (garde-fou anti-verrouillage). Mise en œuvre par lots D2 à D5. Le catalogue des bases
+> pour le Super Admin (garde-fou anti-verrouillage). Mise en œuvre par lots D2 à D5 : D2 (réglages, console), D3 (garde en
+> observation), D4 (application stricte, désactivée par défaut — activable par le Super Admin) et D5 (modules, assistant, API v1,
+> SQL libre) sont livrés. Le catalogue des bases
 > est dans [BASES-DE-DONNEES.md](BASES-DE-DONNEES.md) ; le résumé d'une page dans
 > [BASES-RESUME-DIRECTION.md](BASES-RESUME-DIRECTION.md).
 

@@ -8,6 +8,15 @@
   "annulation": "retour",
   "appelable": false
  },
+ "acces-bases-actions:reglerAccesBasesStrict": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "acces-bases-actions:reglerPropresDonneesBase": {
   "risque": "R4",
   "familles": [

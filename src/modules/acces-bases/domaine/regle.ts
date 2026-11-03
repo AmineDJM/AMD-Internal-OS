@@ -130,3 +130,46 @@ export function refusVerrouillage(base: string, niveau: NiveauStocke, superAdmin
 /** Un réglage restrictif qui toucherait un Super Admin exige une confirmation explicite. */
 export const touchePlusRestrictifSuperAdmin = (niveau: NiveauStocke, visesSuperAdmins: number): boolean =>
   niveau !== "OUVERTE" && visesSuperAdmins > 0;
+
+/**
+ * D4 — L'APPLICATION STRICTE, réglée par le Super Admin (`AppSetting.accesBasesStrict`), DÉSACTIVÉE par défaut :
+ *   AUCUNE    la garde observe et compte, rien n'est refusé ;
+ *   SENSIBLES les bases métier secrètes et confidentielles sont appliquées (Paie, Personnel, Recrutement, Finances…) ;
+ *   TOUTES    toutes les bases métier.
+ * Les bases techniques ne sont jamais appliquées : l'ERP ne tourne pas sans elles (pas de verrouillage possible).
+ */
+export type ModeStrict = "AUCUNE" | "SENSIBLES" | "TOUTES";
+export const MODES_STRICTS: readonly ModeStrict[] = ["AUCUNE", "SENSIBLES", "TOUTES"];
+export const estModeStrict = (v: unknown): v is ModeStrict => typeof v === "string" && (MODES_STRICTS as readonly string[]).includes(v);
+
+export function appliqueeSur(mode: ModeStrict, base: BaseCatalogue): boolean {
+  if (base.nature === "technique" || mode === "AUCUNE") return false;
+  return mode === "TOUTES" || base.sensibilite === "secret" || base.sensibilite === "confidentiel";
+}
+
+/**
+ * LES COLONNES DE RÉFÉRENCE (décision de la Direction n° 7) : le nom et le poste d'un salarié — et l'équivalent d'une
+ * fiche ailleurs (nom, titre, référence) — restent lisibles même base fermée, pour que les autres écrans gardent leurs
+ * libellés. Jamais une valeur : ni montant, ni coordonnée, ni pièce.
+ */
+export const COLONNES_REFERENCE: readonly string[] = [
+  "id", "name", "nom", "prenom", "fullName", "title", "titre", "label", "libelle", "reference", "code",
+  "position", "fonction", "department", "departmentId", "companyId", "userId", "personneId", "isActive",
+];
+
+/** L'empreinte d'un refus — gardée par Next en production, reconnue par l'écran d'erreur (`lireRefusBase`). */
+export const empreinteRefus = (base: string, niveau: NiveauBase) => `ACCES_BASE:${base}:${niveau}`;
+
+/** Lit une empreinte de refus (côté écran) : la base et la phrase à dire, ou null si ce n'est pas un refus de base. */
+export function lireRefusBase(digest: string | undefined | null): { base: string; phrase: string } | null {
+  const m = /^ACCES_BASE:([a-z-]+):([A-Z_]+)/.exec(digest ?? "");
+  if (!m) return null;
+  const b = baseDe(m[1]);
+  const nom = b?.nom ?? m[1];
+  return {
+    base: m[1],
+    phrase: m[2] === "LECTURE_SEULE"
+      ? `La base « ${nom} » vous est ouverte en lecture seule : cette modification est refusée. Demandez à la Direction.`
+      : `La base « ${nom} » vous est fermée. Demandez à la Direction (Administration › Accès › Par base).`,
+  };
+}

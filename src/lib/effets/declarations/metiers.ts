@@ -29,6 +29,8 @@ export const DECLARATIONS_METIERS: Readonly<Record<string, DeclarationAnnulation
   "acces-bases-actions:poserReglageBase": retour("le réglage créé est retiré (journal des effets) : la base revient à son niveau d'avant"),
   "acces-bases-actions:revoquerReglageBase": retour("le réglage révoqué reprend vigueur (journal des effets)"),
   "acces-bases-actions:reglerPropresDonneesBase": retour(REGLAGE),
+  // D4 : l'interrupteur de l'application stricte — l'annulation remet le mode d'avant (désactivé par défaut).
+  "acces-bases-actions:reglerAccesBasesStrict": retour(REGLAGE),
   "assistant-ia-actions:reglerMaReponseVocale": retour(REGLAGE),
   "assistant-ia-actions:reglerMaMemoireAuto": retour(REGLAGE),
   // S1 (décision 0048) : tutoiement / vouvoiement de SON assistant.

@@ -12,7 +12,7 @@ import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { actionReversible } from "@/lib/effets/reversible";
-import { estBase, poserReglage, reglerPropresDonnees, revoquerReglage } from "@/modules/acces-bases/api";
+import { estBase, poserReglage, rafraichirGardeMaintenant, reglerModeStrict, reglerPropresDonnees, revoquerReglage } from "@/modules/acces-bases/api";
 
 type Resultat = { ok: true } | { ok: false; error: string; confirmation?: true };
 
@@ -52,6 +52,7 @@ export async function poserReglageBase(formData: FormData): Promise<Resultat> {
     }, admin.id);
     if (!r.ok) return { ok: false as const, error: r.erreur, ...(r.confirmation ? { confirmation: true as const } : {}) };
     await recordAudit({ actorId: admin.id, action: "CREATE", module: MODULE_AUDIT, entityId: r.id, field: base, summary: r.resume });
+    await rafraichirGardeMaintenant();
     revalidatePath(CHEMIN);
     return { ok: true as const };
   });
@@ -65,6 +66,7 @@ export async function revoquerReglageBase(id: string): Promise<Resultat> {
     const r = await revoquerReglage(id, admin.id);
     if (!r.ok) return { ok: false as const, error: r.erreur };
     await recordAudit({ actorId: admin.id, action: "UPDATE", module: MODULE_AUDIT, entityId: id, field: "revoqueLe", summary: r.resume });
+    await rafraichirGardeMaintenant();
     revalidatePath(CHEMIN);
     return { ok: true as const };
   });
@@ -78,6 +80,20 @@ export async function reglerPropresDonneesBase(base: string, propres: boolean): 
     const r = await reglerPropresDonnees(base, propres, admin.id);
     if (!r.ok) return { ok: false as const, error: r.erreur };
     await recordAudit({ actorId: admin.id, action: "UPDATE", module: MODULE_AUDIT, entityId: base, field: "propresDonnees", newValue: String(propres), summary: r.resume });
+    await rafraichirGardeMaintenant();
+    revalidatePath(CHEMIN);
+    return { ok: true as const };
+  });
+}
+
+export async function reglerAccesBasesStrict(mode: string, confirme: boolean): Promise<Resultat> {
+  return actionReversible("acces-bases-actions:reglerAccesBasesStrict", "Application stricte de l'accès par base", async () => {
+    const admin = await superAdminReel();
+    if (!admin) return { ok: false as const, error: "Réservé au Super Admin." };
+    const r = await reglerModeStrict(String(mode ?? ""), confirme === true);
+    if (!r.ok) return { ok: false as const, error: r.erreur, ...(r.confirmation ? { confirmation: true as const } : {}) };
+    await recordAudit({ actorId: admin.id, action: "UPDATE", module: MODULE_AUDIT, entityId: "global", field: "accesBasesStrict", newValue: String(mode), summary: r.resume });
+    await rafraichirGardeMaintenant();
     revalidatePath(CHEMIN);
     return { ok: true as const };
   });

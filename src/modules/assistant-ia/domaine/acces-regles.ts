@@ -111,6 +111,42 @@ export function resoudreAccesIa(d: {
   return { superAdmin: false, ouvertes, explicites, perimetres: perimetres.filter((p) => !d.personne?.fermees.includes(p.famille)) };
 }
 
+/**
+ * D5 (décision 0057) — L'ACCÈS PAR BASE PAR-DESSUS LES FAMILLES (sous l'application stricte seulement ; `bases` nul
+ * sinon). Une base FERMÉE ferme ses familles — Super Admin compris (la Direction : « aucune exception ») ; une base
+ * OUVERTE les ouvre ; une ouverture NOMINATIVE d'une base porteuse d'une famille sensible devient un périmètre nommé
+ * (origine « BASE »), sur les entités ouvertes à la personne. Une fermeture nominative de la console de l'assistant
+ * prime toujours sur une ouverture par base.
+ */
+export function appliquerBases(
+  a: AccesIa,
+  bases: { fermees: readonly string[]; ouvertes: readonly string[]; perimetres: readonly { famille: string; du: string; au: string | null; ref: string; motif: string }[] } | null,
+  fermeesNominatives: readonly FamilleIa[] = [],
+): AccesIa {
+  if (!bases) return a;
+  const fermees = new Set(bases.fermees.filter(estFamilleIa));
+  if (a.superAdmin) {
+    if (!fermees.size) return a;
+    // Un Super Admin dont une base est fermée perd sa souveraineté sur CES familles : il garde le reste, sur toutes les entités.
+    const ouvertes = FAMILLES_IA.filter((f) => !fermees.has(f));
+    const perimetres: PerimetreSensible[] = [...FAMILLES_SENSIBLES].filter((f) => !fermees.has(f))
+      .map((f) => ({ famille: f, companyId: null, du: null, au: null, origine: "ROLE" as const, ref: null, motif: "Super Admin" }));
+    return { superAdmin: false, ouvertes, explicites: ouvertes, perimetres };
+  }
+  const ouvertes = new Set(a.ouvertes);
+  for (const f of bases.ouvertes) if (estFamilleIa(f) && !fermeesNominatives.includes(f)) ouvertes.add(f);
+  for (const f of fermees) ouvertes.delete(f);
+  const parBase: PerimetreSensible[] = bases.perimetres
+    .filter((p) => estFamilleIa(p.famille) && FAMILLES_SENSIBLES.has(p.famille as FamilleIa) && !fermees.has(p.famille) && !fermeesNominatives.includes(p.famille as FamilleIa))
+    .map((p) => ({ famille: p.famille as FamilleIa, companyId: null, du: p.du, au: p.au, origine: "BASE" as const, ref: p.ref, motif: p.motif }));
+  return {
+    superAdmin: false,
+    ouvertes: FAMILLES_IA.filter((f) => ouvertes.has(f)),
+    explicites: a.explicites.filter((f) => !fermees.has(f)),
+    perimetres: [...(a.perimetres ?? []).filter((p) => !fermees.has(p.famille)), ...parBase],
+  };
+}
+
 export const familleOuverte = (a: AccesIa, f: FamilleIa): boolean => a.superAdmin || a.ouvertes.includes(f);
 export const familleExplicite = (a: AccesIa, f: FamilleIa): boolean => a.superAdmin || a.explicites.includes(f);
 /**

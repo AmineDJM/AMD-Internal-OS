@@ -5818,6 +5818,7 @@
      "libelle": "Réglage de l'application",
      "sensibilite": "restreint",
      "ecritePar": [
+      "acces-bases-actions",
       "assistant-actions",
       "assistant-ia-consommation-actions",
       "budget-envelope-actions",

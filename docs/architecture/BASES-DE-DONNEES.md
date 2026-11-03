@@ -1024,7 +1024,7 @@ Les réglages de l'application, les champs personnalisés, les tâches de fond, 
 
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
-| `AppSetting` | Réglage de l'application | Restreint | assistant-actions, assistant-ia-consommation-actions, budget-envelope-actions, coffre-actions +7 |
+| `AppSetting` | Réglage de l'application | Restreint | acces-bases-actions, assistant-actions, assistant-ia-consommation-actions, budget-envelope-actions +8 |
 | `FeatureFlag` | Interrupteur de fonctionnalité | Restreint | feature-actions |
 | `CustomFieldDef` | Champ personnalisé | Restreint | custom-field-actions |
 | `EntityLink` | Lien entre deux sujets | Restreint | link-actions, pch-actions |
