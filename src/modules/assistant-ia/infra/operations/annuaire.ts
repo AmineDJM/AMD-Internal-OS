@@ -3,10 +3,8 @@ import { peutAnnuaire, userCan } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { appliquerLotAnnuaire, fusionnerEtablissementsAnnuaire } from "@/lib/actions/fournisseurs-annuaire-actions";
 import { CHAMPS_LOT, type CibleLot, type GroupeFusion, type LigneLot } from "@/lib/annuaires/lot";
-import { annulerGeste, gestesDeLAssistant, planDAnnulation } from "@/platform/ia/hors-requete";
 import { texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 import { cleDeDoublon, motsDuNom, plier } from "../../domaine/annuaire/analyse";
-import { phraseAnnulation } from "../../domaine/terrain/oral";
 import { porteeMedecins, voitAnnuaire, voitEtablissements } from "../annuaire/lectures";
 
 /**
@@ -266,40 +264,4 @@ export const FUSION_DOUBLONS: OperationIA = {
   },
 };
 
-const RECENT_MS = 30 * 60_000;
-
-export const ANNULER_DERNIERE: OperationIA = {
-  nom: "annuler_mon_action",
-  module: "ASSISTANT_IA",
-  libelle: "Action de l'assistant annulée",
-  description:
-    "ANNULER ce que l'assistant vient de faire pour la personne (« annule cette mise à jour », « remets comme avant ») : sa carte "
-    + "la plus récente, confirmée il y a moins de 30 minutes, ou celle dont `quoi` décrit le libellé. La carte montre ce qui sera défait ; la personne confirme.",
-  schema: { type: "object", properties: { quoi: { type: "string", description: "Ce qu'il faut annuler, en quelques mots (facultatif)." } } },
-  ouverte: (u) => !u.impersonatedBy,
-  proposer: async (entree, user): Promise<PropositionOperation> => {
-    const quoi = plier(texte(entree, "quoi"));
-    const gestes = (await gestesDeLAssistant(user, { limite: 10 })).filter((g) => !g.annuleLe && Date.now() - new Date(g.quand).getTime() < RECENT_MS);
-    const mots = quoi.split(/\W+/).filter((m) => m.length > 3);
-    const g = (mots.length ? gestes.find((x) => mots.some((m) => plier(x.libelle).includes(m))) : null) ?? gestes[0];
-    if (!g) return { erreur: "Aucune action récente de l'assistant à annuler (moins de 30 minutes)." };
-    const plan = await planDAnnulation(g.id, user);
-    if ("refus" in plan) return { erreur: plan.refus };
-    return {
-      carte: {
-        title: `Annuler « ${g.libelle} »`,
-        fields: plan.details.slice(0, 20).map((d) => ({ label: d.quoi, value: d.issue === "IMPOSSIBLE" ? `impossible : ${d.pourquoi ?? ""}` : "sera défait" })),
-        warnings: [plan.resume, "Rétablissable ensuite (« rétablis »)."],
-        libelleBouton: "Annuler l'action",
-      },
-      args: { gesteId: g.id, libelle: g.libelle },
-    };
-  },
-  executer: async (args, user) => {
-    const r = await annulerGeste(args.gesteId ?? "", user);
-    if ("refus" in r) return { ok: false, error: r.refus };
-    return { ok: true, message: phraseAnnulation(args.libelle ?? "l'action", r.details) };
-  },
-};
-
-export const OPERATIONS_ANNUAIRE: OperationIA[] = [MAJ_ANNUAIRE, FUSION_DOUBLONS, ANNULER_DERNIERE];
+export const OPERATIONS_ANNUAIRE: OperationIA[] = [MAJ_ANNUAIRE, FUSION_DOUBLONS];

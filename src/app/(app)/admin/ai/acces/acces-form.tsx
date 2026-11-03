@@ -428,7 +428,7 @@ export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, manage
           <p className="text-sm text-muted-foreground">
             Un <strong>envoi</strong> (courriel, notification poussée, publication) attend la <strong>fenêtre d&apos;annulation</strong> avant de
             partir : annulé dedans, rien n&apos;est parti. Après, il est compensé (rectificatif au même destinataire) — un courriel parti
-            n&apos;est jamais effacé chez son destinataire. Défaut proposé : 120 s (2 minutes), décision de la Direction.
+            n&apos;est jamais effacé chez son destinataire. Défaut : 30 s, décision de la Direction (03/11/2026).
           </p>
           <RetentionEffets initial={retentionEffetsJours} fenetre={fenetreAnnulationSecondes} />
         </CardContent>

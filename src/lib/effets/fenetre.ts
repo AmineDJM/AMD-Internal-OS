@@ -11,7 +11,7 @@ import { etatDuGeste, horsGeste, type EffetExterneCapture } from "./magasin";
  * Un effet SORTANT (courriel SMTP, Microsoft Graph ou API, notification poussée, publication, diffusion d'offre, appel
  * d'API externe, ordre transmis) ne part pas au moment du geste : il entre dans la file `EffetSortantDiffere` avec une
  * échéance (`executeLe` = maintenant + délai réglé par le Super Admin, `AssistantIaReglage.fenetreAnnulationSecondes`,
- * défaut 120 s). Puis :
+ * défaut 30 s). Puis :
  *
  *   • ANNULÉ DANS LA FENÊTRE (`annulerEffetSortant`) — RIEN n'est parti. La ligne passe à ANNULE (qui, quand), l'audit
  *     le garde, et l'annulation elle-même se rétablit (`retablirEffetSortant` : l'effet repart pour une fenêtre neuve).
@@ -38,7 +38,8 @@ export const STATUTS_EFFET_SORTANT = ["EN_ATTENTE", "EN_COURS", "PARTI", "ECHEC"
 export type StatutEffetSortant = (typeof STATUTS_EFFET_SORTANT)[number];
 
 /** Défaut proposé à la Direction : 2 minutes (réglable dans Administration › IA › Accès). */
-export const FENETRE_DEFAUT_SECONDES = 120;
+/** Direction, 03/11/2026 : « 2 minutes, c'est un peu long — 30 secondes ». */
+export const FENETRE_DEFAUT_SECONDES = 30;
 export const FENETRE_MIN_SECONDES = 10;
 export const FENETRE_MAX_SECONDES = 900;
 /** Un exécuteur qui échoue est réessayé, puis la ligne passe à ECHEC (le dire vaut mieux qu'un envoi en double). */

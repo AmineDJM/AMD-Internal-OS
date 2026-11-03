@@ -9728,7 +9728,7 @@ model AssistantIaReglage {
   retentionEffetsJours      Int      @default(180)
   /// K10b (décision 0040) : la FENÊTRE D'ANNULATION des effets sortants (courriel, poussée, site, diffusion, appel
   /// externe) — délai, en secondes, avant qu'un effet parte ; annulé dans la fenêtre, rien ne sort. Défaut 120 (2 min).
-  fenetreAnnulationSecondes Int      @default(120)
+  fenetreAnnulationSecondes Int      @default(30)
   /// K2 (décision 0032) : la génération d'IMAGES (gpt-image) — interrupteur et plafond de dépense du mois civil, en dollars.
   visuelsImagesActives      Boolean  @default(true)
   visuelsImagesPlafondUsd   Float    @default(20)

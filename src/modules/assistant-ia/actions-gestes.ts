@@ -59,14 +59,6 @@ async function personne(ecriture: boolean): Promise<{ ok: true; user: CurrentUse
 }
 const idValide = (x: unknown): x is string => typeof x === "string" && x.length > 0 && x.length < 64;
 
-/** Ce que la barre montre : les gestes réversibles des dernières minutes, et les envois en fenêtre (ou récents). */
-export async function mesGestesEtEnvoisRecents(): Promise<{ ok: true; gestes: GesteEcranVu[]; envois: EffetSortantVu[]; maintenant: string } | Refus> {
-  const p = await personne(false);
-  if (!p.ok) return p;
-  const [gestes, envois] = await Promise.all([gestesRecents(p.user), effetsSortantsDe(p.user, { depuisMinutes: 10 })]);
-  return { ok: true, gestes, envois, maintenant: new Date().toISOString() };
-}
-
 /** L'historique d'une fiche : les gestes journalisés qui l'ont touchée, et ses envois. */
 export async function historiqueDeLaFiche(modele: string, id: string): Promise<{ ok: true; gestes: GesteEcranVu[]; envois: EffetSortantVu[] } | Refus> {
   const p = await personne(false);

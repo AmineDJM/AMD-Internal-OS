@@ -14,7 +14,7 @@ const COURRIER = J("geste réversible (journal des effets) : le pli, la pièce, 
 /** Une écriture interne, sans rien qui sorte : le journal J7, dans les deux sens. */
 const INTERNE = J("geste réversible (journal des effets) : ce qui a été créé est retiré, ce qui a été modifié retrouve sa valeur d'avant, ce qui a été retiré est recréé à l'identique (même identifiant) — sauf ce qu'un autre a changé depuis, dit et jamais écrasé ; l'annulation se rétablit");
 /** Un COURRIEL : la fenêtre d'annulation, puis le rectificatif. */
-const COURRIEL = F("compensation", "fenêtre d'annulation : le courriel attend le délai réglé par le Super Admin (2 min par défaut) — annulé dedans, RIEN n'est parti ; parti, il n'est pas effacé chez son destinataire : un rectificatif lui part (annulable à son tour), et l'écran le dit");
+const COURRIEL = F("compensation", "fenêtre d'annulation : le courriel attend le délai réglé par le Super Admin (30 s par défaut) — annulé dedans, RIEN n'est parti ; parti, il n'est pas effacé chez son destinataire : un rectificatif lui part (annulable à son tour), et l'écran le dit");
 /** Une PUBLICATION au site Adventum : la file attend la fenêtre ; partie, la version d'avant est renvoyée. */
 const SITE = F("compensation", "fenêtre d'annulation : l'envoi au site attend le délai réglé (la file ne le prend pas avant) — annulé dedans, le site n'a rien reçu et le contenu retrouve sa version d'avant ; parti, la version d'avant est renvoyée au site (ou la page retirée) — elle a pu être lue");
 /** Une DÉCISION de circuit : elle se défait en entier ou pas du tout. */
