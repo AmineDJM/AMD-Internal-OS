@@ -13,9 +13,9 @@ import { ROLE_LABELS } from "@/lib/labels";
 import {
   FAMILLES_SENSIBLES, LIBELLE_FAMILLE, LIBELLE_VALEURS_SENSIBLES, lireConsommation, MODES_VALEURS_SENSIBLES, modeValeursSensibles, normaliserReglageFamilles, normaliserReglages,
   normaliserReglagesVisuels, type FamilleIa,
-  accesAssistantIa, estFamilleIa, oublierProfil, profilDeLaPersonne,
+  accesAssistantIa, essayerAgentDe, estFamilleIa, oublierProfil, profilDeLaPersonne,
 } from "@/modules/assistant-ia/api";
-import type { ApercuAssistant, VueConsommation } from "@/modules/assistant-ia/partage";
+import type { ApercuAssistant, EchangeEssai, IssueEssai, VueConsommation } from "@/modules/assistant-ia/partage";
 
 /**
  * LES BORNES DE L'ASSISTANT IA — enregistrées par le Super Admin (Administration › Consommation IA,
@@ -484,4 +484,22 @@ export async function apercuAssistantDe(personneId: string): Promise<{ ok: true;
       droits: droits.map((d) => ({ id: d.id, famille: d.famille, companyId: d.companyId, du: j(d.du)!, au: j(d.au), motif: d.motif, revoqueLe: j(d.revoqueLe) })),
     },
   };
+}
+
+/**
+ * ESSAYER L'AGENT D'UNE PERSONNE (Super Admin, hors Vue exacte) — son vrai tour, sous son identité, ses droits et la garde
+ * de ses données ; rien n'est enregistré chez elle, rien ne sort, l'essai est inscrit à l'audit (`infra/essai/service.ts`).
+ */
+export async function essayerAgentDeLaPersonne(formData: FormData): Promise<IssueEssai> {
+  const admin = await exigerSuperAdmin();
+  if (!admin) return { ok: false, erreur: "Réservé au Super Admin, hors « Vue exacte »." };
+  // Les échanges précédents de l'essai, tels que l'écran les a reçus (le service les borne et les vérifie).
+  let precedents: EchangeEssai[] = [];
+  try {
+    const p = JSON.parse(String(formData.get("precedents") ?? "[]"));
+    if (Array.isArray(p)) precedents = p as EchangeEssai[];
+  } catch {
+    return { ok: false, erreur: "Les échanges précédents de l'essai sont illisibles : recommencez l'essai." };
+  }
+  return essayerAgentDe(admin, String(formData.get("personneId") ?? ""), String(formData.get("message") ?? ""), precedents);
 }

@@ -50,6 +50,7 @@ vi.mock("@/lib/regulatory/intelligence/extract/extract-text", async (importOrigi
 });
 
 import { prisma } from "@/lib/prisma";
+import { attendreBloques } from "@/lib/actions/internes/bancs-concurrents";
 import { openSecret } from "@/lib/crypto/secret-box";
 import { empreinteDe, lireFichierUneFois, VERSION_LECTEUR, type ResultatLecture } from "./lecture-fichier";
 
@@ -117,17 +118,9 @@ async function deuxReprisesEnsemble<T>(id: string, a: () => Promise<T>, b: () =>
     await tx.$executeRawUnsafe(`SELECT 1 FROM "LecturePiece" WHERE id = $1 FOR UPDATE`, id);
       ga = a(); gb = b();
       ga.catch(() => undefined); gb.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE 'UPDATE%' AND query ILIKE '%"LecturePiece"%'`;
-        if (n >= 2) break;
-        if (Date.now() - debut > 30_000) throw new Error("les deux reprises n'ont pas atteint la barrière");
-        await dormir(25);
-      }
+      // Seuls comptent les gestes que CETTE transaction arrête, et de CE processus (`bancs-concurrents.ts`) : l'attente locale comptait toute session de la suite.
+      // Une ÉCRITURE de « LecturePiece » (la requête commence par UPDATE et nomme la table).
+      await attendreBloques(tx, 'UPDATE%"LecturePiece"%', 2, { delaiMs: 30_000 });
     }, { timeout: 60_000 });
   } catch (e) {
     // La barrière n'a pas tenu : on laisse les deux lectures finir avant de rendre la main — elles ne

@@ -78,6 +78,12 @@ export interface EtatGeste {
   gesteId?: string | null;
   /** K10b : les effets sortants de ce geste attendent leur FENÊTRE D'ANNULATION au lieu de partir (`effets/fenetre.ts`). */
   fenetre?: boolean;
+  /**
+   * L'ESSAI D'UN AGENT (Super Admin, « Essayer l'agent de… ») : une SIMULATION dont l'appel au fournisseur de modèles part
+   * (il ne change rien chez personne — sans lui, il n'y a pas de réponse à juger) et dont chaque requête est isolée par un
+   * point de sauvegarde (`effets/sauvegarde.ts`). Tout le reste est celui de la simulation : la base est annulée, rien ne sort.
+   */
+  essai?: boolean;
 }
 
 /**
