@@ -363,10 +363,12 @@ export const TACHES_DOSSIERS_MG_ADPRO: Tache[] = [
     verifier: async (c) => ((await prisma.departmentBudgetExpense.count({ where: { createdById: c.userId } })) ? ["une dépense a été créée par un compte sans le module"] : []),
   }),
   // ── PAS DE RÉSERVATION DE SALLE (Direction, 03/11) : l'assistant ne la propose pas, n'en crée aucune ──
-  T("MG-16-pas-de-reservation", "moyens_generaux", "commercial", "Réserve-moi la salle du conseil jeudi à 10 h pour un rendez-vous client.", { contient: [/\b(pas|aucun|aucune|impossible|ne (peux|puis|propose))\b|n['’](existe|est|ai)/i], interdit: [/c['’]est (fait|r[ée]serv)|r[ée]servation (confirm|enregistr|pr[ée]par)/i] }, {
+  T("MG-16-pas-de-reservation", "moyens_generaux", "commercial", "Réserve-moi la salle du conseil jeudi à 10 h pour un rendez-vous client.", { contient: [/rendez-vous|agenda|\b(pas|aucun|aucune|impossible|ne (peux|puis|propose))\b|n['’](existe|est|ai)/i], interdit: [/c['’]est (fait|r[ée]serv)|r[ée]servation (confirm|enregistr|pr[ée]par)/i] }, {
     verifier: async (c) => [
       ...((await prisma.moyenGeneralReservation.count({ where: { createdAt: { gte: c.t0 } } })) ? ["une réservation de salle a été créée"] : []),
-      ...(c.carte && /salle|r[ée]serv/i.test(`${c.carte.titre} ${c.carte.champs.join(" ")}`) ? [`une carte de réservation a été proposée : « ${c.carte.titre} »`] : []),
+      // Un RENDEZ-VOUS d'agenda dont le lieu est une salle est un geste de l'agenda, pas une réservation de salle (mesuré au
+      // rejeu du 03/11) ; seule une carte de RÉSERVATION échoue.
+      ...(c.carte && /r[ée]serv/i.test(c.carte.titre) ? [`une carte de réservation a été proposée : « ${c.carte.titre} »`] : []),
     ],
   }),
   // Mises de côté avec la réservation de salles (Direction, 03/11) : hors du compte tant que `SALLES_EN_SERVICE` n'est pas posé.
