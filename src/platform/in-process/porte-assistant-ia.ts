@@ -39,6 +39,9 @@ export const COUVERTS: Readonly<Record<string, string>> = {
   lancer_un_chantier: "lancer_un_chantier (outilsChantierPour)", ou_en_est_chantier: "ou_en_est_chantier (outilsChantierPour)",
   valider_chantier: "valider_chantier (outilsChantierPour)", annuler_chantier: "annuler_chantier (outilsChantierPour)",
   consigne_chantier: "consigne_chantier (outilsChantierPour)",
+  // O2 (décision 0059) : les programmes — les mêmes outils des deux côtés (`OUTILS_PROGRAMME`, par la porte des chantiers).
+  lancer_un_programme: "lancer_un_programme (outilsChantierPour)", ou_en_est_programme: "ou_en_est_programme (outilsChantierPour)",
+  consigne_programme: "consigne_programme (outilsChantierPour)", valider_programme: "valider_programme (outilsChantierPour)", annuler_programme: "annuler_programme (outilsChantierPour)",
   mission_status: "mes_missions", mission_control: "piloter_mission", run_mission: "lancer_un_travail / demande de fond",
   gmail_prepare_mail: "envoyer_mail par le canal Adam (Super Admin)",
 };

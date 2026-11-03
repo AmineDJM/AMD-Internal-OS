@@ -254,6 +254,16 @@ export interface ForgeGit {
    * jamais un force-push ni une réécriture de l'historique ; sa fusion repasse par la validation.
    */
   proposerRevert(depot: NomDepot, numero: number, opts: { titre: string; corps: string }): Promise<Resultat<{ numero: number; url: string }>>;
+  /**
+   * O2 (décision 0059) — LA FILE D'INTÉGRATION. Créer une branche à un SHA (`POST /git/refs`, 422 si elle existe) ;
+   * la supprimer (`DELETE /git/refs/heads/…`) ; fusionner `tete` dans `base` (`POST /merges` : 201 commit, 204 rien à
+   * fusionner, 409 conflit) ; AVANCER une branche en fast-forward SEUL (`PATCH /git/refs/heads/…`, `force: false` —
+   * GitHub refuse si ce n'est pas un fast-forward). Facultatives : un double de test peut ne pas les porter.
+   */
+  creerBranche?(depot: NomDepot, branche: string, sha: string): Promise<Resultat<true>>;
+  supprimerBranche?(depot: NomDepot, branche: string): Promise<Resultat<true>>;
+  fusionnerBranches?(depot: NomDepot, base: string, tete: string, message: string): Promise<Resultat<{ sha: string } | { conflit: true } | { rienAFusionner: true }>>;
+  avancerBranche?(depot: NomDepot, branche: string, sha: string): Promise<Resultat<true>>;
 }
 
 // ─────────────────────────────── HÉBERGEUR (Render) ───────────────────────────────

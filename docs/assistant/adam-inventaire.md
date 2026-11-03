@@ -50,6 +50,7 @@ classe (a) : branchées et prouvées (tests ci-dessous, banc ADAM-SA-).
 | `recall_conversation` | `memory-tools.ts` | `mes_conversations` (conversations passées, décision 0027) | `conversations.test.ts` |
 | `artifact_open`, `artifact_edit`, `artifact_control` | `office-capabilities.ts` | l'Atelier : `ouvrir_dans_l_atelier`, `modifier_document`, `convertir_document`, `enregistrer_document` (J3) | `atelier.test.ts` |
 | `lancer_un_chantier`, `ou_en_est_chantier`, `valider_chantier`, `annuler_chantier` (chantiers C1/C2) | `platform/in-process/chantiers/outils-adam.ts` | `outilsChantierPour` (mêmes outils `lib/missions/chantiers`, décisions 0042-0043) | `chantiers*.test.ts` |
+| `lancer_un_programme`, `ou_en_est_programme`, `consigne_programme`, `valider_programme`, `annuler_programme` (programmes O2) | `platform/in-process/chantiers/outils-adam.ts` | `outilsChantierPour` (mêmes outils `lib/missions/equipe/outils.ts`, décision 0059) | `equipe/*.test.ts` |
 | `mission_status`, `mission_control`, `run_mission` (missions et leur pilotage) | `business-capabilities.ts` | `mes_missions`, `piloter_mission`, `lancer_un_travail` / demande de fond (P1, décision 0047) | `missions-mails.test.ts` |
 | `gmail_prepare_mail` (envoi par le Gmail d'Adam) | `adam-tools/gmail.ts` | `envoyer_mail` par le canal Adam (SA seul, `canalAdamOuvert`), carte + fenêtre d'annulation | `missions-mails.test.ts`, ML-ADAM- |
 | Voix temps réel | `voice-realtime.ts`, `components/chief/realtime-voice*` | la voix GPT-Live de l'Assistant IA (décisions 0038, 0039, 0046) | `voix*.test.ts` |

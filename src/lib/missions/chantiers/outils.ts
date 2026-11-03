@@ -159,3 +159,5 @@ export const OUTILS_CHANTIER: readonly OutilChantier[] = [
 
 /** La porte pour les écrans (console, carte de validation) — le module ne passe que par ce fichier. */
 export { etatMimo, lireReglagesChantiers, lireReglagesConsole, validerGesteChantier } from "@/lib/missions/chantiers/service";
+/** O2 (décision 0059) : les outils des programmes passent par la MÊME porte (aucun couplage neuf du module). */
+export { OUTILS_PROGRAMME } from "@/lib/missions/equipe/outils";

@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### UNE ÉQUIPE DE CLAUDE CODE SOUS ADAM : PROGRAMMES ET FILE D'INTÉGRATION (2026-11-02, lot O2, décision 0059)
+
+Demande de la Direction du 02/11 : Adam délègue à MiMo (superviseur) une équipe de travailleurs Claude Code en parallèle,
+sans conflit ; priorités correction → fiabilité → autonomie → coût → vitesse.
+- **« Lance un programme… »** (`lancer_un_programme`) : MiMo décompose, le CODE valide (cycles, périmètres, critères, budget,
+  aucun déploiement), les tâches indépendantes partent en parallèle (3 au plus), celles qui se recouvrent (fichiers,
+  schéma, contrat, dépendances, module) sont SÉRIALISÉES avant tout conflit.
+- **File d'intégration** par branche cible : une à la fois (garantie par la base), CI COMPLÈTE sur le résultat fusionné avec
+  la dernière version de la cible — elle attrape ce que Git ne voit pas (une fonction renommée par l'un, appelée par l'autre) ;
+  conflit ou CI rouge → la tâche retourne à SA session, travail préservé ; `main` sous carte de la Direction.
+- **Travailleurs** : sessions cloud Claude Code SEULEMENT (Direction : « abonnement ») ; quota horaire des sessions (25/h).
+- **Tableau « Missions d'Adam »** : tâches, travailleurs, dépendances, conflits, file, coûts par nature (sessions, durée, tentatives ; dollars des modèles), en temps réel.
+- Migration `20270232000000_o2_file_integration` (table `IntegrationFile`). Code `src/lib/missions/equipe/`. Preuves : décision 0059 § 9.
+
 ### NEUF DÉFAUTS DU BANC RÉEL CORRIGÉS PAR L'ARCHITECTURE (2026-11-02, lot F2, décision 0060)
 
 Passage réel du 02/11 au soir (224/250, 110/110 attaques bloquées) : les défauts restants venaient du produit.

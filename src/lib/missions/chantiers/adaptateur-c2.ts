@@ -3,6 +3,7 @@ import { construireConsigne } from "@/platform/dev/consigne";
 import { routineDuDepot, type Env } from "@/platform/dev/config";
 import type { AgentDeveloppeur, DeploiementRender, ForgeGit, Hebergeur, RefDepot, Resultat } from "@/lib/missions/chantiers/ports-moteur";
 import type { PortsDev } from "@/lib/missions/chantiers/etapes";
+import type { ForgeIntegration } from "@/lib/missions/equipe/integration";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -189,8 +190,44 @@ function agentDe(a: C2.AgentDeveloppeur, env: Env): AgentDeveloppeur {
   };
 }
 
+/**
+ * O2 (décision 0059) — LA FORGE DE LA FILE D'INTÉGRATION depuis le connecteur GitHub de C2 ; `null` s'il ne porte pas les
+ * gestes de branche. La cible protégée (main) que GitHub refuse d'avancer directement passe par la PR de la branche
+ * d'intégration, fusionnée AU SHA vérifié.
+ */
+export function forgeIntegrationDe(f: C2.ForgeGit): ForgeIntegration | null {
+  if (!f.creerBranche || !f.supprimerBranche || !f.fusionnerBranches || !f.avancerBranche) return null;
+  const [creer, supprimer, fusionner, avancer] = [f.creerBranche.bind(f), f.supprimerBranche.bind(f), f.fusionnerBranches.bind(f), f.avancerBranche.bind(f)];
+  const moteur = forgeDe(f);
+  return {
+    tete: async (d, b) => vers(await f.teteDeBranche(nom(d), b), (x) => x),
+    creerBranche: async (d, b, sha) => vers(await creer(nom(d), b, sha), () => true as const),
+    supprimerBranche: async (d, b) => vers(await supprimer(nom(d), b), () => true as const),
+    fusionnerDans: async (d, base, tete, message) => {
+      const r = await fusionner(nom(d), base, tete, message);
+      if (!r.ok) return erreur(r.erreur);
+      if ("rienAFusionner" in r.valeur) return vers(await f.teteDeBranche(nom(d), base), (sha) => ({ sha: sha ?? "" }));
+      return { ok: true, valeur: r.valeur };
+    },
+    estAncetre: async (d, a, sha) => vers(await f.comparer(nom(d), a, sha), (c) => c.statut === "ahead" || c.statut === "identical"),
+    fichiersModifies: async (d, base, tete) => vers(await f.comparer(nom(d), base, tete), (c) => c.fichiers.map((x) => x.chemin)),
+    avancer: async (d, b, sha) => {
+      const r = await avancer(nom(d), b, sha);
+      return r.ok ? { ok: true, valeur: true } : { ...erreur(r.erreur), ...(r.erreur.code === "CONFLIT" || r.erreur.code === "INTERDIT" ? { definitif: true } : {}) };
+    },
+    checks: (d, sha) => moteur.checks(d, sha),
+    fusionnerParPr: async (d, branche, cible, sha, titre) => {
+      const ouverte = await f.prDeBranche(nom(d), branche);
+      if (!ouverte.ok) return erreur(ouverte.erreur);
+      if (!ouverte.valeur) return nonPrisEnCharge(`ouvrir la PR ${branche} → ${cible} (à ouvrir par Claude Code ou à la main)`);
+      return vers(await f.fusionnerPr(nom(d), ouverte.valeur.numero, { shaAttendu: sha }), (x) => ({ sha: x.sha }));
+    },
+  };
+}
+
 /** LES PORTS DU MOTEUR depuis les connecteurs de C2. Sans forge (GitHub non configuré), aucun chantier ne peut être vérifié : `null`. */
 export function portsDepuisConnecteurs(c: { agent: C2.AgentDeveloppeur; forge: C2.ForgeGit | null; hebergeur: C2.Hebergeur | null }, o: { env?: Env; fetch?: typeof fetch } = {}): PortsDev | null {
   if (!c.forge) return null;
-  return { agent: agentDe(c.agent, o.env ?? process.env), forge: forgeDe(c.forge), hebergeur: hebergeurDe(c.hebergeur, o.fetch ?? fetch) };
+  const integration = forgeIntegrationDe(c.forge);
+  return { agent: agentDe(c.agent, o.env ?? process.env), forge: forgeDe(c.forge), hebergeur: hebergeurDe(c.hebergeur, o.fetch ?? fetch), ...(integration ? { integration } : {}) };
 }

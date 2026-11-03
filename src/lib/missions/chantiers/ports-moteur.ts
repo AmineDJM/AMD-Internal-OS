@@ -17,7 +17,7 @@ export type Resultat<T> =
   /** `incertain` : la demande a PU partir (délai dépassé) — ne jamais la relancer à l'aveugle. */
   | { ok: false; erreur: string; reessayerApresMs?: number; definitif?: boolean; incertain?: boolean };
 export interface RefDepot { proprietaire: string; nom: string }
-export interface ConsigneDev { depot: RefDepot; branche: string; brancheBase: string; objectif: string; perimetre: string[]; criteres: string[]; commandesVerif: string[]; contexte?: string; chantierId: string }
+export interface ConsigneDev { depot: RefDepot; branche: string; brancheBase: string; objectif: string; perimetre: string[]; criteres: string[]; commandesVerif: string[]; contexte?: string; chantierId: string; }
 /** `ordreId` : l'ordre du relais CLI qui porte ce geste (son issue se relit par `ordre`). */
 export interface SessionDev { sessionId: string; url: string; lanceeLe: string; moyen: "routine" | "commentaire-pr" | "relais-cli" | "managed-agents"; ordreId?: string }
 /**

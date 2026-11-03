@@ -69,7 +69,7 @@ par base :
    du coffre et est journalisée (`AccesDonneeSensible`) ; aucun modèle d'IA ne le lit jamais.
 
 <!-- BASES:DEBUT -->
-_Généré par `npm run bases:generer` — 518 tables, 29 bases. Ne pas éditer à la main._
+_Généré par `npm run bases:generer` — 519 tables, 29 bases. Ne pas éditer à la main._
 
 ### Bases métier (381 tables)
 
@@ -97,18 +97,18 @@ _Généré par `npm run bases:generer` — 518 tables, 29 bases. Ne pas éditer 
 | Messagerie, courriels & agenda (`communication`) | 22 | Confidentiel | Messagerie, Espace de travail, Notifications |
 | Tâches, demandes internes & validations (`travail`) | 19 | Restreint | Espace de travail, Directives, Demandes de support, Sujets, Demandes de validations, Centre de validations |
 | Moyens généraux & demandes administratives (`moyens-generaux`) | 9 | Restreint | Bureau du secrétariat, Moyens généraux |
-| Pilotage, KPI & intelligence de direction (`pilotage`) | 20 | Confidentiel (jusqu'à secret) | KPI & bilans, Adventum Brain, Process Intelligence, Cockpit Opérations, My Chief of Staff |
+| Pilotage, KPI & intelligence de direction (`pilotage`) | 20 | Confidentiel (jusqu'à secret) | KPI & bilans, Adventum Brain, Process Intelligence, Cockpit Opérations, My Chief of Staff (bureau d'Adam) |
 | Site web public (`site-web`) | 6 | Public interne | Site web |
 
-### Bases techniques (137 tables)
+### Bases techniques (138 tables)
 
 | Base | Tables | Sensibilité | Modules qui l'ouvrent aujourd'hui |
 |---|---:|---|---|
 | Comptes, connexions & droits d'accès (`comptes-et-droits`) | 19 | Secret | Administration |
-| Assistant IA — conversations, notes & mémoire personnelles (`ia-conversations`) | 31 | Confidentiel | Assistant IA, My Chief of Staff |
-| IA — moteur, missions, connaissances & réglages (`ia-moteur`) | 56 | Restreint (jusqu'à confidentiel) | Administration, Assistant IA, Recettes |
+| Assistant IA — conversations, notes & mémoire personnelles (`ia-conversations`) | 31 | Confidentiel | Adam, My Chief of Staff (bureau d'Adam) |
+| IA — moteur, missions, connaissances & réglages (`ia-moteur`) | 56 | Restreint (jusqu'à confidentiel) | Administration, Adam, Recettes |
 | Journaux & traçabilité (`journaux`) | 9 | Confidentiel (jusqu'à secret) | Administration |
-| Plateforme, réglages, files & intégrations (`plateforme`) | 22 | Restreint (jusqu'à secret) | Administration, Feedback |
+| Plateforme, réglages, files & intégrations (`plateforme`) | 23 | Restreint (jusqu'à secret) | Administration, Feedback |
 
 ### Détail, base par base
 
@@ -406,7 +406,7 @@ Le matériel promotionnel : catalogue, devis et factures fournisseurs, stock par
 | Table | Libellé | Sensibilité | Écrite par (actions) |
 |---|---|---|---|
 | `PromoMaterial` | Article de matériel promotionnel | Restreint | expense-actions, medical-info-actions, promo-budget-actions, promo-circuit-actions +4 |
-| `PromoCatalogueArticle` | Article du catalogue promotionnel | Restreint | promo-catalogue-actions, promo-demande-actions |
+| `PromoCatalogueArticle` | Article du catalogue promotionnel | Restreint | promo-catalogue-actions, promo-demande-actions, promo-material-actions |
 | `PromoQuote` | Devis de matériel promotionnel | Restreint | promo-circuit-actions, promo-devis-actions, promo-execution-actions |
 | `PromoQuoteLine` | Ligne d'un devis de matériel | Restreint | promo-devis-actions |
 | `PromoRequestItem` | Demande de matériel promotionnel | Restreint | promo-demande-actions |
@@ -796,7 +796,7 @@ Les demandes administratives et d'achats, fournitures, missions de chauffeur, sa
 Les indicateurs et leurs évaluations, les risques, l'adoption, les décisions, objectifs et engagements de la Direction.
 
 - **Écrite par** : KPI (écran KPI), Adventum Brain, Process Intelligence, Cockpit opérations, My Chief of Staff
-- **Modules** : KPI & bilans (`KPI`), Adventum Brain (`ADVENTUM_BRAIN`), Process Intelligence (`PROCESS_INTELLIGENCE`), Cockpit Opérations (`COCKPIT_OPERATIONS`), My Chief of Staff (`CHIEF_OF_STAFF`)
+- **Modules** : KPI & bilans (`KPI`), Adventum Brain (`ADVENTUM_BRAIN`), Process Intelligence (`PROCESS_INTELLIGENCE`), Cockpit Opérations (`COCKPIT_OPERATIONS`), My Chief of Staff (bureau d'Adam) (`CHIEF_OF_STAFF`)
 - **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Réglementaire, Assistante Réglementaire, Responsable Ventes, Commercial, Responsable Logistique, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Manager Business Development, Responsable Finance / Budget, Pharmacien resp. information médicale, Assistante de Direction, Coordination / Coursier, Lecteur
 - **Écriture par défaut** : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Réglementaire, Assistante Réglementaire, Responsable Ventes, Commercial, Responsable Logistique, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Manager Business Development, Responsable Finance / Budget, Pharmacien resp. information médicale, Assistante de Direction, Coordination / Coursier, Lecteur
 - Adventum Brain et Process Intelligence réservés au Super Admin ; My Chief of Staff au cercle du centre de paiement
@@ -881,7 +881,7 @@ Qui peut se connecter, avec quels droits, sur quelles sociétés, et les connexi
 Ce que chaque personne dit à son assistant et ce qu'il retient d'elle : fils, messages, notes, dossiers, voix, visuels, routines et veilles.
 
 - **Écrite par** : Assistant IA (`src/modules/assistant-ia/`, écran Assistant) et Adam (`src/lib/assistant/`)
-- **Modules** : Assistant IA (`ASSISTANT_IA`), My Chief of Staff (`CHIEF_OF_STAFF`)
+- **Modules** : Adam (`ASSISTANT_IA`), My Chief of Staff (bureau d'Adam) (`CHIEF_OF_STAFF`)
 - **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations
 - **Écriture par défaut** : Super Admin, Direction des opérations
 - STRICTEMENT PERSONNEL : toute lecture filtre `userId` de la session ; rien d'une autre personne n'y entre (S1, décision 0048)
@@ -926,7 +926,7 @@ Ce que chaque personne dit à son assistant et ce qu'il retient d'elle : fils, m
 Ce qui fait tourner l'IA : réglages et plafonds, missions et travaux, gestes et leurs effets, base de connaissances, consommation, banc d'essai.
 
 - **Écrite par** : Adam & Assistant IA (`src/lib/assistant/`, `src/modules/assistant-ia/`, `src/modules/recettes/`, `src/platform/ia/`), Administration › Contrôle de l'IA
-- **Modules** : Administration (`ADMIN`), Assistant IA (`ASSISTANT_IA`), Recettes (`RECETTES`)
+- **Modules** : Administration (`ADMIN`), Adam (`ASSISTANT_IA`), Recettes (`RECETTES`)
 - **Lecture par défaut** (matrice des rôles, avant surcharges individuelles) : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Réglementaire, Assistante Réglementaire, Responsable Ventes, Commercial, Responsable Logistique, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Manager Business Development, Responsable Finance / Budget, Pharmacien resp. information médicale, Assistante de Direction, Coordination / Coursier, Lecteur
 - **Écriture par défaut** : Super Admin, Direction des opérations, Directeur Général, Directeur des Opérations, Responsable Réglementaire, Assistante Réglementaire, Responsable Ventes, Commercial, Responsable Logistique, Manager Promotion Médicale, Délégué Médical, National Sales, Direction Marketing, Manager Business Development, Responsable Finance / Budget, Pharmacien resp. information médicale, Assistante de Direction, Coordination / Coursier, Lecteur
 - Réglages réservés au Super Admin (Administration › IA) ; missions et travaux visibles de leur auteur et participants
@@ -1012,7 +1012,7 @@ Qui a fait quoi et quand : journal d'audit, activité, corbeille, appels d'API, 
 | `DataQualityFinding` | Anomalie de qualité des données | Confidentiel | — |
 | `DataQualitySweep` | Passage de contrôle de qualité des données | Confidentiel | — |
 
-#### Plateforme, réglages, files & intégrations — `plateforme` (22 tables, restreint)
+#### Plateforme, réglages, files & intégrations — `plateforme` (23 tables, restreint)
 
 Les réglages de l'application, les champs personnalisés, les tâches de fond, webhooks, notifications poussées, le centre de test et les chantiers de développement.
 
@@ -1042,6 +1042,7 @@ Les réglages de l'application, les champs personnalisés, les tâches de fond, 
 | `TestArtifact` | Pièce d'un passage de test | Restreint | — |
 | `TestFinding` | Constat d'un passage de test | Restreint | — |
 | `ChantierReservation` | Réservation d'une ressource par un chantier | Restreint | — |
+| `IntegrationFile` | File d'intégration des programmes (une entrée active par branche cible) | Restreint | — |
 | `MemoireTechnique` | Mémoire technique des chantiers | Restreint | — |
 | `DevLancement` | Lancement de Claude Code | Restreint | — |
 | `ClaudeRelaisOrdre` | Ordre pour le relais Claude Code | Restreint | — |
