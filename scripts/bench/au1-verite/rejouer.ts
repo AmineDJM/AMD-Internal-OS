@@ -24,7 +24,7 @@ import { historiqueObserve, sessionDe, type TourHistorique } from "@/modules/ass
 import { garde, lireSemis } from "../audit-assistant/semer";
 
 const BUDGET_USD = Number(process.env.AU1_BUDGET_USD ?? "3");
-const SORTIE = path.join(process.cwd(), `docs/assistant/audit-2026-11-03/au1-rejeux${process.env.AU1_SUFFIXE ? `-${process.env.AU1_SUFFIXE}` : ""}.json`);
+const SORTIE = path.join(process.cwd(), `docs/assistant/preuves/i1/au1-rejeux${process.env.AU1_SUFFIXE ? `-${process.env.AU1_SUFFIXE}` : ""}.json`);
 
 interface TourJoue {
   demande: string;
@@ -124,7 +124,8 @@ function scenarios(radia: string): Scenario[] {
         const charte = estMailCharte(t.carte?.apercuHtml ?? null);
         if (t.carte) c.push(`OBSERVÉ : carte « ${t.carte.titre} » ; aperçu ${charte ? "HTML À LA CHARTE (table + bandeau coloré)" : "sans charte"}`);
         if (charte && AFFIRME_SIMPLE.test(plie(t.reponse))) c.push("FAUX : la réponse affirme un mail simple / sans mise en forme alors que l'aperçu réel est le gabarit HTML à la charte");
-        if (!t.carte && AFFIRME_SIMPLE.test(plie(t.reponse))) c.push("NON OBSERVÉ : la réponse décrit la mise en forme d'un mail qu'elle ne voit pas (aucune carte dans ce tour ; l'historique ne porte que le texte)");
+        const observeAvant = (tous[i - 1]?.observations?.length ?? 0) > 0 && process.env.ADAM_OBSERVATION !== "0";
+        if (!t.carte && !observeAvant && AFFIRME_SIMPLE.test(plie(t.reponse))) c.push("NON OBSERVÉ : la réponse décrit la mise en forme d'un mail qu'elle ne voit pas (aucune carte dans ce tour ; l'historique ne porte que le texte)");
         c.push(...deniDeCarte(t, i, tous));
         if (t.carte && !/gmail d.adam/i.test(t.carte.titre)) c.push(`BOÎTE CHANGÉE : la carte passe par une autre capacité (« ${t.carte.titre} ») — un autre expéditeur que le Gmail d'Adam, sans le dire`);
         // I1 (étape 5) : « tout simple, sans design » doit être servi par l'outil mail lui-même.
@@ -142,7 +143,9 @@ function scenarios(radia: string): Scenario[] {
         const ageMin = Math.round(Math.min(...ms.map((m) => Date.now() - m.updatedAt.getTime())) / 60_000);
         c.push(`OBSERVÉ : ${ms.length} missions, aucune étape faite, immobiles depuis ${ageMin} min ; balayage « OK » il y a < 3 min`);
         const p = plie(t.reponse);
-        if (/moins d.une minute|prochain battement|vont? partir|part(ira)? (bientot|sous peu|dans)/.test(p)) c.push(`FAUX (prévision) : la réponse annonce un départ imminent alors que les missions sont immobiles depuis ${ageMin} min`);
+        // Une prévision AFFIRMÉE — pas la question de la personne reprise pour la démentir (« je ne peux pas garantir… »).
+        const dementie = /(ne peux pas|ne peut pas|impossible de) (garantir|confirmer|affirmer)|n.est pas indique|non,/.test(p);
+        if (!dementie && /moins d.une minute|prochain battement|vont? partir|part(ira)? (bientot|sous peu|dans)/.test(p)) c.push(`FAUX (prévision) : la réponse annonce un départ imminent alors que les missions sont immobiles depuis ${ageMin} min`);
         if (!/\/(missions|assistant)[^\s)]*|\]\(/.test(t.reponse) && !/href|lien/.test(t.reponse)) c.push("NON CLIQUABLE : aucun lien vers les missions dans la réponse (la sortie de `mes_missions` n'en porte pas)");
         return c;
       },
@@ -173,7 +176,8 @@ function scenarios(radia: string): Scenario[] {
           const html = tous[0]?.carte?.apercuHtml ?? "";
           const objet = /<title>([^<]*)<\/title>/i.exec(html)?.[1] ?? tous[0]?.carte?.champs.find((x) => /«/.test(x)) ?? "";
           c.push(`OBSERVÉ (carte du tour 1) : ${objet.slice(0, 120)}`);
-          if (!t.outils.length) c.push("SANS OBSERVATION : la réponse décrit la carte du tour précédent sans rien relire (l'historique ne porte que le texte de la réponse)");
+          const observee = (tous[0]?.observations?.length ?? 0) > 0 && process.env.ADAM_OBSERVATION !== "0";
+          if (!t.outils.length && !observee) c.push("SANS OBSERVATION : la réponse décrit la carte du tour précédent sans rien relire (l'historique ne porte que le texte de la réponse)");
           c.push(...deniDeCarte(t, i, tous));
           const o = plie(objet.replace(/^.*«\s*|\s*».*$/g, ""));
           if (o && !plie(t.reponse).includes(o.slice(0, 25))) c.push("ÉCART : l'objet cité ne correspond pas à l'objet réel de la carte");
