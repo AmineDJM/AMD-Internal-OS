@@ -224,6 +224,13 @@ export function creerForgeGithub(opts: OptionsForge = {}): ForgeGit & { quota():
       return { ok: true, valeur: { id: n(c.id), url: s(c.html_url) ?? "" } };
     },
 
+    async contenuFichier(depot, cheminFichier, ref, maxOctets = 512_000): Promise<Resultat<string | null>> {
+      const r = await appeler<string>(cfg, "GET", chemin(depot, `/contents/${segments(cheminFichier)}`), { requete: { ref }, accepter: [404], maxOctets, entetes: { accept: "application/vnd.github.raw+json" } });
+      if (!r.ok) return r;
+      noterQuota(r.valeur.entetes);
+      return { ok: true, valeur: r.valeur.statut === 404 ? null : r.valeur.texte };
+    },
+
     async relancerEchecs(depot, runId): Promise<Resultat<true>> {
       const r = await ecrire<Brut>("POST", chemin(depot, `/actions/runs/${runId}/rerun-failed-jobs`), {}, `relance des jobs en échec du run ${runId} (${depot})`);
       return r.ok ? { ok: true, valeur: true } : r;

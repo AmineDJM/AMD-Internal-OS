@@ -899,7 +899,7 @@ Code : `src/lib/missions/chantiers/` (moteur), `src/platform/dev/ports.ts` (cont
 - **Validation de la Direction** (carte du tableau, ou « valide » à l'écrit comme à l'oral dans la conversation) :
   production, fusion sur main, rollback de production.
 - **Conversation** (Adventum IA et Adam — `chantiers/outils.ts`, `platform/in-process/chantiers/outils-adam.ts`) : `lancer_un_chantier`,
-  `ou_en_est_chantier`, `valider_chantier` (« vas-y » après relecture vocale), `annuler_chantier` (dont `annulerFusion`).
+  `ou_en_est_chantier`, `valider_chantier` (« vas-y » après relecture vocale), `annuler_chantier` (dont `annulerFusion`), `consigne_chantier` (décision 0058 : consigne à la même session, nouvelle approche, reprise).
 - **Réversible** : annuler la validation (`validerMonChantier`, journal J7) retire la carte, ou compense une fusion faite par
   une **PR de revert** (`platform/in-process/chantiers/compensation.ts`) — jamais un force-push.
 - **Réveil** : un `BusinessEvent` `DEV_*` / `RENDER_*` (webhooks C2) réveille le chantier concerné (`chantiers/reveil.ts`).

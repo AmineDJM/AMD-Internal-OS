@@ -156,7 +156,7 @@ export async function recordEvent(input: RecordEventInput): Promise<string | nul
       // sondage à pas croissant reste en secours. Import différé : le registre ne tire le moteur qu'à ce moment.
       ...(/^(DEV|RENDER)_/.test(evt.type) ? [
         import("@/lib/missions/chantiers/reveil")
-          .then((m) => m.reveillerChantiersSurFait({ type: evt.type, relatedRefs: input.relatedRefs ?? [] }))
+          .then((m) => m.reveillerChantiersSurFait({ type: evt.type, relatedRefs: input.relatedRefs ?? [], payload: input.payload }))
           .catch(sansBloquer("events-ledger.recordEvent.reveillerChantiers")),
       ] : []),
 

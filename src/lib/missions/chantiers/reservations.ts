@@ -22,8 +22,17 @@ export type RessourceChantier = "BRANCHE" | "PERIMETRE" | "MIGRATIONS" | "DEPLOI
 
 export interface DemandeReservation { ressource: RessourceChantier; depot?: string; valeur: string }
 
-/** Une réservation tenue : 6 h, prolongée à chaque passage du chantier. */
+/** Une réservation tenue : 6 h, prolongée à chaque passage du chantier (même en pause). */
 export const DUREE_RESERVATION_MS = 6 * 3600_000;
+
+/**
+ * Les états d'un chantier VIVANT : sa réservation ne se reprend JAMAIS, même échue (une attente de 24 h, une pause
+ * « attend tes consignes », un processus arrêté le temps d'un déploiement). Seule celle d'un chantier fini se reprend.
+ */
+export const STATUTS_VIVANTS = ["AWAITING_APPROVAL", "READY", "RUNNING", "RETRYING", "WAITING_EVENT", "WAITING_INPUT", "WAITING_DEPENDENCY", "PAUSED"] as const;
+
+/** Une réservation encore TENUE : non échue, ou tenue par un chantier vivant (filtre Prisma). */
+export const reservationTenue = (maintenant: Date) => ({ OR: [{ expireLe: { gt: maintenant } }, { mission: { status: { in: [...STATUTS_VIVANTS] } } }] });
 
 export const nomDepot = (d: RefDepot): string => `${d.proprietaire}/${d.nom}`.toLowerCase();
 
@@ -46,7 +55,8 @@ export async function reserver(missionId: string, demandes: readonly DemandeRese
   try {
     return await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${VERROU})`;
-      await tx.chantierReservation.deleteMany({ where: { expireLe: { lt: maintenant } } });
+      // Reprise par expiration : seulement celles d'un chantier FINI (ou disparu) — un chantier vivant garde les siennes.
+      await tx.chantierReservation.deleteMany({ where: { expireLe: { lt: maintenant }, mission: { status: { notIn: [...STATUTS_VIVANTS] } } } });
       const autres = await tx.chantierReservation.findMany({
         where: { missionId: { not: missionId }, OR: [{ cle: { in: voulues.map((v) => v.cle) } }, { ressource: "PERIMETRE", depot: { in: [...new Set(voulues.map((v) => v.depot ?? ""))] } }] },
         select: { cle: true, ressource: true, valeur: true, depot: true, missionId: true, mission: { select: { title: true } } },

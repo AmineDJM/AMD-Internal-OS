@@ -355,6 +355,23 @@ SHA vert, déploiements, essais, carte Valider/Refuser). **Conversation** (Adven
 production : validation de la Direction au moment d'agir. Aucune réussite sans preuve : le juge des preuves refuse la
 conclusion. Migration additive `20270218100000_chantiers_socle`. Tâche de fond `chantiers.balayage`.
 
+### CHANTIERS AUTONOMES : 24 H D'ATTENTE, ROUGE CORRIGÉ SEUL, CONSIGNES DE LA DIRECTION (2026-11-02)
+
+Décision `docs/assistant/decisions/0058-chantiers-autonomes-et-consignes.md`. Un chantier attend un commit jusqu'à **24 h**
+(réglable) en demandant « où en es-tu ? » à la même session toutes les 4 h, relance une session morte, puis se met en pause
+« attend tes consignes » (jamais d'échec sec, branche gardée). Sur un rouge, il **corrige seul**, prévient la Direction au
+**3ᵉ échec** sans s'arrêter, et ne demande des consignes qu'au plafond (8) ou si la même panne revient après Sol. Outil
+**`consigne_chantier`** (écrit ou oral) : la consigne part à la même session, ouvre une nouvelle approche et fait reprendre
+le chantier. Réglages ajoutés dans Administration › IA › Chantiers.
+
+### C2 (suite) : RELAIS SEUL, VRAIE SESSION, BUDGET DU PLAN, MIGRATIONS DESTRUCTIVES (2026-11-02)
+
+Quatre défauts du moteur des chantiers corrigés (décision 0042, § correctifs du 02/11), chacun avec un banc qui l'aurait vu :
+lancement possible avec le **seul relais** (zéro routine) ; la session créée par le relais prend sa **vraie identité** au
+fait `DEV_SESSION` (la correction parle à la MÊME session) ; le **budget du plan** resserre la console ; une **migration
+destructive** du diff est dite sur la carte de fusion, et exige une carte avant de déployer une branche non fusionnée.
+Connecteur GitHub : `contenuFichier` (texte d'un fichier à un SHA).
+
 ### C2 : LES CONNECTEURS DES CHANTIERS — CLAUDE CODE (ROUTINES, `@claude`), GITHUB, RENDER (2026-11-01)
 
 Lot C2 — `docs/assistant/decisions/0043-connecteurs-chantiers.md`, architecture `docs/architecture/CHANTIERS-DEV.md`.

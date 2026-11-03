@@ -238,6 +238,11 @@ export interface ForgeGit {
   /** Relance les jobs en échec d'un run Actions (geste autonome autorisé, § 7). */
   relancerEchecs(depot: NomDepot, runId: number): Promise<Resultat<true>>;
   /**
+   * Le contenu TEXTE d'un fichier à un SHA donné (`GET /repos/{o}/{r}/contents/{chemin}?ref=`, média `raw`) — `null` s'il
+   * n'existe pas à ce SHA. Sert à lire le SQL d'une migration avant la fusion (une migration destructive exige la carte).
+   */
+  contenuFichier(depot: NomDepot, chemin: string, ref: string, maxOctets?: number): Promise<Resultat<string | null>>;
+  /**
    * C1 (décision 0042) — FUSIONNE une PR, APRÈS la validation de la Direction : `PUT /pulls/{n}/merge` avec le SHA de tête
    * ATTENDU (celui qui a été vérifié) — GitHub refuse (409 → `CONFLIT`) si la tête a bougé. Méthode :
    * `CHANTIERS_METHODE_FUSION`, sinon celle que le dépôt autorise (merge, squash, rebase). Une protection de branche

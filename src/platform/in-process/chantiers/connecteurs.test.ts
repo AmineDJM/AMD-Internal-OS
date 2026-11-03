@@ -217,6 +217,19 @@ describe("GitHub REST v3", () => {
   });
 });
 
+describe("GitHub — contenu d'un fichier à un SHA", () => {
+  it("GET /contents/{chemin}?ref= en média raw ; 404 → null", async () => {
+    gerer = (r) => (r.chemin === "/repos/adventum/banc/contents/prisma/migrations/x/migration.sql"
+      ? { entetes: { "content-type": "application/vnd.github.raw+json" }, texte: 'DROP TABLE "X";' }
+      : { statut: 404, corps: { message: "Not Found" } });
+    const f = creerForgeGithub({ jeton: JETON_GITHUB, base });
+    expect(await f.contenuFichier("adventum/banc", "prisma/migrations/x/migration.sql", "abc123")).toEqual({ ok: true, valeur: 'DROP TABLE "X";' });
+    expect(appels[0]!.requete.get("ref")).toBe("abc123");
+    expect(appels[0]!.entetes.accept).toBe("application/vnd.github.raw+json");
+    expect(await f.contenuFichier("adventum/banc", "absent.sql", "abc123")).toEqual({ ok: true, valeur: null });
+  });
+});
+
 describe("Render API v1", () => {
   const render = () => creerHebergeurRender({ jeton: JETON_RENDER, base });
   const DEPLOY = { id: "dep-d0123", commit: { id: "abc1234def", message: "feat: x\n\ncorps", createdAt: "2026-11-01T10:00:00Z" }, status: "live", trigger: "api", createdAt: "2026-11-01T10:00:00Z", finishedAt: "2026-11-01T10:05:00Z" };
