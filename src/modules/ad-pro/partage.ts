@@ -20,7 +20,7 @@ export { type AdProCreateData, adProOtherCreateFields, businessUnitField, CHAMP_
 export { type ArticleADeviser, ETAPE_DEMANDE_DEVIS, lettreDeSecours, type LettreDevis, lettreValide, quantiteEnLettre, texteDeLaLettre } from "./domaine/demande-devis-lettre";
 export { doutesDeLaLecture, type LigneDevisPoste, lignesDepuisLaLecture, noteApresCorrection, noteDeLecture, refusChangementDeValidation, refusDepassement, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, reservesEncoreVraies } from "./domaine/devis-poste";
 export { AD_PRO_DOC_CATEGORIES, categorieDuPdf, categoriesDuDepotDeLaDemande, type NatureDeChaine, natureDeLaCategorie, naturesDEngagement, PROMO_MATERIAL_DOC_CATEGORIES, sectionDeLaNature, type SectionPieces } from "./domaine/doc-categories";
-export { canEditAdProRequest, describeChanges, editableField, isAdProDecided, type NatureEditable, PERIODE_DE_LA_DEMANDE } from "./domaine/edition";
+export { canEditAdProRequest, describeChanges, editableField, isAdProDecided, type NatureEditable, PERIODE_DE_LA_DEMANDE, noteDuPosteDeNaissance, posteDeNaissanceSuit } from "./domaine/edition";
 export { estStatutInscriptionRetire, estStatutOrganisation, estTypeExterne, REFUS_INSCRIPTION_PUBLIQUE, REFUS_LISTE_ATTENTE, REFUS_ORGANISATION, TYPES_EVENEMENT_EXTERNE } from "./domaine/evenements/externe";
 export { CHAMPS_ORGANISATION, champsModifies, porteeModificationEvenement } from "./domaine/evenements/modification";
 export { estStatutDuCircuit, statutDepuisCircuit, statutManuelOuRien, STATUTS_MANUELS } from "./domaine/evenements/statut";

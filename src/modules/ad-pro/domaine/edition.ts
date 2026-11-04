@@ -264,3 +264,29 @@ function normalize(v: unknown): string {
   // Les Decimal de Prisma s'affichent correctement via String() (ils portent un toString()).
   return String(v).trim();
 }
+
+/**
+ * LA NOTE DU POSTE QUI NAÎT AVEC UN SPONSORING — l'écart entre ce que demande le médecin et ce que suggère le
+ * délégué, lisible sans ouvrir la demande. UNE phrase, écrite à la création et réécrite à la correction.
+ */
+export function noteDuPosteDeNaissance(demande: number, suggere: number, dzd: (n: number) => string): string {
+  return `Sponsoring demandé par le médecin : ${dzd(demande)} · suggéré par le délégué : ${dzd(suggere)}.`;
+}
+
+/**
+ * LE POSTE DE NAISSANCE SUIT-IL LA CORRECTION ? (lot V1, 03/11/2026) — trouvé par l'écran : le National Sales renvoie
+ * « ramenez le suggéré à 750 000 », le délégué corrige la demande, et le poste né avec elle gardait 800 000 — le
+ * montant que la Direction Marketing accorde et que la porte du DG additionne.
+ *
+ * Il suit TANT QU'IL EST ENCORE CELUI DE LA NAISSANCE : brouillon (ou à réviser), rien d'accordé, et chiffré EXACTEMENT
+ * à l'ancienne suggestion (au centime). Un poste que quelqu'un a rechiffré, réparti ou soumis garde son montant :
+ * l'écraser défairait un geste d'une personne.
+ */
+export function posteDeNaissanceSuit(
+  poste: { status: string; amountGranted: number | null; amountEstimated: number | null },
+  ancienSuggere: number | null,
+): boolean {
+  if (ancienSuggere == null || poste.amountEstimated == null || poste.amountGranted != null) return false;
+  if (poste.status !== "DRAFT" && poste.status !== "REVISION") return false;
+  return Math.round(poste.amountEstimated * 100) === Math.round(ancienSuggere * 100);
+}

@@ -71,11 +71,16 @@ export async function totauxDesDemandes(parent: AdProParent, parentIds: readonly
       })
       : Promise.resolve([]),
   ]);
+  // EN CENTIMES ENTIERS (lot V1, 03/11/2026) : additionnés en flottants, 100 000,10 + 200 000,20 faisaient
+  // 300 000,30000000005 — le DG validait ce total, la base le gardait à 300 000,30 (Decimal 14,2), et la relecture
+  // le jugeait DÉPASSÉ : la porte se refermait aussitôt validée. Les montants de la base sont des centimes exacts.
+  const centimes = new Map<string, number>(parentIds.map((id) => [id, 0]));
   const ajouter = (id: unknown, montant: number) => {
-    if (typeof id === "string" && totaux.has(id)) totaux.set(id, totaux.get(id)! + montant);
+    if (typeof id === "string" && centimes.has(id)) centimes.set(id, centimes.get(id)! + Math.round(montant * 100));
   };
   for (const l of lignes) ajouter(l[colonne], l.amountGranted != null ? num(l.amountGranted) : num(l.amountEstimated));
   if (colonneDevis) for (const d of devis) ajouter(d[colonneDevis], num(d.amountDzd));
+  for (const [id, c] of centimes) totaux.set(id, c / 100);
   return totaux;
 }
 
@@ -93,7 +98,7 @@ export async function lirePorteDg(parent: AdProParent, parentId: string, seuilCo
     prisma.adProPorteDg.findUnique({ where: { entityType_entityId: { entityType: parent, entityId: parentId } } }),
   ]);
   // `enPlus` : un engagement qui n'est pas encore dans le total (un devis accepté sans avoir été retenu).
-  const total = totalActuel + enPlus;
+  const total = Math.round((totalActuel + enPlus) * 100) / 100;
   const decision = decisionDe(row);
   const etat = etatPorteDg(total, seuil, decision);
   return {

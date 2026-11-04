@@ -8,9 +8,10 @@ import { recordAudit } from "@/lib/audit";
 import { apresModificationDeLaDemande } from "@/lib/workflow/engine";
 import {
   canEditAdProRequest, isAdProDecided, editableField, describeChanges, PERIODE_DE_LA_DEMANDE,
-  type NatureEditable,
+  noteDuPosteDeNaissance, posteDeNaissanceSuit, type NatureEditable,
 } from "@/modules/ad-pro/partage";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { montantDzd } from "@/lib/utils";
 import { canAccessEntity } from "@/lib/entity-access";
 import { notifyRoles } from "@/lib/notify";
 import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
@@ -208,6 +209,13 @@ export async function updateAdProRequest(formData: FormData): Promise<ActionResu
   if (changes.length === 0) return { ok: true, id }; // rien n'a bougé — inutile d'écrire ni de tracer
 
   await target.save(id, { ...data, updatedById: user.id });
+  // LE POSTE NÉ AVEC LE SPONSORING SUIT LA CORRECTION DE SES MONTANTS (lot V1, 03/11/2026) — sans quoi le montant
+  // que le circuit a fait corriger n'atteint jamais l'argent (accord du poste, porte du DG). Écriture conditionnelle :
+  // un poste rechiffré, accordé ou soumis entre-temps n'est pas touché.
+  if (kind === "SPONSORING" && ("amountProposed" in data || "amountRequested" in data)) {
+    await suivreLePosteDeNaissance(id, before, data, user.id)
+      .catch((e) => console.error("[ad-pro-edit] poste de naissance non mis à jour (non bloquant)", e));
+  }
   await recordAudit({
     actorId: user.id,
     action: "UPDATE",
@@ -253,4 +261,25 @@ export async function updateAdProRequest(formData: FormData): Promise<ActionResu
     : phraseCentre
       ? { ok: true, id, message: `Modification enregistrée — ${phraseCentre}` }
       : { ok: true, id };
+}
+
+/** Reporte la correction du sponsoring sur son poste de naissance (règle : `posteDeNaissanceSuit`). */
+async function suivreLePosteDeNaissance(id: string, before: Record<string, unknown>, data: Record<string, unknown>, userId: string): Promise<void> {
+  const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
+  const ancienSuggere = num(before.amountProposed);
+  const suggere = "amountProposed" in data ? num(data.amountProposed) : ancienSuggere;
+  const demande = "amountRequested" in data ? num(data.amountRequested) : num(before.amountRequested);
+  const postes = await prisma.adProItem.findMany({
+    where: { sponsoringId: id }, select: { id: true, status: true, amountGranted: true, amountEstimated: true, notes: true },
+  });
+  // Le poste de NAISSANCE : la demande n'en porte qu'un (un sponsoring réparti ou complété n'a plus de poste unique).
+  if (postes.length !== 1) return;
+  const p = postes[0];
+  const lu = { status: p.status, amountGranted: num(p.amountGranted), amountEstimated: num(p.amountEstimated) };
+  if (!posteDeNaissanceSuit(lu, ancienSuggere) || suggere == null || !(suggere > 0)) return;
+  const noteNee = demande != null && ancienSuggere != null && p.notes === noteDuPosteDeNaissance(num(before.amountRequested) ?? demande, ancienSuggere, montantDzd);
+  await prisma.adProItem.updateMany({
+    where: { id: p.id, status: p.status, amountGranted: null, amountEstimated: p.amountEstimated },
+    data: { amountEstimated: suggere, updatedById: userId, ...(noteNee && demande != null ? { notes: noteDuPosteDeNaissance(demande, suggere, montantDzd) } : {}) },
+  });
 }
