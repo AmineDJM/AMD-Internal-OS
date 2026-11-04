@@ -140,12 +140,6 @@ export function diagnostiquerMission(m: MissionDiagnostiquee, ex: EtatDesExecuta
   const immobile = depuis(m.majLe, maintenant);
   const faites = m.etapes.filter((e) => e.etat === "FAITE").length;
   const rien = faites ? `aucune étape en cours (${faites}/${m.etapes.length} faites)` : "aucune étape démarrée";
-  // P1 ter (décision 0066) × I1 : la prévision n'est dite que si elle est OBSERVÉE — la requête même du balayage la compte
-  // parmi ses candidates ET un passage effectif date de moins de 3 min. Sinon, le fait daté d'I1, jamais une prévision.
-  const passage = ex.dernierPassage ? depuis(ex.dernierPassage, maintenant) : Infinity;
-  if (m.candidate === true && passage <= SILENCE_EXECUTANT_MS) {
-    return { code: "PRETE", phrase: `prête, ${rien} : le balayage la compte parmi ses candidates (passé il y a ${dureeLisible(passage)}) — elle part au prochain battement (moins d'une minute)` };
-  }
   if (!Number.isFinite(immobile) || immobile <= SILENCE_EXECUTANT_MS) {
     return { code: "PRETE", phrase: `prête, ${rien} — dernière activité il y a ${dureeLisible(Number.isFinite(immobile) ? immobile : 0)}` };
   }
