@@ -38,6 +38,7 @@ import {
   ttcDesFacturesEnVigueur,
 } from "./infra/demandes";
 import { annulable } from "@/lib/effets/ecran";
+import { joindreLesPieces, piecesDesDocumentsLegal } from "@/lib/actions/internes/paiement/pieces-legal";
 
 const PATH = "/validations/paiements";
 
@@ -132,10 +133,13 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
     // la règle, et ses raisons, vit dans `domaine/payment-dossier.ts`, partagée avec le formulaire qui
     // l'annonce avant l'envoi. Un BROUILLON n'est pas concerné : il n'engage rien, il se garde incomplet.
     const joints = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
+    // LES DOCUMENTS CHOISIS DANS LEGAL (Direction, 04/11/2026) — revérifiés : visibles, munis d'un fichier, une facture jamais deux fois.
+    const legaux = await piecesDesDocumentsLegal(user, formData.getAll("legalDocumentIds").map(String));
+    if (!legaux.ok) return { ok: false, error: legaux.error };
     if (submit) {
       const gate = canSubmitDossier({
         entityType,
-        pieces: joints.map((_, i) => ({ kind: kindOf(fdStr(formData, `kind_${i}`)) })),
+        pieces: [...joints.map((_, i) => ({ kind: kindOf(fdStr(formData, `kind_${i}`)) })), ...legaux.pieces.map((l) => ({ kind: l.nature }))],
         paymentMethodStated,
       });
       if (!gate.ok) return { ok: false, error: gate.reason ?? "Le dossier est incomplet." };
@@ -156,7 +160,10 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
     // pour la garde ci-dessus. Il était le seul champ saisi, jamais comparé : un HT tapé pour un TTC, le chiffre du BC ou
     // du devis partaient au centre sans un mot. Un écart se corrige, ou s'explique et se confirme. Un brouillon n'engage
     // rien : il est confronté à sa transmission (`submitPaymentRequest`).
-    const lectureMontant = confronterMontantAuxFactures(amount, facturesJointes.map((_, k) => garde.identites[k]?.ttc ?? null));
+    const lectureMontant = confronterMontantAuxFactures(amount, [
+      ...facturesJointes.map((_, k) => garde.identites[k]?.ttc ?? null),
+      ...legaux.pieces.filter((l) => l.nature === "INVOICE").map((l) => l.montant),
+    ]);
     const justificationEcart = fdStr(formData, "ecartJustification");
     if (submit) {
       const refusMontant = refusEcartMontant({ lecture: lectureMontant, justification: justificationEcart, confirme: checked(formData, "ecartConfirme") });
@@ -204,29 +211,15 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
       }),
     ));
 
-    // Les pièces du premier dépôt. Un échec d'enregistrement ne doit pas emporter la demande :
-    // on préfère un dossier créé auquel il manque une pièce — visible, corrigeable — à un
-    // formulaire perdu avec tout ce qui avait été saisi.
-    const files = joints;
-    for (const [i, file] of files.entries()) {
-      try {
-        const doc = await persistUploadedDocument(user.id, {
-          entityType: "PAYMENT_REQUEST", entityId: req.id,
-          category: "OTHER", confidentiality: "INTERNAL", stepKey: null, file,
-        });
-        if (!doc.ok || !doc.documentId) throw new Error(doc.error ?? "Enregistrement impossible.");
-        await prisma.paymentPiece.create({
-          data: {
-            requestId: req.id, documentId: doc.documentId,
-            kind: kindOf(fdStr(formData, `kind_${i}`)),
-            note: fdStr(formData, `note_${i}`),
-            position: i, createdById: user.id,
-          },
-        });
-      } catch (e) {
-        console.error("[payment] pièce non enregistrée", e);
-      }
-    }
+    // Les pièces du premier dépôt — une facture ou un devis déposés entrent au registre Legal, un document Legal choisi est
+    // référencé (`internes/paiement/pieces-legal.ts`). Un échec de pièce n'emporte pas la demande.
+    const { inscrites } = await joindreLesPieces({
+      user, demande: { id: req.id, reference: req.reference, companyId: req.companyId }, beneficiaire: payee,
+      deposees: joints.map((file, i) => ({ file, kind: kindOf(fdStr(formData, `kind_${i}`)), note: fdStr(formData, `note_${i}`) })),
+      legales: legaux.pieces,
+      notesLegales: new Map(legaux.pieces.map((l) => [l.legalDocumentId, fdStr(formData, `legalNote_${l.legalDocumentId}`)])),
+    });
+    if (inscrites > 0) await trace(req.id, user.id, "COMMENT", `${inscrites} pièce${inscrites > 1 ? "s" : ""} inscrite${inscrites > 1 ? "s" : ""} au registre Legal depuis cette demande.`);
 
     // TRANSMETTRE, C'EST ENTRER AU CENTRE. La demande déposée directement (sans passer par le
     // brouillon) suit le même chemin que celle transmise depuis la fiche : l'ordre de dépense naît

@@ -416,6 +416,10 @@ signer de leur part. Si un BC se retrouve là-bas, c'est qu'il doit être signé
   `peutSignerBC` : par défaut Direction, Directeur Général et Finances ; le Directeur des Opérations a « Voir »). Les
   BC encore au centre y sont COMPTÉS, pas listés. Sont prévenus à l'ENTRÉE d'un BC dans la file (jamais à chaque
   relecture) les Finances, dont c'est le métier, et les personnes que la console désigne pour signer.
+- **LA PIÈCE D'UNE DEMANDE DE PAIEMENT** (Direction, 04/11/2026) : « Demander un paiement » choisit sa pièce dans Legal
+  (registre visible, fichier référencé, ouvert aux Finances par la demande) ou la dépose ; chaque pièce est lue et la
+  meilleure (facture > BC > devis > contrat) remplit les champs non touchés. Une facture ne se demande qu'une fois (demande
+  vivante, envoi au règlement, réglée). Facture et devis déposés entrent au registre Legal ; le BC déposé non.
 - **LE FOURNISSEUR D'UN DEVIS DÉPOSÉ ENTRE DANS L'ANNUAIRE** (Direction, 02/11/2026) : devis d'un poste Ad & Pro, et devis
   de « Nouveau document » sans partie. NIF ou RC identique → rattaché ; nom seul → rattaché et signalé ; plusieurs fiches →
   rien ; inconnu avec un nom imprimé → fiche « Fournisseur » créée (note d'origine, audit), sans droit d'annuaire ; sans nom

@@ -143,6 +143,29 @@ Administration › Accès, masquage Réglages) — aucun second système, aucune
   (`ouvreLesRecettes`). Bloqué : ni menu, ni page, ni geste, ni recette servie à l'assistant (`AUCUNE`, aucun usage compté).
 - Banc : `src/modules/recettes/acces.test.ts` (console réelle : bloquer, rétablir, ouvrir en lecture seule).
 
+### DEMANDER UN PAIEMENT : LA PIÈCE SE CHOISIT DANS LEGAL OU SE DÉPOSE, ET LE FORMULAIRE SE REMPLIT (2026-11-04)
+
+Décidé par la Direction le 04/11 (« toute demande repose sur un document »). Formulaire « Demander un paiement »
+(Validations → Paiements) seulement ; les demandes d'Ad & Pro, des Moyens généraux et du secrétariat ne changent pas.
+- **« Choisir dans Legal »** : le registre que la personne voit (`perimetreLegal`) — factures, BC, devis, contrats munis
+  d'un fichier, recherche par fournisseur, référence ou titre. Le fichier est **référencé** (pas recopié) ; les Finances et
+  le centre l'ouvrent **par la demande** (`peutLirePieceDeDemande`, `entity-access/ouverture-pieces.ts`), sans recevoir
+  le registre. Une **facture déjà dans une demande vivante, envoyée au règlement ou réglée** est montrée avec sa raison et
+  **refusée** ; un BC, un devis ou un contrat déjà utilisés sont seulement signalés.
+- **Chaque pièce est lue** (`lirePieceDePaiement`) : un fichier déposé comme dans « Nouveau document » ; un document Legal
+  par ce que le registre sait, son fichier relu localement pour le téléphone, l'e-mail et le RIB. La **meilleure pièce**
+  (facture, sinon BC, sinon devis, sinon contrat) remplit objet, bénéficiaire, montant, échéance et contact ; un champ
+  **touché** par la personne n'est jamais réécrit ; un champ rempli dit « Lu sur … — vérifiez ». Un **RIB lu** coche
+  l'attestation du moyen de paiement, à confirmer. La nature lue devient celle de la pièce, tant qu'on ne l'a pas choisie.
+- **Une facture ou un devis déposés entrent au registre Legal** (geste automatique tracé, sans droit Legal : titre
+  « Facture FA-… — bénéficiaire », référence, total et date lus, facture « reçue », `sourceType PAYMENT_REQUEST`) et leur
+  fournisseur passe par l'annuaire (mêmes règles que le devis). Le **BC déposé n'y entre pas** : y naître l'enverrait à un
+  centre de validation — il reste joint à la demande. Le fil de la demande dit « N pièce(s) inscrite(s) au registre Legal ».
+- Le montant demandé est confronté au TTC des factures **choisies** comme des factures déposées.
+- Règles pures : `modules/finances/domaine/pieces-legal.ts` (+ `.test.ts`). Serveur : `lib/actions/internes/paiement/pieces-legal.ts`.
+  Actions d'écran : `modules/finances/actions-pieces-paiement.ts`. Écran : `validations/paiements/new-payment-button.tsx`,
+  `choisir-dans-legal.tsx`. Banc : `modules/finances/pieces-legal-flow.test.ts`.
+
 ### LE FOURNISSEUR D'UN DEVIS DÉPOSÉ ENTRE DANS L'ANNUAIRE (2026-11-02)
 
 Décidé par la Direction le 02/11. Au dépôt d'un devis — **poste Ad & Pro** (lecture `ingererDevisDuPoste`) et **« Nouveau

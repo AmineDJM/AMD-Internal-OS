@@ -90,3 +90,10 @@ export {
   libelleVirementPaie, lireSommeAVirer, moisDeLaPaie, moisDeLEntite, type MoisDeLEntite, noteVirementPaie,
   saisiAvantLeCentre, SOMME_A_VIRER_MANQUANTE, virementCouvre, type VirementDuMois,
 } from "./domaine/virement-paie";
+
+// Les pièces d'une demande de paiement choisies dans Legal, ou déposées et lues (Direction, 04/11/2026).
+export {
+  aRemplir, avertissementUsage, type ChampRempli, type DocumentLegalPropose, type LecturePourDemande, natureAInscrireAuLegal, natureDePieceDuLegal, natureDePieceLue,
+  type NaturePieceDemande, NATURES_LEGAL_PAYABLES, pieceQuiRemplit, type Proposition, refusReutilisation,
+  STATUTS_DEMANDE_VIVANTE, titrePourLeRegistre, type UsageDocumentLegal,
+} from "./domaine/pieces-legal";

@@ -8298,6 +8298,25 @@
   "annulation": "retour",
   "appelable": true
  },
+ "payment-request-pieces-actions:documentsLegalPourDemande": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "payment-request-pieces-actions:lirePieceDePaiement": {
+  "risque": "R0",
+  "familles": [
+   "BUDGETS"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
  "payroll-hr-actions:envoyerPaieAuCentre": {
   "risque": "R4",
   "familles": [

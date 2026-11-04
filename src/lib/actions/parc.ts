@@ -85,6 +85,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "payment-centre-actions": "src/modules/finances/actions-centre.ts",
   "payment-centre-seat-actions": "src/modules/finances/actions-sieges.ts",
   "payment-request-actions": "src/modules/finances/actions-demandes.ts",
+  "payment-request-pieces-actions": "src/modules/finances/actions-pieces-paiement.ts",
   "personnes-actions": "src/modules/referentiels/actions-personnes.ts",
   "refonte-reprise-actions": "src/modules/referentiels/actions-reprises.ts",
   "relance-paiement-actions": "src/modules/finances/actions-relances.ts",

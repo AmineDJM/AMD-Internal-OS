@@ -249,6 +249,9 @@ export function classerExclusionsCircuits(): void {
     // (`preparerBrouillonPoste`) ; son déposant le modifie dans le composeur puis le valide ; le Super Admin lit l'historique des
     // modifications (`historiqueBrouillonBcPoste`). Des gestes et des lectures d'écran, jamais des appels d'Adam.
     "ad-pro-item-actions:preparerBrouillonPoste", "ad-pro-item-actions:historiqueBrouillonBcPoste",
+    // LES PIÈCES DE « DEMANDER UN PAIEMENT » (Direction, 04/11/2026) : lire la pièce déposée ou choisie, et chercher dans
+    // le registre Legal — deux lectures du formulaire ouvert, qui n'écrivent rien ; la demande, elle, part par createPaymentRequest.
+    "payment-request-pieces-actions:lirePieceDePaiement", "payment-request-pieces-actions:documentsLegalPourDemande",
     // LE BC MODIFIÉ EN NATIF ET LA FACTURE CONTRÔLÉE PAR LUNA (Direction, 06/10) : une révision du Word et du PDF, et un
     // fichier de facture lu puis comparé au(x) BC signé(s) — des gestes devant la carte du poste, pas des appels d'Adam.
     "ad-pro-item-actions:modifierBcDuPoste", "ad-pro-item-actions:deposerFacturePoste",

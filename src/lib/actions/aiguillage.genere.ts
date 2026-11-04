@@ -1,7 +1,7 @@
 // ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. Voir `npm run actions:contrat`.
 //
 // Chaque entrée est un spécificateur LITTÉRAL : l'empaqueteur les voit tous, et rien n'est
-// chargé avant l'appel. `executer.test.ts` résout les 1321 actions et échoue en
+// chargé avant l'appel. `executer.test.ts` résout les 1323 actions et échoue en
 // nommant celle qui a disparu — c'est le contrôle d'appelant que le compilateur ne fait pas ici.
 
 /** Les exports des morceaux d'une clé découpée, réunis (exports nommés et objet `default` de l'interop CommonJS). */
@@ -156,6 +156,7 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "payment-centre-actions": () => import("@/modules/finances/actions-centre") as unknown as Promise<Record<string, unknown>>,
   "payment-centre-seat-actions": () => import("@/modules/finances/actions-sieges") as unknown as Promise<Record<string, unknown>>,
   "payment-request-actions": () => import("@/modules/finances/actions-demandes") as unknown as Promise<Record<string, unknown>>,
+  "payment-request-pieces-actions": () => import("@/modules/finances/actions-pieces-paiement") as unknown as Promise<Record<string, unknown>>,
   "payroll-hr-actions": () => import("@/modules/rh/actions-paie") as unknown as Promise<Record<string, unknown>>,
   "pch-actions": () => import("./pch-actions") as unknown as Promise<Record<string, unknown>>,
   "pch-market-actions": () => import("./pch-market-actions") as unknown as Promise<Record<string, unknown>>,

@@ -5,6 +5,7 @@ import { hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { entitePermisePourFiche } from "@/lib/company";
 import { managesReports } from "@/lib/queries/field-reports";
+import { prisma } from "@/lib/prisma";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -29,7 +30,21 @@ export async function peutOuvrirDocument(
   // Même porte pour un congrès (passeports, billets émis, vouchers, livrets de séjour) : `peutLirePieceDePriseEnCharge`.
   return (await canAccessEntity(user, doc.entityType, doc.entityId, "VIEW"))
     || (await peutLirePasseportDuSujet(user.id, doc))
-    || (await peutLirePieceDePriseEnCharge(user, doc));
+    || (await peutLirePieceDePriseEnCharge(user, doc))
+    || (await peutLirePieceDeDemande(user, doc));
+}
+
+/**
+ * UNE PIÈCE LEGAL JOINTE À UNE DEMANDE DE PAIEMENT (Direction, 04/11/2026) s'ouvre à qui voit la demande : le demandeur l'a
+ * choisie dans le registre qu'il voyait (`internes/paiement/pieces-legal.ts`), et le centre de paiement comme les Finances
+ * doivent la lire pour payer — sans recevoir pour autant le registre Legal. Porte ÉTROITE : ce fichier-là, par la demande
+ * qui le porte, jamais le document Legal entier.
+ */
+async function peutLirePieceDeDemande(user: SessionUser, doc: { id: string; entityType: EntityType }): Promise<boolean> {
+  if (doc.entityType !== "LEGAL_DOCUMENT") return false;
+  const pieces = await prisma.paymentPiece.findMany({ where: { documentId: doc.id }, select: { requestId: true }, take: 20 });
+  for (const p of pieces) if (await canAccessEntity(user, "PAYMENT_REQUEST", p.requestId, "VIEW")) return true;
+  return false;
 }
 
 /** La pièce jointe d'un message de SUJET (`/api/dossiers/message-attachment/[id]`). */
