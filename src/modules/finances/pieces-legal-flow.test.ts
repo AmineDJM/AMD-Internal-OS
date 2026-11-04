@@ -29,7 +29,8 @@ import { documentsLegalPourDemande, lirePieceDePaiement } from "./actions-pieces
  *   • une facture ne se demande qu'une fois ; le montant demandé est confronté à son TTC ;
  *   • un devis déposé entre au registre Legal ; un BC déposé reste joint à la demande seulement.
  */
-const TAG = "__pjlegal__";
+// Une étiquette PAR PASSAGE : un passage interrompu ne bloque pas le suivant sur l'unicité de l'e-mail (cliquet comptes-empruntes).
+const TAG = `__pjlegal_${Date.now().toString(36)}__`;
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;

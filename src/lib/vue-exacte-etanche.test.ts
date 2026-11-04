@@ -285,6 +285,7 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
     "apercuRegles", "apercuImportSegmentation", // aperçu d'un import / d'une règle
     "lireLesLignesDuDevis", "lireScanDevisPromo", "lireFacturePromo", // lecture OCR qui prépare une saisie
     "lireDocumentLegalPourSaisie", // la même lecture, pour une pièce Legal saisie ensuite par la personne (en son nom)
+    "lirePieceDePaiement", // la même lecture, pour la pièce d'une demande de paiement que la personne dépose ensuite en son nom (04/11)
     // L'intégration Ad & Pro 2026 (be70d5ee) : lire le fichier puis l'aperçu avant → après préparent `validerIntegrationAdPro`,
     // qui écrit au nom de l'administrateur — lus pour la vue, ils proposeraient les enveloppes de la personne visualisée
     // et le lot partirait sur celles de l'administrateur. Lire une tranche de pièces du rapprochement ÉCRIT (empreintes, lectures Luna).

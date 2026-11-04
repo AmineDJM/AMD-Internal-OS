@@ -51,7 +51,9 @@ function resoudre(g: Graphe, terme: string): { id: string } | { candidats: { id:
   const exacts = [...g.noeuds.values()].filter((n) => plie(n.libelle) === cible || n.id.split(":").slice(1).join(":") === t);
   if (exacts.length === 1) return { id: exacts[0]!.id };
   if (exacts.length > 1) return { candidats: exacts.slice(0, 8).map((n) => ({ id: n.id, libelle: n.libelle, type: n.type })) };
-  const partiels = [...g.noeuds.values()].filter((n) => plie(n.libelle).includes(cible) || cible.includes(plie(n.libelle)));
+  // Un libellé qui se plie en (presque) rien — un nom en arabe, de la ponctuation — est « contenu » dans TOUTE demande :
+  // le rapprochement inverse exige au moins 3 caractères signifiants (04/11 : un nom inexistant revenait « ambigu »).
+  const partiels = [...g.noeuds.values()].filter((n) => { const l = plie(n.libelle); return (l.length > 0 && l.includes(cible)) || (l.length >= 3 && cible.includes(l)); });
   if (partiels.length === 1) return { id: partiels[0]!.id };
   if (partiels.length > 1) return { candidats: partiels.slice(0, 8).map((n) => ({ id: n.id, libelle: n.libelle, type: n.type })) };
   return null;

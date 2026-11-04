@@ -271,6 +271,8 @@ suite("Doublons de factures — blocage aux portes, relance unifiée, recensemen
     const floue = octets("hotel-floue");
     const s = SCENARIOS.get("floue.pdf")!;
     empreintes.push(empreinteDe(floue));
+    // Idempotent : un passage interrompu a pu laisser la lecture gardée de ces mêmes octets (unicité empreinte + version).
+    await prisma.lecturePiece.deleteMany({ where: { empreinte: empreinteDe(floue), versionLecteur: VERSION_LECTEUR } });
     await prisma.lecturePiece.create({
       data: {
         empreinte: empreinteDe(floue), versionLecteur: VERSION_LECTEUR, etat: "LUE", extension: "pdf", taille: floue.length, methode: "texte",
