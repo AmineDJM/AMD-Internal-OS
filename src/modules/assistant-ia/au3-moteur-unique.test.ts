@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { couvertParUnePrimitive } from "./infra/primitives";
 import fs from "node:fs";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
@@ -138,8 +139,8 @@ suite("AU3 — un seul moteur : ce qui diffère entre le Super Admin et un emplo
     const restants = DOUBLONS_RETIRES_I2.filter(([adam]) => noms.has(adam));
     mesures.doublons = { retires: DOUBLONS_RETIRES_I2.map(([a, b]) => `${a} → ${b}`), restants: restants.map(([a]) => a), gardes: NON_DOUBLONS_GARDES_I2 };
     expect(restants.map(([a]) => a)).toEqual([]);
-    // Le côté moteur de chaque paire retirée EST offert : aucun besoin ne perd son outil.
-    expect(DOUBLONS_RETIRES_I2.filter(([, moteur]) => !noms.has(moteur) && moteur !== "lancer_un_travail").map(([, m]) => m)).toEqual([]);
+    // Le côté moteur de chaque paire retirée EST offert — ou couvert par une primitive d'I3 (0065) : aucun besoin ne perd son outil.
+    expect(DOUBLONS_RETIRES_I2.filter(([, moteur]) => !noms.has(moteur) && !couvertParUnePrimitive(moteur, noms) && moteur !== "lancer_un_travail").map(([, m]) => m)).toEqual([]);
     expect(NON_DOUBLONS_GARDES_I2.filter((n) => !noms.has(n))).toEqual([]);
   });
 
