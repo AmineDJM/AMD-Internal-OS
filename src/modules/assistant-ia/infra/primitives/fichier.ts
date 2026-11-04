@@ -7,10 +7,11 @@ import { traduireGeste, SCHEMA_GESTE, type GesteAtelier } from "@/platform/ia/ar
 import { demanderConversion, type VersFormat } from "@/platform/ia/artifact/atelier/conversions";
 import { deposerDansLEspace, derniereVersionLisible, dossierDeLEspace } from "@/lib/actions/internes/primitives/espace";
 import { mimeOffice, ouvrirOffice, vueDe } from "@/lib/actions/internes/primitives/office";
-import { observationDe, occurrences, type Observation } from "../../domaine/primitives/observation";
+import { occurrences } from "../../domaine/primitives/observation";
+import { observer, type Observation } from "../../domaine/observation/contrat";
 import { resoudrePiece } from "../operations/pieces";
 import { fabriqueVisionOcr } from "../atelier/ocr-vision";
-import { observerOctets, texteIntegral } from "./observer";
+import { fichierObserve, observerOctets, texteIntegral } from "./observer";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -146,7 +147,7 @@ export async function executerFichier(u: CurrentUser, e: Record<string, unknown>
     const f = await portsArtefact.documents.decrire(u.id, id);
     const octets = f ? await portsArtefact.documents.lire(u.id, id, f.version) : null;
     if (!f || !octets) continue;
-    observations.push(await observerOctets({ type: "fichier", id, lien: `/drive/${id}` }, `VERSION_${f.version}`, octets, f.nom, f.mime));
+    observations.push(await observerOctets(id, "ECRIT", octets, f.nom, f.mime, { version: f.version, etape: String(et.etape) }));
     if (et.etape === "modification") texteFinal = await texteIntegral(octets, f.nom, f.mime);
   }
   // Un remplacement qui n'a rien trouvé, ou dont le texte cherché est ENCORE là : visible, pas tu (AU2 §3.3).
@@ -154,7 +155,8 @@ export async function executerFichier(u: CurrentUser, e: Record<string, unknown>
   return {
     statut: "FAIT", source: fiche.nom, etapes, ...(gesteId ? { annulable: "« Annuler » rétablit la version précédente et retire les fichiers créés." } : {}),
     ...(verifs.length ? { remplacementsVerifies: verifs } : {}),
-    observations: observations.length ? observations : [observationDe({ type: "fichier", id: p.id, lien: `/drive/${p.id}` }, "INCHANGE", { raison: "rien n'a été écrit" })],
+    observations: observations.length ? observations : [observer("fichier", fichierObserve(p.id), "LU", { nom: fiche.nom, resultat: "rien n'a été écrit" })],
+    _observations: observations,
   };
 }
 

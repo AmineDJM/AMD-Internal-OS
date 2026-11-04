@@ -6,8 +6,9 @@ import { deposerDansLEspace, type FichierEcrit } from "@/lib/actions/internes/pr
 import { docxDepuisBlocs, MIME_DOCX, pdfDepuisDocx } from "@/lib/actions/internes/primitives/office";
 import type { JeuxDuTour } from "../../domaine/analyse/jeux";
 import { assainirHtml, blocsDuHtml, CHARTE_ADVENTUM, type Presentation } from "../../domaine/primitives/html";
-import { observationDe, observerHtml, type Observation } from "../../domaine/primitives/observation";
-import { observerOctets } from "./observer";
+import { observerHtml } from "../../domaine/primitives/observation";
+import { observer, type Observation, type ValeurObservee } from "../../domaine/observation/contrat";
+import { fichierObserve, observerOctets } from "./observer";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -97,7 +98,7 @@ export async function produireLivrable(u: CurrentUser, e: Record<string, unknown
   const base = (texte(e, "nom") || "Document").replace(/\.(xlsx|csv|docx|pdf)$/i, "");
   const nom = `${base}.${format}`;
   let octets: Buffer;
-  let extra: Record<string, unknown> = {};
+  let extra: Record<string, ValeurObservee | undefined> = {};
   if (format === "xlsx" || format === "csv") {
     const jeu = texte(e, "jeu") ? ctx.jeux.trouver(texte(e, "jeu")) : null;
     if (texte(e, "jeu") && !jeu) return { statut: "INCOMPLET", raison: `jeu « ${texte(e, "jeu")} » inconnu`, jeux: ctx.jeux.lister() };
@@ -127,7 +128,12 @@ export async function produireLivrable(u: CurrentUser, e: Record<string, unknown
     } else {
       octets = docx;
     }
-    extra = { ...extra, rendu: observerHtml(propre.html), ...(propre.balisesRetirees.length ? { retireParAssainissement: propre.balisesRetirees } : {}) };
+    const rendu = observerHtml(propre.html);
+    extra = {
+      ...extra, rendu: `${rendu.tableaux} tableau(x), ${rendu.titres} titre(s), ${rendu.paragraphes} paragraphe(s) ; stylés : ${Object.entries(rendu.elementsStyles as Record<string, number>).map(([b, n]) => `${b}×${n}`).join(", ") || "aucun"}`,
+      couleursDemandees: rendu.couleurs as string[],
+      ...(propre.balisesRetirees.length ? { retireParAssainissement: propre.balisesRetirees } : {}),
+    };
   }
   const dossier = texte(e, "dossier") || "Brouillons";
   let ecrit: FichierEcrit;
@@ -140,13 +146,13 @@ export async function produireLivrable(u: CurrentUser, e: Record<string, unknown
   } catch (err) {
     return { statut: "ECHEC", raison: `Le fichier a été construit mais pas déposé dans votre espace : ${(err as Error).message}` };
   }
-  const objet = { type: "fichier", id: ecrit.nodeId, lien: `/drive/${ecrit.nodeId}` };
-  const observation: Observation = await observerOctets(objet, ecrit.nouveau ? "ECRIT" : `VERSION_${ecrit.version}`, octets, ecrit.nom, MIME[format]!, extra)
-    .catch((err) => observationDe(objet, "ECRIT_NON_RELU", { erreur: (err as Error).message }));
+  const observation: Observation = await observerOctets(ecrit.nodeId, "ECRIT", octets, ecrit.nom, MIME[format]!, { ...extra, version: ecrit.version, rangeDans: ecrit.chemin })
+    .catch((err) => observer("fichier", fichierObserve(ecrit.nodeId), "ECRIT", { nom: ecrit.nom, erreur: `écrit, mais pas relu : ${(err as Error).message}` }));
   return {
     statut: "FAIT", fichier: ecrit.nom, nodeId: ecrit.nodeId, rangeDans: ecrit.chemin, version: ecrit.version,
     lien: `/drive/${ecrit.nodeId}`, telecharger: `/api/drive/${ecrit.nodeId}/raw?dl=1`, ...(gesteId ? { annulable: true } : {}),
-    observation,
+    // L'observation, lue par le modèle ; et DÉCLARÉE au journal du tour (I1 : historique, garde de vérité).
+    observation, _observations: [observation],
   };
 }
 

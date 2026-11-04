@@ -157,10 +157,12 @@ suite("I3 — les primitives contre la base", () => {
     expect(l).toMatchObject({ statut: "LU", total: 3, filtresAppliques: ["type = PHARMACIE", "wilaya = oran", `nom contient ${TAG}`] });
     const p = await produireLivrable(sa, { format: "xlsx", nom: `Pharmacies d'Oran ${TAG}`, jeu: "pharmacies_oran", colonnesAjoutees: ["statut"] }, { jeux });
     expect(p.statut, JSON.stringify(p)).toBe("FAIT");
-    const o = p.observation as { projection: { feuilles: { colonnes: string[]; lignes: number; totaux: unknown[]; cellulesJson: number }[]; anomalies: unknown } };
-    expect(o.projection.feuilles[0]).toMatchObject({ lignes: 3, totaux: [], cellulesJson: 0 });
-    expect(o.projection.feuilles[0]!.colonnes).toEqual(["nom", "ville", "adresse", "telephone", "secteurs", "lien", "statut"]);
-    expect(o.projection.anomalies).toBe("aucune");
+    // L'observation suit le contrat d'I1 (décision 0063) : nature « fichier », état ÉCRIT, projection à plat.
+    const o = p.observation as { nature: string; etat: string; projection: Record<string, unknown> };
+    expect(o).toMatchObject({ nature: "fichier", etat: "ECRIT" });
+    expect(o.projection).toMatchObject({ lignes: 3, totaux: "aucun", anomalies: "aucune" });
+    expect(o.projection.colonnes).toEqual(["nom", "ville", "adresse", "telephone", "secteurs", "lien", "statut"]);
+    expect(p._observations).toEqual([o]);
     expect(p.rangeDans).toBe("Espace d'Adam › Brouillons");
     // L'ESPACE D'ADAM : à Amine seul — un onglet pour lui, pour personne d'autre (pas même un autre Super Admin).
     const espace = await prisma.driveSpace.findFirstOrThrow({ where: { accessUserIds: { equals: [sa.id] } } });
@@ -182,6 +184,7 @@ suite("I3 — les primitives contre la base", () => {
     expect(r.statut, JSON.stringify(r)).toBe("FAIT");
     const o = (r.observation as { projection: Record<string, unknown> }).projection;
     expect(o).toMatchObject({ format: "docx", tableaux: 1, retireParAssainissement: ["script"] });
+    expect(String(o.rendu)).toMatch(/1 tableau/);
     expect(String(o.texte)).toMatch(/Le reste en texte simple/);
     const pdf = await produireLivrable(sa, { format: "pdf", nom: `Planning ${TAG}`, html: "<p>Bonjour</p>", presentation: "libre" }, { jeux: new JeuxDuTour() });
     expect(pdf.statut, JSON.stringify(pdf)).toBe("FAIT");

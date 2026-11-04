@@ -7,46 +7,10 @@
  * le texte d'un document, ses tableaux, ses couleurs. `produire` et `fichier` la rendent à chaque appel ; `observer` la
  * relit seule. Le modèle confronte l'observation à la demande et se corrige (« architecture, pas consigne »).
  *
- * LE CONTRAT est celui qu'I1 publie (`Observation { objet:{type,id,lien}, etat, projection, empreinte }`, AU1 §4). En
- * attendant son premier push, ce fichier en garde la forme exacte : l'adaptateur se remplace par l'import d'I1 sans
- * toucher aux producteurs (`observationDe`).
+ * LE CONTRAT est celui d'I1 (`domaine/observation/contrat.ts`, décision 0063) : `observer("fichier", …)` le construit,
+ * borné et empreint ; ce fichier n'en fournit que les MESURES propres à un classeur ou à un document.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-
-export interface ObjetObserve { type: string; id: string; lien: string | null }
-
-export interface Observation {
-  objet: ObjetObserve;
-  /** L'état réel de l'objet (« ECRIT », « VERSION_2 », « EN_FILE », « ECHEC »…). */
-  etat: string;
-  /** Ce qu'il contient, projeté par le code. */
-  projection: Record<string, unknown>;
-  /** Une empreinte courte et stable de la projection : deux observations égales ont la même. */
-  empreinte: string;
-}
-
-/** FNV-1a sur 64 bits (deux moitiés de 32) — une empreinte courte et stable, un repère d'égalité (aucune cryptographie). */
-export function empreinteDe(texte: string): string {
-  let a = 0x811c9dc5;
-  let b = 0x01000193 ^ texte.length;
-  for (const ch of texte) {
-    const c = ch.codePointAt(0)!;
-    a = Math.imul(a ^ c, 0x01000193) >>> 0;
-    b = Math.imul(b ^ (c + 0x9e37), 0x01000193) >>> 0;
-  }
-  return `${a.toString(36)}${b.toString(36)}`;
-}
-
-/** JSON aux clés triées — l'empreinte ne dépend pas de l'ordre d'écriture. */
-const stable = (v: unknown): string => {
-  if (Array.isArray(v)) return `[${v.map(stable).join(",")}]`;
-  if (v && typeof v === "object") return `{${Object.keys(v as object).sort().map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`).join(",")}}`;
-  return JSON.stringify(v ?? null);
-};
-
-export function observationDe(objet: ObjetObserve, etat: string, projection: Record<string, unknown>): Observation {
-  return { objet, etat, projection, empreinte: empreinteDe(stable({ objet, etat, projection })) };
-}
 
 // ─── Les colonnes : ce qui s'additionne, ce qui ne s'additionne pas ─────────────────────────
 

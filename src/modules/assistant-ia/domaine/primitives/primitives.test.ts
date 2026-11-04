@@ -3,7 +3,7 @@ import {
   champsDemandes, contientTolerant, filtrer, lirePeriode, normaliserDate, normaliserFiltre, problemesDeDeclaration, projeter, racine, trier,
   type DeclarationVue, type FiltreNormalise,
 } from "./vues";
-import { anomaliesClasseur, colonneNonAdditive, observationDe, observerFeuille, observerHtml, occurrences } from "./observation";
+import { anomaliesClasseur, colonneNonAdditive, observerFeuille, observerHtml, occurrences } from "./observation";
 import { assainirHtml, blocsDuHtml, CHARTE_ADVENTUM } from "./html";
 
 /**
@@ -111,8 +111,9 @@ describe("I3 — l'observation : ce que la personne verra, décrit par le code",
     expect(colonneNonAdditive("Montant")).toBe(false);
   });
 
-  it("l'empreinte est stable (ordre des clés indifférent) et change avec le contenu", () => {
-    const a = observationDe({ type: "fichier", id: "1", lien: null }, "ECRIT", { b: 1, a: [1, 2] });
+  it("un remplacement se compte dans le texte réellement écrit", () => {
+    expect(occurrences("Date : 14 octobre 2026 ; 14 octobre 2026", "14 octobre 2026")).toBe(2);
+  });
     const b = observationDe({ type: "fichier", id: "1", lien: null }, "ECRIT", { a: [1, 2], b: 1 });
     const c = observationDe({ type: "fichier", id: "1", lien: null }, "ECRIT", { a: [1, 2], b: 2 });
     expect(a.empreinte).toBe(b.empreinte);
