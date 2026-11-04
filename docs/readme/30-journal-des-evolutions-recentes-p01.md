@@ -234,8 +234,9 @@ l'intervalle de 45 s et le worker trouvait la tâche « occupée » à chaque pa
 le bail (`sAbstenir`, travaux et conversions). **Diagnostic** : « prête » seulement si le balayage prendra la mission
 (sa requête même) et a battu dans les 3 min ; sinon la vraie raison (`TRAVAUX_SWEEP=off`, worker muet…) ;
 `mes_missions` dit si chaque mission sera prise, son étape suivante et le dernier balayage (qui, quand, bilan) ; même
-phrase à l'écran et sur la carte de fusion. Le journal dit « Adam ». Contenu et cartes cliquables : en attente du
-contrat `Observation`.
+phrase à l'écran et sur la carte de fusion. Le journal dit « Adam ». **Contenu et cartes** : `mes_missions` rend ce que
+contient chaque mission (objectif, étapes, jalons, livrables, lien) ; le serveur pose une carte cliquable par mission,
+tirée de son observation (contrat I1) — « Ouvrir » `/missions/<id>`, pause / reprendre / arrêter. Banc : domaine `missions` (MS-).
 
 ### P1 bis — LE BANC RÉEL Q1, SUITE : REPLI D'ENVOI, MISSIONS DE FOND, CARTES À COMPLÉTER (2026-11-02)
 

@@ -266,7 +266,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const tousLesOutils = (): PowerTool[] => outils ?? [];
     // Leurs sorties PROUVENT ce que la réponse montre (un tableau des missions lues) — comme celles des autres lectures.
     const prouvees = (xs: PowerTool[]): PowerTool[] => xs.map((o) => journal.envelopper(o, { prouve: true }));
-    outils.push(...prouvees([...outilsMissions(user), ...outilsAnnulation(user), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions)]));
+    outils.push(...prouvees([...outilsMissions(user, visuels), ...outilsAnnulation(user), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions)]));
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     // M1 : la mémoire automatique retient seule — la carte « Retenir » ne sert que si la personne l'a coupée.

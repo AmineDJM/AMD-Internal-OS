@@ -268,6 +268,11 @@ export interface WorkspaceAction {
    * la conversation reprend son cours normal. C'est le repli, et il reste correct.
    */
   intent?: WorkspaceActionIntent;
+  /**
+   * UNE ROUTE DE L'ERP À OUVRIR (« Ouvrir » une mission : `/missions/<id>`) — une NAVIGATION, jamais une mutation : la page
+   * revérifie le droit de lire. Seul un chemin interne (« /… ») est suivi ; le bouton n'envoie alors aucune phrase.
+   */
+  href?: string;
 }
 
 export interface WorkspaceItem {

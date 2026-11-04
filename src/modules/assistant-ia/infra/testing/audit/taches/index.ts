@@ -15,6 +15,7 @@ import { SEMIS_ANNUAIRE_MARKETING, TACHES_ANNUAIRE_MARKETING } from "./annuaire-
 import { SEMIS_DOCUMENTS, TACHES_DOCUMENTS } from "./documents";
 import { SEMIS_DOSSIERS_MG_ADPRO, TACHES_DOSSIERS_MG_ADPRO } from "./dossiers-mg-adpro";
 import { SEMIS_MAILS, TACHES_MAILS } from "./mails";
+import { SEMIS_MISSIONS, TACHES_MISSIONS } from "./missions";
 import { TACHES_SOCLE } from "./socle";
 import { RETIRER_TRANSVERSE, SEMIS_TRANSVERSE, TACHES_TRANSVERSE } from "./transverse";
 import type { Domaine, PieceSemee, SemisDeDomaine, Tache } from "./types";
@@ -28,6 +29,8 @@ export const DOMAINES: Domaine[] = [
   { nom: "annuaire-marketing", taches: TACHES_ANNUAIRE_MARKETING, semer: SEMIS_ANNUAIRE_MARKETING },
   { nom: "dossiers-mg-adpro", taches: TACHES_DOSSIERS_MG_ADPRO, semer: SEMIS_DOSSIERS_MG_ADPRO },
   { nom: "mails", taches: TACHES_MAILS, semer: SEMIS_MAILS },
+  // P1 ter (décision 0066) : lire ses missions avec leur contenu, en cartes cliquables (MS-).
+  { nom: "missions", taches: TACHES_MISSIONS, semer: SEMIS_MISSIONS },
   { nom: "transverse", taches: TACHES_TRANSVERSE, semer: SEMIS_TRANSVERSE, retirer: RETIRER_TRANSVERSE },
 ];
 

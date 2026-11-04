@@ -536,6 +536,9 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/queries/action-center",
     // P1 bis (AN-04) : les tâches de l'équipe se lisent sur l'équipe de l'écran « Mon Équipe » (`getMyTeam`). Cible : la porte rh.
     "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/queries/my-team",
+    // P1 ter (décision 0066) : ce que CONTIENT une mission (étapes, jalons, livrables) se lit par la vue de sa page
+    // `/missions/<id>` (`vueMission`, filtrée par le propriétaire). Cible : la porte du moteur des travaux.
+    "src/modules/assistant-ia/infra/missions/pilotage.ts → src/lib/missions/view/workspace",
     "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/queries/search-everything",
     // Le Drive (droits, dépôt, quota) : cible = un module `drive` quand il sera migré.
     "src/modules/assistant-ia/infra/lecture/voix.ts → src/lib/drive/depot",
