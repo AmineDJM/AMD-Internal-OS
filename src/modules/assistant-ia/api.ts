@@ -24,6 +24,9 @@ export {
   type PieceDuTour,
 } from "./infra/fil/service";
 export { jouerTour } from "./infra/fil/tour";
+export { filPourEcran } from "./infra/fil/ecran";
+// ── L'essai de l'agent d'une personne par le Super Admin (son vrai tour, rien d'enregistré chez elle)
+export { essayerAgentDe } from "./infra/essai/service";
 
 // ── Les conversations et les dossiers (décision 0027, Adventum IA) : plusieurs conversations, privées, rangées
 export {

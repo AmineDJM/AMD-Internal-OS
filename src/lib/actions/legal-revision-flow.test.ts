@@ -10,6 +10,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { retirerComptesEtSemis, retirerNoeudsDriveEtContenu } from "@/lib/actions/internes/menage-de-banc";
+import { attendreBloques } from "@/lib/actions/internes/bancs-concurrents";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canEditDrive, resolveDriveAccess } from "@/lib/drive";
 import { legalWriteAllowed } from "@/lib/lecteurs/legal";
@@ -109,11 +110,12 @@ async function pendantLEcriture<T>(id: string, lancer: () => Promise<T>, concurr
   let geste!: Promise<T>;
   await prisma.$transaction(async (tx) => {
     // Un verrou de LIGNE : un verrou de table ferait attendre les autres fichiers de la suite, et la barrière
-    // s'ouvrirait trop tôt (§118.65).
+    // s'ouvrirait trop tôt (§118.65). On ne compte que les gestes que CETTE transaction arrête, et de CE processus
+    // (`bancs-concurrents.ts`) : l'attente locale comptait toute session de la suite qui attendait sur « LegalDocument ».
     await tx.$executeRawUnsafe(`SELECT 1 FROM "LegalDocument" WHERE id = $1 FOR UPDATE`, id);
     geste = lancer();
     geste.catch(() => undefined);
-    await attendreBloques(tx, 1, 30_000, true);
+    await attendreBloques(tx, '"LegalDocument"', 1, { delaiMs: 30_000 });
     await concurrent(tx);
   }, { timeout: 60_000 });
   return geste;
@@ -130,27 +132,10 @@ async function deuxEnsemble<T>(id: string, a: () => Promise<T>, b: () => Promise
     await tx.$executeRawUnsafe(`SELECT 1 FROM "LegalDocument" WHERE id = $1 FOR UPDATE`, id);
     ga = a(); gb = b();
     ga.catch(() => undefined); gb.catch(() => undefined);
-    await attendreBloques(tx, 1, 30_000, true);
-    await attendreBloques(tx, 2, 4_000, false);
+    await attendreBloques(tx, '"LegalDocument"', 1, { delaiMs: 30_000 });
+    await attendreBloques(tx, '"LegalDocument"', 2, { delaiMs: 4_000, exiger: false });
   }, { timeout: 60_000 });
   return Promise.all([ga, gb]);
-}
-
-async function attendreBloques(tx: Prisma.TransactionClient, n: number, delai: number, exiger: boolean): Promise<void> {
-  const debut = Date.now();
-  for (;;) {
-    await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-    const [{ k }] = await tx.$queryRaw<{ k: number }[]>`
-      SELECT count(*)::int AS k FROM pg_stat_activity
-      WHERE datname = current_database() AND pid <> pg_backend_pid()
-        AND wait_event_type = 'Lock' AND query ILIKE ${'%"LegalDocument"%'}`;
-    if (k >= n) return;
-    if (Date.now() - debut > delai) {
-      if (exiger) throw new Error(`la révision n'a pas atteint l'écriture au registre (${n} attendue·s)`);
-      return;
-    }
-    await new Promise((r) => setTimeout(r, 25));
-  }
 }
 
 suite("Legal — une pièce émise se révise depuis sa fiche, et le formulaire ne réécrit pas son fichier (§118.194)", () => {

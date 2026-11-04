@@ -53,7 +53,7 @@ export {
   avecStoreHorsRequete, contexteDuGeste, etatPour, executerHorsRequete, utilisateurDuGeste,
   type ContexteDuGeste, type IssueHorsRequete,
 } from "@/lib/effets/geste";
-export { simulerEnDiff, simulerGeste, type IssueSimulation } from "@/lib/effets/simulation";
+export { simulerEnDiff, simulerEnEssai, simulerGeste, type IssueSimulation } from "@/lib/effets/simulation";
 export { journaliserGeste, purgerJournalDesEffets, type MetaGesteAgent } from "@/lib/effets/journal";
 export { annulerGeste, gestesDeLAssistant, planDAnnulation, type CompteRenduAnnulation, type GesteListe } from "@/lib/effets/annulation";
 export type { DiffSimulation, LigneDiff, EffetDiff } from "@/lib/effets/diff";

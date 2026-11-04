@@ -157,5 +157,66 @@ export async function retirerComptesEtSemis(args: { where?: Prisma.UserWhereInpu
   await retirerSemisDeComptes(ids);
   await prisma.assistantGesteJournal.deleteMany({ where: { principalId: { in: ids } } });
   await prisma.effetSortantDiffere.deleteMany({ where: { principalId: { in: ids } } });
-  return prisma.user.deleteMany({ where: { id: { in: ids } } });
+  await retirerCeQuIlsOntDepose(ids);
+  try {
+    return await prisma.user.deleteMany({ where: { id: { in: ids } } });
+  } catch (e) {
+    if (!estCleEtrangere(e)) throw e;
+  }
+  // UN COMPTE RETENU PAR LA LIGNE D'UN VOISIN : retiré un à un, et celui qui reste est DIFFÉRÉ (voir plus bas).
+  let count = 0;
+  for (const id of ids) {
+    try {
+      await prisma.user.delete({ where: { id } });
+      count++;
+    } catch (e) {
+      if (!estCleEtrangere(e)) throw e;
+      await differerLeRetrait(id);
+    }
+  }
+  return { count };
+}
+
+/**
+ * CE QUE LES COMPTES DU BANC ONT EUX-MÊMES DÉPOSÉ et qui les RETIENT (`onDelete: Restrict` vers leur compte) : leurs
+ * demandes de validation (`requesterId` — étapes et participants partent en cascade), leurs retours (`Feedback`, ses
+ * pièces jointes), les compléments qu'ils ont demandés sur un recrutement. MESURÉ (03/11) : `signature-renvoi-flow`
+ * échouait à retirer ses comptes (« ValidationRequest_requesterId_fkey ») — ses demandes, nées des circuits qu'il joue,
+ * n'étaient pas toutes liées à ses documents. Rien de ce qu'un AUTRE a déposé ne part ici (un valideur désigné par un
+ * voisin : retrait différé, ci-dessous).
+ */
+async function retirerCeQuIlsOntDepose(ids: string[]): Promise<void> {
+  await prisma.validationRequest.deleteMany({ where: { requesterId: { in: ids } } });
+  await prisma.feedbackAttachment.deleteMany({ where: { uploadedById: { in: ids } } });
+  await prisma.feedback.deleteMany({ where: { userId: { in: ids } } });
+  await prisma.recruitmentInfoRequest.deleteMany({ where: { askedById: { in: ids } } });
+}
+
+const estCleEtrangere = (e: unknown) => (e as { code?: string } | null)?.code === "P2003";
+
+/**
+ * LE RETRAIT DIFFÉRÉ D'UN COMPTE DE BANC — la marque que pose le banc lui-même, et que le ménage de fin de suite lit.
+ *
+ * MESURÉ (03/11, sous `npm test`) : un compte SUPER_ADMIN de banc, actif, est désigné VALIDEUR par les circuits des bancs
+ * voisins (les étapes se résolvent par rôle) ; leur `ValidationStep` le retient (`onDelete: Restrict`) tant qu'ils ne
+ * l'ont pas retirée. Son retrait échouait en silence — et le compte, resté actif, recevait les notifications de rôle de
+ * toute la suite (967 en un passage ; le cliquet du résidu a refusé « Notification +610 »). Le banc ne peut pas retirer
+ * la ligne d'un voisin : il DÉSACTIVE son compte (plus aucune désignation ni notification de rôle), retire ses
+ * notifications, et le marque ; `retirerComptesDifferes` le retire après la suite, quand plus aucun banc ne tourne.
+ */
+export const MARQUE_RETRAIT_DIFFERE = "[retrait différé de banc] ";
+
+async function differerLeRetrait(id: string): Promise<void> {
+  const u = await prisma.user.findUnique({ where: { id }, select: { name: true } });
+  if (!u) return;
+  await prisma.user.update({
+    where: { id },
+    data: { isActive: false, name: u.name.startsWith(MARQUE_RETRAIT_DIFFERE) ? u.name : `${MARQUE_RETRAIT_DIFFERE}${u.name}`.slice(0, 190) },
+  });
+  await prisma.notification.deleteMany({ where: { userId: id } });
+}
+
+/** Le ménage de fin de suite (`vitest.global-setup.ts`) : les comptes dont un banc a différé le retrait. Rend le nombre retiré. */
+export async function retirerComptesDifferes(): Promise<number> {
+  return (await retirerComptesEtSemis({ where: { name: { startsWith: MARQUE_RETRAIT_DIFFERE }, isActive: false } })).count;
 }

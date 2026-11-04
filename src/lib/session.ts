@@ -10,7 +10,7 @@ import { canOpenModule } from "./modules-visibility";
 import { lireSessionRevocable, vueDemandee, type CompteDeSession, type OptionsDeSession } from "./session-compte";
 // J8 : un geste métier exécuté HORS requête (worker) porte la personne du geste — consultée AVANT le cookie.
 import { utilisateurDuGeste } from "./effets/geste";
-import { poserIdentiteDonnees } from "@/platform/donnees/contexte";
+import { poserIdentiteDonnees, type IdentiteDonnees } from "@/platform/donnees/contexte";
 
 /**
  * Nom du cookie de « Vue exacte » (impersonation), honoré uniquement pour un Super Admin. Défini dans
@@ -100,12 +100,20 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
  * règle que l'écran). Ses droits de module déjà résolus suffisent : la garde ne relit rien.
  */
 function noterIdentite(u: CurrentUser): CurrentUser {
-  poserIdentiteDonnees({
+  poserIdentiteDonnees(identiteDonneesDe(u));
+  return u;
+}
+
+/**
+ * L'identité que la GARDE DES DONNÉES juge pour une personne — la même pour sa requête (`noterIdentite`) et pour l'essai
+ * de son agent par le Super Admin (`avecIdentiteDonnees`), qui ne doit jamais juger le Super Admin à sa place.
+ */
+export function identiteDonneesDe(u: CurrentUser): IdentiteDonnees {
+  return {
     userId: u.id,
     roles: [u.role, u.secondaryRole],
     peut: (module, geste) => u.access.modules.get(module as Module)?.actions.has(geste as Action) ?? false,
-  });
-  return u;
+  };
 }
 
 /**

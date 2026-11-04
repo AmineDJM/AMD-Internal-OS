@@ -26,6 +26,13 @@ export function ignoree(raison: string): TacheIgnoree {
   return { ignoree: raison };
 }
 
+/** P1 ter : le BILAN d'un passage réussi (« examinés 3, conduits 2 »), écrit sur la ligne de la tâche — le diagnostic le lit. */
+export type BilanTexte = { readonly bilan: string };
+export function bilan(texte: string): BilanTexte {
+  return { bilan: texte };
+}
+const estBilan = (x: unknown): x is BilanTexte => typeof x === "object" && x !== null && typeof (x as BilanTexte).bilan === "string";
+
 function estIgnoree(x: unknown): x is TacheIgnoree {
   return typeof x === "object" && x !== null && typeof (x as TacheIgnoree).ignoree === "string";
 }
@@ -40,7 +47,7 @@ export type TachePlanifiee = {
   /** Écart minimal entre deux départs, tous exécutants confondus. Défaut `INTERVALLE_MIN_MS`. */
   intervalleMs?: number;
   /**
-   * S'ABSTENIR, DÉCIDÉ AVANT LE BAIL (P1 ter, décision 0063). Une raison rendue = cet exécutant laisse la tâche à un
+   * S'ABSTENIR, DÉCIDÉ AVANT LE BAIL (P1 ter, décision 0066). Une raison rendue = cet exécutant laisse la tâche à un
    * autre SANS prendre le bail ni marquer le départ. MESURÉ en production (03/11) : le web prenait le bail des travaux
    * chaque minute pour s'abstenir aussitôt (le worker bat) ; son départ marqué ouvrait l'intervalle minimal, et le worker,
    * qui atteint la tâche plus tard dans son passage, la trouvait toujours « occupée » — aucune mission ne bougeait.
@@ -104,7 +111,7 @@ export async function executerTache(tache: TachePlanifiee, ctx: ContexteExecutio
   let message: string | null = null;
   try {
     const r = await tache.executer();
-    if (estIgnoree(r)) { issue = "ignoree"; message = r.ignoree; } else issue = "ok";
+    if (estIgnoree(r)) { issue = "ignoree"; message = r.ignoree; } else { issue = "ok"; if (estBilan(r)) message = r.bilan.slice(0, 500); }
   } catch (e) {
     issue = "echec";
     message = messageErreur(e);

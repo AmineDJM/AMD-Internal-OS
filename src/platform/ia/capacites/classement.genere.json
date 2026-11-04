@@ -1756,6 +1756,16 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:essayerAgentDeLaPersonne": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-consommation-actions:lireConsommationIa": {
   "risque": "R0",
   "familles": [

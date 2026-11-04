@@ -14,6 +14,17 @@ par l'écran (`e2e/v1-adpro-sponsoring.spec.ts`, 10 parcours, 8 rôles) et par A
   naissance (`posteDeNaissanceSuit`, `actions-edition.ts`).
 - Banc des sommes indépendant (centimes entiers, tirages à graine fixe) : `ad-pro/domaine/v1-sommes.test.ts`.
 
+### ESSAYER L'AGENT D'UNE PERSONNE — LE SUPER ADMIN, AVANT LA PRODUCTION (2026-11-03)
+
+Demande de la Direction : tester l'agent de chacun **exactement**, pour qu'aucune personne n'accède en production à une
+donnée que l'essai n'a pas montrée. Carte « **Essayer son agent** » dans Administration › Contrôle de l'IA › Adam — accès.
+- Le vrai chemin de la personne, sous son identité, ses droits et la garde de ses données ; la réponse dessinée par l'écran
+  même de l'assistant. Rien n'est enregistré chez elle, rien ne sort ; une carte se lit, elle ne s'exécute pas.
+- Le socle des effets gagne un **mode essai** : le modèle répond (lui seul sort), chaque requête est isolée par un point de
+  sauvegarde. Et un envoi **différé** ne se programme plus sous une simulation (il s'écrivait hors de la transaction annulée).
+- Prouvé contre la base : même prompt et mêmes outils que le vrai chemin, au mot près ; la paie d'autrui refusée à l'essai
+  comme en production, alors que le Super Admin qui essaie la verrait ; rien ne reste chez la personne.
+
 ### T2 BIS — DOUBLONS DE MÉDECINS AU SUPER ADMIN, DEMANDE DE STOCK RÉSERVÉE, RELEVÉ DU DÉLÉGUÉ (2026-11-03, décision 0062)
 
 Réponses de la Direction du 03/11 :
@@ -228,6 +239,17 @@ Banc Q1 (rejeu réel P1+S1+B1, US-01) : la paie refusée, mais « Prénom : Amin
 ne nourrit pas la mémoire ; aucun souvenir d'identité ne s'écrit (capture, voix, consolidation, main, carte, modification)
 ni ne se relit (rappel, voix, ancien contexte) — ceux déjà en base sont neutralisés. Décision
 [0048 §6 bis](../assistant/decisions/0048-acces-personnels.md) ; `src/platform/ia/memoire-identite.ts` (socle commun, Adam compris).
+
+### P1 ter — LES MISSIONS QUI NE S'EXÉCUTAIENT PAS, ET LA VÉRITÉ SUR L'EXÉCUTANT (2026-11-03)
+
+Décision [0066](../assistant/decisions/0066-missions-lisibles-cliquables.md). **Cause des missions à 0 % en production** :
+le web prenait le bail du balayage des travaux pour s'abstenir aussitôt (le worker bat) — son départ marqué ouvrait
+l'intervalle de 45 s et le worker trouvait la tâche « occupée » à chaque passage ; l'abstention se décide désormais AVANT
+le bail (`sAbstenir`, travaux et conversions). **Diagnostic** : « prête » seulement si le balayage prendra la mission
+(sa requête même) et a battu dans les 3 min ; sinon la vraie raison (`TRAVAUX_SWEEP=off`, worker muet…) ;
+`mes_missions` dit si chaque mission sera prise, son étape suivante et le dernier balayage (qui, quand, bilan) ; même
+phrase à l'écran et sur la carte de fusion. Le journal dit « Adam ». Contenu et cartes cliquables : en attente du
+contrat `Observation`.
 
 ### P1 bis — LE BANC RÉEL Q1, SUITE : REPLI D'ENVOI, MISSIONS DE FOND, CARTES À COMPLÉTER (2026-11-02)
 
