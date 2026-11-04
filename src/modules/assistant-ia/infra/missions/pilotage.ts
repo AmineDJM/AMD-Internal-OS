@@ -187,9 +187,6 @@ export function outilsMissions(user: CurrentUser, cartes?: WorkspaceBlock[]): Po
           total: r.missions.length,
           ...(r.alerte ? { alerte: r.alerte } : {}),
           ...(r.missions.length > MISSIONS_DETAILLEES_MAX ? { autres_non_detaillees: r.missions.length - MISSIONS_DETAILLEES_MAX } : {}),
-          consigne: cartes
-            ? "Chaque mission s'affiche en CARTE cliquable sous ta réponse (étapes, « Ouvrir », pause / reprendre / arrêter) : ne la recopie pas en tableau. Dis en quelques phrases ce qui compte — ce que chaque mission CONTIENT (objectif, étapes faites et à venir, livrables), ce qui la bloque — et donne son lien en markdown [titre](lien). Ne demande pas leurs titres à la personne."
-            : "Réponds avec CES missions : ce qu'elles contiennent, ce qui les bloque, et leur lien en markdown [titre](lien), tels quels. Ne demande pas leurs titres à la personne.",
           _observations: observations,
         });
       },

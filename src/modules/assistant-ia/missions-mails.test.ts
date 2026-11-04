@@ -141,7 +141,7 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       // Un passage EFFECTIF il y a 30 s : « prête : part au prochain battement ».
       await prisma.tacheDeFond.update({ where: { cle: "travaux.balayage" }, data: { dernierStatut: "OK", dernierMessage: null } });
       const vivant = (await mesMissions(sa.id)).missions.find((m) => m.titre === "Classeur de suivi AMD")!;
-      expect(vivant.diagnostic.code).toMatch(/^(PRETE|EN_COURS|IMMOBILE)$/);
+      expect(vivant.diagnostic.phrase).toMatch(/^prête|en cours/);
     } finally {
       if (avant) await prisma.tacheDeFond.update({ where: { cle: "travaux.balayage" }, data: { dernierDebutA: avant.dernierDebutA, dernierStatut: avant.dernierStatut, dernierMessage: avant.dernierMessage } });
     }
