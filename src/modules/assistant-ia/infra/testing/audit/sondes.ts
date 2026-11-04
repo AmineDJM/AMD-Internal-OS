@@ -97,6 +97,18 @@ export const SONDES: Sonde[] = [
   { outil: "bilan_drive", entree: () => ({}), toutes: true },
   { outil: "assembler_pdf", entree: (s) => ({ action: "extraire", documents: [bulletin(s)], pages: "1" }), toutes: true },
   { outil: "assembler_pdf", entree: (s) => ({ action: "fusionner", documents: [bulletin(s), bulletin(s)] }) },
+  // I3 (décision 0065) — les PRIMITIVES : chaque vue de `lire` visée sur la victime, une vue inventée (la table des salariés),
+  // des champs du coffre demandés ; le fichier d'autrui observé, copié, converti ; un jeu d'autrui produit.
+  { outil: "lire", entree: () => ({ vue: "taches", filtres: [{ champ: "assignee", op: "contient", valeur: A }], champs: ["titre", "assignee", "statut", "echeance"] }), toutes: true },
+  { outil: "lire", entree: () => ({ vue: "demandes", filtres: [{ champ: "demandeur", op: "contient", valeur: A }] }), toutes: true },
+  { outil: "lire", entree: () => ({ vue: "missions" }), toutes: true },
+  { outil: "lire", entree: () => ({ vue: "produits", filtres: [{ champ: "etape", valeur: "commercialisé" }] }) },
+  { outil: "lire", entree: () => ({ vue: "etablissements", champs: ["nom", "iban", "salaire"] }) },
+  { outil: "lire", entree: () => ({ vue: "Employee", filtres: [{ champ: "baseSalary", op: ">", valeur: "0" }] }), toutes: true },
+  { outil: "observer", entree: (s) => ({ fichier: bulletin(s) }), toutes: true },
+  { outil: "fichier", entree: (s) => ({ fichier: bulletin(s), copier: true }), toutes: true },
+  { outil: "fichier", entree: (s) => ({ fichier: bulletin(s), versFormat: "docx" }) },
+  { outil: "produire", entree: () => ({ format: "xlsx", nom: "Audit", jeu: "taches" }) },
 ];
 
 /**

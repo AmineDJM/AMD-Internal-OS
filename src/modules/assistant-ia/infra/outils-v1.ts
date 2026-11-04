@@ -36,9 +36,11 @@ import { outilExporterDonnees } from "./analyse/exporter";
 import { outilsAnalyse, OUTILS_ANALYSE, type ContexteAnalyseTour } from "./analyse/outils";
 import { ecrituresAdam, lecturesAdam } from "./adam/outils-adam";
 import { censurerTexte, jetonnerSortie, type CoffretDuTour } from "../domaine/filtre-confidentialite";
-import { FAMILLES_IA, familleOuverte, refusFamille, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
+import { FAMILLES_IA, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
 import { gesteReserveFerme, profilDuCompte } from "../domaine/profil-acces";
-import { accesParDefaut, ajouterReperesAIntention, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
+import { accesParDefaut, ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
+import { ECRITURES_PRIMITIVES, estMasqueParLesPrimitives, outilsPrimitives } from "./primitives";
+import { JeuxDuTour } from "../domaine/analyse/jeux";
 
 /**
  * LES OUTILS DE L'ASSISTANT IA — les siens, et les CAPACITÉS de l'ERP (lot J6, décision 0020).
@@ -93,6 +95,9 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   ...FAMILLES_EXPORTS,
   // K2 (décision 0032) — les visuels générés : famille propre, fermée par défaut (payante) ; l'image source passe les droits du Drive.
   generer_image: ["VISUELS"], modifier_image: ["VISUELS"], generer_video: ["VISUELS"], video_de_donnees: ["VISUELS"],
+  // I3 (décision 0065) — les primitives : `lire` juge chaque VUE sur le droit de son écran (aucune famille de plus) ; produire et
+  // observer passent par le Drive (l'espace d'Adam, les fichiers) ; modifier un fichier de la personne est une écriture.
+  produire: ["DRIVE"], observer: ["DRIVE"], fichier: ["DRIVE", "ECRITURES"],
 };
 // « Mes notes » (décision 0026) : le bloc-notes de la personne, chaque geste proposé puis accepté par elle — comme la mémoire.
 const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire", ...OUTILS_NOTES_ECRITURE]);
@@ -124,7 +129,7 @@ const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTo
 // Les CAPACITÉS (J6) ne sont pas même construites hors de la conversation (`outilsV1(…, { capacites: true })`).
 // Les notes (décision 0026) non plus : une proposition attend le geste de la personne, qui n'est pas là.
 // K2 : une génération d'image ou de vidéo est PAYANTE et se demande — ni routine ni travail ne la lance.
-export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE, ...OUTILS_VISUELS, "assembler_pdf"]);
+export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE, ...OUTILS_VISUELS, "assembler_pdf", ...ECRITURES_PRIMITIVES]);
 
 /**
  * LA SORTIE D'UN OUTIL, AVANT LE MODÈLE : jetonnée (confidentialité), CONSIGNÉE (le garde-fou de l'UI
@@ -325,6 +330,9 @@ export function outilsV1(
     ...(options.analyse ? [outilExporterDonnees(user, { jeux: options.analyse.jeux, coffret, acces })] : []),
     // A2 (décision 0055) — les lectures d'Adam : la conversation du SEUL Super Admin (vide pour tout autre compte).
     ...(options.capacites ? lecturesAdam(user) : []),
+    // I3 (décision 0065) — les PRIMITIVES (`ADAM_PRIMITIVES=0` : aucune). `lire` sous la vue (comme les lectures qu'il remplace) ;
+    // les jeux sont ceux de l'analyse du tour quand elle est là (produire / analyser_donnees les partagent).
+    ...outilsPrimitives(user, typeof options.analyse?.jeux?.inscrire === "function" ? options.analyse.jeux : new JeuxDuTour()).map((o) => (o.def.name === "lire" ? sousVue(o) : o)),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a
@@ -365,7 +373,9 @@ export function outilsV1(
   const notes = outilsNotes(user, { coffret, acces, proposees: options.notesProposees });
   // Décision 0035 : la carte en attente se COMPLÈTE ou se CORRIGE par la parole, par la porte du formulaire (conversation seulement).
   const correction = options.capacites ? [outilCorrigerCarte(user, acces)] : [];
-  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].concat(correction).map((o) => filtre(aSoi(o), journal, coffret, provenance, options.analyse, options.revelerAuModele));
+  // I3 : ce que les primitives rendent inutile est MASQUÉ (retiré du catalogue, pas du code — `primitives/index.ts`).
+  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].concat(correction).filter((o) => !estMasqueParLesPrimitives(o.def.name))
+    .map((o) => filtre(aSoi(o), journal, coffret, provenance, options.analyse, options.revelerAuModele));
 }
 
 /**

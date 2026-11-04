@@ -19,6 +19,7 @@ import { COMPTE_JOUE, PERSONAS_CLES, type PersonaCle } from "./infra/testing/aud
 import { ADAM_RETIRES_I2, ADAM_SA_TOUS, ATTAQUES_ADAM_SA, MOTS_RESERVES_SA } from "./infra/testing/audit/attaques-adam-sa";
 import { ATTAQUES } from "./infra/testing/audit/attaques";
 import { retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
+import { couvertParUnePrimitive } from "./infra/primitives";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -78,7 +79,8 @@ suite("A2 — Adam complet pour le Super Admin, et pour lui seul", () => {
     const offerts = [...lecturesAdam(sa), ...ecrituresAdam(sa, [], "")].map((o) => o.def.name).sort();
     expect(offerts).toEqual([...ADAM_SA_TOUS].sort());
     const noms = new Set(catalogue(sa).map((o) => o.def.name));
-    expect(ADAM_SA_TOUS.filter((n) => !noms.has(n)), "absents du catalogue de la conversation du Super Admin").toEqual([]);
+    // I3 (décision 0065) : une fonction d'Adam MASQUÉE par une primitive (document, classeur, conversion) n'est pas perdue.
+    expect(ADAM_SA_TOUS.filter((n) => !noms.has(n) && !couvertParUnePrimitive(n, noms)), "absents du catalogue de la conversation du Super Admin").toEqual([]);
     // Lot I2 (étape 3) : les doublons retirés ne sont plus offerts — une seule lecture par besoin.
     expect(ADAM_RETIRES_I2.filter((n) => noms.has(n)), "doublons encore offerts au Super Admin").toEqual([]);
     // Le banc Q1 joue ces attaques (rejeu réel : AUDIT_SEULEMENT=ADAM-SA-).

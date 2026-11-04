@@ -2,6 +2,7 @@ import type { DriveNodeType, Prisma } from "@prisma/client";
 import { canManageDriveSpace, canViewDriveSpace, userCan, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { resolveDriveAccess, driveBreadcrumb, type DriveAccessLevel } from "@/lib/drive";
+import { estEspaceAdamDAutrui } from "@/lib/drive/espace-adam";
 
 /** Ligne du Drive prête pour l'UI, avec le droit d'édition **résolu par nœud**. */
 export interface DriveNodeRow {
@@ -66,7 +67,8 @@ async function filAccessible(user: SessionUser, fil: { id: string; name: string 
 export async function getDriveSpacesForUser(user: SessionUser): Promise<DriveSpaceTab[]> {
   const spaces = await prisma.driveSpace.findMany({ where: { isArchived: false }, orderBy: { name: "asc" } });
   return spaces
-    .filter((s) => canViewDriveSpace(user, s))
+    // L'espace d'Adam d'une autre personne n'est l'onglet de personne d'autre — Super Admin compris (lot I3, décision 0065).
+    .filter((s) => canViewDriveSpace(user, s) && !estEspaceAdamDAutrui(s, user.id))
     .map((s) => ({ id: s.id, name: s.name, icon: s.icon, canManage: canManageDriveSpace(user, s) }));
 }
 
@@ -158,7 +160,7 @@ export async function getDriveListing(
   let spaceManage = false;
   if (spaceId) {
     const s = await prisma.driveSpace.findUnique({ where: { id: spaceId } });
-    if (!s || s.isArchived || !canViewDriveSpace(user, s)) return null;
+    if (!s || s.isArchived || !canViewDriveSpace(user, s) || estEspaceAdamDAutrui(s, user.id)) return null;
     spaceManage = canManageDriveSpace(user, s);
     space = { id: s.id, name: s.name, canManage: spaceManage };
   }

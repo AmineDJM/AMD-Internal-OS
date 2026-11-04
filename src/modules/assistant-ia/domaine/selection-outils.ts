@@ -45,6 +45,8 @@ export const OUTIL_TROUVER = "trouver_outil";
 export const SOCLE_OUTILS: readonly string[] = [
   OUTIL_TROUVER, "directory_lookup", "search_everything", "chercher_documents", "ouvrir_documents",
   "list_pending_decisions", "my_overview", "list_my_tasks", "lire_document", "proposer_memoire",
+  // I3 (décision 0065) — `lire` : l'ERP par ses vues (produire, fichier, observer se présélectionnent par la demande).
+  "lire",
 ];
 
 /** La présélection par la demande ; `trouver_outil` en rend au plus `TROUVES_MAX`. */
@@ -62,6 +64,12 @@ const MOTS_CLES: Record<string, string> = {
   regulatory_workload: "charge dossiers combien gere porte qui assigne portefeuille personne regulatory",
   regulatory_portfolio: "portefeuille partenaire laboratoire produits statuts regulatory kwality",
   list_my_tasks: "mes taches todo a faire rappels en cours retard",
+  // I3 (décision 0065) : les mots des outils qu'elles remplacent (search_products, list_my_tasks, modifier / convertir_document).
+  lire: "liste lis donne affiche combien quels quelles nos produit produits dci marque catalogue molecule medicament commercialises pharmacies etablissements annuaire missions taches demandes filtre wilaya retard",
+  produire: "excel xlsx csv word pdf fichier tableau classeur exporte export copie annuaire colonne range drive brouillon document rapport",
+  fichier: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese "
+    + "convertis convertir conversion transforme copie copier version word powerpoint presentation pdf excel document fichier date renomme",
+  observer: "verifie relis regarde observe controle fichier produit colonnes lignes totaux contenu",
   taches_equipe: "taches equipe mon equipe retard retards en retard collaborateurs subordonnes manager combien",
   corriger_carte: "carte en attente corrige corriger complete completer precise preciser ajoute ajouter change changer mets plutot budget montant date description",
   search_products: "produit dci marque catalogue regulatory recherche medicament molecule",

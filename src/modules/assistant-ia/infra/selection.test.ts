@@ -7,6 +7,7 @@ import { outilsV1 } from "./outils-v1";
 import { outilTravailPour } from "./travaux";
 import { fichesOffertes, selectionDuTour } from "./selection";
 import { classer, OUTIL_TROUVER, PRESELECTION_MAX, SOCLE_OUTILS, TROUVES_MAX } from "../domaine/selection-outils";
+import { estMasqueParLesPrimitives, MASQUES_PAR_LES_PRIMITIVES } from "./primitives";
 
 /**
  * LES OUTILS CHOISIS À LA DEMANDE (J4, décision 0018) — sur les VRAIS catalogues (Super Admin, assistante de direction).
@@ -132,15 +133,18 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
     await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
+  /** I3 (décision 0065) : l'outil attendu d'avant, ou la PRIMITIVE qui le remplace quand il est masqué. */
+  const attendu = (n: string) => (estMasqueParLesPrimitives(n) ? MASQUES_PAR_LES_PRIMITIVES[n]!.split(" ")[0]! : n);
+
   it("le corpus a 82 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
     expect(CORPUS).toHaveLength(82);
     const noms = new Set(fichesOffertes(catalogue(sa), sa).map((f) => f.nom));
-    for (const [, attendus] of CORPUS) for (const a of attendus) expect(noms, a).toContain(a);
+    for (const [, attendus] of CORPUS) for (const a of attendus.map(attendu)) expect(noms, a).toContain(a);
   });
 
   it("l'outil juste est dans les 8 premiers, pour les 82 demandes (Super Admin)", () => {
     const fiches = fichesOffertes(catalogue(sa), sa);
-    const rates = CORPUS.filter(([d, attendus]) => !classer(d, fiches, TROUVES_MAX).some((c) => attendus.includes(c.nom)))
+    const rates = CORPUS.filter(([d, attendus]) => !classer(d, fiches, TROUVES_MAX).some((c) => attendus.map(attendu).includes(c.nom)))
       .map(([d, a]) => `${d} → ${a.join("|")} ; rendu : ${classer(d, fiches, TROUVES_MAX).map((c) => c.nom).join(", ")}`);
     expect(rates).toEqual([]);
   });
@@ -171,10 +175,11 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
 
   it("une configuration de rôle qui restreint les outils restreint aussi la sélection", async () => {
     const outils = catalogue(sa);
-    const s = selectionDuTour(outils, sa, "Quel est le salaire d'Assia ?", { allowedTools: ["directory_lookup", "list_my_tasks"] });
-    expect(s.initiaux).toEqual([OUTIL_TROUVER, "directory_lookup", "list_my_tasks"]);
+    const permis = ["directory_lookup", attendu("list_my_tasks")];
+    const s = selectionDuTour(outils, sa, "Quel est le salaire d'Assia ?", { allowedTools: permis });
+    expect(s.initiaux).toEqual([OUTIL_TROUVER, ...permis]);
     const r = JSON.parse(await s.outil.run({ intention: "lire le salaire d'une personne" }, sa)) as { trouves: { outil: string }[] };
-    expect(r.trouves.every((t) => ["directory_lookup", "list_my_tasks"].includes(t.outil))).toBe(true);
+    expect(r.trouves.every((t) => permis.includes(t.outil))).toBe(true);
   });
 
   it("la présélection est petite et stable : le socle d'abord, dans son ordre, puis l'alphabet", async () => {

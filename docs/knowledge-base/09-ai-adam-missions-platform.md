@@ -5,6 +5,29 @@
 > Tests were NOT run (the vitest `globalSetup` touches Postgres); test outcomes below are derived
 > statically from the test source plus a read-only run of the boundary scanner (`scripts/adam-boundary.ts`).
 
+> **Update 2026-11-03 — lot I3, les primitives `lire` / `produire` / `fichier` / `observer` et l'espace d'Adam** (decision
+> record `docs/assistant/decisions/0065-primitives-lire-produire-fichier.md`, audit AU2 steps M0 + file part of M1/M2) [V]:
+> - **`lire`** (`infra/primitives/lire.ts`): one tool over DECLARED VIEWS (`infra/primitives/vues.ts`: produits,
+>   etablissements, missions, taches, demandes). Each view's `portee(user)` is the screen's own `where` (`clauseProduitAuCatalogue`,
+>   `voitEtablissements`, `mesMissions` owner, the « Mon espace » task circle, `scopeAdminRequests`); `null` → `FERMEE` naming
+>   the right (tool still offered). Computed fields by ERP rules (`etapeCycle`, `clauseCommercialises`). Pure rules
+>   (`domaine/primitives/vues.ts`): schema, natural-input normalisation (French dates/months, choice labels, accents, stems),
+>   filter/sort/projection, `problemesDeDeclaration` (no coffre column declarable — `champSensible`). Result = a named jeu in the
+>   turn's `JeuxDuTour` (shared with K1 / `produire`). In the selection SOCLE with a SHORT schema (fixed-token budget ≤ 4 000 kept).
+> - **`produire`** (xlsx/csv from a jeu or rows; docx/pdf from sanitised free HTML — `domaine/primitives/html.ts`, charte by
+>   default, `presentation: "libre"` adds nothing), **`fichier`** (Atelier gestes / replacements applied to bytes by the Atelier
+>   adapters → NEW Drive version; conversion via `demanderConversion`; copy), **`observer`** (re-opens the written bytes →
+>   sheets/columns/rows/totals/anomalies/text). Writes run under `journaliserGeste` (K10: undo = previous version), no card
+>   (like `assembler_pdf`). Excluded from routines/travaux (`ECRITURES_DU_MOTEUR`).
+> - **Espace d'Adam**: one `DriveSpace` per person (`src/lib/drive/espace-adam.ts`, `src/lib/actions/internes/primitives/espace.ts`),
+>   no migration; hidden from every other account incl. Super Admin (`getDriveSpacesForUser`, `getDriveListing`).
+> - **Switch** `ADAM_PRIMITIVES=0` → exact previous catalogue. Masked when on (`MASQUES_PAR_LES_PRIMITIVES`): `exporter_donnees`,
+>   `modifier_document`, `convertir_document`, `list_my_tasks`, `list_my_requests`, `search_products`, `format_convertir`,
+>   `document_build`, `sheet_build`. Screen exports and `preparer_*` stay (M4).
+> - **Tests**: `domaine/primitives/primitives.test.ts` (pure), `primitives-i3.test.ts` (DB: witness cases, Prisma spy, K10 undo,
+>   switch), 10 new probes in `infra/testing/audit/sondes.ts`. Real-model replay: `scripts/bench/i3-primitives/rejouer.ts`
+>   (3/3 witness cases served vs 0/3 with the switch off, 0.22 $).
+
 > **Update 2026-11-02 — lot A1, « un seul assistant : Adam » — name, menu, routes, missions** (decision record
 > `docs/assistant/decisions/0056-adam-nom-menu-missions.md`, which REVISES decision 0013 on naming and screens) [V]:
 > - **Name**: module `ASSISTANT_IA` keeps its key; label "Adam" (`MODULE_LABELS`, nav entry `/assistant`, console

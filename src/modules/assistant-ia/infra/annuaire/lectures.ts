@@ -56,6 +56,13 @@ export function porteeMedecins(u: CurrentUser): Prisma.MedicalDoctorWhereInput {
 export const voitEtablissements = (u: CurrentUser) => peutAnnuaire(u, "ETABLISSEMENTS", "VIEW") || peutAnnuaire(u, "PHARMACIENS", "VIEW");
 export const voitAnnuaire = (u: CurrentUser) => userCan(u, "MEDICAL", "VIEW") || annuaireOuvertParConsole(u, "MEDECINS", "VIEW") || voitEtablissements(u);
 
+/** Ce qu'on lit d'un établissement : sa fiche, ses secteurs actifs (délégués, BU), ses praticiens — partagé avec la vue `etablissements` (I3). */
+export const SELECT_ETABLISSEMENT = {
+  id: true, name: true, type: true, wilaya: true, city: true, address: true, phone: true, email: true, isActive: true,
+  sectors: { where: { sector: { isActive: true } }, select: { sector: { select: { name: true, reps: { select: { rep: { select: { name: true } } } }, businessUnit: { select: { name: true } } } } } },
+  _count: { select: { doctors: true } },
+} satisfies Prisma.MedicalInstitutionSelect;
+
 const TYPES: Record<string, string[]> = {
   pharmacie: ["PHARMACIE"], grossiste: ["GROSSISTE"], hopital: ["CHU", "EPH", "EHS"], clinique: ["CLINIQUE_PRIVEE", "POLYCLINIQUE"], cabinet: ["CABINET", "CENTRE_SANTE"],
 };
@@ -126,11 +133,7 @@ async function lireAnnuaire(entree: Record<string, unknown>, u: CurrentUser): Pr
       prisma.medicalInstitution.count({ where: { AND: [where, { sectors: { some: { sector: { isActive: true } } } }] } }),
       prisma.medicalInstitution.findMany({
         where, take: limite, orderBy: { name: "asc" },
-        select: {
-          id: true, name: true, type: true, wilaya: true, city: true, address: true, phone: true, email: true, isActive: true,
-          sectors: { where: { sector: { isActive: true } }, select: { sector: { select: { name: true, reps: { select: { rep: { select: { name: true } } } }, businessUnit: { select: { name: true } } } } } },
-          _count: { select: { doctors: true } },
-        },
+        select: SELECT_ETABLISSEMENT,
       }),
     ]);
     out.etablissements = es.map((e) => ({
