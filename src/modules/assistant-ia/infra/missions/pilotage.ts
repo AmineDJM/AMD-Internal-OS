@@ -9,7 +9,7 @@ import { etatDesExecutants } from "./executants";
 import { sansBloquer } from "@/lib/journal";
 import { vueMission } from "@/lib/missions/view/workspace";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
-import { blocDeMission, contenuDeMission, MISSIONS_DETAILLEES_MAX, type DetailMission } from "../../domaine/missions/bloc";
+import { blocDeMission, contenuDeMission, ETATS_DU_GESTE, MISSIONS_DETAILLEES_MAX, type DetailMission } from "../../domaine/missions/bloc";
 import { lienDeMission, projeterMission } from "../../domaine/observation/projecteurs";
 import { dureeLisible, type Observation } from "../../domaine/observation/contrat";
 
@@ -110,12 +110,8 @@ export async function detailDeMission(userId: string, m: MissionTableau): Promis
 
 export type ActionMission = "pause" | "reprendre" | "arreter" | "renommer";
 
-const CIBLES: Record<ActionMission, readonly string[]> = {
-  pause: ["EN_COURS", "EN_ATTENTE"],
-  reprendre: ["EN_PAUSE", "BUDGET_HOLD", "BLOQUE", "ARRETE", "ECHEC"],
-  arreter: ["A_APPROUVER", "EN_COURS", "EN_ATTENTE", "EN_PAUSE", "BUDGET_HOLD", "BLOQUE", "ECHEC"],
-  renommer: ["A_APPROUVER", "EN_COURS", "EN_ATTENTE", "EN_PAUSE", "BUDGET_HOLD", "BLOQUE", "ARRETE", "TERMINE", "ECHEC"],
-};
+/** Les états où chaque geste a un sens — UNE liste, celle des gestes de la carte (domaine/missions/bloc.ts). */
+const CIBLES: Record<ActionMission, readonly string[]> = ETATS_DU_GESTE;
 const QUOI: Record<ActionMission, string> = { pause: "à mettre en pause", reprendre: "à reprendre", arreter: "à arrêter", renommer: "à renommer" };
 
 export type ResultatPilotage =
