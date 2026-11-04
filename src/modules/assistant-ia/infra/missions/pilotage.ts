@@ -6,9 +6,9 @@ import {
 } from "../../domaine/missions/pilotage";
 import { LIBELLE_MISSION } from "../../domaine/sous-missions";
 import { etatDesExecutants } from "./executants";
+import { sansBloquer } from "@/lib/journal";
 import { lienDeMission, projeterMission } from "../../domaine/observation/projecteurs";
 import { dureeLisible, type Observation } from "../../domaine/observation/contrat";
-import { sansBloquer } from "@/lib/journal";
 
 export { etatDesExecutants };
 
@@ -144,17 +144,16 @@ export function outilsMissions(user: CurrentUser): PowerTool[] {
         const maintenant = new Date();
         const r = await mesMissions(user.id, { toutes: e.toutes === true, maintenant });
         const parId = new Map(r.tableau.map((t) => [t.id, t]));
-        // I1 (étape 3) : des faits datés et un LIEN par mission ; P1 ter : ce que le balayage en fera.
+        // I1 (étape 3) : des faits datés et un LIEN par mission ; P1 ter : l'observation du moteur (le balayage la prendra-t-il).
         return json({
           missions: r.missions.map((m) => ({
             id: m.id, titre: m.titre, lien: lienDeMission(m.id), etat: m.libelle, etapes: `${m.etapes.faites}/${m.etapes.total}`, coutUsd: m.coutUsd,
             ou_elle_en_est: m.diagnostic.phrase, derniere_activite: `il y a ${dureeLisible(Math.max(0, maintenant.getTime() - Date.parse(m.majLe)))}`,
-            // P1 ter — L'OBSERVATION DU MOTEUR : le prochain balayage la prendra-t-il (sa requête même), et sinon pourquoi.
             pris_par_le_balayage: !r.candidates ? "non vérifié" : r.candidates.has(m.id) ? "oui" : `non — ${m.diagnostic.phrase.replace(/^pas prise par le balayage des travaux : /, "")}`,
             etape_suivante: parId.get(m.id)?.etapes.find((x) => x.etat !== "FAITE" && x.etat !== "ECARTEE")?.titre ?? "aucune (toutes faites)",
             ...(m.parentId ? { sous_mission_de: m.parentId } : {}),
           })),
-          dernier_balayage: phraseDernierBalayage(r.executants, Date.now()),
+          dernier_balayage: phraseDernierBalayage(r.executants, maintenant.getTime()),
           total: r.missions.length,
           ...(r.alerte ? { alerte: r.alerte } : {}),
           _observations: r.missions.map((m) => observationDeMission(m, maintenant)),

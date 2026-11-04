@@ -7,11 +7,9 @@ const il = (min: number) => new Date(T0 - min * 60_000).toISOString();
 
 describe("P1 ter — la VÉRITÉ SUR L'EXÉCUTANT (Direction, 03/11)", () => {
   const mission = { etat: "EN_COURS", motifPause: null, attente: null, etapes: [], majLe: il(1) };
-  it("« prête : part au prochain battement (moins d'une minute) » SEULEMENT si un passage effectif a eu lieu dans les 3 dernières minutes", () => {
-    // Fusion I3 (P1 ter × I1) : la prévision n'est dite que si la candidature est OBSERVÉE (`candidate: true`) ; inconnue → le fait daté d'I1.
-    expect(diagnostiquerMission({ ...mission, candidate: true }, { dernierPassage: il(1), workerVu: null }, T0).phrase).toContain("moins d'une minute");
-    expect(diagnostiquerMission({ ...mission, candidate: true }, { dernierPassage: il(4), workerVu: null }, T0).phrase).not.toContain("moins d'une minute");
-    expect(diagnostiquerMission(mission, { dernierPassage: il(1), workerVu: null }, T0).phrase).not.toContain("moins d'une minute");
+  it("« prête » (fait daté, jamais une prévision — I1, 0063) SEULEMENT si un passage effectif a eu lieu dans les 3 dernières minutes", () => {
+    expect(diagnostiquerMission(mission, { dernierPassage: il(1), workerVu: null }, T0).phrase).toMatch(/^prête, .* dernière activité il y a/);
+    expect(diagnostiquerMission(mission, { dernierPassage: il(4), workerVu: null }, T0).phrase).not.toMatch(/^prête/);
   });
   it("un balayage DÉBRAYÉ (TRAVAUX_SWEEP=off) dit la vraie raison — pas « aucun battement »", () => {
     const s = silenceDesExecutants({ dernierPassage: null, workerVu: null, balayageVu: il(1), raisonIgnore: "TRAVAUX_SWEEP=off" }, T0);
@@ -28,9 +26,9 @@ describe("P1 ter — la VÉRITÉ SUR L'EXÉCUTANT (Direction, 03/11)", () => {
   });
   it("une mission que le balayage NE PRENDRA PAS n'est jamais « prête », même exécutant vivant : la raison est dite", () => {
     const d = diagnostiquerMission({ ...mission, candidate: false, raisonNonCandidate: "aucune étape n'est prête à partir (dépendances non satisfaites)" }, { dernierPassage: il(1), workerVu: il(1) }, T0);
-    expect(d.phrase).not.toContain("moins d'une minute");
+    expect(d.phrase).not.toMatch(/^prête/);
     expect(d.phrase).toContain("pas prise par le balayage");
-    expect(diagnostiquerMission({ ...mission, candidate: true }, { dernierPassage: il(1), workerVu: il(1) }, T0).phrase).toContain("moins d'une minute");
+    expect(diagnostiquerMission({ ...mission, candidate: true }, { dernierPassage: il(1), workerVu: il(1) }, T0).phrase).toMatch(/^prête/);
   });
   it("le dernier balayage se dit : qui, quand, bilan", () => {
     expect(phraseDernierBalayage({ dernierPassage: il(2), workerVu: il(2), dernierBalayage: { qui: "worker", quand: il(2), statut: "OK", bilan: "examinés 3, conduits 3" } }, T0)).toBe("par le worker il y a 2 min — examinés 3, conduits 3");
