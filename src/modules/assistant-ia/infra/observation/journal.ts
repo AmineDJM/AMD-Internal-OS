@@ -4,6 +4,7 @@ import type { PropositionCarte } from "../operations";
 import type { MemoireProposee } from "../../domaine/memoire-ui";
 import { dedoublonner, lireObservations, texteDObservation, type Observation } from "../../domaine/observation/contrat";
 import { lectureDeSortie, projeterCarte, projeterFichier } from "../../domaine/observation/projecteurs";
+import type { GesteObserve } from "../../domaine/observation/controle-final";
 import { observationActive } from "./interrupteurs";
 
 /**
@@ -49,6 +50,13 @@ export class JournalDuTour {
   readonly blocsCalcules: WorkspaceBlock[] = [];
   /** K3 : les sous-missions lancées pendant le tour. */
   readonly travauxLances: string[] = [];
+  /**
+   * I5 (décision 0069) : CHAQUE geste du tour (outil, statut de sa sortie, échec) et TOUTES les sorties telles que le modèle
+   * les a lues — le contrôle final y confronte le message (« je n'ai pas trouvé » alors qu'une lecture a été tentée, un
+   * chiffre qu'aucune sortie ne rend). Lecture seule : rien ne change pour les autres lecteurs du journal.
+   */
+  readonly gestes: GesteObserve[] = [];
+  readonly toutesLesSorties: string[] = [];
   private readonly echecs = new Set<string>();
   private readonly obs: Observation[] = [];
   private profondeur = 0;
@@ -84,6 +92,8 @@ export class JournalDuTour {
         const lue = json(sortie);
         const statut = typeof lue?.statut === "string" ? lue.statut.toUpperCase() : null;
         if (statut && STATUTS_ECHEC.has(statut)) this.echecs.add(o.def.name);
+        this.gestes.push({ outil: o.def.name, libelle: o.label, statut, echec: !!statut && STATUTS_ECHEC.has(statut), lignes: typeof lue?.total === "number" ? lue.total : null, entree });
+        this.toutesLesSorties.push(sortie);
         if (!observationActive()) return sortie;
         // 1. Les observations DÉCLARÉES par le producteur — reprises, puis retirées de ce que lit le modèle.
         if (lue && CLE_DECLAREES in lue) {

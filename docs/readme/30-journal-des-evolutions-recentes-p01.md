@@ -1,5 +1,14 @@
 ## 🧾 Journal des évolutions récentes
 
+### I5 — LE CONTRÔLE FINAL : ADAM SE REND COMPTE À LA PREMIÈRE ERREUR (2026-11-04)
+
+Décision [0069](../assistant/decisions/0069-controle-final.md). Après chaque tour, avant d'afficher et de stocker, chaque
+affirmation du message (envoyé, fait, préparé, rendu du mail, chiffre, fichier, état de mission, prévision, « je n'ai pas
+trouvé ») est confrontée aux OBSERVATIONS du tour : confirmée, contredite ou non observée. Un écart ⇒ le tour est rejoué UNE
+fois, l'écart dit comme un fait ; s'il récidive, la phrase est remplacée par le fait observé, marquée. Une lecture vide est
+relue sans ses filtres. Les anciennes gardes par mots sont masquées (`ADAM_CONTROLE_FINAL=0` les rend). Bancs :
+`controle-final-i5.test.ts` (6 cas réels, faux avant / juste après), `scripts/bench/i5-controle-final/rejouer.ts`.
+
 ### C1 — LES CARTES À VALIDER NE DISPARAISSENT PLUS (2026-11-04)
 
 Décision [0068](../assistant/decisions/0068-cartes-persistantes.md). Reproduit en vrai navigateur (vrai modèle, base

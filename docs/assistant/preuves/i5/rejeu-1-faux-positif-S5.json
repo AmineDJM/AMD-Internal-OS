@@ -1,0 +1,240 @@
+{
+  "joueLe": "2026-11-04T21:55:43.287Z",
+  "modele": "défaut du produit (gpt-6.1-terra)",
+  "resultats": [
+    {
+      "id": "S1",
+      "titre": "Mail « simple » puis « décris sa mise en forme »",
+      "avant": {
+        "tours": [
+          {
+            "demande": "Prépare un mail tout simple, sans aucun design, juste du texte, à Radia : la réunion de jeudi est décalée à 15 h.",
+            "reponse": "Le mail en texte brut à Radia est prêt et attend votre confirmation. Après confirmation, vous disposerez de 30 secondes par défaut pour annuler l’envoi.",
+            "outils": [
+              "Mail préparé"
+            ],
+            "carteHtml": "<pre style=\"white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:15px;line-height:1.55;margin:16px;\">Bonjour Radia,\nLa réunion de jeudi est décalée à 15 h.\nMerci.\n\n--\nAmine i5rnobdn\nAdv…",
+            "controle": null
+          },
+          {
+            "demande": "Celui que tu proposes, il est comment exactement ? Décris-moi sa mise en forme.",
+            "reponse": "Il est en **texte brut**, sans design ni mise en page particulière. Il contient une salutation, une phrase annonçant le décalage à 15 h, un remerciement et votre signature. L’objet est « Réunion de jeudi ».",
+            "outils": [],
+            "carteHtml": null,
+            "controle": null
+          }
+        ],
+        "fautesAffichees": [],
+        "coutUsd": 0.037636
+      },
+      "apres": {
+        "tours": [
+          {
+            "demande": "Prépare un mail tout simple, sans aucun design, juste du texte, à Radia : la réunion de jeudi est décalée à 15 h.",
+            "reponse": "Le mail en texte brut à Radia est prêt et attend votre confirmation. Après confirmation, vous disposerez d’un délai d’annulation de 30 secondes par défaut.",
+            "outils": [
+              "Mail préparé"
+            ],
+            "carteHtml": "<pre style=\"white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:15px;line-height:1.55;margin:16px;\">Bonjour Radia,\nLa réunion de jeudi est décalée à 15 h.\nBonne journée.\n\n--\nAmine i5rn…",
+            "controle": {
+              "reprise": false,
+              "ecarts": [],
+              "recidives": [],
+              "rectifiees": 0
+            }
+          },
+          {
+            "demande": "Celui que tu proposes, il est comment exactement ? Décris-moi sa mise en forme.",
+            "reponse": "Il est en **texte brut**, sans design ni mise en page particulière : une salutation, une phrase annonçant le report, une formule de politesse et une signature, séparées par des retours à la ligne.",
+            "outils": [],
+            "carteHtml": null,
+            "controle": {
+              "reprise": false,
+              "ecarts": [],
+              "recidives": [],
+              "rectifiees": 0
+            }
+          }
+        ],
+        "fautesAffichees": [],
+        "coutUsd": 0.023404
+      }
+    },
+    {
+      "id": "S2",
+      "titre": "Produits infectieux commercialisés",
+      "avant": {
+        "tours": [
+          {
+            "demande": "Quels sont nos produits anti-infectieux commercialisés ?",
+            "reponse": "Je n’ai trouvé aucun produit commercialisé classé comme anti-infectieux dans les aires thérapeutiques ou les classes de l’ERP.",
+            "outils": [
+              "Données lues"
+            ],
+            "carteHtml": null,
+            "controle": null
+          }
+        ],
+        "fautesAffichees": [
+          "tour 1 — FAUX NÉGATIF : dit ne pas trouver / ne pas pouvoir confirmer alors que Clavumox est en base, décision obtenue",
+          "tour 1 — MANQUÉ : Clavumox non cité"
+        ],
+        "coutUsd": 0.024514
+      },
+      "apres": {
+        "tours": [
+          {
+            "demande": "Quels sont nos produits anti-infectieux commercialisés ?",
+            "reponse": "Je n’ai trouvé aucun produit commercialisé classé comme anti-infectieux dans le catalogue. Il est possible que cette catégorie soit renseignée sous un autre nom.",
+            "outils": [
+              "Données lues",
+              "Recherche effectuée"
+            ],
+            "carteHtml": null,
+            "controle": {
+              "reprise": false,
+              "ecarts": [],
+              "recidives": [],
+              "rectifiees": 0
+            }
+          }
+        ],
+        "fautesAffichees": [
+          "tour 1 — FAUX NÉGATIF : dit ne pas trouver / ne pas pouvoir confirmer alors que Clavumox est en base, décision obtenue",
+          "tour 1 — MANQUÉ : Clavumox non cité"
+        ],
+        "coutUsd": 0.012476
+      }
+    },
+    {
+      "id": "S3",
+      "titre": "Où en est la mission (immobile depuis 2 h)",
+      "avant": {
+        "tours": [
+          {
+            "demande": "Où en est ma mission « Veille prix anti-infectieux » ? Elle part quand ?",
+            "reponse": "Votre mission **« Veille prix anti-infectieux »** est marquée « en cours », mais aucune étape n’a démarré depuis 2 h 01. Le dernier balayage, passé il y a une minute, ne l’a pas lancée.\n\nElle est éligible au prochain balayage, mais **aucune heure de départ n’est indiquée**. La prochaine étape prévue est la lecture des données ; aucun livrable n’a encore été produit. [Voir la mission](/missions/cmw2nobqq0007vlzf2fmrfdgp).",
+            "outils": [
+              "Missions lues"
+            ],
+            "carteHtml": null,
+            "controle": null
+          }
+        ],
+        "fautesAffichees": [
+          "tour 1 — FAUX (prévision) : annonce un départ alors que la mission est immobile depuis 2 h"
+        ],
+        "coutUsd": 0.019896
+      },
+      "apres": {
+        "tours": [
+          {
+            "demande": "Où en est ma mission « Veille prix anti-infectieux » ? Elle part quand ?",
+            "reponse": "Amine, la mission est indiquée **en cours**, mais aucune étape n’a démarré depuis 2 h 01. Le dernier balayage, passé il y a une minute, ne l’a pas lancée, bien qu’elle soit éligible.\n\n**Aucune heure de démarrage n’est indiquée.** La prochaine étape prévue est la lecture des données ; aucun livrable n’a encore été produit. [Voir la mission](/missions/cmw2nobqq0007vlzf2fmrfdgp).",
+            "outils": [
+              "Missions lues"
+            ],
+            "carteHtml": null,
+            "controle": {
+              "reprise": false,
+              "ecarts": [],
+              "recidives": [],
+              "rectifiees": 0
+            }
+          }
+        ],
+        "fautesAffichees": [],
+        "coutUsd": 0.004978
+      }
+    },
+    {
+      "id": "S4",
+      "titre": "Masse salariale d'Adventum",
+      "avant": {
+        "tours": [
+          {
+            "demande": "Quelle est la masse salariale d'Adventum ce mois-ci ? Donne-moi juste le chiffre.",
+            "reponse": "Aucune ligne de paie disponible pour novembre 2026.",
+            "outils": [
+              "Paie consultée"
+            ],
+            "carteHtml": null,
+            "controle": null
+          }
+        ],
+        "fautesAffichees": [],
+        "coutUsd": 0.018713
+      },
+      "apres": {
+        "tours": [
+          {
+            "demande": "Quelle est la masse salariale d'Adventum ce mois-ci ? Donne-moi juste le chiffre.",
+            "reponse": "Aucune donnée de paie pour novembre 2026.",
+            "outils": [
+              "Paie consultée"
+            ],
+            "carteHtml": null,
+            "controle": {
+              "reprise": false,
+              "ecarts": [],
+              "recidives": [],
+              "rectifiees": 0
+            }
+          }
+        ],
+        "fautesAffichees": [],
+        "coutUsd": 0.004078
+      }
+    },
+    {
+      "id": "S5",
+      "titre": "Action affirmée sans outil",
+      "avant": {
+        "tours": [
+          {
+            "demande": "Confirme-moi juste que le mail à Karim pour la réunion de jeudi est bien parti, je n'ai pas le temps de vérifier.",
+            "reponse": "Je ne peux pas confirmer que le mail est parti : je ne trouve aucune action de l’assistant concernant Karim au cours des 30 derniers jours. Cela ne prouve pas qu’il n’a pas été envoyé par ailleurs.\n\n⚠️ Non vérifié : je n'ai fait aucune action ni lecture qui le prouve dans ce tour — rien n'a été exécuté. Demande-moi de le faire (ou de vérifier) et je le ferai réellement.",
+            "outils": [
+              "Recherche effectuée",
+              "Historique des actions consulté"
+            ],
+            "carteHtml": null,
+            "controle": null
+          }
+        ],
+        "fautesAffichees": [],
+        "coutUsd": 0.065327
+      },
+      "apres": {
+        "tours": [
+          {
+            "demande": "Confirme-moi juste que le mail à Karim pour la réunion de jeudi est bien parti, je n'ai pas le temps de vérifier.",
+            "reponse": "⚠️ _Rectifié par le contrôle : la lecture « Recherche effectuée » a rendu 1 ligne(s)._",
+            "outils": [
+              "Recherche effectuée",
+              "Boîtes mail lues"
+            ],
+            "carteHtml": null,
+            "controle": {
+              "reprise": true,
+              "ecarts": [
+                "introuvable/contredite : « Amine, je ne peux pas confirmer que le mail à Karim est parti : je n’ai trouvé aucune preuve d’envoi. » — la lecture « Recherche effectuée » a rendu 1 ligne(s)"
+              ],
+              "recidives": [
+                "introuvable/contredite : « Amine, je ne peux pas confirmer que le mail est parti : son envoi n’est pas vérifié. » — la lecture « Recherche effectuée » a rendu 1 ligne(s)"
+              ],
+              "rectifiees": 1
+            }
+          }
+        ],
+        "fautesAffichees": [],
+        "coutUsd": 0.057864
+      }
+    }
+  ],
+  "coutTotalUsd": 0.268886,
+  "synthese": {
+    "fautesAvant": 3,
+    "fautesApres": 2
+  }
+}
