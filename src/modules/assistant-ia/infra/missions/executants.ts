@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { lireInterrupteurMissions, phraseSuspension } from "@/lib/interrupteurs/missions";
+import { sansBloquer } from "@/lib/journal";
+import { lireInterrupteurMissions, phraseSuspension } from "../travaux";
 import { silenceDesExecutants, type EtatDesExecutants } from "../../domaine/missions/pilotage";
 
 /**
@@ -12,7 +13,7 @@ export async function etatDesExecutants(): Promise<EtatDesExecutants & { execute
   const [b, w, interrupteur] = await Promise.all([
     prisma.tacheDeFond.findUnique({ where: { cle: "travaux.balayage" }, select: { dernierDebutA: true, dernierStatut: true, dernierMessage: true, executeur: true } }),
     prisma.tacheDeFond.findFirst({ where: { executeur: "worker", dernierDebutA: { not: null } }, orderBy: { dernierDebutA: "desc" }, select: { dernierDebutA: true } }),
-    lireInterrupteurMissions().catch(() => null),
+    lireInterrupteurMissions().catch(sansBloquer("missions.executants.interrupteur", null)),
   ]);
   const workerVu = w?.dernierDebutA?.toISOString() ?? null;
   // Un passage « ignoré » n'a rien conduit : s'il s'est abstenu parce que le worker conduit, c'est le worker qui compte.
