@@ -34,4 +34,12 @@ describe("P1 ter — la VÉRITÉ SUR L'EXÉCUTANT (Direction, 03/11)", () => {
     expect(phraseDernierBalayage({ dernierPassage: il(2), workerVu: il(2), dernierBalayage: { qui: "worker", quand: il(2), statut: "OK", bilan: "examinés 3, conduits 3" } }, T0)).toBe("par le worker il y a 2 min — examinés 3, conduits 3");
     expect(phraseDernierBalayage({ dernierPassage: null, workerVu: null, dernierBalayage: null }, T0)).toContain("aucun balayage");
   });
+  it("04/11 — l'interrupteur global posé : une mission vivante se dit SUSPENDUE (avec le remède), jamais « prête »", () => {
+    const ex = { dernierPassage: il(1), workerVu: il(1), suspension: "Les missions d'Adam sont suspendues par la direction : … (/adam/reglages)" };
+    const d = diagnostiquerMission({ ...mission, candidate: true }, ex, T0);
+    expect(d.code).toBe("SUSPENDUE");
+    expect(d.phrase).toContain("/adam/reglages");
+    // Une mission finie reste finie, suspension ou pas.
+    expect(diagnostiquerMission({ ...mission, etat: "TERMINE" }, ex, T0).code).toBe("FINIE");
+  });
 });

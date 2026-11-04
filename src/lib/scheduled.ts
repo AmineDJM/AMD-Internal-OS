@@ -437,7 +437,11 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     const r = await balayerTravaux({ personas: { ASSISTANT_IA: PERSONA_ASSISTANT_IA }, mode: lireModeTachesDeFond(), executeur: executeurDuProcessus() });
     if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
     // P1 ter : le bilan du passage, lu par le diagnostic des missions (« examinés 3, conduits 3 »).
-    return bilan(`examinés ${r.examines}, conduits ${r.conduits.length}${r.conduits.some((c) => c.echouees) ? `, étapes en échec ${r.conduits.reduce((n, c) => n + c.echouees, 0)}` : ""}`);
+    // 04/11 : un travail rendu sans rien toucher (interrupteur global, bail tenu ailleurs) n'est pas « conduit » — le dire.
+    const suspendus = r.conduits.filter((c) => c.arret === "INTERRUPTEUR").length;
+    const bails = r.conduits.filter((c) => c.arret === "BAIL").length;
+    const conduits = r.conduits.length - suspendus - bails;
+    return bilan(`examinés ${r.examines}, conduits ${conduits}${suspendus ? `, suspendus ${suspendus} (missions d'Adam suspendues — /adam/reglages)` : ""}${bails ? `, tenus ailleurs ${bails}` : ""}${r.conduits.some((c) => c.echouees) ? `, étapes en échec ${r.conduits.reduce((n, c) => n + c.echouees, 0)}` : ""}`);
   } },
 
   // LES CHANTIERS DE DÉVELOPPEMENT (C1, décision 0042) — le même moteur conduit Claude Code, GitHub et Render pour le

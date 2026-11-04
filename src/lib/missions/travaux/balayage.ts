@@ -174,3 +174,5 @@ export async function pointsQuotidiens(maintenant = new Date(), limite = 20): Pr
   return n;
 }
 
+/** L'interrupteur global, tel que la porte des travaux le donne au module (diagnostic « suspendue », 04/11). */
+export { lireInterrupteurMissions, phraseSuspension } from "@/lib/interrupteurs/missions";

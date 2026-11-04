@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
+import { lireInterrupteurMissions, phraseSuspension } from "../travaux";
 import { silenceDesExecutants, type EtatDesExecutants } from "../../domaine/missions/pilotage";
 
 /**
@@ -8,9 +10,10 @@ import { silenceDesExecutants, type EtatDesExecutants } from "../../domaine/miss
  */
 /** Qui conduit les travaux en ce moment — le dernier passage EFFECTIF du balayage, et le dernier battement du worker. */
 export async function etatDesExecutants(): Promise<EtatDesExecutants & { executeur: string | null }> {
-  const [b, w] = await Promise.all([
+  const [b, w, interrupteur] = await Promise.all([
     prisma.tacheDeFond.findUnique({ where: { cle: "travaux.balayage" }, select: { dernierDebutA: true, dernierStatut: true, dernierMessage: true, executeur: true } }),
     prisma.tacheDeFond.findFirst({ where: { executeur: "worker", dernierDebutA: { not: null } }, orderBy: { dernierDebutA: "desc" }, select: { dernierDebutA: true } }),
+    lireInterrupteurMissions().catch(sansBloquer("missions.executants.interrupteur", null)),
   ]);
   const workerVu = w?.dernierDebutA?.toISOString() ?? null;
   // Un passage « ignoré » n'a rien conduit : s'il s'est abstenu parce que le worker conduit, c'est le worker qui compte.
@@ -21,6 +24,7 @@ export async function etatDesExecutants(): Promise<EtatDesExecutants & { execute
   // P1 ter : le passage ignoré et SA RAISON — un balayage débrayé (TRAVAUX_SWEEP=off) n'est pas « aucun battement ».
   return {
     dernierPassage, workerVu, balayageVu: b?.dernierDebutA?.toISOString() ?? null, raisonIgnore: ignore ? (b?.dernierMessage ?? "passage ignoré") : null, executeur: b?.executeur ?? null,
+    suspension: interrupteur?.suspendues ? phraseSuspension(interrupteur) : null,
     dernierBalayage: b ? { qui: b.executeur, quand: b.dernierDebutA?.toISOString() ?? null, statut: b.dernierStatut, bilan: b.dernierMessage } : null,
   };
 }
