@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { Check, X, ShieldAlert, CheckCircle2, ArrowUpRight, Loader2, FlaskConical, PencilLine, AlertTriangle } from "lucide-react";
 import { champsCorriges, saisiesInitiales, verifierFormulaire, type FormulaireCarte, type Saisie, type Saisies } from "@/platform/ia/capacites/formulaire";
 import { texteARessaisir } from "../domaine/capacites";
-import { chercherReferenceCarteAssistantIA } from "../actions";
+import { chercherReferenceCarteAssistantIA, ignorerIntentionAssistantIA } from "../actions";
 import { FormulaireCarteCapacite } from "./formulaire-carte";
 import { PanneauLateral } from "./panneau-lateral";
 import { apercuChamps, avertissementsUniques, etatSimulationAffiche, libelleLienResultat, libelleOuverture, separerChampsLongs } from "../domaine/ui/carte-action";
@@ -25,15 +25,25 @@ export interface ActionIntentCardProps {
   libelleBouton?: string;
   /** J7 : ce que la simulation (transaction annulée) a réellement écrit — ou « non simulable », dit. */
   simulation?: VueSimulation;
-  initialStatus?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
+  initialStatus?: StatutCarteAffichee;
   resultLink?: string;
   resultMessage?: string;
+  /**
+   * C1 (décision 0068) : pourquoi la carte n'attend plus — « ignorée », « remplacée par … », « expirée », « échec » —, lu
+   * dans le journal de l'intention par le serveur. Dit À LA PLACE des boutons : une carte ne disparaît plus en silence.
+   */
+  motif?: string;
+  /** « Ignorer » : par défaut, l'intention passe CANCELLED en base (elle ne revient pas au rechargement). */
+  onIgnorer?: (intentId: string) => Promise<{ ok: boolean; error?: string }>;
   /** J11 (décision 0030) : le formulaire généré depuis le contrat — la personne corrige, puis signe. */
   formulaire?: FormulaireCarte;
   /** P1 (décision 0047) : l'APERÇU RÉEL des mails (le rendu du gabarit, celui qui part) — affiché isolé (iframe sans script). */
   apercus?: { titre: string; html: string }[];
   onConfirm: (intentId: string, confirmTyped?: string, corrections?: Record<string, unknown>) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
 }
+
+/** Les états qu'une carte peut afficher — ceux de la table des intentions. */
+export type StatutCarteAffichee = "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED" | "FAILED" | "EXPIRED";
 
 export function ActionConfirmationCard({
   intentId,
@@ -51,8 +61,15 @@ export function ActionConfirmationCard({
   formulaire,
   apercus = [],
   onConfirm,
+  motif,
+  onIgnorer = ignorerIntentionAssistantIA,
 }: ActionIntentCardProps) {
-  const [status, setStatus] = useState(initialStatus);
+  const [status, setStatus] = useState<StatutCarteAffichee>(initialStatus);
+  // C1 : L'ÉTAT SUIT LE SERVEUR. La carte relue (lecture du fil) peut avoir changé d'état ailleurs — exécutée depuis la
+  // voix, retirée, expirée : l'écran le reprend, au lieu de garder des boutons que le serveur refuserait.
+  useEffect(() => { setStatus(initialStatus); }, [initialStatus]);
+  // Une carte ÉCHOUÉE se retente (le serveur l'autorise : FAILED → EXECUTING) ; ses boutons restent, la raison est dite.
+  const aSigner = status === "PROPOSED" || status === "FAILED";
   const [isPending, setIsPending] = useState(false);
   const [message, setMessage] = useState(resultMessage || "");
   const [link, setLink] = useState(resultLink || "");
@@ -85,7 +102,7 @@ export function ActionConfirmationCard({
   );
   const avertissements = useMemo(() => avertissementsUniques(warnings, [simulation?.resume]), [warnings, simulation?.resume]);
   const etatSimulation = etatSimulationAffiche(simulation?.statut, manquants.length);
-  const compacte = !!formulaire && status === "PROPOSED";
+  const compacte = !!formulaire && aSigner;
   const fermerPanneau = useCallback(() => setPanneau(false), []);
   const focaliser = useCallback((nom: string) => {
     zone.current?.querySelector<HTMLElement>(`[data-champ="${CSS.escape(nom)}"] input, [data-champ="${CSS.escape(nom)}"] select, [data-champ="${CSS.escape(nom)}"] textarea`)?.focus();
@@ -125,9 +142,17 @@ export function ActionConfirmationCard({
     }
   };
 
-  const handleCancel = () => {
-    setStatus("CANCELLED");
-    setPanneau(false);
+  const handleCancel = async () => {
+    setIsPending(true);
+    setError(null);
+    try {
+      const r = await onIgnorer(intentId);
+      if (r.ok) { setStatus("CANCELLED"); setPanneau(false); } else setError(r.error ?? "La carte n'a pas pu être ignorée.");
+    } catch {
+      setError("La connexion a été interrompue. Réessayez dans un instant.");
+    } finally {
+      setIsPending(false);
+    }
   };
 
   const boutonSigner = (
@@ -173,9 +198,9 @@ export function ActionConfirmationCard({
       />
     </label>
   );
-  const blocErreur = error && (
+  const blocErreur = (error || (status === "FAILED" && motif)) && (
     <p role="alert" className="mt-2 rounded-lg bg-destructive/10 p-2 text-xs font-medium text-destructive">
-      {error}
+      {error || motif}
     </p>
   );
 
@@ -185,7 +210,7 @@ export function ActionConfirmationCard({
     return (
       <div
         data-glass="true"
-        data-testid="carte-action-compacte"
+        data-testid="carte-action-compacte" data-intent={intentId} data-statut={status}
         className="my-3 overflow-hidden rounded-2xl border border-white/60 bg-white/80 p-3.5 shadow-lg backdrop-blur-xl dark:border-white/10 dark:bg-zinc-900/80"
       >
         <div className="flex items-start gap-2.5">
@@ -274,7 +299,7 @@ export function ActionConfirmationCard({
 
   return (
     <div
-      data-glass="true"
+      data-glass="true" data-testid="carte-action" data-intent={intentId} data-statut={status}
       className="my-3 overflow-hidden rounded-2xl border border-white/60 bg-white/80 p-4 shadow-xl backdrop-blur-xl transition-all dark:border-white/10 dark:bg-zinc-900/80"
     >
       {/* En-tête de la carte de confirmation */}
@@ -333,7 +358,7 @@ export function ActionConfirmationCard({
       )}
 
       {/* P1 — L'APERÇU RÉEL de chaque mail : le HTML que le gabarit a rendu côté serveur, isolé (aucun script, aucun lien actif). */}
-      {apercus.length > 0 && status === "PROPOSED" && (
+      {apercus.length > 0 && aSigner && (
         <div className="mt-3 flex flex-col gap-2" data-testid="apercus-mail">
           {apercus.map((a, i) => (
             <details key={i} open={i === 0} className="rounded-xl border border-zinc-200 dark:border-zinc-800">
@@ -346,20 +371,20 @@ export function ActionConfirmationCard({
       )}
 
       {/* J7 — CE QUE LA SIMULATION A ÉCRIT, à côté des champs proposés : le diff réel, ou « non simulable ». */}
-      {simulation && status === "PROPOSED" && <BlocSimulation simulation={simulation} />}
+      {simulation && aSigner && <BlocSimulation simulation={simulation} />}
 
       {/* À SAVOIR AVANT DE CONFIRMER — doublon possible, seuil, pièce, budget. */}
-      {status === "PROPOSED" && blocAvertissements}
+      {aSigner && blocAvertissements}
 
       {/* CONFIRMATION FORTE : la valeur se ressaisit, le serveur la revérifie. */}
-      {status === "PROPOSED" && blocRessaisie}
+      {aSigner && blocRessaisie}
 
       {/* Message d'erreur s'il y a lieu */}
       {blocErreur}
 
       {/* Pied de carte avec actions selon l'état */}
       <div className="mt-4 flex items-center justify-between gap-3 pt-1">
-        {status === "PROPOSED" && (
+        {aSigner && (
           <>
             {boutonIgnorer}
             {boutonSigner}
@@ -384,9 +409,14 @@ export function ActionConfirmationCard({
           </div>
         )}
 
-        {status === "CANCELLED" && (
-          <span className="text-xs font-medium text-zinc-400 dark:text-zinc-500">
-            Action ignorée — aucun changement enregistré.
+        {(status === "CANCELLED" || status === "EXPIRED") && (
+          <span data-testid="carte-motif" className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            {motif ?? (status === "EXPIRED" ? "Carte expirée — rien n'a été exécuté." : "Carte ignorée — rien n'a été exécuté.")}
+          </span>
+        )}
+        {(status === "CONFIRMED" || status === "EXECUTING") && (
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Exécution en cours…
           </span>
         )}
       </div>

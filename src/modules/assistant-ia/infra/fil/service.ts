@@ -22,6 +22,8 @@ import { sectionDossierDuTour } from "../conversations/dossiers";
 import { sectionAttentesDuTour } from "../canaux/section";
 import { titreProvisoire } from "../../domaine/conversations";
 import { lireVueSimulation } from "../../domaine/simulation";
+import { cartesDuFil, rattacherCartes } from "@/platform/ia/intentions/action-intents";
+import { motifDeLaCarte } from "@/platform/ia/intentions/etat-carte";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -160,19 +162,34 @@ export async function lireFil(userId: string, limite = 80, conversation?: string
     orderBy: { createdAt: "desc" },
     take: limite,
   }));
-  // L'état d'une carte vit sur l'intention (confirmée, exécutée…), pas sur le tour qui l'a proposée.
-  const ids = tours.map((t) => (t.intent as { id?: string } | null)?.id).filter((x): x is string => !!x);
-  const intents = ids.length
-    ? await prisma.assistantActionIntent.findMany({ where: { id: { in: ids }, userId }, select: { id: true, status: true, resultLink: true, resultMessage: true, payload: true } })
-    : [];
-  const parId = new Map(intents.map((i) => [i.id, i]));
+  /**
+   * C1 (décision 0068) — LES CARTES VIENNENT DE LA TABLE DES INTENTIONS, TOUTES : chaque réponse montre les cartes qui lui
+   * sont rattachées (plusieurs par tour si besoin), dans leur état canonique, avec la raison quand elles n'attendent plus.
+   * Un tour d'avant C1 garde sa carte unique (`intent` du tour), relue à la même source pour son état.
+   */
+  const heritees = tours.map((t) => (t.intent as { id?: string } | null)?.id).filter((x): x is string => !!x);
+  const { cartes, expirationH } = await cartesDuFil(userId, fil.id, heritees);
+  const idsDesTours = new Set(tours.map((t) => t.id));
+  const parTour = new Map<string, typeof cartes>();
+  for (const c of cartes) if (c.tourId && idsDesTours.has(c.tourId)) parTour.set(c.tourId, [...(parTour.get(c.tourId) ?? []), c]);
+  const parId = new Map(cartes.map((c) => [c.id, c]));
+  const vue = (c: (typeof cartes)[number], affichee: unknown) => {
+    // J7 : une carte REMONTRÉE (la simulation rejouée a changé) montre son nouveau diff, pas celui du tour.
+    const simulation = lireVueSimulation((c.payload as { simulation?: unknown } | null)?.simulation);
+    const motif = motifDeLaCarte(c.status, c.events, { expirationH, erreur: c.error });
+    const base = affichee && typeof affichee === "object" ? (affichee as Record<string, unknown>) : { kind: c.kind, title: c.title };
+    return {
+      ...base, id: c.id, status: c.status, resultLink: c.resultLink ?? undefined, resultMessage: c.resultMessage ?? undefined,
+      ...(simulation ? { simulation } : {}), ...(motif ? { motif } : {}),
+    };
+  };
   return {
     tours: tours.map((t) => {
       const i = t.intent as { id?: string } | null;
-      const etat = i?.id ? parId.get(i.id) : undefined;
-      // J7 : une carte REMONTRÉE (la simulation rejouée a changé) montre son nouveau diff, pas celui du tour.
-      const simulation = lireVueSimulation((etat?.payload as { simulation?: unknown } | null)?.simulation);
-      return etat ? { ...t, intent: { ...i, status: etat.status, resultLink: etat.resultLink ?? undefined, resultMessage: etat.resultMessage ?? undefined, ...(simulation ? { simulation } : {}) } } : t;
+      const rattachees = parTour.get(t.id) ?? [];
+      const heritee = i?.id && !rattachees.some((c) => c.id === i.id) ? parId.get(i.id) : undefined;
+      const intents = [...(heritee ? [vue(heritee, i)] : []), ...rattachees.map((c) => vue(c, c.carte ?? (c.id === i?.id ? i : null)))];
+      return { ...t, intent: intents[0] ?? (i ?? null), intents };
     }),
     // M1 : une capture de mémoire en cours garde l'écran attentif (la ligne « Retenu : … » arrive sans recharger).
     enCours: tours.some((t) => t.etat === ETAT.ATTENTE || t.etat === ETAT.COURS
@@ -395,6 +412,9 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     // K3 (décision 0033) : les sous-missions sans geste du tour démarrent d'office (réglage relu) AVANT que la réponse
     // s'affiche — la carte ne montre jamais, le temps d'un battement, un « Approuver » qui n'a plus lieu d'être.
     if (r.travaux.length) await demarrerLesSousMissions(user, r.travaux).catch(sansBloquer("fil-service.demarrerLesSousMissions"));
+    // C1 (décision 0068) : chaque carte du tour rattachée à SA conversation et à SA réponse, avec ce qu'elle affiche — la
+    // table des intentions devient la seule source de l'écran, avant même que la réponse ne s'affiche.
+    if (r.intents.length) await rattacherCartes(userId, tour.filId, reponse.id, r.intents);
     await finir({
       etat: ETAT.TERMINE, contenu: r.content, etapes,
       blocs: r.blocs as unknown as Prisma.InputJsonValue,

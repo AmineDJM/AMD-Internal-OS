@@ -1455,6 +1455,15 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-actions:ignorerIntentionAssistantIA": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-actions:lireMonPassage": {
   "risque": "R0",
   "familles": [],

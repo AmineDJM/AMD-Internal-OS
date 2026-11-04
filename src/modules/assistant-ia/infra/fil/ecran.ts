@@ -17,7 +17,9 @@ export async function filPourEcran(user: CurrentUser, fil: Awaited<ReturnType<ty
   const rendues = new Map<string, { id: string; nom: string }[]>();
   for (const t of fil.tours) {
     if (t.role !== "assistant" || t.etat === "EN_COURS") continue;
-    const ids = idsDriveCites(t.contenu, (t.intent as { resultLink?: string } | null)?.resultLink);
+    // C1 : le résultat de CHAQUE carte exécutée du tour (plusieurs cartes possibles).
+    const liens = t.intents.map((c) => (c as { resultLink?: string }).resultLink).filter((l): l is string => !!l);
+    const ids = idsDriveCites(t.contenu, ...liens);
     if (ids.length) rendues.set(t.id, await piecesCitees(user, ids));
   }
   // « MES NOTES » (décision 0026) : les modifications proposées par un tour, dans leur état présent (la carte).
@@ -47,6 +49,8 @@ export async function filPourEcran(user: CurrentUser, fil: Awaited<ReturnType<ty
     conversation: fil.conversation,
     tours: fil.tours.map((t) => ({
       id: t.id, role: t.role, contenu: t.contenu, etat: t.etat, pieces: t.pieces, blocs: t.blocs, intent: t.intent,
+      // C1 (décision 0068) : TOUTES les cartes de la réponse, relues dans la table des intentions.
+      intents: t.intents,
       memoireProposee: t.memoireProposee, outils: t.outils, etapes: t.etapes, createdAt: t.createdAt.toISOString(),
       vocal: t.vocal, lecture: t.lecture, audio: t.audio, piecesRendues: rendues.get(t.id) ?? null, notesProposees: notesDu(t.notesProposees),
       // K3 (décision 0033) : les sous-missions du tour (la carte les lit en temps réel par le flux du tableau de bord).

@@ -29,6 +29,8 @@ export interface TourDuFil {
   pieces?: { id: string; nom: string }[] | null;
   blocs?: ChatMessage["blocs"] | null;
   intent?: ChatMessage["intent"] | null;
+  /** C1 (décision 0068) : toutes les cartes de la réponse, dans leur état de la table des intentions. */
+  intents?: ChatMessage["intents"];
   memoireProposee?: ChatMessage["memoireProposee"] | null;
   notesProposees?: ChatMessage["notesProposees"] | null;
   /** M1 : les souvenirs retenus d'office après ce tour (la ligne « Retenu : … (annuler) »). */
@@ -56,7 +58,7 @@ export function versMessage(t: TourDuFil): ChatMessage {
   const redaction = t.etat === "EN_COURS";
   return {
     id: t.id, role: "assistant", content: t.contenu, createdAt: t.createdAt,
-    blocs: t.blocs ?? undefined, intent: t.intent ?? null, memoireProposee: t.memoireProposee ?? null, notesProposees: t.notesProposees ?? null, audio: t.audio ?? null,
+    blocs: t.blocs ?? undefined, intent: t.intent ?? null, intents: t.intents ?? null, memoireProposee: t.memoireProposee ?? null, notesProposees: t.notesProposees ?? null, audio: t.audio ?? null,
     memoiresRetenues: t.memoiresRetenues ?? null,
     piecesRendues: t.piecesRendues ?? null,
     travaux: t.travaux ?? null, synthese: t.synthese === true,
@@ -99,8 +101,20 @@ export function useFil({ conversation, nouvelle, onConversation, tourLocal }: Ci
   // O1 (décision 0046) : la question de l'agenda, les réponses tenues, l'avancement du travail long.
   const [orchestration, setOrchestration] = useState<OrchestrationFil | null>(null);
 
+  /**
+   * C1 (décision 0068) — LA CONVERSATION OUVERTE, POUR JUGER UNE RÉPONSE QUI ARRIVE EN RETARD. Mesuré par le banc
+   * navigateur : `/assistant?c=X` (lien de notification, retour dans la conversation) lisait d'abord la conversation
+   * COURANTE (`c` pas encore lu), puis X ; la première réponse, arrivée APRÈS, ramenait l'écran sur une autre
+   * conversation — la carte qu'on venait chercher « disparaissait ». Une lecture ne s'applique que si sa conversation est
+   * toujours celle qui est ouverte.
+   */
+  const ouverte = useRef("");
+  const cle = nouvelle ? "nouvelle" : conversation ?? "";
+  // Avant la boucle de lecture (les effets jouent dans l'ordre) : la lecture qui part voit déjà la bonne conversation.
+  useEffect(() => { ouverte.current = cle; }, [cle]);
   const lire = useCallback(async (): Promise<boolean> => {
     if (nouvelle) return false;
+    const pour = conversation ?? "";
     try {
       const r = await fetch(`/api/assistant-ia/fil${conversation ? `?c=${encodeURIComponent(conversation)}` : ""}`, { cache: "no-store" });
       if (!r.ok) return false;
@@ -108,6 +122,7 @@ export function useFil({ conversation, nouvelle, onConversation, tourLocal }: Ci
         tours: TourDuFil[]; enCours: boolean; vueExacte: boolean; reponseVocale?: boolean; orchestration?: OrchestrationFil;
         conversation?: { id: string; titre: string | null; prive: boolean; dossierId: string | null };
       };
+      if (ouverte.current !== pour) return false;
       setVueExacte(d.vueExacte);
       setReponseVocale(d.reponseVocale === true);
       setFil(d.tours.map(versMessage));

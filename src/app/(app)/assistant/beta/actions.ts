@@ -29,7 +29,7 @@ export interface ReponseBetaAction {
     /** Le libellé du bouton quand « Confirmer » ne dit pas le geste. */
     libelleBouton?: string;
     fields?: { label: string; value: string }[];
-    status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
+    status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED" | "FAILED" | "EXPIRED";
     resultLink?: string;
     resultMessage?: string;
   } | null;

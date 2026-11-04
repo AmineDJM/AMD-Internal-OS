@@ -1,5 +1,17 @@
 ## 🧾 Journal des évolutions récentes
 
+### C1 — LES CARTES À VALIDER NE DISPARAISSENT PLUS (2026-11-04)
+
+Décision [0068](../assistant/decisions/0068-cartes-persistantes.md). Reproduit en vrai navigateur (vrai modèle, base
+locale) : une carte non validée survivait au rechargement, mais **mourait en silence** dès qu'on en reparlait (« ok pour la
+tâche…, je la valide tout à l'heure » → `CANCELLED_SUPERSEDED` avant le modèle), la **seconde carte d'un tour** n'était
+jamais affichée, « Ignorer » ne valait qu'à l'écran, et `/assistant?c=X` pouvait rebasculer sur une autre conversation.
+Désormais : la table des intentions est la seule source de l'écran (`filId`, `tourId`, `carte` ; toutes les cartes d'un
+tour), un retrait n'a lieu que sur un signal explicite (annuler, corriger l'objet, remplacer par une carte du même objet)
+et **se dit** à la place des boutons, borné à la conversation ; une carte vaut jusqu'à son expiration (24 h) et dit
+« expirée » ; Adam reçoit à chaque tour les cartes qui attendent. Bancs : `e2e/cartes-persistantes.spec.ts`,
+`platform/ia/intentions/cartes-persistantes.test.ts`.
+
 ### V1 — SPONSORING ET AD & PRO VÉRIFIÉS DE BOUT EN BOUT : TROIS ÉCARTS DE CALCUL, UNE CORRECTION QUI N'ATTEIGNAIT PAS L'ARGENT (2026-11-03)
 
 Demande de la Direction du 03/11 (« tout marche, les pièces jointes, les sommes, on peut modifier, supprimer… »). Vérifié

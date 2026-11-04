@@ -8,7 +8,7 @@ import {
   adresseDeLaPersonne, modifierMemoire, reglerMemoireAuto, toutEffacerMemoire,
   type ElementMemoire, type PieceDuTour,
 } from "@/modules/assistant-ia/api";
-import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
+import { cancelActionIntent, executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
 import type { TravailDetail, TravailVue } from "@/lib/missions/travaux/service";
 import { actionReversible } from "@/lib/effets/reversible";
 
@@ -209,6 +209,23 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
   } catch (err) {
     console.error("[assistant] confirmerIntentionAssistantIA failed", err);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };
+  }
+}
+
+/**
+ * C1 (décision 0068) — « IGNORER » UNE CARTE, POUR DE BON. Le bouton ne changeait que l'écran : au rechargement, la carte
+ * revenait à signer. L'état d'une carte n'a qu'une source, la table des intentions : PROPOSED → CANCELLED, au journal.
+ */
+export async function ignorerIntentionAssistantIA(intentId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const user = await requireUser();
+    if (!peutUtiliserAssistantIA(user)) return { ok: false, error: REFUS_ASSISTANT_IA };
+    return (await cancelActionIntent(user.id, String(intentId ?? "")))
+      ? { ok: true }
+      : { ok: false, error: "Cette carte n'attend plus de décision (déjà exécutée, retirée ou expirée)." };
+  } catch (err) {
+    console.error("[assistant-ia] ignorerIntentionAssistantIA", err);
+    return { ok: false, error: "La carte n'a pas pu être ignorée. Réessayez." };
   }
 }
 

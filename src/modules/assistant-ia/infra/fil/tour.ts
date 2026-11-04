@@ -23,7 +23,7 @@ import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "../modele";
 import { modelesEffectifs } from "../generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "../repondre";
 import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "../consommation";
-import { retirerCaduquesAvantLeTour, retirerCarteAnnuleeAvantLeTour } from "@/platform/ia/intentions/action-intents";
+import { retirerCaduquesAvantLeTour, retirerCarteAnnuleeAvantLeTour, sectionCartesEnAttente } from "@/platform/ia/intentions/action-intents";
 import { carteOraleEnAttente } from "../voix/carte-orale";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import type { VueSimulation } from "../../domaine/simulation";
@@ -70,14 +70,18 @@ export interface IntentionDuTour {
   /** J7 : le diff réel de la simulation (capacités simulables) — ou « non simulable », dit. */
   simulation?: VueSimulation;
   fields?: { label: string; value: string }[];
-  status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
+  status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED" | "FAILED" | "EXPIRED";
   resultLink?: string;
   resultMessage?: string;
+  /** C1 (décision 0068) : pourquoi la carte n'attend plus (ignorée, remplacée par…, expirée…) — dit à la place des boutons. */
+  motif?: string;
 }
 
 export type ResultatDuTour =
   | {
     ok: true; content: string; blocs: WorkspaceBlock[]; memoireProposee: MemoireProposee | null; outilsAppeles: string[]; intent: IntentionDuTour | null;
+    /** C1 (décision 0068) : TOUTES les cartes du tour (`intent` est la première, gardée pour les lecteurs d'avant). */
+    intents: IntentionDuTour[];
     /** « Mes notes » (décision 0026) : les modifications de notes PROPOSÉES pendant le tour — la carte de la conversation. */
     notesProposees: string[];
     /** K3 (décision 0033) : les sous-missions lancées pendant ce tour (la carte qui se met à jour). */
@@ -210,14 +214,22 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   // Décision 0035 : à l'oral, la carte en cours de conversation (complétée, corrigée) n'est pas caduque — et l'en-tête de
   // la délégation (qui la nomme) ne compte pas comme « en reparler ».
   // F2 (AN-ANNULER-03) : « annule cette demande » face à une carte qui attend — le serveur la retire lui-même, et le dit.
-  const annulee = await retirerCarteAnnuleeAvantLeTour(user.id, texteSaisi.replace(/^\[[^\]]*\]\s*/, ""));
+  // C1 (décision 0068) : les retraits ne visent que les cartes de CETTE conversation, et chacun est DIT (à l'écran par le
+  // journal de l'intention, à Adam par la note du tour) — aucune carte ne disparaît en silence.
+  const annulee = await retirerCarteAnnuleeAvantLeTour(user.id, texteSaisi.replace(/^\[[^\]]*\]\s*/, ""), d.conversation);
   const noteAnnulee = annulee
     ? `CARTE RETIRÉE : la personne vient d'annuler la carte « ${annulee.title} », qui attendait sa confirmation ; le serveur l'a RETIRÉE — rien n'a été créé ni envoyé. Dis-le en une phrase ; ne lui demande pas de la fermer.`
     : null;
+  let noteCorrigees: string | null = null;
   if (reglages.retirerCartesCaduques) {
     const orale = texteSaisi.startsWith("[Conversation vocale") ? await carteOraleEnAttente(user) : null;
-    await retirerCaduquesAvantLeTour(user.id, texteSaisi.replace(/^\[Conversation vocale[^\]]*\]\s*/, ""), orale ? [orale.id] : []);
+    const corrigees = await retirerCaduquesAvantLeTour(user.id, texteSaisi.replace(/^\[Conversation vocale[^\]]*\]\s*/, ""), orale ? [orale.id] : [], d.conversation);
+    if (corrigees.length) {
+      noteCorrigees = `CARTE${corrigees.length > 1 ? "S" : ""} RETIRÉE${corrigees.length > 1 ? "S" : ""} : la personne vient de corriger ${corrigees.length > 1 ? `${corrigees.length} cartes qui attendaient` : "la carte qui attendait"} sa confirmation ; le serveur l'a retirée (l'écran le dit) — rien n'a été exécuté. Propose la carte CORRIGÉE selon ce qu'elle vient de dire, ou demande ce qui manque.`;
+    }
   }
+  // (d) — les cartes encore en attente dans cette conversation, lues APRÈS les retraits : Adam ne les repropose pas.
+  const noteEnAttente = await sectionCartesEnAttente(user.id, d.conversation);
 
   let instructions: string;
   let config;
@@ -302,7 +314,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
         prose && profil.canaux.gmailAdam ? CONSIGNE_BOITE_ADAM : null, prose && profil.catalogues.adam ? CONSIGNE_ADAM_SA : null, d.consigne, fond ? CONSIGNE_FOND : null]),
       consignesPersonne: sauf([consigneFamilles(acces), prose ? consigneGestesFermes(user) : null, !d.prive && !memoireAuto ? CONSIGNE_MEMOIRE_A_LA_CARTE : null]),
       outilsActifs: selection.initiaux, question: texteSaisi, sansMemoire: d.prive === true || vueExacte, valeursEnClair: enClair,
-      sectionsDuTour: sauf([noteAnnulee, consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
+      sectionsDuTour: sauf([noteAnnulee, noteCorrigees, noteEnAttente, consigneTravaux(texteSaisi), d.sectionDossier, d.prive ? CONSIGNE_PRIVEE : null, d.sectionAttentes, sectionResume(d.resume)]),
     })).systemPrompt;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
@@ -338,7 +350,17 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const preuves = journal.reussis(r.outilsAppeles);
     const nonVerifie = noteActionsNonVerifiees(ui.message, preuves, propositions.length > 0);
     if (nonVerifie) console.warn("[assistant] actions non vérifiées", nonVerifie.familles);
-    const p = propositions[0];
+    // C1 (décision 0068) : TOUTES les cartes du tour — une carte sans intention persistée n'a pas de bouton qui tienne.
+    const intents: IntentionDuTour[] = propositions.filter((p) => !!p.intentId).map((p) => ({
+      id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields,
+      ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),
+      ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
+      ...(p.proposition.libelleBouton ? { libelleBouton: p.proposition.libelleBouton } : {}),
+      ...(p.proposition.apercus?.length ? { apercus: p.proposition.apercus } : {}),
+      ...(p.proposition.simulation ? { simulation: p.proposition.simulation } : {}),
+      ...(p.proposition.formulaire ? { formulaire: p.proposition.formulaire } : {}),
+      status: "PROPOSED" as const,
+    }));
     // LA RÉVÉLATION, AVANT D'AFFICHER ET DE STOCKER : chaque repère devient la valeur pour qui a le droit de
     // la voir (politique du coffre, journal), « [confidentiel] » sinon.
     const revelateur = new Revelateur(coffret, user, acces);
@@ -353,16 +375,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       observations: journal.observations(),
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
-      intent: p ? {
-        id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields,
-        ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),
-        ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
-        ...(p.proposition.libelleBouton ? { libelleBouton: p.proposition.libelleBouton } : {}),
-        ...(p.proposition.apercus?.length ? { apercus: p.proposition.apercus } : {}),
-        ...(p.proposition.simulation ? { simulation: p.proposition.simulation } : {}),
-        ...(p.proposition.formulaire ? { formulaire: p.proposition.formulaire } : {}),
-        status: "PROPOSED",
-      } : null,
+      intent: intents[0] ?? null,
+      intents,
     };
   } catch (e) {
     // P1 bis (MI-02) : LE PLAFOND D'UN TOUR atteint ne s'arrête plus sur un refus — le travail BASCULE en mission (une fois) :
