@@ -106,6 +106,25 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     expect(r.dernier_balayage).toMatch(/il y a \d+ min|aucun balayage/);
   });
 
+  it("P1 ter — « y'a quoi dedans ? » : mes_missions rend le CONTENU et le lien ; le serveur POSE une carte cliquable par mission, tirée de son observation", async () => {
+    const cartes: import("@/platform/ia/workspace/protocol").WorkspaceBlock[] = [];
+    const lecture = outilsMissions(sa, cartes).find((o) => o.def.name === "mes_missions")!;
+    const r = JSON.parse(await lecture.run({}, sa));
+    const classeur = r.missions.find((m: { titre: string }) => m.titre === "Classeur de suivi AMD");
+    expect(classeur.lien).toBe(`/missions/${ids[0]}`);
+    expect(classeur.contient.objectif).toContain("Classeur de suivi AMD");
+    expect(classeur.contient.etapes.map((e: { titre: string }) => e.titre)).toEqual(["Étape 1", "Étape 2", "Étape 3", "Étape 4"]);
+    // L'observation d'I1 est déclarée (même identité, même lien) — la carte en découle.
+    expect(r._observations.find((o: { objet: { id: string } }) => o.objet.id === ids[0])?.objet.lien).toBe(`/missions/${ids[0]}`);
+    const carte = cartes.find((c) => c.kind === "mission" && c.title === "Classeur de suivi AMD") as Extract<typeof cartes[number], { kind: "mission" }>;
+    expect(carte).toBeTruthy();
+    expect(carte.etapes).toHaveLength(4);
+    expect(carte.actions?.[0]).toMatchObject({ libelle: "Ouvrir", href: `/missions/${ids[0]}` });
+    // Relue deux fois dans le tour : pas de carte en double.
+    await lecture.run({}, sa);
+    expect(cartes.filter((c) => c.kind === "mission" && c.title === "Classeur de suivi AMD")).toHaveLength(1);
+  });
+
   it("P1 ter — la VÉRITÉ SUR L'EXÉCUTANT : balayage débrayé (TRAVAUX_SWEEP=off) → la vraie raison ; passage récent → « prête » ; la carte de fusion dit la même chose que mes_missions", async () => {
     const avant = await prisma.tacheDeFond.findUnique({ where: { cle: "travaux.balayage" } });
     try {

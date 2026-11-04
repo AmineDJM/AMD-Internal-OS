@@ -1,7 +1,7 @@
 # 0066 — Les missions qui ne s'exécutaient pas, et la vérité sur l'exécutant (lot P1 ter)
 
-**Date** : 2026-11-03 · **Statut** : appliquée (cause, diagnostic, nom) ; contenu et cartes cliquables EN ATTENTE du
-contrat `Observation` (session I1) · **Suite de** : [0047](0047-pilotage-missions-mails-verite.md)
+**Date** : 2026-11-03 / 04 · **Statut** : appliquée (cause, diagnostic, nom, contenu et cartes cliquables sur le contrat
+`Observation` d'I1, [0063](0063-observation-et-mail-en-blocs.md)) · **Suite de** : [0047](0047-pilotage-missions-mails-verite.md)
 
 ## Ce que la Direction a vécu (03/11, en production)
 
@@ -41,12 +41,26 @@ abstentionDuWeb`). Banc `src/lib/taches-de-fond/abstention.test.ts` : web puis w
 - **La carte de fusion** porte la même alerte que `mes_missions`.
 - **Le nom** : la persona des travaux porte `NOM_ASSISTANT` — « Plan proposé par Adam ».
 
-## En attente — le contenu des missions et leurs cartes cliquables
+## 3. Le contenu des missions et leurs cartes cliquables — branchés sur l'Observation (contrat I1)
 
-Le contenu (objectif, étapes avec résultat, jalons, livrables, lien) et les cartes `mission` posées par le serveur
-(« Ouvrir » `/missions/<id>`, pause / reprendre / arrêter) seront branchés sur le contrat `Observation {objet, id, lien,
-état, projection}` publié par la session I1 (audit AU1) : la vue de la mission (`vueMission`) en sera le projecteur
-« mission », pas un chemin à part. Le travail est prêt hors de la branche (bornage, cartes, lien interne, banc MS-).
+- **Une seule source pour l'état** : l'observation de la mission (`observationDeMission`, projecteur « mission » d'I1 :
+  identité, état, lien `/missions/<id>`, diagnostic, âge lu) — la même que relit l'historique. Aucun chemin à part.
+- **Le contenu**, lu par la vue de la page de la mission (`vueMission`, filtrée par le propriétaire,
+  `detailDeMission`) : `mes_missions` rend pour les 6 premières missions `contient` — objectif, étapes (résultat ou erreur,
+  quand ; au plus 8, échecs et étape en cours d'abord, le reste COMPTÉ), jalons, livrables, dernière action. Le contenu
+  reste HORS de la projection de l'observation : l'historique la ré-injecte (≈ 1 400 caractères par tour) et son
+  empreinte ne doit dépendre que de l'état.
+- **Les cartes, posées par le serveur** (`domaine/missions/bloc.ts blocDeMission(observation, contenu)`) dans les blocs du
+  tour : identité, titre, sous-titre (statut · étapes · diagnostic · dernière activité · livrables), lien et gestes tirés
+  de l'OBSERVATION ; étapes et jalons du contenu. Gestes : « Ouvrir » (le lien observé), puis selon l'état observé
+  Pause / Reprendre / Arrêter — des phrases rédigées par le serveur qui passent par `piloter_mission` (réversibles). Une
+  carte par mission, jamais en double. Le protocole gagne `WorkspaceAction.href` : une navigation interne (« /… »
+  seulement, jamais une mutation), rendue en lien même sans fournisseur de conversation.
+- **Le lien dans la réponse** (constat AU1) : la consigne de l'outil demande le lien en markdown `[titre](lien)` ; la
+  carte, elle, le porte toujours.
+- **Banc** : domaine `infra/testing/audit/taches/missions.ts` (MS-01…06, trois missions semées par le vrai moteur) — les
+  étapes nommées dans la réponse, une carte `mission` dont « Ouvrir » mène à `/missions/<id>`, et jamais « moins d'une
+  minute / prochain battement » sans passage récent du balayage.
 
 ## Invariants
 
@@ -57,5 +71,7 @@ Le contenu (objectif, étapes avec résultat, jalons, livrables, lien) et les ca
 ## Tests
 
 `lib/taches-de-fond/abstention.test.ts` (la cause) ; `domaine/missions/executant.test.ts` (vérité sur l'exécutant,
-candidature, dernier balayage) ; `missions-mails.test.ts` (contre la base : candidature, étape suivante, dernier balayage,
-`TRAVAUX_SWEEP=off` dit tel quel, carte de fusion = même alerte, passage récent → « prête »).
+candidature, dernier balayage) ; `domaine/missions/bloc.test.ts` (contenu borné, carte tirée de l'observation, gestes) ;
+`platform/ia/ecrans/mission-lien.test.ts` (« Ouvrir » en lien interne, jamais externe) ; `missions-mails.test.ts` (contre la base : candidature, étape suivante, dernier balayage,
+`TRAVAUX_SWEEP=off` dit tel quel, carte de fusion = même alerte, passage récent → « prête » ; contenu, lien et cartes
+sans doublon par `mes_missions`).

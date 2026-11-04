@@ -66,6 +66,9 @@ const ACTION_ICON: Record<WorkspaceActionIcon, React.ComponentType<{ className?:
   valider: Check,
 };
 
+/** Un chemin INTERNE de l'ERP (« /missions/… ») — jamais une adresse externe ni « //hôte ». */
+const routeInterne = (href: string | undefined): href is string => typeof href === "string" && /^\/(?![\/\\])/.test(href);
+
 export function ActionRow({ actions, footer = false }: { actions: WorkspaceAction[]; footer?: boolean }) {
   const ask = React.useContext(AskContext);
   // Un tour est en cours dès qu'on a cliqué : re-cliquer enverrait la phrase deux fois, et
@@ -73,11 +76,22 @@ export function ActionRow({ actions, footer = false }: { actions: WorkspaceActio
   const [sent, setSent] = React.useState<string | null>(null);
   // SANS FOURNISSEUR, RIEN — pas même le filet de séparation. Un pied de carte vide sous un
   // objet promet des gestes qui n'existent pas ; c'est le test de rendu qui l'a montré.
-  if (!ask) return null;
+  // Un LIEN (« Ouvrir » une mission) se suit sans fournisseur de conversation : c'est une navigation, pas une phrase.
+  const liens = actions.filter((a) => routeInterne(a.href));
+  if (!ask && !liens.length) return null;
   return (
     <div className={footer ? "chief-actions chief-block-actions" : "chief-actions"}>
-      {actions.map((a) => {
+      {(ask ? actions : liens).map((a) => {
         const Icon = a.icone ? ACTION_ICON[a.icone] : null;
+        if (routeInterne(a.href)) {
+          return (
+            <a key={a.phrase} href={a.href} className={`chief-action${a.ton === "primaire" ? " chief-action-primary" : ""}`} title={a.phrase} data-testid="action-lien">
+              {Icon ? <Icon className="chief-action-icon" /> : null}
+              {a.libelle}
+            </a>
+          );
+        }
+        if (!ask) return null;
         return (
           <button
             key={a.phrase}

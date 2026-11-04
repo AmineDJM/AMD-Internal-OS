@@ -7,6 +7,9 @@ import {
 import { LIBELLE_MISSION } from "../../domaine/sous-missions";
 import { etatDesExecutants } from "./executants";
 import { sansBloquer } from "@/lib/journal";
+import { vueMission } from "@/lib/missions/view/workspace";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
+import { blocDeMission, contenuDeMission, MISSIONS_DETAILLEES_MAX, type DetailMission } from "../../domaine/missions/bloc";
 import { lienDeMission, projeterMission } from "../../domaine/observation/projecteurs";
 import { dureeLisible, type Observation } from "../../domaine/observation/contrat";
 
@@ -87,6 +90,24 @@ export function observationDeMission(m: MissionLue, maintenant: Date = new Date(
   return projeterMission({ id: m.id, titre: m.titre, etat: m.etat, libelle: m.libelle, etapes: m.etapes, majLe: m.majLe, diagnostic: m.diagnostic.phrase }, maintenant);
 }
 
+/**
+ * P1 ter (décision 0066) — CE QUE CONTIENT UNE MISSION, lu par la vue de SA page `/missions/<id>` (`vueMission`, filtrée
+ * par le propriétaire) : étapes avec leur résultat ou leur erreur, jalons, livrables ; heures et dernière action viennent
+ * du tableau des travaux. L'état, le lien et le diagnostic restent ceux de l'observation (`observationDeMission`).
+ */
+export async function detailDeMission(userId: string, m: MissionTableau): Promise<DetailMission | null> {
+  const v = await vueMission(m.id, userId).catch(sansBloquer("missions.detail", null));
+  if (!v) return null;
+  const heures = new Map(m.etapes.map((e) => [e.cle, e]));
+  const dernier = m.journal.length ? m.journal[m.journal.length - 1]! : null;
+  return {
+    etapes: v.etapes.map((e) => ({ ...e, debut: heures.get(e.id)?.debut ?? null, fin: heures.get(e.id)?.fin ?? null })),
+    jalons: (v.horizon?.jalons ?? []).map((j) => ({ ordre: j.ordre, titre: j.titre, resultat: j.resultat || null, etat: j.etat })),
+    livrables: v.livrables.map((l) => ({ titre: l.titre, fichier: l.fichier || null, statut: l.statut, contenu: l.contenu })),
+    derniereActivite: dernier ? { at: dernier.at, texte: dernier.texte } : null,
+  };
+}
+
 export type ActionMission = "pause" | "reprendre" | "arreter" | "renommer";
 
 const CIBLES: Record<ActionMission, readonly string[]> = {
@@ -129,13 +150,13 @@ const json = (o: unknown) => JSON.stringify(o);
  * LES OUTILS DE L'ÉCRIT. Un pilotage refusé le dit par son statut (REFUS, AMBIGU) : le journal du tour ne le compte pas
  * comme une preuve (`infra/observation/journal.ts`).
  */
-export function outilsMissions(user: CurrentUser): PowerTool[] {
+export function outilsMissions(user: CurrentUser, cartes?: WorkspaceBlock[]): PowerTool[] {
   const ouvert = (u: CurrentUser) => u.id === user.id;
   return [
     {
       def: {
         name: "mes_missions",
-        description: "LIS tes missions (tâches de fond) RÉELLES de la personne : titre, identifiant, état, étapes faites/total, coût, ce qui la bloque (en attente du worker, approbation, plafond, étape en échec), si le prochain balayage la prendra (et sinon pourquoi), son étape suivante, et le dernier balayage. À appeler AVANT de parler d'une mission, de dire qu'elle avance, de la fusionner ou de la piloter — jamais demander un titre à la personne.",
+        description: "LIS tes missions (tâches de fond) RÉELLES de la personne, AVEC CE QU'ELLES CONTIENNENT : titre, état, lien, ce qui la bloque, si le prochain balayage la prendra (et sinon pourquoi), objectif, étapes (résultat ou erreur, quand), jalons, livrables produits, dernière action, coût ; et le dernier balayage. Chaque mission s'affiche aussi en CARTE cliquable sous ta réponse. À appeler AVANT de parler d'une mission, de dire qu'elle avance, de la fusionner ou de la piloter — jamais demander un titre à la personne.",
         input_schema: { type: "object", properties: { toutes: { type: "boolean", description: "Inclure les missions finies ou arrêtées des 3 derniers jours." } } },
       },
       allowed: ouvert,
@@ -144,6 +165,13 @@ export function outilsMissions(user: CurrentUser): PowerTool[] {
         const maintenant = new Date();
         const r = await mesMissions(user.id, { toutes: e.toutes === true, maintenant });
         const parId = new Map(r.tableau.map((t) => [t.id, t]));
+        // P1 ter : le CONTENU des premières missions (borné), lu par la vue de leur page ; les autres sont comptées.
+        const details = new Map(await Promise.all(r.missions.slice(0, MISSIONS_DETAILLEES_MAX)
+          .map(async (m) => [m.id, parId.has(m.id) ? await detailDeMission(user.id, parId.get(m.id)!) : null] as const)));
+        const observations = r.missions.map((m) => observationDeMission(m, maintenant));
+        // LES CARTES, POSÉES PAR LE SERVEUR à partir de l'OBSERVATION (identité, état, lien, diagnostic) et du contenu lu :
+        // « Ouvrir », pause, reprendre, arrêter — sans dépendre de ce que le modèle choisit d'afficher. Une par mission.
+        if (cartes) for (const o of observations) if (details.has(o.objet.id) && !cartes.some((c) => c.kind === "mission" && (c.actions ?? []).some((a) => a.href === o.objet.lien))) cartes.push(blocDeMission(o, details.get(o.objet.id) ?? null));
         // I1 (étape 3) : des faits datés et un LIEN par mission. P1 ter : l'observation du moteur — le prochain balayage la
         // prendra-t-il (sa requête même), son étape suivante, et le dernier balayage.
         return json({
@@ -152,12 +180,17 @@ export function outilsMissions(user: CurrentUser): PowerTool[] {
             ou_elle_en_est: m.diagnostic.phrase, derniere_activite: `il y a ${dureeLisible(Math.max(0, maintenant.getTime() - Date.parse(m.majLe)))}`,
             pris_par_le_balayage: !r.candidates ? "non vérifié" : r.candidates.has(m.id) ? "oui" : `non — ${m.diagnostic.phrase.replace(/^pas prise par le balayage des travaux : /, "")}`,
             etape_suivante: parId.get(m.id)?.etapes.find((x) => x.etat !== "FAITE" && x.etat !== "ECARTEE")?.titre ?? "aucune (toutes faites)",
+            ...(details.has(m.id) ? { contient: contenuDeMission(m.objectif, details.get(m.id) ?? null) } : {}),
             ...(m.parentId ? { sous_mission_de: m.parentId } : {}),
           })),
           dernier_balayage: phraseDernierBalayage(r.executants, maintenant.getTime()),
           total: r.missions.length,
           ...(r.alerte ? { alerte: r.alerte } : {}),
-          _observations: r.missions.map((m) => observationDeMission(m, maintenant)),
+          ...(r.missions.length > MISSIONS_DETAILLEES_MAX ? { autres_non_detaillees: r.missions.length - MISSIONS_DETAILLEES_MAX } : {}),
+          consigne: cartes
+            ? "Chaque mission s'affiche en CARTE cliquable sous ta réponse (étapes, « Ouvrir », pause / reprendre / arrêter) : ne la recopie pas en tableau. Dis en quelques phrases ce qui compte — ce que chaque mission CONTIENT (objectif, étapes faites et à venir, livrables), ce qui la bloque — et donne son lien en markdown [titre](lien). Ne demande pas leurs titres à la personne."
+            : "Réponds avec CES missions : ce qu'elles contiennent, ce qui les bloque, et leur lien en markdown [titre](lien), tels quels. Ne demande pas leurs titres à la personne.",
+          _observations: observations,
         });
       },
     },
