@@ -23,6 +23,7 @@ import { conclureSousMissions, demarrerSousMissionsDuTour, outilSousMissionsPour
 import { deposerLivrableTravail } from "./travaux-livrables";
 import { classer, type FicheOutil } from "../domaine/selection-outils";
 import { OUTIL_LIRE } from "./primitives/lire";
+import { cleCacheDeLaPersonne } from "../domaine/cle-cache";
 
 // J8 (décision 0023) : la porte du moteur des travaux pour le reste du module — délégation, équipe, priorité.
 export {
@@ -275,7 +276,7 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
     const debut = Date.now();
     // Ce qui part au modèle passe le filtre de confidentialité, comme une saisie (décision IA-ASSISTANT-09).
     // K3 : 4 min — le rapport complet d'une recherche approfondie s'écrit en plus de 2 min.
-    const r = await sousBudget(budget, () => genererTexte(d.consigne, censurerTexte(d.texte).texte, 240_000, { flux: true }));
+    const r = await sousBudget(budget, () => genererTexte(d.consigne, censurerTexte(d.texte).texte, 240_000, { flux: true, cleCache: cleCacheDeLaPersonne(principalId) }));
     await fermerBudget(budget, { ok: r.ok, erreur: r.ok ? null : r.raison, ms: Date.now() - debut });
     const couts = budget.appels.map((a) => coutEstimeUsd(a.entree, a.sortie, tarifDe(a.provider), a.cache));
     const usage = {

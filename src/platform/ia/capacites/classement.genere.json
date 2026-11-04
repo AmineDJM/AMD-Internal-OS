@@ -1535,6 +1535,15 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-actions:relanceMoteurUnique": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-actions:repartirDeZero": {
   "risque": "R1",
   "familles": [

@@ -27,10 +27,13 @@ import { getDailyBrief } from "@/lib/daily-brief";
 import { rememberExchange } from "@/lib/memoire-echange";
 import { extractAttachmentText, buildAttachmentContext, type AttachmentText } from "@/platform/ia/media/assistant-files";
 import type { AssistantAttachment, AssistantFileOption } from "@/lib/assistant-attachments";
+// I6 (décision 0070) : `runAssistant` n'est plus importé ici — l'ancien moteur ne s'obtient que par `ancienneBoucle()`
+// (drapeau ADAM_ANCIEN_MOTEUR=1). Import d'avant : `runAssistant, performAction, …` depuis "@/lib/assistant".
 import {
-  runAssistant, performAction, payloadRequiresStrongConfirm, executeReadTool,
+  performAction, payloadRequiresStrongConfirm, executeReadTool,
   type AssistantActionPayload, type AssistantResult, type ChatTurn, type ExecuteResult, type ProposedAction,
 } from "@/lib/assistant";
+import { ancienneBoucle, MESSAGE_ANCIEN_MOTEUR_MASQUE } from "@/lib/assistant/ancien-moteur";
 import { consignerProvenance } from "@/platform/in-process/fabric/provenance";
 import { composeWorkspace } from "@/lib/assistant/workspace/compose";
 import { directIntent, intentArgs, intentPhrase } from "@/platform/ia/workspace/direct-intents";
@@ -95,6 +98,15 @@ async function withAttachmentContext(user: Awaited<ReturnType<typeof requireUser
 export interface NudgeResult {
   signature: string;
   suggestion: { summary: string; proposal?: ProposedAction } | null;
+}
+
+/**
+ * I6 (décision 0070) — L'ANCIEN MOTEUR EST MASQUÉ. Ce fichier est Adam : il n'importe pas l'Assistant IA (frontière
+ * 0013, « Adam → IA = 0 »). Sans le drapeau ADAM_ANCIEN_MOTEUR=1, ses entrées de tour ne jouent donc plus rien : elles
+ * disent où parler à Adam — la conversation d'Adventum IA, c'est-à-dire le moteur unique (`jouerTour`).
+ */
+function tourMasque(): AssistantResult {
+  return { configured: true, ok: false, reply: "", trace: [], error: MESSAGE_ANCIEN_MOTEUR_MASQUE };
 }
 
 
@@ -193,11 +205,16 @@ export async function assistantChat(
     if (Array.isArray(attachments) && attachments.length > 0) {
       turns = await withAttachmentContext(user, turns, attachments);
     }
+    // I6 (décision 0070) — UN SEUL MOTEUR : le chat du Bureau ne joue plus l'ancienne boucle ; on parle à Adam dans la
+    // conversation d'Adventum IA (`jouerTour`). L'ancien moteur ne revient que sous ADAM_ANCIEN_MOTEUR=1 (suite inchangée).
+    const boucle = await ancienneBoucle();
+    if (!boucle) return tourMasque();
     // Mémoire personnelle (derrière le drapeau de version) : identité, rattachement,
     // hiérarchie et ce que l'assistant a retenu de CETTE personne.
     const memoryOn = await featureEnabled(FEATURES.ASSISTANT_MEMORY.key, user.id);
     const personal = memoryOn ? await personalContext(user.id).catch(sansBloquer("assistant-actions.assistantChat.personalContext", null)) : await contexteReglesSeules(user.id);
 
+    const runAssistant = boucle.runAssistant;
     const t0 = Date.now();
     const res = await runAssistant(user, turns, { personalContext: personal });
     await logAiUsage({
@@ -254,6 +271,12 @@ export async function assistantNudge(prevSignature: string): Promise<NudgeResult
       `Sinon réponds EXACTEMENT « RAS ». Sois bref.`;
     // Suggestion proactive = enjeu faible, fort volume → palier ÉCO (le nudge ne fait que
     // PROPOSER ; toute action d'écriture reste interceptée et confirmée par l'humain).
+    // I6 (décision 0070) — UN SEUL MOTEUR : la relance du moteur unique est `relanceMoteurUnique`
+    // (`modules/assistant-ia/actions.ts` → `jouerTour`) ; celle-ci, de l'ancien moteur, ne revient que sous
+    // ADAM_ANCIEN_MOTEUR=1 (suite inchangée).
+    const boucle = await ancienneBoucle();
+    if (!boucle) return { signature: digest.signature, suggestion: null };
+    const runAssistant = boucle.runAssistant;
     const t0 = Date.now();
     const res = await runAssistant(user, [{ role: "user", content: prompt }], { model: aiModelCheap(), origin: "nudge" });
     await logAiUsage({

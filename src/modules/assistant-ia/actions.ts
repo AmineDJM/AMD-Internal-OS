@@ -131,6 +131,20 @@ export async function executerMaRoutine(id: string) {
   return r.ok ? { ok: true as const, statut: r.statut, runId: r.runId ?? undefined } : { ok: false as const, erreur: r.erreur };
 }
 
+// ─────────────────────────────── La relance (I6, décision 0070) ───────────────────────────────
+
+/**
+ * LA RELANCE DU MOTEUR UNIQUE — ce que faisait `assistantNudge` dans l'ancien Adam, désormais un tour de `jouerTour`
+ * (même catalogue filtré par le profil d'accès, mêmes gardes). Une carte proposée reste une intention, confirmée par
+ * `confirmerIntentionAssistantIA`.
+ */
+export async function relanceMoteurUnique(signaturePrecedente: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  const { relanceDuMoteur } = await import("@/modules/assistant-ia/api");
+  return { ok: true as const, ...(await relanceDuMoteur(p.user, typeof signaturePrecedente === "string" ? signaturePrecedente.slice(0, 120) : "")) };
+}
+
 // ─────────────────────────────── Le fil gardé ───────────────────────────────
 //
 // La conversation de l'Assistant IA vit sur le serveur (`agent/fil/service.ts`) : envoyer DÉPOSE le

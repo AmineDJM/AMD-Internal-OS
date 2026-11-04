@@ -1,8 +1,10 @@
+import { ancienMoteurActif, ancienneBoucle, reponseAncienMoteurMasque } from "@/lib/assistant/ancien-moteur";
 import { requireUser } from "@/lib/session";
 import { personalContext, getThreadMessages } from "@/lib/assistant-memory";
 import { consignerProvenance } from "@/platform/in-process/fabric/provenance";
+// I6 (décision 0070) : `runAssistant` n'est plus importé ici — obtenu par `ancienneBoucle()` sous ADAM_ANCIEN_MOTEUR=1.
 import {
-  runAssistant, extractSources, executeReadTool, buildProposal, RESOLVER_WRITE_NAMES,
+  extractSources, executeReadTool, buildProposal, RESOLVER_WRITE_NAMES,
   type ChatTurn, type ProposedAction,
 } from "@/lib/assistant";
 import { isDirectOn } from "@/lib/assistant/capability-surface";
@@ -33,6 +35,8 @@ export const maxDuration = 300;
  * (cartes d'action, sources, réponse détaillée) que l'écran affiche pendant que la voix parle.
  */
 export async function POST(req: Request) {
+  // I6 (décision 0070) : l'ancien moteur est MASQUÉ (pas supprimé) — cette route ne revient qu'avec ADAM_ANCIEN_MOTEUR=1.
+  if (!ancienMoteurActif()) return reponseAncienMoteurMasque();
   const user = await requireUser();
   if (!canUseRealtimeVoice(user)) {
     return Response.json({ error: "Non autorisé.", reasonCode: "FORBIDDEN" }, { status: 403 });
@@ -75,7 +79,9 @@ export async function POST(req: Request) {
         { role: "user" as const, content: request },
       ];
       const personal = await personalContext(user.id).catch(sansBloquer("tool-route.POST.personalContext", null));
-      const result = await runAssistant(user, history, { personalContext: personal, origin: "voice", turnContext: { ...(threadId ? { threadId } : {}), feature: "assistant" } });
+      const boucle = await ancienneBoucle();
+      if (!boucle) return reponseAncienMoteurMasque();
+      const result = await boucle.runAssistant(user, history, { personalContext: personal, origin: "voice", turnContext: { ...(threadId ? { threadId } : {}), feature: "assistant" } });
       // LA PROVENANCE DU TOUR (F8) — la voix consigne comme le texte : « d'où tu tiens ça ? » vaut à l'oral.
       if (result.provenance) await consignerProvenance({ userId: user.id, threadId, question: request, faits: result.provenance });
 

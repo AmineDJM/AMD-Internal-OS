@@ -24,6 +24,11 @@ export {
   type PieceDuTour,
 } from "./infra/fil/service";
 export { jouerTour } from "./infra/fil/tour";
+// ── I6 (décision 0070) : les entrées d'avant (Bureau, Brain, relance, appel, dictée) jouent leur tour par le moteur unique
+export {
+  carteDEntree, ENTREES_REBRANCHEES, jouerTourDEntree, relanceDuMoteur, type CarteDEntree, type EntreeDuTour, type ResultatDEntree, type ResultatRelance,
+} from "./infra/entrees";
+export { cleCacheDeLaPersonne } from "./domaine/cle-cache";
 export { filPourEcran } from "./infra/fil/ecran";
 // ── L'essai de l'agent d'une personne par le Super Admin (son vrai tour, rien d'enregistré chez elle)
 export { essayerAgentDe } from "./infra/essai/service";

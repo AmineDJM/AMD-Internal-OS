@@ -1,3 +1,4 @@
+import { ancienMoteurActif, reponseAncienMoteurMasque } from "@/lib/assistant/ancien-moteur";
 import { requireUser } from "@/lib/session";
 import { logAiUsage } from "@/lib/ai-settings";
 import { canUseRealtimeVoice, REALTIME_VOICE_MODEL } from "@/lib/assistant/voice-realtime";
@@ -27,6 +28,8 @@ const EVENTS = new Set([
 ]);
 
 export async function POST(req: Request) {
+  // I6 (décision 0070) : l'ancien moteur est MASQUÉ (pas supprimé) — cette route ne revient qu'avec ADAM_ANCIEN_MOTEUR=1.
+  if (!ancienMoteurActif()) return reponseAncienMoteurMasque();
   const user = await requireUser();
   if (!canUseRealtimeVoice(user)) return Response.json({ ok: false }, { status: 403 });
 

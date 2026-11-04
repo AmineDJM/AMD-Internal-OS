@@ -10,6 +10,12 @@ import { contexteMemoire, noterEpisode, vieillirMemoire } from "@/platform/in-pr
 import { fournisseurConfigure } from "@/platform/in-process/missions/reasoner";
 import { RaisonneurScripte, pour } from "@/platform/in-process/missions/fake-reasoner";
 
+// I6 (décision 0070) : l'ancien moteur et ses fils (`AssistantThread`) se testent SOUS SON DRAPEAU — sans lui, ils sont
+// gelés en lecture (moteur unique). Le drapeau est posé pour ce fichier seul, puis rendu.
+const drapeauAncienMoteur = process.env.ADAM_ANCIEN_MOTEUR;
+beforeAll(() => { process.env.ADAM_ANCIEN_MOTEUR = "1"; });
+afterAll(() => { if (drapeauAncienMoteur === undefined) delete process.env.ADAM_ANCIEN_MOTEUR; else process.env.ADAM_ANCIEN_MOTEUR = drapeauAncienMoteur; });
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LA MÉMOIRE ÉPISODIQUE, DE BOUT EN BOUT — depuis une VRAIE conversation.

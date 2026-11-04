@@ -44,6 +44,8 @@ export interface OptionsGeneration {
   flux?: boolean;
   /** Direction (02/11/2026) : la lecture d'un long document a son propre budget, hors du plafond par tour (borné par ses parties). */
   horsTour?: boolean;
+  /** I6 (décision 0070) : la clé de cache de la personne (`cleCacheDeLaPersonne`) — une mission la partage avec ses tours. */
+  cleCache?: string;
 }
 
 let modelesDeTest: ModeleTour[] | null = null;
@@ -102,7 +104,7 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
             ]),
           ]
           : texte;
-        const options = { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs), providerOptions: optionsFournisseur(m) } as never;
+        const options = { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs), providerOptions: optionsFournisseur(m, opts.cleCache) } as never;
         const messages = [{ role: "user" as const, content: contenu }] as never;
         const r = opts.flux ? await enFlux(agent, messages, options) : await agent.generate(messages, options);
         budget.enregistrer(appelDepuisEtape(fournisseurDe(m), (r as { usage?: unknown }).usage, Date.now() - t0));

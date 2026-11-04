@@ -1,5 +1,18 @@
 ## 🧾 Journal des évolutions récentes
 
+### I6 — UN SEUL MOTEUR : TOUTES LES ENTRÉES PASSENT PAR `jouerTour` (2026-11-04)
+
+Décision [0070](../assistant/decisions/0070-moteur-unique.md) (étape 4 du plan AU3). Le Super Admin n'a plus deux Adam : le
+« Demander » d'Adventum Brain (`askBrain`) et la relance (`relanceMoteurUnique`, ex-`assistantNudge`) jouent leur tour par le
+moteur unique (`modules/assistant-ia/infra/entrees.ts` → `jouerTour` : un catalogue filtré par le `ProfilDAcces`, les mêmes
+gardes, la même fin de tour) ; le Bureau d'Adam, l'appel vocal global, la dictée et les routes `/api/assistant/stream`,
+`/voice/*`, `/transcribe` sont **masqués** et mènent à la conversation d'Adventum IA (frontière 0013 : Adam → IA = 0).
+`AssistantThread` est **gelé en lecture** (historique consultable sur `/adam/bureau`). **Rien n'est supprimé** :
+`ADAM_ANCIEN_MOTEUR=1` remet l'ancien moteur, ses routes et l'appel global ; `runAssistant` ne s'obtient plus que par
+`ancienneBoucle()` (test d'architecture `src/platform/moteur-unique.test.ts`). Une seule clé de cache par personne
+(`cleCacheDeLaPersonne`) pour la conversation, les entrées, les routines et les missions. Rejeu réel (`npm run banc:i6`) :
+7,9 k jetons par appel (−35 %), 66–72 % en cache, −23 % de coût par tour ; banc S1 frontière SA/employé : 19/19 bloquées.
+
 ### C1 — LES CARTES À VALIDER NE DISPARAISSENT PLUS (2026-11-04)
 
 Décision [0068](../assistant/decisions/0068-cartes-persistantes.md). Reproduit en vrai navigateur (vrai modèle, base

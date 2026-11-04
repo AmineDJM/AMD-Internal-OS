@@ -5,7 +5,10 @@ import { bindingFor } from "@/lib/models/registry";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { featureEnabled, FEATURES } from "@/lib/features";
 import { personalContext, contexteReglesSeules } from "@/lib/assistant-memory";
-import { runAssistantStream, type ChatTurn, type AssistantStreamEvent } from "@/lib/assistant";
+// I6 (décision 0070) : `runAssistantStream` n'est plus importé ici — l'ancien moteur ne s'obtient que par `ancienneBoucle()`
+// (drapeau ADAM_ANCIEN_MOTEUR=1). Import d'avant : `runAssistantStream, type ChatTurn, …` depuis "@/lib/assistant".
+import type { ChatTurn, AssistantStreamEvent } from "@/lib/assistant";
+import { ancienneBoucle, MESSAGE_ANCIEN_MOTEUR_MASQUE } from "@/lib/assistant/ancien-moteur";
 import { rememberExchange } from "@/lib/memoire-echange";
 import { consignerProvenance } from "@/platform/in-process/fabric/provenance";
 import { sansBloquer } from "@/lib/journal";
@@ -74,6 +77,15 @@ export async function POST(req: Request) {
           send({ type: "done", result: { configured: true, ok: false, reply: "", trace: [], error: "L'assistant IA est actuellement désactivé par l'administrateur." } });
           return;
         }
+        // I6 (décision 0070) — UN SEUL MOTEUR : ce flux ne joue plus l'ancienne boucle ; il dit où parler à Adam (la
+        // conversation d'Adventum IA, `jouerTour`). `AssistantThread` est gelé en lecture. ADAM_ANCIEN_MOTEUR=1 remet la suite.
+        const boucle = await ancienneBoucle();
+        if (!boucle) {
+          // Adam n'importe pas le module de l'Assistant IA (0013) : ce flux dit le motif et l'adresse du moteur unique.
+          send({ type: "done", result: { configured: true, ok: false, reply: "", trace: [], error: MESSAGE_ANCIEN_MOTEUR_MASQUE } });
+          return;
+        }
+        const runAssistantStream = boucle.runAssistantStream;
         // Les RÈGLES enseignées ne dépendent pas du drapeau mémoire : une attestation s'applique toujours.
         const personal = memoryOn ? personalBrut : await contexteReglesSeules(user.id);
 

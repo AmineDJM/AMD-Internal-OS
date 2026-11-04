@@ -1,3 +1,4 @@
+import { ancienMoteurActif } from "@/lib/assistant/ancien-moteur";
 import { prisma } from "@/lib/prisma";
 import { getManagerOfUser, getDepartmentPath } from "@/lib/departments";
 import { typedMemoryContext } from "@/lib/assistant/memory-context";
@@ -128,6 +129,15 @@ export async function getThreadMessages(
 }
 
 /**
+ * I6 (décision 0070) — LES FILS DE L'ANCIEN MOTEUR SONT GELÉS EN LECTURE. Adam n'a plus qu'un moteur, dont la mémoire de
+ * conversation est `AssistantIaFil` ; `AssistantThread` / `AssistantMessage` restent LISIBLES (historique du Bureau,
+ * rappel épisodique) mais ne s'écrivent plus — sauf sous ADAM_ANCIEN_MOTEUR=1, qui remet l'ancien moteur. L'effacement à
+ * la main de la personne (un fil, ou tout — droit à l'oubli) reste ouvert : geler n'est pas confisquer.
+ */
+export const FILS_GELES = "Les conversations de l'ancien Adam sont gelées en lecture (moteur unique, décision 0070).";
+export const filsGeles = (): boolean => !ancienMoteurActif();
+
+/**
  * LE FIL PRINCIPAL — la conversation continue du Chief of Staff, une par personne.
  * La retrouve ou la crée ; si plusieurs existent (course), la plus ancienne fait foi.
  */
@@ -138,6 +148,8 @@ export async function ensurePrimaryThread(userId: string): Promise<string> {
     select: { id: true },
   });
   if (existing) return existing.id;
+  // I6 (décision 0070) : `AssistantThread` est GELÉ EN LECTURE — aucun fil ne se crée sans l'ancien moteur.
+  if (filsGeles()) throw new Error(FILS_GELES);
   const t = await prisma.assistantThread.create({
     data: { userId, isPrimary: true, title: "Fil principal" },
     select: { id: true },
@@ -263,6 +275,7 @@ export async function searchOwnMessages(userId: string, query: string, limit = 1
 
 /** Crée un fil pour cette personne. Le titre est dérivé de sa première question. */
 export async function createThread(userId: string, firstMessage?: string): Promise<string> {
+  if (filsGeles()) throw new Error(FILS_GELES);
   const title = firstMessage?.trim().slice(0, 80) || null;
   const t = await prisma.assistantThread.create({ data: { userId, title }, select: { id: true } });
   return t.id;
@@ -276,6 +289,8 @@ export async function appendExchange(
   userId: string, threadId: string, userMessage: string, assistantReply: string,
   workspace?: unknown,
 ): Promise<boolean> {
+  // I6 (décision 0070) : gelé en lecture — rien n'est ajouté à un fil de l'ancien moteur (false : « rien écrit »).
+  if (filsGeles()) return false;
   const owned = await prisma.assistantThread.findFirst({ where: { id: threadId, userId }, select: { id: true, title: true } });
   if (!owned) return false;
   await prisma.assistantMessage.createMany({

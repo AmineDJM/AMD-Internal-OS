@@ -2,6 +2,9 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { interrupteurIaCoupe, logAiUsage, REFUS_IA_COUPEE } from "@/lib/ai-settings";
+// I6 (décision 0070) : l'interrupteur d'une fonction du Centre de contrôle IA (« nudge » pour la relance du moteur unique),
+// réexporté pour `entrees.ts` — un seul fichier du module lit `lib/ai-settings` pour la consommation.
+export { aiFeatureEnabled } from "@/lib/ai-settings";
 import { notifyUser } from "@/lib/notify";
 import { sansBloquer } from "@/lib/journal";
 import { coutJournal, type ColonnesK8 } from "@/platform/ia/telemetry/cout-journal";

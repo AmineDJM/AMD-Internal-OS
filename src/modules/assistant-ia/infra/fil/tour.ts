@@ -9,6 +9,7 @@ import { consigneFamilles, enVueExacteIa, refusAssistantVueExacte, type AccesIa 
 import { accesEnProse, consigneGestesFermes, outilsV1, type MemoireProposee } from "../outils-v1";
 import { gestesFermesPour } from "../refus-nomme";
 import { profilDAcces, type ProfilDAcces } from "../../domaine/profil-acces";
+import { cleCacheDeLaPersonne } from "../../domaine/cle-cache";
 import { consigneTravaux, outilsSousMissionsDuTour } from "../travaux";
 import { outilsChantierPour } from "../chantiers";
 import { selectionDuTour, type SelectionDuTour } from "../selection";
@@ -328,7 +329,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       user, message, historique: historiqueDansEnveloppe(saisie.historique), instructions,
       origine: d.conversation ? "fil" : "conversation", conversation: d.conversation ?? null,
       outils, modeles, delaiMs: d.delaiMs ?? DELAI_MODELE_MS, config,
-      actifs: selection.actifs, cleCache: `assistant-ia:${user.id}`,
+      actifs: selection.actifs, cleCache: cleCacheDeLaPersonne(user.id),
       propositionsFaites: () => propositions.length,
       maxEtapes: fond ? Math.min(d.maxEtapes ?? ETAPES_DE_FOND, ETAPES_DE_FOND) : d.maxEtapes,
       // En flux, un repère n'est pas encore jugé : il s'affiche « ••• » jusqu'à la réponse finale.
