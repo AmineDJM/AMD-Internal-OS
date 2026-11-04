@@ -58,7 +58,7 @@ async function lancer(titre: string, etapes = 4): Promise<string> {
   return r.travailId;
 }
 
-const outil = (nom: string, echoues = new Set<string>()) => outilsMissions(sa, echoues).find((o) => o.def.name === nom)!;
+const outil = (nom: string) => outilsMissions(sa).find((o) => o.def.name === nom)!;
 
 suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
   let ids: string[] = [];
@@ -122,7 +122,7 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       // Un passage EFFECTIF il y a 30 s : « prête : part au prochain battement ».
       await prisma.tacheDeFond.update({ where: { cle: "travaux.balayage" }, data: { dernierStatut: "OK", dernierMessage: null } });
       const vivant = (await mesMissions(sa.id)).missions.find((m) => m.titre === "Classeur de suivi AMD")!;
-      expect(vivant.diagnostic.phrase).toMatch(/moins d'une minute|en cours/);
+      expect(vivant.diagnostic.phrase).toMatch(/^prête|en cours/);
     } finally {
       if (avant) await prisma.tacheDeFond.update({ where: { cle: "travaux.balayage" }, data: { dernierDebutA: avant.dernierDebutA, dernierStatut: avant.dernierStatut, dernierMessage: avant.dernierMessage } });
     }
@@ -151,12 +151,11 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
   });
 
   it("l'arrêt se DÉFAIT : « reprends le planning » relance la mission arrêtée ; une désignation ambiguë nomme les candidates", async () => {
-    const echoues = new Set<string>();
-    const r = JSON.parse(await outil("piloter_mission", echoues).run({ action: "reprendre", mission: "planning" }, sa));
+    const r = JSON.parse(await outil("piloter_mission").run({ action: "reprendre", mission: "planning" }, sa));
     expect(r.statut, JSON.stringify(r)).toBe("FAIT");
     const m = await prisma.mission.findUniqueOrThrow({ where: { id: ids[1] }, select: { status: true } });
     expect(m.status).not.toBe("PAUSED");
-    const amb = JSON.parse(await outil("piloter_mission", echoues).run({ action: "pause", mission: "AMD" }, sa));
+    const amb = JSON.parse(await outil("piloter_mission").run({ action: "pause", mission: "AMD" }, sa));
     expect(["AMBIGU", "FAIT"]).toContain(amb.statut);
     // Renommer, puis arrêter pour de bon par l'écrit — réversible lui aussi.
     const ren = JSON.parse(await outil("piloter_mission").run({ action: "renommer", mission: ids[1], titre: "Planning — repris" }, sa));
@@ -193,7 +192,9 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       expect(repli.statut, JSON.stringify(repli)).toBe("EN_ATTENTE_DE_CONFIRMATION");
       expect(repli.boite).toBe("l'envoi de l'ERP");
       expect(repli.boite_adam).toBe("non reliée");
-      expect(repli.consigne).toMatch(/boîte Gmail d'Adam n'est pas reliée.*\/adam\/reglages.*Connecter le compte Google/);
+      // I1 : un FAIT sur la carte (avertissement, donc observation), plus une consigne.
+      expect(props[0]!.proposition.warnings?.[0]).toMatch(/boîte Gmail d'Adam n'est pas reliée.*\/adam\/reglages.*Connecter le compte Google/);
+      expect(props[0]!.proposition.mails?.[0]?.expediteur).toBe("l'envoi de l'ERP");
       expect(props[0]!.proposition.title).toContain("Envoyer par l'envoi de l'ERP");
     } else {
       // L'envoi de l'ERP peut être fermé à ce compte par la console : le refus le DIT (jamais « rien n'est préparé » sans raison).

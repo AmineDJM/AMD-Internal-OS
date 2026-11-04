@@ -4,8 +4,9 @@ import { recordAudit } from "@/lib/audit";
 import { canalAdamOuvert, OU_RELIER_GMAIL_ADAM } from "../../domaine/mails/canal";
 import { boiteGmailAdam, confirmerMailAdam, enregistrerExecuteurGmail, freinGmail, preparerMailAdam } from "@/lib/google/gmail/envoi";
 import { texte, type OperationIA } from "../../domaine/operations/types";
-import { lireContenuMail, rendreMailHtml, rendreMailTexte, type ContenuMail } from "../../domaine/mails/gabarit";
-import { charteDuMail, groupeDestinataires, piecesDuDrive, resoudreDestinataire, signatureDe, type Destinataire } from "../mails/redaction";
+import { BORNES_MAIL, lireDocumentMail, STYLES_BLOC, STYLES_MAIL, type DocumentMail } from "../../domaine/mails/composer";
+import type { MailVu } from "../../domaine/observation/projecteurs";
+import { charteDuMail, groupeDestinataires, piecesDuDrive, rendreLeMail, resoudreDestinataire, signatureDe, type Destinataire } from "../mails/redaction";
 
 // La boîte d'Adam lue par `mes_boites_mail`, et l'exécuteur armé là où l'on annule — par cette seule porte vers Google.
 export { boiteGmailAdam, enregistrerExecuteurGmail };
@@ -17,26 +18,44 @@ export { boiteGmailAdam, enregistrerExecuteurGmail };
  *
  *   • PEU DE QUESTIONS : les destinataires se résolvent par l'annuaire (`redaction.ts`) ; une question seulement si un nom
  *     est ambigu ou introuvable. Objet, ton, signature : choisis — la personne corrige sur la carte.
- *   • BEAUX MAILS : le modèle rend un CONTENU STRUCTURÉ ; le gabarit (`domaine/mails/gabarit.ts`) le met en page aux
- *     couleurs de la société d'envoi, avec la signature et la version texte. L'aperçu de la carte est ce rendu.
+ *   • LE MAIL EN BLOCS (lot I1, décision 0063) : le modèle compose un document de blocs, la charte de la société est un
+ *     style applicable à tout, rien ou une partie ; UN rendu (`rendreLeMail`), assaini, avec sa version texte. L'aperçu de
+ *     la carte est ce rendu, et son OBSERVATION (expéditeur, destinataires, texte, nature du rendu) part au modèle.
  *   • La MACHINE d'Adam : une intention d'envoi préparée par mail (`preparerMailAdam`), approuvée au nom de qui confirme,
  *     différée dans la fenêtre d'annulation. Droits des outils Gmail d'Adam (Direction, Super Admin) ; freins anti-boucle.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const MAILS_MAX = 5;
 
+/**
+ * LE MAIL EN BLOCS (lot I1, étape 5) — le contrat dit ce que chaque style PRODUIT ; le choix est celui de la demande.
+ * Aucun gabarit imposé : le style « sobre » est le défaut, la charte s'applique où on la veut, le HTML libre est permis.
+ */
 const SCHEMA_CONTENU = {
   type: "object",
-  description: "Le contenu STRUCTURÉ (jamais du HTML) : le gabarit le met en page. **gras** permis pour une échéance.",
+  description: "Le mail, en BLOCS dans l'ordre. `style` : « sobre » (défaut : professionnel, sans couleur ni bandeau), « charte » (aux couleurs de la société d'envoi : bandeau, tableaux, signature, pied), « texte » (texte brut, aucun HTML). Un bloc peut porter son propre `style` (« charte », « sobre », « simple » = sans aucune mise en forme) : la charte s'applique à tout, à rien ou à une partie. Bloc `html` : HTML libre, styles en ligne permis (le serveur l'assainit). **gras** permis dans un texte. La signature de la personne est ajoutée à la fin (`signature: false` l'omet).",
   properties: {
-    salutation: { type: "string", description: "« Bonjour Redouane, » (tutoiement entre collègues, vouvoiement pour l'extérieur)." },
-    paragraphes: { type: "array", items: { type: "string" }, description: "Paragraphes courts (2 à 3 phrases)." },
-    liste: { type: "array", items: { type: "string" }, description: "Points à puces (facultatif)." },
-    tableau: { type: "object", properties: { colonnes: { type: "array", items: { type: "string" } }, lignes: { type: "array", items: { type: "array", items: { type: "string" } } } }, description: "Un tableau (dates, tâches) — facultatif." },
-    apres: { type: "array", items: { type: "string" }, description: "Paragraphes après la liste ou le tableau (facultatif)." },
-    cloture: { type: "string", description: "« Bonne semaine, », « Bien cordialement, »." },
+    style: { type: "string", enum: [...STYLES_MAIL] },
+    blocs: {
+      type: "array",
+      maxItems: BORNES_MAIL.blocs,
+      items: {
+        type: "object",
+        properties: {
+          type: { type: "string", enum: ["paragraphe", "titre", "liste", "tableau", "bandeau", "signature", "pied", "separateur", "html"] },
+          texte: { type: "string", description: "paragraphe, titre, bandeau (texte du bandeau ; défaut : la société)." },
+          elements: { type: "array", items: { type: "string" }, description: "liste : les puces." },
+          colonnes: { type: "array", items: { type: "string" }, description: "tableau : les en-têtes." },
+          lignes: { type: "array", items: { type: "array", items: { type: "string" } }, description: "tableau : les rangées." },
+          html: { type: "string", description: "html : le fragment libre." },
+          style: { type: "string", enum: [...STYLES_BLOC] },
+        },
+        required: ["type"],
+      },
+    },
+    signature: { type: "boolean" },
   },
-  required: ["salutation", "paragraphes", "cloture"],
+  required: ["blocs"],
 };
 
 export const SCHEMA_MAILS = {
@@ -56,7 +75,7 @@ export const SCHEMA_MAILS = {
 };
 
 interface MailPrepare {
-  destinataires: Destinataire[]; cc: Destinataire[]; objet: string; contenu: ContenuMail; pieces: string[];
+  destinataires: Destinataire[]; cc: Destinataire[]; objet: string; document: DocumentMail; pieces: string[];
   /** F2 (TR-MU-03) : le destinataire introuvable, à compléter sur la carte (« le pharmacien responsable »). */
   aCompleter?: string;
 }
@@ -67,7 +86,7 @@ export async function preparerMails(
   /** F2 : un destinataire introuvable (ou absent) n'arrête pas la carte — il reste à compléter sur elle. */
   opts: { destinataireACompleter?: boolean } = {},
 ): Promise<{ ok: true; mails: MailPrepare[] } | { manque: string[]; precision?: string }> {
-  const liste = Array.isArray(brut) ? brut.slice(0, MAILS_MAX) : corpsSimple ? [{ a: corpsSimple.a, cc: corpsSimple.cc, objet: corpsSimple.objet, contenu: { salutation: "Bonjour,", paragraphes: corpsSimple.corps.split(/\n{2,}/), cloture: "Bien cordialement," } }] : [];
+  const liste = Array.isArray(brut) ? brut.slice(0, MAILS_MAX) : corpsSimple ? [{ a: corpsSimple.a, cc: corpsSimple.cc, objet: corpsSimple.objet, contenu: { blocs: corpsSimple.corps.split(/\n{2,}/).map((texte) => ({ type: "paragraphe", texte })) } }] : [];
   if (!liste.length) return { manque: ["le destinataire et le contenu du mail"] };
   const mails: MailPrepare[] = [];
   for (const m of liste) {
@@ -96,12 +115,12 @@ export async function preparerMails(
     if (!a.length && !aCompleter) return { manque: ["le destinataire du mail"] };
     const cc = await resoudre("cc");
     if (!Array.isArray(cc)) return cc;
-    const lu = lireContenuMail(o.contenu);
+    const lu = lireDocumentMail(o.contenu);
     if (!lu.ok) return { manque: lu.manque };
     const objet = texte(o, "objet").slice(0, 200);
     if (!objet) return { manque: ["l'objet du mail"] };
     const pieces = Array.isArray(o.pieces) ? o.pieces.filter((x): x is string => typeof x === "string" && !!x.trim()) : [];
-    mails.push({ destinataires: a, cc, objet, contenu: lu.contenu, pieces, ...(aCompleter ? { aCompleter } : {}) });
+    mails.push({ destinataires: a, cc, objet, document: lu.document, pieces, ...(aCompleter ? { aCompleter } : {}) });
   }
   return { ok: true, mails };
 }
@@ -147,13 +166,16 @@ export const ENVOI_GMAIL: OperationIA = {
     const ids: string[] = [];
     const apercus: { titre: string; html: string }[] = [];
     const textes: string[] = [];
+    const mails: MailVu[] = [];
+    const expediteur = `${boite.address} (Gmail d'Adam)`;
     for (const [i, m] of prep.mails.entries()) {
-      const html = rendreMailHtml(m.contenu, signature, charte, m.objet);
-      const texteMail = rendreMailTexte(m.contenu, signature, charte);
-      textes.push(texteMail);
-      const p = await preparerMailAdam({ to: m.destinataires.map((d) => d.email), cc: m.cc.map((d) => d.email), subject: m.objet, text: texteMail, html, attachments: jointes.get(i)?.pieces ?? [] }, { id: user.id, name: user.name ?? user.email ?? user.id });
+      // UN rendu (I1) : ce qui part est ce que la carte montre et ce que le modèle observe.
+      const r = rendreLeMail(m.document, signature, charte, m.objet);
+      textes.push(r.texte);
+      const p = await preparerMailAdam({ to: m.destinataires.map((d) => d.email), cc: m.cc.map((d) => d.email), subject: m.objet, text: r.texte, html: r.html, attachments: jointes.get(i)?.pieces ?? [] }, { id: user.id, name: user.name ?? user.email ?? user.id });
       ids.push(p.outboundId);
-      apercus.push({ titre: `À ${m.destinataires.map((d) => d.nom ?? d.email).join(", ")} — « ${m.objet} »`, html });
+      apercus.push({ titre: `À ${m.destinataires.map((d) => d.nom ?? d.email).join(", ")} — « ${m.objet} »`, html: r.apercu });
+      mails.push({ expediteur, a: m.destinataires.map((d) => (d.nom ? `${d.nom} <${d.email}>` : d.email)), cc: m.cc.map((d) => d.email), objet: m.objet, texte: r.texte, html: r.html });
     }
     const n = prep.mails.length;
     return {
@@ -169,6 +191,7 @@ export const ENVOI_GMAIL: OperationIA = {
           : ["Fenêtre d'annulation : chaque mail attend le délai réglé (30 s par défaut) avant de partir — « Annuler l'envoi » dedans, rien ne part ; parti, un rectificatif peut suivre."],
         libelleBouton: brouillon ? "Enregistrer le brouillon" : n > 1 ? `Envoyer les ${n} mails` : "Envoyer",
         apercus,
+        mails,
       },
       // La charge dit AUSSI ce qui part (destinataires, objet, texte du premier mail) : qui relit la carte — la personne,
       // l'audit — lit le mail, pas des identifiants. L'exécution, elle, ne part que des intentions d'Adam (`outboundIds`).

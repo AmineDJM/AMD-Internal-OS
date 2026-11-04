@@ -85,8 +85,7 @@ export function ecrituresAdam(user: CurrentUser, propositions: PropositionCarte[
       const warnings = ["Rien n'est fait avant votre confirmation ; le geste sera journalisé et annulable depuis « Ce que l'assistant a fait »."];
       propositions.push({ intentId, proposition: { kind: KIND_ADAM_SA, title, fields, warnings, ...(sensible ? { level: "SENSITIVE" as const } : {}), payload: charge } });
       return JSON.stringify({
-        statut: "EN_ATTENTE_DE_CONFIRMATION", titre: title,
-        consigne: "Rien n'est fait : une carte est affichée. Résume-la en une phrase ; ne dis jamais que c'est fait.",
+        statut: "EN_ATTENTE_DE_CONFIRMATION", titre: title, champs: fields,
       });
     },
   }));

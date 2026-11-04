@@ -5,9 +5,9 @@ import type { PowerTool } from "@/platform/ia/outil";
 import { boiteGmailAdam } from "../operations/envoi-gmail";
 import { A_COMPLETER, registreDesCapacites } from "../capacites";
 import type { PropositionCarte } from "../operations";
+import type { MailVu } from "../../domaine/observation/projecteurs";
 import { preparerMails, SCHEMA_MAILS } from "../operations/envoi-gmail";
-import { charteDuMail, signatureDe } from "./redaction";
-import { rendreMailHtml, rendreMailTexte } from "../../domaine/mails/gabarit";
+import { charteDuMail, rendreLeMail, signatureDe } from "./redaction";
 import { canalAdamOuvert, OU_RELIER_GMAIL_ADAM } from "../../domaine/mails/canal";
 
 /**
@@ -52,7 +52,7 @@ export async function etatDesBoites(user: CurrentUser): Promise<EtatBoites> {
   // pas au nom d'Adam : par LEUR boîte (Microsoft, puis SMTP), sinon par l'envoi de l'ERP (banc d'audit Q1 : sans cela, le
   // mail restait du texte dans la réponse). P1 bis (ML-09) : la boîte d'Adam pas reliée → REPLI sur l'envoi de l'ERP —
   // la carte est préparée quand même, et la réponse DIT en une phrase que la boîte d'Adam n'est pas reliée (jamais
-  // « rien n'est préparé »). Ce n'est pas un repli silencieux : `repliAdam` le porte jusqu'à la consigne.
+  // « rien n'est préparé »). Ce n'est pas un repli silencieux : `repliAdam` le porte sur la carte (avertissement, donc observation).
   const parDefaut: Boite | null = gmailAdam
     ? (gmailAdam.envoi ? "gmail_adam" : "erp")
     : microsoft.reliee ? "microsoft" : smtp ? "smtp" : "erp";
@@ -67,6 +67,13 @@ const CAPACITE: Record<"microsoft" | "brouillon" | "smtp" | "erp", string> = {
 };
 const nomDeCapacite = (id: string): string | undefined => registreDesCapacites().capacites.find((c) => c.id === id)?.outil;
 const json = (o: unknown) => JSON.stringify(o);
+
+/**
+ * LES CAPACITÉS D'ENVOI DE MAIL ne sont offertes au modèle QUE par `envoyer_mail` (lot I1, audit AU1 C2) : elles restent
+ * dans le tour (l'outil les appelle), mais pas dans le catalogue qu'il choisit — l'expéditeur ne change plus parce qu'une
+ * capacité de plus bas niveau rendait du texte. Il se change sur demande (`boite`), et la carte l'observe.
+ */
+export const capacitesDEnvoi = (): Set<string> => new Set(Object.values(CAPACITE).map(nomDeCapacite).filter((n): n is string => !!n));
 
 /**
  * LES OUTILS — `trouver` rend un outil du tour par son nom (les capacités et l'opération Gmail y sont déjà, avec leurs
@@ -101,7 +108,7 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
     {
       def: {
         name: "envoyer_mail",
-        description: `ENVOIE des mails après confirmation, sans poser de questions : UNE carte « Envoyer » (aperçu réel du mail), annulable pendant la fenêtre d'annulation. Destinataires par leurs NOMS (l'annuaire les résout ; « toute la direction » aussi) ; objet, ton, signature : choisis-les. Rédige un CONTENU STRUCTURÉ (salutation personnalisée, paragraphes courts, liste à puces ou TABLEAU pour un planning, **échéances en gras**, clôture) — jamais du HTML : le gabarit le met en page. Un mail par personne quand le contenu lui est propre. ${adam
+        description: `ENVOIE des mails après confirmation, sans poser de questions : UNE carte « Envoyer » (aperçu réel du mail), annulable pendant la fenêtre d'annulation. Destinataires par leurs NOMS (l'annuaire les résout ; « toute la direction » aussi) ; objet, ton, signature : choisis-les. Le mail se compose en BLOCS (\`contenu\`) : style « sobre » par défaut, « charte », « texte », ou la charte sur une partie seulement ; HTML libre permis. La sortie rend le mail TEL QU'IL PARTIRA (expéditeur, destinataires, texte, nature du rendu). Un mail par personne quand le contenu lui est propre. ${adam
           ? "Envoi par la boîte Gmail d'Adam (Microsoft ou SMTP seulement sur demande, `boite`)."
           : "Envoi par la boîte de la personne (Microsoft, sinon SMTP), sinon par l'envoi de l'ERP — la boîte est choisie par l'outil."} \`brouillon: true\` SEULEMENT sur demande.`,
         input_schema: {
@@ -137,9 +144,11 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
         let entree: Record<string, unknown>;
         let piecesNonJointes: string[] = [];
         let destinataireACompleter: string | null = null;
+        let rendu: MailVu | null = null;
+        let formePerdue = false;
         if (boite === "gmail_adam") entree = { mails: e.mails, ...(typeof e.societe === "string" ? { societe: e.societe } : {}), ...(brouillon ? { brouillon: true } : {}) };
         else {
-          // La boîte de la personne (sur sa demande) : un mail par carte, le MÊME gabarit.
+          // La boîte de la personne (sur sa demande) : un mail par carte, le MÊME rendu.
           // F2 (TR-MU-03) : un destinataire introuvable n'arrête pas la carte — il reste « à compléter » sur elle.
           const prep = await preparerMails(Array.isArray(e.mails) ? e.mails.slice(0, 1) : [], undefined, { destinataireACompleter: true });
           if (!("ok" in prep)) return json({ statut: "INCOMPLET", manque: prep.manque, consigne: "Pose UNE seule question : la première de `manque`." });
@@ -149,9 +158,15 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
           const signature = await signatureDe(user);
           const charte = await charteDuMail(user, typeof e.societe === "string" ? e.societe : null, signature);
           const to = m.destinataires.map((d) => d.email).join(", "), cc = m.cc.map((d) => d.email).join(", ");
+          // UN rendu (I1, étape 5) — la boîte SMTP ou l'envoi de l'ERP n'envoient que du texte : le HTML n'existe pas, et
+          // l'observation le dit (la mise en forme demandée n'est pas conservée par cette boîte).
+          const texteSeul = boite !== "microsoft";
+          const r = rendreLeMail(m.document, signature, charte, m.objet, { texteSeul });
+          if (texteSeul && m.document.style !== "texte") formePerdue = true;
+          rendu = { expediteur: boite === "microsoft" ? `${etat.microsoft.adresse} (ta boîte Microsoft)` : boite === "smtp" ? `${etat.smtp.adresse} (ta boîte SMTP)` : "l'envoi de l'ERP", a: m.destinataires.map((d) => (d.nom ? `${d.nom} <${d.email}>` : d.email)), cc: m.cc.map((d) => d.email), objet: m.objet, texte: r.texte, html: r.html };
           entree = boite === "microsoft"
-            ? { ...(to ? { to } : {}), ...(cc ? { cc } : {}), subject: m.objet, bodyHtml: rendreMailHtml(m.contenu, signature, charte, m.objet) }
-            : { ...(to ? { to } : {}), ...(cc ? { cc } : {}), subject: m.objet, body: rendreMailTexte(m.contenu, signature, charte) };
+            ? { ...(to ? { to } : {}), ...(cc ? { cc } : {}), subject: m.objet, bodyHtml: r.apercu }
+            : { ...(to ? { to } : {}), ...(cc ? { cc } : {}), subject: m.objet, body: r.texte };
           if (m.aCompleter) {
             destinataireACompleter = m.aCompleter;
             Object.assign(entree, { [A_COMPLETER]: ["to"] });
@@ -168,13 +183,20 @@ export function outilsMails(user: CurrentUser, trouver: (nom: string) => PowerTo
           p.proposition.libelleBouton = brouillon ? "Enregistrer le brouillon" : "Envoyer";
           if (destinataireACompleter) p.proposition.warnings = [`Destinataire à compléter : « ${destinataireACompleter} » est introuvable dans l'annuaire — saisissez son adresse dans le champ « À » de la carte.`, ...(p.proposition.warnings ?? [])];
           if (piecesNonJointes.length) p.proposition.warnings = [...(p.proposition.warnings ?? []), `Pièce jointe non jointe : ${dite} n'envoie pas de fichier — ${piecesNonJointes.join(", ")} à transmettre depuis le Drive (lien de partage) ou par ta boîte Microsoft.`];
+          if (formePerdue) p.proposition.warnings = [...(p.proposition.warnings ?? []), `Mise en forme non conservée : ${dite} n'envoie que du texte brut.`];
+          if (rendu) p.proposition.mails = [rendu];
           await prisma.assistantActionIntent.update({ where: { id: p.intentId }, data: { title: p.proposition.title } }).catch(sansBloquer("mails.envoyer.titre-carte"));
         }
         let lu: Record<string, unknown> = {};
         try { lu = JSON.parse(sortie) as Record<string, unknown>; } catch { lu = { sortie }; }
         const repliAdam = boite === "erp" && !voulue && !!etat.gmailAdam && !etat.gmailAdam.envoi;
-        const motAdam = repliAdam ? ` Ajoute UNE phrase : la boîte Gmail d'Adam n'est pas reliée (${etat.gmailAdam?.raison ?? "aucune connexion Google"}) — elle se relie dans ${OU_RELIER_GMAIL_ADAM} ; en attendant, le mail part par l'envoi de l'ERP.` : "";
-        return json({ ...lu, boite: dite, ...(repliAdam ? { boite_adam: "non reliée" } : {}), ...(piecesNonJointes.length ? { pieces_non_jointes: piecesNonJointes } : {}), consigne: `${destinataireACompleter ? `L'adresse de « ${destinataireACompleter} » est introuvable : la carte est préparée avec le destinataire À COMPLÉTER (champ « À ») — dis-le en une phrase, sans poser de question. ` : ""}${motAdam ? motAdam.trim() + " " : ""}${piecesNonJointes.length ? `Dis aussi, en une phrase, que ${piecesNonJointes.join(", ")} n'est pas joint par cette boîte et se transmet depuis le Drive. ` : ""}Dis en une phrase que la carte « ${brouillon ? "Enregistrer le brouillon" : "Envoyer"} » attend sa confirmation et que le mail partira par ${dite}${brouillon ? "" : " — annulable pendant la fenêtre d'annulation (30 s par défaut)"}. Ne dis jamais qu'il est parti.` });
+        // Des FAITS, plus de consigne (I1) : dans un tour, l'enveloppe remplace cette sortie par l'observation de la carte —
+        // le repli et la pièce non jointe y sont, comme avertissements de la carte.
+        if (repliAdam && propositions.length > avant) {
+          const p = propositions[propositions.length - 1]!;
+          p.proposition.warnings = [`La boîte Gmail d'Adam n'est pas reliée (${etat.gmailAdam?.raison ?? "aucune connexion Google"}) — elle se relie dans ${OU_RELIER_GMAIL_ADAM} ; ce mail part par l'envoi de l'ERP.`, ...(p.proposition.warnings ?? [])];
+        }
+        return json({ ...lu, boite: dite, ...(repliAdam ? { boite_adam: "non reliée" } : {}), ...(piecesNonJointes.length ? { pieces_non_jointes: piecesNonJointes } : {}), ...(destinataireACompleter ? { destinataire_a_completer: destinataireACompleter } : {}) });
       },
     },
   ];
