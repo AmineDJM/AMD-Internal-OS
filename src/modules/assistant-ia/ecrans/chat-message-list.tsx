@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { User, Loader2, Wrench, Clock, Mic, AlertTriangle, ArrowDown } from "lucide-react";
-import { ActionConfirmationCard } from "./action-confirmation-card";
+import { ActionConfirmationCard, type StatutCarteAffichee } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
 import { MemoiresRetenues } from "./memoires-retenues";
@@ -52,7 +52,14 @@ export interface ChatMessage {
    * « redaction » = réponse qui s'écrit sous les yeux ; « echec » = tour qui n'a pas abouti.
    */
   etat?: "attente" | "redaction" | "echec";
-  intent?: {
+  intent?: CarteDuMessage | null;
+  /** C1 (décision 0068) : TOUTES les cartes de la réponse, relues dans la table des intentions (prime sur `intent`). */
+  intents?: CarteDuMessage[] | null;
+  createdAt?: string;
+}
+
+/** Une carte à valider, telle que l'écran la reçoit — son état est celui de la table des intentions. */
+export interface CarteDuMessage {
     id: string;
     kind: string;
     title: string;
@@ -67,11 +74,11 @@ export interface ChatMessage {
     simulation?: VueSimulation;
     /** J11 : le formulaire généré depuis le contrat de la capacité (corriger avant de signer). */
     formulaire?: FormulaireCarte;
-    status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
+    status?: StatutCarteAffichee;
     resultLink?: string;
     resultMessage?: string;
-  } | null;
-  createdAt?: string;
+    /** C1 : pourquoi elle n'attend plus (ignorée, remplacée par…, expirée, échec) — dit à la place des boutons. */
+    motif?: string;
 }
 
 export interface ChatMessageListProps {
@@ -95,6 +102,9 @@ export interface ChatMessageListProps {
 }
 
 /** Les classes qui changent d'une apparence à l'autre — rien d'autre ne change. */
+/** C1 : les cartes d'une réponse — toutes (lecture du fil), sinon la carte unique d'un tour joué dans la requête. */
+const cartesDu = (m: ChatMessage): CarteDuMessage[] => (m.intents?.length ? m.intents : m.intent ? [m.intent] : []);
+
 const STYLES = {
   erp: {
     bulle: "bg-slate-900 text-white shadow-xs dark:bg-zinc-100 dark:text-zinc-900",
@@ -277,27 +287,28 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                     <NotesProposeesCard propositions={m.notesProposees} onOuvrirNotes={onOuvrirNotes} />
                   </div>
                 )}
-                {m.intent && (
-                  <div className="mt-3">
+                {cartesDu(m).map((c) => (
+                  <div key={c.id} className="mt-3">
                     <ActionConfirmationCard
-                      intentId={m.intent.id}
-                      kind={m.intent.kind}
-                      title={m.intent.title}
-                      summary={m.intent.summary}
-                      fields={m.intent.fields}
-                      warnings={m.intent.warnings}
-                      confirmText={m.intent.confirmText}
-                      libelleBouton={m.intent.libelleBouton}
-                      apercus={m.intent.apercus}
-                      simulation={m.intent.simulation}
-                      formulaire={m.intent.formulaire}
-                      initialStatus={m.intent.status}
-                      resultLink={m.intent.resultLink}
-                      resultMessage={m.intent.resultMessage}
+                      intentId={c.id}
+                      kind={c.kind}
+                      title={c.title}
+                      summary={c.summary}
+                      fields={c.fields}
+                      warnings={c.warnings}
+                      confirmText={c.confirmText}
+                      libelleBouton={c.libelleBouton}
+                      apercus={c.apercus}
+                      simulation={c.simulation}
+                      formulaire={c.formulaire}
+                      initialStatus={c.status}
+                      resultLink={c.resultLink}
+                      resultMessage={c.resultMessage}
+                      motif={c.motif}
                       onConfirm={onConfirmIntent}
                     />
                   </div>
-                )}
+                ))}
               </div>
               )}
             </div>

@@ -183,6 +183,9 @@ export function classerExclusionsAttestations(): void {
     // La confirmation de l'ASSISTANT IA (/assistant) : la même porte que `executeAssistantAction`
     // (intention de CE compte, idempotence, `performAction`), sous la règle de l'Assistant IA.
     "assistant-ia-actions:confirmerIntentionAssistantIA",
+    // C1 (décision 0068) : « Ignorer » une carte de CE compte — PROPOSED → CANCELLED, rien n'est exécuté. Le refus d'un
+    // geste proposé, pas un geste à proposer au Chief.
+    "assistant-ia-actions:ignorerIntentionAssistantIA",
     // La confirmation d'une carte de TERRAIN (J13, décision 0025) : même garde, porte du module Rapports terrain,
     // seulement les opérations `terrain_*` que ce compte a préparées.
     "assistant-ia-actions:confirmerCarteTerrain",

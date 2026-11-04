@@ -865,10 +865,17 @@ model AssistantActionIntent {
   /// La mission qui a produit cette action, quand il y en a une. Sert à l'historique et à
   /// l'écran : « quelle action a produit ce reçu ? » se répond sans parcourir tous les intents.
   missionId      String?
+  /// C1 (décision 0068) : la conversation (`AssistantIaFil`) et la réponse (`AssistantIaTour`) qui portent la carte —
+  /// l'écran relit TOUTES les cartes d'une conversation ici, plus seulement la première d'un tour gardée sur le tour.
+  filId          String?
+  tourId         String?
+  /// C1 : ce que l'écran affiche de la carte (champs, avertissements, aperçus, formulaire…) — l'ÉTAT reste `status`.
+  carte          Json?
 
   @@index([userId, proposedAt])
   @@index([userId, status])
   @@index([missionId])
+  @@index([filId, status])
   /// Le balayage des intentions en plan (IA-ASSISTANT-07) : par état et par âge, toutes personnes confondues.
   @@index([status, proposedAt])
 }

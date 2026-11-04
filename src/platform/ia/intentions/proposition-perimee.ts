@@ -161,6 +161,21 @@ export function estQuestionOuRappel(message: string): boolean {
   return /^(?:rappelle|redis|repete|resume|recapitule|montre|affiche|liste|relis|dis[- ]moi|qu['’ ]|quel|quand|ou en|ou est|comment|combien|pourquoi|qui |est[- ]ce|c['’ ]est quoi|a quoi)/.test(n);
 }
 
+/**
+ * C1 (décision 0068) — L'ACTE DE CORRIGER. Mesuré en vrai navigateur (04/11) : un ACCORD sur la carte (« ok pour la tâche de
+ * relance Nivolex, je la valide tout à l'heure ») reprenait son sujet et la retirait en silence. Une carte ne se retire sur
+ * un message que si ce message CHANGE quelque chose : il la contredit en tête (« non… », « pas Raihana… », « en fait… »),
+ * dit qu'il revient dessus (« finalement », « plutôt », « au lieu de », « à la place de »), ou demande de la modifier
+ * (« change », « modifie », « remplace », « corrige », « décale », « repousse », « reporte », « avance »). Le doute profite à
+ * la CONSERVATION : une correction manquée laisse une carte que la personne voit et ignore d'un geste ; un retrait à tort
+ * lui retire un bouton qu'elle attendait.
+ */
+export function estCorrection(message: string): boolean {
+  const n = (message ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[’']/g, " ").trim();
+  if (/^(?:(?:et|bon|ah|oh|euh|alors)[\s,]+)?(?:non|nan|pas |en fait|attends?)\b/.test(n)) return true;
+  return /\b(?:finalement|plutot|au lieu d|a la place d|change[rsz]?|modifie[rsz]?|remplace[rsz]?|corrige[rsz]?|rectifie[rsz]?|decale[rsz]?|repousse[rsz]?|reporte[rsz]?|avance[rsz]?|c est pas|ce n est pas|ce sera pas)\b/.test(n);
+}
+
 /** L\'échappatoire d\'exploitation, comme pour les autres règles d\'écriture (§2 : la limite porte sa raison). */
 export function retraitDesPerimeesDesactive(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.ADAM_PERIMEES_DISABLED === "1";
@@ -192,6 +207,9 @@ export function retraitDesPerimeesDesactive(env: NodeJS.ProcessEnv = process.env
  */
 export function messageRendCaduque(enAttente: PropositionComparable, message: string): boolean {
   if (estQuestionOuRappel(message)) return false;
+  // C1 (décision 0068) : reparler d'une carte n'est pas la corriger. « Ok pour la tâche de relance Nivolex, je la valide
+  // tout à l'heure » partageait le sujet — la carte était retirée en silence, et Adam répondait qu'elle attendait encore.
+  if (!estCorrection(message)) return false;
   // Le MESSAGE se juge sur tout ce que la carte affiche (la personne corrige souvent un destinataire, une date du résumé).
   const sujet = sujetDe(enAttente, false);
   if (sujet.length === 0) return false; // une carte sans sujet identifiable ne se juge pas ainsi

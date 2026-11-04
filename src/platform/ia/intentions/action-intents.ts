@@ -1,7 +1,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { PowerTool, UtilisateurOutil as CurrentUser } from "@/platform/ia/outil";
-import { annuleLaCarte, caduquesParMessage, natureComparable, objetDeLaCharge, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/platform/ia/intentions/proposition-perimee";
+import { annuleLaCarte, caduquesParMessage, natureComparable, objetDeLaCharge, remplace, retraitDesPerimeesDesactive, type PropositionComparable } from "@/platform/ia/intentions/proposition-perimee";
+import { extraitDeMessage, type EvenementCarte } from "@/platform/ia/intentions/etat-carte";
 import { sansBloquer } from "@/lib/journal";
 import { matchesConfirmText } from "./confirm";
 
@@ -52,10 +53,15 @@ export function intentSummary(seed: IntentSeed): string {
   return `${seed.title}${details ? ` — ${details}` : ""}`.slice(0, 400);
 }
 
-const pushEvent = (events: unknown, status: string): unknown[] => [
+/** C1 (décision 0068) : un retrait porte sa raison au journal (`par`, `parTitre`, `message`) — l'écran la DIT. */
+const pushEvent = (events: unknown, status: string, contexte: Omit<EvenementCarte, "status" | "at"> = {}): unknown[] => [
   ...(Array.isArray(events) ? events : []),
-  { status, at: new Date().toISOString() },
+  { status, at: new Date().toISOString(), ...contexte },
 ];
+
+/** Le libellé d'une carte pour dire « remplacée par … » : son titre, et l'objet que la charge nomme (« Créer tâche — Relancer… »). */
+const libelleDeCarte = (title: string, objet: string | null | undefined): string =>
+  extraitDeMessage(objet && !title.toLowerCase().includes(objet.toLowerCase()) ? `${title} — ${objet}` : title, 120);
 
 /**
  * Persiste CHAQUE proposition (texte, voix via délégation, nudge) et renvoie les ids créés,
@@ -114,41 +120,45 @@ export async function persistActionIntents(
  */
 async function retirerPerimees(userId: string, seeds: IntentSeed[], ids: (string | null)[]): Promise<void> {
   if (retraitDesPerimeesDesactive()) return;
-  const nouvelles: PropositionComparable[] = seeds.flatMap((seed, i) => {
+  const nouvelles: (PropositionComparable & { libelle: string })[] = seeds.flatMap((seed, i) => {
     const id = ids[i];
-    return id ? [{ id, kind: natureComparable(seed.kind, seed.payload), title: seed.title, summary: intentSummary(seed), objet: objetDeLaCharge(seed.payload) }] : [];
+    const objet = objetDeLaCharge(seed.payload);
+    return id ? [{ id, kind: natureComparable(seed.kind, seed.payload), title: seed.title, summary: intentSummary(seed), objet, libelle: libelleDeCarte(seed.title, objet) }] : [];
   });
   if (nouvelles.length === 0) return;
 
-  // LA FENÊTRE : les propositions encore en attente de CETTE personne. Une carte vieille de
-  // plusieurs jours n'est plus à l'écran ; la retirer n'aiderait personne et brouillerait l'audit.
+  // LA FENÊTRE : les propositions encore VALABLES de cette personne (C1, décision 0068 : une carte vit jusqu'à son
+  // expiration, 24 h par défaut — elle reste à l'écran tout ce temps ; deux heures laissaient un doublon cliquable).
   const enAttente = await prisma.assistantActionIntent.findMany({
     where: {
       userId, status: "PROPOSED",
       id: { notIn: nouvelles.map((n) => n.id) },
-      proposedAt: { gte: new Date(Date.now() - FENETRE_PERIMEES_MS) },
+      proposedAt: { gte: new Date(Date.now() - (await expirationCartesMs())) },
     },
     select: { id: true, kind: true, title: true, summary: true, payload: true },
     orderBy: { proposedAt: "desc" },
     take: 20,
   });
-  const morts = propositionsPerimees(nouvelles, enAttente.map((p) => ({ ...p, kind: natureComparable(p.kind, p.payload), objet: objetDeLaCharge(p.payload) })));
+  // QUI REMPLACE QUI : la carte remplaçante est NOMMÉE au journal — l'écran de l'ancienne dit « remplacée par … ».
+  const morts = enAttente.flatMap((p) => {
+    const ancienne = { ...p, kind: natureComparable(p.kind, p.payload), objet: objetDeLaCharge(p.payload) };
+    const par = nouvelles.find((n) => remplace(n, ancienne));
+    return par ? [{ id: p.id, par }] : [];
+  });
   if (morts.length === 0) return;
 
-  for (const id of morts) {
+  for (const { id, par } of morts) {
     const avant = await prisma.assistantActionIntent.findUnique({ where: { id }, select: { events: true } });
     await prisma.assistantActionIntent.updateMany({
       // `status: "PROPOSED"` dans le filtre : si la personne a confirmé entre-temps, on ne
       // touche à rien. Une écriture lancée ne s'annule pas depuis ici.
       where: { id, status: "PROPOSED" },
-      data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(avant?.events, "CANCELLED_SUPERSEDED") as object },
+      data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(avant?.events, "CANCELLED_SUPERSEDED", { par: par.id, parTitre: par.libelle }) as object },
     });
   }
   console.info("[assistant] propositions périmées retirées", { userId, retirees: morts.length, parLot: nouvelles.length });
 }
 
-/** Deux heures : au-delà, la carte n'est plus sous les yeux de personne. */
-const FENETRE_PERIMEES_MS = 2 * 60 * 60 * 1000;
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -174,19 +184,21 @@ const FENETRE_PERIMEES_MS = 2 * 60 * 60 * 1000;
  * proposée (moins de 30 minutes), passée à CANCELLED avec la raison au journal. Rend la carte retirée (son titre est dit
  * au modèle, qui l'annonce), ou `null`. Une carte déjà confirmée n'est pas touchée (le filtre `PROPOSED`).
  */
-export async function retirerCarteAnnuleeAvantLeTour(userId: string, message: string): Promise<{ id: string; title: string } | null> {
+export async function retirerCarteAnnuleeAvantLeTour(userId: string, message: string, filId?: string | null): Promise<{ id: string; title: string } | null> {
   if (!annuleLaCarte(message)) return null;
   try {
     // LA DERNIÈRE carte, quel que soit son état : si elle a été confirmée (exécutée), « annule » vise ce geste-là — c'est
     // l'annulation du journal des effets (K10), pas ce retrait.
     const carte = await prisma.assistantActionIntent.findFirst({
-      where: { userId, proposedAt: { gte: new Date(Date.now() - 30 * 60_000) } },
+      // C1 (décision 0068) : LA DERNIÈRE CARTE DE CETTE CONVERSATION — « annule » dit dans une autre conversation ne
+      // retire pas une carte qui attend ici.
+      where: { userId, proposedAt: { gte: new Date(Date.now() - 30 * 60_000) }, ...(filId ? { filId } : {}) },
       orderBy: { proposedAt: "desc" }, select: { id: true, title: true, events: true, status: true },
     });
     if (!carte || carte.status !== "PROPOSED") return null;
     const n = await prisma.assistantActionIntent.updateMany({
       where: { id: carte.id, status: "PROPOSED" },
-      data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(carte.events, "CANCELLED_BY_USER_MESSAGE") as object },
+      data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(carte.events, "CANCELLED_BY_USER_MESSAGE", { message: extraitDeMessage(message) }) as object },
     });
     return n.count === 1 ? { id: carte.id, title: carte.title } : null;
   } catch (e) {
@@ -195,13 +207,14 @@ export async function retirerCarteAnnuleeAvantLeTour(userId: string, message: st
   }
 }
 
-export async function retirerCaduquesAvantLeTour(userId: string, message: string, garder: readonly string[] = []): Promise<string[]> {
+export async function retirerCaduquesAvantLeTour(userId: string, message: string, garder: readonly string[] = [], filId?: string | null): Promise<string[]> {
   if (retraitDesPerimeesDesactive()) return [];
   const texte = (message ?? "").trim();
   if (texte.length < 3) return [];
   try {
     const enAttente = await prisma.assistantActionIntent.findMany({
-      where: { userId, status: "PROPOSED", proposedAt: { gte: new Date(Date.now() - FENETRE_PERIMEES_MS) } },
+      // C1 (décision 0068) : seules les cartes de CETTE conversation — une correction dite ailleurs ne vise pas celle-ci.
+      where: { userId, status: "PROPOSED", proposedAt: { gte: new Date(Date.now() - (await expirationCartesMs())) }, ...(filId ? { filId } : {}) },
       select: { id: true, kind: true, title: true, summary: true, payload: true },
       orderBy: { proposedAt: "desc" },
       take: 20,
@@ -213,7 +226,7 @@ export async function retirerCaduquesAvantLeTour(userId: string, message: string
       const avant = await prisma.assistantActionIntent.findUnique({ where: { id }, select: { events: true } });
       await prisma.assistantActionIntent.updateMany({
         where: { id, status: "PROPOSED" },
-        data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(avant?.events, "CANCELLED_SUPERSEDED") as object },
+        data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(avant?.events, "CANCELLED_SUPERSEDED", { message: extraitDeMessage(texte) }) as object },
       });
     }
     if (morts.length) console.info("[assistant] cartes caduques retirées au tour", { userId, retirees: morts.length });
@@ -405,6 +418,83 @@ export async function cancelActionIntent(userId: string, intentId: string): Prom
     data: { status: "CANCELLED", decidedAt: new Date(), events: pushEvent(intent?.events, "CANCELLED") as object },
   });
   return done.count > 0;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * C1 (décision 0068) — LES CARTES D'UNE CONVERSATION, LUES À LEUR SOURCE.
+ *
+ * La Direction, 04/11 : « je sors de la conversation, je reviens, le bouton a disparu — je dois redemander une carte ».
+ * Mesuré : un tour qui propose DEUX cartes n'en gardait qu'une sur le tour (`propositions[0]`) ; la seconde, bien
+ * PROPOSED en base, n'existait qu'à l'écran du tour vivant. Désormais chaque carte est RATTACHÉE à sa conversation et à
+ * sa réponse, avec ce que l'écran affiche (`carte`) ; l'écran les relit toutes ici, quel que soit le chemin (texte, voix
+ * déléguée, app), et son état n'a qu'une source : cette table.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export async function rattacherCartes(userId: string, filId: string, tourId: string, cartes: readonly { id: string }[]): Promise<void> {
+  for (const c of cartes) {
+    await prisma.assistantActionIntent.updateMany({
+      // `filId: null` : une carte déjà rattachée (rejouée par une reprise) ne change pas de conversation.
+      where: { id: c.id, userId, filId: null },
+      data: { filId, tourId, carte: c as unknown as object },
+    }).catch(sansBloquer("action-intents.rattacherCartes"));
+  }
+}
+
+/** Une carte telle que l'écran la relit : son état canonique, son journal, ce qu'elle affiche. */
+export interface CarteLue {
+  id: string; tourId: string | null; kind: string; title: string; status: string; events: unknown; carte: unknown;
+  payload: unknown; resultLink: string | null; resultMessage: string | null; error: string | null; proposedAt: Date;
+}
+
+/**
+ * Les cartes de la conversation `filId` (et celles, d'avant C1, que ses tours nomment : `heritees`). Une carte PROPOSED
+ * dont le délai est passé est EXPIRÉE ici même, à la lecture, comme au clic : l'écran dit « expirée », il ne la tait pas.
+ */
+export async function cartesDuFil(userId: string, filId: string, heritees: readonly string[] = []): Promise<{ cartes: CarteLue[]; expirationH: number }> {
+  const delai = await expirationCartesMs();
+  const lues = await prisma.assistantActionIntent.findMany({
+    where: { userId, OR: [{ filId }, ...(heritees.length ? [{ id: { in: [...heritees] } }] : [])] },
+    orderBy: { proposedAt: "asc" },
+    take: 300,
+    select: { id: true, tourId: true, kind: true, title: true, status: true, events: true, carte: true, payload: true, resultLink: true, resultMessage: true, error: true, proposedAt: true },
+  });
+  const maintenant = Date.now();
+  for (const c of lues) {
+    if (c.status !== "PROPOSED" || maintenant - c.proposedAt.getTime() <= delai) continue;
+    const r = await prisma.assistantActionIntent.updateMany({
+      where: { id: c.id, status: "PROPOSED" },
+      data: { status: "EXPIRED", decidedAt: new Date(), events: pushEvent(c.events, "EXPIRED") as object },
+    }).catch(sansBloquer("action-intents.cartesDuFil.expiration", { count: 0 }));
+    if (r.count) { c.status = "EXPIRED"; c.events = pushEvent(c.events, "EXPIRED") as typeof c.events; }
+  }
+  return { cartes: lues, expirationH: Math.round(delai / 3_600_000) };
+}
+
+/**
+ * (d) — CE QU'ADAM SAIT, À CHAQUE TOUR, DES CARTES QUI ATTENDENT DANS CETTE CONVERSATION : toutes, quel que soit leur
+ * âge (jusqu'à l'expiration), avec ce qu'elles portent — pour ne pas en reproposer une en double, et pour dire où elle est.
+ * `null` quand rien n'attend.
+ */
+export async function sectionCartesEnAttente(userId: string, filId: string | null | undefined): Promise<string | null> {
+  if (!filId) return null;
+  const delai = await expirationCartesMs();
+  const rows = await prisma.assistantActionIntent.findMany({
+    where: { userId, filId, status: "PROPOSED", proposedAt: { gte: new Date(Date.now() - delai) } },
+    orderBy: { proposedAt: "asc" },
+    take: 12,
+    select: { title: true, summary: true, payload: true, proposedAt: true },
+  }).catch(sansBloquer("action-intents.sectionCartesEnAttente", []));
+  if (rows.length === 0) return null;
+  const h = (ms: number) => (ms < 3_600_000 ? `${Math.max(1, Math.round(ms / 60_000))} min` : `${Math.round(ms / 3_600_000)} h`);
+  const lignes = rows.map((r) => {
+    const age = Date.now() - r.proposedAt.getTime();
+    return `- « ${libelleDeCarte(r.title, objetDeLaCharge(r.payload))} » — ${r.summary} (proposée il y a ${h(age)}, expire dans ${h(delai - age)})`;
+  });
+  return `### CARTES EN ATTENTE DE CONFIRMATION DANS CETTE CONVERSATION
+Elles sont TOUJOURS VALABLES et affichées avec leurs boutons : la personne peut les confirmer à tout moment. Rien n'a été exécuté.
+${lignes.join("\n")}
+Ne repropose JAMAIS une carte identique à l'une d'elles : renvoie la personne à la carte qui attend. Si elle CORRIGE l'objet d'une carte, propose la carte corrigée — elle remplacera l'ancienne, et l'écran le dira.`;
 }
 
 const frDate = (d: Date | null): string => (d ? d.toISOString().slice(0, 16).replace("T", " ") : "—");

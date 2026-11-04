@@ -10,6 +10,7 @@ import {
 import { facultatifsDeCapacite } from "../capacites";
 import { facultatifsDOperation } from "../operations";
 import { confirmerCarte } from "../confirmation";
+import { natureComparable, objetDeLaCharge, remplace as memeObjet } from "@/platform/ia/intentions/proposition-perimee";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -49,11 +50,23 @@ async function ajouterEvenement(intentId: string, e: EvenementOral): Promise<voi
  */
 export async function ouvrirCarteOrale(intentId: string, fields: ChampOral[], facultatifsDejaProposes = false, remplace: string | null = null): Promise<void> {
   if (remplace && remplace !== intentId) {
-    const i = await prisma.assistantActionIntent.findUnique({ where: { id: remplace }, select: { events: true } });
-    await prisma.assistantActionIntent.updateMany({
-      where: { id: remplace, status: "PROPOSED" },
-      data: { status: "CANCELLED", decidedAt: new Date(), events: [...evenements(i?.events), { status: "CANCELLED_SUPERSEDED", at: new Date().toISOString() }] as object[] },
-    });
+    // C1 (décision 0068) : la carte orale précédente n'est retirée que si la nouvelle porte LE MÊME OBJET (une demande
+    // corrigée qui se repropose) — une seconde demande dite à la suite ne tue plus la première ; elle reste à l'écran,
+    // avec ses boutons. Le retrait nomme sa remplaçante (l'écran dit « remplacée par … »).
+    const [ancienne, nouvelle] = await Promise.all([remplace, intentId].map((id) => prisma.assistantActionIntent.findUnique({
+      where: { id }, select: { id: true, kind: true, title: true, summary: true, payload: true, events: true },
+    })));
+    const comparable = (x: NonNullable<typeof ancienne>) => ({ id: x.id, kind: natureComparable(x.kind, x.payload), title: x.title, summary: x.summary, objet: objetDeLaCharge(x.payload) });
+    if (ancienne && nouvelle && memeObjet(comparable(nouvelle), comparable(ancienne))) {
+      const objet = objetDeLaCharge(nouvelle.payload);
+      await prisma.assistantActionIntent.updateMany({
+        where: { id: remplace, status: "PROPOSED" },
+        data: {
+          status: "CANCELLED", decidedAt: new Date(),
+          events: [...evenements(ancienne.events), { status: "CANCELLED_SUPERSEDED", at: new Date().toISOString(), par: nouvelle.id, parTitre: objet ? `${nouvelle.title} — ${objet}` : nouvelle.title }] as object[],
+        },
+      });
+    }
   }
   await ajouterEvenement(intentId, { status: "VOIX", etape: "CARTE", fields });
   if (facultatifsDejaProposes) await ajouterEvenement(intentId, { status: "VOIX", etape: "FACULTATIFS" });
