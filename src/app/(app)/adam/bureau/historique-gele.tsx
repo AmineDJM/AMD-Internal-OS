@@ -25,7 +25,7 @@ export async function HistoriqueGele({ userId, fil }: { userId: string; fil: str
           Les échanges du Bureau d&apos;avant restent consultables ci-dessous, en lecture seule.
         </p>
       </div>
-      <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[18rem_1fr]">
         <nav aria-label="Conversations du Bureau" className="space-y-1">
           {fils.length === 0 && <p className="text-sm text-muted-foreground">Aucune conversation passée.</p>}
           {fils.map((f) => (

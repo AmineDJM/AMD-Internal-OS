@@ -101,8 +101,12 @@ function CarteMoteur({ c }: { c: CarteDEntree }) {
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="ghost" disabled={etat === "envoi"} onClick={async () => {
-          const r = await ignorerIntentionAssistantIA(c.id).catch(() => ({ ok: false, error: actionFailureMessage("THROWN") }));
-          if (r.ok) setEtat("ignoree"); else setErr(r.error ?? "La carte n'a pas pu être ignorée.");
+          try {
+            const r = await ignorerIntentionAssistantIA(c.id);
+            if (r.ok) setEtat("ignoree"); else setErr(r.error ?? "La carte n'a pas pu être ignorée.");
+          } catch {
+            setErr(actionFailureMessage("THROWN"));
+          }
         }}>Ignorer</Button>
         <Button size="sm" disabled={etat === "envoi"} onClick={() => confirmerGeste(() => confirmerIntentionAssistantIA(c.id, c.confirmText ? saisie : undefined), setEtat, setErr)}>{etat === "envoi" && <Loader2 className="h-4 w-4 animate-spin" />}{c.libelleBouton ?? "Confirmer"}</Button>
       </div>
