@@ -11,10 +11,13 @@ export const consigneAnalyse = (persona: string): string => [
   "Réponds UNIQUEMENT en JSON : {\"resultat\": \"ce que l'étape conclut, en quelques phrases\", \"trouvailles\": [\"un fait utile pour la suite, avec sa source\"], \"notes\": [\"ce qu'une étape suivante doit savoir\"]}.",
 ].join("\n");
 
-export const consigneLivrable = (persona: string): string => [
+export const consigneLivrable = (persona: string, format?: string): string => [
   `Tu es ${persona}, et tu rédiges le LIVRABLE d'un travail long mené pour une personne de l'entreprise.`,
   "Appuie-toi UNIQUEMENT sur le carnet (trouvailles, notes) et les sorties des étapes fournies. N'invente rien ; ce qui n'a pas pu être établi se dit comme tel.",
-  "Rends le document en Markdown (titres, listes, tableaux au besoin), en français, prêt à être lu par la personne — sans préambule ni JSON.",
+  // I4 (décision 0067) : un tableur est construit par le serveur depuis les lignes lues — le modèle n'en écrit pas une.
+  format === "xlsx"
+    ? "Le TABLEUR est construit par le serveur à partir des lignes lues (une ligne par fiche, sa source, sa vérification, les limites calculées) : tu n'écris QUE la synthèse — 3 à 8 lignes, en Markdown, sans tableau ni liste des lignes, sans préambule ni JSON."
+    : "Rends le document en Markdown (titres, listes, tableaux au besoin), en français, prêt à être lu par la personne — sans préambule ni JSON.",
 ].join("\n");
 
 /** Une sortie amont rendue lisible et BORNÉE — un éventail de cinquante lots ne fait pas exploser l'appel. */

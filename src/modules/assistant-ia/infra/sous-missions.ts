@@ -5,7 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 import { sansBloquer } from "@/lib/journal";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import {
-  annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, MOTIF_ARRET, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
+  annulerTravail, demarrerDOffice, enfantsVivants, lecturesVides, lireCarnet, MOTIF_ARRET, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
   type MissionTableau, type PersonaTravaux,
 } from "./travaux";
 import { deposerSynthese } from "./fil/service";
@@ -85,10 +85,13 @@ function ouvrirDuTour(user: CurrentUser, persona: PersonaTravaux, lances: string
     // D'OFFICE — à la FIN DU TOUR dans la conversation (banc réel du 31/10 : le modèle qui reformule faisait tourner pour
     // rien des plans aussitôt remplacés) : le plan reste en attente le temps du tour, `demarrerSousMissionsDuTour` le lance.
     let demarre = false;
-    if (planSansGeste(r.plan, r.gestes) && (await travauxDOfficePour(user))) {
+    // I4 : une lecture du plan qui ne trouverait RIEN retient le départ d'office — la personne l'apprend AVANT le lancement.
+    const vides = lecturesVides(r.plan);
+    const essais = r.plan.etapes.filter((e) => e.essai).map((e) => `« ${e.titre} » : ${e.essai!.texte}`);
+    if (!vides.length && planSansGeste(r.plan, r.gestes) && (await travauxDOfficePour(user))) {
       demarre = demarrage === "fin-du-tour" ? true : (await demarrerDOffice(r.travailId, user.id, persona)).ok;
     }
-    return { ok: true, travailId: r.travailId, etapes: r.plan.etapes.length, gestes: r.gestes.map((g) => g.libelle), plafondUsd: r.plafondUsd, demarre, remplace: cible?.id ?? null };
+    return { ok: true, travailId: r.travailId, etapes: r.plan.etapes.length, gestes: r.gestes.map((g) => g.libelle), plafondUsd: r.plafondUsd, demarre, remplace: cible?.id ?? null, essais, vides };
   };
 }
 

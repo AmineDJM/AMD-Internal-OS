@@ -212,7 +212,7 @@ export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver, d
             <section className="space-y-2 rounded-xl border border-violet-200 bg-violet-50/50 p-3 dark:border-violet-900 dark:bg-violet-950/20">
               <h3 className="text-[13px] font-semibold text-violet-900 dark:text-violet-200">Approuver le plan</h3>
               <ol className="list-decimal space-y-0.5 pl-5 text-[13px] text-slate-700 dark:text-zinc-300">
-                {(detail.carnet.plan?.etapes ?? []).map((e) => <li key={e.cle}><span className="text-slate-500">[{e.type}]</span> {e.titre}</li>)}
+                {(detail.carnet.plan?.etapes ?? []).map((e) => <li key={e.cle}><span className="text-slate-500">[{e.type}]</span> {e.titre}{e.essai ? <span className={e.essai.total === 0 ? "block text-[12px] text-rose-700 dark:text-rose-300" : "block text-[12px] text-slate-500"}>Essai à blanc : {e.essai.texte}</span> : null}</li>)}
               </ol>
               <p className="text-[12px] text-slate-600 dark:text-zinc-400">
                 Gestes autorisés pendant le travail : {detail.gestes.length ? detail.gestes.map((g) => `${g.libelle} (${g.libelleFamille})`).join(", ") : "aucun — lecture et analyse seulement"}.

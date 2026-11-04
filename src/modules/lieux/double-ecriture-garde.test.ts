@@ -40,6 +40,10 @@ const EXCEPTIONS: Record<string, { raison: string; litLeLieu?: true }> = {
     raison: "remet les fiches du banc à leur état initial (téléphone, adresse, actif, nom) ; LIT la wilaya dans ses vérificateurs", litLeLieu: true,
   },
 
+  // Lot I4 (décision 0067) — l'annuaire fictif du rejeu « chefs de service d'infectiologie ».
+  "src/modules/assistant-ia/infra/testing/annuaire-i4.ts": {
+    raison: "semis du banc (base locale) : écrit la wilaya ET son code officiel (`wilayaCode`) ensemble, à la création", litLeLieu: true,
+  },
   "src/modules/assistant-ia/infra/testing/audit/semis-documents.ts": { raison: "semis du banc d'audit (T1) : des partenaires sans lieu (nom, sphère, nature) — jamais en production" },
 };
 

@@ -1,0 +1,46 @@
+{
+  "modele": "(défaut du produit)",
+  "attendus": [
+    "Dr Karim Ziani (fictif 4zmk)",
+    "Dr Nadia Ferhat (fictif 4zmk)",
+    "Dr Samir Bouzid (fictif 4zmk)",
+    "Pr Amel Benali (fictif 4zmk)"
+  ],
+  "duDelegue": [
+    "Dr Nadia Ferhat (fictif 4zmk)",
+    "Pr Amel Benali (fictif 4zmk)"
+  ],
+  "mission": {
+    "reponse": "L'assistant n'a pas pu terminer : la réponse a dépassé le délai (1 min) et a été interrompue. Aucune action n'a été confirmée.",
+    "outils": [],
+    "travaux": [],
+    "plans": []
+  },
+  "missionFin": {
+    "statuts": [],
+    "etapes": [],
+    "classeurs": [],
+    "coutUsd": 0.08926
+  },
+  "superAdmin": {
+    "reponse": "Amine, je n’ai trouvé aucun praticien actif renseigné comme chef de service en infectiologie dans notre annuaire. [Consulter l’annuaire des praticiens](/praticiens).",
+    "outils": [
+      "Données lues"
+    ],
+    "coutUsd": 0.032164,
+    "appels": 4,
+    "trouves": []
+  },
+  "delegue": {
+    "reponse": "Aucun chef de service d’infectiologie n’a été trouvé dans l’annuaire accessible, Yanis. La recherche par spécialité infectieuse ne retourne aucun praticien non plus.",
+    "outils": [
+      "Données lues",
+      "Recherche effectuée"
+    ],
+    "coutUsd": 0.025712,
+    "appels": 4,
+    "trouves": [],
+    "horsSecteur": []
+  },
+  "coutTotalUsd": 0.147136
+}

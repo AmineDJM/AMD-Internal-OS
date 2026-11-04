@@ -162,11 +162,16 @@ function catalogueApplicatif(c: Catalogue): string {
   return [
     "// GÉNÉRÉ par `npm run bases:generer` (scripts/bases-de-donnees.ts) — ne pas éditer à la main.",
     "// Le catalogue des bases (lot D1, décision 0057) vu par l'application : chaque table du schéma, rangée une fois.",
-    'import type { BaseCatalogue } from "./types";',
+    'import type { BaseCatalogue, Sensibilite } from "./types";',
     "",
     "export const CATALOGUE_BASES: readonly BaseCatalogue[] = [",
     ...lignes,
     "];",
+    "",
+    "/** I4 (décision 0067) : chaque table, son libellé français et sa sensibilité (celle de sa base, ou plus haute) — la lecture générique d'Adam s'y adosse. */",
+    "export const FICHES_TABLES: Readonly<Record<string, { libelle: string; sensibilite: Sensibilite }>> = {",
+    ...c.bases.flatMap((b) => b.tables.map((t) => `  ${JSON.stringify(t.modele)}: ${JSON.stringify({ libelle: t.libelle, sensibilite: t.sensibilite })},`)),
+    "};",
     "",
   ].join("\n");
 }

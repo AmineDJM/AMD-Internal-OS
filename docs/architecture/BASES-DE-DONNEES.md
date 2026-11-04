@@ -417,7 +417,7 @@ Le matériel promotionnel : catalogue, devis et factures fournisseurs, stock par
 | `PromoStockItem` | Article en stock promotionnel | Restreint | promo-execution-actions, promo-stock-actions |
 | `PromoStockItemProduct` | Produit associé à un article en stock | Restreint | — |
 | `PromoStockLot` | Lot de stock promotionnel | Restreint | promo-execution-actions, promo-stock-actions |
-| `PromoStockMovement` | Mouvement de stock promotionnel | Restreint | ad-pro-item-actions, medical-directory-crud-actions, promo-execution-actions, promo-stock-actions |
+| `PromoStockMovement` | Mouvement de stock promotionnel | Restreint | ad-pro-item-actions, promo-execution-actions, promo-stock-actions |
 | `PromoStockTransfer` | Transfert de stock promotionnel | Restreint | promo-stock-actions |
 | `PromoStockRequest` | Demande de sortie de stock promotionnel | Restreint | mission-actions, promo-stock-actions |
 | `PromoStockComptage` | Inventaire du stock promotionnel | Restreint | promo-comptage-actions |
@@ -898,8 +898,8 @@ Ce que chaque personne dit à son assistant et ce qu'il retient d'elle : fils, m
 | `AssistantHotState` | État courant de la conversation | Confidentiel | — |
 | `AssistantArtifact` | Document produit par l'assistant | Confidentiel | — |
 | `AssistantReminder` | Rappel posé par l'assistant | Confidentiel | — |
-| `AssistantIaFil` | Fil de l'Assistant IA (une conversation par personne) | Confidentiel | — |
-| `AssistantIaTour` | Tour du fil (message ou réponse) | Confidentiel | — |
+| `AssistantIaFil` | Fil de l'Assistant IA (une conversation par personne) | Confidentiel | assistant-ia-consommation-actions |
+| `AssistantIaTour` | Tour du fil (message ou réponse) | Confidentiel | assistant-ia-consommation-actions |
 | `AssistantIaAttentePieces` | Pièces attendues dans un fil | Confidentiel | — |
 | `AssistantIaDossier` | Dossier de conversations | Confidentiel | — |
 | `AssistantIaReception` | Pièce reçue par WhatsApp ou courriel | Confidentiel | — |

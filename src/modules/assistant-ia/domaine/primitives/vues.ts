@@ -28,6 +28,8 @@ export interface ChampVue {
   valeurs?: Readonly<Record<string, readonly string[]>>;
   /** D'autres noms par lesquels on désigne ce champ (« statut » pour `etat`). */
   alias?: readonly string[];
+  /** I4 (lecture générique) : le chemin dans la base (`title`, `institutionRef.name`) quand le champ se lit sur une table. */
+  chemin?: string;
 }
 
 export interface DeclarationVue {
@@ -315,25 +317,16 @@ export function champsDemandes(vue: DeclarationVue, noms: unknown): { champs: Ch
 
 // ─── Le schéma exposé au modèle ─────────────────────────────────────────────────────────────
 
-const decrireChamp = (c: ChampVue): string => {
-  const origine = "regle" in c.source ? `, calculé par la règle de l'ERP « ${c.source.regle} »` : "";
-  const valeurs = c.valeurs ? ` ; valeurs : ${permises(c)}` : "";
-  return `${c.nom} (${c.type}${origine}) — ${c.description}${valeurs}`;
-};
 
 /**
  * Le schéma COURT d'une vue — ce qui part à CHAQUE étape (budget de jetons fixes, J4) : les noms des champs, les valeurs
- * des choix, les champs calculés marqués « * ». Le schéma long (`schemaDeVue`) revient à la première erreur de filtre.
+ * des choix, les champs calculés marqués « * ». Le schéma de la table (`schemaDeTable`, I4) revient à la première erreur de filtre.
  */
 export function schemaCourt(vue: DeclarationVue): string {
   const c = (x: ChampVue) => `${x.nom}${"regle" in x.source ? "*" : ""}${x.valeurs ? `[${Object.keys(x.valeurs).join("|")}]` : ""}`;
   return `${vue.nom}(${vue.champs.filter((x) => x.type !== "lien" && x.nom !== "id").map(c).join(", ")})`;
 }
 
-/** Le schéma d'une vue, en clair : ce que le modèle lit pour formuler son filtre. */
-export function schemaDeVue(vue: DeclarationVue): string {
-  return `VUE ${vue.nom} — ${vue.description} Écran : ${vue.ecran}. Champs : ${vue.champs.map(decrireChamp).join(" ; ")}.`;
-}
 
 // ─── La déclaration elle-même : ce qui ne se déclare pas ───────────────────────────────────
 

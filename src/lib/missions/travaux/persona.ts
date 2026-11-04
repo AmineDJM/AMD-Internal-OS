@@ -58,6 +58,9 @@ export interface PortPiecesTravail {
   partager(nodeIds: readonly string[], userId: string, parId: string): Promise<void>;
 }
 
+/** Ce qu'une étape LECTURE a rendu, tel que le moteur l'a gardé (I4). */
+export interface LectureRendue { cle: string; titre: string; outil: string; statut: string; sortie: unknown; erreur?: string | null }
+
 export interface PersonaTravaux {
   persona: PersonaTravail;
   /** Le nom sous lequel la persona signe (« Assistant IA », « Adam »). */
@@ -84,7 +87,15 @@ export interface PersonaTravaux {
    */
   deposerLivrable(principalId: string, d: {
     travailId: string; cle: string; titre: string; contenu: string; format: FormatLivrable; reprise: boolean;
-  }): Promise<{ ok: true; document: DocumentLivrable } | { ok: false; erreur: string }>;
+    /** I4 (décision 0067) : ce que les étapes LECTURE ont rendu — le tableur se construit depuis ces lignes, et le contrôle final s'y adosse. */
+    lectures?: readonly LectureRendue[];
+  }): Promise<{ ok: true; document: DocumentLivrable } | { ok: false; erreur: string; /** Refus du contrôle final : ne se retente pas. */ definitif?: boolean }>;
+  /**
+   * I4 (décision 0067) — L'ESSAI À BLANC d'une lecture du plan, à la proposition : combien elle trouverait, dit en une phrase
+   * (la carte du plan l'affiche). `faute` : la lecture ne passe pas (table, champ, droit) — le plan revient au modèle. `null` :
+   * cette lecture ne s'essaie pas (une recherche web, une lecture sans requête).
+   */
+  essayer?(principalId: string, outil: string, entree: Record<string, unknown>): Promise<{ ok: true; texte: string; total: number | null } | { ok: false; faute: string } | null>;
   /**
    * K3 (décision 0033) : le travail vient de FINIR (terminé, en partie, bloqué) — la persona en rend compte là où il
    * est né (la conversation qui l'a lancé). Facultatif ; ne doit jamais lever (une erreur n'arrête pas la conduite).

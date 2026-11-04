@@ -5,7 +5,7 @@ import { proprietaire } from "@/platform/ia/proprietaire";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { accesAssistantIa, vueDeLAssistant } from "./role-config";
 import { familleOuverte, LIBELLE_FAMILLE, refusFamille, type AccesIa } from "../domaine/acces-regles";
-import { ECRITURES_DU_MOTEUR, famillesDeLaLecture, famillesDuGeste, outilsV1 } from "./outils-v1";
+import { famillesDeLaLecture, famillesDuGeste, outilsV1 } from "./outils-v1";
 import { executerOperationIA, OPERATIONS_IA } from "./operations/index";
 import { estChargeOperationIA } from "../domaine/operations/types";
 import { fermerBudget, jetonsDuJour, lireReglagesAssistantIa, ouvrirBudget, PlafondIaAtteint, sousBudget, tarifDe } from "./consommation";
@@ -22,16 +22,17 @@ import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, type OutilTrava
 import { conclureSousMissions, demarrerSousMissionsDuTour, outilSousMissionsPour, outilsSousMissionsPour } from "./sous-missions";
 import { deposerLivrableTravail } from "./travaux-livrables";
 import { classer, type FicheOutil } from "../domaine/selection-outils";
+import { OUTIL_LIRE } from "./primitives/lire";
 
 // J8 (décision 0023) : la porte du moteur des travaux pour le reste du module — délégation, équipe, priorité.
 export {
   declinerDemande, equipeVisible, lireDemandeRecue, lireTravailEquipe, listerDemandesRecues, listerTravauxEquipe, reglerPrioriteTravail, repondreDemande,
   type DemandeRecue, type EtapeVue, type TravailDEquipe,
 } from "@/lib/missions/travaux/service";
-export type { DocumentLivrable } from "@/lib/missions/travaux/persona";
+export type { DocumentLivrable, LectureRendue } from "@/lib/missions/travaux/persona";
 // K3 (décision 0033) : la porte du moteur des travaux pour les SOUS-MISSIONS (`sous-missions.ts`) — une seule entrée.
 export {
-  annulerTravail, demarrerDOffice, enfantsVivants, lireCarnet, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
+  annulerTravail, demarrerDOffice, enfantsVivants, lecturesVides, lireCarnet, planSansGeste, proposerTravail, signatureTableau, tableauDesTravaux,
   // K9 (décision 0039) : les commandes orales — mettre en pause, reprendre une mission dite par son nom.
   listerTravaux, pauserTravail, reprendreMonTravail,
   // P1 (décision 0047) : piloter ses missions à l'écrit — arrêter (réversible), renommer.
@@ -102,8 +103,6 @@ export const PIECES_TRAVAUX: PortPiecesTravail = {
 // T2 (décision 0052) : annuler une action, ou ouvrir une mission de demandes, est un geste de la personne, dans sa conversation — jamais d'une mission.
 const GESTES_EXCLUS = new Set(["programmer_routine", "gerer_routine", "preparer_reponse_demande", "fusionner_missions", "envoyer_gmail", "annuler_ma_derniere_action", "retablir_ma_derniere_annulation", "demander_au_terrain"]);
 const GESTES_TRAVAIL = OPERATIONS_IA.filter((o) => !GESTES_EXCLUS.has(o.nom));
-/** Ce qui n'est pas une LECTURE parmi les outils du tour : les gestes (cartes) et la mémoire proposée. */
-const PAS_UNE_LECTURE = new Set([...OPERATIONS_IA.map((o) => o.nom), ...ECRITURES_DU_MOTEUR, "proposer_memoire"]);
 
 async function personne(principalId: string): Promise<{ user: CurrentUser; acces: AccesIa } | null> {
   const user = await proprietaire(principalId);
@@ -111,17 +110,29 @@ async function personne(principalId: string): Promise<{ user: CurrentUser; acces
   return { user, acces: await accesAssistantIa(user) };
 }
 
-/** Les lectures OUVERTES à la personne : droit de l'outil ET familles de la console (une lecture fermée n'est pas offerte au plan). */
-const lecturesDe = (p: { user: CurrentUser; acces: AccesIa }) =>
-  outilsV1(p.user, [], undefined, undefined, null, p.acces)
-    .filter((o) => !PAS_UNE_LECTURE.has(o.def.name) && o.allowed(p.user) && famillesDeLaLecture(o.def.name).every((f) => familleOuverte(p.acces, f)));
+/** Une mission garde son jeu lu ENTIER dans le résultat de l'étape : le livrable se construit depuis ces lignes (I4, E). */
+export const LIGNES_LUES_EN_MISSION = 2_000;
 
-/** Une sortie d'outil qui est un REFUS (famille fermée, droit manquant) n'est pas une lecture réussie. */
+/**
+ * LES LECTURES D'UNE MISSION (I4, décision 0067) : LE catalogue de la conversation (`outilsV1`, capacités comprises), réduit à
+ * ses lectures — les mêmes qu'Adam en conversation, `lire` générique compris. Aucune liste parallèle : seuls les GESTES
+ * restent soumis aux autorisations du plan. Une lecture fermée par la console n'est pas offerte au plan.
+ */
+const lecturesDe = (p: { user: CurrentUser; acces: AccesIa }) =>
+  outilsV1(p.user, [], undefined, undefined, null, p.acces, { capacites: true, seulementLectures: true, lignesLues: LIGNES_LUES_EN_MISSION })
+    .filter((o) => o.allowed(p.user) && famillesDeLaLecture(o.def.name).every((f) => familleOuverte(p.acces, f)));
+
+/** I4 : les statuts d'une lecture qui n'a RIEN lu (refus, table fermée ou inconnue, filtre ou champ faux). */
+const STATUTS_DE_REFUS = new Set(["REFUS", "FERMEE", "INCONNUE", "FILTRE_INVALIDE", "CHAMP_INCONNU"]);
+
+/** Une sortie d'outil qui est un REFUS (famille fermée, droit manquant, table fermée) n'est pas une lecture réussie. */
 function refusDeSortie(sortie: string): string | null {
   if (!sortie.trimStart().startsWith("{")) return null;
   try {
-    const o = JSON.parse(sortie) as { statut?: unknown; raison?: unknown };
-    return o.statut === "REFUS" ? String(o.raison ?? "lecture refusée") : null;
+    const o = JSON.parse(sortie) as { statut?: unknown; raison?: unknown; schema?: unknown; proches?: unknown };
+    if (!STATUTS_DE_REFUS.has(String(o.statut))) return null;
+    const aide = typeof o.schema === "string" ? ` ${o.schema.slice(0, 900)}` : Array.isArray(o.proches) && o.proches.length ? ` Tables proches : ${o.proches.join(", ")}.` : "";
+    return `${String(o.raison ?? "lecture refusée")}${aide}`;
   } catch {
     return null;
   }
@@ -209,6 +220,17 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
     } catch (e) {
       return { ok: false, erreur: e instanceof Error ? e.message : String(e), reessayable: true };
     }
+  },
+
+  // I4 (décision 0067) : l'ESSAI À BLANC d'une lecture du plan — `lire` compte sous les droits de la personne ; une table, un
+  // champ ou un droit faux est une faute du plan, dite AVANT le départ. Les autres lectures ne s'essaient pas (`null`).
+  async essayer(principalId, outil, entree) {
+    if (outil !== OUTIL_LIRE) return null;
+    if (!entree.table && !entree.vue) return { ok: false, faute: "`lire` sans table : dites quoi lire (« table » : un modèle de l'ERP ou son nom, avec ses filtres)." };
+    const r = await this.lire(principalId, outil, { ...entree, compter: true });
+    if (!r.ok) return { ok: false, faute: r.erreur };
+    const o = (typeof r.sortie === "string" ? JSON.parse(r.sortie) : r.sortie) as { essai?: string; total?: number };
+    return { ok: true, texte: o.essai ?? `${o.total ?? "?"} ligne(s)`, total: typeof o.total === "number" ? o.total : null };
   },
 
   async refusGeste(principalId, geste) {

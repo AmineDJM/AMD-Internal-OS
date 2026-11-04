@@ -10,7 +10,7 @@ import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import type { JugeObjectif } from "@/lib/missions/goal/evaluate";
 import type { CapabilityMeta } from "@/lib/missions/registry/capability-meta";
 import { PREFIXE, decouperEnLots, type GesteAutorise } from "@/lib/missions/travaux/plan";
-import type { DocumentLivrable, PersonaTravaux } from "@/lib/missions/travaux/persona";
+import type { DocumentLivrable, LectureRendue, PersonaTravaux } from "@/lib/missions/travaux/persona";
 import { carnetPourEtape, ecrireAuCarnet, lireCarnet } from "@/lib/missions/travaux/carnet";
 import { cloreEcriture, reclamerEcriture } from "@/lib/missions/travaux/ecritures";
 import { consigneAnalyse, consigneLivrable, lireAnalyse, texteEtape } from "@/lib/missions/travaux/consignes";
@@ -115,6 +115,12 @@ function sortieStructuree(sortie: unknown): { output: unknown; structured: boole
 }
 
 const echec = (kind: string, message: string, retryable: boolean): CapabilityOutcome => ({ ok: false, output: null, error: { kind, message, retryable } });
+
+/** I4 : ce que TOUTES les étapes LECTURE du travail ont rendu (faites ou en échec) — le livrable et son contrôle s'y adossent. */
+function lecturesRendues(etat: EtatMission): LectureRendue[] {
+  return etat.steps.filter((s) => s.capability?.startsWith(PREFIXE.lecture) && (s.status === "DONE" || s.status === "FAILED"))
+    .map((s) => ({ cle: s.key, titre: s.title, outil: s.capability!.slice(PREFIXE.lecture.length), statut: s.status, sortie: s.result, erreur: s.error }));
+}
 
 /** Les sorties des étapes dont dépend celle-ci — l'éventail vu par ses filles, jamais par sa comptabilité. */
 function sortiesAmont(etat: EtatMission, step: EtatEtape): { cle: string; titre: string; sortie: unknown }[] {
@@ -229,7 +235,7 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
     const { consigne, titre: _titre, ...entrees } = step.input as Record<string, unknown>;
     const r = await persona.raisonner(principalId, {
       travailId,
-      consigne: livrable ? consigneLivrable(persona.nom) : consigneAnalyse(persona.nom),
+      consigne: livrable ? consigneLivrable(persona.nom, String(entrees.format ?? "")) : consigneAnalyse(persona.nom),
       // K3 (§ 7) : un LIVRABLE lit plus de ses sorties amont (le rapport d'une recherche approfondie cite toutes ses sources).
       texte: texteEtape({ carnet: carnetPourEtape(carnet), titre: step.title, consigne: String(consigne ?? ""), entrees, amont: sortiesAmont(mission, step), ...(livrable ? { maxAmont: 64_000 } : {}) }),
     });
@@ -242,7 +248,7 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
     if (livrable) {
       // J8 : le livrable est un VRAI document, déposé au Drive de la personne et inscrit à la Bibliothèque — sous reçu.
       const format = (String(entrees.format ?? "docx") as FormatLivrable);
-      const depot = format === "md" ? null : await deposerLivrable(step.key, step.title, r.texte, format);
+      const depot = format === "md" ? null : await deposerLivrable(step.key, step.title, r.texte, format, lecturesRendues(mission));
       if (depot && !depot.ok) return { status: "FAILED", error: depot.erreur, errorKind: "CAPABILITY_FAILURE", retryable: depot.reessayable };
       const document = depot?.ok ? depot.document : null;
       await ecrireAuCarnet(travailId, step.key, { livrable: { titre: step.title, contenu: r.texte, ...(document ? { document } : {}) } }, clock.now());
@@ -258,18 +264,18 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
    * déjà déposé ; un reçu INTERROMPU (processus tué pendant le dépôt) demande à la persona de RETROUVER le
    * document avant d'en créer un : jamais deux exemplaires du même livrable dans le Drive.
    */
-  async function deposerLivrable(stepKey: string, titre: string, contenu: string, format: FormatLivrable) {
+  async function deposerLivrable(stepKey: string, titre: string, contenu: string, format: FormatLivrable, lectures: LectureRendue[]) {
     const cle = `${travailId}|${stepKey}|livrable`;
     const recu = await reclamerEcriture(cle, travailId, stepKey, `livrable:${format}`);
     if (recu.etat === "FAIT") return { ok: true as const, document: (recu.resultat as { document: DocumentLivrable }).document };
     let r: Awaited<ReturnType<PersonaTravaux["deposerLivrable"]>>;
     try {
-      r = await persona.deposerLivrable(principalId, { travailId, cle, titre, contenu, format, reprise: recu.etat === "INTERROMPU" });
+      r = await persona.deposerLivrable(principalId, { travailId, cle, titre, contenu, format, reprise: recu.etat === "INTERROMPU", lectures });
     } catch (e) {
       r = { ok: false, erreur: e instanceof Error ? e.message : String(e) };
     }
     await prisma.travailEcriture.update({ where: { cle }, data: { statut: r.ok ? "FAIT" : "ECHEC", resultat: (r.ok ? { document: r.document } : { erreur: r.erreur }) as never } });
-    if (!r.ok) return { ok: false as const, erreur: `Le livrable n'a pas pu être déposé au Drive : ${r.erreur}`, reessayable: true };
+    if (!r.ok) return { ok: false as const, erreur: r.definitif ? r.erreur : `Le livrable n'a pas pu être déposé au Drive : ${r.erreur}`, reessayable: !r.definitif };
     await journaliser(travailId, "LIVRABLE_DEPOSE", `Livrable « ${r.document.nom} » déposé dans le Drive de ${nom} et inscrit à la Bibliothèque.`, { stepKey, nodeId: r.document.nodeId, format }, principalId);
     await deps.sondes?.apresLivrable?.(stepKey);
     return r;
@@ -340,7 +346,9 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
   const apres = await prisma.mission.findUnique({ where: { id: travailId }, select: { status: true } });
   bilan.statut = apres?.status ?? bilan.statut;
   if (bilan.statut === "FAILED") {
-    await signalerUneFois(travailId, principalId, "fin:FAILED", `Travail en échec : « ${m.title} »`, "Une étape n'a pas pu aboutir malgré ses reprises. Ouvrez le panneau Travaux pour voir laquelle.");
+    // I4 : l'échec dit SA raison (quelle étape, quelle lecture, quel droit) — jamais « une étape n'a pas pu aboutir » seul.
+    const raison = await prisma.missionStep.findFirst({ where: { missionId: travailId, status: "FAILED" }, orderBy: { updatedAt: "desc" }, select: { title: true, error: true } });
+    await signalerUneFois(travailId, principalId, "fin:FAILED", `Travail en échec : « ${m.title} »`, raison?.error ? `« ${raison.title} » : ${raison.error}`.slice(0, 600) : "Une étape n'a pas pu aboutir malgré ses reprises. Ouvrez le panneau Travaux pour voir laquelle.");
   }
   return bilan;
 }
