@@ -172,3 +172,23 @@ export function debrancherGardeDonnees(): void {
   poserEvaluateurDonnees(null);
   poserModulesParBase(null);
 }
+
+/**
+ * I4 (décision 0067) — LE DROIT DE LIRE UNE TABLE, pour la lecture générique d'Adam : les modules de sa base ET le niveau
+ * réglé. Contrairement à la garde, il s'APPLIQUE même hors du mode strict (une IA échoue fermé : une base fermée par la
+ * Direction ne se lit pas par Adam, même quand l'écran ne fait encore que compter). Une base TECHNIQUE n'a pas de module
+ * qui la porte : c'est la portée des lignes, déclarée table par table, qui la borne. `null` : table hors catalogue.
+ */
+export function droitDeLireTable(
+  personne: { userId: string; roles: readonly (string | null | undefined)[]; peut: (module: string, geste: string) => boolean },
+  modele: string,
+): { base: string; nomBase: string; lecture: boolean; chemin: string } | null {
+  rafraichirSiBesoin();
+  const cle = baseDuModele(modele);
+  const base = cle ? baseDe(cle) : null;
+  if (!base) return null;
+  const n = niveauPour(personne, base.cle, instantane.reglages, new Date());
+  if (base.nature === "technique") return { base: base.cle, nomBase: base.nom, lecture: n.niveau !== "FERMEE", chemin: n.niveau === "FERMEE" ? `Base « ${base.nom} » fermée` : "Base technique : la portée des lignes décide" };
+  const d = droitEffectif(droitParModules(base, personne.peut), n, base.nom);
+  return { base: base.cle, nomBase: base.nom, lecture: d.lecture, chemin: d.chemin };
+}

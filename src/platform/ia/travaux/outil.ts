@@ -19,7 +19,11 @@ export interface OutilTravail {
 }
 
 export type OuvertureTravail =
-  | { ok: true; travailId: string; etapes: number; gestes: string[]; plafondUsd: number; demarre?: boolean; remplace?: string | null }
+  | {
+    ok: true; travailId: string; etapes: number; gestes: string[]; plafondUsd: number; demarre?: boolean; remplace?: string | null;
+    /** I4 : les essais à blanc des lectures (« 9 ligne(s)… ») ; `vides` : celles qui ne trouveraient rien (le plan ne part pas d'office). */
+    essais?: string[]; vides?: string[];
+  }
   | { ok: false; fautes: string[] };
 
 export const NOM_OUTIL_TRAVAIL = "lancer_un_travail";
@@ -36,7 +40,16 @@ const ETAPE = {
     type: { type: "string", enum: ["LECTURE", "ANALYSE", "LOTS", "GESTE", "ATTENTE", "DEMANDE", "LIVRABLE"] },
     outil: { type: "string", description: "LECTURE : un de tes outils de lecture ; GESTE : un de tes gestes (préparer_…)." },
     apres: { type: "array", items: { type: "string" }, description: "Clés des étapes PRÉCÉDENTES à attendre." },
-    entree: { type: "object", description: "Arguments ; « {{cle.chemin}} » lit la sortie d'une étape amont." },
+    // I4 (décision 0067) : la REQUÊTE d'une lecture se déclare (un objet sans propriétés ne laissait écrire que `{}` — plan creux).
+    entree: {
+      type: "object", description: "Les arguments de l'outil — pour `lire` : { table, filtres, champs } ; « {{cle.chemin}} » lit la sortie d'une étape amont.",
+      properties: {
+        table: { type: "string", description: "`lire` : la table de l'ERP (ex. MedicalDoctor, MedicalInstitution, Task)." },
+        filtres: { type: "array", items: { type: "object", properties: { champ: { type: "string" }, op: { type: "string" }, valeur: { type: "string" } }, required: ["champ"] } },
+        champs: { type: "array", items: { type: "string" } },
+        query: { type: "string", description: "Une recherche (web_research, search_everything…)." },
+      },
+    },
     consigne: { type: "string", description: "ANALYSE / LIVRABLE : ce qu'il faut en tirer." },
     lots: {
       type: "object", description: "LOTS : { etape, chemin, taille } — la liste à découper (taille 5 à 100).",
@@ -69,7 +82,7 @@ const ETAPE = {
         jours: { type: "number" }, minutes: { type: "number" }, relance: DELAI, escalade: DELAI, abandon: DELAI,
       },
     },
-    format: { type: "string", enum: ["docx", "pdf", "xlsx", "md"], description: "LIVRABLE : le document déposé au Drive de la personne (défaut docx ; xlsx pour des tableaux ; md = au carnet seulement)." },
+    format: { type: "string", enum: ["docx", "pdf", "xlsx", "md"], description: "LIVRABLE : le document déposé au Drive de la personne (défaut docx ; xlsx pour des tableaux ; md = au carnet seulement). Un xlsx est construit par le serveur à partir des LIGNES LUES par les étapes LECTURE — exactement elles (filtre-les dans la lecture) —, avec source, vérification et limites calculées ; ta consigne n'en écrit que la synthèse." },
     si: {
       type: "object", description: "{ etape, issue: EVENT|TIMEOUT|DONE|FAILED|SKIPPED } — ne part que si l'étape s'est terminée ainsi (relance : TIMEOUT).",
       properties: { etape: { type: "string" }, issue: { type: "string", enum: ["EVENT", "TIMEOUT", "DONE", "FAILED", "SKIPPED"] } },
@@ -81,7 +94,7 @@ const ETAPE = {
 
 export const CONSIGNE_TRAVAUX = [
   "TRAVAUX LONGS : quand une demande dépasse un tour — beaucoup de lectures, un gros volume à analyser (« toutes les demandes de l'année »), une attente (« quand le BC sera signé », « si pas de réponse sous 21 jours, relance »), ou plusieurs heures de travail —, ne la fais pas dans la conversation : appelle `lancer_un_travail` avec un PLAN.",
-  "Le plan : des étapes LECTURE (tes outils de lecture), LOTS (découper une liste), ANALYSE (avec `pourChaque` sur les lots, puis une synthèse), GESTE (une écriture, autorisée une fois avec le plan), ATTENTE (événement métier avec échéance, relance et escalade, ou minuterie), DEMANDE (demander à un collègue une information ou une pièce, avec une échéance : le travail attend sa réponse), et au moins un LIVRABLE à la fin (un document Word, PDF ou Excel déposé dans son Drive).",
+  "Le plan : des étapes LECTURE (tes outils de lecture ; chaque LECTURE porte sa requête concrète dans « entree » — pour `lire` : { table, filtres, champs } — elle est comptée à blanc avant le départ), LOTS (découper une liste), ANALYSE (avec `pourChaque` sur les lots, puis une synthèse), GESTE (une écriture, autorisée une fois avec le plan), ATTENTE (événement métier avec échéance, relance et escalade, ou minuterie), DEMANDE (demander à un collègue une information ou une pièce, avec une échéance : le travail attend sa réponse), et au moins un LIVRABLE à la fin (un document Word, PDF ou Excel déposé dans son Drive).",
   "DEMANDE : jamais une discussion — une question précise, les pièces attendues, une échéance. N'y mets rien que la personne sollicitée ne doive voir : elle voit la question et les pièces partagées, pas le reste du travail.",
   "SOUS-MISSIONS (K3) : une demande qui se découpe en parties INDÉPENDANTES (ex. lire un dossier, analyser des chiffres, rédiger une note) se lance en PLUSIEURS sous-missions — un appel de `lancer_un_travail` par partie, dans le même tour : elles tournent en parallèle, en arrière-plan, et la conversation continue. Pour CORRIGER un plan que tu viens de proposer, rappelle l'outil avec `remplace` = son travailId (sinon c'est une sous-mission DE PLUS). `parent` = le travailId d'une mission existante dont celle-ci est une sous-mission.",
   "Un plan qui comporte un geste, une demande ou une attente attend que la personne l'approuve (carte dans la conversation, tableau « Missions ») : dis-le-lui, en une phrase, avec le nombre d'étapes et les gestes qu'elle autorisera. Un plan SANS geste peut démarrer d'office (le résultat de l'outil le dit : DEMARRE). Ne prétends jamais que le travail est fait : le résultat reviendra dans la conversation à la fin.",
@@ -128,14 +141,21 @@ export function outilLancerUnTravail(principalId: string, ouvrir: (plan: unknown
       if (!r.ok) {
         return JSON.stringify({ statut: "PLAN_REFUSE", fautes: r.fautes.slice(0, 12), consigne: "Corrige le plan et rappelle l'outil ; n'invente pas d'outil ni de geste." });
       }
+      const essais = r.essais?.length ? { essais: r.essais } : {};
+      if (r.vides?.length) {
+        return JSON.stringify({
+          statut: "LECTURE_VIDE", travailId: r.travailId, ...essais, vides: r.vides,
+          consigne: "AVANT tout lancement : une lecture du plan ne trouverait RIEN (essai à blanc ci-dessus). Dis-le à la personne avec les élargissements possibles (« élargir : sans … → N »), et corrige le plan (`remplace` = ce travailId) ou demande-lui son choix. Rien n'a démarré.",
+        });
+      }
       if (r.demarre) {
         return JSON.stringify({
-          statut: "DEMARRE", travailId: r.travailId, etapes: r.etapes, plafondUsd: r.plafondUsd, ...(r.remplace ? { remplace: r.remplace } : {}),
+          statut: "DEMARRE", travailId: r.travailId, etapes: r.etapes, plafondUsd: r.plafondUsd, ...(r.remplace ? { remplace: r.remplace } : {}), ...essais,
           consigne: "Plan sans geste : il démarre d'office, en arrière-plan, dès la fin de ta réponse. Cette sous-mission EST lancée : ne rappelle pas l'outil pour elle (un nouvel appel au même titre la remplace et recommence tout). Dis-le en une phrase (la personne suit ses étapes dans le tableau « Missions », la synthèse reviendra dans la conversation). Ne donne aucun résultat maintenant — tu ne l'as pas encore.",
         });
       }
       return JSON.stringify({
-        statut: "EN_ATTENTE_D_APPROBATION", travailId: r.travailId, etapes: r.etapes, gestes: r.gestes, plafondUsd: r.plafondUsd, ...(r.remplace ? { remplace: r.remplace } : {}),
+        statut: "EN_ATTENTE_D_APPROBATION", travailId: r.travailId, etapes: r.etapes, gestes: r.gestes, plafondUsd: r.plafondUsd, ...(r.remplace ? { remplace: r.remplace } : {}), ...essais,
         consigne: "Rien n'a démarré : dis à la personne que le plan l'attend (carte « Approuver » dans la conversation ou tableau « Missions »), avec le nombre d'étapes, les gestes qu'elle autorisera et le plafond. Ne dis jamais que c'est fait. Ne rappelle pas l'outil pour ce plan, sauf pour le CORRIGER : `remplace` = ce travailId ; un appel sans `remplace` lance une sous-mission DE PLUS.",
       });
     },

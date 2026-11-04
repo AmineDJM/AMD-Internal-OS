@@ -12,6 +12,20 @@ et **se dit** à la place des boutons, borné à la conversation ; une carte vau
 « expirée » ; Adam reçoit à chaque tour les cartes qui attendent. Bancs : `e2e/cartes-persistantes.spec.ts`,
 `platform/ia/intentions/cartes-persistantes.test.ts`.
 
+### I4 — « ADAM LIT TOUT » : UNE LECTURE SUR TOUTES LES TABLES, DES DROITS INVARIANTS, UN SEUL JEU D'OUTILS (2026-11-04, décision 0067)
+
+Cas de production : la mission « Cartographie des chefs de service d'infectiologie » livrait un Excel d'une ligne « Non
+disponible ». Corrigé par l'architecture, rien de propre à l'annuaire :
+- **`lire` lit n'importe quelle table** de l'ERP (schéma Prisma, catalogue des bases), filtres sur colonnes et relations à un
+  niveau, libellés d'écran, comptage à blanc ; les 5 vues d'I3 deviennent des presets.
+- **Droits invariants** : base ouverte, familles de la console, portée des lignes déclarée table par table (sinon Super Admin
+  seul), colonnes du coffre et secrets jamais rendus. Le délégué ne lit que son secteur.
+- **Mission = conversation** : les mêmes lectures ; le plan est **compté à blanc avant de partir** (affiché sur la carte ;
+  zéro → dit avant le lancement) ; le **tableur vient des lignes lues** (source = lien de la fiche, vérification, limites
+  calculées) ; un livrable sans ligne lue finit en **échec nommé**, jamais « livré ».
+- Rejeu au vrai modèle, worker réel : 4/4 chefs de service, 0 intrus, 0,07 $ ; conversation 4/4, délégué 2/2.
+- Retirés : `list_my_tasks`, `list_my_requests`, `search_products`, l'Excel rédigé en Markdown par le modèle.
+
 ### V1 — SPONSORING ET AD & PRO VÉRIFIÉS DE BOUT EN BOUT : TROIS ÉCARTS DE CALCUL, UNE CORRECTION QUI N'ATTEIGNAIT PAS L'ARGENT (2026-11-03)
 
 Demande de la Direction du 03/11 (« tout marche, les pièces jointes, les sommes, on peut modifier, supprimer… »). Vérifié

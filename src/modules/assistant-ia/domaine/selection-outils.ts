@@ -44,7 +44,7 @@ export const OUTIL_TROUVER = "trouver_outil";
 /** Toujours offerts (s'ils sont dans les droits) — dans CET ordre, pour un préfixe stable d'un appel à l'autre. */
 export const SOCLE_OUTILS: readonly string[] = [
   OUTIL_TROUVER, "directory_lookup", "search_everything", "chercher_documents", "ouvrir_documents",
-  "list_pending_decisions", "my_overview", "list_my_tasks", "lire_document", "proposer_memoire",
+  "list_pending_decisions", "my_overview", "lire_document", "proposer_memoire",
   // I3 (décision 0065) — `lire` : l'ERP par ses vues (produire, fichier, observer se présélectionnent par la demande).
   "lire",
 ];
@@ -63,18 +63,17 @@ const MOTS_CLES: Record<string, string> = {
   regulatory_knowledge: "cadre reglementaire anpp droits enregistrement bordereau loi decret procedure tarif redevance",
   regulatory_workload: "charge dossiers combien gere porte qui assigne portefeuille personne regulatory",
   regulatory_portfolio: "portefeuille partenaire laboratoire produits statuts regulatory kwality",
-  list_my_tasks: "mes taches todo a faire rappels en cours retard",
   // I3 (décision 0065) : les mots des outils qu'elles remplacent (search_products, list_my_tasks, modifier / convertir_document).
-  lire: "liste lis donne affiche combien quels quelles nos produit produits dci marque catalogue molecule medicament commercialises pharmacies etablissements annuaire missions taches demandes filtre wilaya retard",
+  // I4 (décision 0067) : `lire` lit TOUTE table — les mots des lectures qu'il a retirées (tâches, demandes, catalogue) en plus.
+  lire: "liste lis donne affiche combien quels quelles nos produit produits dci marque catalogue molecule medicament commercialises pharmacies etablissements annuaire missions taches demandes filtre wilaya retard "
+    + "mes taches todo a faire en cours mes demandes administratives praticiens medecins chefs de service specialite table base donnees",
   produire: "excel xlsx csv word pdf fichier tableau classeur exporte export copie annuaire colonne range drive brouillon document rapport",
   fichier: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese "
     + "convertis convertir conversion transforme copie copier version word powerpoint presentation pdf excel document fichier date renomme",
   observer: "verifie relis regarde observe controle fichier produit colonnes lignes totaux contenu",
   taches_equipe: "taches equipe mon equipe retard retards en retard collaborateurs subordonnes manager combien",
   corriger_carte: "carte en attente corrige corriger complete completer precise preciser ajoute ajouter change changer mets plutot budget montant date description",
-  search_products: "produit dci marque catalogue regulatory recherche medicament molecule",
   read_workflow: "circuit validation etapes qui valide sponsoring congres evenement ad pro processus",
-  list_my_requests: "mes demandes administratives deplacement courrier signature achat",
   my_overview: "apercu resume espace travail tableau de bord synthese journee",
   read_hr_overview: "situation rh effectif masse salariale conges absences ressources humaines",
   search_everything: "cherche trouve recherche partout erp reference drive fichier dossier chemin nom",

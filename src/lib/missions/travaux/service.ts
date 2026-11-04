@@ -56,7 +56,7 @@ export async function proposerTravail(
   // K3 (décision 0033) : une SOUS-MISSION se range sous un travail parent — le sien seulement, jamais celui d'un autre.
   const parent = opts.parentId ? await prisma.mission.findFirst({ where: ou(opts.parentId, principalId), select: { id: true } }) : null;
   if (opts.parentId && !parent) return { ok: false, fautes: [`Travail parent introuvable (« ${opts.parentId} ») : lancez une mission indépendante, ou donnez l'identifiant d'un de vos travaux.`] };
-  const fautes = await resoudreDemandes(lu.plan, principalId, persona);
+  const fautes = [...await resoudreDemandes(lu.plan, principalId, persona), ...await eprouverLectures(lu.plan, principalId, persona)];
   if (fautes.length) return { ok: false, fautes };
   const plafondUsd = (await persona.plafonds(principalId)).travailUsd || PLAFOND_TRAVAIL_DEFAUT_USD;
   const m = await prisma.mission.create({
@@ -75,6 +75,26 @@ export async function proposerTravail(
     { etapes: lu.plan.etapes.length, gestes: lu.gestes.map((g) => g.nom), plafondUsd }, principalId);
   return { ok: true, travailId: m.id, plan: lu.plan, gestes: lu.gestes, plafondUsd };
 }
+
+/**
+ * I4 (décision 0067) — LE PLAN S'ÉPROUVE AVANT DE PARTIR : chaque LECTURE qui s'essaie (une requête concrète, sans renvoi à
+ * une étape amont) est comptée à blanc, ici, sous les droits de la personne. Une lecture qui ne passe pas (table, champ,
+ * droit) est une FAUTE du plan, rendue au modèle ; son résultat (« 9 ligne(s)… ») est posé sur l'étape, pour la carte.
+ */
+async function eprouverLectures(plan: PlanTravail, principalId: string, persona: PersonaTravaux): Promise<string[]> {
+  const fautes: string[] = [];
+  for (const e of plan.etapes) {
+    if (e.type !== "LECTURE" || !e.outil || !persona.essayer || JSON.stringify(e.entree ?? {}).includes("{{")) continue;
+    const r = await persona.essayer(principalId, e.outil, e.entree ?? {});
+    if (!r) continue;
+    if (!r.ok) fautes.push(`Étape « ${e.cle} » : la lecture ne passe pas — ${r.faute}`);
+    else e.essai = { texte: r.texte, total: r.total };
+  }
+  return fautes;
+}
+
+/** Une lecture du plan qui ne trouverait RIEN : le plan ne part pas d'office, la personne l'apprend avant le lancement. */
+export const lecturesVides = (plan: PlanTravail): string[] => plan.etapes.filter((e) => e.essai?.total === 0).map((e) => `« ${e.titre} » : ${e.essai!.texte}`);
 
 /**
  * LES PERSONNES SOLLICITÉES (J8) — « demander à Karim » se résout MAINTENANT, à la proposition : un compte actif,

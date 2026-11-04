@@ -25,19 +25,13 @@ import { dateLongue, FUSEAU } from "../../domaine/routines/calendrier";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** Les outils qui ÉCRIVENT ou préparent une écriture — jamais offerts à une routine. */
-const ECRITURES = new Set(["create_task", "send_message", "proposer_memoire", "mes_brouillons"]);
-
 export async function outilsDeRoutine(user: CurrentUser, sorties: string[]): Promise<PowerTool[]> {
   // Chargé à l'appel : `outils-v1` connaît le registre des opérations, qui connaît les routines — un import
   // statique fermerait la boucle au chargement.
-  const [{ outilsV1, ECRITURES_DU_MOTEUR }, { OPERATIONS_IA }] = await Promise.all([import("../outils-v1"), import("../operations")]);
-  // TOUTE opération du registre écrit (ou programme) : aucune n'est offerte, quel que soit son nom. Les gestes
-  // métier du moteur ouverts par la décision 0012 (dossier réglementaire, RH, demandes…) non plus.
-  const operations = new Set(OPERATIONS_IA.map((o) => o.nom));
+  const [{ outilsV1 }, { accesAssistantIa }] = await Promise.all([import("../outils-v1"), import("../role-config")]);
+  // I4 (décision 0067) : LE catalogue de la conversation, réduit à ses lectures — aucun geste, aucune carte, rien qui écrive.
   // Les familles réglées par la Direction valent pour une routine comme pour la conversation (relues à chaque passage).
-  const { accesAssistantIa } = await import("../role-config");
-  return outilsV1(user, [], sorties, [], null, await accesAssistantIa(user)).filter((o) => !ECRITURES.has(o.def.name) && !ECRITURES_DU_MOTEUR.has(o.def.name) && !operations.has(o.def.name) && !o.def.name.startsWith("preparer_"));
+  return outilsV1(user, [], sorties, [], null, await accesAssistantIa(user), { seulementLectures: true });
 }
 
 const CONSIGNE_ROUTINE = [

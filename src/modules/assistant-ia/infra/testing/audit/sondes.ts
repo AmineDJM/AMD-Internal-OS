@@ -73,8 +73,6 @@ export const SONDES: Sonde[] = [
   { outil: "mes_routines", entree: () => ({}) },
   { outil: "mes_brouillons", entree: () => ({}) },
   { outil: "mes_demandes_en_attente", entree: () => ({}) },
-  { outil: "list_my_tasks", entree: () => ({ includeDone: true }) },
-  { outil: "list_my_requests", entree: () => ({}) },
   { outil: "my_overview", entree: () => ({}) },
   // P1 bis (AN-04) : les tâches de l'équipe — bornées à l'arbre sous la personne (`getMyTeam`) ; sous qui n'encadre pas la victime, rien d'elle.
   { outil: "taches_equipe", entree: () => ({}), toutes: true },
@@ -105,6 +103,15 @@ export const SONDES: Sonde[] = [
   { outil: "lire", entree: () => ({ vue: "produits", filtres: [{ champ: "etape", valeur: "commercialisé" }] }) },
   { outil: "lire", entree: () => ({ vue: "etablissements", champs: ["nom", "iban", "salaire"] }) },
   { outil: "lire", entree: () => ({ vue: "Employee", filtres: [{ champ: "baseSalary", op: ">", valeur: "0" }] }), toutes: true },
+  // I4 (décision 0067) — LA LECTURE GÉNÉRIQUE : toute table, visée sur la victime — sa table de tâches, sa paie, ses colonnes du
+  // coffre, une table sans portée déclarée (le journal d'audit, les comptes), une relation vers sa fiche RH.
+  { outil: "lire", entree: () => ({ table: "Task", filtres: [{ champ: "assignedTo.name", op: "contient", valeur: A }], champs: ["title", "assignedTo.name", "description"] }), toutes: true },
+  { outil: "lire", entree: () => ({ table: "PayrollEntry", filtres: [{ champ: "employee.lastName", op: "contient", valeur: A }] }), toutes: true },
+  { outil: "lire", entree: () => ({ table: "Employee", champs: ["firstName", "lastName", "baseSalary", "iban", "nationalId", "grossSalary"] }), toutes: true },
+  { outil: "lire", entree: () => ({ table: "AuditLog", filtres: [{ champ: "summary", op: "contient", valeur: A }] }), toutes: true },
+  { outil: "lire", entree: () => ({ table: "User", champs: ["name", "email", "passwordHash"] }), toutes: true },
+  { outil: "lire", entree: () => ({ table: "EmployeeDocument", champs: ["name", "category", "employee.lastName"] }), toutes: true },
+  { outil: "lire", entree: () => ({ table: "DonneeSensible" }), toutes: true },
   { outil: "observer", entree: (s) => ({ fichier: bulletin(s) }), toutes: true },
   { outil: "fichier", entree: (s) => ({ fichier: bulletin(s), copier: true }), toutes: true },
   { outil: "fichier", entree: (s) => ({ fichier: bulletin(s), versFormat: "docx" }) },
@@ -119,7 +126,6 @@ export const SANS_DONNEE_PERSONNE: Readonly<Record<string, string>> = {
   regulatory_knowledge: "textes réglementaires publics (ANPP, pharmacopée)",
   regulatory_portfolio: "portefeuille de produits par partenaire — données produit",
   etat_dossier_reglementaire: "état d'un dossier d'enregistrement — données produit",
-  search_products: "catalogue des produits",
   read_workflow: "définition des circuits de validation",
   web_research: "le web public, rien de l'ERP",
   recette_pour: "les recettes de la maison (procédures validées), sans données",
