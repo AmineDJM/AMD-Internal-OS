@@ -45,12 +45,17 @@ const SOUVENIR = "Mon comité de direction a lieu le jeudi à 10 h";
 
 suite("Adventum IA — conversations multiples, privées, dossiers (vraie base)", () => {
   beforeAll(async () => {
+    // I5 (décision 0069) : le faux modèle de ce banc cite des chiffres sans aucune lecture (« Il reste 1 240 000 DZD ») — le contrôle final les
+    // reprendrait, et sa reprise consommerait l'étape suivante du scénario. Ce banc éprouve les conversations (titres, recherche, dossiers), pas la vérité du
+    // message : le contrôle y est coupé (il est éprouvé par `controle-final-i5.test.ts`), rétabli après.
+    process.env.ADAM_CONTROLE_FINAL = "0";
     moi = await compte("moi");
     collegue = await compte("collegue");
     await prisma.assistantMemoryItem.create({ data: { userId: moi.id, type: "WORKING_STYLE", content: SOUVENIR } });
   }, 60_000);
   afterEach(() => remplacerModelesPourTests(null));
   afterAll(async () => {
+    delete process.env.ADAM_CONTROLE_FINAL;
     const ids = [moi?.id, collegue?.id].filter(Boolean) as string[];
     await effacerJournalDe(ids);
     await prisma.assistantIaFil.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});

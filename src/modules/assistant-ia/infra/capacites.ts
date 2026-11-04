@@ -29,6 +29,7 @@ import type { ResultatOperation } from "../domaine/operations/types";
 import { REFUS_ARRET_URGENCE, REFUS_SECONDE_CARTE, type PropositionCarte } from "./operations";
 import { auNomDe } from "./consommation";
 import { FICHES_EXPORTS } from "./exports";
+import { controleFinalActif } from "./observation/interrupteurs";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -467,7 +468,9 @@ export function outilCorrigerCarte(user: CurrentUser, acces: AccesIa): PowerTool
       const evts = Array.isArray(lue?.events) ? (lue!.events as { fields?: unknown }[]) : [];
       return json({
         statut: "EN_ATTENTE_DE_CONFIRMATION", titre: lue?.title, champs: [...evts].reverse().find((e) => Array.isArray(e.fields))?.fields ?? [],
-        consigne: `Carte corrigée : rien n'est exécuté${r.confirmText ? ` — la personne devra confirmer « ${r.confirmText} »` : ""}. Ne dis pas que c'est fait.`,
+        // I5 (décision 0069) : l'injonction « Ne dis pas que c'est fait » est MASQUÉE quand le contrôle final juge le message
+        // (une carte en attente contredit « c'est fait ») ; le fait reste dit. `ADAM_CONTROLE_FINAL=0` la rend.
+        consigne: `Carte corrigée : rien n'est exécuté${r.confirmText ? ` — la personne devra confirmer « ${r.confirmText} »` : ""}.${controleFinalActif() ? "" : " Ne dis pas que c'est fait."}`,
       });
     },
   };

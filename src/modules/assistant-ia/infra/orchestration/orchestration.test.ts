@@ -152,6 +152,10 @@ const attentes = (d: { contenu: string }[]) => d.filter((x) => ATTENTE_BLOQUANTE
 
 suite("Assistant IA — l'orchestrateur de conversation (O1), de bout en bout", () => {
   beforeAll(async () => {
+    // I5 (décision 0069) : le faux modèle de ce banc cite des chiffres sans aucune lecture (« Tu as 42 clients à Oran ») — le contrôle final les
+    // reprendrait, et sa reprise consommerait l'étape suivante du scénario. Ce banc éprouve l'orchestration des travaux, pas la vérité du
+    // message : le contrôle y est coupé (il est éprouvé par `controle-final-i5.test.ts`), rétabli après.
+    process.env.ADAM_CONTROLE_FINAL = "0";
     process.env.OPENAI_API_KEY = "cle-de-banc";
     remplacerLecteurInterrupteurIaPourTests(async () => false);
     sa = await compte("Direction");
@@ -159,6 +163,7 @@ suite("Assistant IA — l'orchestrateur de conversation (O1), de bout en bout", 
   });
   afterEach(() => remplacerModelesPourTests(null));
   afterAll(async () => {
+    delete process.env.ADAM_CONTROLE_FINAL;
     if (cleAvant === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = cleAvant;
     remplacerLecteurInterrupteurIaPourTests(null);
     const ids = [sa?.id].filter(Boolean) as string[];

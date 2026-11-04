@@ -46,6 +46,9 @@ import {
   censurerTexte, CoffretDuTour, CONSIGNE_EN_CLAIR, CONSIGNE_JETONS, jetonnerSortie, masquerReperesPartiels, sansValeursRevelees,
 } from "../../domaine/filtre-confidentialite";
 import { JournalDuTour } from "../observation/journal";
+import { controleFinalActif } from "../observation/interrupteurs";
+import { controleFinal, preuvesDuJournal, relireLesLecturesVides, type VerdictDuControle } from "../observation/controle-final";
+import type { Constat } from "../../domaine/observation/controle-final";
 import type { Observation } from "../../domaine/observation/contrat";
 
 /**
@@ -88,6 +91,8 @@ export type ResultatDuTour =
     travaux: string[];
     /** I1 (décision 0063) : ce que les gestes du tour ont produit, observé par le serveur (relu au tour suivant). */
     observations: Observation[];
+    /** I5 (décision 0069) : ce que le contrôle final a repris (absent : contrôle coupé). Les bancs le comptent. */
+    controle?: { reprise: boolean; ecarts: string[]; recidives: string[]; rectifiees: number };
   }
   /** F2 (MG-10) : `transitoire` — le modèle n'a pas répondu (délai, réseau) : le fil REPREND la demande, une fois. */
   | { ok: false; error: string; transitoire?: boolean };
@@ -254,6 +259,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
    */
   const vueExacte = Boolean(user.impersonatedBy);
   let outils: PowerTool[] | undefined;
+  /** I5 : la lecture générique, hors enveloppe — le contrôle final relit une lecture vide sans ses filtres. */
+  let lireBrut: PowerTool | undefined;
   let selection: SelectionDuTour;
   try {
     acces = await accesAssistantIa(user);
@@ -293,6 +300,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     if (fond) outils = outils.filter((o) => OUTILS_DE_FOND.includes(o.def.name));
     const profilDuTour = profil;
     // L'ENVELOPPE (I1) : chaque outil du tour passe par le journal — une seule fois (les outils « prouvés » y sont déjà).
+    lireBrut = outils.find((o) => o.def.name === "lire");
     outils = outils.map((o) => journal.envelopper(o));
     // I1 : les capacités d'envoi restent dans le tour (pour `envoyer_mail`), hors du catalogue offert au modèle.
     const parEnvoyerMail = capacitesDEnvoi();
@@ -322,33 +330,57 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     return { ok: false, error: "Service momentanément indisponible. Réessayez dans un instant.", message };
   }
   const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
-  try {
-    const r = await repondreAvecSecours({
+  // I5 (décision 0069) : la rédaction d'un tour — la première, et la reprise unique du contrôle final (mêmes outils, même
+  // journal, l'historique augmenté du brouillon refusé).
+  const rediger = (texte: string, historique: DemandeDuTour["historique"], maxEtapes?: number) => repondreAvecSecours({
       // L'historique dans son ENVELOPPE (J4) : les échanges les plus récents, le reste est au résumé roulant.
-      user, message, historique: historiqueDansEnveloppe(saisie.historique), instructions,
+      user, message: texte, historique: historiqueDansEnveloppe(historique), instructions,
       origine: d.conversation ? "fil" : "conversation", conversation: d.conversation ?? null,
       outils, modeles, delaiMs: d.delaiMs ?? DELAI_MODELE_MS, config,
       actifs: selection.actifs, cleCache: `assistant-ia:${user.id}`,
       propositionsFaites: () => propositions.length,
-      maxEtapes: fond ? Math.min(d.maxEtapes ?? ETAPES_DE_FOND, ETAPES_DE_FOND) : d.maxEtapes,
+      maxEtapes: maxEtapes ?? (fond ? Math.min(d.maxEtapes ?? ETAPES_DE_FOND, ETAPES_DE_FOND) : d.maxEtapes),
       // En flux, un repère n'est pas encore jugé : il s'affiche « ••• » jusqu'à la réponse finale.
       surTexte: d.surTexte ? (brut) => d.surTexte!(sortieDuCanal(masquerReperesPartiels(brut))) : undefined,
       // `trouver_outil` est de la cuisine du tour : la personne ne lit que ce qui a été CONSULTÉ.
       surOutil: d.surOutil ? (nom) => { if (nom !== OUTIL_TROUVER) d.surOutil!(libelles.get(nom) ?? nom); } : undefined,
     });
+  try {
+    const r = await rediger(message, saisie.historique);
     if (r.echecs.length) console.warn("[assistant] modèles abandonnés", r.echecs);
     // J4 : ce que la présélection n'avait pas vu — le banc et l'exploitation y lisent où affiner les mots des outils.
     if (selection.trouves().length) console.info("[assistant] outils trouvés en cours de tour", selection.trouves());
     // R5 : le modèle a choisi ses composants ; seuls ceux que les outils du tour prouvent restent.
-    const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
+    const composer = (texte: string) => composantsEnBlocs(lireReponseModele(texte), { sorties, question: message, contexte: instructions });
+    let ui = composer(r.texte);
     if (ui.retires.length) console.warn("[assistant] composants retirés", ui.retires);
+    const appeles = [...r.outilsAppeles];
+    // I5 (décision 0069) — LE CONTRÔLE FINAL : chaque affirmation du message confrontée aux observations du tour ; un écart
+    // ⇒ UNE reprise (l'écart énoncé comme un fait), puis la phrase qui récidive est remplacée par le fait observé.
+    // Il COUVRE les deux gardes ci-dessous, masquées tant qu'il est actif — `ADAM_CONTROLE_FINAL=0` les rend à l'identique.
+    let controle: VerdictDuControle | null = null;
+    if (controleFinalActif()) {
+      const historiqueTexte = saisie.historique.map((h) => h.content).join("\n");
+      const preuvesDuTour = () => preuvesDuJournal(journal, {
+        sources: [message, instructions, historiqueTexte, JSON.stringify(blocsCalcules)], historique: historiqueTexte, travauxLances: travauxLances.length,
+      });
+      controle = await controleFinal(ui.message, preuvesDuTour, async (note) => {
+        const r2 = await rediger(note, [...saisie.historique, { role: "user", content: message }, { role: "assistant", content: ui.message }], Math.min(d.maxEtapes ?? 8, ETAPES_REPRISE));
+        appeles.push(...r2.outilsAppeles);
+        ui = composer(r2.texte);
+        return ui.message;
+      }, () => relireLesLecturesVides(journal, lireBrut, user));
+      ui = { ...ui, message: controle.message };
+    }
     // K1 : après une analyse, un chiffre du MESSAGE que rien ne prouve est dit sous la réponse (et compté par le banc).
-    const note = blocsCalcules.length ? noteChiffresNonSources(ui.message, [...sorties, message]) : null;
+    // I5 : masquée quand le contrôle final est actif (il juge les chiffres de TOUT tour, et en demande la reprise).
+    const note = !controle && blocsCalcules.length ? noteChiffresNonSources(ui.message, [...sorties, message]) : null;
     if (note) console.warn("[assistant] chiffres non sourcés", note.chiffres);
     // P1 (décision 0047) — LA GARDE DE VÉRITÉ : « j'ai fusionné », « c'est envoyé », « j'ai pris en compte la mission
     // fusionnée » sans l'outil réussi qui le prouve dans ce tour → une note « non vérifié » sous la réponse.
+    // I5 : masquée quand le contrôle final est actif (il juge l'accompli sur les OBSERVATIONS, pas sur des noms d'outils).
     const preuves = journal.reussis(r.outilsAppeles);
-    const nonVerifie = noteActionsNonVerifiees(ui.message, preuves, propositions.length > 0);
+    const nonVerifie = controle ? null : noteActionsNonVerifiees(ui.message, preuves, propositions.length > 0);
     if (nonVerifie) console.warn("[assistant] actions non vérifiées", nonVerifie.familles);
     // C1 (décision 0068) : TOUTES les cartes du tour — une carte sans intention persistée n'a pas de bouton qui tienne.
     const intents: IntentionDuTour[] = propositions.filter((p) => !!p.intentId).map((p) => ({
@@ -374,9 +406,10 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       travaux: [...travauxLances],
       observations: journal.observations(),
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
-      outilsAppeles: [...new Set(r.outilsAppeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
+      outilsAppeles: [...new Set(appeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
       intent: intents[0] ?? null,
       intents,
+      ...(controle ? { controle: { reprise: controle.rejoue, ecarts: controle.premier.map(resumeDuConstat), recidives: (controle.second ?? []).map(resumeDuConstat), rectifiees: controle.rectifiees } } : {}),
     };
   } catch (e) {
     // P1 bis (MI-02) : LE PLAFOND D'UN TOUR atteint ne s'arrête plus sur un refus — le travail BASCULE en mission (une fois) :
@@ -397,6 +430,10 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     return { ok: false, error: messageDEchec(e), message, transitoire: true };
   }
 }
+
+/** I5 : la reprise rédige ; elle peut lire ce qui lui manquait, pas rejouer tout un travail. */
+const ETAPES_REPRISE = 4;
+const resumeDuConstat = (c: Constat): string => `${c.affirmation.type}/${c.verdict} : « ${c.affirmation.phrase.slice(0, 160)} » — ${c.observe.slice(0, 200)}`;
 
 /** Ce que la personne lit quand le modèle n'a pas répondu : la cause, dite simplement. */
 export function messageDEchec(e: unknown): string {
