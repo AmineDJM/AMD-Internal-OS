@@ -34,6 +34,9 @@ export const ACCESS_MESSAGE: Record<MailAccessReason, string> = {
   "not-in-pilot": "La messagerie Microsoft 365 est en phase pilote : votre boîte n'y est pas encore.",
 };
 
+/** La valeur de `MICROSOFT_MAIL_PILOT` qui ouvre la messagerie à toute l'entreprise. */
+export const OUVERT_A_TOUS = "*";
+
 export function mailAccess(
   user: Pick<SessionUser, "role"> & { email?: string | null },
   env: Env,
@@ -51,6 +54,10 @@ export function mailAccess(
   if (pilot.length === 0) return { allowed: false, reason: "not-in-pilot", missingVars: [] };
 
   const email = (user.email ?? "").trim().toLowerCase();
+  // L'OUVERTURE À L'ENTREPRISE (Direction, 04/11/2026) : `MICROSOFT_MAIL_PILOT=*` fait entrer chaque compte qui a une adresse.
+  // Un choix ÉCRIT, jamais un défaut : la liste vide reste fermée. La connexion, elle, ne s'ouvre qu'aux comptes du
+  // locataire Microsoft de la société (`MICROSOFT_TENANT_ID`) — l'étoile n'ouvre pas la porte aux boîtes d'ailleurs.
+  if (email && pilot.includes(OUVERT_A_TOUS)) return { allowed: true, reason: "ok", missingVars: [] };
   if (email && pilot.includes(email)) return { allowed: true, reason: "ok", missingVars: [] };
   return { allowed: false, reason: "not-in-pilot", missingVars: [] };
 }
