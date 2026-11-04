@@ -9,7 +9,9 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { askBrain, regenererBriefing, type BrainAnswer } from "@/lib/actions/adventum-actions";
 import { executeAssistantAction } from "@/lib/actions/assistant-actions";
+import { confirmerIntentionAssistantIA, ignorerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import type { ProposedAction } from "@/lib/assistant";
+import type { CarteDEntree } from "@/modules/assistant-ia/api";
 
 /** Une puce de source : module ou document, cliquable quand elle a une adresse. */
 export function Puce({ label, href }: { label: string; href: string | null }) {
@@ -41,6 +43,21 @@ export function BoutonRegenerer() {
   );
 }
 
+/** Le geste « Confirmer », commun aux deux cartes : l'exécution, puis « fait » — ou l'erreur dite, la carte reste ouverte. */
+async function confirmerGeste(
+  executer: () => Promise<{ ok: boolean; error?: string }>,
+  setEtat: (e: "confirmer" | "envoi" | "fait") => void,
+  setErr: (m: string | null) => void,
+): Promise<void> {
+  setEtat("envoi"); setErr(null);
+  try {
+    const r = await executer();
+    if (r.ok) setEtat("fait"); else { setErr(r.error ?? "L'action proposée n'a pas été exécutée."); setEtat("confirmer"); }
+  } catch {
+    setErr(actionFailureMessage("THROWN")); setEtat("confirmer");
+  }
+}
+
 /** Une action proposée par l'assistant : un bouton qui passe par la confirmation canonique. */
 function Proposition({ p }: { p: ProposedAction }) {
   const [etat, setEtat] = React.useState<"repos" | "confirmer" | "envoi" | "fait">("repos");
@@ -58,15 +75,40 @@ function Proposition({ p }: { p: ProposedAction }) {
       {err && <p className="text-xs text-destructive">{err}</p>}
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={() => setEtat("repos")}>Annuler</Button>
-        <Button size="sm" disabled={etat === "envoi"} onClick={async () => {
-          setEtat("envoi"); setErr(null);
+        <Button size="sm" disabled={etat === "envoi"} onClick={() => confirmerGeste(() => executeAssistantAction(p.payload, p.intentId, critique ? saisie : undefined), setEtat, setErr)}>{etat === "envoi" && <Loader2 className="h-4 w-4 animate-spin" />}Confirmer</Button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * I6 (décision 0070) : une carte du MOTEUR UNIQUE — l'intention persistée du tour de Brain, confirmée (ou ignorée) par la
+ * même action que la conversation (`confirmerIntentionAssistantIA`), jamais par l'ancienne confirmation.
+ */
+function CarteMoteur({ c }: { c: CarteDEntree }) {
+  const [etat, setEtat] = React.useState<"repos" | "confirmer" | "envoi" | "fait" | "ignoree">("repos");
+  const [err, setErr] = React.useState<string | null>(null);
+  const [saisie, setSaisie] = React.useState("");
+  if (etat === "fait") return <p className="flex items-center gap-1.5 text-sm text-success"><CheckCircle2 className="h-4 w-4" />{c.titre} — fait.</p>;
+  if (etat === "ignoree") return <p className="text-sm text-muted-foreground">{c.titre} — ignorée.</p>;
+  if (etat === "repos") return <Button size="sm" variant="outline" onClick={() => setEtat("confirmer")}>{c.titre}</Button>;
+  return (
+    <div className="w-full space-y-2 rounded-lg border border-border p-3 text-sm">
+      <p className="font-medium">{c.titre}</p>
+      {c.champs.length > 0 && <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">{c.champs.map((f, i) => <React.Fragment key={i}><dt className="text-muted-foreground">{f.label}</dt><dd>{f.value}</dd></React.Fragment>)}</dl>}
+      {c.avertissements.map((w, i) => <p key={i} className="text-xs text-warning">{w}</p>)}
+      {c.confirmText && <Input value={saisie} onChange={(e) => setSaisie(e.target.value)} placeholder={`Ressaisir « ${c.confirmText} »`} aria-label="Confirmation renforcée" />}
+      {err && <p className="text-xs text-destructive">{err}</p>}
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="ghost" disabled={etat === "envoi"} onClick={async () => {
           try {
-            const r = await executeAssistantAction(p.payload, p.intentId, critique ? saisie : undefined);
-            if (r.ok) setEtat("fait"); else { setErr(r.error ?? "L'action proposée n'a pas été exécutée."); setEtat("confirmer"); }
+            const r = await ignorerIntentionAssistantIA(c.id);
+            if (r.ok) setEtat("ignoree"); else setErr(r.error ?? "La carte n'a pas pu être ignorée.");
           } catch {
-            setErr(actionFailureMessage("THROWN")); setEtat("confirmer");
+            setErr(actionFailureMessage("THROWN"));
           }
-        }}>{etat === "envoi" && <Loader2 className="h-4 w-4 animate-spin" />}Confirmer</Button>
+        }}>Ignorer</Button>
+        <Button size="sm" disabled={etat === "envoi"} onClick={() => confirmerGeste(() => confirmerIntentionAssistantIA(c.id, c.confirmText ? saisie : undefined), setEtat, setErr)}>{etat === "envoi" && <Loader2 className="h-4 w-4 animate-spin" />}{c.libelleBouton ?? "Confirmer"}</Button>
       </div>
     </div>
   );
@@ -97,6 +139,7 @@ export function Demander() {
             <p className="whitespace-pre-wrap text-sm leading-relaxed">{rep.reply}</p>
             {rep.sources.length > 0 && <p className="-ml-1 flex flex-wrap gap-y-1">{rep.sources.map((s, i) => <Puce key={i} label={s.label} href={s.href} />)}</p>}
             {rep.proposals.length > 0 && <div className="flex flex-wrap gap-2">{rep.proposals.map((p, i) => <Proposition key={p.intentId ?? i} p={p} />)}</div>}
+            {(rep.cartes?.length ?? 0) > 0 && <div className="flex flex-wrap gap-2">{rep.cartes!.map((c) => <CarteMoteur key={c.id} c={c} />)}</div>}
           </div>
         ) : <p className="text-sm text-destructive">{rep.error ?? "Pas de réponse."}</p>
       )}

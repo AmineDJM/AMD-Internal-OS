@@ -1,4 +1,6 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { ancienMoteurActif } from "@/lib/assistant/ancien-moteur";
+import { HistoriqueGele } from "./historique-gele";
 import { requireModule } from "@/lib/session";
 import { peutVoirAdam } from "@/platform/in-process/visibilite-adam";
 import { hasGlobalView } from "@/lib/rbac";
@@ -49,13 +51,21 @@ export const metadata = { title: "Bureau d'Adam — Adam" };
  */
 export default async function ChiefOfStaffPage(
   props: {
-    searchParams?: Promise<{ q?: string; ref?: string; call?: string; apercu?: string }>;
+    searchParams?: Promise<{ q?: string; ref?: string; call?: string; apercu?: string; fil?: string }>;
   }
 ) {
   const searchParams = await props.searchParams;
   const user = await requireModule("CHIEF_OF_STAFF");
   // Adam n'est visible que du Super Admin (§118.153) — la Direction garde le module, pas Adam.
   if (!peutVoirAdam(user)) notFound();
+
+  // I6 (décision 0070) — UN SEUL MOTEUR : le Bureau ne joue plus de tour (l'ancien moteur est masqué). Une question ou un
+  // appel demandés ici vont à la conversation d'Adam (moteur unique) ; sinon, l'historique du Bureau, gelé en lecture.
+  // ADAM_ANCIEN_MOTEUR=1 remet le Bureau d'avant, intact (suite de cette page).
+  if (!ancienMoteurActif()) {
+    if (searchParams?.q || searchParams?.call) redirect("/assistant");
+    return <HistoriqueGele userId={user.id} fil={typeof searchParams?.fil === "string" ? searchParams.fil.slice(0, 64) : null} />;
+  }
 
   // LA PLANCHE DE RENDU, le temps d'une revue visuelle — et jamais en production.
   //

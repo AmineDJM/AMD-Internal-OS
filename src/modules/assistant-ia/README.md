@@ -36,6 +36,20 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
   seul Super Admin (rôle principal, hors Vue exacte) — lectures dans la conversation, écritures par carte `adam_sa_op` exécutées
   à la confirmation sous le journal des effets ; consigne `CONSIGNE_ADAM_SA` ; inventaire `docs/assistant/adam-inventaire.md`.
 
+## Un seul moteur — toutes les entrées passent par `jouerTour` (lot I6, décision 0070)
+
+- **Les entrées d'avant** (Bureau d'Adam, appel vocal global, dictée, « Demander » d'Adventum Brain, relance) ne font plus
+  tourner l'ancienne boucle (`lib/assistant/boucle/*`) : elles jouent leur tour par `infra/entrees.ts jouerTourDEntree` →
+  `jouerTour` (même catalogue filtré par le `ProfilDAcces`, mêmes gardes, même fin de tour) : Brain (`askBrain`) et la
+  relance (`actions.ts relanceMoteurUnique` → `relanceDuMoteur`) sont **rebranchés** ; le Bureau (`/api/assistant/stream`,
+  `assistantChat`), l'appel global, la dictée et leurs routes sont **masqués** (fichiers d'Adam : frontière 0013, Adam → IA = 0)
+  et mènent à la conversation d'Adventum IA. Une carte reste une intention, confirmée par `confirmerIntentionAssistantIA`.
+- **Drapeau** `ADAM_ANCIEN_MOTEUR=1` (`lib/assistant/ancien-moteur.ts`) : remet l'ancien moteur, ses routes, l'appel global et
+  l'écriture d'`AssistantThread`. Sans lui, `AssistantThread` est **gelé en lecture** — l'historique du Bureau reste consultable
+  (`/adam/bureau`). Rien n'est supprimé ; `runAssistant` ne s'obtient que par `ancienneBoucle()`.
+- **Une clé de cache par personne** (`domaine/cle-cache.ts cleCacheDeLaPersonne`) : conversation, entrées rebranchées,
+  routines et missions la partagent. Preuves : `platform/moteur-unique.test.ts` (test d'architecture), `i6-moteur-unique.test.ts`, `scripts/bench/i6-entrees/`.
+
 ## Les primitives — lire, produire, fichier, observer ; l'espace d'Adam (lot I3, décision 0065)
 
 - `infra/primitives/` : `lire` (vues déclarées : produits, établissements, missions, tâches, demandes — portée = la clause de

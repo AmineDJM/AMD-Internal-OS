@@ -1,6 +1,6 @@
 import { aiConfigured, askClaudeCheap } from "@/lib/ai";
 import {
-  createThread, appendExchange, distillationDue, countMessages, recentMessages, getMemory, saveMemory,
+  createThread, appendExchange, filsGeles, distillationDue, countMessages, recentMessages, getMemory, saveMemory,
 } from "@/lib/assistant-memory";
 
 /**
@@ -123,6 +123,8 @@ export async function rememberExchange(
    */
   workspace?: unknown,
 ): Promise<string | null> {
+  // I6 (décision 0070) : `AssistantThread` est gelé en lecture — l'échange n'y est plus écrit (ni distillé d'ici).
+  if (filsGeles()) return threadId;
   try {
     let tid = threadId;
     if (tid) {

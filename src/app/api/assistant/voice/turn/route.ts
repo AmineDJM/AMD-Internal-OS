@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/session";
 import { featureEnabled, FEATURES } from "@/lib/features";
 import { rememberExchange } from "@/lib/memoire-echange";
 import { canUseRealtimeVoice } from "@/lib/assistant/voice-realtime";
+import { ancienMoteurActif, reponseAncienMoteurMasque } from "@/lib/assistant/ancien-moteur";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,6 +16,9 @@ export const runtime = "nodejs";
  * jamais une preuve documentaire officielle.
  */
 export async function POST(req: Request) {
+  // I6 (décision 0070) : l'ancien moteur est MASQUÉ (pas supprimé) — cette route ne revient qu'avec ADAM_ANCIEN_MOTEUR=1.
+  const masque = ancienMoteurActif() ? null : reponseAncienMoteurMasque();
+  if (masque) return masque;
   const user = await requireUser();
   if (!canUseRealtimeVoice(user)) return Response.json({ error: "Non autorisé." }, { status: 403 });
 

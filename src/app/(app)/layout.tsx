@@ -26,6 +26,7 @@ import { NotificationPopup } from "@/components/layout/notification-popup";
 import { UploadProvider } from "@/components/layout/upload-manager";
 import { BackgroundUploadProvider } from "@/components/layout/background-upload";
 import { CallProvider } from "@/components/layout/call-provider";
+import { ancienMoteurActif } from "@/lib/assistant/ancien-moteur";
 import { realtimeVoiceConfigured, canUseRealtimeVoice } from "@/lib/assistant/voice-realtime";
 import { getTotalUnread } from "@/lib/queries/messaging";
 import { getAdoptionBadge } from "@/lib/adoption";
@@ -100,7 +101,9 @@ export default async function AppLayout({
     <BackgroundUploadProvider>
     {/* L'APPEL VIT AU NIVEAU DU LAYOUT, pas de la page Chief of Staff : naviguer dans l'ERP
         pendant un appel ne démonte pas la session WebRTC — la conversation continue. */}
-    <CallProvider enabled={realtimeVoiceConfigured() && canUseRealtimeVoice(user)}>
+    {/* I6 (décision 0070) : l'appel global de l'ANCIEN moteur est masqué — la voix passe par le moteur unique (conversation
+        vocale d'Adventum IA, délégation → `jouerTour`). ADAM_ANCIEN_MOTEUR=1 le remet tel quel. */}
+    <CallProvider enabled={ancienMoteurActif() && realtimeVoiceConfigured() && canUseRealtimeVoice(user)}>
     {/* LA COQUE EST UN BLOC CONTENEUR (`relative`) — c'est ce qui l'empêche de laisser le DOCUMENT défiler.
         Un élément `absolute` sans ancêtre positionné a pour bloc conteneur la FENÊTRE : le `overflow-hidden`
         de la coque ne le coupe pas, et son abscisse de repli (un `sr-only`, une pastille, un témoin de

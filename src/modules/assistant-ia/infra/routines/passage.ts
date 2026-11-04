@@ -6,6 +6,7 @@ import { composantsEnBlocs, lireReponseModele, repondreAvecSecours } from "../re
 import { auNomDe, PlafondIaAtteint } from "../consommation";
 import { genererTexte, modelesEffectifs } from "../generer";
 import { IA_NON_CONFIGUREE } from "../modele";
+import { cleCacheDeLaPersonne } from "../../domaine/cle-cache";
 import { dateLongue, FUSEAU } from "../../domaine/routines/calendrier";
 
 /**
@@ -123,6 +124,8 @@ async function passageAuNomDe(user: CurrentUser, d: DemandePassage): Promise<Iss
       // Sous la prise périmée (15 min) : un passage long n'est jamais repris par une autre instance en cours de route.
       user, message, historique: [], instructions, outils, modeles, delaiMs: DELAI_PASSAGE_MS, config,
       propositionsFaites: () => 0, maxEtapes: 10, origine: "routine",
+      // I6 (décision 0070) : la MÊME clé de cache que les autres entrées de la personne.
+      cleCache: cleCacheDeLaPersonne(user.id),
     });
     const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
     const contenu = ui.message?.trim();

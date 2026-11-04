@@ -6,6 +6,12 @@ import {
   saveMemory, getMemory, recentMessages, forgetEverything, personalContext,
 } from "./assistant-memory";
 
+// I6 (décision 0070) : l'ancien moteur et ses fils (`AssistantThread`) se testent SOUS SON DRAPEAU — sans lui, ils sont
+// gelés en lecture (moteur unique). Le drapeau est posé pour ce fichier seul, puis rendu.
+const drapeauAncienMoteur = process.env.ADAM_ANCIEN_MOTEUR;
+beforeAll(() => { process.env.ADAM_ANCIEN_MOTEUR = "1"; });
+afterAll(() => { if (drapeauAncienMoteur === undefined) delete process.env.ADAM_ANCIEN_MOTEUR; else process.env.ADAM_ANCIEN_MOTEUR = drapeauAncienMoteur; });
+
 /**
  * CLOISONNEMENT DE LA MÉMOIRE DE L'ASSISTANT.
  *

@@ -1,3 +1,4 @@
+import { ancienMoteurActif, reponseAncienMoteurMasque } from "@/lib/assistant/ancien-moteur";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
 import { userCan, peutVoirAdam } from "@/lib/rbac";
@@ -13,6 +14,8 @@ export const dynamic = "force-dynamic";
  * PAS conservé (saisie éphémère). Accessible à tout employé (assistant universel).
  */
 export async function POST(req: NextRequest) {
+  // I6 (décision 0070) : l'ancien moteur est MASQUÉ (pas supprimé) — cette route ne revient qu'avec ADAM_ANCIEN_MOTEUR=1.
+  if (!ancienMoteurActif()) return reponseAncienMoteurMasque();
   const user = await getCurrentUserPourEcrire();
   // La dictée de l'assistant est Adam : Super Admin seul (§118.153).
   if (!user || !userCan(user, "WORKSPACE", "VIEW") || !peutVoirAdam(user)) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });

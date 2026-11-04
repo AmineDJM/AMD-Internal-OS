@@ -11,7 +11,12 @@ import { notifyUser, notifyRoles } from "@/lib/notify";
 import { aiModel, cleModeleRequise } from "@/lib/ai";
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
-import { runAssistant, type ProposedAction } from "@/lib/assistant";
+// I6 (décision 0070) : `runAssistant` n'est plus importé ici — l'ancien moteur ne s'obtient que par `ancienneBoucle()`
+// (drapeau ADAM_ANCIEN_MOTEUR=1). Ligne d'avant, gardée pour mémoire :
+// import { runAssistant, type ProposedAction } from "@/lib/assistant";
+import type { ProposedAction } from "@/lib/assistant";
+import { ancienneBoucle } from "@/lib/assistant/ancien-moteur";
+import { jouerTourDEntree, type CarteDEntree } from "@/modules/assistant-ia/api";
 import { retrieve, toContext } from "@/lib/knowledge/retrieve";
 import { createTaskRecord } from "@/lib/tasks/create-core";
 import { genererBriefing } from "@/lib/brain-briefing";
@@ -175,12 +180,34 @@ export interface BrainAnswer {
   reply: string;
   sources: BrainSource[];
   proposals: ProposedAction[];
+  /** I6 (décision 0070) : les cartes du moteur unique (intentions persistées) — confirmées par `confirmerIntentionAssistantIA`. */
+  cartes?: CarteDEntree[];
   error?: string;
 }
 
 function lienDeSource(sourceType: string, sourceId: string): string | null {
   if (sourceType === "drive_file") return `/drive?node=${sourceId}`;
   return null;
+}
+
+/** Les puces de sources d'une réponse de Brain : les documents retrouvés, puis les risques que la réponse nomme. */
+function sourcesDeBrain(
+  hits: { itemId: string; title?: string | null; label?: string | null; locator?: string | null }[],
+  parItem: Map<string, { sourceType: string; sourceId: string; title: string | null }>,
+  risques: { object: string | null; module: string; href: string | null }[],
+  reply: string,
+): BrainSource[] {
+  const sources: BrainSource[] = [];
+  for (const h of hits) {
+    const it = parItem.get(h.itemId);
+    const label = [h.title ?? it?.title ?? "Document", h.label ?? h.locator].filter(Boolean).join(" · ");
+    if (!sources.some((s) => s.label === label)) sources.push({ label, href: it ? lienDeSource(it.sourceType, it.sourceId) : null });
+  }
+  const bas = reply.toLowerCase();
+  for (const x of risques) {
+    if (x.object && x.object.length > 3 && bas.includes(x.object.toLowerCase())) sources.push({ label: `${x.module} · ${x.object}`, href: x.href });
+  }
+  return sources;
 }
 
 /**
@@ -215,6 +242,28 @@ export async function askBrain(question: string): Promise<BrainAnswer> {
   ].filter(Boolean).join("\n\n");
   const message = contexte ? `${q}\n\n---\nContexte fourni par Adventum Brain (à citer s'il sert, à ignorer sinon) :\n${contexte}` : q;
 
+  // I6 (décision 0070) — UN SEUL MOTEUR : la question de Brain est un tour du moteur unique (`jouerTour`), avec le même
+  // catalogue (filtré par le profil d'accès), la même mémoire et les mêmes gardes que la conversation. L'ancien moteur ne
+  // revient que sous ADAM_ANCIEN_MOTEUR=1 (branche ci-dessous, inchangée).
+  const boucle = await ancienneBoucle();
+  if (!boucle) {
+    const t1 = Date.now();
+    const e = await jouerTourDEntree(user, "brain", { texte: message });
+    const repondu = e.ok ? (e.reponse.trim() || (e.cartes.length ? "J'ai préparé une action à confirmer." : "Pas de réponse.")) : "";
+    const srcs = sourcesDeBrain(docs?.hits ?? [], parItem, risques, repondu);
+    console.info("[brain] tour du moteur unique", { ok: e.ok, ms: Date.now() - t1 });
+    await prisma.brainQuestion.create({
+      data: {
+        userId: user.id, question: q, answer: repondu, ok: e.ok,
+        sources: srcs.slice(0, 10) as unknown as Prisma.InputJsonValue,
+        proposals: (e.ok ? e.cartes.map((c) => ({ title: c.titre, fields: c.champs })) : []) as unknown as Prisma.InputJsonValue,
+      },
+    }).catch((err) => console.error("[brain] question non gardée", err));
+    return e.ok
+      ? { ok: true, reply: repondu, sources: srcs.slice(0, 10), proposals: [], cartes: e.cartes }
+      : vide(e.erreur);
+  }
+  const runAssistant = boucle.runAssistant;
   const t0 = Date.now();
   const r = await runAssistant(user, [{ role: "user", content: message }]);
   await logAiUsage({
@@ -224,16 +273,7 @@ export async function askBrain(question: string): Promise<BrainAnswer> {
   if (!r.configured) return vide(phraseIaNonConfiguree(cleModeleRequise(), "Adventum Brain"));
 
   const reply = (r.reply ?? "").trim() || (r.proposal ? "J'ai préparé une action à confirmer." : "Pas de réponse.");
-  const sources: BrainSource[] = [];
-  for (const h of docs?.hits ?? []) {
-    const it = parItem.get(h.itemId);
-    const label = [h.title ?? it?.title ?? "Document", h.label ?? h.locator].filter(Boolean).join(" · ");
-    if (!sources.some((s) => s.label === label)) sources.push({ label, href: it ? lienDeSource(it.sourceType, it.sourceId) : null });
-  }
-  const bas = reply.toLowerCase();
-  for (const x of risques) {
-    if (x.object && x.object.length > 3 && bas.includes(x.object.toLowerCase())) sources.push({ label: `${x.module} · ${x.object}`, href: x.href });
-  }
+  const sources = sourcesDeBrain(docs?.hits ?? [], parItem, risques, reply);
   const proposals = r.proposals?.length ? r.proposals : r.proposal ? [r.proposal] : [];
 
   await prisma.brainQuestion.create({

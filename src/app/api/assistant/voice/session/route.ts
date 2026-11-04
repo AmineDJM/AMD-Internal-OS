@@ -1,3 +1,4 @@
+import { ancienMoteurActif, reponseAncienMoteurMasque } from "@/lib/assistant/ancien-moteur";
 import { requireUser } from "@/lib/session";
 import { aiFeatureEnabled } from "@/lib/ai-settings";
 import { canUseRealtimeVoice, createVoiceSessionGrant } from "@/lib/assistant/voice-realtime";
@@ -13,6 +14,8 @@ export const runtime = "nodejs";
  * `OPENAI_API_KEY` ne transite JAMAIS par cette réponse.
  */
 export async function POST(req: Request) {
+  // I6 (décision 0070) : l'ancien moteur est MASQUÉ (pas supprimé) — cette route ne revient qu'avec ADAM_ANCIEN_MOTEUR=1.
+  if (!ancienMoteurActif()) return reponseAncienMoteurMasque();
   const user = await requireUser();
   if (!canUseRealtimeVoice(user)) {
     return Response.json({ error: "La conversation vocale est réservée à l'interface exécutive (My Chief of Staff).", reasonCode: "FORBIDDEN" }, { status: 403 });

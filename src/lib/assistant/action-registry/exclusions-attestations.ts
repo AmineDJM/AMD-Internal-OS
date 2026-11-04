@@ -219,6 +219,9 @@ export function classerExclusionsAttestations(): void {
   X("FIL GARDÉ de l'Assistant IA — écrire à l'assistant (le message rejoint la file de SA conversation), repartir d'une nouvelle conversation, choisir que ses réponses soient aussi dites à voix haute. C'est l'écran de l'assistant lui-même, pas une action métier : chaque écriture que l'assistant prépare reste une carte à confirmer.", [
     "assistant-ia-actions:envoyerAuFil", "assistant-ia-actions:repartirDeZero", "assistant-ia-actions:reglerMaReponseVocale",
   ]);
+  X("RELANCE du moteur unique (I6, décision 0070 — ex-`assistantNudge`) — un tour de l'assistant sur les messages non lus de la personne, qui propose au plus une carte. C'est l'assistant lui-même (identité de la session, `jouerTour`), pas une action métier : chaque écriture qu'il prépare reste une carte à confirmer.", [
+    "assistant-ia-actions:relanceMoteurUnique",
+  ]);
   X("TRAVAUX LONGS PERSONNELS de l'Assistant IA (J2, décision 0016) — les gestes de la personne sur SES travaux (voir, lire, approuver SON plan, pause, reprise, arrêt). Identité prise de la session, jamais d'un paramètre ; un travail n'agit qu'avec les droits de sa propriétaire, relus à chaque étape, et seulement par les gestes qu'elle a approuvés : ce n'est pas une action métier à proposer.", [
     "assistant-ia-actions:listerMesTravaux", "assistant-ia-actions:lireMonTravail", "assistant-ia-actions:approuverMonTravail",
     "assistant-ia-actions:pauserMonTravail", "assistant-ia-actions:reprendreMonTravailIA", "assistant-ia-actions:annulerMonTravail",
