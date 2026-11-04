@@ -1,3 +1,4 @@
+import { chantiersOuverts } from "../domaine/profil-acces";
 import type { CurrentUser } from "@/lib/session";
 import type { OutilTravail } from "@/platform/ia/travaux/outil";
 import { etatMimo, lireReglagesChantiers, lireReglagesConsole, OUTILS_CHANTIER, OUTILS_PROGRAMME, validerGesteChantier } from "@/lib/missions/chantiers/outils";
@@ -25,7 +26,7 @@ const json = (o: unknown) => JSON.stringify(o);
 
 /** Les outils du Super Admin, liés à CETTE personne (un outil préparé pour une autre refuse). */
 export function outilsChantierPour(user: CurrentUser, lances?: string[]): OutilTravail[] {
-  if (user.role !== "SUPER_ADMIN") return [];
+  if (!chantiersOuverts(user)) return [];
   const pourLui = (u: { id: string }) => u.id === user.id;
   // O2 (décision 0059) : les programmes — une équipe de sessions Claude Code, la même règle (Super Admin).
   return [...OUTILS_CHANTIER, ...OUTILS_PROGRAMME].map((o) => ({

@@ -3,8 +3,8 @@ import type { CurrentUser } from "@/lib/session";
 import {
   CoffretDuTour, jetonnerMontants, jetonnerTexte, MASQUE_CONFIDENTIEL, remplacerReperes,
 } from "../../domaine/filtre-confidentialite";
-import { resoudreAccesIa, type AccesIa } from "../../domaine/acces-regles";
-import { droitsApplicatifsIa, substituerReperes } from "../role-config";
+import type { AccesIa } from "../../domaine/acces-regles";
+import { accesParDefaut, substituerReperes } from "../role-config";
 import { estTypeBloc, nettoyerTexte, nettoyerTitrePage, nouvelIdBloc, raccourci, type BlocNote, type TypeBloc } from "../../domaine/notes/blocs";
 import { plierNote, resoudreLigne, resoudrePosition, resumeGeste, type GesteNote, type Resolution } from "../../domaine/notes/gestes";
 import { borner, estLigneSensible, lignesPourModele } from "../../domaine/notes/regles";
@@ -88,7 +88,7 @@ export function outilsNotes(user: CurrentUser, o: OptionsOutilsNotes = {}): Powe
   const visualise = !!(user.impersonatedBy || user.visualise);
   const proposees = o.proposees ?? [];
   const canal = o.canal ?? "texte";
-  const acces = o.acces ?? resoudreAccesIa({ superAdmin: user.role === "SUPER_ADMIN", droits: droitsApplicatifsIa(user) });
+  const acces = o.acces ?? accesParDefaut(user);
 
   /** Un texte de note, tel que le modèle le lit : repères posés (titulaire : la personne elle-même). */
   const pourModele = (coffret: CoffretDuTour, pageId: string) => (texte: string) => {

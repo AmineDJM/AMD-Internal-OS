@@ -6,11 +6,23 @@
  * Règle d'ARCHITECTURE, pas de consigne : pour toute autre personne, l'opération `envoyer_gmail` n'est pas ouverte (donc
  * absente de la sélection d'outils), `mes_boites_mail` / `envoyer_mail` ne décrivent ni ne rendent la boîte d'Adam, et
  * aucune consigne, carte, erreur ou réponse ne la nomme. Le rôle PRINCIPAL compte seul — un rôle secondaire ne l'ouvre pas.
- * Règles PURES, zéro import.
+ * Règles PURES ; leur seule importation : la table des accès (`profil-acces.ts`, pure elle aussi).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+import { canalOuvert, type CompteProfil } from "../profil-acces";
 
-export const canalAdamOuvert = (u: { role?: string | null }): boolean => u.role === "SUPER_ADMIN";
+/**
+ * Le canal d'Adam est-il ouvert à ce compte ? Lu dans la table des accès (lot I2) : le Super Admin en personne — rôle
+ * principal, hors Vue exacte (avant I2, le rôle seul : une Vue exacte l'aurait ouvert si le tour n'était pas déjà fermé).
+ */
+export const canalAdamOuvert = (u: CompteProfil): boolean => canalOuvert(u, "gmailAdam");
+
+/**
+ * OÙ SE RELIE LE GMAIL D'ADAM — l'écran réel (`/adam/reglages`, bouton « Connecter le compte Google »). L'ancien renvoi,
+ * « Chief of Staff › Réglages », menait à une entrée MASQUÉE depuis la décision 0056 : le modèle répétait une adresse morte
+ * (rejeu réel AU3, 03/11).
+ */
+export const OU_RELIER_GMAIL_ADAM = "[Adam › Réglages](/adam/reglages) › « Connecter le compte Google »";
 
 /** La consigne de la boîte d'Adam — ajoutée au tour du Super Admin SEULEMENT. */
 export const CONSIGNE_BOITE_ADAM =

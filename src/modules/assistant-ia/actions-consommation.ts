@@ -1,5 +1,6 @@
 "use server";
 
+import { roleSuperAdmin } from "./domaine/profil-acces";
 import { revalidatePath } from "next/cache";
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { enLecture } from "@/lib/vue-lecture";
@@ -25,7 +26,7 @@ import type { ApercuAssistant, EchangeEssai, IssueEssai, VueConsommation } from 
  */
 export async function enregistrerReglagesAssistantIa(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") {
+  if (!userCan(admin, "ADMIN", "UPDATE") || !roleSuperAdmin(admin)) {
     return { ok: false, error: "Réservé au Super Admin." };
   }
   const r = normaliserReglages({
@@ -60,7 +61,7 @@ export async function enregistrerReglagesAssistantIa(formData: FormData): Promis
  */
 export async function enregistrerAccesAssistantIa(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  if (!userCan(admin, "ADMIN", "UPDATE") || !roleSuperAdmin(admin)) return { ok: false, error: "Réservé au Super Admin." };
   const c = await lireCible(String(formData.get("cible") ?? ""));
   if ("error" in c) return { ok: false, error: c.error };
   const { ou, nom } = c;
@@ -111,13 +112,13 @@ async function synchroniserDroitsDatesDeConsole(userId: string, ouvertes: Famill
 /** La cible d'un réglage de la console : un rôle (hors Super Admin) ou une personne (hors Super Admin). */
 async function lireCible(cible: string): Promise<{ ou: { userId: string } | { role: UserRole }; nom: string } | { error: string }> {
   const [genre, valeur] = [cible.slice(0, cible.indexOf(":")), cible.slice(cible.indexOf(":") + 1)];
-  if (genre === "role" && (Object.values(UserRole) as string[]).includes(valeur) && valeur !== "SUPER_ADMIN") {
+  if (genre === "role" && (Object.values(UserRole) as string[]).includes(valeur) && !roleSuperAdmin({ role: valeur })) {
     return { ou: { role: valeur as UserRole }, nom: `rôle ${ROLE_LABELS[valeur as UserRole] ?? valeur}` };
   }
   if (genre === "user" && valeur) {
     const u = await prisma.user.findUnique({ where: { id: valeur }, select: { id: true, name: true, role: true } });
     if (!u) return { error: "Personne introuvable." };
-    if (u.role === "SUPER_ADMIN") return { error: "Le Super Admin a tout, toujours : aucun réglage ne le vise." };
+    if (roleSuperAdmin(u)) return { error: "Le Super Admin a tout, toujours : aucun réglage ne le vise." };
     return { ou: { userId: u.id }, nom: u.name };
   }
   return { error: "Cible inconnue." };
@@ -130,7 +131,7 @@ async function lireCible(cible: string): Promise<{ ou: { userId: string } | { ro
  */
 export async function enregistrerPlafondsTravaux(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  if (!userCan(admin, "ADMIN", "UPDATE") || !roleSuperAdmin(admin)) return { ok: false, error: "Réservé au Super Admin." };
   const lire = (k: string, max: number): number | null | "faux" => {
     const v = String(formData.get(k) ?? "").trim().replace(",", ".");
     if (!v) return null;
@@ -178,7 +179,7 @@ export async function enregistrerTravauxDOffice(formData: FormData): Promise<Act
   const brut = String(formData.get("valeur") ?? "");
   const valeur = brut === "oui" ? true : brut === "non" ? false : null;
   const admin = await requireUser();
-  const c = userCan(admin, "ADMIN", "UPDATE") && admin.role === "SUPER_ADMIN" ? await lireCible(String(formData.get("cible") ?? "")) : { error: "Réservé au Super Admin." };
+  const c = userCan(admin, "ADMIN", "UPDATE") && roleSuperAdmin(admin) ? await lireCible(String(formData.get("cible") ?? "")) : { error: "Réservé au Super Admin." };
   if ("error" in c) return { ok: false, error: c.error };
   const avant = await prisma.assistantIaAcces.findUnique({ where: c.ou as never });
   if (avant) await prisma.assistantIaAcces.update({ where: { id: avant.id }, data: { travauxDOffice: valeur, updatedById: admin.id } });
@@ -199,7 +200,7 @@ export async function enregistrerTravauxDOffice(formData: FormData): Promise<Act
  */
 export async function enregistrerVisibiliteEquipe(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  if (!userCan(admin, "ADMIN", "UPDATE") || !roleSuperAdmin(admin)) return { ok: false, error: "Réservé au Super Admin." };
   const voit = fdBool(formData, "managerVoitEquipe");
   const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { managerVoitEquipe: true } });
   const data = { managerVoitEquipe: voit, updatedById: admin.id };
@@ -221,7 +222,7 @@ export async function enregistrerVisibiliteEquipe(formData: FormData): Promise<A
  */
 export async function enregistrerValeursSensibles(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  if (!userCan(admin, "ADMIN", "UPDATE") || !roleSuperAdmin(admin)) return { ok: false, error: "Réservé au Super Admin." };
   const brut = String(formData.get("valeursSensibles") ?? "");
   if (!(MODES_VALEURS_SENSIBLES as readonly string[]).includes(brut)) return { ok: false, error: "Choix inconnu : « en clair » ou « masquées »." };
   const mode = modeValeursSensibles(brut);
@@ -252,7 +253,7 @@ const REGLAGES_JOURNAL = {
 
 export async function enregistrerRetentionEffets(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  if (!userCan(admin, "ADMIN", "UPDATE") || !roleSuperAdmin(admin)) return { ok: false, error: "Réservé au Super Admin." };
   const cles = (Object.keys(REGLAGES_JOURNAL) as (keyof typeof REGLAGES_JOURNAL)[]).filter((k) => formData.get(k) !== null);
   const valeurs: Partial<Record<keyof typeof REGLAGES_JOURNAL, number>> = {};
   for (const k of cles) {
@@ -282,7 +283,7 @@ export async function enregistrerRetentionEffets(formData: FormData): Promise<Ac
  */
 export async function enregistrerReglagesVisuels(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  if (!userCan(admin, "ADMIN", "UPDATE") || !roleSuperAdmin(admin)) return { ok: false, error: "Réservé au Super Admin." };
   const r = normaliserReglagesVisuels({
     visuelsImagesActives: fdBool(formData, "imagesActives"),
     visuelsImagesPlafondUsd: formData.get("imagesPlafondUsd"),
@@ -317,7 +318,7 @@ export async function enregistrerReglagesVisuels(formData: FormData): Promise<Ac
  */
 export async function enregistrerReglagesChantiers(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
-  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  if (!userCan(admin, "ADMIN", "UPDATE") || !roleSuperAdmin(admin)) return { ok: false, error: "Réservé au Super Admin." };
   const { normaliserReglagesChantiers: lireReglagesChantiers } = await import("@/modules/assistant-ia/api");
   // Chaque champ par son NOM : le contrat de l'action se dérive de la source (`actions:contrat`).
   const r = lireReglagesChantiers({
@@ -350,7 +351,7 @@ export async function lireConsommationIa(p: { perimetre: "moi" | "entreprise"; d
   // Une LECTURE d'écran : en Vue exacte, c'est la consommation de la personne visualisée qui s'affiche.
   const user = await enLecture(requireUser);
   const r = await lireConsommation({
-    perimetre: p.perimetre === "entreprise" ? "entreprise" : "moi", userId: user.id, estSuperAdmin: user.role === "SUPER_ADMIN",
+    perimetre: p.perimetre === "entreprise" ? "entreprise" : "moi", userId: user.id, estSuperAdmin: roleSuperAdmin(user),
     du: typeof p.du === "string" ? p.du : null, au: typeof p.au === "string" ? p.au : null,
     personne: typeof p.personne === "string" ? p.personne : null,
   });
@@ -365,7 +366,7 @@ export async function lireConsommationIa(p: { perimetre: "moi" | "entreprise"; d
 
 // Hors Vue exacte (refusée ici) : le corps porte le Super Admin réel, qui seul règle ces droits.
 const exigerSuperAdmin = (): Promise<CurrentUser | null> => requireUser().then((admin) =>
-  (userCan(admin, "ADMIN", "UPDATE") && admin.role === "SUPER_ADMIN" && !admin.impersonatedBy && !admin.visualise ? admin : null));
+  (userCan(admin, "ADMIN", "UPDATE") && roleSuperAdmin(admin) && !admin.impersonatedBy && !admin.visualise ? admin : null));
 const dateDe = (v: FormDataEntryValue | null): Date | null => {
   const t = String(v ?? "").trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;
@@ -389,7 +390,7 @@ export async function accorderDroitDateIa(formData: FormData): Promise<ActionRes
   if (motif.length < 5) return { ok: false, error: MOTIF_REQUIS };
   const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, name: true, role: true } });
   if (!u) return { ok: false, error: "Personne introuvable." };
-  if (u.role === "SUPER_ADMIN") return { ok: false, error: "Le Super Admin a tout, toujours : aucun droit ne le vise." };
+  if (roleSuperAdmin(u)) return { ok: false, error: "Le Super Admin a tout, toujours : aucun droit ne le vise." };
   if (companyId && !(await prisma.company.findUnique({ where: { id: companyId }, select: { id: true } }))) return { ok: false, error: "Entité introuvable." };
   const d = await prisma.assistantIaDroitDate.create({ data: { userId: u.id, famille, companyId, du, au, motif, accordeParId: admin.id } });
   await recordAudit({

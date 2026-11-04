@@ -1,6 +1,5 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
-import { peutVoirAdam } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { sansBloquer } from "@/lib/journal";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
@@ -11,6 +10,7 @@ import {
 import type { PropositionCarte } from "../operations";
 import type { ResultatOperation } from "../../domaine/operations/types";
 import { estChargeAdamSA, KIND_ADAM_SA, type ChargeAdamSA } from "../../domaine/adam-sa";
+import { catalogueAdamOuvert, profilDAcces } from "../../domaine/profil-acces";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -29,8 +29,11 @@ import { estChargeAdamSA, KIND_ADAM_SA, type ChargeAdamSA } from "../../domaine/
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** Adam est-il ouvert à CE compte dans le moteur ? Super Admin principal, hors Vue exacte. */
-export const adamOuvert = (u: CurrentUser): boolean => peutVoirAdam(u) && !u.impersonatedBy;
+/**
+ * Adam est-il ouvert à CE compte dans le moteur ? Lu dans la table des accès (lot I2, `domaine/profil-acces.ts`) : Super
+ * Admin en rôle principal, hors Vue exacte — la règle de `peutVoirAdam`, que la porte relit elle-même (défense en profondeur).
+ */
+export const adamOuvert = (u: CurrentUser): boolean => catalogueAdamOuvert(u);
 
 /** Les noms des fonctions d'Adam branchées (la sélection leur donne une fiche courte et un rang réduit). */
 const NOMS_ADAM: ReadonlySet<string> = new Set([...LECTURES_SA, ...ECRITURES_SA, OUTIL_BOITE]);
@@ -99,7 +102,7 @@ export async function executerCarteAdam(user: CurrentUser, charge: unknown, cle:
   if (!estChargeAdamSA(charge)) return { ok: false, error: "Action inconnue." };
   if (!adamOuvert(user)) return { ok: false, error: REFUS_CHARGE_HORS_SA };
   const reglages = await getAppSettings().catch(sansBloquer("assistant-ia.adam.getAppSettings", null));
-  if (reglages?.aiExternalActionsDisabled) return { ok: false, error: REFUS_ARRET };
+  if (profilDAcces(user, { arretUrgence: reglages?.aiExternalActionsDisabled === true }).arretUrgence) return { ok: false, error: REFUS_ARRET };
   let entree: Record<string, unknown> = {};
   try { entree = JSON.parse(charge.entree) as Record<string, unknown>; } catch { return { ok: false, error: "Carte illisible : rien n'a été exécuté." }; }
   const { resultat } = await journaliserGeste(user, {

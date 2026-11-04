@@ -12,6 +12,7 @@ import {
   appliquerBases, estFamilleIa, familleOuverte, perimetreCouvrant, LIBELLE_FAMILLE, normaliserReglageFamilles, resoudreAccesIa, type AccesIa, type FamilleIa, type ReglageFamilles,
 } from "../domaine/acces-regles";
 import { famillesParBase } from "@/modules/acces-bases/api";
+import { roleSuperAdmin } from "../domaine/profil-acces";
 import { modeValeursSensibles, type ModeValeursSensibles } from "../domaine/consommation-regles";
 import {
   contratEnVigueur, LIBELLE_ORIGINE, perimetreEnVigueur, perimetresDesAvenants, type AvenantLu, type PerimetreSensible,
@@ -67,7 +68,7 @@ export async function sauvegarderRoleConfig(
   acteur: CurrentUser
 ): Promise<ResultatSauvegardeConfig> {
   // 1. Contrôle des droits : Super Admin ou droit de modification ADMIN
-  if (acteur.role !== "SUPER_ADMIN" && !userCan(acteur, "ADMIN" as never, "UPDATE")) {
+  if (!roleSuperAdmin(acteur) && !userCan(acteur, "ADMIN" as never, "UPDATE")) {
     return {
       ok: false,
       error: "Seul un administrateur peut modifier la configuration de l'assistant par rôle.",
@@ -193,12 +194,16 @@ export function droitsApplicatifsIa(user: CurrentUser): Record<FamilleIa, boolea
   };
 }
 
+/** L'accès par défaut (sans réglage lu) : droits applicatifs, familles sensibles fermées. Un tour passe toujours le réglage relu. */
+export const accesParDefaut = (user: CurrentUser): AccesIa =>
+  resoudreAccesIa({ superAdmin: roleSuperAdmin(user), droits: droitsApplicatifsIa(user) });
+
 export async function accesAssistantIa(user: CurrentUser): Promise<AccesIa> {
   // S1 (décision 0048) : une identité VUE (Vue exacte) n'a pas d'assistant — et donc aucun accès (échec fermé).
   if (user.impersonatedBy || user.visualise) return { superAdmin: false, ouvertes: [], explicites: [], perimetres: [] };
   // D5 (décision 0057) : l'accès par base par-dessus les familles — sous l'application stricte seulement (sinon nul).
   const bases = famillesParBase({ userId: user.id, roles: [user.role, user.secondaryRole] });
-  if (user.role === "SUPER_ADMIN") return appliquerBases(resoudreAccesIa({ superAdmin: true, droits: droitsApplicatifsIa(user) }), bases);
+  if (roleSuperAdmin(user)) return appliquerBases(resoudreAccesIa({ superAdmin: true, droits: droitsApplicatifsIa(user) }), bases);
   const [lignes, perimetres] = await Promise.all([
     prisma.assistantIaAcces.findMany({ where: { OR: [{ userId: user.id }, { role: user.role as UserRole }] } }),
     perimetresNominatifs(user.id),

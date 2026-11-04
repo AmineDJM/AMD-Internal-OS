@@ -193,7 +193,7 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
       expect(repli.boite).toBe("l'envoi de l'ERP");
       expect(repli.boite_adam).toBe("non reliée");
       // I1 : un FAIT sur la carte (avertissement, donc observation), plus une consigne.
-      expect(props[0]!.proposition.warnings?.[0]).toMatch(/boîte Gmail d'Adam n'est pas reliée.*Connecter Google/);
+      expect(props[0]!.proposition.warnings?.[0]).toMatch(/boîte Gmail d'Adam n'est pas reliée.*\/adam\/reglages.*Connecter le compte Google/);
       expect(props[0]!.proposition.mails?.[0]?.expediteur).toBe("l'envoi de l'ERP");
       expect(props[0]!.proposition.title).toContain("Envoyer par l'envoi de l'ERP");
     } else {

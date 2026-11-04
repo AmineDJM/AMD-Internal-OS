@@ -1,3 +1,4 @@
+import { profilDAcces } from "../../domaine/profil-acces";
 import type { CurrentUser } from "@/lib/session";
 import { identiteDonneesDe } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
@@ -55,7 +56,7 @@ const MODELES_DE_LA_CONVERSATION = new Set(["AssistantIaFil", "AssistantIaTour"]
 let essaisEnCours = 0;
 
 export async function essayerAgentDe(admin: CurrentUser, cibleId: string, message: string, precedents: EchangeEssai[]): Promise<IssueEssai> {
-  if (admin.role !== "SUPER_ADMIN" || admin.impersonatedBy || admin.visualise) return { ok: false, erreur: "Réservé au Super Admin, hors « Vue exacte »." };
+  if (!profilDAcces(admin).superAdmin) return { ok: false, erreur: "Réservé au Super Admin, hors « Vue exacte »." };
   const texte = (message ?? "").trim();
   if (!texte) return { ok: false, erreur: "Écrivez le message à essayer." };
   if (texte.length > ESSAI_MESSAGE_MAX) return { ok: false, erreur: `Un essai porte sur un message de ${ESSAI_MESSAGE_MAX} caractères au plus.` };

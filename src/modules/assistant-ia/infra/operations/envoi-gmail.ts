@@ -1,7 +1,7 @@
 import type { CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
-import { canalAdamOuvert } from "../../domaine/mails/canal";
+import { canalAdamOuvert, OU_RELIER_GMAIL_ADAM } from "../../domaine/mails/canal";
 import { boiteGmailAdam, confirmerMailAdam, enregistrerExecuteurGmail, freinGmail, preparerMailAdam } from "@/lib/google/gmail/envoi";
 import { texte, type OperationIA } from "../../domaine/operations/types";
 import { BORNES_MAIL, lireDocumentMail, STYLES_BLOC, STYLES_MAIL, type DocumentMail } from "../../domaine/mails/composer";
@@ -145,7 +145,7 @@ export const ENVOI_GMAIL: OperationIA = {
 
   async proposer(entree, user) {
     const boite = await boiteGmailAdam();
-    if (!boite) return { erreur: "La boîte Gmail d'Adam n'est pas reliée (Chief of Staff › Réglages › « Connecter Google »)." };
+    if (!boite) return { erreur: `La boîte Gmail d'Adam n'est pas reliée (${OU_RELIER_GMAIL_ADAM}).` };
     if (!boite.envoi) return { erreur: `La boîte Gmail d'Adam (${boite.address}) ne peut pas envoyer : ${boite.raison}.` };
     const brouillon = entree.brouillon === true;
     const prep = await preparerMails(entree.mails, texte(entree, "corps") ? { a: texte(entree, "a"), objet: texte(entree, "objet"), corps: texte(entree, "corps"), cc: texte(entree, "cc") } : undefined);

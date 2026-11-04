@@ -44,6 +44,22 @@ export const COUVERTS: Readonly<Record<string, string>> = {
   consigne_programme: "consigne_programme (outilsChantierPour)", valider_programme: "valider_programme (outilsChantierPour)", annuler_programme: "annuler_programme (outilsChantierPour)",
   mission_status: "mes_missions", mission_control: "piloter_mission", run_mission: "lancer_un_travail / demande de fond",
   gmail_prepare_mail: "envoyer_mail par le canal Adam (Super Admin)",
+  // LOT I2 (décision 0064 ; audit AU3, étape 3) — LES DOUBLONS RETIRÉS DE L'OFFRE DU SUPER ADMIN : une seule lecture par
+  // besoin, une seule règle de droits (les familles du moteur, pas `allowed` de l'ancien outil). Le code d'Adam reste (le
+  // Bureau l'emploie) ; seule l'offre au moteur change. Repli : remettre le nom dans `LECTURES_SA` / `ECRITURES_SA`.
+  search_drive: "chercher_documents / search_everything", find_documents: "chercher_documents", search_documents: "chercher_documents",
+  read_document: "ouvrir_documents / lire_document", pdf_read: "ouvrir_documents / lire_document", format_lire: "ouvrir_documents / lire_document",
+  sheet_read: "lire_tableur", format_convertir: "convertir_document",
+  // `mission_create` ne se chaînait plus qu'à `gmail_prepare_mail`, déjà couvert : la sollicitation était à moitié offerte.
+  mission_create: "lancer_un_travail (un seul pilote des missions)",
+  // GARDÉS, MESURÉS (I2) — le banc AU3 les tient pour doublons, mais l'outil du moteur ne couvre pas le besoin :
+  //   gmail_search / gmail_read_thread / gmail_pending_mail : `mes_boites_mail` ne lit que l'ÉTAT des connexions, aucun
+  //     message — les retirer fermerait au Super Admin la lecture de son Gmail (Direction, 03/11 : « le super admin a
+  //     accès à Gmail ») ; resolve_person : carnet Google et historique Gmail, absents de l'annuaire ;
+  //   episodic_recall : actions, rappels, décisions, engagements — `mes_conversations` ne lit que les conversations ;
+  //   list_reminders / plan_reminder : un rappel NOTIFIE (et relance autrui) ; une routine rejoue une consigne en lecture
+  //     seule — `cancel_reminder` / `snooze_reminder` en dépendent ; read_finances : trésorerie (à encaisser, à régler),
+  //     quand `finance_totals` n'agrège que le payé / l'encaissé.
 };
 
 /** (b) vague 1 — lectures offertes au seul Super Admin. */
@@ -56,8 +72,8 @@ export const LECTURES_SA: readonly string[] = [
   "employee_360", "product_360", "supplier_360", "organization_insights", "process_insights", "product_economics", "pch_market_status",
   "regulatory_intelligence", "legal_intelligence", "finance_intelligence", "data_quality", "reseau_entreprise", "carte_territoire",
   // Lecture de documents
-  "search_drive", "read_document", "find_documents", "search_documents", "inspect_drive_folder", "drive_inventaire", "sheet_audit", "sheet_trace", "sheet_diff",
-  "sheet_read", "pdf_read", "format_lire", "format_convertir", "media_transcript", "list_artifacts",
+  "inspect_drive_folder", "drive_inventaire", "sheet_audit", "sheet_trace", "sheet_diff",
+  "media_transcript", "list_artifacts",
   // Fabric, connaissance
   "source_map", "search_knowledge_corpus", "read_corpus_document", "list_corpus_sources", "registre_capacites", "inbound_events",
   // Calculs
@@ -78,7 +94,6 @@ export const ECRITURES_SA: readonly string[] = [
   "watch_entity", "stop_watch",
   "teach_adam", "update_rule", "disable_rule", "delete_rule",
   "record_decision", "update_decision_outcome", "record_commitment", "close_commitment", "objectif_durable",
-  "mission_create",
   "create_report", "draft_deliverable", "deck_build", "sheet_build", "dossier_build", "document_build", "document_profile",
   "gworkspace_create", "gdoc_read_or_append", "gdrive_put_internal_file", "gmail_organize",
   "drive_lot", "attach_inbound_event",

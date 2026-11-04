@@ -1,5 +1,6 @@
 "use server";
 
+import { roleSuperAdmin } from "./domaine/profil-acces";
 import { revalidatePath } from "next/cache";
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -102,7 +103,7 @@ export async function executerMesGestesSousMandat() {
 
 async function superAdmin(): Promise<CurrentUser | null> {
   const u = await requireUser();
-  return u.role === "SUPER_ADMIN" && userCan(u, "ADMIN", "UPDATE") && !u.impersonatedBy ? u : null;
+  return roleSuperAdmin(u) && userCan(u, "ADMIN", "UPDATE") && !u.impersonatedBy ? u : null;
 }
 
 export async function lireConsoleProactivite() {

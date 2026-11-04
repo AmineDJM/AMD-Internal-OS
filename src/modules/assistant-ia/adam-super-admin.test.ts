@@ -16,7 +16,7 @@ import { KIND_ADAM_SA } from "./domaine/adam-sa";
 import { modeleFactice, type EtapeScenario } from "./infra/testing/modele-factice";
 import { effacerJournalDe } from "./infra/testing/journal";
 import { COMPTE_JOUE, PERSONAS_CLES, type PersonaCle } from "./infra/testing/audit/personas";
-import { ADAM_SA_TOUS, ATTAQUES_ADAM_SA, MOTS_RESERVES_SA } from "./infra/testing/audit/attaques-adam-sa";
+import { ADAM_RETIRES_I2, ADAM_SA_TOUS, ATTAQUES_ADAM_SA, MOTS_RESERVES_SA } from "./infra/testing/audit/attaques-adam-sa";
 import { ATTAQUES } from "./infra/testing/audit/attaques";
 import { retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
 
@@ -79,6 +79,8 @@ suite("A2 — Adam complet pour le Super Admin, et pour lui seul", () => {
     expect(offerts).toEqual([...ADAM_SA_TOUS].sort());
     const noms = new Set(catalogue(sa).map((o) => o.def.name));
     expect(ADAM_SA_TOUS.filter((n) => !noms.has(n)), "absents du catalogue de la conversation du Super Admin").toEqual([]);
+    // Lot I2 (étape 3) : les doublons retirés ne sont plus offerts — une seule lecture par besoin.
+    expect(ADAM_RETIRES_I2.filter((n) => noms.has(n)), "doublons encore offerts au Super Admin").toEqual([]);
     // Le banc Q1 joue ces attaques (rejeu réel : AUDIT_SEULEMENT=ADAM-SA-).
     expect(ATTAQUES.filter((a) => a.id.startsWith("ADAM-SA-")).length).toBe(ATTAQUES_ADAM_SA.length);
   });
@@ -111,8 +113,9 @@ suite("A2 — Adam complet pour le Super Admin, et pour lui seul", () => {
     expect(r.outilsAppeles).toContain("Boîte de réception lue");
     const recu = JSON.stringify(faux.promptsRecus);
     expect(recu).toMatch(/\\"total\\":\d+/);
-    // La consigne du Super Admin le dit « Adam » et nomme ses fonctions.
-    expect(recu).toMatch(/TU ES ADAM, LE CHIEF OF STAFF/);
+    // Lot I2 (décision 0064) : l'accès n'est plus dit en prose — le Super Admin TROUVE ses fonctions (sélection, ci-dessus)
+    // sans qu'une consigne les récite ; elle ne revient qu'en repli (`ASSISTANT_IA_ACCES_EN_PROSE=1`).
+    expect(recu).not.toMatch(/TU ES ADAM, LE CHIEF OF STAFF/);
     const rappels = catalogue(sessions.superadmin).find((o) => o.def.name === "list_reminders")!;
     expect(await rappels.run({}, sessions.superadmin)).not.toMatch(/n'est pas ouverte/);
   }, 60_000);
