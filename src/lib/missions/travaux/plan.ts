@@ -134,6 +134,8 @@ export interface EtapeTravail {
   format?: FormatLivrable;
   /** Ne part que si l'étape `etape` s'est terminée ainsi (ex. relance : `{ etape: "attente-bc", issue: "TIMEOUT" }`). */
   si?: { etape: string; issue: IssueSi };
+  /** I4 : LECTURE — l'essai à blanc fait à la proposition (posé par le serveur, jamais par le modèle) : la carte l'affiche. */
+  essai?: { texte: string; total: number | null };
 }
 
 export interface PlanTravail {

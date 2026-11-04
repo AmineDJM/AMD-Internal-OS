@@ -1,0 +1,41 @@
+{
+  "modele": "(défaut du produit)",
+  "attendus": [
+    "Dr Karim Ziani (fictif c7xk)",
+    "Dr Nadia Ferhat (fictif c7xk)",
+    "Dr Samir Bouzid (fictif c7xk)",
+    "Pr Amel Benali (fictif c7xk)"
+  ],
+  "duDelegue": [
+    "Dr Nadia Ferhat (fictif c7xk)",
+    "Pr Amel Benali (fictif c7xk)"
+  ],
+  "superAdmin": {
+    "reponse": "Amine, l’annuaire recense **4 chefs de service en infectiologie**. La fiche de Dr Samir Bouzid date de mars 2024 ; sa situation est à vérifier.\n[{\"kind\":\"table\",\"title\":\"Chefs de service en infectiologie\",\"columns\":[{\"key\":\"c0\",\"label\":\"Nom\",\"numeric\":false},{\"key\":\"c1\",\"label\":\"Établissement\",\"numeric\":false},{\"key\":\"c2\",\"label\":\"Wilaya\",\"numeric\":false}],\"rows\":[{\"cells\":{\"c0\":\"Pr Amel Benali (fictif c7xk)\",\"c1\":\"CHU Mustapha Pacha (fictif c7xk)\",\"c2\":\"Alger\"}},{\"cells\":{\"c0\":\"Dr Karim Ziani (fictif c7xk)\",\"c1\":\"CHU d'Oran (fictif c7xk)\",\"c2\":\"Oran\"}},{\"cells\":{\"c0\":\"Dr Nadia Ferhat (fictif c7xk)\",\"c1\":\"EHS El Kettar (fictif c7xk)\",\"c2\":\"Alger\"}},{\"cells\":{\"c0\":\"Dr Samir Bouzid (fictif c7xk)\",\"c1\":\"CHU de Constantine (fictif c7xk)\",\"c2\":\"Constantine\"}}]}]",
+    "outils": [
+      "Données lues"
+    ],
+    "coutUsd": 0.028298,
+    "appels": 3,
+    "trouves": [
+      "Dr Karim Ziani (fictif c7xk)",
+      "Dr Nadia Ferhat (fictif c7xk)",
+      "Dr Samir Bouzid (fictif c7xk)",
+      "Pr Amel Benali (fictif c7xk)"
+    ]
+  },
+  "delegue": {
+    "reponse": "L’annuaire contient deux chefs de service en infectiologie.\n[{\"kind\":\"table\",\"title\":\"Chefs de service en infectiologie\",\"columns\":[{\"key\":\"c0\",\"label\":\"Nom\",\"numeric\":false},{\"key\":\"c1\",\"label\":\"Établissement\",\"numeric\":false},{\"key\":\"c2\",\"label\":\"Wilaya\",\"numeric\":false}],\"rows\":[{\"cells\":{\"c0\":\"Pr Amel Benali (fictif c7xk)\",\"c1\":\"CHU Mustapha Pacha (fictif c7xk)\",\"c2\":\"Alger\"}},{\"cells\":{\"c0\":\"Dr Nadia Ferhat (fictif c7xk)\",\"c1\":\"EHS El Kettar (fictif c7xk)\",\"c2\":\"Alger\"}}]}]",
+    "outils": [
+      "Données lues"
+    ],
+    "coutUsd": 0.020733,
+    "appels": 2,
+    "trouves": [
+      "Dr Nadia Ferhat (fictif c7xk)",
+      "Pr Amel Benali (fictif c7xk)"
+    ],
+    "horsSecteur": []
+  },
+  "coutTotalUsd": 0.049031000000000005
+}

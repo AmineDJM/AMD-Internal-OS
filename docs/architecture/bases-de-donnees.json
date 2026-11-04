@@ -1733,7 +1733,6 @@
      "sensibilite": "restreint",
      "ecritePar": [
       "ad-pro-item-actions",
-      "medical-directory-crud-actions",
       "promo-execution-actions",
       "promo-stock-actions"
      ]
@@ -4911,13 +4910,17 @@
      "modele": "AssistantIaFil",
      "libelle": "Fil de l'Assistant IA (une conversation par personne)",
      "sensibilite": "confidentiel",
-     "ecritePar": []
+     "ecritePar": [
+      "assistant-ia-consommation-actions"
+     ]
     },
     {
      "modele": "AssistantIaTour",
      "libelle": "Tour du fil (message ou réponse)",
      "sensibilite": "confidentiel",
-     "ecritePar": []
+     "ecritePar": [
+      "assistant-ia-consommation-actions"
+     ]
     },
     {
      "modele": "AssistantIaAttentePieces",

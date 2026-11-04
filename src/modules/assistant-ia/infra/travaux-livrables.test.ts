@@ -62,8 +62,12 @@ suite("le dépôt d'un livrable au Drive (J8)", () => {
     expect(await prisma.driveNode.count({ where: { ownerId: alice, name: n.name } })).toBe(1);
   });
 
-  it("un Excel : une feuille par tableau du livrable", { timeout: 30_000 }, async () => {
-    const r = await deposerLivrableTravail(alice, { travailId: `${TAG}trav02`, titre: "Tableau", contenu: MD, format: "xlsx", reprise: false });
+  // I4 (décision 0067) : un Excel n'est plus le Markdown du modèle mis en cellules — il vient des LIGNES LUES ; sans aucune, refusé.
+  it("un Excel : sans lecture, REFUSÉ (contrôle final) ; avec une lecture, ses lignes, sa source et sa vérification", { timeout: 30_000 }, async () => {
+    const vide = await deposerLivrableTravail(alice, { travailId: `${TAG}trav02`, titre: "Tableau", contenu: MD, format: "xlsx", reprise: false });
+    expect(vide).toMatchObject({ ok: false, definitif: true });
+    const sortie = { statut: "LU", total: 2, colonnes: ["demande", "montant", "lien"], lignes: [{ demande: "Sponsoring Oran", montant: 1200000, lien: "/x/1" }, { demande: "Congrès Alger", montant: 995000, lien: "/x/2" }] };
+    const r = await deposerLivrableTravail(alice, { travailId: `${TAG}trav03`, titre: "Tableau", contenu: MD, format: "xlsx", reprise: false, lectures: [{ cle: "l", titre: "Demandes", outil: "lire", statut: "DONE", sortie }] });
     if (!r.ok) throw new Error(r.erreur);
     expect(r.document.format).toBe("xlsx");
     const n = await prisma.driveNode.findUniqueOrThrow({ where: { id: r.document.nodeId }, select: { mimeType: true } });

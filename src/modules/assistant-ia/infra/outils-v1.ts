@@ -129,7 +129,12 @@ const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTo
 // Les CAPACITÉS (J6) ne sont pas même construites hors de la conversation (`outilsV1(…, { capacites: true })`).
 // Les notes (décision 0026) non plus : une proposition attend le geste de la personne, qui n'est pas là.
 // K2 : une génération d'image ou de vidéo est PAYANTE et se demande — ni routine ni travail ne la lance.
-export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE, ...OUTILS_VISUELS, "assembler_pdf", ...ECRITURES_PRIMITIVES]);
+// I4 : ce qui, parmi les LECTURES du catalogue, prépare une carte (tâche, message, brouillon) ou dépose un fichier (exports) :
+// la seule liste de « ce n'est pas une lecture » — routines et missions la lisent toutes deux.
+export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([
+  ...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE, ...OUTILS_VISUELS, "assembler_pdf", ...ECRITURES_PRIMITIVES,
+  "create_task", "send_message", "proposer_memoire", "mes_brouillons", ...Object.keys(FAMILLES_EXPORTS),
+]);
 
 /**
  * LA SORTIE D'UN OUTIL, AVANT LE MODÈLE : jetonnée (confidentialité), CONSIGNÉE (le garde-fou de l'UI
@@ -289,6 +294,14 @@ export interface OptionsCatalogue {
   visuels?: WorkspaceBlock[];
   /** K1 (décision 0031) : l'analyse de données du tour — ses jeux, ses blocs calculés, ses pièces (la conversation seulement). */
   analyse?: ContexteAnalyseTour;
+  /**
+   * I4 (décision 0067) : LES LECTURES SEULEMENT — le même catalogue que la conversation, sans ses gestes (cartes, mémoire,
+   * notes, correction) ni rien de ce qui écrit (`ECRITURES_DU_MOTEUR`). C'est le catalogue d'une mission et d'une routine :
+   * un seul jeu d'outils, pas une liste parallèle.
+   */
+  seulementLectures?: boolean;
+  /** I4 : combien de lignes `lire` rend au plus (une mission garde son jeu entier dans le résultat de l'étape). */
+  lignesLues?: number;
 }
 
 export function outilsV1(
@@ -332,7 +345,7 @@ export function outilsV1(
     ...(options.capacites ? lecturesAdam(user) : []),
     // I3 (décision 0065) — les PRIMITIVES (`ADAM_PRIMITIVES=0` : aucune). `lire` sous la vue (comme les lectures qu'il remplace) ;
     // les jeux sont ceux de l'analyse du tour quand elle est là (produire / analyser_donnees les partagent).
-    ...outilsPrimitives(user, typeof options.analyse?.jeux?.inscrire === "function" ? options.analyse.jeux : new JeuxDuTour()).map((o) => (o.def.name === "lire" ? sousVue(o) : o)),
+    ...outilsPrimitives(user, typeof options.analyse?.jeux?.inscrire === "function" ? options.analyse.jeux : new JeuxDuTour(), { acces, lignesMax: options.lignesLues }).map((o) => (o.def.name === "lire" ? sousVue(o) : o)),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a
@@ -374,7 +387,9 @@ export function outilsV1(
   // Décision 0035 : la carte en attente se COMPLÈTE ou se CORRIGE par la parole, par la porte du formulaire (conversation seulement).
   const correction = options.capacites ? [outilCorrigerCarte(user, acces)] : [];
   // I3 : ce que les primitives rendent inutile est MASQUÉ (retiré du catalogue, pas du code — `primitives/index.ts`).
-  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].concat(correction).filter((o) => !estMasqueParLesPrimitives(o.def.name))
+  // I4 : une mission ou une routine reçoit CE catalogue, réduit à ses lectures — jamais une liste à part.
+  const offerts = options.seulementLectures ? lectures.filter((o) => !ECRITURES_DU_MOTEUR.has(o.def.name)) : [...lectures, ...gestes, outilMemoire(user, memoires), ...notes, ...correction];
+  return offerts.filter((o) => !estMasqueParLesPrimitives(o.def.name))
     .map((o) => filtre(aSoi(o), journal, coffret, provenance, options.analyse, options.revelerAuModele));
 }
 

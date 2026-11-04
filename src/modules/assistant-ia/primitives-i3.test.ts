@@ -13,7 +13,8 @@ import { remplacerLecteurInterrupteurIaPourTests } from "@/lib/ai-settings";
 import { composerDocx, paragraphe } from "@/lib/artifact/factory/word";
 import { JeuxDuTour } from "./domaine/analyse/jeux";
 import { problemesDeDeclaration } from "./domaine/primitives/vues";
-import { VUES } from "./infra/primitives/vues";
+import { estGenerique, VUES } from "./infra/primitives/vues";
+import { PORTEES } from "./infra/primitives/tables";
 import { executerVue } from "./infra/primitives/lire";
 import { produireLivrable } from "./infra/primitives/produire";
 import { executerFichier } from "./infra/primitives/fichier";
@@ -98,9 +99,10 @@ suite("I3 — les primitives contre la base", () => {
 
   it("LE REGISTRE : cinq vues ; chaque déclaration saine (aucune colonne du coffre, droit dit, écran) ; une portée par vue", () => {
     expect(VUES.map((v) => v.nom)).toEqual(["produits", "etablissements", "missions", "taches", "demandes"]);
+    // I4 : un preset ne porte plus sa portée — c'est celle de sa TABLE (`PORTEES`), la même que la lecture générique.
     for (const v of VUES) {
-      expect(problemesDeDeclaration(v, (m, c) => champSensible(m, c) !== null), v.nom).toEqual([]);
-      expect(typeof v.portee).toBe("function");
+      if (!estGenerique(v)) expect(problemesDeDeclaration(v as never, (m, c) => champSensible(m, c) !== null), v.nom).toEqual([]);
+      expect(typeof PORTEES[v.table], v.nom).toBe("function");
     }
   });
 
@@ -145,7 +147,9 @@ suite("I3 — les primitives contre la base", () => {
   });
 
   it("S1 — une vue inventée (la table des salariés) ou un champ du coffre : refusés, nommés, rien lu", async () => {
-    expect(await lire(autre, { vue: "Employee", filtres: [{ champ: "baseSalary", op: ">", valeur: "0" }] })).toMatchObject({ statut: "INCONNUE" });
+    // I4 : la table des salariés EXISTE pour `lire` — elle est SECRÈTE au catalogue des bases : refusée en le disant, rien lu.
+    expect(await lire(autre, { table: "Employee", filtres: [{ champ: "baseSalary", op: ">", valeur: "0" }] })).toMatchObject({ statut: "FERMEE", droit: "Super Admin" });
+    expect(await lire(autre, { table: "TableQuiNExistePas" })).toMatchObject({ statut: "INCONNUE" });
     const r = await lire(sa, { vue: "etablissements", champs: ["nom", "iban", "salaire"] });
     expect(r).toMatchObject({ statut: "CHAMP_INCONNU" });
     expect(String(r.raison)).toMatch(/iban, salaire/);
@@ -235,7 +239,8 @@ suite("I3 — les primitives contre la base", () => {
     try {
       const sans = noms();
       expect(sans).not.toContain("lire");
-      expect(sans).toEqual(expect.arrayContaining(["list_my_tasks", "modifier_document", "convertir_document"]));
+      // I4 : les lectures que `lire` lit sur leur table (tâches, demandes, catalogue) sont RETIRÉES du code, pas seulement masquées.
+      expect(sans).toEqual(expect.arrayContaining(["modifier_document", "convertir_document"]));
     } finally {
       delete process.env.ADAM_PRIMITIVES;
     }

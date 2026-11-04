@@ -26,3 +26,5 @@ export { ecouter, installerEspion, relever, type Lecture } from "./infra/testing
 
 // ── I1 (décision 0063) : le banc AU1 rejoue l'historique EXACTEMENT comme le fil le construit (bloc « Observé » compris).
 export { historiqueObserve, type TourHistorique } from "./infra/observation/historique";
+// I4 (décision 0067) : l'annuaire FICTIF du rejeu « chefs de service d'infectiologie » (`scripts/bench/i4-lire-tout/`).
+export { effacerAnnuaireI4, semerAnnuaireI4 } from "./infra/testing/annuaire-i4";

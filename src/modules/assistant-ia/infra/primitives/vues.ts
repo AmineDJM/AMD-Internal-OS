@@ -1,35 +1,43 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
-// La portée de l'écran Demandes est `scopeAdminRequests` (`lib/rbac/portees.ts`), lue par le socle RBAC.
-import { scopeAdminRequests as scopeDemandes, userCan } from "@/lib/rbac";
-import { ADMIN_REQUEST_STATUS, INSTITUTION_TYPE, PRIORITY, TASK_STATUS } from "@/lib/labels";
-import { lignesProduits, porteeProduits } from "@/lib/actions/internes/primitives/produits";
+import { INSTITUTION_TYPE } from "@/lib/labels";
+import { lignesProduits } from "@/lib/actions/internes/primitives/produits";
 import { LIBELLE_MISSION } from "../../domaine/sous-missions";
 import type { ChampVue, DeclarationVue, Ligne } from "../../domaine/primitives/vues";
-import { SELECT_ETABLISSEMENT, voitEtablissements } from "../annuaire/lectures";
+import { SELECT_ETABLISSEMENT } from "../annuaire/lectures";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LOT I3 — LE REGISTRE DES VUES DE `lire` (décision 0065, audit AU2 §6.1 (a), étape M0) : cinq vues.
+ * LES PRESETS DE `lire` (I3, décision 0065 → I4, décision 0067). Ce n'est plus un registre à part : `lire` lit TOUTE table
+ * de l'ERP (`tables.ts`) ; un preset ne fait que nommer en français une lecture fréquente et y ajouter des champs CALCULÉS
+ * par les règles de l'ERP (étape du cycle, « commercialisé », diagnostic d'une mission, retard d'une tâche).
  *
- * Une vue = une DÉCLARATION (champs, champs calculés par les règles de l'ERP, lien d'écran, droit) + une PORTÉE + une
- * lecture. LA PORTÉE EST OBLIGATOIRE PAR TYPE (`VueLisible.portee`) : c'est la fonction `where` de l'écran qui montre
- * ces lignes (la même, importée, jamais recopiée) ; `null` = la vue est FERMÉE à cette personne — l'outil reste offert et
- * REFUSE en nommant le droit (masquer un outil fait mentir l'assistant : « aucun produit » au lieu de « fermé »).
- * La lecture ne reçoit QUE la portée calculée par l'exécuteur (`executerVue`) : elle ne peut pas lire hors d'elle.
- *
- * Ajouter une vue = une entrée ici ; `primitives.test.ts` vérifie chaque déclaration (aucune colonne du coffre, droit dit,
- * lien d'écran) et rejoue les attaques S1 sous l'espion de Prisma.
+ * Deux sortes : un preset GÉNÉRIQUE (tâches, demandes) = des noms sur les colonnes d'une table, lue par la lecture
+ * générique ; un preset À LECTEUR PROPRE (produits, établissements, missions) = une lecture qui calcule ce qu'aucune colonne
+ * ne porte. Dans les deux cas, la PORTÉE et les DROITS sont ceux de la table (`droitDeLire`, `PORTEES`) — une seule règle.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+/** Un preset À LECTEUR PROPRE : des champs calculés par les règles de l'ERP qu'une colonne ne porte pas (étape du cycle, diagnostic). */
 export interface VueLisible<P = unknown> extends DeclarationVue {
-  /** LA PORTÉE de l'écran pour cette personne ; `null` : fermée (le droit n'y est pas). */
-  portee: (u: CurrentUser) => P | null;
-  /** Les lignes SOUS cette portée, et seulement elle (bornées). */
+  /** La table dont la portée des lignes (`PORTEES`) et les droits (`droitDeLire`) s'appliquent — la même règle que la lecture générique. */
+  table: string;
+  /** Les lignes SOUS la portée calculée par l'exécuteur, et seulement elle (bornées). */
   lire: (u: CurrentUser, portee: P, maintenant: Date) => Promise<Ligne[]>;
 }
+
+/** Un preset GÉNÉRIQUE : des noms français sur les colonnes d'une table, et quelques champs calculés — la lecture reste celle de la table. */
+export interface PresetGenerique {
+  nom: string; table: string; description: string; ecran: string; droit: string;
+  /** nom du champ du preset → chemin dans la table (`title`, `assignedTo.name`). */
+  renomme: Readonly<Record<string, string>>;
+  alias?: Readonly<Record<string, readonly string[]>>;
+  calcules: readonly { champ: ChampVue; besoin: readonly string[]; calcul: (l: Ligne, maintenant: Date) => unknown }[];
+  parDefaut: readonly string[];
+}
+export type Preset = VueLisible<never> | PresetGenerique;
+export const estGenerique = (p: Preset): p is PresetGenerique => "renomme" in p;
 
 /** Les choix d'un champ, depuis les libellés de l'écran (code → [libellé, …mots naturels]). */
 const choix = (libelles: Record<string, string | { label: string }>, mots: Record<string, string[]> = {}): Record<string, string[]> =>
@@ -38,7 +46,6 @@ const col = (modele: string, champ: string) => ({ modele, champ });
 const regle = (r: string) => ({ regle: r });
 const ID = (modele: string): ChampVue => ({ nom: "id", type: "texte", description: "Identifiant de la fiche.", source: col(modele, "id") });
 const LIEN = (ecran: string): ChampVue => ({ nom: "lien", type: "lien", description: `Lien de l'écran (${ecran}) — à remettre tel quel : la réponse reste cliquable.`, source: regle("lien d'écran") });
-const ymd = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
 
 // ─── produits ────────────────────────────────────────────────────────────────────────────────
 
@@ -69,7 +76,7 @@ const PRODUITS: VueLisible<Prisma.ProductWhereInput> = {
     LIEN("/produits/<id>"),
   ],
   parDefaut: ["nom", "dci", "etape", "commercialise", "aires", "classes", "societe"],
-  portee: porteeProduits,
+  table: "Product",
   lire: async (u, portee) => (await lignesProduits(u, portee)) as unknown as Ligne[],
 };
 
@@ -97,7 +104,7 @@ const ETABLISSEMENTS: VueLisible<Prisma.MedicalInstitutionWhereInput> = {
     LIEN("/annuaires/etablissements"),
   ],
   parDefaut: ["nom", "type", "wilaya", "ville", "adresse", "telephone", "email"],
-  portee: (u) => (voitEtablissements(u) ? {} : null),
+  table: "MedicalInstitution",
   lire: async (_u, portee) => {
     const es = await prisma.medicalInstitution.findMany({
       where: portee, orderBy: { name: "asc" }, take: 5_000,
@@ -133,7 +140,7 @@ const MISSIONS: VueLisible<{ ownerId: string }> = {
     LIEN("/missions/<id>"),
   ],
   parDefaut: ["titre", "etat", "etapesFaites", "etapesTotal", "majLe"],
-  portee: (u) => ({ ownerId: u.id }),
+  table: "Mission",
   // `missions/pilotage` est lu à l'appel : il tire le moteur des travaux, qui lit lui-même le catalogue (cycle au chargement).
   lire: async (_u, portee, maintenant) => (await (await import("../missions/pilotage")).mesMissions(portee.ownerId, { toutes: true, maintenant })).missions.map((m) => ({
     id: m.id, titre: m.titre, objectif: m.objectif.slice(0, 300), etat: m.etat, etatLibelle: m.libelle, etapesFaites: m.etapes.faites, etapesTotal: m.etapes.total,
@@ -141,76 +148,37 @@ const MISSIONS: VueLisible<{ ownerId: string }> = {
   })),
 };
 
-// ─── tâches ──────────────────────────────────────────────────────────────────────────────────
+// ─── tâches, demandes : deux PRESETS de la lecture générique (aucune lecture écrite à la main) ─────────────────────
 
 const OUVERTES = new Set(["REQUESTED", "TODO", "IN_PROGRESS"]);
-const TACHES: VueLisible<Prisma.TaskWhereInput> = {
-  nom: "taches",
+const TACHES: PresetGenerique = {
+  nom: "taches", table: "Task",
   description: "Les tâches de « Mon espace » : celles qui me sont assignées, que j'ai créées, où je suis participant ou en lecture.",
-  ecran: "/mon-espace/taches",
-  droit: "Mon espace (consultation)",
-  champs: [
-    ID("Task"),
-    { nom: "titre", type: "texte", description: "Intitulé.", source: col("Task", "title"), alias: ["tache", "intitule"] },
-    { nom: "statut", type: "choix", description: "Statut.", source: col("Task", "status"), alias: ["etat"], valeurs: choix(TASK_STATUS, { TODO: ["a faire", "todo", "ouverte"], DONE: ["faite", "terminee", "finie"] }) },
-    { nom: "priorite", type: "choix", description: "Priorité.", source: col("Task", "priority"), valeurs: choix(PRIORITY, { HIGH: ["urgente", "importante"], CRITICAL: ["urgentissime"] }) },
-    { nom: "echeance", type: "date", description: "Échéance.", source: col("Task", "dueDate"), alias: ["date limite", "pour le"] },
-    { nom: "enRetard", type: "booleen", description: "Ouverte et échéance passée.", source: regle("échéance passée d'une tâche ouverte"), alias: ["retard"] },
-    { nom: "assignee", type: "texte", description: "Personne à qui elle est assignée.", source: col("User", "name"), alias: ["assigne a", "responsable"] },
-    { nom: "creePar", type: "texte", description: "Personne qui l'a créée.", source: col("User", "name"), alias: ["createur", "demandeur"] },
-    { nom: "module", type: "texte", description: "Module concerné.", source: col("Task", "module") },
-    { nom: "creeLe", type: "date", description: "Date de création.", source: col("Task", "createdAt") },
-    LIEN("/mon-espace/taches?tache=<id>"),
-  ],
+  ecran: "/mon-espace/taches", droit: "Mon espace (consultation)",
+  renomme: { titre: "title", statut: "status", priorite: "priority", echeance: "dueDate", assignee: "assignedTo.name", creePar: "createdBy.name", module: "module", creeLe: "createdAt" },
+  alias: { titre: ["tache", "intitule"], statut: ["etat"], echeance: ["date limite", "pour le"], assignee: ["assigne a", "responsable"], creePar: ["createur", "demandeur"] },
+  calcules: [{
+    champ: { nom: "enRetard", type: "booleen", description: "Ouverte et échéance passée.", source: regle("échéance passée d'une tâche ouverte"), alias: ["retard"] },
+    besoin: ["status", "dueDate"],
+    calcul: (l, maintenant) => OUVERTES.has(String(l.statut)) && l.echeance instanceof Date && l.echeance < maintenant,
+  }],
   parDefaut: ["titre", "statut", "priorite", "echeance", "enRetard", "assignee"],
-  portee: (u) => (userCan(u, "WORKSPACE", "VIEW")
-    ? { OR: [{ assignedToId: u.id }, { createdById: u.id }, { participantIds: { has: u.id } }, { readerIds: { has: u.id } }] }
-    : null),
-  lire: async (_u, portee, maintenant) => (await prisma.task.findMany({
-    where: portee, orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }], take: 2_000,
-    select: { id: true, title: true, status: true, priority: true, dueDate: true, module: true, createdAt: true, assignedTo: { select: { name: true } }, createdBy: { select: { name: true } } },
-  })).map((t) => ({
-    id: t.id, titre: t.title, statut: t.status, priorite: t.priority, echeance: ymd(t.dueDate),
-    enRetard: OUVERTES.has(t.status) && !!t.dueDate && t.dueDate < maintenant,
-    assignee: t.assignedTo?.name ?? null, creePar: t.createdBy?.name ?? null, module: t.module, creeLe: ymd(t.createdAt), lien: `/mon-espace/taches?tache=${t.id}`,
-  })),
 };
 
-// ─── demandes ────────────────────────────────────────────────────────────────────────────────
-
-const DEMANDES: VueLisible<Prisma.AdministrativeRequestWhereInput> = {
-  nom: "demandes",
+const DEMANDES: PresetGenerique = {
+  nom: "demandes", table: "AdministrativeRequest",
   description: "Les demandes administratives que la personne voit à l'écran Demandes (les siennes, celles qu'elle suit ou valide, ou tout le périmètre selon son rôle).",
-  ecran: "/demandes",
-  droit: "Demandes administratives (consultation)",
-  champs: [
-    ID("AdministrativeRequest"),
-    { nom: "reference", type: "texte", description: "Référence.", source: col("AdministrativeRequest", "reference"), alias: ["ref", "numero"] },
-    { nom: "titre", type: "texte", description: "Objet de la demande.", source: col("AdministrativeRequest", "title"), alias: ["objet", "demande"] },
-    { nom: "nature", type: "texte", description: "Nature (sous-type) de la demande.", source: col("AdministrativeRequest", "subtype"), alias: ["type", "sous type"] },
-    { nom: "statut", type: "choix", description: "Statut.", source: col("AdministrativeRequest", "status"), alias: ["etat"], valeurs: choix(ADMIN_REQUEST_STATUS, { NEW: ["nouvelle", "nouvelles"], DONE: ["traitee", "terminee", "faite"], CANCELLED: ["annulee"] }) },
-    { nom: "priorite", type: "choix", description: "Priorité.", source: col("AdministrativeRequest", "priority"), valeurs: choix(PRIORITY, { HIGH: ["urgente"] }) },
-    { nom: "echeance", type: "date", description: "Date limite.", source: col("AdministrativeRequest", "deadline") },
-    { nom: "demandeur", type: "texte", description: "Qui l'a faite.", source: col("User", "name") },
-    { nom: "suivi", type: "texte", description: "Qui la traite.", source: col("User", "name"), alias: ["assignee", "responsable"] },
-    { nom: "creeLe", type: "date", description: "Date de la demande.", source: col("AdministrativeRequest", "createdAt"), alias: ["date"] },
-    LIEN("/demandes/<id>"),
-  ],
+  ecran: "/demandes", droit: "Demandes administratives (consultation)",
+  renomme: { reference: "reference", titre: "title", nature: "subtype", statut: "status", priorite: "priority", echeance: "deadline", demandeur: "requester.name", suivi: "assignedTo.name", creeLe: "createdAt" },
+  alias: { reference: ["ref", "numero"], titre: ["objet", "demande"], nature: ["type", "sous type"], statut: ["etat"], suivi: ["assignee", "responsable"], creeLe: ["date"] },
+  calcules: [],
   parDefaut: ["reference", "titre", "nature", "statut", "demandeur", "suivi", "creeLe"],
-  portee: (u) => (userCan(u, "ADMIN_REQUESTS", "VIEW") ? scopeDemandes(u) : null),
-  lire: async (_u, portee) => (await prisma.administrativeRequest.findMany({
-    where: portee, orderBy: { createdAt: "desc" }, take: 2_000,
-    select: { id: true, reference: true, title: true, subtype: true, status: true, priority: true, deadline: true, createdAt: true, requester: { select: { name: true } }, assignedTo: { select: { name: true } } },
-  })).map((r) => ({
-    id: r.id, reference: r.reference, titre: r.title, nature: r.subtype, statut: r.status, priorite: r.priority, echeance: ymd(r.deadline),
-    demandeur: r.requester?.name ?? null, suivi: r.assignedTo?.name ?? null, creeLe: ymd(r.createdAt), lien: `/demandes/${r.id}`,
-  })),
 };
 
-/** LE REGISTRE — l'ordre est celui du schéma exposé au modèle. */
-export const VUES: readonly VueLisible<never>[] = [PRODUITS, ETABLISSEMENTS, MISSIONS, TACHES, DEMANDES] as unknown as VueLisible<never>[];
+/** LES PRESETS — l'ordre est celui du schéma exposé au modèle. Tout le reste de l'ERP se lit par sa TABLE. */
+export const VUES: readonly Preset[] = [PRODUITS, ETABLISSEMENTS, MISSIONS, TACHES, DEMANDES] as unknown as Preset[];
 
-export const vueNommee = (nom: unknown): VueLisible<never> | null => {
+export const vueNommee = (nom: unknown): Preset | null => {
   const n = String(nom ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
   return VUES.find((v) => v.nom === n || v.nom === `${n}s` || v.nom.replace(/s$/, "") === n) ?? null;
 };

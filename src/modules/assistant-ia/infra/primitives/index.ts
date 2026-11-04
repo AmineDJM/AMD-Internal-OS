@@ -1,6 +1,7 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import type { JeuxDuTour } from "../../domaine/analyse/jeux";
+import type { AccesIa } from "../../domaine/acces-regles";
 import { outilLire, OUTIL_LIRE } from "./lire";
 import { outilProduire, OUTIL_PRODUIRE } from "./produire";
 import { outilFichier, OUTIL_FICHIER } from "./fichier";
@@ -51,7 +52,7 @@ export function couvertParUnePrimitive(nom: string, offerts: ReadonlySet<string>
 }
 
 /** Les quatre primitives de CETTE personne ; `jeux` : les jeux du tour (ceux de l'analyse K1 quand elle est là). */
-export function outilsPrimitives(user: CurrentUser, jeux: JeuxDuTour): PowerTool[] {
+export function outilsPrimitives(user: CurrentUser, jeux: JeuxDuTour, lecture: { acces: AccesIa; lignesMax?: number }): PowerTool[] {
   if (!primitivesActives()) return [];
-  return [outilLire(user, jeux), outilProduire(user, { jeux }), outilFichier(user), outilObserver(user)];
+  return [outilLire(user, jeux, lecture), outilProduire(user, { jeux }), outilFichier(user), outilObserver(user)];
 }
