@@ -23,3 +23,6 @@ export {
 } from "./infra/testing/audit/verdicts";
 export { pieceDe, retirerAudit, semerAudit, sessionDe, type SemisAudit } from "./infra/testing/audit/semis";
 export { ecouter, installerEspion, relever, type Lecture } from "./infra/testing/audit/espion";
+
+// ── I1 (décision 0063) : le banc AU1 rejoue l'historique EXACTEMENT comme le fil le construit (bloc « Observé » compris).
+export { historiqueObserve, type TourHistorique } from "./infra/observation/historique";

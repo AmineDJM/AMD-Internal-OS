@@ -2,7 +2,9 @@ import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { sansBloquer } from "@/lib/journal";
 import { profilDocumentaire } from "@/platform/ia/artifact/factory/profil";
-import { prenomDe, type CharteMail, type SignatureMail } from "../../domaine/mails/gabarit";
+import { htmlToText, sanitizeMailHtml } from "@/platform/mail/assainir";
+import { apercuTexte, composerMail, prenomDe, toutALaCharte, type CharteMail, type DocumentMail, type SignatureMail } from "../../domaine/mails/composer";
+import { mailEnBlocsActif } from "../observation/interrupteurs";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -107,4 +109,22 @@ export async function charteDuMail(user: CurrentUser, societe: string | null, si
     }
   }
   return { societe: signature.societe, accent: "087084", texteSurAccent: "FFFFFF", police: "Calibri", coordonnees: [], mentions: [] };
+}
+
+/** Un mail rendu : ce qui partira (HTML assaini, ou aucun), son texte, et l'aperçu que la carte montre. */
+export interface MailRendu { html: string | null; texte: string; apercu: string }
+
+/**
+ * RENDRE UN MAIL — LE seul chemin (lot I1, étape 5) : le document de blocs composé (`composerMail`), TOUT son corps passé
+ * par la liste blanche du serveur (`sanitizeMailHtml` avec styles en ligne filtrés). `texteSeul` : la boîte n'envoie que
+ * du texte (SMTP, envoi de l'ERP) — le HTML n'existe pas, et l'observation le dira. Interrupteur `ADAM_MAIL_BLOCS=0` :
+ * tout mail repart à la charte, comme avant le lot.
+ */
+export function rendreLeMail(d: DocumentMail, signature: SignatureMail, charte: CharteMail, objet: string, opts: { texteSeul?: boolean } = {}): MailRendu {
+  const doc: DocumentMail = mailEnBlocsActif() ? d : toutALaCharte(d);
+  const m = composerMail(opts.texteSeul ? { ...doc, style: "texte" } : doc, signature, charte, objet, {
+    assainir: (html) => sanitizeMailHtml(html, { styles: true }),
+    versTexte: (html) => htmlToText(sanitizeMailHtml(html)),
+  });
+  return { html: m.html, texte: m.texte, apercu: m.html ?? apercuTexte(m.texte) };
 }
