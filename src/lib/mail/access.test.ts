@@ -66,6 +66,14 @@ describe("Le pilote — une boîte d'abord, l'entreprise ensuite", () => {
     expect(mailAccess(user("EMPLOYEE", "autre@adventumdz.com"), env).allowed).toBe(false);
   });
 
+  it("« * » ouvre à toute l'entreprise — un compte sans adresse reste dehors, et la liste vide reste fermée", () => {
+    const env = { ...CONFIGURED, MICROSOFT_MAIL_PILOT: " * " };
+    expect(mailAccess(user("EMPLOYEE", "karim@adventumdz.com"), env).allowed).toBe(true);
+    expect(mailAccess(user("COORDINATOR", "samia@adventumdz.com"), env).allowed).toBe(true);
+    expect(mailAccess(user("EMPLOYEE", ""), env).allowed).toBe(false);
+    expect(mailAccess(user("EMPLOYEE", "karim@adventumdz.com"), CONFIGURED).allowed).toBe(false);
+  });
+
   it("un compte sans adresse ne passe pas par inadvertance", () => {
     const env = { ...CONFIGURED, MICROSOFT_MAIL_PILOT: "amine.djouamai@adventumdz.com" };
     expect(mailAccess(user("EMPLOYEE", null as unknown as string), env).allowed).toBe(false);
