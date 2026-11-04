@@ -82,7 +82,10 @@ export function versDzd(montant: number | null, devise: CareCurrency, taux: numb
   if (montant == null || !Number.isFinite(montant)) return null;
   if (devise === "DZD") return arrondirAuCentime(montant);
   if (taux == null || !Number.isFinite(taux) || taux <= 0) return null;
-  return arrondirAuCentime(montant * taux);
+  // LE DEMI-CENTIME EXACT (lot V1, 03/11/2026) : 2,67 USD × 241,5 = 644,805 DZD, mais le produit flottant vaut
+  // 644,80499999… et l'arrondi rendait 644,80 au lieu de 644,81. Quinze chiffres significatifs effacent le bruit
+  // du produit sans toucher un montant réel (Decimal 14,2).
+  return Math.round(Number((montant * taux * 100).toPrecision(15))) / 100;
 }
 
 export function montantLisible(montant: number, devise: CareCurrency = "DZD"): string {

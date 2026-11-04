@@ -6,7 +6,7 @@ import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole, anyRoleFilter, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { moneyEntityOf } from "@/lib/company";
-import { readMultiField, lireMedecinsDemande, ITEM_KIND_LABELS, bilanCloture, peutCloturer, quiCloture, refusCloture, type QuiCloture } from "@/modules/ad-pro/partage";
+import { readMultiField, lireMedecinsDemande, ITEM_KIND_LABELS, bilanCloture, peutCloturer, quiCloture, refusCloture, type QuiCloture, noteDuPosteDeNaissance } from "@/modules/ad-pro/partage";
 import { businessUnitDuDemandeur, referentAInscrire, postesPourCloture } from "@/modules/ad-pro/api";
 import { normalizeCity } from "@/lib/geo/algeria";
 import { createWithRetry, referenceDeSerie } from "@/lib/refs";
@@ -245,7 +245,7 @@ export async function createSponsoring(
         create: {
           kind: POSTE_DE_LA_NATURE[nature!],
           label: `${ITEM_KIND_LABELS[POSTE_DE_LA_NATURE[nature!]]} — ${institution}`,
-          notes: `Sponsoring demandé par le médecin : ${montantDzd(demandeParLeMedecin!)} · suggéré par le délégué : ${montantDzd(suggereParLeDelegue!)}.`,
+          notes: noteDuPosteDeNaissance(demandeParLeMedecin!, suggereParLeDelegue!, montantDzd),
           supplier: nature === "DIRECT" ? institution : null,
           amountEstimated: suggereParLeDelegue,
           budgetKind: "INCLUDED",

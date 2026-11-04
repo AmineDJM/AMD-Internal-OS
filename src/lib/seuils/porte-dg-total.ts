@@ -37,7 +37,9 @@ export interface DecisionDg {
 export function etatPorteDg(total: number, seuil: number | null | undefined, decision: DecisionDg | null): EtatPorteDg {
   if (seuil == null || !(seuil > 0)) return "NON_REQUISE";
   if (!(total > 0) || total <= seuil) return "NON_REQUISE";
-  if (decision?.statut === "VALIDEE" && decision.montant >= total) return "VALIDEE";
+  // Comparés AU CENTIME (lot V1) : la décision est relue d'un Decimal(14,2), le total vient d'additions — un écart de
+  // 1e-10 ne doit pas rouvrir une porte que le DG vient de fermer sur ce montant.
+  if (decision?.statut === "VALIDEE" && Math.round(decision.montant * 100) >= Math.round(total * 100)) return "VALIDEE";
   // Renvoyé pour CE total : il le reste tant que les postes n'ont pas changé.
   if (decision?.statut === "A_REVOIR" && Math.abs(decision.montant - total) < 0.005) return "A_REVOIR";
   return "EN_ATTENTE";

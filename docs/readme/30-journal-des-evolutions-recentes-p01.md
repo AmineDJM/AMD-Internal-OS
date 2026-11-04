@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### V1 — SPONSORING ET AD & PRO VÉRIFIÉS DE BOUT EN BOUT : TROIS ÉCARTS DE CALCUL, UNE CORRECTION QUI N'ATTEIGNAIT PAS L'ARGENT (2026-11-03)
+
+Demande de la Direction du 03/11 (« tout marche, les pièces jointes, les sommes, on peut modifier, supprimer… »). Vérifié
+par l'écran (`e2e/v1-adpro-sponsoring.spec.ts`, 10 parcours, 8 rôles) et par Adam (`assistant-ia/v1-adpro-par-adam-flow.test.ts`).
+- **Porte du DG** : le total des postes s'additionnait en flottants (100 000,10 + 200 000,20 = 300 000,30000000005) ;
+  validé par le DG puis relu de la base (Decimal 14,2), il paraissait dépassé et la porte se REFERMAIT. Total en centimes
+  entiers (`infra/porte-dg.ts`), comparaison au centime (`seuils/porte-dg-total.ts`).
+- **Montant de la demande** (base + rallonges) et **conversion USD → DZD** (demi-centime : 2,67 × 241,5 = 644,81) arrondis
+  au centime exact (`montant-demande.ts`, `prise-en-charge/fiches.ts:versDzd`).
+- **Correction après renvoi** : le délégué corrigeait le montant suggéré, le poste né avec le sponsoring gardait l'ancien
+  (c'est lui qu'on accorde et que le DG additionne). Il suit désormais la correction tant qu'il est encore celui de la
+  naissance (`posteDeNaissanceSuit`, `actions-edition.ts`).
+- Banc des sommes indépendant (centimes entiers, tirages à graine fixe) : `ad-pro/domaine/v1-sommes.test.ts`.
+
 ### ESSAYER L'AGENT D'UNE PERSONNE — LE SUPER ADMIN, AVANT LA PRODUCTION (2026-11-03)
 
 Demande de la Direction : tester l'agent de chacun **exactement**, pour qu'aucune personne n'accède en production à une

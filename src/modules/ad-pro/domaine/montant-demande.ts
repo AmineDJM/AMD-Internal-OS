@@ -59,6 +59,8 @@ export function montantDeLaDemande(
   postes: readonly PostePourMontant[],
 ): number | null {
   if (base == null || !Number.isFinite(base)) return null;
-  const rallonges = postes.filter(estRallongeAccordee).reduce((t, p) => t + (p.amountGranted ?? 0), 0);
-  return base + rallonges;
+  // EN CENTIMES ENTIERS (lot V1, 03/11/2026) : 385 000,15 + 32,30 additionnés en flottants faisaient 385 032,44999999995 —
+  // un montant de demande à un centime près que l'écran et la porte relisaient de travers.
+  const rallongesC = postes.filter(estRallongeAccordee).reduce((t, p) => t + Math.round((p.amountGranted ?? 0) * 100), 0);
+  return (Math.round(base * 100) + rallongesC) / 100;
 }

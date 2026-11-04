@@ -94,3 +94,13 @@ describe("la porte du DG — la phrase et le refus, les mêmes partout", () => {
     expect(src).not.toMatch(/\brequire\(/);
   });
 });
+
+describe("la porte du DG — au centime (lot V1, 03/11/2026)", () => {
+  it("un total validé relu d'un Decimal(14,2) couvre le même total venu d'additions flottantes", () => {
+    const total = 100_000.1 + 200_000.2; // 300 000,30000000005 en flottant
+    expect(etatPorteDg(total, 100_000, { statut: "VALIDEE", montant: 300_000.3 })).toBe("VALIDEE");
+  });
+  it("un centime de plus que le validé rouvre la porte", () => {
+    expect(etatPorteDg(300_000.31, 100_000, { statut: "VALIDEE", montant: 300_000.3 })).toBe("EN_ATTENTE");
+  });
+});
