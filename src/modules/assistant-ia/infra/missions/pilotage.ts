@@ -79,7 +79,8 @@ export async function mesMissions(userId: string, opts: { toutes?: boolean; main
   const missions = opts.toutes ? lues : lues.filter((m) => VIVANTS.has(m.etat));
   const enAttente = lues.some((m) => m.diagnostic.code === "ATTENTE_EXECUTANT");
   const silence = silenceDesExecutants(executants, maintenant.getTime());
-  return { missions, executants, tableau, candidates, alerte: enAttente && silence ? `Les missions n'avancent pas : ${silence}. ${executants.raisonIgnore && !/worker/i.test(executants.raisonIgnore) ? "Rétablir le balayage des travaux (retirer TRAVAUX_SWEEP=off des variables du service)." : "Vérifier que le service worker tourne (Render › amd-worker, TACHES_DE_FOND=les-deux) ou que le web de l'ERP bat."}` : null };
+  const suspendue = executants.suspension && lues.some((m) => m.diagnostic.code === "SUSPENDUE") ? executants.suspension : null;
+  return { missions, executants, tableau, candidates, alerte: suspendue ?? (enAttente && silence ? `Les missions n'avancent pas : ${silence}. ${executants.raisonIgnore && !/worker/i.test(executants.raisonIgnore) ? "Rétablir le balayage des travaux (retirer TRAVAUX_SWEEP=off des variables du service)." : "Vérifier que le service worker tourne (Render › amd-worker, TACHES_DE_FOND=les-deux) ou que le web de l'ERP bat."}` : null) };
 }
 
 /**

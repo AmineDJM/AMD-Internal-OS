@@ -45,7 +45,7 @@ export type { PersonaTravaux } from "@/lib/missions/travaux/persona";
 // P1 (décision 0047) : la fusion relit un plan, et l'arrêt réversible a ses motifs — par cette même porte.
 export { lirePlan } from "@/lib/missions/travaux/plan";
 // P1 ter (décision 0066) : la requête MÊME du balayage — « cette mission sera-t-elle prise ? » se lit, ne se devine pas.
-export { travauxAFaireAvancer } from "@/lib/missions/travaux/balayage";
+export { lireInterrupteurMissions, phraseSuspension, travauxAFaireAvancer } from "@/lib/missions/travaux/balayage";
 export { MOTIF_ARRET, MOTIF_FUSION } from "@/lib/missions/travaux/service";
 export type { FormatLivrable } from "@/lib/missions/travaux/plan";
 

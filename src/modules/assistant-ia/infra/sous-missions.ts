@@ -288,7 +288,8 @@ export async function tableauDesMissions(userId: string, maintenant = new Date()
     missions: avec, signature, lu: maintenant.toISOString(),
     executants: {
       dernierPassage: ex.dernierPassage, workerVu: ex.workerVu,
-      alerte: bloquees && silence ? `${bloquees} mission${bloquees > 1 ? "s n'avancent" : " n'avance"} pas : ${silence}. À vérifier sur Render : le service « amd-worker » tourne (TACHES_DE_FOND=les-deux), ou le web de l'ERP bat (TACHES_DE_FOND=les-deux).` : null,
+      // 04/11 : l'interrupteur global d'abord — c'est lui qui retient tout, et il se lève d'un geste.
+      alerte: ex.suspension && avec.some((m) => m.diagnostic.code === "SUSPENDUE") ? ex.suspension : bloquees && silence ? `${bloquees} mission${bloquees > 1 ? "s n'avancent" : " n'avance"} pas : ${silence}. À vérifier sur Render : le service « amd-worker » tourne (TACHES_DE_FOND=les-deux), ou le web de l'ERP bat (TACHES_DE_FOND=les-deux).` : null,
     },
     enCours: avec.filter((m) => ["EN_COURS", "EN_ATTENTE", "BUDGET_HOLD"].includes(m.etat)).length,
     aApprouver: avec.filter((m) => m.etat === "A_APPROUVER").length,

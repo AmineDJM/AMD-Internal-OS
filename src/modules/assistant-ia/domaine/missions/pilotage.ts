@@ -55,6 +55,12 @@ export interface EtatDesExecutants {
   raisonIgnore?: string | null;
   /** P1 ter : le dernier passage du balayage, tel qu'écrit sur sa ligne — qui (web, worker), statut, bilan. */
   dernierBalayage?: { qui: string | null; quand: string | null; statut: string | null; bilan: string | null } | null;
+  /**
+   * L'INTERRUPTEUR GLOBAL (« missions d'Adam suspendues », `AppSetting.missionsPaused`) — sa phrase quand il est posé, sinon
+   * null. Le moteur honore la suspension en rendant la main sans rien toucher : sans ce fait, une mission suspendue se
+   * disait « prête » / « En file » alors qu'aucune étape ne pouvait partir (production, 04/11).
+   */
+  suspension?: string | null;
 }
 
 /** LE DERNIER BALAYAGE, dit en une ligne (« par le worker il y a 2 min — examinés 3, conduits 3 »). */
@@ -67,7 +73,7 @@ export function phraseDernierBalayage(ex: EtatDesExecutants, maintenant: number)
 }
 
 export type CodeDiagnostic =
-  | "A_APPROUVER" | "ATTENTE_EXECUTANT" | "PLAFOND" | "BLOQUEE" | "REESSAIE" | "EN_PAUSE" | "ARRETEE" | "ATTENTE" | "EN_COURS" | "PRETE" | "IMMOBILE" | "FINIE";
+  | "A_APPROUVER" | "ATTENTE_EXECUTANT" | "PLAFOND" | "BLOQUEE" | "REESSAIE" | "EN_PAUSE" | "ARRETEE" | "ATTENTE" | "EN_COURS" | "PRETE" | "IMMOBILE" | "FINIE" | "SUSPENDUE";
 
 export interface Diagnostic { code: CodeDiagnostic; phrase: string }
 
@@ -125,6 +131,8 @@ export function diagnostiquerMission(m: MissionDiagnostiquee, ex: EtatDesExecuta
     case "ANNULE": return { code: "FINIE", phrase: m.etat === "TERMINE" ? "terminée" : "annulée" };
     default: break;
   }
+  // VIVANTE mais l'interrupteur global est posé : rien ne partira avant sa levée — le dire, avec le remède.
+  if (ex.suspension) return { code: "SUSPENDUE", phrase: ex.suspension };
   // VIVANTE (EN_COURS, EN_ATTENTE) — qui la conduit ?
   const silence = silenceDesExecutants(ex, maintenant);
   const reessaie = echec ?? m.etapes.find((e) => e.etat === "EN_COURS" && e.erreur);
