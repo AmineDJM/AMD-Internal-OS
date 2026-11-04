@@ -1,6 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE CARTE DEVIENT UNE CONVERSATION (lot K4, décision 0038) — les RÈGLES de la voix orale, zéro import.
+ * UNE CARTE DEVIENT UNE CONVERSATION (lot K4, décision 0038) — les RÈGLES de la voix orale (pures ; le récit lit la
+ * projection du contrat Observation).
  *
  * Direction, 31/10/2026 : « En appel vocal, l'expérience doit être ORALE. Pour une action, il me RÉSUME la demande de façon
  * fluide, pas comme un robot. Il me propose les cases non obligatoires […] Puis : "Tu confirmes ?". Je peux confirmer à
@@ -18,6 +19,8 @@
  * (le montant, le verbe) dans le récit ; un simple oui suffit ensuite — le serveur fournit la ressaisie stockée.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+
+import { projeterCarte, recitDeProjection } from "../observation/projecteurs";
 
 export interface ChampOral { label: string; value: string }
 
@@ -42,16 +45,12 @@ export function etapeOrale(c: CarteOrale, facultatifsProposes: boolean): EtapeOr
   return "QUESTION";
 }
 
-const BRUT = /^(—|-|null|undefined|\[\]|\{\})$/;
-/** Un identifiant technique (cuid, uuid) ne se dit pas : la personne ne le reconnaîtrait pas. */
-const IDENTIFIANT = /^(c[a-z0-9]{20,}|[0-9a-f]{8}-[0-9a-f]{4}-|[A-Za-z0-9_-]{24,}$)/;
-
-/** La matière du récit : les champs DITS (sans identifiant technique ni valeur vide), en phrases courtes, pas une liste. */
+/**
+ * La matière du récit — I1 (décision 0063) : la VOIX lit la même projection que l'écrit (`projeterCarte`) : les champs
+ * dits (sans identifiant technique ni valeur vide), ou, pour un mail, destinataires, objet et nature du rendu.
+ */
 export function recitDeCarte(c: CarteOrale): string {
-  const dits = c.champs.filter((ch) => ch.value && !BRUT.test(ch.value.trim()) && !IDENTIFIANT.test(ch.value.trim())).slice(0, 7);
-  const morceaux = dits.map((ch) => `${ch.label.toLowerCase()} ${ch.value}`);
-  const corps = morceaux.length ? ` : ${morceaux.join(", ")}` : "";
-  return `${c.titre}${corps}.`;
+  return recitDeProjection(projeterCarte({ id: "voix", titre: c.titre, statut: "PROPOSED", champs: c.champs }));
 }
 
 /**

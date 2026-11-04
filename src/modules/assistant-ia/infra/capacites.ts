@@ -244,7 +244,7 @@ function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCart
         avertissements: warnings,
         simulation: simulation.resume,
         ...(manquants.length ? { a_completer: manquants.map(libelleChamp) } : {}),
-        consigne: `Rien n'est exécuté : une carte de confirmation est affichée${confirmText ? ` — la personne devra ressaisir « ${confirmText} »` : ""}${manquants.length ? ` ; ${manquants.map(libelleChamp).join(", ")} reste à compléter sur la carte (dis-le en une phrase, sans poser de question)` : ""}. Ne dis pas que c'est fait.`,
+        ...(confirmText ? { ressaisie: confirmText } : {}),
       });
     },
   };

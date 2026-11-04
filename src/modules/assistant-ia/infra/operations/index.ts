@@ -5,6 +5,7 @@ import { getAppSettings } from "@/lib/settings";
 import { auNomDe } from "../consommation";
 import { journaliserGeste } from "@/platform/ia/hors-requete";
 import type { VueSimulation } from "../../domaine/simulation";
+import type { MailVu } from "../../domaine/observation/projecteurs";
 import { SPONSORING_CREATION } from "./adpro-sponsoring";
 import { PRISE_EN_CHARGE_CREATION } from "./adpro-prise-en-charge";
 import { EVENEMENT_CREATION } from "./adpro-evenement";
@@ -86,6 +87,8 @@ export interface PropositionCarte {
     libelleBouton?: string;
     /** P1 (décision 0047) : l'aperçu réel des mails préparés. */
     apercus?: { titre: string; html: string }[];
+    /** I1 (décision 0063) : les mails TELS QU'ILS PARTIRONT (expéditeur, destinataires, texte, HTML) — leur observation. */
+    mails?: MailVu[];
     /** J11 (décision 0030) : le formulaire généré depuis le contrat — la carte d'une capacité le rend éditable. */
     formulaire?: FormulaireCarte;
     payload?: unknown;
@@ -213,12 +216,8 @@ export function outilsOperations(user: CurrentUser, propositions: PropositionCar
       }], "text");
       if (!intentId) return JSON.stringify({ statut: "ECHEC", raison: "La proposition n'a pas pu être enregistrée." });
       propositions.push({ intentId, proposition: { kind: "assistant_ia_op", ...p.carte, payload: charge } });
-      return JSON.stringify({
-        statut: "EN_ATTENTE_DE_CONFIRMATION",
-        titre: p.carte.title,
-        avertissements: p.carte.warnings,
-        consigne: "Rien n'est créé : une carte récapitulative est affichée. Résume en une phrase et cite les avertissements ; ne dis jamais que c'est fait.",
-      });
+      // I1 (décision 0063) : dans un tour, l'enveloppe rend au modèle la PROJECTION de la carte (`infra/observation/journal.ts`).
+      return JSON.stringify({ statut: "EN_ATTENTE_DE_CONFIRMATION", titre: p.carte.title, avertissements: p.carte.warnings });
     },
   }));
 }

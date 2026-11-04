@@ -6,7 +6,7 @@ import { memoireAutoActive } from "../memoire";
 import { OUTILS_NOTES } from "../notes/outils";
 import { accesAssistantIa, getRoleConfig, GESTE_MODELE_EN_CLAIR, resoudreConsignesRole, Revelateur } from "../role-config";
 import { consigneFamilles, enVueExacteIa, refusAssistantVueExacte, type AccesIa } from "../../domaine/acces-regles";
-import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
+import { consigneGestesFermes, outilsV1, type MemoireProposee } from "../outils-v1";
 import { consigneTravaux, outilsSousMissionsDuTour } from "../travaux";
 import { outilsChantierPour } from "../chantiers";
 import { selectionDuTour, type SelectionDuTour } from "../selection";
@@ -34,15 +34,17 @@ import { CONSIGNE_BOITE_ADAM, canalAdamOuvert, taireCanalAdam } from "../../doma
 import { CONSIGNE_FOND, CONSIGNE_MISSIONS, demandeDeFond, ETAPES_DE_FOND, noteActionsNonVerifiees, OUTILS_DE_FOND, outilsPilotageVoulus } from "../../domaine/missions/pilotage";
 import { outilsMissions } from "../missions/pilotage";
 import { outilsAnnulation } from "../annulation-directe";
-import { outilsMails } from "../mails/boites";
+import { capacitesDEnvoi, outilsMails } from "../mails/boites";
 import type { PowerTool } from "@/platform/ia/outil";
 import { outilsDAnalyseVoulus } from "../../domaine/analyse/intention";
 import { avecTrace } from "../qualite/traces";
 import { chargerModelesRoles } from "../qualite/modeles";
 import type { LecturePiece } from "../../domaine/lecture/regles";
 import {
-  censurerTexte, CoffretDuTour, CONSIGNE_EN_CLAIR, CONSIGNE_JETONS, masquerReperesPartiels, sansValeursRevelees,
+  censurerTexte, CoffretDuTour, CONSIGNE_EN_CLAIR, CONSIGNE_JETONS, jetonnerSortie, masquerReperesPartiels, sansValeursRevelees,
 } from "../../domaine/filtre-confidentialite";
+import { JournalDuTour } from "../observation/journal";
+import type { Observation } from "../../domaine/observation/contrat";
 
 /**
  * UN TOUR DE L'ASSISTANT IA — la même règle, qu'il soit joué dans la requête (ancienne action de l'écran)
@@ -61,7 +63,7 @@ export interface IntentionDuTour {
   warnings?: string[];
   confirmText?: string;
   libelleBouton?: string;
-  /** P1 (décision 0047) : l'aperçu réel des mails préparés (rendu du gabarit). */
+  /** P1 (décision 0047) : l'aperçu réel des mails préparés (le rendu unique). */
   apercus?: { titre: string; html: string }[];
   /** J7 : le diff réel de la simulation (capacités simulables) — ou « non simulable », dit. */
   simulation?: VueSimulation;
@@ -78,6 +80,8 @@ export type ResultatDuTour =
     notesProposees: string[];
     /** K3 (décision 0033) : les sous-missions lancées pendant ce tour (la carte qui se met à jour). */
     travaux: string[];
+    /** I1 (décision 0063) : ce que les gestes du tour ont produit, observé par le serveur (relu au tour suivant). */
+    observations: Observation[];
   }
   /** F2 (MG-10) : `transitoire` — le modèle n'a pas répondu (délai, réseau) : le fil REPREND la demande, une fois. */
   | { ok: false; error: string; transitoire?: boolean };
@@ -213,19 +217,18 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   let config;
   // LES ACCÈS RÉGLÉS PAR LA DIRECTION (décision 0012), relus à chaque tour : un réglage changé vaut dès maintenant.
   let acces: AccesIa;
-  const propositions: PropositionPreparee[] = [];
-  const sorties: string[] = [];
-  const memoires: MemoireProposee[] = [];
-  const notesProposees: string[] = [];
-  // K2 (décision 0032) : les images et vidéos générées pendant le tour — des blocs de la réponse, construits par le serveur.
-  const visuels: WorkspaceBlock[] = [];
-  // K1 (décision 0031) : les jeux de données que le tour a lus, et les analyses CALCULÉES par le code (posées sous la réponse).
-  const blocsCalcules: WorkspaceBlock[] = [];
-  const analyse = { jeux: new JeuxDuTour(), blocs: blocsCalcules, pieces: pieces.map((p) => ({ id: p.id, nom: p.nom })), question: texteSaisi };
-  const travauxLances: string[] = [];
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les
   // repères — sauf en mode « en clair » (décision 0034), où celles que la personne a le droit de voir lui sont rendues.
   const coffret = new CoffretDuTour();
+  // I1 (décision 0063) — LE JOURNAL DU TOUR : cartes, sorties, mémoires, notes, visuels (K2), analyses (K1), sous-missions
+  // (K3) et OBSERVATIONS, alimentés par l'enveloppe des outils. Ce qu'il rend au modèle passe la garde du coffret.
+  let auModele: Revelateur | null = null;
+  const journal = new JournalDuTour(async (sortie) => {
+    const j = jetonnerSortie(sortie, coffret);
+    return auModele ? auModele.enClair(j) : j;
+  });
+  const { propositions, sorties, memoires, notesProposees, visuels, blocsCalcules, travauxLances } = journal;
+  const analyse = { jeux: new JeuxDuTour(), blocs: blocsCalcules, pieces: pieces.map((p) => ({ id: p.id, nom: p.nom })), question: texteSaisi };
   /**
    * LA VUE EXACTE NE LIT PAS LA VIE PRIVÉE DE LA PERSONNE REGARDÉE (lot Q1, décision 0050 ; §118.153). Le Super Admin voit
    * l'écran du compte, pas sa mémoire, ses notes ni ses conversations passées : mesuré par le banc d'audit, le tour en Vue
@@ -234,8 +237,6 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const vueExacte = Boolean(user.impersonatedBy);
   let outils: PowerTool[] | undefined;
   let selection: SelectionDuTour;
-  // P1 : les pilotages de mission REFUSÉS pendant le tour — la garde de vérité ne les compte pas comme preuves.
-  const pilotagesEchoues = new Set<string>();
   try {
     acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
@@ -243,20 +244,21 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const memoireAuto = d.prive || vueExacte ? false : await memoireAutoActive(user.id);
     // MODE « EN CLAIR » (décision 0034) : la sortie d'un outil rend au modèle les valeurs que la personne a le droit de
     // voir — le MÊME juge que l'affichage (politique du coffre, familles de la console), chaque valeur au journal.
-    const auModele = enClair ? new Revelateur(coffret, user, acces, GESTE_MODELE_EN_CLAIR) : null;
+    const revelateurModele = enClair ? new Revelateur(coffret, user, acces, GESTE_MODELE_EN_CLAIR) : null;
+    auModele = revelateurModele;
     // J2 : « lancer_un_travail » — une demande qui dépasse un tour devient un travail (plan à approuver).
     // J6 : avec les CAPACITÉS de l'ERP (registre dérivé du contrat) — enregistrées toutes, seules les actives partent.
     // J14 : ce que le tour lit d'un tiers, face à ce que la personne a écrit — une carte dit ses valeurs d'origine tierce.
     const provenance = new ProvenanceDuTour([texteSaisi, ...saisie.historique.filter((h) => h.role === "user").map((h) => h.content)], message);
     outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, {
-      capacites: true, provenance, notesProposees, visuels, analyse, ...(auModele ? { revelerAuModele: (s: string) => auModele.enClair(s) } : {}),
+      capacites: true, provenance, notesProposees, visuels, analyse, ...(revelateurModele ? { revelerAuModele: (s: string) => revelateurModele.enClair(s) } : {}),
     }), ...outilsSousMissionsDuTour(user, travauxLances, "fin-du-tour"), ...outilsChantierPour(user, travauxLances)];
     // P1 (décision 0047) : lire et piloter SES missions (fusion par carte, `fusionner_missions`), lire ses boîtes mail et
     // envoyer par l'une d'elles (carte « Envoyer », fenêtre d'annulation) — l'écrit a enfin les gestes de l'écran et de la voix.
     const tousLesOutils = (): PowerTool[] => outils ?? [];
     // Leurs sorties PROUVENT ce que la réponse montre (un tableau des missions lues) — comme celles des autres lectures.
-    const prouvees = (xs: PowerTool[]): PowerTool[] => xs.map((o) => ({ ...o, run: async (e, u) => { const r = await o.run(e, u); sorties.push(r); return r; } }));
-    outils.push(...prouvees([...outilsMissions(user, pilotagesEchoues), ...outilsAnnulation(user, pilotagesEchoues), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions)]));
+    const prouvees = (xs: PowerTool[]): PowerTool[] => xs.map((o) => journal.envelopper(o, { prouve: true }));
+    outils.push(...prouvees([...outilsMissions(user), ...outilsAnnulation(user), ...outilsMails(user, (nom) => tousLesOutils().find((o) => o.def.name === nom), propositions)]));
     // Décision 0027 : la mémoire est commune à toutes les conversations — sauf une conversation PRIVÉE, qui ne la lit
     // ni ne l'écrit (pas de carte « Retenir », pas de recherche dans les conversations passées).
     // M1 : la mémoire automatique retient seule — la carte « Retenir » ne sert que si la personne l'a coupée.
@@ -269,7 +271,11 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
     // P1 bis (MI-02) : une demande DE FOND ne se joue pas dans le tour — seuls les outils qui POSENT la mission sont offerts.
     if (fond) outils = outils.filter((o) => OUTILS_DE_FOND.includes(o.def.name));
-    selection = selectionDuTour(outils, user, message, config, precedente, fond ? [...OUTILS_DE_FOND] : [...outilsPilotageVoulus(texteSaisi), ...outilsDAnalyseVoulus(texteSaisi, analyse.pieces)]);
+    // L'ENVELOPPE (I1) : chaque outil du tour passe par le journal — une seule fois (les outils « prouvés » y sont déjà).
+    outils = outils.map((o) => journal.envelopper(o));
+    // I1 : les capacités d'envoi restent dans le tour (pour `envoyer_mail`), hors du catalogue offert au modèle.
+    const parEnvoyerMail = capacitesDEnvoi();
+    selection = selectionDuTour(outils.filter((o) => !parEnvoyerMail.has(o.def.name)), user, message, config, precedente, fond ? [...OUTILS_DE_FOND] : [...outilsPilotageVoulus(texteSaisi), ...outilsDAnalyseVoulus(texteSaisi, analyse.pieces)]);
     outils.push(selection.outil);
     // LE PRÉFIXE STABLE (J4) : identité, règles, présentation, consignes générales, puis la personne ; la partie
     // variable du tour (indice de travail long, résumé de la conversation, heure) ferme la consigne.
@@ -314,7 +320,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     if (note) console.warn("[assistant] chiffres non sourcés", note.chiffres);
     // P1 (décision 0047) — LA GARDE DE VÉRITÉ : « j'ai fusionné », « c'est envoyé », « j'ai pris en compte la mission
     // fusionnée » sans l'outil réussi qui le prouve dans ce tour → une note « non vérifié » sous la réponse.
-    const preuves = r.outilsAppeles.filter((n) => !pilotagesEchoues.has(n));
+    const preuves = journal.reussis(r.outilsAppeles);
     const nonVerifie = noteActionsNonVerifiees(ui.message, preuves, propositions.length > 0);
     if (nonVerifie) console.warn("[assistant] actions non vérifiées", nonVerifie.familles);
     const p = propositions[0];
@@ -329,6 +335,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       memoireProposee: d.prive || vueExacte ? null : memoires[0] ?? null,
       notesProposees: [...notesProposees],
       travaux: [...travauxLances],
+      observations: journal.observations(),
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
       intent: p ? {

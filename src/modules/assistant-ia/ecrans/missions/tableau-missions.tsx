@@ -151,7 +151,7 @@ function CarteMission({ m, ouverte, onBasculer, gestes, onOuvrirLivrable, onOuvr
   // P1 (décision 0047) : une mission qu'aucun exécutant ne conduit ne « tourne » pas — l'écran dit ce qu'elle attend.
   const bloquee = m.diagnostic?.code === "ATTENTE_EXECUTANT";
   const vivante = missionVivante(m.etat) && !bloquee;
-  const ditDiagnostic = !!m.diagnostic && ["ATTENTE_EXECUTANT", "REESSAIE", "BLOQUEE", "PLAFOND", "ARRETEE", "ATTENTE"].includes(m.diagnostic.code);
+  const ditDiagnostic = !!m.diagnostic && ["ATTENTE_EXECUTANT", "IMMOBILE", "REESSAIE", "BLOQUEE", "PLAFOND", "ARRETEE", "ATTENTE"].includes(m.diagnostic.code);
   const part = m.etat === "TERMINE" ? 100 : avancement(m.etapes);
   const enCours = m.etapes.find((e) => e.etat === "EN_COURS");
   const [confirmer, setConfirmer] = useState(false);
@@ -163,7 +163,7 @@ function CarteMission({ m, ouverte, onBasculer, gestes, onOuvrirLivrable, onOuvr
             <span className="block text-[14.5px] font-semibold leading-snug">{m.titre}</span>
             {ditDiagnostic ? (
               <span data-testid="diagnostic" data-code={m.diagnostic.code}
-                className={`mt-0.5 block text-[12.5px] ${["ATTENTE_EXECUTANT", "REESSAIE", "BLOQUEE"].includes(m.diagnostic.code) ? "text-[var(--aia-danger)]" : "text-[var(--aia-discret)]"}`}>
+                className={`mt-0.5 block text-[12.5px] ${["ATTENTE_EXECUTANT", "IMMOBILE", "REESSAIE", "BLOQUEE"].includes(m.diagnostic.code) ? "text-[var(--aia-danger)]" : "text-[var(--aia-discret)]"}`}>
                 {m.diagnostic.phrase.charAt(0).toUpperCase() + m.diagnostic.phrase.slice(1)}
               </span>
             ) : (
