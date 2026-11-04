@@ -8,8 +8,10 @@ const il = (min: number) => new Date(T0 - min * 60_000).toISOString();
 describe("P1 ter — la VÉRITÉ SUR L'EXÉCUTANT (Direction, 03/11)", () => {
   const mission = { etat: "EN_COURS", motifPause: null, attente: null, etapes: [], majLe: il(1) };
   it("« prête : part au prochain battement (moins d'une minute) » SEULEMENT si un passage effectif a eu lieu dans les 3 dernières minutes", () => {
-    expect(diagnostiquerMission(mission, { dernierPassage: il(1), workerVu: null }, T0).phrase).toContain("moins d'une minute");
-    expect(diagnostiquerMission(mission, { dernierPassage: il(4), workerVu: null }, T0).phrase).not.toContain("moins d'une minute");
+    // Fusion I3 (P1 ter × I1) : la prévision n'est dite que si la candidature est OBSERVÉE (`candidate: true`) ; inconnue → le fait daté d'I1.
+    expect(diagnostiquerMission({ ...mission, candidate: true }, { dernierPassage: il(1), workerVu: null }, T0).phrase).toContain("moins d'une minute");
+    expect(diagnostiquerMission({ ...mission, candidate: true }, { dernierPassage: il(4), workerVu: null }, T0).phrase).not.toContain("moins d'une minute");
+    expect(diagnostiquerMission(mission, { dernierPassage: il(1), workerVu: null }, T0).phrase).not.toContain("moins d'une minute");
   });
   it("un balayage DÉBRAYÉ (TRAVAUX_SWEEP=off) dit la vraie raison — pas « aucun battement »", () => {
     const s = silenceDesExecutants({ dernierPassage: null, workerVu: null, balayageVu: il(1), raisonIgnore: "TRAVAUX_SWEEP=off" }, T0);
