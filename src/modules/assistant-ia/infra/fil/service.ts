@@ -14,6 +14,7 @@ import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
 import { demarrerLesSousMissions } from "../travaux";
 import { horsEcranSansValeur, retirerBornes, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
+import { historiqueObserve } from "../observation/historique";
 import { texteOuPiece } from "./texte-long";
 import { captureEnvisagee, capturerApresTour } from "../memoire-capture";
 import { conversationCourante, conversationDe, creerConversation, marquerActivite, proposerTitre } from "../conversations/service";
@@ -362,7 +363,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { lecture: lectures as unknown as Prisma.InputJsonValue } }).catch(sansBloquer("fil-service.surLecture.assistantIaTour"));
     },
     pieces: tour.pieces ?? [],
-    historique: precedents.map(pourHistorique),
+    // I1 (décision 0063, étape 1) : chaque réponse passée avec son bloc « Observé », re-projeté depuis la base.
+    historique: await historiqueObserve(user, precedents.map((t) => ({ ...pourHistorique(t), observations: t.observations, intent: t.intent, blocs: t.blocs }))),
     resume: fil.resume,
     delaiMs: DELAI_FOND_MS,
     maxEtapes: ETAPES_FOND,
@@ -401,6 +403,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       ...(r.notesProposees.length ? { notesProposees: r.notesProposees as unknown as Prisma.InputJsonValue } : {}),
       ...(r.travaux.length ? { travaux: r.travaux as unknown as Prisma.InputJsonValue } : {}),
       outils: r.outilsAppeles,
+      ...(r.observations.length ? { observations: r.observations as unknown as Prisma.InputJsonValue } : {}),
       ...(capture ? { memoireEtat: "EN_COURS" } : {}),
     }, ETAT.TRAITE);
     if (capture) {

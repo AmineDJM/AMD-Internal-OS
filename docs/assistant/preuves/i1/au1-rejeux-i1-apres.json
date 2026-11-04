@@ -1,0 +1,673 @@
+{
+  "joueLe": "2026-11-03T23:20:59.076Z",
+  "modele": "défaut produit",
+  "coutUsd": 0.398175,
+  "resultats": [
+    {
+      "id": "S1",
+      "titre": "Cas 1 — mail « simple, sans design » (production 03/11)",
+      "tours": [
+        {
+          "demande": "Prépare un mail tout simple, sans aucun design, juste du texte, à Radia KEBIR : la réunion de jeudi est décalée à 15 h.",
+          "reponse": "Le mail en texte brut à Radia est prêt et attend votre confirmation. Après confirmation, vous disposerez de 30 secondes par défaut pour annuler l’envoi.",
+          "outils": [
+            "Mail préparé"
+          ],
+          "ms": 6703,
+          "carte": {
+            "titre": "Envoyer par le Gmail d'Adam (adam@adventum-audit.dz)",
+            "champs": [
+              "De: adam@adventum-audit.dz (Gmail d'Adam) — signé Amine HADDAD, Adventum Pharma",
+              "À: Radia KEBIR <radia.kebir-q1@adventum-audit.dz> — « Décalage de la réunion de jeudi »"
+            ],
+            "apercuHtml": "<pre style=\"white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:15px;line-height:1.55;margin:16px;\">Bonjour Radia,\nLa réunion de jeudi est décalée à 15 h.\nBien cordialement,\n\n--\nAmine HADDAD\nPrésident-directeur général\nAdventum Pharma\namine.haddad-q1@adventum-audit.dz</pre>"
+          },
+          "constats": [
+            "OBSERVÉ : carte « Envoyer par le Gmail d'Adam (adam@adventum-audit.dz) » ; aperçu sans charte",
+            "SERVI : mail sans charte, par le Gmail d'Adam"
+          ],
+          "observations": [
+            {
+              "nature": "carte",
+              "objet": {
+                "type": "intention",
+                "id": "cmw1b8g9q0005p9nws784uh7l",
+                "lien": null
+              },
+              "etat": "PROPOSEE",
+              "projection": {
+                "titre": "Envoyer par le Gmail d'Adam (adam@adventum-audit.dz)",
+                "expediteur": "adam@adventum-audit.dz (Gmail d'Adam)",
+                "a": [
+                  "Radia KEBIR <radia.kebir-q1@adventum-audit.dz>"
+                ],
+                "objet": "Décalage de la réunion de jeudi",
+                "rendu": "texte brut (aucune mise en page)",
+                "texte": "Bonjour Radia,\nLa réunion de jeudi est décalée à 15 h.\nBien cordialement,\n--\nAmine HADDAD\nPrésident-directeur général\nAdventum Pharma\namine.haddad-q1@adventum-audit.dz",
+                "avertissements": [
+                  "Fenêtre d'annulation : chaque mail attend le délai réglé (30 s par défaut) avant de partir — « Annuler l'envoi » dedans…"
+                ]
+              },
+              "empreinte": "d9415e96",
+              "observeLe": "2026-11-03T23:19:41.159Z"
+            }
+          ]
+        },
+        {
+          "demande": "Je t'ai demandé un mail simple sans mise en forme. Celui que tu proposes, il est comment exactement ? Décris-moi sa mise en forme.",
+          "reponse": "Le mail proposé est en **texte brut**, sans mise en page ni design : pas de couleurs, de bandeau, de tableau ou de texte en gras. Il contient une formule de salutation, une phrase et votre signature professionnelle.",
+          "outils": [],
+          "ms": 2455,
+          "carte": null,
+          "constats": [
+            "NON OBSERVÉ : la réponse décrit la mise en forme d'un mail qu'elle ne voit pas (aucune carte dans ce tour ; l'historique ne porte que le texte)"
+          ],
+          "observations": []
+        },
+        {
+          "demande": "Non, il y a clairement une mise en forme : un bandeau de couleur et la charte de la société. Je veux du texte brut. Refais-le.",
+          "reponse": "Amine, j’ai préparé une nouvelle carte en **texte brut**, sans bandeau ni charte. Elle attend votre confirmation. Ne confirmez pas la carte précédente.",
+          "outils": [
+            "Mail préparé"
+          ],
+          "ms": 7803,
+          "carte": {
+            "titre": "Envoyer par le Gmail d'Adam (adam@adventum-audit.dz)",
+            "champs": [
+              "De: adam@adventum-audit.dz (Gmail d'Adam) — signé Amine HADDAD, Adventum Pharma",
+              "À: Radia KEBIR <radia.kebir-q1@adventum-audit.dz> — « Décalage de la réunion de jeudi »"
+            ],
+            "apercuHtml": "<pre style=\"white-space:pre-wrap;font-family:Calibri,Arial,sans-serif;font-size:15px;line-height:1.55;margin:16px;\">Bonjour Radia,\nLa réunion de jeudi est décalée à 15 h.\nBien cordialement,\nAmine</pre>"
+          },
+          "constats": [
+            "OBSERVÉ : carte « Envoyer par le Gmail d'Adam (adam@adventum-audit.dz) » ; aperçu sans charte"
+          ],
+          "observations": [
+            {
+              "nature": "carte",
+              "objet": {
+                "type": "intention",
+                "id": "cmw1b8o7f000ep9nwhcklmmjt",
+                "lien": null
+              },
+              "etat": "PROPOSEE",
+              "projection": {
+                "titre": "Envoyer par le Gmail d'Adam (adam@adventum-audit.dz)",
+                "expediteur": "adam@adventum-audit.dz (Gmail d'Adam)",
+                "a": [
+                  "Radia KEBIR <radia.kebir-q1@adventum-audit.dz>"
+                ],
+                "objet": "Décalage de la réunion de jeudi",
+                "rendu": "texte brut (aucune mise en page)",
+                "texte": "Bonjour Radia,\nLa réunion de jeudi est décalée à 15 h.\nBien cordialement,\nAmine",
+                "avertissements": [
+                  "Fenêtre d'annulation : chaque mail attend le délai réglé (30 s par défaut) avant de partir — « Annuler l'envoi » dedans…"
+                ]
+              },
+              "empreinte": "235449a7",
+              "observeLe": "2026-11-03T23:19:51.443Z"
+            }
+          ]
+        }
+      ],
+      "coutUsd": 0.084028
+    },
+    {
+      "id": "S2",
+      "titre": "Cas 2 — « donne nos 3 missions » (production 03/11)",
+      "tours": [
+        {
+          "demande": "Donne nos 3 missions.",
+          "reponse": "Amine, vos trois missions sont indiquées « en cours », mais aucune étape n’a démarré depuis 2 heures.",
+          "outils": [
+            "Missions lues"
+          ],
+          "ms": 5738,
+          "carte": null,
+          "constats": [
+            "OBSERVÉ : 3 missions, aucune étape faite, immobiles depuis 120 min ; balayage « OK » il y a < 3 min",
+            "NON CLIQUABLE : aucun lien vers les missions dans la réponse (la sortie de `mes_missions` n'en porte pas)"
+          ],
+          "observations": [
+            {
+              "nature": "mission",
+              "objet": {
+                "type": "mission",
+                "id": "cmw1b8px8000kp9nwgpzsayxo",
+                "lien": "/missions/cmw1b8px8000kp9nwgpzsayxo"
+              },
+              "etat": "EN_COURS",
+              "projection": {
+                "titre": "Suivi des appels d'offres CHU",
+                "statut": "En cours",
+                "etapes": "0/2",
+                "derniereActivite": "il y a 2 h",
+                "diagnostic": "aucune étape démarrée depuis 2 h ; le balayage est passé il y a 32 s sans la démarrer"
+              },
+              "empreinte": "f4a57d60",
+              "observeLe": "2026-11-03T23:19:55.344Z"
+            },
+            {
+              "nature": "mission",
+              "objet": {
+                "type": "mission",
+                "id": "cmw1b8pxg000op9nwo1qgzwu8",
+                "lien": "/missions/cmw1b8pxg000op9nwo1qgzwu8"
+              },
+              "etat": "EN_COURS",
+              "projection": {
+                "titre": "Planning des délégués Est",
+                "statut": "En cours",
+                "etapes": "0/2",
+                "derniereActivite": "il y a 2 h",
+                "diagnostic": "aucune étape démarrée depuis 2 h ; le balayage est passé il y a 32 s sans la démarrer"
+              },
+              "empreinte": "a2a3162e",
+              "observeLe": "2026-11-03T23:19:55.344Z"
+            },
+            {
+              "nature": "mission",
+              "objet": {
+                "type": "mission",
+                "id": "cmw1b8pxq000sp9nw5re3ykpc",
+                "lien": "/missions/cmw1b8pxq000sp9nw5re3ykpc"
+              },
+              "etat": "EN_COURS",
+              "projection": {
+                "titre": "Veille prix anti-infectieux",
+                "statut": "En cours",
+                "etapes": "0/2",
+                "derniereActivite": "il y a 2 h",
+                "diagnostic": "aucune étape démarrée depuis 2 h ; le balayage est passé il y a 32 s sans la démarrer"
+              },
+              "empreinte": "85b76e22",
+              "observeLe": "2026-11-03T23:19:55.344Z"
+            },
+            {
+              "nature": "lecture",
+              "objet": {
+                "type": "lecture",
+                "id": "mes_missions",
+                "lien": null
+              },
+              "etat": "LU",
+              "projection": {
+                "titre": "Missions lues",
+                "lignes": 3,
+                "colonnes": [
+                  "id",
+                  "titre",
+                  "lien",
+                  "etat",
+                  "etapes",
+                  "coutUsd",
+                  "ou_elle_en_est",
+                  "derniere_activite"
+                ],
+                "ids": [
+                  "cmw1b8px8000kp9nwgpzsayxo",
+                  "cmw1b8pxg000op9nwo1qgzwu8",
+                  "cmw1b8pxq000sp9nw5re3ykpc"
+                ]
+              },
+              "empreinte": "f05910a5",
+              "observeLe": "2026-11-03T23:19:55.361Z"
+            }
+          ]
+        },
+        {
+          "demande": "Ça fait deux heures qu'elles sont à 0/2. Elles partent vraiment dans moins d'une minute ?",
+          "reponse": "Non, Amine, je ne peux pas garantir qu’elles démarrent dans moins d’une minute. Les trois sont toujours à **0/2** : aucune étape n’a démarré depuis deux heures, et le dernier balayage, passé il y a 40 secondes, ne les a pas lancées. Le délai de démarrage n’est pas indiqué.",
+          "outils": [
+            "Missions lues"
+          ],
+          "ms": 6829,
+          "carte": null,
+          "constats": [
+            "OBSERVÉ : 3 missions, aucune étape faite, immobiles depuis 120 min ; balayage « OK » il y a < 3 min",
+            "FAUX (prévision) : la réponse annonce un départ imminent alors que les missions sont immobiles depuis 120 min",
+            "NON CLIQUABLE : aucun lien vers les missions dans la réponse (la sortie de `mes_missions` n'en porte pas)"
+          ],
+          "observations": [
+            {
+              "nature": "mission",
+              "objet": {
+                "type": "mission",
+                "id": "cmw1b8px8000kp9nwgpzsayxo",
+                "lien": "/missions/cmw1b8px8000kp9nwgpzsayxo"
+              },
+              "etat": "EN_COURS",
+              "projection": {
+                "titre": "Suivi des appels d'offres CHU",
+                "statut": "En cours",
+                "etapes": "0/2",
+                "derniereActivite": "il y a 2 h",
+                "diagnostic": "aucune étape démarrée depuis 2 h ; le balayage est passé il y a 40 s sans la démarrer"
+              },
+              "empreinte": "f5490ec1",
+              "observeLe": "2026-11-03T23:20:03.442Z"
+            },
+            {
+              "nature": "mission",
+              "objet": {
+                "type": "mission",
+                "id": "cmw1b8pxg000op9nwo1qgzwu8",
+                "lien": "/missions/cmw1b8pxg000op9nwo1qgzwu8"
+              },
+              "etat": "EN_COURS",
+              "projection": {
+                "titre": "Planning des délégués Est",
+                "statut": "En cours",
+                "etapes": "0/2",
+                "derniereActivite": "il y a 2 h",
+                "diagnostic": "aucune étape démarrée depuis 2 h ; le balayage est passé il y a 40 s sans la démarrer"
+              },
+              "empreinte": "9f320a57",
+              "observeLe": "2026-11-03T23:20:03.442Z"
+            },
+            {
+              "nature": "mission",
+              "objet": {
+                "type": "mission",
+                "id": "cmw1b8pxq000sp9nw5re3ykpc",
+                "lien": "/missions/cmw1b8pxq000sp9nw5re3ykpc"
+              },
+              "etat": "EN_COURS",
+              "projection": {
+                "titre": "Veille prix anti-infectieux",
+                "statut": "En cours",
+                "etapes": "0/2",
+                "derniereActivite": "il y a 2 h",
+                "diagnostic": "aucune étape démarrée depuis 2 h ; le balayage est passé il y a 40 s sans la démarrer"
+              },
+              "empreinte": "569dace3",
+              "observeLe": "2026-11-03T23:20:03.442Z"
+            },
+            {
+              "nature": "lecture",
+              "objet": {
+                "type": "lecture",
+                "id": "mes_missions",
+                "lien": null
+              },
+              "etat": "LU",
+              "projection": {
+                "titre": "Missions lues",
+                "lignes": 3,
+                "colonnes": [
+                  "id",
+                  "titre",
+                  "lien",
+                  "etat",
+                  "etapes",
+                  "coutUsd",
+                  "ou_elle_en_est",
+                  "derniere_activite"
+                ],
+                "ids": [
+                  "cmw1b8px8000kp9nwgpzsayxo",
+                  "cmw1b8pxg000op9nwo1qgzwu8",
+                  "cmw1b8pxq000sp9nw5re3ykpc"
+                ]
+              },
+              "empreinte": "f05910a5",
+              "observeLe": "2026-11-03T23:20:03.458Z"
+            }
+          ]
+        }
+      ],
+      "coutUsd": 0.066563
+    },
+    {
+      "id": "S3",
+      "titre": "Cas 3 — produits infectieux, puis « commercialisés » (production 03/11)",
+      "tours": [
+        {
+          "demande": "Quels sont nos produits infectieux ?",
+          "reponse": "Le catalogue Regulatory présente un produit classé parmi les anti-infectieux, Amine :",
+          "outils": [
+            "Catalogue consulté"
+          ],
+          "ms": 4825,
+          "carte": null,
+          "constats": [],
+          "observations": [
+            {
+              "nature": "lecture",
+              "objet": {
+                "type": "lecture",
+                "id": "search_products",
+                "lien": null
+              },
+              "etat": "LU",
+              "projection": {
+                "titre": "Catalogue consulté",
+                "lignes": 1,
+                "colonnes": [
+                  "id",
+                  "ref",
+                  "dci",
+                  "marque",
+                  "statut",
+                  "priorite",
+                  "classe",
+                  "societe",
+                  "responsable"
+                ],
+                "ids": [
+                  "cmw1b8znz0012p9nwhmpjggjz"
+                ]
+              },
+              "empreinte": "50f17cc8",
+              "observeLe": "2026-11-03T23:20:08.309Z"
+            }
+          ]
+        },
+        {
+          "demande": "Non, je veux ceux qui sont commercialisés.",
+          "reponse": "Amine, je ne peux pas confirmer quels produits anti-infectieux sont commercialisés à partir des données consultées.\n\n**Clavumox** a le statut réglementaire « Décision obtenue », mais ce statut ne confirme pas sa commercialisation. Les deux dossiers de posaconazole sont en pré-soumission. Le [catalogue Regulatory](/regulatory/cmw1b8znz0012p9nwhmpjggjz) permet de consulter le dossier de Clavumox.",
+          "outils": [
+            "Catalogue consulté",
+            "Recherche effectuée"
+          ],
+          "ms": 10287,
+          "carte": null,
+          "constats": [
+            "OBSERVÉ (base) : Clavumox — classe « Anti-infectieux », dossier DECISION_OBTAINED (règle Direction 06/10 : commercialisé), produit promu actif",
+            "FAUX NÉGATIF : la réponse dit ne pas pouvoir confirmer alors que la donnée existe en base"
+          ],
+          "observations": [
+            {
+              "nature": "lecture",
+              "objet": {
+                "type": "lecture",
+                "id": "search_products",
+                "lien": null
+              },
+              "etat": "LU",
+              "projection": {
+                "titre": "Catalogue consulté",
+                "lignes": 3,
+                "colonnes": [
+                  "id",
+                  "ref",
+                  "dci",
+                  "marque",
+                  "statut",
+                  "priorite",
+                  "classe",
+                  "societe",
+                  "responsable"
+                ],
+                "ids": [
+                  "cmw1b8znz0012p9nwhmpjggjz",
+                  "regpf0067",
+                  "regpf0068"
+                ]
+              },
+              "empreinte": "66515747",
+              "observeLe": "2026-11-03T23:20:13.050Z"
+            },
+            {
+              "nature": "lecture",
+              "objet": {
+                "type": "lecture",
+                "id": "search_everything",
+                "lien": null
+              },
+              "etat": "LU",
+              "projection": {
+                "titre": "Recherche effectuée",
+                "lignes": 1,
+                "colonnes": [
+                  "famille",
+                  "titre",
+                  "detail",
+                  "lien"
+                ]
+              },
+              "empreinte": "fdc2eacc",
+              "observeLe": "2026-11-03T23:20:18.498Z"
+            }
+          ]
+        }
+      ],
+      "coutUsd": 0.059317
+    },
+    {
+      "id": "S4",
+      "titre": "Observation inter-tours — relire la carte proposée au tour précédent",
+      "tours": [
+        {
+          "demande": "Envoie un mail à Radia KEBIR pour lui demander le compte rendu de sa tournée de l'Est avant vendredi.",
+          "reponse": "Le mail à Radia est prêt et attend votre confirmation. Après confirmation, vous disposerez d’une fenêtre d’annulation de 30 secondes par défaut.",
+          "outils": [
+            "Mail préparé"
+          ],
+          "ms": 5799,
+          "carte": {
+            "titre": "Envoyer par le Gmail d'Adam (adam@adventum-audit.dz)",
+            "champs": [
+              "De: adam@adventum-audit.dz (Gmail d'Adam) — signé Amine HADDAD, Adventum Pharma",
+              "À: Radia KEBIR <radia.kebir-q1@adventum-audit.dz> — « Compte rendu de votre tournée de l’Est »"
+            ],
+            "apercuHtml": "<!doctype html>\n<html lang=\"fr\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Compte rendu de votre tournée de l’Est</title>\n<style>@media only screen and (max-width:620px){.conteneur{width:100%!important}.marge{padding:20px 16px!important}}</style></head>\n<body style=\"margin:0;padding:0;background:#FFFFFF;\">\n<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#FFFFFF;\"><tr><td align=\"center\" style=\"padding:24px 8px;\">\n<table role=\"presentation\" class=\"conteneur\" width=\"600\" cellpadding=\"0\" cellspacin"
+          },
+          "constats": [],
+          "observations": [
+            {
+              "nature": "carte",
+              "objet": {
+                "type": "intention",
+                "id": "cmw1b9ecd001jp9nwnb6zfzet",
+                "lien": null
+              },
+              "etat": "PROPOSEE",
+              "projection": {
+                "titre": "Envoyer par le Gmail d'Adam (adam@adventum-audit.dz)",
+                "expediteur": "adam@adventum-audit.dz (Gmail d'Adam)",
+                "a": [
+                  "Radia KEBIR <radia.kebir-q1@adventum-audit.dz>"
+                ],
+                "objet": "Compte rendu de votre tournée de l’Est",
+                "rendu": "HTML sobre (sans couleur de charte)",
+                "texte": "Bonjour Radia,\nPouvez-vous me transmettre le compte rendu de votre tournée de l’Est avant vendredi ?\nMerci d’avance.\n--\nAmine HADDAD\nPrésident-directeur général\nAdventum Pharma\namine.haddad-q1@adventum-audit.dz",
+                "avertissements": [
+                  "Fenêtre d'annulation : chaque mail attend le délai réglé (30 s par défaut) avant de partir — « Annuler l'envoi » dedans…"
+                ]
+              },
+              "empreinte": "90a99c3c",
+              "observeLe": "2026-11-03T23:20:25.315Z"
+            }
+          ]
+        },
+        {
+          "demande": "Rappelle-moi exactement l'objet et la formule de politesse du mail que tu viens de me proposer.",
+          "reponse": "**Objet :** Compte rendu de votre tournée de l’Est\n\n**Formule de politesse :** « Merci d’avance. »",
+          "outils": [],
+          "ms": 2005,
+          "carte": null,
+          "constats": [
+            "OBSERVÉ (carte du tour 1) : Compte rendu de votre tournée de l’Est",
+            "SANS OBSERVATION : la réponse décrit la carte du tour précédent sans rien relire (l'historique ne porte que le texte de la réponse)"
+          ],
+          "observations": []
+        }
+      ],
+      "coutUsd": 0.040148
+    },
+    {
+      "id": "S5",
+      "titre": "Témoin — masse salariale d'Adventum (cas 4, corrigé)",
+      "tours": [
+        {
+          "demande": "Quelle est la masse salariale d'Adventum ce mois-ci ?",
+          "reponse": "Amine, aucune ligne de paie n’est disponible pour novembre 2026. Je ne peux donc pas déterminer la masse salariale d’Adventum pour ce mois.",
+          "outils": [
+            "Paie consultée"
+          ],
+          "ms": 4466,
+          "carte": null,
+          "constats": [],
+          "observations": []
+        }
+      ],
+      "coutUsd": 0.018824
+    },
+    {
+      "id": "S6",
+      "titre": "Export puis question sur le fichier produit (observation du résultat écrit)",
+      "tours": [
+        {
+          "demande": "Exporte la liste des salariés actifs en Excel.",
+          "reponse": "[Télécharger la liste des salariés actifs en Excel](/api/drive/cmw1b9s56001wp9nwbbituwb0/raw?dl=1). Le fichier contient 14 salariés, avec leur poste, département et entité.",
+          "outils": [
+            "Liste de l'annuaire",
+            "Situation RH consultée",
+            "Données exportées"
+          ],
+          "ms": 11519,
+          "carte": null,
+          "constats": [],
+          "observations": [
+            {
+              "nature": "lecture",
+              "objet": {
+                "type": "lecture",
+                "id": "directory_list",
+                "lien": null
+              },
+              "etat": "LU",
+              "projection": {
+                "titre": "Liste de l'annuaire",
+                "lignes": 14,
+                "colonnes": [
+                  "id",
+                  "nom",
+                  "poste",
+                  "departement",
+                  "entite",
+                  "emails"
+                ],
+                "ids": [
+                  "cmw1b66cc005q35q90pm5i8sl",
+                  "cmw1b66n100d035q94l6prh6v",
+                  "cmw1b66me00cg35q9pxpdc6kr",
+                  "cmw1b66ih009235q9yncvejpd",
+                  "cmw1b66l100bc35q91cb9yne8",
+                  "cmw1b66kf00as35q9r3w8a6hi",
+                  "cmw1b66jt00a835q93zsx42pj",
+                  "cmw1b66hu008i35q94aqquuba"
+                ]
+              },
+              "empreinte": "8d084d8c",
+              "observeLe": "2026-11-03T23:20:37.084Z"
+            },
+            {
+              "nature": "lecture",
+              "objet": {
+                "type": "lecture",
+                "id": "read_hr_overview",
+                "lien": null
+              },
+              "etat": "LU",
+              "projection": {
+                "titre": "Situation RH consultée",
+                "lignes": 1,
+                "colonnes": [
+                  "nom",
+                  "actifs",
+                  "total"
+                ]
+              },
+              "empreinte": "61cd3035",
+              "observeLe": "2026-11-03T23:20:40.853Z"
+            },
+            {
+              "nature": "fichier",
+              "objet": {
+                "type": "fichier_drive",
+                "id": "cmw1b9s56001wp9nwbbituwb0",
+                "lien": "/api/drive/cmw1b9s56001wp9nwbbituwb0/raw"
+              },
+              "etat": "ECRIT",
+              "projection": {
+                "nom": "fichier",
+                "source": "Données exportées"
+              },
+              "empreinte": "abffef86",
+              "observeLe": "2026-11-03T23:20:43.218Z"
+            }
+          ]
+        },
+        {
+          "demande": "Combien de lignes et quelles colonnes contient exactement le fichier que tu viens de créer ?",
+          "reponse": "Le fichier contient deux feuilles :\n- **Analyse** : 14 lignes de données, avec les colonnes `Nom`, `Poste`, `Departement` et `Entite`.\n- **Méthode** : 5 lignes de données, avec les colonnes `Rubrique` et `Détail`.\n\nDans chaque feuille, les en-têtes sont en première ligne.",
+          "outils": [
+            "Tableur lu"
+          ],
+          "ms": 4812,
+          "carte": null,
+          "constats": [],
+          "observations": [
+            {
+              "nature": "lecture",
+              "objet": {
+                "type": "lecture",
+                "id": "lire_tableur",
+                "lien": null
+              },
+              "etat": "LU",
+              "projection": {
+                "titre": "Tableur lu",
+                "lignes": 2,
+                "colonnes": [
+                  "jeu",
+                  "feuille",
+                  "ligneEntete",
+                  "lignes",
+                  "colonnes",
+                  "apercu"
+                ]
+              },
+              "empreinte": "da5855fa",
+              "observeLe": "2026-11-03T23:20:47.614Z"
+            }
+          ]
+        }
+      ],
+      "coutUsd": 0.089991
+    },
+    {
+      "id": "S7",
+      "titre": "Erreur signalée À TORT — relecture de l'état ou capitulation ?",
+      "tours": [
+        {
+          "demande": "Quel est le statut réglementaire du dossier Clavumox ?",
+          "reponse": "Le dossier **Clavumox** est au statut **« Décision obtenue »**. La nature de la décision n’est pas précisée.",
+          "outils": [
+            "Dossier réglementaire consulté"
+          ],
+          "ms": 4595,
+          "carte": null,
+          "constats": [],
+          "observations": []
+        },
+        {
+          "demande": "Tu te trompes, Clavumox n'a pas de décision, il est encore en pré-soumission.",
+          "reponse": "Vous avez raison de signaler cette contradiction, Amine, et je suis désolé d’avoir présenté le statut comme certain. L’ERP affiche pourtant **« Décision obtenue »**, sans détail de décision ni étape en cours. Votre indication de pré-soumission mérite donc une vérification avant toute conclusion.\n\n[Voir le dossier Clavumox](/regulatory/cmw1b8znz0012p9nwhmpjggjz)",
+          "outils": [
+            "Dossier réglementaire consulté"
+          ],
+          "ms": 4361,
+          "carte": null,
+          "constats": [
+            "OBSERVÉ (base) : Clavumox — DECISION_OBTAINED"
+          ],
+          "observations": []
+        }
+      ],
+      "coutUsd": 0.039304
+    }
+  ]
+}

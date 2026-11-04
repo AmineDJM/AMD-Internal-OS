@@ -23,6 +23,8 @@ import type { Module } from "@/lib/rbac";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+import type { MailVu } from "../observation/projecteurs";
+
 export interface CarteOperation {
   title: string;
   fields: { label: string; value: string }[];
@@ -32,8 +34,10 @@ export interface CarteOperation {
   confirmText?: string;
   /** Le libellé du bouton quand « Confirmer » ne dit pas le geste (« Créer la demande de validation »). */
   libelleBouton?: string;
-  /** P1 (décision 0047) : l'aperçu réel des mails préparés (rendu du gabarit côté serveur). */
+  /** P1 (décision 0047) : l'aperçu réel des mails préparés (le rendu unique, `rendreLeMail`). */
   apercus?: { titre: string; html: string }[];
+  /** I1 (décision 0063) : les mails tels qu'ils partiront — l'observation de la carte (`domaine/observation`). */
+  mails?: MailVu[];
 }
 
 export type PropositionOperation =
