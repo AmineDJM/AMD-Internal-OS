@@ -98,8 +98,36 @@ suite("P1 — l'assistant pilote vraiment ses missions et ses mails", () => {
     const classeur = r.missions.find((m: { titre: string }) => m.titre === "Classeur de suivi AMD");
     expect(classeur.etapes).toBe("0/4");
     expect(classeur.ou_elle_en_est).toContain("en attente du worker");
+    expect(classeur.ou_elle_en_est).not.toContain("moins d'une minute");
     expect(r.alerte).toContain("amd-worker");
+    // P1 ter — l'observation du moteur : la requête même du balayage la prendrait ; son étape suivante ; le dernier passage.
+    expect(classeur.pris_par_le_balayage).toBe("oui");
+    expect(classeur.etape_suivante).toBe("Étape 1");
+    expect(r.dernier_balayage).toMatch(/il y a \d+ min|aucun balayage/);
   });
+
+  it("P1 ter — la VÉRITÉ SUR L'EXÉCUTANT : balayage débrayé (TRAVAUX_SWEEP=off) → la vraie raison ; passage récent → « prête » ; la carte de fusion dit la même chose que mes_missions", async () => {
+    const avant = await prisma.tacheDeFond.findUnique({ where: { cle: "travaux.balayage" } });
+    try {
+      await prisma.tacheDeFond.update({ where: { cle: "travaux.balayage" }, data: { dernierDebutA: new Date(Date.now() - 30_000), dernierStatut: "IGNOREE", dernierMessage: "TRAVAUX_SWEEP=off" } });
+      const { missions, alerte } = await mesMissions(sa.id);
+      const classeur = missions.find((m) => m.titre === "Classeur de suivi AMD")!;
+      expect(classeur.diagnostic.phrase).toContain("TRAVAUX_SWEEP=off");
+      expect(classeur.diagnostic.phrase).not.toContain("aucun battement enregistré");
+      // La carte de fusion lit la même chose (deux tours, une vérité).
+      const props: PropositionPreparee[] = [];
+      await outilsV1(sa, props).find((o) => o.def.name === "fusionner_missions")!.run({ missions: [], garder: "Classeur de suivi AMD" }, sa);
+      expect(props[0]!.proposition.warnings).toContain(alerte);
+      await prisma.assistantActionIntent.deleteMany({ where: { id: props[0]!.intentId } });
+      // Un passage EFFECTIF il y a 30 s : « prête : part au prochain battement ».
+      await prisma.tacheDeFond.update({ where: { cle: "travaux.balayage" }, data: { dernierStatut: "OK", dernierMessage: null } });
+      const vivant = (await mesMissions(sa.id)).missions.find((m) => m.titre === "Classeur de suivi AMD")!;
+      expect(vivant.diagnostic.phrase).toMatch(/moins d'une minute|en cours/);
+    } finally {
+      if (avant) await prisma.tacheDeFond.update({ where: { cle: "travaux.balayage" }, data: { dernierDebutA: avant.dernierDebutA, dernierStatut: avant.dernierStatut, dernierMessage: avant.dernierMessage } });
+    }
+  });
+
 
   it("« fusionne-les » → une CARTE qui liste ce qui sera arrêté ; rien n'est fait avant la confirmation", async () => {
     const props: PropositionPreparee[] = [];

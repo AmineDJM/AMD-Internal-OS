@@ -518,6 +518,9 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/operations/envoi-gmail.ts → src/lib/google/gmail/envoi",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/plan",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/service",
+    // P1 ter (décision 0066) : « cette mission sera-t-elle prise ? » se lit par la requête MÊME du balayage
+    // (`travauxAFaireAvancer`), réexportée par la porte des travaux. Cible : la porte du moteur des travaux.
+    "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/balayage",
     // C1 (décision 0042) — LES CHANTIERS DE DÉVELOPPEMENT : le même moteur (`lib/missions/`), une SEULE porte
     // (`chantiers/outils`, les outils partagés avec Adam, qui réexporte réglages, état de MiMo et validation) ; outils de conversation, console et carte de
     // validation y passent tous. Cible : la porte du moteur des travaux, comme l'entrée ci-dessus.

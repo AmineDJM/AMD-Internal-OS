@@ -1,13 +1,14 @@
 import type { CurrentUser } from "@/lib/session";
 import type { PowerTool } from "@/platform/ia/outil";
-import { arreterTravail, pauserTravail, PERSONA_ASSISTANT_IA, renommerTravail, reprendreMonTravail, tableauDesTravaux, type MissionTableau } from "../travaux";
+import { arreterTravail, pauserTravail, PERSONA_ASSISTANT_IA, renommerTravail, reprendreMonTravail, tableauDesTravaux, travauxAFaireAvancer, type MissionTableau } from "../travaux";
 import {
-  designerMission, diagnostiquerMission, silenceDesExecutants, type Diagnostic, type EtatDesExecutants,
+  designerMission, diagnostiquerMission, phraseDernierBalayage, silenceDesExecutants, type Diagnostic, type EtatDesExecutants,
 } from "../../domaine/missions/pilotage";
 import { LIBELLE_MISSION } from "../../domaine/sous-missions";
 import { etatDesExecutants } from "./executants";
 import { lienDeMission, projeterMission } from "../../domaine/observation/projecteurs";
 import { dureeLisible, type Observation } from "../../domaine/observation/contrat";
+import { sansBloquer } from "@/lib/journal";
 
 export { etatDesExecutants };
 
@@ -36,24 +37,46 @@ export interface MissionLue {
 
 const VIVANTS = new Set(["A_APPROUVER", "EN_COURS", "EN_ATTENTE", "BUDGET_HOLD", "EN_PAUSE", "BLOQUE"]);
 
-export function lireMission(m: MissionTableau, ex: EtatDesExecutants, maintenant: number): MissionLue {
+/** Pourquoi le balayage ne prendra pas une mission vivante (quand la requête du moteur ne la rend pas). */
+export function raisonNonCandidate(m: Pick<MissionTableau, "etat" | "attente">): string {
+  if (m.etat === "A_APPROUVER") return "le plan attend ton approbation";
+  if (m.etat === "EN_ATTENTE") return m.attente ?? "elle attend un événement ou une réponse, aucune étape n'est prête";
+  if (m.etat === "EN_PAUSE" || m.etat === "ARRETE") return "elle est en pause";
+  return "aucune étape n'est prête à partir (dépendances non satisfaites)";
+}
+
+/** Les missions de la personne que le PROCHAIN passage du balayage prendrait — la requête même du moteur. */
+export async function candidatesAuBalayage(userId: string): Promise<Set<string> | undefined> {
+  const prises = await travauxAFaireAvancer(100, [userId]).catch(sansBloquer("missions.candidates", null));
+  return prises ? new Set(prises.map((p) => p.id)) : undefined;
+}
+
+/** Le diagnostic d'une mission du tableau, candidature comprise — la même phrase pour le chat, l'écran et la carte. */
+export function diagnosticDuTableau(m: MissionTableau, ex: EtatDesExecutants, maintenant: number, candidates?: ReadonlySet<string>): Diagnostic {
+  return diagnostiquerMission({
+    etat: m.etat, motifPause: m.motifPause, attente: m.attente, etapes: m.etapes, majLe: m.majLe,
+    ...(candidates ? { candidate: candidates.has(m.id), raisonNonCandidate: candidates.has(m.id) ? null : raisonNonCandidate(m) } : {}),
+  }, ex, maintenant);
+}
+
+export function lireMission(m: MissionTableau, ex: EtatDesExecutants, maintenant: number, candidates?: ReadonlySet<string>): MissionLue {
   return {
     id: m.id, titre: m.titre, objectif: m.objectif, etat: m.etat, libelle: LIBELLE_MISSION[m.etat] ?? m.etat,
     etapes: { faites: m.avancement.faites, total: m.avancement.total, enEchec: m.avancement.enEchec },
     coutUsd: m.coutUsd, plafondUsd: m.plafondUsd, parentId: m.parentId, majLe: m.majLe,
-    diagnostic: diagnostiquerMission({ etat: m.etat, motifPause: m.motifPause, attente: m.attente, etapes: m.etapes, majLe: m.majLe }, ex, maintenant),
+    diagnostic: diagnosticDuTableau(m, ex, maintenant, candidates),
   };
 }
 
 /** LES MISSIONS DE LA PERSONNE, lues — les vivantes d'abord ; `toutes` : avec les finies et arrêtées des 3 derniers jours. */
-export async function mesMissions(userId: string, opts: { toutes?: boolean; maintenant?: Date } = {}): Promise<{ missions: MissionLue[]; executants: EtatDesExecutants; alerte: string | null }> {
+export async function mesMissions(userId: string, opts: { toutes?: boolean; maintenant?: Date } = {}): Promise<{ missions: MissionLue[]; executants: EtatDesExecutants; alerte: string | null; tableau: MissionTableau[]; candidates?: Set<string> }> {
   const maintenant = opts.maintenant ?? new Date();
-  const [tableau, executants] = await Promise.all([tableauDesTravaux(userId, maintenant), etatDesExecutants()]);
-  const lues = tableau.map((m) => lireMission(m, executants, maintenant.getTime()));
+  const [tableau, executants, candidates] = await Promise.all([tableauDesTravaux(userId, maintenant), etatDesExecutants(), candidatesAuBalayage(userId)]);
+  const lues = tableau.map((m) => lireMission(m, executants, maintenant.getTime(), candidates));
   const missions = opts.toutes ? lues : lues.filter((m) => VIVANTS.has(m.etat));
   const enAttente = lues.some((m) => m.diagnostic.code === "ATTENTE_EXECUTANT");
   const silence = silenceDesExecutants(executants, maintenant.getTime());
-  return { missions, executants, alerte: enAttente && silence ? `Les missions n'avancent pas : ${silence}. Vérifier que le service worker tourne (Render › amd-worker, TACHES_DE_FOND=les-deux) ou que le web de l'ERP bat.` : null };
+  return { missions, executants, tableau, candidates, alerte: enAttente && silence ? `Les missions n'avancent pas : ${silence}. ${executants.raisonIgnore && !/worker/i.test(executants.raisonIgnore) ? "Rétablir le balayage des travaux (retirer TRAVAUX_SWEEP=off des variables du service)." : "Vérifier que le service worker tourne (Render › amd-worker, TACHES_DE_FOND=les-deux) ou que le web de l'ERP bat."}` : null };
 }
 
 /**
@@ -112,7 +135,7 @@ export function outilsMissions(user: CurrentUser): PowerTool[] {
     {
       def: {
         name: "mes_missions",
-        description: "LIS tes missions (tâches de fond) RÉELLES de la personne : titre, identifiant, état, étapes faites/total, coût, et ce qui la bloque (en attente du worker, approbation, plafond, étape en échec). À appeler AVANT de parler d'une mission, de dire qu'elle avance, de la fusionner ou de la piloter — jamais demander un titre à la personne.",
+        description: "LIS tes missions (tâches de fond) RÉELLES de la personne : titre, identifiant, état, étapes faites/total, coût, ce qui la bloque (en attente du worker, approbation, plafond, étape en échec), si le prochain balayage la prendra (et sinon pourquoi), son étape suivante, et le dernier balayage. À appeler AVANT de parler d'une mission, de dire qu'elle avance, de la fusionner ou de la piloter — jamais demander un titre à la personne.",
         input_schema: { type: "object", properties: { toutes: { type: "boolean", description: "Inclure les missions finies ou arrêtées des 3 derniers jours." } } },
       },
       allowed: ouvert,
@@ -120,13 +143,18 @@ export function outilsMissions(user: CurrentUser): PowerTool[] {
       run: async (e) => {
         const maintenant = new Date();
         const r = await mesMissions(user.id, { toutes: e.toutes === true, maintenant });
-        // I1 (étape 3) : des faits datés et un LIEN par mission — la réponse peut les rendre cliquables.
+        const parId = new Map(r.tableau.map((t) => [t.id, t]));
+        // I1 (étape 3) : des faits datés et un LIEN par mission ; P1 ter : ce que le balayage en fera.
         return json({
           missions: r.missions.map((m) => ({
             id: m.id, titre: m.titre, lien: lienDeMission(m.id), etat: m.libelle, etapes: `${m.etapes.faites}/${m.etapes.total}`, coutUsd: m.coutUsd,
             ou_elle_en_est: m.diagnostic.phrase, derniere_activite: `il y a ${dureeLisible(Math.max(0, maintenant.getTime() - Date.parse(m.majLe)))}`,
+            // P1 ter — L'OBSERVATION DU MOTEUR : le prochain balayage la prendra-t-il (sa requête même), et sinon pourquoi.
+            pris_par_le_balayage: !r.candidates ? "non vérifié" : r.candidates.has(m.id) ? "oui" : `non — ${m.diagnostic.phrase.replace(/^pas prise par le balayage des travaux : /, "")}`,
+            etape_suivante: parId.get(m.id)?.etapes.find((x) => x.etat !== "FAITE" && x.etat !== "ECARTEE")?.titre ?? "aucune (toutes faites)",
             ...(m.parentId ? { sous_mission_de: m.parentId } : {}),
           })),
+          dernier_balayage: phraseDernierBalayage(r.executants, Date.now()),
           total: r.missions.length,
           ...(r.alerte ? { alerte: r.alerte } : {}),
           _observations: r.missions.map((m) => observationDeMission(m, maintenant)),
