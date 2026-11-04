@@ -114,12 +114,6 @@ describe("I3 — l'observation : ce que la personne verra, décrit par le code",
   it("un remplacement se compte dans le texte réellement écrit", () => {
     expect(occurrences("Date : 14 octobre 2026 ; 14 octobre 2026", "14 octobre 2026")).toBe(2);
   });
-    const b = observationDe({ type: "fichier", id: "1", lien: null }, "ECRIT", { a: [1, 2], b: 1 });
-    const c = observationDe({ type: "fichier", id: "1", lien: null }, "ECRIT", { a: [1, 2], b: 2 });
-    expect(a.empreinte).toBe(b.empreinte);
-    expect(a.empreinte).not.toBe(c.empreinte);
-    expect(occurrences("Date : 14 octobre 2026 ; 14 octobre 2026", "14 octobre 2026")).toBe(2);
-  });
 });
 
 describe("I3 — le HTML libre, assaini (liste blanche) ; la charte par défaut, rien en « libre »", () => {
