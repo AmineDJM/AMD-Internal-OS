@@ -9,7 +9,7 @@ import {
   type MissionTableau, type PersonaTravaux,
 } from "./travaux";
 import { deposerSynthese } from "./fil/service";
-import { diagnostiquerMission, silenceDesExecutants, type Diagnostic, type EtatDesExecutants } from "../domaine/missions/pilotage";
+import { silenceDesExecutants, type Diagnostic, type EtatDesExecutants } from "../domaine/missions/pilotage";
 import { etatDesExecutants } from "./missions/executants";
 import { outilLancerUnTravail, type OuvertureTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
 import { ANGLES_MAX, ANGLES_MIN, lireDemandeRecherche, NOM_OUTIL_RECHERCHE, ORIGINE_RECHERCHE, planRecherche } from "../domaine/recherche-approfondie";
@@ -275,11 +275,10 @@ export async function tableauDesMissions(userId: string, maintenant = new Date()
   }) : [];
   const origine = new Map<string, MissionDuTableau["conversation"]>();
   for (const t of tours) for (const id of idsDe(t.travaux)) if (!origine.has(id)) origine.set(id, { id: t.filId, titre: t.fil.titre, tourId: t.id });
-  const ex = await etatDesExecutants();
-  const avec = missions.map((m) => ({
-    ...m, conversation: origine.get(m.id) ?? null,
-    diagnostic: diagnostiquerMission({ etat: m.etat, motifPause: m.motifPause, attente: m.attente, etapes: m.etapes, majLe: m.majLe }, ex, maintenant.getTime()),
-  }));
+  const { candidatesAuBalayage, diagnosticDuTableau } = await import("./missions/pilotage");
+  const [ex, candidates] = await Promise.all([etatDesExecutants(), candidatesAuBalayage(userId)]);
+  // P1 ter : la MÊME phrase que le chat (`mes_missions`) — candidature au balayage comprise.
+  const avec = missions.map((m) => ({ ...m, conversation: origine.get(m.id) ?? null, diagnostic: diagnosticDuTableau(m, ex, maintenant.getTime(), candidates) }));
   const silence = silenceDesExecutants(ex, maintenant.getTime());
   const bloquees = avec.filter((m) => m.diagnostic.code === "ATTENTE_EXECUTANT").length;
   return {

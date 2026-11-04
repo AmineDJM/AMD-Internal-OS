@@ -41,7 +41,7 @@ import { balayerSurveillances } from "@/platform/in-process/missions/watch";
 import { vieillirMemoire } from "@/platform/in-process/missions/memory";
 import { relancerEngagements } from "@/platform/in-process/missions/commitments";
 import { assurerProduitsDesDossiersAuDemarrage } from "@/lib/products/canonique";
-import { executerPassage, ignoree, type BilanPassage, type ContexteExecution, type TachePlanifiee } from "@/lib/taches-de-fond/executer";
+import { bilan, executerPassage, ignoree, type BilanPassage, type ContexteExecution, type TachePlanifiee } from "@/lib/taches-de-fond/executer";
 import { identiteDuProcessus } from "@/lib/taches-de-fond/bail";
 import { battementWebArme, executeurAutorise, executeurDuProcessus, lireModeTachesDeFond } from "@/lib/taches-de-fond/mode";
 import { traiterFileEnrichissement } from "@/lib/taches-de-fond/enrichissement";
@@ -195,7 +195,7 @@ export async function runScheduledJobs(): Promise<void> {
 
 /** Un passage complet de la table — le point d'entrée commun au web et au worker. */
 /**
- * P1 ter (décision 0063) — L'ABSTENTION DU WEB, AVANT LE BAIL : en `les-deux`, le web laisse la tâche au worker dès que
+ * P1 ter (décision 0066) — L'ABSTENTION DU WEB, AVANT LE BAIL : en `les-deux`, le web laisse la tâche au worker dès que
  * celui-ci bat (`webDoitSAbstenir`), sans prendre le bail ni marquer de départ.
  */
 function abstentionDuWeb(raison: string): (ctx: ContexteExecution) => Promise<string | null> {
@@ -428,7 +428,7 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // à l'Assistant IA (plan approuvé une fois), sous ses droits relus à chaque étape, plafonds de dépense compris.
   // Pendant la bascule (`TACHES_DE_FOND=les-deux`), le web s'ABSTIENT dès que le worker bat : un travail long ne
   // tourne jamais dans le processus qui sert les pages quand le worker est là. Débrayage : TRAVAUX_SWEEP=off.
-  // P1 ter (décision 0063) : le web s'abstient AVANT de prendre le bail — sinon son abstention, marquée comme un départ,
+  // P1 ter (décision 0066) : le web s'abstient AVANT de prendre le bail — sinon son abstention, marquée comme un départ,
   // ouvre l'intervalle minimal et le worker ne trouve jamais la tâche libre (production, 03/11 : missions à 0 %).
   { cle: "travaux.balayage", bailMs: 180_000, sAbstenir: abstentionDuWeb("le worker conduit les travaux (TACHES_DE_FOND=les-deux)"), executer: async () => {
     if (process.env.TRAVAUX_SWEEP === "off") return ignoree("TRAVAUX_SWEEP=off");
@@ -436,6 +436,8 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     const { PERSONA_ASSISTANT_IA } = await import("@/modules/assistant-ia/api");
     const r = await balayerTravaux({ personas: { ASSISTANT_IA: PERSONA_ASSISTANT_IA }, mode: lireModeTachesDeFond(), executeur: executeurDuProcessus() });
     if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
+    // P1 ter : le bilan du passage, lu par le diagnostic des missions (« examinés 3, conduits 3 »).
+    return bilan(`examinés ${r.examines}, conduits ${r.conduits.length}${r.conduits.some((c) => c.echouees) ? `, étapes en échec ${r.conduits.reduce((n, c) => n + c.echouees, 0)}` : ""}`);
   } },
 
   // LES CHANTIERS DE DÉVELOPPEMENT (C1, décision 0042) — le même moteur conduit Claude Code, GitHub et Render pour le
