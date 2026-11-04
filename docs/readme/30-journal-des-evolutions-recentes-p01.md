@@ -157,6 +157,14 @@ Administration › Accès, masquage Réglages) — aucun second système, aucune
   (`ouvreLesRecettes`). Bloqué : ni menu, ni page, ni geste, ni recette servie à l'assistant (`AUCUNE`, aucun usage compté).
 - Banc : `src/modules/recettes/acces.test.ts` (console réelle : bloquer, rétablir, ouvrir en lecture seule).
 
+### MESSAGERIE E-MAIL MICROSOFT 365 : OUVERTE À TOUTE L'ENTREPRISE D'UN RÉGLAGE (2026-11-04)
+
+`MICROSOFT_MAIL_PILOT=*` fait entrer dans `/messagerie` chaque compte qui a une adresse (`OUVERT_A_TOUS`,
+`lib/mail/access.ts`) — un choix écrit : la liste vide reste fermée (Super Admin seul), le drapeau `MICROSOFT_MAIL` et
+la configuration Entra restent requis, et la connexion ne s'ouvre qu'aux comptes du locataire de la société. Décision de la
+Direction : l'e-mail de chacun se lit et s'envoie DANS la plateforme ; le blocage d'Outlook, d'Outlook sur le web, des
+applications mobiles et d'IMAP/POP se règle côté Microsoft 365 (Exchange), pas dans le code.
+
 ### DEMANDER UN PAIEMENT : LA PIÈCE SE CHOISIT DANS LEGAL OU SE DÉPOSE, ET LE FORMULAIRE SE REMPLIT (2026-11-04)
 
 Décidé par la Direction le 04/11 (« toute demande repose sur un document »). Formulaire « Demander un paiement »
