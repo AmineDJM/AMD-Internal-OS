@@ -190,6 +190,10 @@ async function retirerCeQuIlsOntDepose(ids: string[]): Promise<void> {
   await prisma.feedbackAttachment.deleteMany({ where: { uploadedById: { in: ids } } });
   await prisma.feedback.deleteMany({ where: { userId: { in: ids } } });
   await prisma.recruitmentInfoRequest.deleteMany({ where: { askedById: { in: ids } } });
+  // 04/11 : la pièce déposée sur une demande de paiement s'inscrit au registre Legal au nom du déposant. Le compte retiré,
+  // le document restait (`createdById` passe à null) — mesuré : ~200 « Facture — piece-0 — SARL Atlas » sans montant en
+  // une soirée, qui poussaient la facture plantée du banc de qualité au-delà de sa limite de lecture (200).
+  await prisma.legalDocument.deleteMany({ where: { createdById: { in: ids } } });
 }
 
 const estCleEtrangere = (e: unknown) => (e as { code?: string } | null)?.code === "P2003";
