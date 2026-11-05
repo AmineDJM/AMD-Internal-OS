@@ -117,7 +117,9 @@ suite("sémantique Drive — le sens retrouve ce que le lexical rate (embedder d
     let hybridHits = 0;
     for (const b of bench) {
       const out = JSON.parse(await tool.run({ query: b.query, max_reads: 0 }, exec));
-      const top5 = (out.resultats as { nom: string; confiance: string }[]).slice(0, 5);
+      // La base est PARTAGÉE avec les bancs voisins (leurs « BC imprimerie Atlas », « Facture CHU »… sont visibles d'un compte
+      // DIRECTION) : le rang se mesure parmi les fixtures DE CE BANC, sinon le rappel dépend de l'ordre de la suite (05/11).
+      const top5 = (out.resultats as { nom: string; confiance: string }[]).filter((r) => r.nom.startsWith(TAG)).slice(0, 5);
       if (top5.some((r) => r.nom === b.expected)) hybridHits += 1;
       if (top5.some((r) => r.nom === b.expected && !r.confiance.startsWith("SENS"))) lexicalHits += 1;
     }
