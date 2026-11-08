@@ -5,6 +5,8 @@
  * navigateur que ces formes et ce titre. Le chargeur (`etape-ad-pro.ts`, serveur) les réexporte.
  */
 
+import type { DeclareInput } from "./declare-decision";
+
 export const TITRE_ETAPE_DECLARATION = "Déclaration (information scientifique)";
 
 export interface PieceDeDeclaration { id: string; nom: string; le: string; par: string | null }
@@ -28,4 +30,11 @@ export interface EtapeDeclaration {
   /** La référence du ministère ne s'enregistre qu'une fois la lecture « à déclarer » accordée. */
   depot: { ouvert: boolean; motif: string | null };
   pieces: PieceDeDeclaration[];
+  /**
+   * LA LECTURE « à déclarer / sans déclaration » (08/11/2026) — tant qu'elle n'est pas accordée, le pharmacien la
+   * soumet d'ici (`peutDemander`) ; `null` une fois accordée, ou pour qui n'agit pas.
+   */
+  decision: { etat: DeclareInput; peutDemander: boolean; validationHref: string | null } | null;
+  /** « Valider et transmettre au Directeur des Opérations » : la même règle que le dossier (`pharmacienPeutValider`). */
+  validation: { peut: boolean; piecesAttendues: boolean };
 }

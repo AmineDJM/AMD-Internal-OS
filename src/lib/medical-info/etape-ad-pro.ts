@@ -4,9 +4,9 @@ import type { SessionUser } from "@/lib/rbac";
 import { decideursInfoMedActifs } from "@/lib/medical-info";
 import { EVENT_SOURCES } from "@/lib/medical-info/circuits";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
-import { declareStage } from "@/lib/medical-info/declare-decision";
+import { canRequestDecision, declareStage } from "@/lib/medical-info/declare-decision";
 import { chezDecideur } from "@/lib/medical-info/decideur";
-import { libellePastille, parcoursOf } from "@/lib/medical-info/parcours";
+import { libellePastille, parcoursOf, pharmacienPeutValider } from "@/lib/medical-info/parcours";
 import { canViewDeclaration } from "@/lib/queries/medical-info";
 import { refusDepotAutorites } from "@/lib/actions/internes/medical-info/dossier";
 import { tientLaDeclarationAdPro } from "@/lib/actions/internes/medical-info/ouverture-ad-pro";
@@ -55,7 +55,10 @@ export async function etapeDeclaration(
     },
   });
 
-  const base = { titre: TITRE_ETAPE_DECLARATION, depot: { ouvert: false, motif: null }, pieces: [] as PieceDeDeclaration[] };
+  const base = {
+    titre: TITRE_ETAPE_DECLARATION, depot: { ouvert: false, motif: null }, pieces: [] as PieceDeDeclaration[],
+    decision: null, validation: { peut: false, piecesAttendues: false },
+  };
   if (!decl) {
     return {
       ...base,
@@ -82,13 +85,15 @@ export async function etapeDeclaration(
     phrase = sansDeclaration ? `Validée — sans déclaration${motifSans}` : `Validée — déclarée au ministère${ref ? ` (réf. ${ref})` : ""}`;
     detail = sansDeclaration ? "sans déclaration" : ref ? `réf. ${ref}` : "validée";
     ton = "succes";
-  } else if (sansDeclaration) {
-    phrase = `Sans déclaration${motifSans} — validation finale à venir`;
-    detail = "sans déclaration";
-    ton = "info";
-  } else if (ref) {
-    phrase = `Déclarée au ministère (réf. ${ref}) — validation à venir`;
-    detail = `réf. ${ref}`;
+  } else if (sansDeclaration || ref) {
+    // LA SUITE, NOMMÉE : la validation du PHARMACIEN d'abord, puis la validation finale du Directeur des Opérations.
+    // « Validation finale à venir » sur un dossier que le pharmacien n'avait pas encore validé faisait attendre le
+    // Directeur, qui n'avait encore rien reçu (vu le 08/11/2026 sur SPO-2026-001).
+    const suite = decl.status === "AWAITING_DIRECTION"
+      ? "validation finale chez le Directeur des Opérations"
+      : `à valider par ${decl.pharmacist?.name ?? "le pharmacien"}`;
+    phrase = sansDeclaration ? `Sans déclaration${motifSans} — ${suite}` : `Déclarée au ministère (réf. ${ref}) — ${suite}`;
+    detail = sansDeclaration ? "sans déclaration" : `réf. ${ref}`;
     ton = "info";
   } else {
     const decideurs = await decideursInfoMedActifs(decl.pharmacistValidatedById ?? decl.pharmacistId);
@@ -118,15 +123,40 @@ export async function etapeDeclaration(
       })).map((d) => ({ id: d.id, nom: d.name, le: d.createdAt.toISOString(), par: d.uploadedBy?.name ?? null }))
     : [];
   const depotOuvert = authoritiesOpen(etat);
+  const agit = tient && !valide;
+  // LES GESTES DU PHARMACIEN, ICI COMME DANS LE DOSSIER (08/11/2026) : la lecture tant qu'elle n'est pas accordée, puis
+  // la validation qui transmet au Directeur des Opérations — les mêmes règles, les mêmes actions serveur.
+  const lectureAccordee = declareStage(etat.declare) === "ACCORDEE";
+  const decision = agit && etat.circuit === "EVENT" && !lectureAccordee
+    ? {
+        etat: etat.declare,
+        peutDemander: canRequestDecision(etat.declare),
+        validationHref: decl.declareValidationId ? `/validations/${decl.declareValidationId}` : null,
+      }
+    : null;
+  const validation = {
+    peut: agit && decl.status !== "AWAITING_DIRECTION"
+      && pharmacienPeutValider({ ...etat, authorityRef: decl.authorityRef, declarationKind: decl.declarationKind }),
+    piecesAttendues: decl.requests.some((r) => r.status === "PENDING"),
+  };
   return {
     ...base,
     etat: valide ? "done" : "current",
     detail, phrase, ton,
     declaration: { id: decl.id, reference: decl.reference, authorityRef: decl.authorityRef, authorityNotes: decl.authorityNotes },
     lienDossier: voitLeDossier ? `/information-medicale/${decl.id}` : null,
-    peutAgir: tient && !valide,
+    peutAgir: agit,
+    decision,
+    validation,
     peutOuvrir: false,
-    depot: { ouvert: depotOuvert, motif: depotOuvert ? null : refusDepotAutorites(etat) },
+    // « Sans déclaration » accordée : il n'y a rien à déposer au ministère. Le motif générique disait « la décision de
+    // déclarer n'est pas encore accordée : décision accordée » — une phrase qui se contredit.
+    depot: {
+      ouvert: depotOuvert,
+      motif: depotOuvert ? null : sansDeclaration
+        ? "Sans déclaration : rien n'est déposé au ministère, il n'y a donc pas de référence à enregistrer."
+        : refusDepotAutorites(etat),
+    },
     pieces,
   };
 }

@@ -11,7 +11,7 @@ import { useAction } from "@/components/shared/use-action";
 import { cn, formatDate } from "@/lib/utils";
 import { ouvrirDeclarationDepuisAdPro } from "@/lib/actions/medical-info-actions";
 import type { EtapeDeclaration } from "@/lib/medical-info/etape-ad-pro-partage";
-import { AuthorityForm } from "./[id]/panels";
+import { AuthorityForm, DeclareDecisionCard, ValidateButton } from "./[id]/panels";
 
 const TON: Record<EtapeDeclaration["ton"], string> = {
   succes: "border-success/40 bg-success/10 text-success",
@@ -76,6 +76,28 @@ export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* LES GESTES DU PHARMACIEN, ICI COMME DANS LE DOSSIER (08/11/2026) : sa lecture « à déclarer / sans déclaration »
+          tant qu'elle n'est pas accordée, puis sa validation, qui transmet au Directeur des Opérations. */}
+      {etape.peutAgir && d && (etape.decision || etape.validation.peut) && (
+        <div className="space-y-3 border-t border-border pt-3">
+          {etape.decision && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">À déclarer au ministère, ou non ?</p>
+              <DeclareDecisionCard
+                id={d.id} state={etape.decision.etat} authorityRef={d.authorityRef}
+                canRequest={etape.decision.peutDemander} validationHref={etape.decision.validationHref}
+              />
+            </div>
+          )}
+          {etape.validation.peut && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Votre validation</p>
+              <ValidateButton id={d.id} hasPending={etape.validation.piecesAttendues} />
+            </div>
+          )}
         </div>
       )}
 
