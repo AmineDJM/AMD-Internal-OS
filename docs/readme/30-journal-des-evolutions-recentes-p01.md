@@ -1,5 +1,15 @@
 ## 🧾 Journal des évolutions récentes
 
+### DEMANDER UN PAIEMENT : LE BÉNÉFICIAIRE SE CHERCHE DANS L'ANNUAIRE (2026-11-08)
+
+« Bénéficiaire » (Validations → Paiements → « Demander un paiement ») propose, dès deux lettres, les contacts de
+l'annuaire que la personne voit (`/api/annuaire/parties`, même cloisonnement par société), les plus proches d'abord
+(`partiesProches`, `lib/contacts/parties.ts`). Choisir un contact écrit son nom exact et reprend sa personne, son
+téléphone et son e-mail dans « Contact chez le bénéficiaire » (« Repris de la fiche … — vérifiez »). Le texte libre reste
+permis (un salarié, un médecin). Un nom LU sur une pièce se rapproche de l'annuaire sans rien choisir seul : « Reprendre
+sa fiche », « C'est … », ou « L'ajouter » (la fenêtre de l'annuaire, `CreerContact` exportée de `party-picker.tsx`).
+Écran : `validations/paiements/beneficiaire-annuaire.tsx`. Rien ne change côté serveur.
+
 ### MOYENS GÉNÉRAUX : LA FACTURE D'UNE DÉPENSE NE RÉPOND PLUS « ACCÈS REFUSÉ » (2026-11-08)
 
 La pièce d'une dépense se range sous `DEPARTMENT_EXPENSE`, dont le module de repli est **Budgets** : la détentrice de la

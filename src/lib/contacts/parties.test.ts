@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  partiesText, resolveParties, matchesParty, withParty, partyLabel, type PartyOption,
+  partiesText, resolveParties, matchesParty, withParty, partyLabel, partiesProches, partieDuNom, type PartyOption,
 } from "./parties";
 
 const p = (id: string, over: Partial<PartyOption> = {}): PartyOption => ({
@@ -66,5 +66,31 @@ describe("la cardinalité — un expéditeur, mais plusieurs parties à un contr
   it("rechoisir la même partie ne la double jamais", () => {
     expect(withParty(["imp"], "imp", "many")).toEqual(["imp"]);
     expect(withParty(["imp"], "imp", 1)).toEqual(["imp"]);
+  });
+});
+
+describe("le bénéficiaire d'une demande de paiement, cherché dans l'annuaire (08/11/2026)", () => {
+  const ATLAS: PartyOption[] = [
+    p("idc", { name: "Imprimerie du Centre (Atlas)" }),
+    p("agv", { name: "Agence Atlas Voyages" }),
+    p("atl", { name: "Atlas" }),
+    p("ats", { name: "Atlas Services" }),
+    p("oran", { name: "Transit Ouest", city: "Atlas-Oran" }),
+  ];
+
+  it("le plus proche d'abord : le nom exact, le nom qui commence par la saisie, un mot du nom, puis le reste", () => {
+    expect(partiesProches(ATLAS, "atlas").map((x) => x.id)).toEqual(["atl", "ats", "agv", "idc", "oran"]);
+  });
+
+  it("accents et casse ignorés ; moins de deux lettres ne proposent rien ; la liste est bornée", () => {
+    expect(partiesProches(ANNUAIRE, "EVAS").map((x) => x.id)).toEqual(["voy"]);
+    expect(partiesProches(ANNUAIRE, "i")).toEqual([]);
+    expect(partiesProches(ATLAS, "atlas", 2)).toHaveLength(2);
+  });
+
+  it("un nom lu sur une pièce se reconnaît seulement s'il désigne UN contact", () => {
+    expect(partieDuNom(ANNUAIRE, "  imprimerie DU centre ")?.id).toBe("imp");
+    expect(partieDuNom(ANNUAIRE, "Imprimerie")).toBeNull();
+    expect(partieDuNom([...ATLAS, p("bis", { name: "ATLAS" })], "Atlas")).toBeNull();
   });
 });

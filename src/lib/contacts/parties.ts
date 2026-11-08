@@ -89,3 +89,37 @@ export function withParty(ids: readonly string[], id: string, arity: PartyArity)
   if (ids.includes(id)) return [...ids];
   return arity === 1 ? [id] : [...ids, id];
 }
+
+/**
+ * LE BÉNÉFICIAIRE D'UNE DEMANDE DE PAIEMENT SE CHERCHE DANS L'ANNUAIRE (Direction, 08/11/2026).
+ *
+ * Les contacts qui répondent à ce qu'on tape, LES PLUS PROCHES D'ABORD : le nom exact, puis le nom qui commence par la
+ * saisie, puis un mot du nom qui commence par elle, puis tout ce que `matchesParty` retient (métier, ville, personne,
+ * téléphone). Sans ce classement, « Atlas » rangeait « Agence Atlas Voyages » après « Imprimerie du Centre (Atlas) »,
+ * dans l'ordre alphabétique de l'annuaire. Moins de deux lettres ne proposent rien : la liste entière n'aide personne.
+ */
+export function partiesProches(options: readonly PartyOption[], saisie: string, max = 8): PartyOption[] {
+  const q = plier(saisie.trim());
+  if (q.length < 2) return [];
+  const rang = (p: PartyOption): number => {
+    const nom = plier(p.name);
+    if (nom === q) return 0;
+    if (nom.startsWith(q)) return 1;
+    if (nom.split(/[^a-z0-9]+/).some((mot) => mot.startsWith(q))) return 2;
+    return nom.includes(q) ? 3 : 4;
+  };
+  return options
+    .filter((p) => matchesParty(p, saisie))
+    .map((p) => ({ p, r: rang(p) }))
+    .sort((a, b) => a.r - b.r || a.p.name.localeCompare(b.p.name, "fr"))
+    .slice(0, max)
+    .map((x) => x.p);
+}
+
+/** Le contact de l'annuaire qui porte EXACTEMENT ce nom (casse et accents ignorés) — pour reconnaître un nom lu sur une pièce. */
+export function partieDuNom(options: readonly PartyOption[], nom: string): PartyOption | null {
+  const q = plier(nom.trim());
+  if (!q) return null;
+  const memes = options.filter((p) => plier(p.name) === q);
+  return memes.length === 1 ? memes[0] : null;
+}

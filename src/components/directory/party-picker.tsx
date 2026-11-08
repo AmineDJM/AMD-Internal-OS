@@ -266,7 +266,7 @@ function FicheContact({ p }: { p: PartyOption }) {
  * Exiger le RC et le NIF au moment où l'on saisit un contrat ferait renoncer — et l'on
  * réécrirait le nom à la main.
  */
-function CreerContact({
+export function CreerContact({
   onClose, onCreated, nomPropose, lu,
 }: {
   onClose: () => void; onCreated: (p: PartyOption) => void; nomPropose: string;

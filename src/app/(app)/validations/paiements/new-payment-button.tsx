@@ -13,6 +13,8 @@ import {
 import { createPaymentRequest } from "@/modules/finances/actions-demandes";
 import { lirePieceDePaiement } from "@/modules/finances/actions-pieces-paiement";
 import { ChoisirDansLegal } from "./choisir-dans-legal";
+import { BeneficiaireAnnuaire } from "./beneficiaire-annuaire";
+import type { PartyOption } from "@/lib/contacts/parties";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { FactureDejaConnueCarte } from "@/components/factures/facture-deja-connue";
 import { EcartMontantCarte } from "@/components/finance/ecart-montant";
@@ -76,6 +78,9 @@ export function NewPaymentButton() {
   const [lectures, setLectures] = React.useState<Record<string, EtatLecture>>({});
   const [remplis, setRemplis] = React.useState<Partial<Record<ChampRempli, string>>>({});
   const [ribNote, setRibNote] = React.useState<string | null>(null);
+  // Le nom qu'une pièce lue a écrit dans « Bénéficiaire » — le champ le rapproche de l'annuaire.
+  const [payeeLu, setPayeeLu] = React.useState<string | null>(null);
+  const [depuisAnnuaire, setDepuisAnnuaire] = React.useState<string | null>(null);
   const touches = React.useRef<Set<string>>(new Set());
   const methodTouche = React.useRef(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -83,7 +88,7 @@ export function NewPaymentButton() {
 
   const reset = () => {
     setPieces([]); setMethodStated(false); setErr(null); setConnue(null); setEcart(null); setJustification(""); setConfirme(false);
-    setLegaux([]); setChoisir(false); setLectures({}); setRemplis({}); setRibNote(null);
+    setLegaux([]); setChoisir(false); setLectures({}); setRemplis({}); setRibNote(null); setPayeeLu(null); setDepuisAnnuaire(null);
     touches.current = new Set(); methodTouche.current = false;
   };
 
@@ -117,6 +122,7 @@ export function NewPaymentButton() {
       const el = form.elements.namedItem(champ);
       if (el instanceof HTMLInputElement) el.value = valeur;
     }
+    if (poser.payee) setPayeeLu(poser.payee);
     setRemplis((prev) => {
       const n = { ...prev };
       for (const c of Object.keys(poser) as ChampRempli[]) n[c] = meilleure.lu.libelle;
@@ -134,6 +140,33 @@ export function NewPaymentButton() {
     const fd = new FormData();
     fd.set("legalDocumentId", doc.id);
     void lire(cleLegale(doc.id), doc.titre, fd);
+  };
+
+  /**
+   * UN CONTACT DE L'ANNUAIRE EST RETENU COMME BÉNÉFICIAIRE (08/11/2026) : son nom exact, et ses coordonnées dans les
+   * champs du contact que la personne n'a pas remplis. Le choix est à la personne : ces champs deviennent « touchés »,
+   * aucune pièce lue ensuite ne les réécrit.
+   */
+  const prendreContact = (p: PartyOption) => {
+    const form = formRef.current;
+    if (!form) return;
+    const poser = (champ: string, valeur: string | null, toujours = false) => {
+      const el = form.elements.namedItem(champ);
+      if (!(el instanceof HTMLInputElement) || !valeur) return;
+      if (!toujours && (touches.current.has(champ) && el.value.trim())) return;
+      el.value = valeur;
+      touches.current.add(champ);
+    };
+    poser("payee", p.name, true);
+    poser("contactName", p.contactName);
+    poser("contactPhone", p.phone ?? p.phoneAlt);
+    poser("contactEmail", p.email);
+    setRemplis((r) => {
+      const n = { ...r };
+      for (const c of ["payee", "contactName", "contactPhone", "contactEmail"]) delete n[c as ChampRempli];
+      return n;
+    });
+    setDepuisAnnuaire(p.contactName || p.phone || p.phoneAlt || p.email ? p.name : null);
   };
 
   const prendreMontantFacture = () => {
@@ -241,7 +274,7 @@ export function NewPaymentButton() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pay-payee">Bénéficiaire <span className="text-destructive">*</span></Label>
-              <Input id="pay-payee" name="payee" required placeholder="À qui l'argent doit aller" />
+              <BeneficiaireAnnuaire lu={payeeLu} onChoisir={prendreContact} />
               <LuSur source={remplis.payee} />
             </div>
             <div className="space-y-1.5">
@@ -300,6 +333,7 @@ export function NewPaymentButton() {
               <Input name="contactEmail" type="email" inputMode="email" placeholder="E-mail" autoComplete="off" />
             </div>
             <LuSur source={remplis.contactPhone ?? remplis.contactEmail} />
+            {depuisAnnuaire && <p className="text-xs text-muted-foreground">Repris de la fiche « {depuisAnnuaire} » de l&apos;annuaire — vérifiez.</p>}
             <p className="text-xs text-muted-foreground">Celui qu&apos;on appelle si une pièce manque ou si le virement n&apos;arrive pas.</p>
           </div>
 
