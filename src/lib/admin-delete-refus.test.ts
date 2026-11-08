@@ -40,7 +40,9 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // compris ; il part désormais en lot (versions, partages, commentaires) dans la corbeille du Super Admin.
     // 37 → 38 : le bon de commande de marché PCH (audit 27/10, DONNEES-15) — un seul `delete`, sans corbeille ni journal ;
     // il part en lot avec ses lignes et ses livraisons attendues, et REFUSE quand il a été livré.
-    expect(DELETABLE_KINDS).toHaveLength(38);
+    // 38 → 39 : le cas de pharmacovigilance (Direction, 08/11) — le KAM qui l'a signalé le supprime, à tout statut ;
+    // il part en lot avec ses participants, ses pièces et son fil.
+    expect(DELETABLE_KINDS).toHaveLength(39);
   });
 
   it("le poste Ad & Pro part EN LOT et ne refuse rien lui-même — c'est le lot qui refuse ce qui a quitté l'ERP", () => {
@@ -89,7 +91,8 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // 29 → 30 : le poste d'une demande Ad & Pro (§118.187), pour la même raison.
     // 28 → 29 (10/2026) : l'élément du Drive, qui ne refuse ni ne réserve rien — tout ce qui part revient.
     // 29 → 28 (audit 27/10, DONNEES-07) : le praticien passe chez ceux qui refusent (`AVEC_REFUS`).
-    expect(anciens).toHaveLength(28);
+    // 28 → 29 (08/11) : le cas de pharmacovigilance, qui ne refuse ni ne réserve rien — tout ce qui part revient.
+    expect(anciens).toHaveLength(29);
     for (const k of anciens) {
       expect(DELETE_REGISTRY[k].refuse, `${k} ne refusait rien avant ce lot`).toBeUndefined();
       expect(DELETE_REGISTRY[k].reserve, `${k} n'annonçait aucune réserve avant ce lot`).toBeUndefined();

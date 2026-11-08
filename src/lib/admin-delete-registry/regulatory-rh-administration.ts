@@ -1,6 +1,6 @@
 /**
  * Registre des suppressions — les entrées : le dossier réglementaire, le sponsoring, l'événement, les RH (employé, congé, demande RH),
- * le dossier de suivi, la demande administrative, la réunion.
+ * le dossier de suivi, la demande administrative, la réunion, le cas de pharmacovigilance.
  * Un morceau CONTIGU de `DELETE_REGISTRY`, dans l'ordre du registre (`registre.ts` les recompose
  * dans cet ordre : `DELETABLE_KINDS` en dépend).
  */
@@ -211,6 +211,29 @@ export const REGISTRE_REGULATORY_RH_ADMINISTRATION = {
     },
     async remove(id) {
       await prisma.meeting.delete({ where: { id } });
+    },
+  },
+  // UN CAS DE PHARMACOVIGILANCE (Direction, 08/11) : le KAM qui l'a signalé le supprime, à TOUT statut, et le Super
+  // Admin (`deleteOwnRecord`, règle d'écran `peutSupprimerLeCasPv`). UN LOT : ses participants à l'échange (cascade),
+  // ses pièces et son fil partent dans la même entrée de corbeille et reviennent avec lui ; l'audit reste.
+  PHARMACOVIGILANCE_CASE: {
+    label: "cas de pharmacovigilance",
+    module: "Pharmacovigilance",
+    redirect: "/regulatory/pharmacovigilance",
+    model: "pharmacovigilanceCase",
+    entityType: "PHARMACOVIGILANCE_CASE",
+    searchFields: ["reference", "productLabel"],
+    lot: true,
+    async describe(id) {
+      const r = await prisma.pharmacovigilanceCase.findUnique({ where: { id }, select: { reference: true, productLabel: true, institutionName: true } });
+      return r ? `${r.reference} — ${r.productLabel} · ${r.institutionName}` : null;
+    },
+    async creatorOf(id) {
+      const r = await prisma.pharmacovigilanceCase.findUnique({ where: { id }, select: { reporterId: true } });
+      return r?.reporterId ?? null;
+    },
+    async remove(id) {
+      await prisma.pharmacovigilanceCase.delete({ where: { id } });
     },
   },
 } satisfies Partial<Record<DeletableKind, KindSpec>>;

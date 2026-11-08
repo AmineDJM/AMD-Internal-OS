@@ -17,6 +17,7 @@ export type DeletableKind =
   | "DOSSIER"
   | "ADMIN_REQUEST"
   | "MEETING"
+  | "PHARMACOVIGILANCE_CASE"
   | "FIELD_REPORT"
   | "SALE"
   | "DOCTOR"

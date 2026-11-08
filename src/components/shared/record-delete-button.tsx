@@ -26,6 +26,7 @@ export function RecordDeleteButton({
   enabled,
   label = "Supprimer",
   typeLabel = "élément",
+  resterSurLaPage = false,
 }: {
   kind: string;
   id: string;
@@ -34,6 +35,8 @@ export function RecordDeleteButton({
   label?: string;
   /** « ce courrier », « ce document » — pour une phrase juste. */
   typeLabel?: string;
+  /** Posé sur une LIGNE de liste (pas sur la fiche) : après suppression, la liste se rafraîchit au lieu de naviguer. */
+  resterSurLaPage?: boolean;
 }) {
   const router = useRouter();
   const { rafraichir } = useRafraichir();
@@ -53,7 +56,8 @@ export function RecordDeleteButton({
       const r = await deleteOwnRecord(fd);
       if (r.ok) {
         setOpen(false);
-        router.push(r.redirect ?? "/mon-espace");
+        if (resterSurLaPage) setBusy(false);
+        else router.push(r.redirect ?? "/mon-espace");
         rafraichir();
       } else {
         setBusy(false);

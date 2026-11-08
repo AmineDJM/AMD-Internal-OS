@@ -25,6 +25,7 @@ import { peutSupprimerUnRapportTerrain } from "@/lib/queries/field-reports";
 import { peutSupprimerUneDemandePaiement } from "@/modules/finances/api";
 import { corbeillePermise, estDirecteurDesOperations, suppressionPermise } from "@/lib/suppression/delegation";
 import { sansBloquer } from "@/lib/journal";
+import { CHEMIN_PV_KAM } from "@/lib/chemins/rapports-terrain";
 
 export type { DeleteResult } from "@/lib/suppression/coeur";
 
@@ -37,7 +38,13 @@ export type { DeleteResult } from "@/lib/suppression/coeur";
  * dépose l'instantané dans la même corbeille) : ce n'est donc pas un pouvoir de destruction, c'est
  * un pouvoir de rangement, que le Super Admin peut toujours défaire.
  */
-const CREATOR_DELETABLE = new Set<DeletableKind>(["MAIL_ENTRY", "LEGAL_DOCUMENT"]);
+const CREATOR_DELETABLE = new Set<DeletableKind>([
+  "MAIL_ENTRY",
+  "LEGAL_DOCUMENT",
+  // Le cas de pharmacovigilance : le KAM qui l'a signalé, à tout statut (Direction, 08/11) — sans droit de module en
+  // plus : en dehors de lui, seul le Super Admin le supprime (`peutSupprimerLeCasPv`, la règle d'écran).
+  "PHARMACOVIGILANCE_CASE",
+]);
 
 /**
  * Le droit MODULE qui, à défaut d'être le créateur, autorise aussi la suppression réversible.
@@ -109,7 +116,10 @@ export async function deleteOwnRecord(formData: FormData): Promise<DeleteResult>
   }
 
   const name = await spec.describe(id);
-  return supprimerReversible(kind, id, user.id, `Suppression par ${isCreator ? "le créateur" : "un administrateur"} — ${spec.label} « ${name ?? id} » (restaurable depuis la corbeille)`);
+  const r = await supprimerReversible(kind, id, user.id, `Suppression par ${isCreator ? "le créateur" : "un administrateur"} — ${spec.label} « ${name ?? id} » (restaurable depuis la corbeille)`);
+  // Le cœur ne revalide que la boîte de Regulatory : « Mes signalements » du KAM liste aussi le cas parti.
+  if (r.ok && kind === "PHARMACOVIGILANCE_CASE") revalidatePath(CHEMIN_PV_KAM);
+  return r;
 }
 
 /**

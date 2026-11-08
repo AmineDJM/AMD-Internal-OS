@@ -98,6 +98,16 @@ export function peutJoindreAuCasPv(
   return lecteurDuCasPv(acteur, cas);
 }
 
+/**
+ * SUPPRIMER UN CAS (Direction, 08/11 : « so the user who do that can delete it ») — le KAM qui l'a signalé, à TOUT
+ * statut, et le Super Admin ; personne d'autre (ni Regulatory, ni les participants). La suppression est réversible
+ * (corbeille, le cas revient avec ses pièces, son fil et ses participants) et journalisée. Le serveur relit la même
+ * règle (`deleteOwnRecord` : le créateur — `reporterId` — ou le Super Admin).
+ */
+export function peutSupprimerLeCasPv(acteur: { userId: string; superAdmin?: boolean }, cas: { reporterId: string }): boolean {
+  return Boolean(acteur.superAdmin) || cas.reporterId === acteur.userId;
+}
+
 /** Âge du patient : un entier plausible, ou rien. */
 export function lireAgePv(brut: string | null | undefined): number | null {
   const s = (brut ?? "").trim();

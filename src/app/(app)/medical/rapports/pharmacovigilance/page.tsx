@@ -52,7 +52,7 @@ export default async function MesSignalementsPvPage() {
       {cas.length === 0 ? (
         <EmptyState icon="ShieldAlert" title="Aucun signalement" description="Un effet indésirable, un défaut de qualité, une erreur médicamenteuse rapportés lors d'une visite ? Signalez-le à Regulatory." />
       ) : (
-        <ListeCasPv cas={cas} base={CHEMIN_PV_KAM} avecDeclarant={false} />
+        <ListeCasPv cas={cas} base={CHEMIN_PV_KAM} avecDeclarant={false} lecteur={{ userId: user.id, superAdmin: user.role === "SUPER_ADMIN" }} />
       )}
     </div>
   );

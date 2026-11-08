@@ -85,7 +85,7 @@ export default async function PharmacovigilancePage(props: { searchParams: Promi
         {cas.length === 0 ? (
           <EmptyState icon="ShieldAlert" title={filtre ? "Aucun cas pour ces filtres" : "Aucun cas signalé"} description={filtre ? "Élargissez la période ou retirez un filtre." : "Les KAM signalent les cas depuis les Rapports terrain."} />
         ) : (
-          <ListeCasPv cas={cas} base="/regulatory/pharmacovigilance" avecDeclarant />
+          <ListeCasPv cas={cas} base="/regulatory/pharmacovigilance" avecDeclarant lecteur={{ userId: user.id, superAdmin: user.role === "SUPER_ADMIN" }} />
         )}
       </section>
     </div>
