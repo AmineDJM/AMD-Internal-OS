@@ -6911,6 +6911,15 @@
   "annulation": "retour",
   "appelable": true
  },
+ "medical-info-actions:ouvrirDeclarationDepuisAdPro": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "medical-info-actions:recordAuthorityDeclaration": {
   "risque": "R1",
   "familles": [

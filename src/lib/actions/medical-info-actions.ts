@@ -47,6 +47,7 @@ import {
   refusDepotAutorites, refusSansVersement, reporterOrdreSurLaSource, resumeDArchive,
 } from "@/lib/actions/internes/medical-info/dossier";
 import { demanderLaQuittance } from "@/lib/actions/internes/medical-info/quittance";
+import { ouvrirDeclarationAdPro } from "@/lib/actions/internes/medical-info/ouverture-ad-pro";
 // Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/medical-info/{acces,circuit,ecritures,dossier,quittance}` — les actions restent ici (leur clé de contrat).
 
 /** Recalcule le statut READY / DOCS_REQUESTED / AWAITING_REVIEW selon l'état des pièces. */
@@ -606,6 +607,14 @@ export async function skipMedicalInfoBv(formData: FormData): Promise<ActionResul
  * ce n'est pas ce qu'on ouvre, c'est une ÉTAPE du circuit du matériel. Le refus vit ici, pas
  * seulement dans la liste déroulante — une liste se réécrit dans le navigateur.
  */
+/** L'ÉTAPE « Déclaration (information scientifique) » d'une demande Ad & Pro sans déclaration : le pharmacien l'ouvre (08/11/2026). */
+export async function ouvrirDeclarationDepuisAdPro(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const r = await ouvrirDeclarationAdPro(user, fdStr(formData, "sourceType") ?? "", fdStr(formData, "sourceId") ?? "");
+  if (r.ok && r.id) revalidate(r.id);
+  return r.ok ? { ok: true } : { ok: false, error: r.error };
+}
+
 export async function createMedicalInfoItem(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!canManage(user)) return { ok: false, error: "Réservé au pharmacien responsable de l'information médicale." };

@@ -36,6 +36,8 @@ import { toNumber } from "@/lib/utils";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import type { DocItem } from "@/components/documents/document-list";
 import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
+import { etapeDeclaration } from "@/lib/medical-info/etape-ad-pro";
+import { EtapeDeclarationAdPro } from "../../information-medicale/etape-declaration-ad-pro";
 import { MedecinsConcernes } from "@/modules/ad-pro/ecrans/medecins-concernes";
 
 export const dynamic = "force-dynamic";
@@ -95,6 +97,9 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
     // « Traçabilité » : créée le, modifiée le.
     prisma.event.findUnique({ where: { id: e.id }, select: { createdAt: true, updatedAt: true } }),
   ]);
+  // LA DERNIÈRE ÉTAPE : la déclaration de l'événement (information scientifique, 08/11/2026) — seulement pour un
+  // événement entré dans le circuit de prise en charge.
+  const declaration = e.requestStatus ? await etapeDeclaration(user, "EVENT", e.id, workflow?.status === "APPROVED") : null;
   const docItems: DocItem[] = documents.map((d) => ({
     id: d.id, name: d.name, category: d.category, version: d.version, sizeBytes: d.sizeBytes,
     confidentiality: d.confidentiality, uploadedBy: d.uploadedBy?.name ?? null,
@@ -201,7 +206,9 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
               canSubmit={canSubmit}
               workflow={workflow}
               compact
+              suite={declaration ? [{ cle: "__declaration__", titre: declaration.titre, detail: declaration.detail, etat: declaration.etat }] : []}
             />
+            {declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} />}
 
             <Faits>
               <Fait label="Dates" valeur={dateTexte} />

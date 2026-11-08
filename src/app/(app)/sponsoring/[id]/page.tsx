@@ -38,6 +38,8 @@ import { BackLink } from "@/components/shared/back-link";
 import { AdProDiscussionCard } from "@/modules/ad-pro/ecrans/discussion-card";
 import { MedecinsConcernes } from "@/modules/ad-pro/ecrans/medecins-concernes";
 import { porteLeRoleQuiTranche } from "@/lib/personnes/referents-gamme";
+import { etapeDeclaration } from "@/lib/medical-info/etape-ad-pro";
+import { EtapeDeclarationAdPro } from "../../information-medicale/etape-declaration-ad-pro";
 import { ClosurePanel } from "./closure-panel";
 
 
@@ -177,6 +179,14 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
       etat: etatPostes.closParLaCloture ? "done" : enPostes && bilan.cloturable ? "current" : "todo",
     },
   ] : [];
+  // LA DERNIÈRE ÉTAPE : la déclaration de l'événement (information scientifique) — après la pré-validation, ou après la
+  // validation finale quand il y en a une (Direction, 08/11/2026). Elle ne bloque rien ; elle se lit, et le pharmacien y agit.
+  const declaration = await etapeDeclaration(
+    user, "SPONSORING", req.id,
+    workflow?.status === "APPROVED" || (isAdProDecided("SPONSORING", req.status) && req.status !== "REFUSED"),
+  );
+  if (declaration) suite.push({ cle: "__declaration__", titre: declaration.titre, detail: declaration.detail, etat: declaration.etat });
+
   const statutDemande: StatutDeLaDemande | null =
     etatPostes.closParLaCloture
       ? { phrase: `Validée et clôturée${req.closedAt ? ` le ${formatDate(req.closedAt)}` : ""}${closer?.name ? `, par ${closer.name}` : ""}`, ton: "succes" }
@@ -278,6 +288,7 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
                 {gestes}
               </div>
             )}
+            {declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="SPONSORING" sourceId={req.id} />}
 
             <Faits>
               <Fait label="Type" valeur={req.type} />

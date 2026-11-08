@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### AD & PRO : LA DERNIÈRE ÉTAPE DU CIRCUIT — « DÉCLARATION (INFORMATION SCIENTIFIQUE) » (2026-11-08)
+
+« Après l'étape de la pré-validation, il faut ajouter une dernière étape de circuit : la déclaration des événements
+scientifiques, en donnant la main au responsable de l'information médicale pour uploader les déclarations » (Direction).
+Sponsoring, prises en charge nationales et internationales, événements (pas le matériel promotionnel, qui a ses bons) :
+la frise finit par « Déclaration (information scientifique) » (après la pré-validation, ou après la validation finale),
+et une carte sous le circuit dit où en est la déclaration. L'étape LIT le dossier d'information médicale (`DIM-…`) — à
+ouvrir, « À déclarer ? — chez … », « Déclarée au ministère (réf. …) », « Sans déclaration (motif) », « Validée » — sans
+rien recopier. Le **pharmacien** (et le Super Admin) y **dépose les déclarations** (rangées sur le dossier `DIM`, donc
+visibles dans Information médicale) et **enregistre la référence du ministère** une fois la lecture « à déclarer » accordée ;
+le reste de l'instruction reste dans Information médicale. Une demande accordée sans dossier (avant qu'un pharmacien soit
+réglé, ou sous l'ancienne règle du montant global) s'ouvre d'ici (« Ouvrir la déclaration », `ouvrirDeclarationDepuisAdPro`)
+**sans argent** : pas de montant, rattachée à l'ordre déjà parti — sa validation finale ne paie jamais une seconde fois.
+**Rien n'est bloqué** : postes, paiements et validation finale n'attendent pas le ministère. Chargeur
+`lib/medical-info/etape-ad-pro.ts` (types purs `etape-ad-pro-partage.ts`), ouverture `actions/internes/medical-info/ouverture-ad-pro.ts`,
+carte `app/(app)/information-medicale/etape-declaration-ad-pro.tsx`. Banc : `lib/medical-info/etape-ad-pro-flow.test.ts`.
+
 ### DEMANDER UN PAIEMENT : LA PIÈCE D'ABORD, ET LE BÉNÉFICIAIRE RETENU DANS L'ANNUAIRE QUAND C'EST CERTAIN (2026-11-08)
 
 Le formulaire s'ouvre sur la **zone de dépôt** (« Déposez la facture, le devis ou le bon de commande » : fichier, glisser-déposer,

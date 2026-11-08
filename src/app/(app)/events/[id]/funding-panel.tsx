@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Loader2, Send } from "lucide-react";
 import { submitEventForApproval } from "@/modules/ad-pro/actions-evenements";
-import { WorkflowPanel } from "@/components/workflow/workflow-panel";
+import { WorkflowPanel, type EtapeDeFrise } from "@/components/workflow/workflow-panel";
 import type { WorkflowView } from "@/lib/queries/workflow";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
@@ -21,6 +21,8 @@ interface Props {
    * phrase de statut ouvrent la carte, ses gestes (soumettre, décider, relancer) sont ceux de l'encart de statut.
    */
   compact?: boolean;
+  /** Compact : les étapes après le circuit — la déclaration de l'événement (information scientifique, 08/11/2026). */
+  suite?: EtapeDeFrise[];
 }
 
 /**
@@ -28,7 +30,7 @@ interface Props {
  * circuit de prise en charge. Une fois soumis, le circuit est piloté par le moteur de
  * workflow configurable (WorkflowPanel).
  */
-export function EventFundingPanel({ eventId, requestSubmitted, canSubmit, workflow, compact = false }: Props) {
+export function EventFundingPanel({ eventId, requestSubmitted, canSubmit, workflow, compact = false, suite = [] }: Props) {
   if (!requestSubmitted) {
     if (compact) {
       return (
@@ -49,7 +51,7 @@ export function EventFundingPanel({ eventId, requestSubmitted, canSubmit, workfl
   // demande ce qui a changé.
   const relancable = canSubmit && (workflow.status === "REJECTED" || workflow.status === "CANCELLED");
   if (compact) {
-    return <WorkflowPanel entityType="EVENT" entityId={eventId} view={workflow} compact gestes={relancable ? <RelaunchForm id={eventId} /> : null} />;
+    return <WorkflowPanel entityType="EVENT" entityId={eventId} view={workflow} compact suite={suite} gestes={relancable ? <RelaunchForm id={eventId} /> : null} />;
   }
   return (
     <div className="space-y-4">

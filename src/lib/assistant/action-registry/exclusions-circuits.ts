@@ -306,6 +306,11 @@ export function classerExclusionsCircuits(): void {
     + "Des champs d'une fiche, corrigés devant elle : Adam est en pause de développement, aucun geste neuf ne lui est ouvert.", [
     "medical-info-actions:changerProduitDeclaration", "promo-material-actions:modifierDateBesoinPromo",
   ]);
+  X("AD & PRO — LA DERNIÈRE ÉTAPE DU CIRCUIT (Direction, 08/11/2026) : la déclaration de l'événement (information "
+    + "scientifique). Le pharmacien OUVRE, devant la fiche de la demande, la déclaration d'une demande accordée qui n'en a "
+    + "pas. Un geste d'écran : Adam est en pause de développement, aucun geste neuf ne lui est ouvert.", [
+    "medical-info-actions:ouvrirDeclarationDepuisAdPro",
+  ]);
   X("PRISES EN CHARGE — PROFESSIONNELS PROPOSÉS ET LEURS PIÈCES (§118.205) : créer le profil d'un professionnel, "
     + "demander ses pièces (passeport, visa, informations de voyage) et les déposer. Chacun touche à une identité ou "
     + "dépose un FICHIER devant la fiche de la demande. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [

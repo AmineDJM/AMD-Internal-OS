@@ -14,6 +14,8 @@ import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande
 import { type DocItem } from "@/components/documents/document-list";
 import { CONGRESS_REQUEST_STATUS } from "@/lib/labels";
 import { CongressDetailView, AccompagnantsDeLaPriseEnCharge } from "../../congress-international/congress-detail-view";
+import { etapeDeclaration } from "@/lib/medical-info/etape-ad-pro";
+import { EtapeDeclarationAdPro } from "../../information-medicale/etape-declaration-ad-pro";
 import { CartePriseEnCharge } from "@/modules/ad-pro/ecrans/prise-en-charge/carte-prise-en-charge";
 import { getInvolvementThreads } from "@/lib/queries/involvement";
 import { toNumber } from "@/lib/utils";
@@ -75,6 +77,8 @@ export default async function CongressNatDetailPage(props: { params: Promise<{ i
     prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     getWorkflowForEntity(user, "CONGRESS_NATIONAL", detail.id, detail.requesterId),
   ]);
+  // LA DERNIÈRE ÉTAPE : la déclaration de la prise en charge (information scientifique, 08/11/2026).
+  const declaration = await etapeDeclaration(user, "CONGRESS_NATIONAL", detail.id, workflow?.status === "APPROVED");
 
   // Postes de l'événement : de quoi est fait le montant, et à qui va l'argent. Le stand et le
   // symposium n'étaient jusqu'ici que des drapeaux — annoncés, jamais chiffrés.
@@ -198,7 +202,8 @@ export default async function CongressNatDetailPage(props: { params: Promise<{ i
       {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
       <MedecinsConcernes user={user} entityType="CONGRESS_NATIONAL" entityId={detail.id} />
 
-      <CongressDetailView detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_NATIONAL" entityId={detail.id} missionUsers={missionUsers} />
+      <CongressDetailView detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_NATIONAL" entityId={detail.id} missionUsers={missionUsers}
+        declaration={declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_NATIONAL" sourceId={detail.id} />} />
       {/* LA SECTION DISCUSSION — le fil CANONIQUE de la demande et les échanges avec les personnes
           impliquées : un seul espace (la vue détaillée ne les rend plus à part). */}
       <EspaceDiscussion>
