@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### DEMANDER UN PAIEMENT : LA PIÈCE D'ABORD, ET LE BÉNÉFICIAIRE RETENU DANS L'ANNUAIRE QUAND C'EST CERTAIN (2026-11-08)
+
+Le formulaire s'ouvre sur la **zone de dépôt** (« Déposez la facture, le devis ou le bon de commande » : fichier, glisser-déposer,
+ou « Choisir dans Legal ») ; les champs paraissent dès qu'une pièce arrive, remplis par sa lecture, ou par « Remplir sans pièce »
+(brouillon). La lecture rapproche maintenant le bénéficiaire de l'annuaire **au serveur** (`AnnuaireDeLaPiece`, dans
+`lirePourLaDemande`, parmi les fiches que la personne voit — `listPartyOptions`) : **certain** (même NIF ou RC, la fiche liée au
+document Legal, ou une seule fiche au nom exact), il est **choisi d'office** — nom exact, personne, téléphone, e-mail — et le champ
+le dit (« Trouvé dans l'annuaire — vérifiez », avec la preuve, et « Changer ») ; une facture arrivée après le devis peut encore le
+remplacer, pas un choix de la personne. Pas certain : « Plusieurs fiches possibles : C'est … » ; absent : « L'ajouter maintenant »
+(prérempli du NIF, du RC lus), sinon il entre à l'envoi (facture, devis). Banc : `modules/finances/pieces-legal-flow.test.ts`.
+
 ### DEMANDER UN PAIEMENT : LE BÉNÉFICIAIRE SE CHERCHE DANS L'ANNUAIRE (2026-11-08)
 
 « Bénéficiaire » (Validations → Paiements → « Demander un paiement ») propose, dès deux lettres, les contacts de

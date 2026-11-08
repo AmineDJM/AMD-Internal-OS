@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Banknote, Plus, Loader2, X, Paperclip, Info, Library, FileText } from "lucide-react";
+import { Banknote, Plus, Loader2, X, Paperclip, Info, Library, FileText, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { lirePieceDePaiement } from "@/modules/finances/actions-pieces-paiement"
 import { ChoisirDansLegal } from "./choisir-dans-legal";
 import { BeneficiaireAnnuaire } from "./beneficiaire-annuaire";
 import type { PartyOption } from "@/lib/contacts/parties";
+import type { AnnuaireDeLaPiece } from "@/modules/finances/partage";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { FactureDejaConnueCarte } from "@/components/factures/facture-deja-connue";
 import { EcartMontantCarte } from "@/components/finance/ecart-montant";
@@ -81,6 +82,14 @@ export function NewPaymentButton() {
   // Le nom qu'une pièce lue a écrit dans « Bénéficiaire » — le champ le rapproche de l'annuaire.
   const [payeeLu, setPayeeLu] = React.useState<string | null>(null);
   const [depuisAnnuaire, setDepuisAnnuaire] = React.useState<string | null>(null);
+  // Ce que la meilleure pièce dit de son bénéficiaire (annuaire), et le contact qu'elle a choisi quand c'était certain.
+  const [annuaireLu, setAnnuaireLu] = React.useState<AnnuaireDeLaPiece | null>(null);
+  const [retenuAuto, setRetenuAuto] = React.useState<{ contact: PartyOption; preuve: string | null } | null>(null);
+  const dernierAnnuaire = React.useRef("");
+  // LE FORMULAIRE COMMENCE PAR LA PIÈCE (Direction, 08/11/2026) : les champs paraissent dès qu'une pièce arrive, ou
+  // quand la personne choisit de remplir sans pièce.
+  const [sansPiece, setSansPiece] = React.useState(false);
+  const [survol, setSurvol] = React.useState(false);
   const touches = React.useRef<Set<string>>(new Set());
   const methodTouche = React.useRef(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -89,6 +98,7 @@ export function NewPaymentButton() {
   const reset = () => {
     setPieces([]); setMethodStated(false); setErr(null); setConnue(null); setEcart(null); setJustification(""); setConfirme(false);
     setLegaux([]); setChoisir(false); setLectures({}); setRemplis({}); setRibNote(null); setPayeeLu(null); setDepuisAnnuaire(null);
+    setAnnuaireLu(null); setRetenuAuto(null); dernierAnnuaire.current = ""; setSansPiece(false); setSurvol(false);
     touches.current = new Set(); methodTouche.current = false;
   };
 
@@ -128,10 +138,22 @@ export function NewPaymentButton() {
       for (const c of Object.keys(poser) as ChampRempli[]) n[c] = meilleure.lu.libelle;
       return n;
     });
+    // LE BÉNÉFICIAIRE DANS L'ANNUAIRE : une fois par pièce retenue (la note qu'on tape sur une pièce relance cet effet).
+    const ann = meilleure.lu.annuaire;
+    const cleAnnuaire = `${meilleure.cle}:${ann.retenu?.id ?? "-"}`;
+    if (cleAnnuaire !== dernierAnnuaire.current) {
+      dernierAnnuaire.current = cleAnnuaire;
+      setAnnuaireLu(ann);
+      if (ann.retenu && !touches.current.has("payee")) {
+        prendreContact(ann.retenu, true);
+        setRetenuAuto({ contact: ann.retenu, preuve: ann.preuve });
+      }
+    }
     if (meilleure.lu.ribLu && !methodTouche.current) {
       setMethodStated(true);
       setRibNote(`RIB lu sur « ${meilleure.lu.libelle} » : confirmez que le moyen de paiement y figure.`);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `prendreContact` n'écrit que dans le formulaire et des états
   }, [lectures, pieces, legaux]);
 
   const choisirLegal = (doc: DocumentLegalPropose) => {
@@ -144,10 +166,11 @@ export function NewPaymentButton() {
 
   /**
    * UN CONTACT DE L'ANNUAIRE EST RETENU COMME BÉNÉFICIAIRE (08/11/2026) : son nom exact, et ses coordonnées dans les
-   * champs du contact que la personne n'a pas remplis. Le choix est à la personne : ces champs deviennent « touchés »,
-   * aucune pièce lue ensuite ne les réécrit.
+   * champs du contact que la personne n'a pas remplis. Choisi par la PERSONNE, ces champs deviennent « touchés » : aucune
+   * pièce lue ensuite ne les réécrit. Choisi par la PIÈCE (`auto`, certain), ils restent à la pièce : une facture
+   * arrivée après le devis peut encore les remplacer.
    */
-  const prendreContact = (p: PartyOption) => {
+  const prendreContact = (p: PartyOption, auto = false) => {
     const form = formRef.current;
     if (!form) return;
     const poser = (champ: string, valeur: string | null, toujours = false) => {
@@ -155,7 +178,7 @@ export function NewPaymentButton() {
       if (!(el instanceof HTMLInputElement) || !valeur) return;
       if (!toujours && (touches.current.has(champ) && el.value.trim())) return;
       el.value = valeur;
-      touches.current.add(champ);
+      if (!auto) touches.current.add(champ);
     };
     poser("payee", p.name, true);
     poser("contactName", p.contactName);
@@ -167,7 +190,10 @@ export function NewPaymentButton() {
       return n;
     });
     setDepuisAnnuaire(p.contactName || p.phone || p.phoneAlt || p.email ? p.name : null);
+    if (!auto) setRetenuAuto(null);
   };
+  /** « Changer » : le bénéficiaire revient à la personne — aucune pièce ne le choisira plus. */
+  const changerBeneficiaire = () => { touches.current.add("payee"); setRetenuAuto(null); setDepuisAnnuaire(null); };
 
   const prendreMontantFacture = () => {
     const champ = formRef.current?.elements.namedItem("amount");
@@ -266,6 +292,110 @@ export function NewPaymentButton() {
             setRemplis((r) => { if (!(nom in r)) return r; const n = { ...r }; delete n[nom as ChampRempli]; return n; });
           }}
         >
+          <div className="space-y-2 rounded-xl border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>Pièces du dossier</Label>
+              <input
+                ref={fileRef} type="file" multiple className="hidden"
+                onChange={(e) => addFiles(e.target.files)}
+              />
+              {/* Vide, la zone de dépôt porte ces deux gestes ; une pièce arrivée, ils servent aux suivantes. */}
+              {(pieces.length > 0 || legaux.length > 0) && (
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setChoisir((v) => !v)} aria-expanded={choisir}>
+                    <Library className="h-4 w-4" /> Choisir dans Legal
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
+                    <Plus className="h-4 w-4" /> Ajouter des pièces
+                  </Button>
+                </div>
+              )}
+            </div>
+            {choisir && <ChoisirDansLegal dejaChoisis={legaux.map((l) => l.doc.id)} onChoisir={choisirLegal} />}
+            <p className="text-xs text-muted-foreground">
+              <strong className="text-foreground">Un bon de commande, une facture ou un devis est obligatoire</strong> —
+              c&apos;est la pièce qui dit ce qui est dû. Bon de livraison et autres pièces s&apos;ajoutent librement, et
+              <strong className="text-foreground"> chacune porte son propre commentaire</strong>.
+            </p>
+
+            {pieces.length === 0 && legaux.length === 0 ? (
+              <div
+                onDragOver={(e) => { e.preventDefault(); setSurvol(true); }}
+                onDragLeave={() => setSurvol(false)}
+                onDrop={(e) => { e.preventDefault(); setSurvol(false); addFiles(e.dataTransfer.files); }}
+                className={`space-y-3 rounded-lg border-2 border-dashed px-4 py-6 text-center ${survol ? "border-primary bg-primary/5" : "border-border"}`}
+              >
+                <Upload className="mx-auto h-6 w-6 text-muted-foreground" aria-hidden />
+                <p className="text-sm font-medium">Déposez la facture, le devis ou le bon de commande</p>
+                <p className="text-xs text-muted-foreground">Le formulaire se remplit depuis la pièce : objet, bénéficiaire (repris de l&apos;annuaire), montant, échéance, contact.</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  <Button type="button" size="sm" onClick={() => fileRef.current?.click()}><Upload className="h-4 w-4" /> Joindre un fichier</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setChoisir((v) => !v)} aria-expanded={choisir}><Library className="h-4 w-4" /> Choisir dans Legal</Button>
+                </div>
+                {!sansPiece && (
+                  <button type="button" onClick={() => setSansPiece(true)} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                    Remplir sans pièce (brouillon — la pièce se joint ensuite)
+                  </button>
+                )}
+              </div>
+            ) : (
+              <ul className="space-y-2">
+                {legaux.map((l) => (
+                  <li key={l.doc.id} className="space-y-2 rounded-lg border border-border bg-secondary/20 p-2.5">
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{l.doc.titre}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">Legal</span>
+                      <button
+                        type="button" aria-label="Retirer"
+                        onClick={() => { setLegaux((prev) => prev.filter((x) => x.doc.id !== l.doc.id)); oublier(cleLegale(l.doc.id)); }}
+                        className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <EtatDeLecture etat={lectures[cleLegale(l.doc.id)]} />
+                    {l.doc.avertissement && <p className="text-xs text-warning">{l.doc.avertissement}</p>}
+                    <Input
+                      value={l.note}
+                      onChange={(e) => setLegaux((prev) => prev.map((x) => (x.doc.id === l.doc.id ? { ...x, note: e.target.value } : x)))}
+                      placeholder="Commentaire sur cette pièce (ex. le TTC inclut la livraison)"
+                    />
+                  </li>
+                ))}
+                {pieces.map((p, i) => (
+                  <li key={p.cle} className="space-y-2 rounded-lg border border-border bg-secondary/20 p-2.5">
+                    <div className="flex items-center gap-2">
+                      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.file.name}</span>
+                      <button
+                        type="button" aria-label="Retirer"
+                        onClick={() => { setPieces((prev) => prev.filter((_, j) => j !== i)); oublier(p.cle); }}
+                        className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <EtatDeLecture etat={lectures[p.cle]} />
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                      <Select value={p.kind} onChange={(e) => patch(i, { kind: e.target.value, kindTouche: true })}>
+                        {PAYMENT_PIECE_KIND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </Select>
+                      <Input
+                        className="sm:col-span-2" value={p.note}
+                        onChange={(e) => patch(i, { note: e.target.value })}
+                        placeholder="Commentaire sur cette pièce (ex. le TTC inclut la livraison)"
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+          </div>
+
+          {/* Les champs restent dans le formulaire même cachés : la lecture de la pièce les remplit par leur nom. */}
+          <div className={pieces.length > 0 || legaux.length > 0 || sansPiece ? "space-y-4" : "hidden"}>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5 sm:col-span-2">
               <Label htmlFor="pay-title">Objet du paiement <span className="text-destructive">*</span></Label>
@@ -274,8 +404,8 @@ export function NewPaymentButton() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pay-payee">Bénéficiaire <span className="text-destructive">*</span></Label>
-              <BeneficiaireAnnuaire lu={payeeLu} onChoisir={prendreContact} />
-              <LuSur source={remplis.payee} />
+              <BeneficiaireAnnuaire lu={payeeLu} annuaireLu={annuaireLu} retenuAuto={retenuAuto} onChoisir={(c) => prendreContact(c)} onChanger={changerBeneficiaire} />
+              {!retenuAuto && <LuSur source={remplis.payee} />}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="pay-amount">Montant (DZD) <span className="text-destructive">*</span></Label>
@@ -337,88 +467,6 @@ export function NewPaymentButton() {
             <p className="text-xs text-muted-foreground">Celui qu&apos;on appelle si une pièce manque ou si le virement n&apos;arrive pas.</p>
           </div>
 
-          <div className="space-y-2 rounded-xl border border-border p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label>Pièces du dossier</Label>
-              <input
-                ref={fileRef} type="file" multiple className="hidden"
-                onChange={(e) => addFiles(e.target.files)}
-              />
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={() => setChoisir((v) => !v)} aria-expanded={choisir}>
-                  <Library className="h-4 w-4" /> Choisir dans Legal
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => fileRef.current?.click()}>
-                  <Plus className="h-4 w-4" /> Ajouter des pièces
-                </Button>
-              </div>
-            </div>
-            {choisir && <ChoisirDansLegal dejaChoisis={legaux.map((l) => l.doc.id)} onChoisir={choisirLegal} />}
-            <p className="text-xs text-muted-foreground">
-              <strong className="text-foreground">Un bon de commande, une facture ou un devis est obligatoire</strong> —
-              c&apos;est la pièce qui dit ce qui est dû. Bon de livraison et autres pièces s&apos;ajoutent librement, et
-              <strong className="text-foreground"> chacune porte son propre commentaire</strong>.
-            </p>
-
-            {pieces.length === 0 && legaux.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-warning/50 bg-warning/5 px-3 py-4 text-center text-xs text-muted-foreground">
-                Aucune pièce pour l&apos;instant. Vous pouvez enregistrer un <strong className="text-foreground">brouillon</strong> sans
-                pièce et la joindre ensuite — l&apos;envoi, lui, exige le bon de commande, la facture ou le devis.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {legaux.map((l) => (
-                  <li key={l.doc.id} className="space-y-2 rounded-lg border border-border bg-secondary/20 p-2.5">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{l.doc.titre}</span>
-                      <span className="shrink-0 text-xs text-muted-foreground">Legal</span>
-                      <button
-                        type="button" aria-label="Retirer"
-                        onClick={() => { setLegaux((prev) => prev.filter((x) => x.doc.id !== l.doc.id)); oublier(cleLegale(l.doc.id)); }}
-                        className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <EtatDeLecture etat={lectures[cleLegale(l.doc.id)]} />
-                    {l.doc.avertissement && <p className="text-xs text-warning">{l.doc.avertissement}</p>}
-                    <Input
-                      value={l.note}
-                      onChange={(e) => setLegaux((prev) => prev.map((x) => (x.doc.id === l.doc.id ? { ...x, note: e.target.value } : x)))}
-                      placeholder="Commentaire sur cette pièce (ex. le TTC inclut la livraison)"
-                    />
-                  </li>
-                ))}
-                {pieces.map((p, i) => (
-                  <li key={p.cle} className="space-y-2 rounded-lg border border-border bg-secondary/20 p-2.5">
-                    <div className="flex items-center gap-2">
-                      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{p.file.name}</span>
-                      <button
-                        type="button" aria-label="Retirer"
-                        onClick={() => { setPieces((prev) => prev.filter((_, j) => j !== i)); oublier(p.cle); }}
-                        className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                    <EtatDeLecture etat={lectures[p.cle]} />
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                      <Select value={p.kind} onChange={(e) => patch(i, { kind: e.target.value, kindTouche: true })}>
-                        {PAYMENT_PIECE_KIND_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                      </Select>
-                      <Input
-                        className="sm:col-span-2" value={p.note}
-                        onChange={(e) => patch(i, { note: e.target.value })}
-                        placeholder="Commentaire sur cette pièce (ex. le TTC inclut la livraison)"
-                      />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-
             {/* L'ATTESTATION — elle engage celui qui a la pièce sous les yeux. Sans elle, la
                 comptabilité sait quoi payer mais pas comment, et le dossier repart trois jours
                 pour un RIB. */}
@@ -438,7 +486,7 @@ export function NewPaymentButton() {
           {/* LA RÈGLE SE DIT AVANT, PAS APRÈS. Le bouton partait, l'action refusait, et l'on
               découvrait l'exigence dans un message rouge après avoir tout saisi. Une contrainte
               qu'on n'apprend qu'en la heurtant se vit comme une panne. */}
-          {manque && (
+          {manque && (pieces.length > 0 || legaux.length > 0 || sansPiece) && (
             <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-foreground">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" /> {manque}
             </p>
@@ -456,6 +504,7 @@ export function NewPaymentButton() {
 
           <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:flex-wrap sm:justify-end">
             <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={busy} onClick={() => setOpen(false)}>Annuler</Button>
+            {(pieces.length > 0 || legaux.length > 0 || sansPiece) && <>
             <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={busy} onClick={() => void submit(true)}>
               Enregistrer en brouillon
             </Button>
@@ -468,6 +517,7 @@ export function NewPaymentButton() {
             >
               {busy && <Loader2 className="h-4 w-4 animate-spin" />} Envoyer au centre de paiement
             </Button>
+            </>}
           </div>
         </form>
       </Sheet>

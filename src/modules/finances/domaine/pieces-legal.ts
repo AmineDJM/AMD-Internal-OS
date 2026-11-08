@@ -121,8 +121,28 @@ export type Proposition = Partial<Record<ChampRempli, string>>;
  * Un champ rempli par une pièce reste « non touché » : une meilleure pièce (une facture après un devis) le réécrit.
  */
 /** Ce qu'une pièce propose au formulaire — ou pourquoi elle n'a pas pu être lue. */
+/** Un contact de l'annuaire, tel que le formulaire l'affiche et le reprend (mêmes champs que l'annuaire visible). */
+export interface ContactDeLAnnuaire {
+  id: string; name: string; kind: string | null; contactName: string | null; email: string | null;
+  phone: string | null; phoneAlt: string | null; city: string | null; companyLabel: string | null;
+}
+
+/**
+ * CE QUE LA PIÈCE DIT DE SON BÉNÉFICIAIRE, RAPPROCHÉ DE L'ANNUAIRE (Direction, 08/11/2026).
+ *
+ * `retenu` seulement quand c'est CERTAIN : même NIF ou RC qu'une fiche, la fiche liée au document du registre Legal,
+ * ou UNE SEULE fiche portant exactement le nom lu. Le formulaire le choisit alors de lui-même (et le dit, `preuve`).
+ * Sinon des `candidats` proches, que la personne départage ; ou, absent de l'annuaire, ce qu'il faudrait y créer.
+ */
+export interface AnnuaireDeLaPiece {
+  retenu: ContactDeLAnnuaire | null;
+  preuve: string | null;
+  candidats: { id: string; nom: string }[];
+  aCreer: { nom: string | null; nif: string | null; rc: string | null; adresse: string | null } | null;
+}
+
 export type LecturePourDemande =
-  | { ok: true; nature: NaturePieceDemande | null; proposition: Proposition; ribLu: boolean; phrase: string }
+  | { ok: true; nature: NaturePieceDemande | null; proposition: Proposition; ribLu: boolean; phrase: string; annuaire: AnnuaireDeLaPiece }
   | { ok: false; error: string };
 
 export function aRemplir(proposition: Proposition, touches: ReadonlySet<string>): Proposition {

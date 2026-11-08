@@ -15,10 +15,12 @@ import { annuaireDeLecture } from "@/lib/pieces-lues/service";
 import { fournisseurDuDevisDansLAnnuaire } from "@/lib/pieces-lues/devis-poste-lecture";
 import { FORMATS_LUS, PAGES_MAX, TAILLE_MAX_OCTETS } from "@/lib/pieces-lues/formats";
 import type { IdentiteEmetteur } from "@/lib/pieces-lues/emetteur";
+import { listPartyOptions } from "@/lib/queries/company-contacts";
+import { partieDuNom } from "@/lib/contacts/parties";
 import {
   avertissementUsage, natureAInscrireAuLegal, natureDePieceDuLegal, natureDePieceLue, NATURES_LEGAL_PAYABLES,
   refusReutilisation, STATUTS_DEMANDE_VIVANTE, titrePourLeRegistre,
-  type DocumentLegalPropose, type LecturePourDemande, type NaturePieceDemande, type UsageDocumentLegal,
+  type AnnuaireDeLaPiece, type DocumentLegalPropose, type LecturePourDemande, type NaturePieceDemande, type UsageDocumentLegal,
 } from "@/modules/finances/partage";
 
 /**
@@ -125,6 +127,27 @@ async function identiteImprimee(userId: string, octets: Buffer, nom: string): Pr
   return identiteLocaleDuDevis(lu.lecture.texte, nom, groupe).identite;
 }
 
+/**
+ * LE BÉNÉFICIAIRE DANS L'ANNUAIRE (Direction, 08/11/2026) — rapproché parmi les fiches que la personne VOIT
+ * (`listPartyOptions`, cloisonné par société) : une fiche hors de sa vue n'est ni retenue ni proposée.
+ * Certain par la preuve que la lecture apporte (NIF/RC, fiche liée au registre), sinon par UNE fiche au nom exact.
+ */
+async function annuaireDeLaPiece(user: CurrentUser, lu: {
+  retenuId: string | null; preuve: string | null; nomLu: string | null;
+  candidats: { id: string; nom: string }[]; aCreer: AnnuaireDeLaPiece["aCreer"];
+}): Promise<AnnuaireDeLaPiece> {
+  const visibles = await listPartyOptions(user.id);
+  const parId = new Map(visibles.map((v) => [v.id, v]));
+  let retenu = lu.retenuId ? parId.get(lu.retenuId) ?? null : null;
+  let preuve = retenu ? lu.preuve : null;
+  if (!retenu && lu.nomLu) {
+    const meme = partieDuNom(visibles, lu.nomLu);
+    if (meme) { retenu = meme; preuve = `Même nom que la fiche « ${meme.name} » de l'annuaire.`; }
+  }
+  if (retenu) return { retenu, preuve, candidats: [], aCreer: null };
+  return { retenu: null, preuve: null, candidats: lu.candidats.filter((c) => parId.has(c.id)), aCreer: lu.aCreer };
+}
+
 /** CE QU'UNE PIÈCE PROPOSE AU FORMULAIRE — un fichier déposé, ou un document Legal visible. Rien n'est écrit. */
 export async function lirePourLaDemande(
   user: CurrentUser,
@@ -135,7 +158,7 @@ export async function lirePourLaDemande(
     const doc = visible
       ? await prisma.legalDocument.findFirst({
           where: { AND: [visible, { id: source.legalDocumentId }] },
-          select: { id: true, title: true, kind: true, counterparty: true, amount: true, endDate: true },
+          select: { id: true, title: true, kind: true, counterparty: true, counterpartyIds: true, amount: true, endDate: true },
         })
       : null;
     if (!doc) return { ok: false, error: "Ce document Legal est introuvable, ou hors de votre accès." };
@@ -145,8 +168,14 @@ export async function lirePourLaDemande(
     });
     const octets = fichier?.fileKey ? await readFileByKey(fichier.fileKey).catch(sansBloquer("paiement.pieces-legal.lecture", null)) : null;
     const id = octets && fichier ? await identiteImprimee(user.id, octets, fichier.name).catch(sansBloquer("paiement.pieces-legal.identite", null)) : null;
+    const annuaire = await annuaireDeLaPiece(user, {
+      retenuId: doc.counterpartyIds.length === 1 ? doc.counterpartyIds[0] : null,
+      preuve: "La fiche liée à ce document du registre Legal.",
+      nomLu: doc.counterparty ?? id?.nom ?? null, candidats: [],
+      aCreer: doc.counterparty || id?.nom ? { nom: doc.counterparty ?? id?.nom ?? null, nif: id?.nif ?? null, rc: id?.rc ?? null, adresse: null } : null,
+    });
     return {
-      ok: true, nature, ribLu: Boolean(id?.rib), phrase: `Repris du registre Legal : « ${doc.title} ».`,
+      ok: true, nature, ribLu: Boolean(id?.rib), phrase: `Repris du registre Legal : « ${doc.title} ».`, annuaire,
       proposition: {
         title: doc.title, payee: doc.counterparty ?? id?.nom ?? undefined,
         amount: doc.amount != null ? String(Number(doc.amount)) : undefined,
@@ -163,8 +192,13 @@ export async function lirePourLaDemande(
   const nature = natureDePieceLue(p.valeurs.kind);
   const id = await identiteImprimee(user.id, octets, nom).catch(sansBloquer("paiement.pieces-legal.identite", null));
   const partieRetenue = p.partie.retenue ? p.partie.candidats.find((c) => c.id === p.partie.retenue)?.nom ?? null : null;
+  const nomLu = partieRetenue ?? p.partie.aCreer?.nom ?? id?.nom ?? null;
+  const annuaire = await annuaireDeLaPiece(user, {
+    retenuId: p.partie.retenue, preuve: p.partie.phrase || "Même NIF ou RC qu'une fiche de l'annuaire.", nomLu,
+    candidats: p.partie.candidats, aCreer: p.partie.aCreer ?? (id?.nom ? { nom: id.nom, nif: id.nif ?? null, rc: id.rc ?? null, adresse: null } : null),
+  });
   return {
-    ok: true, nature, ribLu: Boolean(id?.rib),
+    ok: true, nature, ribLu: Boolean(id?.rib), annuaire,
     phrase: [r.lecture.phrase, p.montantConflit].filter(Boolean).join(" "),
     proposition: {
       title: p.valeurs.title, payee: partieRetenue ?? p.partie.aCreer?.nom ?? id?.nom ?? undefined,

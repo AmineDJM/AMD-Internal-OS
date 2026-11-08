@@ -93,6 +93,37 @@ suite("demande de paiement — les pièces choisies dans Legal ou déposées", (
     });
   });
 
+  // LE BÉNÉFICIAIRE DANS L'ANNUAIRE (Direction, 08/11/2026) : certain, la pièce le choisit ; pas certain, rien n'est choisi.
+  it("le bénéficiaire est retenu dans l'annuaire quand c'est certain : la fiche liée au document, sinon une seule fiche au nom exact", async () => {
+    ACTOR = await acteur(demandeurId, "DIRECTION");
+    const lu = new FormData();
+    lu.set("legalDocumentId", factureId);
+    const fiche = await prisma.companyContact.create({ data: { name: "Atlas Événementiel", kind: `${TAG}agence`, phone: "0550 11 22 33", email: "contact@atlas.test" } });
+    try {
+      // Une seule fiche porte exactement le nom lu : retenue, et la preuve le dit.
+      const parNom = await lirePieceDePaiement(lu);
+      expect(parNom.ok && parNom.annuaire.retenu).toMatchObject({ id: fiche.id, name: "Atlas Événementiel", phone: "0550 11 22 33", email: "contact@atlas.test" });
+      expect(parNom.ok && parNom.annuaire.preuve).toMatch(/^Même nom que la fiche/);
+
+      // Deux fiches au même nom : plus rien de certain par le nom — mais la fiche LIÉE au document du registre l'est.
+      const homonyme = await prisma.companyContact.create({ data: { name: "ATLAS ÉVÉNEMENTIEL", kind: `${TAG}agence` } });
+      try {
+        const ambigu = await lirePieceDePaiement(lu);
+        expect(ambigu.ok && ambigu.annuaire.retenu).toBeNull();
+        await prisma.legalDocument.update({ where: { id: factureId }, data: { counterpartyIds: [fiche.id] } });
+        const lie = await lirePieceDePaiement(lu);
+        expect(lie.ok && lie.annuaire.retenu?.id).toBe(fiche.id);
+        expect(lie.ok && lie.annuaire.preuve).toBe("La fiche liée à ce document du registre Legal.");
+      } finally {
+        await prisma.legalDocument.update({ where: { id: factureId }, data: { counterpartyIds: [] } });
+        await prisma.companyContact.delete({ where: { id: homonyme.id } });
+      }
+      // (Les fiches que la personne ne voit pas sont écartées par `listPartyOptions` — la règle de l'annuaire, testée chez lui.)
+    } finally {
+      await prisma.companyContact.deleteMany({ where: { kind: `${TAG}agence` } });
+    }
+  });
+
   it("le montant demandé est confronté au TTC de la facture choisie", async () => {
     ACTOR = await acteur(demandeurId, "DIRECTION");
     const r = await createPaymentRequest(undefined, form({ title: `${TAG} écart`, payee: "Atlas", amount: "100000", paymentMethodStated: "1" }, [factureId]));
