@@ -1,5 +1,17 @@
 ## 🧾 Journal des évolutions récentes
 
+### LEGAL : QUI A DÉPOSÉ UN FICHIER LE VOIT (2026-11-08)
+
+« Dans Legal, que celui qui dépose un fichier voie son fichier quand il entre dans le document » (Direction). Un fichier
+déposé dans Legal sans en avoir le module — la facture d'une demande de paiement, le devis d'un poste — ou dans un document
+réservé à d'autres lecteurs répondait 404 sur la fiche et « Accès refusé » sur le fichier, à celui-là même qui l'avait
+déposé. Désormais : **le déposant ouvre ses fichiers**, **le créateur du document les ouvre tous**
+(`deposantDuDocumentLegal`, `peutLireSaPieceLegal` dans `entity-access/ouverture-pieces.ts`, la porte de `/api/documents/[id]`
+et de son aperçu texte). Là où la fiche complète refuse, `/legal/[id]` montre la **fiche du déposant**
+(`legal/[id]/fiche-deposant.tsx`) : le document en lecture (nature, référence, autre partie, montant, dates) et ses fichiers —
+ni chaîne, ni historique, ni accès, ni geste d'écriture. Ni créateur ni déposant : 404 comme avant. Banc :
+`entity-access/deposant-legal-flow.test.ts`.
+
 ### AD & PRO : LA DERNIÈRE ÉTAPE DU CIRCUIT — « DÉCLARATION (INFORMATION SCIENTIFIQUE) » (2026-11-08)
 
 « Après l'étape de la pré-validation, il faut ajouter une dernière étape de circuit : la déclaration des événements

@@ -31,7 +31,29 @@ export async function peutOuvrirDocument(
   return (await canAccessEntity(user, doc.entityType, doc.entityId, "VIEW"))
     || (await peutLirePasseportDuSujet(user.id, doc))
     || (await peutLirePieceDePriseEnCharge(user, doc))
-    || (await peutLirePieceDeDemande(user, doc));
+    || (await peutLirePieceDeDemande(user, doc))
+    || (await peutLireSaPieceLegal(user, doc));
+}
+
+/**
+ * LE DÉPOSANT D'UN DOCUMENT LEGAL (Direction, 08/11/2026) : « qui a déposé un fichier voit son fichier quand il entre
+ * dans le document ». Un fichier déposé dans Legal sans en avoir le module — la facture d'une demande de paiement, le
+ * devis d'un poste, un document créé puis restreint à d'autres lecteurs — répondait « Accès refusé » à celui-là même qui
+ * l'avait déposé. `CREATEUR` : il a créé le document (il en voit tous les fichiers) ; `DEPOSANT` : il y a déposé au moins
+ * un fichier (il voit les siens). `null` : ni l'un ni l'autre. La fiche complète, elle, garde ses portes.
+ */
+export async function deposantDuDocumentLegal(userId: string, legalDocumentId: string): Promise<"CREATEUR" | "DEPOSANT" | null> {
+  if ((await prisma.legalDocument.count({ where: { id: legalDocumentId, createdById: userId } })) > 0) return "CREATEUR";
+  const depose = await prisma.document.count({ where: { entityType: "LEGAL_DOCUMENT", entityId: legalDocumentId, uploadedById: userId } });
+  return depose > 0 ? "DEPOSANT" : null;
+}
+
+/** Un fichier d'un document Legal s'ouvre à qui l'a déposé, et à qui a créé le document. */
+async function peutLireSaPieceLegal(user: SessionUser, doc: { id: string; entityType: EntityType; entityId: string }): Promise<boolean> {
+  if (doc.entityType !== "LEGAL_DOCUMENT") return false;
+  const piece = await prisma.document.findUnique({ where: { id: doc.id }, select: { uploadedById: true } });
+  if (piece?.uploadedById === user.id) return true;
+  return (await prisma.legalDocument.count({ where: { id: doc.entityId, createdById: user.id } })) > 0;
 }
 
 /**

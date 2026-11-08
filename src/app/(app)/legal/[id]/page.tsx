@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { ArrowLeft, Paperclip, ExternalLink } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { listPartyOptions } from "@/lib/queries/company-contacts";
@@ -32,6 +31,7 @@ import { RecordDeleteButton } from "@/components/shared/record-delete-button";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { legalReaderWhere, canManageLegalReaders } from "@/lib/lecteurs/legal";
 import { LegalAccessPanel } from "./access-panel";
+import { FicheDuDeposant } from "./fiche-deposant";
 import { loadLegalChain, piecesAmontProposees } from "@/lib/queries/legal-chain";
 import { perimetreLegal } from "@/lib/queries/visibilite-listes";
 import { valeurContractuelleCourante } from "@/lib/pch/market-math";
@@ -97,7 +97,9 @@ export default async function LegalDocumentPage(
     // COMMANDE, et d'elle seule — ce que la file demande de signer doit pouvoir se lire.
     onBonsDeCommande: userCan(user, "PURCHASE_ORDERS", "VIEW"),
   });
-  if (portee === "NONE") notFound();
+  // QUI A DÉPOSÉ UN FICHIER LE VOIT (08/11/2026) : chaque refus de la fiche passe d'abord par la vue du déposant —
+  // le document en lecture et SES fichiers, rien de plus (`fiche-deposant.tsx`). Ni déposant ni créateur : 404, comme avant.
+  if (portee === "NONE") return <FicheDuDeposant userId={user.id} legalDocumentId={params.id} />;
 
   // Cloisonnement par entité : deviner un identifiant n'ouvre pas les engagements d'une autre
   // société du groupe.
@@ -129,14 +131,16 @@ export default async function LegalDocumentPage(
       readers: { select: { userId: true, user: { select: { name: true } } } },
     },
   });
-  if (!doc) notFound();
+  if (!doc) return <FicheDuDeposant userId={user.id} legalDocumentId={params.id} />;
 
   // La pièce est-elle DANS la portée de cette personne ? Un refus rend 404, comme les autres :
   // dire qu'un document existe, c'est déjà en dire trop.
-  if (!legalKindVisible(portee, String(doc.kind))) notFound();
+  if (!legalKindVisible(portee, String(doc.kind))) return <FicheDuDeposant userId={user.id} legalDocumentId={params.id} />;
   // LE BC D'UN POSTE AVANT SA SIGNATURE n'est pas encore au registre : ses signataires (et le Super Admin) seuls l'ouvrent ici.
   if (bcDePosteAvantSignature({ kind: String(doc.kind), sourceType: doc.sourceType, signedAt: doc.signedAt })
-    && !(user.role === "SUPER_ADMIN" || user.secondaryRole === "SUPER_ADMIN" || userCan(user, "PURCHASE_ORDERS", "UPDATE"))) notFound();
+    && !(user.role === "SUPER_ADMIN" || user.secondaryRole === "SUPER_ADMIN" || userCan(user, "PURCHASE_ORDERS", "UPDATE"))) {
+    return <FicheDuDeposant userId={user.id} legalDocumentId={params.id} />;
+  }
 
   // UN DEVIS D'AD & PRO NON RETENU (Direction, 11/2026) : écarté au dépôt du BC signé de son poste.
   const nonRetenuLu = doc.kind === "QUOTE" ? (await nonRetenusDesPieces([doc.id])).get(doc.id) ?? null : null;
