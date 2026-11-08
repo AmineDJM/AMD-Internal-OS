@@ -245,6 +245,26 @@ export async function resolveGeneralMeansDepartment(user: SessionUser): Promise<
   return emp?.departmentId ?? null;
 }
 
+/**
+ * LES PIÈCES D'UNE DÉPENSE DES MOYENS GÉNÉRAUX s'ouvrent à qui voit la dépense sur l'écran (Direction, 08/11/2026 :
+ * « Accès refusé » en ouvrant une facture). La pièce se range sous DEPARTMENT_EXPENSE, dont le module de repli est
+ * BUDGETS : la détentrice de la caisse et quiconque tient le module Moyens généraux voyaient la ligne et son lien,
+ * puis se faisaient refuser le fichier. La MÊME règle que `getGeneralMeans` — détenir une remise ouverte du
+ * département, ou avoir le module sur le service désigné — et rien de plus : la masse salariale (HR) reste au
+ * module Budgets, et ce n'est qu'une porte de LECTURE.
+ */
+export async function peutLireDepenseMoyensGeneraux(user: SessionUser, expenseId: string): Promise<boolean> {
+  const e = await prisma.departmentBudgetExpense.findUnique({ where: { id: expenseId }, select: { departmentId: true, kind: true } });
+  if (!e || e.kind === "HR") return false;
+  const detient = await prisma.pettyCashAllotment.findFirst({
+    where: { departmentId: e.departmentId, holderId: user.id, status: { not: "CLOSED" } },
+    select: { id: true },
+  });
+  if (detient) return true;
+  if (!userCan(user, "GENERAL_MEANS", "VIEW")) return false;
+  return (await resolveGeneralMeansDepartment(user)) === e.departmentId;
+}
+
 export async function getGeneralMeans(
   user: SessionUser,
   departmentId: string,

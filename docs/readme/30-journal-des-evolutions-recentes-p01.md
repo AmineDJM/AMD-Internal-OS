@@ -1,5 +1,13 @@
 ## 🧾 Journal des évolutions récentes
 
+### MOYENS GÉNÉRAUX : LA FACTURE D'UNE DÉPENSE NE RÉPOND PLUS « ACCÈS REFUSÉ » (2026-11-08)
+
+La pièce d'une dépense se range sous `DEPARTMENT_EXPENSE`, dont le module de repli est **Budgets** : la détentrice de la
+caisse et quiconque tient le module Moyens généraux voyaient la ligne et son lien, puis `/api/documents/[id]` refusait le
+fichier. La porte suit désormais la règle de l'écran (`peutLireDepenseMoyensGeneraux`, `lib/queries/general-means.ts`,
+appelée par `canAccessEntity`) : détenir une remise ouverte du département, ou avoir le module sur le service désigné — en
+LECTURE seulement ; la masse salariale (HR) reste au module Budgets. Banc : `actions/moyens-generaux-pieces-flow.test.ts`.
+
 ### I5 — LE CONTRÔLE FINAL : ADAM SE REND COMPTE À LA PREMIÈRE ERREUR (2026-11-04)
 
 Décision [0069](../assistant/decisions/0069-controle-final.md). Après chaque tour, avant d'afficher et de stocker, chaque

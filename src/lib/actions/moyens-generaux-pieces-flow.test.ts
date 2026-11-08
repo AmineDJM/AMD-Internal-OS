@@ -15,6 +15,7 @@ import { deleteFileByKey } from "@/lib/storage";
 import { allotPettyCash, spendFromPettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
+import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -186,5 +187,22 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
     // 100 000 − 12 000 − 8 000 : le fond reste au-dessus du seuil d'alerte, donc personne n'est
     // prévenu — le banc ne dérange aucun compte de la base partagée.
     expect((await fond()).remaining).toBe(80_000);
+  });
+
+  // « Accès refusé » en ouvrant la facture d'une dépense (Direction, 08/11/2026) : la pièce d'une dépense se rangeait sous
+  // DEPARTMENT_EXPENSE, dont le module de repli est BUDGETS — la détentrice de la caisse, qui voit la ligne et son lien sur
+  // l'écran par le module Moyens généraux, se faisait refuser le fichier. La porte suit désormais la règle de l'écran.
+  it("LA PIÈCE D'UNE DÉPENSE S'OUVRE À QUI VOIT LA DÉPENSE : la détentrice sans le module Budgets — pas un compte sans lien", async () => {
+    const lignes = await depenses(`${TAG} cartouches`);
+    const doc = await prisma.document.findFirstOrThrow({
+      where: { entityType: "DEPARTMENT_EXPENSE", entityId: lignes[0]!.id },
+      select: { id: true, entityType: true, entityId: true, stepKey: true },
+    });
+    const a = await actorFor(holderId, "DIRECTION_ASSISTANT");
+    expect(userCan(a, "BUDGETS", "VIEW"), "prémisse : la détentrice n'a pas le module Budgets").toBe(false);
+    expect(await peutOuvrirDocument(a, doc)).toBe(true);
+
+    const etranger = await prisma.user.create({ data: { name: `${TAG}etranger`, email: `${TAG}etranger@t.dz`, role: "MEDICAL_DELEGATE", passwordHash: "x" } });
+    expect(await peutOuvrirDocument(await actorFor(etranger.id, "MEDICAL_DELEGATE"), doc)).toBe(false);
   });
 });

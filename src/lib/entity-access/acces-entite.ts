@@ -28,6 +28,7 @@ import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
 import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { accesAuCasPv } from "@/lib/pharmacovigilance/acces";
 import { accesAuReleveStockPch } from "@/lib/queries/stock-pch";
+import { peutLireDepenseMoyensGeneraux } from "@/lib/queries/general-means";
 import {
   userCan, hasGlobalView, isTopManagement, scopeMedicalDoctors, scopeMedicalVisits, scopeSales, scopeBusinessDevelopment, scopeSupport, scopeDossiers, type Action, type SessionUser,
   annuaireOuvertParConsole, moduleDuDossierRegulatory, hasRole,
@@ -621,6 +622,10 @@ export async function canAccessEntity(
     if (hasGlobalView(user.role)) return true;
     return canSeeTask(t, user.id) && canAttachTask(t, user.id);
   }
+
+  // LA FACTURE D'UNE DÉPENSE DES MOYENS GÉNÉRAUX (Direction, 08/11/2026) : à qui voit la dépense sur l'écran, sans le
+  // module Budgets — la règle vit à côté de l'écran (`peutLireDepenseMoyensGeneraux`).
+  if (entityType === "DEPARTMENT_EXPENSE" && action === "VIEW" && (await peutLireDepenseMoyensGeneraux(user, entityId))) return true;
 
   if (!userCan(user, module, action)) return false;
 
