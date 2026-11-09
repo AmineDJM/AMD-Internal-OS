@@ -93,7 +93,7 @@ export {
 
 // Les pièces d'une demande de paiement choisies dans Legal, ou déposées et lues (Direction, 04/11/2026).
 export {
-  aRemplir, type AnnuaireDeLaPiece, avertissementUsage, type DemandeEnCours, type ChampRempli, type ContactDeLAnnuaire, type DocumentLegalPropose, type LecturePourDemande, natureAInscrireAuLegal, natureDePieceDuLegal, natureDePieceLue,
+  aRemplir, type AnnuaireDeLaPiece, avertissementUsage, type DemandeEnCours, type FichierEnCours, type ChampRempli, type ContactDeLAnnuaire, type DocumentLegalPropose, type LecturePourDemande, natureAInscrireAuLegal, natureDePieceDuLegal, natureDePieceLue,
   type NaturePieceDemande, NATURES_LEGAL_PAYABLES, pieceQuiRemplit, refusReutilisation,
   STATUTS_DEMANDE_VIVANTE, titrePourLeRegistre, type UsageDocumentLegal,
 } from "./domaine/pieces-legal";

@@ -192,6 +192,17 @@ suite("demande de paiement — les pièces choisies dans Legal ou déposées", (
     expect(ids).not.toContain(ouvertes[0]);
     expect(miennes.every((d) => d.reference.startsWith("PAY-") && d.pieces >= 0)).toBe(true);
 
+    // SES FICHIERS, avec « Remplacer » là où l'action l'accepterait (Direction, 09/11/2026 : « changer le fichier »).
+    const restante = miennes.find((d) => d.id === ouvertes[1])!;
+    expect(restante.fichiers.length).toBe(restante.pieces);
+    expect(restante.fichiers.length).toBeGreaterThan(0);
+    expect(restante.fichiers.every((f) => f.nom.length > 0 && f.documentId)).toBe(true);
+    expect(restante.fichiers.every((f) => f.remplacable && f.refus === null)).toBe(true);
+    // Les Finances ouvrent l'examen : un fichier qu'elles n'ont pas signalé ne se remplace plus d'ici.
+    await prisma.paymentRequest.update({ where: { id: ouvertes[1] }, data: { status: "UNDER_REVIEW" } });
+    const enExamen = (await mesDemandesDePaiementEnCours()).find((d) => d.id === ouvertes[1])!;
+    expect(enExamen.fichiers.every((f) => !f.remplacable && /quand elles la signalent/.test(f.refus ?? ""))).toBe(true);
+
     ACTOR = await acteur(financesId, "FINANCE_BUDGET_MANAGER");
     const autres = (await mesDemandesDePaiementEnCours()).map((d) => d.id);
     for (const id of ouvertes) expect(autres).not.toContain(id);

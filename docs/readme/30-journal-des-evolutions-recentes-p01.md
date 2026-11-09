@@ -6,7 +6,7 @@
 ou en en ajoutant » (Direction). En tête de « Demander un paiement », **« Vos demandes en cours »** (`mesDemandesDePaiementEnCours`)
 rappelle ses demandes non terminées (ni bon à payer, ni refusées, ni annulées) — référence, objet, bénéficiaire, montant,
 état, pièces — avec **« Ajouter un fichier »** (nature + fichier, `addPaymentPiece`, mêmes gardes que la page) et **« Ouvrir »**.
-Le bloc s'efface dès que la nouvelle demande reçoit une pièce. Et le demandeur **remplace** désormais n'importe laquelle de
+Chaque demande y montre aussi **ses fichiers**, chacun avec **« Remplacer »** (même `addPaymentPiece`, avec `replacesId`) là où l'action l'accepterait — le bouton suit `refusDeRemplacement`, et le motif s'affiche quand il manque. Le bloc s'efface dès que la nouvelle demande reçoit une pièce. Et le demandeur **remplace** désormais n'importe laquelle de
 ses pièces tant que les Finances n'ont pas ouvert l'examen (`SUBMITTED`, en plus du brouillon et du « à revoir ») ; dès
 l'examen, seule une pièce mise en cause se remplace (`refusDeRemplacement`). Bancs : `payment-request.test.ts`,
 `payment-correction-flow.test.ts`, `pieces-legal-flow.test.ts`.

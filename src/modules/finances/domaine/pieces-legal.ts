@@ -169,4 +169,18 @@ export interface DemandeEnCours {
   pieces: number;
   /** ISO. */
   majLe: string;
+  /** Les fichiers en vigueur — pour les CHANGER depuis « Demander un paiement » (Direction, 09/11/2026 : « changer le
+   *  fichier, pas seulement en ajouter »). `remplacable` = ce que l'action accepterait (`refusDeRemplacement`). */
+  fichiers: FichierEnCours[];
+}
+
+export interface FichierEnCours {
+  id: string;
+  documentId: string;
+  nom: string;
+  kind: string;
+  status: string;
+  remplacable: boolean;
+  /** Pourquoi il ne se remplace pas (le message de l'action) — null s'il se remplace. */
+  refus: string | null;
 }

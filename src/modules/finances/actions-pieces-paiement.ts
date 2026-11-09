@@ -6,6 +6,7 @@ import { fdStr } from "@/lib/actions/types";
 import { documentsLegalPourPaiement, lireFichierPourLaDemande, lirePourLaDemande } from "@/lib/actions/internes/paiement/pieces-legal";
 import { prisma } from "@/lib/prisma";
 import type { DemandeEnCours, DocumentLegalPropose, LecturePourDemande } from "./partage";
+import { refusDeRemplacement } from "./partage";
 
 /**
  * LES PIÈCES DE « DEMANDER UN PAIEMENT » (Direction, 04/11/2026) — deux lectures d'écran, rien n'est écrit.
@@ -47,11 +48,28 @@ export async function mesDemandesDePaiementEnCours(): Promise<DemandeEnCours[]> 
     take: 8,
     select: {
       id: true, reference: true, title: true, payee: true, amount: true, status: true, updatedAt: true,
-      _count: { select: { pieces: { where: { replacedBy: null } } } },
+      pieces: {
+        where: { replacedBy: null }, orderBy: { position: "asc" },
+        select: { id: true, documentId: true, kind: true, status: true },
+      },
     },
   });
+  // Les NOMS des fichiers (la pièce ne porte que l'id du document).
+  const docIds = lignes.flatMap((d) => d.pieces.map((p) => p.documentId));
+  const docs = docIds.length
+    ? await prisma.document.findMany({ where: { id: { in: docIds } }, select: { id: true, name: true } })
+    : [];
+  const nomDe = new Map(docs.map((x) => [x.id, x.name]));
   return lignes.map((d) => ({
     id: d.id, reference: d.reference, title: d.title, payee: d.payee, amount: Number(d.amount ?? 0), status: d.status,
-    pieces: d._count.pieces, majLe: d.updatedAt.toISOString(),
+    pieces: d.pieces.length, majLe: d.updatedAt.toISOString(),
+    fichiers: d.pieces.map((p) => {
+      // LA MÊME RÈGLE QUE L'ACTION (`addPaymentPiece` avec `replacesId`) : le bouton n'apparaît que là où elle accepterait.
+      const refus = refusDeRemplacement({ pieceStatus: p.status, dejaRemplacee: false, dossierStatus: d.status, parLeDemandeur: true });
+      return {
+        id: p.id, documentId: p.documentId, nom: nomDe.get(p.documentId) ?? "Fichier", kind: p.kind, status: p.status,
+        remplacable: refus === null, refus,
+      };
+    }),
   }));
 }
