@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### LECTURE DES PIÈCES : UN SCAN SE LIT SUR SON IMAGE — LES TICKETS DE CAISSE AUSSI (2026-11-09)
+
+« L'IA ne lit pas bien les bons » (Moyens généraux). Le cas : un ticket de 15 articles scanné sur une page A4, ressorti
+en **6 lignes aux montants centuplés** (460.00 DA lu 46 000). Trois causes, trois corrections dans `lib/pieces-lues/` :
+1. **La couche texte du SCANNER était lue comme le texte de la pièce** : elle perd les décimales et colle les colonnes,
+   tout en restant cohérente avec elle-même. Un PDF qu'une image couvre est désormais un scan (`pdfEstUnScan`), comme
+   une photo : ni ses positions ni le modèle de texte ne le lisent — **la vision passe la première** (le modèle de texte
+   reste le repli si elle ne rend rien), son total et son émetteur font foi.
+2. **La quantité recopiée comme numéro de ligne** (un ticket n'a pas de colonne N°) faisait croire à des doublons :
+   une numérotation ne compte que si elle est complète, croissante, et répétée seulement sur la même désignation
+   (`numerotationFiable`) ; sinon les lignes se numérotent dans leur ordre.
+3. **L'image envoyée était trop petite** : page rendue à ~300 DPI, **recadrée sur la pièce** (le ticket remplissait un
+   quart de la page ; les poussières de scan ignorées), redressée selon l'EXIF, lue en détail « high »
+   (`images-vision.ts`). La consigne de la vision couvre toute pièce — facture, devis, bon, ticket : désignations sur
+   deux lignes réunies, tous les articles, nombres recopiés exactement, « TOTAL BON » comme total d'un ticket.
+Bancs : `scan-vision.test.ts`, `banc/banc-ticket.test.ts` (le ticket réel reconstitué, couche texte abîmée comprise).
+
 ### DEMANDER UN PAIEMENT : SES DEMANDES EN COURS, ET SES FICHIERS REMPLAÇABLES JUSQU'À L'EXAMEN (2026-11-09)
 
 « Quand il ajoute une demande de paiement, il voit ses demandes précédentes et peut les modifier en changeant les fichiers

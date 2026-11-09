@@ -21,12 +21,12 @@ import {
   noteDeMethode, phraseSansLignes, refusFormatDePiece, refusTailleDePiece, type FaitsDeLecture, type RaisonSansLignes,
 } from "@/lib/pieces-lues/phrases";
 import type { PieceLue } from "@/lib/pieces-lues/structure";
-import { rangeesDuPdf } from "@/lib/pieces-lues/positions";
+import { pdfEstUnScan, rangeesDuPdf } from "@/lib/pieces-lues/positions";
+import { imagePourVision, pagesPourVision } from "@/lib/pieces-lues/images-vision";
 import { lireTableau, reconcilier, type LigneTableau, type Reconciliation } from "@/lib/pieces-lues/tableau";
 import { pieceDepuisTableau } from "@/lib/pieces-lues/tableau-piece";
 import { lireTableauParVision, type DependancesVision } from "@/lib/pieces-lues/vision-lignes";
 import { callLuna, lunaConfigured, lunaModel } from "@/lib/openai-luna";
-import { rasterizePdf } from "@/lib/regulatory/intelligence/ocr/ocr-engine";
 import { verdictDeLecture, type VerdictLecture } from "@/lib/pieces-lues/verdict";
 import { emetteurEtDestinataire, estDuGroupe, ficheDuGroupe, type DestinataireLu, type EmetteurLu } from "@/lib/pieces-lues/emetteur-destinataire";
 import {
@@ -292,7 +292,9 @@ async function lignesDeLaLecture(
 const VISION: DependancesVision = {
   disponible: async () => lunaConfigured() && (await disponibiliteLecturePieces()).disponible,
   appeler: (input) => callLuna(input),
-  pages: async (pdf, max) => (await rasterizePdf(pdf, max)).pages,
+  // Rendues finement et recadrées sur la pièce (un ticket sur une page A4 n'en occupe qu'un quart).
+  pages: (pdf, max) => pagesPourVision(pdf, max),
+  preparer: (image, mime) => imagePourVision(image, mime),
   modele: () => lunaModel(),
 };
 
@@ -300,6 +302,8 @@ const VISION: DependancesVision = {
 const SUSPECTE = (d: string): string[] => scanForInjection(d).flags;
 
 const SOURCE_POSITIONS = "lecture du tableau (positions du PDF)";
+/** Les formats qui SONT une image : une photo ou un scan déposé tel quel se lit d'abord par la vision. */
+const IMAGES_LUES: ReadonlySet<string> = new Set(["png", "jpg", "jpeg", "webp", "tif", "tiff"]);
 const PREFIXE_VISION = "vision:";
 const methodeDeSource = (par: string | null): MethodeLignes =>
   par === SOURCE_POSITIONS ? "positions" : par?.startsWith(PREFIXE_VISION) ? "vision" : "modele";
@@ -349,7 +353,11 @@ export async function proposerLecture(args: {
 
   // ── LE TABLEAU PAR SES POSITIONS (lot B1) : local, sans modèle — confidentielle comprise. S'il réconcilie
   // (chaque ligne recoupée, numérotation suivie, somme = HT imprimé), c'est LUI qui fait les lignes.
-  const rangees = ext === "pdf" ? await rangeesDuPdf(octets).catch(sansBloquer("pieces-lues.positions", null)) : null;
+  // UN SCAN SE LIT SUR SON IMAGE (Moyens généraux, 09/11/2026). Une photo, ou un PDF qu'une image couvre : sa couche
+  // texte est l'OCR du scanner, qui perd les décimales et colle les colonnes — sans que rien la dénonce, puisqu'elle reste
+  // cohérente avec elle-même. Ni ses positions ni le modèle de texte n'y lisent juste : la vision passe la PREMIÈRE.
+  const scan = IMAGES_LUES.has(ext) || (ext === "pdf" && (await pdfEstUnScan(octets).catch(sansBloquer("pieces-lues.scan", false))));
+  const rangees = ext === "pdf" && !scan ? await rangeesDuPdf(octets).catch(sansBloquer("pieces-lues.positions", null)) : null;
   const tableau = rangees ? lireTableau(rangees) : null;
   const htImprime = entetes.totalHt?.valeur ?? tableau?.totalHt ?? null;
   const etiquete = identiteEmetteurDuTexte(l.texte);
@@ -357,28 +365,53 @@ export async function proposerLecture(args: {
   const recPositions = tableau && tableau.lignes.length ? reconcilier(tableau, htImprime) : null;
   const parPositions = tableau && recPositions?.juste ? pieceDepuisTableau(tableau.lignes, entetes, ed0.emetteur, SUSPECTE) : null;
 
-  let lignes = await lignesDeLaLecture(l, { noteMethode, nomFichier, confidentielle: !contexte.sortieCloudPermise, userId: user.id, parPositions });
-  let reconciliation: Reconciliation | null = lignes.piece
+  // LA VISION, D'ABORD POUR UN SCAN — sauf si ses lignes sont déjà gardées pour cette lecture (pas deux appels).
+  const passeVision = () => lireTableauParVision(octets, ext, VISION).catch(sansBloquer("pieces-lues.vision", null));
+  let vision: Awaited<ReturnType<typeof passeVision>> = null;
+  let visionTentee = false;
+  let lignes: LignesDeLecture | null = null;
+  if (scan && contexte.sortieCloudPermise) {
+    const gardee = await structureGardeeEtSource(l.id);
+    if (gardee.piece && methodeDeSource(gardee.par) === "vision") {
+      lignes = { piece: gardee.piece, raison: null, sansLignes: null, methode: "vision" };
+    } else {
+      visionTentee = true;
+      vision = await passeVision();
+    }
+  }
+  // Le total d'un scan se prend sur l'image : celui de sa couche texte a pu perdre ses décimales.
+  const htDeLaVision = (v: NonNullable<typeof vision>) => (scan ? v.totalHt ?? htImprime : htImprime ?? v.totalHt);
+  if (!lignes && !(vision && vision.lignes.length)) {
+    lignes = await lignesDeLaLecture(l, { noteMethode, nomFichier, confidentielle: !contexte.sortieCloudPermise, userId: user.id, parPositions });
+  }
+  let reconciliation: Reconciliation | null = lignes?.piece
     ? (lignes.methode === "positions" ? recPositions : reconcilier({ lignes: lignesPourReconcilier(lignes.piece), trous: [] }, htImprime))
     : null;
 
-  // ── LA SECONDE PASSE : LA VISION. La lecture ne réconcilie pas (ou il n'y en a pas : un scan) — on relit
-  // l'image des pages. Jamais pour une pièce confidentielle ; jamais deux fois pour la même lecture.
-  if (!reconciliation?.juste && contexte.sortieCloudPermise && lignes.methode !== "vision" && lignes.methode !== "positions") {
-    const vision = await lireTableauParVision(octets, ext, VISION).catch(sansBloquer("pieces-lues.vision", null));
-    if (vision && vision.lignes.length) {
-      const htV = htImprime ?? vision.totalHt;
-      const recV = reconcilier(vision, htV);
-      const nomV = vision.emetteur.nom && !estDuGroupe(vision.emetteur.nom, societes) ? vision.emetteur.nom : null;
-      const meilleure = recV.juste || !reconciliation || scoreReconciliation(recV) < scoreReconciliation(reconciliation);
-      if (meilleure) {
-        const emV = { ...ed0.emetteur, nom: ed0.emetteur.nom ?? nomV };
-        const pieceV = pieceDepuisTableau(vision.lignes, entetes, emV, SUSPECTE);
-        if (l.etat === "LUE") await remplacerStructure(l.id, pieceV, `${PREFIXE_VISION}${vision.modele}`);
-        lignes = { piece: pieceV, raison: null, sansLignes: null, methode: "vision" };
-        reconciliation = recV;
-      }
+  // ── LA SECONDE PASSE : LA VISION. La lecture ne réconcilie pas (ou il n'y en a pas) — on relit l'image des pages.
+  // Jamais pour une pièce confidentielle ; jamais deux fois pour la même lecture.
+  if (!vision && !visionTentee && !reconciliation?.juste && contexte.sortieCloudPermise
+    && lignes?.methode !== "vision" && lignes?.methode !== "positions") {
+    vision = await passeVision();
+  }
+  if (vision && vision.lignes.length) {
+    const recV = reconcilier(vision, htDeLaVision(vision));
+    const nomV = vision.emetteur.nom && !estDuGroupe(vision.emetteur.nom, societes) ? vision.emetteur.nom : null;
+    // Un scan : l'image fait foi dès qu'elle a des lignes. Sinon, elle remplace la lecture du texte si elle réconcilie mieux.
+    const meilleure = scan || !lignes?.piece || recV.juste || !reconciliation || scoreReconciliation(recV) < scoreReconciliation(reconciliation);
+    if (meilleure) {
+      // L'émetteur d'un scan se lit sur l'image : la couche texte du scanner l'a souvent rendu illisible.
+      const emV = { ...ed0.emetteur, nom: scan ? nomV ?? ed0.emetteur.nom : ed0.emetteur.nom ?? nomV };
+      const pieceV = pieceDepuisTableau(vision.lignes, entetes, emV, SUSPECTE);
+      if (l.etat === "LUE") await remplacerStructure(l.id, pieceV, `${PREFIXE_VISION}${vision.modele}`);
+      lignes = { piece: pieceV, raison: null, sansLignes: null, methode: "vision" };
+      reconciliation = recV;
     }
+  }
+  // La vision tentée d'abord n'a rien donné : la lecture du texte, comme pour toute pièce.
+  if (!lignes) {
+    lignes = await lignesDeLaLecture(l, { noteMethode, nomFichier, confidentielle: !contexte.sortieCloudPermise, userId: user.id, parPositions });
+    reconciliation = lignes.piece ? reconcilier({ lignes: lignesPourReconcilier(lignes.piece), trous: [] }, htImprime) : null;
   }
   // Une lecture positionnelle qui ne réconcilie pas, et rien de mieux : elle vaut mieux que rien (un PDF confidentiel, IA coupée).
   if (!lignes.piece && tableau && tableau.lignes.length) {

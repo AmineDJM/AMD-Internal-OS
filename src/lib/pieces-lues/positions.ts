@@ -46,6 +46,40 @@ export function rangeesDesGlyphes(page: number, glyphes: readonly Glyphe[]): Ran
   return rangees;
 }
 
+/**
+ * UN PDF QUI EST UN SCAN — une image couvre (presque) une page. Sa couche texte, s'il en a une, est l'OCR du
+ * SCANNER, pas le texte de la pièce : elle perd les décimales (« 230.00DA » devient « 23000DA »), colle la
+ * quantité au prix (« 1 190.00 » devient « 119000 ») — et reste cohérente avec elle-même, donc rien ne la
+ * dénonce (Moyens généraux, 09/11/2026). Une telle pièce se lit sur son IMAGE.
+ */
+export async function pdfEstUnScan(octets: Buffer, pagesMax = 3): Promise<boolean> {
+  let mupdf: typeof import("mupdf");
+  try { mupdf = await import("mupdf"); } catch { return false; }
+  let doc: InstanceType<typeof mupdf.Document> | null = null;
+  try {
+    doc = mupdf.Document.openDocument(new Uint8Array(octets), "application/pdf");
+    const total = Math.min(doc.countPages(), pagesMax);
+    for (let i = 0; i < total; i++) {
+      const page = doc.loadPage(i);
+      const [x0, y0, x1, y1] = page.getBounds();
+      const aire = Math.max(1, (x1 - x0) * (y1 - y0));
+      let couverture = 0;
+      const st = page.toStructuredText("preserve-images");
+      st.walk({
+        onImageBlock(bbox) { couverture = Math.max(couverture, ((bbox[2] - bbox[0]) * (bbox[3] - bbox[1])) / aire); },
+      });
+      st.destroy?.();
+      page.destroy?.();
+      if (couverture >= 0.6) return true;
+    }
+    return false;
+  } catch {
+    return false;
+  } finally {
+    doc?.destroy?.();
+  }
+}
+
 /** Les rangées positionnées d'un PDF à couche texte ; `null` sans couche texte exploitable. */
 export async function rangeesDuPdf(octets: Buffer, pagesMax = PAGES_MAX): Promise<Rangee[] | null> {
   let mupdf: typeof import("mupdf");

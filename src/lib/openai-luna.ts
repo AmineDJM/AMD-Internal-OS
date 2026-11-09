@@ -94,6 +94,8 @@ export interface LunaImage {
   /** Données brutes de l'image (page rastérisée). */
   buffer: Buffer;
   mime?: string;
+  /** « high » : le modèle lit l'image en tuiles fines (un ticket, un tableau scanné) ; défaut du fournisseur sinon. */
+  detail?: "low" | "high" | "auto";
 }
 
 export interface LunaCallInput {
@@ -133,7 +135,7 @@ const EMPTY_USAGE: LunaUsage = { inputTokens: 0, outputTokens: 0, cachedInputTok
 interface ChatMessageContent {
   type: "text" | "image_url";
   text?: string;
-  image_url?: { url: string };
+  image_url?: { url: string; detail?: "low" | "high" | "auto" };
 }
 
 /** Construit le corps d'un appel Chat Completions (texte + images + schéma JSON). */
@@ -146,7 +148,7 @@ export function buildLunaBody(input: LunaCallInput, batch = false): Record<strin
   const content: ChatMessageContent[] = [{ type: "text", text: user }];
   for (const img of input.images ?? []) {
     const mime = img.mime ?? "image/png";
-    content.push({ type: "image_url", image_url: { url: `data:${mime};base64,${img.buffer.toString("base64")}` } });
+    content.push({ type: "image_url", image_url: { url: `data:${mime};base64,${img.buffer.toString("base64")}`, ...(img.detail ? { detail: img.detail } : {}) } });
   }
 
   const messages: { role: string; content: string | ChatMessageContent[] }[] = [];
