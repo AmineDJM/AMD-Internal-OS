@@ -33,9 +33,15 @@ interface Row {
   manuel: boolean;
   /** Le libellé pour lequel l'IA a déjà répondu — pour ne pas redemander la même chose. */
   suggerePour: string;
+  /** La ligne LUE sur la facture dont elle vient (rang), ou `null` : saisie à la main. */
+  lue: number | null;
+  /** Article hors catalogue à ajouter au catalogue à l'enregistrement. */
+  catalogue: boolean;
+  /** Ce que la lecture demande de vérifier sur cette ligne. */
+  notes: string[];
 }
 
-const empty = (key: number): Row => ({ key, articleId: "", label: "", quantity: "1", amount: "", budgetCategoryId: "", auto: false, manuel: false, suggerePour: "" });
+const empty = (key: number): Row => ({ key, articleId: "", label: "", quantity: "1", amount: "", budgetCategoryId: "", auto: false, manuel: false, suggerePour: "", lue: null, catalogue: false, notes: [] });
 
 /** Attente après la dernière frappe avant de demander à l'IA : on ne la sollicite pas à chaque lettre. */
 const ATTENTE_MS = 900;
@@ -47,6 +53,12 @@ export interface ExistingLine {
   quantity: number;
   amount: number;
   budgetCategoryId?: string | null;
+  /** Lue sur la facture (rang) — la dépense préremplie depuis sa pièce (09/11/2026). */
+  lue?: number | null;
+  /** Article nouveau, proposé à l'ajout au catalogue. */
+  ajouterAuCatalogue?: boolean;
+  /** Ce que la lecture demande de vérifier. */
+  notes?: string[];
 }
 
 /**
@@ -90,6 +102,9 @@ export function ReceiptLines({
           auto: false,
           manuel: Boolean(l.budgetCategoryId),
           suggerePour: "",
+          lue: l.lue ?? null,
+          catalogue: Boolean(l.ajouterAuCatalogue),
+          notes: l.notes ?? [],
         }))
       : [empty(0)],
   );
@@ -146,6 +161,8 @@ export function ReceiptLines({
       quantity: r.quantity,
       amount: r.amount,
       budgetCategoryId: r.budgetCategoryId || null,
+      ...(r.lue !== null ? { lue: r.lue } : {}),
+      ...(!r.articleId && r.catalogue ? { ajouterAuCatalogue: true } : {}),
     }))),
     [rows, articles],
   );
@@ -199,6 +216,19 @@ export function ReceiptLines({
                     aria-label={`Désignation de l'article ${i + 1}`}
                     className="mt-1 h-9"
                   />
+                )}
+                {/* UN ARTICLE NOUVEAU ENTRE AU CATALOGUE (09/11/2026) — coché d'office quand il vient de la facture. */}
+                {!r.articleId && r.label.trim().length > 0 && (
+                  <label className="mt-1 flex items-center gap-1.5 text-[0.6875rem] text-muted-foreground">
+                    <input
+                      type="checkbox" checked={r.catalogue} onChange={(e) => patch(r.key, { catalogue: e.target.checked })}
+                      className="h-3.5 w-3.5 accent-primary" aria-label={`Ajouter l'article ${i + 1} au catalogue`}
+                    />
+                    Ajouter au catalogue des moyens généraux
+                  </label>
+                )}
+                {r.notes.length > 0 && (
+                  <p className="mt-0.5 text-[0.6875rem] text-warning">{r.notes.join(" · ")}</p>
                 )}
               </div>
               <div className="col-span-4 sm:col-span-2">

@@ -23,7 +23,7 @@
  */
 
 /** Les écritures qu'une confirmation peut accompagner — vocabulaire fermé (`LecturePieceConfirmation.cibleType`). */
-export const CIBLES_LECTURE = ["PROMO_QUOTE", "PROMO_FACTURE", "LEGAL_DOCUMENT"] as const;
+export const CIBLES_LECTURE = ["PROMO_QUOTE", "PROMO_FACTURE", "LEGAL_DOCUMENT", "DEPARTMENT_EXPENSE"] as const;
 export type CibleLecture = (typeof CIBLES_LECTURE)[number];
 
 export const VERDICTS_LIGNE = ["CONFIRMEE", "CORRIGEE", "AJOUTEE", "ECARTEE"] as const;

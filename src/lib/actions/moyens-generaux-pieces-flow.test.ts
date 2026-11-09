@@ -16,6 +16,8 @@ import { allotPettyCash, spendFromPettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
 import { decidePayment } from "@/modules/finances/actions-centre";
 import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
+import { empreinteDe, VERSION_LECTEUR } from "@/lib/pieces-lues/lecture-fichier";
+import { articleKey } from "@/lib/general-means/catalog-normalize";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -114,6 +116,10 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
     // concernent personne une fois le banc fini. Bornés par la date, ils se trouvent par l'index au
     // lieu d'un parcours de la table entière.
     await prisma.notification.deleteMany({ where: { createdAt: { gte: DEBUT }, OR: [{ title: { contains: TAG } }, { body: { contains: TAG } }] } }).catch(() => {});
+    const lectures = (await prisma.lecturePiece.findMany({ where: { creeParId: holderId }, select: { id: true } }).catch(() => [])).map((l) => l.id);
+    await prisma.lecturePieceConfirmation.deleteMany({ where: { lectureId: { in: lectures } } }).catch(() => {});
+    await prisma.lecturePiece.deleteMany({ where: { id: { in: lectures } } }).catch(() => {});
+    await prisma.officeSupplyArticle.deleteMany({ where: { OR: [{ name: { contains: TAG.replace(/_/g, "") } }, { notes: { contains: TAG } }] } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [pdgId, comptableId] } } }).catch(() => {});
     await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
@@ -204,5 +210,53 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
 
     const etranger = await prisma.user.create({ data: { name: `${TAG}etranger`, email: `${TAG}etranger@t.dz`, role: "MEDICAL_DELEGATE", passwordHash: "x" } });
     expect(await peutOuvrirDocument(await actorFor(etranger.id, "MEDICAL_DELEGATE"), doc)).toBe(false);
+  });
+
+  // LA DÉPENSE COMMENCE PAR SA PIÈCE (Direction, 09/11/2026) : les articles lus se confirment d'une case, l'article
+  // nouveau entre au catalogue, l'attestation se consigne avec la dépense.
+  it("PRÉREMPLIE DEPUIS SA FACTURE : sans la case « J'ai comparé », rien n'est écrit ; cochée, la dépense, ses articles, l'article nouveau au catalogue et l'attestation", async () => {
+    ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
+    const cle = TAG.replace(/_/g, "");
+    const ramette = await prisma.officeSupplyArticle.create({ data: { name: `Ramette Banc ${cle}`, notes: TAG } });
+    // Des octets PROPRES au banc : une lecture est unique par empreinte, et la base est partagée avec les bancs voisins.
+    const fichier = new File([new TextEncoder().encode(`facture ${TAG}`)], "facture-librairie.pdf", { type: "application/pdf" });
+    const octets = new Uint8Array(await fichier.arrayBuffer());
+    const lecture = await prisma.lecturePiece.create({
+      data: {
+        empreinte: empreinteDe(octets), versionLecteur: VERSION_LECTEUR, etat: "LUE", extension: "pdf", taille: octets.length, creeParId: holderId,
+        structure: {
+          type: null, numero: "245", date: "2026-11-08", devise: "DZD", modePaiement: null,
+          fournisseur: { nom: "Librairie El Nour", nif: null, rc: null, nis: null, ai: null, adresse: null },
+          tvaDefaut: null, remiseGlobale: null, taxes: [], illisibles: [], ecartees: 0, coupees: 0,
+          totaux: { ht: null, tva: null, taxes: null, timbre: null, ttc: null },
+          lignes: [
+            { rang: 1, designation: `Ramette Banc ${cle}`, designationCoupee: false, reference: null, unite: null, quantite: 10, prixUnitaire: 650, remise: null, tva: null, montantHt: 6500, section: false, forfait: false, illisibles: [] },
+            { rang: 2, designation: `agrafeuse banc ${cle}`, designationCoupee: false, reference: null, unite: null, quantite: 2, prixUnitaire: 1200, remise: null, tva: null, montantHt: 2400, section: false, forfait: false, illisibles: [] },
+          ],
+        },
+      },
+    });
+    const lignes = JSON.stringify([
+      { articleId: ramette.id, label: "", quantity: 10, amount: 6500, lue: 1 },
+      { label: `Agrafeuse banc ${cle}`, quantity: 2, amount: 2400, lue: 2, ajouterAuCatalogue: true },
+    ]);
+    const champs = { departmentId: deptId, year: "2026", kind: "OPERATING", label: "Achat — Librairie El Nour, facture n° 245", paymentSource: "CASH", lines: lignes, lectureId: lecture.id };
+
+    const sansCase = await addDepartmentExpense(form(champs, [fichier]));
+    expect(sansCase.ok).toBe(false);
+    expect(sansCase.error).toMatch(/J'ai comparé les articles à la facture/);
+    expect(await prisma.departmentBudgetExpense.count({ where: { departmentId: deptId, label: champs.label } })).toBe(0);
+
+    const r = await addDepartmentExpense(form({ ...champs, lignesComparees: "on" }, [fichier]));
+    expect(r.ok, r.error).toBe(true);
+    expect(r.message).toMatch(/1 article ajouté au catalogue/);
+    const depense = await prisma.departmentBudgetExpense.findUniqueOrThrow({ where: { id: r.id! }, include: { lines: { orderBy: { amount: "desc" } } } });
+    expect(Number(depense.amount)).toBe(8900);
+    const nouveau = await prisma.officeSupplyArticle.findFirstOrThrow({ where: { notes: { contains: "Ajouté au catalogue depuis une dépense" }, name: { contains: cle } } });
+    expect(articleKey(nouveau.name)).toBe(articleKey(`Agrafeuse banc ${cle}`));
+    expect(Number(nouveau.estimatedPrice)).toBe(1200);
+    expect(depense.lines.map((l) => [l.articleId, Number(l.amount)])).toEqual([[ramette.id, 6500], [nouveau.id, 2400]]);
+    expect(await prisma.lecturePieceConfirmation.count({ where: { lectureId: lecture.id, cibleType: "DEPARTMENT_EXPENSE", cibleId: depense.id } })).toBe(1);
+    await prisma.officeSupplyArticle.update({ where: { id: nouveau.id }, data: { notes: `${nouveau.notes} ${TAG}` } });
   });
 });

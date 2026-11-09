@@ -311,6 +311,11 @@ export function classerExclusionsCircuits(): void {
     + "pas. Un geste d'écran : Adam est en pause de développement, aucun geste neuf ne lui est ouvert.", [
     "medical-info-actions:ouvrirDeclarationDepuisAdPro",
   ]);
+  X("MOYENS GÉNÉRAUX — LA DÉPENSE COMMENCE PAR SA PIÈCE (Direction, 09/11/2026) : lire la facture ou le ticket déposé dans le "
+    + "formulaire « Ajouter une dépense » pour en préremplir les articles. Une lecture d'écran, sur un fichier que la personne "
+    + "vient de joindre — rien n'est écrit. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+    "department-budget-actions:lireFactureDepense",
+  ]);
   X("PRISES EN CHARGE — PROFESSIONNELS PROPOSÉS ET LEURS PIÈCES (§118.205) : créer le profil d'un professionnel, "
     + "demander ses pièces (passeport, visa, informations de voyage) et les déposer. Chacun touche à une identité ou "
     + "dépose un FICHIER devant la fiche de la demande. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [

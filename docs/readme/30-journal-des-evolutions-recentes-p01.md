@@ -1,5 +1,29 @@
 ## 🧾 Journal des évolutions récentes
 
+### AD & PRO : LES DÉCLARATIONS SE TÉLÉCHARGENT PAR LE KAM (2026-11-09)
+
+« Ajouter l'option "télécharger" pour les déclarations, dans le cas où les KAM en auraient besoin » (Direction). Sur la carte
+« Déclaration (information scientifique) », les fichiers que le pharmacien dépose depuis la carte portent la marque
+`stepKey = "declaration"` (`ETAPE_DECLARATION_PARTAGEE`) : **qui ouvre la demande Ad & Pro** (le KAM, le marketing…) les voit
+et les **télécharge** (bouton « Télécharger » par fichier ; porte `peutLireDeclarationDeLaDemande`,
+`entity-access/ouverture-pieces.ts`). Les autres pièces du dossier d'information médicale restent au pharmacien (marquées
+« interne » sur sa carte). Les fichiers déposés avant ce jour, ou depuis la fiche Information médicale, ne portent pas la
+marque : ils restent internes. Banc : `lib/medical-info/etape-ad-pro-flow.test.ts`.
+
+### MOYENS GÉNÉRAUX : LA DÉPENSE COMMENCE PAR SA FACTURE, ET L'IA EN REMPLIT LES ARTICLES (2026-11-09)
+
+« Ajouter une dépense » s'ouvre sur **« Déposez la facture ou le ticket »**. La pièce est lue aussitôt (`lireFactureDepense`,
+le lecteur commun `proposerLecture` : texte du PDF, Luna pour un scan) : **chaque ligne devient un article** — rattaché au
+**catalogue** quand son nom y est reconnu (`articleDuCatalogue` : même nom, ou nom contenu en mots entiers ; égalité = aucun),
+sinon nommé comme sur le papier et **proposé à l'ajout au catalogue** (case cochée d'office) —, avec quantité et montant ;
+l'**objet** (« Achat — fournisseur, facture n° … ») et les **précisions** (fournisseur, numéro, date) se remplissent ; quand le
+total imprimé dépasse les articles d'un reste plausible (≤ 35 %), une ligne **« TVA et taxes (facture) »** le porte, sinon
+l'écart se dit. La personne corrige ce qu'elle veut, coche **« J'ai comparé les articles à la facture »** (lecture confirmée,
+`exigerLectureConfirmee`, cible `DEPARTMENT_EXPENSE`, consignée dans la transaction de la dépense), puis enregistre ; les
+articles cochés entrent au catalogue (un nom déjà connu est repris, jamais doublé). Une lecture qui échoue ne bloque rien.
+Pur `lib/general-means/lecture-facture.ts` (+ test) ; serveur `lecture-depense.ts` ; écran `moyens-generaux/expense-panel.tsx`,
+`receipt-lines.tsx`. Banc : `actions/moyens-generaux-pieces-flow.test.ts`.
+
 ### AD & PRO : LE DEVIS DU MATÉRIEL PROMOTIONNEL ENTRE AU REGISTRE LEGAL (2026-11-09)
 
 « Quand on ajoute un devis dans Ad & Pro, il doit être ajouté automatiquement à Legal » (Direction). Le devis d'un POSTE y

@@ -4076,6 +4076,15 @@
   "annulation": "retour",
   "appelable": true
  },
+ "department-budget-actions:lireFactureDepense": {
+  "risque": "R0",
+  "familles": [
+   "BUDGETS"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
  "department-budget-actions:requestDepartmentBudget": {
   "risque": "R2",
   "familles": [

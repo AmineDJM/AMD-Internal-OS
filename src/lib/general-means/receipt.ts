@@ -23,6 +23,10 @@ export interface ReceiptLineInput {
   amount?: unknown;
   /** Case budgétaire de CET article (le même ticket mélange souvent plusieurs budgets). */
   budgetCategoryId?: string | null;
+  /** La ligne LUE sur la facture dont elle vient (rang 1-indexé) — absente : saisie à la main. */
+  lue?: unknown;
+  /** Article hors catalogue à AJOUTER au catalogue à l'enregistrement (Direction, 09/11/2026). */
+  ajouterAuCatalogue?: unknown;
 }
 
 export interface ReceiptLine {
@@ -31,6 +35,10 @@ export interface ReceiptLine {
   quantity: number;
   amount: number;
   budgetCategoryId: string | null;
+  /** Présente seulement quand la ligne vient de la lecture de la facture. */
+  lue?: number;
+  /** Présente (vraie) seulement quand l'article est à ajouter au catalogue. */
+  ajouterAuCatalogue?: true;
 }
 
 /** Un ticket ne se compte pas au centime près sur 20 articles : deux décimales suffisent. */
@@ -67,6 +75,9 @@ export function normalizeLines(raw: ReceiptLineInput[]): ReceiptLine[] {
       quantity: parseQuantity(l.quantity),
       amount: arrondirAuCentime(Math.max(0, parseAmount(l.amount) ?? 0)),
       budgetCategoryId: l.budgetCategoryId ? String(l.budgetCategoryId) : null,
+      // Les deux marques de la lecture ne paraissent que posées : une ligne saisie à la main garde sa forme d'avant.
+      ...(typeof l.lue === "number" && Number.isInteger(l.lue) && l.lue > 0 ? { lue: l.lue } : {}),
+      ...(l.ajouterAuCatalogue === true && !l.articleId ? { ajouterAuCatalogue: true as const } : {}),
     }))
     .filter((l) => l.label.length > 0 || l.articleId !== null);
 }

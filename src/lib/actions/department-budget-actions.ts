@@ -17,6 +17,9 @@ import {
 import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { readReceipt, saveReceiptLines, finaliserNatures } from "@/lib/general-means/expense-lines";
+import { lireFactureDeDepense, exigerLectureDeDepense, ajouterAuCatalogueDepuisDepense } from "@/lib/general-means/lecture-depense";
+import type { LectureFactureDepense } from "@/lib/general-means/lecture-facture";
+import { consignerConfirmation, type ConfirmationPrete } from "@/lib/pieces-lues/service";
 import { allowedGeneralMeansCategoryIds, keepAllowedCategory } from "@/lib/general-means/budget-targets";
 import { continuousCash, fundExcluding, fundHandle, canSpendFromFund } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
@@ -359,6 +362,28 @@ export async function decideDepartmentBudgetRequest(formData: FormData): Promise
  * porte donc son justificatif (facture, bon de paiement) : sans pièce, une ligne de dépense
  * n'est qu'une affirmation.
  */
+/**
+ * LIRE LA FACTURE OU LE TICKET D'UNE DÉPENSE (Direction, 09/11/2026) — la dépense des moyens généraux commence par sa
+ * pièce : le formulaire se remplit de ce qu'elle dit (articles nommés et chiffrés, rattachés au catalogue quand il les
+ * connaît ; objet ; précisions). Rien n'est écrit — la personne vérifie, corrige, puis enregistre. Ouvert à qui peut
+ * saisir une dépense : le module Moyens généraux, la tenue d'un budget, la vue globale.
+ */
+export async function lireFactureDepense(formData: FormData): Promise<ActionResult & { lecture?: LectureFactureDepense }> {
+  const user = await requireUser();
+  if (!(hasGlobalView(user) || userCan(user, "GENERAL_MEANS", "CREATE") || userCan(user, "BUDGETS", "UPDATE"))) {
+    return { ok: false, error: "Non autorisé." };
+  }
+  const fichier = formData.get("fichier");
+  if (!(fichier instanceof File) || fichier.size === 0) return { ok: false, error: "Choisissez la facture ou le ticket à lire." };
+  const r = await lireFactureDeDepense(user, fichier);
+  if (!r.ok) return { ok: false, error: r.error };
+  const n = r.lecture.lignes.length;
+  return {
+    ok: true, lecture: r.lecture,
+    message: n > 0 ? `Facture lue — ${n} article${n > 1 ? "s" : ""} prérempli${n > 1 ? "s" : ""} : vérifiez-les.` : "Facture lue — aucun article lu : saisissez-les depuis la facture.",
+  };
+}
+
 export async function addDepartmentExpense(formData: FormData): Promise<ActionResult> { return annulable("department-budget-actions:addDepartmentExpense", "Ajouter une dépense de département", async () => {
   const user = await requireUser();
   const departmentId = fdStr(formData, "departmentId");
@@ -411,6 +436,19 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
   const pieceRefusee = await validateAttachments(files);
   if (pieceRefusee !== null) return { ok: false, error: pieceRefusee };
 
+  // LA DÉPENSE PRÉREMPLIE DEPUIS SA FACTURE (Direction, 09/11/2026) : la lecture CONFIRMÉE, avant toute écriture — le
+  // fichier joint en premier est celui qui a été lu, et la case « J'ai comparé les articles à la facture » atteste les
+  // lignes lues gardées. Elle se consigne dans la transaction de la dépense, plus bas.
+  const lectureId = fdStr(formData, "lectureId");
+  let confirmation: ConfirmationPrete | null = null;
+  if (lectureId && ticket) {
+    const exigee = await exigerLectureDeDepense({
+      lectureId, fichierLu: files[0], lignes: ticket.lines, comparees: fdStr(formData, "lignesComparees") === "on",
+    });
+    if (!exigee.ok) return { ok: false, error: exigee.error };
+    confirmation = exigee.confirmation;
+  }
+
   // CLASSEMENT BUDGÉTAIRE — l'acheteur range sa dépense sans jamais ouvrir le module Budget.
   // La valeur est revérifiée contre les enveloppes réellement ouvertes aux moyens généraux.
   const budgetCategoryId = keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds());
@@ -456,11 +494,22 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
       },
       select: { id: true },
     });
+    if (confirmation) await consignerConfirmation(tx, { confirmation, cibleType: "DEPARTMENT_EXPENSE", cibleId: depense.id, confirmeeParId: user.id });
     return { ok: true as const, id: depense.id };
   });
   if (!ecrite.ok) return { ok: false, error: ecrite.error };
   const created = { id: ecrite.id };
-  if (ticket) await saveReceiptLines(created.id, lignes);
+  // LES ARTICLES NOUVEAUX ENTRENT AU CATALOGUE — ceux laissés cochés ; un échec ne défait pas la dépense, la ligne reste
+  // hors catalogue.
+  let aEcrire = lignes;
+  let ajoutesAuCatalogue: string[] = [];
+  if (ticket) {
+    const r = await ajouterAuCatalogueDepuisDepense(user.id, lignes, label)
+      .catch((e: unknown) => { console.error("[moyens généraux] ajout au catalogue échoué", e); return { lignes, ajoutes: [] as string[] }; });
+    aEcrire = r.lignes;
+    ajoutesAuCatalogue = r.ajoutes;
+  }
+  if (ticket) await saveReceiptLines(created.id, aEcrire);
 
   for (const file of files) {
     // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
@@ -473,7 +522,11 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
   });
   revalidatePath(PATH);
   revalidatePath("/moyens-generaux");
-  return { ok: true, id: created.id };
+  const n = ajoutesAuCatalogue.length;
+  return {
+    ok: true, id: created.id,
+    ...(n > 0 ? { message: `${n} article${n > 1 ? "s" : ""} ajouté${n > 1 ? "s" : ""} au catalogue : ${ajoutesAuCatalogue.join(", ")}.` } : {}),
+  };
 }); }
 
 /**
