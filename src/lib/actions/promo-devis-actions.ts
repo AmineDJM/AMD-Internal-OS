@@ -34,6 +34,7 @@ import { refusDeRangement } from "@/lib/promo-material/rangement";
 import { annulerDemandeSecretariat } from "@/lib/secretariat/annulation";
 import { etatRetraitDemandeDevis, ramenerSiPlusDeDemandeDevis } from "@/lib/promo-material/retrait-devis";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireDevisPromoAuRegistre, retirerDevisPromoDuRegistre } from "@/lib/actions/internes/promo-execution/devis-au-registre";
 
 /**
  * LES DEVIS DU MATÉRIEL PROMOTIONNEL — demande, retranscription, choix des lignes (§118.152).
@@ -487,8 +488,16 @@ export async function enregistrerDevisPromo(formData: FormData): Promise<ActionR
       .catch((e) => console.error("[devis promo] miroir Drive échoué (non bloquant)", e));
   }
   await audit(user, pm.id, `Devis ${existant ? "corrigé" : "retranscrit"} — ${parties.text}${donnees.reference ? ` n° ${donnees.reference}` : ""} (${lignes.length} ligne${lignes.length > 1 ? "s" : ""})${confirmation ? ` — ${confirmation.resumeAudit}` : ""}`);
+  // LE DEVIS ENTRE AU REGISTRE LEGAL (Direction, 09/11/2026) — après son écriture : un échec ici ne défait pas le devis,
+  // il se DIT (« pas encore au registre »), et le prochain enregistrement du devis le rattrape.
+  const registre = await inscrireDevisPromoAuRegistre(user.id, devis.id, scanJoint)
+    .catch((e: unknown): { ok: false; raison: string } => ({ ok: false, raison: e instanceof Error ? e.message : String(e) }));
+  if (!registre.ok) console.error("[devis promo → Legal] inscription au registre échouée", registre.raison);
   revalidatePath(chemin(pm.id));
-  return { ok: true, id: devis.id, message: `Devis de ${parties.text} ${existant ? "corrigé" : "enregistré"} (${lignes.length} ligne${lignes.length > 1 ? "s" : ""})${confirmation ? " — lecture du scan confirmée" : ""}.` };
+  const auRegistre = registre.ok
+    ? (registre.cree ? " Rangé au registre Legal." : " Pièce Legal mise à jour.")
+    : " Il n'a pas pu être rangé au registre Legal : enregistrez-le de nouveau pour réessayer.";
+  return { ok: true, id: devis.id, message: `Devis de ${parties.text} ${existant ? "corrigé" : "enregistré"} (${lignes.length} ligne${lignes.length > 1 ? "s" : ""})${confirmation ? " — lecture du scan confirmée" : ""}.${auRegistre}` };
 }
 
 /** Retirer un devis retranscrit — pendant la retranscription seulement. Le scan reste au dossier. */
@@ -501,7 +510,7 @@ export async function supprimerDevisPromo(formData: FormData): Promise<ActionRes
   if (!retranscrit(user, pm)) return { ok: false, error: "La retranscription des devis revient à l'assistante de direction." };
   if (pm.circuitState !== "QUOTE_REQUESTED") return { ok: false, error: "Un devis ne se retire que pendant la retranscription." };
   const quoteId = fdStr(formData, "quoteId");
-  const devis = quoteId ? await prisma.promoQuote.findFirst({ where: { id: quoteId, promoMaterialId: pm.id }, select: { id: true, supplierName: true } }) : null;
+  const devis = quoteId ? await prisma.promoQuote.findFirst({ where: { id: quoteId, promoMaterialId: pm.id }, select: { id: true, supplierName: true, legalDocumentId: true } }) : null;
   if (!devis) return { ok: false, error: "Ce devis n'appartient pas à ce dossier." };
   try {
     await prisma.$transaction(async (tx) => {
@@ -523,8 +532,10 @@ export async function supprimerDevisPromo(formData: FormData): Promise<ActionRes
     throw e;
   }
   await audit(user, pm.id, `Devis retiré — ${devis.supplierName}`);
+  // Sa pièce au registre Legal part avec lui : un devis retiré pendant la retranscription n'a jamais été une offre retenue.
+  await retirerDevisPromoDuRegistre(user.id, devis.legalDocumentId, devis.supplierName).catch(sansBloquer("promo-devis.retrait-registre"));
   revalidatePath(chemin(pm.id));
-  return { ok: true, message: `Devis de ${devis.supplierName} retiré (son scan reste dans les pièces du dossier).` };
+  return { ok: true, message: `Devis de ${devis.supplierName} retiré, et retiré du registre Legal (son scan reste dans les pièces du dossier).` };
 }
 
 /**

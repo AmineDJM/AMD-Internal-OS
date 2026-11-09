@@ -8178,6 +8178,8 @@ model PromoQuote {
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
+  /// LE DEVIS AU REGISTRE LEGAL (Direction, 09/11/2026) : la pièce Legal « devis » née de cette retranscription.
+  legalDocumentId       String?          @unique
   @@index([promoMaterialId])
   @@index([purchaseOrderId])
 }

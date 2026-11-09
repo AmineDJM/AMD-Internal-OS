@@ -1,5 +1,18 @@
 ## 🧾 Journal des évolutions récentes
 
+### AD & PRO : LE DEVIS DU MATÉRIEL PROMOTIONNEL ENTRE AU REGISTRE LEGAL (2026-11-09)
+
+« Quand on ajoute un devis dans Ad & Pro, il doit être ajouté automatiquement à Legal » (Direction). Le devis d'un POSTE y
+entrait déjà (`ajouterDevisPoste`), celui du secrétariat aussi (`deposerDevisDemande`) ; celui du **matériel promotionnel**,
+retranscrit par l'assistante (`enregistrerDevisPromo`), ne vivait que dans le dossier. Désormais chaque devis retranscrit porte
+**sa pièce Legal** (`PromoQuote.legalDocumentId`, migration `20270240000000_devis_promo_registre_legal`) : nature « devis »,
+source le dossier, le fournisseur de l'annuaire en partie, numéro, date, **total TTC calculé sur ses lignes** (taxe
+additionnelle comprise) et le scan joint. Une correction **met la pièce à jour** (sans en créer une seconde) ; un devis
+**retiré** pendant la retranscription **retire sa pièce**. Un échec d'inscription ne défait jamais le devis : le message le
+dit, et le prochain enregistrement rattrape. Code `lib/actions/internes/promo-execution/devis-au-registre.ts` ; banc
+`actions/promo-circuit-v2-flow.test.ts`. Les devis retranscrits AVANT cette date n'ont pas de pièce : ils l'auront à leur
+prochaine correction.
+
 ### LEGAL : QUI A DÉPOSÉ UN FICHIER LE VOIT (2026-11-08)
 
 « Dans Legal, que celui qui dépose un fichier voie son fichier quand il entre dans le document » (Direction). Un fichier

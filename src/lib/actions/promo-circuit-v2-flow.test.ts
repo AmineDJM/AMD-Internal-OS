@@ -20,7 +20,7 @@ import { resolveDriveAccess, canViewDrive, canEditDrive } from "@/lib/drive";
 import { createPromoMaterial, submitQuotes, cancelPromoMaterial } from "./promo-material-actions";
 import { validatePromoStep, refusePromoStep, completePromoTrack } from "./promo-circuit-actions";
 import {
-  demanderDevisPromo, enregistrerDevisPromo, terminerRetranscriptionPromo, choisirLignesPromo, demanderCorrectionDevisPromo,
+  demanderDevisPromo, enregistrerDevisPromo, supprimerDevisPromo, terminerRetranscriptionPromo, choisirLignesPromo, demanderCorrectionDevisPromo,
 } from "./promo-devis-actions";
 import {
   genererBonsDeCommandePromo, marquerBonDeCommandeEnvoye, deposerFacturePromo, demanderPaiementFacturePromo,
@@ -427,6 +427,30 @@ suite("Matériel promotionnel — circuit 2 de bout en bout", () => {
     const b = await enregistrerDevisPromo(fdB);
     expect(b.ok, b.ok ? "" : b.error).toBe(true);
 
+    // LE DEVIS AU REGISTRE LEGAL (Direction, 09/11/2026) : chaque devis retranscrit a SA pièce « devis », source le dossier,
+    // le fournisseur de l'annuaire en partie, son scan joint ; le message le dit.
+    expect(b.ok ? b.message : "").toMatch(/Rangé au registre Legal/);
+    const pieceDe = async (quoteId: string) => {
+      const { legalDocumentId } = await prisma.promoQuote.findUniqueOrThrow({ where: { id: quoteId }, select: { legalDocumentId: true } });
+      return legalDocumentId ? prisma.legalDocument.findUnique({ where: { id: legalDocumentId } }) : null;
+    };
+    const legalB = await pieceDe(b.id!);
+    expect(legalB).toMatchObject({ kind: "QUOTE", sourceType: "PROMO_MATERIAL", sourceId: pmId, reference: "S-114", counterpartyIds: [fourB] });
+    // 300 000 HT + TVA 19 % + taxe additionnelle 2 % hors base = 363 000 TTC.
+    expect(Number(legalB!.amount)).toBe(363000);
+    expect(await prisma.document.count({ where: { entityType: "LEGAL_DOCUMENT", entityId: legalB!.id } })).toBe(1);
+
+    // UN DEVIS RETIRÉ pendant la retranscription retire sa pièce du registre.
+    const fdC = form({ promoMaterialId: pmId, supplierId: fourB, reference: "S-115", tvaRate: "0", ligneReference: ["Kakemono"], ligneQuantite: ["2"], lignePrix: ["1000"], ligneAction: ["IMPRESSION"] });
+    fdC.set("scan", pdf("devis-retire.pdf"));
+    const c = await enregistrerDevisPromo(fdC);
+    expect(c.ok, c.ok ? "" : c.error).toBe(true);
+    const legalC = await pieceDe(c.id!);
+    expect(legalC).not.toBeNull();
+    expect((await supprimerDevisPromo(form({ promoMaterialId: pmId, quoteId: c.id! }))).ok).toBe(true);
+    expect(await prisma.legalDocument.count({ where: { id: legalC!.id } })).toBe(0);
+    expect(await prisma.document.count({ where: { entityType: "LEGAL_DOCUMENT", entityId: legalC!.id } })).toBe(0);
+
     const trop = await terminerRetranscriptionPromo(form({ promoMaterialId: pmId }));
     expect(trop.ok).toBe(false);
     expect(trop.ok ? "" : trop.error).toMatch(/Atlas.*annonce/);
@@ -437,7 +461,13 @@ suite("Matériel promotionnel — circuit 2 de bout en bout", () => {
       ligneReference: ["Présentoir PLV sol", "Kakemono 80×200"], ligneUnite: ["pièce", "pièce"], ligneQuantite: ["100", "40"], lignePrix: ["10000", "5000"],
       ligneAction: ["FABRICATION", "IMPRESSION"], ligneArticle: [article, ""],
     });
-    expect((await enregistrerDevisPromo(fix)).ok).toBe(true);
+    const corrige = await enregistrerDevisPromo(fix);
+    expect(corrige.ok).toBe(true);
+    // La correction MET À JOUR la pièce Legal du devis — pas de seconde pièce, et le total suit les lignes (1 200 000 HT × 1,19).
+    expect(corrige.ok ? corrige.message : "").toMatch(/Pièce Legal mise à jour/);
+    expect(await prisma.legalDocument.count({ where: { sourceType: "PROMO_MATERIAL", sourceId: pmId, kind: "QUOTE" } })).toBe(2);
+    const { legalDocumentId: idA } = await prisma.promoQuote.findUniqueOrThrow({ where: { id: a.id! }, select: { legalDocumentId: true } });
+    expect(Number((await prisma.legalDocument.findUniqueOrThrow({ where: { id: idA! } })).amount)).toBe(1428000);
     const fin = await terminerRetranscriptionPromo(form({ promoMaterialId: pmId }));
     expect(fin.ok, fin.ok ? "" : fin.error).toBe(true);
     expect((await etatDe(pmId)).circuitState).toBe("REVIEW_REQUESTER");
