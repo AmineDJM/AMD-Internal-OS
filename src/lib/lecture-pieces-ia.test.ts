@@ -319,6 +319,14 @@ describe("L'appel — ce que le modèle reçoit, et ce que le code en garde", ()
     expect(r).toMatchObject({ ok: false, raison: null, errorCode: "refusal", error: expect.stringMatching(/refusé la demande/) });
   });
 
+  // Moyens généraux, 09/11/2026 : un ticket « refusé » toute une journée — le crédit OpenAI était à zéro.
+  it("le crédit du fournisseur est épuisé (HTTP 429) : la phrase le dit, avec le remède — pas « refusé »", async () => {
+    REPONSE = { data: null, reply: { ok: false, configured: true, error: "Erreur IA (HTTP 429) : You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/." } };
+    const r = await structurerParModele(ENTREE);
+    expect(r).toMatchObject({ ok: false, raison: null, error: expect.stringMatching(/crédit du service d'IA .* est épuisé.*administrateur.*platform\.openai\.com/) });
+    expect(r.ok === false && r.error).not.toMatch(/refusé la demande/);
+  });
+
   it("une exception : « n'a pas répondu », journal « exception » — au nom du fournisseur que la clé désigne", async () => {
     for (const [cle, fournisseur] of [["OPENAI_API_KEY", "openai"], ["ANTHROPIC_API_KEY", "anthropic"]] as const) {
       JOURNAL.length = 0;

@@ -1,4 +1,5 @@
 import { askModelJson } from "@/lib/models/gateway";
+import { creditIaEpuise, phraseCreditIaEpuise } from "@/lib/ia-credit";
 import type { ModelReply } from "@/lib/models/contract";
 import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage, REFUS_IA_COUPEE, type AiUsageInput } from "@/lib/ai-settings";
 import { aiConfigured, cleModeleRequise } from "@/lib/ai";
@@ -174,6 +175,8 @@ export function phraseCoupeDuTexte(caracteres: number, caracteresLus: number): s
 // Les phrases d'un appel qui n'a rien rendu d'exploitable — l'IA a été appelée, on le dit.
 const PHRASE_PANNE = "Le service d'IA n'a pas répondu : les lignes n'ont pas été lues — réessayez dans un instant, ou saisissez-les depuis le papier.";
 const PHRASE_REFUS = "Le service d'IA a refusé la demande : les lignes n'ont pas été lues — saisissez-les depuis le papier.";
+/** Le crédit du fournisseur épuisé : ni un refus ni une panne — réessayer n'y peut rien, l'administrateur doit recharger. */
+const PHRASE_CREDIT = phraseCreditIaEpuise("en attendant, saisissez les lignes depuis le papier.");
 const PHRASE_LONGUEUR = "La réponse de l'IA a été coupée avant la fin (pièce trop longue) : aucune ligne n'est reprise — saisissez-les depuis le papier.";
 const PHRASE_INEXPLOITABLE = "La réponse de l'IA n'a pas la forme attendue : aucune ligne n'est reprise — saisissez-les depuis le papier.";
 const phraseAucuneLigne = (ecartees: number): string =>
@@ -255,10 +258,12 @@ export async function structurerParModele(entree: EntreeLecture, deps: Dependanc
   const t0 = Date.now();
   let resultat: { data: unknown; reply: ModelReply } | null = null;
   let panne = false;
+  let messagePanne: string | null = null;
   try {
     resultat = await deps.appeler<unknown>("worker", prompt, SCHEMA_PIECE_LUE, { system: CONSIGNE, maxOutputTokens: SORTIE_MAX, verbosity: "low" });
-  } catch {
+  } catch (e) {
     panne = true;
+    messagePanne = e instanceof Error ? e.message : String(e ?? "");
   }
   const reply = resultat?.reply ?? null;
   const usage = reply?.usage;
@@ -302,7 +307,8 @@ export async function structurerParModele(entree: EntreeLecture, deps: Dependanc
     const cause = phraseIaNonConfiguree(deps.cle(), POUR_QUOI);
     return { ok: false, raison: "NON_CONFIGUREE", cause, error: phraseSansLignes("NON_CONFIGUREE", cause), errorCode };
   }
-  const error = panne ? PHRASE_PANNE
+  const error = creditIaEpuise(panne ? messagePanne : reply?.ok ? null : reply?.error) ? PHRASE_CREDIT
+    : panne ? PHRASE_PANNE
     : !reply?.ok ? PHRASE_REFUS
     : errorCode === "length" ? PHRASE_LONGUEUR
     : errorCode === "aucune_ligne" ? phraseAucuneLigne(piece?.ecartees ?? 0)
@@ -369,6 +375,7 @@ function composerLegal(e: EntreeSyntheseLegale, d: DecoupeLecture): string {
   ].join("\n");
 }
 
+const PHRASE_CREDIT_LEGALE = phraseCreditIaEpuise("en attendant, complétez la nature, le titre et le résumé depuis le document.");
 const PHRASE_PANNE_LEGALE = "Le service d'IA n'a pas répondu : la nature, le titre et le résumé n'ont pas été lus — complétez-les depuis le document.";
 const PHRASE_INEXPLOITABLE_LEGALE = "La réponse de l'IA n'a pas la forme attendue : la nature, le titre et le résumé ne sont pas repris — complétez-les depuis le document.";
 
@@ -384,12 +391,14 @@ export async function synthetiserDocumentLegal(entree: EntreeSyntheseLegale, dep
   const t0 = Date.now();
   let resultat: { data: unknown; reply: ModelReply } | null = null;
   let panne = false;
+  let messagePanne: string | null = null;
   try {
     resultat = await deps.appeler<unknown>("worker", composerLegal(entree, decoupe), SCHEMA_SYNTHESE_LEGALE, {
       system: CONSIGNE_LEGALE, maxOutputTokens: SORTIE_MAX_LEGALE, verbosity: "low",
     });
-  } catch {
+  } catch (e) {
     panne = true;
+    messagePanne = e instanceof Error ? e.message : String(e ?? "");
   }
   const reply = resultat?.reply ?? null;
   const usage = reply?.usage;
@@ -428,5 +437,9 @@ export async function synthetiserDocumentLegal(entree: EntreeSyntheseLegale, dep
     const cause = phraseIaNonConfiguree(deps.cle(), POUR_QUOI);
     return { ok: false, raison: "NON_CONFIGUREE", cause, error: phraseSansLignes("NON_CONFIGUREE", cause), errorCode };
   }
-  return { ok: false, raison: null, cause: null, error: panne || !reply?.ok ? PHRASE_PANNE_LEGALE : PHRASE_INEXPLOITABLE_LEGALE, errorCode };
+  const credit = creditIaEpuise(panne ? messagePanne : reply?.ok ? null : reply?.error);
+  return {
+    ok: false, raison: null, cause: null, errorCode,
+    error: credit ? PHRASE_CREDIT_LEGALE : panne || !reply?.ok ? PHRASE_PANNE_LEGALE : PHRASE_INEXPLOITABLE_LEGALE,
+  };
 }

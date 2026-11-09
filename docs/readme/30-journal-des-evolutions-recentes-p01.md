@@ -16,6 +16,9 @@ en **6 lignes aux montants centuplés** (460.00 DA lu 46 000). Trois causes, tro
    (`images-vision.ts`). La consigne de la vision couvre toute pièce — facture, devis, bon, ticket : désignations sur
    deux lignes réunies, tous les articles, nombres recopiés exactement, « TOTAL BON » comme total d'un ticket.
 Bancs : `scan-vision.test.ts`, `banc/banc-ticket.test.ts` (le ticket réel reconstitué, couche texte abîmée comprise).
+**Le crédit IA épuisé se dit** (même jour) : le ticket a ensuite été « refusé » toute une journée — le compte OpenAI
+n'avait plus de crédit (HTTP 429). La lecture des lignes et celle des documents Legal le disent désormais, avec le remède
+(« prévenez l'administrateur… platform.openai.com › Billing ») au lieu de « refusé » (`lib/ia-credit.ts`, `creditIaEpuise`).
 
 ### DEMANDER UN PAIEMENT : SES DEMANDES EN COURS, ET SES FICHIERS REMPLAÇABLES JUSQU'À L'EXAMEN (2026-11-09)
 
