@@ -205,8 +205,11 @@ export function needsReplacement(status: string): boolean {
  * repart à l'examen : rien n'est accordé d'avance, la pièce remplacée sort du décompte
  * (`piecesEnVigueur`) au lieu d'être déclarée acceptée.
  *
- * Chez les Finances, la règle d'avant tient : une pièce qu'elles n'ont pas mise en cause ne change pas
- * sous leurs yeux.
+ * ENVOYÉ MAIS PAS ENCORE EXAMINÉ (Direction, 09/11/2026 : « il voit ses demandes et les modifie en changeant les fichiers
+ * ou en en ajoutant ») : tant que les Finances n'ont pas ouvert l'examen (`SUBMITTED`), le demandeur remplace encore
+ * n'importe laquelle de ses pièces — personne ne l'a lue, rien ne change sous les yeux de quiconque. Dès l'examen
+ * (`UNDER_REVIEW`, `ON_HOLD`), la règle d'avant tient : une pièce qu'elles n'ont pas mise en cause ne change pas sous
+ * leurs yeux.
  */
 export function refusDeRemplacement(input: {
   pieceStatus: string; dejaRemplacee: boolean; dossierStatus: string; parLeDemandeur: boolean;
@@ -218,7 +221,8 @@ export function refusDeRemplacement(input: {
   if (isWithRequester(input.dossierStatus)) {
     return input.parLeDemandeur ? null : "Cette pièce n'a pas été mise en cause : tant que le dossier est chez le demandeur, c'est lui qui la remplace.";
   }
-  return "Cette pièce n'a pas été mise en cause : elle se remplace quand les Finances la signalent, ou quand elles vous renvoient le dossier.";
+  if (input.dossierStatus === "SUBMITTED" && input.parLeDemandeur) return null;
+  return "Cette pièce n'a pas été mise en cause et les Finances examinent le dossier : elle se remplace quand elles la signalent, ou quand elles vous renvoient le dossier.";
 }
 
 /**

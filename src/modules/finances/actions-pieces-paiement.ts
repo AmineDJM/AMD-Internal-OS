@@ -4,7 +4,8 @@ import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { fdStr } from "@/lib/actions/types";
 import { documentsLegalPourPaiement, lireFichierPourLaDemande, lirePourLaDemande } from "@/lib/actions/internes/paiement/pieces-legal";
-import type { DocumentLegalPropose, LecturePourDemande } from "./partage";
+import { prisma } from "@/lib/prisma";
+import type { DemandeEnCours, DocumentLegalPropose, LecturePourDemande } from "./partage";
 
 /**
  * LES PIÈCES DE « DEMANDER UN PAIEMENT » (Direction, 04/11/2026) — deux lectures d'écran, rien n'est écrit.
@@ -30,4 +31,27 @@ export async function documentsLegalPourDemande(formData: FormData): Promise<Doc
   const user = await requireUser();
   if (!userCan(user, "VALIDATIONS", "CREATE")) return [];
   return documentsLegalPourPaiement(user, fdStr(formData, "recherche"));
+}
+
+/**
+ * « VOS DEMANDES EN COURS » (Direction, 09/11/2026) — les demandes de paiement de la personne qui ne sont ni réglées ni
+ * refusées ni annulées, les plus récentes d'abord. Rappelées en tête de « Demander un paiement » : on ajoute un fichier à
+ * la demande qui existe au lieu d'en ouvrir une seconde. Les SIENNES seulement (`requesterId`).
+ */
+export async function mesDemandesDePaiementEnCours(): Promise<DemandeEnCours[]> {
+  const user = await requireUser();
+  if (!userCan(user, "VALIDATIONS", "CREATE")) return [];
+  const lignes = await prisma.paymentRequest.findMany({
+    where: { requesterId: user.id, status: { notIn: ["APPROVED", "REJECTED", "CANCELLED"] } },
+    orderBy: { updatedAt: "desc" },
+    take: 8,
+    select: {
+      id: true, reference: true, title: true, payee: true, amount: true, status: true, updatedAt: true,
+      _count: { select: { pieces: { where: { replacedBy: null } } } },
+    },
+  });
+  return lignes.map((d) => ({
+    id: d.id, reference: d.reference, title: d.title, payee: d.payee, amount: Number(d.amount ?? 0), status: d.status,
+    pieces: d._count.pieces, majLe: d.updatedAt.toISOString(),
+  }));
 }

@@ -283,8 +283,13 @@ describe("Qui remplace une pièce, et quand (§118.191, audit R04)", () => {
   it("…mais pas les Finances à sa place, tant que le dossier est chez lui", () => {
     expect(r("PENDING", "DRAFT", false)).toMatch(/c'est lui qui la remplace/);
   });
-  it("chez les Finances, une pièce qu'elles n'ont pas mise en cause ne change pas sous leurs yeux", () => {
-    for (const st of ["SUBMITTED", "UNDER_REVIEW", "ON_HOLD"]) expect(r("PENDING", st)).toMatch(/quand les Finances la signalent/);
+  it("envoyé mais pas encore examiné (09/11/2026) : le demandeur remplace encore ses pièces — pas les Finances à sa place", () => {
+    expect(r("PENDING", "SUBMITTED")).toBeNull();
+    expect(r("ACCEPTED", "SUBMITTED")).toBeNull();
+    expect(r("PENDING", "SUBMITTED", false)).toMatch(/examinent le dossier/);
+  });
+  it("dès l'examen, une pièce que les Finances n'ont pas mise en cause ne change pas sous leurs yeux", () => {
+    for (const st of ["UNDER_REVIEW", "ON_HOLD"]) expect(r("PENDING", st)).toMatch(/quand elles la signalent/);
   });
   it("une pièce déjà remplacée ne l'est pas deux fois — même mise en cause", () => {
     expect(r("CHANGES_REQUESTED", "CHANGES_REQUESTED", true, true)).toBe("Cette pièce a déjà été remplacée.");

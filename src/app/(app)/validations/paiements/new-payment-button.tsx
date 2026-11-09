@@ -13,6 +13,7 @@ import {
 import { createPaymentRequest } from "@/modules/finances/actions-demandes";
 import { lirePieceDePaiement } from "@/modules/finances/actions-pieces-paiement";
 import { ChoisirDansLegal } from "./choisir-dans-legal";
+import { MesDemandesEnCours } from "./mes-demandes-en-cours";
 import { BeneficiaireAnnuaire } from "./beneficiaire-annuaire";
 import type { PartyOption } from "@/lib/contacts/parties";
 import type { AnnuaireDeLaPiece } from "@/modules/finances/partage";
@@ -282,6 +283,10 @@ export function NewPaymentButton() {
         description="Le dossier part au CENTRE DE PAIEMENT — il n'y a pas de destinataire à choisir : c'est le centre qui autorise, avant que les Finances ne voient quoi que ce soit. Montant, bénéficiaire, échéance demandée, et le bon de commande, la facture ou le devis qui le justifie."
         width="lg"
       >
+        <div className="space-y-4">
+        {/* SES DEMANDES EN COURS D'ABORD (09/11/2026) — tant que la nouvelle n'a pas de pièce : la facture d'une demande déjà
+            faite s'y ajoute, au lieu d'ouvrir une seconde demande pour le même paiement. */}
+        {pieces.length === 0 && legaux.length === 0 && !sansPiece && <MesDemandesEnCours />}
         <form
           ref={formRef} className="space-y-4" onSubmit={(e) => e.preventDefault()}
           // UN CHAMP TOUCHÉ EST À LA PERSONNE : aucune pièce ne le réécrit, et il ne se dit plus « lu ».
@@ -520,6 +525,7 @@ export function NewPaymentButton() {
             </>}
           </div>
         </form>
+        </div>
       </Sheet>
     </>
   );

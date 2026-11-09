@@ -152,3 +152,21 @@ export function aRemplir(proposition: Proposition, touches: ReadonlySet<string>)
   }
   return out;
 }
+
+/**
+ * UNE DEMANDE EN COURS DE LA PERSONNE, telle que « Demander un paiement » la rappelle (Direction, 09/11/2026 : « il voit
+ * ses demandes précédentes et peut les modifier ») — pour ajouter un fichier à la demande qui existe déjà au lieu d'en
+ * ouvrir une seconde pour le même paiement.
+ */
+export interface DemandeEnCours {
+  id: string;
+  reference: string;
+  title: string;
+  payee: string;
+  amount: number;
+  status: string;
+  /** Pièces en vigueur (les remplacées ne comptent plus). */
+  pieces: number;
+  /** ISO. */
+  majLe: string;
+}

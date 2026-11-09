@@ -316,6 +316,11 @@ export function classerExclusionsCircuits(): void {
     + "vient de joindre — rien n'est écrit. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
     "department-budget-actions:lireFactureDepense",
   ]);
+  X("DEMANDER UN PAIEMENT — « VOS DEMANDES EN COURS » (Direction, 09/11/2026) : la liste des demandes non terminées de la "
+    + "personne, rappelée en tête du formulaire pour y ajouter un fichier au lieu d'ouvrir une seconde demande. Une lecture "
+    + "d'écran. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+    "payment-request-pieces-actions:mesDemandesDePaiementEnCours",
+  ]);
   X("PRISES EN CHARGE — PROFESSIONNELS PROPOSÉS ET LEURS PIÈCES (§118.205) : créer le profil d'un professionnel, "
     + "demander ses pièces (passeport, visa, informations de voyage) et les déposer. Chacun touche à une identité ou "
     + "dépose un FICHIER devant la fiche de la demande. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [

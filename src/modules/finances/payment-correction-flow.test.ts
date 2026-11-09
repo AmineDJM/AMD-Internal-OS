@@ -400,10 +400,15 @@ suite("Demande de paiement — se corrige chez son demandeur, et l'ordre suit au
       expect((await demande(r.id!)).status).toBe("DRAFT");
     });
 
-    it("chez les Finances, une pièce qu'elles n'ont pas mise en cause ne se remplace pas", async () => {
+    it("envoyé mais pas encore examiné, le demandeur remplace encore sa pièce ; dès l'examen, plus une pièce non mise en cause (09/11/2026)", async () => {
       const id = await nouvelle("Pièce chez les Finances", { transmise: true });
+      expect((await demande(id)).status).toBe("SUBMITTED");
       const [p0] = await pieces(id);
-      expect(err(await remplacer("req", id, p0!.id))).toMatch(/quand les Finances la signalent/);
+      expect(err(await remplacer("req", id, p0!.id))).toBeNull();
+      // Les Finances ouvrent l'examen : la pièce en vigueur ne change plus sous leurs yeux.
+      await prisma.paymentRequest.update({ where: { id }, data: { status: "UNDER_REVIEW" } });
+      const enVigueur = (await pieces(id)).find((x) => x.replacesId === p0!.id)!;
+      expect(err(await remplacer("req", id, enVigueur.id))).toMatch(/quand elles la signalent/);
     });
 
     it("remplacer la dernière pièce en cause GARDE le dossier chez le demandeur — il le renvoie quand il a fini", async () => {

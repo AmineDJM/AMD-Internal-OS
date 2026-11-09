@@ -19,7 +19,7 @@ import { getAccess, type SessionUser } from "@/lib/rbac";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 import { createPaymentRequest } from "./actions-demandes";
-import { documentsLegalPourDemande, lirePieceDePaiement } from "./actions-pieces-paiement";
+import { documentsLegalPourDemande, lirePieceDePaiement, mesDemandesDePaiementEnCours } from "./actions-pieces-paiement";
 
 /**
  * LES PIÈCES D'UNE DEMANDE DE PAIEMENT, CHOISIES DANS LEGAL OU DÉPOSÉES (Direction, 04/11/2026) — par les vraies actions.
@@ -178,5 +178,22 @@ suite("demande de paiement — les pièces choisies dans Legal ou déposées", (
     expect(ou(pieces[0].documentId)?.entityId).toBe(inscrits[0].id);
     const fil = await prisma.paymentRequestEvent.findMany({ where: { requestId: r.id! }, select: { message: true } });
     expect(fil.some((e) => e.message === "1 pièce inscrite au registre Legal depuis cette demande.")).toBe(true);
+  });
+
+  // « VOS DEMANDES EN COURS » (Direction, 09/11/2026) : ses demandes non terminées, les siennes seulement.
+  it("la personne retrouve ses demandes en cours — pas celles d'un autre, ni les annulées", async () => {
+    ACTOR = await acteur(demandeurId, "DIRECTION");
+    const ouvertes = demandes.filter(Boolean);
+    expect(ouvertes.length).toBeGreaterThan(0);
+    await prisma.paymentRequest.update({ where: { id: ouvertes[0] }, data: { status: "CANCELLED" } });
+    const miennes = await mesDemandesDePaiementEnCours();
+    const ids = miennes.map((d) => d.id);
+    for (const id of ouvertes.slice(1)) expect(ids).toContain(id);
+    expect(ids).not.toContain(ouvertes[0]);
+    expect(miennes.every((d) => d.reference.startsWith("PAY-") && d.pieces >= 0)).toBe(true);
+
+    ACTOR = await acteur(financesId, "FINANCE_BUDGET_MANAGER");
+    const autres = (await mesDemandesDePaiementEnCours()).map((d) => d.id);
+    for (const id of ouvertes) expect(autres).not.toContain(id);
   });
 });

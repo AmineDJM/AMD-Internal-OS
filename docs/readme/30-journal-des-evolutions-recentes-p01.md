@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### DEMANDER UN PAIEMENT : SES DEMANDES EN COURS, ET SES FICHIERS REMPLAÇABLES JUSQU'À L'EXAMEN (2026-11-09)
+
+« Quand il ajoute une demande de paiement, il voit ses demandes précédentes et peut les modifier en changeant les fichiers
+ou en en ajoutant » (Direction). En tête de « Demander un paiement », **« Vos demandes en cours »** (`mesDemandesDePaiementEnCours`)
+rappelle ses demandes non terminées (ni bon à payer, ni refusées, ni annulées) — référence, objet, bénéficiaire, montant,
+état, pièces — avec **« Ajouter un fichier »** (nature + fichier, `addPaymentPiece`, mêmes gardes que la page) et **« Ouvrir »**.
+Le bloc s'efface dès que la nouvelle demande reçoit une pièce. Et le demandeur **remplace** désormais n'importe laquelle de
+ses pièces tant que les Finances n'ont pas ouvert l'examen (`SUBMITTED`, en plus du brouillon et du « à revoir ») ; dès
+l'examen, seule une pièce mise en cause se remplace (`refusDeRemplacement`). Bancs : `payment-request.test.ts`,
+`payment-correction-flow.test.ts`, `pieces-legal-flow.test.ts`.
+
 ### AD & PRO : LES DÉCLARATIONS SE TÉLÉCHARGENT PAR LE KAM (2026-11-09)
 
 « Ajouter l'option "télécharger" pour les déclarations, dans le cas où les KAM en auraient besoin » (Direction). Sur la carte
