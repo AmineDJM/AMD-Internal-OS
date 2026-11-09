@@ -4,13 +4,13 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EntityType } from "@prisma/client";
-import { ArrowUpRight, FileText, Loader2, ShieldCheck, Stethoscope } from "lucide-react";
+import { ArrowUpRight, Download, FileText, Loader2, ShieldCheck, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { useAction } from "@/components/shared/use-action";
 import { cn, formatDate } from "@/lib/utils";
 import { ouvrirDeclarationDepuisAdPro } from "@/lib/actions/medical-info-actions";
-import type { EtapeDeclaration } from "@/lib/medical-info/etape-ad-pro-partage";
+import { ETAPE_DECLARATION_PARTAGEE, type EtapeDeclaration } from "@/lib/medical-info/etape-ad-pro-partage";
 import { AuthorityForm, DeclareDecisionCard, ValidateButton } from "./[id]/panels";
 
 const TON: Record<EtapeDeclaration["ton"], string> = {
@@ -64,15 +64,27 @@ export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
       )}
       {err && <p className="text-sm text-destructive">{err}</p>}
 
+      {/* LES DÉCLARATIONS SE TÉLÉCHARGENT (Direction, 09/11/2026) — par qui ouvre la demande, le KAM compris : celles que le
+          pharmacien a déposées depuis cette carte. Lui voit aussi les autres pièces du dossier, marquées « interne ». */}
       {etape.pieces.length > 0 && (
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground">Déclarations déposées</p>
-          <ul className="space-y-1">
+          <ul className="space-y-1.5">
             {etape.pieces.map((p) => (
-              <li key={p.id} className="flex min-w-0 items-center gap-2 text-sm">
+              <li key={p.id} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <a href={`/api/documents/${p.id}`} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-primary hover:underline">{p.nom}</a>
+                {etape.peutAgir && !p.partagee && (
+                  <span className="shrink-0 rounded border border-border px-1.5 text-[0.6875rem] text-muted-foreground" title="Pièce du dossier d'information médicale : le demandeur ne la voit pas.">interne</span>
+                )}
                 <span className="shrink-0 text-xs text-muted-foreground">{formatDate(p.le, { day: "numeric", month: "short" })}{p.par ? ` · ${p.par}` : ""}</span>
+                <a
+                  href={`/api/documents/${p.id}?dl=1`}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs font-medium hover:bg-secondary"
+                  aria-label={`Télécharger ${p.nom}`}
+                >
+                  <Download className="h-3.5 w-3.5" /> Télécharger
+                </a>
               </li>
             ))}
           </ul>
@@ -105,9 +117,9 @@ export function EtapeDeclarationAdPro({ etape, sourceType, sourceId }: {
         <div className="grid grid-cols-1 gap-4 border-t border-border pt-3 lg:grid-cols-2">
           <div className="min-w-0 space-y-2">
             <p className="text-sm font-medium">Déposer les déclarations</p>
-            <p className="text-xs text-muted-foreground">Déclaration, récépissé, courrier du ministère : rangés dans le dossier {d.reference}.</p>
+            <p className="text-xs text-muted-foreground">Déclaration, récépissé, courrier du ministère : rangés dans le dossier {d.reference}, et téléchargeables par qui ouvre la demande (le KAM compris).</p>
             <DocumentUpload
-              entityType="MEDICAL_INFO_DECLARATION" entityId={d.id} categories={["SUPPORTING_DOC", "OTHER"]} compact
+              entityType="MEDICAL_INFO_DECLARATION" entityId={d.id} categories={["SUPPORTING_DOC", "OTHER"]} compact stepKey={ETAPE_DECLARATION_PARTAGEE}
               onUploaded={() => router.refresh()}
             />
           </div>

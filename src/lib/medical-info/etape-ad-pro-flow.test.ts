@@ -11,6 +11,8 @@ import { getAccess, type SessionUser } from "@/lib/rbac";
 import { ordreGlobalALaValidation } from "@/lib/medical-info/circuits";
 import { ouvrirDeclarationDepuisAdPro, validateDeclaration } from "@/lib/actions/medical-info-actions";
 import { etapeDeclaration, TITRE_ETAPE_DECLARATION } from "./etape-ad-pro";
+import { ETAPE_DECLARATION_PARTAGEE } from "./etape-ad-pro-partage";
+import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -58,12 +60,13 @@ suite("Ad & Pro — la dernière étape : la déclaration de l'événement (info
     const comptes = [primId, delegueId].filter(Boolean);
     const decls = (await prisma.medicalInfoDeclaration.findMany({ where: { sourceId: spoId }, select: { id: true } })).map((d) => d.id);
     await prisma.notification.deleteMany({ where: { OR: [{ userId: { in: comptes } }, { createdAt: { gte: new Date(Date.now() - 600_000) }, body: { contains: TAG } }] } }).catch(() => {});
+    await prisma.document.deleteMany({ where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: { in: decls } } }).catch(() => {});
     await prisma.medicalInfoDeclaration.deleteMany({ where: { id: { in: decls } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { id: ordreId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: comptes } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
-    await retirerComptesEtSemis({ where: { id: { in: comptes } } }).catch(() => {});
+    await retirerComptesEtSemis({ where: { email: { startsWith: TAG } } }).catch(() => {});
   }, 120_000);
 
   it("sans déclaration, l'étape est « à ouvrir » — le pharmacien seul peut l'ouvrir ; avant la pré-validation, elle est à venir", async () => {
@@ -140,5 +143,30 @@ suite("Ad & Pro — la dernière étape : la déclaration de l'événement (info
     });
     // Le délégué voit l'état, sans le dossier ni ses pièces.
     expect(await etapeDeclaration(await actorFor(delegueId), "SPONSORING", spoId, true)).toMatchObject({ etat: "done", peutAgir: false, lienDossier: null, pieces: [] });
+  });
+
+  // « L'OPTION TÉLÉCHARGER POUR LES DÉCLARATIONS, DANS LE CAS OÙ LES KAM EN AURAIENT BESOIN » (Direction, 09/11/2026).
+  it("le KAM télécharge les déclarations déposées depuis la carte — pas les autres pièces du dossier", async () => {
+    const decl = await prisma.medicalInfoDeclaration.findFirstOrThrow({ where: { sourceId: spoId } });
+    const fichier = (nom: string, stepKey: string | null) => prisma.document.create({
+      data: { name: `${TAG}${nom}`, entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id, stepKey, fileKey: `${TAG}/${nom}`, mimeType: "application/pdf", sizeBytes: 10, category: "SUPPORTING_DOC", confidentiality: "INTERNAL", uploadedById: primId },
+    });
+    const declaration = await fichier("declaration-ministere.pdf", ETAPE_DECLARATION_PARTAGEE);
+    const interne = await fichier("note-interne.pdf", null);
+
+    const kam = await actorFor(delegueId);
+    const vueKam = await etapeDeclaration(kam, "SPONSORING", spoId, true);
+    expect(vueKam?.pieces.map((x) => [x.id, x.partagee])).toEqual([[declaration.id, true]]);
+    const piece = (id: string) => ({ id, entityType: "MEDICAL_INFO_DECLARATION" as const, entityId: decl.id, stepKey: id === declaration.id ? ETAPE_DECLARATION_PARTAGEE : null });
+    expect(await peutOuvrirDocument(kam, piece(declaration.id))).toBe(true);
+    expect(await peutOuvrirDocument(kam, piece(interne.id))).toBe(false);
+
+    // Le pharmacien voit les deux, la pièce interne marquée comme telle.
+    const vuePrim = await etapeDeclaration(await actorFor(primId), "SPONSORING", spoId, true);
+    expect(new Map(vuePrim?.pieces.map((x) => [x.id, x.partagee]))).toEqual(new Map([[declaration.id, true], [interne.id, false]]));
+
+    // Un compte qui n'ouvre pas la demande ne télécharge rien.
+    const etranger = await prisma.user.create({ data: { name: `${TAG}etranger`, email: `${TAG}etranger@t.dz`, role: "MEDICAL_DELEGATE", passwordHash: "x" } });
+    expect(await peutOuvrirDocument(await actorFor(etranger.id), piece(declaration.id))).toBe(false);
   });
 });

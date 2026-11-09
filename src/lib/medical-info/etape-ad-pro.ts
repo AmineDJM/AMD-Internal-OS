@@ -10,7 +10,7 @@ import { libellePastille, parcoursOf, pharmacienPeutValider } from "@/lib/medica
 import { canViewDeclaration } from "@/lib/queries/medical-info";
 import { refusDepotAutorites } from "@/lib/actions/internes/medical-info/dossier";
 import { tientLaDeclarationAdPro } from "@/lib/actions/internes/medical-info/ouverture-ad-pro";
-import { TITRE_ETAPE_DECLARATION, type EtapeDeclaration, type PieceDeDeclaration } from "./etape-ad-pro-partage";
+import { ETAPE_DECLARATION_PARTAGEE, TITRE_ETAPE_DECLARATION, type EtapeDeclaration, type PieceDeDeclaration } from "./etape-ad-pro-partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -114,14 +114,20 @@ export async function etapeDeclaration(
   }
 
   const voitLeDossier = tient || canViewDeclaration(user, decl);
-  const pieces = voitLeDossier
-    ? (await prisma.document.findMany({
-        where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id },
-        include: { uploadedBy: { select: { name: true } } },
-        orderBy: { createdAt: "desc" },
-        take: 30,
-      })).map((d) => ({ id: d.id, nom: d.name, le: d.createdAt.toISOString(), par: d.uploadedBy?.name ?? null }))
-    : [];
+  // LES DÉCLARATIONS SE TÉLÉCHARGENT PAR QUI OUVRE LA DEMANDE (09/11/2026) — le KAM, le marketing… Le reste du dossier
+  // (pièces réclamées, documents internes) reste à qui voit le dossier d'information médicale.
+  const pieces: PieceDeDeclaration[] = (await prisma.document.findMany({
+    where: {
+      entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id,
+      ...(voitLeDossier ? {} : { stepKey: ETAPE_DECLARATION_PARTAGEE }),
+    },
+    include: { uploadedBy: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 30,
+  })).map((d) => ({
+    id: d.id, nom: d.name, le: d.createdAt.toISOString(), par: d.uploadedBy?.name ?? null,
+    partagee: d.stepKey === ETAPE_DECLARATION_PARTAGEE,
+  }));
   const depotOuvert = authoritiesOpen(etat);
   const agit = tient && !valide;
   // LES GESTES DU PHARMACIEN, ICI COMME DANS LE DOSSIER (08/11/2026) : la lecture tant qu'elle n'est pas accordée, puis

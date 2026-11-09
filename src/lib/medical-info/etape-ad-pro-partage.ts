@@ -9,7 +9,19 @@ import type { DeclareInput } from "./declare-decision";
 
 export const TITRE_ETAPE_DECLARATION = "Déclaration (information scientifique)";
 
-export interface PieceDeDeclaration { id: string; nom: string; le: string; par: string | null }
+/**
+ * LES DÉCLARATIONS PARTAGÉES AVEC LA DEMANDE (Direction, 09/11/2026 : « ajouter l'option télécharger pour les déclarations,
+ * dans le cas où les KAM en auraient besoin ») — les fichiers que le pharmacien dépose depuis la carte de l'étape portent
+ * cette marque (`Document.stepKey`) : ils se téléchargent par qui ouvre la demande Ad & Pro. Les autres pièces du dossier
+ * d'information médicale restent au pharmacien.
+ */
+export const ETAPE_DECLARATION_PARTAGEE = "declaration";
+
+export interface PieceDeDeclaration {
+  id: string; nom: string; le: string; par: string | null;
+  /** Déposée comme déclaration (depuis la carte) : téléchargeable par qui ouvre la demande. */
+  partagee: boolean;
+}
 
 export interface EtapeDeclaration {
   titre: string;

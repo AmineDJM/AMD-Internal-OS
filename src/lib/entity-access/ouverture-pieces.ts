@@ -6,6 +6,8 @@ import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { entitePermisePourFiche } from "@/lib/company";
 import { managesReports } from "@/lib/queries/field-reports";
 import { prisma } from "@/lib/prisma";
+import { EVENT_SOURCES } from "@/lib/medical-info/circuits";
+import { ETAPE_DECLARATION_PARTAGEE } from "@/lib/medical-info/etape-ad-pro-partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -32,7 +34,23 @@ export async function peutOuvrirDocument(
     || (await peutLirePasseportDuSujet(user.id, doc))
     || (await peutLirePieceDePriseEnCharge(user, doc))
     || (await peutLirePieceDeDemande(user, doc))
-    || (await peutLireSaPieceLegal(user, doc));
+    || (await peutLireSaPieceLegal(user, doc))
+    || (await peutLireDeclarationDeLaDemande(user, doc));
+}
+
+/**
+ * UNE DÉCLARATION D'INFORMATION SCIENTIFIQUE PARTAGÉE (Direction, 09/11/2026 : « l'option télécharger pour les
+ * déclarations, dans le cas où les KAM en auraient besoin ») — un fichier déposé COMME déclaration depuis la carte de
+ * l'étape (`stepKey` « declaration ») s'ouvre à qui ouvre la demande Ad & Pro qu'il déclare. Porte ÉTROITE : ce fichier-là,
+ * jamais le dossier d'information médicale, ni ses autres pièces.
+ */
+async function peutLireDeclarationDeLaDemande(
+  user: SessionUser, doc: { entityType: EntityType; entityId: string; stepKey: string | null },
+): Promise<boolean> {
+  if (doc.entityType !== "MEDICAL_INFO_DECLARATION" || doc.stepKey !== ETAPE_DECLARATION_PARTAGEE) return false;
+  const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { id: doc.entityId }, select: { sourceType: true, sourceId: true } });
+  if (!decl || !EVENT_SOURCES.includes(decl.sourceType)) return false;
+  return canAccessEntity(user, decl.sourceType, decl.sourceId, "VIEW");
 }
 
 /**
