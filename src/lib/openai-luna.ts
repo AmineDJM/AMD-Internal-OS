@@ -36,7 +36,10 @@
  */
 
 import { sanitizeForModel } from "./ai-text";
-import { mentionsUnsupportedTemperature, providerErrorMessage } from "./models/errors";
+import { estCreditEpuise, mentionsUnsupportedTemperature, providerErrorMessage } from "./models/errors";
+import { appelerEnSecours } from "./models/gateway";
+import { secoursMimoActif } from "./models/mimo";
+import { jsonDuTexte, textOf, type ModelBlock } from "./models/contract";
 // L'interrupteur général de « Contrôle de l'IA » : lu AVANT tout envoi de données (voir `callLuna`).
 import { aiFeatureEnabled, interrupteurIaCoupe, REFUS_IA_COUPEE, type AiFeature } from "./ai-settings";
 import { attendu } from "@/lib/journal";
@@ -227,6 +230,43 @@ export { providerErrorMessage as lunaErrorMessage } from "./models/errors";
  * dossier entier, passer par le Batch — même travail, moitié prix.
  */
 export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaResult<T>> {
+  const r = await callLunaChezOpenAI<T>(input);
+  // LE SECOURS MiMo (Direction, 09/11/2026) : le crédit OpenAI épuisé, la même demande — images comprises — repart chez
+  // MiMo par la passerelle (`appelerEnSecours`), qui la compte. Seulement sur un crédit épuisé.
+  if (r.ok || !estCreditEpuise(r.error) || !secoursMimoActif()) return r;
+  return lunaParSecours<T>(input, r);
+}
+
+/** Réexportée pour les appelants de ce module : la règle vit dans la passerelle. */
+export const jsonDeLaReponse = jsonDuTexte;
+
+async function lunaParSecours<T>(input: LunaCallInput, echecOpenAi: LunaResult<T>): Promise<LunaResult<T>> {
+  const blocs: ModelBlock[] = [
+    { type: "text", text: input.user },
+    ...(input.images ?? []).map((i): ModelBlock => ({ type: "image", mime: i.mime ?? "image/png", data: i.buffer.toString("base64") })),
+  ];
+  const system = input.jsonObject && !input.jsonSchema
+    ? `${input.system ?? ""}\n\nRéponds UNIQUEMENT par un objet JSON valide, sans texte autour.`.trim()
+    : input.system;
+  const reply = await appelerEnSecours("bulk", [{ role: "user", content: blocs }], {
+    ...(system ? { system } : {}),
+    ...(input.jsonSchema ? { jsonSchema: input.jsonSchema } : {}),
+    ...(input.maxOutputTokens ? { maxOutputTokens: input.maxOutputTokens } : {}),
+  });
+  // Le secours n'a pas répondu : l'échec D'ORIGINE reste celui qui se dit (le crédit OpenAI), avec le sien en plus.
+  if (!reply.ok) return { ...echecOpenAi, error: `${echecOpenAi.error ?? ""} — secours MiMo : ${reply.error ?? "sans réponse"}` };
+  const text = textOf(reply.blocks);
+  let data: T | undefined;
+  if ((input.jsonSchema || input.jsonObject) && text) {
+    try { data = JSON.parse(jsonDeLaReponse(text)) as T; } catch { /* lu comme du texte : l'appelant le dit */ }
+  }
+  return {
+    ok: true, configured: true, text, data,
+    usage: { inputTokens: reply.usage.inputTokens, outputTokens: reply.usage.outputTokens, cachedInputTokens: reply.usage.cachedInputTokens, costUsd: reply.usage.costUsd ?? 0 },
+  };
+}
+
+async function callLunaChezOpenAI<T = unknown>(input: LunaCallInput): Promise<LunaResult<T>> {
   // L'INTERRUPTEUR AVANT LA CLÉ (§118.196). Ce client ne passe pas par `lib/ai.ts` : l'intelligence
   // réglementaire (lecture visuelle, réserves, revue, corpus) appelait le modèle sous un interrupteur
   // coupé pendant que l'écran affichait « Toute l'IA est coupée ». Coupé : rien ne part, rien n'est
@@ -302,7 +342,7 @@ export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaR
         continue;
       }
 
-      const retryable = res.status === 429 || res.status >= 500;
+      const retryable = (res.status === 429 && !estCreditEpuise(raw)) || res.status >= 500;
       if (!retryable || attempt === 3) return { ok: false, configured: true, text: "", usage: EMPTY_USAGE, error: lastError };
     } catch (err) {
       console.error(`[luna] appel échoué (tentative ${attempt})`, err);

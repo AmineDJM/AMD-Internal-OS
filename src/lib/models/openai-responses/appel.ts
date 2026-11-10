@@ -227,7 +227,7 @@ export async function callOpenAiResponses(
         );
         return viaFlux(binding, turns, opts);
       }
-      if (!isRetryableStatus(res.status) || attempt === MAX_ATTEMPTS) break;
+      if (!isRetryableStatus(res.status, raw) || attempt === MAX_ATTEMPTS) break;
     } catch (err) {
       if (opts.signal?.aborted) {
         lastError = "Appel interrompu.";

@@ -48,6 +48,20 @@ export function providerErrorMessage(status: number, body: string): string {
   return raw ? `Erreur IA (HTTP ${status}) : ${raw}` : `Erreur IA (HTTP ${status}).`;
 }
 
-/** Une panne passagère mérite un réessai ; un refus argumenté, non. */
-export const isRetryableStatus = (status: number): boolean =>
-  status === 429 || status === 529 || status >= 500;
+/**
+ * Une panne passagère mérite un réessai ; un refus argumenté, non. Un 429 de CRÉDIT ÉPUISÉ non plus (09/11/2026) :
+ * le compte ne se recharge pas entre deux tentatives — on passe tout de suite au secours.
+ */
+export const isRetryableStatus = (status: number, body = ""): boolean =>
+  (status === 429 && !estCreditEpuise(body)) || status === 529 || status >= 500;
+
+/**
+ * LE CRÉDIT DU FOURNISSEUR EST ÉPUISÉ (Moyens généraux, 09/11/2026 : toute l'IA tombée une journée, OpenAI à zéro).
+ * Ni un refus ni une panne passagère : réessayer chez LUI n'y peut rien — c'est l'occasion de passer au secours
+ * (`gateway.ts`, Claude). Reconnu sur le message : OpenAI « You have no credits remaining », « insufficient_quota » ;
+ * Anthropic « credit balance is too low ».
+ */
+const CREDIT_EPUISE = /insufficient_quota|exceeded your current quota|credit[_ ]balance|no credits remaining|add credits to continue/i;
+export function estCreditEpuise(message: string | null | undefined): boolean {
+  return Boolean(message && CREDIT_EPUISE.test(message));
+}

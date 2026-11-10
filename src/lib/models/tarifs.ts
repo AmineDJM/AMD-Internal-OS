@@ -158,6 +158,7 @@ export const GRILLE_TARIFS: Readonly<Record<string, TarifModele>> = {
   "gemini-3-pro-image": { fournisseur: "gemini", entree: "2", imageEntree: "2", sortie: "12", imageSortie: "120", source: GEMINI, verifieLe: LE },
 
   // ── Anthropic (le repli d'Adam) — l'écriture en cache n'est pas rapportée par la passerelle : lue au tarif d'entrée ──
+  "claude-opus-5-5": texte("4", "0.2", "20", ANTHROPIC, "anthropic"),
   "claude-sonnet-4-6": texte("3", "0.3", "15", ANTHROPIC, "anthropic"),
   "claude-haiku-4-5": texte("1", "0.1", "5", ANTHROPIC, "anthropic"),
 };

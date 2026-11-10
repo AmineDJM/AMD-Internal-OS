@@ -1,5 +1,23 @@
 ## 🧾 Journal des évolutions récentes
 
+### IA : LE SECOURS MiMo QUAND LE CRÉDIT OPENAI EST ÉPUISÉ (2026-11-10)
+
+« Quand il y a ce problème, il faut utiliser le modèle suivant — l'autre IA de la plateforme » (Direction). Le 09/11, toute
+l'IA est tombée une journée (HTTP 429 « You have no credits remaining ») : les trois modèles en service — Terra 5.6,
+Luna 5.6, Terra 6.1 — sont chez OpenAI, sur UN compte, et tombent ensemble. Le modèle suivant est donc **MiMo**, l'IA des
+chantiers, dont la clé `mimo` est déjà posée sur Render. Il ne prend la main que sur un **crédit épuisé**
+(`estCreditEpuise`, `models/errors.ts`) — une panne ordinaire reste réessayée chez OpenAI, un refus reste un refus — et
+sur les trois chemins : la **passerelle** (`callModel` / `streamModel` → `appelerEnSecours` → `appelerMimoTours` :
+lecture des pièces, nature des dépenses…), le **chemin Luna** (`callLuna` : vision des pièces, briefing — images
+comprises, au format `image_url`) et **Adam** (`modelesAssistant` porte MiMo en second, marqué `secours`, joint par
+Mastra comme un fournisseur compatible OpenAI ; `repondre.ts` ne l'essaie qu'après un crédit épuisé). MiMo n'impose pas
+de schéma : la consigne le donne et la réponse est relue avec tolérance (`jsonDuTexte`). Un tour à OUTILS de la
+passerelle n'a pas de secours. Un 429 de crédit épuisé ne se réessaie plus chez le même fournisseur. **Un PDF scanné dont
+l'image n'a pas pu être lue ne se lit plus par la couche texte du scanner** (montants centuplés) : aucune ligne, et la
+phrase le dit. `ADAM_SECOURS=0` coupe le secours. Au passage, l'adaptateur Claude (repli `ADAM_MODEL_PROVIDER=anthropic`)
+suit les modèles récents : pas de `temperature`, budget ≥ 16 000, JSON par `output_config.format`. Bancs :
+`models/secours-mimo.test.ts`, `assistant-ia/infra/modele-secours.test.ts`, `banc/banc-ticket.test.ts`.
+
 ### LECTURE DES PIÈCES : UN SCAN SE LIT SUR SON IMAGE — LES TICKETS DE CAISSE AUSSI (2026-11-09)
 
 « L'IA ne lit pas bien les bons » (Moyens généraux). Le cas : un ticket de 15 articles scanné sur une page A4, ressorti

@@ -4,11 +4,18 @@
  * (décision 0006), dont la clé n'avait jamais été posée en production : l'assistant y répondait
  * « IA non configurée ».
  *
- * Pas de modèle de secours : si le modèle échoue ou dépasse le délai, l'assistant le dit plutôt que
- * de répondre avec un autre fournisseur. La clé n'est lue qu'ici, jamais écrite dans le code.
+ * UN SEUL SECOURS, ET POUR UNE SEULE RAISON (Direction, 09/11/2026 : « quand il y a ce problème, utilise le modèle
+ * suivant ») : le CRÉDIT OpenAI épuisé — Adam est resté muet une journée entière. Alors, et seulement alors, le tour
+ * repart chez MiMo, l'autre IA de la plateforme (`modeleMimoSecours`, clé `mimo` déjà posée). Un délai dépassé ou une
+ * panne ordinaire se disent
+ * toujours, sans changer de fournisseur (`repondre.ts` saute le secours hors crédit épuisé). Les clés ne sont lues
+ * qu'ici, jamais écrites dans le code.
  */
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
-import { cleOpenAI, urlOpenAI } from "@/lib/models/openai-acces";
+import { cleOpenAI, configMimo, estCreditEpuise, secoursMimoActif, urlOpenAI } from "@/lib/models/openai-acces";
+
+/** La règle du crédit épuisé, pour la boucle des modèles (`repondre.ts`). */
+export { estCreditEpuise };
 import { MODELE_STANDARD_DEFAUT, modelePourRole, type EffortRaisonnement, type RoleModele } from "@/platform/ia/modeles-roles";
 import { surchargesCourantes } from "./qualite/modeles";
 
@@ -24,6 +31,17 @@ export interface ModeleConfig {
   apiKey: string;
   /** J4 : l'effort de raisonnement du rôle (`platform/ia/modeles-roles.ts`). */
   effort?: EffortRaisonnement;
+  /** Le SECOURS : n'est essayé qu'après un crédit épuisé chez le modèle précédent. */
+  secours?: boolean;
+  /** L'adresse d'un fournisseur compatible OpenAI (MiMo). */
+  url?: string;
+}
+
+/** Le secours MiMo d'Adam — `null` sans la clé `mimo`, ou coupé par `ADAM_SECOURS=0`. */
+export function modeleMimoSecours(env: NodeJS.ProcessEnv = process.env): ModeleConfig | null {
+  if (!secoursMimoActif(env)) return null;
+  const c = configMimo(env);
+  return c.cle ? { providerId: "mimo", modelId: c.modele, apiKey: c.cle, url: c.base, secours: true } : null;
 }
 
 /**
@@ -47,7 +65,9 @@ export const IA_NON_CONFIGUREE = phraseIaNonConfiguree("OPENAI_API_KEY", "Adam")
 /** Les modèles à essayer, dans l'ordre. Vide = IA non configurée. */
 export function modelesAssistant(role: RoleModele = "standard"): ModeleConfig[] {
   const m = modeleOpenAi(process.env, role);
-  return m ? [m] : [];
+  if (!m) return [];
+  const secours = modeleMimoSecours(process.env);
+  return secours ? [m, secours] : [m];
 }
 
 export const estOpenAi = (m: unknown): m is ModeleConfig =>
@@ -59,9 +79,15 @@ export const estOpenAi = (m: unknown): m is ModeleConfig =>
  * or set reasoning_effort to 'none' ») — or chaque tour de l'assistant porte ses outils. Un modèle de
  * banc (sans `providerId`) passe tel quel.
  */
-export function pourMastra<T>(m: T): T | { id: `openai/${string}`; apiKey: string } {
-  return estOpenAi(m) ? { id: `openai/${m.modelId}`, apiKey: m.apiKey } : m;
+export function pourMastra<T>(m: T): T | { id: `openai/${string}`; apiKey: string } | { providerId: string; modelId: string; url?: string; apiKey: string; api: "chat" } {
+  if (estOpenAi(m)) return { id: `openai/${m.modelId}`, apiKey: m.apiKey };
+  // MiMo parle comme OpenAI (`/chat/completions`) : Mastra le joint par son adresse.
+  if (estMimo(m)) return { providerId: "mimo", modelId: m.modelId, url: m.url, apiKey: m.apiKey, api: "chat" as const };
+  return m;
 }
+
+export const estMimo = (m: unknown): m is ModeleConfig =>
+  typeof m === "object" && m !== null && (m as Partial<ModeleConfig>).providerId === "mimo";
 
 /**
  * LES OPTIONS DU FOURNISSEUR d'un appel (J4) : l'effort de raisonnement du rôle, et la clé de cache du préfixe — les

@@ -23,3 +23,10 @@ export function urlOpenAI(chemin: `/${string}`, env: Readonly<Record<string, str
   const racine = (env.OPENAI_BASE_URL?.trim() || RACINE_PAR_DEFAUT).replace(/\/+$/, "").replace(/\/v1$/, "");
   return `${racine}/v1${chemin}`;
 }
+
+/**
+ * LE SECOURS, vu de l'accès aux fournisseurs (09/11/2026) : l'Assistant IA lit ici la règle du crédit épuisé et le
+ * modèle de secours, par la même porte que la clé OpenAI — sans couplage neuf vers les rouages de la passerelle.
+ */
+export { estCreditEpuise } from "./errors";
+export { configMimo, secoursMimoActif } from "./mimo";

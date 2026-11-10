@@ -370,7 +370,7 @@ export async function callOpenAi(
       // `protocol.ts`, avant l'appel plutôt qu'après l'échec.
 
       console.error("[models] openai error", binding.role, binding.model, res.status, raw.slice(0, 300));
-      if (!isRetryableStatus(res.status) || attempt === MAX_ATTEMPTS) break;
+      if (!isRetryableStatus(res.status, raw) || attempt === MAX_ATTEMPTS) break;
     } catch (err) {
       if (opts.signal?.aborted) {
         lastError = "Appel interrompu.";

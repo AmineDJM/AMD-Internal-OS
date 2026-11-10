@@ -1,4 +1,5 @@
 import {
+  jsonDuTexte,
   type ModelBlock,
   type ModelCallOptions,
   type ModelReply,
@@ -7,6 +8,8 @@ import {
   textOf,
 } from "./contract";
 import { bindingFor } from "./registry";
+import { appelerMimoTours, secoursMimoActif } from "./mimo";
+import { estCreditEpuise } from "./errors";
 import { callOpenAi, streamOpenAi } from "./openai";
 import { callOpenAiResponses, streamOpenAiResponses } from "./openai-responses";
 import { protocolFor, protocolViolation } from "./protocol";
@@ -189,10 +192,58 @@ function estimationDe(turns: ModelTurn[], opts: ModelCallOptions): number {
   return estimerJetons(chars, opts.maxOutputTokens ?? null);
 }
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE SECOURS MiMo (Direction, 09/11/2026 : « quand il y a ce problème, utilise le modèle suivant » — « l'autre IA de
+ * la plateforme »).
+ *
+ * Les trois modèles en service sont chez OpenAI, sur un seul compte : son crédit épuisé, tous tombent (une journée
+ * entière d'IA à l'arrêt le 09/11). Quand l'appel OpenAI revient avec un CRÉDIT ÉPUISÉ — et seulement alors —, la
+ * même demande repart chez MiMo (`appelerMimoTours`), l'IA des chantiers, dont la clé `mimo` est déjà posée. Rien
+ * d'autre ne déclenche le secours : une panne ordinaire est réessayée chez le fournisseur en service, un refus reste
+ * un refus. L'appel de secours passe par la même porte (place, télémétrie, coût) : il est compté comme l'autre.
+ *
+ * Ce que le secours n'emporte pas : les OUTILS (un tour à outils n'a pas de secours), le nom de modèle forcé
+ * (`modelOverride`, un nom OpenAI) et la chaîne de réponses OpenAI (`previousResponseId`). L'historique complet part.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+function doitPasserAuSecours(binding: ReturnType<typeof bindingFor>, reply: ModelReply): boolean {
+  return binding.provider === "openai" && !reply.ok && estCreditEpuise(reply.error) && secoursMimoActif();
+}
+
+/** Un appel au SECOURS, au nom du rôle — la porte commune (passerelle, et chemin Luna). */
+export async function appelerEnSecours(
+  role: ModelRole,
+  turns: ModelTurn[],
+  opts: ModelCallOptions = {},
+): Promise<ModelReply> {
+  const options: ModelCallOptions = { ...opts };
+  delete options.modelOverride;
+  delete options.previousResponseId;
+  console.warn(`[models] crédit du fournisseur épuisé — secours MiMo pour le rôle ${role}`);
+  const rendre = await prendrePlace(estimationDe(turns, options));
+  try {
+    const reply = await appelerMimoTours(role, turns, options);
+    recordModelCall(reply.usage);
+    return reply;
+  } finally {
+    rendre();
+  }
+}
+
 export async function callModel(
   role: ModelRole,
   turns: ModelTurn[],
   opts: ModelCallOptions = {},
+): Promise<ModelReply> {
+  const reply = await callModelChezLeFournisseur(role, turns, opts);
+  return doitPasserAuSecours(bindingFor(role), reply) ? appelerEnSecours(role, turns, opts) : reply;
+}
+
+async function callModelChezLeFournisseur(
+  role: ModelRole,
+  turns: ModelTurn[],
+  opts: ModelCallOptions,
 ): Promise<ModelReply> {
   const binding = bindingFor(role);
 
@@ -231,6 +282,20 @@ export async function callModel(
 }
 
 export async function streamModel(
+  role: ModelRole,
+  turns: ModelTurn[],
+  opts: ModelCallOptions,
+  onText: (chunk: string) => void,
+): Promise<ModelReply> {
+  const reply = await streamModelChezLeFournisseur(role, turns, opts, onText);
+  if (!doitPasserAuSecours(bindingFor(role), reply)) return reply;
+  // Le crédit épuisé se dit AVANT tout texte : rien n'a été émis. Le secours répond d'un bloc, rendu en un fragment.
+  const secours = await appelerEnSecours(role, turns, opts);
+  if (secours.ok) onText(textOf(secours.blocks));
+  return secours.ok ? secours : reply;
+}
+
+async function streamModelChezLeFournisseur(
   role: ModelRole,
   turns: ModelTurn[],
   opts: ModelCallOptions,
@@ -299,7 +364,7 @@ export async function askModelJson<T>(
   const raw = textOf(reply.blocks);
   if (!raw) return { data: null, reply };
   try {
-    return { data: JSON.parse(raw) as T, reply };
+    return { data: JSON.parse(jsonDuTexte(raw)) as T, reply };
   } catch {
     return { data: null, reply };
   }
@@ -328,11 +393,13 @@ export async function askModelJsonAvecImages<T>(
   const raw = textOf(reply.blocks);
   if (!raw) return { data: null, reply };
   try {
-    return { data: JSON.parse(raw) as T, reply };
+    return { data: JSON.parse(jsonDuTexte(raw)) as T, reply };
   } catch {
     return { data: null, reply };
   }
 }
+
+export { jsonDuTexte } from "./contract";
 
 export type {
   ModelCallOptions,

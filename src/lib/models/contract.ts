@@ -71,7 +71,7 @@ export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "ma
 export type Verbosity = "low" | "medium" | "high";
 
 /** Le fournisseur qui sert un rôle. Le second existe pour pouvoir REVENIR, pas pour hésiter. */
-export type ModelProvider = "openai" | "anthropic";
+export type ModelProvider = "openai" | "anthropic" | "mimo";
 
 /**
  * CE QUI EST BRANCHÉ DERRIÈRE UN RÔLE. Un enregistrement, pas du code : c'est ce qui permet de
@@ -389,4 +389,14 @@ export function reponseEnEchec(binding: ModelBinding, provider: ModelProvider, s
     usage: { ...emptyUsage(binding.role, binding.model, provider), ms: Date.now() - started },
     error,
   };
+}
+
+/** « ```json … ``` » → le JSON : un modèle sans schéma imposé (le secours) peut encadrer sa réponse. Pur. */
+export function jsonDuTexte(texte: string): string {
+  const t = texte.trim();
+  const bloc = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(t);
+  if (bloc) return bloc[1];
+  const debut = t.indexOf("{");
+  const fin = t.lastIndexOf("}");
+  return debut > 0 && fin > debut ? t.slice(debut, fin + 1) : t;
 }

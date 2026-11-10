@@ -97,12 +97,13 @@ suite("Banc — le ticket de caisse scanné se lit sur son image", () => {
     expect(vision.appels).toBe(1);
   }, 60_000);
 
-  it("la vision indisponible : la lecture du texte reste le repli — jamais rien", async () => {
+  it("la vision indisponible : la couche texte du SCANNER n'est pas lue — aucune ligne, et la phrase le dit", async () => {
     vision.reponse = null;
     const r = await proposerLecture({ user: USER, octets: await ticketScanne(`${TAG}c`), nomFichier: "ticket.pdf", contexte: CONTEXTE });
     if (!r.ok) throw new Error(r.error);
     expect(vision.appels).toBe(1);
-    expect(modele.appels).toBe(1);
-    expect(r.proposition.methodeLignes).toBe("modele");
+    expect(modele.appels, "des montants centuplés coûtent plus qu'aucune ligne").toBe(0);
+    expect(r.proposition.piece).toBeNull();
+    expect(r.proposition.sansLignes).toMatch(/scann.*pas fiable/);
   }, 60_000);
 });

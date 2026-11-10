@@ -302,6 +302,8 @@ const VISION: DependancesVision = {
 const SUSPECTE = (d: string): string[] => scanForInjection(d).flags;
 
 const SOURCE_POSITIONS = "lecture du tableau (positions du PDF)";
+/** Un scan dont l'image n'a pas été lue : on le dit, plutôt que de lire la couche texte du scanner. */
+const PHRASE_SCAN_NON_LU = "Pièce scannée : la lecture de son image n'a pas abouti, et le texte que le scanner y a joint n'est pas fiable (décimales perdues) — saisissez les lignes depuis le papier, ou réessayez dans un instant.";
 /** Les formats qui SONT une image : une photo ou un scan déposé tel quel se lit d'abord par la vision. */
 const IMAGES_LUES: ReadonlySet<string> = new Set(["png", "jpg", "jpeg", "webp", "tif", "tiff"]);
 const PREFIXE_VISION = "vision:";
@@ -382,7 +384,11 @@ export async function proposerLecture(args: {
   // Le total d'un scan se prend sur l'image : celui de sa couche texte a pu perdre ses décimales.
   const htDeLaVision = (v: NonNullable<typeof vision>) => (scan ? v.totalHt ?? htImprime : htImprime ?? v.totalHt);
   if (!lignes && !(vision && vision.lignes.length)) {
-    lignes = await lignesDeLaLecture(l, { noteMethode, nomFichier, confidentielle: !contexte.sortieCloudPermise, userId: user.id, parPositions });
+    // UN PDF SCANNÉ DONT L'IMAGE N'A PAS PU ÊTRE LUE ne se lit PAS par sa couche texte : c'est celle du scanner, aux
+    // décimales perdues — elle donnerait des montants centuplés, plus coûteux qu'aucune ligne (09/11/2026).
+    lignes = scan && ext === "pdf" && l.methode === "texte" && visionTentee
+      ? { piece: null, raison: null, sansLignes: PHRASE_SCAN_NON_LU }
+      : await lignesDeLaLecture(l, { noteMethode, nomFichier, confidentielle: !contexte.sortieCloudPermise, userId: user.id, parPositions });
   }
   let reconciliation: Reconciliation | null = lignes?.piece
     ? (lignes.methode === "positions" ? recPositions : reconcilier({ lignes: lignesPourReconcilier(lignes.piece), trous: [] }, htImprime))

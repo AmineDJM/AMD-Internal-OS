@@ -3,7 +3,7 @@ import type { AssistantRoleConfig } from "@prisma/client";
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { outilsPour } from "./outils";
-import { optionsFournisseur, pourMastra, type ModeleConfig } from "./modele";
+import { estCreditEpuise, optionsFournisseur, pourMastra, type ModeleConfig } from "./modele";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { modeleTrace, tracerEntree, tracerResultat } from "./qualite/traces";
 import { jetonsDuTexte } from "../domaine/fil/texte-long";
@@ -154,6 +154,8 @@ async function boucle(t: TourAssistant, budget: Budget): Promise<ResultatTour> {
   const maxSteps = Math.min(t.maxEtapes ?? 8, budget.reglages.etapesMaxTour);
   const echecs: ResultatTour["echecs"] = [];
   for (const m of t.modeles) {
+    // LE SECOURS CLAUDE n'est essayé qu'après un CRÉDIT ÉPUISÉ (Direction, 09/11/2026) — jamais pour un délai ou une panne.
+    if ("secours" in m && m.secours && !echecs.some((e) => estCreditEpuise(e.raison))) continue;
     const agent = new Agent({
       id: "assistant",
       name: t.config?.assistantName ?? "Assistant",

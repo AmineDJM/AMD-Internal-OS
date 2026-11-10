@@ -106,6 +106,28 @@ export function stopOfAnthropic(reason: string | undefined, hasCalls: boolean): 
  * rappelle l'API plusieurs fois avec exactement le même préfixe ; sans ce point, on le repaie et
  * surtout on le re-traite à chaque tour — c'est de la latence pure, celle qui se voit.
  */
+/**
+ * LES MODÈLES CLAUDE RÉCENTS (Opus 4.7 et après, toute la génération 5) : ils REFUSENT `temperature` (400), raisonnent
+ * toujours (la réflexion compte dans `max_tokens` — un budget calibré pour la seule réponse la tronquerait), et rendent
+ * un JSON conforme par `output_config.format`. Le secours Claude (`claude-opus-5-5`) en est un.
+ */
+export const estClaudeRecent = (model: string): boolean => /^claude-(opus|sonnet|haiku|fable|mythos)-(5|4-[78])/.test(model);
+/** Le budget de sortie minimal d'un modèle qui raisonne : la réflexion, puis la réponse. */
+const SORTIE_MIN_RAISONNEMENT = 16_000;
+
+/**
+ * Un schéma tel que la sortie structurée de Claude l'accepte : sans les contraintes qu'elle refuse (bornes numériques,
+ * longueurs, tailles de tableau) — le code qui lit la réponse les vérifie de toute façon. Pur, exporté pour les tests.
+ */
+export function schemaPourClaude(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(schemaPourClaude);
+  if (!schema || typeof schema !== "object") return schema;
+  const refuses = new Set(["minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "multipleOf", "minLength", "maxLength", "minItems", "maxItems", "uniqueItems", "pattern"]);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(schema as Record<string, unknown>)) if (!refuses.has(k)) out[k] = schemaPourClaude(v);
+  return out;
+}
+
 export function buildAnthropicBody(
   binding: ModelBinding,
   turns: ModelTurn[],
@@ -113,10 +135,13 @@ export function buildAnthropicBody(
   stream = false,
 ): Record<string, unknown> {
   const tools = toAnthropicTools(opts.tools);
+  const model = opts.modelOverride || binding.model;
+  const recent = estClaudeRecent(model);
   return {
-    model: opts.modelOverride || binding.model,
-    max_tokens: opts.maxOutputTokens ?? 1400,
-    temperature: opts.temperature ?? 0.2,
+    model,
+    max_tokens: recent ? Math.max(opts.maxOutputTokens ?? 0, SORTIE_MIN_RAISONNEMENT) : opts.maxOutputTokens ?? 1400,
+    ...(recent ? {} : { temperature: opts.temperature ?? 0.2 }),
+    ...(recent && opts.jsonSchema ? { output_config: { format: { type: "json_schema", schema: schemaPourClaude(opts.jsonSchema.schema) } } } : {}),
     ...(stream ? { stream: true } : {}),
     ...(opts.system
       ? { system: [{ type: "text", text: sanitizeForModel(opts.system), cache_control: { type: "ephemeral" } }] }
@@ -157,7 +182,7 @@ export async function callAnthropic(
         method: "POST",
         headers: headers(key),
         body: payload,
-        signal: opts.signal ?? AbortSignal.timeout(opts.timeoutMs ?? 60_000),
+        signal: opts.signal ?? AbortSignal.timeout(opts.timeoutMs ?? (estClaudeRecent(binding.model) ? 180_000 : 60_000)),
       });
 
       if (res.ok) {
@@ -193,7 +218,7 @@ export async function callAnthropic(
       const body = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] anthropic error", binding.role, res.status, body.slice(0, 300));
       lastError = providerErrorMessage(res.status, body);
-      if (!isRetryableStatus(res.status) || attempt === MAX_ATTEMPTS) break;
+      if (!isRetryableStatus(res.status, body) || attempt === MAX_ATTEMPTS) break;
     } catch (err) {
       if (opts.signal?.aborted) {
         lastError = "Appel interrompu.";

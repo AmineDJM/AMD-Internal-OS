@@ -1,4 +1,5 @@
 import { recordProviderCall } from "./telemetry";
+import { emptyUsage, type ModelCallOptions, type ModelReply, type ModelRole, type ModelTurn } from "./contract";
 import { attendu } from "@/lib/journal";
 
 /**
@@ -47,6 +48,10 @@ export function configMimo(env: Record<string, string | undefined> = process.env
 }
 
 export const mimoDisponible = (env: Record<string, string | undefined> = process.env): boolean => configMimo(env).cle !== null;
+
+/** Le secours MiMo est-il possible ? Sa clé posée, et `ADAM_SECOURS=0` pas posé. */
+export const secoursMimoActif = (env: Record<string, string | undefined> = process.env): boolean =>
+  mimoDisponible(env) && (env.ADAM_SECOURS ?? "").trim() !== "0";
 
 export type ReponseMimo =
   | { ok: true; texte: string; usage: { entree: number; sortie: number; coutUsd: number | null; modele: string; ms: number } }
@@ -106,6 +111,74 @@ export async function appelerMimo(
   const texte = corps?.choices?.[0]?.message?.content?.trim() ?? "";
   if (!texte) return { ok: false, erreur: "MiMo a rendu une réponse vide", configure: true, reessayable: true };
   return { ok: true, texte, usage: { entree, sortie, coutUsd, modele: c.modele, ms } };
+}
+
+/**
+ * LE SECOURS DE LA PASSERELLE (Direction, 09/11/2026 : « utilise l'autre IA de la plateforme ») — le crédit OpenAI
+ * épuisé, la demande repart chez MiMo, au format de la passerelle : tours de conversation, images (`image_url`, comme
+ * OpenAI), et JSON quand un schéma est demandé. MiMo n'impose pas de schéma : la consigne le donne, et la passerelle
+ * relit la réponse (`jsonDuTexte`). Les OUTILS ne partent pas : un tour à outils n'a pas de secours (l'appelant le dit).
+ */
+export function messagesMimo(turns: ModelTurn[], opts: ModelCallOptions): { role: string; content: unknown }[] {
+  const consigneJson = opts.jsonSchema
+    ? `Réponds UNIQUEMENT par un objet JSON conforme à ce schéma, sans texte autour ni bloc de code :\n${JSON.stringify(opts.jsonSchema.schema)}`
+    : "";
+  const systeme = [opts.system ?? "", consigneJson].filter(Boolean).join("\n\n");
+  const out: { role: string; content: unknown }[] = systeme ? [{ role: "system", content: systeme }] : [];
+  for (const t of turns) {
+    if (typeof t.content === "string") { out.push({ role: t.role, content: t.content }); continue; }
+    const parts = t.content.flatMap((b): unknown[] => {
+      if (b.type === "text") return [{ type: "text", text: b.text }];
+      if (b.type === "image") return [{ type: "image_url", image_url: { url: `data:${b.mime};base64,${b.data}` } }];
+      return [];
+    });
+    out.push({ role: t.role, content: parts });
+  }
+  return out;
+}
+
+const AVEC_OUTILS = (turns: ModelTurn[], opts: ModelCallOptions) =>
+  Boolean(opts.tools?.length) || turns.some((t) => typeof t.content !== "string" && t.content.some((b) => b.type === "tool_call" || b.type === "tool_result"));
+
+export async function appelerMimoTours(
+  role: ModelRole, turns: ModelTurn[], opts: ModelCallOptions = {}, deps: DepsMimo = {},
+): Promise<ModelReply> {
+  const c = configMimo(deps.env);
+  const debut = Date.now();
+  const echec = (erreur: string, configure = true): ModelReply => ({
+    ok: false, configured: configure, stop: "error", blocks: [], error: erreur,
+    usage: { ...emptyUsage(role, c.modele, "mimo"), ms: Date.now() - debut },
+  });
+  if (!c.cle) return echec("MiMo non configuré (variable « mimo » absente)", false);
+  if (AVEC_OUTILS(turns, opts)) return echec("Le secours MiMo ne porte pas les outils.");
+  let r: Response;
+  try {
+    r = await (deps.fetch ?? fetch)(`${c.base}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${c.cle}` },
+      body: JSON.stringify({ model: c.modele, messages: messagesMimo(turns, opts), max_tokens: opts.maxOutputTokens ?? 4_000, stream: false }),
+      signal: opts.signal ?? AbortSignal.timeout(deps.delaiMs ?? opts.timeoutMs ?? 120_000),
+    });
+  } catch (e) {
+    return echec(`MiMo injoignable : ${expurger(e instanceof Error ? e.message : String(e))}`);
+  }
+  const corps = (await r.json().catch(attendu("réponse MiMo non JSON : traitée comme vide", null))) as {
+    choices?: { message?: { content?: string }; finish_reason?: string }[]; usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+    error?: { message?: string };
+  } | null;
+  const ms = Date.now() - debut;
+  const entree = corps?.usage?.prompt_tokens ?? 0;
+  const sortie = corps?.usage?.completion_tokens ?? 0;
+  const cache = corps?.usage?.prompt_tokens_details?.cached_tokens ?? 0;
+  const coutUsd = coutMimo(entree, sortie, c);
+  if (!r.ok) return echec(`MiMo HTTP ${r.status}${corps?.error?.message ? ` : ${expurger(corps.error.message)}` : ""}`);
+  const texte = corps?.choices?.[0]?.message?.content?.trim() ?? "";
+  if (!texte) return echec("MiMo a rendu une réponse vide");
+  return {
+    ok: true, configured: true, stop: corps?.choices?.[0]?.finish_reason === "length" ? "length" : "end",
+    blocks: [{ type: "text", text: texte }],
+    usage: { role, model: c.modele, provider: "mimo", inputTokens: entree, outputTokens: sortie, cachedInputTokens: cache, costUsd: coutUsd, ms, attempts: 1 },
+  };
 }
 
 /** LA SONDE `/v1/models` — l'identifiant exact du modèle, à confirmer avant tout branchement (page Développement, C2). */

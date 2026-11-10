@@ -4,12 +4,13 @@
  *
  * Un compte à recharger n'est pas un « refus » ni une panne passagère : réessayer n'y peut rien, et la personne doit
  * savoir qu'il faut prévenir l'administrateur (Moyens généraux, 09/11/2026 : un ticket « refusé » toute une journée,
- * alors que le crédit OpenAI était à zéro depuis le matin). Module PUR, sans import : lisible partout.
+ * alors que le crédit OpenAI était à zéro depuis le matin). Module PUR : lisible partout.
  */
-const CREDIT_EPUISE = /insufficient_quota|exceeded your current quota|credit_balance|no credits remaining|add credits to continue/i;
+import { estCreditEpuise } from "@/lib/models/errors";
 
+/** La règle vit dans la passerelle (`models/errors.ts`), qui s'en sert pour passer au secours Claude. */
 export function creditIaEpuise(erreur: string | null | undefined): boolean {
-  return Boolean(erreur && CREDIT_EPUISE.test(erreur));
+  return estCreditEpuise(erreur);
 }
 
 /** Ce que l'écran dit quand le crédit est épuisé — le remède et qui l'applique, puis ce qu'on fait en attendant. */
