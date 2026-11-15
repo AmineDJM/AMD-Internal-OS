@@ -267,6 +267,14 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
     expenseOrderId: item.expenseOrderId, demandeChez: item.demandeBC?.assistante ?? null, demandeOuverte: item.demandeBC !== null,
   });
   // « Joindre un BC existant » = la demande à l'assistante (qui l'uploade) : le geste d'avant, tant qu'il est ouvert.
+  // « ACCORDER » OÙ L'ON BUTE (Direction, 15/11/2026) : la case « Bon de commande » dit « le poste doit d'abord être
+  // accordé » — à qui peut l'accorder, elle offre le geste lui-même (la boîte de décision, montant et budget). Un poste
+  // « agence » s'accorde en choisissant son agence (sa frise) : pas ici.
+  const peutAccorder = !stock && !agence && item.status === "PENDING" && droits.marketing && !regard.fige;
+  const ouvrirAccord = () => {
+    setPanneau("DECIDER");
+    requestAnimationFrame(() => document.getElementById(`accord-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
   const peutJoindreBC = (pas.geste?.cle === "DEMANDER_BC" || pas.geste?.cle === "GENERER_BC") && item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK";
   const pieceDeposee = depose
     ? (depose.case === "DEVIS" ? item.pieces.devis : item.pieces.factures)
@@ -423,7 +431,9 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
         <BoiteDecision item={item} mode="OPERATIONS" budgetOptions={budgetOptions} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} />
       )}
       {panneau === "DECIDER" && item.status === "PENDING" && (stock ? arbitrer : droits.marketing) && (
-        <BoiteDecision item={item} mode={stock ? "STOCK" : "MARKETING"} budgetOptions={budgetOptions} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} />
+        <div id={`accord-${item.id}`} className="scroll-mt-24">
+          <BoiteDecision item={item} mode={stock ? "STOCK" : "MARKETING"} budgetOptions={budgetOptions} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} />
+        </div>
       )}
       {panneau === "REVOIR_DECISION" && peutRevoir && revisable && (
         <BoiteDecision item={item} mode={stock ? "STOCK" : "MARKETING"} budgetOptions={budgetOptions} busy={busy} run={run} fdOf={fdOf} onCancel={fermer} revoir accordSeul={bcLegal} />
@@ -804,6 +814,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                   run={run}
                   onJoindre={() => basculer("DEMANDER_BC")}
                   onReviser={peutDemanderRevision ? () => setPanneau("REVISION_DEMANDEE") : undefined}
+                  onAccorder={peutAccorder ? ouvrirAccord : undefined}
                   repli={<EtatBC item={item} />}
                 />
                 {bcAnnulable && toucheBC && (

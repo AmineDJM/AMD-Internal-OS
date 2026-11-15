@@ -59,7 +59,7 @@ describe("le geste suivant d'un poste", () => {
     // directement à la Direction Marketing.
     for (const opsDecidedAt of [null, "2026-10-01"]) {
       const p = poste({ status: "PENDING", amountEstimated: 120_000, opsDecidedAt });
-      expect(prochainPas(p, MARKETING).geste).toEqual({ cle: "DECIDER", libelle: "Valider et choisir le budget" });
+      expect(prochainPas(p, MARKETING).geste).toEqual({ cle: "DECIDER", libelle: "Accorder le poste (montant et budget)" });
       // Ce qui ferait tomber la règle : proposer encore « Valider (Direction des opérations) ».
       expect(prochainPas(p, OPERATIONS)).toEqual({ geste: null, attente: "En attente — chez la Direction Marketing (montant et budget)." });
       expect(prochainPas(p, regard({ canAllocate: true, validation: { operations: true, marketing: true } })).geste?.cle).toBe("DECIDER");

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, FileText, FileCheck, Wand2, Pencil, ScanText, CheckCircle2, AlertTriangle, Paperclip, Clock, Circle, XCircle, Eye, History } from "lucide-react";
+import { Loader2, FileText, FileCheck, Wand2, Pencil, ScanText, CheckCircle2, AlertTriangle, Paperclip, Clock, Circle, XCircle, Eye, History, ThumbsUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -165,7 +165,7 @@ function FriseBC({ bc }: { bc: BcDePoste }) {
   );
 }
 
-export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutTraiter, moi, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, repli }: {
+export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutTraiter, moi, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, onAccorder, repli }: {
   itemId: string;
   bcs: BcDePoste[];
   devis: DevisDePosteVue[];
@@ -184,6 +184,8 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
   onJoindre: () => void;
   /** « Demander une révision » du poste, quand la personne peut la demander — le geste qui lève un dépassement. */
   onReviser?: () => void;
+  /** « Accorder le poste », quand la personne qui regarde peut l'accorder et qu'il ne l'est pas encore. */
+  onAccorder?: () => void;
   /** Ce que la case montrait avant (demande chez l'assistante, déposé, centre…) quand aucun BC n'est encore rattaché. */
   repli: React.ReactNode;
 }) {
@@ -273,6 +275,12 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
       {figes.map((d) => <p key={d.pieceId} className="flex gap-1 text-destructive"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {d.refus}</p>)}
       {manquants.length > 0 && pourquoiPas && (
         <p className="flex gap-1 text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {pourquoiPas}</p>
+      )}
+      {onAccorder && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Button size="sm" onClick={onAccorder}><ThumbsUp className="h-3.5 w-3.5" /> Accorder le poste</Button>
+          <span className="text-xs text-muted-foreground">Montant accordé et budget : le bon de commande s&apos;ouvre ensuite.</span>
+        </div>
       )}
 
       {devisOuvert && (

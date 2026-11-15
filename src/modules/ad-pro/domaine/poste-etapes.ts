@@ -389,7 +389,7 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
   // ── L'ACCORD DE LA DIRECTION MARKETING (27/10/2026 : un seul temps) ─────────────────────
   if (p.status === "PENDING") {
     return droits.marketing && !r.fige
-      ? { geste: { cle: "DECIDER", libelle: "Valider et choisir le budget" }, attente: null }
+      ? { geste: { cle: "DECIDER", libelle: "Accorder le poste (montant et budget)" }, attente: null }
       : { geste: null, attente: `En attente — chez ${qui2} (montant et budget).` };
   }
 
