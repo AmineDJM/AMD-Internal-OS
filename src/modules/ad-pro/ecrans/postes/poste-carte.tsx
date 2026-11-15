@@ -18,7 +18,7 @@ import { ChampReference } from "@/components/references/champ-reference";
 import { deleteDocument } from "@/lib/actions/document-actions";
 import { decideDocumentRequest } from "@/lib/actions/document-request-actions";
 import { NATURES_PIECE_SECRETARIAT, PIECE_SECRETARIAT, peutDemanderPiece, type NaturePieceSecretariat } from "../../domaine/pieces-secretariat";
-import { etapesDuPoste, prochainPas, faitsDuPoste, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, type CleGeste, type EtatEtape, type RegardPoste } from "../../domaine/poste-etapes";
+import { etapesDuPoste, prochainPas, faitsDuPoste, sansBonDeCommande, LIBELLE_JUSTIFICATIF_DIRECT, type CleGeste, type EtatEtape, type RegardPoste } from "../../domaine/poste-etapes";
 import { porteDesVoyageurs } from "../../domaine/voyageurs";
 import { porteDesHebergements } from "../../domaine/hebergements";
 import { DocumentUpload } from "@/components/documents/document-upload";
@@ -35,14 +35,18 @@ import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { ancrePoste } from "@/lib/chemins/ad-pro";
 import type { ContexteDesPostes, ItemRow, Run } from "../items-panel";
 import { CasePiece, ChaineDuPoste, estPosteStock, EtatBC, ETIQUETTE, IconeGeste, LettresDevis, LignePiece, type OngletChaine, POSTE_STOCK_EDITABLE, RAFRAICHISSEMENT, STYLE_ETAPE } from "./elements";
-import { AllocateField, BoiteDecision, DemandeBC, DemandeSecretariat, EditItemForm, FormulairePiece, FormulaireRepartition, GesteAvecMotif, VerifierBC, VisaBC } from "./formulaires";
+import { AllocateField, BoiteDecision, ChoixVoie, DemandeBC, DemandeSecretariat, EditItemForm, FormulairePiece, FormulaireRepartition, GesteAvecMotif, VerifierBC, VisaBC } from "./formulaires";
+import { ParcoursAgence } from "./parcours-agence";
+import { choisirVoiePoste } from "../../actions-postes-execution";
+import { voieParDefaut } from "../../domaine/parcours-agence";
+import { SIGNATURE_RIEN_DE_PRET, type SignaturePrete } from "@/lib/signature-en-ligne/partage";
 
 // La carte d'un poste, montée par `AdProItemsPanel` (`../items-panel.tsx`) — une par poste de la demande.
 
 // ─────────────────────────────── La carte d'un poste ───────────────────────────────
 
 type Panneau =
-  | CleGeste | "MODIFIER" | "HISTORIQUE" | "MODIFIER_BC" | "RETIRER_BC" | "ANNULER_ORDRE" | "REVOIR_DECISION" | "REVISION_DEMANDEE"
+  | CleGeste | "VOIE" | "MODIFIER" | "HISTORIQUE" | "MODIFIER_BC" | "RETIRER_BC" | "ANNULER_ORDRE" | "REVOIR_DECISION" | "REVISION_DEMANDEE"
   | "DEVIS" | "FICHIERS_DU_POSTE" | "SECRETARIAT" | "DEMANDES_SECRETARIAT" | "DEMANDER_A_QUELQU_UN" | "FACTURE_BC" | "LETTRE_DEVIS" | `LIGNES:${string}`;
 
 /** Ce qu'un geste OUVRE (un petit formulaire) — seul « Soumettre » part au clic. */
@@ -73,7 +77,7 @@ function titreDuPoste(item: ItemRow): { titre: string; nature: string | null } {
  * Tout le reste (modifier, révision, demandes au secrétariat, fichiers joints, historique, retirer)
  * vit dans le menu « ⋯ » : rien ne disparaît, rien ne crie.
  */
-export function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budgetOptions, promoOptions, materiel, busy, run, parentLink, moduleLibelle, porteDg }: {
+export function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budgetOptions, promoOptions, materiel, busy, run, parentLink, moduleLibelle, porteDg, infoMed = false, signature = SIGNATURE_RIEN_DE_PRET }: {
   item: ItemRow;
   parent: AdProParent;
   parentId: string;
@@ -89,6 +93,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   /** Le module que lira le validateur d'une validation demandée depuis ce poste. */
   moduleLibelle: string;
   porteDg?: ContexteDesPostes["porteDg"];
+  infoMed?: boolean;
+  signature?: SignaturePrete;
 }) {
   const [panneau, setPanneau] = React.useState<Panneau | null>(null);
   const [naturePiece, setNaturePiece] = React.useState<NaturePieceSecretariat>("DEVIS");
@@ -107,7 +113,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   }, [menu]);
 
   const stock = estPosteStock(item);
-  const direct = VERSEMENT_SANS_BC.includes(item.kind);
+  const direct = sansBonDeCommande(item);
   const editer = regard.canEdit && !regard.fige;
   const arbitrer = regard.canAllocate && !regard.fige;
   const droits = regard.validation ?? { operations: false, marketing: false };
@@ -116,6 +122,14 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   const pas = prochainPas(faits, regard);
   const etapes = etapesDuPoste(faits);
   const { titre, nature } = titreDuPoste(item);
+  // LE PARCOURS AGENCE (15/11/2026) : sa frise et SON geste remplacent ceux d'avant ; l'assistante chargée du poste y travaille.
+  const agence = item.voie === "AGENCE" && item.agence ? item.agence : null;
+  const assistanteAgence = Boolean(agence?.assistanteId && agence.assistanteId === regard.moiId);
+  const regardAgence = {
+    marketing: droits.marketing, assistante: assistanteAgence, infoMed, centre: regard.canViserBC, fige: regard.fige,
+  };
+  // Un poste « agence » ne prend sa facture qu'après la réception (et la conformité quand elle est requise).
+  const receptionFaite = !agence || agence.faits.receptionFaite;
 
   const fdOf = (extra: Record<string, string> = {}) => {
     const fd = new FormData();
@@ -147,6 +161,9 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   );
   const entrees: { cle: string; libelle: string; icone: React.ReactNode; faire: () => void; danger?: boolean; decisif?: string }[] = [];
   if (editer) entrees.push({ cle: "modifier", libelle: "Modifier le poste", icone: <Pencil className="h-3.5 w-3.5" />, faire: () => setPanneau("MODIFIER") });
+  // LA VOIE DE PAIEMENT se choisit tant que rien n'est engagé (parcours agence, 15/11/2026).
+  const voieModifiable = (editer || (droits.marketing && !regard.fige)) && !stock && item.orderStage === "NONE" && !item.expenseOrderId && !agence?.faits.prospectionDemandee && voieParDefaut(item.kind) !== null;
+  if (voieModifiable) entrees.push({ cle: "voie", libelle: "Comment ce poste se paie", icone: <Wallet className="h-3.5 w-3.5" />, faire: () => setPanneau("VOIE") });
   if (arbitrer && !stock && !item.expenseOrderId && pas.geste?.cle !== "MONTANT") {
     entrees.push({ cle: "montant", libelle: "Affecter un montant", icone: <Wallet className="h-3.5 w-3.5" />, faire: () => setPanneau("MONTANT") });
   }
@@ -237,11 +254,11 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
 
   const enCours = busy !== null && (busy === RAFRAICHISSEMENT || busy.endsWith(`:${item.id}`));
   // DÉPOSER UN DEVIS : le demandeur ou qui arbitre (`ajouterDevisPoste`), tant que le poste vit et n'est pas payé.
-  const peutDeposerDevis = (regard.canEdit || regard.canAllocate) && !regard.fige && !stock && item.status !== "REJECTED" && !item.expenseOrderId;
-  const paiementOuvert = pas.geste?.cle === "DEMANDER_PAIEMENT";
+  const peutDeposerDevis = (regard.canEdit || regard.canAllocate || assistanteAgence) && !regard.fige && !stock && item.status !== "REJECTED" && !item.expenseOrderId;
+  const paiementOuvert = pas.geste?.cle === "DEMANDER_PAIEMENT" && receptionFaite;
   // LA CASE FACTURE SE DÉBLOQUE À LA SIGNATURE DU BC (Direction, 06/10) — BC par BC : un poste à deux BC dépose la
   // facture du premier signé sans attendre le second ; le paiement, lui, attend que tout soit signé et facturé.
-  const factureOuverte = !direct && (regard.canEdit || regard.canAllocate) && !item.expenseOrderId && bcsSansFacture(item.pieces.bcs, item.pieces.factures).length > 0;
+  const factureOuverte = !direct && receptionFaite && (regard.canEdit || regard.canAllocate) && !item.expenseOrderId && bcsSansFacture(item.pieces.bcs, item.pieces.factures).length > 0;
   // LA GÉNÉRATION DU BC (§118.206) : la même règle que l'action (`refusGenerationBC`), jamais une copie.
   // LE BROUILLON EXCEL ET SA VERSION SIGNÉE (Direction, 11/2026) : qui traite les devis du poste — le droit même de les valider.
   const peutTraiterBC = peutDeposerDevis && !direct && item.orderStage !== "ISSUED";
@@ -272,6 +289,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           <p className="font-medium leading-tight">{titre}</p>
           {nature && <p className="text-xs text-muted-foreground">{nature}</p>}
         </div>
+        {item.principal && <span className={ETIQUETTE}>Bloc principal</span>}
         <Badge tone={ITEM_STATUS_LABELS[item.status].tone} dot={false}>{ITEM_STATUS_LABELS[item.status].label}</Badge>
         {entrees.length > 0 && (
           <div ref={menuRef} className="relative">
@@ -318,6 +336,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           )}
           {item.supplier && <span>· {item.supplier}</span>}
           {item.budgetCategoryLabel && <span>· {item.budgetCategoryLabel}</span>}
+          {item.voie && <span className={ETIQUETTE}>{item.voie === "AGENCE" ? `Par une agence${item.conformiteRequise ? " · conformité" : ""}` : "Paiement direct"}</span>}
           {item.budgetKind === "ADDITIONAL" && <span className={ETIQUETTE}>Rallonge</span>}
           {item.addedAfterDecision && <span className={ETIQUETTE}>Ajouté après décision</span>}
         </p>
@@ -334,7 +353,13 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
       {/* UNE PHRASE, PAS UN PARAGRAPHE (Direction, 07/10 : « trop d'infos, trop d'écriture ») : le geste de la personne
           qui regarde, sinon OÙ en est le poste et CHEZ QUI. Le pourquoi — un BC établi dans Legal qui empêche de retirer
           la demande (§118.83) — passe dans un ⓘ. */}
-      {((pas.geste && pas.geste?.cle !== "GENERER_BC") || (!pas.geste && pas.attente) || bcLegal) && (
+      {agence && (
+        <ParcoursAgence
+          item={item} regard={regardAgence} assistantes={assistantes} budgetOptions={budgetOptions} signature={signature} busy={busy} run={run}
+          ouvrir={(g) => (g === "BC" ? setOngletDemande((d) => ({ cle: "bc", n: (d?.n ?? 0) + 1 })) : g === "DEVIS" ? setPanneau("DEVIS") : setPanneau(g))}
+        />
+      )}
+      {!agence && ((pas.geste && pas.geste?.cle !== "GENERER_BC") || (!pas.geste && pas.attente) || bcLegal) && (
         <div className="flex items-start gap-2">
           {pas.geste && pas.geste?.cle !== "GENERER_BC" ? (
             <Button size="sm" className="w-full sm:w-auto" onClick={() => agir(pas.geste!.cle)} disabled={enCours}>
@@ -368,6 +393,20 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
             void run(`edit:${item.id}`, () => updateAdProItem(undefined, fd), "Poste modifié.").then(fermer);
           }}
         />
+      )}
+      {panneau === "VOIE" && voieModifiable && (
+        <form className="space-y-2" onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.currentTarget);
+          fd.set("id", item.id);
+          void run(`voie:${item.id}`, () => choisirVoiePoste(fd), "Voie de paiement enregistrée.").then(fermer);
+        }}>
+          <ChoixVoie kind={item.kind} voieActuelle={item.voie} conformiteActuelle={item.conformiteRequise} />
+          <div className="flex gap-2">
+            <Button size="sm" type="submit" disabled={enCours}>Enregistrer</Button>
+            <Button size="sm" type="button" variant="ghost" onClick={fermer}>Annuler</Button>
+          </div>
+        </form>
       )}
       {panneau === "REPARTIR" && editer && (
         <FormulaireRepartition
@@ -690,8 +729,9 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
         const etatAccord: EtatEtape = accord.some((e) => e.etat === "REFUSE") ? "REFUSE" : accord.every((e) => e.etat === "FAIT") ? "FAIT" : "EN_COURS";
         const etatDe = (cle: string): EtatEtape => etapes.find((e) => e.cle === cle)?.etat ?? "A_VENIR";
         const avecBC = !(direct && !item.pieces.bc && item.orderStage === "NONE");
+        // UN POSTE « AGENCE » (15/11/2026) : sa frise dit déjà l'accord et la demande de devis — la chaîne ne garde que ses PIÈCES.
         const onglets: OngletChaine[] = [
-          {
+          ...(agence ? [] : [{
             cle: "accord", libelle: "Accord", etat: etatAccord,
             contenu: (
               <CasePiece titre="Accord">
@@ -705,8 +745,8 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                 )}
               </CasePiece>
             ),
-          },
-          ...(direct ? [] : [{
+          }]),
+          ...(direct || agence ? [] : [{
             cle: "demande", libelle: "Demande de devis", court: "Demande",
             etat: (item.demandesDevis.length > 0 || item.pieces.devis.some((d) => !d.annulee) ? "FAIT" : "A_VENIR") as EtatEtape,
             contenu: (

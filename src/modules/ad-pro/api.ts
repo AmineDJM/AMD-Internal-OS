@@ -37,7 +37,7 @@ export { lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE } from "./
 export { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "./infra/passeport-acces";
 export { accesPiecesLiees, contextePiecesLiees } from "./infra/pieces-liees";
 export { annulerDemandesPiecesDuPoste, assistantesDeDirection, demandesBCDesPostes, natureDePiece, piecesDesPostes, rattacherPieceAuPoste, societeDuPoste } from "./infra/pieces-poste";
-export { refusSiPorteDgFermee, signalerPorteDgSiBesoin, statuerSurLeTotal, totalDeLaDemande } from "./infra/porte-dg";
+export { refusSiPorteDgFermee, refusPorteDgDuPoste, signalerPorteDgSiBesoin, statuerSurLeTotal, totalDeLaDemande } from "./infra/porte-dg";
 export { proposerPostesParModele, type ResultatPostes } from "./infra/postes-luna-ia";
 export { peutSaisirLesDevis } from "./infra/prise-en-charge/devis-acces";
 export { demandePrevalidee, prendreLesCasesDuDevis, REFUS_NON_PREVALIDEE, refusEngagementPriseEnCharge, rendreLaReserveDuDevis } from "./infra/prise-en-charge/engagement";
@@ -52,6 +52,7 @@ export { adProEditValues } from "./infra/requetes/edition";
 export { type EventDetail, getEventDetail, getEvents, getPublicEvent } from "./infra/requetes/evenements";
 export { chargerLiensAdPro, medecinsParDemande } from "./infra/requetes/medecins";
 export { adProBudgetOptions, contexteMaterielStock, contextePostes, loadAdProItems, postesPourCloture } from "./infra/requetes/postes";
+export { etapeDeLaFile, type EtapeFile, fileAgences, fileConformite, LIBELLE_ETAPE_FILE, type LigneFileAgence, posteDeLAssistante, tachesAgence, type TacheAgence } from "./infra/requetes/file-agences";
 export { getCareDossier } from "./infra/requetes/prise-en-charge";
 export { peutSupprimerUneDemandeAdPro } from "./infra/requetes/suppression";
 export { ajusterVisaAuMontant, blocageCentreAdPro, lireVisaAdPro, montantPourLeVisa, phraseGesteVisa, poserVisaAdPro, retirerVisaEnAttente, seuilAdProEnVigueur } from "./infra/visa";

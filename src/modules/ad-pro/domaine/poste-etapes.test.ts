@@ -264,7 +264,7 @@ describe("la traduction des faits d'un poste — une seule, lue par l'écran et 
     };
     const f = faitsDuPoste(brut);
     expect(f).toEqual({
-      kind: "STAND", status: "APPROVED", amountEstimated: 10, amountGranted: 9, budgetCategoryId: "b",
+      kind: "STAND", voie: null, status: "APPROVED", amountEstimated: 10, amountGranted: 9, budgetCategoryId: "b",
       orderStage: "DIRECTION_OK", expenseOrderId: "e", expenseOrderStatus: "PAID", expenseOrderCentral: null, lignesStock: 2, orderSansCentre: true,
       opsDecidedAt: "2026-10-01", demandeBC: "DEPOSE", bc: "SIGNE", factures: 1, devis: 0, devisAGenerer: 0,
     });

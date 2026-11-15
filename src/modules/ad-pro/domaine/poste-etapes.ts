@@ -52,6 +52,8 @@ export type EtatDemandeBC = "AUCUNE" | "CHEZ_ASSISTANTE" | "DEPOSE";
 /** Ce qu'un poste porte — les colonnes qui décident de son étape. */
 export interface FaitsPoste {
   kind: AdProItemKind;
+  /** La voie de paiement choisie (parcours agence, 15/11/2026) — absente : la règle d'avant. */
+  voie?: "AGENCE" | "DIRECT" | null;
   status: AdProItemStatus;
   amountEstimated: number | null;
   amountGranted: number | null;
@@ -184,6 +186,7 @@ export function phrasePaiementBloque(etat: EtatPaiementPoste, reference: string 
  */
 export function faitsDuPoste(r: {
   kind: AdProItemKind;
+  voie?: "AGENCE" | "DIRECT" | null;
   status: AdProItemStatus;
   amountEstimated: number | null;
   amountGranted: number | null;
@@ -206,7 +209,7 @@ export function faitsDuPoste(r: {
   priseEnChargeIndirecte?: boolean;
 }): FaitsPoste {
   return {
-    kind: r.kind, status: r.status, amountEstimated: r.amountEstimated, amountGranted: r.amountGranted,
+    kind: r.kind, voie: r.voie ?? null, status: r.status, amountEstimated: r.amountEstimated, amountGranted: r.amountGranted,
     budgetCategoryId: r.budgetCategoryId, orderStage: r.orderStage, expenseOrderId: r.expenseOrderId,
     expenseOrderStatus: r.expenseOrder?.status ?? null, expenseOrderCentral: r.expenseOrder?.centralStatus ?? null,
     lignesStock: r.lignesStock.length, orderSansCentre: r.orderSansCentre,
@@ -244,7 +247,16 @@ export const VERSEMENT_SANS_BC: readonly AdProItemKind[] = ["ASSOCIATION_SUPPORT
  * diverger (§118.5).
  */
 export const LIBELLE_JUSTIFICATIF_DIRECT = "Proforma / lettre de demande de sponsoring";
-export const facturePourPayer = (kind: AdProItemKind): boolean => !VERSEMENT_SANS_BC.includes(kind);
+
+/**
+ * CE POSTE SE PAIE-T-IL SANS BON DE COMMANDE ? (parcours agence, 15/11/2026) — la VOIE choisie sur le poste décide
+ * (« le principal se paie directement ou par BC, selon le cas ») ; un poste sans voie garde la règle d'avant : le seul
+ * versement à l'association. UNE fonction, lue par la frise, le geste, les actions et l'ordre de dépense.
+ */
+export const sansBonDeCommande = (p: { kind: AdProItemKind; voie?: "AGENCE" | "DIRECT" | null }): boolean =>
+  p.voie ? p.voie === "DIRECT" : VERSEMENT_SANS_BC.includes(p.kind);
+export const facturePourPayer = (p: AdProItemKind | { kind: AdProItemKind; voie?: "AGENCE" | "DIRECT" | null }): boolean =>
+  !sansBonDeCommande(typeof p === "string" ? { kind: p } : p);
 
 /** Le BC du poste est-il signé — la condition pour déposer la facture d'un poste qui en a un (§118.204) ? */
 export const bcSigne = (p: FaitsPoste) => p.bc === "SIGNE";
@@ -257,7 +269,7 @@ export function etapesDuPoste(p: FaitsPoste): Etape[] {
   if (p.kind === "STOCK_MATERIAL") return [];
   const accorde = p.status === "APPROVED";
   const paye = p.expenseOrderStatus === "PAID";
-  const sansBC = VERSEMENT_SANS_BC.includes(p.kind);
+  const sansBC = sansBonDeCommande(p);
   const factures = p.factures ?? 0;
   const justificatifPose = (p.devis ?? 0) > 0 || factures > 0;
   const etapes: Etape[] = [
@@ -408,7 +420,7 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
         : `En attente — le Directeur Général valide le total de la demande${p.porteDgPhrase ? ` (${p.porteDgPhrase})` : ""}.`,
     };
   }
-  const direct = VERSEMENT_SANS_BC.includes(p.kind);
+  const direct = sansBonDeCommande(p);
   const payer: ProchainPas = r.canEdit
     ? { geste: { cle: "DEMANDER_PAIEMENT", libelle: direct ? "Joindre la proforma / lettre de demande et demander le paiement" : "Déposer la facture et demander le paiement" }, attente: null }
     : { geste: null, attente: direct ? "Le demandeur joint la proforma ou la lettre de demande de sponsoring pour demander le paiement." : "Le demandeur dépose la facture pour demander le paiement." };

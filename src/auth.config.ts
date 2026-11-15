@@ -44,6 +44,10 @@ export const authConfig = {
       // devinable. La salle est gérée par Jitsi ; aucune donnée interne n'est exposée.
       if (nextUrl.pathname.startsWith("/meet/")) return true;
 
+      // LA VÉRIFICATION D'UN BC SIGNÉ EN LIGNE (15/11/2026) : l'agence qui scanne le QR du sceau n'a pas de compte. Jeton non
+      // devinable (144 bits) ; la page ne montre que le numéro, l'émetteur, les signataires, les dates et l'empreinte.
+      if (nextUrl.pathname.startsWith("/verifier-bc/")) return true;
+
       // LE SITE PUBLIC appelle l'ERP (§118.159) : les candidatures déposées sur adventumdz.com, et
       // la relecture de ses contenus quand il redémarre. Il n'a pas de session — ces routes
       // vérifient ELLES-MÊMES sa clé et la signature du corps (`site-web/entrant.ts`), et un

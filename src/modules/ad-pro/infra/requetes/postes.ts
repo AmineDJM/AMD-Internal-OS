@@ -24,6 +24,10 @@ import { porteDesHebergements } from "../../domaine/hebergements";
 import { piecesDesPostes, demandesBCDesPostes, assistantesDeDirection } from "../pieces-poste";
 import { pieceEmise, specRevisable, valeursComposables } from "@/lib/legal/piece-emise";
 import { devisDesPostes } from "./devis-poste";
+import { agencesDesPostes } from "./agence";
+import { hasRole } from "@/lib/rbac/roles";
+import { etatSignatureEnLigne } from "@/lib/signature-en-ligne/etat";
+import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { droitsValidation, type DroitsValidation } from "../../domaine/validation-poste";
 import { envoisDesFiches } from "@/lib/queries/reservations-fiches";
 
@@ -247,9 +251,12 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
   }
   const promoById = new Map(promoRows.map((p) => [p.id, { reference: p.reference, title: p.title, status: statutDuDossier(p).libelle }]));
   const orderById = new Map(orderRows.map((o) => [o.id, { reference: o.reference, status: String(o.status), centralStatus: o.centralStatus }]));
+  // LE PARCOURS AGENCE (15/11/2026) : prospection, choix, BC signé, conformité, réception — en lot.
+  const agences = await agencesDesPostes(rawItems, piecesParPoste, devisParPoste);
 
   return rawItems.map((i) => ({
     id: i.id, kind: i.kind, label: i.label, notes: i.notes, supplier: i.supplier,
+    voie: i.voie, principal: i.principal, conformiteRequise: i.conformiteRequise, agence: agences.get(i.id) ?? null,
     amountEstimated: i.amountEstimated != null ? toNumber(i.amountEstimated) : null,
     amountGranted: i.amountGranted != null ? toNumber(i.amountGranted) : null,
     addedAfterDecision: i.addedAfterDecision,
@@ -514,6 +521,12 @@ export interface ContextePostes {
    * personne qui regarde peut en faire (le DG ou le Super Admin statuent).
    */
   porteDg: { etat: EtatPorteDg; phrase: string | null; total: number; seuil: number | null; note: string | null; peutStatuer: boolean };
+  /** L'information médicale regarde : elle contrôle la conformité des BAT (parcours agence, 15/11/2026). */
+  infoMed: boolean;
+  /** Ce qui est prêt pour signer en ligne chez la personne qui regarde. */
+  signature: SignaturePrete;
+  /** Le délégué médical suit ses postes sans les détails. */
+  suiviSimple: boolean;
 }
 
 const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> = {
@@ -540,5 +553,9 @@ export async function contextePostes(user: SessionUser, parent: AdProParent, par
       etat: porte.etat, phrase: porte.phrase, total: porte.total, seuil: porte.seuil, note: porte.note,
       peutStatuer: peutStatuerSurLeTotal(moi ?? { role: user.role }),
     },
+    infoMed: hasRole(moi ?? user, "MEDICAL_INFO_PHARMACIST") || hasRole(moi ?? user, "SUPER_ADMIN"),
+    signature: await etatSignatureEnLigne(user.id),
+    // LE DÉLÉGUÉ MÉDICAL SUIT SANS LES DÉTAILS (15/11/2026) — sauf s'il porte aussi un rôle qui décide ou exécute.
+    suiviSimple: (moi ?? user).role === "MEDICAL_DELEGATE" && !["PRODUCT_MANAGER", "SUPER_ADMIN", "NATIONAL_SALES", "DIRECTION_ASSISTANT"].includes(String((moi ?? user).secondaryRole ?? "")),
   };
 }

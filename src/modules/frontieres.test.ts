@@ -41,6 +41,27 @@ import { CARTE, SOCLE_METIER } from "./carte";
 /** Les imports d'un module vers `src/lib/` hors socle, connus et nommés. Ne peut que rétrécir. */
 const DETTE_HERITEE: Record<string, string[]> = {
   "ad-pro": [
+    // LE PARCOURS AGENCE (15/11/2026) — mêmes cibles que les autres gestes de poste : les bons de commande (cible
+    // `@/modules/bons-de-commande/api`), les notifications et les pièces (socle à terme), et la SIGNATURE EN LIGNE, transverse
+    // (Direction Marketing ici, Finances dans `bc-signature-actions`) : cible = un module `signature` quand il naîtra.
+    "src/modules/ad-pro/actions-postes-agence.ts → src/lib/bons-de-commande/aiguillage",
+    "src/modules/ad-pro/actions-postes-agence.ts → src/lib/bons-de-commande/etat",
+    "src/modules/ad-pro/actions-postes-agence.ts → src/lib/device",
+    "src/modules/ad-pro/actions-postes-agence.ts → src/lib/drive-storage",
+    "src/modules/ad-pro/actions-postes-agence.ts → src/lib/notify",
+    "src/modules/ad-pro/actions-postes-agence.ts → src/lib/signature-en-ligne/second-facteur",
+    "src/modules/ad-pro/actions-postes-agence.ts → src/lib/signature-en-ligne/signer-bc",
+    "src/modules/ad-pro/actions-postes-execution.ts → src/lib/attach-files",
+    "src/modules/ad-pro/actions-postes-execution.ts → src/lib/bons-de-commande/etat",
+    "src/modules/ad-pro/actions-postes-execution.ts → src/lib/documents",
+    "src/modules/ad-pro/actions-postes-execution.ts → src/lib/notify",
+    "src/modules/ad-pro/domaine/parcours-agence.ts → src/lib/bons-de-commande/regle",
+    "src/modules/ad-pro/ecrans/items-panel.tsx → src/lib/signature-en-ligne/partage",
+    "src/modules/ad-pro/ecrans/postes/parcours-agence.tsx → src/lib/lecteurs/fichiers-emis",
+    "src/modules/ad-pro/ecrans/postes/parcours-agence.tsx → src/lib/signature-en-ligne/partage",
+    "src/modules/ad-pro/ecrans/postes/poste-carte.tsx → src/lib/signature-en-ligne/partage",
+    "src/modules/ad-pro/infra/requetes/postes.ts → src/lib/signature-en-ligne/etat",
+    "src/modules/ad-pro/infra/requetes/postes.ts → src/lib/signature-en-ligne/partage",
     // Les bons de commande (règle, aiguillage, brouillon, copie signée, saisie du composeur) : cible = `@/modules/bons-de-commande/api`.
     "src/modules/ad-pro/actions-centre.ts → src/lib/bons-de-commande/aiguillage",
     "src/modules/ad-pro/actions-centre.ts → src/lib/bons-de-commande/etat",

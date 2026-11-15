@@ -118,6 +118,7 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   "/api/feedback/attachment/[id]": { methodes: "GET", classe: "HORS", raison: PIECE_DE_FIL },
   "/api/field-reports/attachment/[id]": { methodes: "GET", classe: "HORS", raison: PIECE_DE_FIL },
   "/api/kpi/piece/[id]": { methodes: "GET", classe: "HORS", raison: "justificatif d'un indicateur : il s'ouvre depuis la fiche KPI, sous ses droits" },
+  "/api/signature/visuel": { methodes: "GET", classe: "HORS", raison: "l'aperçu de SA propre signature ou de SON cachet (Ma signature) : jamais servi à une autre personne, ni à une IA" },
   "/api/legal/[id]/fichier": { methodes: "GET", classe: "HORS", raison: "pièce juridique (contrat, statuts) : elle s'ouvre depuis la fiche Juridique, sous les droits du module ; la Bibliothèque la retrouve si elle y est inscrite" },
   "/api/ventes-pch/fichier/[id]": { methodes: "GET", classe: "HORS", raison: "fichier importé des ventes PCH : servi à l'écran d'import, sous ses droits" },
   "/api/site-web/candidatures/[id]/cv": { methodes: "GET", classe: "HORS", raison: "CV d'un candidat : pièce RH sensible, ouverte à l'écran Recrutement seulement" },

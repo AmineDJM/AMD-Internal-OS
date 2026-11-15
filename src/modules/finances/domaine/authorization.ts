@@ -162,6 +162,8 @@ export function awaitsRequester(status: CentralStatus): boolean {
  */
 export interface PaymentCentreMember {
   role: string;
+  /** L'« autre rôle » cumulé — un DG porté en rôle secondaire siège aussi. */
+  secondaryRole?: string | null;
   /** L'accès effectif de la session — `paymentCentreSeat` y est résolu par `getAccess`. */
   access?: { paymentCentreSeat?: boolean };
 }
@@ -174,7 +176,8 @@ export interface PaymentCentreMember {
 export const ROLES_CENTRE_DE_PAIEMENT = ["DIRECTION", "GENERAL_MANAGER", "SUPER_ADMIN"] as const;
 
 export function sitsOnPaymentCentre(user: PaymentCentreMember): boolean {
-  return (ROLES_CENTRE_DE_PAIEMENT as readonly string[]).includes(user.role)
+  // Le rôle SECONDAIRE compte aussi (15/11/2026) : un DG porté en « autre rôle » siège comme un DG en rôle principal.
+  return [user.role, user.secondaryRole].some((r) => r != null && (ROLES_CENTRE_DE_PAIEMENT as readonly string[]).includes(r))
     || user.access?.paymentCentreSeat === true;
 }
 

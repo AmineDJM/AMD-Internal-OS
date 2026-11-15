@@ -12,6 +12,9 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { breakdown, plannedGaps, type AdProParent } from "../domaine/postes";
 import { addAdProItem } from "../actions-postes";
 import type { DroitsValidation } from "../domaine/validation-poste";
+import type { AgenceVue } from "../domaine/parcours-agence";
+import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
+import { SuiviSimple } from "./postes/suivi-simple";
 import { kindLabel } from "../domaine/unified";
 import type { NaturePieceSecretariat } from "../domaine/pieces-secretariat";
 import { grouperParRepartition } from "../domaine/poste-etapes";
@@ -37,6 +40,13 @@ export type { HebergementVue } from "./hebergements-bloc";
 export interface ItemRow {
   id: string;
   kind: AdProItemKind;
+  /** Comment le poste se paie (parcours agence, 15/11/2026) — `null` : la règle d'avant. */
+  voie: "AGENCE" | "DIRECT" | null;
+  /** Le bloc principal d'un sponsoring (le prix proposé par le médecin et le délégué). */
+  principal: boolean;
+  conformiteRequise: boolean;
+  /** L'exécution d'un poste « par une agence » ; `null` pour les autres. */
+  agence: AgenceVue | null;
   label: string;
   notes: string | null;
   supplier: string | null;
@@ -184,6 +194,12 @@ export interface ContexteDesPostes {
   superAdmin: boolean;
   /** La porte du DG sur le total de la demande (27/10/2026) — calculée au serveur (`contextePostes`). */
   porteDg?: { etat: EtatPorteDg; phrase: string | null; total: number; seuil: number | null; note: string | null; peutStatuer: boolean };
+  /** L'information médicale regarde (parcours agence, 15/11/2026). */
+  infoMed?: boolean;
+  /** Ce qui est prêt pour signer en ligne chez la personne qui regarde. */
+  signature?: SignaturePrete;
+  /** Le délégué médical suit ses postes SANS les détails (montants, devis, pièces) — 15/11/2026. */
+  suiviSimple?: boolean;
 }
 
 export type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText: string) => Promise<void>;
@@ -303,13 +319,23 @@ export function AdProItemsPanel({
       parentLink={parentLink}
       moduleLibelle={`Ad & Pro — ${kindLabel(parent === "AD_PRO_OTHER" ? "OTHER" : parent)}`}
       porteDg={contexte.porteDg}
+      infoMed={contexte.infoMed === true}
+      signature={contexte.signature ?? { signature: false, cachet: false, code: false }}
     />
   );
+
+  // LE DÉLÉGUÉ SUIT SANS LES DÉTAILS (Direction, 15/11/2026) : les étapes de ses postes, pas leurs montants ni leurs pièces.
+  if (contexte.suiviSimple) return <SuiviSimple items={items} />;
 
   return (
     <div className="space-y-4">
       {/* ── La porte du DG sur le total (27/10/2026) : visible dès qu'elle est requise. ── */}
-      {contexte.porteDg && <CartePorteDg parent={parent} parentId={parentId} porte={contexte.porteDg} />}
+      {contexte.porteDg && (
+        <CartePorteDg
+          parent={parent} parentId={parentId} porte={contexte.porteDg}
+          signalSeul={items.some((i) => i.voie === "AGENCE") && items.every((i) => i.voie === "AGENCE" || i.kind === "STOCK_MATERIAL" || i.status === "REJECTED")}
+        />
+      )}
       {/* ── La ventilation, avant la liste : c'est la question qu'on se pose en arrivant. ── */}
       {resume && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Figure

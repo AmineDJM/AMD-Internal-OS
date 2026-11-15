@@ -7,10 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { notifyRoles } from "@/lib/notify";
-import { type AdProParent, VERSEMENT_SANS_BC, noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste } from "@/modules/ad-pro/partage";
+import { type AdProParent, sansBonDeCommande, noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste } from "@/modules/ad-pro/partage";
 import { enSerie } from "@/lib/refs";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
-import { refusSiPorteDgFermee, lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, demandesBCDesPostes, devisDesPostes, genererLesBCsDuPoste, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis, apercuDuBC, composerApercuDuBC, lignesDuBCDuDevis, type ApercuDuBC, type PosteAGenerer } from "@/modules/ad-pro/api";
+import { refusPorteDgDuPoste, lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, demandesBCDesPostes, devisDesPostes, genererLesBCsDuPoste, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis, apercuDuBC, composerApercuDuBC, lignesDuBCDuDevis, type ApercuDuBC, type PosteAGenerer } from "@/modules/ad-pro/api";
 import { motifSousLeSeuil } from "@/lib/bons-de-commande/regle";
 import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { refusArgentSurPosteStock } from "@/lib/promo/reservations";
@@ -24,7 +24,7 @@ import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { saisieEffective } from "@/lib/references/registre";
 import { apercuPourEcran, type ApercuPiece } from "@/platform/ia/artifact/factory";
 import { sansBloquer } from "@/lib/journal";
-import { PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, lireModificationsDuBc, filePoste, devisDuPoste } from "./infra/postes/commun";
+import { PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, lireModificationsDuBc, filePoste, devisDuPoste, peutTrancherSur, estAssistanteDuPoste } from "./infra/postes/commun";
 import type { AdProItemKind } from "@prisma/client";
 import { notifyUser } from "@/lib/notify";
 import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
@@ -55,11 +55,11 @@ async function cadreDesLignes(user: SessionUser, formData: FormData) {
   if (!found) return { error: "Poste introuvable." } as const;
   if (found.historique) return { error: REFUS_HISTORIQUE } as const;
   const { item, owner } = found;
-  if (!peutTraiterLesDevis(user, owner.parent)) return { error: "Non autorisé." } as const;
+  if (!peutTraiterLesDevis(user, owner.parent) && !(await estAssistanteDuPoste(user.id, id))) return { error: "Non autorisé." } as const;
   const refusStock = refusArgentSurPosteStock(item.kind, "des lignes de devis");
   if (refusStock) return { error: refusStock } as const;
   if (item.status === "REJECTED") return { error: `Le poste « ${item.label} » est refusé : ses devis ne se traitent plus.` } as const;
-  if (VERSEMENT_SANS_BC.includes(item.kind)) {
+  if (sansBonDeCommande(item)) {
     return { error: "Un sponsoring direct n'a pas de bon de commande : la facture suffit — ses devis ne se valident pas ligne à ligne." } as const;
   }
   const info = await PARENTS[owner.parent].load(owner.id);
@@ -371,13 +371,13 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
-  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  const porteDg = await refusPorteDgDuPoste(item, owner.parent, owner.id);
   if (porteDg) return { ok: false, error: porteDg };
   // VALIDER le BC revient au déposant du devis (vérifié plus bas) : qui traite les devis du poste y entre ; GÉNÉRER l'aperçu reste aux éditeurs.
   if (!(mode === "VALIDER" ? peutTraiterLesDevis(user, owner.parent) : canEditItems(user, owner.parent))) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un bon de commande");
   if (refusStock) return { ok: false, error: refusStock };
-  if (VERSEMENT_SANS_BC.includes(item.kind)) {
+  if (sansBonDeCommande(item)) {
     return { ok: false, error: "Un sponsoring direct n'a pas de bon de commande : déposez la facture (et, si vous l'avez, la pro forma) puis demandez le paiement." };
   }
   const info = await PARENTS[owner.parent].load(owner.id);
@@ -420,7 +420,14 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
     }
     let aFaire = mode === "APERCU" ? sansBrouillon : aFaireTous.filter((d) => d.brouillon);
     // VALIDER LE BC : la personne qui a AJOUTÉ le devis (ou le Super Admin) — Direction, 11/2026. Les autres devis restent à elle.
-    if (mode === "VALIDER") {
+    if (mode === "VALIDER" && item.voie === "AGENCE") {
+      // LE PARCOURS AGENCE (15/11/2026) : l'assistante finalise le BC et le SOUMET ; c'est la Direction Marketing qui le
+      // valide — puis le signe et le cachette (`validerSignerBcMarketing`). Seul le devis de l'agence retenue part.
+      const exec = await prisma.adProExecutionPoste.findUnique({ where: { itemId: id }, select: { bcSoumisAt: true, agenceDevisId: true } });
+      if (!(await peutTrancherSur(user, owner)).marketing) return { ok: false, error: "Ce bon de commande se valide par la Direction Marketing, qui le signe et le cachette." };
+      if (!exec?.bcSoumisAt) return { ok: false, error: "L'assistante de direction n'a pas encore soumis ce bon de commande : il se valide une fois finalisé." };
+      aFaire = aFaire.filter((d) => d.pieceId === exec.agenceDevisId);
+    } else if (mode === "VALIDER") {
       const siens: typeof aFaire = [];
       for (const d of aFaire) {
         const deposant = await deposantDuDevis(id, d.pieceId);
@@ -539,7 +546,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
 // `BcBrouillonVersion`.
 
 /** Un poste prêt pour son brouillon : ce que `traiterLeBCDuPoste` lit, sans la garde « éditer » (valider le devis suffit). */
-type PosteDuBrouillon = { item: { id: string; label: string; kind: AdProItemKind; supplier: string | null }; owner: { parent: AdProParent; id: string } };
+type PosteDuBrouillon = { item: { id: string; label: string; kind: AdProItemKind; supplier: string | null; voie?: "AGENCE" | "DIRECT" | null }; owner: { parent: AdProParent; id: string } };
 
 /** La personne qui a AJOUTÉ ce devis au poste — celle qui vérifie, modifie et valide son BC. */
 async function deposantDuDevis(itemId: string, pieceId: string): Promise<{ id: string; name: string } | null> {
@@ -573,7 +580,7 @@ async function inscrireVersionBrouillon(i: {
 async function preparerLesBrouillons(user: Awaited<ReturnType<typeof requireUser>>, p: PosteDuBrouillon, info: { ref: string }): Promise<string | null> {
   const id = p.item.id;
   // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage — pas même un BC à vérifier.
-  const porteDg = await refusSiPorteDgFermee(p.owner.parent, p.owner.id);
+  const porteDg = await refusPorteDgDuPoste(p.item, p.owner.parent, p.owner.id);
   if (porteDg) return `Bon de commande non généré : ${porteDg}`;
   return enSerie(filePoste(id), async (): Promise<string | null> => {
     const poste = await prisma.adProItem.findUnique({

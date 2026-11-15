@@ -91,7 +91,9 @@ export const DOMAINS: { name: string; paths: string[] }[] = [
   // `payslip/` : la lecture d'un Word (`docx-lecture`), sa mise en page et son rendu PDF — de la
   // bureautique pure, qui ne lit que `artifact/` (le modèle XML). Rangé ici au découpage V4 des
   // fichiers géants : ses morceaux neufs auraient sinon grossi le compte « hors carte ».
-  { name: "office", paths: ["src/lib/office/", "src/lib/pdf/", "src/lib/artifact/", "src/lib/payslip/"] },
+  // `signature-en-ligne/` (15/11/2026) : signer et cacheter un PDF (incrustation mupdf, sceau QR, code TOTP) — de la
+  // bureautique sur un document émis, comme `pdf/` ; le métier (quel BC, quel ordre) reste aux actions qui l'appellent.
+  { name: "office", paths: ["src/lib/office/", "src/lib/pdf/", "src/lib/artifact/", "src/lib/payslip/", "src/lib/signature-en-ligne/"] },
   // `carte-plateforme/` : le catalogue DESCRIPTIF de `/admin/carte-plateforme` (modules, circuits,
   // mécanismes) et le calcul des niveaux d'accès qu'il affiche. Zéro import hors de son dossier :
   // déclaré pour être MESURÉ — il ne doit lire aucun autre domaine.

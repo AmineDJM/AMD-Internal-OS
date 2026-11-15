@@ -48,6 +48,9 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
     "src/modules/ad-pro/actions-postes.ts", "src/modules/ad-pro/actions-postes-decision.ts", "src/modules/ad-pro/actions-postes-paiement.ts",
     "src/modules/ad-pro/actions-postes-materiel.ts", "src/modules/ad-pro/actions-postes-voyageurs.ts", "src/modules/ad-pro/actions-postes-lignes.ts",
   ],
+  // LE PARCOURS AGENCE (15/11/2026) : prospection → choix → BC signé (Direction Marketing), puis exécution → conformité → réception.
+  "ad-pro-agence-actions": "src/modules/ad-pro/actions-postes-agence.ts",
+  "ad-pro-execution-actions": "src/modules/ad-pro/actions-postes-execution.ts",
   "ad-pro-medecins-actions": "src/modules/ad-pro/actions-medecins.ts",
   "ad-pro-other-actions": "src/modules/ad-pro/actions-autres.ts",
   "ad-pro-pieces-actions": "src/modules/ad-pro/actions-pieces.ts",

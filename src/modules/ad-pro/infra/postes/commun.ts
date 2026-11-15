@@ -454,6 +454,15 @@ export async function reprojeterMontantDemande(parent: AdProParent, parentId: st
  * reste celui de chaque geste (`canEditItems`, `canAllocate`…) ; elle n'ajoute que « on agit sur
  * une demande qu'on voit ».
  */
+/**
+ * L'ASSISTANTE DE DIRECTION CHARGÉE DE LA PROSPECTION D'UN POSTE (parcours agence, 15/11/2026) : elle y dépose les devis
+ * des agences, en corrige les lignes et finalise le bon de commande — sur CE poste seulement, sans voir la demande.
+ */
+export async function estAssistanteDuPoste(userId: string, itemId: string): Promise<boolean> {
+  const e = await prisma.adProExecutionPoste.findUnique({ where: { itemId }, select: { assistanteId: true } });
+  return Boolean(e?.assistanteId) && e?.assistanteId === userId;
+}
+
 export function demandeVisible(user: SessionUser, parent: AdProParent, parentId: string): Promise<boolean> {
   return canAccessEntity(user, PARENT_ENTITE[parent], parentId, "VIEW");
 }
@@ -474,12 +483,13 @@ export async function loadItem(id: string, user: SessionUser) {
       orderRequestedAt: true, orderDirectionAt: true, orderVisaAmount: true, orderVisaSupplier: true,
       reservationDossierId: true, opsDecidedAt: true, orderNote: true, repartitionId: true,
       sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
-      montantPayeHistorique: true,
+      montantPayeHistorique: true, voie: true, principal: true, conformiteRequise: true,
     },
   });
   if (!item) return null;
   const owner = parentOf(item);
-  if (!owner || !(await demandeVisible(user, owner.parent, owner.id))) return null;
+  // L'ASSISTANTE CHARGÉE DE LA PROSPECTION (parcours agence, 15/11/2026) voit CE poste — pas la demande entière.
+  if (!owner || !((await demandeVisible(user, owner.parent, owner.id)) || (await estAssistanteDuPoste(user.id, item.id)))) return null;
   // UN POSTE HISTORIQUE (intégration des dépenses réelles Ad & Pro 2026) est payé : aucun circuit ne s'y applique.
   return { item, owner, historique: item.montantPayeHistorique != null };
 }

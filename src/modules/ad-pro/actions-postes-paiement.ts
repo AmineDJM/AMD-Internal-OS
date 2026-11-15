@@ -7,10 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { createExpenseOrder } from "@/modules/finances/api";
-import { canEmitOrder, ITEM_KIND_LABELS, PARENT_ENTITE, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, facturePourPayer, etatDuPaiement, phrasePaiementBloque, nomComplet, beneficiaireDuPaiement, gesteVisaPoste } from "@/modules/ad-pro/partage";
+import { canEmitOrder, ITEM_KIND_LABELS, PARENT_ENTITE, sansBonDeCommande, LIBELLE_JUSTIFICATIF_DIRECT, facturePourPayer, etatDuPaiement, phrasePaiementBloque, nomComplet, beneficiaireDuPaiement, gesteVisaPoste } from "@/modules/ad-pro/partage";
 import { enSerie } from "@/lib/refs";
 import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";
-import { refusSiPorteDgFermee, rattacherPieceAuPoste, piecesDesPostes, devisDesPostes, empreintesDesDevis, refusPlafondDuPoste, lireFactureDuPoste } from "@/modules/ad-pro/api";
+import { refusPorteDgDuPoste, rattacherPieceAuPoste, piecesDesPostes, devisDesPostes, empreintesDesDevis, refusPlafondDuPoste, lireFactureDuPoste } from "@/modules/ad-pro/api";
 import { getAppSettings } from "@/lib/settings";
 import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { refusArgentSurPosteStock } from "@/lib/promo/reservations";
@@ -26,8 +26,9 @@ import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factur
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
 import { apercuPourEcran, estRevisionDeNumeroSeul, previsualiserRevision, reviserDocumentDrive, type ApercuPiece } from "@/platform/ia/artifact/factory";
 import { sansBloquer } from "@/lib/journal";
-import { type ParentInfo, PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, etatBcDe, appliquerGesteVisa, lireModificationsDuBc, chargerVoyageur, filePoste } from "./infra/postes/commun";
+import { type ParentInfo, PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, etatBcDe, appliquerGesteVisa, lireModificationsDuBc, chargerVoyageur, filePoste, estAssistanteDuPoste } from "./infra/postes/commun";
 import { actionReversible } from "@/lib/effets/reversible";
+import { refusAvantReception } from "./infra/postes/agence";
 
 /**
  * POSTES AD & PRO — LE DEVIS, LE PAIEMENT, LA FACTURE : joindre et retirer un devis, demander le paiement
@@ -85,7 +86,11 @@ export async function ajouterDevisPoste(_prev: ActionResult | undefined, formDat
   const lot = await postesDeLaMemeDemande(ids, user);
   if ("error" in lot) return { ok: false, error: lot.error };
   const { charges, owner } = lot;
-  if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
+  // L'ASSISTANTE CHARGÉE DE LA PROSPECTION dépose les devis des agences sur SES postes (parcours agence, 15/11/2026).
+  const assistante = !canEditItems(user, owner.parent) && !canAllocate(user, owner.parent);
+  if (assistante) {
+    for (const { item } of charges) if (!(await estAssistanteDuPoste(user.id, item.id))) return { ok: false, error: "Non autorisé." };
+  }
   for (const { item } of charges) {
     const refusStock = refusArgentSurPosteStock(item.kind, "un devis");
     if (refusStock) return { ok: false, error: refusStock };
@@ -243,11 +248,13 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
     if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
     const { item, owner } = found;
     // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
-    const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+    const porteDg = await refusPorteDgDuPoste(item, owner.parent, owner.id);
     if (porteDg) return { ok: false, error: porteDg };
     if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
     const refusStock = refusArgentSurPosteStock(item.kind, "une facture");
     if (refusStock) return { ok: false, error: refusStock };
+    const avantReception = await refusAvantReception(item);
+    if (avantReception) return { ok: false, error: avantReception };
     const info = await PARENTS[owner.parent].load(owner.id);
     if (!info) return { ok: false, error: "Opération introuvable." };
 
@@ -259,7 +266,7 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
     const check = canEmitOrder({ amountGranted: montantAccorde, expenseOrderId: item.expenseOrderId, status: item.status }, info.decided);
     if (!check.ok) return { ok: false, error: check.reason ?? "Paiement impossible." };
     if (!item.budgetCategoryId) return { ok: false, error: "La Direction Marketing n'a pas encore choisi le budget de ce poste." };
-    const direct = VERSEMENT_SANS_BC.includes(item.kind);
+    const direct = sansBonDeCommande(item);
     // UN POSTE À BON DE COMMANDE (Direction, 06/10) : la facture DÉPOSÉE et contrôlée par Luna contre le(s) BC signé(s)
     // fait la demande — une facture jointe ici est d'abord déposée, et passe le même contrôle.
     if (!direct) {
@@ -395,7 +402,7 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
         requestedById: user.id,
         budgetCategoryId: item.budgetCategoryId ?? null,
         // La facture n'est exigée avant le règlement que là où elle est la pièce du paiement.
-        requiresInvoice: facturePourPayer(item.kind),
+        requiresInvoice: facturePourPayer(item),
         notes: `Poste de l'opération ${info.ref} — ${direct ? `${LIBELLE_JUSTIFICATIF_DIRECT.toLocaleLowerCase("fr")} jointe${factureId ? " ; facture jointe" : ""}` : "facture jointe"}.`,
       });
       ordreNe = true;
@@ -538,8 +545,10 @@ export async function deposerFacturePoste(formData: FormData): Promise<ActionRes
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
-  if (VERSEMENT_SANS_BC.includes(item.kind)) return { ok: false, error: "Un sponsoring direct n'a pas de bon de commande : sa pièce se joint à la demande de paiement." };
+  if (sansBonDeCommande(item)) return { ok: false, error: "Un sponsoring direct n'a pas de bon de commande : sa pièce se joint à la demande de paiement." };
   if (item.expenseOrderId) return { ok: false, error: await refusPaiementDejaDemande(item.expenseOrderId) };
+  const avantReception = await refusAvantReception(item);
+  if (avantReception) return { ok: false, error: avantReception };
   const info = await PARENTS[owner.parent].load(owner.id);
   if (!info) return { ok: false, error: "Opération introuvable." };
   // PLUSIEURS PIÈCES (audit Ad & Pro, 14/10) : la première est la facture, lue et contrôlée ; les suivantes ses annexes.
@@ -660,7 +669,7 @@ async function payerLesFacturesDuPoste(a: {
       sourceId: info.id,
       requestedById: user.id,
       budgetCategoryId: item.budgetCategoryId ?? null,
-      requiresInvoice: facturePourPayer(item.kind),
+      requiresInvoice: facturePourPayer(item),
       notes: `Poste de l'opération ${info.ref} — ${factures.length > 1 ? `${factures.length} factures jointes` : "facture jointe"}, contrôlée${factures.length > 1 ? "s" : ""} contre le bon de commande.`
         + (argument ? ` ÉCART ASSUMÉ par le demandeur : ${ecarts.join(" ")} Argumentation : « ${argument} ».` : ""),
     });

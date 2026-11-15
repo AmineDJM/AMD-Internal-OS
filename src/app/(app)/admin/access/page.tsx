@@ -103,13 +103,13 @@ export default async function AccessByModulePage() {
   }));
   const seated = new Set(seats.map((s) => s.userId));
   const byRole = users
-    .filter((u) => u.role === "SUPER_ADMIN" || u.role === "DIRECTION")
+    .filter((u) => u.role === "SUPER_ADMIN" || u.role === "DIRECTION" || u.role === "GENERAL_MANAGER")
     .map((u) => ({ id: u.id, name: u.name, role: ROLE_LABELS[u.role] ?? u.role }));
   // Les candidats : ni ceux qui y siègent déjà par leur rôle (un siège nommé n'ajouterait rien),
   // ni ceux déjà désignés, ni le compte système — autoriser un décaissement est un geste de
   // personne, et le laisser dans la liste inviterait à l'auto-escalade par un humain qui clique.
   const candidates: SeatCandidate[] = users
-    .filter((u) => !u.isSystem && u.role !== "SUPER_ADMIN" && u.role !== "DIRECTION" && !seated.has(u.id))
+    .filter((u) => !u.isSystem && u.role !== "SUPER_ADMIN" && u.role !== "DIRECTION" && u.role !== "GENERAL_MANAGER" && !seated.has(u.id))
     .map((u) => ({ id: u.id, name: u.name, role: ROLE_LABELS[u.role] ?? u.role }));
 
   const sheet = buildAccessSheet(

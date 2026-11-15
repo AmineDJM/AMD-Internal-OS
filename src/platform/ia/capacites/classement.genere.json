@@ -126,6 +126,66 @@
   "annulation": "retour",
   "appelable": true
  },
+ "ad-pro-agence-actions:choisirAgencePoste": {
+  "risque": "R2",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-agence-actions:demanderProspection": {
+  "risque": "R2",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "ad-pro-agence-actions:signerBcMarketing": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": true
+ },
+ "ad-pro-agence-actions:soumettreBcMarketing": {
+  "risque": "R2",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-agence-actions:transmettreDevisAgences": {
+  "risque": "R2",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-agence-actions:validerSignerBcMarketing": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": true
+ },
  "ad-pro-centre-actions:deciderVisaCentreAdPro": {
   "risque": "R4",
   "familles": [
@@ -184,6 +244,56 @@
   "simulable": "oui",
   "annulation": "retour",
   "appelable": false
+ },
+ "ad-pro-execution-actions:choisirVoiePoste": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-execution-actions:deciderConformitePoste": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-execution-actions:envoyerBatConformite": {
+  "risque": "R2",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-execution-actions:marquerBcEnvoye": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "ad-pro-execution-actions:signerReceptionPoste": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": true
  },
  "ad-pro-item-actions:addAdProItem": {
   "risque": "R2",
@@ -2446,6 +2556,36 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "bc-signature-actions:commencerMonCode": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "bc-signature-actions:confirmerMonCode": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "bc-signature-actions:deposerMonVisuel": {
+  "risque": "R1",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "bc-signature-actions:renvoyerBonDeCommande": {
   "risque": "R2",
   "familles": [
@@ -2457,6 +2597,16 @@
   "appelable": false
  },
  "bc-signature-actions:signerBonDeCommande": {
+  "risque": "R4",
+  "familles": [
+   "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "bc-signature-actions:signerBonDeCommandeEnLigne": {
   "risque": "R4",
   "familles": [
    "AD_PRO",

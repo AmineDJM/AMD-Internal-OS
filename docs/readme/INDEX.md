@@ -55,3 +55,4 @@ Contenu intégral de `README.md`, découpé par titres sans aucune perte : conca
 | 49 | [35-doublons-de-factures.md](35-doublons-de-factures.md) | ## Factures — « pas deux factures » : blocage des doublons, relance unifiée, recensement | — | 7 Ko |
 | 50 | [36-integration-depenses-adpro-2026.md](36-integration-depenses-adpro-2026.md) | ## Ad & Pro — intégration des dépenses réelles 2026 | — | 9 Ko |
 | 51 | [37-sauvegardes-restauration.md](37-sauvegardes-restauration.md) | ## 💾 Sauvegardes de la base et restauration | — | 5 Ko |
+| 52 | [38-parcours-agence-signature-en-ligne.md](38-parcours-agence-signature-en-ligne.md) | ## Ad & Pro — le parcours agence et la signature en ligne des bons de commande | — | 4 Ko |

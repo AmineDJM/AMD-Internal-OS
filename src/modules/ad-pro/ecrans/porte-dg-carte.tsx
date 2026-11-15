@@ -18,9 +18,11 @@ import type { AdProParent } from "../domaine/postes";
  * total, le seuil et où en est la validation ; le DG (ou le Super Admin) y statue : « Valider le
  * total », ou « Renvoyer en révision » avec un motif transmis aux parties prenantes.
  */
-export function CartePorteDg({ parent, parentId, porte }: {
+export function CartePorteDg({ parent, parentId, porte, signalSeul = false }: {
   parent: AdProParent;
   parentId: string;
+  /** Tous les postes d'argent de la demande passent par une agence : le total n'est plus qu'un signal (15/11/2026). */
+  signalSeul?: boolean;
   porte: { etat: EtatPorteDg; phrase: string | null; total: number; seuil: number | null; note: string | null; peutStatuer: boolean };
 }) {
   const { enCours, rafraichir } = useRafraichir();
@@ -52,6 +54,20 @@ export function CartePorteDg({ parent, parentId, porte }: {
   };
 
   const ouverte = porte.etat === "VALIDEE";
+  // TOUS LES POSTES PASSENT PAR UNE AGENCE (15/11/2026) : le DG les vise BC par BC au-dessus du seuil — le total ne fait que
+  // le signaler. Dire « validation requise avant tout bon de commande » serait faux : on l'annonce pour information.
+  if (signalSeul && !ouverte) {
+    return (
+      <p className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground" data-testid="porte-dg">
+        <ShieldCheck className="h-4 w-4 text-primary" />
+        <span>
+          Total de la demande <strong className="tabular-nums text-foreground">{formatCurrency(porte.total)}</strong>
+          {porte.seuil ? <> (au-dessus du seuil DG de {formatCurrency(porte.seuil)})</> : null} — pour information : les postes passent par une
+          agence, et le DG vise chaque bon de commande au-dessus du seuil du centre Ad &amp; Pro.
+        </span>
+      </p>
+    );
+  }
   return (
     <div
       className={`rounded-xl border p-3 text-sm ${ouverte ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-500/30 dark:bg-emerald-500/5" : "border-amber-300 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-500/5"}`}

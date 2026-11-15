@@ -1,7 +1,7 @@
 // ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. Voir `npm run actions:contrat`.
 //
 // Chaque entrée est un spécificateur LITTÉRAL : l'empaqueteur les voit tous, et rien n'est
-// chargé avant l'appel. `executer.test.ts` résout les 1327 actions et échoue en
+// chargé avant l'appel. `executer.test.ts` résout les 1342 actions et échoue en
 // nommant celle qui a disparu — c'est le contrôle d'appelant que le compilateur ne fait pas ici.
 
 /** Les exports des morceaux d'une clé découpée, réunis (exports nommés et objet `default` de l'interop CommonJS). */
@@ -12,10 +12,12 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "acces-bases-actions": () => import("@/modules/acces-bases/actions") as unknown as Promise<Record<string, unknown>>,
   "access-actions": () => import("./access-actions") as unknown as Promise<Record<string, unknown>>,
   "actualisation-soldes-actions": () => import("@/modules/finances/actions-soldes") as unknown as Promise<Record<string, unknown>>,
+  "ad-pro-agence-actions": () => import("@/modules/ad-pro/actions-postes-agence") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-centre-actions": () => import("@/modules/ad-pro/actions-centre") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-conseil-actions": () => import("@/modules/ad-pro/actions-conseil") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-discussion-actions": () => import("@/modules/ad-pro/actions-discussion") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-edit-actions": () => import("@/modules/ad-pro/actions-edition") as unknown as Promise<Record<string, unknown>>,
+  "ad-pro-execution-actions": () => import("@/modules/ad-pro/actions-postes-execution") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-item-actions": () => Promise.all([
     import("@/modules/ad-pro/actions-postes") as unknown as Promise<Record<string, unknown>>,
     import("@/modules/ad-pro/actions-postes-decision") as unknown as Promise<Record<string, unknown>>,

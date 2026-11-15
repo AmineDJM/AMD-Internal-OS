@@ -10,10 +10,10 @@ import { reporterLesPostesSurLaDeclaration } from "@/lib/workflow/engine";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { canSubmitItem, canRequestPurchaseOrder, canRemoveItem, budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, titrePiece, TITRE_BC_A_ETABLIR, type NaturePieceSecretariat, siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO, lireRepartition, ecrireRepartition, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, nomComplet, porteDesVoyageurs, refusChangementNatureFiches, gesteVisaPoste, memePrestataire, opsFranchiALaSoumission, libelleTemps } from "@/modules/ad-pro/partage";
+import { canSubmitItem, canRequestPurchaseOrder, canRemoveItem, budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, titrePiece, TITRE_BC_A_ETABLIR, type NaturePieceSecretariat, siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO, lireRepartition, ecrireRepartition, sansBonDeCommande, LIBELLE_JUSTIFICATIF_DIRECT, nomComplet, porteDesVoyageurs, refusChangementNatureFiches, gesteVisaPoste, memePrestataire, opsFranchiALaSoumission, libelleTemps } from "@/modules/ad-pro/partage";
 import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
-import { refusSiPorteDgFermee, signalerPorteDgSiBesoin, lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, assistantesDeDirection, demandesBCDesPostes, creerPosteEtFiches, lireFichesDuFormulaire, bcEtablisDuPoste, refusCategoriePourLaDemande } from "@/modules/ad-pro/api";
+import { refusPorteDgDuPoste, signalerPorteDgSiBesoin, lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, assistantesDeDirection, demandesBCDesPostes, creerPosteEtFiches, lireFichesDuFormulaire, bcEtablisDuPoste, refusCategoriePourLaDemande } from "@/modules/ad-pro/api";
 import { getAppSettings } from "@/lib/settings";
 import { motifSousLeSeuil } from "@/lib/bons-de-commande/regle";
 import { signalerSiASigner } from "@/lib/bons-de-commande/etat";
@@ -28,6 +28,7 @@ import { apercuSuppression } from "@/lib/admin-delete-registry";
 import { sansBloquer } from "@/lib/journal";
 import { PARENTS, isParent, revalidate, canEditItems, canAllocate, valideursDuPoste, demandeurDe, peutTrancherSur, prevenirLeTemps, audit, refusSiClos, refusDemandeFermee, refusAvantPrevalidation, refusPostesClos, reprojeterMontantDemande, demandeVisible, loadItem, REFUS_HISTORIQUE, compterFichesPersonnes, priseEnChargeIndirecte, etatBcDe, appliquerGesteVisa, cloreDemandesAuBureau, resumeRepartition, postesRepartis, recordDecision, piecesOuvertes, envoyerDemandeBC, pieceComptee, depassementDuPoste } from "./infra/postes/commun";
 import { actionReversible } from "@/lib/effets/reversible";
+import { conformiteParDefaut, voieAgencePossible } from "./domaine/parcours-agence";
 
 /**
  * POSTES D'UNE DEMANDE AD & PRO — le poste et ses demandes : ajouter, modifier, retirer, rattacher un matériel
@@ -63,9 +64,16 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
   // prévalidation de la Direction Marketing, aucun budget ne peut être ouvert, rien ».
   const avant = refusAvantPrevalidation(info);
   if (avant) return { ok: false, error: avant };
+  // LES POSTES SE PUBLIENT PAR LA DIRECTION MARKETING (Direction, 15/11/2026) : un poste ajouté par une autre partie prenante
+  // n'est qu'une PROPOSITION — un brouillon qui ne coûte rien tant que la Direction Marketing ne l'a pas accepté (montant et
+  // budget, `decideAdProItem`) ; sur la voie « agence », c'est elle seule qui lance la prospection (`demanderProspection`).
 
   const kind = (fdStr(formData, "kind") ?? "OTHER") as AdProItemKind;
   if (!(kind in ITEM_KIND_LABELS)) return { ok: false, error: "Nature de poste inconnue." };
+  // COMMENT IL SE PAIE (parcours agence, 15/11/2026) — absent du formulaire : la règle d'avant.
+  const voieSaisie = fdStr(formData, "voie");
+  const voie = voieSaisie === "AGENCE" && voieAgencePossible(kind) ? "AGENCE" as const : voieSaisie === "DIRECT" ? "DIRECT" as const : null;
+  const conformiteRequise = voie === "AGENCE" && (formData.has("conformiteChoisie") ? fdStr(formData, "conformite") === "oui" : conformiteParDefaut(kind));
 
   const amountEstimated = fdNum(formData, "amountEstimated");
   if (amountEstimated != null && amountEstimated < 0) return { ok: false, error: "Un montant ne peut pas être négatif." };
@@ -122,6 +130,8 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
       supplier: fdStr(formData, "supplier"),
       amountEstimated: kind === "STOCK_MATERIAL" ? null : amountEstimated ?? null,
       budgetKind,
+      voie,
+      conformiteRequise,
       addedAfterDecision: late,
       position: (last?.position ?? 0) + 1,
       createdById: user.id,
@@ -737,12 +747,12 @@ export async function requestAdProItemOrder(_prev: ActionResult | undefined, for
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
-  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  const porteDg = await refusPorteDgDuPoste(item, owner.parent, owner.id);
   if (porteDg) return { ok: false, error: porteDg };
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un bon de commande");
   if (refusStock) return { ok: false, error: refusStock };
-  if (VERSEMENT_SANS_BC.includes(item.kind)) {
+  if (sansBonDeCommande(item)) {
     return { ok: false, error: `Un sponsoring direct n'a pas de bon de commande : joignez la ${LIBELLE_JUSTIFICATIF_DIRECT.toLocaleLowerCase("fr")} puis demandez le paiement (la facture n'est pas exigée).` };
   }
   const demande = await PARENTS[owner.parent].load(owner.id);
@@ -836,7 +846,7 @@ export async function approveAdProItemOrder(_prev: ActionResult | undefined, for
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
-  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  const porteDg = await refusPorteDgDuPoste(item, owner.parent, owner.id);
   if (porteDg) return { ok: false, error: porteDg };
   if (!siegeAuCentreAdPro(user)) return { ok: false, error: REFUS_BC_CENTRE_AD_PRO };
   if (item.orderStage !== "REQUESTED") return { ok: false, error: "Aucune demande d'émission en attente sur ce poste." };

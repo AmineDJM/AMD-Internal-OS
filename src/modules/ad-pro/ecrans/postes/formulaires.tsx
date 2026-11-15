@@ -7,6 +7,7 @@ import type { AdProItemKind, AdProItemStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, ITEM_STATUS_LABELS, ITEM_BUDGET_KIND_LABELS, type AdProParent } from "../../domaine/postes";
+import { conformiteParDefaut, voieAgencePossible, voieParDefaut } from "../../domaine/parcours-agence";
 import { decideAdProItem } from "../../actions-postes-decision";
 import { PIECE_SECRETARIAT, type NaturePieceSecretariat } from "../../domaine/pieces-secretariat";
 import { NATURES_REPARTITION } from "../../domaine/repartition";
@@ -578,6 +579,9 @@ export function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmi
         </p>
       )}
 
+      {/* COMMENT CE POSTE SE PAIE (parcours agence, 15/11/2026) — proposé selon la nature, modifiable. */}
+      {!stock && !indirect && <ChoixVoie key={nature} kind={nature} />}
+
       {/* LA question à poser au moment de l'ajout : cet argent est-il déjà accordé, ou en plus ? */}
       {!stock && (
         <fieldset className="rounded-lg border border-border p-2.5">
@@ -704,5 +708,38 @@ export function Figure({ label, value, hint, tone }: { label: string; value: str
       <p className={`mt-0.5 text-sm font-semibold tabular-nums [overflow-wrap:anywhere] sm:text-base ${cls}`}>{value}</p>
       {hint && <p className="text-[0.6875rem] text-muted-foreground">{hint}</p>}
     </div>
+  );
+}
+
+/**
+ * LA VOIE DE PAIEMENT D'UN POSTE (parcours agence, 15/11/2026) — « par une agence » (prospection, BC signé, réception) ou
+ * « directement » (pro forma ou facture, sans BC). Proposée selon la nature (`voieParDefaut`) ; le contrôle de conformité
+ * aussi (`conformiteParDefaut`). Les natures qui ont leur propre chemin (billetterie, hôtellerie…) n'ont pas le choix.
+ */
+export function ChoixVoie({ kind, voieActuelle, conformiteActuelle }: { kind: AdProItemKind; voieActuelle?: "AGENCE" | "DIRECT" | null; conformiteActuelle?: boolean }) {
+  const proposee = voieParDefaut(kind);
+  const [voie, setVoie] = React.useState<"AGENCE" | "DIRECT" | null>(voieActuelle ?? proposee);
+  if (proposee === null && !voieActuelle) return null;
+  return (
+    <fieldset className="rounded-lg border border-border p-2.5">
+      <legend className="px-1 text-xs text-muted-foreground">Comment ce poste se paie-t-il ?</legend>
+      <div className="flex flex-wrap gap-3 text-sm">
+        {voieAgencePossible(kind) && (
+          <label className="inline-flex min-h-9 items-center gap-1.5 sm:min-h-0">
+            <input type="radio" name="voie" value="AGENCE" checked={voie === "AGENCE"} onChange={() => setVoie("AGENCE")} /> Par une agence (devis, BC signé, réception)
+          </label>
+        )}
+        <label className="inline-flex min-h-9 items-center gap-1.5 sm:min-h-0">
+          <input type="radio" name="voie" value="DIRECT" checked={voie === "DIRECT"} onChange={() => setVoie("DIRECT")} /> Directement, sans BC (pro forma ou facture)
+        </label>
+      </div>
+      {voie === "AGENCE" && (
+        <label className="mt-2 inline-flex items-center gap-1.5 text-sm">
+          <input type="checkbox" name="conformite" value="oui" defaultChecked={conformiteActuelle ?? conformiteParDefaut(kind)} />
+          Contrôle de conformité par l&apos;information médicale (BAT avant impression)
+        </label>
+      )}
+      {voie === "AGENCE" && <input type="hidden" name="conformiteChoisie" value="1" />}
+    </fieldset>
   );
 }

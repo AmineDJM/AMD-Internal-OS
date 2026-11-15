@@ -199,6 +199,7 @@ séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lance
 | `/api/feedback/attachment/[id]` | GET | pièce d'un fil (message, dossier, retour) : elle s'ouvre là où le fil la porte, sous ses droits ; l'assistant lit les pièces jointes à SA conversation |
 | `/api/field-reports/attachment/[id]` | GET | pièce d'un fil (message, dossier, retour) : elle s'ouvre là où le fil la porte, sous ses droits ; l'assistant lit les pièces jointes à SA conversation |
 | `/api/kpi/piece/[id]` | GET | justificatif d'un indicateur : il s'ouvre depuis la fiche KPI, sous ses droits |
+| `/api/signature/visuel` | GET | l'aperçu de SA propre signature ou de SON cachet (Ma signature, 15/11/2026) : jamais servi à une autre personne, ni à une IA |
 | `/api/legal/[id]/fichier` | GET | pièce juridique (contrat, statuts) : elle s'ouvre depuis la fiche Juridique, sous les droits du module ; la Bibliothèque la retrouve si elle y est inscrite |
 | `/api/ventes-pch/fichier/[id]` | GET | fichier importé des ventes PCH : servi à l'écran d'import, sous ses droits |
 | `/api/site-web/candidatures/[id]/cv` | GET | CV d'un candidat : pièce RH sensible, ouverte à l'écran Recrutement seulement |

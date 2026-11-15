@@ -2607,6 +2607,115 @@ enum AdProItemBudgetKind {
 
 /// ÉMISSION DU BON DE COMMANDE d'un poste accordé : demandée, visée par la Direction, puis
 /// émise par les Finances (l'ordre de dépense naît à ce moment-là).
+/// COMMENT UN POSTE SE PAIE (parcours agence, 15/11/2026) — voir `AdProItem.voie`.
+enum AdProVoiePoste {
+  AGENCE // prospection d'agences → choix → BC signé et cacheté → exécution → réception → facture
+  DIRECT // sans bon de commande : pro forma, lettre de demande ou facture
+}
+
+/// L'EXÉCUTION D'UN POSTE PAR UNE AGENCE (Direction, 15/11/2026) — une ligne par poste dont la voie est `AGENCE`, née à la
+/// demande de prospection. Chaque étape est un horodatage et son auteur : l'étape EN COURS se lit sur le premier vide
+/// (`etapeAgence`, `domaine/parcours-agence.ts`). Le devis, le BC, la facture et le paiement restent où ils étaient
+/// (`AdProItemPiece`, `LegalDocument`, `ExpenseOrder`) : cette ligne ne porte que ce qui n'avait pas de place.
+model AdProExecutionPoste {
+  id     String    @id @default(cuid())
+  itemId String    @unique
+  item   AdProItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  /// La prospection demandée à l'assistante de direction, avec le cahier des charges.
+  prospectionDemandeeAt    DateTime?
+  prospectionDemandeeParId String?
+  cahierDesCharges         String?
+  assistanteId             String?
+  /// L'assistante a déposé les devis et les transmet ; elle atteste avoir comparé leurs lignes au papier.
+  devisTransmisAt          DateTime?
+  devisTransmisParId       String?
+  /// La Direction Marketing retient UN devis (pièce Legal) : son montant devient le montant accordé.
+  agenceDevisId            String?
+  agenceRetenueAt          DateTime?
+  agenceRetenueParId       String?
+  /// L'assistante a fini le BC dans la plateforme et le soumet à la Direction Marketing (qui le valide, le signe, le cachette).
+  bcSoumisAt               DateTime?
+  bcSoumisParId            String?
+  /// Le BC signé est parti à l'agence.
+  bcEnvoyeAt               DateTime?
+  bcEnvoyeParId            String?
+  /// La conformité (BAT) : `EN_CONTROLE` → `CONFORME` | `NON_CONFORME` (motif ; un nouveau BAT la relance).
+  conformiteStatut         String?
+  conformiteDemandeeAt     DateTime?
+  conformiteDemandeeParId  String?
+  conformiteDecideeAt      DateTime?
+  conformiteParId          String?
+  conformiteNote           String?
+  /// Le PV de réception : ce qui a été reçu, avec ou sans réserve.
+  receptionAt              DateTime?
+  receptionParId           String?
+  receptionNote            String?
+  receptionReserve         Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assistanteId])
+  @@index([conformiteStatut])
+}
+
+/// UNE SIGNATURE APPOSÉE SUR UN BON DE COMMANDE (Direction, 15/11/2026) — la Direction Marketing d'abord, les Finances
+/// ensuite. `EN_LIGNE` : signature et cachet incrustés dans le PDF après mot de passe + code à usage unique, PDF scellé
+/// (empreinte SHA-256, QR de vérification). `COPIE_SIGNEE` : la copie imprimée, signée et déposée (chemin d'avant).
+/// Le `jeton` ouvre la page publique de vérification `/verifier-bc/<jeton>`.
+model SignatureBC {
+  id               String   @id @default(cuid())
+  legalDocumentId  String
+  /// `DIRECTION_MARKETING` | `FINANCES`.
+  qualite          String
+  userId           String?
+  signataireNom    String
+  signataireTitre  String?
+  /// `EN_LIGNE` | `COPIE_SIGNEE`.
+  methode          String
+  signedAt         DateTime @default(now())
+  /// SHA-256 (hex) du PDF tel qu'il sort de cette signature.
+  empreinte        String?
+  /// Le `Document` qui porte ce PDF.
+  documentId       String?
+  jeton            String   @unique
+  ip               String?
+  agent            String?
+
+  @@unique([legalDocumentId, qualite])
+  @@index([userId])
+}
+
+/// LA SIGNATURE ET LE CACHET D'UNE PERSONNE, tels qu'elle les a déposés (Direction, 15/11/2026) — une image chacun, gardée
+/// chiffrée (clé `StoredFile`), jamais servie au navigateur hors de son propre aperçu, incrustée seulement par une signature en
+/// ligne. Une nouvelle image révoque la précédente (`revoqueeLe`) ; l'historique reste.
+model SignatureVisuelle {
+  id         String    @id @default(cuid())
+  userId     String
+  /// `SIGNATURE` | `CACHET`.
+  nature     String
+  fichierCle String
+  sha256     String
+  mime       String
+  createdAt  DateTime  @default(now())
+  revoqueeLe DateTime?
+
+  @@index([userId, nature])
+}
+
+/// LE SECOND FACTEUR D'UNE PERSONNE QUI SIGNE EN LIGNE — un code à usage unique (TOTP, application d'authentification).
+/// Le secret est chiffré (AES-256-GCM, clé dérivée du coffre) ; `dernierPas` interdit de rejouer un code déjà servi.
+model SecondFacteur {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  secretChiffre String
+  activeLe      DateTime?
+  dernierPas    Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
 enum AdProItemOrderStage {
   NONE
   REQUESTED // demande d'émission déposée
@@ -2765,6 +2874,21 @@ model AdProItem {
   createdAt          DateTime                 @default(now())
   updatedAt          DateTime                 @updatedAt
   productAllocations AdProProductAllocation[]
+
+  /// LE BLOC PRINCIPAL d'un sponsoring (Direction, 15/11/2026) — « le principal, c'est le prix proposé par le médecin et le
+  /// délégué ; le transport, le dîner… sont des blocs à côté, de la même demande ». Le poste né avec la demande le porte ;
+  /// les autres blocs sont des postes ordinaires. Il ne change aucune règle d'argent : il se NOMME à l'écran.
+  principal         Boolean              @default(false)
+  /// COMMENT CE POSTE SE PAIE (parcours agence, 15/11/2026). `AGENCE` : prospection d'agences par l'assistante, choix par la
+  /// Direction Marketing, BC signé et cacheté, exécution, réception, facture. `DIRECT` : sans bon de commande, sur pro forma
+  /// ou facture. `null` : la règle d'avant (le versement à l'association sans BC, tout autre poste avec) — les postes en cours
+  /// ne changent pas de chemin. Lu par `sansBonDeCommande` (`domaine/poste-etapes.ts`).
+  voie              AdProVoiePoste?
+  /// LE CONTRÔLE DE CONFORMITÉ de l'information médicale (BAT avant impression) est requis avant la réception — proposé
+  /// selon la nature (imprimerie, stand, vidéo…), modifiable par la Direction Marketing (`conformiteParDefaut`).
+  conformiteRequise Boolean              @default(false)
+  /// L'EXÉCUTION d'un poste « par une agence » — prospection, choix, BC soumis, envoi, conformité, réception.
+  execution         AdProExecutionPoste?
 
   /// ─── L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 (Direction, 10/2026) ───
   /// Un poste HISTORIQUE est une dépense déjà réalisée et payée, reprise du fichier « Dépenses AP » : il ne passe par

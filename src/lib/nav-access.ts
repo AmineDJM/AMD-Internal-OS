@@ -1,4 +1,5 @@
 import { accessibleModules, userCan, seesLockedRegulatory, peutPiloterMissionsAdam, peutVoirAdam, type SessionUser } from "@/lib/rbac";
+import { hasRole } from "@/lib/rbac/roles";
 import { NAVIGATION, type NavItem } from "@/lib/labels";
 import { canSeeRegEnrollment } from "@/lib/org-chart-access";
 import { getAppSettings } from "@/lib/settings";
@@ -115,6 +116,11 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     pharmacovigilance: voitTousLesCasPv(user),
     // LES RECETTES (J10) : le module `RECETTES` (lot R1, console) PUIS la Direction, un responsable de processus, ou qui voit le circuit d'une recette.
     recettes: await voitDesRecettes(user).catch(sansBloquer("nav-access.navigationFor.voitDesRecettes", false)),
+    // LE PARCOURS AGENCE (15/11/2026) : la file de l'assistante (et de la Direction Marketing qui la suit), celle de
+    // l'information médicale, et « Ma signature » pour qui signe des bons de commande en ligne.
+    agences: hasRole(user, "DIRECTION_ASSISTANT") || hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN"),
+    conformite: hasRole(user, "MEDICAL_INFO_PHARMACIST") || hasRole(user, "SUPER_ADMIN"),
+    signatureEnLigne: hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN") || userCan(user, "PURCHASE_ORDERS", "UPDATE"),
   };
 
   // Les SOUS-MODULES suivent la même règle que leur parent : chacun a son module et sa garde, et

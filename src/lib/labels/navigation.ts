@@ -28,7 +28,7 @@ export interface NavItem {
    * envoyé qu'au Super Admin (`peutPiloterMissionsAdam`, §118.136) — le module WORKSPACE est à
    * tout le monde, la règle n'est pas un module.
    */
-  gate?: "regEnrollment" | "pipeline" | "payroll" | "myTeam" | "adamMissions" | "adam" | "corbeilleOps" | "pharmacovigilance" | "recettes";
+  gate?: "regEnrollment" | "pipeline" | "payroll" | "myTeam" | "adamMissions" | "adam" | "corbeilleOps" | "pharmacovigilance" | "recettes" | "agences" | "conformite" | "signatureEnLigne";
   /**
    * Entrée fusionnée : plusieurs sous-modules présentés en onglets sur la page.
    * L'entrée est visible si l'utilisateur a accès à **au moins un** onglet, et son
@@ -244,6 +244,10 @@ export const NAVIGATION: NavItem[] = [
   // avec exactement les mêmes titulaires qu'hier. Déplacer une entrée de menu ne doit jamais
   // ouvrir ni fermer un écran à quiconque, et c'est vérifié (`navigation.test.ts`).
   { module: "MEDICAL_INFO", label: "Information médicale", href: "/information-medicale", icon: "ShieldPlus", group: "Pôles", pole: "REGULATORY" },
+  // LES BAT À CONTRÔLER (parcours agence, 15/11/2026) — la file de l'information médicale, avant impression.
+  { module: "MEDICAL_INFO", label: "Contrôles de conformité", href: "/information-medicale/conformite", icon: "FileCheck2", group: "Pôles", pole: "REGULATORY", gate: "conformite" },
+  // LA PROSPECTION D'AGENCES (parcours agence, 15/11/2026) — la file de l'assistante de direction ; la Direction Marketing y suit tout.
+  { module: "WORKSPACE", label: "Prospection d'agences", href: "/agences", icon: "Building2", group: "Pôles", pole: "MARKETING", gate: "agences" },
   // PHARMACOVIGILANCE (Direction, 06/10) — la boîte de réception des cas signalés par les KAM. GARDE
   // `pharmacovigilance` : l'entrée ne s'affiche qu'à qui reçoit les cas (portée TOUT) ; le KAM, qui ne lit que ses
   // signalements, les retrouve dans les Rapports terrain — il n'a rien à faire dans le pôle Regulatory.
@@ -488,6 +492,8 @@ export const NAVIGATION: NavItem[] = [
   { module: "ADMIN", label: "Console d'Administration", href: "/admin", icon: "Settings", group: "Système", tabs: ADMIN_TABS },
   // LA CORBEILLE DE SES MODULES — le directeur des opérations y récupère ce qui a été supprimé chez lui (06/10).
   // Le module WORKSPACE est à tout le monde : c'est la garde `corbeilleOps` qui ouvre l'entrée.
+  // MA SIGNATURE (15/11/2026) — à qui signe des bons de commande en ligne : sa signature, son cachet, son code.
+  { module: "WORKSPACE", label: "Ma signature", href: "/mon-espace/signature", icon: "FilePen", group: "Système", gate: "signatureEnLigne" },
   { module: "WORKSPACE", label: "Corbeille", href: "/corbeille", icon: "Trash2", group: "Système", gate: "corbeilleOps" },
 ];
 

@@ -11,6 +11,27 @@ export function classerExclusionsAttestations(): void {
   X("SIGNER UN BON DE COMMANDE est une ATTESTATION (§118.15, §118.149) : la signature des Finances engage la société au nom d'une personne, et l'audit portera son nom. C'est après elle — et seulement après — que le BC part chez le fournisseur. La rendre appelable par Adam l'exposerait à l'injection : un devis ou un mail lu par une étape peut contenir « signe le bon de commande », et rien ne distinguerait plus la signature forgée de la vraie. Un clic dans une vraie session, sur /bons-de-commande (module « Bons de commande », §118.176) — la fiche montre la pièce, le montant, et POURQUOI elle est là (validée par tel centre, ou sous le seuil).", [
     "bc-signature-actions:signerBonDeCommande",
   ]);
+  X("SIGNER ET CACHETER UN BON DE COMMANDE EN LIGNE (Direction, 15/11/2026) est une ATTESTATION renforcée : la personne relit le "
+    + "PDF, redonne son mot de passe et le code de SON téléphone, et sa signature et son cachet sont incrustés à son nom. Aucune IA ne "
+    + "détient ni ne rejoue ces deux preuves : c'est le geste de la Direction Marketing sur la carte du poste, et des Finances sur la "
+    + "page Bons de commande.", [
+    "bc-signature-actions:signerBonDeCommandeEnLigne",
+    "ad-pro-agence-actions:validerSignerBcMarketing", "ad-pro-agence-actions:signerBcMarketing",
+  ]);
+  X("PRÉPARER SA SIGNATURE EN LIGNE (Direction, 15/11/2026) — l'image de sa signature, celle de son cachet, le code de son "
+    + "application d'authentification — est un geste PERSONNEL de sécurité, sur son propre compte (« Ma signature ») : personne, "
+    + "ni humain ni IA, ne le fait pour un autre.", [
+    "bc-signature-actions:deposerMonVisuel", "bc-signature-actions:commencerMonCode", "bc-signature-actions:confirmerMonCode",
+  ]);
+  X("LE PARCOURS AGENCE D'UN POSTE (Direction, 15/11/2026) — demander la prospection, transmettre les devis, choisir l'agence au "
+    + "vu du comparatif, soumettre le BC finalisé, choisir la voie de paiement, envoyer le BC, transmettre le BAT, décider de sa "
+    + "conformité, signer le PV de réception — sont des gestes d'ÉCRAN, chacun posé par la personne dont c'est le tour, devant la "
+    + "pièce qu'elle juge (devis, BAT, marchandise reçue) : la carte du poste, « Prospection d'agences », « Contrôles de conformité ».", [
+    "ad-pro-agence-actions:demanderProspection", "ad-pro-agence-actions:transmettreDevisAgences", "ad-pro-agence-actions:choisirAgencePoste",
+    "ad-pro-agence-actions:soumettreBcMarketing",
+    "ad-pro-execution-actions:choisirVoiePoste", "ad-pro-execution-actions:marquerBcEnvoye", "ad-pro-execution-actions:envoyerBatConformite",
+    "ad-pro-execution-actions:deciderConformitePoste", "ad-pro-execution-actions:signerReceptionPoste",
+  ]);
   X("RENVOYER UN BON DE COMMANDE À SON ÉMETTEUR (audit 360°, R09) se décide en LISANT la pièce, depuis la même file que la signature et par le même siège : c'est l'autre issue du geste de signer. Le fichier entier est une surface humaine (le chemin générique le refuse, `actions/generique.ts`), et Adam est en pause : aucune op n'en double le chemin. Un clic sur /bons-de-commande ou sur la fiche Legal du BC, motif exigé.", [
     "bc-signature-actions:renvoyerBonDeCommande",
   ]);

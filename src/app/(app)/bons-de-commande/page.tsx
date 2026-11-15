@@ -4,6 +4,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { fileBonsDeCommande, peutSignerBC, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
 import { FileBonsDeCommande } from "./file-bc";
+import { etatSignatureEnLigne } from "@/lib/signature-en-ligne/etat";
+import { etatMarketingDesBC } from "@/lib/signature-en-ligne/signer-bc";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bons de commande à signer — AMD Internal OS" };
@@ -32,6 +34,8 @@ export default async function BonsDeCommandePage(props: { searchParams: Promise<
   const file = await fileBonsDeCommande(user);
   if (!file) notFound();
   const peutSigner = peutSignerBC(user);
+  // LA SIGNATURE EN LIGNE (15/11/2026) : ce qui est prêt chez le signataire, et les BC qui attendent d'abord la Direction Marketing.
+  const [signature, marketing] = await Promise.all([etatSignatureEnLigne(user.id), etatMarketingDesBC(file.aSigner.map((l) => l.id))]);
   const montantASigner = file.aSigner.reduce((t, l) => t + (l.montant ?? 0), 0);
   const sansMontant = file.aSigner.filter((l) => l.montant == null || l.montant <= 0).length;
 
@@ -74,6 +78,8 @@ export default async function BonsDeCommandePage(props: { searchParams: Promise<
         refus={peutSigner ? null : REFUS_SIGNATURE_BC}
         tronquee={file.tronquee}
         bcAOuvrir={searchParams.bc ?? null}
+        signature={signature}
+        marketing={marketing}
       />
     </div>
   );

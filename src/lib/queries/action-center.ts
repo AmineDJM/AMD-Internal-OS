@@ -3,6 +3,7 @@ import { tempsEnAttente, peutTenir, estDirectionOperations, estDirectionMarketin
 import { canAccessEntity } from "@/lib/entity-access";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { getLeavesToDecide } from "@/modules/rh/api";
+import { tachesAgence } from "@/modules/ad-pro/api";
 import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIXE_RESTE } from "@/lib/queries/mes-decisions";
 import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
@@ -939,6 +940,15 @@ export async function getActionCenter(user: SessionUser) {
       module: "Stocks", href: `/stocks/demandes/${r.request.id}`, kind: "request", priority: "HIGH",
       deadline: r.request.dueDate?.toISOString() ?? null, depuis: r.createdAt.toISOString(), owner: r.request.createdBy?.name ?? "",
       statusLabel: "À renseigner", statusTone: "warning",
+    });
+  }
+
+  // 6 bis. LE PARCOURS AGENCE (15/11/2026) — devis à déposer, BC à finaliser (assistante), agence à choisir et BC à signer
+  //        (Direction Marketing), BAT à contrôler (information médicale). Un échec de lecture n'éteint pas la file.
+  for (const t of await tachesAgence(user).catch(sansBloquer("action-center.tachesAgence", []))) {
+    items.push({
+      key: t.key, objet: t.objet, title: t.title, subtitle: t.subtitle, module: "Ad & Pro", href: t.href, kind: "request", priority: "HIGH",
+      deadline: null, depuis: t.depuis, owner: "", statusLabel: t.statusLabel, statusTone: "warning",
     });
   }
 

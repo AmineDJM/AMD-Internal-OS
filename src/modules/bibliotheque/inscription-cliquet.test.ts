@@ -24,6 +24,10 @@ const EXCEPTIONS: Record<string, { ecritures: number; raison: string }> = {
     ecritures: 1,
     raison: "Semis SYNTHÉTIQUE du banc d'audit (décision 0050), base de banc ou de test : le contrat et l'avenant des personas (`EmployeeDocument`, dossier RH hors Drive) portent des témoins, ils n'ont rien à faire à la bibliothèque.",
   },
+  "src/lib/signature-en-ligne/visuels.ts": {
+    ecritures: 1,
+    raison: "L'image de la signature ou du cachet d'une personne (15/11/2026) : un secret de signature, lu par elle seule et par l'incrustation qu'elle confirme — elle n'a rien à faire à la bibliothèque.",
+  },
   "src/lib/drive-storage.ts": { ecritures: 0, raison: "Le coffre lui-même : `putBlob` y est défini, pas appelé pour une pièce." },
   "src/app/api/messaging/upload/route.ts": {
     ecritures: 1,

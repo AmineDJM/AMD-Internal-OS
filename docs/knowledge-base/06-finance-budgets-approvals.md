@@ -165,6 +165,15 @@ Direction Marketing; REVIEW_DG iff `porteDgRequise`; IN_EXECUTION; COMPLETED) [V
 > gated by the DG decision on the request TOTAL (`ad-pro/porte-dg.ts`, pure rule `seuils/porte-dg-total.ts`,
 > table `AdProPorteDg`). The text below describes the engine mechanics, still valid; its route table is historical.
 
+> **Agency path + online BC signature (15/11/2026)** — see `docs/architecture/adpro-parcours-agence-2026-11-15.md`.
+> `AdProItem.voie` (`AGENCE` | `DIRECT` | null = legacy) now decides "no BC" (`sansBonDeCommande`, replaces the kind-only
+> `VERSEMENT_SANS_BC` reads). Agency postes: prospection → quotes (assigned DIRECTION_ASSISTANT, `AdProExecutionPoste`) →
+> Direction Marketing picks the quote (`choisirAgencePoste` = line validation + `decideAdProItem` + draft BC) → assistant
+> submits → Direction Marketing validates + signs online (`SignatureBC` DIRECTION_MARKETING) → centre visa above BC
+> threshold → Finances sign online (`signerBonDeCommandeEnLigne`, step-up password + TOTP, sealed PDF) or upload scan →
+> sent → BAT conformity (MEDICAL_INFO_PHARMACIST) → reception → invoice (guarded by `refusAvantReception`). For agency
+> postes the DG total gate is a signal only (`refusPorteDgDuPoste`). `sitsOnPaymentCentre` now honours `secondaryRole`.
+
 ### 4.4 The workflow engine (4 configurable circuits)
 
 **Seed** (`defaults.ts:33`): `preliminary` (ROLE `NATIONAL_SALES`) → `dg` (ROLE `GENERAL_MANAGER`, no own threshold:

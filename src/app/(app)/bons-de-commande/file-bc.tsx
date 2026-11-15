@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useAction } from "@/components/shared/use-action";
-import { signerBonDeCommande, renvoyerBonDeCommande } from "@/lib/actions/bc-signature-actions";
+import { signerBonDeCommande, signerBonDeCommandeEnLigne, renvoyerBonDeCommande } from "@/lib/actions/bc-signature-actions";
+import { FormulaireSignature } from "@/components/signature/formulaire-signature";
+import { SIGNATURE_RIEN_DE_PRET, type SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { LIBELLE_CENTRE_BC } from "@/lib/bons-de-commande/regle";
 import type { LigneBCFinances } from "@/lib/queries/bons-de-commande";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
@@ -27,7 +29,7 @@ import { ancreBonDeCommande } from "@/lib/chemins/bons-de-commande";
  * dépendance serveur (CLAUDE.md, frontière client / serveur).
  */
 export function FileBonsDeCommande({
-  aSigner, renvoyes, signes, peutSigner, refus, tronquee, bcAOuvrir,
+  aSigner, renvoyes, signes, peutSigner, refus, tronquee, bcAOuvrir, signature = SIGNATURE_RIEN_DE_PRET, marketing = {},
 }: {
   aSigner: LigneBCFinances[];
   renvoyes: LigneBCFinances[];
@@ -37,6 +39,10 @@ export function FileBonsDeCommande({
   tronquee: boolean;
   /** Le BC dont parle la notification (`?bc=`) : sa ligne vient sous les yeux et s'entoure. */
   bcAOuvrir?: string | null;
+  /** Ce qui est prêt pour signer en ligne chez le signataire (15/11/2026). */
+  signature?: SignaturePrete;
+  /** Les BC de poste « agence » : signés d'abord par la Direction Marketing. */
+  marketing?: Record<string, EtatMarketing>;
 }) {
   return (
     <div className="space-y-5">
@@ -60,7 +66,7 @@ export function FileBonsDeCommande({
             />
           ) : (
             <ul className="space-y-3">
-              {aSigner.map((l) => <LigneASigner key={l.id} ligne={l} peutSigner={peutSigner} />)}
+              {aSigner.map((l) => <LigneASigner key={l.id} ligne={l} peutSigner={peutSigner} signature={signature} marketing={marketing[l.id] ?? null} />)}
             </ul>
           )}
           {tronquee && (
@@ -142,8 +148,15 @@ function raison(l: LigneBCFinances): string {
   return "Sous le seuil de validation — aucun centre n'avait à le valider";
 }
 
-function LigneASigner({ ligne: l, peutSigner }: { ligne: LigneBCFinances; peutSigner: boolean }) {
+type EtatMarketing = { attend: boolean; dm: { nom: string; le: string } | null };
+
+function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
+  ligne: LigneBCFinances; peutSigner: boolean; signature: SignaturePrete; marketing: EtatMarketing | null;
+}) {
   const { saving, err, run } = useAction();
+  // SIGNER EN LIGNE d'abord (15/11/2026) ; la copie imprimée, signée et déposée reste possible.
+  const [mode, setMode] = React.useState<"EN_LIGNE" | "COPIE">("EN_LIGNE");
+  const attend = marketing?.attend === true;
   const [fait, setFait] = React.useState<string | null>(null);
   // RENVOYER AU LIEU DE SIGNER (audit 360°, R09) : le motif est exigé, à l'écran comme à l'action.
   const [renvoi, setRenvoi] = React.useState<string | null>(null);
@@ -168,6 +181,8 @@ function LigneASigner({ ligne: l, peutSigner }: { ligne: LigneBCFinances; peutSi
           <p className="text-xs text-muted-foreground">{jours <= 0 ? "aujourd'hui" : `il y a ${jours} j`}</p>
         </div>
       </div>
+      {attend && <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm">En attente de la signature de la Direction Marketing : il se signe ici juste après.</p>}
+      {marketing?.dm && <p className="text-xs text-muted-foreground">Signé et cacheté par {marketing.dm.nom} (Direction Marketing) le {new Date(marketing.dm.le).toLocaleDateString("fr-FR")}.</p>}
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={l.porte ? "success" : "info"} dot={false}>{raison(l)}</Badge>
         {l.porte?.note ? <span className="text-xs text-muted-foreground">« {l.porte.note} »</span> : null}
@@ -190,7 +205,33 @@ function LigneASigner({ ligne: l, peutSigner }: { ligne: LigneBCFinances; peutSi
           </a>
         ) : null}
       </div>
-      {peutSigner && !fait && renvoi === null && (
+      {peutSigner && !fait && renvoi === null && !attend && (
+        <div className="flex gap-1 text-xs" role="tablist" aria-label="Manière de signer">
+          {([["EN_LIGNE", "Signer et cacheter en ligne"], ["COPIE", "Déposer une copie signée"]] as const).map(([m, lib]) => (
+            <button
+              key={m} type="button" role="tab" aria-selected={mode === m} onClick={() => setMode(m)}
+              className={mode === m ? "rounded-md bg-primary/10 px-2.5 py-1.5 font-medium text-primary" : "rounded-md px-2.5 py-1.5 font-medium text-muted-foreground hover:bg-secondary"}
+            >
+              {lib}
+            </button>
+          ))}
+        </div>
+      )}
+      {peutSigner && !fait && renvoi === null && !attend && mode === "EN_LIGNE" && (
+        <FormulaireSignature
+          titre="Signer et cacheter ce bon de commande" bouton="Signer et cacheter" pret={signature} busy={saving}
+          apercu={l.fichiers.pdf ? lienFichierEmis(l.id, "pdf") : null}
+          onSigner={(fd) => {
+            fd.set("id", l.id);
+            void run(async () => {
+              const r = await signerBonDeCommandeEnLigne(fd);
+              if (r.ok) setFait(r.message ?? "Signé et cacheté.");
+              return r;
+            });
+          }}
+        />
+      )}
+      {peutSigner && !fait && renvoi === null && !attend && mode === "COPIE" && (
         <div className="grid grid-cols-1 gap-2 rounded-lg bg-secondary/40 p-3 sm:grid-cols-2">
           <label className="space-y-1 text-xs">
             <span className="font-medium text-foreground">BC signé (scan ou photo) — obligatoire</span>
@@ -209,7 +250,7 @@ function LigneASigner({ ligne: l, peutSigner }: { ligne: LigneBCFinances; peutSi
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {peutSigner && !fait && renvoi === null && (
+        {peutSigner && !fait && renvoi === null && !attend && mode === "COPIE" && (
           <BoutonDecisif
             size="sm" className="h-11 w-full text-sm sm:h-8 sm:w-auto sm:text-xs" disabled={saving || !copie || !signataire.trim()}
             onClick={() => {

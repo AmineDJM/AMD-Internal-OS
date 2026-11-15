@@ -115,6 +115,17 @@ export async function refusSiPorteDgFermee(parent: AdProParent, parentId: string
   return (await lirePorteDg(parent, parentId, undefined, enPlus)).refus;
 }
 
+/**
+ * LA PORTE DU DG POUR UN POSTE (Direction, 15/11/2026 — « un seul passage chez le DG ») : un poste payé par une AGENCE passe
+ * chez le DG par le visa de son bon de commande au centre Ad & Pro (au-dessus du seuil BC) ; la porte sur le total ne fait
+ * que le SIGNALER. Un poste payé autrement (versement direct, chemin d'avant) n'a pas de visa de BC : la porte sur le total
+ * reste son passage chez le DG.
+ */
+export async function refusPorteDgDuPoste(item: { voie?: string | null }, parent: AdProParent, parentId: string): Promise<string | null> {
+  if (item.voie === "AGENCE") return null;
+  return refusSiPorteDgFermee(parent, parentId);
+}
+
 /** Qui statue sur le total : le Directeur Général (rôle principal ou secondaire), ou le Super Admin. */
 export function peutStatuerSurLeTotal(user: { role: string; secondaryRole?: string | null }): boolean {
   return user.role === "SUPER_ADMIN" || hasRole(user as { role: UserRole; secondaryRole?: UserRole | null }, "GENERAL_MANAGER");

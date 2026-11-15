@@ -18,6 +18,14 @@ import { bcVisiblesWhere, peutSignerBC, REFUS_SIGNATURE_BC } from "@/lib/queries
 import { apresSignatureDuBCDeDemande } from "@/lib/secretariat/bc-signe";
 import { marquerNonRetenusDuBC } from "@/lib/bons-de-commande/retenue-bc";
 import { sansBloquer } from "@/lib/journal";
+import { headers } from "next/headers";
+import { getBlob } from "@/lib/drive-storage";
+import { clientIp } from "@/lib/device";
+import { controleRenforce, REFUS_VUE_EXACTE, commencerEnrolement, confirmerEnrolement, sousLeCoffre } from "@/lib/signature-en-ligne/second-facteur";
+import { qrPng } from "@/lib/qr";
+import { deposerVisuel, type NatureVisuel } from "@/lib/signature-en-ligne/visuels";
+import { CHEMIN_MA_SIGNATURE } from "@/lib/signature-en-ligne/partage";
+import { apposerSignatureEnLigne, exigeSignatureMarketing, REFUS_SIGNATURE_MARKETING_ABSENTE } from "@/lib/signature-en-ligne/signer-bc";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -61,6 +69,8 @@ export async function signerBonDeCommande(formData: FormData): Promise<ActionRes
   if (etat.annule) return { ok: false, error: "Ce bon de commande est annulé : il ne se signe pas." };
   const motif = motifNonSignable(etat.etape, etat.porte);
   if (motif) return { ok: false, error: motif };
+  // LE BC D'UN POSTE « PAR UNE AGENCE » (15/11/2026) : la Direction Marketing signe d'abord.
+  if (await marketingManquante(id)) return { ok: false, error: REFUS_SIGNATURE_MARKETING_ABSENTE };
 
   // L'ÉTAT D'ABORD, LES PIÈCES ENSUITE (§118.18) : la copie signée, puis le signataire.
   if (!copie) return { ok: false, error: "Téléversez le bon de commande SIGNÉ (scan ou photo) : la signature s'enregistre avec sa copie." };
@@ -119,16 +129,80 @@ export async function signerBonDeCommande(formData: FormData): Promise<ActionRes
       link: `/legal/${id}`,
     }).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.notifyUser"));
   }
+  await apresLaSignature(id, user.id, signataire);
+  return { ok: true, id, message: `Bon de commande ${ref} signé par ${signataire}. ${constat} Il remplace le BC non signé, et la facture peut être déposée.` };
+}
+
+/** Ce qui suit toute signature des Finances — scan déposé ou signature en ligne : les écrans, la demande au secrétariat, les devis non retenus. */
+async function apresLaSignature(id: string, userId: string, signataire: string): Promise<void> {
   revalidatePath(CHEMIN_BC_A_SIGNER);
   revalidatePath("/legal");
   revalidatePath(`/legal/${id}`);
   revalidatePath("/ad-pro", "layout");
   // LE BC D'UNE DEMANDE AU SECRÉTARIAT revient « signé et validé » sur sa fiche : l'assistante et le demandeur le savent.
-  await apresSignatureDuBCDeDemande(id, user.id, signataire).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.apresSignatureDuBCDeDemande"));
+  await apresSignatureDuBCDeDemande(id, userId, signataire).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.apresSignatureDuBCDeDemande"));
   // LE BC D'UN POSTE SIGNÉ (Direction, 11/2026) : les devis du poste qui n'y ont rien fait commander sont « non retenus ».
   await marquerNonRetenusDuBC(id).catch(sansBloquer("bc-signature-actions.signerBonDeCommande.marquerNonRetenusDuBC"));
   revalidatePath("/demandes", "layout");
-  return { ok: true, id, message: `Bon de commande ${ref} signé par ${signataire}. ${constat} Il remplace le BC non signé, et la facture peut être déposée.` };
+}
+
+/** Un BC de poste « par une agence » que la Direction Marketing n'a pas encore signé. */
+async function marketingManquante(id: string): Promise<boolean> {
+  if (!(await exigeSignatureMarketing(id))) return false;
+  return !(await prisma.signatureBC.findUnique({ where: { legalDocumentId_qualite: { legalDocumentId: id, qualite: "DIRECTION_MARKETING" } }, select: { id: true } }));
+}
+
+/**
+ * SIGNER ET CACHETER UN BC EN LIGNE — LES FINANCES (Direction, 15/11/2026). Mêmes gardes que la copie signée (droit,
+ * lecture, étape, signature de la Direction Marketing d'abord), puis le CONTRÔLE RENFORCÉ : mot de passe du compte et code
+ * de l'application d'authentification. La signature et le cachet de la personne sont incrustés dans le PDF, scellé
+ * (empreinte, QR de vérification) ; ce PDF devient la copie signée du BC, que tout l'aval lit déjà.
+ */
+export async function signerBonDeCommandeEnLigne(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (user.impersonatedBy) return { ok: false, error: REFUS_VUE_EXACTE };
+  const id = fdStr(formData, "id");
+  if (!id) return { ok: false, error: "Bon de commande non précisé." };
+  if (!peutSignerBC(user)) return { ok: false, error: REFUS_SIGNATURE_BC };
+  const visibles = await bcVisiblesWhere(user);
+  const visible = visibles ? await prisma.legalDocument.findFirst({ where: { AND: [visibles, { id }] }, select: { id: true } }) : null;
+  if (!visible) return { ok: false, error: "Bon de commande introuvable." };
+  const etat = await etatDuBC(id);
+  if (!etat) return { ok: false, error: "Bon de commande introuvable." };
+  if (etat.annule) return { ok: false, error: "Ce bon de commande est annulé : il ne se signe pas." };
+  const motif = motifNonSignable(etat.etape, etat.porte);
+  if (motif) return { ok: false, error: motif };
+  if (await marketingManquante(id)) return { ok: false, error: REFUS_SIGNATURE_MARKETING_ABSENTE };
+  if (fdStr(formData, "lu") !== "oui") return { ok: false, error: "Cochez « J'ai lu ce bon de commande » : on ne signe que ce qu'on a relu." };
+  const h = await headers();
+  const ip = clientIp(h);
+  const refus = await controleRenforce(user.id, String(formData.get("motDePasse") ?? ""), fdStr(formData, "code") ?? "", ip);
+  if (refus) return { ok: false, error: refus };
+
+  const signataire = (user.name ?? "Finances").slice(0, 120);
+  const pris = await prisma.legalDocument.updateMany({
+    where: { id, signedAt: null, updatedAt: etat.majLe },
+    data: { signedAt: new Date(), signedById: user.id, signedByName: signataire, signatureCheck: { statut: "SIGNE_EN_LIGNE", signature: true, cachet: true } as Prisma.InputJsonValue },
+  });
+  if (pris.count === 0) return { ok: false, error: "Ce bon de commande vient de changer (signé ou modifié) : relisez-le avant de le signer." };
+  const r = await apposerSignatureEnLigne({ legalDocumentId: id, reference: etat.reference ?? id, qualite: "FINANCES", user: { id: user.id, name: user.name ?? null }, ip, agent: h.get("user-agent"), lireBlob: getBlob });
+  if (!r.ok) {
+    await prisma.legalDocument.update({ where: { id }, data: { signedAt: null, signedById: null, signedByName: null, signatureCheck: Prisma.DbNull } });
+    return { ok: false, error: r.error };
+  }
+  const ref = etat.reference?.trim() ? etat.reference.trim() : `« ${etat.title} »`;
+  await recordAudit({
+    actorId: user.id, action: "VALIDATE", module: "Bons de commande", entityType: "LEGAL_DOCUMENT", entityId: id,
+    summary: `Bon de commande ${ref} signé et cacheté EN LIGNE par ${signataire} (Finances) — mot de passe + code à usage unique, PDF scellé (empreinte ${r.empreinte.slice(0, 16)}…).`,
+  });
+  if (etat.createdById && etat.createdById !== user.id) {
+    await notifyUser({
+      userId: etat.createdById, type: "GENERIC", title: "Bon de commande signé et cacheté",
+      body: `${ref} signé et cacheté en ligne par ${signataire} (Finances). Il peut partir chez le fournisseur.`, link: `/legal/${id}`,
+    }).catch(sansBloquer("bc-signature-actions.signerBonDeCommandeEnLigne.notifyUser"));
+  }
+  await apresLaSignature(id, user.id, signataire);
+  return { ok: true, id, message: `Bon de commande ${ref} signé et cacheté. Le PDF scellé remplace le BC non signé ; la facture peut être déposée.` };
 }
 
 /**
@@ -201,4 +275,44 @@ export async function renvoyerBonDeCommande(formData: FormData): Promise<ActionR
       ? `Bon de commande ${ref} renvoyé à son émetteur : il revient dans votre file dès qu'il est corrigé.`
       : `Bon de commande ${ref} renvoyé — aucun émetteur n'est enregistré sur la pièce : prévenez la personne qui l'a établie.`,
   };
+}
+
+// ─────────────── MA SIGNATURE (Direction, 15/11/2026) ───────────────
+//
+// Ce que chaque signataire prépare UNE fois, pour lui seul : l'image de sa signature, celle de son cachet, et son code de
+// signature (application d'authentification). Personne ne prépare la signature d'un autre : chaque geste porte sur le compte
+// connecté, et jamais en « Vue exacte ».
+
+export async function deposerMonVisuel(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (user.impersonatedBy) return { ok: false, error: REFUS_VUE_EXACTE };
+  const nature = fdStr(formData, "nature") as NatureVisuel;
+  const fichier = formData.get("fichier");
+  if (!(fichier instanceof File)) return { ok: false, error: "Choisissez une image." };
+  const refus = await deposerVisuel(user.id, nature, fichier);
+  if (refus) return { ok: false, error: refus };
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Sécurité", summary: `${nature === "CACHET" ? "Cachet" : "Signature"} de signature en ligne déposé(e).` });
+  revalidatePath(CHEMIN_MA_SIGNATURE);
+  return { ok: true, message: nature === "CACHET" ? "Cachet enregistré." : "Signature enregistrée." };
+}
+
+/** Afficher le QR code à scanner : un secret neuf, pas encore actif. */
+export async function commencerMonCode(): Promise<{ ok: true; qr: string; secret: string } | { ok: false; error: string }> {
+  const user = await requireUser();
+  if (user.impersonatedBy) return { ok: false, error: REFUS_VUE_EXACTE };
+  const r = await sousLeCoffre(() => commencerEnrolement(user.id, user.email ?? user.name ?? user.id));
+  if ("refusCoffre" in r) return { ok: false, error: r.refusCoffre };
+  const png = await qrPng(r.adresse);
+  return { ok: true, qr: `data:image/png;base64,${png.toString("base64")}`, secret: r.secret };
+}
+
+export async function confirmerMonCode(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (user.impersonatedBy) return { ok: false, error: REFUS_VUE_EXACTE };
+  const lu = await sousLeCoffre(() => confirmerEnrolement(user.id, fdStr(formData, "code") ?? ""));
+  const refus = lu && typeof lu === "object" ? lu.refusCoffre : lu;
+  if (refus) return { ok: false, error: refus };
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Sécurité", summary: "Code de signature en ligne activé (application d'authentification)." });
+  revalidatePath(CHEMIN_MA_SIGNATURE);
+  return { ok: true, message: "Code de signature activé." };
 }
