@@ -19487,3 +19487,88 @@ model ObservationAccesBase {
   @@unique([jour, base, userId, geste])
   @@index([base, jour])
 }
+
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// DONNÉES MARCHÉ IMPORTÉES (11/2026) — la NOMENCLATURE nationale (décisions d'enregistrement, ses trois onglets) et
+/// l'audit IQVIA (marché de ville), déposés comme des fichiers. Chaque dépôt est un `MarcheImport` : le fichier original
+/// est gardé, le même fichier (même empreinte) ne fait rien, et le PLUS RÉCENT d'une nature fait foi. Les réceptions
+/// hospitalières, elles, sont déjà importées par l'écran des ventes PCH (`PchReceptionLigne`).
+/// Module `src/modules/donnees-marche/` ; lu par le service Portefeuille DCI via `/api/donnees-marche/v1/*`.
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+model MarcheImport {
+  id           String              @id @default(cuid())
+  /// NOMENCLATURE · IQVIA
+  nature       String
+  nomFichier   String
+  /// SHA-256 du fichier — le même fichier déposé deux fois ne fait rien.
+  empreinte    String              @unique
+  taille       Int
+  /// LE FICHIER ORIGINAL, gardé tel quel.
+  fichier      Bytes
+  /// La date ou la période lue dans le fichier : « 2026-06-30 » (nomenclature), « MAT Jul 2026 » (IQVIA).
+  periode      String?
+  lignes       Int                 @default(0)
+  /// Les comptes figés à l'import (lignes par onglet, total contrôlé…).
+  rapport      Json?
+  auteurId     String?
+  createdAt    DateTime            @default(now())
+  nomenclature NomenclatureLigne[]
+  iqvia        IqviaLigne[]
+
+  @@index([nature, createdAt])
+}
+
+/// UNE DÉCISION D'ENREGISTREMENT de la nomenclature. `onglet` : EN_VIGUEUR · NON_RENOUVELE · RETRAIT.
+/// `code` (« 01 A 003 ») = DCI + dosage + forme ; `statut` F (fabrication locale) · I (importation), par décision.
+model NomenclatureLigne {
+  id                String       @id @default(cuid())
+  importId          String
+  import            MarcheImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  onglet            String
+  numero            Int?
+  numEnregistrement String
+  code              String?
+  dci               String
+  marque            String?
+  forme             String?
+  dosage            String?
+  conditionnement   String?
+  liste             String?
+  p1                String?
+  p2                String?
+  obs               String?
+  laboratoire       String?
+  paysLaboratoire   String?
+  dateInitiale      DateTime?    @db.Date
+  dateFinale        DateTime?    @db.Date
+  type              String?
+  statut            String?
+  stabilite         String?
+  dateRetrait       DateTime?    @db.Date
+  motifRetrait      String?
+
+  @@index([importId, onglet])
+  @@index([code])
+}
+
+/// UNE PRÉSENTATION IQVIA (produit × présentation × laboratoire), UNE fois : le fichier répète une association par
+/// molécule — les molécules sont réunies dans `molecules`, les chiffres ne sont comptés qu'une fois. Valeurs en DA.
+model IqviaLigne {
+  id            String       @id @default(cuid())
+  importId      String
+  import        MarcheImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  atc4          String
+  produit       String
+  presentation  String
+  molecules     String[]     @default([])
+  laboratoire   String
+  matUnites     Float        @default(0)
+  matValeur     Float        @default(0)
+  matCroissance Float?
+  ytdUnites     Float        @default(0)
+  ytdValeur     Float        @default(0)
+  moisUnites    Float        @default(0)
+  moisValeur    Float        @default(0)
+
+  @@index([importId])
+}

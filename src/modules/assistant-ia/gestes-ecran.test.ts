@@ -121,6 +121,8 @@ const INVENTAIRE_GESTES_ECRAN: Readonly<Record<string, GesteEcran>> = {
   "/api/signature/visuel": { methodes: "GET", classe: "HORS", raison: "l'aperçu de SA propre signature ou de SON cachet (Ma signature) : jamais servi à une autre personne, ni à une IA" },
   "/api/legal/[id]/fichier": { methodes: "GET", classe: "HORS", raison: "pièce juridique (contrat, statuts) : elle s'ouvre depuis la fiche Juridique, sous les droits du module ; la Bibliothèque la retrouve si elle y est inscrite" },
   "/api/ventes-pch/fichier/[id]": { methodes: "GET", classe: "HORS", raison: "fichier importé des ventes PCH : servi à l'écran d'import, sous ses droits" },
+  "/api/donnees-marche/import": { methodes: "POST", classe: "HORS", raison: "dépôt d'un classeur (nomenclature, IQVIA) depuis l'écran Données marché : un fichier choisi à la main" },
+  "/api/donnees-marche/v1/[flux]": { methodes: "GET", classe: "HORS", raison: "flux lus par le service Portefeuille DCI (clé de service) : un client externe, pas un écran" },
   "/api/site-web/candidatures/[id]/cv": { methodes: "GET", classe: "HORS", raison: "CV d'un candidat : pièce RH sensible, ouverte à l'écran Recrutement seulement" },
   "/api/events/qr/[token]": { methodes: "GET", classe: "HORS", raison: "QR d'un badge d'inscription : affiché et scanné à l'accueil de l'événement" },
   "/api/events/inbound/[source]": { methodes: "POST", classe: "HORS", raison: ENTRANT },

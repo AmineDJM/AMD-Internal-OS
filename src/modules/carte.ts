@@ -57,6 +57,8 @@ export const CARTE = {
    * processus. Lue par l'Assistant IA (`recette_pour`, la version validée seulement).
    */
   recettes: [],
+  /** Données marché (11/2026) : nomenclature nationale et audit IQVIA déposés, flux du service Portefeuille DCI. */
+  "donnees-marche": [],
   /** Salles de réunion et leurs réservations (T3, décision 0051) : ouvertes à tous les employés, créneau sans chevauchement. */
   salles: [],
   /**

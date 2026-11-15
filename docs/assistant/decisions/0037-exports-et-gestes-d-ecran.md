@@ -202,6 +202,8 @@ séjour**, qui range un PDF dans la demande avec un voyageur choisi ; le **lance
 | `/api/signature/visuel` | GET | l'aperçu de SA propre signature ou de SON cachet (Ma signature, 15/11/2026) : jamais servi à une autre personne, ni à une IA |
 | `/api/legal/[id]/fichier` | GET | pièce juridique (contrat, statuts) : elle s'ouvre depuis la fiche Juridique, sous les droits du module ; la Bibliothèque la retrouve si elle y est inscrite |
 | `/api/ventes-pch/fichier/[id]` | GET | fichier importé des ventes PCH : servi à l'écran d'import, sous ses droits |
+| `/api/donnees-marche/import` | POST | dépôt d'un classeur (nomenclature, IQVIA) depuis l'écran Données marché : un fichier choisi à la main |
+| `/api/donnees-marche/v1/[flux]` | GET | flux lus par le service Portefeuille DCI (clé de service) : un client externe, pas un écran |
 | `/api/site-web/candidatures/[id]/cv` | GET | CV d'un candidat : pièce RH sensible, ouverte à l'écran Recrutement seulement |
 | `/api/events/qr/[token]` | GET | QR d'un badge d'inscription : affiché et scanné à l'accueil de l'événement |
 | `/api/events/inbound/[source]` | POST | appel entrant d'un service externe (webhook, rappel OAuth) : aucune personne derrière |

@@ -252,6 +252,8 @@ Retired modules are also covered: Ventes (manual), Commandes & logistique, Marke
 
 Consumers [V]: the Product Explorer, `market-actions.ts`, `pch-tender-line-actions.ts` (enrichment: competitors, nomenclature, prices), `marketing-cockpit/marche.ts`, and the retired `/business-development/marche/*` pages.
 
+**Uploaded market data (11/2026)** — module `src/modules/donnees-marche/`: the national nomenclature (three tabs: in force, not renewed, withdrawn) and the IQVIA audit (`ATC Prod Mol Lab`, one row per presentation, molecules merged so an association counts once) are uploaded at `/explorateur-produits/donnees` into `MarcheImport` / `NomenclatureLigne` / `IqviaLigne`; the newest upload of a kind is current. `GET /api/donnees-marche/v1/{etat,nomenclature,iqvia,receptions-hopital}` (bearer `DONNEES_MARCHE_API_KEY`) serves them, plus PCH supplier receipts (`PchReceptionLigne`, `type` FO, `gamme` MED), to the separate INN Portfolio service. The static `src/data/market/*.ndjson.gz` files above are unchanged (they still include TR/RC/CO receipt lines).
+
 ### 4.11 Annuaires & Consommation
 
 - **Annuaires** [V]:

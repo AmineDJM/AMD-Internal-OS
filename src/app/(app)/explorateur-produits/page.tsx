@@ -1,6 +1,8 @@
 import { requireModule } from "@/lib/session";
 import { searchProducts, productFilterOptions } from "@/lib/market/products";
+import Link from "next/link";
 import { PageHeader } from "@/components/shared/page-header";
+import { Button } from "@/components/ui/button";
 import { ProductExplorer } from "./product-explorer";
 
 export const dynamic = "force-dynamic";
@@ -26,7 +28,9 @@ export default async function ProductExplorerPage() {
       <PageHeader
         title="Explorateur produits"
         description="Cherchez par MOLÉCULE, par nom de produit ou par laboratoire — selon la case que vous remplissez. Une recherche par molécule ouvre en plus l'analyse concurrentielle : poids du marché, partage ville / hôpital, part de marché de chaque acteur et production locale ou importée."
-      />
+      >
+        <Link href="/explorateur-produits/donnees"><Button variant="outline">Données marché</Button></Link>
+      </PageHeader>
       <ProductExplorer classes={classes} initial={initial.products} initialTotal={initial.total} />
     </div>
   );
