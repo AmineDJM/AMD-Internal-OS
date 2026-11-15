@@ -800,6 +800,15 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
             cle: "bc", libelle: "Bon de commande", court: "BC", etat: etatDe("BC"),
             contenu: (
               <CasePiece titre="Bon de commande">
+                {/* UN POSTE « AGENCE » PAS ENCORE ACCORDÉ (Direction, 15/11/2026) : son BC ne se génère pas ici — il naît à l'étape 3
+                    de sa frise, après le choix de l'agence (qui accorde le poste). La case le dit, sans avertissement ni bouton inactif. */}
+                {agence && item.status !== "APPROVED" ? (
+                  <p className="text-muted-foreground">
+                    {item.status === "REJECTED"
+                      ? "Poste refusé : pas de bon de commande."
+                      : "Le bon de commande se prépare à l'étape 3, après le choix de l'agence par la Direction Marketing — ce choix accorde le poste au montant du devis retenu."}
+                  </p>
+                ) : (
                 <BlocBonDeCommande
                   itemId={item.id}
                   bcs={item.pieces.bcs}
@@ -817,6 +826,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                   onAccorder={peutAccorder ? ouvrirAccord : undefined}
                   repli={<EtatBC item={item} />}
                 />
+                )}
                 {bcAnnulable && toucheBC && (
                   <button type="button" onClick={() => setPanneau("RETIRER_BC")} className="inline-flex min-h-9 items-center gap-1 text-xs text-destructive hover:underline sm:min-h-0">
                     <Undo2 className="h-3.5 w-3.5" /> Annuler la demande de BC
