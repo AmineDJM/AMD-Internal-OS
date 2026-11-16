@@ -667,7 +667,8 @@ export async function annulerGeste(gesteId: string, user: CurrentUser): Promise<
   // laisserait un état incohérent : rien n'est écrit, la liste dit pourquoi. Un effet EXTERNE impossible (une poussée
   // affichée) ne bloque pas : il est dit, la base reste juste.
   const politique = await politiqueDe(r.g.capaciteId);
-  if (politique?.toutOuRien || r.g.origine === "ecran") {
+  // « Agir comme » (16/11/2026) : un geste du Super Admin dans la peau d'une personne se défait aussi en entier, ou pas du tout.
+  if (politique?.toutOuRien || r.g.origine === "ecran" || r.g.origine === "vue-exacte") {
     const bloquants = bloquantsDe(r.g, await derouler(r.g, false, { politique, user }));
     if (bloquants.length) {
       return {

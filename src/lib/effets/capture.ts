@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { sansBloquer } from "@/lib/journal";
-import { etatDuGeste, type Capture, type EcritureCapturee } from "./magasin";
+import { etatDuGeste, gesteDeRequete, type Capture, type EcritureCapturee } from "./magasin";
 import { infoModele, MODELES_TRACE, type InfoModele } from "./modeles";
 import { champsChanges, serialiserLigne } from "./valeurs";
 
@@ -120,7 +120,8 @@ export function extensionCapture(brut: Client) {
     name: "amd-capture-effets",
     query: {
       async $allOperations({ model, operation, args, query }) {
-        const etat = etatDuGeste();
+        // Un geste posé, sinon celui de la requête (un Super Admin en « Vue exacte » : ses écritures s'annulent).
+        const etat = etatDuGeste() ?? gesteDeRequete();
         const capture = etat?.capture;
         if (!capture) return query(args);
         // LE CALME DU GESTE : chaque requête compte, pour attendre la fin d'une promesse « au mieux » (`finaliserCapture`).
@@ -147,7 +148,9 @@ async function capturer(
           const r = await query(args);
           // La table, quand le texte la nomme (« UPDATE "FileBlob" … ») : les octets d'une pièce ne se lisent pas comme une écriture métier.
           const table = /\b(?:update|into|from)\s+"?([A-Za-z_]\w*)"?/i.exec(texteSql(args))?.[1] ?? "SQL";
-          capture.ecritures.push({ modele: table, operation: "SQL", id: null, avant: null, apres: null, champs: [], nombre: typeof r === "number" ? r : Array.isArray(r) ? r.length : undefined });
+          const sql: EcritureCapturee = { modele: table, operation: "SQL", id: null, avant: null, apres: null, champs: [], nombre: typeof r === "number" ? r : Array.isArray(r) ? r.length : undefined };
+          capture.ecritures.push(sql);
+          capture.tardive?.(sql);
           return r;
         }
         if (!ECRITURES.has(operation) || MODELES_TRACE.has(model)) return query(args);

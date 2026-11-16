@@ -63,7 +63,8 @@ export interface GesteEcranVu {
 /** Les gestes RÉCENTS d'une personne (écran, cartes) — la barre « Annuler » de l'application. */
 export async function gestesRecents(user: CurrentUser, minutes = 10): Promise<GesteEcranVu[]> {
   const gestes = await prismaBrut.assistantGesteJournal.findMany({
-    where: { principalId: user.id, resultat: "FAIT", creeLe: { gte: new Date(Date.now() - minutes * 60_000) }, effets: { some: {} } },
+    // « Agir comme » : la personne ne voit pas les gestes faits dans sa peau ; le Super Admin qui agit voit les siens.
+    where: { principalId: user.id, parVueExacteId: user.impersonatedBy?.agir ? user.impersonatedBy.id : null, resultat: "FAIT", creeLe: { gte: new Date(Date.now() - minutes * 60_000) }, effets: { some: {} } },
     orderBy: { creeLe: "desc" }, take: 5,
     select: { id: true, libelle: true, capaciteId: true, creeLe: true, resultat: true, annuleLe: true, annulation: true },
   });
@@ -73,7 +74,7 @@ export async function gestesRecents(user: CurrentUser, minutes = 10): Promise<Ge
 /** L'HISTORIQUE D'UNE FICHE — les gestes journalisés qui ont touché cette ligne (le plus récent d'abord). */
 export async function gestesDeLaFiche(user: CurrentUser, modele: string, id: string): Promise<GesteEcranVu[]> {
   const gestes = await prismaBrut.assistantGesteJournal.findMany({
-    where: { ...(user.role === "SUPER_ADMIN" ? {} : { principalId: user.id }), effets: { some: { modele, enregistrementId: id } } },
+    where: { ...(user.role === "SUPER_ADMIN" ? {} : { principalId: user.id, parVueExacteId: null }), effets: { some: { modele, enregistrementId: id } } },
     orderBy: { creeLe: "desc" }, take: 20,
     select: { id: true, libelle: true, capaciteId: true, creeLe: true, resultat: true, annuleLe: true, annulation: true },
   });

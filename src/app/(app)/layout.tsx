@@ -139,7 +139,7 @@ export default async function AppLayout({
             la ligne sur un écran étroit, et les écrans pleine hauteur doivent déduire la
             hauteur réelle, pas une estimation. */}
         <ChromeMetrics>
-          {user.impersonatedBy && <ImpersonationBanner viewedName={user.name} />}
+          {user.impersonatedBy && <ImpersonationBanner viewedName={user.name} agir={user.impersonatedBy.agir === true} />}
           {testMode && <TestModeBanner />}
           {/* L'intérimaire voit qu'il agit au nom de quelqu'un — calculé par `getAccess`, aucune lecture de plus (§118.196). */}
           {user.access.interims && user.access.interims.length > 0 && <InterimBanner interims={user.access.interims} />}

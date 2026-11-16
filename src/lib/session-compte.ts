@@ -5,7 +5,7 @@ import { actionAsyncStorage } from "next/dist/server/app-render/action-async-sto
 import type { UserRole } from "@prisma/client";
 import { prisma } from "./prisma";
 import { shouldTouch } from "./touch-throttle";
-import { IMPERSONATE_COOKIE } from "./vue-exacte";
+import { AGIR_COMME_COOKIE, IMPERSONATE_COOKIE } from "./vue-exacte";
 import { vueHonoree } from "./vue-exacte-ui";
 import { lectureDeclaree } from "./vue-lecture";
 
@@ -116,11 +116,22 @@ async function cookieDeVue(): Promise<string | undefined> {
   }
 }
 
+/** La vue est-elle en mode « Agir comme » — pour CETTE personne (un témoin d'une autre vue ne compte pas) ? */
+async function modeAgir(targetId: string): Promise<boolean> {
+  try {
+    return (await cookies()).get(AGIR_COMME_COOKIE)?.value === targetId;
+  } catch {
+    return false;
+  }
+}
+
 export interface OptionsDeSession {
   /** Route d'API qui écrit : au nom du Super Admin (§118.184). */
   ecriture?: boolean;
   /** Création d'une demande : au nom de la personne visualisée (Direction, 06/10). */
   auNomDeLaVue?: boolean;
+  /** L'identité RÉELLE, jamais la vue : ouvrir ou quitter une vue, l'abonnement push de CET appareil. */
+  reel?: boolean;
 }
 
 /** La personne qu'un Super Admin visualise (fiche relue en base, compte actif). */
@@ -147,7 +158,7 @@ export async function vueDemandee(
   roleReel: UserRole,
   idReel: string,
   opts: OptionsDeSession = {},
-): Promise<{ cible: PersonneVisualisee; honoree: boolean } | null> {
+): Promise<{ cible: PersonneVisualisee; honoree: boolean; agir: boolean } | null> {
   const targetId = roleReel === "SUPER_ADMIN" ? await cookieDeVue() : undefined;
   if (!targetId || targetId === idReel) return null;
   const target = await prisma.user.findUnique({
@@ -155,7 +166,10 @@ export async function vueDemandee(
     select: { id: true, name: true, email: true, role: true, secondaryRole: true, isActive: true },
   });
   if (!target || !target.isActive) return null;
+  const agir = await modeAgir(target.id);
   const honoree = vueHonoree({
+    agir,
+    reel: !!opts.reel,
     ecriture: !!opts.ecriture,
     auNomDeLaVue: !!opts.auNomDeLaVue,
     lecture: lectureDeclaree(),
@@ -165,5 +179,6 @@ export async function vueDemandee(
   return {
     cible: { id: target.id, name: target.name, email: target.email, role: target.role, secondaryRole: target.secondaryRole },
     honoree,
+    agir,
   };
 }

@@ -174,7 +174,9 @@ export function classerExclusionsAttestations(): void {
   X("SÉCURITÉ : identifiants et sessions appartiennent à la personne au clavier — jamais à une conversation", [
     "auth-actions:authenticate", "auth-actions:doSignOut", "auth-actions:changePassword",
     "access-actions:adminResetPassword",
-    "impersonation-actions:startImpersonation", "impersonation-actions:stopImpersonation",
+    "impersonation-actions:startImpersonation", "impersonation-actions:stopImpersonation", "impersonation-actions:startActingAs",
+    // « Agir comme » (16/11/2026) : défaire ce que le Super Admin a fait dans la peau d'une personne — un clic de sa console.
+    "impersonation-actions:annulerGesteAgirComme", "impersonation-actions:annulerToutAgirComme",
     "supplier-portal-actions:supplierLogin", "supplier-portal-actions:supplierLogout",
     "mail-actions:connectMailbox", "mail-actions:disconnectMailbox", "microsoft-mail-actions:disconnectMicrosoftMail",
     // Même raison pour l'identité Google d'Adam : brancher ou débrancher une boîte passe par un

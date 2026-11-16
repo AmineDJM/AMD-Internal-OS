@@ -25,13 +25,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const ETAT = vi.hoisted(() => ({
   session: null as unknown,
   cookie: undefined as string | undefined,
+  agir: undefined as string | undefined,
   cible: { id: "leila", name: "Leila", email: "leila@t.dz", role: "MEDICAL_DELEGATE", isActive: true } as Record<string, unknown> | null,
   action: null as null | { run: <T>(s: { isAction: boolean }, f: () => T) => T; getStore: () => unknown },
   rendu: null as null | { run: <T>(s: Map<unknown, unknown>, f: () => T) => T },
 }));
 vi.mock("@/auth", () => ({ auth: async () => ETAT.session }));
 vi.mock("next/headers", () => ({
-  cookies: () => ({ get: (n: string) => (n === "amd_impersonate" && ETAT.cookie ? { value: ETAT.cookie } : undefined) }),
+  cookies: () => ({ get: (n: string) => (n === "amd_impersonate" && ETAT.cookie ? { value: ETAT.cookie } : n === "amd_impersonate_agir" && ETAT.agir ? { value: ETAT.agir } : undefined) }),
   headers: () => new Headers(),
 }));
 vi.mock("next/dist/server/app-render/action-async-storage.external", async () => {
@@ -64,7 +65,7 @@ vi.mock("@/lib/rbac", async (orig) => ({
   getAccess: async (_id: string, role: string) => ({ role, secondaryRole: null, interims: [] }),
 }));
 
-import { requireUser, getCurrentUser, getCurrentUserPourEcrire, requireUserAuNomDeLaVue } from "@/lib/session";
+import { requireUser, getCurrentUser, getCurrentUserPourEcrire, getUtilisateurReel, requireUserAuNomDeLaVue } from "@/lib/session";
 import { enLecture } from "@/lib/vue-lecture";
 import { vueHonoree, lireMarqueVue, cleParPersonne, MARQUE_VUE_COOKIE } from "@/lib/vue-exacte-ui";
 
@@ -75,6 +76,7 @@ const dansRendu = <T,>(f: () => Promise<T>) => ETAT.rendu!.run(new Map(), f);
 beforeEach(() => {
   ETAT.session = ADMIN;
   ETAT.cookie = "leila";
+  ETAT.agir = undefined;
   ETAT.cible = { id: "leila", name: "Leila", email: "leila@t.dz", role: "MEDICAL_DELEGATE", isActive: true };
 });
 
@@ -88,6 +90,13 @@ describe("la règle pure — qui est à l'écran", () => {
     expect(vueHonoree({ ...base, actionServeur: true, lecture: true })).toBe(true); // action qui charge un panneau
     expect(vueHonoree({ ...base, ecriture: true, rendu: true })).toBe(false); // route d'API qui écrit
     expect(vueHonoree({ ...base, actionServeur: true, auNomDeLaVue: true })).toBe(true); // création de demande
+  });
+
+  it("« AGIR COMME » (16/11/2026) : tout calcul d'identité voit la personne, sauf l'identité réelle demandée exprès", () => {
+    expect(vueHonoree({ ...base, agir: true, actionServeur: true })).toBe(true); // corps d'une action
+    expect(vueHonoree({ ...base, agir: true, ecriture: true })).toBe(true); // route d'API qui écrit
+    expect(vueHonoree({ ...base, agir: true, reel: true })).toBe(false); // ouvrir la vue, abonner l'appareil
+    expect(vueHonoree({ ...base, reel: true, rendu: true })).toBe(false);
   });
 
   it("le témoin de vue se lit dans `document.cookie`, et les clés navigateur se rangent par personne", () => {
@@ -131,6 +140,21 @@ describe("la session réelle — chaque chemin d'identité", () => {
   it("une route d'API qui écrit reste au Super Admin, même pendant un rendu ; la création de demande suit la vue", async () => {
     expect((await dansRendu(() => getCurrentUserPourEcrire()))?.id).toBe("amine");
     expect((await dansAction(() => requireUserAuNomDeLaVue())).id).toBe("leila");
+  });
+
+  it("« AGIR COMME » : le corps d'une action et une route qui écrit partent au nom de Leila, marqués du Super Admin", async () => {
+    ETAT.agir = "leila";
+    const u = await dansAction(() => requireUser());
+    expect(u.id).toBe("leila");
+    expect(u.impersonatedBy).toEqual({ id: "amine", name: "Amine", agir: true });
+    expect((await getCurrentUserPourEcrire())?.id).toBe("leila");
+    // L'identité RÉELLE reste celle du Super Admin, qui sait qu'une vue est ouverte.
+    const reel = await getUtilisateurReel();
+    expect(reel?.id).toBe("amine");
+    expect(reel?.visualise).toEqual({ id: "leila", name: "Leila" });
+    // Un témoin « agir » d'une AUTRE personne ne vaut rien : la vue de Leila reste une vue.
+    ETAT.agir = "karim";
+    expect((await dansAction(() => requireUser())).id).toBe("amine");
   });
 
   it("hors vue, rien ne change : pas de `visualise`, pas d'`impersonatedBy`", async () => {

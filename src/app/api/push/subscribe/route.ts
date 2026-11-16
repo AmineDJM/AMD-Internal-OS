@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUserPourEcrire } from "@/lib/session";
+import { getUtilisateurReel } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { endpointPushAutorise } from "@/lib/notifications/endpoint-push";
 import { attendu } from "@/lib/journal";
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 /** Enregistre l'abonnement push (PushSubscription) de l'appareil de l'utilisateur. */
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUserPourEcrire();
+  // L'appareil est celui de la personne RÉELLE : en « Agir comme », le Super Admin n'abonne pas son téléphone aux notifications d'un autre.
+  const user = await getUtilisateurReel();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   const body = (await req.json().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", null))) as { endpoint?: string; keys?: { p256dh?: string; auth?: string } } | null;
   const endpoint = body?.endpoint;
@@ -31,7 +32,8 @@ export async function POST(req: NextRequest) {
 
 /** Désabonne l'appareil (ex. notifications refusées / déconnexion). */
 export async function DELETE(req: NextRequest) {
-  const user = await getCurrentUserPourEcrire();
+  // L'appareil est celui de la personne RÉELLE : en « Agir comme », le Super Admin n'abonne pas son téléphone aux notifications d'un autre.
+  const user = await getUtilisateurReel();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   const body = (await req.json().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", null))) as { endpoint?: string } | null;
   if (body?.endpoint) await prisma.pushSubscription.deleteMany({ where: { endpoint: body.endpoint, userId: user.id } });

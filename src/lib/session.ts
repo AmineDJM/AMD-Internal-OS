@@ -11,6 +11,8 @@ import { lireSessionRevocable, vueDemandee, type CompteDeSession, type OptionsDe
 // J8 : un geste métier exécuté HORS requête (worker) porte la personne du geste — consultée AVANT le cookie.
 import { utilisateurDuGeste } from "./effets/geste";
 import { poserIdentiteDonnees, type IdentiteDonnees } from "@/platform/donnees/contexte";
+// « Agir comme » : la requête est un geste du Super Admin — marqué, inscrit au journal, annulable (effets/vue-exacte.ts).
+import { poserVueExacteDeRequete } from "./effets/vue-exacte";
 
 /**
  * Nom du cookie de « Vue exacte » (impersonation), honoré uniquement pour un Super Admin. Défini dans
@@ -29,7 +31,7 @@ export interface CurrentUser {
   sid?: string;
   mustChangePassword: boolean;
   /** Présent quand un Super Admin visualise l'OS « comme » cet utilisateur. */
-  impersonatedBy?: { id: string; name: string };
+  impersonatedBy?: { id: string; name: string; /** « Agir comme » : les gestes partent au nom de la personne, marqués et annulables. */ agir?: boolean };
   /**
    * Présent sur le Super Admin RÉEL (corps d'une écriture) quand une Vue exacte est ouverte : la personne
    * visualisée. Un geste qui ne vaut que pour « soi » (Adam, sa mémoire) le refuse — `impersonatedBy`
@@ -72,8 +74,8 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
       access: targetAccess,
       sid,
       mustChangePassword: false,
-      impersonatedBy: { id: session.user.id, name: session.user.name ?? "Administrateur" },
-    });
+      impersonatedBy: { id: session.user.id, name: session.user.name ?? "Administrateur", ...(vue.agir ? { agir: true } : {}) },
+    }, vue.agir ? { superAdminId: session.user.id, superAdminNom: session.user.name ?? "Administrateur" } : undefined);
   }
 
   const access = await getAccess(session.user.id, session.user.role);
@@ -99,8 +101,10 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
  * (la personne visualisée pendant un rendu en Vue exacte, le Super Admin réel dans le corps d'une écriture — la même
  * règle que l'écran). Ses droits de module déjà résolus suffisent : la garde ne relit rien.
  */
-function noterIdentite(u: CurrentUser): CurrentUser {
+function noterIdentite(u: CurrentUser, agir?: { superAdminId: string; superAdminNom: string }): CurrentUser {
   poserIdentiteDonnees(identiteDonneesDe(u));
+  // « Agir comme » : cette requête est un geste du Super Admin dans la peau de `u` — marqué (audit) et annulable (journal).
+  if (agir) poserVueExacteDeRequete({ ...agir, cibleId: u.id, cibleNom: u.name });
   return u;
 }
 
@@ -194,4 +198,12 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
  */
 export async function getCurrentUserPourEcrire(): Promise<CurrentUser | null> {
   return utilisateurDuGeste() ?? build(await auth(), { ecriture: true });
+}
+
+/**
+ * L'identité RÉELLE, jamais la vue : ouvrir une vue, abonner CET appareil aux notifications. En « Agir comme », toute autre
+ * résolution rend la personne visualisée. Porte `visualise` quand une vue est ouverte.
+ */
+export async function getUtilisateurReel(): Promise<CurrentUser | null> {
+  return build(await auth(), { reel: true });
 }

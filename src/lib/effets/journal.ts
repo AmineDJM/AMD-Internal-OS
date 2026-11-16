@@ -7,6 +7,7 @@ import { avecStoreHorsRequete, etatPour } from "./geste";
 import { etatDuGeste, sousGeste, type Capture, type EcritureCapturee, type OrigineGeste } from "./magasin";
 import { finaliserCapture } from "./capture";
 import { installerPortReseau } from "./reseau";
+import { vueExacteDeRequete } from "@/lib/vue-exacte-requete";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -29,13 +30,15 @@ import { installerPortReseau } from "./reseau";
 
 export interface MetaGesteAgent {
   /** `ecran` (K10b, décision 0044) : le geste d'une personne à l'écran, rendu réversible (`gesteReversible`) ; `annulation` (K10c, décision 0044) : une annulation, journalisée pour être rétablie. */
-  origine: Extract<OrigineGeste, "carte" | "travail" | "mandat"> | "carte" | "travail" | "mandat" | "ecran" | "annulation";
+  origine: Extract<OrigineGeste, "carte" | "travail" | "mandat"> | "carte" | "travail" | "mandat" | "ecran" | "annulation" | "vue-exacte";
   capaciteId?: string | null;
   libelle: string;
   travailId?: string | null;
   etape?: string | null;
   cleIdempotence?: string | null;
   empreinteSimulee?: string | null;
+  /** « Vue exacte » (15/11/2026) : le Super Admin qui agit dans la peau du principal. Par défaut, lu sur la requête. */
+  parVueExacteId?: string | null;
 }
 
 type Resultat = { ok?: boolean; error?: string; message?: string } | unknown;
@@ -50,7 +53,7 @@ const lireIssue = (r: Resultat): { ok: boolean; message: string | null } => {
 };
 
 /** Un identifiant de geste réservé d'avance (même alphabet qu'un `cuid`, sans dépendance). */
-const idDeGeste = (): string => `g${Date.now().toString(36)}${globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+export const idDeGeste = (): string => `g${Date.now().toString(36)}${globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
 
 /** Durée de garde par défaut du journal (jours) — réglable dans la console (`retentionEffetsJours`). */
 export const RETENTION_EFFETS_JOURS = 180;
@@ -102,13 +105,13 @@ export async function journaliserGeste<T extends Resultat>(
   return { resultat: resultat as T, gesteId: gesteId?.id ?? null, ecart: gesteId?.ecart ?? false };
 }
 
-const effetEnLigne = (e: EcritureCapturee, ordre: number) => ({
+export const effetEnLigne = (e: EcritureCapturee, ordre: number) => ({
   ordre, type: "ECRITURE", modele: e.modele, operation: e.operation, enregistrementId: e.id,
   avant: (e.avant ?? undefined) as never, apres: (e.apres ?? undefined) as never, champs: e.champs,
   cascade: e.cascade ?? null, nombre: e.nombre ?? null, imbriquee: !!e.imbriquee,
 });
 
-async function inscrire(
+export async function inscrire(
   id: string,
   principalId: string, meta: MetaGesteAgent, capture: Capture, issue: { ok: boolean; message: string | null },
   fenetre: { debut: number; fin: number },
@@ -122,6 +125,8 @@ async function inscrire(
       data: {
         id, principalId, origine: meta.origine, capaciteId: meta.capaciteId ?? null, libelle: meta.libelle.slice(0, 300),
         travailId: meta.travailId ?? null, etape: meta.etape ?? null, cleIdempotence: meta.cleIdempotence ?? null,
+        // Un geste fait en « Vue exacte » garde son Super Admin : son journal à lui, invisible de la personne.
+        parVueExacteId: meta.parVueExacteId !== undefined ? meta.parVueExacteId : vueExacteDeRequete()?.superAdminId ?? null,
         resultat: issue.ok ? "FAIT" : "ECHEC", message: issue.message?.slice(0, 1000) ?? null,
         empreinte, empreinteSimulee: meta.empreinteSimulee ?? null, ecart,
         effets: {

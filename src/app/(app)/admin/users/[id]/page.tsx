@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { ImpersonateButton } from "./impersonate-button";
+import { AgirCommeButton, ImpersonateButton } from "./impersonate-button";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, defaultScope, MODULES, ACTIONS, type Action, type Module, regulatoryLockWhere } from "@/lib/rbac";
 import { buildAccessSheet, type PermissionMatrix } from "@/lib/rbac-sheet";
@@ -119,7 +120,11 @@ export default async function AdminUserPage(props: { params: Promise<{ id: strin
           </p>
         </div>
         {admin.role === "SUPER_ADMIN" && target.isActive && target.id !== admin.id && (
-          <ImpersonateButton userId={target.id} />
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <ImpersonateButton userId={target.id} />
+            <AgirCommeButton userId={target.id} />
+            <Link href="/admin/agir-comme" className="text-xs text-muted-foreground hover:text-primary hover:underline">Gestes faits en « Agir comme »</Link>
+          </div>
         )}
       </div>
 

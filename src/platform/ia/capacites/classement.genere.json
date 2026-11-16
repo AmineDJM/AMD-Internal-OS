@@ -5806,12 +5806,39 @@
   "annulation": "delegation",
   "appelable": true
  },
+ "impersonation-actions:annulerGesteAgirComme": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "impersonation-actions:annulerToutAgirComme": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "impersonation-actions:startActingAs": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "impersonation-actions:startImpersonation": {
   "risque": "R1",
   "familles": [
    "ECRITURES"
   ],
-  "simulable": "oui",
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": false
  },

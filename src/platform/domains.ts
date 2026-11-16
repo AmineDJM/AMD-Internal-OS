@@ -133,6 +133,8 @@ const SOCLE = [
    * Le prolongement de `session`, au même rang : ils ne lisent aucun métier.
    */
   "src/lib/contexte-geste", "src/lib/async-local-storage-global",
+  /** « Agir comme » (16/11/2026) : qui agit vraiment dans CETTE requête (le Super Admin dans la peau d'une personne). Zéro métier. */
+  "src/lib/vue-exacte-requete",
   /**
    * J7 (décision 0029) : `effets/` — le contexte de geste étendu (mode réel / simulation), la capture des écritures,
    * la simulation transactionnelle, les ports de sortie, le journal des effets et l'annulation. Le prolongement de

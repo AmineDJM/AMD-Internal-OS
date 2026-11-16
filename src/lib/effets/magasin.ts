@@ -130,3 +130,24 @@ export function noterEffetExterne(effet: Omit<EffetExterneCapture, "neutralise">
   e.capture?.effets.push({ ...effet, neutralise });
   return neutralise;
 }
+
+/**
+ * LE GESTE DE LA REQUÊTE (« Agir comme cet utilisateur », Direction 16/11/2026) — quand AUCUN geste n'est posé par le
+ * magasin, une requête peut en porter un d'office : celle d'un Super Admin qui agit dans la peau d'une personne. Ses
+ * écritures sont alors captées (la capture) et passent par le client qui capte (`prisma.ts`), pour s'inscrire au journal et
+ * s'annuler. Le fournisseur est posé par `effets/vue-exacte.ts` ; ce module ne dépend toujours de rien. Jamais consulté par
+ * `etatDuGeste` : ce n'est pas un geste d'agent (ni simulation, ni fenêtre, ni personne imposée) — seuls la capture et le
+ * relais Prisma le lisent.
+ */
+const gr = globalThis as { __amdGesteDeRequete?: (() => EtatGeste | null) | null };
+export function poserFournisseurDeGesteDeRequete(f: () => EtatGeste | null): void {
+  gr.__amdGesteDeRequete = f;
+}
+export function gesteDeRequete(): EtatGeste | null {
+  if (magasin?.getStore()) return null;
+  try {
+    return gr.__amdGesteDeRequete?.() ?? null;
+  } catch {
+    return null;
+  }
+}

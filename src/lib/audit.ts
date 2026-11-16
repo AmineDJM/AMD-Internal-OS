@@ -1,5 +1,6 @@
 import type { AuditAction, EntityType, Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
+import { vueExacteDeRequete } from "./vue-exacte-requete";
 import { faitDepuisAudit, type AuditFait } from "./events/from-audit";
 import { recordEvent } from "./events/ledger";
 
@@ -34,6 +35,8 @@ export async function recordAudit(input: AuditInput) {
         newValue: input.newValue ?? null,
         summary: input.summary,
         ipAddress: input.ipAddress ?? null,
+        // « Agir comme » : le geste est celui du Super Admin dans la peau de `actorId` — la trace le garde (lue par lui seul).
+        parVueExacteId: vueExacteDeRequete()?.superAdminId ?? null,
       },
     });
   } catch (err) {

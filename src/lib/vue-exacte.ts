@@ -5,6 +5,12 @@ import { COMPANY_COOKIE } from "./company";
 
 /** Nom du cookie de « Vue exacte » (impersonation), honoré uniquement pour un Super Admin. */
 export const IMPERSONATE_COOKIE = "amd_impersonate";
+/**
+ * « AGIR COMME CET UTILISATEUR » (Direction, 16/11/2026) : posé avec la vue, il fait agir le Super Admin AU NOM de la personne
+ * — chaque geste marqué et annulable (`lib/vue-exacte-requete.ts`, `effets/vue-exacte.ts`). Absent : la vue d'avant, qui
+ * montre seulement (§118.184). httpOnly, honoré aux mêmes conditions que la vue (session réelle Super Admin).
+ */
+export const AGIR_COMME_COOKIE = "amd_impersonate_agir";
 export { MARQUE_VUE_COOKIE };
 
 /** Durée d'une vue : 4 h, puis retour automatique au profil réel (la garde d'identité recharge l'onglet). */
@@ -15,10 +21,13 @@ const DUREE_VUE_S = 60 * 60 * 4;
  * et le témoin que l'écran lit (`vue-exacte-ui.ts`) : mêmes chemin et durée, pour que l'onglet sache
  * quand la vue a changé sans jamais pouvoir la créer.
  */
-export async function poserVueExacte(targetId: string): Promise<void> {
+export async function poserVueExacte(targetId: string, mode: "voir" | "agir" = "voir"): Promise<void> {
   const jar = await cookies();
   const secure = process.env.NODE_ENV === "production";
   jar.set(IMPERSONATE_COOKIE, targetId, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: DUREE_VUE_S });
+  // Le mode suit la vue : « agir » se pose avec elle, « voir » l'efface (on ne garde jamais le mode d'une vue précédente).
+  if (mode === "agir") jar.set(AGIR_COMME_COOKIE, targetId, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: DUREE_VUE_S });
+  else jar.set(AGIR_COMME_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
   jar.set(MARQUE_VUE_COOKIE, targetId, { httpOnly: false, secure, sameSite: "lax", path: "/", maxAge: DUREE_VUE_S });
   // L'ENTITÉ AFFICHÉE est un choix de l'administrateur : elle ne filtre pas l'écran de la personne visualisée,
   // qui s'ouvre sur SA portée par défaut.
@@ -30,6 +39,7 @@ export async function effacerVueExacte(): Promise<void> {
   const jar = await cookies();
   const enVue = Boolean(jar.get(IMPERSONATE_COOKIE)?.value);
   jar.set(IMPERSONATE_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
+  jar.set(AGIR_COMME_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
   jar.set(MARQUE_VUE_COOKIE, "", { httpOnly: false, path: "/", maxAge: 0 });
   // Et l'entité choisie DANS la vue ne survit pas à la sortie (seulement si une vue était ouverte).
   if (enVue) jar.set(COMPANY_COOKIE, "", { path: "/", maxAge: 0 });

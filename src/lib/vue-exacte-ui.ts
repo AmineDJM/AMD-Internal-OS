@@ -40,6 +40,10 @@ export function cleParPersonne(base: string, personneId: string | null | undefin
 }
 
 export interface ContexteDeLecture {
+  /** « Agir comme cet utilisateur » (16/11/2026) : la vue vaut pour TOUT calcul d'identité, écritures comprises. */
+  agir?: boolean;
+  /** L'identité RÉELLE demandée exprès (`getUtilisateurReel`) : ouvrir ou quitter la vue, abonner l'appareil. */
+  reel?: boolean;
   /** La route d'API dit qu'elle écrit (`getCurrentUserPourEcrire`). */
   ecriture: boolean;
   /** Création d'une demande au nom de la personne visualisée (décision Direction, 06/10). */
@@ -62,6 +66,9 @@ export interface ContexteDeLecture {
  * LIT : il voit la vue.
  */
 export function vueHonoree(c: ContexteDeLecture): boolean {
+  if (c.reel) return false;
+  // « AGIR COMME » (Direction, 16/11/2026) : le Super Admin agit au nom de la personne — chaque geste marqué et annulable.
+  if (c.agir) return true;
   if (c.auNomDeLaVue || c.lecture) return true;
   if (c.ecriture) return false;
   if (c.actionServeur && !c.rendu) return false;

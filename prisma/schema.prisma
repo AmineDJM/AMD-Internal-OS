@@ -5857,9 +5857,12 @@ model AuditLog {
   summary    String? // human readable description
   ipAddress  String?
   createdAt  DateTime    @default(now())
+  /// « Agir comme » (16/11/2026) : le Super Admin qui a fait ce geste DANS LA PEAU de `actorId` — montré au Super Admin seul.
+  parVueExacteId String?
 
   @@index([actorId])
   @@index([module])
+  @@index([parVueExacteId])
   @@index([entityType, entityId])
   @@index([createdAt])
 }
@@ -18951,9 +18954,12 @@ model AssistantGesteJournal {
   annuleLe         DateTime?
   annuleParId      String?
   annulation       Json?
+  /// « Agir comme » (16/11/2026) : le Super Admin qui a agi dans la peau du principal — son journal, ses annulations.
+  parVueExacteId   String?
   effets           AssistantEffet[]
 
   @@index([principalId, creeLe(sort: Desc)])
+  @@index([parVueExacteId, creeLe(sort: Desc)])
   @@index([creeLe])
   @@index([cleIdempotence])
 }

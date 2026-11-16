@@ -1,7 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { estUnBancDeMesure } from "@/lib/sortie/garde";
 import { appliquerAuResultat, planDeRequete, type Relations } from "@/platform/donnees/garde";
-import { etatDuGeste } from "@/lib/effets/magasin";
+import { etatDuGeste, gesteDeRequete } from "@/lib/effets/magasin";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -220,7 +220,8 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prismaBrut;
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 function clientDuGeste(): Record<string | symbol, unknown> | null {
-  const c = etatDuGeste()?.client;
+  // Un geste posé, sinon celui de la requête (« Vue exacte » : le client gardé qui capte, `vue-exacte-requete.ts`).
+  const c = etatDuGeste()?.client ?? gesteDeRequete()?.client;
   return c && typeof c === "object" ? (c as Record<string | symbol, unknown>) : null;
 }
 
@@ -314,6 +315,11 @@ function extensionGarde() {
 const PROPRES_AU_CLIENT_DE_BASE: ReadonlySet<string | symbol> = new Set(["$use", "$on"]);
 function clientGarde(): PrismaClient {
   return (garde ??= prismaBrut.$extends(extensionGarde()) as unknown as PrismaClient);
+}
+
+/** Le client GARDÉ étendu d'une extension de plus (« Vue exacte » : la capture des écritures par-dessus la garde). */
+export function clientGardeEtendu(extension: unknown): unknown {
+  return (clientGarde() as unknown as { $extends: (e: unknown) => unknown }).$extends(extension);
 }
 
 export const prisma: PrismaClient = new Proxy(prismaBrut, {
