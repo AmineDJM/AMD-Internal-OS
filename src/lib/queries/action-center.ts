@@ -656,7 +656,10 @@ export async function getActionCenter(user: SessionUser) {
   // La règle est celle du moteur (`canActOnStep`, portée RÔLE) : l'étape courante nomme les rôles
   // qui agissent, et l'on n'en invente pas d'autre. La vue globale et le Super Admin, qui passent
   // partout, ont leurs propres sections : les y verser noierait ce qui les attend vraiment.
-  if (!hasGlobalView(user.role) && user.role !== "SUPER_ADMIN") {
+  // LA DIRECTION Y ENTRE (recette, 16/11/2026) : seules les étapes qui NOMMENT son rôle lui sont listées — rien ne noie ;
+  // sans cela, un événement posé sur l'étape de la Direction (Directeur des opérations tenu par un compte DIRECTION)
+  // n'apparaissait nulle part dans « Mon espace ». Seul le Super Admin, qui passe partout, en reste dehors.
+  if (user.role !== "SUPER_ADMIN") {
     const dejaListes = new Set(items.map((i) => i.href));
     // LES ÉTAPES QUI NOMMENT MON RÔLE d'abord, puis les seules instances posées dessus — une
     // fenêtre « les N plus anciennes de toute la base » laissait les étapes des autres rôles

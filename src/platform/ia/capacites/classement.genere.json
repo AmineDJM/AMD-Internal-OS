@@ -543,6 +543,15 @@
   "annulation": "retour",
   "appelable": true
  },
+ "ad-pro-item-actions:lireDevisAvantDepot": {
+  "risque": "R0",
+  "familles": [
+   "AD_PRO"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
  "ad-pro-item-actions:lireLesLignesDuDevis": {
   "risque": "R1",
   "familles": [

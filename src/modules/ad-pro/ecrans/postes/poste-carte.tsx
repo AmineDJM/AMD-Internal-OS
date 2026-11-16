@@ -569,7 +569,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           titre={direct ? `Joindre la ${LIBELLE_JUSTIFICATIF_DIRECT.toLocaleLowerCase("fr")}` : "Joindre un devis ou une facture pro forma"}
           aide="Le fichier est obligatoire. Un même devis peut couvrir d'autres postes de cette demande."
           montantInitial={null} fournisseurInitial={item.supplier ?? ""} proforma={direct ? "imposee" : "choix"} freres={freres}
-          plusieursDevis
+          plusieursDevis lirePoste={item.id}
           bouton="Joindre" busy={busy === `dev:${item.id}`} onCancel={fermer}
           onSubmit={(fd) => {
             fd.set("id", item.id);

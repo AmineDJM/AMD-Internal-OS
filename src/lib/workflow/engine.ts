@@ -925,7 +925,21 @@ export async function ouvrirLeCircuit(entityType: EntityType, entityId: string):
   try {
     const category = entityToCategory(entityType);
     if (!category) return;
-    const avant = await prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType, entityId } }, select: { id: true } });
+    let avant = await prisma.workflowInstance.findUnique({
+      where: { entityType_entityId: { entityType, entityId } },
+      select: { id: true, finalSlug: true, skippedSlugs: true, _count: { select: { events: true } } },
+    });
+    // UNE INSTANCE NÉE AVANT LE DEMANDEUR SE REFAIT (recette Ad & Pro, 16/11/2026). La fiche d'un événement, ouverte avant
+    // « Soumettre », posait le circuit sans demandeur — donc sans parcours : chaîne complète, porte du DG comprise (le DG
+    // passait avant le Directeur des opérations), et la soumission, trouvant l'instance, ne prévenait personne. Tant que
+    // personne n'y a rien fait (aucun événement), elle est refaite ici, sur le parcours du demandeur maintenant connu.
+    if (avant && avant.finalSlug === null && avant.skippedSlugs.length === 0 && avant._count.events === 0) {
+      const sommaire = await loadEntity(entityType, entityId);
+      if (sommaire?.requesterId) {
+        await prisma.workflowInstance.deleteMany({ where: { id: avant.id } });
+        avant = null;
+      }
+    }
     const inst = await ensureInstance(entityType, entityId);
     if (!inst || avant || inst.status !== "IN_PROGRESS") return;
     const [def, summary] = await Promise.all([chargerDefinition(inst), loadEntity(entityType, entityId)]);

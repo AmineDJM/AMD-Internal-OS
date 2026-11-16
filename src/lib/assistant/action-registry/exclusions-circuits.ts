@@ -252,6 +252,8 @@ export function classerExclusionsCircuits(): void {
     // LES PIÈCES DE « DEMANDER UN PAIEMENT » (Direction, 04/11/2026) : lire la pièce déposée ou choisie, et chercher dans
     // le registre Legal — deux lectures du formulaire ouvert, qui n'écrivent rien ; la demande, elle, part par createPaymentRequest.
     "payment-request-pieces-actions:lirePieceDePaiement", "payment-request-pieces-actions:documentsLegalPourDemande",
+    // LE DEVIS LU AVANT SON DÉPÔT (Direction, 16/11/2026) : le formulaire du poste se remplit (fournisseur, montant, référence) — une lecture, rien n'est écrit.
+    "ad-pro-item-actions:lireDevisAvantDepot",
     // LE BC MODIFIÉ EN NATIF ET LA FACTURE CONTRÔLÉE PAR LUNA (Direction, 06/10) : une révision du Word et du PDF, et un
     // fichier de facture lu puis comparé au(x) BC signé(s) — des gestes devant la carte du poste, pas des appels d'Adam.
     "ad-pro-item-actions:modifierBcDuPoste", "ad-pro-item-actions:deposerFacturePoste",

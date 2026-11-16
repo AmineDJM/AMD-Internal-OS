@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Clock, X, Hand, Building2, FileSignature, Send, ShieldCheck, PackageCheck, Receipt, Search, ExternalLink, BadgeCheck } from "lucide-react";
+import { Check, Clock, X, Hand, Mail, Copy, Building2, FileSignature, Send, ShieldCheck, PackageCheck, Receipt, Search, ExternalLink, BadgeCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -12,6 +12,7 @@ import { demanderProspection, transmettreDevisAgences, choisirAgencePoste, soume
 import { marquerBcEnvoye, envoyerBatConformite, deciderConformitePoste, signerReceptionPoste } from "../../actions-postes-execution";
 import { preparerBrouillonPoste } from "../../actions-postes-lignes";
 import { lienFichierEmis } from "@/lib/lecteurs/fichiers-emis";
+import { emailDeProspection } from "../../domaine/email-prospection";
 import type { ItemRow, Run } from "../items-panel";
 
 /** Les gestes dont le formulaire vit AILLEURS sur la carte (la case des devis, le visa, la facture) : la carte les ouvre. */
@@ -72,6 +73,34 @@ function Frise({ faits }: { faits: FaitsPosteAgence }) {
   );
 }
 
+/** L'E-MAIL AUX AGENCES, prêt à copier : l'objet, le corps, ou les deux d'un coup (16/11/2026). */
+function EmailAuxAgences({ email }: { email: { objet: string; corps: string } }) {
+  const [copie, setCopie] = React.useState<string | null>(null);
+  const copier = (cle: string, texte: string) => {
+    void navigator.clipboard?.writeText(texte).then(() => { setCopie(cle); setTimeout(() => setCopie(null), 1500); }).catch(() => setCopie(null));
+  };
+  const bouton = (cle: string, libelle: string, texte: string) => (
+    <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => copier(cle, texte)}>
+      {copie === cle ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />} {copie === cle ? "Copié" : libelle}
+    </Button>
+  );
+  return (
+    <div className="space-y-2 rounded-lg border bg-card p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-xs"><span className="text-muted-foreground">Objet :</span> <span className="font-medium">{email.objet}</span></p>
+        {bouton("objet", "Copier l'objet", email.objet)}
+      </div>
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-2.5 font-sans text-xs leading-relaxed">{email.corps}</pre>
+      <div className="flex flex-wrap justify-end gap-1">
+        {bouton("corps", "Copier le texte", email.corps)}
+        {bouton("tout", "Tout copier", `Objet : ${email.objet}
+
+${email.corps}`)}
+      </div>
+    </div>
+  );
+}
+
 export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signature, busy, run, ouvrir }: {
   item: ItemRow;
   regard: RegardAgence;
@@ -86,6 +115,7 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
   const faits = faitsAgenceDuPoste(item);
   const [ouvert, setOuvert] = React.useState<GesteAgence | null>(null);
   const [devisChoisi, setDevisChoisi] = React.useState<string>("");
+  const [emailOuvert, setEmailOuvert] = React.useState(false);
   if (!faits || !item.agence) return null;
   const a = item.agence;
   const pas = pasAgence(faits, regard);
@@ -122,7 +152,21 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
         <p className="flex items-start gap-2 rounded-lg bg-card px-3 py-2 text-sm text-muted-foreground"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> <span>{pas.attente}</span></p>
       ) : null}
 
-      {a.cahierDesCharges && <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Cahier des charges :</span> {a.cahierDesCharges}</p>}
+      {a.cahierDesCharges && (
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <p className="min-w-0 flex-1 text-xs text-muted-foreground"><span className="font-medium text-foreground">Cahier des charges :</span> {a.cahierDesCharges}</p>
+            {!faits.agence.agenceRetenue && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setEmailOuvert((o) => !o)}>
+                <Mail className="h-3.5 w-3.5" /> {emailOuvert ? "Masquer l'e-mail" : "Générer l'e-mail"}
+              </Button>
+            )}
+          </div>
+          {emailOuvert && !faits.agence.agenceRetenue && (
+            <EmailAuxAgences email={emailDeProspection({ poste: item.label, cahierDesCharges: a.cahierDesCharges, evenement: a.evenement ?? null, signataire: faits.agence.assistante })} />
+          )}
+        </div>
+      )}
       {a.agenceNom && <p className="text-xs text-muted-foreground"><span className="font-medium text-foreground">Agence retenue :</span> {a.agenceNom}</p>}
       {a.conformiteNote && faits.agence.conformite === "NON_CONFORME" && <p className="rounded-md bg-warning/10 px-2.5 py-1.5 text-xs"><strong>Non conforme :</strong> {a.conformiteNote}</p>}
 

@@ -248,6 +248,8 @@ export interface AgenceVue {
   signatures: { qualite: string; nom: string; le: string; jeton: string }[];
   /** Le dernier BAT déposé pour le contrôle de conformité. */
   bat: { id: string; nom: string } | null;
+  /** L'événement du poste — l'e-mail de demande de devis le cite (16/11/2026). */
+  evenement?: { nom: string; debut: string | null; fin: string | null; lieu: string | null; ville: string | null } | null;
 }
 
 export const STATUTS_CONFORMITE: readonly StatutConformite[] = ["EN_CONTROLE", "CONFORME", "NON_CONFORME"];

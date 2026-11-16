@@ -18,7 +18,7 @@ import { Prisma } from "@prisma/client";
 import { lireBrouillon } from "@/lib/bons-de-commande/brouillon";
 import { validateAttachments } from "@/lib/attach-files";
 import { createHash } from "node:crypto";
-import { ingererDevisDuPoste, phraseDeLecture } from "@/lib/pieces-lues/devis-poste-lecture";
+import { ingererDevisDuPoste, phraseDeLecture, lireDevisPourFormulaire, type DevisPourFormulaire } from "@/lib/pieces-lues/devis-poste-lecture";
 import { refusDeLaSaisie } from "@/lib/bons-de-commande/saisie-composeur";
 import { attachFormFiles, persistUploadedDocument } from "@/lib/documents";
 import { controlerFacture, refusDemandePaiementBC, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
@@ -79,6 +79,27 @@ async function postesDeLaMemeDemande(ids: readonly string[], user: SessionUser) 
  * devis sans son document est un titre que personne ne peut vérifier. La pièce se juge AVANT d'écrire
  * quoi que ce soit (§118.196d) : un fichier refusé ne laisse pas un devis vide au registre.
  */
+/**
+ * LIRE LE DEVIS AVANT DE LE DÉPOSER (Direction, 16/11/2026) — le formulaire de dépôt se remplit tout seul (fournisseur,
+ * montant, référence), chaque champ marqué « lu par l'IA ». Rien n'est écrit ; les mêmes portes que le dépôt.
+ */
+export async function lireDevisAvantDepot(formData: FormData): Promise<DevisPourFormulaire | { ok: false; raison: string }> {
+  const user = await requireUser();
+  const id = fdStr(formData, "id");
+  if (!id) return { ok: false, raison: "Poste non précisé." };
+  const lot = await postesDeLaMemeDemande([id], user);
+  if ("error" in lot) return { ok: false, raison: lot.error ?? "Poste introuvable." };
+  const { charges, owner } = lot;
+  if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent) && !(await estAssistanteDuPoste(user.id, charges[0].item.id))) {
+    return { ok: false, raison: "Non autorisé." };
+  }
+  const fichier = formData.get("fichier");
+  if (!(fichier instanceof File) || fichier.size === 0) return { ok: false, raison: "Choisissez le devis à lire." };
+  const refus = await validateAttachments([fichier]);
+  if (refus) return { ok: false, raison: refus };
+  return lireDevisPourFormulaire({ userId: user.id, octets: Buffer.from(await fichier.arrayBuffer()), nomFichier: fichier.name });
+}
+
 export async function ajouterDevisPoste(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const ids = [fdStr(formData, "id"), ...formData.getAll("autresPostes").map(String)].filter((x): x is string => Boolean(x));

@@ -14,6 +14,7 @@ import { addAdProItem } from "@/modules/ad-pro/actions-postes";
 import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@/modules/ad-pro/ecrans/description-luna";
 import type { EventDetail } from "@/modules/ad-pro/api";
 import { MultiSelectField } from "@/components/shared/create-record-button";
+import { ChampAnnuaire } from "@/components/directory/champ-annuaire";
 import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
 import { useFormAction } from "@/components/shared/use-action";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
@@ -167,7 +168,8 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
       <Section>Dates et lieu</Section>
       <W label="Début"><Input type="date" name="startDate" defaultValue={d10(e?.startDate ?? null)} required /></W>
       <W label="Fin"><Input type="date" name="endDate" defaultValue={d10(e?.endDate ?? null)} required /></W>
-      <W label="Lieu / salle"><Input name="location" defaultValue={e?.location ?? ""} required /></W>
+      {/* LE LIEU VIENT DE L'ANNUAIRE (hôtel, salle, établissement), et s'y ajoute s'il n'y est pas (16/11/2026). */}
+      <W label="Lieu / salle"><ChampAnnuaire name="location" defaultValue={e?.location ?? ""} required placeholder="Chercher le lieu dans l'annuaire, ou taper son nom" /></W>
       {/* LA VILLE VIENT DU RÉFÉRENTIEL DES WILAYAS — elle s'écrivait en huit orthographes. */}
       <W label="Ville (wilaya)">
         <Select name="city" defaultValue={e?.city ?? ""} required>

@@ -237,7 +237,18 @@ export async function callModel(
   opts: ModelCallOptions = {},
 ): Promise<ModelReply> {
   const reply = await callModelChezLeFournisseur(role, turns, opts);
-  return doitPasserAuSecours(bindingFor(role), reply) ? appelerEnSecours(role, turns, opts) : reply;
+  if (!doitPasserAuSecours(bindingFor(role), reply)) return reply;
+  const secours = await appelerEnSecours(role, turns, opts);
+  return secours.ok ? secours : avecEchecDuSecours(reply, secours);
+}
+
+/**
+ * LE SECOURS A ÉCHOUÉ AUSSI (16/11/2026 : « Le service d'IA a refusé la demande » sur un devis, alors que le crédit OpenAI
+ * était à zéro et que MiMo ne répondait pas) : on rend l'échec D'ORIGINE — le crédit épuisé, avec son remède — et on y
+ * ajoute la raison du secours. Rendre l'erreur de MiMo seule effaçait la vraie cause.
+ */
+export function avecEchecDuSecours(reply: ModelReply, secours: ModelReply): ModelReply {
+  return secours.ok ? secours : { ...reply, error: `${reply.error ?? "crédit épuisé"} — secours : ${secours.error ?? "échec"}` };
 }
 
 async function callModelChezLeFournisseur(
@@ -292,7 +303,7 @@ export async function streamModel(
   // Le crédit épuisé se dit AVANT tout texte : rien n'a été émis. Le secours répond d'un bloc, rendu en un fragment.
   const secours = await appelerEnSecours(role, turns, opts);
   if (secours.ok) onText(textOf(secours.blocks));
-  return secours.ok ? secours : reply;
+  return avecEchecDuSecours(reply, secours);
 }
 
 async function streamModelChezLeFournisseur(

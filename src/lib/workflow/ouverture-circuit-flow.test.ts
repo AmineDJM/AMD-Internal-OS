@@ -29,7 +29,7 @@ vi.mock("@/lib/prisma", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { ensureInstance } from "@/lib/workflow/engine";
+import { ensureInstance, ouvrirLeCircuit } from "@/lib/workflow/engine";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -67,5 +67,28 @@ suite("ensureInstance : la course rend l'existante, la panne remonte", () => {
     const [a, b] = await Promise.all([ensureInstance("SPONSORING", id), ensureInstance("SPONSORING", id)]);
     expect(a?.id).toBeTruthy();
     expect(a?.id).toBe(b?.id);
+  });
+});
+
+suite("une instance née avant le demandeur se refait à la soumission (recette Ad & Pro, 16/11/2026)", () => {
+  const ids = { spo: "", user: "" };
+  afterAll(async () => {
+    const inst = (await prisma.workflowInstance.findMany({ where: { entityId: ids.spo }, select: { id: true } })).map((i) => i.id);
+    await prisma.workflowStepEvent.deleteMany({ where: { instanceId: { in: inst } } }).catch(() => {});
+    await prisma.workflowInstance.deleteMany({ where: { id: { in: inst } } }).catch(() => {});
+    await prisma.sponsoringRequest.deleteMany({ where: { id: ids.spo } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { id: ids.user } }).catch(() => {});
+  });
+
+  it("la fiche ouverte avant « Soumettre » posait la chaîne complète (DG compris) ; la soumission la refait sans le DG", async () => {
+    ids.spo = (await prisma.sponsoringRequest.create({ data: { reference: `${TAG}rf`, institution: `${TAG} Hôpital`, type: "Congrès" } })).id;
+    const avant = await ensureInstance("SPONSORING", ids.spo);
+    expect(avant?.skippedSlugs ?? []).toEqual([]);
+    ids.user = (await prisma.user.create({ data: { name: `${TAG} del`, email: `${TAG}del@t.dz`, role: "MEDICAL_DELEGATE" as never, passwordHash: "x" } })).id;
+    await prisma.sponsoringRequest.update({ where: { id: ids.spo }, data: { requesterId: ids.user } });
+    await ouvrirLeCircuit("SPONSORING", ids.spo);
+    const apres = await prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType: "SPONSORING", entityId: ids.spo } } });
+    expect(apres?.id).not.toBe(avant?.id);
+    expect(apres?.skippedSlugs).toContain("dg");
   });
 });

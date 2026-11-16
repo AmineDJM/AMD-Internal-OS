@@ -147,6 +147,57 @@ export async function ingererDevisDuPoste(i: {
 }
 
 /**
+ * CE QUE LE DEVIS PROPOSE AU FORMULAIRE DE DÉPÔT, AVANT LE DÉPÔT (Direction, 16/11/2026 — « que l'IA lise et remplisse
+ * tout, et le marque rempli par l'IA, comme la demande de paiement »). Rien n'est écrit : le fournisseur (sa fiche dans
+ * l'annuaire quand elle existe), le total imprimé, la référence, la date. La même lecture repasse au dépôt (lignes).
+ */
+export interface DevisPourFormulaire {
+  ok: true;
+  fournisseur: string | null;
+  /** La fiche de l'annuaire reconnue (NIF, RC ou nom) — `null` : à ajouter. */
+  fournisseurFiche: { id: string; nom: string } | null;
+  montant: number | null;
+  reference: string | null;
+  date: string | null;
+  nbLignes: number;
+  phrase: string;
+}
+
+export async function lireDevisPourFormulaire(i: { userId: string; octets: Buffer; nomFichier: string }): Promise<DevisPourFormulaire | { ok: false; raison: string }> {
+  try {
+    const { annuaireVisible, groupe } = await annuaireDeLecture(i.userId);
+    const r = await proposerLecture({
+      user: { id: i.userId }, octets: i.octets, nomFichier: i.nomFichier,
+      contexte: { cible: "LEGAL_DOCUMENT", sortieCloudPermise: true, annuaireVisible, groupe },
+    });
+    if (!r.ok) return { ok: false, raison: r.error };
+    const lecture = lectureDevisPromo(r.proposition, annuaireVisible.map((c) => c.id));
+    const p = lecture.prerempli;
+    const fiche = p.fournisseurId ? annuaireVisible.find((c) => c.id === p.fournisseurId) ?? null : null;
+    const nomLu = identiteUtilisable(r.proposition.emetteur) ? r.proposition.emetteur.nom : null;
+    const lignes = lignesDepuisLaLecture(p.lignes);
+    const doutes = doutesDeLaLecture(lecture.controle, p.tvaNonImprimee ?? null);
+    const lu = [fiche || nomLu ? "le fournisseur" : null, p.announcedTotal != null ? "le total" : null, p.reference ? "la référence" : null]
+      .filter(Boolean).join(", ");
+    return {
+      ok: true,
+      fournisseur: fiche?.nom ?? nomLu,
+      fournisseurFiche: fiche ? { id: fiche.id, nom: fiche.nom } : null,
+      montant: p.announcedTotal,
+      reference: p.reference,
+      date: p.quoteDate,
+      nbLignes: lignes.length,
+      phrase: lu
+        ? `Lu par l'IA : ${lu}${lignes.length ? ` et ${lignes.length} ligne${lignes.length > 1 ? "s" : ""}` : ""} — vérifiez avant de déposer.${doutes.length ? ` À vérifier : ${doutes[0]}` : ""}`
+        : (lecture.sansLignes ?? "L'IA n'a rien pu lire de ce devis : remplissez les champs depuis le papier."),
+    };
+  } catch (err) {
+    console.error("[devis-poste] lecture avant dépôt impossible", err);
+    return { ok: false, raison: "La lecture du devis a échoué (erreur technique) : remplissez les champs depuis le papier." };
+  }
+}
+
+/**
  * LA PHRASE QUI ANNONCE CE QUI A ÉTÉ LU — une rédaction, que l'upload et la relecture disent. Elle nomme la
  * suite : les lignes sont des propositions, et seules les lignes COCHÉES entrent dans un bon de commande.
  */

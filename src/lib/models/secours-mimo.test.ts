@@ -157,3 +157,16 @@ describe("les formes", () => {
     expect(schemaPourClaude({ type: "array", minItems: 1, items: { type: "string", maxLength: 3 } })).toEqual({ type: "array", items: { type: "string" } });
   });
 });
+
+describe("le secours qui échoue garde la cause d'origine (passerelle, 16/11/2026)", () => {
+  it("l'erreur rendue dit le crédit épuisé, puis la raison du secours", async () => {
+    const { avecEchecDuSecours } = await import("./gateway");
+    const usage = { role: "worker", model: "m", provider: "openai", inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, costUsd: 0, ms: 0, attempts: 1 } as never;
+    const origine = { ok: false, configured: true, stop: "error", blocks: [], error: "Erreur IA (HTTP 429) : You have no credits remaining.", usage } as never;
+    const secours = { ok: false, configured: true, stop: "error", blocks: [], error: "MiMo HTTP 401", usage } as never;
+    const r = avecEchecDuSecours(origine, secours) as { ok: boolean; error: string };
+    expect(r.ok).toBe(false);
+    expect(r.error).toContain("no credits remaining");
+    expect(r.error).toContain("MiMo HTTP 401");
+  });
+});

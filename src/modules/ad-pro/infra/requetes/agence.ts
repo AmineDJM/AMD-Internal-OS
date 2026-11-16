@@ -22,11 +22,13 @@ export async function agencesDesPostes(
   if (agence.length === 0) return res;
   const ids = agence.map((i) => i.id);
   const bcIds = ids.map((id) => pieces.get(id)?.bc?.id).filter((x): x is string => Boolean(x));
-  const [execs, signatures, bats] = await Promise.all([
+  const [execs, signatures, bats, evenements] = await Promise.all([
     prisma.adProExecutionPoste.findMany({ where: { itemId: { in: ids } } }),
     bcIds.length ? prisma.signatureBC.findMany({ where: { legalDocumentId: { in: bcIds } }, orderBy: { signedAt: "asc" } }) : Promise.resolve([]),
     prisma.document.findMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: ids }, stepKey: ETAPE_BAT }, select: { id: true, name: true, entityId: true }, orderBy: { createdAt: "desc" } }),
+    prisma.adProItem.findMany({ where: { id: { in: ids } }, select: { id: true, event: { select: { name: true, startDate: true, endDate: true, location: true, city: true } } } }),
   ]);
+  const evenementDe = new Map(evenements.map((x) => [x.id, x.event]));
   const assistantes = [...new Set(execs.map((e) => e.assistanteId).filter((x): x is string => Boolean(x)))];
   const noms = new Map((assistantes.length ? await prisma.user.findMany({ where: { id: { in: assistantes } }, select: { id: true, name: true } }) : []).map((u) => [u.id, u.name]));
   const execDe = new Map(execs.map((e) => [e.itemId, e]));
@@ -60,6 +62,10 @@ export async function agencesDesPostes(
       bcId,
       signatures: sigs.map((s) => ({ qualite: s.qualite, nom: s.signataireNom, le: s.signedAt.toISOString(), jeton: s.jeton })),
       bat: bat ? { id: bat.id, nom: bat.name } : null,
+      evenement: (() => {
+        const ev = evenementDe.get(i.id);
+        return ev ? { nom: ev.name, debut: ev.startDate?.toISOString() ?? null, fin: ev.endDate?.toISOString() ?? null, lieu: ev.location, ville: ev.city } : null;
+      })(),
     });
   }
   return res;

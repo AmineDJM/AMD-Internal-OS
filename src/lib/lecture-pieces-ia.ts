@@ -174,7 +174,14 @@ export function phraseCoupeDuTexte(caracteres: number, caracteresLus: number): s
 
 // Les phrases d'un appel qui n'a rien rendu d'exploitable — l'IA a été appelée, on le dit.
 const PHRASE_PANNE = "Le service d'IA n'a pas répondu : les lignes n'ont pas été lues — réessayez dans un instant, ou saisissez-les depuis le papier.";
-const PHRASE_REFUS = "Le service d'IA a refusé la demande : les lignes n'ont pas été lues — saisissez-les depuis le papier.";
+/**
+ * LE REFUS DIT SA RAISON (16/11/2026) : « a refusé la demande », seul, ne permettait ni de corriger ni de prévenir qui il
+ * faut. La raison du fournisseur (« Erreur IA (HTTP 400) : … », déjà expurgée de toute clé) suit, courte.
+ */
+const phraseRefus = (raison: string | null | undefined): string => {
+  const r = (raison ?? "").replace(/s+/g, " ").trim().slice(0, 180);
+  return `Le service d'IA a refusé la demande${r ? ` (${r})` : ""} : les lignes n'ont pas été lues — saisissez-les depuis le papier.`;
+};
 /** Le crédit du fournisseur épuisé : ni un refus ni une panne — réessayer n'y peut rien, l'administrateur doit recharger. */
 const PHRASE_CREDIT = phraseCreditIaEpuise("en attendant, saisissez les lignes depuis le papier.");
 const PHRASE_LONGUEUR = "La réponse de l'IA a été coupée avant la fin (pièce trop longue) : aucune ligne n'est reprise — saisissez-les depuis le papier.";
@@ -309,7 +316,7 @@ export async function structurerParModele(entree: EntreeLecture, deps: Dependanc
   }
   const error = creditIaEpuise(panne ? messagePanne : reply?.ok ? null : reply?.error) ? PHRASE_CREDIT
     : panne ? PHRASE_PANNE
-    : !reply?.ok ? PHRASE_REFUS
+    : !reply?.ok ? phraseRefus(reply?.error)
     : errorCode === "length" ? PHRASE_LONGUEUR
     : errorCode === "aucune_ligne" ? phraseAucuneLigne(piece?.ecartees ?? 0)
     : PHRASE_INEXPLOITABLE;
