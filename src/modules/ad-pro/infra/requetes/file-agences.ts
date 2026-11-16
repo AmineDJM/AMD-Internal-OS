@@ -1,9 +1,17 @@
 import { prisma } from "@/lib/prisma";
-import type { SessionUser } from "@/lib/rbac";
+import { userCan, type SessionUser } from "@/lib/rbac";
 import { hasRole } from "@/lib/rbac/roles";
 import { ITEM_KIND_LABELS } from "../../domaine/postes";
 import { PARENTS, parentOf, loadItem } from "../postes/commun";
 import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
+import { sitsOnPaymentCentre } from "@/modules/finances/partage";
+import { etapeAgence, pasAgence, type FaitsPosteAgence } from "../../domaine/parcours-agence";
+import { siegeAuCentreAdPro } from "../../domaine/centre";
+import { droitsValidation } from "../../domaine/validation-poste";
+import { refusAvantPrevalidation, refusDemandeFermee, type ParentInfo } from "../postes/commun";
+import { piecesDesPostes } from "../pieces-poste";
+import { devisDesPostes } from "./devis-poste";
+import { agencesDesPostes } from "./agence";
 
 /**
  * LES FILES DU PARCOURS AGENCE (Direction, 15/11/2026) — ce qui attend CHAQUE personne, sans qu'elle ait à ouvrir les demandes :
@@ -119,19 +127,90 @@ export interface TacheAgence {
 }
 
 /**
- * CE QUE LE PARCOURS AGENCE ATTEND DE CETTE PERSONNE, pour « Aujourd'hui » (15/11/2026) : l'assistante (devis à déposer,
- * BC à finaliser), la Direction Marketing (agence à choisir, BC à valider et signer), l'information médicale (BAT à contrôler).
+ * CE QUE LE PARCOURS AGENCE ATTEND DE CETTE PERSONNE, pour « Aujourd'hui » (15/11/2026, complété le 16/11) — CHAQUE geste du
+ * parcours, à qui le tient, par la MÊME règle que la carte du poste (`etapeAgence` / `pasAgence`) : ce que la carte dit
+ * « À vous », la file le dit aussi.
+ *   • Direction Marketing : demander la prospection, choisir l'agence, préparer, valider et signer le BC, l'envoyer, le BAT,
+ *     la réception, la facture — jamais sur sa propre demande (une autre personne de la Direction Marketing, ou le Super Admin) ;
+ *   • l'assistante chargée du poste : devis à déposer, BC à finaliser ou à corriger ;
+ *   • le centre de validation Ad & Pro (DG) : le BC à viser au-dessus du seuil ;
+ *   • les Finances (droit « Modifier » sur Bons de commande) : le BC à signer et cacheter ;
+ *   • l'information médicale : le BAT à contrôler ;
+ *   • le centre de paiement : le paiement à autoriser. (Le règlement est déjà dans la file des Finances.)
  */
 export async function tachesAgence(user: SessionUser): Promise<TacheAgence[]> {
+  const marketingRole = estMarketing(user);
+  const assistanteRole = hasRole(user, "DIRECTION_ASSISTANT");
+  const infoMed = hasRole(user, "MEDICAL_INFO_PHARMACIST") || hasRole(user, "SUPER_ADMIN");
+  const centre = siegeAuCentreAdPro(user);
+  // Qui signe un BC : le droit « Modifier » sur Bons de commande (la règle de `peutSignerBC`, la page Bons de commande).
+  const finances = userCan(user, "PURCHASE_ORDERS", "UPDATE");
+  const paiement = sitsOnPaymentCentre(user as Parameters<typeof sitsOnPaymentCentre>[0]);
+  if (!marketingRole && !assistanteRole && !infoMed && !centre && !finances && !paiement) return [];
+  // Seule l'assistante ne voit que SES postes ; les autres rôles tiennent une étape de tous les postes « agence » en cours.
+  const seulementSiens = assistanteRole && !marketingRole && !infoMed && !centre && !finances && !paiement;
+
+  const items = await prisma.adProItem.findMany({
+    where: {
+      voie: "AGENCE", status: { not: "REJECTED" }, montantPayeHistorique: null,
+      ...(seulementSiens ? { execution: { assistanteId: user.id } } : {}),
+    },
+    orderBy: { updatedAt: "asc" }, take: 200,
+    select: {
+      id: true, label: true, kind: true, status: true, orderStage: true, voie: true, conformiteRequise: true, updatedAt: true, expenseOrderId: true,
+      execution: { select: { assistanteId: true } },
+      sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
+    },
+  });
+  // L'ordre de paiement de chaque poste (sans relation au schéma) : un poste PAYÉ n'attend plus personne.
+  const ordreIds = items.map((i) => i.expenseOrderId).filter((x): x is string => Boolean(x));
+  const ordres = new Map((ordreIds.length ? await prisma.expenseOrder.findMany({ where: { id: { in: ordreIds } }, select: { id: true, status: true, centralStatus: true } }) : [])
+    .map((o) => [o.id, { status: String(o.status), centralStatus: String(o.centralStatus) }]));
+  const enCours = items.filter((i) => !i.expenseOrderId || ordres.get(i.expenseOrderId)?.status !== "PAID");
+  if (enCours.length === 0) return [];
+  const ids = enCours.map((i) => i.id);
+  const [pieces, devis] = await Promise.all([piecesDesPostes(ids), devisDesPostes(ids)]);
+  const agences = await agencesDesPostes(enCours, pieces, devis);
+  const infos = new Map<string, ParentInfo | null>();
+  const demandeurs = new Map<string, { id: string; role: string; secondaryRole: string | null } | null>();
+
   const out: TacheAgence[] = [];
-  const file = await fileAgences(user).catch(() => null);
-  for (const l of file ?? []) {
-    if (!l.aMoi) continue;
-    out.push({ key: `agence-${l.itemId}`, objet: `AD_PRO_ITEM:${l.itemId}`, title: `${l.label} — ${l.ref}`, subtitle: "Parcours agence", href: l.lien, depuis: l.depuis, statusLabel: LIBELLE_ETAPE_FILE[l.etape] });
-  }
-  if (hasRole(user, "MEDICAL_INFO_PHARMACIST")) {
-    for (const l of await fileConformite()) {
-      out.push({ key: `bat-${l.itemId}`, objet: `AD_PRO_ITEM_BAT:${l.itemId}`, title: `BAT — ${l.label} — ${l.ref}`, subtitle: "Contrôle de conformité", href: l.lien, depuis: l.depuis, statusLabel: "À contrôler" });
+  for (const i of enCours) {
+    const owner = parentOf(i);
+    const agence = agences.get(i.id);
+    const ordre = i.expenseOrderId ? ordres.get(i.expenseOrderId) ?? null : null;
+    if (!owner || !agence) continue;
+    const cle = `${owner.parent}:${owner.id}`;
+    if (!infos.has(cle)) infos.set(cle, await PARENTS[owner.parent].load(owner.id));
+    const info = infos.get(cle);
+    if (!info) continue;
+    const p = pieces.get(i.id);
+    const faits: FaitsPosteAgence = {
+      status: i.status, orderStage: i.orderStage,
+      bc: p?.bc ? (p.bc.etape ?? "HORS_CIRCUIT") : null,
+      factures: p?.factures.length ?? 0, expenseOrderId: i.expenseOrderId,
+      expenseOrderStatus: ordre?.status ?? null, expenseOrderCentral: ordre?.centralStatus ?? null,
+      agence: agence.faits,
+    };
+    const etape = etapeAgence(faits);
+    // On ne demande pas la prospection d'un poste dont la demande n'est pas encore prévalidée, ou est refusée.
+    if (etape === "PROSPECTION_A_DEMANDER" && (refusAvantPrevalidation(info) || refusDemandeFermee(info))) continue;
+    if (!demandeurs.has(cle)) {
+      demandeurs.set(cle, info.requesterId ? await prisma.user.findUnique({ where: { id: info.requesterId }, select: { id: true, role: true, secondaryRole: true } }) : null);
+    }
+    const marketing = marketingRole && droitsValidation(user, demandeurs.get(cle) ?? null).marketing;
+    const pas = pasAgence(faits, {
+      marketing, assistante: agence.assistanteId === user.id, infoMed, centre, fige: Boolean(info.clos || info.refusee),
+    });
+    const poste = lienPosteAdPro(owner.parent, owner.id, i.id);
+    const base = { key: `agence-${i.id}`, objet: `AD_PRO_ITEM:${i.id}`, title: `${i.label} — ${info.ref}`, subtitle: `Parcours agence · ${ITEM_KIND_LABELS[i.kind]}`, depuis: i.updatedAt.toISOString() };
+    if (pas.geste) {
+      const chezAssistante = agence.assistanteId === user.id && !marketingRole;
+      out.push({ ...base, href: chezAssistante ? `/agences/${i.id}` : poste, statusLabel: pas.geste.libelle });
+    } else if (etape === "BC_A_SIGNER_FINANCES" && finances) {
+      out.push({ ...base, href: "/bons-de-commande", statusLabel: "Signer et cacheter le BC" });
+    } else if (etape === "PAIEMENT" && paiement && faits.expenseOrderCentral === "AWAITING") {
+      out.push({ ...base, href: "/centre-de-paiement", statusLabel: "Autoriser le paiement" });
     }
   }
   return out;

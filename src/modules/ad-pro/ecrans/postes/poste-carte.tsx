@@ -824,6 +824,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                   onJoindre={() => basculer("DEMANDER_BC")}
                   onReviser={peutDemanderRevision ? () => setPanneau("REVISION_DEMANDEE") : undefined}
                   onAccorder={peutAccorder ? ouvrirAccord : undefined}
+                  parAgence={Boolean(agence)}
                   repli={<EtatBC item={item} />}
                 />
                 )}

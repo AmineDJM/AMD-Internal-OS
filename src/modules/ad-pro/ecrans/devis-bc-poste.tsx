@@ -165,7 +165,7 @@ function FriseBC({ bc }: { bc: BcDePoste }) {
   );
 }
 
-export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutTraiter, moi, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, onAccorder, repli }: {
+export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutTraiter, moi, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, onAccorder, parAgence = false, repli }: {
   itemId: string;
   bcs: BcDePoste[];
   devis: DevisDePosteVue[];
@@ -186,6 +186,11 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
   onReviser?: () => void;
   /** « Accorder le poste », quand la personne qui regarde peut l'accorder et qu'il ne l'est pas encore. */
   onAccorder?: () => void;
+  /**
+   * PARCOURS AGENCE (15/11/2026) : l'assistante corrige le BC et le SOUMET à la Direction Marketing (bouton de la carte) ; c'est la
+   * Direction Marketing qui le valide, le signe et le cachette. Ici donc, ni « Valider le BC » (que le serveur refuse), ni sa promesse.
+   */
+  parAgence?: boolean;
   /** Ce que la case montrait avant (demande chez l'assistante, déposé, centre…) quand aucun BC n'est encore rattaché. */
   repli: React.ReactNode;
 }) {
@@ -243,13 +248,17 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
             </span>
           </div>
           <p className="text-muted-foreground">
-            {siens(d)
-              ? "Généré à la validation du devis. Vérifiez-le et modifiez-le ici — chaque modification est enregistrée — puis validez-le : il partira à la page Bons de commande pour être signé."
-              : `Généré à la validation du devis — ${d.depose ? `${d.depose.nom} le vérifie et le valide` : "la personne qui a ajouté le devis le vérifie et le valide"}.`}
+            {parAgence
+              ? siens(d)
+                ? "Préparé d'après le devis de l'agence retenue. Vérifiez-le et modifiez-le ici — chaque modification est enregistrée — puis « Soumettre à la Direction Marketing » sur la carte : elle le valide, le signe et le cachette."
+                : `Préparé d'après le devis de l'agence retenue — ${d.depose ? `${d.depose.nom} le finalise` : "l'assistante le finalise"}, puis la Direction Marketing le valide, le signe et le cachette.`
+              : siens(d)
+                ? "Généré à la validation du devis. Vérifiez-le et modifiez-le ici — chaque modification est enregistrée — puis validez-le : il partira à la page Bons de commande pour être signé."
+                : `Généré à la validation du devis — ${d.depose ? `${d.depose.nom} le vérifie et le valide` : "la personne qui a ajouté le devis le vérifie et le valide"}.`}
           </p>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <Button size="sm" variant={siens(d) ? "primary" : "outline"} onClick={() => setOuvert(d.pieceId)}>
-              {siens(d) ? <><Pencil className="h-3.5 w-3.5" /> Vérifier, modifier et valider</> : <><Eye className="h-3.5 w-3.5" /> Voir le BC</>}
+              {siens(d) ? <><Pencil className="h-3.5 w-3.5" /> {parAgence ? "Vérifier et modifier le BC" : "Vérifier, modifier et valider"}</> : <><Eye className="h-3.5 w-3.5" /> Voir le BC</>}
             </Button>
           </div>
           {moi.superAdmin && <HistoriqueDuBc itemId={itemId} pieceId={d.pieceId} />}
@@ -286,7 +295,7 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
       {devisOuvert && (
         <ApercuBonDeCommande
           itemId={itemId} pieceId={devisOuvert.pieceId} nomDevis={devisOuvert.reference ?? devisOuvert.titre}
-          peutEditer={siens(devisOuvert)} peutValider={siens(devisOuvert)} run={run}
+          peutEditer={siens(devisOuvert)} peutValider={siens(devisOuvert) && !parAgence} run={run}
           onClose={() => setOuvert(null)}
         />
       )}
