@@ -164,6 +164,7 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
         itemId: true,
         createdById: true,
         voyageur: { select: { retenuLe: true, voyageur: { select: { id: true, nom: true, prenom: true } } } },
+        nonRetenuAt: true,
         legalDocument: {
           select: {
             id: true, title: true, reference: true, counterparty: true, status: true, cancelledAt: true,
@@ -304,6 +305,16 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
       // Rien à générer pour lui : son état le dit, et aucun aperçu ne s'ouvre sur une pièce qui ne compte pas.
       if (v.etat === "A_GENERER") { v.etat = "MIS_A_PART"; v.nbAjoutees = 0; v.brouillon = null; }
     }
+  }
+  // LES DEVIS « NON RETENUS » (parcours agence, 16/11/2026) : l'agence choisie, les autres devis ne comptent plus — ni dans le
+  // plafond du poste, ni dans un BC. Sans cela, leurs lignes validées (saisies à la main, donc validées) s'additionnaient à
+  // celles du devis retenu, et le BC était refusé pour un « dépassement » de trois devis.
+  for (const lien of liensDevis) {
+    if (!lien.nonRetenuAt) continue;
+    const v = res.get(lien.itemId)?.find((x) => x.pieceId === lien.legalDocument.id);
+    if (!v || v.bc) continue;
+    v.miseAPart = { motif: "ECARTE", de: "l'agence retenue", phrase: "Non retenu : une autre agence a été choisie — il ne compte ni dans le plafond du poste, ni dans un bon de commande." };
+    if (v.etat === "A_GENERER") { v.etat = "MIS_A_PART"; v.nbAjoutees = 0; v.brouillon = null; }
   }
   return res;
 }
