@@ -344,9 +344,9 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           )}
           {item.supplier && <span>· {item.supplier}</span>}
           {item.budgetCategoryLabel && <span>· {item.budgetCategoryLabel}</span>}
-          {item.voie && <span className={ETIQUETTE}>{item.voie === "AGENCE" ? `Par une agence${item.conformiteRequise ? " · conformité" : ""}` : "Paiement direct"}</span>}
+          {/* MOINS D'ÉTIQUETTES (16/11/2026) : la voie « agence » se lit sur sa frise ; « ajouté après décision » ne disait rien d'utile. */}
+          {item.voie === "DIRECT" && <span className={ETIQUETTE}>Paiement direct</span>}
           {item.budgetKind === "ADDITIONAL" && <span className={ETIQUETTE}>Rallonge</span>}
-          {item.addedAfterDecision && <span className={ETIQUETTE}>Ajouté après décision</span>}
         </p>
       )}
 
@@ -880,7 +880,9 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
             </CasePiece>
           ),
         });
-        return <ChaineDuPoste onglets={onglets} demande={ongletDemande} />;
+        // Les devis restent dépliés tant qu'on les dépose et les lit (prospection demandée, devis pas encore transmis).
+        const devisEnCours = Boolean(agence && item.agence?.faits.prospectionDemandee && !item.agence.faits.devisTransmis);
+        return <ChaineDuPoste onglets={onglets} demande={ongletDemande} replie={Boolean(agence) && !devisEnCours} />;
       })()}    </li>
   );
 }

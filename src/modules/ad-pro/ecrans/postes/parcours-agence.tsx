@@ -139,17 +139,14 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
   const pdfBc = a.bcId ? lienFichierEmis(a.bcId, "pdf") : null;
 
   return (
-    <section className="space-y-2.5 rounded-lg border border-primary/20 bg-primary/[0.03] p-2.5" aria-label="Parcours agence du poste">
+    <section className="space-y-2.5" aria-label="Parcours agence du poste">
       <Frise faits={faits} />
 
       {/* À VOUS — un seul bouton ; sinon CHEZ QUI en est le poste. */}
       {pas.geste ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-card p-2.5">
-          <span className="rounded-full bg-primary px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary-foreground">À vous</span>
-          <Button size="sm" onClick={() => agir(pas.geste!.cle)} disabled={enCours}>{ICONE[pas.geste.cle]} {pas.geste.libelle}</Button>
-        </div>
+        <Button size="sm" className="w-full sm:w-auto" onClick={() => agir(pas.geste!.cle)} disabled={enCours}>{ICONE[pas.geste.cle]} {pas.geste.libelle}</Button>
       ) : pas.attente ? (
-        <p className="flex items-start gap-2 rounded-lg bg-card px-3 py-2 text-sm text-muted-foreground"><Clock className="mt-0.5 h-4 w-4 shrink-0 text-primary" /> <span>{pas.attente}</span></p>
+        <p className="flex items-start gap-1.5 text-sm text-muted-foreground"><Clock className="mt-0.5 h-4 w-4 shrink-0" /> <span>{pas.attente}</span></p>
       ) : null}
 
       {a.cahierDesCharges && (
