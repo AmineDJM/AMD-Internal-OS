@@ -11,8 +11,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY } from "@/lib/labels";
 import {
   sortByPriority, isOverdue, deadlineLabel, isWithFinance, isCompanionDossier, deadlineNatureLabel,
-  deadlineNatureOf, groupByEntity, unassignedWarning,
+  deadlineNatureOf, groupByEntity, unassignedWarning, lignesMesDemandes,
 } from "@/modules/finances/partage";
+import { ListeMesDemandes } from "./liste-mes-demandes";
 import { NewPaymentButton } from "./new-payment-button";
 import { getMyCompanies } from "@/lib/company";
 import { fileAInstruire, instruitLesDemandes, myPaymentRequests } from "@/modules/finances/api";
@@ -182,7 +183,8 @@ export default async function PaymentRequestsPage() {
             retrouver ici est la condition pour pouvoir relancer ou signaler une urgence. */}
         {mine.length === 0
           ? <EmptyState icon="Banknote" title="Aucune demande" description="Utilisez « Demander un paiement » : le dossier passe par le centre de paiement, qui l'autorise, puis les Finances le règlent." />
-          : <Rows rows={mine} />}
+          // TRIABLES (Direction, 10/11/2026) : la plus récente en tête, « Trier par », et « Ma priorité ».
+          : <ListeMesDemandes lignes={lignesMesDemandes(mine, PAYMENT_URGENCY)} forme="tableau" />}
       </section>
     </div>
   );

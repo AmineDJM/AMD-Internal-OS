@@ -9,7 +9,9 @@ import { formatCurrency } from "@/lib/utils";
 import { PAYMENT_PIECE_KIND, PAYMENT_PIECE_KIND_OPTIONS, PAYMENT_PIECE_STATUS, PAYMENT_REQUEST_STATUS } from "@/lib/labels";
 import { mesDemandesDePaiementEnCours } from "@/modules/finances/actions-pieces-paiement";
 import { addPaymentPiece } from "@/modules/finances/actions-demandes";
-import type { DemandeEnCours, FichierEnCours } from "@/modules/finances/partage";
+import { dateDeLaDemande, trierMesDemandes, type DemandeEnCours, type FichierEnCours } from "@/modules/finances/partage";
+import { MenuDeTri } from "./liste-mes-demandes";
+import { useTriMesDemandes } from "./tri-mes-demandes";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -30,6 +32,8 @@ type Depot = { demandeId: string; remplace: FichierEnCours | null };
 export function MesDemandesEnCours() {
   const [demandes, setDemandes] = React.useState<DemandeEnCours[] | null>(null);
   const [depot, setDepot] = React.useState<Depot | null>(null);
+  // LE MÊME TRI que « Mes demandes » (Direction, 10/11/2026) : la plus récente en tête, ou l'ordre choisi — retenu.
+  const [tri, setTri] = useTriMesDemandes();
 
   const charger = React.useCallback(() => {
     void mesDemandesDePaiementEnCours().then(setDemandes).catch(sansBloquer("mes-demandes-en-cours.charger"));
@@ -40,14 +44,21 @@ export function MesDemandesEnCours() {
     setDepot((o) => (o && o.demandeId === demandeId && (o.remplace?.id ?? null) === (remplace?.id ?? null) ? null : { demandeId, remplace }));
 
   if (!demandes || demandes.length === 0) return null;
+  const triees = trierMesDemandes(
+    demandes.map((d) => ({ ...d, montant: d.amount, statut: d.status })),
+    tri,
+  );
   return (
     <section className="space-y-2 rounded-xl border border-border p-3" aria-label="Vos demandes en cours">
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-2">
         <p className="text-sm font-medium">Vos demandes en cours</p>
+        {demandes.length > 1 && <MenuDeTri tri={tri} onChange={setTri} />}
+      </div>
+      <div>
         <p className="text-xs text-muted-foreground">La facture ou la pièce concerne l&apos;une d&apos;elles ? Remplacez son fichier ou ajoutez-en un à cette demande, plutôt que d&apos;en créer une nouvelle.</p>
       </div>
       <ul className="divide-y divide-border">
-        {demandes.map((d) => {
+        {triees.map((d) => {
           const bloque = d.fichiers.find((f) => !f.remplacable)?.refus ?? null;
           return (
             <li key={d.id} className="space-y-2 py-2">
@@ -55,7 +66,7 @@ export function MesDemandesEnCours() {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium"><span className="font-mono text-xs text-muted-foreground">{d.reference}</span> · {d.title}</p>
                   <p className="text-xs text-muted-foreground">
-                    {d.payee} · {formatCurrency(d.amount)} · {PAYMENT_REQUEST_STATUS[d.status]?.label ?? d.status} · {d.pieces} pièce{d.pieces > 1 ? "s" : ""}
+                    Demandée le {dateDeLaDemande(d.creeLe)} · {d.payee} · {formatCurrency(d.amount)} · {PAYMENT_REQUEST_STATUS[d.status]?.label ?? d.status} · {d.pieces} pièce{d.pieces > 1 ? "s" : ""}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">

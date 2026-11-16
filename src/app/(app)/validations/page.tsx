@@ -26,7 +26,8 @@ import { SupervisionBoard } from "./supervision-board";
 import { supervisionCounters } from "@/lib/validation-supervision";
 import { NewPaymentButton } from "./paiements/new-payment-button";
 import { myPaymentRequests } from "@/modules/finances/api";
-import { sortByPriority, isOverdue, deadlineLabel } from "@/modules/finances/partage";
+import { lignesMesDemandes } from "@/modules/finances/partage";
+import { ListeMesDemandes } from "./paiements/liste-mes-demandes";
 import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY } from "@/lib/labels";
 import { toNumber } from "@/lib/utils";
 import { SuperAdminDeleteButton } from "@/components/shared/super-admin-delete";
@@ -206,25 +207,8 @@ export default async function ValidationsPage(props: { searchParams: Promise<{ f
               Tout voir
             </Link>
           </div>
-          <div className="surface divide-y divide-border p-0">
-            {sortByPriority(mesPaiements).map((p) => (
-              <Link
-                key={p.id} href={`/validations/paiements/${p.id}`}
-                className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5 text-sm hover:bg-secondary/40"
-              >
-                <span className="font-mono text-xs text-muted-foreground">{p.reference}</span>
-                {/* Au téléphone, l'objet prend sa propre ligne : tronqué à côté de la référence, il ne disait plus rien. */}
-                <span className="w-full min-w-0 truncate font-medium sm:w-auto sm:flex-1">{p.title}</span>
-                <span className="min-w-0 truncate text-xs text-muted-foreground">{p.payee}</span>
-                <span className="whitespace-nowrap font-semibold tabular-nums">{formatCurrency(toNumber(p.amount))}</span>
-                <span className="text-xs text-muted-foreground">
-                  {deadlineLabel(p, PAYMENT_URGENCY)}
-                  {isOverdue(p) && <Badge tone="danger" dot={false} className="ml-1.5">en retard</Badge>}
-                </span>
-                <StatusBadge map={PAYMENT_REQUEST_STATUS} value={p.status} dot={false} />
-              </Link>
-            ))}
-          </div>
+          {/* TRIABLES (Direction, 10/11/2026) : la plus récente en tête, « Trier par », et « Ma priorité ». */}
+          <ListeMesDemandes lignes={lignesMesDemandes(mesPaiements, PAYMENT_URGENCY)} forme="liste" />
         </section>
       )}
     </div>

@@ -1,5 +1,20 @@
 ## 🧾 Journal des évolutions récentes
 
+### MES DEMANDES DE PAIEMENT : LA PLUS RÉCENTE EN TÊTE, ET « MA PRIORITÉ » (2026-11-10)
+
+« Affichées de la plus récente à la plus ancienne, et l'utilisateur peut les ordonner comme il veut, selon sa priorité »
+(Direction). Les trois listes des demandes de la personne — /validations (« Mes demandes de paiement »),
+/validations/paiements (« Mes demandes ») et « Vos demandes en cours » du formulaire — partagent une règle pure
+(`trierMesDemandes`, `domaine/mes-demandes-ordre.ts`) : **Plus récentes** par défaut (date de création), puis **Plus
+anciennes**, **Échéance la plus proche** (l'ancien ordre, `sortByPriority`), **Montant**, **Statut** (ce qui attend la
+personne d'abord) et **Ma priorité** — ↑ / ↓ sur chaque demande, l'ordre complet enregistré par
+`ordonnerMesDemandesDePaiement` dans `PaymentRequest.rangDemandeur` (migration `20270241000000`), pour les SEULES demandes
+de la personne ; une demande neuve, pas encore rangée, passe en tête. Le tri choisi est retenu dans le navigateur. La file
+des Finances garde son tri par échéance. Le 16/11 : chaque ligne montre **« Demandée le »** (jour et heure, à l'heure
+d'Alger — `dateDeLaDemande`, fixée pour que serveur et navigateur écrivent la même chose), et « Ma priorité » gagne
+**⇈ Mettre en tête** (`mettreEnTeteDeMonOrdre`) à côté de ↑ / ↓. Bancs : `mes-demandes-ordre.test.ts`,
+`pieces-legal-flow.test.ts`.
+
 ### IA : LE SECOURS MiMo QUAND LE CRÉDIT OPENAI EST ÉPUISÉ (2026-11-10)
 
 « Quand il y a ce problème, il faut utiliser le modèle suivant — l'autre IA de la plateforme » (Direction). Le 09/11, toute

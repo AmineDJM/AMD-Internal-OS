@@ -8303,7 +8303,8 @@ model PromoQuote {
   updatedAt             DateTime         @updatedAt
 
   /// LE DEVIS AU REGISTRE LEGAL (Direction, 09/11/2026) : la pièce Legal « devis » née de cette retranscription.
-  legalDocumentId       String?          @unique
+  legalDocumentId String? @unique
+
   @@index([promoMaterialId])
   @@index([purchaseOrderId])
 }
@@ -14092,6 +14093,10 @@ model PaymentRequest {
   /// deux règles de décision opposées : un compagnon ne se tranche pas ici, il rassemble les
   /// pièces et la discussion. Voir `src/lib/finance/dossier-auto.ts`.
   origin String @default("REQUEST")
+
+  /// LA PLACE CHOISIE PAR LE DEMANDEUR dans « Mes demandes » (« Ma priorité », Direction 10/11/2026) — `null` tant
+  /// qu'il ne l'a pas rangée. Son ordre à LUI : la file des Finances ne le lit pas.
+  rangDemandeur Int?
 
   submittedAt DateTime?
   createdAt   DateTime  @default(now())

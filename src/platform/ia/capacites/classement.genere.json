@@ -8504,6 +8504,16 @@
   "annulation": "retour",
   "appelable": true
  },
+ "payment-request-pieces-actions:ordonnerMesDemandesDePaiement": {
+  "risque": "R4",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": true
+ },
  "payroll-hr-actions:envoyerPaieAuCentre": {
   "risque": "R4",
   "familles": [

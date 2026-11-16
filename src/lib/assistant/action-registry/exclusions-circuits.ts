@@ -321,6 +321,11 @@ export function classerExclusionsCircuits(): void {
     + "d'écran. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
     "payment-request-pieces-actions:mesDemandesDePaiementEnCours",
   ]);
+  X("MES DEMANDES DE PAIEMENT — « MA PRIORITÉ » (Direction, 10/11/2026) : la personne range SES demandes dans l'ordre "
+    + "qui compte pour elle (↑ / ↓). Une préférence d'affichage, sur ses seules demandes — la file des Finances ne la lit "
+    + "pas. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+    "payment-request-pieces-actions:ordonnerMesDemandesDePaiement",
+  ]);
   X("PRISES EN CHARGE — PROFESSIONNELS PROPOSÉS ET LEURS PIÈCES (§118.205) : créer le profil d'un professionnel, "
     + "demander ses pièces (passeport, visa, informations de voyage) et les déposer. Chacun touche à une identité ou "
     + "dépose un FICHIER devant la fiche de la demande. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [

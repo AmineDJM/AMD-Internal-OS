@@ -39,6 +39,11 @@ export {
   DEADLINE_NATURE_OPTIONS, deadlineNatureLabel, deadlineNatureOf, deferralWarning,
 } from "./domaine/deadline-nature";
 export {
+  type CleDeTri, dateDeLaDemande, deplacerDansMonOrdre, estTriMesDemandes, LIBELLE_TRI, mettreEnTeteDeMonOrdre, ORDRE_MAX, TRI_PAR_DEFAUT, TRIS_MES_DEMANDES,
+  trierMesDemandes, type TriMesDemandes,
+} from "./domaine/mes-demandes-ordre";
+export { type LigneMaDemande, lignesMesDemandes } from "./domaine/mes-demandes-lignes";
+export {
   canDecideFromDossier, canNudge, companionNotice, isCompanionDossier, NUDGE_LABEL, nudgeKindOf, nudgeMessage,
 } from "./domaine/dossier-auto";
 export {

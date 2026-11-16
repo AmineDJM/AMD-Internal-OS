@@ -169,6 +169,12 @@ export interface DemandeEnCours {
   pieces: number;
   /** ISO. */
   majLe: string;
+  /** ISO — la date où la demande a été créée (l'ordre par défaut : la plus récente en tête). */
+  creeLe: string;
+  /** Sa place choisie par la personne (« Ma priorité ») — `null` tant qu'elle ne l'a pas rangée. */
+  rang: number | null;
+  /** Sa place dans le tri par échéance (`sortByPriority`). */
+  rangEcheance: number;
   /** Les fichiers en vigueur — pour les CHANGER depuis « Demander un paiement » (Direction, 09/11/2026 : « changer le
    *  fichier, pas seulement en ajouter »). `remplacable` = ce que l'action accepterait (`refusDeRemplacement`). */
   fichiers: FichierEnCours[];

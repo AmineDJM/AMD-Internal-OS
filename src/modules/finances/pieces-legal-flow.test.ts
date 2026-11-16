@@ -19,7 +19,7 @@ import { getAccess, type SessionUser } from "@/lib/rbac";
 import { retirerComptesEtSemis } from "@/lib/actions/internes/menage-de-banc";
 import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 import { createPaymentRequest } from "./actions-demandes";
-import { documentsLegalPourDemande, lirePieceDePaiement, mesDemandesDePaiementEnCours } from "./actions-pieces-paiement";
+import { documentsLegalPourDemande, lirePieceDePaiement, mesDemandesDePaiementEnCours, ordonnerMesDemandesDePaiement } from "./actions-pieces-paiement";
 
 /**
  * LES PIÈCES D'UNE DEMANDE DE PAIEMENT, CHOISIES DANS LEGAL OU DÉPOSÉES (Direction, 04/11/2026) — par les vraies actions.
@@ -206,5 +206,26 @@ suite("demande de paiement — les pièces choisies dans Legal ou déposées", (
     ACTOR = await acteur(financesId, "FINANCE_BUDGET_MANAGER");
     const autres = (await mesDemandesDePaiementEnCours()).map((d) => d.id);
     for (const id of ouvertes) expect(autres).not.toContain(id);
+  });
+
+  // « MA PRIORITÉ » (Direction, 10/11/2026) : la personne range SES demandes ; celles d'un autre ne bougent pas.
+  it("l'ordre choisi est gardé, pour les seules demandes de la personne ; la plus récente vient d'abord", async () => {
+    ACTOR = await acteur(demandeurId, "DIRECTION");
+    const ouvertes = demandes.filter(Boolean);
+    await prisma.paymentRequest.updateMany({ where: { id: { in: ouvertes } }, data: { status: "SUBMITTED", rangDemandeur: null } });
+    const parDate = (await mesDemandesDePaiementEnCours()).filter((d) => ouvertes.includes(d.id));
+    expect(parDate.map((d) => d.creeLe)).toEqual([...parDate.map((d) => d.creeLe)].sort().reverse());
+
+    const voulu = [...ouvertes].reverse();
+    expect(await ordonnerMesDemandesDePaiement(voulu)).toEqual({ ok: true });
+    const rangs = await prisma.paymentRequest.findMany({ where: { id: { in: ouvertes } }, select: { id: true, rangDemandeur: true } });
+    for (const r of rangs) expect(r.rangDemandeur).toBe(voulu.indexOf(r.id));
+
+    // Un autre ne range pas MES demandes : rien ne bouge.
+    ACTOR = await acteur(financesId, "FINANCE_BUDGET_MANAGER");
+    expect(await ordonnerMesDemandesDePaiement([...ouvertes])).toEqual({ ok: true });
+    const apres = await prisma.paymentRequest.findMany({ where: { id: { in: ouvertes } }, select: { id: true, rangDemandeur: true } });
+    for (const r of apres) expect(r.rangDemandeur).toBe(voulu.indexOf(r.id));
+    expect(await ordonnerMesDemandesDePaiement(["x", 3 as unknown as string])).toMatchObject({ ok: false });
   });
 });
