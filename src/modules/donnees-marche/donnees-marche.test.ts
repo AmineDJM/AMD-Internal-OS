@@ -60,6 +60,24 @@ describe("dépôt des données marché", () => {
     expect(flux.presentations[0]!.molecules).toEqual(["AMLODIPINE", "VALSARTAN"]);
   });
 
+  it("refait un dépôt resté à moitié au lieu de le prendre pour un doublon", async () => {
+    const buf = classeur({ "Nomenclature T2": [
+      ["N°", "N°ENREGISTREMENT", "CODE", "DENOMINATION COMMUNE INTERNATIONALE", "STATUT", "DATE D'ENREGISTREMENT INITIAL"],
+      [1, `010/${jeton}`, "99 Z 002", "DEMISTATINE", "F", "00/00/2019"],
+      [2, `011/${jeton}`, "99 Z 002", "DEMISTATINE", "I", "12/03/2019"],
+    ] });
+    const r = await deposerFichierMarche(`demi-${jeton}.xlsx`, buf, null);
+    if (!r.ok) throw new Error(r.erreur);
+    crees.push(r.importId);
+    expect(r.lignes).toBe(2);
+    await prisma.nomenclatureLigne.deleteMany({ where: { importId: r.importId, numero: 2 } }); // simule une écriture interrompue
+    const bis = await deposerFichierMarche(`demi-${jeton}.xlsx`, buf, null);
+    if (!bis.ok) throw new Error(bis.erreur);
+    crees.push(bis.importId);
+    expect(bis.deja).toBe(false);
+    expect(await prisma.nomenclatureLigne.count({ where: { importId: bis.importId } })).toBe(2);
+  });
+
   it("refuse un classeur qui n'est ni l'un ni l'autre", async () => {
     const r = await deposerFichierMarche("x.xlsx", classeur({ A: [["x", "y"], [1, 2]] }), null);
     expect(r.ok).toBe(false);

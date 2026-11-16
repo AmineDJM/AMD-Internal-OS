@@ -23,7 +23,13 @@ export async function POST(req: Request) {
   const fichier = form?.get("fichier");
   if (!(fichier instanceof File) || fichier.size === 0) return retour({ erreur: "Choisissez un fichier Excel." });
   if (fichier.size > TAILLE_MAX) return retour({ erreur: "Fichier trop lourd (40 Mo au plus)." });
-  const r = await deposerFichierMarche(fichier.name, Buffer.from(await fichier.arrayBuffer()), user.id);
+  let r: Awaited<ReturnType<typeof deposerFichierMarche>>;
+  try {
+    r = await deposerFichierMarche(fichier.name, Buffer.from(await fichier.arrayBuffer()), user.id);
+  } catch (err) {
+    console.error("[donnees-marche/import] dépôt impossible", err);
+    return retour({ erreur: "Le fichier n'a pas pu être enregistré : rien n'a été gardé. Réessayez, ou transmettez le fichier à l'équipe technique." });
+  }
   if (!r.ok) return retour({ erreur: r.erreur });
   return retour({ ok: r.nature, lignes: String(r.lignes), deja: r.deja ? "1" : "0" });
 }

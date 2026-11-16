@@ -52,11 +52,18 @@ export function dateIso(v: unknown): string | null {
   }
   if (typeof v === "string") {
     const m = v.trim().match(/^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/);
-    if (m) return `${m[3]}-${m[2]!.padStart(2, "0")}-${m[1]!.padStart(2, "0")}`;
+    if (m) return dateValide(+m[3]!, +m[2]!, +m[1]!);
     const iso = v.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    if (iso) return dateValide(+iso[1]!, +iso[2]!, +iso[3]!);
   }
   return null;
+}
+
+/** « AAAA-MM-JJ » si le jour existe vraiment ; `null` pour « 00/00/2019 » ou un 30 février (le fichier en contient). */
+function dateValide(a: number, m: number, j: number): string | null {
+  const d = new Date(Date.UTC(a, m - 1, j));
+  if (m < 1 || m > 12 || j < 1 || d.getUTCFullYear() !== a || d.getUTCMonth() !== m - 1 || d.getUTCDate() !== j) return null;
+  return `${a}-${String(m).padStart(2, "0")}-${String(j).padStart(2, "0")}`;
 }
 
 /** L'index de la première ligne qui contient TOUS les en-têtes demandés (normalisés), ou -1. */

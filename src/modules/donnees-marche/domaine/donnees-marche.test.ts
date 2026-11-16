@@ -9,6 +9,9 @@ describe("primitives", () => {
     expect(dateIso(new Date(Date.UTC(2025, 7, 10)))).toBe("2025-08-10");
     expect(dateIso("07/03/2009")).toBe("2009-03-07");
     expect(dateIso("RETRAIT ")).toBeNull();
+    expect(dateIso("00/00/2019")).toBeNull();
+    expect(dateIso("00/12/2005")).toBeNull();
+    expect(dateIso("30/02/2015")).toBeNull();
   });
   it("normalise un en-tête", () => {
     expect(normEntete("MAT Jul 2026\nVALEURS")).toBe("MAT JUL 2026 VALEURS");

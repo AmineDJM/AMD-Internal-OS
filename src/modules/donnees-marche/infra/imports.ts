@@ -16,11 +16,33 @@ export type ResultatDepot =
   | { ok: true; nature: NatureMarche; importId: string; lignes: number; periode: string | null; deja: boolean; rapport: Record<string, unknown> }
   | { ok: false; erreur: string };
 
-const dateOuNul = (d: string | null) => (d ? new Date(`${d}T00:00:00Z`) : null);
+const dateOuNul = (d: string | null) => {
+  const x = d ? new Date(`${d}T00:00:00Z`) : null;
+  return x && !Number.isNaN(x.getTime()) ? x : null;
+};
+
+function lignesEcrites(importId: string, nature: string) {
+  return nature === "IQVIA" ? prisma.iqviaLigne.count({ where: { importId } }) : prisma.nomenclatureLigne.count({ where: { importId } });
+}
+
+/** Les lignes s'écrivent toutes, ou le dépôt disparaît : jamais un dépôt à moitié qui ferait foi. */
+async function toutOuRien(importId: string, ecrire: () => Promise<void>) {
+  try {
+    await ecrire();
+  } catch (e) {
+    await prisma.marcheImport.delete({ where: { id: importId } }).catch(() => undefined);
+    throw e;
+  }
+}
 
 export async function deposerFichierMarche(nomFichier: string, buffer: Buffer, auteurId: string | null): Promise<ResultatDepot> {
   const empreinte = createHash("sha256").update(buffer).digest("hex");
-  const existant = await prisma.marcheImport.findUnique({ where: { empreinte }, select: { id: true, nature: true, lignes: true, periode: true, rapport: true } });
+  let existant = await prisma.marcheImport.findUnique({ where: { empreinte }, select: { id: true, nature: true, lignes: true, periode: true, rapport: true } });
+  if (existant && (await lignesEcrites(existant.id, existant.nature)) < existant.lignes) {
+    // Un dépôt resté à moitié (écriture interrompue) ne doit pas bloquer le même fichier : on le refait.
+    await prisma.marcheImport.delete({ where: { id: existant.id } });
+    existant = null;
+  }
   if (existant) {
     return { ok: true, nature: existant.nature as NatureMarche, importId: existant.id, lignes: existant.lignes, periode: existant.periode, deja: true, rapport: (existant.rapport ?? {}) as Record<string, unknown> };
   }
@@ -34,13 +56,15 @@ export async function deposerFichierMarche(nomFichier: string, buffer: Buffer, a
       data: { nature: "NOMENCLATURE", nomFichier, empreinte, taille: buffer.length, fichier: buffer, periode: nom.dateArrete, lignes: nom.lignes.length, rapport, auteurId },
       select: { id: true },
     });
-    for (let i = 0; i < nom.lignes.length; i += LOT) {
-      await prisma.nomenclatureLigne.createMany({
-        data: nom.lignes.slice(i, i + LOT).map((l) => ({
-          ...l, importId: imp.id, dateInitiale: dateOuNul(l.dateInitiale), dateFinale: dateOuNul(l.dateFinale), dateRetrait: dateOuNul(l.dateRetrait),
-        })),
-      });
-    }
+    await toutOuRien(imp.id, async () => {
+      for (let i = 0; i < nom.lignes.length; i += LOT) {
+        await prisma.nomenclatureLigne.createMany({
+          data: nom.lignes.slice(i, i + LOT).map((l) => ({
+            ...l, importId: imp.id, dateInitiale: dateOuNul(l.dateInitiale), dateFinale: dateOuNul(l.dateFinale), dateRetrait: dateOuNul(l.dateRetrait),
+          })),
+        });
+      }
+    });
     return { ok: true, nature: "NOMENCLATURE", importId: imp.id, lignes: nom.lignes.length, periode: nom.dateArrete, deja: false, rapport };
   }
 
@@ -51,9 +75,11 @@ export async function deposerFichierMarche(nomFichier: string, buffer: Buffer, a
       data: { nature: "IQVIA", nomFichier, empreinte, taille: buffer.length, fichier: buffer, periode: iq.periode, lignes: iq.presentations.length, rapport, auteurId },
       select: { id: true },
     });
-    for (let i = 0; i < iq.presentations.length; i += LOT) {
-      await prisma.iqviaLigne.createMany({ data: iq.presentations.slice(i, i + LOT).map((p) => ({ ...p, importId: imp.id })) });
-    }
+    await toutOuRien(imp.id, async () => {
+      for (let i = 0; i < iq.presentations.length; i += LOT) {
+        await prisma.iqviaLigne.createMany({ data: iq.presentations.slice(i, i + LOT).map((p) => ({ ...p, importId: imp.id })) });
+      }
+    });
     return { ok: true, nature: "IQVIA", importId: imp.id, lignes: iq.presentations.length, periode: iq.periode, deja: false, rapport };
   }
 
