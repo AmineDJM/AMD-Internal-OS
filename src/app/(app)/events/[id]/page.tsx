@@ -10,7 +10,6 @@ import { getEventDetail, peutSupprimerUneDemandeAdPro, adProEditValues, loadAdPr
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { MenuDossier } from "@/components/shared/menu-dossier";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_TYPE, EVENT_SCOPE, EVENT_FORMAT, EVENT_STATUS } from "@/lib/labels";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
@@ -210,15 +209,10 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
             />
             {declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} />}
 
+            {/* L'ESSENTIEL D'ABORD (Direction, 16/11/2026 — « plus minimaliste ») : quand, où, qui. Le reste se déplie. */}
             <Faits>
               <Fait label="Dates" valeur={dateTexte} />
               <Fait label="Lieu" valeur={[e.location, e.city, e.country].filter(Boolean).join(", ")} />
-              <Fait label="Portée" valeur={EVENT_SCOPE[e.scope] ?? e.scope} />
-              <Fait label="Format" valeur={EVENT_FORMAT[e.format] ?? e.format} />
-              <Fait label="Spécialité" valeur={e.specialty} />
-              <Fait label="Produits" valeur={e.products} />
-              {e.doctor && <Fait label="Médecins" valeur={e.doctor} />}
-              <Fait label="Organisateur" valeur={e.organizer} />
               <Fait label="Responsable" valeur={e.responsibleName} />
               {e.meetingLink && (
                 <Fait
@@ -230,8 +224,15 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
             </Faits>
 
             <BandeauArgent>
-              <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} />
-              <Chiffre label="Enveloppe accordée" valeur={e.finalAmount != null ? formatCurrency(e.finalAmount) : "Non tranchée"} discret={e.finalAmount == null} />
+              {/* TROIS CHIFFRES : le budget estimé passe en note de l'enveloppe une fois celle-ci tranchée. */}
+              {e.finalAmount != null ? (
+                <Chiffre
+                  label="Enveloppe accordée" valeur={formatCurrency(e.finalAmount)}
+                  note={e.estimatedBudget !== null ? `estimé : ${formatCurrency(e.estimatedBudget)}` : null}
+                />
+              ) : (
+                <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} note="enveloppe non tranchée" />
+              )}
               <Chiffre
                 label="Affecté aux postes"
                 valeur={formatCurrency(ventilation.totalRequestedDzd)}
@@ -252,11 +253,22 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
               )}
             </BandeauArgent>
 
-            {e.description && (
-              <Repli titre="Description">
-                <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{e.description}</p>
-              </Repli>
-            )}
+            <Repli titre="Plus de détails">
+              <Faits>
+                <Fait label="Portée" valeur={EVENT_SCOPE[e.scope] ?? e.scope} />
+                <Fait label="Format" valeur={EVENT_FORMAT[e.format] ?? e.format} />
+                <Fait label="Spécialité" valeur={e.specialty} />
+                <Fait label="Produits" valeur={e.products} />
+                {e.doctor && <Fait label="Médecins" valeur={e.doctor} />}
+                <Fait label="Organisateur" valeur={e.organizer} />
+              </Faits>
+              {e.description && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{e.description}</p>}
+              {e.stats.bySpecialty.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {e.stats.bySpecialty.map((s) => <Badge key={s.name} tone="info" dot={false}>{s.name} · {s.count}</Badge>)}
+                </div>
+              )}
+            </Repli>
           </div>
         }
       >
@@ -286,15 +298,6 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
 
       {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
       <MedecinsConcernes user={user} entityType="EVENT" entityId={e.id} />
-
-      {e.stats.bySpecialty.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>Répartition par spécialité</CardTitle></CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            {e.stats.bySpecialty.map((s) => <Badge key={s.name} tone="info" dot={false}>{s.name} · {s.count}</Badge>)}
-          </CardContent>
-        </Card>
-      )}
 
       {/* LA SECTION DISCUSSION — le fil CANONIQUE de la demande et les échanges avec les personnes
           impliquées : un seul espace. */}

@@ -21,6 +21,8 @@ export async function MedecinsConcernes({ user, entityType, entityId }: { user: 
     medecinsConcernesDe(entityType, entityId),
     canAccessEntity(user, entityType, entityId, "UPDATE"),
   ]);
+  // RIEN À MONTRER, RIEN À FAIRE : pas de carte vide (16/11/2026).
+  if (medecins.length === 0 && !peutModifier) return null;
   const puces: PuceMedecin[] = medecins.map((m) => ({
     doctorId: m.doctorId, nom: m.nom, specialite: m.specialite, etablissement: m.etablissement, role: m.role, montant: m.montant,
     modifiable: m.source === "LIEN", origine: ORIGINE[m.source],
