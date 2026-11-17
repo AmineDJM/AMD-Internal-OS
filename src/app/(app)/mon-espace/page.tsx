@@ -17,7 +17,7 @@ import { TrainingRequestButton } from "@/components/purchase/training-request-bu
 import { ExpenseClaimButton } from "@/components/hr/expense-claim-button";
 import { getManagerOfUser } from "@/lib/departments";
 import { ANCRE_MES_AVANCES } from "@/lib/chemins/rh";
-import type { Fragment, Semaine, Tuile } from "@/lib/espace/aujourdhui";
+import type { Fragment, Tuile } from "@/lib/espace/aujourdhui";
 import { FileAFaire } from "./file-a-faire";
 import { RappelRapide } from "./rappel-rapide";
 import { EquipeEncart } from "./equipe-encart";
@@ -80,25 +80,17 @@ export default async function MonEspacePage() {
     <div className="space-y-5">
       <header className="min-w-0 space-y-1">
         <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">Bonjour {user.name.split(" ")[0]} 👋</h1>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-          {jour.metiers.map((m) => (
-            <span key={m} className="rounded-md border border-border bg-secondary px-1.5 py-0.5 text-xs font-medium">{m}</span>
-          ))}
-          <span className="inline-block text-xs first-letter:uppercase">{dateDuJour}{semaineLabel ? ` · ${semaineLabel}` : ""}</span>
-        </div>
+        <p className="text-xs text-muted-foreground first-letter:uppercase">{dateDuJour}{semaineLabel ? ` · ${semaineLabel}` : ""}</p>
+        {/* VOTRE JOURNÉE EN UNE PHRASE (Direction, 16/11/2026 — « plus minimaliste ») : sous le bonjour, sans cadre. */}
+        <p className="max-w-[80ch] pt-1 text-sm leading-relaxed text-muted-foreground"><Phrase fragments={jour.phrase} /></p>
       </header>
       <ModuleTabs tabs={onglets} />
 
-      {/* VOTRE JOURNÉE — une phrase calculée sur la file, et les chiffres du métier. */}
-      <section aria-labelledby="journee-titre" className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
-        <p id="journee-titre" className="text-[11px] font-bold uppercase tracking-wider text-primary">Votre journée</p>
-        <p className="max-w-[80ch] text-[15px] leading-relaxed sm:text-base"><Phrase fragments={jour.phrase} /></p>
-        <Tuiles tuiles={jour.tuiles} />
-      </section>
-
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0 space-y-5">
+          {/* CE QUI M'ATTEND D'ABORD : chaque ligne mène droit au geste. Les chiffres du métier viennent après. */}
           <FileAFaire lots={jour.lots} />
+          <Tuiles tuiles={jour.tuiles} />
 
           {congesASigner.length > 0 && (
             <section id="conges-a-signer" className="scroll-mt-20 space-y-3">
@@ -135,10 +127,6 @@ export default async function MonEspacePage() {
         </div>
 
         <aside className="min-w-0 space-y-5">
-          <Panneau titre="Ma semaine" aside="dim. → jeu.">
-            <MaSemaine s={jour.semaine} />
-          </Panneau>
-
           {jour.equipe && jour.equipe.directs > 0 && (
             <Panneau titre="Mon équipe" aside={`${jour.equipe.directs} direct${jour.equipe.directs > 1 ? "s" : ""}`}>
               <EquipeEncart membres={jour.equipe.membres} personnesEnRetard={jour.equipe.personnesEnRetard} retards={jour.equipe.retards} />
@@ -170,13 +158,11 @@ export default async function MonEspacePage() {
               <LigneMoi titre="Note de frais" detail="Avec le justificatif scanné">
                 <ExpenseClaimButton compact />
               </LigneMoi>
-              <LigneMoi titre="Congé" detail={data.stats.leaveBalance !== null ? `Solde ${data.stats.leaveBalance} j` : "Depuis votre dossier RH"}>
-                <Link href="/mon-dossier" className="inline-flex h-9 items-center rounded-[var(--radius)] border border-border bg-card px-3 text-xs font-medium hover:bg-secondary sm:h-8">Demander</Link>
-              </LigneMoi>
               <LigneMoi titre="Formation" detail={manager?.fullName ? `Validée par ${manager.fullName}` : "Validée par votre responsable"}>
                 <TrainingRequestButton managerName={manager?.fullName ?? null} compact />
               </LigneMoi>
-              <LigneMoi titre="Attestation de travail" detail="Depuis votre dossier RH">
+              {/* Congé et attestation se demandent au même endroit : une ligne. */}
+              <LigneMoi titre="Congé, attestation" detail={data.stats.leaveBalance !== null ? `Solde de congé : ${data.stats.leaveBalance} j` : "Depuis votre dossier RH"}>
                 <Link href="/mon-dossier" className="inline-flex h-9 items-center rounded-[var(--radius)] border border-border bg-card px-3 text-xs font-medium hover:bg-secondary sm:h-8">Demander</Link>
               </LigneMoi>
               {congesEnCours > 0 && (
@@ -206,9 +192,9 @@ function Tuiles({ tuiles }: { tuiles: Tuile[] }) {
   return (
     <div className={cn("grid grid-cols-2 gap-2.5", tuiles.length >= 4 ? "md:grid-cols-4" : "md:grid-cols-3")}>
       {tuiles.map((t) => (
-        <div key={t.cle} className={cn("grid min-w-0 content-start gap-0.5 rounded-xl border px-3 py-2.5", TON_TUILE[t.ton].carte)}>
+        <div key={t.cle} className={cn("grid min-w-0 content-start gap-0.5 rounded-lg border px-3 py-2", TON_TUILE[t.ton].carte)}>
           <span className="text-xs font-semibold text-muted-foreground">{t.k}</span>
-          <span className={cn("break-words text-xl font-bold leading-tight tabular-nums sm:text-[22px]", TON_TUILE[t.ton].valeur)}>{t.v}</span>
+          <span className={cn("break-words text-lg font-semibold leading-tight tabular-nums", TON_TUILE[t.ton].valeur)}>{t.v}</span>
           <span className="break-words text-xs text-muted-foreground">{t.c}</span>
         </div>
       ))}
@@ -230,67 +216,6 @@ function Panneau({ titre, aside, lien, children }: { titre: string; aside?: stri
       </div>
       <div className="min-w-0 px-4 py-3">{children}</div>
     </section>
-  );
-}
-
-function MaSemaine({ s }: { s: Semaine }) {
-  const max = Math.max(4, ...s.barres.map((b) => b.n));
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
-        <div
-          className="grid h-[72px] w-[72px] place-items-center rounded-full"
-          style={{ background: `conic-gradient(hsl(var(--success)) ${s.pct}%, hsl(var(--secondary)) 0)` }}
-          role="img"
-          aria-label={`${s.fait} faits, ${s.reste} restants`}
-        >
-          <div className="grid h-[56px] w-[56px] place-items-center rounded-full bg-card text-center leading-none">
-            <b className="text-base tabular-nums">{s.pct}%</b>
-            <span className="text-[10px] text-muted-foreground">fait</span>
-          </div>
-        </div>
-        <div className="grid h-[72px] grid-cols-5 items-end gap-1.5" aria-label="Gestes par jour">
-          {s.barres.map((b) => (
-            <div key={b.jour} className="grid h-full grid-rows-[1fr_auto] gap-1 text-center">
-              <div className="relative flex items-end justify-center">
-                {b.etat === "futur" ? (
-                  <div className="h-[18px] w-full rounded border border-dashed border-border" />
-                ) : (
-                  <div
-                    className={cn("w-full rounded-t-[5px] rounded-b-[2px]", b.etat === "aujourdhui" ? "bg-success" : "bg-success/50")}
-                    style={{ height: `${Math.max(3, Math.round((b.n / max) * 48))}px` }}
-                    title={`${b.n} geste${b.n > 1 ? "s" : ""}`}
-                  />
-                )}
-              </div>
-              <span className={cn("text-[11px]", b.etat === "aujourdhui" ? "font-bold text-foreground" : "text-muted-foreground")}>
-                {b.label}{b.etat !== "futur" ? <span className="block tabular-nums">{b.n}</span> : <span className="block">&nbsp;</span>}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Fait n={s.fait} label="faits cette semaine" />
-        <Fait n={s.reste} label="restent dans la file" />
-        <Fait n={s.mois} label="gestes ce mois-ci" />
-      </div>
-      {s.reconnaissance && (
-        <p className="rounded-lg bg-success/10 px-3 py-2 text-[13px]"><Phrase fragments={s.reconnaissance} /></p>
-      )}
-      <p className="text-[11px] text-muted-foreground">
-        Un geste = une décision datée (validation, achat, congé, étape Ad &amp; Pro), un paiement réglé, une déclaration validée, une tâche terminée.
-      </p>
-    </div>
-  );
-}
-
-function Fait({ n, label }: { n: number; label: string }) {
-  return (
-    <div className="grid min-w-0 gap-0.5 rounded-lg bg-secondary px-2.5 py-2">
-      <b className="text-base tabular-nums">{n}</b>
-      <span className="break-words text-[11px] text-muted-foreground">{label}</span>
-    </div>
   );
 }
 
