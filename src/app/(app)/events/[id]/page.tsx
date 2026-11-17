@@ -28,7 +28,8 @@ import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
 import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-demande";
 import { CarteDetailsDemande } from "@/modules/ad-pro/ecrans/pieces-jointes-demande";
-import { Faits, Fait, BandeauArgent, Chiffre, Repli, IntertitrePostes, CarteTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
+import { Faits, Fait, BandeauArgent, Chiffre, IntertitrePostes, CarteTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
+import { SectionRepliable, Sections } from "@/components/shared/section-repliable";
 import { EspaceDiscussion } from "@/modules/ad-pro/ecrans/espace-discussion";
 import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
 import { toNumber } from "@/lib/utils";
@@ -132,6 +133,22 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
   const dateTexte = [e.startDate && formatDate(e.startDate), e.endDate && formatDate(e.endDate)].filter(Boolean).join(" → ");
   const creeeLe = dates?.createdAt ?? null;
 
+  // LES RÉSUMÉS DES SECTIONS (Direction, 17/11/2026 — « l'information reste, mais repliée ») : ce qu'on lit sans ouvrir.
+  const etapeCourante = workflow?.steps.find((s) => s.state === "current") ?? null;
+  const resumeCircuit = !e.requestStatus ? "Non soumise"
+    : workflow?.status === "APPROVED" ? "Approuvée"
+    : workflow?.status === "REJECTED" ? "Refusée"
+    : workflow?.status === "RETURNED" ? "Renvoyée pour correction"
+    : workflow?.status === "CANCELLED" ? "Retirée"
+    : etapeCourante ? `En cours — ${etapeCourante.title}${workflow?.assigneeName ? ` · chez ${workflow.assigneeName}` : ""}` : "En cours";
+  const aVousCircuit = Boolean(workflow?.action) || (workflow?.status === "RETURNED" && sonEvenement);
+  const lieuTexte = [e.location, e.city, e.country].filter(Boolean).join(", ");
+  const resumeBudget = [
+    e.finalAmount != null ? `Enveloppe ${formatCurrency(e.finalAmount)}` : e.estimatedBudget !== null ? `Estimé ${formatCurrency(e.estimatedBudget)}` : null,
+    `affecté ${formatCurrency(ventilation.totalRequestedDzd)}`,
+    ventilation.overrunDzd > 0 ? `dépassement ${formatCurrency(ventilation.overrunDzd)}` : ventilation.envelopeDzd != null ? `reste ${formatCurrency(ventilation.unallocatedDzd)}` : null,
+  ].filter(Boolean).join(" · ");
+
   return (
     <div className="space-y-5">
       <BackLink href="/events"><ArrowLeft className="h-4 w-4" /> Events</BackLink>
@@ -198,77 +215,82 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
           path: `/events/${e.id}`,
         }}
         entete={
-          <div className="space-y-4">
-            <EventFundingPanel
-              eventId={e.id}
-              requestSubmitted={!!e.requestStatus}
-              canSubmit={canSubmit}
-              workflow={workflow}
-              compact
-              suite={declaration ? [{ cle: "__declaration__", titre: declaration.titre, detail: declaration.detail, etat: declaration.etat }] : []}
-            />
-            {declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} />}
-
-            {/* L'ESSENTIEL D'ABORD (Direction, 16/11/2026 — « plus minimaliste ») : quand, où, qui. Le reste se déplie. */}
-            <Faits>
-              <Fait label="Dates" valeur={dateTexte} />
-              <Fait label="Lieu" valeur={[e.location, e.city, e.country].filter(Boolean).join(", ")} />
-              <Fait label="Responsable" valeur={e.responsibleName} />
-              {e.meetingLink && (
-                <Fait
-                  large
-                  label="Webinar"
-                  valeur={<a href={e.meetingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Video className="h-4 w-4" /> Lien de connexion</a>}
-                />
-              )}
-            </Faits>
-
-            <BandeauArgent>
-              {/* TROIS CHIFFRES : le budget estimé passe en note de l'enveloppe une fois celle-ci tranchée. */}
-              {e.finalAmount != null ? (
-                <Chiffre
-                  label="Enveloppe accordée" valeur={formatCurrency(e.finalAmount)}
-                  note={e.estimatedBudget !== null ? `estimé : ${formatCurrency(e.estimatedBudget)}` : null}
-                />
-              ) : (
-                <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} note="enveloppe non tranchée" />
-              )}
-              <Chiffre
-                label="Affecté aux postes"
-                valeur={formatCurrency(ventilation.totalRequestedDzd)}
-                note={ventilation.additionalDzd > 0
-                  ? `dont ${formatCurrency(ventilation.additionalDzd)} en rallonge`
-                  : `${ventilation.itemCount} poste${ventilation.itemCount > 1 ? "s" : ""}`}
-                ton={ventilation.additionalDzd > 0 ? "attente" : undefined}
+          // LA DEMANDE EN SECTIONS : chacune fermée sur une ligne qui dit l'essentiel ; ouverte d'office quand la personne
+          // qui regarde y a un geste à faire (« À vous »).
+          <div>
+            <SectionRepliable titre="Circuit de validation" resume={resumeCircuit} aVous={aVousCircuit} ouvert={!e.requestStatus}>
+              <EventFundingPanel
+                eventId={e.id}
+                requestSubmitted={!!e.requestStatus}
+                canSubmit={canSubmit}
+                workflow={workflow}
+                compact
+                suite={declaration ? [{ cle: "__declaration__", titre: declaration.titre, detail: declaration.detail, etat: declaration.etat }] : []}
               />
-              {ventilation.overrunDzd > 0 ? (
-                <Chiffre label="Dépassement" valeur={formatCurrency(ventilation.overrunDzd)} ton="alerte" />
-              ) : (
+            </SectionRepliable>
+            {declaration && (
+              <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.peutAgir}>
+                <EtapeDeclarationAdPro etape={declaration} sourceType="EVENT" sourceId={e.id} />
+              </SectionRepliable>
+            )}
+            <SectionRepliable titre="L'événement" resume={[dateTexte, lieuTexte].filter(Boolean).join(" · ")}>
+              <div className="space-y-3">
+                <Faits>
+                  <Fait label="Dates" valeur={dateTexte} />
+                  <Fait label="Lieu" valeur={lieuTexte} />
+                  <Fait label="Responsable" valeur={e.responsibleName} />
+                  <Fait label="Portée" valeur={EVENT_SCOPE[e.scope] ?? e.scope} />
+                  <Fait label="Format" valeur={EVENT_FORMAT[e.format] ?? e.format} />
+                  <Fait label="Spécialité" valeur={e.specialty} />
+                  <Fait label="Produits" valeur={e.products} />
+                  {e.doctor && <Fait label="Médecins" valeur={e.doctor} />}
+                  <Fait label="Organisateur" valeur={e.organizer} />
+                  {e.meetingLink && (
+                    <Fait
+                      large
+                      label="Webinar"
+                      valeur={<a href={e.meetingLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-primary hover:underline"><Video className="h-4 w-4" /> Lien de connexion</a>}
+                    />
+                  )}
+                </Faits>
+                {e.description && <p className="max-w-prose whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">{e.description}</p>}
+                {e.stats.bySpecialty.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {e.stats.bySpecialty.map((s) => <Badge key={s.name} tone="info" dot={false}>{s.name} · {s.count}</Badge>)}
+                  </div>
+                )}
+              </div>
+            </SectionRepliable>
+            <SectionRepliable titre="Budget" resume={resumeBudget}>
+              <BandeauArgent>
+                {e.finalAmount != null ? (
+                  <Chiffre
+                    label="Enveloppe accordée" valeur={formatCurrency(e.finalAmount)}
+                    note={e.estimatedBudget !== null ? `estimé : ${formatCurrency(e.estimatedBudget)}` : null}
+                  />
+                ) : (
+                  <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} note="enveloppe non tranchée" />
+                )}
                 <Chiffre
-                  label="Reste à affecter"
-                  valeur={ventilation.envelopeDzd != null ? formatCurrency(ventilation.unallocatedDzd) : "—"}
-                  note={ventilation.balanced ? "ventilation complète" : null}
-                  ton={ventilation.balanced ? "succes" : undefined}
+                  label="Affecté aux postes"
+                  valeur={formatCurrency(ventilation.totalRequestedDzd)}
+                  note={ventilation.additionalDzd > 0
+                    ? `dont ${formatCurrency(ventilation.additionalDzd)} en rallonge`
+                    : `${ventilation.itemCount} poste${ventilation.itemCount > 1 ? "s" : ""}`}
+                  ton={ventilation.additionalDzd > 0 ? "attente" : undefined}
                 />
-              )}
-            </BandeauArgent>
-
-            <Repli titre="Plus de détails">
-              <Faits>
-                <Fait label="Portée" valeur={EVENT_SCOPE[e.scope] ?? e.scope} />
-                <Fait label="Format" valeur={EVENT_FORMAT[e.format] ?? e.format} />
-                <Fait label="Spécialité" valeur={e.specialty} />
-                <Fait label="Produits" valeur={e.products} />
-                {e.doctor && <Fait label="Médecins" valeur={e.doctor} />}
-                <Fait label="Organisateur" valeur={e.organizer} />
-              </Faits>
-              {e.description && <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{e.description}</p>}
-              {e.stats.bySpecialty.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {e.stats.bySpecialty.map((s) => <Badge key={s.name} tone="info" dot={false}>{s.name} · {s.count}</Badge>)}
-                </div>
-              )}
-            </Repli>
+                {ventilation.overrunDzd > 0 ? (
+                  <Chiffre label="Dépassement" valeur={formatCurrency(ventilation.overrunDzd)} ton="alerte" />
+                ) : (
+                  <Chiffre
+                    label="Reste à affecter"
+                    valeur={ventilation.envelopeDzd != null ? formatCurrency(ventilation.unallocatedDzd) : "—"}
+                    note={ventilation.balanced ? "ventilation complète" : null}
+                    ton={ventilation.balanced ? "succes" : undefined}
+                  />
+                )}
+              </BandeauArgent>
+            </SectionRepliable>
           </div>
         }
       >
@@ -299,17 +321,15 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
       {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
       <MedecinsConcernes user={user} entityType="EVENT" entityId={e.id} />
 
-      {/* LA SECTION DISCUSSION — le fil CANONIQUE de la demande et les échanges avec les personnes
-          impliquées : un seul espace. */}
-      <EspaceDiscussion>
-        <AdProDiscussionCard entityType="EVENT" entityId={e.id} user={user} />
-        <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
-      </EspaceDiscussion>
-
-      {/* TOUT EN BAS, PLEINE LARGEUR (Direction, 07/10) : « Accompagnants & délégués » et « Traçabilité ». L'historique du
-          circuit (qui a fait quoi, quand) vit dans « Traçabilité », et pour le Super Admin seulement. */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : discussion, équipe, traçabilité — une ligne chacun, ouvert sur un clic. */}
+      <Sections>
+        <SectionRepliable titre="Discussion" sansCadre>
+          <EspaceDiscussion>
+            <AdProDiscussionCard entityType="EVENT" entityId={e.id} user={user} />
+            <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
+          </EspaceDiscussion>
+        </SectionRepliable>
+        <SectionRepliable titre="Équipe Adventum" compte={missions.length} resume={missions.length === 0 ? "Personne d'invité" : undefined} sansCadre>
           <MissionAssignmentsCard
             entityType="EVENT"
             entityId={e.id}
@@ -319,13 +339,15 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
             currentUserId={user.id}
             path={`/events/${e.id}`}
           />
-        </div>
-        <CarteTracabilite
-          creeeLe={dates ? formatDateTime(dates.createdAt) : "—"}
-          modifieeLe={dates ? formatDateTime(dates.updatedAt) : "—"}
-          historique={user.role === "SUPER_ADMIN" && e.requestStatus && workflow && workflow.events.length > 0 ? <HistoriqueDuCircuit events={workflow.events} /> : null}
-        />
-      </div>
+        </SectionRepliable>
+        <SectionRepliable titre="Traçabilité" resume={dates ? `créée le ${formatDateTime(dates.createdAt)}` : undefined} sansCadre>
+          <CarteTracabilite
+            creeeLe={dates ? formatDateTime(dates.createdAt) : "—"}
+            modifieeLe={dates ? formatDateTime(dates.updatedAt) : "—"}
+            historique={user.role === "SUPER_ADMIN" && e.requestStatus && workflow && workflow.events.length > 0 ? <HistoriqueDuCircuit events={workflow.events} /> : null}
+          />
+        </SectionRepliable>
+      </Sections>
     </div>
   );
 }
