@@ -16,7 +16,9 @@ import type { MissionAssignmentDTO } from "@/lib/queries/missions";
  * « Participants Adventum » (retirés de la demande). « Accompagnants & délégués » se pose TOUT EN BAS de la fiche
  * (`AccompagnantsDeLaPriseEnCharge`) : la colonne de droite ne rétrécit plus le reste.
  */
-export function CongressDetailView({ detail, workflow, canInvolveThirdParty, entityType, entityId, missionUsers, declaration = null }: {
+export function CongressDetailView({ detail, workflow, canInvolveThirdParty, entityType, entityId, missionUsers, declaration = null, enSection = false }: {
+  /** Dans une section repliable (17/11/2026) : le contenu seul, sans carte ni titre — la section les porte. */
+  enSection?: boolean;
   detail: CongressDetail;
   /** La dernière étape du circuit : la déclaration de l'événement (information scientifique, 08/11/2026). */
   declaration?: React.ReactNode;
@@ -26,10 +28,8 @@ export function CongressDetailView({ detail, workflow, canInvolveThirdParty, ent
   entityId: string;
   missionUsers: { id: string; name: string }[];
 }) {
-  return (
-    <Card>
-      <CardHeader><CardTitle>Circuit de validation</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
+  const contenu = (
+    <>
         {workflow ? (
           <WorkflowPanel entityType={entityType} entityId={entityId} view={workflow} />
         ) : (
@@ -41,7 +41,13 @@ export function CongressDetailView({ detail, workflow, canInvolveThirdParty, ent
             <ThirdPartyInvolveButton type={detail.type} id={detail.id} people={missionUsers} />
           </div>
         )}
-      </CardContent>
+    </>
+  );
+  if (enSection) return <div className="space-y-4">{contenu}</div>;
+  return (
+    <Card>
+      <CardHeader><CardTitle>Circuit de validation</CardTitle></CardHeader>
+      <CardContent className="space-y-4">{contenu}</CardContent>
     </Card>
   );
 }

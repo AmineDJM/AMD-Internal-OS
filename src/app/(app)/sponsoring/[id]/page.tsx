@@ -30,7 +30,9 @@ import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
 import { AdProItemsPanel } from "@/modules/ad-pro/ecrans/items-panel";
 import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-demande";
 import { CarteDetailsDemande } from "@/modules/ad-pro/ecrans/pieces-jointes-demande";
-import { Faits, Fait, BandeauArgent, Chiffre, Repli, IntertitrePostes, CarteTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
+import { Faits, Fait, BandeauArgent, Chiffre, IntertitrePostes, CarteTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
+import { SectionRepliable, Sections } from "@/components/shared/section-repliable";
+import { resumeDuCircuit } from "@/lib/workflow/resume-circuit";
 import { EspaceDiscussion } from "@/modules/ad-pro/ecrans/espace-discussion";
 import { AdProTransferButton } from "@/modules/ad-pro/ecrans/transfer-button";
 import { AdProEditButton } from "@/modules/ad-pro/ecrans/edit-request-button";
@@ -226,6 +228,13 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
   const ventilation = breakdown(items, req.amountGranted != null ? toNumber(req.amountGranted) : null);
   const accorde = fmt(req.amountGranted);
   const medecin = [req.doctor, req.specialty].filter(Boolean).join(" · ");
+  // CE QUE LES SECTIONS DISENT FERMÉES (17/11/2026).
+  const aVousCircuit = Boolean(workflow?.action) || (peutAgirSurLaCloture && enPostes && bilan.cloturable) || canAppeal;
+  const resumeMontants = [
+    fmt(req.amountRequested) ? `demandé ${fmt(req.amountRequested)}` : null,
+    `affecté ${formatCurrency(ventilation.totalRequestedDzd)}`,
+    accorde ? `accordé ${accorde}` : null,
+  ].filter(Boolean).join(" · ");
 
   return (
     <div className="space-y-5">
@@ -279,56 +288,65 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
           path: `/sponsoring/${req.id}`,
         }}
         entete={
-          <div className="space-y-4">
-            {workflow ? (
-              <WorkflowPanel entityType="SPONSORING" entityId={req.id} view={workflow} compact suite={suite} statut={statutDemande} gestes={gestes} />
-            ) : (
+          // LA DEMANDE EN SECTIONS (17/11/2026) : fermées sur une ligne qui dit l'essentiel ; ouvertes d'office quand la
+          // personne qui regarde y a un geste à faire (« À vous »).
+          <div>
+            <SectionRepliable titre="Circuit de validation" resume={statutDemande?.phrase ?? resumeDuCircuit(workflow)} aVous={aVousCircuit}>
+              {workflow ? (
+                <WorkflowPanel entityType="SPONSORING" entityId={req.id} view={workflow} compact suite={suite} statut={statutDemande} gestes={gestes} />
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-muted-foreground">Circuit indisponible.</p>
+                  {gestes}
+                </div>
+              )}
+            </SectionRepliable>
+            {declaration && (
+              <SectionRepliable titre={declaration.titre} resume={declaration.detail ?? undefined} aVous={declaration.peutAgir}>
+                <EtapeDeclarationAdPro etape={declaration} sourceType="SPONSORING" sourceId={req.id} />
+              </SectionRepliable>
+            )}
+            <SectionRepliable titre="Le sponsoring" resume={[req.type, req.city, medecin].filter(Boolean).join(" · ")}>
               <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">Circuit indisponible.</p>
-                {gestes}
-              </div>
-            )}
-            {declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="SPONSORING" sourceId={req.id} />}
-
-            <Faits>
-              <Fait label="Type" valeur={req.type} />
-              <Fait label="Ville" valeur={req.city} />
-              <Fait label="Produit" valeur={req.product} />
-              <Fait label="Nature" valeur={req.nature ? SPONSORING_NATURE[req.nature] : null} />
-              <Fait label="Médecin" valeur={medecin} />
-              <Fait label="Importance" valeur={PRIORITY[req.strategicImportance]?.label ?? req.strategicImportance} />
-              <Fait label="Référent Direction Marketing" valeur={pmUser?.name} />
-              {req.validatedBy && <Fait label="Validé par" valeur={req.validatedBy} />}
-            </Faits>
-
-            {/* LE SPONSORING DEMANDÉ ET LE SPONSORING SUGGÉRÉ — ce que la Direction a nommé, et pas un « budget » : l'argent
-                se décide poste par poste, puis à la clôture (§118.151). */}
-            <BandeauArgent>
-              <Chiffre label="Demandé (médecin)" valeur={fmt(req.amountRequested) ?? "—"} />
-              <Chiffre label="Suggéré (délégué)" valeur={fmt(req.amountProposed) ?? "—"} />
-              <Chiffre
-                label="Affecté aux postes"
-                valeur={formatCurrency(ventilation.totalRequestedDzd)}
-                note={ventilation.additionalDzd > 0
-                  ? `dont ${formatCurrency(ventilation.additionalDzd)} en rallonge`
-                  : `${ventilation.itemCount} poste${ventilation.itemCount > 1 ? "s" : ""}`}
-                ton={ventilation.additionalDzd > 0 ? "attente" : undefined}
-              />
-              <Chiffre
-                label={etatPostes.closParLaCloture ? "Accordé (clôture)" : "Accordé"}
-                valeur={accorde ?? (regleDeLaTenue ? "À la validation finale" : "—")}
-                discret={!accorde}
-              />
-            </BandeauArgent>
-
-            {(req.description || req.comments) && (
-              <Repli titre="Description et appréciation">
-                {req.description && <p className="whitespace-pre-line [overflow-wrap:anywhere]">{req.description}</p>}
-                {req.comments && (
-                  <p className="whitespace-pre-line [overflow-wrap:anywhere]"><span className="font-medium">Appréciation du délégué : </span>{req.comments}</p>
+                <Faits>
+                  <Fait label="Type" valeur={req.type} />
+                  <Fait label="Ville" valeur={req.city} />
+                  <Fait label="Produit" valeur={req.product} />
+                  <Fait label="Nature" valeur={req.nature ? SPONSORING_NATURE[req.nature] : null} />
+                  <Fait label="Médecin" valeur={medecin} />
+                  <Fait label="Importance" valeur={PRIORITY[req.strategicImportance]?.label ?? req.strategicImportance} />
+                  <Fait label="Référent Direction Marketing" valeur={pmUser?.name} />
+                  {req.validatedBy && <Fait label="Validé par" valeur={req.validatedBy} />}
+                </Faits>
+                {(req.description || req.comments) && (
+                  <div className="max-w-prose space-y-2 text-sm">
+                    {req.description && <p className="whitespace-pre-line [overflow-wrap:anywhere]">{req.description}</p>}
+                    {req.comments && (
+                      <p className="whitespace-pre-line [overflow-wrap:anywhere]"><span className="font-medium">Appréciation du délégué : </span>{req.comments}</p>
+                    )}
+                  </div>
                 )}
-              </Repli>
-            )}
+              </div>
+            </SectionRepliable>
+            <SectionRepliable titre="Montants" resume={resumeMontants}>
+              <BandeauArgent>
+                <Chiffre label="Demandé (médecin)" valeur={fmt(req.amountRequested) ?? "—"} />
+                <Chiffre label="Suggéré (délégué)" valeur={fmt(req.amountProposed) ?? "—"} />
+                <Chiffre
+                  label="Affecté aux postes"
+                  valeur={formatCurrency(ventilation.totalRequestedDzd)}
+                  note={ventilation.additionalDzd > 0
+                    ? `dont ${formatCurrency(ventilation.additionalDzd)} en rallonge`
+                    : `${ventilation.itemCount} poste${ventilation.itemCount > 1 ? "s" : ""}`}
+                  ton={ventilation.additionalDzd > 0 ? "attente" : undefined}
+                />
+                <Chiffre
+                  label={etatPostes.closParLaCloture ? "Accordé (clôture)" : "Accordé"}
+                  valeur={accorde ?? (regleDeLaTenue ? "À la validation finale" : "—")}
+                  discret={!accorde}
+                />
+              </BandeauArgent>
+            </SectionRepliable>
           </div>
         }
       >
@@ -362,17 +380,15 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
       {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
       <MedecinsConcernes user={user} entityType="SPONSORING" entityId={req.id} />
 
-      {/* LA SECTION DISCUSSION — le fil CANONIQUE de la demande et, dessous, les échanges avec les
-          personnes impliquées : un seul espace. */}
-      <EspaceDiscussion>
-        <AdProDiscussionCard entityType="SPONSORING" entityId={req.id} user={user} />
-        <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
-      </EspaceDiscussion>
-
-      {/* TOUT EN BAS, PLEINE LARGEUR (Direction, 07/10) : « Accompagnants & délégués » et « Traçabilité ». L'historique du
-          circuit (qui a fait quoi, quand) vit dans « Traçabilité », et pour le Super Admin seulement. */}
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="lg:col-span-2">
+      {/* LE RESTE DE LA FICHE, REPLIÉ (17/11/2026) : discussion, accompagnants, traçabilité — une ligne chacun. */}
+      <Sections>
+        <SectionRepliable titre="Discussion" sansCadre>
+          <EspaceDiscussion>
+            <AdProDiscussionCard entityType="SPONSORING" entityId={req.id} user={user} />
+            <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
+          </EspaceDiscussion>
+        </SectionRepliable>
+        <SectionRepliable titre="Accompagnants & délégués" compte={missions.length} sansCadre>
           <MissionAssignmentsCard
             entityType="SPONSORING"
             entityId={req.id}
@@ -382,13 +398,15 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
             currentUserId={user.id}
             path={`/sponsoring/${req.id}`}
           />
-        </div>
-        <CarteTracabilite
-          creeeLe={formatDateTime(req.createdAt)}
-          modifieeLe={formatDateTime(req.updatedAt)}
-          historique={user.role === "SUPER_ADMIN" && workflow && workflow.events.length > 0 ? <HistoriqueDuCircuit events={workflow.events} /> : null}
-        />
-      </div>
+        </SectionRepliable>
+        <SectionRepliable titre="Traçabilité" resume={`créée le ${formatDateTime(req.createdAt)}`} sansCadre>
+          <CarteTracabilite
+            creeeLe={formatDateTime(req.createdAt)}
+            modifieeLe={formatDateTime(req.updatedAt)}
+            historique={user.role === "SUPER_ADMIN" && workflow && workflow.events.length > 0 ? <HistoriqueDuCircuit events={workflow.events} /> : null}
+          />
+        </SectionRepliable>
+      </Sections>
     </div>
   );
 }

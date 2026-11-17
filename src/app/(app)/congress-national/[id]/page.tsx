@@ -14,6 +14,8 @@ import { SupprimerDemandeAdPro } from "@/modules/ad-pro/ecrans/supprimer-demande
 import { type DocItem } from "@/components/documents/document-list";
 import { CONGRESS_REQUEST_STATUS } from "@/lib/labels";
 import { CongressDetailView, AccompagnantsDeLaPriseEnCharge } from "../../congress-international/congress-detail-view";
+import { SectionRepliable, Sections } from "@/components/shared/section-repliable";
+import { resumeDuCircuit } from "@/lib/workflow/resume-circuit";
 import { etapeDeclaration } from "@/lib/medical-info/etape-ad-pro";
 import { EtapeDeclarationAdPro } from "../../information-medicale/etape-declaration-ad-pro";
 import { CartePriseEnCharge } from "@/modules/ad-pro/ecrans/prise-en-charge/carte-prise-en-charge";
@@ -202,17 +204,27 @@ export default async function CongressNatDetailPage(props: { params: Promise<{ i
       {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
       <MedecinsConcernes user={user} entityType="CONGRESS_NATIONAL" entityId={detail.id} />
 
-      <CongressDetailView detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_NATIONAL" entityId={detail.id} missionUsers={missionUsers}
-        declaration={declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_NATIONAL" sourceId={detail.id} />} />
-      {/* LA SECTION DISCUSSION — le fil CANONIQUE de la demande et les échanges avec les personnes
-          impliquées : un seul espace (la vue détaillée ne les rend plus à part). */}
-      <EspaceDiscussion>
-        <AdProDiscussionCard entityType="CONGRESS_NATIONAL" entityId={detail.id} user={user} />
-        <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
-      </EspaceDiscussion>
-
-      {/* EN BAS, PLEINE LARGEUR (Direction, 07/10). */}
-      <AccompagnantsDeLaPriseEnCharge entityType="CONGRESS_NATIONAL" entityId={detail.id} missions={missions} missionUsers={missionUsers} canManageMissions={canManageMissions} currentUserId={user.id} path={`/congress-national/${detail.id}`} />
+      {/* LE CIRCUIT, LA DISCUSSION ET L'ÉQUIPE, REPLIÉS (17/11/2026) : une ligne chacun ; le circuit s'ouvre seul quand
+          la personne qui regarde y a un geste à faire (« À vous »). */}
+      <Sections>
+        <SectionRepliable
+          titre="Circuit de validation"
+          resume={[resumeDuCircuit(workflow), declaration?.detail ? `déclaration : ${declaration.detail}` : null].filter(Boolean).join(" · ")}
+          aVous={Boolean(workflow?.action) || Boolean(declaration?.peutAgir)}
+        >
+          <CongressDetailView enSection detail={detail} workflow={workflow} canInvolveThirdParty={canInvolveThirdParty} entityType="CONGRESS_NATIONAL" entityId={detail.id} missionUsers={missionUsers}
+            declaration={declaration && <EtapeDeclarationAdPro etape={declaration} sourceType="CONGRESS_NATIONAL" sourceId={detail.id} />} />
+        </SectionRepliable>
+        <SectionRepliable titre="Discussion" sansCadre>
+          <EspaceDiscussion>
+            <AdProDiscussionCard entityType="CONGRESS_NATIONAL" entityId={detail.id} user={user} />
+            <InvolvementConversations threads={involvementThreads} currentUserId={user.id} canManage={hasGlobalView(user)} />
+          </EspaceDiscussion>
+        </SectionRepliable>
+        <SectionRepliable titre="Accompagnants & délégués" compte={missions.length} sansCadre>
+          <AccompagnantsDeLaPriseEnCharge entityType="CONGRESS_NATIONAL" entityId={detail.id} missions={missions} missionUsers={missionUsers} canManageMissions={canManageMissions} currentUserId={user.id} path={`/congress-national/${detail.id}`} />
+        </SectionRepliable>
+      </Sections>
 
     </div>
   );

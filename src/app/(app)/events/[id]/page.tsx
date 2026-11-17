@@ -30,6 +30,7 @@ import { PiecesLegalDeLaDemande } from "@/modules/ad-pro/ecrans/pieces-legal-dem
 import { CarteDetailsDemande } from "@/modules/ad-pro/ecrans/pieces-jointes-demande";
 import { Faits, Fait, BandeauArgent, Chiffre, IntertitrePostes, CarteTracabilite } from "@/modules/ad-pro/ecrans/carte-demande";
 import { SectionRepliable, Sections } from "@/components/shared/section-repliable";
+import { resumeDuCircuit } from "@/lib/workflow/resume-circuit";
 import { EspaceDiscussion } from "@/modules/ad-pro/ecrans/espace-discussion";
 import { promoMaterialOptions } from "@/modules/ad-pro/actions-postes";
 import { toNumber } from "@/lib/utils";
@@ -134,13 +135,7 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
   const creeeLe = dates?.createdAt ?? null;
 
   // LES RÉSUMÉS DES SECTIONS (Direction, 17/11/2026 — « l'information reste, mais repliée ») : ce qu'on lit sans ouvrir.
-  const etapeCourante = workflow?.steps.find((s) => s.state === "current") ?? null;
-  const resumeCircuit = !e.requestStatus ? "Non soumise"
-    : workflow?.status === "APPROVED" ? "Approuvée"
-    : workflow?.status === "REJECTED" ? "Refusée"
-    : workflow?.status === "RETURNED" ? "Renvoyée pour correction"
-    : workflow?.status === "CANCELLED" ? "Retirée"
-    : etapeCourante ? `En cours — ${etapeCourante.title}${workflow?.assigneeName ? ` · chez ${workflow.assigneeName}` : ""}` : "En cours";
+  const resumeCircuit = resumeDuCircuit(workflow, Boolean(e.requestStatus));
   const aVousCircuit = Boolean(workflow?.action) || (workflow?.status === "RETURNED" && sonEvenement);
   const lieuTexte = [e.location, e.city, e.country].filter(Boolean).join(", ");
   const resumeBudget = [
