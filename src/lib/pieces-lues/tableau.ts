@@ -177,6 +177,10 @@ function chiffresDeFin(nums: number[]): { quantite: number | null; prixUnitaire:
   return { quantite: null, prixUnitaire: null, montant: nums[0] ?? null };
 }
 
+/** Où commencent les colonnes chiffrées sous l'en-tête — une marge pour les nombres alignés à droite qui débordent à gauche. */
+const debutDesChiffres = (cols: Colonnes): number =>
+  Math.min(...[cols.quantite, cols.pu, cols.montant].filter((x): x is { x0: number; x1: number } => x !== null).map((x) => x.x0)) - 45;
+
 /** Ce que la rangée porte de chiffres hors du numéro, dans l'ordre. */
 function cellulesChiffrees(r: Rangee, apresX: number): Cellule[] {
   return r.cellules.filter((c) => c.x0 >= apresX && nombre(c.texte) !== null && /\d/.test(c.texte));
@@ -191,6 +195,8 @@ export function lireTableau(rangees: readonly Rangee[]): LectureTableau {
   const brutes: LigneTableau[] = [];
   let derniere: { ligne: LigneTableau; y: number; page: number; taille: number } | null = null;
   let dansTableau = false;
+  /** Le rang d'une ligne qui ne s'imprime pas numérotée : celui qui suit la dernière lue. */
+  let rangSuivant = 1;
 
   for (const r of triees) {
     if (!r.cellules.length) continue;
@@ -202,7 +208,7 @@ export function lireTableau(rangees: readonly Rangee[]): LectureTableau {
       continue;
     }
     const premiere = r.cellules[0];
-    const numero = estNumeroDeLigne(premiere.texte);
+    let numero = estNumeroDeLigne(premiere.texte);
     // LES TOTAUX ET REPORTS : jamais des lignes. Le « Total HT » se garde pour la réconciliation.
     if (numero === null && RE_HORS_LIGNE.test(texteRangee)) {
       if (/\btotal\s*(general\s*)?h\.?\s?t\b|\bmontant\s*(total\s*)?h\.?\s?t\b|\btotal\s*hors\s*taxes?\b/.test(texteRangee) && !/sous[- ]total/.test(texteRangee)) {
@@ -214,19 +220,32 @@ export function lireTableau(rangees: readonly Rangee[]): LectureTableau {
       derniere = null;
       continue;
     }
+    // UN TABLEAU SANS COLONNE « N° » (recette du parcours agence, 18/11/2026) : la plupart des devis d'agence impriment
+    // « Désignation / Qté / P.U. / Total » sans numéroter leurs lignes — le lecteur n'en gardait aucune. Sous un en-tête
+    // reconnu qui ne nomme pas de numéro, une rangée qui porte du TEXTE dans la désignation ET au moins deux chiffres sous
+    // les colonnes chiffrées est une ligne : elle reçoit le rang qui suit. Une rangée de texte seul reste la suite de la
+    // désignation (plus bas) ; les totaux sont déjà écartés (plus haut).
+    let numeroCellule: Cellule | null = numero !== null ? premiere : null;
+    if (numero === null && cols && !cols.numero && dansTableau) {
+      const debut = debutDesChiffres(cols);
+      const texte = r.cellules.some((c) => c.x0 < debut && /\p{L}/u.test(c.texte));
+      if (texte && cellulesChiffrees(r, debut).length >= 2) {
+        numero = rangSuivant;
+        numeroCellule = null;
+      }
+    }
     if (numero !== null) {
+      rangSuivant = Math.max(rangSuivant, numero + 1);
       const xDes = cols ? cols.designation.x0 : (r.cellules[1]?.x0 ?? premiere.x1);
       // Une colonne « Réf. » entre le numéro et la désignation : la référence, pas la désignation.
-      const reference = cols ? r.cellules.filter((c) => c !== premiere && c.x1 < cols!.designation.x0 - 1).map((c) => c.texte).join(" ").trim() || null : null;
+      const reference = cols ? r.cellules.filter((c) => c !== numeroCellule && c.x1 < cols!.designation.x0 - 1).map((c) => c.texte).join(" ").trim() || null : null;
       // Les chiffres de la ligne : sous les colonnes chiffrées (avec un en-tête), sinon après la désignation.
-      const debutChiffres = cols
-        ? Math.min(...[cols.quantite, cols.pu, cols.montant].filter((x): x is { x0: number; x1: number } => x !== null).map((x) => x.x0)) - 45
-        : (r.cellules[1]?.x1 ?? premiere.x1) + 0.1;
-      const chiffrees = cellulesChiffrees(r, Math.max(premiere.x1 + 0.1, debutChiffres));
+      const debutChiffres = cols ? debutDesChiffres(cols) : (r.cellules[1]?.x1 ?? premiere.x1) + 0.1;
+      const chiffrees = cellulesChiffrees(r, Math.max(numeroCellule ? numeroCellule.x1 + 0.1 : -Infinity, debutChiffres));
       // La désignation : le texte entre le numéro et la première colonne chiffrée.
       const premierChiffre = chiffrees.length ? chiffrees[0].x0 : Infinity;
       const finDes = cols ? Math.min(premierChiffre, cols.finDesignation) : premierChiffre;
-      const designation = r.cellules.filter((c) => c !== premiere && c.x0 >= xDes - 3 && c.x0 < finDes - 1 && !chiffrees.includes(c))
+      const designation = r.cellules.filter((c) => c !== numeroCellule && c.x0 >= xDes - 3 && c.x0 < finDes - 1 && !chiffrees.includes(c))
         .map((c) => c.texte).join(" ").replace(/\s+/g, " ").trim();
       if (!chiffrees.length) {
         // Un numéro sans chiffres : « 3 » d'une liste de conditions, ou une ligne illisible — elle ne compte que dans le tableau.

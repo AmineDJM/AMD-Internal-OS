@@ -151,6 +151,22 @@ export function lignesProposeesDevisPromo(piece: PieceLue | null): LigneProposee
 }
 
 /** LE PRÉREMPLISSAGE — `optionsEcran` : les identifiants des fournisseurs que l'éditeur propose. */
+/**
+ * LE MONTANT DU DEVIS, POUR LE FORMULAIRE DE DÉPÔT D'UN POSTE (recette du parcours agence, 18/11/2026) — le montant
+ * accordé s'entend TTC (`refusMontantDesDevis`) : c'est le TTC imprimé que le champ « Montant » reçoit, pas le HT (qui
+ * faisait passer un devis de 1 404 200 TTC pour 1 180 000). Sans TTC imprimé, le HT seulement si le papier n'imprime
+ * aucune taxe (il est alors aussi le TTC) ; sinon rien — un montant deviné vaudrait moins qu'un champ vide.
+ */
+export function montantTtcDuDevis(p: Pick<PropositionPourEcran, "entetes" | "piece">): number | null {
+  const e = p.entetes;
+  if (devisesEtrangeres(p.piece)) return null;
+  if (e.conflits.some((k) => k.quoi === "TTC" || k.quoi === "NET")) return null;
+  const ttc = e.totalTtc?.valeur ?? e.netAPayer?.valeur ?? null;
+  if (ttc != null) return ttc;
+  const sansTaxe = e.tva.length === 0 && e.totalTva == null && e.taxes.length === 0;
+  return sansTaxe && !e.conflits.some((k) => k.quoi === "HT") ? e.totalHt?.valeur ?? null : null;
+}
+
 export function preremplirDevisPromo(
   p: Pick<PropositionPourEcran, "entetes" | "piece" | "fournisseur" | "controle">,
   optionsEcran: readonly string[],

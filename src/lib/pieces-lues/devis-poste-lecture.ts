@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { annuaireDeLecture, proposerLecture } from "@/lib/pieces-lues/service";
-import { lectureDevisPromo } from "@/lib/pieces-lues/prerempli-devis-promo";
+import { lectureDevisPromo, montantTtcDuDevis } from "@/lib/pieces-lues/prerempli-devis-promo";
 import { doutesDeLaLecture, lignesDepuisLaLecture, noteDeLecture } from "@/modules/ad-pro/partage";
 import { identiteUtilisable, type IdentiteEmetteur } from "@/lib/pieces-lues/emetteur";
 import { SOURCE_NOM_DU_FICHIER, phraseFournisseurAuto, type IdentifiantsDuGroupe, GENRE_FOURNISSEUR, decisionFournisseurAuto, identiteLocaleDuDevis, noteFicheAutomatique, type IssueFournisseurAuto } from "@/lib/pieces-lues/fournisseur";
@@ -177,13 +177,14 @@ export async function lireDevisPourFormulaire(i: { userId: string; octets: Buffe
     const nomLu = identiteUtilisable(r.proposition.emetteur) ? r.proposition.emetteur.nom : null;
     const lignes = lignesDepuisLaLecture(p.lignes);
     const doutes = doutesDeLaLecture(lecture.controle, p.tvaNonImprimee ?? null);
-    const lu = [fiche || nomLu ? "le fournisseur" : null, p.announcedTotal != null ? "le total" : null, p.reference ? "la référence" : null]
+    const montant = montantTtcDuDevis(r.proposition);
+    const lu = [fiche || nomLu ? "le fournisseur" : null, montant != null ? "le total TTC" : null, p.reference ? "la référence" : null]
       .filter(Boolean).join(", ");
     return {
       ok: true,
       fournisseur: fiche?.nom ?? nomLu,
       fournisseurFiche: fiche ? { id: fiche.id, nom: fiche.nom } : null,
-      montant: p.announcedTotal,
+      montant,
       reference: p.reference,
       date: p.quoteDate,
       nbLignes: lignes.length,

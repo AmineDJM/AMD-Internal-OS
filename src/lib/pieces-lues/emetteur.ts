@@ -57,7 +57,9 @@ function nettoyer(champ: Champ, brut: string): string | null {
   const v = brut.replace(/\s+/g, " ").trim().replace(/^[:\-–\s]+/, "");
   if (!v) return null;
   if (champ === "nif" || champ === "rib") {
-    const chiffres = v.replace(/\D/g, "");
+    // Le numéro s'arrête au premier caractère qui n'en est pas un : « NIF 000031000000002 · RC 31/00-… » sur une même
+    // ligne donnait 22 chiffres (le NIF suivi de ceux du RC) — recette du parcours agence, 18/11/2026.
+    const chiffres = (/^[\d\s.-]+/.exec(v)?.[0] ?? "").replace(/\D/g, "");
     // Un NIF algérien a 15 chiffres (20 avec l'extension) ; un RIB 20. En deçà, ce n'est pas l'identifiant.
     return chiffres.length >= 15 ? chiffres : null;
   }

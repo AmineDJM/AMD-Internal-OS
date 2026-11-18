@@ -395,9 +395,28 @@ function numerosDe(lignes: readonly string[], plis: readonly string[]): NumeroLu
       if (!v || !/\d/.test(v[1])) continue;
       out.push({ type: typeDe(m[1]), numero: v[1], extrait: extraitDe(lignes[i]), ligne: i + 1, debut, fin: debut + m[0].length + v[1].length });
     }
+    // LE TITRE SEUL, PUIS « N° … » DESSOUS (recette du parcours agence, 18/11/2026) : « DEVIS » sur sa ligne, le numéro
+    // deux lignes plus bas — la mise en page la plus courante d'un en-tête à deux colonnes. Le numéro est celui du titre
+    // le plus proche au-dessus (trois lignes non vides au plus) ; une ligne « N° » sans titre au-dessus ne dit rien.
+    if (out.some((n) => n.ligne === i + 1)) continue;
+    const seul = RE_NUMERO_SEUL.exec(plis[i]);
+    if (!seul) continue;
+    const v = /^([A-Za-z0-9][A-Za-z0-9/_.-]*[A-Za-z0-9]|[A-Za-z0-9])/.exec(lignes[i].slice(seul[0].length));
+    if (!v || !/\d/.test(v[1])) continue;
+    let titre: RegExpExecArray | null = null;
+    for (let j = i - 1, vues = 0; j >= 0 && vues < 3 && !titre; j--) {
+      if (!plis[j].trim()) continue;
+      vues++;
+      titre = RE_TITRE.exec(plis[j]);
+    }
+    if (!titre) continue;
+    out.push({ type: typeDe(titre[1]), numero: v[1], extrait: extraitDe(lignes[i]), ligne: i + 1, debut: 0, fin: seul[0].length + v[1].length });
   }
   return out;
 }
+
+/** « N° DV-12 », « No : 77/2026 », « Numéro 0412 » en DÉBUT de ligne — le numéro d'une pièce dont le titre est au-dessus. */
+const RE_NUMERO_SEUL = /^\s*(?:n\s*[°º]|no(?![a-z])|num(?:ero)?(?![a-z]))\.?\s*[:.-]?\s*/;
 
 // ─────────────────────────────── Les identifiants ───────────────────────────────
 

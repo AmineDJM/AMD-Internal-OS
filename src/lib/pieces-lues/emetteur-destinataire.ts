@@ -85,7 +85,8 @@ export function nomDuFichier(nomFichier: string): string | null {
   const base = nomFichier.replace(/\.[a-z0-9]{2,5}$/i, "");
   const mots = base.split(/[\s_\-.]+/).filter(Boolean);
   // Les mots en CAPITALES qui ne sont ni des mots du métier ni des numéros : le nom de la société.
-  const capitales = mots.filter((m) => /^[A-Z][A-Z0-9&']{1,}$/.test(m) && !MOTS_FICHIER.has(plier(m)) && !/^\d/.test(m));
+  // Un mot qui porte un chiffre (« S1 », « V2 », « 2026 ») est une étiquette de rangement, pas un nom.
+  const capitales = mots.filter((m) => /^[A-Z][A-Z0-9&']{1,}$/.test(m) && !MOTS_FICHIER.has(plier(m)) && !/\d/.test(m));
   return capitales.length ? capitales.join(" ") : null;
 }
 
@@ -140,13 +141,43 @@ function nomDEnTete(ligne: string): string | null {
   const t = ligne.split(/\s[—–]\s|\|/)[0].trim();
   if (t.length < 2 || t.length > 60) return null;
   const p = plier(t);
-  if (/^(devis|facture|proforma|bon de commande|date|page|tel|fax|email|e-mail|adresse|objet|client|n[°o]|ref|www\.|http|rc\b|nif\b|nis\b|ai\b|capital)/.test(p)) return null;
+  if (RE_PAS_UN_NOM.test(p)) return null;
   if (/\d{3,}/.test(t) || /@/.test(t)) return null;
   // Une raison sociale d'en-tête s'imprime en capitales (ou porte une forme juridique).
   const lettres = t.replace(/[^A-Za-zÀ-ÿ]/g, "");
   if (lettres.length < 2) return null;
   const capitales = lettres.replace(/[^A-ZÀ-Ý]/g, "").length / lettres.length;
   return capitales >= 0.8 || /\b(sarl|spa|eurl|snc|ets|etablissements?)\b/.test(p) ? t : null;
+}
+
+/** Ce qu'une ligne d'en-tête imprime et qui n'est jamais un nom : le titre de la pièce, une rubrique, un identifiant. */
+const RE_PAS_UN_NOM = /^(devis|facture|pro\s*-?\s*forma|bon de commande|date|page|tel|fax|email|e-mail|adresse|objet|client|n[°o]|ref|www\.|http|rc\b|nif\b|nis\b|ai\b|capital|validite|designation|libelle|quantite|qte\b|total)/;
+/** Les petits mots qu'un nom de société laisse en minuscules (« Association Oranaise de Cardiologie »). */
+const MOTS_DE_LIAISON = new Set(["de", "du", "des", "d", "l", "la", "le", "les", "et", "&", "en", "a", "au", "aux", "pour", "sur"]);
+
+/**
+ * LA PREMIÈRE LIGNE DE LA PAGE, EN CASSE DE TITRE (recette du parcours agence, 18/11/2026) — « Horizon Com & Stands »,
+ * « El Bahia Congrès » : un en-tête d'agence ne s'imprime pas toujours en capitales ni avec sa forme juridique, et le nom
+ * retombait sur celui du fichier (« S1 »). Seule la PREMIÈRE ligne non vide compte, chaque mot plein y prend une
+ * majuscule ; un nom coupé en fin de ligne sur un mot de liaison (« … Oranaise de ») se recolle à la ligne suivante.
+ */
+function nomDePremiereLigne(lignes: readonly string[], zoneClient: ReadonlySet<number>): string | null {
+  const premiere = lignes.findIndex((l) => l.trim() !== "");
+  // La page s'ouvre sur le bloc du client : sa première ligne n'est pas l'émetteur, et celle d'après non plus.
+  if (premiere < 0 || zoneClient.has(premiere)) return null;
+  const nonVides = lignes.slice(premiere).map((l) => l.trim()).filter(Boolean);
+  const enTitre = (t: string): boolean => {
+    if (t.length < 2 || t.length > 60 || RE_PAS_UN_NOM.test(plier(t)) || /\d{3,}|@|:/.test(t)) return false;
+    const mots = t.split(/\s+/).map((m) => m.replace(/^[«"'(]+|[»"'),.]+$/g, "")).filter(Boolean);
+    if (mots.length < 1 || mots.length > 7) return false;
+    const pleins = mots.filter((m) => !MOTS_DE_LIAISON.has(plier(m).replace(/'$/, "")));
+    return pleins.length > 0 && pleins.every((m) => /^[A-ZÀ-Ý0-9]/.test(m));
+  };
+  let t = (nonVides[0] ?? "").split(/\s[—–]\s|\|/)[0].trim();
+  if (!enTitre(t)) return null;
+  const dernier = plier(t.split(/\s+/).pop() ?? "").replace(/'$/, "");
+  if (MOTS_DE_LIAISON.has(dernier) && nonVides[1] && enTitre(nonVides[1]) && `${t} ${nonVides[1]}`.length <= 60) t = `${t} ${nonVides[1]}`;
+  return t;
 }
 
 export function emetteurEtDestinataire(args: {
@@ -221,6 +252,7 @@ export function emetteurEtDestinataire(args: {
     { nom: args.nomEtiquete ?? null, source: "raison sociale imprimée" },
     ...horsZone.map((l) => ({ nom: nomDuPied(l), source: "pied de page" })),
     ...horsZone.slice(0, 15).map((l) => ({ nom: nomDEnTete(l), source: "en-tête" })),
+    { nom: nomDePremiereLigne(lignes, zone), source: "en-tête" },
     { nom: args.nomModele ?? null, source: "lecture du devis" },
     { nom: nomDuFichier(args.nomFichier), source: "nom du fichier" },
   ];
