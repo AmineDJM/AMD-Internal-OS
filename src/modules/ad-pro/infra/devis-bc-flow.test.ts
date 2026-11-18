@@ -956,7 +956,9 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     const lire = (p: string) => readFileSync(join(process.cwd(), p), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     const carte = lire("src/modules/ad-pro/ecrans/postes/poste-carte.tsx");
     expect(carte, "la carte lit la règle partagée").toMatch(/refusGenerationBC\(/);
-    expect(carte, "le geste principal ouvre la case du BC (le brouillon y est né)").toMatch(/GENERER_BC[\s\S]{0,200}setOngletDemande\(/);
+    // Le geste passe par `ouvrirPieces` (18/11/2026) : il déplie la section « Pièces du poste » ET choisit la case.
+    expect(carte, "le geste principal ouvre la case du BC (le brouillon y est né)").toMatch(/GENERER_BC[\s\S]{0,200}ouvrirPieces\("bc"\)/);
+    expect(carte, "ouvrir les pièces choisit la case demandée").toMatch(/const ouvrirPieces = [\s\S]{0,120}setOngletDemande\(/);
     expect(carte, "la case BC passe par le bloc des devis").toMatch(/<BlocBonDeCommande/);
     expect(carte, "la règle lue par la carte est PASSÉE au bloc (sinon le bouton s'offrirait sans règle)").toMatch(/refusGeneration=\{refusGeneration\}/);
     const bloc = lire("src/modules/ad-pro/ecrans/devis-bc-poste.tsx");

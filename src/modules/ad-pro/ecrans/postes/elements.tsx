@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Plus, CheckCircle2, ExternalLink, Send, FileText, ThumbsUp, Pencil, Circle, X, Wallet, Split, Paperclip, ShieldCheck, FileCheck2, Clock, ChevronDown } from "lucide-react";
+import { Plus, CheckCircle2, ExternalLink, Send, FileText, ThumbsUp, Pencil, Circle, X, Wallet, Split, Paperclip, ShieldCheck, FileCheck2, Clock } from "lucide-react";
 import type { AdProItemKind, AdProItemStatus, AdProItemOrderStage } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -202,30 +202,18 @@ export interface OngletChaine { cle: string; libelle: string; court?: string; et
  * Elle s'ouvre sur l'étape en cours (ou refusée), à défaut sur la dernière faite : quatre colonnes serrées obligeaient
  * à tout lire pour trouver la seule qui comptait.
  */
-export function ChaineDuPoste({ onglets, demande = null, replie = false }: {
+export function ChaineDuPoste({ onglets, demande = null }: {
   onglets: OngletChaine[];
+  /** Un geste qui mène à une case l'y ouvre. Le repli, lui, est la section « Pièces du poste » de la carte (18/11/2026). */
   demande?: { cle: string; n: number } | null;
-  /**
-   * REPLIÉE (Direction, 16/11/2026 — « une interface plus minimaliste ») : sur un poste « agence », la frise dit déjà où en
-   * est le poste ; les pièces se lisent sur un clic. Un geste qui mène à une case (`demande`) la déplie.
-   */
-  replie?: boolean;
 }) {
   const parDefaut = (onglets.find((o) => o.etat === "EN_COURS" || o.etat === "REFUSE")
     ?? [...onglets].reverse().find((o) => o.etat === "FAIT")
     ?? onglets[0]).cle;
   const [choisi, setChoisi] = React.useState<string | null>(null);
-  const [deplie, setDeplie] = React.useState(false);
   // UN GESTE DU POSTE QUI MÈNE À UNE CASE (« Vérifier et valider le BC ») l'ouvre — chaque clic compte (`n`).
-  React.useEffect(() => { if (demande) { setChoisi(demande.cle); setDeplie(true); } }, [demande]);
+  React.useEffect(() => { if (demande) setChoisi(demande.cle); }, [demande]);
   const actif = onglets.find((o) => o.cle === choisi) ?? onglets.find((o) => o.cle === parDefaut) ?? onglets[0];
-  if (replie && !deplie) {
-    return (
-      <button type="button" onClick={() => setDeplie(true)} className="inline-flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-foreground sm:min-h-0">
-        <ChevronDown className="h-3.5 w-3.5" /> Pièces du poste — {onglets.map((o) => o.court ?? o.libelle).join(", ").toLocaleLowerCase("fr")}
-      </button>
-    );
-  }
   return (
     <div className="space-y-2 border-t border-border/70 pt-2.5">
       <div role="tablist" aria-label="Étapes du poste" className="grid gap-1" style={{ gridTemplateColumns: `repeat(${onglets.length}, minmax(0, 1fr))` }}>

@@ -40,6 +40,7 @@ import { ParcoursAgence } from "./parcours-agence";
 import { choisirVoiePoste } from "../../actions-postes-execution";
 import { voieParDefaut } from "../../domaine/parcours-agence";
 import { SIGNATURE_RIEN_DE_PRET, type SignaturePrete } from "@/lib/signature-en-ligne/partage";
+import { SectionRepliable } from "@/components/shared/section-repliable";
 
 // La carte d'un poste, montée par `AdProItemsPanel` (`../items-panel.tsx`) — une par poste de la demande.
 
@@ -141,6 +142,14 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
   const basculer = (p: Panneau) => setPanneau((cur) => (cur === p ? null : p));
 
   const [ongletDemande, setOngletDemande] = React.useState<{ cle: string; n: number } | null>(null);
+  /** UN GESTE QUI MÈNE AUX PIÈCES (« Vérifier et valider le BC »…) déplie la section et y conduit (18/11/2026). */
+  const ouvrirPieces = (cle: string) => {
+    setOngletDemande((d) => ({ cle, n: (d?.n ?? 0) + 1 }));
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`pieces-${item.id}`) as HTMLDetailsElement | null;
+      if (el) { el.open = true; el.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+    });
+  };
   /** Le geste principal — un formulaire qui s'ouvre, ou une action qui part. */
   const agir = (cle: CleGeste) => {
     if (GESTES_A_FORMULAIRE.includes(cle)) {
@@ -150,7 +159,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
     if (cle === "SOUMETTRE") void run(`submit:${item.id}`, () => submitAdProItem(undefined, fdOf()), "Poste soumis pour validation.");
     // « Vérifier et valider le BC » (Direction, 11/2026) : le BC est né avec la validation des lignes — le geste ouvre la
     // case « Bon de commande », où il se télécharge et où sa version signée se dépose.
-    if (cle === "GENERER_BC") setOngletDemande((d) => ({ cle: "bc", n: (d?.n ?? 0) + 1 }));
+    if (cle === "GENERER_BC") ouvrirPieces("bc");
   };
 
   // ── LE MENU « ⋯ » — ce qui ne crie pas, mais reste là. Chaque entrée n'apparaît que si
@@ -364,7 +373,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
       {agence && (
         <ParcoursAgence
           item={item} regard={regardAgence} assistantes={assistantes} budgetOptions={budgetOptions} signature={signature} busy={busy} run={run}
-          ouvrir={(g) => (g === "BC" ? setOngletDemande((d) => ({ cle: "bc", n: (d?.n ?? 0) + 1 })) : g === "DEVIS" ? setPanneau("DEVIS") : setPanneau(g))}
+          ouvrir={(g) => (g === "BC" ? ouvrirPieces("bc") : g === "DEVIS" ? setPanneau("DEVIS") : setPanneau(g))}
         />
       )}
       {!agence && ((pas.geste && pas.geste?.cle !== "GENERER_BC") || (!pas.geste && pas.attente) || bcLegal) && (
@@ -649,240 +658,271 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
         </ul>
       )}
 
-      {/* LE MATÉRIEL DU STOCK a son propre bloc : lister, puis confirmer après l'événement. */}
-      {stock && (
-        <BlocMaterielStock
-          itemId={item.id}
-          lignes={item.lignesStock}
-          magasin={materiel.magasin}
-          editable={editer && POSTE_STOCK_EDITABLE.includes(item.status)}
-          peutConfirmer={materiel.peutConfirmer}
-          busy={busy}
-          run={run}
-        />
-      )}
+      {/* LE DÉTAIL DU POSTE EN SECTIONS (Direction, 18/11/2026 — « garder l'information, cachée ; un clic pour la voir ») :
+          ce qu'il est, ce qu'il coûte et le prochain geste restent en haut ; le reste tient sur une ligne par section, et
+          s'ouvre seul quand la personne qui regarde y a quelque chose à faire (« À vous »). */}
+      <div className="border-t border-border/70">
+        {/* LE MATÉRIEL DU STOCK a son propre bloc : lister, puis confirmer après l'événement. */}
+        {stock && (
+          <SectionRepliable dense sansCadre titre="Matériel" compte={item.lignesStock.length} id={`materiel-${item.id}`}
+            aVous={editer && POSTE_STOCK_EDITABLE.includes(item.status) && item.lignesStock.length === 0}>
+          <BlocMaterielStock
+            itemId={item.id}
+            lignes={item.lignesStock}
+            magasin={materiel.magasin}
+            editable={editer && POSTE_STOCK_EDITABLE.includes(item.status)}
+            peutConfirmer={materiel.peutConfirmer}
+            busy={busy}
+            run={run}
+          />
+          </SectionRepliable>
+        )}
 
-      {/* Le matériel promotionnel : on RENVOIE vers son circuit, on ne le recopie pas. */}
-      {item.kind === "PROMO_MATERIAL" && (
-        <div className="rounded-lg border border-border px-2.5 py-2 text-xs">
-          {item.promoMaterial ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href={`/promo-material/${item.promoMaterialId}`} className="inline-flex items-center gap-1 py-1 font-medium text-primary hover:underline">
-                {item.promoMaterial.reference} <ExternalLink className="h-3 w-3" />
-              </Link>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.promoMaterial.title}</span>
-              <Badge tone="info" dot={false}>{item.promoMaterial.status}</Badge>
-            </div>
-          ) : editer ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-              <select
-                defaultValue=""
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  void run(`link:${item.id}`, () => linkPromoMaterial(undefined, fdOf({ promoMaterialId: e.target.value })), "Matériel rattaché.");
-                }}
-                aria-label="Rattacher un matériel promotionnel existant"
-                className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-2 text-base outline-none focus:border-primary/60 sm:py-1 sm:text-xs"
-              >
-                <option value="">Rattacher un matériel promotionnel existant…</option>
-                {promoOptions.map((p) => <option key={p.id} value={p.id}>{p.reference} — {p.title}</option>)}
-              </select>
-              <Link href="/promo-material" className="whitespace-nowrap text-primary hover:underline">ou en créer un</Link>
-            </div>
-          ) : (
-            <span className="text-muted-foreground">Aucun matériel rattaché.</span>
-          )}
-        </div>
-      )}
+        {/* Le matériel promotionnel : on RENVOIE vers son circuit, on ne le recopie pas. */}
+        {item.kind === "PROMO_MATERIAL" && (
+          <SectionRepliable dense sansCadre titre="Matériel promotionnel"
+            resume={item.promoMaterial ? `${item.promoMaterial.reference} · ${item.promoMaterial.status}` : "aucun rattaché"}
+            aVous={editer && !item.promoMaterial}>
+          <div className="rounded-lg border border-border px-2.5 py-2 text-xs">
+            {item.promoMaterial ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href={`/promo-material/${item.promoMaterialId}`} className="inline-flex items-center gap-1 py-1 font-medium text-primary hover:underline">
+                  {item.promoMaterial.reference} <ExternalLink className="h-3 w-3" />
+                </Link>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">{item.promoMaterial.title}</span>
+                <Badge tone="info" dot={false}>{item.promoMaterial.status}</Badge>
+              </div>
+            ) : editer ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                <select
+                  defaultValue=""
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    void run(`link:${item.id}`, () => linkPromoMaterial(undefined, fdOf({ promoMaterialId: e.target.value })), "Matériel rattaché.");
+                  }}
+                  aria-label="Rattacher un matériel promotionnel existant"
+                  className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-2 text-base outline-none focus:border-primary/60 sm:py-1 sm:text-xs"
+                >
+                  <option value="">Rattacher un matériel promotionnel existant…</option>
+                  {promoOptions.map((p) => <option key={p.id} value={p.id}>{p.reference} — {p.title}</option>)}
+                </select>
+                <Link href="/promo-material" className="whitespace-nowrap text-primary hover:underline">ou en créer un</Link>
+              </div>
+            ) : (
+              <span className="text-muted-foreground">Aucun matériel rattaché.</span>
+            )}
+          </div>
+          </SectionRepliable>
+        )}
 
-      {/* LA BILLETTERIE : qui voyage, quand — et la réservation à l'assistante de direction. */}
-      {porteDesVoyageurs(item.kind) && (
-        <BlocVoyageurs
-          itemId={item.id}
-          voyageurs={item.voyageurs}
-          nomsSuggeres={item.nomsSuggeres}
-          reservation={item.reservation}
-          // Les voyageurs sont une précision d'EXÉCUTION : ils se tiennent à jour même sur une
-          // demande clôturée, comme le bon de commande.
-          peutEditer={regard.canEdit}
-          peutReserver={item.status !== "REJECTED"}
-          busy={busy}
-          run={run}
-          // §118.205 : la somme des devis retenus se compare au montant accordé (sans le changer), et le BC
-          // se demande d'ici d'après eux dès que le poste en est là (`prochainPas`).
-          montantAccorde={item.amountGranted}
-          bcPossible={pas.geste?.cle === "DEMANDER_BC" && item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK"}
-          assistantes={assistantes}
-          envois={item.envois}
-        />
-      )}
+        {/* LA BILLETTERIE : qui voyage, quand — et la réservation à l'assistante de direction. */}
+        {porteDesVoyageurs(item.kind) && (
+          <SectionRepliable dense sansCadre titre="Voyageurs" compte={item.voyageurs.length}
+            resume={item.reservation ? `réservation ${item.reservation.reference}` : undefined}
+            aVous={regard.canEdit && item.status !== "REJECTED" && item.voyageurs.length === 0}>
+          <BlocVoyageurs
+            itemId={item.id}
+            voyageurs={item.voyageurs}
+            nomsSuggeres={item.nomsSuggeres}
+            reservation={item.reservation}
+            // Les voyageurs sont une précision d'EXÉCUTION : ils se tiennent à jour même sur une
+            // demande clôturée, comme le bon de commande.
+            peutEditer={regard.canEdit}
+            peutReserver={item.status !== "REJECTED"}
+            busy={busy}
+            run={run}
+            // §118.205 : la somme des devis retenus se compare au montant accordé (sans le changer), et le BC
+            // se demande d'ici d'après eux dès que le poste en est là (`prochainPas`).
+            montantAccorde={item.amountGranted}
+            bcPossible={pas.geste?.cle === "DEMANDER_BC" && item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK"}
+            assistantes={assistantes}
+            envois={item.envois}
+          />
+          </SectionRepliable>
+        )}
 
-      {/* L'HÔTELLERIE : une fiche par personne logée (Direction, 06/10) — facultatives en sponsoring indirect. */}
-      {porteDesHebergements(item.kind) && (
-        <BlocHebergements
-          itemId={item.id}
-          hebergements={item.hebergements}
-          nomsSuggeres={item.nomsSuggeres}
-          peutEditer={regard.canEdit}
-          obligatoire={!item.priseEnChargeIndirecte}
-          busy={busy}
-          run={run}
-          envois={item.envois}
-        />
-      )}
+        {/* L'HÔTELLERIE : une fiche par personne logée (Direction, 06/10) — facultatives en sponsoring indirect. */}
+        {porteDesHebergements(item.kind) && (
+          <SectionRepliable dense sansCadre titre="Hôtellerie" compte={item.hebergements.length}
+            aVous={regard.canEdit && !item.priseEnChargeIndirecte && item.status !== "REJECTED" && item.hebergements.length === 0}>
+          <BlocHebergements
+            itemId={item.id}
+            hebergements={item.hebergements}
+            nomsSuggeres={item.nomsSuggeres}
+            peutEditer={regard.canEdit}
+            obligatoire={!item.priseEnChargeIndirecte}
+            busy={busy}
+            run={run}
+            envois={item.envois}
+          />
+          </SectionRepliable>
+        )}
 
-      {/* 4. LA CHAÎNE DU POSTE — une barre d'étapes, et SEULE l'étape choisie dépliée (Direction, 07/10). Elle s'ouvre
-          sur l'étape EN COURS : on voit où en est le poste sans rien lire, et le détail d'une étape se lit en un clic. */}
-      {!stock && (() => {
-        const accord = etapes.filter((e) => e.cle === "CHIFFRE" || e.cle === "OPERATIONS" || e.cle === "MARKETING");
-        const etatAccord: EtatEtape = accord.some((e) => e.etat === "REFUSE") ? "REFUSE" : accord.every((e) => e.etat === "FAIT") ? "FAIT" : "EN_COURS";
-        const etatDe = (cle: string): EtatEtape => etapes.find((e) => e.cle === cle)?.etat ?? "A_VENIR";
-        const avecBC = !(direct && !item.pieces.bc && item.orderStage === "NONE");
-        // UN POSTE « AGENCE » (15/11/2026) : sa frise dit déjà l'accord et la demande de devis — la chaîne ne garde que ses PIÈCES.
-        const onglets: OngletChaine[] = [
-          ...(agence ? [] : [{
-            cle: "accord", libelle: "Accord", etat: etatAccord,
-            contenu: (
-              <CasePiece titre="Accord">
-                <ul className="space-y-1">
-                  {accord.map((e) => (
-                    <li key={e.cle} className={cn("flex items-center gap-1.5", STYLE_ETAPE[e.etat].texte)}>{STYLE_ETAPE[e.etat].icone} {e.libelle}</li>
-                  ))}
-                </ul>
-                {item.opsDecidedAt && item.opsDecisionNote && (
-                  <p className="text-muted-foreground"><span className="font-medium text-foreground">Direction des opérations :</span> {item.opsDecisionNote}</p>
-                )}
-              </CasePiece>
-            ),
-          }]),
-          ...(direct || agence ? [] : [{
-            cle: "demande", libelle: "Demande de devis", court: "Demande",
-            etat: (item.demandesDevis.length > 0 || item.pieces.devis.some((d) => !d.annulee) ? "FAIT" : "A_VENIR") as EtatEtape,
-            contenu: (
-              <CasePiece titre="Demande de devis" ajouter={peutDeposerDevis && !enCours ? () => basculer("LETTRE_DEVIS") : undefined} libelleAjouter={item.demandesDevis.length ? "Régénérer" : "Générer"}>
-                <LettresDevis lettres={item.demandesDevis} supprimer={editer ? (id) => void run(`rlettre:${item.id}`, () => deleteDocument(id), "Fichier supprimé.") : undefined} />
-              </CasePiece>
-            ),
-          }]),
-          {
-            cle: "devis", libelle: direct ? "Justificatif" : "Devis",
-            etat: direct ? etatDe("FACTURE") : item.pieces.devis.some((d) => !d.annulee) ? "FAIT" : "A_VENIR",
-            contenu: (
-              <CasePiece titre={direct ? LIBELLE_JUSTIFICATIF_DIRECT : "Devis / pro forma"} ajouter={peutDeposerDevis && !enCours ? () => basculer("DEVIS") : undefined}>
-                {item.pieces.devis.length === 0 ? (
-                  <p className="text-muted-foreground">Aucun pour l&apos;instant.</p>
-                ) : item.pieces.devis.map((d) => {
-                  const lu = item.devisLignes.find((v) => v.pieceId === d.id);
-                  return (
-                    <div key={d.id} className="space-y-0.5">
-                      <LignePiece
-                        piece={d}
-                        retirer={editer && !d.annulee ? () => {
-                          void run(`rdev:${item.id}`, () => retirerDevisDuPoste(undefined, fdOf({ pieceId: d.id })), "Pièce retirée du poste.");
-                        } : undefined}
-                      />
-                      {lu && !d.annulee && (
-                        <button type="button" onClick={() => basculer(`LIGNES:${d.id}`)} className="ml-4 py-1 text-primary hover:underline" aria-label={`Lignes du devis ${d.reference ?? d.titre}`}>
-                          {lu.structure ? `Lignes (${lu.nbValidees}/${lu.lignes.length} validées)` : "Lignes à lire"}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-                {conseil("DEVIS")}
-              </CasePiece>
-            ),
-          },
-        ];
-        if (avecBC) {
+        {/* 4. LA CHAÎNE DU POSTE — une barre d'étapes, et SEULE l'étape choisie dépliée (Direction, 07/10). Elle s'ouvre
+            sur l'étape EN COURS : on voit où en est le poste sans rien lire, et le détail d'une étape se lit en un clic. */}
+        {!stock && (() => {
+          const accord = etapes.filter((e) => e.cle === "CHIFFRE" || e.cle === "OPERATIONS" || e.cle === "MARKETING");
+          const etatAccord: EtatEtape = accord.some((e) => e.etat === "REFUSE") ? "REFUSE" : accord.every((e) => e.etat === "FAIT") ? "FAIT" : "EN_COURS";
+          const etatDe = (cle: string): EtatEtape => etapes.find((e) => e.cle === cle)?.etat ?? "A_VENIR";
+          const avecBC = !(direct && !item.pieces.bc && item.orderStage === "NONE");
+          // UN POSTE « AGENCE » (15/11/2026) : sa frise dit déjà l'accord et la demande de devis — la chaîne ne garde que ses PIÈCES.
+          const onglets: OngletChaine[] = [
+            ...(agence ? [] : [{
+              cle: "accord", libelle: "Accord", etat: etatAccord,
+              contenu: (
+                <CasePiece titre="Accord">
+                  <ul className="space-y-1">
+                    {accord.map((e) => (
+                      <li key={e.cle} className={cn("flex items-center gap-1.5", STYLE_ETAPE[e.etat].texte)}>{STYLE_ETAPE[e.etat].icone} {e.libelle}</li>
+                    ))}
+                  </ul>
+                  {item.opsDecidedAt && item.opsDecisionNote && (
+                    <p className="text-muted-foreground"><span className="font-medium text-foreground">Direction des opérations :</span> {item.opsDecisionNote}</p>
+                  )}
+                </CasePiece>
+              ),
+            }]),
+            ...(direct || agence ? [] : [{
+              cle: "demande", libelle: "Demande de devis", court: "Demande",
+              etat: (item.demandesDevis.length > 0 || item.pieces.devis.some((d) => !d.annulee) ? "FAIT" : "A_VENIR") as EtatEtape,
+              contenu: (
+                <CasePiece titre="Demande de devis" ajouter={peutDeposerDevis && !enCours ? () => basculer("LETTRE_DEVIS") : undefined} libelleAjouter={item.demandesDevis.length ? "Régénérer" : "Générer"}>
+                  <LettresDevis lettres={item.demandesDevis} supprimer={editer ? (id) => void run(`rlettre:${item.id}`, () => deleteDocument(id), "Fichier supprimé.") : undefined} />
+                </CasePiece>
+              ),
+            }]),
+            {
+              cle: "devis", libelle: direct ? "Justificatif" : "Devis",
+              etat: direct ? etatDe("FACTURE") : item.pieces.devis.some((d) => !d.annulee) ? "FAIT" : "A_VENIR",
+              contenu: (
+                <CasePiece titre={direct ? LIBELLE_JUSTIFICATIF_DIRECT : "Devis / pro forma"} ajouter={peutDeposerDevis && !enCours ? () => basculer("DEVIS") : undefined}>
+                  {item.pieces.devis.length === 0 ? (
+                    <p className="text-muted-foreground">Aucun pour l&apos;instant.</p>
+                  ) : item.pieces.devis.map((d) => {
+                    const lu = item.devisLignes.find((v) => v.pieceId === d.id);
+                    return (
+                      <div key={d.id} className="space-y-0.5">
+                        <LignePiece
+                          piece={d}
+                          retirer={editer && !d.annulee ? () => {
+                            void run(`rdev:${item.id}`, () => retirerDevisDuPoste(undefined, fdOf({ pieceId: d.id })), "Pièce retirée du poste.");
+                          } : undefined}
+                        />
+                        {lu && !d.annulee && (
+                          <button type="button" onClick={() => basculer(`LIGNES:${d.id}`)} className="ml-4 py-1 text-primary hover:underline" aria-label={`Lignes du devis ${d.reference ?? d.titre}`}>
+                            {lu.structure ? `Lignes (${lu.nbValidees}/${lu.lignes.length} validées)` : "Lignes à lire"}
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {conseil("DEVIS")}
+                </CasePiece>
+              ),
+            },
+          ];
+          if (avecBC) {
+            onglets.push({
+              cle: "bc", libelle: "Bon de commande", court: "BC", etat: etatDe("BC"),
+              contenu: (
+                <CasePiece titre="Bon de commande">
+                  {/* UN POSTE « AGENCE » PAS ENCORE ACCORDÉ (Direction, 15/11/2026) : son BC ne se génère pas ici — il naît à l'étape 3
+                      de sa frise, après le choix de l'agence (qui accorde le poste). La case le dit, sans avertissement ni bouton inactif. */}
+                  {agence && item.status !== "APPROVED" ? (
+                    <p className="text-muted-foreground">
+                      {item.status === "REJECTED"
+                        ? "Poste refusé : pas de bon de commande."
+                        : "Le bon de commande se prépare à l'étape 3, après le choix de l'agence par la Direction Marketing — ce choix accorde le poste au montant du devis retenu."}
+                    </p>
+                  ) : (
+                  <BlocBonDeCommande
+                    itemId={item.id}
+                    bcs={item.pieces.bcs}
+                    devis={item.devisLignes}
+                    accorde={item.amountGranted}
+                    refusGeneration={refusGeneration}
+                    peutTraiter={peutTraiterBC}
+                    moi={{ id: regard.moiId ?? "", superAdmin: regard.superAdmin === true }}
+                    peutJoindre={peutJoindreBC}
+                    peutModifier={regard.canEdit && !regard.fige && !item.expenseOrderId}
+                    busy={busy}
+                    run={run}
+                    onJoindre={() => basculer("DEMANDER_BC")}
+                    onReviser={peutDemanderRevision ? () => setPanneau("REVISION_DEMANDEE") : undefined}
+                    onAccorder={peutAccorder ? ouvrirAccord : undefined}
+                    parAgence={Boolean(agence)}
+                    repli={<EtatBC item={item} />}
+                  />
+                  )}
+                  {bcAnnulable && toucheBC && (
+                    <button type="button" onClick={() => setPanneau("RETIRER_BC")} className="inline-flex min-h-9 items-center gap-1 text-xs text-destructive hover:underline sm:min-h-0">
+                      <Undo2 className="h-3.5 w-3.5" /> Annuler la demande de BC
+                    </button>
+                  )}
+                </CasePiece>
+              ),
+            });
+          }
           onglets.push({
-            cle: "bc", libelle: "Bon de commande", court: "BC", etat: etatDe("BC"),
+            cle: "facture", libelle: "Facture",
+            etat: direct ? (item.pieces.factures.some((f) => !f.annulee) ? "FAIT" : "A_VENIR") : etatDe("FACTURE"),
             contenu: (
-              <CasePiece titre="Bon de commande">
-                {/* UN POSTE « AGENCE » PAS ENCORE ACCORDÉ (Direction, 15/11/2026) : son BC ne se génère pas ici — il naît à l'étape 3
-                    de sa frise, après le choix de l'agence (qui accorde le poste). La case le dit, sans avertissement ni bouton inactif. */}
-                {agence && item.status !== "APPROVED" ? (
-                  <p className="text-muted-foreground">
-                    {item.status === "REJECTED"
-                      ? "Poste refusé : pas de bon de commande."
-                      : "Le bon de commande se prépare à l'étape 3, après le choix de l'agence par la Direction Marketing — ce choix accorde le poste au montant du devis retenu."}
-                  </p>
+              <CasePiece
+                titre={direct ? "Facture (facultative)" : "Facture"}
+                ajouter={direct
+                  ? (paiementOuvert && item.pieces.factures.length === 0 && !enCours ? () => basculer("DEMANDER_PAIEMENT") : undefined)
+                  : (factureOuverte && !enCours ? () => basculer("FACTURE_BC") : undefined)}
+              >
+                {item.pieces.factures.length === 0 ? (
+                  <p className="text-muted-foreground">{direct ? "Non exigée pour le paiement." : factureOuverte ? "Le BC est signé : déposez la facture." : "Après la signature du BC."}</p>
+                ) : item.pieces.factures.map((f) => (
+                  <div key={f.id} className="space-y-0.5">
+                    <LignePiece piece={f} />
+                    <ControleDeFacture piece={f} />
+                  </div>
+                ))}
+                {conseil("FACTURE")}
+              </CasePiece>
+            ),
+          });
+          onglets.push({
+            cle: "paiement", libelle: "Paiement", etat: etatDe("PAIEMENT"),
+            contenu: (
+              <CasePiece titre="Paiement">
+                {direct ? (
+                  item.expenseOrder ? (
+                    <PaiementDemande
+                      expenseOrder={item.expenseOrder} paye={item.expenseOrder.status === "PAID"}
+                      peutRelancer={regard.canEdit || regard.canAllocate}
+                    />
+                  ) : <p className="text-muted-foreground">Après le justificatif.</p>
                 ) : (
-                <BlocBonDeCommande
-                  itemId={item.id}
-                  bcs={item.pieces.bcs}
-                  devis={item.devisLignes}
-                  accorde={item.amountGranted}
-                  refusGeneration={refusGeneration}
-                  peutTraiter={peutTraiterBC}
-                  moi={{ id: regard.moiId ?? "", superAdmin: regard.superAdmin === true }}
-                  peutJoindre={peutJoindreBC}
-                  peutModifier={regard.canEdit && !regard.fige && !item.expenseOrderId}
-                  busy={busy}
-                  run={run}
-                  onJoindre={() => basculer("DEMANDER_BC")}
-                  onReviser={peutDemanderRevision ? () => setPanneau("REVISION_DEMANDEE") : undefined}
-                  onAccorder={peutAccorder ? ouvrirAccord : undefined}
-                  parAgence={Boolean(agence)}
-                  repli={<EtatBC item={item} />}
-                />
-                )}
-                {bcAnnulable && toucheBC && (
-                  <button type="button" onClick={() => setPanneau("RETIRER_BC")} className="inline-flex min-h-9 items-center gap-1 text-xs text-destructive hover:underline sm:min-h-0">
-                    <Undo2 className="h-3.5 w-3.5" /> Annuler la demande de BC
-                  </button>
+                  <DemandePaiementBC
+                    itemId={item.id} bcs={item.pieces.bcs} factures={item.pieces.factures} accorde={item.amountGranted}
+                    peutDemander={(regard.canEdit || regard.canAllocate) && item.status === "APPROVED"}
+                    expenseOrder={item.expenseOrder ?? null} busy={busy} run={run}
+                  />
                 )}
               </CasePiece>
             ),
           });
-        }
-        onglets.push({
-          cle: "facture", libelle: "Facture",
-          etat: direct ? (item.pieces.factures.some((f) => !f.annulee) ? "FAIT" : "A_VENIR") : etatDe("FACTURE"),
-          contenu: (
-            <CasePiece
-              titre={direct ? "Facture (facultative)" : "Facture"}
-              ajouter={direct
-                ? (paiementOuvert && item.pieces.factures.length === 0 && !enCours ? () => basculer("DEMANDER_PAIEMENT") : undefined)
-                : (factureOuverte && !enCours ? () => basculer("FACTURE_BC") : undefined)}
-            >
-              {item.pieces.factures.length === 0 ? (
-                <p className="text-muted-foreground">{direct ? "Non exigée pour le paiement." : factureOuverte ? "Le BC est signé : déposez la facture." : "Après la signature du BC."}</p>
-              ) : item.pieces.factures.map((f) => (
-                <div key={f.id} className="space-y-0.5">
-                  <LignePiece piece={f} />
-                  <ControleDeFacture piece={f} />
-                </div>
-              ))}
-              {conseil("FACTURE")}
-            </CasePiece>
-          ),
-        });
-        onglets.push({
-          cle: "paiement", libelle: "Paiement", etat: etatDe("PAIEMENT"),
-          contenu: (
-            <CasePiece titre="Paiement">
-              {direct ? (
-                item.expenseOrder ? (
-                  <PaiementDemande
-                    expenseOrder={item.expenseOrder} paye={item.expenseOrder.status === "PAID"}
-                    peutRelancer={regard.canEdit || regard.canAllocate}
-                  />
-                ) : <p className="text-muted-foreground">Après le justificatif.</p>
-              ) : (
-                <DemandePaiementBC
-                  itemId={item.id} bcs={item.pieces.bcs} factures={item.pieces.factures} accorde={item.amountGranted}
-                  peutDemander={(regard.canEdit || regard.canAllocate) && item.status === "APPROVED"}
-                  expenseOrder={item.expenseOrder ?? null} busy={busy} run={run}
-                />
-              )}
-            </CasePiece>
-          ),
-        });
-        // Les devis restent dépliés tant qu'on les dépose et les lit (prospection demandée, devis pas encore transmis).
-        const devisEnCours = Boolean(agence && item.agence?.faits.prospectionDemandee && !item.agence.faits.devisTransmis);
-        return <ChaineDuPoste onglets={onglets} demande={ongletDemande} replie={Boolean(agence) && !devisEnCours} />;
-      })()}    </li>
+          // Les devis restent dépliés tant qu'on les dépose et les lit (prospection demandée, devis pas encore transmis).
+          const devisEnCours = Boolean(agence && item.agence?.faits.prospectionDemandee && !item.agence.faits.devisTransmis);
+          // FERMÉE, LA SECTION DIT où en est la chaîne ; elle s'ouvre seule quand une pièce attend la personne qui regarde.
+          const faites = onglets.filter((o) => o.etat === "FAIT").length;
+          const courante = onglets.find((o) => o.etat === "EN_COURS" || o.etat === "REFUSE");
+          const resumePieces = courante
+            ? `${faites}/${onglets.length} faites · ${courante.libelle.toLocaleLowerCase("fr")} ${courante.etat === "REFUSE" ? "refusé" : "en cours"}`
+            : faites === onglets.length ? "tout est fait" : faites > 0 ? `${faites}/${onglets.length} faites` : "rien encore";
+          const aVousPieces = pas.geste?.cle === "GENERER_BC" || factureOuverte || (pas.geste?.cle === "DEMANDER_PAIEMENT" && !direct) || (devisEnCours && peutDeposerDevis);
+          return (
+            <SectionRepliable dense sansCadre titre="Pièces du poste" resume={resumePieces} aVous={aVousPieces} id={`pieces-${item.id}`}>
+              <ChaineDuPoste onglets={onglets} demande={ongletDemande} />
+            </SectionRepliable>
+          );
+        })()}
+      </div>
+    </li>
   );
 }
