@@ -594,7 +594,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
       {typeof panneau === "string" && panneau.startsWith("LIGNES:") && (() => {
         const lu = item.devisLignes.find((v) => v.pieceId === panneau.slice("LIGNES:".length));
         return lu ? (
-          <PanneauLignesDevis itemId={item.id} devis={lu} peutEditer={peutDeposerDevis} busy={busy} run={run} onClose={fermer} />
+          <PanneauLignesDevis itemId={item.id} devis={lu} peutEditer={peutDeposerDevis} busy={busy} run={run} onClose={fermer} comparer={Boolean(agence && !agence.faits.agenceRetenue)} />
         ) : null;
       })()}
       {panneau === "SECRETARIAT" && regard.canEdit && (
@@ -811,7 +811,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                         />
                         {lu && !d.annulee && (
                           <button type="button" onClick={() => basculer(`LIGNES:${d.id}`)} className="ml-4 py-1 text-primary hover:underline" aria-label={`Lignes du devis ${d.reference ?? d.titre}`}>
-                            {lu.structure ? `Lignes (${lu.nbValidees}/${lu.lignes.length} validées)` : "Lignes à lire"}
+                            {!lu.structure ? "Lignes à lire" : agence && !agence.faits.agenceRetenue ? `Voir les lignes (${lu.lignes.length})` : `Lignes (${lu.nbValidees}/${lu.lignes.length} validées)`}
                           </button>
                         )}
                       </div>

@@ -412,10 +412,16 @@ function cochesInitiales(devis: DevisDePosteVue): Set<string> {
   return new Set(devis.lignes.filter((l) => l.lue !== null && validable(l)).map((l) => l.id));
 }
 
-export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClose }: {
+export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClose, comparer = false }: {
   itemId: string;
   devis: DevisDePosteVue;
   peutEditer: boolean;
+  /**
+   * COMPARER, PAS VALIDER (recette du parcours agence, 18-19/11/2026) — un poste « agence » dont l'agence n'est pas encore
+   * choisie : on y compare les lignes au papier, rien de plus. Le choix de l'agence valide les lignes du devis retenu ;
+   * des cases « Valider » cochées d'office et un « validé : … » faisaient croire l'inverse à l'assistante.
+   */
+  comparer?: boolean;
   busy: string | null;
   run: Run;
   onClose: () => void;
@@ -494,7 +500,13 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
         <p className="min-w-0 flex-1 font-medium text-foreground [overflow-wrap:anywhere]">Lignes du devis <NomDuDevis d={devis} />{devis.fournisseur ? ` — ${devis.fournisseur}` : ""}</p>
         <button type="button" onClick={onClose} className="min-h-9 px-2 text-muted-foreground hover:text-foreground sm:min-h-0 sm:px-0">Fermer</button>
       </div>
-      {devis.entete.lectureNote && (
+      {comparer && devis.structure && !edition && (
+        <p className="rounded-md bg-primary/5 px-2 py-1.5 text-foreground">
+          Comparez ces lignes au devis papier. Une erreur ? « Corriger les lignes ». Rien à valider ici : la Direction Marketing
+          validera les lignes du devis qu&apos;elle retiendra.
+        </p>
+      )}
+      {devis.entete.lectureNote && !comparer && (
         <p className="text-muted-foreground">
           Lignes lues par la plateforme — {devis.entete.lectureNote}
           {devis.lignes.some((l) => l.validee) ? "" : " Les lignes bien lues sont cochées : comparez-les au devis, puis validez — la validation prépare le brouillon du bon de commande."}
@@ -511,14 +523,14 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[34rem]">
             <thead className="text-[0.6875rem] text-muted-foreground">
-              <tr><th className="w-8 py-1">Valider</th><th>Référence / désignation</th><th>Unité</th><th className="text-right">Qté</th><th className="text-right">PU HT</th><th className="text-right">Total HT</th></tr>
+              <tr>{!comparer && <th className="w-8 py-1">Valider</th>}<th className="py-1">Référence / désignation</th><th>Unité</th><th className="text-right">Qté</th><th className="text-right">PU HT</th><th className="text-right">Total HT</th></tr>
             </thead>
             <tbody>
               {devis.lignes.map((l) => {
                 const empeche = Boolean(l.refusValidation || l.valideeAilleurs || gele);
                 return (
                   <tr key={l.id} className="border-t border-border/50 align-top">
-                    <td className="py-1" data-label="Valider">
+                    {!comparer && <td className="py-1" data-label="Valider">
                       <input
                         type="checkbox" checked={coches.has(l.id)} disabled={empeche && !coches.has(l.id) ? true : gele}
                         title={l.valideeAilleurs ? `Déjà validée pour « ${l.valideeAilleurs} »` : l.refusValidation ?? undefined}
@@ -526,7 +538,7 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
                         className="max-sm:h-5 max-sm:w-5"
                         onChange={(e) => setCoches((cur) => { const n = new Set(cur); if (e.target.checked) n.add(l.id); else n.delete(l.id); return n; })}
                       />
-                    </td>
+                    </td>}
                     <td className="py-1 pr-2" data-sans-etiquette>
                       <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
                         <span className="font-medium text-foreground">{l.reference}</span>
@@ -579,6 +591,17 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
 
       {devis.structure && !edition && (
         <div className="space-y-1">
+          {comparer ? (
+            <p className="tabular-nums text-foreground">
+              <span className="font-medium">Total HT {dzd(devis.totalDevisHt)}</span>
+              {devis.entete.announcedTotal != null && (devis.ecartTotal
+                ? null
+                : <span className="text-success"> · conforme au total imprimé ✓</span>)}
+              {devis.entete.tvaRate !== null && devis.totalDevisHt != null && (
+                <span className="text-muted-foreground"> · TVA {devis.entete.tvaRate.toLocaleString("fr-FR")} % · TTC {dzd(Math.round(devis.totalDevisHt * (100 + devis.entete.tvaRate + (devis.entete.extraTaxRate ?? 0))) / 100)}</span>
+              )}
+            </p>
+          ) : (<>
           <p className="tabular-nums text-foreground">
             Total du devis lu : {dzd(devis.totalDevisHt)} HT
             {devis.entete.announcedTotal != null && <> · imprimé : {dzd(devis.entete.announcedTotal)}</>}
@@ -595,13 +618,14 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
               TVA retenue : {devis.entete.tvaRate.toLocaleString("fr-FR")} % — validé : {dzd(devis.totalValideTtc)} TTC. Vérifiez qu&apos;elle est bien imprimée sur le devis.
             </p>
           )}
+          </>)}
           {devis.ecartTotal && (
             <p className="flex gap-1 text-warning">
               <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> Les lignes lues font {dzd(devis.ecartTotal.calcule)} HT, le devis imprime {dzd(devis.ecartTotal.annonce)} : une ligne manque peut-être, ou un chiffre est faux.
             </p>
           )}
           {gele && devis.refus && <p className="text-destructive">{devis.refus}</p>}
-          {(nouvellesLues || toutLues) && !gele && (
+          {(nouvellesLues || toutLues) && !gele && !comparer && (
             <label className="flex items-start gap-1.5 py-1 sm:py-0">
               <input type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="mt-0.5 shrink-0 max-sm:h-5 max-sm:w-5" />
               <span>J&apos;ai comparé ces lignes au devis (elles viennent de la lecture du fichier).</span>
@@ -615,12 +639,12 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
           {/* UN SEUL BOUTON PRINCIPAL À LA FOIS (Direction, 06/10) : « Valider » n'existe que s'il reste quelque
               chose à valider — un devis bien lu est déjà validé d'office, et la carte ne propose alors que
               « Générer le BC ». */}
-          {!edition && devis.structure && changees && (
+          {!edition && devis.structure && changees && !comparer && (
             <Button size="sm" onClick={() => valider()} disabled={occupe || !changees || gele || (nouvellesLues && !compare)}>
               {busy === `val:${devis.pieceId}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />} Valider les lignes cochées
             </Button>
           )}
-          {!edition && devis.structure && !gele && !toutDejaValide && toutes.length > 0 && (
+          {!edition && devis.structure && !gele && !toutDejaValide && toutes.length > 0 && !comparer && (
             <Button size="sm" variant={changees ? "outline" : "primary"} onClick={toutValider} disabled={occupe || (toutLues && !compare)}
               title={toutLues && !compare ? "Cochez d'abord « J'ai comparé ces lignes au devis »." : undefined}>
               <CheckCircle2 className="h-3.5 w-3.5" /> Tout valider ({toutes.length})

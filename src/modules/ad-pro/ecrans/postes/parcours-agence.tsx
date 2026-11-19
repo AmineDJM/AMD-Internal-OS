@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Clock, X, Hand, Mail, Copy, Building2, FileSignature, Send, ShieldCheck, PackageCheck, Receipt, Search, ExternalLink, BadgeCheck } from "lucide-react";
+import { Check, Clock, X, Hand, Mail, Copy, Building2, FileSignature, Send, ShieldCheck, PackageCheck, Receipt, Search, ExternalLink, BadgeCheck, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -101,6 +101,32 @@ ${email.corps}`)}
   );
 }
 
+/** Le geste « transmettre » de l'assistante : où elle en est, ce qu'elle atteste, et UN bouton principal. */
+function TransmettreLesDevis({ nombre, enCours, id, ajouter, transmettre }: {
+  nombre: number; enCours: boolean; id: string; ajouter: () => void; transmettre: () => void;
+}) {
+  const [compare, setCompare] = React.useState(false);
+  return (
+    <div className="space-y-2.5 rounded-lg border border-primary/30 bg-primary/[0.03] p-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p>
+          <span className="font-medium">{nombre} devis déposé{nombre > 1 ? "s" : ""}</span>
+          <span className="text-muted-foreground">{nombre < 3 ? ` — 3 conseillés, il en manque ${3 - nombre}` : " — prêts à transmettre"}</span>
+        </p>
+        <Button size="sm" variant="outline" className="h-8" onClick={ajouter} disabled={enCours}><Plus className="h-3.5 w-3.5" /> Ajouter un devis</Button>
+      </div>
+      <label htmlFor={`agt-cmp-${id}`} className="flex items-start gap-2 text-sm">
+        <input id={`agt-cmp-${id}`} type="checkbox" checked={compare} onChange={(e) => setCompare(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>J&apos;ai comparé les lignes de chaque devis au papier <span className="text-muted-foreground">(« Voir les lignes » sous chaque devis, dans Pièces du poste)</span></span>
+      </label>
+      <Button size="sm" className="w-full sm:w-auto" onClick={transmettre} disabled={enCours || !compare}
+        title={!compare ? "Cochez d'abord « J'ai comparé les lignes de chaque devis au papier »." : undefined}>
+        <Send className="h-4 w-4" /> Transmettre à la Direction Marketing
+      </Button>
+    </div>
+  );
+}
+
 export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signature, busy, run, ouvrir }: {
   item: ItemRow;
   regard: RegardAgence;
@@ -143,7 +169,7 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
       <Frise faits={faits} />
 
       {/* À VOUS — un seul bouton ; sinon CHEZ QUI en est le poste. */}
-      {pas.geste ? (
+      {pas.geste && !(pas.geste.cle === "DEPOSER_DEVIS" && devis.length > 0) ? (
         <Button size="sm" className="w-full sm:w-auto" onClick={() => agir(pas.geste!.cle)} disabled={enCours}>{ICONE[pas.geste.cle]} {pas.geste.libelle}</Button>
       ) : pas.attente ? (
         <p className="flex items-start gap-1.5 text-sm text-muted-foreground"><Clock className="mt-0.5 h-4 w-4 shrink-0" /> <span>{pas.attente}</span></p>
@@ -190,17 +216,15 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
         </form>
       )}
 
-      {/* L'ASSISTANTE TRANSMET LES DEVIS — visible pour elle dès qu'un devis est déposé. */}
+      {/* L'ASSISTANTE TRANSMET LES DEVIS — dès qu'un devis est déposé, C'EST le geste du poste (recette, 19/11/2026) : un seul
+          bouton principal, « Transmettre », qui s'allume quand la comparaison est attestée ; ajouter un devis reste à côté, en
+          secondaire. Deux boutons bleus côte à côte (« Déposer » et « Transmettre ») ne disaient pas lequel faire. */}
       {pas.geste?.cle === "DEPOSER_DEVIS" && devis.length > 0 && (
-        <form className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-2.5 text-sm" onSubmit={(e) => {
-          e.preventDefault();
-          const ok = (e.currentTarget.elements.namedItem("compare") as HTMLInputElement).checked;
-          void run(`agt:${item.id}`, () => transmettreDevisAgences(fd({ compare: ok ? "oui" : "non" })), "Devis transmis.");
-        }}>
-          <span className="font-medium">{devis.length} devis déposé{devis.length > 1 ? "s" : ""}{devis.length < 3 ? " (3 conseillés)" : ""}</span>
-          <label className="flex items-center gap-1.5 text-xs"><input id={`agt-cmp-${item.id}`} name="compare" type="checkbox" className="h-4 w-4" /> J&apos;ai comparé les lignes de chaque devis au papier</label>
-          <Button size="sm" type="submit" disabled={enCours}><Send className="h-4 w-4" /> Transmettre à la Direction Marketing</Button>
-        </form>
+        <TransmettreLesDevis
+          nombre={devis.length} enCours={enCours} id={item.id}
+          ajouter={() => agir("DEPOSER_DEVIS")}
+          transmettre={() => void run(`agt:${item.id}`, () => transmettreDevisAgences(fd({ compare: "oui" })), "Devis transmis.")}
+        />
       )}
 
       {/* LE COMPARATIF — la Direction Marketing choisit l'agence et le budget. */}
