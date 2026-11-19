@@ -10,6 +10,7 @@ import { libellePastille, parcoursOf, pharmacienPeutValider } from "@/lib/medica
 import { canViewDeclaration } from "@/lib/queries/medical-info";
 import { refusDepotAutorites } from "@/lib/actions/internes/medical-info/dossier";
 import { tientLaDeclarationAdPro } from "@/lib/actions/internes/medical-info/ouverture-ad-pro";
+import { declarationOuvrable } from "./declaration-postes";
 import { ETAPE_DECLARATION_PARTAGEE, TITRE_ETAPE_DECLARATION, type EtapeDeclaration, type PieceDeDeclaration } from "./etape-ad-pro-partage";
 
 /**
@@ -60,15 +61,22 @@ export async function etapeDeclaration(
     decision: null, validation: { peut: false, piecesAttendues: false },
   };
   if (!decl) {
+    // LA DÉCLARATION ATTEND TOUS LES POSTES (Direction, 19/11/2026) : elle s'ouvre seule quand le dernier est validé, et les
+    // déclare ensemble. Tant qu'il en reste, l'étape dit combien — et que la demande ne prendra plus de poste ensuite.
+    const { ouvrable, postes } = await declarationOuvrable(sourceType, sourceId);
+    const attendPostes = circuitConclu && !ouvrable;
     return {
       ...base,
-      etat: circuitConclu ? "current" : "todo",
-      detail: circuitConclu ? "à ouvrir" : "après la pré-validation",
-      phrase: circuitConclu
-        ? "Déclaration pas encore ouverte — chez le pharmacien responsable de l'information médicale"
-        : "Après la pré-validation, le pharmacien déclare l'événement au ministère.",
-      ton: circuitConclu ? "attente" : "neutre",
-      declaration: null, lienDossier: null, peutAgir: false, peutOuvrir: tient && circuitConclu,
+      etat: circuitConclu && ouvrable ? "current" : "todo",
+      detail: !circuitConclu ? "après les postes"
+        : attendPostes ? (postes.total ? `${postes.valides}/${postes.total} postes validés` : "aucun poste encore") : "à ouvrir",
+      phrase: !circuitConclu
+        ? "Après la pré-validation puis la validation de tous les postes, le pharmacien déclare l'événement au ministère."
+        : attendPostes
+          ? `La déclaration s'ouvrira quand tous les postes seront validés (accordés, agence choisie pour un poste « agence ») — ${postes.valides} sur ${postes.total} le sont. Ils seront déclarés ensemble : aucun poste ne s'ajoutera ensuite.`
+          : "Déclaration pas encore ouverte — chez le pharmacien responsable de l'information médicale",
+      ton: circuitConclu && !attendPostes ? "attente" : "neutre",
+      declaration: null, lienDossier: null, peutAgir: false, peutOuvrir: tient && circuitConclu && ouvrable,
     };
   }
 

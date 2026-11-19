@@ -147,6 +147,7 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     kam: "MEDICAL_DELEGATE", kam2: "MEDICAL_DELEGATE", ops: "DIRECTION", dm: "PRODUCT_MANAGER",
     gm: "GENERAL_MANAGER", fin: "FINANCE_BUDGET_MANAGER", ast1: "DIRECTION_ASSISTANT",
   } as const;
+  const autresCongres: string[] = [];
   let companyId = "", congres = "", congres2 = "", catId = "", fournisseurAnnuaire = "";
   const comme = async (qui: keyof typeof ROLES) => { ACTOR = await acteur(u[qui], ROLES[qui]); return ACTOR; };
   const ok = (r: { ok: boolean; error?: string }) => expect(r.ok, r.error ?? "").toBe(true);
@@ -191,7 +192,7 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
 
   afterAll(async () => {
     const ids = Object.values(u).filter(Boolean);
-    const parents = [congres, congres2].filter(Boolean);
+    const parents = [congres, congres2, ...autresCongres].filter(Boolean);
     const postes = (await prisma.adProItem.findMany({ where: { congressNationalId: { in: parents } }, select: { id: true } }).catch(() => [])).map((p) => p.id);
     const demandes = await prisma.documentRequest.findMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: postes } }, select: { id: true, legalDocumentId: true } }).catch(() => []);
     const liens = await prisma.adProItemPiece.findMany({ where: { itemId: { in: postes } }, select: { legalDocumentId: true } }).catch(() => []);
@@ -502,6 +503,44 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     await comme("kam");
     expect(refus(await retirerDevisDuPoste(undefined, fd({ id: pa, pieceId: retenu })))).toMatch(/devis retenu/);
     ok(await retirerDevisDuPoste(undefined, fd({ id: pa, pieceId: garde })));
+  });
+
+  it("LA DÉCLARATION À L'INFORMATION MÉDICALE attend TOUS les postes validés, puis les déclare ensemble : plus aucun poste ne s'ajoute (Direction, 19/11/2026)", async () => {
+    const c = await prisma.congressNational.create({ data: { name: `${RUN} Congrès d'Oran`, requesterId: u.kam, requestStatus: "APPROVED" }, select: { id: true } });
+    autresCongres.push(c.id);
+    const def = await prisma.workflowDefinition.findFirstOrThrow({ where: { category: "CONGRESS_NATIONAL" }, select: { id: true } });
+    await prisma.workflowInstance.create({ data: { definitionId: def.id, entityType: "CONGRESS_NATIONAL", entityId: c.id, category: "CONGRESS_NATIONAL", status: "APPROVED" } });
+    const declaration = () => prisma.medicalInfoDeclaration.findUnique({ where: { sourceType_sourceId: { sourceType: "CONGRESS_NATIONAL", sourceId: c.id } } });
+    const accorder = async (id: string, montant: number) => {
+      await comme("kam"); ok(await submitAdProItem(undefined, fd({ id })));
+      await comme("dm"); ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: String(montant), budgetCategoryId: catId })));
+    };
+    try {
+      const p1 = await nouveauPoste("Poste déclaration 1", 100_000, "Imprimerie Alpha", c.id);
+      const p2 = await nouveauPoste("Poste déclaration 2", 50_000, "Imprimerie Alpha", c.id);
+      const p3 = await nouveauPoste("Poste déclaration refusé", 20_000, "Imprimerie Alpha", c.id);
+
+      // Le premier poste accordé : il en reste — rien ne part à l'information médicale.
+      await accorder(p1, 100_000);
+      expect(await declaration(), "un poste validé sur trois : la déclaration attend").toBeNull();
+
+      // Un poste refusé ne compte pas ; le dernier accordé ouvre le dossier, avec ce que portent les postes validés.
+      await comme("kam"); ok(await submitAdProItem(undefined, fd({ id: p3 })));
+      await comme("dm"); ok(await decideAdProItem(undefined, fd({ id: p3, decision: "REJECTED", note: "Hors besoin" })));
+      expect(await declaration(), "le refus ne valide rien").toBeNull();
+      await accorder(p2, 50_000);
+      const d = await declaration();
+      expect(d, "le dernier poste validé ouvre la déclaration").not.toBeNull();
+      expect(Number(d!.amount)).toBe(150_000);
+
+      // Les postes sont déclarés ensemble : la demande n'en prend plus.
+      await comme("kam");
+      const r = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: c.id, kind: "PRINTING", label: `${TAG}Poste tardif`, amountEstimated: "10000" }));
+      expect(refus(r)).toMatch(/déclarés à l'information médicale/);
+    } finally {
+      await prisma.medicalInfoDeclaration.deleteMany({ where: { sourceId: c.id } });
+      await prisma.workflowInstance.deleteMany({ where: { entityId: c.id } });
+    }
   });
 
   // ═════════════ 3. LA GÉNÉRATION ═════════════

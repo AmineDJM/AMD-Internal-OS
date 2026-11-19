@@ -16,7 +16,7 @@ import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { controleRenforce, REFUS_VUE_EXACTE } from "@/lib/signature-en-ligne/second-facteur";
 import { apposerSignatureEnLigne } from "@/lib/signature-en-ligne/signer-bc";
-import { PARENTS, revalidate, audit, loadItem, REFUS_HISTORIQUE, peutTrancherSur, refusAvantPrevalidation, refusDemandeFermee, devisDuPoste, estAssistanteDuPoste } from "./infra/postes/commun";
+import { PARENTS, revalidate, audit, loadItem, REFUS_HISTORIQUE, peutTrancherSur, refusAvantPrevalidation, refusDemandeFermee, devisDuPoste, estAssistanteDuPoste, ouvrirDeclarationSiPostesValides } from "./infra/postes/commun";
 import { decideAdProItem } from "./actions-postes-decision";
 import { validerLignesDuDevis, preparerBrouillonPoste, validerEtEnvoyerBcPoste } from "./actions-postes-lignes";
 
@@ -185,6 +185,9 @@ export async function choisirAgencePoste(formData: FormData): Promise<ActionResu
       body: `${info.ref} — « ${item.label} » : agence retenue ${devis.fournisseur ?? ""}. Finalisez le BC puis soumettez-le à la Direction Marketing.`, link: lienAssistante(item.id),
     }).catch(sansBloquer("ad-pro.choisirAgencePoste.notifyUser"));
   }
+  // L'AGENCE CHOISIE VALIDE LE POSTE « AGENCE » : s'il était le dernier, la déclaration s'ouvre (Direction, 19/11/2026).
+  await ouvrirDeclarationSiPostesValides(owner.parent, owner.id)
+    .catch(sansBloquer("ad-pro.choisirAgencePoste.ouvrirDeclaration"));
   await audit(user, owner.parent, owner.id, "UPDATE", `Agence retenue pour le poste « ${item.label} » : ${devis.fournisseur ?? devis.titre} — ${montant.toLocaleString("fr-FR")} DZD.`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");

@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { AdProItemKind, AdProItemBudgetKind } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { reporterLesPostesSurLaDeclaration } from "@/lib/workflow/engine";
+import { reporterLesPostesSurLaDeclaration, refusPosteApresDeclaration } from "@/lib/workflow/engine";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -64,6 +64,10 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
   // prévalidation de la Direction Marketing, aucun budget ne peut être ouvert, rien ».
   const avant = refusAvantPrevalidation(info);
   if (avant) return { ok: false, error: avant };
+  // LES POSTES SONT DÉCLARÉS ENSEMBLE (Direction, 19/11/2026) : une fois le dossier d'information médicale ouvert — quand
+  // tous les postes ont été validés —, aucun poste ne s'ajoute plus ; il ne serait jamais déclaré.
+  const declare = await refusPosteApresDeclaration(parentRaw, parentId);
+  if (declare) return { ok: false, error: declare };
   // LES POSTES SE PUBLIENT PAR LA DIRECTION MARKETING (Direction, 15/11/2026) : un poste ajouté par une autre partie prenante
   // n'est qu'une PROPOSITION — un brouillon qui ne coûte rien tant que la Direction Marketing ne l'a pas accepté (montant et
   // budget, `decideAdProItem`) ; sur la voie « agence », c'est elle seule qui lance la prospection (`demanderProspection`).

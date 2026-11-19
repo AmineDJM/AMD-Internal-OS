@@ -20,6 +20,7 @@ import { notifyUser } from "@/lib/notify";
 import { recordAudit } from "@/lib/audit";
 import { hasGlobalView, hasRole } from "@/lib/rbac";
 import { createMedicalInfoDeclaration, pharmacienAssigne } from "@/lib/medical-info";
+import { EVENT_SOURCES } from "@/lib/medical-info/circuits";
 import { createExpenseOrder } from "@/modules/finances/api";
 import { toNumber } from "@/lib/utils";
 import { parcoursEffectif, seuilFranchissement, SLUG_MARKETING } from "./parcours";
@@ -42,6 +43,8 @@ import type { ResultatRevision } from "./engine/cycle";
 export { stepCreate, getDefinition, orderedSteps, stepBySlug, lectureDeLApprobation, canActOnStep, type LoadedInstance } from "./engine/definitions";
 export type { AdvanceInput } from "./engine/gestes";
 export { postesPortantLaDepense, montantADeclarer, reporterLesPostesSurLaDeclaration } from "./engine/montants";
+// LA DÉCLARATION QUI ATTEND TOUS LES POSTES (Direction, 19/11/2026) — la porte des modules métier, comme le report ci-dessus.
+export { ouvrirDeclarationSiPostesValides, refusPosteApresDeclaration } from "@/lib/medical-info/declaration-postes";
 export { apresModificationDeLaDemande, fermerInstance, reopenInstance } from "./engine/cycle";
 
 /**
@@ -577,6 +580,10 @@ async function emitFinancials(
   const budgetCategoryId = instance.budgetCategoryId ?? null;
   const requestedById = summary.requesterId ?? viewer.id;
 
+  // LA PRÉ-VALIDATION D'UNE DEMANDE AD & PRO N'OUVRE PLUS LA DÉCLARATION (Direction, 19/11/2026) : elle s'ouvre quand TOUS
+  // ses postes sont validés, et les déclare ensemble (`ouvrirDeclarationSiPostesValides`). Rien ne part donc ici : une tenue
+  // pré-validée n'engage aucun argent (pas d'ordre), et l'information médicale attend les postes.
+  if (step.argentDecideApres && EVENT_SOURCES.includes(entityType)) return null;
   // Le pharmacien désigné — le plus ancien actif, déterministe (`pharmacienAssigne`).
   const pharmacist = await pharmacienAssigne();
   if (pharmacist && step.emitDeclaration) {

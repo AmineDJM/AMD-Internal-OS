@@ -398,8 +398,12 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     expect(spo.status).toBe("PRE_VALIDATED");
     expect(spo.amountGranted).toBeNull();
     expect(spo.closedAt).toBeNull();
+    // LES POSTES SONT DÉCLARÉS ENSEMBLE (Direction, 19/11/2026) : une fois la déclaration d'information médicale ouverte —
+    // tous les postes validés —, même rouverte, la demande ne prend plus de poste. Sans déclaration, elle en reprend.
+    const declaree = await prisma.medicalInfoDeclaration.findUnique({ where: { sourceType_sourceId: { sourceType: "SPONSORING", sourceId: spoId } }, select: { id: true } });
     const ajout = await addAdProItem(undefined, fd({ parent: "SPONSORING", parentId: spoId, label: `${TAG}Traiteur`, kind: "CATERING", amountEstimated: "10000" }));
-    expect(ajout.ok, ajout.ok === false ? ajout.error : "").toBe(true);
+    if (declaree) expect(ajout.ok === false ? ajout.error : "", "déclarée : plus de poste").toMatch(/déclarés à l'information médicale/);
+    else expect(ajout.ok, ajout.ok === false ? ajout.error : "").toBe(true);
   });
 
   it("DEUX CLICS SIMULTANÉS ne clôturent qu'une fois — l'écriture est conditionnelle au statut qu'elle lit", async () => {
@@ -409,13 +413,15 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     // deux notifications et deux lignes d'audit. Correcte, la garde ne peut pas rendre ce cas
     // rouge quel que soit l'entrelacement ; sabotée, elle le rend rouge dès que les deux lectures
     // précèdent la première écriture, ce qui est le cas ordinaire.
-    const traiteur = await prisma.adProItem.findFirstOrThrow({ where: { sponsoringId: spoId, label: `${TAG}Traiteur` } });
-    // Le traiteur se SOUMET puis la Direction Marketing le refuse (un seul temps, 27/10/2026) — la vraie voie, pas un
-    // refus posé sur un brouillon.
-    ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
-    expect((await submitAdProItem(undefined, fd({ id: traiteur.id }))).ok).toBe(true);
-    ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
-    expect((await decideAdProItem(undefined, fd({ id: traiteur.id, decision: "REJECTED", note: "Hors budget" }))).ok).toBe(true);
+    // Le traiteur (s'il a pu s'ajouter : sans déclaration ouverte) se SOUMET puis la Direction Marketing le refuse (un seul
+    // temps, 27/10/2026) — la vraie voie, pas un refus posé sur un brouillon.
+    const traiteur = await prisma.adProItem.findFirst({ where: { sponsoringId: spoId, label: `${TAG}Traiteur` } });
+    if (traiteur) {
+      ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
+      expect((await submitAdProItem(undefined, fd({ id: traiteur.id }))).ok).toBe(true);
+      ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
+      expect((await decideAdProItem(undefined, fd({ id: traiteur.id, decision: "REJECTED", note: "Hors budget" }))).ok).toBe(true);
+    }
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
     const avant = await prisma.auditLog.count({ where: { entityId: spoId, action: "VALIDATE" } });
     const [a, b] = await Promise.all([cloturerSponsoring(fd({ id: spoId })), cloturerSponsoring(fd({ id: spoId }))]);

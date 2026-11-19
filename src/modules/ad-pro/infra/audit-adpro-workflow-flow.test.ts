@@ -187,13 +187,14 @@ suite("Audit Ad & Pro — les règles du circuit tenues hors de l'écran du post
     const parent = await congresPrevalide("Congrès de Batna");
     // Son circuit, conclu à la prévalidation SANS montant (27/10) : `WorkflowInstance.amount` reste vide.
     expect((await ensureInstance("CONGRESS_NATIONAL", parent))?.amount ?? null).toBeNull();
-    // La déclaration née à la prévalidation, SANS montant (la prévalidation n'en fixe pas, 27/10).
-    const decl = await prisma.medicalInfoDeclaration.create({
-      data: { reference: `${RUN}DIM`, sourceType: "CONGRESS_NATIONAL", sourceId: parent, label: `${TAG}Congrès de Batna`, requesterId: u.kam, status: "AWAITING_DIRECTION" },
-    });
     await comme("kam");
     const a = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: parent, kind: "PRINTING", label: `${TAG}Kakémonos`, amountEstimated: "1500000", supplier: "Imprimerie Alpha" }));
     expect(a.ok, a.error).toBe(true);
+    // La déclaration, ouverte APRÈS le poste (depuis le 19/11/2026, aucun poste ne s'ajoute à une demande déclarée),
+    // sur son estimation.
+    const decl = await prisma.medicalInfoDeclaration.create({
+      data: { reference: `${RUN}DIM`, sourceType: "CONGRESS_NATIONAL", sourceId: parent, label: `${TAG}Congrès de Batna`, requesterId: u.kam, status: "AWAITING_DIRECTION", amount: 1_500_000 },
+    });
     expect(Number((await prisma.medicalInfoDeclaration.findUniqueOrThrow({ where: { id: decl.id } })).amount)).toBe(1_500_000);
     const s = await submitAdProItem(undefined, fd({ id: a.id! }));
     expect(s.ok, s.error).toBe(true);

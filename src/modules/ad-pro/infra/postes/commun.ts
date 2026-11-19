@@ -4,7 +4,8 @@ import type { AdProItemKind, AdProItemStatus, UserRole } from "@prisma/client";
 import { userCan, hasGlobalView, rolesWithModule, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
-import { reporterLesPostesSurLaDeclaration } from "@/lib/workflow/engine";
+import { reporterLesPostesSurLaDeclaration, ouvrirDeclarationSiPostesValides } from "@/lib/workflow/engine";
+export { ouvrirDeclarationSiPostesValides };
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -434,6 +435,9 @@ export async function reprojeterMontantDemande(parent: AdProParent, parentId: st
   // de ce qu'ils portent, tant qu'elle n'est pas validée et qu'aucun ordre n'en est né.
   await reporterLesPostesSurLaDeclaration(parent, parentId)
     .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
+  // LE DERNIER POSTE VALIDÉ OUVRE LA DÉCLARATION (Direction, 19/11/2026) — tous les postes, déclarés ensemble.
+  await ouvrirDeclarationSiPostesValides(parent, parentId)
+    .catch((err) => console.error("[ad-pro] déclaration d'information médicale non ouverte (non bloquant)", err));
   // LE TOTAL A PU FRANCHIR LE SEUIL (27/10/2026) : le DG est prévenu, une fois par nouveau total.
   await signalerPorteDgSiBesoin(parent, parentId);
 }

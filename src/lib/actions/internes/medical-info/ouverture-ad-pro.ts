@@ -8,6 +8,7 @@ import { EVENT_SOURCES } from "@/lib/medical-info/circuits";
 import { loadEntity } from "@/lib/workflow/engine/entites";
 import type { ActionResult } from "@/lib/actions/types";
 import { canManage } from "./acces";
+import { declarationOuvrable } from "@/lib/medical-info/declaration-postes";
 
 /** Qui tient l'étape « Déclaration (information scientifique) » sur une demande Ad & Pro : le pharmacien, et le Super Admin. */
 export function tientLaDeclarationAdPro(user: SessionUser): boolean {
@@ -45,6 +46,17 @@ export async function ouvrirDeclarationAdPro(
   // Une demande d'avant les circuits n'a pas d'instance : elle n'est pas refusée pour autant.
   if (circuit && circuit.status !== "APPROVED") {
     return { ok: false, error: "La déclaration s'ouvre une fois la demande pré-validée : son circuit n'est pas encore conclu." };
+  }
+  // LES POSTES D'ABORD (Direction, 19/11/2026) : la déclaration ne s'ouvre qu'une fois TOUS les postes validés (seule une
+  // demande de l'ancienne règle, sans poste et déjà payée par son ordre global, s'ouvre sans eux).
+  const { ouvrable, postes } = await declarationOuvrable(type, sourceId);
+  if (!ouvrable) {
+    return {
+      ok: false,
+      error: postes.total > 0
+        ? `La déclaration s'ouvre quand tous les postes sont validés : ${postes.valides} sur ${postes.total} le sont.`
+        : "La déclaration s'ouvre quand les postes de la demande sont validés : elle n'en a encore aucun.",
+    };
   }
   const resume = await loadEntity(type, sourceId);
   if (!resume) return { ok: false, error: "Demande introuvable." };

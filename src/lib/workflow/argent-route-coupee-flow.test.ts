@@ -258,7 +258,8 @@ suite("La route du rang 2 (27/10/2026) — la Direction Marketing prévalide, au
       expect(ligne.requestStatus).toBe("APPROVED");
       expect(ligne.finalAmount, "aucun montant écrit").toBeNull();
       expect(ordres.length, "aucun ordre GLOBAL : les postes portent la dépense").toBe(0);
-      expect(await prisma.medicalInfoDeclaration.count({ where: { sourceId: id } }), "la déclaration d'information médicale part").toBe(1);
+      // La déclaration attend que tous les postes soient validés (Direction, 19/11/2026) — cette demande n'en a pas encore.
+      expect(await prisma.medicalInfoDeclaration.count({ where: { sourceId: id } }), "la déclaration attend les postes").toBe(0);
     });
   }
 

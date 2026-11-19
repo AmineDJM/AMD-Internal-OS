@@ -139,7 +139,8 @@ suite("Moteur — le parcours d'un délégué (KAM) : National Sales → Directe
     expect(c.finalAmount, "aucun montant accordé : l'argent se décide poste par poste").toBeNull();
     expect(await prisma.expenseOrder.count({ where: { sourceId: congressId } }), "aucun ordre GLOBAL").toBe(0);
     // L'ÉVÉNEMENT SE DÉCLARE AVANT D'AVOIR LIEU : la déclaration d'information médicale part ici.
-    expect(await prisma.medicalInfoDeclaration.count({ where: { sourceId: congressId } }), "la déclaration est émise").toBe(1);
+    // DEPUIS LE 19/11/2026, la déclaration attend que tous les postes soient validés : rien n'est déclaré ici.
+    expect(await prisma.medicalInfoDeclaration.count({ where: { sourceId: congressId } }), "rien n'est déclaré avant les postes").toBe(0);
     const avis = await prisma.notification.findFirst({ where: { userId: delegId, title: { contains: "prévalidée : les postes se préparent" } } });
     expect(avis, "le demandeur lit ce qui l'attend — les postes, pas un financement").not.toBeNull();
   });
@@ -303,7 +304,9 @@ suite("Moteur — le parcours du NATIONAL SALES lui-même : Directeur des opéra
     const inst = await prisma.workflowInstance.findUniqueOrThrow({ where: { entityType_entityId: { entityType: "CONGRESS_INTERNATIONAL", entityId: congressId } } });
     expect(inst.status).toBe("APPROVED");
     expect(await prisma.expenseOrder.count({ where: { sourceId: congressId } })).toBe(0);
-    expect(await prisma.medicalInfoDeclaration.count({ where: { sourceId: congressId } }), "la déclaration part à la prévalidation").toBe(1);
+    // DEPUIS LE 19/11/2026, la prévalidation n'ouvre plus la déclaration : elle attend que TOUS les postes soient validés
+    // (`ouvrirDeclarationSiPostesValides`), et ce congrès n'en a aucun.
+    expect(await prisma.medicalInfoDeclaration.count({ where: { sourceId: congressId } }), "la déclaration attend les postes").toBe(0);
   });
 });
 
