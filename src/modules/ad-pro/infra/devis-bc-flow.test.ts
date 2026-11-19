@@ -477,6 +477,33 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     expect((await prisma.adProDevisLigne.findUniqueOrThrow({ where: { id: lx[0] } })).validatedItemId).toBeNull();
   });
 
+  it("L'ASSISTANTE DE LA PROSPECTION supprime un devis déposé en double tant qu'elle n'a pas transmis ; le devis retenu ne se supprime jamais (recette, 18/11/2026)", async () => {
+    const pa = await nouveauPoste("Poste agence retrait", 300_000);
+    const double = await deposerDevis(pa, "DV-DOUBLE", "Imprimerie Alpha");
+    const garde = await deposerDevis(pa, "DV-GARDE", "Imprimerie Alpha");
+    const retenu = await deposerDevis(pa, "DV-RETENU", "Imprimerie Alpha");
+    await prisma.adProExecutionPoste.create({ data: { itemId: pa, assistanteId: u.ast1, prospectionDemandeeAt: new Date() } });
+
+    // Une autre assistante n'y touche pas.
+    ACTOR = await acteur(u.kam2, ROLES.ast1);
+    expect(refus(await retirerDevisDuPoste(undefined, fd({ id: pa, pieceId: double })))).toMatch(/Non autorisé|introuvable/);
+
+    // L'assistante du poste, avant de transmettre : le doublon part.
+    await comme("ast1");
+    ok(await retirerDevisDuPoste(undefined, fd({ id: pa, pieceId: double })));
+    expect(await prisma.adProItemPiece.count({ where: { itemId: pa, legalDocumentId: double } })).toBe(0);
+
+    // Après la transmission : plus par elle.
+    await prisma.adProExecutionPoste.update({ where: { itemId: pa }, data: { devisTransmisAt: new Date(), devisTransmisParId: u.ast1 } });
+    expect(refus(await retirerDevisDuPoste(undefined, fd({ id: pa, pieceId: garde })))).toMatch(/transmis à la Direction Marketing/);
+
+    // Le devis retenu : par personne, même par qui édite le poste.
+    await prisma.adProExecutionPoste.update({ where: { itemId: pa }, data: { agenceDevisId: retenu, agenceRetenueAt: new Date() } });
+    await comme("kam");
+    expect(refus(await retirerDevisDuPoste(undefined, fd({ id: pa, pieceId: retenu })))).toMatch(/devis retenu/);
+    ok(await retirerDevisDuPoste(undefined, fd({ id: pa, pieceId: garde })));
+  });
+
   // ═════════════ 3. LA GÉNÉRATION ═════════════
 
   it("GÉNÉRER REFUSÉ tant que le poste n'est pas accordé — et la carte ne propose pas le geste", async () => {

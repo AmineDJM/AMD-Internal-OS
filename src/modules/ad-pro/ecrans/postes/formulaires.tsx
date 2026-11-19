@@ -248,6 +248,13 @@ export function FormulairePiece({
   const [fournisseurLu, setFournisseurLu] = React.useState<{ nom: string; version: number } | null>(null);
   const lire = async (fichier: File) => {
     if (!lirePoste) return;
+    // UN NOUVEAU FICHIER, DE NOUVEAUX CHAMPS (recette du parcours agence, 18/11/2026) : la référence du devis précédent
+    // restait dans le champ quand la lecture du suivant n'en rendait pas — un devis Horizon s'est déposé sous « DV-…-0412 »
+    // d'Atlas. Le montant et la référence se vident, puis la lecture de CE fichier les remplit.
+    touches.current.clear();
+    if (montantRef.current) montantRef.current.value = "";
+    if (referenceRef.current) referenceRef.current.value = "";
+    setLuParIa(new Set());
     setLecture({ etat: "lecture", phrase: "L'IA lit le devis…" });
     const fd = new FormData();
     fd.set("id", lirePoste);

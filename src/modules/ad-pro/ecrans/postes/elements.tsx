@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Plus, CheckCircle2, ExternalLink, Send, FileText, ThumbsUp, Pencil, Circle, X, Wallet, Split, Paperclip, ShieldCheck, FileCheck2, Clock } from "lucide-react";
+import { Plus, CheckCircle2, ExternalLink, Send, FileText, ThumbsUp, Pencil, Circle, X, Trash2, Wallet, Split, Paperclip, ShieldCheck, FileCheck2, Clock } from "lucide-react";
 import type { AdProItemKind, AdProItemStatus, AdProItemOrderStage } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -119,9 +119,11 @@ export function LignePiece({ piece, retirer }: { piece: PieceDePoste; retirer?: 
           </ul>
         )}
       </div>
+      {/* SUPPRIMER, LISIBLE (recette du parcours agence, 18/11/2026) : une croix grise de 12 px ne se voyait pas — un devis
+          déposé en double restait. Le bouton dit ce qu'il fait ; le second clic confirme (`BoutonDecisif`). */}
       {retirer && (
-        <BoutonDecisif brut type="button" onClick={retirer} aria-label={`Retirer ${piece.titre} du poste`} className="-m-1.5 rounded p-2 text-muted-foreground hover:text-destructive sm:m-0 sm:p-0.5">
-          <X className="h-4 w-4 sm:h-3 sm:w-3" />
+        <BoutonDecisif brut type="button" onClick={retirer} confirmation={`Supprimer ${piece.reference ?? piece.titre}`} aria-label={`Supprimer ${piece.reference ?? piece.titre} du poste`} className="inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-1 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+          <Trash2 className="h-3.5 w-3.5" /> Supprimer
         </BoutonDecisif>
       )}
     </div>

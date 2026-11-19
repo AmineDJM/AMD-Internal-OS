@@ -805,7 +805,7 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
                       <div key={d.id} className="space-y-0.5">
                         <LignePiece
                           piece={d}
-                          retirer={editer && !d.annulee ? () => {
+                          retirer={(editer || (assistanteAgence && !agence?.faits.devisTransmis)) && !d.annulee && d.id !== agence?.agenceDevisId ? () => {
                             void run(`rdev:${item.id}`, () => retirerDevisDuPoste(undefined, fdOf({ pieceId: d.id })), "Pièce retirée du poste.");
                           } : undefined}
                         />
