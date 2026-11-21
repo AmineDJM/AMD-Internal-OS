@@ -138,7 +138,12 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
   const resumeCircuit = resumeDuCircuit(workflow, Boolean(e.requestStatus));
   const aVousCircuit = Boolean(workflow?.action) || (workflow?.status === "RETURNED" && sonEvenement);
   const lieuTexte = [e.location, e.city, e.country].filter(Boolean).join(", ");
-  const resumeBudget = [
+  // LE DÉLÉGUÉ MÉDICAL SUIT SANS LES MONTANTS (15/11/2026 ; recette du 21/11) : « affecté 2 064 770 DZD » disait la somme des
+  // postes accordés que ses cartes lui cachent. Il garde le budget qu'il a lui-même estimé.
+  const suiviSimple = contexte.suiviSimple;
+  const resumeBudget = suiviSimple
+    ? (e.estimatedBudget !== null ? `Estimé ${formatCurrency(e.estimatedBudget)}` : "")
+    : [
     e.finalAmount != null ? `Enveloppe ${formatCurrency(e.finalAmount)}` : e.estimatedBudget !== null ? `Estimé ${formatCurrency(e.estimatedBudget)}` : null,
     `affecté ${formatCurrency(ventilation.totalRequestedDzd)}`,
     ventilation.overrunDzd > 0 ? `dépassement ${formatCurrency(ventilation.overrunDzd)}` : ventilation.envelopeDzd != null ? `reste ${formatCurrency(ventilation.unallocatedDzd)}` : null,
@@ -257,6 +262,11 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
               </div>
             </SectionRepliable>
             <SectionRepliable titre="Budget" resume={resumeBudget}>
+              {suiviSimple ? (
+                <BandeauArgent>
+                  <Chiffre label="Budget estimé" valeur={e.estimatedBudget !== null ? formatCurrency(e.estimatedBudget) : "—"} />
+                </BandeauArgent>
+              ) : (
               <BandeauArgent>
                 {e.finalAmount != null ? (
                   <Chiffre
@@ -285,6 +295,7 @@ export default async function EventDetailPage(props: { params: Promise<{ id: str
                   />
                 )}
               </BandeauArgent>
+              )}
             </SectionRepliable>
           </div>
         }

@@ -82,12 +82,14 @@ export function Topbar({ navItems, user, unreadCount, canMessage, messagingUnrea
             Sur un écran de 390 px, la barre pleine largeur ne tenait pas : son libellé passait
             sur deux lignes (débordant d'un bouton de hauteur fixe) et elle repoussait l'avatar
             hors de l'écran. Une icône seule est le geste attendu sur mobile — et elle a l'air
-            voulue, contrairement à une barre écrasée sur trois caractères. */}
+            voulue, contrairement à une barre écrasée sur trois caractères.
+            À partir de `sm`, elle RÉTRÉCIT (`sm:shrink`) : figée à sa largeur pleine, elle poussait l'avatar
+            hors de la barre entre 640 et ~1 100 px, et un clic faisait défiler toute la page de côté (recette, 21/11/2026). */}
         <button
           type="button"
           onClick={() => window.dispatchEvent(new CustomEvent("amd:open-palette"))}
           aria-label="Rechercher partout"
-          className="flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-input bg-background text-sm text-muted-foreground shadow-sm hover:bg-secondary/40 sm:w-full sm:min-w-0 sm:max-w-md sm:justify-start sm:px-3"
+          className="flex h-9 w-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-input bg-background text-sm text-muted-foreground shadow-sm hover:bg-secondary/40 sm:w-full sm:min-w-0 sm:max-w-md sm:shrink sm:justify-start sm:px-3"
         >
           <Search className="h-4 w-4 shrink-0" />
           <span className="hidden min-w-0 flex-1 truncate text-left sm:block">Rechercher partout…</span>

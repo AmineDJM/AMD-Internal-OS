@@ -8,6 +8,7 @@ import type { AdProItemOrderStage, AdProItemStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { userCan, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { suitSansDetails } from "./domaine/suivi-delegue";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -276,11 +277,15 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
     if (phrase) suite += ` ${phrase}`;
   }
   if (info?.requesterId && info.requesterId !== user.id) {
+    // LE DÉLÉGUÉ SUIT SANS LES DÉTAILS (`suitSansDetails`) : la note d'un ACCORD (« Agence retenue : … », montants) ne lui
+    // est pas écrite ; le motif d'un refus ou d'une révision, si — c'est ce qu'il doit savoir.
+    const demandeurPoste = await prisma.user.findUnique({ where: { id: info.requesterId }, select: { role: true, secondaryRole: true } });
+    const taireLaNote = status === "APPROVED" && suitSansDetails(demandeurPoste);
     await notifyUser({
       userId: info.requesterId,
       type: "GENERIC",
       title: `Poste ${label}`,
-      body: `${info.ref} — « ${item.label} »${note ? ` : ${note}` : ""}`,
+      body: `${info.ref} — « ${item.label} »${note && !taireLaNote ? ` : ${note}` : ""}`,
       link: lienPosteAdPro(owner.parent, owner.id, item.id),
     }).catch(sansBloquer("ad-pro-item-actions.decideAdProItem.notifyUser"));
   }

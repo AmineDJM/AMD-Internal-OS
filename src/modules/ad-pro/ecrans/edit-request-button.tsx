@@ -67,7 +67,7 @@ export function AdProEditButton({
   return (
     <>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-        <Pencil className="h-4 w-4" /> Modifier
+        <Pencil className="h-4 w-4" /> Modifier la demande
       </Button>
 
       <Sheet

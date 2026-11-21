@@ -71,7 +71,14 @@ export function formatNumber(value: number | null | undefined, locale = "fr-FR")
   return new Intl.NumberFormat(locale).format(value);
 }
 
-/** Format a date in the French locale. */
+/**
+ * L'HEURE DE LA SOCIÉTÉ — Alger (UTC+1, sans heure d'été). Le serveur (Render) tourne en UTC : sans fuseau, une date
+ * rendue au serveur s'affichait une heure plus tôt (« créée le 17:09 » pour une demande créée à 18:09), puis changeait
+ * à l'hydratation dans le navigateur (recette, 21/11/2026). Une date seule stockée à minuit UTC reste le même jour.
+ */
+export const FUSEAU_SOCIETE = "Africa/Algiers";
+
+/** Format a date in the French locale — à l'heure d'Alger, sauf si l'appelant donne son propre fuseau. */
 export function formatDate(
   value: Date | string | null | undefined,
   opts: Intl.DateTimeFormatOptions = { day: "2-digit", month: "short", year: "numeric" },
@@ -79,7 +86,7 @@ export function formatDate(
   if (!value) return "—";
   const date = typeof value === "string" ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("fr-FR", opts).format(date);
+  return new Intl.DateTimeFormat("fr-FR", { timeZone: FUSEAU_SOCIETE, ...opts }).format(date);
 }
 
 /** Taille d'octets lisible (Go / Mo / Ko / o). Server-safe → utilisable côté serveur ET client. */

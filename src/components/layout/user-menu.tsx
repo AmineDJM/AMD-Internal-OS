@@ -34,13 +34,15 @@ export function UserMenu({ name, email, role, enVue = false }: UserMenuProps) {
         className="flex items-center gap-2 rounded-lg p-1 transition-colors hover:bg-secondary sm:pr-2"
       >
         <Avatar name={name} size="sm" />
-        <div className="hidden text-left sm:block">
-          <p className="text-sm font-medium leading-tight">{name}</p>
-          <p className="text-[0.6875rem] leading-tight text-muted-foreground">
+        {/* Le nom et le rôle à partir de `lg` seulement, tronqués : entre 640 et 1 024 px, ils poussaient l'avatar hors de la
+            barre (recette, 21/11/2026). L'avatar suffit en dessous ; le menu ouvert redonne le nom en entier. */}
+        <div className="hidden max-w-[11rem] text-left lg:block">
+          <p className="truncate text-sm font-medium leading-tight">{name}</p>
+          <p className="truncate text-[0.6875rem] leading-tight text-muted-foreground">
             {ROLE_LABELS[role] ?? role}
           </p>
         </div>
-        <ChevronDown className="hidden h-4 w-4 text-muted-foreground sm:block" />
+        <ChevronDown className="hidden h-4 w-4 text-muted-foreground lg:block" />
       </button>
 
       {open && (

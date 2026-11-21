@@ -5,6 +5,7 @@ import { notifyRoles, notifyUser } from "@/lib/notify";
 import { recordAudit } from "@/lib/audit";
 import { hasRole } from "@/lib/rbac";
 import { PARENT_COLONNE, type AdProParent } from "../domaine/postes";
+import { suitSansDetails } from "../domaine/suivi-delegue";
 import { lienDemandeAdPro, lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import {
   etatPorteDg, phrasePorteDg, refusPorteDg, type DecisionDg, type EtatPorteDg,
@@ -250,7 +251,14 @@ export async function statuerSurLeTotal(input: {
   const titre = decision === "VALIDEE" ? "Ad & Pro — total validé par le DG : les bons de commande peuvent partir" : "Ad & Pro — total renvoyé en révision par le DG";
   const corps = `${d?.nom ?? "Demande"} — ${libelle}${note ? ` : ${note}` : "."}`.slice(0, 280);
   const lien = lienDemandeAdPro(parent, parentId);
-  if (d?.requesterId) await notifyUser({ userId: d.requesterId, type: "GENERIC", title: titre, body: corps, link: lien }).catch(sansBloquer("porte-dg.statuerSurLeTotal.notifyUser"));
+  if (d?.requesterId) {
+    // LE DÉLÉGUÉ SUIT SANS LES MONTANTS (`suitSansDetails`) : il apprend la décision, pas le total.
+    const demandeur = await prisma.user.findUnique({ where: { id: d.requesterId }, select: { role: true, secondaryRole: true } });
+    const corpsDemandeur = suitSansDetails(demandeur)
+      ? `${d.nom ?? "Demande"} — total de la demande ${decision === "VALIDEE" ? "validé" : "renvoyé en révision"} par le Directeur Général.`
+      : corps;
+    await notifyUser({ userId: d.requesterId, type: "GENERIC", title: titre, body: corpsDemandeur, link: lien }).catch(sansBloquer("porte-dg.statuerSurLeTotal.notifyUser"));
+  }
   await notifyRoles(["PRODUCT_MANAGER", "OPERATIONS_DIRECTOR"], { type: "GENERIC", title: titre, body: corps, link: lien }).catch(sansBloquer("porte-dg.statuerSurLeTotal.notifyRoles"));
   return { ok: true, message: `${libelle}.` };
 }

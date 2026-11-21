@@ -230,10 +230,13 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
   const medecin = [req.doctor, req.specialty].filter(Boolean).join(" · ");
   // CE QUE LES SECTIONS DISENT FERMÉES (17/11/2026).
   const aVousCircuit = Boolean(workflow?.action) || (peutAgirSurLaCloture && enPostes && bilan.cloturable) || canAppeal;
+  // LE DÉLÉGUÉ MÉDICAL SUIT SANS LES MONTANTS DES POSTES (15/11/2026 ; recette du 21/11) : il garde ce qu'il a demandé et
+  // suggéré, pas ce qui est affecté ni accordé.
+  const suiviSimple = contexte.suiviSimple;
   const resumeMontants = [
     fmt(req.amountRequested) ? `demandé ${fmt(req.amountRequested)}` : null,
-    `affecté ${formatCurrency(ventilation.totalRequestedDzd)}`,
-    accorde ? `accordé ${accorde}` : null,
+    suiviSimple ? null : `affecté ${formatCurrency(ventilation.totalRequestedDzd)}`,
+    !suiviSimple && accorde ? `accordé ${accorde}` : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -332,6 +335,7 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
               <BandeauArgent>
                 <Chiffre label="Demandé (médecin)" valeur={fmt(req.amountRequested) ?? "—"} />
                 <Chiffre label="Suggéré (délégué)" valeur={fmt(req.amountProposed) ?? "—"} />
+                {!suiviSimple && (<>
                 <Chiffre
                   label="Affecté aux postes"
                   valeur={formatCurrency(ventilation.totalRequestedDzd)}
@@ -345,6 +349,7 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
                   valeur={accorde ?? (regleDeLaTenue ? "À la validation finale" : "—")}
                   discret={!accorde}
                 />
+                </>)}
               </BandeauArgent>
             </SectionRepliable>
           </div>

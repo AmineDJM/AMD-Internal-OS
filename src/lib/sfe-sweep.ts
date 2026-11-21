@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { loadCockpit } from "@/lib/queries/sfe-cockpit";
-import { fieldAlerts, monthlyReviewLine, type FieldAlert, type RepSnapshot } from "@/lib/sfe-alerts";
+import { alerteDejaEnvoyee, fieldAlerts, monthlyReviewLine, verrouApresEnvoi, type FieldAlert, type RepSnapshot } from "@/lib/sfe-alerts";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -148,11 +148,12 @@ export async function runSfeFieldSweep(now: Date = new Date()): Promise<SfeSweep
     })).map((u) => u.id);
 
     for (const a of alerts) {
-      // Anti-spam : la même alerte ne repart pas dans le même cycle.
+      // Anti-spam : la même alerte ne repart pas dans le même cycle — TOUTES celles du mois, pas la dernière seule
+      // (`alerteDejaEnvoyee` : deux alertes du même KAM s'effaçaient l'une l'autre et repartaient à chaque passage).
       const profile = await prisma.salesRepProfile.findUnique({
         where: { repId: a.repId }, select: { id: true, lastAlertKey: true },
       });
-      if (profile?.lastAlertKey === a.key) continue;
+      if (alerteDejaEnvoyee(profile?.lastAlertKey, a.key)) continue;
 
       const cibles = await audienceFor(a, configurators);
       for (const userId of cibles) {
@@ -166,7 +167,7 @@ export async function runSfeFieldSweep(now: Date = new Date()): Promise<SfeSweep
       // repartira — c'est voulu, elle signale justement qu'il faut le configurer.
       if (profile) {
         await prisma.salesRepProfile.update({
-          where: { id: profile.id }, data: { lastAlertKey: a.key, lastAlertAt: now },
+          where: { id: profile.id }, data: { lastAlertKey: verrouApresEnvoi(profile.lastAlertKey, a.key), lastAlertAt: now },
         }).catch(sansBloquer("sfe-sweep.runSfeFieldSweep.salesRepProfile"));
       }
       out.alerted += 1;

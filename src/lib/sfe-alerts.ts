@@ -96,6 +96,26 @@ export function alertKey(kind: FieldAlertKind, today: Date): string {
 }
 
 /**
+ * LE VERROU ANTI-SPAM D'UN KAM — TOUTES les alertes déjà parties ce mois, pas la dernière seule (recette, 21/11/2026).
+ *
+ * Le verrou (`SalesRepProfile.lastAlertKey`) ne gardait qu'UNE clé. Un KAM sous deux alertes à la fois (silence ET retard
+ * à mi-mois) les voyait s'effacer l'une l'autre : chaque passage trouvait la clé de l'AUTRE, renvoyait les deux et
+ * réécrivait le verrou. Le balayage tournant chaque minute, son superviseur en recevait six par minute — 165 987
+ * notifications depuis le 6 octobre. Le verrou porte désormais les clés du mois, séparées par « | » ; celles d'un mois
+ * passé tombent au premier envoi du nouveau mois.
+ */
+export function alerteDejaEnvoyee(verrou: string | null | undefined, cle: string): boolean {
+  return (verrou ?? "").split("|").includes(cle);
+}
+
+/** Le verrou après l'envoi de `cle` : les clés du même mois restent, celles d'avant tombent. */
+export function verrouApresEnvoi(verrou: string | null | undefined, cle: string): string {
+  const mois = cle.slice(cle.indexOf(":") + 1);
+  const gardees = (verrou ?? "").split("|").filter((k) => k && k !== cle && k.slice(k.indexOf(":") + 1) === mois);
+  return [...gardees, cle].join("|");
+}
+
+/**
  * Les alertes d'UN KAM à une date donnée. Au plus une par type : deux alertes qui disent la
  * même chose sous deux angles font couper les notifications, et c'est la troisième — la vraie
  * — qu'on rate ensuite.

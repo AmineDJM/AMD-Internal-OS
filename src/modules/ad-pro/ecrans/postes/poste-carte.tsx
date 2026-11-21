@@ -284,7 +284,9 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
     setPanneau("DECIDER");
     requestAnimationFrame(() => document.getElementById(`accord-${item.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
-  const peutJoindreBC = (pas.geste?.cle === "DEMANDER_BC" || pas.geste?.cle === "GENERER_BC") && item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK";
+  // Jamais sur un poste « agence » : son BC naît de sa frise (préparé, finalisé par l'assistante, signé) — « Joindre un BC
+  // existant » y relançait une demande de BC à l'assistante pendant que le sien attendait la signature (recette, 21/11/2026).
+  const peutJoindreBC = !agence && (pas.geste?.cle === "DEMANDER_BC" || pas.geste?.cle === "GENERER_BC") && item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK";
   const pieceDeposee = depose
     ? (depose.case === "DEVIS" ? item.pieces.devis : item.pieces.factures)
       .find((p) => (depose.id ? p.id === depose.id : !depose.avant.includes(p.id))) ?? null
@@ -307,7 +309,10 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           {nature && <p className="text-xs text-muted-foreground">{nature}</p>}
         </div>
         {item.principal && <span className={ETIQUETTE}>Bloc principal</span>}
-        <Badge tone={ITEM_STATUS_LABELS[item.status].tone} dot={false}>{ITEM_STATUS_LABELS[item.status].label}</Badge>
+        {/* PAYÉ, LE POSTE LE DIT (recette, 21/11/2026) : « Accordé » restait affiché sur un poste réglé par les Finances. */}
+        {item.status === "APPROVED" && item.expenseOrder?.status === "PAID"
+          ? <Badge tone="success" dot={false}>Payé</Badge>
+          : <Badge tone={ITEM_STATUS_LABELS[item.status].tone} dot={false}>{ITEM_STATUS_LABELS[item.status].label}</Badge>}
         {entrees.length > 0 && (
           <div ref={menuRef} className="relative">
             <button
@@ -765,7 +770,10 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           const accord = etapes.filter((e) => e.cle === "CHIFFRE" || e.cle === "OPERATIONS" || e.cle === "MARKETING");
           const etatAccord: EtatEtape = accord.some((e) => e.etat === "REFUSE") ? "REFUSE" : accord.every((e) => e.etat === "FAIT") ? "FAIT" : "EN_COURS";
           const etatDe = (cle: string): EtatEtape => etapes.find((e) => e.cle === cle)?.etat ?? "A_VENIR";
-          const avecBC = !(direct && !item.pieces.bc && item.orderStage === "NONE");
+          // Un poste DIRECT n'a de case « Bon de commande » que s'il en a vraiment un (pièce, ou demande de BC en cours) :
+          // `orderStage = ISSUED` y dit aussi « l'ordre de paiement est né » (le verrou du paiement direct), pas un BC — un
+          // poste réglé sur pro forma affichait « Bon de commande ✓ » (recette, 21/11/2026). Même règle que `etapesDuPoste`.
+          const avecBC = !direct || Boolean(item.pieces.bc) || (item.orderStage !== "NONE" && item.orderStage !== "ISSUED");
           // UN POSTE « AGENCE » (15/11/2026) : sa frise dit déjà l'accord et la demande de devis — la chaîne ne garde que ses PIÈCES.
           const onglets: OngletChaine[] = [
             ...(agence ? [] : [{
@@ -910,11 +918,14 @@ export function PosteCarte({ item, parent, parentId, regard, freres, assistantes
           // Les devis restent dépliés tant qu'on les dépose et les lit (prospection demandée, devis pas encore transmis).
           const devisEnCours = Boolean(agence && item.agence?.faits.prospectionDemandee && !item.agence.faits.devisTransmis);
           // FERMÉE, LA SECTION DIT où en est la chaîne ; elle s'ouvre seule quand une pièce attend la personne qui regarde.
-          const faites = onglets.filter((o) => o.etat === "FAIT").length;
-          const courante = onglets.find((o) => o.etat === "EN_COURS" || o.etat === "REFUSE");
+          // UNE PIÈCE FACULTATIVE NE COMPTE PAS (recette, 21/11/2026) : la facture d'un poste direct n'est pas exigée pour le
+          // paiement — comptée, un poste payé restait « 4/5 faites » pour toujours. Déposée, elle compte.
+          const comptes = onglets.filter((o) => !(direct && o.cle === "facture" && o.etat !== "FAIT"));
+          const faites = comptes.filter((o) => o.etat === "FAIT").length;
+          const courante = comptes.find((o) => o.etat === "EN_COURS" || o.etat === "REFUSE");
           const resumePieces = courante
-            ? `${faites}/${onglets.length} faites · ${courante.libelle.toLocaleLowerCase("fr")} ${courante.etat === "REFUSE" ? "refusé" : "en cours"}`
-            : faites === onglets.length ? "tout est fait" : faites > 0 ? `${faites}/${onglets.length} faites` : "rien encore";
+            ? `${faites}/${comptes.length} faites · ${courante.libelle.toLocaleLowerCase("fr")} ${courante.etat === "REFUSE" ? "refusé" : "en cours"}`
+            : faites === comptes.length ? "tout est fait" : faites > 0 ? `${faites}/${comptes.length} faites` : "rien encore";
           const aVousPieces = pas.geste?.cle === "GENERER_BC" || factureOuverte || (pas.geste?.cle === "DEMANDER_PAIEMENT" && !direct) || (devisEnCours && peutDeposerDevis);
           return (
             <SectionRepliable dense sansCadre titre="Pièces du poste" resume={resumePieces} aVous={aVousPieces} id={`pieces-${item.id}`}>

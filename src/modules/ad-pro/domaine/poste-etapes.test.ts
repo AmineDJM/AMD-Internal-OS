@@ -303,3 +303,17 @@ describe("une fiche par personne avant de soumettre (Direction, 06/10)", () => {
     expect(prochainPas(poste({ kind: "ACCOMMODATION", fichesPersonnes: 0 }), DEMANDEUR).geste?.cle).toBe("CHIFFRER");
   });
 });
+
+describe("un poste payé directement n'a pas d'étape « Bon de commande » (recette 21/11/2026)", () => {
+  it("le verrou du paiement direct (orderStage ISSUED, sans pièce BC) ne fait pas naître de BC", () => {
+    const paye = pret({ kind: "ASSOCIATION_SUPPORT", voie: "DIRECT", amountGranted: 300_000, orderStage: "ISSUED", expenseOrderId: "od", expenseOrderStatus: "PAID", devis: 1 });
+    const cles = etapesDuPoste(paye).map((e) => e.cle);
+    expect(cles).not.toContain("BC");
+    expect(etapesDuPoste(paye).find((e) => e.cle === "PAIEMENT")?.etat).toBe("FAIT");
+  });
+
+  it("un poste sans BC qui en a vraiment un (pièce, ou demande en cours) le montre toujours", () => {
+    expect(etapesDuPoste(pret({ kind: "ASSOCIATION_SUPPORT", orderStage: "REQUESTED" })).map((e) => e.cle)).toContain("BC");
+    expect(etapesDuPoste(pret({ kind: "ASSOCIATION_SUPPORT", orderStage: "ISSUED", bc: "SIGNE" })).map((e) => e.cle)).toContain("BC");
+  });
+});

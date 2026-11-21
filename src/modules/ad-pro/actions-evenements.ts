@@ -8,7 +8,7 @@ import type { CongressRequestStatus } from "@prisma/client";
 import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
 import { userCan, anyRoleFilter, hasGlobalView } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
-import { isAdProDecided, porteeModificationEvenement, champsModifies, CHAMPS_ORGANISATION, statutManuelOuRien, estStatutDuCircuit, estStatutInscriptionRetire, estStatutOrganisation, estTypeExterne, REFUS_INSCRIPTION_PUBLIQUE, REFUS_LISTE_ATTENTE, REFUS_ORGANISATION, TYPES_EVENEMENT_EXTERNE, readMultiField, lireMedecinsDemande } from "@/modules/ad-pro/partage";
+import { isAdProDecided, porteeModificationEvenement, champsModifies, CHAMPS_ORGANISATION, statutManuelOuRien, estStatutDuCircuit, estStatutInscriptionRetire, estStatutOrganisation, estTypeExterne, REFUS_INSCRIPTION_PUBLIQUE, REFUS_LISTE_ATTENTE, REFUS_ORGANISATION, TYPES_EVENEMENT_EXTERNE, readMultiField, lireMedecinsDemande, splitMulti } from "@/modules/ad-pro/partage";
 import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import { prisma } from "@/lib/prisma";
 import { supprimerReversible } from "@/lib/suppression/coeur";
@@ -182,7 +182,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
     select: { id: true },
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Events", summary: `Événement « ${name} »` });
-  await relierMedecinsCoches(created.id, formData.getAll("doctorIds").map(String), user.id);
+  await relierMedecinsCoches(created.id, splitMulti(couple.medecins), user.id);
   revalidatePath("/events");
   // Le tableau « Toutes les demandes » et « Mon espace » lisent aussi la demande qui vient de naître.
   revalidatePath("/ad-pro");
@@ -268,7 +268,7 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
   }
   const changes = [...champsModifies(avant, data), ...champsModifies(avant, data, CHAMPS_ORGANISATION)];
   await prisma.event.update({ where: { id }, data });
-  if (formData.has("doctorIds")) await relierMedecinsCoches(id, formData.getAll("doctorIds").map(String), user.id);
+  await relierMedecinsCoches(id, splitMulti(couple.medecins), user.id);
   // L'audit qui manquait (audit 360°, R16) : qui a changé quoi, et si c'était après la décision.
   if (changes.length > 0) {
     await recordAudit({

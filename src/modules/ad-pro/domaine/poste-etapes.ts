@@ -292,8 +292,9 @@ export function etapesDuPoste(p: FaitsPoste): Etape[] {
     });
   }
   // Un versement sans BC qui en a quand même un (poste d'avant cette règle) MONTRE son BC : taire une
-  // étape qui a eu lieu ferait mentir la frise.
-  if (!sansBC || p.orderStage !== "NONE" || p.bc) {
+  // étape qui a eu lieu ferait mentir la frise. Mais `orderStage = ISSUED` sans pièce BC, sur un poste sans BC, c'est
+  // le verrou du PAIEMENT direct (l'ordre est né) — pas un bon de commande (recette, 21/11/2026).
+  if (!sansBC || p.bc || (p.orderStage !== "NONE" && p.orderStage !== "ISSUED")) {
     etapes.push({
       cle: "BC", libelle: "Bon de commande",
       etat: bcSigne(p) || (p.expenseOrderId && !p.bc) ? "FAIT"

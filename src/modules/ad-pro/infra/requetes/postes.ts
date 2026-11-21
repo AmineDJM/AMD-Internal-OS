@@ -27,7 +27,8 @@ import { devisDesPostes } from "./devis-poste";
 import { agencesDesPostes } from "./agence";
 import { hasRole } from "@/lib/rbac/roles";
 import { etatSignatureEnLigne } from "@/lib/signature-en-ligne/etat";
-import { refusPosteApresDeclaration } from "../postes/commun";
+import { PARENTS, refusAvantPrevalidation, refusPosteApresDeclaration } from "../postes/commun";
+import { suitSansDetails } from "../../domaine/suivi-delegue";
 import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { droitsValidation, type DroitsValidation } from "../../domaine/validation-poste";
 import { envoisDesFiches } from "@/lib/queries/reservations-fiches";
@@ -529,8 +530,9 @@ export interface ContextePostes {
   /** Le délégué médical suit ses postes sans les détails. */
   suiviSimple: boolean;
   /**
-   * LA DEMANDE NE PREND PLUS DE POSTE (recette, 21/11/2026) : ses postes sont déclarés à l'information médicale, tous
-   * ensemble. La phrase de l'action (`refusPosteApresDeclaration`), lue ici pour que l'écran n'offre pas un bouton refusé.
+   * LA DEMANDE NE PREND PAS DE POSTE (recette, 21/11/2026) : avant la prévalidation de la Direction Marketing, ou une fois
+   * ses postes déclarés à l'information médicale. La phrase de l'action (`refusAjoutDePoste`), pour que l'écran n'offre pas
+   * un bouton refusé.
    */
   ajoutFerme: string | null;
 }
@@ -542,6 +544,20 @@ const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> 
   EVENT: async (id) => (await prisma.event.findUnique({ where: { id }, select: { requesterId: true } }))?.requesterId ?? null,
   AD_PRO_OTHER: async (id) => (await prisma.adProOtherRequest.findUnique({ where: { id }, select: { requesterId: true } }))?.requesterId ?? null,
 };
+
+/**
+ * POURQUOI LA DEMANDE NE PREND PAS DE POSTE MAINTENANT — les mêmes refus que `addAdProItem`, dans le même ordre, pour que
+ * l'écran n'offre pas « Ajouter un poste » que l'action refuserait : avant la prévalidation de la Direction Marketing (recette
+ * du 21/11/2026 : le N+1 le voyait sur une demande renvoyée au délégué), puis une fois les postes déclarés.
+ */
+async function refusAjoutDePoste(parent: AdProParent, parentId: string): Promise<string | null> {
+  const info = await PARENTS[parent].load(parentId);
+  if (info && !info.clos) {
+    const avant = refusAvantPrevalidation(info);
+    if (avant) return avant;
+  }
+  return refusPosteApresDeclaration(parent, parentId);
+}
 
 export async function contextePostes(user: SessionUser, parent: AdProParent, parentId: string): Promise<ContextePostes> {
   const requesterId = await DEMANDEUR_DE[parent](parentId);
@@ -562,7 +578,7 @@ export async function contextePostes(user: SessionUser, parent: AdProParent, par
     infoMed: hasRole(moi ?? user, "MEDICAL_INFO_PHARMACIST") || hasRole(moi ?? user, "SUPER_ADMIN"),
     signature: await etatSignatureEnLigne(user.id),
     // LE DÉLÉGUÉ MÉDICAL SUIT SANS LES DÉTAILS (15/11/2026) — sauf s'il porte aussi un rôle qui décide ou exécute.
-    ajoutFerme: await refusPosteApresDeclaration(parent, parentId),
-    suiviSimple: (moi ?? user).role === "MEDICAL_DELEGATE" && !["PRODUCT_MANAGER", "SUPER_ADMIN", "NATIONAL_SALES", "DIRECTION_ASSISTANT"].includes(String((moi ?? user).secondaryRole ?? "")),
+    ajoutFerme: await refusAjoutDePoste(parent, parentId),
+    suiviSimple: suitSansDetails(moi ?? user),
   };
 }

@@ -200,7 +200,7 @@ export interface ContexteDesPostes {
   signature?: SignaturePrete;
   /** Le délégué médical suit ses postes SANS les détails (montants, devis, pièces) — 15/11/2026. */
   suiviSimple?: boolean;
-  /** Les postes sont déclarés à l'information médicale : la demande n'en prend plus (la phrase dit pourquoi). */
+  /** La demande ne prend pas de poste maintenant (avant la prévalidation, ou postes déclarés) — la phrase dit pourquoi. */
   ajoutFerme?: string | null;
 }
 
@@ -414,7 +414,9 @@ export function AdProItemsPanel({
       {/* ── Les postes ── */}
       {items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-          Aucun poste. Ajoutez ce que couvre l&apos;opération : appui, stand, imprimerie, billetterie, prestation…
+          {canEdit && !contexte.ajoutFerme
+            ? "Aucun poste. Ajoutez ce que couvre l'opération : appui, stand, imprimerie, billetterie, prestation…"
+            : "Aucun poste pour l'instant."}
         </p>
       ) : (
         <ul className="space-y-3">

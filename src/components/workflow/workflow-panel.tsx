@@ -307,7 +307,9 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
           {view.motif.motif && <p className="mt-1 whitespace-pre-line [overflow-wrap:anywhere]">{view.motif.motif}</p>}
           {view.motif.nature === "RENVOI" && (
             <p className="mt-1 text-xs text-muted-foreground">
-              Corrigez la demande (« Modifier la demande »), puis resoumettez-la : elle reviendra à cette étape.
+              {/* Le geste est dans le menu « ⋯ » de l'en-tête : le nommer sans dire où le chercher laissait le délégué sans
+                  bouton à cliquer (recette, 21/11/2026). */}
+              Corrigez la demande (menu « ⋯ » en haut de la fiche, « Modifier la demande »), puis resoumettez-la : elle reviendra à cette étape.
             </p>
           )}
         </div>

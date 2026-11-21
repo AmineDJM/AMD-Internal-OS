@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  alertKey, alertsForRep, fieldAlerts, monthlyReviewLine, DEFAULT_THRESHOLDS, type RepSnapshot,
+  alertKey, alertsForRep, alerteDejaEnvoyee, fieldAlerts, monthlyReviewLine, verrouApresEnvoi, DEFAULT_THRESHOLDS, type RepSnapshot,
 } from "./sfe-alerts";
 
 const ilYA = (base: Date, jours: number) => new Date(base.getTime() - jours * 86_400_000);
@@ -137,5 +137,30 @@ describe("cycle et agrégat", () => {
     expect(l).toMatch(/panel couvert à 56 %/);
     expect(l).toMatch(/1 KAM sous 60 %/);
     expect(monthlyReviewLine([])).toMatch(/aucun kam/i);
+  });
+});
+
+describe("le verrou anti-spam garde TOUTES les alertes du mois (recette 21/11/2026 : 6 notifications par minute)", () => {
+  it("deux alertes du même KAM ne s'effacent plus l'une l'autre : le second passage n'envoie rien", () => {
+    const silence = "SILENCE:2026-11", retard = "RETARD:2026-11";
+    // Premier passage : rien d'envoyé, les deux partent, le verrou les garde toutes deux.
+    let verrou: string | null = null;
+    for (const cle of [silence, retard]) {
+      expect(alerteDejaEnvoyee(verrou, cle)).toBe(false);
+      verrou = verrouApresEnvoi(verrou, cle);
+    }
+    // Les passages suivants (chaque minute) : aucune ne repart.
+    for (let passage = 0; passage < 3; passage++) {
+      expect(alerteDejaEnvoyee(verrou, silence)).toBe(true);
+      expect(alerteDejaEnvoyee(verrou, retard)).toBe(true);
+    }
+  });
+
+  it("l'ancien verrou à une seule clé est lu tel quel ; les clés d'un mois passé tombent au premier envoi du nouveau mois", () => {
+    expect(alerteDejaEnvoyee("SILENCE:2026-11", "SILENCE:2026-11")).toBe(true);
+    expect(alerteDejaEnvoyee("SILENCE:2026-11", "SILENCE:2026-12")).toBe(false);
+    expect(verrouApresEnvoi("SILENCE:2026-11|RETARD:2026-11", "SILENCE:2026-12")).toBe("SILENCE:2026-12");
+    expect(verrouApresEnvoi("SILENCE:2026-12", "SILENCE:2026-12")).toBe("SILENCE:2026-12");
+    expect(alerteDejaEnvoyee("NON_ARME:2026-11", "NON_ARME:2026-1")).toBe(false);
   });
 });
