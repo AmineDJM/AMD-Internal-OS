@@ -148,7 +148,7 @@ function raison(l: LigneBCFinances): string {
   return "Sous le seuil de validation — aucun centre n'avait à le valider";
 }
 
-type EtatMarketing = { attend: boolean; dm: { nom: string; le: string } | null };
+type EtatMarketing = { attend: boolean; dm: { nom: string; titre: string; le: string } | null };
 
 function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
   ligne: LigneBCFinances; peutSigner: boolean; signature: SignaturePrete; marketing: EtatMarketing | null;
@@ -182,7 +182,7 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
         </div>
       </div>
       {attend && <p className="rounded-lg bg-warning/10 px-3 py-2 text-sm">En attente de la signature de la Direction Marketing : il se signe ici juste après.</p>}
-      {marketing?.dm && <p className="text-xs text-muted-foreground">Signé et cacheté par {marketing.dm.nom} (Direction Marketing) le {new Date(marketing.dm.le).toLocaleDateString("fr-FR")}.</p>}
+      {marketing?.dm && <p className="text-xs text-muted-foreground">Signé et cacheté par {marketing.dm.nom} ({marketing.dm.titre}) le {new Date(marketing.dm.le).toLocaleDateString("fr-FR", { timeZone: "Africa/Algiers" })}.</p>}
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={l.porte ? "success" : "info"} dot={false}>{raison(l)}</Badge>
         {l.porte?.note ? <span className="text-xs text-muted-foreground">« {l.porte.note} »</span> : null}

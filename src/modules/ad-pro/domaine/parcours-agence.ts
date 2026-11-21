@@ -245,7 +245,7 @@ export interface AgenceVue {
   receptionReserve: boolean;
   /** Le BC actif du poste au registre, s'il est émis. */
   bcId: string | null;
-  signatures: { qualite: string; nom: string; le: string; jeton: string }[];
+  signatures: { qualite: string; nom: string; titre?: string | null; le: string; jeton: string }[];
   /** Le dernier BAT déposé pour le contrôle de conformité. */
   bat: { id: string; nom: string } | null;
   /** L'événement du poste — l'e-mail de demande de devis le cite (16/11/2026). */

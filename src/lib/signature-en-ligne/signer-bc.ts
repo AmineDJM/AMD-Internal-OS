@@ -116,14 +116,15 @@ export async function apposerSignatureEnLigne(i: {
 }
 
 /** Pour la file des signataires : quels BC attendent encore la Direction Marketing, et qui l'a signé. */
-export async function etatMarketingDesBC(ids: readonly string[]): Promise<Record<string, { attend: boolean; dm: { nom: string; le: string } | null }>> {
+export async function etatMarketingDesBC(ids: readonly string[]): Promise<Record<string, { attend: boolean; dm: { nom: string; titre: string; le: string } | null }>> {
   if (ids.length === 0) return {};
   const [exiges, dms] = await Promise.all([
     prisma.adProItemPiece.findMany({ where: { legalDocumentId: { in: [...ids] }, nature: "BON_DE_COMMANDE", item: { voie: "AGENCE" } }, select: { legalDocumentId: true } }),
-    prisma.signatureBC.findMany({ where: { legalDocumentId: { in: [...ids] }, qualite: "DIRECTION_MARKETING" }, select: { legalDocumentId: true, signataireNom: true, signedAt: true } }),
+    prisma.signatureBC.findMany({ where: { legalDocumentId: { in: [...ids] }, qualite: "DIRECTION_MARKETING" }, select: { legalDocumentId: true, signataireNom: true, signataireTitre: true, signedAt: true } }),
   ]);
   const exige = new Set(exiges.map((e) => e.legalDocumentId));
-  const dmDe = new Map(dms.map((d) => [d.legalDocumentId, { nom: d.signataireNom, le: d.signedAt.toISOString() }]));
+  // Le titre écrit à la signature (« Super Admin, en suppléance de la Direction Marketing »), pas la place seule.
+  const dmDe = new Map(dms.map((d) => [d.legalDocumentId, { nom: d.signataireNom, titre: d.signataireTitre ?? LIBELLE_QUALITE.DIRECTION_MARKETING, le: d.signedAt.toISOString() }]));
   return Object.fromEntries(ids.map((id) => [id, { attend: exige.has(id) && !dmDe.has(id), dm: dmDe.get(id) ?? null }]));
 }
 

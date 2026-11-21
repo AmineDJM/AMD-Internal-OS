@@ -356,7 +356,8 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
           {a.signatures.map((s) => (
             <li key={s.jeton} className="flex flex-wrap items-center gap-1.5">
               <ShieldCheck className="h-3.5 w-3.5 text-success" />
-              Signé et cacheté par <span className="font-medium text-foreground">{s.nom}</span> ({s.qualite === "FINANCES" ? "Finances" : "Direction Marketing"}) le {formatDate(s.le)}
+              {/* Le titre écrit à la signature : « Super Admin, en suppléance de … » ne se lit plus « Direction Marketing ». */}
+              Signé et cacheté par <span className="font-medium text-foreground">{s.nom}</span> ({s.titre ?? (s.qualite === "FINANCES" ? "Finances" : "Direction Marketing")}) le {formatDate(s.le)}
               <a href={`/verifier-bc/${s.jeton}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">Vérifier</a>
             </li>
           ))}

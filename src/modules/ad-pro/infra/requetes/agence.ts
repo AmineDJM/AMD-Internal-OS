@@ -60,7 +60,8 @@ export async function agencesDesPostes(
       receptionNote: e?.receptionNote ?? null,
       receptionReserve: e?.receptionReserve ?? false,
       bcId,
-      signatures: sigs.map((s) => ({ qualite: s.qualite, nom: s.signataireNom, le: s.signedAt.toISOString(), jeton: s.jeton })),
+      // `titre` : ce que la signature a écrit sous le nom — la qualité, ou « Super Admin, en suppléance de … » (21/11/2026).
+      signatures: sigs.map((s) => ({ qualite: s.qualite, nom: s.signataireNom, titre: s.signataireTitre ?? null, le: s.signedAt.toISOString(), jeton: s.jeton })),
       bat: bat ? { id: bat.id, nom: bat.name } : null,
       evenement: (() => {
         const ev = evenementDe.get(i.id);
