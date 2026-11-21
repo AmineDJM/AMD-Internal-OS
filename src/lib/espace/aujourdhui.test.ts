@@ -153,6 +153,9 @@ describe("la nature d'une ligne et les coupes qui se disent", () => {
     expect(natureDe(base({ key: "k", objet: "ADMIN_REQUEST:x", title: "t", kind: "validation" }))).toBe("achat");
     expect(natureDe(base({ key: "k", objet: "LEAVE_REQUEST:x", title: "t", kind: "validation" }))).toBe("conge");
     expect(natureDe(base({ key: "k", objet: "AD_PRO_ITEM:x", title: "t", module: "Ad & Pro" }))).toBe("adpro");
+    // Recette 21/11/2026 : un geste du parcours agence n'est pas un arbitrage, et le total d'une demande attend le DG.
+    expect(natureDe(base({ key: "agence-x", objet: "AD_PRO_ITEM:x", title: "t", module: "Ad & Pro" }))).toBe("agence");
+    expect(natureDe(base({ key: "k", objet: "PORTE_DG:EVENT:x", title: "t", module: "Ad & Pro", kind: "validation" }))).toBe("total-dg");
     expect(natureDe(base({ key: "k", objet: "SPONSORING:x", title: "t", module: "Ad & Pro", statusLabel: "À corriger" }))).toBe("correction");
   });
 

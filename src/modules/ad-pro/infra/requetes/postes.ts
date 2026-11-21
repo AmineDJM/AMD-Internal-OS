@@ -27,6 +27,7 @@ import { devisDesPostes } from "./devis-poste";
 import { agencesDesPostes } from "./agence";
 import { hasRole } from "@/lib/rbac/roles";
 import { etatSignatureEnLigne } from "@/lib/signature-en-ligne/etat";
+import { refusPosteApresDeclaration } from "../postes/commun";
 import type { SignaturePrete } from "@/lib/signature-en-ligne/partage";
 import { droitsValidation, type DroitsValidation } from "../../domaine/validation-poste";
 import { envoisDesFiches } from "@/lib/queries/reservations-fiches";
@@ -527,6 +528,11 @@ export interface ContextePostes {
   signature: SignaturePrete;
   /** Le délégué médical suit ses postes sans les détails. */
   suiviSimple: boolean;
+  /**
+   * LA DEMANDE NE PREND PLUS DE POSTE (recette, 21/11/2026) : ses postes sont déclarés à l'information médicale, tous
+   * ensemble. La phrase de l'action (`refusPosteApresDeclaration`), lue ici pour que l'écran n'offre pas un bouton refusé.
+   */
+  ajoutFerme: string | null;
 }
 
 const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> = {
@@ -556,6 +562,7 @@ export async function contextePostes(user: SessionUser, parent: AdProParent, par
     infoMed: hasRole(moi ?? user, "MEDICAL_INFO_PHARMACIST") || hasRole(moi ?? user, "SUPER_ADMIN"),
     signature: await etatSignatureEnLigne(user.id),
     // LE DÉLÉGUÉ MÉDICAL SUIT SANS LES DÉTAILS (15/11/2026) — sauf s'il porte aussi un rôle qui décide ou exécute.
+    ajoutFerme: await refusPosteApresDeclaration(parent, parentId),
     suiviSimple: (moi ?? user).role === "MEDICAL_DELEGATE" && !["PRODUCT_MANAGER", "SUPER_ADMIN", "NATIONAL_SALES", "DIRECTION_ASSISTANT"].includes(String((moi ?? user).secondaryRole ?? "")),
   };
 }

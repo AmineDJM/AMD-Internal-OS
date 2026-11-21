@@ -182,6 +182,7 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
     select: { id: true },
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Events", summary: `Événement « ${name} »` });
+  await relierMedecinsCoches(created.id, formData.getAll("doctorIds").map(String), user.id);
   revalidatePath("/events");
   // Le tableau « Toutes les demandes » et « Mon espace » lisent aussi la demande qui vient de naître.
   revalidatePath("/ad-pro");
@@ -267,6 +268,7 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
   }
   const changes = [...champsModifies(avant, data), ...champsModifies(avant, data, CHAMPS_ORGANISATION)];
   await prisma.event.update({ where: { id }, data });
+  if (formData.has("doctorIds")) await relierMedecinsCoches(id, formData.getAll("doctorIds").map(String), user.id);
   // L'audit qui manquait (audit 360°, R16) : qui a changé quoi, et si c'était après la décision.
   if (changes.length > 0) {
     await recordAudit({
@@ -492,4 +494,22 @@ export async function deleteRegistration(formData: FormData): Promise<ActionResu
   const reg = await prisma.eventRegistration.delete({ where: { id }, select: { eventId: true } });
   revalidatePath(`/events/${reg.eventId}`);
   return { ok: true };
+}
+
+/**
+ * LES MÉDECINS COCHÉS DANS L'ANNUAIRE DEVIENNENT DES « MÉDECINS CONCERNÉS » (recette du 21/11/2026) — le formulaire de
+ * l'événement range les noms cochés dans `doctor` (texte) ; la carte « Médecins concernés », le cockpit marketing et la fiche
+ * du praticien lisent, eux, les LIENS (`AdProMedecin`). Sans ce pont, un médecin choisi dans l'annuaire n'était « relié »
+ * nulle part (« Aucun médecin relié à l'annuaire »). On AJOUTE les liens manquants (rôle « Autre », à préciser sur la
+ * carte) ; on n'en retire aucun — un lien posé à la main ne disparaît pas parce qu'un formulaire ne le coche plus.
+ */
+async function relierMedecinsCoches(eventId: string, noms: readonly string[], userId: string): Promise<void> {
+  const coches = [...new Set(noms.map((n) => n.trim()).filter(Boolean))];
+  if (coches.length === 0) return;
+  const fiches = await prisma.medicalDoctor.findMany({ where: { name: { in: coches } }, select: { id: true } });
+  if (fiches.length === 0) return;
+  await prisma.adProMedecin.createMany({
+    data: fiches.map((f) => ({ entityType: "EVENT" as const, entityId: eventId, doctorId: f.id, role: "AUTRE", createdById: userId })),
+    skipDuplicates: true,
+  }).catch((e) => console.error("[événements] médecins concernés non reliés (non bloquant)", e));
 }

@@ -3,7 +3,7 @@ import { tempsEnAttente, peutTenir, estDirectionOperations, estDirectionMarketin
 import { canAccessEntity } from "@/lib/entity-access";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { getLeavesToDecide } from "@/modules/rh/api";
-import { tachesAgence } from "@/modules/ad-pro/api";
+import { tachesAgence, totauxEnAttenteDuDg } from "@/modules/ad-pro/api";
 import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIXE_RESTE } from "@/lib/queries/mes-decisions";
 import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
@@ -953,6 +953,25 @@ export async function getActionCenter(user: SessionUser) {
       key: t.key, objet: t.objet, title: t.title, subtitle: t.subtitle, module: "Ad & Pro", href: t.href, kind: "request", priority: "HIGH",
       deadline: null, depuis: t.depuis, owner: "", statusLabel: t.statusLabel, statusTone: "warning",
     });
+  }
+
+  // 6 ter. LES TOTAUX QUI ATTENDENT LE DG (recette du 21/11/2026) — une demande au-dessus du seuil attend « Valider le total » ;
+  //        le DG ne la voyait que sur la fiche ou dans le centre Ad & Pro. Mêmes lignes que le centre (`totauxEnAttenteDuDg`).
+  if (hasRole(user, "GENERAL_MANAGER")) {
+    const CHEMIN_TOTAL: Record<string, string> = {
+      SPONSORING: "/sponsoring", CONGRESS_NATIONAL: "/congress-national", CONGRESS_INTERNATIONAL: "/congress-international",
+      EVENT: "/events", AD_PRO_OTHER: "/ad-pro/autres",
+    };
+    for (const t of await totauxEnAttenteDuDg().catch(sansBloquer("action-center.totauxEnAttenteDuDg", []))) {
+      const chemin = CHEMIN_TOTAL[t.entityType];
+      if (!chemin) continue;
+      items.push({
+        key: `dg-total-${t.entityType}-${t.entityId}`, objet: `PORTE_DG:${t.entityType}:${t.entityId}`, title: t.nom,
+        subtitle: `Total de la demande : ${formatCurrency(t.total)}${t.seuil != null ? ` — au-dessus du seuil de ${formatCurrency(t.seuil)}` : ""}`,
+        module: "Ad & Pro", href: `${chemin}/${t.entityId}`, kind: "validation", priority: "HIGH", deadline: null,
+        depuis: t.depuis.toISOString(), owner: "", statusLabel: "Total à valider", statusTone: "warning", montant: t.total,
+      });
+    }
   }
 
   // 7. Notifications non lues

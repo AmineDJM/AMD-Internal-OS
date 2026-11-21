@@ -295,6 +295,15 @@ describe("4. LES DOUTES SE GARDENT AVEC LE DEVIS — et s'éteignent quand une p
     expect(phrase.match(/TVA de 19 %/g)).toHaveLength(1);
   });
 
+  it("sur un poste agence pas encore choisi, le message fait comparer, il ne fait pas cocher (recette 21/11/2026)", () => {
+    const base = { ok: true as const, nbLignes: 2, note: "texte natif", reserves: [], sansLignes: null, doutes: [] };
+    const comparer = phraseDeLecture(base, { comparer: true });
+    expect(comparer).toMatch(/comparez-les au papier et aux autres offres/);
+    expect(comparer).toMatch(/devis retenu au choix de l'agence/);
+    expect(comparer).not.toMatch(/cochez/);
+    expect(phraseDeLecture(base)).toMatch(/cochez celles que vous validez/);
+  });
+
   it("un contrôle absent (ancien banc, lecture sans lignes) ne fabrique aucun doute", () => {
     expect(doutesDeLaLecture(null, null)).toEqual([]);
     expect(doutesDeLaLecture(undefined, null)).toEqual([]);

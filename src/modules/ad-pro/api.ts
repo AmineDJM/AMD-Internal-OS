@@ -37,7 +37,7 @@ export { lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE } from "./
 export { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "./infra/passeport-acces";
 export { accesPiecesLiees, contextePiecesLiees } from "./infra/pieces-liees";
 export { annulerDemandesPiecesDuPoste, assistantesDeDirection, demandesBCDesPostes, natureDePiece, piecesDesPostes, rattacherPieceAuPoste, societeDuPoste } from "./infra/pieces-poste";
-export { refusSiPorteDgFermee, refusPorteDgDuPoste, signalerPorteDgSiBesoin, statuerSurLeTotal, totalDeLaDemande } from "./infra/porte-dg";
+export { refusSiPorteDgFermee, refusPorteDgDuPoste, signalerPorteDgSiBesoin, statuerSurLeTotal, totalDeLaDemande, totauxEnAttenteDuDg } from "./infra/porte-dg";
 export { proposerPostesParModele, type ResultatPostes } from "./infra/postes-luna-ia";
 export { peutSaisirLesDevis } from "./infra/prise-en-charge/devis-acces";
 export { demandePrevalidee, prendreLesCasesDuDevis, REFUS_NON_PREVALIDEE, refusEngagementPriseEnCharge, rendreLaReserveDuDevis } from "./infra/prise-en-charge/engagement";

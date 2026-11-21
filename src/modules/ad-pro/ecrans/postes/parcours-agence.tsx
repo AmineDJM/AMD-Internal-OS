@@ -40,9 +40,11 @@ export function faitsAgenceDuPoste(item: ItemRow): FaitsPosteAgence | null {
 
 /** Le total d'un devis tel que le comparatif le montre — TTC quand la TVA est imprimée, HT sinon (jamais devinée). */
 function totalDuDevis(d: ItemRow["devisLignes"][number]): { montant: number; ttc: boolean } {
-  if (d.entete.announcedTotal != null) return { montant: d.entete.announcedTotal, ttc: d.entete.tvaRate != null };
+  // `announcedTotal` est le total HT IMPRIMÉ (recette du 21/11/2026 : il s'affichait « 1 180 000 DZD TTC » pour un devis de
+  // 1 404 200 TTC). C'est la BASE : la TVA et la taxe s'y ajoutent, comme pour le total lu des lignes.
+  const ht = d.entete.announcedTotal ?? d.totalDevisHt;
   const taux = (d.entete.tvaRate ?? 0) + (d.entete.extraTaxRate ?? 0);
-  return { montant: Math.round(d.totalDevisHt * (1 + taux / 100) * 100) / 100, ttc: d.entete.tvaRate != null };
+  return { montant: Math.round(ht * (1 + taux / 100) * 100) / 100, ttc: d.entete.tvaRate != null };
 }
 
 /** LA FRISE — sept étapes, l'étape en cours nommée en clair. */
@@ -169,8 +171,14 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
       <Frise faits={faits} />
 
       {/* À VOUS — un seul bouton ; sinon CHEZ QUI en est le poste. */}
+      {/* Le BC est prêt à soumettre : « Soumettre » (plus bas) est LE bouton principal ; celui-ci ne fait que l'ouvrir
+          (recette du 21/11/2026 — « Finaliser » et « Soumettre » côte à côte, tous deux en bleu). */}
       {pas.geste && !(pas.geste.cle === "DEPOSER_DEVIS" && devis.length > 0) ? (
-        <Button size="sm" className="w-full sm:w-auto" onClick={() => agir(pas.geste!.cle)} disabled={enCours}>{ICONE[pas.geste.cle]} {pas.geste.libelle}</Button>
+        pas.geste.cle === "FINALISER_BC" && faits.agence.brouillonBc && !faits.agence.bcSoumis ? (
+          <Button size="sm" variant="outline" className="w-full sm:w-auto" onClick={() => agir(pas.geste!.cle)} disabled={enCours}>{ICONE[pas.geste.cle]} Vérifier le bon de commande</Button>
+        ) : (
+          <Button size="sm" className="w-full sm:w-auto" onClick={() => agir(pas.geste!.cle)} disabled={enCours}>{ICONE[pas.geste.cle]} {pas.geste.libelle}</Button>
+        )
       ) : pas.attente ? (
         <p className="flex items-start gap-1.5 text-sm text-muted-foreground"><Clock className="mt-0.5 h-4 w-4 shrink-0" /> <span>{pas.attente}</span></p>
       ) : null}

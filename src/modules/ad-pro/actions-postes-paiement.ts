@@ -145,6 +145,11 @@ export async function ajouterDevisPoste(_prev: ActionResult | undefined, formDat
   const fournisseurSaisi = fdStr(formData, "fournisseur") ?? charges[0].item.supplier ?? null;
   const lots: File[][] = unParFichier ? fichiers.map((f) => [f]) : [fichiers];
 
+  // Un poste « par une agence » dont l'agence n'est pas encore retenue : on compare les offres, on ne coche pas (le choix valide).
+  const enComparaison = (await prisma.adProItem.findMany({
+    where: { id: { in: charges.map(({ item }) => item.id) } },
+    select: { voie: true, execution: { select: { agenceRetenueAt: true } } },
+  })).some((p) => p.voie === "AGENCE" && !p.execution?.agenceRetenueAt);
   const deposes: string[] = [];
   const phrases: string[] = [];
   const echecs: string[] = [];
@@ -185,7 +190,7 @@ export async function ajouterDevisPoste(_prev: ActionResult | undefined, formDat
     let lecture = "";
     if (premier && joints.failed.length < lot.length) {
       const ing = await ingererDevisDuPoste({ userId: user.id, legalDocumentId: doc.id, octets: Buffer.from(await premier.arrayBuffer()), nomFichier: premier.name });
-      lecture = ing.ok ? phraseDeLecture(ing) : `Lecture du devis impossible (${ing.raison}) — saisissez ses lignes depuis la carte du poste.`;
+      lecture = ing.ok ? phraseDeLecture(ing, { comparer: enComparaison }) : `Lecture du devis impossible (${ing.raison}) — saisissez ses lignes depuis la carte du poste.`;
       // PLUS DE VALIDATION D'OFFICE (Direction, 11/2026) : valider une ligne fait naître le brouillon du BC, et plusieurs offres
       // se comparent avant qu'on en retienne une. Les lignes bien lues arrivent COCHÉES sur la carte ; une personne valide.
       if (!unParFichier && lot.length > 1) {

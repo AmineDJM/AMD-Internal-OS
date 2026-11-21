@@ -200,6 +200,8 @@ export interface ContexteDesPostes {
   signature?: SignaturePrete;
   /** Le délégué médical suit ses postes SANS les détails (montants, devis, pièces) — 15/11/2026. */
   suiviSimple?: boolean;
+  /** Les postes sont déclarés à l'information médicale : la demande n'en prend plus (la phrase dit pourquoi). */
+  ajoutFerme?: string | null;
 }
 
 export type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText: string) => Promise<void>;
@@ -439,8 +441,11 @@ export function AdProItemsPanel({
         </p>
       )}
 
-      {/* ── Ajouter ── */}
-      {canEdit && (
+      {/* ── Ajouter ── (fermé dès que les postes sont déclarés à l'information médicale : l'action le refuserait) */}
+      {canEdit && contexte.ajoutFerme && (
+        <p className="rounded-xl bg-muted/50 px-3 py-2 text-xs text-muted-foreground">{contexte.ajoutFerme}</p>
+      )}
+      {canEdit && !contexte.ajoutFerme && (
         adding ? (
           <AddItemForm
             parent={parent}

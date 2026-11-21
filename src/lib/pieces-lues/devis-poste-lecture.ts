@@ -201,8 +201,12 @@ export async function lireDevisPourFormulaire(i: { userId: string; octets: Buffe
 /**
  * LA PHRASE QUI ANNONCE CE QUI A ÉTÉ LU — une rédaction, que l'upload et la relecture disent. Elle nomme la
  * suite : les lignes sont des propositions, et seules les lignes COCHÉES entrent dans un bon de commande.
+ *
+ * `comparer` (recette du parcours agence, 21/11/2026) : sur un poste « par une agence » dont l'agence n'est pas encore
+ * retenue, l'assistante ne coche rien — elle compare les offres et les transmet ; c'est le CHOIX de l'agence qui valide
+ * les lignes du devis retenu. Lui dire « cochez celles que vous validez » l'envoyait vers un geste qui n'est pas le sien.
  */
-export function phraseDeLecture(i: IngestionDevis): string {
+export function phraseDeLecture(i: IngestionDevis, opts: { comparer?: boolean } = {}): string {
   const sansPoint = (t: string): string => t.replace(/[.\s]+$/, "");
   const fournisseur = i.fournisseur ? ` ${i.fournisseur}` : "";
   if (i.nbLignes === 0) {
@@ -215,7 +219,9 @@ export function phraseDeLecture(i: IngestionDevis): string {
   const aDire = [...doutes, ...i.reserves.filter((r) => !doutes.includes(r) && !(tvaDite && r.startsWith("TVA de ")))];
   const reserves = aDire.length > 0 ? ` À vérifier : ${aDire.slice(0, 3).join(" ")}` : "";
   return `Devis lu (${sansPoint(i.note)}) : ${i.nbLignes} ligne${i.nbLignes > 1 ? "s" : ""} proposée${i.nbLignes > 1 ? "s" : ""} — `
-    + `comparez-les au papier, puis cochez celles que vous validez : seules les lignes cochées entrent dans un bon de commande.${reserves}${fournisseur}`;
+    + (opts.comparer
+      ? `comparez-les au papier et aux autres offres : les lignes du devis retenu au choix de l'agence entreront dans le bon de commande.${reserves}${fournisseur}`
+      : `comparez-les au papier, puis cochez celles que vous validez : seules les lignes cochées entrent dans un bon de commande.${reserves}${fournisseur}`);
 }
 
 /**

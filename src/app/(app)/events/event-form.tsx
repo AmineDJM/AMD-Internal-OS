@@ -301,7 +301,9 @@ export function CreateEventForm({ responsibles, referentiels, onDone, onCancel, 
   }
 
   return (
-    <form ref={formRef} action={creer} className="space-y-4">
+    // `onSubmit`, PAS `action` (recette du 21/11/2026) : avec `<form action>`, React vide tous les champs dès que l'action
+    // rend la main — refus du serveur compris (« il manque : le ou les médecins concernés ») : tout était à ressaisir.
+    <form ref={formRef} onSubmit={(ev) => { ev.preventDefault(); void creer(new FormData(ev.currentTarget)); }} className="space-y-4">
       <EventFields
         responsibles={responsibles}
         referentiels={referentiels}
@@ -364,7 +366,7 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
     <>
       <Button variant="outline" size="sm" onClick={() => { setErr(null); setOpen(true); }}><Pencil className="h-4 w-4" /> Modifier</Button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Modifier l'événement" width="lg">
-        <form action={enregistrer} className="space-y-4">
+        <form onSubmit={(ev) => { ev.preventDefault(); void enregistrer(new FormData(ev.currentTarget)); }} className="space-y-4">
           {organisationSeule && (
             <p role="note" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
               La prise en charge est décidée : le nom, les dates, le lieu, les médecins, les produits et le budget ne se modifient plus

@@ -59,7 +59,7 @@ export type NatureLot =
   | "paiement" | "declaration" | "declaration-prete" | "declaration-pieces" | "declaration-finale"
   | "validation" | "conge" | "achat" | "demande" | "adpro" | "correction" | "plan" | "mission"
   | "invitation" | "formation" | "regulatory" | "piece" | "directive" | "tache" | "stock" | "promo"
-  | "prise-en-charge" | "support" | "dossier" | "autre";
+  | "prise-en-charge" | "support" | "dossier" | "agence" | "total-dg" | "autre";
 
 interface DefNature {
   /** Le chapeau — le filtre de la file et l'étiquette du lot. */
@@ -119,6 +119,17 @@ export const NATURES: Record<NatureLot, DefNature> = {
   adpro: {
     chapeau: "Ad & Pro", titre: (n) => `${n} ${pl(n, "demande")} Ad & Pro à arbitrer`,
     sousTitre: "À votre étape", verbe: "Arbitrer", liste: "/ad-pro", decision: true,
+  },
+  // LE PARCOURS AGENCE (recette du 21/11/2026) : déposer les devis, finaliser le BC, contrôler le BAT… ne sont pas des
+  // arbitrages — Radia lisait « 7 demandes Ad & Pro à arbitrer » et un bouton « Arbitrer » pour déposer des devis.
+  agence: {
+    chapeau: "Ad & Pro", titre: (n) => `${n} ${pl(n, "geste")} du parcours agence`,
+    sousTitre: "Devis, bon de commande, BAT — c'est à vous", verbe: "Ouvrir", liste: "/ad-pro", decision: false,
+  },
+  // LE TOTAL D'UNE DEMANDE AU-DESSUS DU SEUIL (recette du 21/11/2026) : le DG ne le voyait que sur la fiche.
+  "total-dg": {
+    chapeau: "Ad & Pro", titre: (n) => `${n} ${pl(n, "total", "totaux")} de demande à valider`,
+    sousTitre: "Au-dessus du seuil du Directeur Général", verbe: "Valider", liste: "/centre-ad-pro", decision: true,
   },
   correction: {
     chapeau: "Ad & Pro", titre: (n) => `${n} ${pl(n, "demande")} à corriger`,
@@ -212,6 +223,9 @@ export function natureDe(e: ElementFile): NatureLot {
   if (o.startsWith("PROMO_MATERIAL:")) return "promo";
   if (o.startsWith("SUPPORT_REQUEST:")) return "support";
   if (o.startsWith("DOSSIER:")) return "dossier";
+  if (o.startsWith("PORTE_DG:")) return "total-dg";
+  // Les gestes du parcours agence (`file-agences.ts`, clé `agence-…`) — pas les postes à décider, qui sont des arbitrages.
+  if (o.startsWith("AD_PRO_ITEM:") && e.key.startsWith("agence-")) return "agence";
   if (e.module === "Ad & Pro") return "adpro";
   if (o.startsWith("CONGRESS_NATIONAL:") || o.startsWith("CONGRESS_INTERNATIONAL:")) return "prise-en-charge";
   // Les lignes « reste » des files de décision : la file dont elles ferment la liste.
