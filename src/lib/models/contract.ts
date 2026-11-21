@@ -71,7 +71,7 @@ export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "ma
 export type Verbosity = "low" | "medium" | "high";
 
 /** Le fournisseur qui sert un rôle. Le second existe pour pouvoir REVENIR, pas pour hésiter. */
-export type ModelProvider = "openai" | "anthropic" | "mimo";
+export type ModelProvider = "openai" | "anthropic" | "mimo" | "mistral";
 
 /**
  * CE QUI EST BRANCHÉ DERRIÈRE UN RÔLE. Un enregistrement, pas du code : c'est ce qui permet de

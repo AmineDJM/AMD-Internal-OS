@@ -161,6 +161,28 @@ export function bindingFor(role: ModelRole): ModelBinding {
 }
 
 /** La table entière — pour l'écran d'administration et le rapport d'observabilité. */
+/**
+ * CLAUDE EN SECOURS (Direction, 19/11/2026 : « si le premier modèle n'a plus de crédit ou échoue, qu'un second prenne le
+ * relais ») — le modèle Claude qui reprend la demande d'un rôle quand le fournisseur en service échoue. Récents : ils
+ * portent les images et le JSON imposé par schéma (`estClaudeRecent`). Surchargeable par `ADAM_SECOURS_CLAUDE_<RÔLE>`.
+ * Leur tarif vient de la grille quand il y figure, sinon il reste INCONNU — jamais deviné.
+ */
+const SECOURS_CLAUDE: Record<ModelRole, string> = {
+  realtime: "claude-haiku-5-5", // la voix ne bascule jamais : présent pour que la table soit complète
+  orchestrator: "claude-sonnet-5-5",
+  worker: "claude-sonnet-5-5",
+  bulk: "claude-haiku-5-5",
+};
+
+export function bindingDeSecoursClaude(role: ModelRole): ModelBinding {
+  const model = env(`ADAM_SECOURS_CLAUDE_${role.toUpperCase()}`) || SECOURS_CLAUDE[role];
+  const known = knownPriceOf(model);
+  return {
+    role, provider: "anthropic", model, reasoning: readReasoning(role),
+    priceInPerM: known?.in ?? null, priceOutPerM: known?.out ?? null, priceCachedInPerM: known?.cachedIn ?? null,
+  };
+}
+
 export function allBindings(): ModelBinding[] {
   return MODEL_ROLES.map(bindingFor);
 }

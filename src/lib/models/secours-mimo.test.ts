@@ -5,7 +5,8 @@ vi.mock("@/lib/ai-settings", async (orig) => ({
   interrupteurIaCoupe: async () => false,
 }));
 
-import { askModelJson, callModel, jsonDuTexte } from "./gateway";
+import { askModelJson, askModelJsonAvecImages, callModel, chaineDeSecours, jsonDuTexte } from "./gateway";
+import { phraseDuSecours } from "@/lib/ia-credit";
 import { buildAnthropicBody, schemaPourClaude } from "./anthropic";
 import { bindingFor } from "./registry";
 import { estCreditEpuise, isRetryableStatus } from "./errors";
@@ -39,6 +40,9 @@ beforeEach(() => {
   process.env.mimo = "tp-test-mimo-0000000000";
   process.env.MIMO_BASE_URL = MIMO_BASE;
   delete process.env.ADAM_SECOURS;
+  delete process.env.ADAM_SECOURS_ORDRE;
+  delete process.env.ANTHROPIC_API_KEY;
+  delete process.env.MISTRAL_API_KEY;
   delete process.env.ADAM_MODEL_PROVIDER;
   reponseOpenAi = () => new Response(CREDIT_OPENAI, { status: 429 });
   reponseMimo = mimoRepond("```json\n{\"total\": 7650}\n```");
@@ -86,12 +90,12 @@ describe("la passerelle passe au secours MiMo", () => {
     expect(corps.max_tokens).toBe(4000);
   });
 
-  it("une autre panne OpenAI (500) ne déclenche PAS le secours", async () => {
+  it("une PANNE OpenAI (500), elle aussi, déclenche le secours depuis le 19/11/2026 — pas seulement le crédit", async () => {
     reponseOpenAi = () => new Response(JSON.stringify({ error: { message: "upstream failed" } }), { status: 500 });
     const r = await callModel("worker", [{ role: "user", content: "x" }], { maxOutputTokens: 100 });
-    expect(r.ok).toBe(false);
-    expect(versMimo()).toHaveLength(0);
-  }, 20_000);
+    expect(r.ok, r.error).toBe(true);
+    expect(versMimo()).toHaveLength(1);
+  }, 30_000);
 
   it("sans clé MiMo, ou secours coupé : l'échec OpenAI est rendu tel quel", async () => {
     delete process.env.mimo;
@@ -131,7 +135,7 @@ describe("le chemin Luna (vision, briefing) passe aussi au secours", () => {
     const r = await callLuna({ user: "x" });
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/no credits remaining/);
-    expect(r.error).toMatch(/secours MiMo/);
+    expect(r.error).toMatch(/secours : MiMo/);
   });
 });
 
@@ -169,4 +173,120 @@ describe("le secours qui échoue garde la cause d'origine (passerelle, 16/11/202
     expect(r.error).toContain("no credits remaining");
     expect(r.error).toContain("MiMo HTTP 401");
   });
+});
+
+/**
+ * LA CHAÎNE DE SECOURS (Direction, 19/11/2026 : « si le premier modèle n'a plus de crédit ou échoue, un second s'active »).
+ * Claude d'abord (s'il a sa clé), puis MiMo. Chaque échec de secours est dit ; un appel annulé ne bascule pas.
+ */
+describe("la chaîne de secours : Claude, puis MiMo", () => {
+  const ANTHROPIC = "https://claude.test";
+  let reponseClaude: () => Response;
+  const claudeRepond = (texte: string) => () => new Response(JSON.stringify({
+    content: [{ type: "text", text: texte }], stop_reason: "end_turn", usage: { input_tokens: 90, output_tokens: 30 },
+  }), { status: 200 });
+  const versClaude = () => appels.filter((a) => a.url.startsWith(ANTHROPIC));
+  beforeEach(() => {
+    process.env.ANTHROPIC_API_KEY = "sk-ant-test";
+    process.env.ANTHROPIC_BASE_URL = ANTHROPIC;
+    reponseClaude = claudeRepond("{\"total\": 7650}");
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      appels.push({ url: u, corps: init?.body ? JSON.parse(String(init.body)) : {} });
+      if (u.startsWith(ANTHROPIC)) return reponseClaude();
+      return u.startsWith(MIMO_BASE) ? reponseMimo() : reponseOpenAi();
+    }));
+  });
+
+  it("l'ordre : Claude d'abord quand sa clé est posée ; MiMo ensuite ; réglable, et coupable", () => {
+    expect(chaineDeSecours("openai")).toEqual(["anthropic", "mimo"]);
+    expect(chaineDeSecours("openai", { ...process.env, ADAM_SECOURS_ORDRE: "mimo,anthropic" })).toEqual(["mimo", "anthropic"]);
+    expect(chaineDeSecours("openai", { ...process.env, ANTHROPIC_API_KEY: "" })).toEqual(["mimo"]);
+    expect(chaineDeSecours("openai", { ...process.env, ADAM_SECOURS: "0" })).toEqual([]);
+    expect(chaineDeSecours("anthropic"), "le fournisseur en service n'est pas son propre secours").toEqual(["mimo"]);
+  });
+
+  it("OpenAI sans crédit : Claude répond, MiMo n'est pas appelé — le JSON imposé est rendu", async () => {
+    const { data, reply } = await askModelJson<{ total: number }>("bulk", "lis ce devis", SCHEMA);
+    expect(reply.ok, reply.error).toBe(true);
+    expect(reply.usage.provider).toBe("anthropic");
+    expect(data).toEqual({ total: 7650 });
+    expect(versClaude()).toHaveLength(1);
+    expect(versMimo()).toHaveLength(0);
+  });
+
+  it("Claude échoue aussi : MiMo prend le relais", async () => {
+    reponseClaude = () => new Response(JSON.stringify({ error: { message: "overloaded" } }), { status: 529 });
+    const r = await callModel("worker", [{ role: "user", content: "x" }], { maxOutputTokens: 100 });
+    expect(r.ok, r.error).toBe(true);
+    expect(r.usage.provider).toBe("mimo");
+  }, 60_000);
+
+  it("tous en échec : l'erreur garde la cause d'origine ET la raison de chaque secours", async () => {
+    reponseClaude = () => new Response(JSON.stringify({ error: { type: "authentication_error", message: "invalid x-api-key" } }), { status: 401 });
+    reponseMimo = () => new Response(JSON.stringify({ error: { message: "model not found" } }), { status: 404 });
+    const r = await callModel("worker", [{ role: "user", content: "x" }], { maxOutputTokens: 100 });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/no credits remaining/);
+    expect(r.error).toMatch(/secours : Claude : .*; MiMo : MiMo HTTP 404/);
+    expect(phraseDuSecours(r.error)).toMatch(/Les IA de secours n'ont pas répondu non plus \(Claude : /);
+  }, 60_000);
+
+  it("un appel ANNULÉ par l'appelant ne bascule pas", async () => {
+    const ctrl = new AbortController();
+    ctrl.abort();
+    await callModel("worker", [{ role: "user", content: "x" }], { signal: ctrl.signal }).catch(() => null);
+    expect(versClaude()).toHaveLength(0);
+    expect(versMimo()).toHaveLength(0);
+  });
+});
+
+/**
+ * MISTRAL EN SECOURS (Direction, 21/11/2026 : « prends un modèle déjà utilisé ») — la clé de l'OCR réglementaire sert aussi
+ * la conversation de Mistral : texte, images, JSON imposé. Placé AVANT MiMo.
+ */
+describe("Mistral dans la chaîne de secours", () => {
+  const MISTRAL = "https://mistral.test/v1";
+  let reponseMistral: () => Response;
+  const versMistral = () => appels.filter((a) => a.url.startsWith(MISTRAL));
+  beforeEach(() => {
+    process.env.MISTRAL_API_KEY = "mistral-test-cle";
+    process.env.MISTRAL_BASE_URL = MISTRAL;
+    reponseMistral = () => new Response(JSON.stringify({
+      choices: [{ message: { content: "{\"total\": 7650}" }, finish_reason: "stop" }], usage: { prompt_tokens: 80, completion_tokens: 20 },
+    }), { status: 200 });
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL, init?: RequestInit) => {
+      const u = String(url);
+      appels.push({ url: u, corps: init?.body ? JSON.parse(String(init.body)) : {} });
+      if (u.startsWith(MISTRAL)) return reponseMistral();
+      return u.startsWith(MIMO_BASE) ? reponseMimo() : reponseOpenAi();
+    }));
+  });
+
+  it("l'ordre par défaut : Claude (sans clé ici), Mistral, puis MiMo", () => {
+    expect(chaineDeSecours("openai")).toEqual(["mistral", "mimo"]);
+    expect(chaineDeSecours("openai", { ...process.env, ANTHROPIC_API_KEY: "k" })).toEqual(["anthropic", "mistral", "mimo"]);
+  });
+
+  it("OpenAI sans crédit : Mistral lit le devis (images et JSON imposé partent) ; MiMo n'est pas appelé", async () => {
+    const { data, reply } = await askModelJsonAvecImages<{ total: number }>("bulk", "lis ce devis", [{ mime: "image/png", data: "QUJD" }], SCHEMA);
+    expect(reply.ok, reply.error).toBe(true);
+    expect(reply.usage.provider).toBe("mistral");
+    expect(data).toEqual({ total: 7650 });
+    expect(versMimo()).toHaveLength(0);
+    const corps = versMistral()[0].corps as { response_format?: { type?: string }; messages?: { content?: unknown }[] };
+    expect(corps.response_format?.type).toBe("json_schema");
+    expect(JSON.stringify(corps.messages)).toContain("data:image/png;base64,QUJD");
+  });
+
+  it("Mistral en échec : MiMo prend le relais, et la raison de Mistral est gardée si tout échoue", async () => {
+    reponseMistral = () => new Response(JSON.stringify({ message: "Unauthorized" }), { status: 401 });
+    const ok = await callModel("worker", [{ role: "user", content: "x" }], { maxOutputTokens: 100 });
+    expect(ok.ok, ok.error).toBe(true);
+    expect(ok.usage.provider).toBe("mimo");
+    reponseMimo = () => new Response(JSON.stringify({ error: { message: "down" } }), { status: 503 });
+    const ko = await callModel("worker", [{ role: "user", content: "x" }], { maxOutputTokens: 100 });
+    expect(ko.ok).toBe(false);
+    expect(ko.error).toMatch(/secours : Mistral : Mistral HTTP 401 : Unauthorized ; MiMo : MiMo HTTP 503/);
+  }, 60_000);
 });

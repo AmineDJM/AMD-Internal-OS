@@ -1,5 +1,6 @@
 import {
   jsonDuTexte,
+  type ModelBinding,
   type ModelBlock,
   type ModelCallOptions,
   type ModelReply,
@@ -7,9 +8,9 @@ import {
   type ModelTurn,
   textOf,
 } from "./contract";
-import { bindingFor } from "./registry";
+import { bindingFor, bindingDeSecoursClaude } from "./registry";
 import { appelerMimoTours, secoursMimoActif } from "./mimo";
-import { estCreditEpuise } from "./errors";
+import { appelerMistralTours, mistralDisponible } from "./mistral";
 import { callOpenAi, streamOpenAi } from "./openai";
 import { callOpenAiResponses, streamOpenAiResponses } from "./openai-responses";
 import { protocolFor, protocolViolation } from "./protocol";
@@ -200,35 +201,93 @@ function estimationDe(turns: ModelTurn[], opts: ModelCallOptions): number {
  * Les trois modèles en service sont chez OpenAI, sur un seul compte : son crédit épuisé, tous tombent (une journée
  * entière d'IA à l'arrêt le 09/11). Quand l'appel OpenAI revient avec un CRÉDIT ÉPUISÉ — et seulement alors —, la
  * même demande repart chez MiMo (`appelerMimoTours`), l'IA des chantiers, dont la clé `mimo` est déjà posée. Rien
- * d'autre ne déclenche le secours : une panne ordinaire est réessayée chez le fournisseur en service, un refus reste
- * un refus. L'appel de secours passe par la même porte (place, télémétrie, coût) : il est compté comme l'autre.
+ * d'autre ne déclenchait le secours — ÉLARGI le 19/11/2026 : toute défaillance passe désormais à la CHAÎNE de secours
+ * (Claude, puis MiMo), ci-dessous. L'appel de secours passe par la même porte (place, télémétrie, coût) : il est compté comme l'autre.
  *
  * Ce que le secours n'emporte pas : les OUTILS (un tour à outils n'a pas de secours), le nom de modèle forcé
  * (`modelOverride`, un nom OpenAI) et la chaîne de réponses OpenAI (`previousResponseId`). L'historique complet part.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-function doitPasserAuSecours(binding: ReturnType<typeof bindingFor>, reply: ModelReply): boolean {
-  return binding.provider === "openai" && !reply.ok && estCreditEpuise(reply.error) && secoursMimoActif();
+/**
+ * LA CHAÎNE DE SECOURS (Direction, 19/11/2026 : « fais des étages : si le premier modèle n'a plus de crédit ou échoue, un
+ * second s'active et marche »). Le 19/11, le crédit OpenAI était épuisé et MiMo — seul secours — échouait aussi : les
+ * devis ne se lisaient plus. Désormais, quand le fournisseur en service ÉCHOUE — crédit épuisé, panne, clé refusée, délai
+ * dépassé —, la demande repart chez le PREMIER secours disponible, puis le suivant :
+ *
+ *   1. Claude (Anthropic) — si `ANTHROPIC_API_KEY` est posée : il porte images, JSON imposé et outils ;
+ *   2. Mistral — si `MISTRAL_API_KEY` est posée : la clé DÉJÀ utilisée par l'OCR des dossiers réglementaires (Direction,
+ *      21/11/2026 : « prends un modèle déjà utilisé ») ; texte, images et JSON imposé, sans outils ;
+ *   3. MiMo — si la clé `mimo` est posée (texte et images, sans outils).
+ *
+ * L'ordre se règle par `ADAM_SECOURS_ORDRE` (« anthropic,mistral,mimo » par défaut) ; `ADAM_SECOURS=0` coupe tout secours. Un
+ * appel ANNULÉ par l'appelant ne bascule pas ; la voix (`realtime`) non plus. Chaque échec d'un secours est ÉCRIT au
+ * journal avec sa raison : le 19/11, MiMo échouait sans que personne puisse dire pourquoi.
+ */
+export type FournisseurDeSecours = "anthropic" | "mistral" | "mimo";
+const SECOURS_CONNUS: readonly string[] = ["anthropic", "mistral", "mimo"];
+const NOM_DU_SECOURS: Record<FournisseurDeSecours, string> = { anthropic: "Claude", mistral: "Mistral", mimo: "MiMo" };
+
+export function chaineDeSecours(
+  primaire: ModelBinding["provider"], env: Record<string, string | undefined> = process.env,
+): FournisseurDeSecours[] {
+  if ((env.ADAM_SECOURS ?? "").trim() === "0") return [];
+  const ordre = (env.ADAM_SECOURS_ORDRE?.trim() || "anthropic,mistral,mimo").split(",").map((s) => s.trim().toLowerCase());
+  const vus = new Set<string>();
+  return ordre.filter((p): p is FournisseurDeSecours => {
+    if (!SECOURS_CONNUS.includes(p) || p === primaire || vus.has(p)) return false;
+    vus.add(p);
+    if (p === "anthropic") return Boolean(env.ANTHROPIC_API_KEY?.trim());
+    if (p === "mistral") return mistralDisponible(env);
+    return secoursMimoActif(env);
+  });
 }
 
-/** Un appel au SECOURS, au nom du rôle — la porte commune (passerelle, et chemin Luna). */
+/** Un secours est-il possible pour ce fournisseur ? (Le chemin Luna le demande avant de préparer sa requête.) */
+export const secoursDisponible = (primaire: ModelBinding["provider"] = "openai"): boolean => chaineDeSecours(primaire).length > 0;
+
+function doitPasserAuSecours(binding: ModelBinding, reply: ModelReply, opts: ModelCallOptions): boolean {
+  return binding.role !== "realtime" && !reply.ok && !opts.signal?.aborted && chaineDeSecours(binding.provider).length > 0;
+}
+
+/**
+ * Un appel au SECOURS, au nom du rôle — la porte commune (passerelle, et chemin Luna). Chaque secours de la chaîne est
+ * essayé à son tour ; le premier qui répond l'emporte. Tous en échec : rend le dernier échec, avec la raison de CHACUN.
+ */
 export async function appelerEnSecours(
   role: ModelRole,
   turns: ModelTurn[],
   opts: ModelCallOptions = {},
+  primaire: ModelBinding["provider"] = bindingFor(role).provider,
 ): Promise<ModelReply> {
   const options: ModelCallOptions = { ...opts };
   delete options.modelOverride;
   delete options.previousResponseId;
-  console.warn(`[models] crédit du fournisseur épuisé — secours MiMo pour le rôle ${role}`);
-  const rendre = await prendrePlace(estimationDe(turns, options));
-  try {
-    const reply = await appelerMimoTours(role, turns, options);
-    recordModelCall(reply.usage);
-    return reply;
-  } finally {
-    rendre();
+  const chaine = chaineDeSecours(primaire);
+  const raisons: string[] = [];
+  let dernier: ModelReply | null = null;
+  for (const fournisseur of chaine) {
+    console.warn(`[models] ${primaire} en échec — secours ${fournisseur} pour le rôle ${role}`);
+    const rendre = await prendrePlace(estimationDe(turns, options));
+    let reply: ModelReply;
+    try {
+      reply = fournisseur === "anthropic" ? await callAnthropic(bindingDeSecoursClaude(role), turns, options)
+        : fournisseur === "mistral" ? await appelerMistralTours(role, turns, options)
+          : await appelerMimoTours(role, turns, options);
+      recordModelCall(reply.usage);
+    } finally {
+      rendre();
+    }
+    if (reply.ok) return reply;
+    const nom = NOM_DU_SECOURS[fournisseur];
+    console.error(`[models] secours ${nom} en échec pour le rôle ${role} : ${reply.error ?? "sans réponse"}`);
+    raisons.push(`${nom} : ${reply.error ?? "sans réponse"}`);
+    dernier = reply;
+    if (options.signal?.aborted) break;
   }
+  if (!dernier) {
+    return { ok: false, configured: false, stop: "error", blocks: [], usage: emptyUsage(role, "", primaire), error: "aucun secours configuré" };
+  }
+  return { ...dernier, error: raisons.join(" ; ") };
 }
 
 export async function callModel(
@@ -237,7 +296,7 @@ export async function callModel(
   opts: ModelCallOptions = {},
 ): Promise<ModelReply> {
   const reply = await callModelChezLeFournisseur(role, turns, opts);
-  if (!doitPasserAuSecours(bindingFor(role), reply)) return reply;
+  if (!doitPasserAuSecours(bindingFor(role), reply, opts)) return reply;
   const secours = await appelerEnSecours(role, turns, opts);
   return secours.ok ? secours : avecEchecDuSecours(reply, secours);
 }
@@ -299,7 +358,7 @@ export async function streamModel(
   onText: (chunk: string) => void,
 ): Promise<ModelReply> {
   const reply = await streamModelChezLeFournisseur(role, turns, opts, onText);
-  if (!doitPasserAuSecours(bindingFor(role), reply)) return reply;
+  if (!doitPasserAuSecours(bindingFor(role), reply, opts)) return reply;
   // Le crédit épuisé se dit AVANT tout texte : rien n'a été émis. Le secours répond d'un bloc, rendu en un fragment.
   const secours = await appelerEnSecours(role, turns, opts);
   if (secours.ok) onText(textOf(secours.blocks));

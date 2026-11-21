@@ -1,5 +1,5 @@
 import { askModelJson } from "@/lib/models/gateway";
-import { creditIaEpuise, phraseCreditIaEpuise } from "@/lib/ia-credit";
+import { creditIaEpuise, phraseCreditIaEpuise, phraseDuSecours } from "@/lib/ia-credit";
 import type { ModelReply } from "@/lib/models/contract";
 import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage, REFUS_IA_COUPEE, type AiUsageInput } from "@/lib/ai-settings";
 import { aiConfigured, cleModeleRequise } from "@/lib/ai";
@@ -314,7 +314,9 @@ export async function structurerParModele(entree: EntreeLecture, deps: Dependanc
     const cause = phraseIaNonConfiguree(deps.cle(), POUR_QUOI);
     return { ok: false, raison: "NON_CONFIGUREE", cause, error: phraseSansLignes("NON_CONFIGUREE", cause), errorCode };
   }
-  const error = creditIaEpuise(panne ? messagePanne : reply?.ok ? null : reply?.error) ? PHRASE_CREDIT
+  // LE SECOURS AUSSI EN ÉCHEC (19/11/2026) : la phrase du crédit le dit, avec la raison de chaque IA de secours — sinon
+  // « crédit épuisé » laissait croire qu'aucun relais n'avait été tenté.
+  const error = creditIaEpuise(panne ? messagePanne : reply?.ok ? null : reply?.error) ? `${PHRASE_CREDIT}${phraseDuSecours(reply?.ok ? null : reply?.error)}`
     : panne ? PHRASE_PANNE
     : !reply?.ok ? phraseRefus(reply?.error)
     : errorCode === "length" ? PHRASE_LONGUEUR

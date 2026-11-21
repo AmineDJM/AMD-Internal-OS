@@ -37,8 +37,7 @@
 
 import { sanitizeForModel } from "./ai-text";
 import { estCreditEpuise, mentionsUnsupportedTemperature, providerErrorMessage } from "./models/errors";
-import { appelerEnSecours } from "./models/gateway";
-import { secoursMimoActif } from "./models/mimo";
+import { appelerEnSecours, secoursDisponible } from "./models/gateway";
 import { jsonDuTexte, textOf, type ModelBlock } from "./models/contract";
 // L'interrupteur général de « Contrôle de l'IA » : lu AVANT tout envoi de données (voir `callLuna`).
 import { aiFeatureEnabled, interrupteurIaCoupe, REFUS_IA_COUPEE, type AiFeature } from "./ai-settings";
@@ -231,9 +230,10 @@ export { providerErrorMessage as lunaErrorMessage } from "./models/errors";
  */
 export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaResult<T>> {
   const r = await callLunaChezOpenAI<T>(input);
-  // LE SECOURS MiMo (Direction, 09/11/2026) : le crédit OpenAI épuisé, la même demande — images comprises — repart chez
-  // MiMo par la passerelle (`appelerEnSecours`), qui la compte. Seulement sur un crédit épuisé.
-  if (r.ok || !estCreditEpuise(r.error) || !secoursMimoActif()) return r;
+  // LA CHAÎNE DE SECOURS (Direction, 09 puis 19/11/2026) : OpenAI en échec — crédit épuisé, panne, clé refusée —, la même
+  // demande, images comprises, repart chez Claude puis MiMo par la passerelle (`appelerEnSecours`), qui la compte. JAMAIS
+  // quand l'IA est coupée par l'administration : un secours ne contourne pas l'interrupteur.
+  if (r.ok || r.error === REFUS_IA_COUPEE || !secoursDisponible("openai")) return r;
   return lunaParSecours<T>(input, r);
 }
 
@@ -254,7 +254,7 @@ async function lunaParSecours<T>(input: LunaCallInput, echecOpenAi: LunaResult<T
     ...(input.maxOutputTokens ? { maxOutputTokens: input.maxOutputTokens } : {}),
   });
   // Le secours n'a pas répondu : l'échec D'ORIGINE reste celui qui se dit (le crédit OpenAI), avec le sien en plus.
-  if (!reply.ok) return { ...echecOpenAi, error: `${echecOpenAi.error ?? ""} — secours MiMo : ${reply.error ?? "sans réponse"}` };
+  if (!reply.ok) return { ...echecOpenAi, error: `${echecOpenAi.error ?? ""} — secours : ${reply.error ?? "sans réponse"}` };
   const text = textOf(reply.blocks);
   let data: T | undefined;
   if ((input.jsonSchema || input.jsonObject) && text) {

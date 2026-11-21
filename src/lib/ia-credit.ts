@@ -13,6 +13,18 @@ export function creditIaEpuise(erreur: string | null | undefined): boolean {
   return estCreditEpuise(erreur);
 }
 
+/**
+ * LES IA DE SECOURS N'ONT PAS RÉPONDU NON PLUS (19/11/2026) — la passerelle ajoute « — secours : Claude : … ; MiMo : … »
+ * à l'échec d'origine. L'écran le dit, court : sans cela, personne ne savait qu'un relais avait été tenté, ni pourquoi il
+ * avait échoué. Vide quand aucun secours n'a été tenté.
+ */
+export function phraseDuSecours(erreur: string | null | undefined): string {
+  const m = /—\s*secours\s*:\s*(.+)$/s.exec(erreur ?? "");
+  if (!m) return "";
+  const raison = m[1].replace(/\s+/g, " ").trim().slice(0, 220);
+  return ` Les IA de secours n'ont pas répondu non plus (${raison}).`;
+}
+
 /** Ce que l'écran dit quand le crédit est épuisé — le remède et qui l'applique, puis ce qu'on fait en attendant. */
 export function phraseCreditIaEpuise(enAttendant: string): string {
   return `Le crédit du service d'IA (compte OpenAI) est épuisé : la lecture n'a pas pu se faire. Prévenez l'administrateur pour qu'il le recharge (platform.openai.com › Billing) — ${enAttendant}`;
