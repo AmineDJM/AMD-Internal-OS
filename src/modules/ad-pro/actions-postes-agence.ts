@@ -15,7 +15,7 @@ import { lienPosteAdPro } from "@/lib/chemins/ad-pro";
 import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { controleRenforce, REFUS_VUE_EXACTE } from "@/lib/signature-en-ligne/second-facteur";
-import { apposerSignatureEnLigne } from "@/lib/signature-en-ligne/signer-bc";
+import { apposerSignatureEnLigne, enSuppleance, titreSignataire } from "@/lib/signature-en-ligne/signer-bc";
 import { PARENTS, revalidate, audit, loadItem, REFUS_HISTORIQUE, peutTrancherSur, refusAvantPrevalidation, refusDemandeFermee, devisDuPoste, estAssistanteDuPoste, ouvrirDeclarationSiPostesValides } from "./infra/postes/commun";
 import { decideAdProItem } from "./actions-postes-decision";
 import { validerLignesDuDevis, preparerBrouillonPoste, validerEtEnvoyerBcPoste } from "./actions-postes-lignes";
@@ -229,6 +229,13 @@ async function bcDuPoste(itemId: string) {
   return lien?.legalDocumentId ?? null;
 }
 
+/**
+ * QUI SIGNE À LA PLACE « DIRECTION MARKETING » — elle, ou le Super Admin en SUPPLÉANCE (21/11/2026) : alors son nom et ce
+ * qu'il est, au journal comme dans la phrase. « Par la Direction Marketing » sous la main d'un autre ferait croire qu'elle a signé.
+ */
+const parQuiMarketing = (user: SessionUser & { name?: string | null }): string =>
+  enSuppleance("DIRECTION_MARKETING", user) ? `${user.name ?? "le Super Admin"} (${titreSignataire("DIRECTION_MARKETING", true)})` : "la Direction Marketing";
+
 /** La signature de la Direction Marketing sur le BC émis — mot de passe et code déjà contrôlés. */
 async function signerCommeMarketing(user: SessionUser & { name?: string | null }, itemId: string, h: Headers): Promise<ActionResult> {
   const bcId = await bcDuPoste(itemId);
@@ -239,7 +246,7 @@ async function signerCommeMarketing(user: SessionUser & { name?: string | null }
   const r = await apposerSignatureEnLigne({ legalDocumentId: bcId, reference: etat.reference ?? bcId, qualite: "DIRECTION_MARKETING", user: { id: user.id, name: user.name ?? null }, ip: clientIp(h), agent: h.get("user-agent"), lireBlob: getBlob });
   if (!r.ok) return { ok: false, error: r.error };
   revalidatePath(CHEMIN_BC_A_SIGNER);
-  return { ok: true, id: bcId, message: `BC ${etat.reference ?? ""} signé et cacheté par la Direction Marketing.`.replace("  ", " ") };
+  return { ok: true, id: bcId, message: `BC ${etat.reference ?? ""} signé et cacheté par ${parQuiMarketing(user)}.`.replace("  ", " ") };
 }
 
 /**
@@ -265,11 +272,11 @@ export async function validerSignerBcMarketing(formData: FormData): Promise<Acti
   const emis = await validerEtEnvoyerBcPoste(fd);
   if (!emis.ok) return emis;
   const signe = await signerCommeMarketing(user, item.id, h);
-  await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande du poste « ${item.label} » validé${signe.ok ? ", signé et cacheté en ligne" : " (signature à reprendre)"} par la Direction Marketing.`);
+  await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande du poste « ${item.label} » validé${signe.ok ? ", signé et cacheté en ligne" : " (signature à reprendre)"} par ${parQuiMarketing(user)}.`);
   revalidate(owner.parent, owner.id);
   revalidatePath("/agences");
   return signe.ok
-    ? { ok: true, id: item.id, message: `${emis.message ?? "BC émis."} Signé et cacheté par la Direction Marketing.` }
+    ? { ok: true, id: item.id, message: `${emis.message ?? "BC émis."} Signé et cacheté par ${parQuiMarketing(user)}.` }
     : { ok: false, error: `Le BC est émis, mais la signature n'a pas été apposée : ${signe.error} — « Signer et cacheter le BC » la reprend.` };
 }
 
@@ -287,7 +294,7 @@ export async function signerBcMarketing(formData: FormData): Promise<ActionResul
   if (refus) return { ok: false, error: refus };
   const r = await signerCommeMarketing(user, item.id, h);
   if (r.ok) {
-    await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande du poste « ${item.label} » signé et cacheté en ligne par la Direction Marketing.`);
+    await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande du poste « ${item.label} » signé et cacheté en ligne par ${parQuiMarketing(user)}.`);
     revalidate(owner.parent, owner.id);
   }
   return r;

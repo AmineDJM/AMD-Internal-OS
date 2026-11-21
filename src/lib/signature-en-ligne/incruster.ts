@@ -24,15 +24,46 @@ export interface Apposition {
 
 const echapper = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string);
 
-/** LE SCEAU : QR + deux lignes de texte, rendu en PNG (le texte ne dépend d'aucune police du PDF). */
+/** Le sceau : 900 × 200 px (sa place sur le PDF ne change pas), le texte à droite du QR (180 px). */
+const L_SCEAU = 900;
+const H_SCEAU = 200;
+const X_TEXTE = 210;
+export const LARGEUR_TEXTE_SCEAU = L_SCEAU - X_TEXTE - 20;
+/** Une chasse moyenne PRUDENTE (DejaVu Sans, lettres accentuées comprises) : 0,6 em par caractère. */
+export const CHASSE_SCEAU = 0.6;
+
+/**
+ * LES LIGNES DU SCEAU — chacune ENTIÈRE, à la plus grande taille qui tient dans la largeur (recette, 21/11/2026). Coupée à
+ * 70 caractères et dessinée en 30 px, la mention sortait du sceau : la qualité, la date — et, pour un Super Admin, « en
+ * suppléance » — n'étaient pas sur le PDF ; l'adresse de vérification imprimée perdait la fin de son jeton. La mention
+ * arrive en lignes (`\n`) : le nom, la qualité, la date ; l'adresse de vérification suit.
+ */
+export function lignesDuSceau(mention: string, url: string): { texte: string; taille: number }[] {
+  const textes = [...mention.split("\n").map((t) => t.trim()).filter(Boolean), `Vérifier : ${url}`].map((t) => t.slice(0, 140));
+  return textes.map((texte, i) => {
+    const plafond = i === 0 ? 30 : 24;
+    const tient = Math.floor(LARGEUR_TEXTE_SCEAU / (Math.max(1, texte.length) * CHASSE_SCEAU));
+    return { texte, taille: Math.max(10, Math.min(plafond, tient)) };
+  });
+}
+
+/** LE SCEAU : QR + les lignes de la mention et l'adresse de vérification, rendu en PNG (le texte ne dépend d'aucune police du PDF). */
 export async function imageDuSceau(mention: string, url: string): Promise<Buffer> {
   const qr = await QRCode.toBuffer(url, { margin: 0, width: 180, errorCorrectionLevel: "M" });
-  const l = 900, h = 200;
-  const lignes = [mention, `Vérifier : ${url}`];
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${l}" height="${h}">
+  const lignes = lignesDuSceau(mention, url);
+  // Le bloc de texte, centré en hauteur ; le sceau ne grandit que si les lignes ne tiennent pas (jamais à quatre lignes).
+  const hauteurs = lignes.map(({ taille }) => Math.round(taille * 1.4));
+  const total = hauteurs.reduce((a, b) => a + b, 0);
+  const h = Math.max(H_SCEAU, total + 24);
+  let y = Math.round((h - total) / 2);
+  const textes = lignes.map(({ texte, taille }, i) => {
+    y += hauteurs[i];
+    return `<text x="${X_TEXTE}" y="${y - Math.round(taille * 0.3)}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${taille}" fill="#0f172a">${echapper(texte)}</text>`;
+  });
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${L_SCEAU}" height="${h}">
     <rect width="100%" height="100%" fill="white" fill-opacity="0.92"/>
-    <rect x="1" y="1" width="${l - 2}" height="${h - 2}" fill="none" stroke="#1d4ed8" stroke-width="3" rx="10"/>
-    ${lignes.map((t, i) => `<text x="210" y="${80 + i * 60}" font-family="DejaVu Sans, Arial, Helvetica, sans-serif" font-size="${i === 0 ? 30 : 24}" fill="#0f172a">${echapper(t.slice(0, 70))}</text>`).join("")}
+    <rect x="1" y="1" width="${L_SCEAU - 2}" height="${h - 2}" fill="none" stroke="#1d4ed8" stroke-width="3" rx="10"/>
+    ${textes.join("")}
   </svg>`;
   return sharp(Buffer.from(svg)).composite([{ input: qr, left: 10, top: 10 }]).png().toBuffer();
 }

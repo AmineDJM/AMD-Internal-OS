@@ -16,7 +16,8 @@ import { genererSecret, verifierCode, adresseOtpauth } from "./totp";
  * la base seule ne le livre pas.
  */
 
-export const REFUS_VUE_EXACTE = "Vous visualisez le compte d'une autre personne : une signature, un cachet ou un code de signature ne se prépare et ne s'appose que depuis son propre compte.";
+export const REFUS_VUE_EXACTE = "Vous visualisez le compte d'une autre personne : une signature, un cachet ou un code de signature ne se prépare et ne s'appose que depuis son propre compte. "
+  + "Le Super Admin peut signer en suppléance depuis le SIEN : quittez « Agir comme » — le BC portera son nom, sa signature et la mention « en suppléance ».";
 
 /** Le coffre fermé (clé absente) : la signature en ligne le DIT, au lieu d'une erreur serveur muette. */
 export const REFUS_COFFRE_FERME = "La signature en ligne est indisponible : le coffre du serveur est fermé (clé COFFRE_KEY absente). Prévenez l'administrateur ; en attendant, la copie signée reste possible.";

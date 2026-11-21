@@ -219,7 +219,7 @@ function LigneASigner({ ligne: l, peutSigner, signature, marketing }: {
       )}
       {peutSigner && !fait && renvoi === null && !attend && mode === "EN_LIGNE" && (
         <FormulaireSignature
-          titre="Signer et cacheter ce bon de commande" bouton="Signer et cacheter" pret={signature} busy={saving}
+          titre="Signer et cacheter ce bon de commande" bouton="Signer et cacheter" pret={signature} busy={saving} qualite="FINANCES"
           apercu={l.fichiers.pdf ? lienFichierEmis(l.id, "pdf") : null}
           onSigner={(fd) => {
             fd.set("id", l.id);

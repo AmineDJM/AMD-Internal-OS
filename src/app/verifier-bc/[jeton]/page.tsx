@@ -34,7 +34,8 @@ export default async function VerifierBcPage(props: { params: Promise<{ jeton: s
         <ul className="divide-y divide-border rounded-xl border border-border bg-card">
           {signatures.map((s) => (
             <li key={s.jeton} className="space-y-0.5 p-3 text-sm">
-              <p className="font-medium">{s.signataireNom} — {s.qualite === "FINANCES" ? "Finances" : "Direction Marketing"}</p>
+              {/* Le titre écrit à la signature : la qualité, ou « Super Admin, en suppléance de … » (21/11/2026). */}
+              <p className="font-medium">{s.signataireNom} — {s.signataireTitre ?? (s.qualite === "FINANCES" ? "Finances" : "Direction Marketing")}</p>
               <p className="text-muted-foreground">Signé et cacheté le {fr(s.signedAt)}</p>
             </li>
           ))}

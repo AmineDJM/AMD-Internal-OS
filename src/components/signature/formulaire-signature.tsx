@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Loader2, PenLine, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { CHEMIN_MA_SIGNATURE, type SignaturePrete } from "@/lib/signature-en-ligne/partage";
+import { avertissementSuppleance, CHEMIN_MA_SIGNATURE, type QualiteSignature, type SignaturePrete } from "@/lib/signature-en-ligne/partage";
 
 
 /**
@@ -13,10 +13,12 @@ import { CHEMIN_MA_SIGNATURE, type SignaturePrete } from "@/lib/signature-en-lig
  * « J'ai relu », le mot de passe du compte, le code de l'application d'authentification. Tant que la signature, le cachet ou
  * le code ne sont pas préparés, le formulaire le dit et mène à « Ma signature » : on ne découvre pas le manque au clic.
  */
-export function FormulaireSignature({ titre, bouton, pret, apercu, busy, onSigner, onCancel }: {
+export function FormulaireSignature({ titre, bouton, pret, apercu, busy, onSigner, onCancel, qualite }: {
   titre: string;
   bouton: string;
   pret: SignaturePrete;
+  /** La place signée : le formulaire dit au Super Admin, AVANT, qu'il la tient en suppléance (21/11/2026). */
+  qualite?: QualiteSignature;
   /** Le lien du PDF à relire avant de signer. */
   apercu?: string | null;
   busy: boolean;
@@ -47,6 +49,9 @@ export function FormulaireSignature({ titre, bouton, pret, apercu, busy, onSigne
       }}
     >
       <p className="flex items-center gap-2 text-sm font-semibold"><PenLine className="h-4 w-4 text-primary" /> {titre}</p>
+      {qualite && pret.suppleance?.[qualite] && (
+        <p className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs">{avertissementSuppleance(qualite)}</p>
+      )}
       {apercu && (
         <a href={apercu} target="_blank" rel="noreferrer" className="inline-block text-sm font-medium text-primary underline-offset-2 hover:underline">
           Ouvrir le bon de commande (PDF)

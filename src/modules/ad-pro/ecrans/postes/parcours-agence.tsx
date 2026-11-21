@@ -285,7 +285,7 @@ export function ParcoursAgence({ item, regard, assistantes, budgetOptions, signa
         <FormulaireSignature
           titre={ouvert === "VALIDER_SIGNER_BC" ? "Valider, signer et cacheter le bon de commande" : "Signer et cacheter le bon de commande"}
           bouton={ouvert === "VALIDER_SIGNER_BC" ? "Valider, signer et cacheter" : "Signer et cacheter"}
-          pret={signature} apercu={pdfBc} busy={enCours} onCancel={fermer}
+          pret={signature} apercu={pdfBc} busy={enCours} onCancel={fermer} qualite="DIRECTION_MARKETING"
           onSigner={(f) => {
             f.set("id", item.id);
             void run(`agv:${item.id}`, () => (ouvert === "VALIDER_SIGNER_BC" ? validerSignerBcMarketing(f) : signerBcMarketing(f)), "BC signé et cacheté.").then(fermer);

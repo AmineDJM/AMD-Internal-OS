@@ -7,6 +7,12 @@ import { ETAPE_COPIE_SIGNEE } from "@/lib/bons-de-commande/copie-signee";
 import { incruster } from "./incruster";
 import { lireVisuel } from "./visuels";
 import type { Qualite } from "./placement";
+import { LIBELLE_QUALITE_SIGNATURE, titreSignataire } from "./partage";
+import { enSuppleance } from "./suppleance";
+
+// Les actions qui signent nomment qui a signé (la place, ou le Super Admin en suppléance) — par la porte qu'elles importent déjà.
+export { enSuppleance } from "./suppleance";
+export { titreSignataire } from "./partage";
 
 /**
  * SIGNER UN BC EN LIGNE (Direction, 15/11/2026) — serveur seulement. La Direction Marketing d'abord (son PDF signé est
@@ -18,7 +24,7 @@ import type { Qualite } from "./placement";
  * libre (`@@unique([legalDocumentId, qualite])`), et une panne rend la place.
  */
 
-export const LIBELLE_QUALITE: Record<Qualite, string> = { DIRECTION_MARKETING: "Direction Marketing", FINANCES: "Finances" };
+export const LIBELLE_QUALITE: Record<Qualite, string> = LIBELLE_QUALITE_SIGNATURE;
 export const ETAPE_SIGNE_DM = "BC_SIGNE_DM";
 
 /** Le BC est celui d'un poste « par une agence » : la Direction Marketing le signe AVANT les Finances. */
@@ -55,25 +61,32 @@ const dateFr = (d: Date) => d.toLocaleString("fr-FR", { timeZone: "Africa/Algier
 /** Le lecteur du stockage chiffré (`getBlob`), passé par l'appelant : la bureautique ne parle pas au fournisseur de stockage. */
 export type LireBlob = (blobId: string) => Promise<Buffer | null>;
 
-export type ResultatApposition = { ok: true; documentId: string; empreinte: string; jeton: string } | { ok: false; error: string };
+/** `suppleance` / `titre` : ce que le sceau a écrit sous le nom — les actions le reprennent au journal et dans leurs phrases. */
+export type ResultatApposition = { ok: true; documentId: string; empreinte: string; jeton: string; suppleance: boolean; titre: string } | { ok: false; error: string };
 
 export async function apposerSignatureEnLigne(i: {
   legalDocumentId: string; reference: string; qualite: Qualite; user: { id: string; name: string | null }; titre?: string | null; ip: string | null; agent: string | null;
   lireBlob: LireBlob;
 }): Promise<ResultatApposition> {
-  const [signature, cachet] = await Promise.all([lireVisuel(i.user.id, "SIGNATURE"), lireVisuel(i.user.id, "CACHET")]);
+  const [signature, cachet, porteur] = await Promise.all([
+    lireVisuel(i.user.id, "SIGNATURE"), lireVisuel(i.user.id, "CACHET"),
+    prisma.user.findUnique({ where: { id: i.user.id }, select: { role: true, secondaryRole: true } }),
+  ]);
   if (!signature || !cachet) return { ok: false, error: "Déposez d'abord votre signature ET votre cachet (Mon espace › Ma signature)." };
   const base = await pdfDeBase(i.legalDocumentId, i.qualite, i.lireBlob);
   if (!base) return { ok: false, error: "Le PDF de ce bon de commande est introuvable : régénérez-le avant de le signer." };
 
   const jeton = randomBytes(18).toString("base64url");
   const nom = i.user.name?.trim() || "Signataire";
+  // LE SUPER ADMIN EN SUPPLÉANCE (21/11/2026) : son nom, et ce qu'il est — jamais « Direction Marketing » sous son nom.
+  const suppleance = enSuppleance(i.qualite, porteur);
+  const titre = i.titre ?? titreSignataire(i.qualite, suppleance);
   const maintenant = new Date();
   // LA PLACE D'ABORD : une seule signature par qualité — deux clics n'en posent pas deux.
   let ligne: { id: string };
   try {
     ligne = await prisma.signatureBC.create({
-      data: { legalDocumentId: i.legalDocumentId, qualite: i.qualite, userId: i.user.id, signataireNom: nom.slice(0, 120), signataireTitre: i.titre ?? LIBELLE_QUALITE[i.qualite], methode: "EN_LIGNE", signedAt: maintenant, jeton, ip: i.ip, agent: i.agent?.slice(0, 250) ?? null },
+      data: { legalDocumentId: i.legalDocumentId, qualite: i.qualite, userId: i.user.id, signataireNom: nom.slice(0, 120), signataireTitre: titre, methode: "EN_LIGNE", signedAt: maintenant, jeton, ip: i.ip, agent: i.agent?.slice(0, 250) ?? null },
       select: { id: true },
     });
   } catch {
@@ -82,7 +95,8 @@ export async function apposerSignatureEnLigne(i: {
   try {
     const pdf = await incruster(base, {
       qualite: i.qualite, signature, cachet,
-      mention: `Signé électroniquement par ${nom} — ${LIBELLE_QUALITE[i.qualite]} — le ${dateFr(maintenant)}`,
+      // Trois lignes : sur une seule, la fin (la qualité, la date) sortait du sceau — et avec elle « en suppléance ».
+      mention: [`Signé électroniquement par ${nom}`, titre, `le ${dateFr(maintenant)}`].join("\n"),
       urlVerification: `${baseUrl()}/verifier-bc/${jeton}`,
     });
     const empreinte = createHash("sha256").update(pdf).digest("hex");
@@ -94,7 +108,7 @@ export async function apposerSignatureEnLigne(i: {
     });
     if (!depot.ok || !depot.documentId) throw new Error(depot.error ?? "dépôt impossible");
     await prisma.signatureBC.update({ where: { id: ligne.id }, data: { empreinte, documentId: depot.documentId } });
-    return { ok: true, documentId: depot.documentId, empreinte, jeton };
+    return { ok: true, documentId: depot.documentId, empreinte, jeton, suppleance, titre };
   } catch (e) {
     await prisma.signatureBC.delete({ where: { id: ligne.id } }).catch(() => undefined);
     return { ok: false, error: `La signature n'a pas pu être apposée (${e instanceof Error ? e.message : "erreur"}) : rien n'est signé, réessayez.` };
@@ -123,7 +137,7 @@ export async function verificationDuJeton(jeton: string) {
   if (!sig) return null;
   const [piece, signatures] = await Promise.all([
     prisma.legalDocument.findUnique({ where: { id: sig.legalDocumentId }, select: { reference: true, status: true, company: { select: { name: true } } } }),
-    prisma.signatureBC.findMany({ where: { legalDocumentId: sig.legalDocumentId }, orderBy: { signedAt: "asc" }, select: { qualite: true, signataireNom: true, signedAt: true, empreinte: true, jeton: true } }),
+    prisma.signatureBC.findMany({ where: { legalDocumentId: sig.legalDocumentId }, orderBy: { signedAt: "asc" }, select: { qualite: true, signataireNom: true, signataireTitre: true, signedAt: true, empreinte: true, jeton: true } }),
   ]);
   if (!piece) return null;
   return { reference: piece.reference, annule: piece.status === "CANCELLED", emetteur: piece.company?.name ?? null, signatures };

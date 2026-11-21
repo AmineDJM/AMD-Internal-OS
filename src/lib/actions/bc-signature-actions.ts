@@ -191,14 +191,16 @@ export async function signerBonDeCommandeEnLigne(formData: FormData): Promise<Ac
     return { ok: false, error: r.error };
   }
   const ref = etat.reference?.trim() ? etat.reference.trim() : `« ${etat.title} »`;
+  // LE SUPER ADMIN EN SUPPLÉANCE DES FINANCES (21/11/2026) : ce que le sceau a écrit sous son nom, repris tel quel.
+  const qualiteDite = r.suppleance ? r.titre : "Finances";
   await recordAudit({
     actorId: user.id, action: "VALIDATE", module: "Bons de commande", entityType: "LEGAL_DOCUMENT", entityId: id,
-    summary: `Bon de commande ${ref} signé et cacheté EN LIGNE par ${signataire} (Finances) — mot de passe + code à usage unique, PDF scellé (empreinte ${r.empreinte.slice(0, 16)}…).`,
+    summary: `Bon de commande ${ref} signé et cacheté EN LIGNE par ${signataire} (${qualiteDite}) — mot de passe + code à usage unique, PDF scellé (empreinte ${r.empreinte.slice(0, 16)}…).`,
   });
   if (etat.createdById && etat.createdById !== user.id) {
     await notifyUser({
       userId: etat.createdById, type: "GENERIC", title: "Bon de commande signé et cacheté",
-      body: `${ref} signé et cacheté en ligne par ${signataire} (Finances). Il peut partir chez le fournisseur.`, link: `/legal/${id}`,
+      body: `${ref} signé et cacheté en ligne par ${signataire} (${qualiteDite}). Il peut partir chez le fournisseur.`, link: `/legal/${id}`,
     }).catch(sansBloquer("bc-signature-actions.signerBonDeCommandeEnLigne.notifyUser"));
   }
   await apresLaSignature(id, user.id, signataire);
