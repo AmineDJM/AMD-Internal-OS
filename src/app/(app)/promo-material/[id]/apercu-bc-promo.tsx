@@ -178,9 +178,11 @@ export function ApercuBcPromo({ promoMaterialId, quoteId, fournisseur, brouillon
         ) : apercu && !apercu.ok ? (
           <p className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive" role="alert">{apercu.error}</p>
         ) : url ? (
-          <object data={url} type="application/pdf" aria-label="Aperçu du bon de commande" className="h-[65vh] w-full rounded-md border border-border bg-card">
-            <a href={url} target="_blank" rel="noreferrer" className="text-primary hover:underline">Ouvrir l&apos;aperçu PDF</a>
-          </object>
+          <div className="space-y-1">
+            {/* Une iframe : `object-src 'none'` (politique de sécurité du site) laissait l'<object> vide (recette, 21/11/2026). */}
+            <iframe src={url} title="Aperçu du bon de commande" className="h-[65vh] w-full rounded-md border border-border bg-white" />
+            <a href={url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">Ouvrir l&apos;aperçu PDF dans un onglet</a>
+          </div>
         ) : null}
 
         {bloquants.length > 0 && (

@@ -540,9 +540,10 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
         {impressionErreur && <p className="mt-2 text-sm text-destructive" role="alert">{impressionErreur}</p>}
         {impression && (
           <div className="mt-3 space-y-2">
-            <object data={impression.url} type="application/pdf" aria-label="Aperçu avant impression" className="h-[70vh] w-full rounded-md border border-border bg-card">
-              <a className="underline" href={impression.url} target="_blank" rel="noreferrer">Ouvrir l&apos;aperçu dans un onglet</a>
-            </object>
+            {/* UNE IFRAME, PAS UN <object> (recette, 21/11/2026) : la politique de sécurité du site interdit les objets
+                (`object-src 'none'`, next.config.mjs) — l'aperçu restait un cadre vide avec un seul lien. Les iframes, elles,
+                sont permises : c'est déjà ainsi que s'affichent les autres aperçus PDF de la plateforme. */}
+            <iframe src={impression.url} title="Aperçu avant impression" className="h-[70vh] w-full rounded-md border border-border bg-white" />
             <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>Aperçu : {impression.pages} page{impression.pages > 1 ? "s" : ""} · numéro prévu {impression.numero} · rendu du serveur, le Word fait foi pour l&apos;impression officielle.</span>
               <span className="flex flex-wrap gap-x-4 gap-y-1">

@@ -16,6 +16,7 @@ import { registreActif } from "@/lib/references/registre";
 import { standardsDocumentaires } from "@/platform/ia/teach/store";
 import { controlerRibDePiece } from "@/modules/coffre/api";
 import { sansBloquer } from "@/lib/journal";
+import { reparerNomDeFichier } from "@/lib/formats/nom-de-fichier";
 
 /** Les causes d'échec que le runtime de missions sait classer (`capability-failure.ts`). */
 type Echec = "NOT_FOUND" | "MISSING_PERMISSION" | "MISSING_INPUT" | "CAPABILITY_FAILURE";
@@ -310,7 +311,8 @@ export async function profilDocumentaire(user: CurrentUser, societe?: string | n
       identite: partie,
       identiteIncomplete: MENTIONS_FACTURE.filter((m) => !(partie[m.cle] as string | null)?.trim()).map((m) => m.libelle),
       reglages,
-      papierEnTete: papier && papierOctets ? { id: papier.id, nom: papier.name } : null,
+      // Le nom tel qu'il a été envoyé — relu s'il a été abîmé à l'envoi (« TeÌte » → « Tête », recette 21/11/2026).
+      papierEnTete: papier && papierOctets ? { id: papier.id, nom: reparerNomDeFichier(papier.name) } : null,
       reglesAppliquees,
       marque, charte, resumeMarque: resumerMarque(marque, charte),
     },
